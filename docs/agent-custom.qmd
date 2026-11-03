@@ -434,7 +434,7 @@ Inspect logs have `origin` on every model call or on none. For a mixed-origin tr
 
 If two calls continue the same turn and no later call resolves the fork, replay leaves both calls to the existing prompt rules. The sample's final messages do not select a fork head.
 
-Logs before Inspect 0.3.94 recorded successful native tool executions without tool spans. Replay uses those `ToolEvent`s as execution evidence. In newer logs, a spanless tool event can mark a call halted before execution and does not create tool steps.
+Sentinel event replay requires a log written by Inspect 0.3.94 or later. Earlier logs lack native tool spans, so `steps_from_events()` raises an error rather than replaying tool steps incompletely. Replay those logs from their messages with inspect_sentinel's `steps_from_messages`. In supported logs, a spanless tool event can mark a call halted before execution and does not create tool steps.
 
 If your agent makes model calls that are part of the solve but are not the evaluated agent's turns, mark them with `model_origin()`. Use `"environment"` for the setup being evaluated against, such as an auditor model or a simulated user, and `"helper"` for a scaffold's own helper calls, such as its own summarizer:
 

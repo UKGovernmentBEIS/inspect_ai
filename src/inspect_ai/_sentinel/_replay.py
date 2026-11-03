@@ -29,7 +29,12 @@ from inspect_ai.model._chat_message import (
     ChatMessageAssistant,
     ChatMessageTool,
 )
-from inspect_ai.tool._tool_call import ToolCall, ToolCallView, default_tool_call_viewer
+from inspect_ai.tool._tool_call import (
+    ToolCall,
+    ToolCallError,
+    ToolCallView,
+    default_tool_call_viewer,
+)
 from inspect_ai.util._span import AGENT_SPAN_TYPE
 
 from ._conversation import SpanConversations
@@ -92,7 +97,9 @@ def steps_from_events(
 
     Inspect logs record origins on every model call or on none. If a transcript mixes calls with and without origins, recorded calls retain their recorded classification and calls without origins are inferred; continuity across that mixed sequence is not guaranteed.
 
-    In logs without origins, recorded sentinel checks and human decisions are used only when their step id pairs with a model call's exact id. Inferred turns may differ from those seen by a sentinel that ran before origins were recorded; reproducing that sentinel's live steps is outside this replay contract. Successful native tool events in logs before 0.3.94 have no tool span and themselves mark execution; in newer logs, a tool span distinguishes executed calls from halted ones.
+    In logs without origins, recorded sentinel checks and human decisions are used only when their step id pairs with a model call's exact id. Inferred turns may differ from those seen by a sentinel that ran before origins were recorded; reproducing that sentinel's live steps is outside this replay contract.
+
+    Replay requires a log written by Inspect 0.3.94 or later. Earlier logs lack native tool spans and cannot be replayed reliably. If the recorded version is unknown, completed native tool events without a matching tool span are refused as potentially older logs.
 
     Args:
         messages: The sample's messages (`EvalSample.messages`).
@@ -107,7 +114,7 @@ def steps_from_events(
         The steps, in the order they ran live.
 
     Raises:
-        ValueError: `eval_info` is `None`. A transcript imported from another source has no log header, and its events do not record which model call its messages came from; replay it from its messages with inspect_sentinel's `steps_from_messages`.
+        ValueError: `eval_info` is `None`, or the log predates Inspect 0.3.94 (or has an unknown version and completed spanless native tool events). Replay such transcripts from their messages with inspect_sentinel's `steps_from_messages`.
         MalformedLogError: Two steps of one stage have one step id, the span tree has a `parent_id` cycle, or a model input names rows outside the message pool.
         Unmatched recorded model_input checks are skipped with one warning per transcript.
     """
@@ -116,6 +123,16 @@ def steps_from_events(
             "steps_from_events replays an Inspect log, and needs its header "
             "(EvalInfo.from_eval); replay a transcript imported from another "
             "source from its messages with inspect_sentinel's steps_from_messages."
+        )
+    version = eval_info.inspect_ai_version
+    if _before_tool_spans(version) or (
+        (version is None or _VERSION.fullmatch(version.strip()) is None)
+        and _has_spanless_native_tool(events)
+    ):
+        raise ValueError(
+            "steps_from_events requires an Inspect log written by inspect_ai "
+            "0.3.94 or later; replay older logs from their messages with "
+            "inspect_sentinel's steps_from_messages."
         )
     flat, nested = _flatten(events)
     pool: list[ChatMessage] | Sequence[ChatMessage] = message_pool
@@ -148,6 +165,68 @@ def _flatten(events: Sequence[Event]) -> tuple[list[Event], list[bool]]:
 
     walk(events, False)
     return flat, nested
+
+
+def _has_spanless_native_tool(events: Sequence[Any]) -> bool:
+    """Find completed native tool events without matching spans, including nested events."""
+    previous: Any = None
+    for event in events:
+        if isinstance(event, ToolEvent) or (
+            isinstance(event, dict) and event.get("event") == "tool"
+        ):
+            function = (
+                event.function
+                if isinstance(event, ToolEvent)
+                else event.get("function")
+            )
+            metadata = (
+                event.metadata
+                if isinstance(event, ToolEvent)
+                else event.get("metadata")
+            )
+            error = event.error if isinstance(event, ToolEvent) else event.get("error")
+            error_type = (
+                error.type
+                if isinstance(error, ToolCallError)
+                else (error.get("type") if isinstance(error, dict) else None)
+            )
+            failed = (
+                event.failed if isinstance(event, ToolEvent) else event.get("failed")
+            )
+            pending = (
+                event.pending if isinstance(event, ToolEvent) else event.get("pending")
+            )
+            completed = (
+                event.completed
+                if isinstance(event, ToolEvent)
+                else event.get("completed")
+            )
+            matched_span = (
+                isinstance(previous, SpanBeginEvent)
+                and previous.type == "tool"
+                and previous.name == function
+            ) or (
+                isinstance(previous, dict)
+                and previous.get("event") == "span_begin"
+                and previous.get("type") == "tool"
+                and previous.get("name") == function
+            )
+            if (
+                not matched_span
+                and completed is not None
+                and not (isinstance(metadata, dict) and "bridge" in metadata)
+                and not failed
+                and not pending
+                and error_type not in ("parsing", "approval")
+            ):
+                return True
+            children = (
+                event.events if isinstance(event, ToolEvent) else event.get("events")
+            )
+            if isinstance(children, list) and _has_spanless_native_tool(children):
+                return True
+        previous = event
+    return False
 
 
 def _condensed(
@@ -702,13 +781,6 @@ class _Driver:
         recorded = before_span is not None or after_span is not None
         if not recorded and not self._checks_tool_calls(event, call.producer):
             return
-        legacy_executed = (
-            tool_span is None
-            and _before_tool_spans(self.eval_info.inspect_ai_version)
-            and event.error is None
-            and not event.failed
-            and not event.pending
-        )
         approver_modified = (
             approval.modified
             if approval is not None
@@ -716,33 +788,24 @@ class _Driver:
             and approval.modified is not None
             else None
         )
-        checked = (
-            before_span is not None
-            or legacy_executed
-            or (
-                tool_span is not None
-                # the call was rejected before its step was built: by validation
-                # or a viewer that raised, or with every instance abstaining, by
-                # a tool that raised ToolParsingError or ToolApprovalError itself,
-                # which reads the same
-                and (
-                    event.error is None
-                    or event.error.type not in ("parsing", "approval")
-                )
-                and proposal.parse_error is None
-                and (
-                    call.producer is None
-                    or any(
-                        tool.name == proposal.function for tool in call.producer.tools
-                    )
-                )
-                and (
-                    approval is None
-                    or approval.decision == "approve"
-                    or (
-                        approver_modified is not None
-                        and approver_modified.function == proposal.function
-                    )
+        checked = before_span is not None or (
+            tool_span is not None
+            # the call was rejected before its step was built: by validation
+            # or a viewer that raised, or with every instance abstaining, by
+            # a tool that raised ToolParsingError or ToolApprovalError itself,
+            # which reads the same
+            and (event.error is None or event.error.type not in ("parsing", "approval"))
+            and proposal.parse_error is None
+            and (
+                call.producer is None
+                or any(tool.name == proposal.function for tool in call.producer.tools)
+            )
+            and (
+                approval is None
+                or approval.decision == "approve"
+                or (
+                    approver_modified is not None
+                    and approver_modified.function == proposal.function
                 )
             )
         )

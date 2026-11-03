@@ -6,6 +6,7 @@ import json
 import random
 from collections.abc import Callable, Iterator, Sequence
 from dataclasses import replace
+from datetime import datetime, timezone
 from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, NamedTuple, cast
@@ -51,7 +52,7 @@ from inspect_ai.event import (
 )
 from inspect_ai.event._pool import condense_model_event_inputs
 from inspect_ai.event._sentinel import SentinelStage
-from inspect_ai.log import EvalLog, EvalSample, read_eval_log
+from inspect_ai.log import EvalLog, EvalSample, read_eval_log, write_eval_log
 from inspect_ai.log._transcript import transcript
 from inspect_ai.model import (
     ChatCompletionChoice,
@@ -76,6 +77,7 @@ from inspect_ai.tool import (
     Tool,
     ToolCall,
     ToolCallContent,
+    ToolCallError,
     ToolCallView,
     ToolError,
     ToolInfo,
@@ -1603,7 +1605,7 @@ def test_replay_infers_the_turns_of_the_continuity_fixtures(fixture: str) -> Non
                 events,
                 [],
                 sample_uuid="sample",
-                eval_info=EvalInfo(inspect_ai_version=None, sentinel=False),
+                eval_info=EvalInfo(inspect_ai_version="0.3.200", sentinel=False),
             )
         ]
 
@@ -1760,7 +1762,7 @@ def test_a_main_conversation_ending_in_a_fork_replays_both_heads() -> None:
         events,
         [],
         sample_uuid="sample",
-        eval_info=EvalInfo(inspect_ai_version=None, sentinel=False),
+        eval_info=EvalInfo(inspect_ai_version="0.3.200", sentinel=False),
     )
 
     assert [s.id for s in replay if s.stage == "model_input"] == [
@@ -2869,24 +2871,14 @@ def test_a_call_a_fail_fast_tool_halted_has_no_tool_steps() -> None:
         for index, e in enumerate(sample.events)
         if isinstance(e, ToolEvent) and e.id == "t0c1"
     ]
-    # a log whose header records no inspect_ai version is still Inspect's
-    unversioned = steps_from_events(
-        sample.messages,
-        sample.events,
-        [],
-        sample_uuid=sample.uuid or "",
-        eval_info=EvalInfo.from_eval(log.eval.model_copy(update={"packages": {}})),
-    )
-
     assert not isinstance(sample.events[halted - 1], SpanBeginEvent)
-    for steps in (replay, unversioned):
-        assert [(s.stage, s.id) for s in steps if s.stage.startswith("tool")] == [
-            ("tool_call", "t0c0"),
-            ("tool_result", "t0c0"),
-        ]
+    assert [(s.stage, s.id) for s in replay if s.stage.startswith("tool")] == [
+        ("tool_call", "t0c0"),
+        ("tool_result", "t0c0"),
+    ]
 
 
-@pytest.mark.parametrize("version", ["0.3.94", "0.3.200", None])
+@pytest.mark.parametrize("version", ["0.3.94", "0.3.200"])
 def test_an_inspect_log_s_calls_without_a_tool_span_keep_no_tool_steps(
     version: str | None,
 ) -> None:
@@ -2910,7 +2902,7 @@ def test_an_inspect_log_s_calls_without_a_tool_span_keep_no_tool_steps(
 @pytest.mark.parametrize("message_ids", [False, True])
 @pytest.mark.parametrize("uuids", [False, True])
 @pytest.mark.parametrize("version", ["0.3.43", "0.3.93"])
-def test_successful_native_tool_before_tool_spans_keeps_both_stages(
+def test_pre_tool_span_log_is_refused(
     inputs: str, message_ids: bool, uuids: bool, version: str
 ) -> None:
     from inspect_ai._sentinel import _replay
@@ -2948,17 +2940,111 @@ def test_successful_native_tool_before_tool_spans_keeps_both_stages(
     pool: list[ChatMessage] = []
     if inputs == "pooled":
         events, pool = _replay._condensed(events, [])
-    replay = steps_from_events(
-        [user, first.output.message, result, second.output.message],
-        events,
-        pool,
-        sample_uuid="sample",
-        eval_info=EvalInfo(inspect_ai_version=version, sentinel=False),
+    with pytest.raises(ValueError, match="0.3.94.*messages"):
+        steps_from_events(
+            [user, first.output.message, result, second.output.message],
+            events,
+            pool,
+            sample_uuid="sample",
+            eval_info=EvalInfo(inspect_ai_version=version, sentinel=False),
+        )
+
+
+@pytest.mark.parametrize("version", ["0.3.43", "0.3.93"])
+@pytest.mark.parametrize("depth", [1, 2])
+@pytest.mark.parametrize("execution_error", [False, True])
+def test_nested_pre_tool_span_log_is_refused_after_json_read(
+    version: str, depth: int, execution_error: bool, tmp_path: Path
+) -> None:
+    log = run_logged(tool_loop(addition()), agent_model())
+    assert log.location
+    stored = read_eval_log(log.location)
+    [sample] = stored.samples or []
+    model_call = next(event for event in sample.events if isinstance(event, ModelEvent))
+    inner = ToolEvent(
+        id="inner",
+        function="addition",
+        arguments={},
+        result="2",
+        error=(
+            ToolCallError(type="timeout", message="timed out")
+            if execution_error
+            else None
+        ),
     )
-    assert tool_steps(replay) == [
-        ("tool_call", call.id, "lookup", {}, None),
-        ("tool_result", call.id, "lookup", {}, "found"),
+    outer = ToolEvent(
+        id="outer",
+        function="handoff",
+        arguments={},
+        result="done",
+        events=[model_call, inner],
+    )
+    if depth == 2:
+        outer = ToolEvent(
+            id="outermost",
+            function="handoff",
+            arguments={},
+            result="done",
+            events=[outer],
+        )
+    sample.events = [outer]
+    stored.eval.packages["inspect_ai"] = version
+    path = tmp_path / "legacy.json"
+    write_eval_log(stored, path)
+    reread = read_eval_log(str(path))
+    [persisted] = reread.samples or []
+    [parent] = persisted.events
+    assert isinstance(parent, ToolEvent)
+    assert isinstance(parent.events[0], dict)
+    with pytest.raises(ValueError, match="0.3.94.*messages"):
+        steps_from_events(
+            persisted.messages,
+            persisted.events,
+            [],
+            sample_uuid=persisted.uuid or "",
+            eval_info=EvalInfo.from_eval(reread.eval),
+        )
+
+
+@pytest.mark.parametrize("serialized", [False, True])
+def test_unknown_version_refuses_nested_spanless_native_tool(
+    serialized: bool,
+) -> None:
+    inner = ToolEvent(
+        id="inner",
+        function="addition",
+        arguments={},
+        result="2",
+        completed=datetime.now(timezone.utc),
+    )
+    outer = ToolEvent(
+        id="outer", function="handoff", arguments={}, result="done", events=[inner]
+    )
+    if serialized:
+        outer = ToolEvent.model_validate_json(outer.model_dump_json())
+        assert isinstance(outer.events[0], dict)
+    events: list[Event] = [
+        SpanBeginEvent(id="outer-span", name="handoff", type="tool"),
+        outer,
+        SpanEndEvent(id="outer-span"),
     ]
+    with pytest.raises(ValueError, match="0.3.94.*messages"):
+        steps_from_events(
+            [], events, [], sample_uuid="sample", eval_info=EvalInfo(None, False)
+        )
+
+
+@pytest.mark.parametrize("version", [None, "unknown", "0.3.94", "0.3.200"])
+def test_spanless_halted_tool_is_allowed(version: str | None) -> None:
+    events: list[Event] = [
+        ToolEvent(id="halted", function="addition", arguments={}, pending=True)
+    ]
+    assert (
+        steps_from_events(
+            [], events, [], sample_uuid="sample", eval_info=EvalInfo(version, False)
+        )
+        == []
+    )
 
 
 def answers_as_a_person(decision: str, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -3295,28 +3381,22 @@ def test_a_pre_filled_call_a_scorer_runs_has_no_tool_steps() -> None:
     assert [s.stage for s in replay] == ["model_input", "model_output"]
 
 
-def test_a_log_from_before_spans_keeps_its_scorer_s_call_from_the_turns() -> None:
-    # review of 06bf969be: inspect_ai 0.3.43 marks the scorers' phase with
-    # StepEvents, not spans; the grader's call there is a scorer's
+def test_a_log_from_before_tool_spans_is_refused() -> None:
+    # Inspect 0.3.43 recorded the scorer phase with StepEvents, but cannot
+    # supply the native tool spans required for reliable replay.
     log = read_eval_log(
         str(Path(__file__).parent.parent / "log" / "test_list_logs" / "custom.eval"),
         resolve_attachments="full",
     )
     [sample] = log.samples or []
-    replay = steps_from_events(
-        sample.messages,
-        sample.events,
-        [],
-        sample_uuid=sample.uuid or "sample",
-        eval_info=EvalInfo.from_eval(log.eval),
-    )
-
-    assert [s.stage for s in replay] == ["model_input", "model_output"]
-    assert not any(
-        "comparing a submitted answer" in m.text
-        for s in replay
-        for m in s.step.input or []
-    )
+    with pytest.raises(ValueError, match="0.3.94.*messages"):
+        steps_from_events(
+            sample.messages,
+            sample.events,
+            [],
+            sample_uuid=sample.uuid or "sample",
+            eval_info=EvalInfo.from_eval(log.eval),
+        )
 
 
 def linked_call(
@@ -3532,7 +3612,7 @@ def test_linked_calls_outside_the_agent_s_turns_leave_its_turns(
                 events,
                 [],
                 sample_uuid="sample",
-                eval_info=EvalInfo(inspect_ai_version=None, sentinel=False),
+                eval_info=EvalInfo(inspect_ai_version="0.3.200", sentinel=False),
             )
         ]
 
@@ -3605,7 +3685,7 @@ def test_calls_nested_in_a_handoff_leave_the_agent_s_turns(
                 events,
                 pool,
                 sample_uuid="sample",
-                eval_info=EvalInfo(inspect_ai_version=None, sentinel=False),
+                eval_info=EvalInfo(inspect_ai_version="0.3.200", sentinel=False),
             )
         ]
 
@@ -3700,6 +3780,11 @@ def test_a_superseded_human_decision_is_withdrawn(
 def test_a_log_from_before_the_record_of_cuts_says_it_cannot_tell(
     version: str, truncated: bool | None
 ) -> None:
+    from inspect_ai._sentinel._replay import _before_tool_spans, _records_truncation
+
+    assert (False if _records_truncation(version) else None) is truncated
+    if _before_tool_spans(version):
+        return
     log = run_logged(tool_loop(addition()), agent_model())
     sample = logged_sample(log)
     replay = steps_from_events(
