@@ -205,6 +205,33 @@ async def test_kill_after_leader_exited_returns_output_without_signalling(
     assert stderr == ""
 
 
+@pytest.mark.asyncio
+async def test_leader_exiting_before_the_kill_task_signals_keeps_its_exit_code(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The leader runs when kill() is called but exits before the group is signalled."""
+    real_terminate_group = Job._terminate_group
+
+    async def terminate_after_exit(job: Job, *args: Any) -> None:
+        await job._process.wait()
+        await real_terminate_group(job, *args)
+
+    monkeypatch.setattr(Job, "_terminate_group", terminate_after_exit)
+    job = await Job.create("sleep 0.3; exit 3")
+    killpg = MagicMock(side_effect=AssertionError("signalled an exited leader"))
+    monkeypatch.setattr(os, "killpg", killpg)
+
+    try:
+        await job.kill(ack_seq=0)
+        result = await job.poll(ack_seq=1)
+    finally:
+        await _stop_job(job)
+
+    killpg.assert_not_called()
+    assert result.state == "completed"
+    assert result.exit_code == 3
+
+
 async def _wait_for_exit(job: Job) -> None:
     """Wait for the leader's exit without waiting for its pipes to close."""
     with anyio.fail_after(5):
@@ -733,6 +760,18 @@ class TestKillByJobKey:
             assert controller._jobs == {}
         finally:
             _kill_group(pid)
+
+    @pytest.mark.asyncio
+    async def test_kill_key_of_an_unpolled_ended_job_reports_nothing_killed(
+        self,
+    ) -> None:
+        controller = Controller()
+        pid = await controller.submit("exit 3", job_key=_JOB_KEY)
+        job = controller._jobs[pid]
+        await job._process.wait()
+
+        assert (await controller.kill_key(_JOB_KEY)).killed is False
+        assert job._exit_code == 3
 
     @pytest.mark.asyncio
     async def test_kill_key_after_the_job_ended_reports_nothing_killed(self) -> None:

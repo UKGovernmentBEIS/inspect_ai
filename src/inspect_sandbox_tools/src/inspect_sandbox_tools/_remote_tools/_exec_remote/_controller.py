@@ -144,7 +144,7 @@ class Controller:
         if job is None or self._jobs.get(job.pid) is not job:
             return KillKeyResult(killed=False)
         await self.kill(job.pid, ack_seq=0)
-        return KillKeyResult(killed=True)
+        return KillKeyResult(killed=job.killed)
 
     async def poll(self, pid: int, ack_seq: int) -> PollResult:
         """Get job state and incremental output. Auto-cleanup on terminal state."""

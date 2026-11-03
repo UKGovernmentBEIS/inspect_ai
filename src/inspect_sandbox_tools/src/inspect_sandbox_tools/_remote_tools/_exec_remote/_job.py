@@ -187,6 +187,11 @@ class Job:
         return self._process.pid
 
     @property
+    def killed(self) -> bool:
+        """Whether kill() or shutdown() signalled the leader while it ran."""
+        return self._killed
+
+    @property
     def _state(self) -> Literal["running", "completed", "killed"]:
         """Read from the process, so an exit no caller has seen yet still counts.
 
@@ -269,16 +274,9 @@ class Job:
             seq, chunks = self._acked_buffer.collect(ack_seq)
             return OutputChunk(seq, *self._combine_chunks(chunks))
 
-        # Check and signal are not atomic. Likelihood that leader could exit, be
-        # reaped and have its PID reused between is unlikely, as the PID space must
-        # wrap inside that gap.
-        if self._termination is None and self._leader_running():
-            self._killed = True
-            self._termination = asyncio.create_task(
-                self._terminate_group(self.pid, timeout)
-            )
-        if self._termination is not None:
-            await asyncio.shield(self._termination)
+        if self._termination is None:
+            self._termination = asyncio.create_task(self._terminate_group(timeout))
+        await asyncio.shield(self._termination)
         await self._wait_for_readers()
 
         stdout, stderr = self._drain_buffers(final=True)
@@ -286,7 +284,15 @@ class Job:
         seq, chunks = self._acked_buffer.collect(ack_seq)
         return OutputChunk(seq, *self._combine_chunks(chunks))
 
-    async def _terminate_group(self, pgid: int, timeout: int) -> None:
+    async def _terminate_group(self, timeout: int) -> None:
+        # The leader is checked here, with no await before the signal, so an exit
+        # after kill() was called keeps its exit code. Check and signal are still
+        # not atomic. Likelihood that leader could exit, be reaped and have its PID
+        # reused between is unlikely, as the PID space must wrap inside that gap.
+        if not self._leader_running():
+            return
+        self._killed = True
+        pgid = self.pid
         try:
             os.killpg(pgid, signal.SIGTERM)
             await asyncio.wait_for(self._process.wait(), timeout=timeout)
