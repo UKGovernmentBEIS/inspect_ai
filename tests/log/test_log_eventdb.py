@@ -784,6 +784,78 @@ def test_close_preserves_data_until_readers_finish(
         reopened.close()
 
 
+@pytest.mark.parametrize("close_first", [True, False])
+def test_deferred_cleanup_supersedes_deferred_close(
+    db: SampleBufferDatabase, sample: EvalSampleSummary, close_first: bool
+) -> None:
+    # a close and a cleanup both waiting on a reader: the cleanup runs once
+    # the reader is done, whichever was called first
+    db.start_sample(sample)
+    with db._acquire_sample_read_lease(sample.id, sample.epoch):
+        if close_first:
+            db.close()
+            assert db_phase(db) is DbPhase.CLOSE_DEFERRED
+            db.cleanup()
+        else:
+            db.cleanup()
+            db.close()
+        assert db_phase(db) is DbPhase.CLEANUP_DEFERRED
+        assert db.db_path.exists()
+
+    assert db_phase(db) is DbPhase.CLOSED
+    assert not db.db_path.exists()
+
+
+@pytest.mark.parametrize("again", ["close", "cleanup"])
+def test_shutting_down_a_closed_database_never_reopens_it(
+    db: SampleBufferDatabase,
+    sample: EvalSampleSummary,
+    monkeypatch: pytest.MonkeyPatch,
+    again: str,
+) -> None:
+    db.start_sample(sample)
+    db.close()
+    outcomes: list[str] = []
+    close_connections = db._close_all_connections
+
+    def write_then_close() -> None:
+        # the window in which a first shutdown would still serve connections
+        try:
+            db.update_metrics([])
+            outcomes.append("written")
+        except RuntimeError as ex:
+            outcomes.append(str(ex))
+        close_connections()
+
+    monkeypatch.setattr(db, "_close_all_connections", write_then_close)
+    getattr(db, again)()
+
+    assert outcomes == ["SampleBufferDatabase used after cleanup"]
+    assert db_phase(db) is DbPhase.CLOSED
+
+
+def test_writes_are_still_served_while_closing(
+    db: SampleBufferDatabase, sample: EvalSampleSummary, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # CLOSING refuses new sample readers but not connections: writes reach the
+    # buffer only through TaskLogger, which drops its reference before closing
+    db.start_sample(sample)
+    phases: list[DbPhase] = []
+    close_connections = db._close_all_connections
+
+    def write_then_close() -> None:
+        phases.append(db_phase(db))
+        db.update_metrics([])
+        close_connections()
+
+    monkeypatch.setattr(db, "_close_all_connections", write_then_close)
+    db.close()
+    monkeypatch.undo()
+
+    assert phases == [DbPhase.CLOSING]
+    assert db_phase(db) is DbPhase.CLOSED and not db._connections
+
+
 def test_use_after_cleanup_raises_and_does_not_resurrect_db(
     db: SampleBufferDatabase, sample: EvalSampleSummary
 ) -> None:
