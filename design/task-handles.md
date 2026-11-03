@@ -683,11 +683,17 @@ So a log that a port has contributed to is never reused:
     the live `log_handle_samples()` and allowed for both formats:
     - `.eval`: with `handle_samples=True`, `log_start` writes
       `_journal/handle_samples.json` right after `start.json`, under the
-      same lock, before any sample can be buffered. A sample becomes
-      visible only through a flush, and every flush writes the members
-      already in the archive, so the first flush that publishes a copied
-      sample publishes the marker with it, readable by the unfinished-log
-      header readers above.
+      same lock, then flushes the log with fsync (the ordinary
+      `EvalRecorder.flush()` skips fsync, `src/inspect_ai/log/_recorders/eval.py:309-317`)
+      and returns only after that durable write. So the marker is on disk
+      and readable by the unfinished-log header readers above before the
+      copy can accept its first sample; a later flush writes the members
+      already in the archive, so every published sample has the marker
+      beside it. If the durable write fails, `log_start` raises, the copy
+      stops before reading or buffering any sample, and no copied sample is
+      published. The flush writes what the archive holds at that point:
+      `start.json`, the marker and, for a destination seeded from an
+      existing file, what it was seeded with.
     - `.json`: `log_start` sets the field on the in-memory log, so every
       snapshot `flush` writes holds the field with the samples it holds.
     - `log_finish` keeps the field set at start (the `.eval` journal member
@@ -1115,6 +1121,13 @@ test touched), with mockllm models:
   - `convert_eval_logs` from a marked `.eval` log to `.json` and back,
     `inspect score` and `write_eval_log` keep the field, and `eval_retry()`
     refuses the converted `.json` log;
+  - durable copy initialization: conversion to `.eval`, streamed
+    `inspect score` and both recovery sample paths, copying a marked log
+    into `.eval` through a filesystem stub that records writes and fsyncs,
+    perform an fsynced write containing `start.json` and the marker before
+    any write containing a sample; with that write made to fail, each copy
+    raises from `log_start` and the destination holds no copied sample;
+    copying an unmarked log adds no extra write;
   - interrupted copies: conversion to `.eval` and to `.json`, streamed
     `inspect score`, and recovery through its buffer-sample and its
     crashed-`.eval` sample paths, each copying a marked log and cancelled

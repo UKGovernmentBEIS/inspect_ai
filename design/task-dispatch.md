@@ -466,7 +466,17 @@ final `log` (the same object the run returns), `error` and `ended`.
 handles design attaches). `ResolvedTask.task` holds the
 original dataset (`src/inspect_ai/_eval/task/resolved.py:17`) and the
 configured task is a shallow copy of it (`run.py:260`), so both references
-have to go for a finished added task's samples to be freed. The seed's
+have to go for a finished added task's samples to be freed. A retained
+admission failure would otherwise keep them through its traceback: a
+selection failure raised in `slice_dataset()` holds its dataset argument in
+a frame (`src/inspect_ai/_eval/task/util.py:143`, `:191`), directly or
+through a chained `__cause__` or `__context__`. So when `RunQueue.end`
+stores an admission failure in `error`, it first logs it once with its
+traceback (an error naming the task and model), then clears `__traceback__`
+on every exception in the chain (`__cause__`, `__context__` and the members
+of an exception group, each visited once). The exception keeps its type,
+message and chain, which is what the handles report
+([task-handles.md](task-handles.md#the-handle-api)). The seed's
 `ResolvedTask`s are also held by `_eval_async_inner`'s own list until the run
 ends, as today.
 
@@ -1180,7 +1190,12 @@ does (a new list per call):
   with error logs and `on_task_start`/`on_task_end`; the retry rule (a shared
   broken key set up at most once per attempt number); a sandbox-free task
   starts while a setup blocks; an ended record no longer references its
-  `ResolvedTask`, options or dataset.
+  `ResolvedTask`, options or dataset; an added task whose admission fails in
+  `slice_dataset()` (directly, and re-raised from another exception so the
+  failure is chained) keeps its record and handle alive with
+  `TaskEndedError.error` of the same type and message, the traceback is in
+  the run's log output, and a weak reference to that task's otherwise
+  unreferenced dataset is dead after `gc.collect()`.
 - `tests/test_task_source.py`: Ctrl-C (cancelling the run) while
   `next_tasks()` blocks returns the completed logs, at `max_tasks` 1 and > 1;
   the existing live-injection test also passes for a plain task list with
