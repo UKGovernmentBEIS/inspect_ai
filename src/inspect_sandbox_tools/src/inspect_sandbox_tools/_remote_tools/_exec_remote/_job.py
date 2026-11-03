@@ -170,6 +170,8 @@ class Job:
         self._acked_buffer: AckedChunkBuffer[tuple[str, str]] = AckedChunkBuffer()
         self._known_descendants: list[psutil.Process] = []
         self._retired = False
+        # Termination started by the first kill(); later kills wait for it.
+        self._termination: asyncio.Task[None] | None = None
 
         # Start background read tasks
         self._stdout_task = asyncio.create_task(
@@ -245,32 +247,41 @@ class Job:
         as root would then signal. A job whose leader exited on its own is
         treated as finished: its buffered output is returned and any children
         that outlived it may be left running.
+
+        Termination runs once, shielded from cancellation of the caller: a kill
+        that arrives while another is terminating the job waits for it, so no
+        caller returns before the group has been terminated.
         """
-        if self._state != "running":
+        if self._state == "running":
+            self._state = "killed"
+            self._termination = asyncio.create_task(self._terminate_group(timeout))
+        if self._termination is None:
             self._acked_buffer.push(("", ""))
             seq, chunks = self._acked_buffer.collect(ack_seq)
             return OutputChunk(seq, *self._combine_chunks(chunks))
 
-        self._state = "killed"
-        # Check and signal are not atomic. Likelihood that leader could exit, be
-        # reaped and have its PID reused between is unlikely, as the PID space must
-        # wrap inside that gap.
-        if self._leader_running():
-            pgid = self.pid
-            try:
-                os.killpg(pgid, signal.SIGTERM)
-                await asyncio.wait_for(self._process.wait(), timeout=timeout)
-            except asyncio.TimeoutError:
-                await self._force_kill_group(pgid, timeout)
-            except ProcessLookupError:
-                pass
-
+        await asyncio.shield(self._termination)
         await self._wait_for_readers()
 
         stdout, stderr = self._drain_buffers(final=True)
         self._acked_buffer.push((stdout, stderr))
         seq, chunks = self._acked_buffer.collect(ack_seq)
         return OutputChunk(seq, *self._combine_chunks(chunks))
+
+    async def _terminate_group(self, timeout: int) -> None:
+        # Check and signal are not atomic. Likelihood that leader could exit, be
+        # reaped and have its PID reused between is unlikely, as the PID space must
+        # wrap inside that gap.
+        if not self._leader_running():
+            return
+        pgid = self.pid
+        try:
+            os.killpg(pgid, signal.SIGTERM)
+            await asyncio.wait_for(self._process.wait(), timeout=timeout)
+        except asyncio.TimeoutError:
+            await self._force_kill_group(pgid, timeout)
+        except ProcessLookupError:
+            pass
 
     async def shutdown(self, timeout: int = 30) -> None:
         """Forcefully terminate this server-owned job during server shutdown."""

@@ -483,14 +483,17 @@ class TestKillByJobKey:
 
         monkeypatch.setattr(Job, "spawn", slow_spawn)
         controller = Controller()
-        submit = asyncio.create_task(controller.submit("sleep 30", job_key=_JOB_KEY))
+        submit = asyncio.create_task(
+            controller.submit("exec sleep 30", input=_LARGE_INPUT, job_key=_JOB_KEY)
+        )
         await spawning.wait()
 
         result = await controller.kill_key(_JOB_KEY)
         proceed.set()
         try:
+            # the input is never read, so the job must be killed before it is written
             with pytest.raises(ToolException, match="killed while it started"):
-                await submit
+                await asyncio.wait_for(submit, timeout=10)
 
             assert result.killed is False
             assert len(created) == 1
@@ -567,6 +570,46 @@ class TestKillByJobKey:
         finally:
             while not spawned.empty():
                 _kill_group(spawned.get_nowait().pid)
+
+    @pytest.mark.asyncio
+    async def test_kill_key_during_a_failed_start_waits_for_the_job_to_die(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A kill by key joins the kill a failed start began, not return early."""
+        spawned = _record_spawns(monkeypatch)
+        terminating = asyncio.Event()
+        real_killpg = os.killpg
+
+        def killpg(pgid: int, sig: int) -> None:
+            real_killpg(pgid, sig)
+            if sig == signal.SIGTERM:
+                terminating.set()
+
+        monkeypatch.setattr(os, "killpg", killpg)
+        controller = Controller()
+        # ignores SIGTERM, so the start's kill waits to escalate to SIGKILL
+        submit = asyncio.create_task(
+            controller.submit(
+                "trap '' TERM; exec 0<&-; exec sleep 60",
+                input=_LARGE_INPUT,
+                job_key=_JOB_KEY,
+            )
+        )
+        job = await spawned.get()
+        try:
+            await terminating.wait()
+            assert not submit.done()
+
+            result = await controller.kill_key(_JOB_KEY)
+
+            assert result.killed is True
+            assert not _group_alive(job.pid)
+            with pytest.raises(ToolException, match="killed while it started"):
+                await submit
+            assert controller._jobs == {}
+        finally:
+            submit.cancel()
+            _kill_group(job.pid)
 
     @pytest.mark.asyncio
     async def test_repeated_start_returns_the_running_job(self) -> None:

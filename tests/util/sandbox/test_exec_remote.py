@@ -1631,6 +1631,26 @@ async def _wait_for_orphan(sandbox: Any) -> None:
             await anyio.sleep(0.1)
 
 
+@contextlib.contextmanager
+def _start_times_out_once_running(sandbox: Any) -> Iterator[None]:
+    """Time out each exec_remote_start once its job runs, with the start unfinished."""
+    real_exec = sandbox.exec
+
+    async def exec_timing_out_start(*args: Any, **kwargs: Any) -> Any:
+        if "exec_remote_start" not in (kwargs.get("input") or ""):
+            return await real_exec(*args, **kwargs)
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(lambda: real_exec(*args, **kwargs))
+            with anyio.fail_after(30):
+                while not await _orphan_running_via(real_exec):
+                    await anyio.sleep(0.1)
+            tg.cancel_scope.cancel()
+        raise TimeoutError("the start timed out.")
+
+    with patch.object(sandbox, "exec", exec_timing_out_start):
+        yield
+
+
 @skip_if_no_docker
 @pytest.mark.slow
 async def test_cancelled_start_with_backpressured_input_kills_the_job(
@@ -1655,26 +1675,38 @@ async def test_cancelled_start_with_backpressured_input_kills_the_job(
 async def test_timed_out_start_with_backpressured_input_kills_the_job(
     docker_sandbox,
 ) -> None:
-    real_exec = docker_sandbox.exec
-
-    async def exec_timing_out_start(*args: Any, **kwargs: Any) -> Any:
-        if "exec_remote_start" not in (kwargs.get("input") or ""):
-            return await real_exec(*args, **kwargs)
-        async with anyio.create_task_group() as tg:
-            tg.start_soon(lambda: real_exec(*args, **kwargs))
-            with anyio.fail_after(30):
-                while not await _orphan_running_via(real_exec):
-                    await anyio.sleep(0.1)
-            tg.cancel_scope.cancel()
-        raise TimeoutError("the start timed out.")
-
-    with patch.object(docker_sandbox, "exec", exec_timing_out_start):
+    with _start_times_out_once_running(docker_sandbox):
         with pytest.raises(TimeoutError):
             await exec_remote_awaitable(
                 docker_sandbox,
                 ["sleep", _ORPHAN_SLEEP],
                 5,
                 ExecRemoteAwaitableOptions(input=_BACKPRESSURED_INPUT),
+            )
+
+    assert not await _orphan_running(docker_sandbox)
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+async def test_timed_out_start_waits_for_a_job_the_server_is_killing(
+    docker_sandbox,
+) -> None:
+    """The kill by key must not return while the failed start's own kill waits.
+
+    The command ignores SIGTERM and closes stdin, so the server's start fails
+    and its kill waits seconds before SIGKILL; the start times out meanwhile.
+    """
+    # $((...)) keeps the marker out of the shell's own command line, so the
+    # probe sees the job only once stdin is closed and the server is killing it
+    sleep = f"$(({int(_ORPHAN_SLEEP) - 1}+1))"
+    with _start_times_out_once_running(docker_sandbox):
+        with pytest.raises(TimeoutError):
+            await exec_remote_streaming(
+                docker_sandbox,
+                ["exec", "sh", "-c", f"trap '' TERM; exec 0<&-; exec sleep {sleep}"],
+                5,
+                ExecRemoteStreamingOptions(input=_BACKPRESSURED_INPUT),
             )
 
     assert not await _orphan_running(docker_sandbox)

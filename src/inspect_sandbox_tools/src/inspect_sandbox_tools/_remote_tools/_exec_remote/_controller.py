@@ -1,4 +1,5 @@
 import asyncio
+from typing import NoReturn
 
 from inspect_sandbox_tools._util.common_types import ToolException
 from inspect_sandbox_tools._util.user_switch import RunAs
@@ -101,7 +102,13 @@ class Controller:
     async def _initialize(
         self, job: Job, job_key: str | None, *, input: str | None, stdin_open: bool
     ) -> None:
-        """Initialize a registered job's stdin, killing the job if that fails."""
+        """Initialize a registered job's stdin, killing the job if that fails.
+
+        A key refused while the process spawned is checked before and after
+        the stdin writes, which can wait as long as the command does not read.
+        """
+        if self._is_refused(job_key):
+            await self._kill_refused(job, job_key)
         try:
             await job.initialize_stdin(input, stdin_open)
         except BaseException as ex:
@@ -112,10 +119,11 @@ class Controller:
                 ) from ex
             raise
         if self._is_refused(job_key):
-            await self._kill_if_registered(job)
-            raise ToolException(
-                f"exec_remote job {job_key} was killed while it started"
-            )
+            await self._kill_refused(job, job_key)
+
+    async def _kill_refused(self, job: Job, job_key: str | None) -> NoReturn:
+        await self._kill_if_registered(job)
+        raise ToolException(f"exec_remote job {job_key} was killed while it started")
 
     def _is_refused(self, job_key: str | None) -> bool:
         return job_key is not None and job_key in self._refused_keys
