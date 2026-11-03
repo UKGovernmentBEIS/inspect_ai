@@ -1185,17 +1185,11 @@ def test_missing_retained_reductions_refuse_deleting_shards(
     assert (Path(merged).read_bytes(), _files(shards)) == before
 
 
-@pytest.mark.parametrize("damage", ["absent", "empty", "partial", "edited", "none"])
-@pytest.mark.parametrize("backend", ["asyncio", "trio"])
-@pytest.mark.parametrize("storage", ["local", "s3"])
-def test_an_attempt_less_remnant_keeps_the_retained_checks(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    request: pytest.FixtureRequest,
-    storage: str,
-    backend: str,
-    damage: str,
-) -> None:
+def _attempt_less_companion(tmp_path: Path, damage: str) -> tuple[str, str]:
+    """A merged log damaged by `damage`, and a companion left with no attempt.
+
+    What an interrupted deletion can leave: a checkpoint and a sample buffer.
+    """
     merged, shards = _paths(tmp_path)
     task = _graded_task(Epochs(2, at_least(1, value=0.5)))
     _run(shards, "0", task, sample_id=[1, 2, 3])
@@ -1220,7 +1214,21 @@ def test_an_attempt_less_remnant_keeps_the_retained_checks(
     for remnant in ["0/.buffer/segment", "1/run.checkpoints/1/data"]:
         os.makedirs(os.path.dirname(f"{shards}/{remnant}"), exist_ok=True)
         Path(f"{shards}/{remnant}").write_bytes(b"x")
+    return merged, shards
 
+
+@pytest.mark.parametrize("damage", ["absent", "empty", "partial", "edited", "none"])
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+@pytest.mark.parametrize("storage", ["local", "s3"])
+def test_an_attempt_less_remnant_keeps_the_retained_checks(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    request: pytest.FixtureRequest,
+    storage: str,
+    backend: str,
+    damage: str,
+) -> None:
+    merged, _ = _attempt_less_companion(tmp_path, damage)
     if storage == "s3":
         prefix = request.getfixturevalue("s3_root")
         client = boto3.client("s3")
@@ -1247,6 +1255,59 @@ def test_an_attempt_less_remnant_keeps_the_retained_checks(
     with pytest.raises(ShardSetError, match=f"{message}.*shards were not deleted"):
         _merge_on(backend, monkeypatch, location, delete_shards=True)
     assert stored() == before
+
+
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+@pytest.mark.parametrize("unlistable", ["0/.buffer", "1/run.checkpoints/1"])
+def test_a_remnant_that_cannot_be_listed_is_not_deleted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, unlistable: str, backend: str
+) -> None:
+    import shutil
+
+    merged, shards = _attempt_less_companion(tmp_path, "absent")
+    # the unlistable directory holds the only remnant left
+    other = "1/run.checkpoints" if unlistable == "0/.buffer" else "0/.buffer"
+    shutil.rmtree(f"{shards}/{other}")
+    before = _files(str(tmp_path))
+    scandir = os.scandir
+    failed: list[str] = []
+
+    def denying(path: Any = ".") -> Any:
+        # shutil.rmtree lists by file descriptor
+        if not isinstance(path, int) and os.fspath(path) == f"{shards}/{unlistable}":
+            failed.append(os.fspath(path))
+            raise PermissionError(13, "Permission denied", os.fspath(path))
+        return scandir(path)
+
+    with monkeypatch.context() as patched:
+        patched.setattr(os, "scandir", denying)
+        with pytest.raises(PermissionError):
+            _merge_on(backend, monkeypatch, merged, delete_shards=True)
+    # the inspection reached the directory; nothing was deleted
+    assert failed
+    assert _files(str(tmp_path)) == before
+
+
+def test_shards_remain_counts_files_and_raises_on_listing_errors(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import errno
+
+    from inspect_ai.log._shards._delete import _holds_a_file
+
+    root = tmp_path / "run.shards"
+    assert not _holds_a_file(str(root))
+    os.makedirs(root / "0" / "empty")
+    assert not _holds_a_file(str(root))
+    (root / "0" / "empty" / "data").write_bytes(b"x")
+    assert _holds_a_file(str(root))
+
+    def failing(path: Any = ".") -> Any:
+        raise OSError(errno.EIO, "I/O error", os.fspath(path))
+
+    monkeypatch.setattr(os, "scandir", failing)
+    with pytest.raises(OSError, match="I/O error"):
+        _holds_a_file(str(root))
 
 
 # armed while a test merges: an unreduced metric that must not run

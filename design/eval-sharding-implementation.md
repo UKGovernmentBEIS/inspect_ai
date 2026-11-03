@@ -842,7 +842,8 @@ version objects, and each needs its own support and tests.
    listing finds no attempt in any `<k>/` and no stray file, steps 5–7 are
    skipped and step 10's companion-gone branch returns the merged log as
    recorded. The companion counts as *gone* only when it holds no object
-   at all (`shards_remain`: no file locally, no key on S3); while anything
+   at all (`shards_remain`: no file locally, no key on S3; a local
+   directory it cannot list raises, rather than count as empty); while anything
    remains, such as the checkpoints or sample buffers an interrupted
    deletion leaves, `delete_shards` still runs step 12's retained checks
    before deleting it (decision: Ransom, 2026-11-03). With
@@ -2953,7 +2954,8 @@ Per PR (numbers from "Implementation plan"):
      shard changed and on an interrupted deletion's remnant (also one
      with no attempt left, only a checkpoint and a sample buffer, local
      and `mock_s3`, asyncio and Trio, where a valid merged log lets the
-     remnant be deleted), leaving the
+     remnant be deleted; a remnant directory that cannot be listed raises
+     and deletes nothing), leaving the
      merged log and shards byte-identical; on both of those paths a merged
      `reductions.json` that is absent, empty or partial refuses
      `delete_shards=True` the same way; an incomplete merge beside a

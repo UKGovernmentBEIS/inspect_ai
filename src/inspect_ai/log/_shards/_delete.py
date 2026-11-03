@@ -97,6 +97,9 @@ async def shards_remain(fs: AsyncFilesystem, shards_dir: str) -> bool:
     Any file counts (an attempt, a checkpoint, a sample buffer or anything
     else); on S3 any key does, folder markers included. Empty local
     directories do not.
+
+    Raises:
+        OSError: A local directory under `shards_dir` cannot be listed.
     """
     if is_local(shards_dir):
         return await run_owned(partial(_holds_a_file, shards_dir))
@@ -171,7 +174,18 @@ def _delete_s3_keys(s3: Any, bucket: str, keys: list[str]) -> None:
 
 
 def _holds_a_file(path: str) -> bool:
-    return any(files for _, _, files in os.walk(path))
+    """Whether any file is under `path`; a directory that cannot be listed raises.
+
+    Only an absent `path` counts as empty: `os.walk` skips directories it
+    cannot list unless told to raise, which would hide what they hold.
+    """
+    if not os.path.lexists(path):
+        return False
+
+    def fail(error: OSError) -> None:
+        raise error
+
+    return any(files for _, _, files in os.walk(path, onerror=fail))
 
 
 def _remove_local_file(path: str) -> None:
