@@ -59,9 +59,11 @@ When a tool needs to run in a container, the system automatically injects the ap
      directory that user owns is tightened to 0700 and reused instead, which is the
      shape older releases left behind (including on the host for the `local` sandbox).
    - Writes the gzipped onedir tar into the container and extracts it with the verified
-     directory as the working directory. If the tree holds server state (`.server`),
-     stops that server with the new launcher's `stop-server`, then writes the version
-     file. It re-verifies the directory immediately before starting the server from it.
+     directory as the working directory, holding an exclusive `flock` on
+     `inspect-sandbox-tools.lock` so installers sharing the tree take turns. It
+     re-verifies the directory, stops any server `start-server` would reuse with the new
+     launcher's `stop-server`, writes the version file (only if no other version was
+     extracted meanwhile), and starts the server.
      See "Replacing an install from another version" in
      [design/sandbox-trust-model.md](../../design/sandbox-trust-model.md).
    - A root-owned 0700 tree prevents access by other, non-root users in the sandbox;

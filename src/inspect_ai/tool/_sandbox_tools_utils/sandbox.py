@@ -240,14 +240,36 @@ async def _set_tools_user(sandbox: SandboxEnvironment, user: str | None) -> None
 _VERSION_FILE = f"{SANDBOX_TOOLS_BASE_NAME}.version"
 """Name, inside ``SANDBOX_TOOLS_DIR``, of the file recording the installed version.
 
-The host writes it after a complete installation (see ``_finish_install``). It holds
-the ``sandbox_tools_version.txt`` value the tree was installed for. A tree without
-it was installed by a release that predates the file and is replaced.
+It holds the ``sandbox_tools_version.txt`` value the tree was installed for, and is
+written only once that installation is complete (see ``_publish_version``). A tree
+without it was installed by a release that predates the file and is replaced.
 """
 
-# Also defined in inspect_sandbox_tools._util.server_dir — keep in sync.
-_SERVER_STATE_DIR = ".server"
-"""The server's state directory inside the tools tree, when no other is supplied."""
+_EXTRACTED_FILE = f"{SANDBOX_TOOLS_BASE_NAME}.extracted"
+"""Records the version whose extraction last completed in the tree.
+
+Extraction removes it (and the version file) before unpacking and writes it after,
+under the install lock, so the version file is published only for the version whose
+files are actually in place.
+"""
+
+_INSTALL_LOCK = f"{SANDBOX_TOOLS_BASE_NAME}.lock"
+
+# Shell prefix: holds an exclusive `flock` on the install lock file in the verified
+# tree until the shell exits, so installers that share the tree (on the host, every
+# `local` sample, from any process) extract and publish one at a time. The kernel
+# releases the lock if the shell is killed. An image without `flock` installs without
+# the lock, as before this lock existed.
+_HOLD_INSTALL_LOCK = (
+    f"exec 9>>{_INSTALL_LOCK} || exit; "
+    "if command -v flock >/dev/null; then flock 9 || exit; fi; "
+)
+
+# Shell prefix: `readv FILE` sets $v to FILE's first line, or to "" unless FILE is a
+# regular file (a FIFO planted in a rootless tree cannot block the read).
+_READV = (
+    'readv() { v=; if [ -f "$1" ] && [ ! -L "$1" ]; then IFS= read -r v < "$1"; fi; }; '
+)
 
 
 class _Installation(NamedTuple):
@@ -262,14 +284,10 @@ class _Installation(NamedTuple):
 
 # $1 = launcher name, $2 = version file name. Prints the launcher's raw st_mode as
 # `stat_in_framework_directory` does, then the version file's first line, each as
-# "missing" when absent. The version file is read only when it is a regular file, so
-# a FIFO planted in a rootless tree cannot block detection, and with the shell's own
-# `read`, so detection needs no tool beyond those the helper already requires.
+# "missing" when absent (or, for the version, empty). The shell's own `read` does
+# the reading, so detection needs no tool beyond those the helper already requires.
 _READ_INSTALLATION = (
-    f"{_STAT_ENTRY} && "
-    'if [ -f "$2" ] && [ ! -L "$2" ]; then '
-    'v=; IFS= read -r v < "$2"; printf "%s\\n" "$v"; '
-    "else echo missing; fi"
+    f'{_READV}{_STAT_ENTRY} && {{ readv "$2"; printf "%s\\n" "${{v:-missing}}"; }}'
 )
 
 
@@ -364,7 +382,6 @@ async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
         await _set_tools_user(sandbox, user)
 
         await _extract_tools_tree(sandbox, name, gz_bytes, user)
-        await _finish_install(sandbox, user)
 
         # Re-verify immediately before the launcher runs with the tools user's
         # authority. Extraction targets the verified directory object, so this
@@ -375,6 +392,10 @@ async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
             user=user,
             expected_uid=expected_uid_for(user),
         )
+        await _stop_previous_server(sandbox, user)
+        # Publishing runs in the verified directory, so it is also the check
+        # immediately before `start-server`.
+        await _publish_version(sandbox, user)
 
         # As root the server can setuid to any user for exec_remote; as the
         # default user, user-switching is disabled (auto-detected by the server).
@@ -547,6 +568,30 @@ _EXTRACT_TIMEOUT = 600
 carried the transfer before); a timeout also arms compose's retry of a hung exec."""
 
 
+def _extract_command(tar: str) -> str:
+    """The extraction script for ``tar`` (``$1`` = the version being installed).
+
+    Under the install lock it skips extraction when the last completed extraction
+    was this version and the launcher is in place (another installer of the same
+    version finished first). Otherwise it removes both version records, unpacks the
+    archive from stdin, and records the version it extracted.
+    """
+    launcher = SANDBOX_TOOLS_BASE_NAME
+    return (
+        f"{_HOLD_INSTALL_LOCK}{_READV}readv {_EXTRACTED_FILE}; "
+        f'if [ "$v" = "$1" ] && [ -f {launcher} ] && [ ! -L {launcher} ]; then '
+        "cat >/dev/null; exit 0; fi; "
+        f"rm -f -- {_VERSION_FILE} {_EXTRACTED_FILE} && {tar} - && "
+        f'printf "%s\\n" "$1" > {_EXTRACTED_FILE}.$$ && '
+        f"mv -f -- {_EXTRACTED_FILE}.$$ {_EXTRACTED_FILE} "
+        "|| { cat >/dev/null; exit 1; }"
+    )
+
+
+_EXTRACT_GZ = _extract_command("tar xzf")
+_EXTRACT_PLAIN = _extract_command("tar xf")
+
+
 async def _extract_tools_tree(
     sandbox: SandboxEnvironment, name: str, gz_bytes: bytes, user: str | None
 ) -> None:
@@ -560,7 +605,7 @@ async def _extract_tools_tree(
     script may cap it lower; the uncompressed fallback is the largest payload here.
     Extraction runs through the framework-directory helper, so `tar` unpacks into the
     verified directory object (its cwd) rather than into whatever the path names at
-    that moment.
+    that moment. It runs under the install lock (see ``_extract_command``).
 
     Optimistic path: ship the compressed artifact and extract with `tar xzf`. If the
     container's `tar` lacks gzip support, fall back to injecting an uncompressed tar,
@@ -571,10 +616,11 @@ async def _extract_tools_tree(
     stdin write instead of returning tar's status, so on failure the wrapper drains
     stdin and fails explicitly.
     """
+    version = _get_sandbox_tools_version()
     result = await exec_in_framework_directory(
         sandbox,
         SANDBOX_TOOLS_DIR,
-        ["sh", "-c", "tar xzf - || { cat >/dev/null; exit 1; }"],
+        ["sh", "-c", _EXTRACT_GZ, "sh", version],
         user=user,
         expected_uid=expected_uid_for(user),
         input=gz_bytes,
@@ -592,7 +638,7 @@ async def _extract_tools_tree(
     result = await exec_in_framework_directory(
         sandbox,
         SANDBOX_TOOLS_DIR,
-        ["sh", "-c", "tar xf - || { cat >/dev/null; exit 1; }"],
+        ["sh", "-c", _EXTRACT_PLAIN, "sh", version],
         user=user,
         expected_uid=expected_uid_for(user),
         input=_uncompressed_tar_bytes(name, gz_bytes),
@@ -602,58 +648,76 @@ async def _extract_tools_tree(
         raise RuntimeError(f"Failed to extract sandbox tools: {result.stderr}")
 
 
-_FINISH_TIMEOUT = 120
-"""Bounds ``_finish_install``: the launcher's ``stop-server`` waits up to 45 seconds
-for a server's shutdown status."""
+_STOP_TIMEOUT = 120
+"""Bounds ``_stop_previous_server``: ``stop-server`` waits up to 45 seconds for a
+server's shutdown status."""
 
-# $1 = version, $2 = version file name. Runs with the verified tools tree as cwd.
-_FINISH_INSTALL = (
-    f"if [ -e {_SERVER_STATE_DIR} ] || [ -L {_SERVER_STATE_DIR} ]; then "
-    f"./{SANDBOX_TOOLS_BASE_NAME} stop-server || exit; fi; "
-    'printf "%s\\n" "$1" > "$2.$$" && mv -f -- "$2.$$" "$2"'
+
+async def _stop_previous_server(sandbox: SandboxEnvironment, user: str | None) -> None:
+    """Stop a server that ``start-server`` would otherwise reuse.
+
+    A server started from an earlier installation keeps running the old code after
+    its files are replaced, and ``start-server`` reuses any server that answers.
+    The new launcher runs exactly as ``start-server`` will, so the provider applies
+    the same environment and the launcher resolves the same state directory: the
+    tree's ``.server`` in a container, an ``INSPECT_SANDBOX_TOOLS_DIR`` the sandbox
+    sets, or the sample's own directory on the ``local`` sandbox (whose other
+    samples' servers are therefore not stopped). With no state there, it does
+    nothing.
+
+    Raises:
+        RuntimeError: ``stop-server`` failed.
+    """
+    result = await sandbox.exec(
+        [SANDBOX_CLI, "stop-server"],
+        user=user,
+        timeout=_STOP_TIMEOUT,
+        timeout_retry=False,
+    )
+    if not result.success:
+        raise RuntimeError(
+            "Could not stop the sandbox tools server left by the previous "
+            f"installation in {SANDBOX_TOOLS_DIR}: "
+            f"{(result.stderr or result.stdout).strip()}. Restart the sandbox, or "
+            f"remove {SANDBOX_TOOLS_DIR} inside it, and retry."
+        )
+
+
+# $1 = version. Under the install lock, publishes the version file only if the last
+# completed extraction was this version; another installer may have extracted a
+# different version since this one did.
+_PUBLISH_VERSION = (
+    f"{_HOLD_INSTALL_LOCK}{_READV}readv {_EXTRACTED_FILE}; "
+    'if [ "$v" != "$1" ]; then echo "another installation replaced the tools with '
+    'version ${v:-unknown} while this one was installing" >&2; exit 1; fi; '
+    f'printf "%s\\n" "$1" > {_VERSION_FILE}.$$ && '
+    f"mv -f -- {_VERSION_FILE}.$$ {_VERSION_FILE}"
 )
 
 
-async def _finish_install(sandbox: SandboxEnvironment, user: str | None) -> None:
-    """Stop a server left by an earlier installation, then record the version.
+async def _publish_version(sandbox: SandboxEnvironment, user: str | None) -> None:
+    """Record the installed version, the last step before the server starts.
 
-    A tree that already held server state (``.server``) may still have a server
-    running from the files just replaced, and ``start-server`` would reuse it, so the
-    new launcher's ``stop-server`` stops it first. In a fresh tree there is no
-    state and the launcher is not run. The ``local`` sandbox gives each sample its
-    own state directory, so the servers of samples already running on the host are
-    not stopped.
-
-    The version file is written last, by renaming a complete file into place. A
-    stale tree therefore keeps its old version file (or none) until extraction
-    and the stop have both succeeded, and the next tool call reinstalls.
+    The version file is written by renaming a complete file into place, after the
+    extraction and the stop have succeeded. Until then a replaced tree has no
+    version file, so a failed installation is retried on the next tool call.
 
     Raises:
-        RuntimeError: The old server could not be stopped or the version file
-            could not be written.
+        RuntimeError: The version could not be recorded, including when another
+            installer extracted a different version after this one.
         Everything ``exec_in_framework_directory`` raises.
     """
     result = await exec_in_framework_directory(
         sandbox,
         SANDBOX_TOOLS_DIR,
-        [
-            "sh",
-            "-c",
-            _FINISH_INSTALL,
-            "sh",
-            _get_sandbox_tools_version(),
-            _VERSION_FILE,
-        ],
+        ["sh", "-c", _PUBLISH_VERSION, "sh", _get_sandbox_tools_version()],
         user=user,
         expected_uid=expected_uid_for(user),
-        timeout=_FINISH_TIMEOUT,
     )
     if not result.success:
         raise RuntimeError(
-            f"Could not stop the sandbox tools server of the previous installation "
-            f"in {SANDBOX_TOOLS_DIR}, or record the new version: "
-            f"{(result.stderr or result.stdout).strip()}. Restart the sandbox, or "
-            f"remove {SANDBOX_TOOLS_DIR} inside it, and retry."
+            f"Could not record the sandbox tools version in {SANDBOX_TOOLS_DIR}: "
+            f"{(result.stderr or result.stdout).strip()}"
         )
 
 

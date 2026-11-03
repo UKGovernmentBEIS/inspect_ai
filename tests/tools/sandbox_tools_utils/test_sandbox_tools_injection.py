@@ -1,6 +1,9 @@
 """Tests for sandbox tools injection."""
 
+import fcntl
 import os
+import shutil
+import subprocess
 import sys
 import tarfile
 import warnings
@@ -151,10 +154,6 @@ NONROOT = SandboxDefaultUser(uid=1111, gid=1111, groups=[1111], home="/home/nonr
 
 def is_identity_probe(cmd: list[str]) -> bool:
     return cmd[:2] == ["/bin/sh", "-c"] and "Groups:" in cmd[2]
-
-
-TAR_XZF_STDIN = "tar xzf - || { cat >/dev/null; exit 1; }"
-TAR_XF_STDIN = "tar xf - || { cat >/dev/null; exit 1; }"
 
 
 def helper_ok(cmd: list[str], user: str | None) -> ExecResult[str]:
@@ -608,7 +607,13 @@ async def test_extract_streams_archive_to_tar_inside_verified_directory() -> Non
 
     [(tar_cmd, user)] = sandbox.exec_calls
     assert user == "root"
-    assert wrapped_command(tar_cmd) == ["sh", "-c", TAR_XZF_STDIN]
+    assert wrapped_command(tar_cmd) == [
+        "sh",
+        "-c",
+        sandbox_tools._EXTRACT_GZ,
+        "sh",
+        VERSION,
+    ]
     assert sandbox.inputs == [b"gz"]
     assert sandbox.written == []
 
@@ -621,7 +626,7 @@ async def test_extract_falls_back_to_plain_tar_inside_verified_directory(
     )
 
     def policy(cmd: list[str], user: str | None) -> ExecResult[str]:
-        if is_framework_dir_call(cmd) and TAR_XZF_STDIN in cmd:
+        if is_framework_dir_call(cmd) and sandbox_tools._EXTRACT_GZ in cmd:
             return ExecResult(
                 success=False,
                 returncode=2,
@@ -634,8 +639,8 @@ async def test_extract_falls_back_to_plain_tar_inside_verified_directory(
     await sandbox_tools._extract_tools_tree(sandbox, "name", b"gz", None)
 
     assert [wrapped_command(cmd) for cmd, _ in sandbox.exec_calls] == [
-        ["sh", "-c", TAR_XZF_STDIN],
-        ["sh", "-c", TAR_XF_STDIN],
+        ["sh", "-c", sandbox_tools._EXTRACT_GZ, "sh", VERSION],
+        ["sh", "-c", sandbox_tools._EXTRACT_PLAIN, "sh", VERSION],
     ]
     assert sandbox.inputs == [b"gz", b"tar"]
     assert sandbox.written == []
@@ -673,8 +678,8 @@ async def test_extract_reports_failure_of_both_tar_attempts(
 def installation_policy(state: dict[str, str]) -> ExecPolicy:
     """Root works; the tree holds a regular launcher whose version is in ``state``.
 
-    The finishing step of an injection records the version it was given, so a later
-    detection sees what the injection wrote.
+    Publishing records the version it was given, so a later detection sees what the
+    injection wrote.
     """
 
     def policy(cmd: list[str], user: str | None) -> ExecResult[str]:
@@ -688,20 +693,24 @@ def installation_policy(state: dict[str, str]) -> ExecPolicy:
                 stdout=f"81ed\n{state['version']}\n",
                 stderr=f"{_VERIFIED_MARKER}\n",
             )
-        if call.cmd[:3] == ("sh", "-c", sandbox_tools._FINISH_INSTALL):
+        if is_publish_call(cmd):
             state["version"] = call.cmd[4]
         return VERIFIED
 
     return policy
 
 
-def is_finish_call(cmd: list[str]) -> bool:
+def is_publish_call(cmd: list[str]) -> bool:
     call = _tools_dir_call(cmd)
     return call is not None and call.cmd[:3] == (
         "sh",
         "-c",
-        sandbox_tools._FINISH_INSTALL,
+        sandbox_tools._PUBLISH_VERSION,
     )
+
+
+STOP_SERVER = [SANDBOX_CLI, "stop-server"]
+START_SERVER = [SANDBOX_CLI, "start-server"]
 
 
 @pytest.mark.parametrize(
@@ -710,7 +719,6 @@ def is_finish_call(cmd: list[str]) -> bool:
         pytest.param("missing", id="no-version-file"),
         pytest.param(str(int(VERSION) - 1), id="older"),
         pytest.param(str(int(VERSION) + 1), id="newer"),
-        pytest.param("", id="empty-version-file"),
     ],
 )
 async def test_stale_install_is_replaced(
@@ -724,10 +732,7 @@ async def test_stale_install_is_replaced(
 
     assert stub_artifact["extracted_as"] == "root"
     assert state["version"] == VERSION
-    starts = [
-        c for c in sandbox.exec_calls if c == ([SANDBOX_CLI, "start-server"], "root")
-    ]
-    assert len(starts) == 1
+    assert sandbox.exec_calls.count((START_SERVER, "root")) == 1
     assert sandbox._tools_user == "root"
 
 
@@ -740,40 +745,47 @@ async def test_current_install_is_reused_without_reinjection(
     assert await sandbox_tools.sandbox_with_injected_tools(sandbox=sandbox) is sandbox
 
     assert stub_artifact["extracted"] is False
-    assert not any(is_finish_call(cmd) for cmd, _ in sandbox.exec_calls)
+    assert not any(is_publish_call(cmd) for cmd, _ in sandbox.exec_calls)
     assert not any(cmd[:1] == [SANDBOX_CLI] for cmd, _ in sandbox.exec_calls)
     assert sandbox._tools_user == "root"
 
 
-async def test_inject_stops_old_server_and_records_version_before_start(
+async def test_inject_stops_old_server_then_publishes_version_before_start(
     stub_artifact: dict[str, object],
 ) -> None:
     sandbox = CannedSandbox(helper_ok)
     await sandbox_tools._inject_container_tools_code(sandbox)
 
-    [finish] = [
-        i for i, (cmd, _) in enumerate(sandbox.exec_calls) if is_finish_call(cmd)
+    stop = sandbox.exec_calls.index((STOP_SERVER, "root"))
+    start = sandbox.exec_calls.index((START_SERVER, "root"))
+    [publish] = [
+        i for i, (cmd, _) in enumerate(sandbox.exec_calls) if is_publish_call(cmd)
     ]
-    cmd, user = sandbox.exec_calls[finish]
-    assert user == "root"
-    assert helper_flags(cmd).expected_uid == "0"
-    assert wrapped_command(cmd)[3:] == ["sh", VERSION, "inspect-sandbox-tools.version"]
-    assert sandbox.timeouts[finish][0] == sandbox_tools._FINISH_TIMEOUT
-    # After extraction, then re-verification, then the server starts.
-    start = sandbox.exec_calls.index(([SANDBOX_CLI, "start-server"], "root"))
-    assert finish == start - 2
+    # verified directory -> stop -> publish (itself a verified exec) -> start
+    assert stop + 1 == publish == start - 1
+    verify_cmd, _ = sandbox.exec_calls[stop - 1]
+    assert is_framework_dir_call(verify_cmd)
+    assert not helper_flags(verify_cmd).create
+    publish_cmd, _ = sandbox.exec_calls[publish]
+    assert helper_flags(publish_cmd).expected_uid == "0"
+    assert wrapped_command(publish_cmd)[3:] == ["sh", VERSION]
+    assert sandbox.timeouts[stop] == (sandbox_tools._STOP_TIMEOUT, False)
+    # The stop is issued exactly as the start is, with no environment of its own,
+    # so the provider and the launcher resolve the same server state directory
+    # (an override such as the local sandbox's per-sample one included).
+    assert sandbox.envs[stop] is None and sandbox.envs[start] is None
 
 
 async def test_inject_fails_loudly_when_old_server_cannot_be_stopped(
     stub_artifact: dict[str, object],
 ) -> None:
     def policy(cmd: list[str], user: str | None) -> ExecResult[str]:
-        if is_finish_call(cmd):
+        if cmd == STOP_SERVER:
             return ExecResult(
                 success=False,
                 returncode=1,
                 stdout="",
-                stderr=f"{_VERIFIED_MARKER}\nRuntimeError: Server shutdown failed\n",
+                stderr="RuntimeError: Server shutdown failed\n",
             )
         return helper_ok(cmd, user)
 
@@ -783,7 +795,31 @@ async def test_inject_fails_loudly_when_old_server_cannot_be_stopped(
         match=r"Server shutdown failed\. Restart the sandbox, or remove",
     ):
         await sandbox_tools._inject_container_tools_code(sandbox)
-    assert not any(cmd[:1] == [SANDBOX_CLI] for cmd, _ in sandbox.exec_calls)
+    assert not any(is_publish_call(cmd) for cmd, _ in sandbox.exec_calls)
+    assert (START_SERVER, "root") not in sandbox.exec_calls
+
+
+async def test_inject_fails_loudly_when_another_version_was_extracted_meanwhile(
+    stub_artifact: dict[str, object],
+) -> None:
+    def policy(cmd: list[str], user: str | None) -> ExecResult[str]:
+        if is_publish_call(cmd):
+            return ExecResult(
+                success=False,
+                returncode=1,
+                stdout="",
+                stderr=f"{_VERIFIED_MARKER}\nanother installation replaced the "
+                "tools with version 40 while this one was installing\n",
+            )
+        return helper_ok(cmd, user)
+
+    sandbox = CannedSandbox(policy)
+    with pytest.raises(
+        sandbox_tools.SandboxInjectionError,
+        match="another installation replaced the tools with version 40",
+    ):
+        await sandbox_tools._inject_container_tools_code(sandbox)
+    assert (START_SERVER, "root") not in sandbox.exec_calls
 
 
 def _launcher_script(tag: str, log: Path) -> str:
@@ -791,17 +827,103 @@ def _launcher_script(tag: str, log: Path) -> str:
     return f'#!/bin/sh\necho "{tag} $1 ${{INSPECT_SANDBOX_TOOLS_DIR:-tree}}" >> {log}\n'
 
 
-def _tools_archive(launcher: str) -> bytes:
+def _tools_archive(launcher: str, lib: bytes = b"new") -> bytes:
     buffer = BytesIO()
     with tarfile.open(fileobj=buffer, mode="w:gz") as tar:
         for name, data, mode in [
             ("inspect-sandbox-tools", launcher.encode(), 0o755),
-            ("_internal/lib", b"new", 0o644),
+            ("_internal/lib", lib, 0o644),
         ]:
             info = tarfile.TarInfo(name)
             info.size, info.mode = len(data), mode
             tar.addfile(info, BytesIO(data))
     return buffer.getvalue()
+
+
+def _run_install_script(
+    tree: Path, script: str, version: str, input: bytes = b"", timeout: float = 30
+) -> subprocess.CompletedProcess[bytes]:
+    """Run an install script as the framework-directory helper would: cwd = tree."""
+    return subprocess.run(
+        ["sh", "-c", script, "sh", version],
+        cwd=tree,
+        input=input,
+        capture_output=True,
+        timeout=timeout,
+        env={"PATH": os.environ["PATH"]},
+    )
+
+
+def test_competing_installers_publish_only_the_version_in_place(
+    tmp_path: Path,
+) -> None:
+    """Two installers of different versions cannot leave one's files marked as the other's.
+
+    The order is the one that mislabelled a tree: extract 41, extract 40, publish 40,
+    publish 41. The later publication must be refused, leaving 40 recorded for 40's
+    files; and while an extraction is in progress no version is recorded at all.
+    """
+    tree = tmp_path / "tools"
+    tree.mkdir(mode=0o700)
+    version_file = tree / "inspect-sandbox-tools.version"
+
+    def extract(version: str) -> None:
+        archive = _tools_archive(f"launcher {version}\n", lib=version.encode())
+        result = _run_install_script(tree, sandbox_tools._EXTRACT_GZ, version, archive)
+        assert result.returncode == 0, result.stderr
+
+    def publish(version: str) -> subprocess.CompletedProcess[bytes]:
+        return _run_install_script(tree, sandbox_tools._PUBLISH_VERSION, version)
+
+    extract("41")
+    extract("40")
+    assert publish("40").returncode == 0
+    refused = publish("41")
+    assert refused.returncode != 0
+    assert b"replaced the tools with version 40" in refused.stderr
+    assert version_file.read_text() == "40\n"
+    assert (tree / "inspect-sandbox-tools").read_text() == "launcher 40\n"
+    assert (tree / "_internal" / "lib").read_bytes() == b"40"
+
+    # An extraction after a publication withdraws the published version.
+    extract("41")
+    assert not version_file.exists()
+    assert publish("41").returncode == 0
+    assert version_file.read_text() == "41\n"
+
+    # A second installer of the version already in place does not extract again.
+    (tree / "_internal" / "lib").write_bytes(b"untouched")
+    extract("41")
+    assert (tree / "_internal" / "lib").read_bytes() == b"untouched"
+    assert version_file.read_text() == "41\n"
+
+
+@pytest.mark.skipif(shutil.which("flock") is None, reason="needs the flock utility")
+def test_install_scripts_wait_for_the_install_lock(tmp_path: Path) -> None:
+    """An installer holding the lock blocks extraction and publication by another."""
+    tree = tmp_path / "tools"
+    tree.mkdir(mode=0o700)
+    archive = _tools_archive("launcher\n")
+    with open(tree / sandbox_tools._INSTALL_LOCK, "a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        for script, data in [
+            (sandbox_tools._EXTRACT_GZ, archive),
+            (sandbox_tools._PUBLISH_VERSION, b""),
+        ]:
+            with pytest.raises(subprocess.TimeoutExpired):
+                _run_install_script(tree, script, VERSION, data, timeout=1)
+        assert not (tree / "inspect-sandbox-tools").exists()
+        fcntl.flock(lock, fcntl.LOCK_UN)
+    assert (
+        _run_install_script(
+            tree, sandbox_tools._EXTRACT_GZ, VERSION, archive
+        ).returncode
+        == 0
+    )
+    assert (
+        _run_install_script(tree, sandbox_tools._PUBLISH_VERSION, VERSION).returncode
+        == 0
+    )
 
 
 @pytest.mark.skipif(
@@ -816,9 +938,9 @@ async def test_local_sandbox_replaces_a_stale_shared_install(
 ) -> None:
     """The host's shared tree from an older release is replaced, then reused.
 
-    On the ``local`` sandbox every sample on the host runs the same launcher. The
-    stale tree's own server state is stopped with the new launcher; the sample's
-    server starts in its per-sample directory; a later sample adopts the tree as is.
+    On the ``local`` sandbox every sample on the host runs the same launcher. The new
+    launcher stops and starts only the sample's own server, in its per-sample state
+    directory; a later sample adopts the tree as is.
     """
     tools_dir = tmp_path / "tools"
     cli = tools_dir / "inspect-sandbox-tools"
@@ -828,11 +950,10 @@ async def test_local_sandbox_replaces_a_stale_shared_install(
     monkeypatch.setattr(local_sandbox, "SANDBOX_CLI", str(cli))
     monkeypatch.delenv("INSPECT_SANDBOX_TOOLS_DIR", raising=False)
 
-    # What an older release left behind: its launcher, and server state beside it.
+    # What an older release left behind on the host.
     tools_dir.mkdir(mode=0o700)
     cli.write_text(_launcher_script("old", log))
     cli.chmod(0o700)
-    (tools_dir / ".server").mkdir(mode=0o700)
     if old_version is not None:
         (tools_dir / "inspect-sandbox-tools.version").write_text(f"{old_version}\n")
 
@@ -863,7 +984,7 @@ async def test_local_sandbox_replaces_a_stale_shared_install(
         version_file = tools_dir / "inspect-sandbox-tools.version"
         assert version_file.read_text() == f"{VERSION}\n"
         assert log.read_text().splitlines() == [
-            "new stop-server tree",
+            f"new stop-server {first._sandbox_tools_dir}",
             f"new start-server {first._sandbox_tools_dir}",
         ]
 

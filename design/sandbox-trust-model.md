@@ -189,7 +189,7 @@ The tools are not baked into images. On first use the host:
    this release's sandbox tools version. The check runs as the tools
    user that the root-access decision selects; when root is usable the default
    user's view is never consulted, so a tree planted under the agent's uid is
-   never adopted (`sandbox.py:128-179`, `:240-340`). A tree from another
+   never adopted (`sandbox.py:128-179`, `:240-358`). A tree from another
    version is replaced (see [Replacing an install from another
    version](#replacing-an-install-from-another-version)).
 2. Selects the artifact for the sandbox's architecture and libc: the copy
@@ -200,14 +200,15 @@ The tools are not baked into images. On first use the host:
    directory (`sandbox.py:685-756`). Bundled artifacts are trusted as part of
    the installed package (see BINARY_INTEGRITY.md).
 3. Creates or adopts the tools tree as a verified framework directory owned by
-   the tools user (`sandbox.py:353-364`).
+   the tools user (`sandbox.py:371-382`).
 4. Streams the gzipped archive on stdin into `tar` running with the verified
    directory as its working directory, so no copy of the archive exists at a
-   path another principal could write to (`sandbox.py:550-602`).
-5. Stops a server the tree's own state directory still identifies, then
-   writes the version file (`sandbox.py:605-657`).
-6. Re-verifies the tree immediately before starting the server from it by
-   absolute path (`sandbox.py:369-383`).
+   path another principal could write to (`sandbox.py:571-648`).
+5. Re-verifies the tree, then stops a server that `start-server` would reuse
+   (`sandbox.py:389-395`, `:651-686`).
+6. Records the installed version in a verified command, which is also the
+   check immediately before starting the server from the tree by absolute
+   path (`sandbox.py:396-404`, `:689-721`).
 
 #### Replacing an install from another version
 
@@ -229,19 +230,30 @@ no longer speaks, so it is replaced rather than reused.
   reported as not installed, so injection extracts this release's tree over
   it. Builds with local edits to the tools (`-dev` artifacts) record the same
   version as the release, so switching between them does not reinstall.
-- **Old server.** The tree's own server state directory (`.server`) holds the
-  server of a container whose tree is being replaced, and `start-server`
-  would reuse that server. When `.server` exists, the new launcher's
-  `stop-server` stops it before the version file is written. The `local`
-  sandbox gives each sample its own state directory
-  (`ai/util/_sandbox/local.py:67-71`), so the servers of other samples on the
-  host keep running; their later launcher calls use the new launcher. The
-  tree is rewritten in place, so a sample that runs the launcher while
-  another installs can fail, as on a fresh host where several samples
-  install at once.
+- **Concurrent installers.** Installers that share a tree (every `local`
+  sample on a host, from any process and any release) extract and publish one
+  at a time, each holding an exclusive `flock` on `inspect-sandbox-tools.lock`
+  in the tree; the kernel releases it if an installer dies. Extraction first
+  removes the version file and `inspect-sandbox-tools.extracted`, then writes
+  the version it extracted to the latter. Publication writes the version
+  file only when the last completed extraction was its own version, and
+  otherwise fails. The version file therefore names the version whose files
+  are in place. An installer that finds its own version already extracted
+  does not extract again. An image without `flock` installs without the lock.
+- **Old server.** A server started from the replaced files keeps running the
+  old code, and `start-server` reuses any server that answers. Before
+  publishing, the new launcher's `stop-server` runs exactly as `start-server`
+  will, so it stops the server in the state directory `start-server` would
+  use: the tree's `.server` in a container, or an `INSPECT_SANDBOX_TOOLS_DIR`
+  the sandbox sets. The `local` sandbox gives each sample its own state
+  directory (`ai/util/_sandbox/local.py:67-71`), so only that sample's server
+  is stopped; the servers of other samples on the host keep running, and
+  their later launcher calls use the new launcher. The tree is rewritten in
+  place, so a sample that runs the launcher while another installs can fail,
+  as on a fresh host where several samples install at once.
 - **Failure.** The version file is written only after extraction and the stop
-  succeed, so a failed replacement leaves the old version recorded and the
-  next use tries again. Every failure raises `SandboxInjectionError`; a stop
+  succeed, so a failed replacement leaves no version recorded and the next
+  use tries again. Every failure raises `SandboxInjectionError`; a stop
   failure names the tree and asks the user to restart the sandbox or remove
   the tree. An install from another version is never used.
 
