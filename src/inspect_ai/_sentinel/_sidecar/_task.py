@@ -164,6 +164,12 @@ class TaskSidecars:
         ]
         if not through:
             return
+        # until the copy finishes: a copy cut short, as by the scoring's
+        # deadline, still says the monitor state is missing
+        store.set(
+            MONITOR_STATE_COPY,
+            {"copied": False, "reason": "the copy from the sidecar didn't finish"},
+        )
         copied: dict[str, Any] = {}
         written_by: dict[str, str] = {}
         failed: str | None = None

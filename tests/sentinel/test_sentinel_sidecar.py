@@ -3,6 +3,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+import anyio
 import httpx2
 import pytest
 from test_helpers.stand_in_sidecar import StandInSidecar, Turn
@@ -1496,6 +1497,41 @@ def test_two_sidecars_that_keep_the_same_key_fail_the_sample() -> None:
     # once each, though the sample failed after the copy
     assert len(_registered(first, "sample_result")) == 1
     assert len(_registered(second, "sample_result")) == 1
+
+
+class _HungCopy(StandInSidecar):
+    # a sidecar that never answers `sample_result`
+    async def _handle(self, request: httpx2.Request) -> httpx2.Response:  # type: ignore[override]
+        if request.url.path == "/sentinel/v1":
+            if json.loads(request.content)["method"] == "sample_result":
+                self.requests.append(request)
+                await anyio.sleep_forever()
+        return super()._handle(request)
+
+
+def test_a_copy_cut_short_by_the_scoring_deadline_says_the_state_is_missing() -> None:
+    stand_in = _HungCopy(methods={"sample_result": _kept({"Tally:lookups": 1})})
+    # the scoring's deadline is half the sample's time limit
+    task = Task(
+        dataset=[Sample(input="Hi.")],
+        solver=generate(),
+        scorer=_reads_monitor_state(),
+        time_limit=1,
+    )
+
+    [log] = eval(task, model=_model(stand_in), display="none")
+
+    # the deadline fails the sample, and scoring the log later is told why
+    # the monitor state is missing, rather than reading none as nothing flagged
+    assert log.samples is not None
+    [sample] = log.samples
+    assert sample.error is not None
+    assert _registered(stand_in, "sample_result") == [{"sample_uuid": sample.uuid}]
+    rescored = score_log(log, _reads_monitor_state(), display="none")
+    assert rescored.samples is not None
+    again = (rescored.samples[0].scores or {})["_reads_monitor_state"]
+    assert again.value == 0
+    assert again.explanation is not None and "didn't finish" in again.explanation
 
 
 @solver
