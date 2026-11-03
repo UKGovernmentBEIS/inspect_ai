@@ -122,7 +122,7 @@ Non-goals:
   source regenerates its follow-ups (`:1473`); a limited feed's later
   admissions are seeded from the prior log as they are re-admitted
   (`:952-965`).
-- Every reuse of a prior log goes through `eval_log_sample_source()`
+- Every per-sample reuse of a prior log goes through `eval_log_sample_source()`
   (`task/run.py:3743`), which returns the id-and-epoch lookup, the seed
   source and `prior_checkpoints_dir` (checkpoint resume keys on id and epoch
   too, and its existing guards already withhold it when ids are unstable,
@@ -140,6 +140,19 @@ Non-goals:
   (`src/inspect_ai/_eval/loader.py:134-145`, `:287-326`), so an added task
   can start with a prior lookup, seed and checkpoint directory
   (`tests/test_enqueue_task.py:147` enqueues a `ResolvedTask`).
+- Whole logs are reused without that function in two places. `eval_set()`
+  classifies each task's latest log in `list_latest_eval_logs()`
+  (`src/inspect_ai/_eval/evalset.py:1857-1872`), after recovering crashed
+  logs first under a resolving `incomplete_action` (`:1832-1846`), and
+  returns a log it counts complete as the task's result without running it
+  (`:1169-1184`); a task with no selected samples counts as complete at
+  `planned == 0` (`:1904`). Steward, which supervises selection-mode
+  workers, makes the same judgement itself: it reads each header into a
+  `LogAttempt` (`inspect_steward/_evalset/observe.py:648`, at
+  `a2f40bf97d`), whose completeness predicate (`:608-627`) decides both
+  whether a task needs running (`:507`) and whether a log in its reuse
+  store can be imported (`_store/match.py:74`); attempts are cached in a
+  file versioned by `CACHE_VERSION` (`_evalset/cache.py:25`).
 - Mid-run log state is recorded the way `inspect ctl config` retunes are:
   `.eval` appends a journal member and flushes it at once
   (`src/inspect_ai/log/_recorders/eval.py:281`, `:1133`), header reads of an
@@ -366,7 +379,8 @@ class PortRequest:
 class SamplePort:
     pending: list[PortRequest]       # not yet settled, in send order
     runs: set[tuple[str, int]]       # (str(id), epoch) of every request that reserved runs
-    stopped: bool                    # closed, or stopped by a graceful directive
+    closed: bool                     # close(), cancel(), creator attempt or run ended
+    stopped: bool                    # a graceful directive: also ends the source
 ```
 
 **Retention.** A request stays in `pending`, with its sample, until every
@@ -456,6 +470,9 @@ async with task group tg:                  # owned by the feeder
     pull = None                            # the one outstanding next_samples() call
     while True:
         await checkpoint()
+        if port.stopped and not source_done:   # drain or score/error (see "Keeping the task open")
+            if pull is not None: cancel pull's scope and await its end; pull = None
+            source_done = True; continue
         if pull is done:                   # checked first: a returned batch keeps priority
             more = pull.result(); pull = None
             if more: await add_and_start(more)
@@ -479,9 +496,9 @@ async with task group tg:                  # owned by the feeder
         if pull is not None: await feeder_wake.wait(); continue
         if not source_done:
             port_during_pull = False
-            pull = start next_samples() in tg
+            pull = start next_samples() in tg, in its own cancel scope
             continue
-        if port is open: await feeder_wake.wait(); continue   # a stopped port counts as closed
+        if not (port.closed or port.stopped): await feeder_wake.wait(); continue
         break
     cancel tg                              # an outstanding pull is cancelled, then joined
 ```
@@ -559,6 +576,14 @@ attempt's port, if it has one. `stop()` is synchronous and idempotent:
 - it sets `stopped`, so the port admits nothing more: a later
   `enqueue_sample()` raises `SampleAbandonedError` at once, and the feeder
   delivers no further request;
+- it ends the source: on its next pass the feeder cancels an outstanding
+  `next_samples()` call, which may block for ever by contract
+  (`sample_source.py:63-70`; `tests/_control/test_requeue.py:1868` has
+  one), through the pull's own cancel scope, awaits its end, and starts no
+  further pull. The cancellation stays inside that scope, so it does not
+  fail the task, and whatever the cancelled call had enqueued stays in the
+  buffer and is admitted, then abandoned or resolved, under the
+  directive's rules like any queued sample;
 - it settles every `sent` request (accepted but not yet delivered) with
   `SampleAbandonedError`, as the directive abandons the task's queued
   samples;
@@ -568,9 +593,13 @@ attempt's port, if it has one. `stop()` is synchronous and idempotent:
   (`SampleAbandonedError`); under `score` or `error` an in-flight sample is
   interrupted and resolves with the scored or errored `EvalSample`, as
   under "Results";
-- it rings `feeder_wake`, so a feeder parked on an open port sees it
-  stopped and goes on as it does today for that directive, and the task
-  finishes.
+- it rings `feeder_wake`, so a feeder parked on an open port or an
+  outstanding pull sees it stopped. Once the samples already admitted have
+  finished or been abandoned under the directive, the feeder ends and the
+  task finishes.
+
+A task without a port is untouched: its feeder handles a graceful
+directive exactly as today.
 
 An abort (including `TaskHandle.cancel()`) or a run cancellation tears the
 attempt down and closes the port as above; a `retry` directive leaves the
@@ -636,6 +665,25 @@ So a log that a port has contributed to is never reused:
   `eval_retry()`, eval-set resume in ordinary and legacy rounds, and
   selection-worker resume, for samples and checkpoints alike. A path that
   does reach a marked log reruns the task's own samples from scratch.
+- **Never counted complete.** `list_latest_eval_logs()` puts a marked log
+  among the incomplete logs whatever its status, checked with
+  `invalidated` (`src/inspect_ai/_eval/evalset.py:1858-1861`) and so after
+  any resolving recovery has finalized it, so `eval_set()` never returns a
+  marked log as an existing success; it reruns the task through a
+  `PreviousTask`, which reuses nothing (above). The deprecated
+  `retryable_eval_logs()` (`src/inspect_ai/log/_retry.py`) lists logs for
+  `eval_retry()`, which refuses a marked one.
+- **Steward does the same** (a companion change in `inspect_steward`).
+  `LogAttempt` gains `handle_samples: bool`, read from the header in
+  `_attempt()`; `_incomplete_reason()` returns a new
+  `IncompleteReason.HANDLE_SAMPLES` for a marked attempt before its other
+  checks, so a marked log is never counted complete and never imported
+  from the reuse store (`_store/match.py` skips it and logs why);
+  `CACHE_VERSION` goes up because `LogAttempt` changes shape, so attempts
+  cached without the field are re-read. Steward then runs the task again,
+  and if it resumes from the marked log, Inspect's own guard reuses
+  nothing. Steward's `inspect-ai` floor rises to the first release with
+  `EvalLog.handle_samples`, since it reads the field.
 - **No in-run retry.** `TaskLogger.handle_samples` is set in memory when
   step 2 of "Delivery" begins, before the write is awaited, and is never
   cleared within the attempt; `reinit()` for a retry starts a new log with
@@ -920,6 +968,11 @@ Eval logs:
   keys), so an older `eval_retry()` or eval-set resume would reuse a marked
   log as today: a marked log must be retried or resumed with a version that
   has the field.
+- Steward reads the field through the companion change (step 6 of the
+  plan). A Steward release without it would count a marked successful log
+  complete and could import one from its reuse store, so runs that use
+  `send_samples=True` under Steward need a Steward release with the change;
+  its `inspect-ai` floor rises with it.
 - `eval_retry()` of a marked log raises `PrerequisiteError` instead of
   rerunning it.
 - `enqueue_task(..., send_samples=True)` is refused in a run that logs in
@@ -998,7 +1051,12 @@ test touched), with mockllm models:
     checkpoint, and the A/P/B ids are not crossed;
   - `convert_eval_logs` from a marked `.eval` log to `.json` and back,
     `inspect score` and `write_eval_log` keep the field, and `eval_retry()`
-    refuses the converted `.json` log; an existing log without it reads as
+    refuses the converted `.json` log; `eval_set()` over a log directory
+    holding a marked successful log of a requested empty-seed task (so
+    `planned == 0`), and over a marked crashed log that recovery under
+    `incomplete_action="error"` finalizes as `success`, reruns the task
+    rather than returning the log as an existing success, and reuses none
+    of its samples; an existing log without it reads as
     `False` and is reused as today;
   - a request refused at delivery (the source reserved its id first),
     followed by an otherwise retryable error: no marker; the task is
@@ -1043,8 +1101,12 @@ test touched), with mockllm models:
     under score or error); with an accepted request still waiting for
     delivery (sent while a pull holds the feeder, or while `max_samples` is
     full), it fails with `SampleAbandonedError`, and a later
-    `enqueue_sample()` fails at once the same way (each bounded with
-    `fail_after`);
+    `enqueue_sample()` fails at once the same way; and with a `next_samples()`
+    that never returns (an `anyio.Event` nobody sets), with a pending and an
+    in-flight request, the pull is cancelled without failing the task, the
+    in-flight request resolves under the directive's rule, the pending one
+    fails with `SampleAbandonedError`, and the target finishes (each bounded
+    with `fail_after`);
   - retention: a rollout task that receives many requests (successful,
     errored, dropped and refused) holds, after each call returns, no
     reference to its sample, futures or `EvalSample` (checked with weak
@@ -1086,7 +1148,8 @@ test touched), with mockllm models:
 
 This design is step 5 of the plan in
 [task-dispatch.md](task-dispatch.md#implementation-plan), one PR, after
-step 3 (the run queue and dispatcher) and independent of step 4:
+step 3 (the run queue and dispatcher) and independent of step 4, plus a
+companion change in Steward (step 6):
 
 5. **Task handles.** `_eval/task/enqueue.py` (`TaskHandle`, `SamplePort`,
    `PortRequest`, the errors, `Loan`, the `next_tasks()` wait refusal, the
@@ -1106,12 +1169,22 @@ step 3 (the run queue and dispatcher) and independent of step 4:
    `cancel_task` callback for drain, score and error, loans in the
    dispatcher, the `next_tasks()` scope),
    `_eval/eval.py` (the `eval_retry()` refusal, `max_tasks`, `max_samples`
-   and `max_sandboxes` docstrings), `_eval/evalset.py` (docstrings),
+   and `max_sandboxes` docstrings), `_eval/evalset.py` (a marked log is
+   incomplete in `list_latest_eval_logs()`; docstrings),
    `__init__.py` (exports), `docs/task-source.qmd`, `docs/parallelism.qmd`
    and `docs/reference`. The new `EvalLog` field changes the viewer's
    OpenAPI schema and generated TypeScript types, landed with the
    coordinated ts-mono update the repo's process requires. Tests: those
    above.
+6. **Steward companion** (`inspect_steward`, after the Inspect release that
+   adds `EvalLog.handle_samples`): `_evalset/observe.py` (`LogAttempt.handle_samples`,
+   read in `_attempt()`; `IncompleteReason.HANDLE_SAMPLES`, checked first in
+   `_incomplete_reason()`), `_store/match.py` (the skipped candidate's log
+   line), `_evalset/cache.py` (`CACHE_VERSION` raised), `pyproject.toml`
+   (the `inspect-ai` floor). Tests in its suite: an observed marked success
+   log of an empty-seed manifest task is incomplete with that reason; a
+   marked log in the reuse store is not imported; a cache written by the
+   previous version is discarded and the marked attempt re-read.
 
 ## Open questions
 
