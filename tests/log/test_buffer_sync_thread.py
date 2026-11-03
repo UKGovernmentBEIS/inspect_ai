@@ -313,7 +313,12 @@ def test_sync_worker_returns_to_idle_once_it_takes_the_request(
         synced.set()
 
     monkeypatch.setattr(database_module, "sync_to_filestore", record_phase)
-    _request_sync(shared_db)
+    # request first, then make it due: one coalesced request, so no write can
+    # land between the worker taking it and the callback reading the phase
+    _write_event(shared_db)
+    with shared_db._sync_lock:
+        _force_sync_due(shared_db)
+        shared_db._sync_wakeup.notify_all()
     _assert_event(synced, "sync did not run")
 
     # idle while uploading, so a write made meanwhile requests another upload
@@ -507,7 +512,9 @@ def test_cleanup_skips_deletion_when_sync_remains_active(
         shared_db.cleanup()
 
     assert cleanup_recorder.calls == []
-    assert sync_phase(shared_db) is SyncPhase.STOPPED
+    # a close can stop in DRAINING: a write can request another upload after
+    # the worker took the first one, and the timed-out join leaves it pending
+    assert not sync_phase(shared_db).accepts_requests()
     assert db_phase(shared_db) is DbPhase.OPEN
     # retry cleanup must not sweep the files the worker still uses
     assert sample_buffer_shutdown_pending(shared_db.location)

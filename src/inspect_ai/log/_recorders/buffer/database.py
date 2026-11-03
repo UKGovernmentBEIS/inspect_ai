@@ -629,9 +629,9 @@ class SampleBufferDatabase(SampleBuffer):
         A requested shared-buffer upload that is not yet due is performed
         before the worker stops (unless an earlier cleanup dropped it): the
         buffer may hold completed samples that never reached the destination,
-        and the shared copy is how another host recovers them. Active sample readers retain their connections
-        until their leases end. SQLite data and shared buffer files remain
-        available for recovery.
+        and the shared copy is how another host recovers them. Active sample
+        readers retain their connections until their leases end. SQLite data
+        and shared buffer files remain available for recovery.
         """
         _unfinished_shutdowns.add(self)
         if not self._close_sync_worker_for_cleanup(drain=True):
