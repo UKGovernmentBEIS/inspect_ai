@@ -1326,7 +1326,7 @@ def test_an_adversarial_log_s_timeline_is_built_in_linear_work(build: str) -> No
     # after Ransom's ninth review: repeated tool call ids, an unresolved
     # bridge task, fragmented and falling inputs and unresolved forks at
     # once; the lines of inspect_ai executed per unit the log stores stay
-    # flat as the rounds double (the merge base's public build does too)
+    # flat as the rounds double for these input shapes (the merge base's public build does too)
     from test_helpers.adversarial_log import adversarial_log, executed_lines
 
     from inspect_ai.event import ModelEvent

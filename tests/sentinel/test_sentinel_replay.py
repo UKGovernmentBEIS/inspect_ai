@@ -1408,7 +1408,7 @@ def test_unmatched_checks_emit_one_counted_warning(
 @pytest.mark.parametrize("stage", ["model_input", "model_output"])
 @pytest.mark.parametrize("inputs", ["expanded", "pooled"])
 def test_empty_step_id_check_does_not_attach_to_uuidless_model_call(
-    stage: str, inputs: str, caplog: pytest.LogCaptureFixture
+    stage: SentinelStage, inputs: str, caplog: pytest.LogCaptureFixture
 ) -> None:
     from inspect_ai._sentinel import _replay
 
@@ -1978,7 +1978,7 @@ def replay_work(
 
 
 def assert_linear(small: Work, large: Work, doubles: bool = True) -> None:
-    """Each pool row is keyed once, and the fold's work (comparisons, bisections and index entries) is within a constant of what the log stores; with `doubles`, twice the turns cost at most a little over twice the work."""
+    """For these stored input shapes, each pool row is keyed once and the fold's work stays within a constant of stored rows and ranges; with `doubles`, twice the turns cost at most a little over twice the work."""
     for work in (small, large):
         assert work.keyed <= work.pool
         # a few comparisons, bisections and index entries per stored row and range
@@ -2014,7 +2014,7 @@ def test_an_adversarial_log_replays_in_linear_work(inputs: str) -> None:
     # bridge task, fragmented and falling inputs, unresolved forks and
     # sentinel 0.1.x checks named by message id (repeat suffixes included)
     # at once; the lines of inspect_ai executed per unit the log stores stay
-    # flat as the rounds double
+    # flat as the rounds double for these input shapes
     from test_helpers.adversarial_log import adversarial_log, executed_lines
 
     pooled = inputs == "pooled"
@@ -2126,9 +2126,7 @@ def test_summary_match_reads_linearly_with_retained_prefix_and_compactions(
             ChatMessageUser(content=f"retained {n}", source="input")
             for n in range(size)
         ]
-        pool.extend(
-            ChatMessageUser(content=f"summary {n}") for n in range(size)
-        )
+        pool.extend(ChatMessageUser(content=f"summary {n}") for n in range(size))
         inputs = _timeline._Inputs([], pool)
         continuity = _timeline._Continuity(inputs)
         work.append(0)
