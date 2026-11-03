@@ -6,12 +6,14 @@ long-running commands in sandbox environments with streaming output.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import shlex
 import time
 import uuid
+from collections.abc import Callable, Coroutine
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, ClassVar, Literal, TypeVar, Union, cast
+from typing import TYPE_CHECKING, Any, ClassVar, Literal, TypeVar, Union, cast
 
 import anyio
 from pydantic import BaseModel
@@ -23,6 +25,7 @@ from tenacity import (
     wait_exponential_jitter,
 )
 
+from inspect_ai._util._async import current_async_backend
 from inspect_ai._util._json_rpc import GenericJSONRPCErrorMapper, exec_model_request
 from inspect_ai._util.retry import backoff_multiplier
 
@@ -243,6 +246,34 @@ KILL_KEY_TIMEOUT = 30
 T = TypeVar("T", bound=BaseModel)
 
 
+async def _complete_before_cancelling(
+    work: Callable[[], Coroutine[Any, Any, None]],
+) -> None:
+    """Run `work` to completion, then raise any cancellation of the caller.
+
+    An AnyIO shield does not stop asyncio's `Task.cancel()` (which
+    `asyncio.timeout()` and `asyncio.wait_for()` also use), so under asyncio
+    `work` runs in its own task and the caller waits for it. `work` shields
+    itself from AnyIO cancellation.
+    """
+    if current_async_backend() != "asyncio":
+        await work()
+        return
+
+    task = asyncio.ensure_future(work())
+    cancelled: asyncio.CancelledError | None = None
+    # the shield stops AnyIO from re-delivering its own cancellation
+    with anyio.CancelScope(shield=True):
+        while not task.done():
+            try:
+                await asyncio.shield(task)
+            except asyncio.CancelledError as ex:
+                cancelled = ex
+    task.result()
+    if cancelled is not None:
+        raise cancelled
+
+
 class ExecRemoteProcess:
     r"""Handle to a running exec_remote process.
 
@@ -397,10 +428,14 @@ class ExecRemoteProcess:
     async def _kill_key(self) -> None:
         """Kill the job by key, or make the sandbox refuse its start.
 
-        Shielded from cancellation, bounded by `KILL_KEY_TIMEOUT`, and run
-        outside sandbox concurrency limits so it cannot wait behind other
-        commands. A failure is logged, as the job may then still be running.
+        Runs to completion even if the caller is cancelled, bounded by
+        `KILL_KEY_TIMEOUT`, and outside sandbox concurrency limits so it
+        cannot wait behind other commands. A failure is logged, as the job
+        may then still be running.
         """
+        await _complete_before_cancelling(self._kill_key_bounded)
+
+    async def _kill_key_bounded(self) -> None:
         error: BaseException | None = None
         with anyio.move_on_after(KILL_KEY_TIMEOUT, shield=True):
             try:

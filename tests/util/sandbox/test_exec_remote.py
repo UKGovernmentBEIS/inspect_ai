@@ -5,6 +5,7 @@ cancellation, accumulation). Integration tests (marked slow) run against a real
 Docker container to verify the full host-to-container path.
 """
 
+import asyncio
 import contextlib
 import json
 import warnings
@@ -16,7 +17,7 @@ import anyio
 import pytest
 import tenacity
 from tenacity.wait import wait_none
-from test_helpers.utils import skip_if_no_docker
+from test_helpers.utils import skip_if_no_docker, skip_if_trio
 
 import inspect_ai.util._sandbox.exec_remote as exec_remote_module
 from inspect_ai.tool._sandbox_tools_utils.sandbox import (
@@ -894,6 +895,37 @@ class TestStartWithoutReply:
             kill_answer.set()
             await finished.wait()
 
+        assert list(guest.jobs.values()) == ["killed"]
+
+    @skip_if_trio
+    @pytest.mark.parametrize("cancel", ["task", "timeout"])
+    async def test_native_asyncio_cancellation_waits_for_the_kill_by_key_answer(
+        self, cancel: Literal["task", "timeout"]
+    ) -> None:
+        """Task.cancel() or asyncio.timeout() during cleanup does not interrupt it."""
+        kill_answer = anyio.Event()
+        guest = _GuestWithoutStartReply(lose="timeout", kill_answer=kill_answer)
+        timeouts: list[asyncio.Timeout] = []
+
+        async def start() -> None:
+            async with asyncio.timeout(None) as timeout:
+                timeouts.append(timeout)
+                await exec_remote_streaming(guest.sandbox, ["sleep", "999"], 5)
+
+        task = asyncio.ensure_future(start())
+        await guest.kill_received.wait()
+        if cancel == "task":
+            task.cancel()
+        else:
+            timeouts[0].reschedule(asyncio.get_running_loop().time())
+        await anyio.wait_all_tasks_blocked()
+        assert not task.done()
+
+        kill_answer.set()
+        with pytest.raises(
+            asyncio.CancelledError if cancel == "task" else TimeoutError
+        ):
+            await task
         assert list(guest.jobs.values()) == ["killed"]
 
     async def test_kill_by_key_is_bounded(
