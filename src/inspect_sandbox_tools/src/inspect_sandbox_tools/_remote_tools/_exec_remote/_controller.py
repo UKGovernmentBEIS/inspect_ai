@@ -33,7 +33,8 @@ class Controller:
         # Starts in progress, by key: resolves to the job once its process
         # exists, or None if the spawn failed.
         self._spawning: dict[str, asyncio.Future[Job | None]] = {}
-        # Keys killed before any start with them arrived; such a start is refused.
+        # Keys killed before a start with them spawned a process; a start with
+        # one is refused, including a retry after the killed start's spawn failed.
         self._refused_keys: set[str] = set()
 
     async def submit(
@@ -127,18 +128,19 @@ class Controller:
         """Kill the job started with `job_key`, or refuse its start if none has.
 
         The host calls this when it submitted a start but never received the
-        PID. A key no start has used yet is refused, so a start that arrives
-        later is not run. For a start in progress, this waits until its process
-        exists (or its spawn fails), then kills it, which also ends any stdin
-        write the start is waiting on. It returns once the job has terminated.
+        PID. A key with no spawned process yet is refused, so a later start
+        with it (a delayed request, or a retry after a failed spawn) is not run.
+        For a start in progress, this waits until its process exists (or its
+        spawn fails), then kills it, which also ends any stdin write the start
+        is waiting on. It returns once the job has terminated.
         """
+        if job_key not in self._keyed_jobs:
+            self._refused_keys.add(job_key)
         spawned = self._spawning.get(job_key)
         if spawned is not None:
             job = await asyncio.shield(spawned)
         else:
             job = self._keyed_jobs.get(job_key)
-            if job is None:
-                self._refused_keys.add(job_key)
         if job is None or self._jobs.get(job.pid) is not job:
             return KillKeyResult(killed=False)
         await self.kill(job.pid, ack_seq=0)

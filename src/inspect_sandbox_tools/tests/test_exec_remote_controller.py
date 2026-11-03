@@ -520,6 +520,49 @@ class TestKillByJobKey:
                 _kill_group(pid)
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize("outcome", ["fails", "is cancelled"])
+    async def test_start_retried_after_a_killed_spawn_ended_is_refused(
+        self, monkeypatch: pytest.MonkeyPatch, outcome: str
+    ) -> None:
+        """A retry of a start whose spawn ended while its kill waited must not run."""
+        spawning = asyncio.Event()
+        proceed = asyncio.Event()
+        spawns = 0
+
+        async def failing_spawn(command: str, **kwargs: Any) -> Job:
+            nonlocal spawns
+            spawns += 1
+            if spawns == 1:
+                spawning.set()
+                await proceed.wait()
+            raise OSError("spawn failed")
+
+        monkeypatch.setattr(Job, "spawn", failing_spawn)
+        controller = Controller()
+        submit = asyncio.create_task(controller.submit("sleep 30", job_key=_JOB_KEY))
+        await spawning.wait()
+        kill = asyncio.create_task(controller.kill_key(_JOB_KEY))
+        await asyncio.sleep(0)
+
+        if outcome == "fails":
+            proceed.set()
+            with pytest.raises(OSError, match="spawn failed"):
+                await submit
+        else:
+            submit.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await submit
+        # the retry arrives before the kill has answered, and again after
+        with pytest.raises(ToolException, match="killed before it started"):
+            await controller.submit("sleep 30", job_key=_JOB_KEY)
+        assert (await kill).killed is False
+        with pytest.raises(ToolException, match="killed before it started"):
+            await controller.submit("sleep 30", job_key=_JOB_KEY)
+
+        assert spawns == 1
+        assert controller._jobs == {}
+
+    @pytest.mark.asyncio
     async def test_kill_key_while_input_is_backpressured_kills_the_job(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
