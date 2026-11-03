@@ -291,8 +291,7 @@ def _model_graded_qa_single(
 
         # metadata without grading template variables
         metadata = omit(
-            state.metadata,
-            ["question", "answer", "criterion", "instructions", "grader_nonce"],
+            state.metadata, ["question", "answer", "criterion", "instructions"]
         )
 
         nonce = secrets.token_hex(4)
@@ -579,8 +578,10 @@ def model_scoring_prompt(
     answer = neutralize_structural_delimiters(output.completion)
     question = neutralize_structural_delimiters(question)
     criterion = neutralize_structural_delimiters(criterion)
+    # grader_nonce is reserved: the nonce must not come from sample metadata
     sanitized_metadata: dict[str, Any] = {
-        k: _sanitize_metadata_value(v) for k, v in metadata.items()
+        k: _sanitize_metadata_value(v)
+        for k, v in omit(metadata, ["grader_nonce"]).items()
     }
 
     # we need to remove media objects from output and reference them as attachements in the answer

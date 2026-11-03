@@ -1281,6 +1281,43 @@ def test_scoring_prompt_makes_nonce_when_not_given() -> None:
     }
 
 
+@pytest.mark.parametrize("nonce", [None, "0123abcd"], ids=["generated", "explicit"])
+def test_scoring_prompt_ignores_metadata_nonce(nonce: str | None) -> None:
+    from inspect_ai.scorer._model import (
+        DEFAULT_MODEL_GRADED_FACT_TEMPLATE,
+        model_scoring_prompt,
+    )
+
+    prompt = model_scoring_prompt(
+        template=DEFAULT_MODEL_GRADED_FACT_TEMPLATE,
+        question="Q",
+        output=ModelOutput.from_content("mockllm/model", "A"),
+        criterion="C",
+        instructions="I",
+        metadata={"grader_nonce": "deadbeef"},
+        nonce=nonce,
+    ).text
+    assert "deadbeef" not in prompt
+    rendered = _nonce(prompt)
+    if nonce is not None:
+        assert rendered == nonce
+    assert len(_fields(prompt, rendered)) == 3
+
+
+def test_scoring_prompt_legacy_template_with_metadata_nonce() -> None:
+    from inspect_ai.scorer._model import model_scoring_prompt
+
+    prompt = model_scoring_prompt(
+        template="Q:{question};A:{answer};C:{criterion}",
+        question="Q",
+        output=ModelOutput.from_content("mockllm/model", "A"),
+        criterion="C",
+        instructions="I",
+        metadata={"grader_nonce": "deadbeef"},
+    ).text
+    assert prompt == "Q:Q;A:A;C:C"
+
+
 _HISTORY: list[ChatMessage] = [
     ChatMessageUser(content="Who wrote 'The 39 Steps'?"),
     ChatMessageAssistant(content="The movie or the play?"),
