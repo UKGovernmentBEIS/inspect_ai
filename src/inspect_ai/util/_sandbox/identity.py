@@ -50,7 +50,8 @@ def sandbox_identity(
     `read_file()` look the home directory up once per block; `bash_session()`,
     `text_editor()` and `exec_remote()` get it from the sandbox tools when they
     switch to `user`. If the sandbox has no passwd entry for `user`, the first
-    five tools keep the `HOME` the sandbox gives them.
+    five tools keep the `HOME` the sandbox gives them; if the entry's home
+    directory is empty, they raise `RuntimeError`.
 
     Inside the block `sandbox` is also the default sandbox (as with
     `sandbox_default()`), and tools that find their sandbox by injection use it.
@@ -167,7 +168,8 @@ async def sandbox_identity_vars(
     to the user's home directory from the sandbox's passwd database, or None if
     it has no entry for the user. The lookup runs once per scope and is cached;
     concurrent first calls may each run it, which is harmless. A lookup that
-    fails, times out or is cancelled is not cached.
+    fails, times out or is cancelled is not cached, and neither is an entry
+    with an empty home directory.
 
     Args:
        env: Sandbox environment the command runs in.
@@ -175,7 +177,8 @@ async def sandbox_identity_vars(
           times out after this or `PASSWD_LOOKUP_TIMEOUT`, whichever is shorter.
 
     Raises:
-       RuntimeError: If the lookup command fails.
+       RuntimeError: If the lookup command fails, or the user's passwd entry
+          has an empty home directory.
        TimeoutError: If the lookup times out.
     """
     identity = sandbox_identity_scope(env)
@@ -185,17 +188,18 @@ async def sandbox_identity_vars(
         lookup_timeout = min(timeout or PASSWD_LOOKUP_TIMEOUT, PASSWD_LOOKUP_TIMEOUT)
         identity.home.value = await _passwd_home(env, identity.user, lookup_timeout)
         identity.home.resolved = True
-    return {"HOME": identity.home.value} if identity.home.value else None
+    return {"HOME": identity.home.value} if identity.home.value is not None else None
 
 
 PASSWD_LOOKUP_TIMEOUT = 30
 """Longest time (in seconds) the home directory lookup may take."""
 
 # Prints the home directory of the user named (or numbered) $1, followed by a
-# newline, or nothing when the passwd database has no entry for it; any other
-# failure exits non-zero. Uses getent so NSS sources count (exit status 2 means
-# no entry), and reads /etc/passwd on images without getent. The getent entry
-# is split with parameter expansion, which cannot fail.
+# newline (a bare newline when the home field is empty), or nothing when the
+# passwd database has no entry for it; any other failure exits non-zero. Uses
+# getent so NSS sources count (exit status 2 means no entry), and reads
+# /etc/passwd on images without getent. The getent entry is split with
+# parameter expansion, which cannot fail.
 _PASSWD_HOME_SCRIPT = """
 if command -v getent >/dev/null 2>&1; then
     entry=$(getent passwd "$1")
@@ -231,16 +235,24 @@ async def _passwd_home(env: SandboxEnvironment, user: str, timeout: int) -> str 
     """The home directory of `user` in the passwd database of `env`, if any.
 
     The path is kept exactly as the passwd entry gives it, whitespace included.
+
+    Raises:
+       RuntimeError: If the lookup fails or the entry's home directory is empty.
     """
     result = await privileged_shell(
         env, _PASSWD_HOME_SCRIPT, user, user=None, timeout=timeout, timeout_retry=False
     )
     if not result.success:
-        raise RuntimeError(
-            f"Could not look up the home directory of sandbox user '{user}': "
-            f"{result.stderr.strip() or f'exit status {result.returncode}'}"
-        )
-    return result.stdout.removesuffix("\n") or None
+        error = result.stderr.strip() or f"exit status {result.returncode}"
+    elif not result.stdout:
+        return None
+    elif home := result.stdout.removesuffix("\n"):
+        return home
+    else:
+        error = "its passwd entry has an empty home directory"
+    raise RuntimeError(
+        f"Could not look up the home directory of sandbox user '{user}': {error}"
+    )
 
 
 def sandbox_identity_active(env: SandboxEnvironment | None = None) -> bool:

@@ -221,11 +221,22 @@ async def test_vars_raise_when_the_home_lookup_fails() -> None:
             await sandbox_identity_vars(default, None)
 
 
-def _run_lookup(user: str, getent: str = "") -> subprocess.CompletedProcess[str]:
-    """Run the home lookup script on the host, `getent` replaced by a shell function."""
+def _run_lookup(
+    user: str, getent: str = "", passwd: Path | None = None
+) -> subprocess.CompletedProcess[str]:
+    """Run the home lookup script on the host.
+
+    `getent` replaces getent with a shell function; `passwd` makes the script
+    read that file instead of /etc/passwd, as on an image without getent.
+    """
     from inspect_ai.util._sandbox.identity import _PASSWD_HOME_SCRIPT
 
-    argv = pinned_shell_command(_PASSWD_HOME_SCRIPT, user)
+    script = _PASSWD_HOME_SCRIPT
+    if passwd is not None:
+        has_getent = "command -v getent >/dev/null 2>&1"
+        assert has_getent in script and "/etc/passwd" in script
+        script = script.replace(has_getent, "false").replace("/etc/passwd", str(passwd))
+    argv = pinned_shell_command(script, user)
     if getent:
         argv[2] = f"getent() {{ {getent}; }}\n" + argv[2]
     return subprocess.run(argv, capture_output=True, text=True, check=False)
@@ -254,8 +265,18 @@ def test_home_lookup_script_reads_the_passwd_database() -> None:
         ("echo 'w:x:1000:1000:/srv/w'", 1, ""),
         ("return 0", 1, ""),
         ("echo 'w:x:1000:1000:: /srv/w :/bin/sh'", 0, " /srv/w \n"),
+        ("echo 'w:x:1000:1000:W::/bin/sh'", 0, "\n"),
     ],
-    ids=["entry", "no-entry", "failed", "unsupported", "malformed", "empty", "spaces"],
+    ids=[
+        "entry",
+        "no-entry",
+        "failed",
+        "unsupported",
+        "malformed",
+        "empty",
+        "spaces",
+        "empty-home",
+    ],
 )
 def test_home_lookup_script_fails_unless_getent_answers(
     getent: str, status: int, stdout: str
@@ -269,26 +290,20 @@ def test_home_lookup_script_fails_unless_getent_answers(
 def test_home_lookup_script_reads_passwd_without_getent(
     tmp_path: Path, newline: str
 ) -> None:
-    from inspect_ai.util._sandbox.identity import _PASSWD_HOME_SCRIPT
-
     passwd = tmp_path / "passwd"
     passwd.write_text(
-        "root:x:0:0::/root:/bin/sh\nw:x:1000:1000:: /srv/w :/bin/sh" + newline
-    )
-    has_getent = "command -v getent >/dev/null 2>&1"
-    assert has_getent in _PASSWD_HOME_SCRIPT and "/etc/passwd" in _PASSWD_HOME_SCRIPT
-    script = _PASSWD_HOME_SCRIPT.replace(has_getent, "false").replace(
-        "/etc/passwd", str(passwd)
+        "root:x:0:0::/root:/bin/sh\ne:x:1001:1001:::/bin/sh\n"
+        "w:x:1000:1000:: /srv/w :/bin/sh" + newline
     )
 
     def lookup(user: str) -> tuple[int, str]:
-        argv = pinned_shell_command(script, user)
-        result = subprocess.run(argv, capture_output=True, text=True, check=False)
+        result = _run_lookup(user, passwd=passwd)
         return result.returncode, result.stdout
 
     assert lookup("w") == (0, " /srv/w \n")
     assert lookup("1000") == (0, " /srv/w \n")
     assert lookup("root") == (0, "/root\n")
+    assert lookup("e") == (0, "\n")
     assert lookup("missing") == (0, "")
 
 
@@ -301,9 +316,10 @@ async def test_vars_keep_whitespace_in_the_home() -> None:
 class _LookupSandbox(CannedSandbox):
     """Runs the home lookup on the host with a replaced `getent`; can stall it."""
 
-    def __init__(self, getent: str) -> None:
+    def __init__(self, getent: str = "", passwd: Path | None = None) -> None:
         super().__init__(lambda _cmd, _user: OK)
         self.getent = getent
+        self.passwd = passwd
         self.stall = False
         self.stalled = anyio.Event()
 
@@ -324,7 +340,7 @@ class _LookupSandbox(CannedSandbox):
         if self.stall:
             self.stalled.set()
             await anyio.sleep_forever()
-        result = _run_lookup(cmd[-1], self.getent)
+        result = _run_lookup(cmd[-1], self.getent, self.passwd)
         return ExecResult(
             result.returncode == 0, result.returncode, result.stdout, result.stderr
         )
@@ -339,6 +355,33 @@ async def test_vars_raise_when_getent_fails_and_retry_later() -> None:
         default.getent = "echo 'w-1:x:1000:1000::/srv/w-1:/bin/sh'"
         assert await sandbox_identity_vars(default, None) == {"HOME": "/srv/w-1"}
     assert len(default.exec_calls) == 2
+
+
+@pytest.mark.skipif(os.name != "posix", reason="requires a POSIX shell")
+@pytest.mark.parametrize("source", ["getent", "passwd"])
+async def test_vars_raise_on_an_empty_home_and_retry_later(
+    tmp_path: Path, source: str
+) -> None:
+    passwd = tmp_path / "passwd"
+    passwd.write_text("e:x:1001:1001:::/bin/sh\n")
+    if source == "getent":
+        sb = _LookupSandbox(getent=f'grep "^$2:" {passwd} || return 2')
+    else:
+        sb = _LookupSandbox(passwd=passwd)
+
+    # no entry: HOME is left alone, and that answer is cached
+    with _environments(default=sb), sandbox_identity("missing"):
+        assert await sandbox_identity_vars(sb, None) is None
+        assert await sandbox_identity_vars(sb, None) is None
+    assert len(sb.exec_calls) == 1
+
+    # an entry with an empty home raises, is not cached, and is looked up again
+    with _environments(default=sb), sandbox_identity("e"):
+        with pytest.raises(RuntimeError, match="'e': .* empty home directory"):
+            await sandbox_identity_vars(sb, None)
+        passwd.write_text("e:x:1001:1001::/srv/e:/bin/sh\n")
+        assert await sandbox_identity_vars(sb, None) == {"HOME": "/srv/e"}
+    assert len(sb.exec_calls) == 3
 
 
 @pytest.mark.parametrize("timeout, expected", [(None, 30), (5, 5), (60, 30)])
