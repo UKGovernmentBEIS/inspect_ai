@@ -374,8 +374,9 @@ record with no log, keeping the failure in `error` (what its handles report
 is in [task-handles.md](task-handles.md#the-handle-api)), and the run
 continues.
 
-**Cancelling a queued record** (`RunQueue.cancel`, from the control channel or
-a handle) sets `cancel_requested` and rings the queue:
+**Cancelling a queued record** whose first attempt has not started
+(`RunQueue.cancel`, from the control channel or a handle) sets
+`cancel_requested` and rings the queue:
 
 - before its admission starts, the admission is skipped;
 - during its admission, the admission runs to the end (interrupting
@@ -383,8 +384,8 @@ a handle) sets `cancel_requested` and rings the queue:
   and the record is then ended;
 - after admission, the dispatcher ends it on its next pass.
 
-A record that ends without starting, for any reason (cancel, run end), and
-whose logger was initialised calls `logger.discard()`
+A record that ends before its first attempt starts, for any reason (cancel,
+run end), and whose logger was initialised calls `logger.discard()`
 (`src/inspect_ai/_eval/task/log.py:1076`), which releases the recorder entry
 and its temporary file; nothing reaches the log directory. It drops its
 setup jobs that have not started and that no other record needs.
@@ -433,15 +434,24 @@ loop:
   ahead of an earlier task that is waiting for its image.
 - **Retries** go to the back of the queue under their original index, as
   today. A retry's setups are requested again under the retry rule in
-  "Sandbox setup".
+  "Sandbox setup". A record waiting for a retry is queued, but it is not a
+  never-started record: it already has the error log the dispatcher stored
+  before queuing the retry (`src/inspect_ai/_eval/run.py:1036`), its
+  attempt's `EvalState` is registered, so the control channel reaches it
+  through today's between-attempts path rather than the queued registry,
+  and a cancel or drain of it, from the control channel or a handle,
+  abandons the retry as today (`run.py:871`, `:1064`): only the retry's
+  unstarted logger is discarded and the stored log stays the record's
+  log.
 - **`next_tasks()` call point** is unchanged in meaning: it is awaited only
   when nothing is queued, running, being set up or being admitted, so no
   completion can add a task while it blocks. Under plain `eval()` that is the
   same point `run_batches` reaches after a batch; under the live path it is
   the same point as today.
 - **End of run.** The loop ends when the source is done and nothing remains,
-  or on a run-level cancellation. Records still queued then end with no
-  log.
+  or on a run-level cancellation. Records still queued then end: one whose
+  first attempt never started ends with no log; one waiting for a retry
+  ends with its latest attempt's log, its retry abandoned as above.
 - **Ctrl-C.** `next_tasks()` is now awaited inside `_run_task_screen`, so a
   cancellation while it blocks is absorbed like one during a task: the run
   returns the logs it has. A cancellation reaches the run at exactly one
@@ -469,7 +479,8 @@ in one of the two. A cancel that arrives after the dispatcher has started
 the record but before `register_eval` sets `cancel_requested`; `task_run`
 checks it immediately after `register_eval` and applies it to the new attempt
 as a task cancel, as if it had arrived just after registration. A record
-that ends without starting leaves the registry when it ends.
+that ends before its first attempt starts leaves the registry when it ends.
+A retry never enters this registry (see "Retries" under "The dispatcher").
 
 - `GET /tasks` (`current_eval_summaries`) appends one row per queued record
   with `status: "queued"`, `attempts: 0`, `samples` totals of zero, and
@@ -493,7 +504,8 @@ that ends without starting leaves the registry when it ends.
 
 #### Queued cancels under `eval_set()`
 
-A seed task cancelled or drained while queued ends with no log, but
+A seed task cancelled or drained while queued, before its first attempt
+started, ends with no log, but
 `eval_set()` decides success and retries from the logs it gets back:
 `try_eval()` returns only produced logs (`src/inspect_ai/_eval/evalset.py:1175`),
 and the final status (`:1232`) and selection mode (`:1664`) call
@@ -503,8 +515,10 @@ or whose every seed task was cancelled while queued, would report "Completed
 all tasks", contradicting the documented result (`docs/eval-sets.qmd:49`).
 The no-log outcome stays; the eval set learns about it explicitly:
 
-- `_control/queued_tasks.py` keeps the `task_id`s of records ended while
-  queued by a cancel or drain directive or a handle's `cancel()`, for the
+- `_control/queued_tasks.py` keeps the `task_id`s of records ended before
+  their first attempt by a cancel or drain directive or a handle's
+  `cancel()` (never a retry abandoned between attempts, which has its error
+  log and reaches the eval set as a failure, as today), for the
   current run (reset when `eval_run` starts), and exposes
   `queued_cancelled_task_ids()`.
 - `run_eval` (`evalset.py:542`), after `eval()` returns, computes the
@@ -655,6 +669,11 @@ class SandboxSetup:
     task_dir: str            # the task's directory, absolute
     env: dict[str, str]      # for task_init: what task_init_environment returned
 
+    def print(self, message: str) -> None:
+        """Show a line of setup output: prefixed with the setup's configuration,
+        sent where subprocess output of this setup goes, and kept in its
+        failure buffer ("Display and output")."""
+
 def sandbox_setup() -> SandboxSetup | None:
     """The current setup, inside task_init_environment, task_init and task_cleanup.
 
@@ -682,7 +701,7 @@ def sandbox_setup() -> SandboxSetup | None:
   supports_sandbox_setup: ClassVar[bool] = False
   """True when the provider's task-level calls take the task directory and
   environment from `sandbox_setup()`, and write to the terminal only
-  through `subprocess()`."""
+  through `subprocess()` or `sandbox_setup().print()`."""
   ```
 
   It decides two things: whether the display is suspended around the
@@ -700,8 +719,13 @@ def sandbox_setup() -> SandboxSetup | None:
   `sandbox_setup().task_dir` when set, else `os.getcwd()` (so `sample_init`
   keeps today's behaviour), and any Python-side read of a
   `task_init_environment` variable reads `setup.env`. Docker's own
-  subprocesses already go through `subprocess()`. For Docker the directory
-  and environment its setup sees are therefore exactly today's.
+  subprocesses already go through `subprocess()`, and its one direct
+  `print()` in `task_init`, the "Service …: using local image …" message
+  (`src/inspect_ai/util/_sandbox/docker/docker.py:149`), becomes
+  `sandbox_setup().print(...)`, so it is prefixed, buffered and kept off
+  stdout with the `none` display like the rest of the setup's output. For
+  Docker the directory and environment its setup sees are therefore exactly
+  today's, and all its setup output takes the setup-output route.
 - **Providers that have not adopted it** (decision: Ransom, 2026-11-03: the
   launch directory, with the warning above). Their subprocesses started
   through `inspect_ai.util.subprocess()` run in the task directory with the
@@ -730,7 +754,8 @@ def sandbox_setup() -> SandboxSetup | None:
     for any step here.
 - **Opt-in:** a provider reads `sandbox_setup().task_dir` wherever it
   resolves a relative path in Python during `task_init` or `task_cleanup`,
-  sends terminal output through `subprocess()`, and sets
+  sends terminal output through `subprocess()` or `sandbox_setup().print()`,
+  and sets
   `supports_sandbox_setup = True`. A provider that must also run on older
   Inspect versions feature-detects the accessor
   (`getattr(inspect_ai.util, "sandbox_setup", None)`) and falls back to
@@ -812,8 +837,8 @@ design depends on it.
   selection-mode worker that added it.
 - The abort fix's dispatcher rule (an attempt with no log or a `cancelled`
   log means a run-level cancellation) applies only to attempts `run_one`
-  ran. A record ended while queued, or by an admission failure, never
-  reaches `run_one`, so its missing log does not end the run. A setup
+  ran. A record ended before its first attempt, or by an admission failure,
+  never reaches `run_one`, so its missing log does not end the run. A setup
   failure always produces an `error` log through the attempt path.
 
 ## Alternatives considered
@@ -880,7 +905,8 @@ Public API (additive):
 - `enqueue_task()`'s docstring and `docs/task-source.qmd` say added tasks
   always start when there is room (its return value changes in
   [task-handles.md](task-handles.md)).
-- New `inspect_ai.util.SandboxSetup`, `sandbox_setup()`; new class attribute
+- New `inspect_ai.util.SandboxSetup` (with `print()`), `sandbox_setup()`;
+  new class attribute
   `SandboxEnvironment.supports_sandbox_setup` (default `False`).
 - `inspect_ai.util.subprocess()` applies the setup's directory and
   environment inside a provider's task-level calls.
@@ -1002,12 +1028,16 @@ does (a new list per call):
   `capture_output=False` subprocess during a declaring provider's setup
   reaches `display().print()` line by line with the configuration prefix and
   the failure buffer, while a non-declaring provider's setup suspends the
-  display and leaves output on the terminal.
+  display and leaves output on the terminal; `sandbox_setup().print()`
+  takes the same route, and with the `none` display writes nothing to
+  stdout.
 - `tests/util/sandbox/test_docker_cleanup.py`: Docker under the setup scope
   resolves `ComposeConfig` and no-config compose files against the task
   directory with the launch directory elsewhere (stubbed daemon, as the file
-  does today). One `--runslow` real-Docker test builds a Dockerfile task
-  loaded from another directory.
+  does today), and the local-image branch's message reaches the display with
+  the configuration prefix and not stdout under the `none` display. One
+  `--runslow` real-Docker test builds a Dockerfile task loaded from another
+  directory.
 - `tests/test_enqueue_task.py`: an added task starts while its creator runs
   under `eval()` and `eval_set()` (the probe above, as a test bounded with
   `fail_after`); under eval-set selection mode in-process; ordering at
@@ -1031,7 +1061,11 @@ does (a new list per call):
   `dry_run`; while an earlier record's `logger.init()` blocks, a later
   record is listed and can be cancelled, and the blocked record cancelled
   during admission ends with no log once admission finishes; a cancel
-  between dispatch and `register_eval` reaches the attempt.
+  between dispatch and `register_eval` reaches the attempt; a run
+  cancelled, and a cancel or drain, while a task waits in the queue for its
+  retry keep the prior attempt's error log (the existing between-attempts
+  test, extended to the run-cancel case) and add nothing to the
+  cancelled-before-starting set.
 - `tests/test_eval_set.py`: with seed tasks A and B and B cancelled while
   queued, the eval set reports failure and its message names B, under
   immediate retries and under the legacy retry loop (with A first erroring,
@@ -1067,7 +1101,9 @@ batch has its own `eval_run` and cleans up its own state).
    `_eval/run.py` (`SandboxManager` uses the scope; `await logger.init()` out
    of the `chdir` block), `_eval/task/sandbox.py:265`,
    `util/_sandbox/environment.py` (`supports_sandbox_setup`, docstrings),
-   `util/_sandbox/docker/docker.py` (declares support),
+   `util/_sandbox/docker/docker.py` (declares support; its local-image
+   message through `sandbox_setup().print()`, which prints as today until
+   step 4 routes it),
    `docs/extensions-sandboxes.qmd`; the working-directory warning. The
    display suspension stays for every provider in this step. Tests:
    `tests/util/sandbox/test_sandbox_setup.py`, Docker tests.
@@ -1099,8 +1135,8 @@ batch has its own `eval_run` and cleans up its own state).
 4. **Setup beside the dispatcher.** `_eval/sandbox_setups.py` (new; replaces
    `SandboxManager`), `_eval/run.py` (start rule, `setup_error`),
    `_eval/task/run.py` (setup-failure attempt path, `setups.ensure()`),
-   `util/_subprocess.py` (forwarding output to the display and the failure
-   buffer), suspension only for providers that do not declare support,
+   `util/_subprocess.py` and `util/_sandbox/setup.py` (forwarding output and
+   `SandboxSetup.print()` to the display and the failure buffer), suspension only for providers that do not declare support,
    `_control/queued_tasks.py` (`setup` field). Tests: setup failure, retry
    rule, sandbox-free start, output forwarding, cancel dropping waiting jobs.
    Needs step 3.
