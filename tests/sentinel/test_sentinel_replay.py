@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any, NamedTuple, cast
 import anyio
 import pytest
 import tenacity
-from pydantic import BaseModel
+from pydantic import BaseModel, TypeAdapter
 
 from inspect_ai import Task, eval
 from inspect_ai._sentinel._integration import (
@@ -3177,6 +3177,111 @@ def test_a_human_approver_s_decision_reaches_later_steps_in_a_log_without_origin
     if action == "modify":
         assert reported.report.modified is not None
         assert reported.report.modified.arguments["x"] == 7
+
+
+def _historical_approval_events(
+    inputs: str, decision: str, legacy_arguments: bool
+) -> tuple[list[ChatMessage], list[Event], list[ChatMessage]]:
+    from inspect_ai._sentinel import _replay
+
+    user = ChatMessageUser(content="Add one")
+    proposal = ToolCall(id="c1", function="addition", arguments={"x": 1, "y": 1})
+    approved = replace(proposal, arguments={"x": 7, "y": 1})
+    first = linked_call("m1", "agent", [user], "Adding", None, proposal)
+    first.tools = [ToolInfo(name="addition", description="Add numbers")]
+    result = ChatMessageTool(content="8", tool_call_id="c1", function="addition")
+    second = linked_call(
+        "m2", "agent", [user, first.output.message, result], "Done", None
+    )
+    events: list[Event] = [
+        SpanBeginEvent(id="agent", name="agent", type="agent"),
+        first,
+        ApprovalEvent(
+            message="Adding",
+            call=proposal,
+            approver="human",
+            decision=cast(ApprovalDecision, decision),
+            modified=approved if decision == "modify" else None,
+            span_id="agent",
+        ),
+    ]
+    if decision == "modify":
+        events.extend(
+            [
+                SpanBeginEvent(
+                    id="tool", name="addition", type="tool", parent_id="agent"
+                ),
+                ToolEvent(
+                    id="c1",
+                    function="addition",
+                    arguments=proposal.arguments
+                    if legacy_arguments
+                    else approved.arguments,
+                    result="8",
+                    message_id=result.id,
+                    span_id="tool",
+                ),
+                SpanEndEvent(id="tool"),
+            ]
+        )
+    events.extend([second, SpanEndEvent(id="agent")])
+    pool: list[ChatMessage] = []
+    if inputs == "pooled":
+        events, pool = _replay._condensed(events, [])
+    adapter = TypeAdapter(list[Event])
+    return (
+        [user, first.output.message, result, second.output.message],
+        adapter.validate_json(adapter.dump_json(events)),
+        pool,
+    )
+
+
+@pytest.mark.parametrize("inputs", ["expanded", "pooled"])
+@pytest.mark.parametrize("legacy_arguments", [True, False])
+def test_a_0_3_99_approved_change_keeps_executed_arguments(
+    inputs: str, legacy_arguments: bool
+) -> None:
+    messages, events, pool = _historical_approval_events(
+        inputs, "modify", legacy_arguments
+    )
+    replay = steps_from_events(
+        messages,
+        events,
+        pool,
+        sample_uuid="sample",
+        eval_info=EvalInfo("0.3.99" if legacy_arguments else "0.3.200", False),
+        human_approvers=("human",),
+    )
+    assert [
+        step.step.call.arguments
+        for step in replay
+        if isinstance(step.step, BeforeToolCall | AfterToolCall)
+    ] == [{"x": 7, "y": 1}, {"x": 7, "y": 1}]
+
+
+@pytest.mark.parametrize("inputs", ["expanded", "pooled"])
+@pytest.mark.parametrize("decision", ["reject", "terminate"])
+def test_a_0_3_99_decision_without_tool_event_reaches_later_step(
+    inputs: str, decision: str
+) -> None:
+    messages, events, pool = _historical_approval_events(inputs, decision, True)
+    assert not any(isinstance(event, ToolEvent) for event in events)
+    replay = steps_from_events(
+        messages,
+        events,
+        pool,
+        sample_uuid="sample",
+        eval_info=EvalInfo("0.3.99", False),
+        human_approvers=("human",),
+    )
+    assert not [step for step in replay if step.stage.startswith("tool")]
+    later = next(
+        step for step in replay if step.stage == "model_input" and step.id == "m2"
+    )
+    decisions = list(later.step.human_decisions or [])
+    assert len(decisions) == 1
+    assert decisions[0].step_id == "c1"
+    assert decisions[0].decided.report.action == decision
 
 
 @tool

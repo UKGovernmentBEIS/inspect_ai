@@ -520,6 +520,8 @@ class _Driver:
         calls_made: set[str | None] = set()
         produced: dict[str, tuple[ChatMessageAssistant, ModelEvent, ToolCall]] = {}
         approvals: dict[str, ApprovalEvent] = {}
+        approval_entries: list[tuple[int, ApprovalEvent, str]] = []
+        tool_call_ids: set[str] = set()
         calls: list[_Call] = []
 
         # Every span first so origin inference sees later span declarations.
@@ -564,12 +566,20 @@ class _Driver:
                     open_generates[attempt_key] = group
             elif isinstance(event, ApprovalEvent):
                 approvals[event.call.id] = event
+                found = produced.get(event.call.id)
+                conversation = (
+                    self._conversation(found[1])
+                    if found is not None
+                    else self._conversation(event)
+                )
+                approval_entries.append((index, event, conversation))
             elif isinstance(event, CompactionEvent):
                 conversation = self._conversation(event)
                 self._at(index, 2, partial(self._count_compaction, conversation))
             elif isinstance(event, ToolEvent):
                 if self._in_sentinel_span(event.span_id):
                     continue
+                tool_call_ids.add(event.id)
                 found = produced.get(event.id)
                 producer: ModelEvent | None = None
                 assistant: ChatMessageAssistant | None
@@ -598,6 +608,15 @@ class _Driver:
 
         self.calls_made = calls_made
         self._warn_unmatched_checks()
+        if not self.eval_info.sentinel:
+            for index, approval, conversation in approval_entries:
+                if approval.call.id not in tool_call_ids:
+                    self._approval_decision(
+                        approval,
+                        conversation,
+                        (index, 2),
+                        self._next_seq(),
+                    )
         for group in generates:
             self._generate(group)
         for entry in calls:
@@ -773,7 +792,11 @@ class _Driver:
         proposal = call.proposal
         approval = call.approval
         if not self.eval_info.sentinel and approval is not None:
-            self._approval_decision(call, approval)
+            span = call.tool_span
+            begin = self.begins[span][0] if span is not None else call.index
+            self._approval_decision(
+                approval, call.conversation, (begin, 1), call.seq + 1
+            )
         if proposal is None or call.assistant is None:
             return
         recorded = before_span is not None or after_span is not None
@@ -817,10 +840,15 @@ class _Driver:
 
         modify = self._sentinel_modify(before_span, event)
         approved = approver_modified or proposal
+        executed_arguments = (
+            approver_modified.arguments
+            if approver_modified is not None and event.arguments == proposal.arguments
+            else event.arguments
+        )
         if modify is not None:
             before_call = approved
         else:
-            before_call = replace(approved, arguments=event.arguments)
+            before_call = replace(approved, arguments=executed_arguments)
         if approval is not None and approval.view is not None and not approver_modified:
             before_view = approval.view
         elif modify is None or event.view is None:
@@ -857,7 +885,10 @@ class _Driver:
 
         after_call = modify if modify is not None else before_call
         after_call = replace(
-            after_call, id=event.id, function=event.function, arguments=event.arguments
+            after_call,
+            id=event.id,
+            function=event.function,
+            arguments=executed_arguments,
         )
         truncated = self._truncated(event)
         result = self._result(event)
@@ -1161,7 +1192,13 @@ class _Driver:
             and event.action is not None
         }
 
-    def _approval_decision(self, call: _Call, approval: ApprovalEvent) -> None:
+    def _approval_decision(
+        self,
+        approval: ApprovalEvent,
+        conversation: str,
+        point: tuple[int, int],
+        seq: int,
+    ) -> None:
         if approval.approver not in self.human_approvers:
             return
         decided = _approval_report(approval)
@@ -1171,18 +1208,13 @@ class _Driver:
 
         decision = HumanDecision(
             stage="tool_call",
-            step_id=call.event.id,
-            call_ids=(call.event.id,),
+            step_id=approval.call.id,
+            call_ids=(approval.call.id,),
             decided=decided,
         )
-        # the person decided before the call ran, so its own after-call step
-        # sees the decision, as a human() answer at tool_call reaches it
-        span = call.tool_span
-        begin = self.begins[span][0] if span is not None else call.index
-        conversation = call.conversation
         self._at_point(
-            (begin, 1),
-            call.seq + 1,
+            point,
+            seq,
             lambda: self._record(conversation).publish([decision]),
         )
 
