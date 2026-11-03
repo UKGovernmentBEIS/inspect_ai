@@ -507,6 +507,9 @@ class _Driver:
         """
         native = [call for call in calls if not _bridged(call.event)]
         native_ids = {call.event.id for call in native}
+        native_by_id: dict[str, list[_Call]] = {}
+        for call in native:
+            native_by_id.setdefault(call.event.id, []).append(call)
         execution_counts = Counter(call.event.id for call in calls)
         shared = {
             call.event.id
@@ -531,6 +534,8 @@ class _Driver:
                 for span in self.tool_spans.get(("tool_call", call_id), [])
             ):
                 shared.add(call_id)
+            if self._bridge_result_span(call_id, native_by_id[call_id]):
+                shared.add(call_id)
             if (
                 self.tool_spans.get(("tool_result", call_id))
                 and len(self.proposed.get(call_id, [])) > execution_counts[call_id]
@@ -540,6 +545,34 @@ class _Driver:
                 elif call_id not in shared:
                     self.uncertain_bridge_ids.add(call_id)
         return shared
+
+    def _bridge_result_span(self, call_id: str, native: list[_Call]) -> bool:
+        """Find a result check that began after every earlier native call completed.
+
+        `_call_tools` finishes a native ToolEvent only after its result review
+        and sentinel check return. A later result check under the same id must
+        therefore belong to a bridge request. Missing completion times leave
+        ownership uncertain; they cannot establish bridge attribution.
+        """
+        call_index = 0
+        latest_completion = None
+        missing_completion = False
+        for span in self.tool_spans.get(("tool_result", call_id), []):
+            position, begin = self.begins[span]
+            while call_index < len(native) and native[call_index].index < position:
+                completed = native[call_index].event.completed
+                if completed is None:
+                    missing_completion = True
+                elif latest_completion is None or completed > latest_completion:
+                    latest_completion = completed
+                call_index += 1
+            if call_index == 0 or (
+                not missing_completion
+                and latest_completion is not None
+                and begin.timestamp > latest_completion
+            ):
+                return True
+        return False
 
     def _sentinel_event(
         self, event: SentinelEvent, candidates: dict[str, list[str]]

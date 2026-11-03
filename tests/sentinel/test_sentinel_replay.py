@@ -3469,6 +3469,119 @@ def test_result_only_sentinel_skips_shared_scaffold_result(
 
 
 @agent
+def r7_reports_orphan_result_after_failed_native_call() -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        from inspect_ai.agent._bridge.completions import inspect_completions_api_request
+
+        bridge, tools = await r7_host_bridge(state)
+        history: list[ChatMessage] = [ChatMessageUser(content="native")]
+        native_tool = explodes()
+        output = await get_model().generate(history, tools=[native_tool])
+        history.append(output.message)
+        with pytest.raises(RuntimeError, match="boom"):
+            await execute_tools(history, [native_tool])
+        messages: list[dict[str, Any]] = [
+            {"role": "user", "content": "orphan"},
+            {
+                "role": "tool",
+                "tool_call_id": "shared",
+                "name": "echo",
+                "content": "orphan result",
+            },
+        ]
+        with pytest.raises(TerminateSampleError, match="stop orphan"):
+            await inspect_completions_api_request(
+                {"model": "inspect", "messages": messages, "tools": tools},
+                None,
+                bridge,
+            )
+        state.output = await get_model().generate(state.messages)
+        return state
+
+    return execute
+
+
+@protocol
+def r7_terminate_orphan_result() -> Protocol:
+    async def after(
+        context: Context, step: AfterToolCall, escalations: Escalations
+    ) -> Decision | None:
+        return Decision.terminate("stop orphan")
+
+    return after
+
+
+def test_orphan_bridge_result_after_failed_native_call_stays_unclaimed(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    Panel("approve", "allowed").install(monkeypatch)
+    seen: dict[str, Step] = {}
+    log = run_logged(
+        as_solver(r7_reports_orphan_result_after_failed_native_call()),
+        outputs(
+            r7_tool_calls(ToolCall(id="shared", function="explodes", arguments={})),
+            done(),
+        ),
+        sentinel=[
+            r7_probe(seen, copies=True),
+            h_ask("tool_result", ["approve", "reject"]),
+            r7_terminate_orphan_result(),
+        ],
+    )
+    sample = logged_sample(log)
+    live = [
+        (event.stage, seen[event.explanation or ""].call.function)
+        for event in sample.events
+        if isinstance(event, SentinelEvent)
+        and event.path == "r7_probe"
+        and event.stage.startswith("tool")
+    ]
+    assert live == [("tool_call", "explodes"), ("tool_result", "")]
+    native = next(
+        event
+        for event in sample.events
+        if isinstance(event, ToolEvent) and event.id == "shared"
+    )
+    result_span = next(
+        event.span_id
+        for event in sample.events
+        if isinstance(event, SentinelEvent)
+        and event.stage == "tool_result"
+        and event.step_id == "shared"
+    )
+    begin = next(
+        event
+        for event in sample.events
+        if isinstance(event, SpanBeginEvent) and event.id == result_span
+    )
+    assert native.failed is True and native.completed is not None
+    assert begin.timestamp > native.completed
+    assert (
+        sum(
+            call.id == "shared"
+            for event in sample.events
+            if isinstance(event, ModelEvent)
+            for call in event.output.message.tool_calls or []
+        )
+        == 1
+    )
+
+    replay = replayed(log)
+    assert [
+        (step.stage, step.step.call.function)
+        for step in replay
+        if isinstance(step.step, BeforeToolCall | AfterToolCall)
+    ] == [("tool_call", "explodes")]
+    model_steps = [step.step for step in replay if step.stage.startswith("model")]
+    assert [len(step.human_decisions or []) for step in model_steps] == [0, 0, 1, 1]
+    assert "call id(s) shared" in caplog.text
+    assert (
+        sum(record.name == "inspect_ai._sentinel._replay" for record in caplog.records)
+        == 1
+    )
+
+
+@agent
 def r6_executes_one_of_two_native_proposals() -> Agent:
     async def execute(state: AgentState) -> AgentState:
         tool = addition()
@@ -3541,7 +3654,12 @@ def test_shared_id_preprocessing_counts_executions_once(
     ]
     for index in range(count):
         call_id = f"call_{index}"
-        driver.tool_spans[("tool_result", call_id)] = [f"span_{index}"]
+        span_id = f"span_{index}"
+        driver.tool_spans[("tool_result", call_id)] = [span_id]
+        driver.begins[span_id] = (
+            count + index,
+            SpanBeginEvent(id=span_id, type="sentinel", name="sentinel"),
+        )
         driver.proposed[call_id] = [index, index + count]
     original = ToolEvent.__getattribute__
     reads = 0
