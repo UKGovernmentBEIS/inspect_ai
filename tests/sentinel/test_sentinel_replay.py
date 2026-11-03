@@ -2836,7 +2836,9 @@ def test_an_imported_transcript_is_replayed_from_its_messages(importer: str) -> 
     # projection, not from its events
     messages, events = IMPORTERS[importer]()
 
-    with pytest.raises(ValueError, match="steps_from_messages"):
+    with pytest.raises(
+        ValueError, match="Replay this transcript from its messages instead"
+    ):
         steps_from_events(
             messages,
             events,
@@ -2940,7 +2942,10 @@ def test_pre_tool_span_log_is_refused(
     pool: list[ChatMessage] = []
     if inputs == "pooled":
         events, pool = _replay._condensed(events, [])
-    with pytest.raises(ValueError, match="0.3.94.*messages"):
+    with pytest.raises(
+        ValueError,
+        match="0.3.94 or later.*Replay this transcript from its messages instead",
+    ):
         steps_from_events(
             [user, first.output.message, result, second.output.message],
             events,
@@ -2996,7 +3001,10 @@ def test_nested_pre_tool_span_log_is_refused_after_json_read(
     [parent] = persisted.events
     assert isinstance(parent, ToolEvent)
     assert isinstance(parent.events[0], dict)
-    with pytest.raises(ValueError, match="0.3.94.*messages"):
+    with pytest.raises(
+        ValueError,
+        match="0.3.94 or later.*Replay this transcript from its messages instead",
+    ):
         steps_from_events(
             persisted.messages,
             persisted.events,
@@ -3028,7 +3036,10 @@ def test_unknown_version_refuses_nested_spanless_native_tool(
         outer,
         SpanEndEvent(id="outer-span"),
     ]
-    with pytest.raises(ValueError, match="0.3.94.*messages"):
+    with pytest.raises(
+        ValueError,
+        match="0.3.94 or later.*Replay this transcript from its messages instead",
+    ):
         steps_from_events(
             [], events, [], sample_uuid="sample", eval_info=EvalInfo(None, False)
         )
@@ -3389,7 +3400,10 @@ def test_a_log_from_before_tool_spans_is_refused() -> None:
         resolve_attachments="full",
     )
     [sample] = log.samples or []
-    with pytest.raises(ValueError, match="0.3.94.*messages"):
+    with pytest.raises(
+        ValueError,
+        match="0.3.94 or later.*Replay this transcript from its messages instead",
+    ):
         steps_from_events(
             sample.messages,
             sample.events,

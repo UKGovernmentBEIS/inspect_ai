@@ -114,15 +114,14 @@ def steps_from_events(
         The steps, in the order they ran live.
 
     Raises:
-        ValueError: `eval_info` is `None`, or the log predates Inspect 0.3.94 (or has an unknown version and completed spanless native tool events). Replay such transcripts from their messages with inspect_sentinel's `steps_from_messages`.
+        ValueError: `eval_info` is `None`, or the log predates Inspect 0.3.94 (or has an unknown version and completed spanless native tool events). Replay such transcripts from their messages instead.
         MalformedLogError: Two steps of one stage have one step id, the span tree has a `parent_id` cycle, or a model input names rows outside the message pool.
         Unmatched recorded model_input checks are skipped with one warning per transcript.
     """
     if eval_info is None:
         raise ValueError(
             "steps_from_events replays an Inspect log, and needs its header "
-            "(EvalInfo.from_eval); replay a transcript imported from another "
-            "source from its messages with inspect_sentinel's steps_from_messages."
+            "(EvalInfo.from_eval). Replay this transcript from its messages instead."
         )
     version = eval_info.inspect_ai_version
     if _before_tool_spans(version) or (
@@ -131,8 +130,7 @@ def steps_from_events(
     ):
         raise ValueError(
             "steps_from_events requires an Inspect log written by inspect_ai "
-            "0.3.94 or later; replay older logs from their messages with "
-            "inspect_sentinel's steps_from_messages."
+            "0.3.94 or later. Replay this transcript from its messages instead."
         )
     flat, nested = _flatten(events)
     pool: list[ChatMessage] | Sequence[ChatMessage] = message_pool
