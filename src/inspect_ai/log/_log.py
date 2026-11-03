@@ -128,7 +128,7 @@ class EvalConfig(BaseModel):
     """
 
     sentinel_proxy: SentinelProxy | None = Field(default=None)
-    """Whether to look for a sentinel sidecar behind each model's proxy: `auto` (the default when not set) uses one it finds, `required` fails a task unless one is found, and `off` never looks.
+    """Whether to look for a sentinel sidecar behind each model's proxy: `off` (the default when not set) never looks, `auto` uses one it finds, and `required` fails a task unless one is found.
 
     Experimental: not yet a stable API; may change without notice.
     """

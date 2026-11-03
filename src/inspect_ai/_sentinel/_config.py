@@ -44,7 +44,7 @@ Sentinels: TypeAlias = Sentinel | Mapping[str, Sentinel] | Sequence[Sentinel]
 
 
 SentinelProxy: TypeAlias = Literal["auto", "required", "off"]
-"""Whether Inspect looks for a sentinel sidecar behind a model's proxy, and whether it must find one.
+"""Whether Inspect looks for a sentinel sidecar behind a model's proxy, and whether it must find one. Inspect never looks unless it is set.
 
 Experimental: not yet a stable API; may change without notice.
 """

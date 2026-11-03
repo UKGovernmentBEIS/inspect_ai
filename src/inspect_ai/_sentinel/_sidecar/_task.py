@@ -275,10 +275,12 @@ async def init_task_sidecars(
     Raises:
         SentinelProxyError: If the task can't run with the sidecars it finds.
     """
-    if mode == "off":
+    # nothing is looked for unless the eval asks: no probe, and no sidecar
+    # code runs for the task
+    if mode is None or mode == "off":
         _task_sidecars.set(None)
         return
-    sidecars = TaskSidecars(mode or "auto", facts)
+    sidecars = TaskSidecars(mode, facts)
     await sidecars.start(model)
     _task_sidecars.set(sidecars)
     _eval_sidecars[facts.eval_id] = sidecars
