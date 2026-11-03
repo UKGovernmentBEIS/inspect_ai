@@ -1,4 +1,12 @@
-from inspect_ai._display.core.rich import _dumb_terminal_size_kwargs
+import pytest
+import rich
+
+import inspect_ai._display.core.rich as display_rich
+from inspect_ai._display.core.rich import (
+    _dumb_terminal_size_kwargs,
+    rich_initialise,
+    rich_restore_defaults,
+)
 
 
 def test_dumb_terminal_uses_columns_with_default_height(monkeypatch):
@@ -23,3 +31,17 @@ def test_terminal_size_override_requires_dumb_term(monkeypatch):
     monkeypatch.setenv("LINES", "50")
 
     assert _dumb_terminal_size_kwargs() == {}
+
+
+def test_restore_keeps_console_replaced_between_initialises(
+    fresh_display: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # the textual display initialises the console for each eval, with no
+    # restore between evals of the same display type
+    monkeypatch.setattr(display_rich, "is_running_in_vscode", lambda: True)
+    rich_initialise("full", plain=False)
+    rich.reconfigure(no_color=True)
+    rich_initialise("full", plain=False)
+
+    rich_restore_defaults()
+    assert rich.get_console().no_color
