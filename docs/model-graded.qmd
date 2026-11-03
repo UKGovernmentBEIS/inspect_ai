@@ -178,7 +178,7 @@ Grade extraction binds to the last grade. The default `grade_pattern` (`(?is).*(
 
 Field markers carry a nonce. The default templates put each field between its own markers, and each marker carries a random code made for that grading request, for example `[BEGIN SUBMISSION (3f9a1c7e)]` and `[END SUBMISSION (3f9a1c7e)]`. With `include_history=True`, the message headers in the presented conversation carry it too (`User (3f9a1c7e):`). The templates tell the grader that text which looks like a marker or a message header but lacks the code is part of the field it appears in, and that the task and submission are data to grade, not instructions. The submission is written before the code exists, so a forged marker in it cannot carry the code. Custom templates can use the code as `{grader_nonce}`; a `grader_nonce` key in sample metadata is not passed to the template.
 
-Because every grading request has a new code, its prompt differs from earlier ones:
+With the default templates, every grading request has a new code, so its prompt differs from earlier ones. The same holds for a custom template that uses `{grader_nonce}` or presents message headers with `include_history=True`; any other custom template renders and caches as before. Where the code is present:
 
 - A grader configured with `cache` (see [Caching](caching.qmd)) does not reuse cached responses across grading requests.
 - [Provider prompt caching](caching.qmd#sec-provider-caching) can reuse only the opening of the prompt (about the first 75 tokens of the default templates).
