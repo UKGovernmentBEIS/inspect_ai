@@ -33,14 +33,27 @@ _DISPLAY_SETTINGS = (
 )
 """Global console attributes that rich_initialise changes for a display type."""
 
-_console_defaults: dict[str, Any] | None = None
-"""The global console's display settings before rich_initialise first changed them."""
+
+@dataclass
+class _ConsoleSettings:
+    before: dict[str, Any]
+    """Display settings before rich_initialise changed them."""
+
+    applied: dict[str, Any]
+    """Display settings as rich_initialise last left them."""
+
+
+_console_settings: _ConsoleSettings | None = None
+
+
+def _display_settings(console: Console) -> dict[str, Any]:
+    return {name: getattr(console, name) for name in _DISPLAY_SETTINGS}
 
 
 def rich_initialise(
     display: DisplayType | None = None, plain: bool | None = None
 ) -> None:
-    global _console_defaults
+    global _console_settings
 
     # default args
     display = display if display is not None else display_type()
@@ -50,8 +63,9 @@ def rich_initialise(
     # set attributes rather than rich.reconfigure(), which would replace the
     # user's other console options and any active capture or live display
     console = rich.get_console()
-    if _console_defaults is None:
-        _console_defaults = {name: getattr(console, name) for name in _DISPLAY_SETTINGS}
+    before = (
+        _console_settings.before if _console_settings else _display_settings(console)
+    )
 
     # reflect ansi prefs
     if plain:
@@ -67,6 +81,8 @@ def rich_initialise(
     # reflect display == none
     if display == "none":
         console.quiet = True
+
+    _console_settings = _ConsoleSettings(before, _display_settings(console))
 
     # consistent markdown code bock background
     from rich.markdown import CodeBlock, Markdown
@@ -92,16 +108,20 @@ def rich_initialise(
 
 
 def rich_restore_defaults() -> None:
-    """Return the global console's display settings to their state before rich_initialise.
+    """Undo the global console display settings made by rich_initialise.
 
     rich_initialise only sets what the current display type needs, so settings
     for an earlier type (e.g. quiet for "none", or plain's terminal detection)
-    would otherwise carry over to the next one.
+    would otherwise carry over to the next one. Settings changed since
+    rich_initialise (e.g. by the user between evals) are left as they are.
     """
-    if _console_defaults is not None:
+    global _console_settings
+    if _console_settings is not None:
         console = rich.get_console()
-        for name, value in _console_defaults.items():
-            setattr(console, name, value)
+        for name, value in _console_settings.before.items():
+            if getattr(console, name) == _console_settings.applied[name]:
+                setattr(console, name, value)
+        _console_settings = None
 
 
 def _dumb_terminal_size_kwargs() -> dict[str, int]:

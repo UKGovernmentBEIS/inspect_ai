@@ -397,6 +397,25 @@ def test_eval_display_change_keeps_console_options(
         assert console.file is output, display
 
 
+def test_eval_display_change_keeps_console_settings_made_between_evals(
+    fresh_display: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import rich
+
+    import inspect_ai._display.core.rich as display_rich
+
+    monkeypatch.setattr(display_rich, "is_running_in_vscode", lambda: False)
+    task = Task(dataset=[Sample(input="hi", target="hi")], scorer=match())
+    eval(task, model="mockllm/model", display="rich", log_dir=str(tmp_path))
+
+    rich.reconfigure(width=120, quiet=True)
+    eval(task, model="mockllm/model", display="log", log_dir=str(tmp_path))
+
+    console = rich.get_console()
+    assert console.width == 120
+    assert console.quiet
+
+
 def test_display_type_change_during_eval_keeps_running_display(
     fresh_display: None,
     monkeypatch: pytest.MonkeyPatch,
