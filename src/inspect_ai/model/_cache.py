@@ -218,9 +218,19 @@ def cache_model_args_key(
     except (ValueError, RecursionError):
         if instance_key is None:
             return None
-        serialized = json.dumps(
-            [instance_key, _model_args_tree(model_args, set())], sort_keys=True
-        )
+        return cache_instance_model_args_key(model_args, instance_key)
+    return sha256(serialized.encode("utf-8")).hexdigest()
+
+
+def cache_instance_model_args_key(model_args: dict[str, Any], instance_key: str) -> str:
+    """Fingerprint model args for one model instance.
+
+    The JSON portions of the arguments still distinguish request defaults, and
+    the encoding cannot match an instance-independent fingerprint.
+    """
+    serialized = json.dumps(
+        [instance_key, _model_args_tree(model_args, set())], sort_keys=True
+    )
     return sha256(serialized.encode("utf-8")).hexdigest()
 
 

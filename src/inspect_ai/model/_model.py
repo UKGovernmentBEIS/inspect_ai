@@ -112,6 +112,7 @@ from ._cache import (
     CachePolicy,
     UnsupportedModelArgError,
     cache_fetch,
+    cache_instance_model_args_key,
     cache_model_args_key,
     cache_store,
     epoch,
@@ -1563,11 +1564,12 @@ class Model:
                 model_args_key = _model_args_key(
                     self.model_args, self._cache_instance_key, warn=True
                 )
-                # some providers copy their configuration at construction, so
-                # args changed since then must also carry the original ones
+                # a provider may have copied or still share what it got at
+                # construction, so args changed since then can't identify the
+                # request beyond this instance
                 if model_args_key != self._cache_init_args_key:
-                    model_args_key = cache_model_args_key(
-                        {"init": self._cache_init_args_key, "now": model_args_key}
+                    model_args_key = cache_instance_model_args_key(
+                        self.model_args, self._cache_instance_key
                     )
 
                 cache_entry = CacheEntry(
@@ -2422,8 +2424,10 @@ def _init_model_args_key(model_args: dict[str, Any], instance_key: str) -> str |
     """Fingerprint the model args as a provider saw them at construction.
 
     Some providers parse their configuration at construction (Google
-    `safety_settings`), so a later change to the args does not reach the
-    request. Args that caching refuses raise only when caching is used, so
+    `safety_settings`) and others keep the nested objects they were given
+    (Anthropic `extra_body`), so once the args differ from this fingerprint
+    they no longer say what the provider sends, and caching is scoped to the
+    instance. Args that caching refuses raise only when caching is used, so
     here they scope the fingerprint to the instance instead.
     """
     try:

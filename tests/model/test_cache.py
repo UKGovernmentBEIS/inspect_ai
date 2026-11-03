@@ -37,6 +37,7 @@ from inspect_ai.model._cache import (
     _cache_key_config,
     cache_clear,
     cache_fetch,
+    cache_instance_model_args_key,
     cache_list_expired,
     cache_model_args_key,
     cache_path,
@@ -271,6 +272,57 @@ async def test_cache_keeps_model_args_parsed_at_construction(
 
     assert "LOW" in low_output.completion
     assert "HIGH" in high_output.completion
+    assert calls == 2
+
+
+def test_cache_instance_model_args_key_differs_from_shared_key() -> None:
+    """An instance's key for changed args cannot match another model's args key."""
+    args = {"extra_body": {"system": "4"}}
+    scoped = cache_instance_model_args_key(args, "instance")
+    assert scoped != cache_model_args_key(args)
+    assert scoped != cache_model_args_key(
+        {"init": cache_model_args_key({"extra_body": {"system": "3"}}), "now": scoped}
+    )
+    assert scoped != cache_instance_model_args_key(args, "other")
+
+
+async def test_cache_scopes_model_args_changed_after_construction(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Replacing an arg and mutating it give equal args but different requests."""
+    from inspect_ai.model._providers.anthropic import AnthropicAPI
+
+    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path))
+    calls = 0
+
+    def anthropic_model() -> Model:
+        model = get_model(
+            "anthropic/claude-sonnet-4-5",
+            api_key="test",
+            extra_body={"system": "3"},
+            memoize=False,
+        )
+        api = cast(AnthropicAPI, model.api)
+
+        async def generate_output(*args: Any, **kwargs: Any) -> ModelOutput:
+            nonlocal calls
+            calls += 1
+            assert api.extra_body is not None
+            return ModelOutput.from_content(
+                model="anthropic", content=api.extra_body["system"]
+            )
+
+        monkeypatch.setattr(model.api, "generate", generate_output)
+        return model
+
+    replaced = anthropic_model()
+    replaced.model_args["extra_body"] = {"system": "4"}
+    mutated = anthropic_model()
+    mutated.model_args["extra_body"]["system"] = "4"
+
+    replaced_output = await replaced.generate("Hello", cache=True)
+    mutated_output = await mutated.generate("Hello", cache=True)
+    assert [replaced_output.completion, mutated_output.completion] == ["3", "4"]
     assert calls == 2
 
 
