@@ -11,6 +11,8 @@ from typing_extensions import override
 
 from inspect_ai._util.platform import is_running_in_jupyterlab, is_running_in_vscode
 from inspect_ai._util.transcript import transcript_code_theme
+from inspect_ai.event._input import InputEvent
+from inspect_ai.log._transcript import transcript
 from inspect_ai.util._display import DisplayType, display_type, display_type_plain
 
 
@@ -175,7 +177,17 @@ _theme: RichTheme | None = None
 
 
 @contextmanager
-def record_console_input() -> Iterator[None]:
+def record_console_interaction(console: Console, record_event: bool) -> Iterator[None]:
+    """Record console output and input during an input screen as an `InputEvent`.
+
+    Records to a separate buffer, so the event holds only this interaction and
+    the caller's own recording (if any) is kept and restored afterwards.
+    """
+    with console._record_buffer_lock:
+        record, buffer = console.record, console._record_buffer
+        console._record_buffer = []
+    console.record = True
+
     # monkey patch .input method to record inputs
     input_original = Console.input
 
@@ -192,3 +204,10 @@ def record_console_input() -> Iterator[None]:
         yield
     finally:
         Console.input = input_original  # type: ignore
+        input = console.export_text(clear=False, styles=False)
+        input_ansi = console.export_text(clear=True, styles=True)
+        with console._record_buffer_lock:
+            console._record_buffer = buffer
+        console.record = record
+        if record_event:
+            transcript()._event(InputEvent(input=input, input_ansi=input_ansi))

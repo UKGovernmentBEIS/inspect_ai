@@ -1,12 +1,23 @@
+import contextlib
+import io
+from types import SimpleNamespace
+from typing import Any, Callable, Iterator, cast
+
 import pytest
 import rich
+from rich.live import Live
 
 import inspect_ai._display.core.rich as display_rich
+from inspect_ai._display.core.display import TaskScreen
 from inspect_ai._display.core.rich import (
     _dumb_terminal_size_kwargs,
     rich_initialise,
     rich_restore_defaults,
 )
+from inspect_ai._display.rich.display import RichTaskScreen
+from inspect_ai._display.textual.app import TextualTaskScreen
+from inspect_ai.event._input import InputEvent
+from inspect_ai.log._transcript import Transcript, _transcript
 
 
 def test_dumb_terminal_uses_columns_with_default_height(monkeypatch):
@@ -56,8 +67,46 @@ def test_restore_after_repeated_initialise_removes_display_settings(
 ) -> None:
     # outside VS Code, where rich_initialise turns off color
     monkeypatch.setattr(display_rich, "is_running_in_vscode", lambda: False)
+    rich.get_console().no_color = False
     rich_initialise("full", plain=False)
     rich_initialise("full", plain=False)
 
     rich_restore_defaults()
     assert not rich.get_console().no_color
+
+
+@contextlib.contextmanager
+def _rich_task_screen() -> Iterator[TaskScreen]:
+    with Live(console=rich.get_console()) as live:
+        yield RichTaskScreen(live)
+
+
+@contextlib.contextmanager
+def _textual_task_screen() -> Iterator[TaskScreen]:
+    app = SimpleNamespace(suspend_app=contextlib.nullcontext)
+    yield TextualTaskScreen(cast(Any, app))
+
+
+@pytest.mark.parametrize("task_screen", [_rich_task_screen, _textual_task_screen])
+def test_input_screen_keeps_caller_recording(
+    fresh_display: None,
+    task_screen: Callable[[], contextlib.AbstractContextManager[TaskScreen]],
+) -> None:
+    rich.reconfigure(record=True, file=io.StringIO())
+    console = rich.get_console()
+    console.print("before the eval")
+
+    transcript = Transcript()
+    token = _transcript.set(transcript)
+    try:
+        with task_screen() as screen:
+            with screen.input_screen() as screen_console:
+                screen_console.print("approve the tool call?")
+    finally:
+        _transcript.reset(token)
+
+    [event] = [e for e in transcript.events if isinstance(e, InputEvent)]
+    assert "approve the tool call?" in event.input
+    assert "before the eval" not in event.input
+    assert console.record
+    assert "before the eval" in console.export_text()
