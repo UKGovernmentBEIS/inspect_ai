@@ -488,6 +488,20 @@ class AgentBridge:
         # tick the checkpointer
         await self._cp.tick()
 
+    def _tracks_conversation(self, input: list[ChatMessage]) -> bool:
+        """Whether `_track_state` will adopt a call with this input, whatever its output.
+
+        It will for the first call and for one extending the tracked thread or
+        the candidate. Other calls may be adopted depending on their output and
+        the tracked thread's descent; they are not reported.
+        """
+        if self._tracked_fps is None:
+            return True
+        fps = [_message_fingerprint(m) for m in input]
+        return _extends(self._tracked_fps, fps) or (
+            self._candidate_fps is not None and _extends(self._candidate_fps, fps)
+        )
+
     def _adopt_thread(
         self,
         messages: list[ChatMessage],

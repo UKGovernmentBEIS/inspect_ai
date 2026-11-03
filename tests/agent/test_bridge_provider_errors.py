@@ -1100,7 +1100,7 @@ async def test_model_generate_wraps_returned_exception_with_status() -> None:
 class _Request:
     """One chat completion request the scaffold makes, and how it is held.
 
-    `messages` is the number of messages it carries. With `after_first`, it
+    `messages` is the number of messages it carries, each with `content`. With `after_first`, it
     waits for the scaffold's first request to be replied to before it
     generates. With `during_shutdown`, the agent returns once it starts and it
     generates once the bridge is killing the model proxy. A `held` reply write
@@ -1108,6 +1108,7 @@ class _Request:
     """
 
     messages: int = 1
+    content: str = "Say hi."
     after_first: bool = False
     during_shutdown: bool = False
     held: bool = False
@@ -1256,7 +1257,7 @@ def _serve_generations(
                 {
                     "json_data": {
                         "model": "inspect",
-                        "messages": [{"role": "user", "content": "Say hi."}]
+                        "messages": [{"role": "user", "content": request.content}]
                         * request.messages,
                     }
                 },
@@ -1936,6 +1937,73 @@ def test_retries_after_a_bridged_limit_make_no_model_calls(
     _assert_error_replies(outcome.replies, count=3)
     assert calls == compactions
     assert not any(isinstance(event, ModelEvent) for event in outcome.sample.events)
+
+
+@pytest.mark.parametrize("shortened_by", ["compaction", "filter"])
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_side_request_over_the_message_limit_is_not_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, backend: str, shortened_by: str
+) -> None:
+    """A side request longer than the message limit succeeds while the agent's conversation is under it.
+
+    The scaffold's conversation has two messages after its first request. A
+    later unrelated request (such as a title request) carries five messages,
+    at the `run()` message limit, but compaction or a filter that returns the
+    output means the model is never given five messages. Bridge state tracking
+    does not adopt it, so the agent is under its limit and the request gets
+    its reply, as without the early limit check.
+    """
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    compaction: CompactionStrategy | None = None
+    filter: ModelGenerateFilter | None = None
+    if shortened_by == "compaction":
+
+        async def compact(
+            self: ModelAPI,
+            input: list[ChatMessage],
+            tools: list[ToolInfo],
+            config: GenerateConfig,
+            instructions: str | None = None,
+        ) -> tuple[list[ChatMessage], ModelUsage]:
+            return [ChatMessageUser(content="compacted")], ModelUsage()
+
+        monkeypatch.setattr(mockllm.MockLLM, "compact", compact)
+        compaction = CompactionNative(threshold=3)
+    else:
+
+        async def filter(
+            model: Model,
+            messages: list[ChatMessage],
+            tools: list[ToolInfo],
+            tool_choice: ToolChoice | None,
+            config: GenerateConfig,
+        ) -> ModelOutput:
+            return ModelOutput.from_content(model="mockllm/model", content="hi")
+
+    limit = message_limit(5)
+
+    outcome = _run_bridged_agent(
+        tmp_path,
+        monkeypatch,
+        limit,
+        scaffold=_Scaffold(
+            [
+                _Request(),
+                _Request(messages=5, content="Name this session.", after_first=True),
+            ],
+            compaction=compaction,
+            filter=filter,
+        ),
+    )
+
+    sample = outcome.sample
+    assert sample.error is None, sample.error
+    assert sample.limit is None
+    assert outcome.errors == [None]
+    assert len(outcome.replies) == 2
+    for result, error in outcome.replies:
+        assert error is None
+        assert isinstance(result, dict) and PROVIDER_ERROR_KEY not in result
 
 
 def test_failure_after_a_bridged_limit_fails_the_sample(

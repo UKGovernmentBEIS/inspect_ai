@@ -905,7 +905,7 @@ async def bridge_generate(
         )
 
 
-def _check_limits_before_request(input: list[ChatMessage]) -> None:
+def _check_limits_before_request(bridge: AgentBridge, input: list[ChatMessage]) -> None:
     """Refuse a bridged request from an agent already over a limit.
 
     Runs the checks `Model.generate()` makes before dispatch, but before the
@@ -913,11 +913,15 @@ def _check_limits_before_request(input: list[ChatMessage]) -> None:
     retry after a limit's error reply; without this each retry pays for a
     compaction before the generation refuses it.
 
-    The message limit is checked against the scaffold's conversation, not the
-    compacted input: it is what the bridge tracks as the agent's messages, so a
-    reply to a conversation already at the limit would exceed it there.
+    The message limit is checked only for a conversation the bridge will track
+    as the agent's messages (see `AgentBridge._tracks_conversation`), against
+    its own length rather than the compacted input's: tracking a reply to a
+    conversation already at the limit would exceed it. Other requests, such as
+    a scaffold's title or path-detection calls, are left to the generation's
+    own check on the input it is given.
     """
-    check_message_limit(len(input), raise_for_equal=True)
+    if bridge._tracks_conversation(input):
+        check_message_limit(len(input), raise_for_equal=True)
     _check_limits_before_dispatch()
 
 
@@ -943,7 +947,7 @@ async def _bridge_generate_impl(
     # ModelEvent input and state.messages (and thus the eval log).
     _restore_operator_message_source(bridge, input)
 
-    _check_limits_before_request(input)
+    _check_limits_before_request(bridge, input)
 
     # get compaction function and run compaction once before retry loop
     compact = bridge.compaction(tools, model)
