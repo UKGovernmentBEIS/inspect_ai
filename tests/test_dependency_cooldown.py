@@ -1,11 +1,11 @@
 """Tests for the dependency cooldown in pyproject.toml and the CI jobs around it.
 
 pyproject.toml holds back releases younger than seven days, or six hours for a
-list of packages that must include every model provider's own package,
-Dependabot applies the seven days to its uv.lock bumps and leaves that list to uv,
-and every CI job installs from a lockfile. The model-data sync script runs without
-pyproject.toml, so its own metadata repeats the policy. Testing against the
-newest releases happens in meridianlabs-ai/canaries, outside this repository.
+list of model provider SDKs and Inspect packages. Dependabot applies the seven
+days to its uv.lock bumps and leaves that list to uv, and every CI job installs
+from a lockfile. The model-data sync script runs without pyproject.toml, so its
+own metadata repeats the policy. Testing against the newest releases happens in
+meridianlabs-ai/canaries, outside this repository.
 """
 
 import ast
@@ -76,9 +76,18 @@ SANDBOX_TOOLS_TEST_LOCK = "src/inspect_sandbox_tools/tests/requirements.txt"
 PROVIDERS = REPO / "src" / "inspect_ai" / "model" / "_providers"
 SYNC_MODELS = REPO / "src" / "inspect_ai" / "model" / "_model_data" / "sync_models.py"
 DEPENDENCY_CHECKS = {"pip_dependency_error", "verify_required_version"}
-# Packages providers need that aren't the provider's own SDK or integration
-# package. These stay under the seven-day cooldown.
-PROVIDER_INFRASTRUCTURE = {"accelerate", "torch"}
+# Packages providers need that do not qualify for the six-hour cooldown (see
+# CONTRIBUTING.md). They keep the seven-day cooldown.
+PROVIDER_INFRASTRUCTURE = {
+    "accelerate",
+    "aiobotocore",
+    "nnterp",
+    "sglang",
+    "torch",
+    "transformer-lens",
+    "transformers",
+    "vllm",
+}
 # The cooldown for packages in exclude-newer-package, and how uv.lock records it.
 EXEMPT_COOLDOWN = "6 hours"
 EXEMPT_COOLDOWN_SPAN = "PT6H"
@@ -253,13 +262,14 @@ def test_sync_models_script_follows_the_cooldown() -> None:
     # The script exempts the packages it locks that pyproject.toml exempts.
     locked = {package["name"] for package in lock["package"]}
     exempt = locked & set(config["exclude-newer-package"])
-    assert "certifi" in exempt
-    assert script["exclude-newer-package"] == dict.fromkeys(exempt, EXEMPT_COOLDOWN)
+    assert script.get("exclude-newer-package", {}) == dict.fromkeys(
+        exempt, EXEMPT_COOLDOWN
+    )
     # The lock was written with these settings.
     days = re.fullmatch(r"(\d+) days", script["exclude-newer"])
     assert days
     assert lock["options"]["exclude-newer-span"] == f"P{days[1]}D"
-    assert lock["options"]["exclude-newer-package"] == {
+    assert lock["options"].get("exclude-newer-package", {}) == {
         package: {"timestamp": "0001-01-01T00:00:00Z", "span": EXEMPT_COOLDOWN_SPAN}
         for package in exempt
     }
