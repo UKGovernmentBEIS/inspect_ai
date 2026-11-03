@@ -143,6 +143,15 @@ def test_empty_user_raises(default: CannedSandbox) -> None:
                 pass
 
 
+@pytest.mark.parametrize("user", ["w1:1000", "1000:1000"])
+def test_user_with_a_group_raises(default: CannedSandbox, user: str) -> None:
+    with _environments(default=default):
+        with pytest.raises(ValueError, match="a username or a numeric uid"):
+            with sandbox_identity(user):
+                pass
+        assert not sandbox_identity_active()
+
+
 def test_relative_cwd_raises(default: CannedSandbox) -> None:
     with _environments(default=default):
         with pytest.raises(ValueError, match="requires an absolute cwd"):

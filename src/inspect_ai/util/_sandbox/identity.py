@@ -65,19 +65,24 @@ def sandbox_identity(
     inherit it.
 
     Args:
-       user: User to run as.
+       user: User to run as: a username or a numeric uid. A `user:group`
+          selector is not supported.
        cwd: Absolute working directory for the tools above and for
           `exec_remote()` commands that do not set one.
        sandbox: Name of the sandbox environment the identity applies to.
 
     Raises:
        SandboxIdentityError: If a scope is already active.
-       ValueError: If `user` is empty, `cwd` is not absolute, or `sandbox` is
-          not one of the sample's environments.
+       ValueError: If `user` is empty or contains `:`, `cwd` is not absolute, or
+          `sandbox` is not one of the sample's environments.
        ProcessLookupError: If there are no sandboxes available.
     """
     if not user:
         raise ValueError("sandbox_identity() requires a user.")
+    if ":" in user:
+        raise ValueError(
+            f"sandbox_identity() takes a username or a numeric uid, not '{user}'."
+        )
     if cwd is not None and not posixpath.isabs(cwd):
         raise ValueError(f"sandbox_identity() requires an absolute cwd, not '{cwd}'.")
     if (outer := _sandbox_identity.get()) is not None:
