@@ -602,6 +602,12 @@ def _turns(sample: EvalSample) -> list[ChatMessageAssistant]:
     return [m for m in sample.messages if isinstance(m, ChatMessageAssistant)]
 
 
+def _recorded_calls(sample: EvalSample) -> list[tuple[str, dict[str, Any]]]:
+    # the first turn's calls, as its model event recorded them
+    event = next(e for e in sample.events if isinstance(e, ModelEvent))
+    return [(c.id, c.arguments) for c in event.output.message.tool_calls or []]
+
+
 def test_a_call_the_sidecar_took_out_is_answered_with_an_approval_error() -> None:
     proposed = {
         "message": _turn_json(("call_1", "Tokyo"), ("call_2", "Oslo")),
@@ -623,6 +629,10 @@ def test_a_call_the_sidecar_took_out_is_answered_with_an_approval_error() -> Non
     # the model's own turn, both calls in it, as in process
     first = _turns(sample)[0]
     assert [c.id for c in first.tool_calls or []] == ["call_1", "call_2"]
+    assert _recorded_calls(sample) == [
+        ("call_1", {"city": "Tokyo"}),
+        ("call_2", {"city": "Oslo"}),
+    ]
     results = _tool_messages(sample)
     assert results["call_1"].error is not None
     assert results["call_1"].error.type == "approval"
@@ -659,6 +669,7 @@ def test_a_call_the_sidecar_changed_runs_with_its_new_arguments() -> None:
     # the model's turn keeps the call it made, and the changed one ran
     [call] = _turns(sample)[0].tool_calls or []
     assert call.arguments == {"city": "Tokyo"}
+    assert _recorded_calls(sample) == [("call_1", {"city": "Tokyo"})]
     assert _LOOKED_UP == ["Oslo"]
 
 

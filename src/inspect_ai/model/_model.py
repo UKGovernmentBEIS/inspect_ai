@@ -1186,6 +1186,14 @@ class Model:
             from inspect_ai._sentinel._sidecar._events import record_sidecar_reports
 
             output = act_on_field(field, output, _bridged())
+            if event is not None:
+                from inspect_ai.log._transcript import transcript
+
+                # The proxy hands Inspect the turn with the sidecar's decisions
+                # applied. The event records the model's own turn, which
+                # act_on_field put back, as an in-process sentinel leaves it.
+                event.output = _snapshot_output(output)
+                transcript()._event_updated(event)
             record_sidecar_reports(
                 field,
                 through_sidecar.sidecar,
