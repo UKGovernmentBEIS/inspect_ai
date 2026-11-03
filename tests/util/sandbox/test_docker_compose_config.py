@@ -581,7 +581,7 @@ async def test_host_mount_attacks_require_opt_in(attack: str, tmp_path: Path) ->
     config: dict[str, Any] = {
         "services": {
             "default": {
-                "image": "aisiuk/inspect-tool-support",
+                "image": "python:3.12-bookworm",
                 "command": ["sleep", "infinity"],
                 "network_mode": "none",
                 "volumes": [f"{exposed}:/host", f"{exposed / 'data'}:/data:ro"],
@@ -656,7 +656,7 @@ async def test_read_only_host_and_managed_volume_runtime(tmp_path: Path) -> None
         {
             "services": {
                 "default": {
-                    "image": "aisiuk/inspect-tool-support",
+                    "image": "python:3.12-bookworm",
                     "command": ["sleep", "infinity"],
                     "network_mode": "none",
                     "volumes": [f"{tmp_path.resolve()}:/input:ro", "output:/output"],
