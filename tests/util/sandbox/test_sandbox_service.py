@@ -618,15 +618,15 @@ async def test_handle_request_oversized_raise_writes_error_and_removes_file() ->
 
 
 @pytest.mark.parametrize("grouped", [False, True], ids=["bare", "grouped"])
-async def test_handle_request_bridged_tool_limit_keeps_service_handling(
+async def test_handle_request_bridged_tool_limit_replies_as_a_tool_error(
     grouped: bool,
 ) -> None:
-    """A bridged host tool's `LimitExceededError` ends the sample, grouped or not.
+    """A bridged host tool's `LimitExceededError` is a tool error, grouped or not.
 
-    The dispatcher ends the sample for a bare `LimitExceededError` and treats
-    anything else, including a task-group `ExceptionGroup`, as a plain RPC
-    error. The bridge's `call_tool` raises the limit that decides a group, so a
-    limit from a tool's child task is not lost as an RPC error.
+    The dispatcher ends the sample for a bare `LimitExceededError`, so the
+    bridge's `call_tool` raises the limit that decides the outcome as a
+    `ToolError` with the native message: the scaffold reads it and the agent
+    continues, as for a native tool.
     """
     from inspect_ai.agent._agent import AgentState
     from inspect_ai.agent._bridge.sandbox.service import call_tool
@@ -691,9 +691,11 @@ async def test_handle_request_bridged_tool_limit_keeps_service_handling(
 
     response = json.loads(fake.writes[f"{service._responses_dir}/{request_id}.json"])
     assert response["result"] is None
-    assert response["error"] is not None
+    assert response["error"] == (
+        "Error calling method call_tool: The tool exceeded its token limit of 1."
+    )
     assert not bridge._failure_requested.is_set()
-    assert active.limit_exceeded.call_count == 1
+    assert active.limit_exceeded.call_count == 0
 
 
 async def test_write_response_goes_through_the_verified_responses_dir() -> None:

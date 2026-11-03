@@ -11,6 +11,9 @@ class BoundedByteBuffer:
     buffer is full. While put() is suspended the caller stops reading
     from the pipe, the kernel buffer fills, and the subprocess blocks
     on write — applying backpressure all the way to the source.
+
+    A put() that waits on a full buffer is freed by a drain() or by
+    cancelling the task that awaits it.
     """
 
     def __init__(self, max_bytes: int) -> None:
@@ -20,17 +23,15 @@ class BoundedByteBuffer:
         self._buf = bytearray()
         self._has_space = asyncio.Event()
         self._has_space.set()
-        self._closed = False
 
     async def put(self, data: bytes) -> None:
         """Append data, awaiting if the buffer is full."""
         if not data:
             return
-        while len(self._buf) >= self._max_bytes and not self._closed:
+        while len(self._buf) >= self._max_bytes:
             self._has_space.clear()
             await self._has_space.wait()
-        if not self._closed:
-            self._buf.extend(data)
+        self._buf.extend(data)
 
     def drain(self, max_bytes: int | None = None) -> bytes:
         """Return buffered data and remove it from the buffer.
@@ -47,14 +48,6 @@ class BoundedByteBuffer:
             del self._buf[:max_bytes]
         self._has_space.set()
         return result
-
-    def close(self) -> None:
-        """Unblock any waiting put() so the reader task can exit.
-
-        Subsequent put() calls are silently discarded.
-        """
-        self._closed = True
-        self._has_space.set()
 
 
 class DecodingBuffer:
