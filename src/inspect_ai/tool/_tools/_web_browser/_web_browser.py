@@ -1,3 +1,4 @@
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.tool._tool import Tool
 
 
@@ -13,9 +14,9 @@ def web_browser(*, interactive: bool = True, instance: str | None = None) -> lis
        instance: Retained for compatibility with existing calls.
 
     Raises:
-       RuntimeError: Always raised because the web browser tools were removed.
+       PrerequisiteError: Always raised because the web browser tools were removed.
     """
-    raise RuntimeError(
+    raise PrerequisiteError(
         "The `web_browser()` tool has been removed. "
         "Use `web_search()` for web retrieval, and `computer()` or a browser MCP "
         "server run via `mcp_server_sandbox()` for web interaction. "
