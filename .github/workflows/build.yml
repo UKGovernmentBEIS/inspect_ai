@@ -866,7 +866,7 @@ jobs:
       - name: Build
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true' || steps.filter.outputs.package_readme == 'true'
         run: |
-          "$RUNNER_TEMP/build-env/bin/python" -m build --no-isolation
+          "$RUNNER_TEMP/build-env/bin/python" -m build --no-isolation --sdist --wheel
           ls -l dist
 
       # twine and check-wheel-contents come from uv.lock (the dist extra).

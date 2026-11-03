@@ -428,12 +428,22 @@ def test_committed_package_data_globs_match_source_files(
             assert any(regex.fullmatch(f) for f in files), pattern
 
 
-def _write_dist(dist: Path, wheel_version: str, sdist_version: str) -> None:
+def _write_dist(
+    dist: Path,
+    wheel_version: str,
+    sdist_version: str,
+    sdist_files: tuple[str, ...] = (),
+) -> None:
     dist.mkdir()
     _write_wheel(
         dist / f"inspect_ai-{wheel_version}-py3-none-any.whl", _wheel_members()
     )
-    (dist / f"inspect_ai-{sdist_version}.tar.gz").write_bytes(b"sdist")
+    root = f"inspect_ai-{sdist_version}"
+    with tarfile.open(dist / f"{root}.tar.gz", "w:gz") as sdist:
+        for name in ["PKG-INFO", *sdist_files]:
+            info = tarfile.TarInfo(f"{root}/{name}")
+            info.size = len(name)
+            sdist.addfile(info, io.BytesIO(name.encode()))
 
 
 @pytest.fixture
@@ -483,6 +493,16 @@ def test_pypi_verify_dist_rejects_unexpected_files(
     (dist / "inspect_ai-0.3.277.tar.gz").write_bytes(b"stale sdist")
     with pytest.raises(RuntimeError, match="exactly one wheel and one sdist"):
         pypi_release.verify_dist(dist, "0.3.278", "9")
+
+
+@pytest.mark.usefixtures("wheel_globs")
+def test_pypi_verify_dist_rejects_binaries_in_sdist(
+    pypi_release: ModuleType, tmp_path: Path
+) -> None:
+    binary = "src/inspect_ai/binaries/inspect-sandbox-tools-amd64-v9"
+    _write_dist(tmp_path / "dist", "0.3.278", "0.3.278", (binary,))
+    with pytest.raises(RuntimeError, match="must not contain the sandbox tools"):
+        pypi_release.verify_dist(tmp_path / "dist", "0.3.278", "9")
 
 
 @pytest.mark.usefixtures("wheel_globs")

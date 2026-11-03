@@ -7,7 +7,7 @@ End-to-end process for shipping a new version of the sandbox tools executables.
 The sandbox tools are compiled into portable static Linux executables (amd64 + arm64) and distributed via:
 
 1. **S3** — runtime downloads for editable/dev installs
-2. **PyPI** — bundled into the `inspect_ai` wheel for pip installs
+2. **PyPI** — bundled into the `inspect_ai` wheel for pip installs. The sdist has no binaries; an install built from the sdist (e.g. conda-forge) downloads them from S3 at first use, verified against `SHA256SUMS`.
 
 The version is a simple integer in `src/inspect_ai/tool/_sandbox_tools_utils/sandbox_tools_version.txt`.
 
@@ -227,7 +227,7 @@ Once `slow-tool-tests-release` is green, merge through the normal review process
 python scripts/pypi-release.py release {INSPECT_AI_VERSION}
 ```
 
-Either path downloads the **glibc** binaries from S3 into `src/inspect_ai/binaries/`, bundles them into the wheel as package data, and publishes to PyPI. The musl variants are intentionally **not** bundled — they live on S3 and are fetched at runtime when a musl sandbox is detected (keeps the wheel small for the common case).
+Either path downloads the **glibc** binaries from S3 into `src/inspect_ai/binaries/`, bundles them into the wheel as package data, and publishes to PyPI. The sdist and wheel are both built from the checkout (`python -m build --sdist --wheel`), so `MANIFEST.in` can leave the binaries out of the sdist and the wheel still gets them. The musl variants are intentionally **not** bundled — they live on S3 and are fetched at runtime when a musl sandbox is detected (keeps the wheel small for the common case).
 
 ## How binaries are resolved at runtime
 

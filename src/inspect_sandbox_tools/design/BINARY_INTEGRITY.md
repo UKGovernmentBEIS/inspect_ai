@@ -300,6 +300,12 @@ The script stays stdlib-only; it parses `SHA256SUMS` itself (or imports
   per the failure-mode table a wheel missing the sums file turns every PyPI
   musl download into a runtime integrity failure (fatal in strict mode, a
   loud warning by default), discovered only by users.
+- **The sdist has no binaries** (`MANIFEST.in`). The wheel is built from the
+  checkout (`python -m build --sdist --wheel`), not from the sdist, so it
+  still bundles them. `verify-dist` fails if the sdist has a file under
+  `src/inspect_ai/binaries/`. An install built from the sdist (e.g.
+  conda-forge) downloads the binaries from S3 at first use, verified against
+  `SHA256SUMS`.
 - The glibc-only download set is now checked against a four-entry sums file.
   The lookup is by filename, so the two musl entries are simply unused here.
 
