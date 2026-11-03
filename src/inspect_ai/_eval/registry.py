@@ -65,22 +65,59 @@ def task_register(
 
 class _TaskDefinition(NamedTuple):
     file: str
-    line: int
+    qualname: str
 
 
 def _task_definition(factory: object) -> _TaskDefinition | None:
-    """Source file and line of a registered task function or class.
+    """Source file and qualified name of a module-level task function or class.
 
     A file loaded twice (e.g. imported and also loaded by path) registers two
     objects with the same definition, which this treats as the same task.
+    Returns None for nested definitions, which reloading a file never
+    registers, and for objects without a source file.
     """
-    try:
-        obj = inspect.unwrap(cast(Callable[..., Any], factory))
-        file = inspect.getsourcefile(obj)
-        line = inspect.getsourcelines(obj)[1]
-    except (OSError, TypeError):
+    obj = inspect.unwrap(cast(Callable[..., Any], factory))
+    qualname = getattr(obj, "__qualname__", "")
+    if not qualname or "<locals>" in qualname:
         return None
-    return _TaskDefinition(os.path.realpath(file), line) if file else None
+    try:
+        file = inspect.getsourcefile(obj)
+    except TypeError:
+        return None
+    return _TaskDefinition(os.path.realpath(file), qualname) if file else None
+
+
+def _local_task_file(task_type: object) -> Path | None:
+    """File recorded as a task's `task_file` (None for installed packages)."""
+    if get_installed_package_name(task_type) is not None:
+        return None
+    module = inspect.getmodule(task_type)
+    file = getattr(module, "__file__", None)
+    return Path(file) if file else None
+
+
+def _check_retry_identity(factory: object, name: str) -> None:
+    """Raise if `eval_retry()` could rebuild a different task than `factory`.
+
+    Retry reloads the task's `task_file` and looks the name up there, or,
+    without a `task_file`, looks the name up in the registry. Not caught: a
+    file that registers the name twice when another file registers it last.
+    """
+    registered = registry_lookup("task", name)
+    if registered is None or registered is factory:
+        return
+    factory_def = _task_definition(factory)
+    registered_def = _task_definition(registered)
+    if factory_def is None or registered_def is None or factory_def == registered_def:
+        return
+    if _local_task_file(factory) is None or factory_def.file == registered_def.file:
+        raise PrerequisiteError(
+            f"Task name '{name}' is registered more than once "
+            f"({factory_def.file}: {factory_def.qualname}, "
+            f"{registered_def.file}: {registered_def.qualname}), so "
+            "eval_retry() would run a different task. Give each @task a "
+            "unique name."
+        )
 
 
 def _has_var_keyword(factory: object) -> bool:
@@ -131,31 +168,16 @@ def task_create_from_factory(factory: object, /, **kwargs: Any) -> Task:
         Task with registry info attribute
 
     Raises:
-        PrerequisiteError: If `factory` is not a task, or if its file registers
-            another task under the same name.
+        PrerequisiteError: If `factory` is not a task, or if another task
+            registered under the same name means `eval_retry()` could run
+            that task instead.
     """
     task_info = registry_info(factory)
     name = task_info.name
     if task_info.type != "task":
         raise PrerequisiteError(f"'{name}' is a {task_info.type}, not a task.")
 
-    # eval_retry() rebuilds a task by loading its file and looking the name
-    # up, so it would run the file's last registration instead of `factory`
-    registered = registry_lookup("task", name)
-    if registered is not None and registered is not factory:
-        factory_def = _task_definition(factory)
-        registered_def = _task_definition(registered)
-        if (
-            factory_def is not None
-            and registered_def is not None
-            and factory_def.file == registered_def.file
-            and factory_def.line != registered_def.line
-        ):
-            raise PrerequisiteError(
-                f"Task name '{name}' is registered more than once in "
-                f"{factory_def.file}, so the task cannot be retried. Give each "
-                "@task in the file a unique name."
-            )
+    _check_retry_identity(factory, name)
 
     # match kwargs params to signature (warn if param not found)
     # (note that we always pass the 'model' param but tasks aren't
@@ -222,12 +244,10 @@ def task(*args: Any, name: str | None = None, **attribs: Any) -> Any:
 
             # if its not from an installed package then it is a "local"
             # module import, so set its task file and run dir
-            if get_installed_package_name(task_type) is None:
-                module = inspect.getmodule(task_type)
-                if module and hasattr(module, "__file__") and module.__file__:
-                    file = Path(getattr(module, "__file__"))
-                    setattr(task_instance, TASK_FILE_ATTR, file.as_posix())
-                    setattr(task_instance, TASK_RUN_DIR_ATTR, file.parent.as_posix())
+            file = _local_task_file(task_type)
+            if file is not None:
+                setattr(task_instance, TASK_FILE_ATTR, file.as_posix())
+                setattr(task_instance, TASK_RUN_DIR_ATTR, file.parent.as_posix())
 
             return task_instance
 
