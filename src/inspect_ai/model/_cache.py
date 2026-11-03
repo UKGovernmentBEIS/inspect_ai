@@ -237,16 +237,12 @@ def cache_instance_model_args_key(model_args: dict[str, Any], instance_key: str)
 
 def _model_args_tree(value: Any, ancestors: set[int]) -> Any:
     """Tag each node so an opaque placeholder cannot collide with user JSON."""
-    _reject_json_subclass(value)
     if type(value) in (str, int, bool, type(None)) or (
         type(value) is float and math.isfinite(value)
     ):
         return ["value", value]
     if id(value) in ancestors:
         return ["opaque"]
-    if type(value) is dict:
-        for key in value:
-            _reject_json_subclass(key)
     if type(value) is list or (
         type(value) is dict and all(type(key) is str for key in value)
     ):
@@ -264,55 +260,15 @@ def _model_args_tree(value: Any, ancestors: set[int]) -> Any:
 
 
 def _is_json_value(value: Any) -> bool:
-    _reject_json_subclass(value)
     if type(value) in (str, int, float, bool, type(None)):
         return True
     if type(value) is list:
         return all(_is_json_value(item) for item in value)
     if type(value) is dict:
-        for key in value:
-            _reject_json_subclass(key)
         return all(
             type(key) is str and _is_json_value(item) for key, item in value.items()
         )
     return False
-
-
-_JSON_TYPES = (str, int, float, bool, list, dict)
-
-
-def cache_refuses_model_args(model_args: dict[str, Any]) -> bool:
-    """Whether output caching refuses these model args.
-
-    Refused values (such as an enum) and their plain JSON values look the same
-    to `get_model()` memoization, so it keeps models with refused args apart.
-    """
-    try:
-        _model_args_tree(model_args, set())
-    except UnsupportedModelArgError:
-        return True
-    except RecursionError:
-        # too deep to check here; caching reports it if it is used
-        return False
-    return False
-
-
-class UnsupportedModelArgError(TypeError):
-    """A model arg value that output caching cannot fingerprint."""
-
-
-def _reject_json_subclass(value: Any) -> None:
-    """Refuse subclasses of JSON types, such as enums, in cached model args.
-
-    A provider sends them as JSON, but the fingerprint treats them as opaque,
-    so two different values would share cached output.
-    """
-    if isinstance(value, _JSON_TYPES) and type(value) not in _JSON_TYPES:
-        raise UnsupportedModelArgError(
-            f"Model output caching does not support model argument values of "
-            f"type {type(value).__name__}. Pass a plain str, int, float, bool, "
-            f"list or dict instead (for an enum, use its .value)."
-        )
 
 
 # Runtime/transport GenerateConfig knobs that cannot change what the provider

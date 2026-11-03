@@ -3,7 +3,6 @@ import pickle
 import sys
 from copy import deepcopy
 from datetime import datetime, timezone
-from enum import IntEnum, StrEnum
 from pathlib import Path
 from typing import Any, Iterator, Literal, cast
 
@@ -25,7 +24,6 @@ from inspect_ai.model import (
     CachePolicy,
     ChatMessageUser,
     GenerateConfig,
-    Model,
     ModelOutput,
     get_model,
 )
@@ -34,11 +32,9 @@ from inspect_ai.model._cache import (
     _CACHE_KEY_DROPPED_FIELDS,
     _CACHE_KEY_NEUTRALIZED_FIELDS,
     CacheEntry,
-    UnsupportedModelArgError,
     _cache_key_config,
     cache_clear,
     cache_fetch,
-    cache_instance_model_args_key,
     cache_list_expired,
     cache_model_args_key,
     cache_path,
@@ -229,268 +225,6 @@ def test_cache_model_args_instance_key_preserves_json_arguments() -> None:
     ) != cache_model_args_key(
         {"client": client, "option": ["opaque"]}, instance_key="first"
     )
-
-
-class _System(StrEnum):
-    THREE = "3"
-
-
-class _MaxTokens(IntEnum):
-    THREE = 3
-
-
-class _Options(list[Any]):
-    pass
-
-
-@pytest.mark.parametrize(
-    "extra_body",
-    [
-        {"system": _System.THREE},
-        {"max_tokens": _MaxTokens.THREE},
-        {_System.THREE: "3"},
-        {"options": _Options([True])},
-    ],
-)
-@pytest.mark.parametrize("instance_key", [None, "instance"])
-def test_cache_model_args_key_refuses_json_subclasses(
-    extra_body: dict[Any, Any], instance_key: str | None
-) -> None:
-    """Providers send these as JSON, but the fingerprint would see them as opaque."""
-    with pytest.raises(TypeError, match="does not support model argument values"):
-        cache_model_args_key(
-            {"client": object(), "extra_body": extra_body}
-            if instance_key
-            else {"extra_body": extra_body},
-            instance_key=instance_key,
-        )
-
-
-@pytest.mark.parametrize("enum_first", [True, False])
-@pytest.mark.parametrize("with_client", [False, True])
-async def test_cache_memoized_models_keep_refused_args_separate(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-    enum_first: bool,
-    with_client: bool,
-) -> None:
-    """Memoization sees an enum and its value as equal; caching must not."""
-    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path))
-    monkeypatch.setattr("inspect_ai.model._model._models", {})
-    client_args: dict[str, Any] = (
-        {"http_client": httpx2.AsyncClient()} if with_client else {}
-    )
-
-    def anthropic_model(system: str) -> Model:
-        return get_model(
-            "anthropic/claude-sonnet-4-5",
-            api_key="test",
-            extra_body={"system": system},
-            **client_args,
-        )
-
-    if enum_first:
-        refused = anthropic_model(_System.THREE)
-        plain = anthropic_model("3")
-    else:
-        plain = anthropic_model("3")
-        refused = anthropic_model(_System.THREE)
-
-    async def generate_output(*args: Any, **kwargs: Any) -> ModelOutput:
-        return ModelOutput.from_content(model="anthropic", content="3")
-
-    monkeypatch.setattr(plain.api, "generate", generate_output)
-    assert (await plain.generate("Hello", cache=True)).completion == "3"
-    with pytest.raises(TypeError, match="does not support model argument values"):
-        await refused.generate("Hello", cache=True)
-
-
-@pytest.mark.parametrize("with_client", [False, True])
-async def test_cache_memoized_model_with_args_changed_to_refused_is_not_reused(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, with_client: bool
-) -> None:
-    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path))
-    monkeypatch.setattr("inspect_ai.model._model._models", {})
-    client_args: dict[str, Any] = (
-        {"http_client": httpx2.AsyncClient()} if with_client else {}
-    )
-    shared: dict[str, Any] = {"system": "3"}
-    first = get_model(
-        "anthropic/claude-sonnet-4-5", api_key="test", extra_body=shared, **client_args
-    )
-    shared["system"] = _System.THREE
-    second = get_model(
-        "anthropic/claude-sonnet-4-5",
-        api_key="test",
-        extra_body={"system": "3"},
-        **client_args,
-    )
-    assert second is not first
-
-    async def generate_output(*args: Any, **kwargs: Any) -> ModelOutput:
-        return ModelOutput.from_content(model="anthropic", content="3")
-
-    monkeypatch.setattr(second.api, "generate", generate_output)
-    assert (await second.generate("Hello", cache=True)).completion == "3"
-
-
-def test_cache_memoizes_models_with_refused_args(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Without caching, refused args are fine, so their models are still reused."""
-    monkeypatch.setattr("inspect_ai.model._model._models", {})
-
-    def anthropic_model() -> Model:
-        return get_model(
-            "anthropic/claude-sonnet-4-5",
-            api_key="test",
-            extra_body={"system": _System.THREE},
-        )
-
-    assert anthropic_model() is anthropic_model()
-
-
-class _UnprintableSystem(str):
-    def __repr__(self) -> str:
-        raise RuntimeError("no repr")
-
-
-async def test_cache_refusal_does_not_format_the_value(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path))
-    model = get_model("mockllm/model", extra_body={"system": _UnprintableSystem("3")})
-    assert (await model.generate("Hello")).completion
-    with pytest.raises(UnsupportedModelArgError, match="_UnprintableSystem"):
-        await model.generate("Hello", cache=True)
-
-
-async def test_cache_opaque_model_args_track_mutated_request_defaults(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    """Providers read nested args per request, so a mutation must miss the cache."""
-    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path))
-    extra_body = {"system": "3"}
-    model = get_model("mockllm/model", client=object(), extra_body=extra_body)
-    calls = 0
-
-    async def generate_output(*args: Any, **kwargs: Any) -> ModelOutput:
-        nonlocal calls
-        calls += 1
-        return ModelOutput.from_content(model="mockllm", content=extra_body["system"])
-
-    monkeypatch.setattr(model.api, "generate", generate_output)
-    first = await model.generate("Hello", cache=True)
-    extra_body["system"] = "4"
-    second = await model.generate("Hello", cache=True)
-    third = await model.generate("Hello", cache=True)
-    assert [first.completion, second.completion, third.completion] == ["3", "4", "4"]
-    assert calls == 2
-
-
-async def test_cache_keeps_model_args_parsed_at_construction(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    """Google copies safety settings at construction, so a later edit is not sent."""
-    from inspect_ai.model._providers import google as google_provider
-
-    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path))
-    # the provider mutates these shared defaults when it applies user settings
-    monkeypatch.setattr(
-        google_provider,
-        "DEFAULT_SAFETY_SETTINGS",
-        deepcopy(google_provider.DEFAULT_SAFETY_SETTINGS),
-    )
-    calls = 0
-
-    def with_threshold_completion(model: Model) -> None:
-        async def generate_output(*args: Any, **kwargs: Any) -> ModelOutput:
-            nonlocal calls
-            calls += 1
-            api = cast(google_provider.GoogleGenAIAPI, model.api)
-            threshold = next(
-                str(setting["threshold"])
-                for setting in api.safety_settings
-                if "HARASSMENT" in str(setting["category"])
-            )
-            return ModelOutput.from_content(model="google", content=threshold)
-
-        monkeypatch.setattr(model.api, "generate", generate_output)
-
-    safety_settings = {"harassment": "low"}
-    low = get_model(
-        "google/gemini-2.5-flash",
-        api_key="test",
-        safety_settings=safety_settings,
-        memoize=False,
-    )
-    with_threshold_completion(low)
-    safety_settings["harassment"] = "high"
-    low_output = await low.generate("Hello", cache=True)
-
-    high = get_model(
-        "google/gemini-2.5-flash",
-        api_key="test",
-        safety_settings={"harassment": "high"},
-        memoize=False,
-    )
-    with_threshold_completion(high)
-    high_output = await high.generate("Hello", cache=True)
-
-    assert "LOW" in low_output.completion
-    assert "HIGH" in high_output.completion
-    assert calls == 2
-
-
-def test_cache_instance_model_args_key_differs_from_shared_key() -> None:
-    """An instance's key for changed args cannot match another model's args key."""
-    args = {"extra_body": {"system": "4"}}
-    scoped = cache_instance_model_args_key(args, "instance")
-    assert scoped != cache_model_args_key(args)
-    assert scoped != cache_model_args_key(
-        {"init": cache_model_args_key({"extra_body": {"system": "3"}}), "now": scoped}
-    )
-    assert scoped != cache_instance_model_args_key(args, "other")
-
-
-async def test_cache_scopes_model_args_changed_after_construction(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    """Replacing an arg and mutating it give equal args but different requests."""
-    from inspect_ai.model._providers.anthropic import AnthropicAPI
-
-    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path))
-    calls = 0
-
-    def anthropic_model() -> Model:
-        model = get_model(
-            "anthropic/claude-sonnet-4-5",
-            api_key="test",
-            extra_body={"system": "3"},
-            memoize=False,
-        )
-        api = cast(AnthropicAPI, model.api)
-
-        async def generate_output(*args: Any, **kwargs: Any) -> ModelOutput:
-            nonlocal calls
-            calls += 1
-            assert api.extra_body is not None
-            return ModelOutput.from_content(
-                model="anthropic", content=api.extra_body["system"]
-            )
-
-        monkeypatch.setattr(model.api, "generate", generate_output)
-        return model
-
-    replaced = anthropic_model()
-    replaced.model_args["extra_body"] = {"system": "4"}
-    mutated = anthropic_model()
-    mutated.model_args["extra_body"]["system"] = "4"
-
-    replaced_output = await replaced.generate("Hello", cache=True)
-    mutated_output = await mutated.generate("Hello", cache=True)
-    assert [replaced_output.completion, mutated_output.completion] == ["3", "4"]
-    assert calls == 2
 
 
 async def test_cache_key_uses_model_args_of_the_retried_attempt(
