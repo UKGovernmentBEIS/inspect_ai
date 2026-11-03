@@ -34,6 +34,7 @@ from inspect_ai.approval import Approval, ApprovalPolicy, Approver, approver
 from inspect_ai.dataset import Sample
 from inspect_ai.event import InfoEvent, ModelEvent, SentinelEvent, ToolEvent
 from inspect_ai.log import EvalLog, EvalSample
+from inspect_ai.log._samples import sample_active
 from inspect_ai.model import (
     ChatMessageAssistant,
     ChatMessageTool,
@@ -334,14 +335,17 @@ _FACTS = TaskFacts(
 )
 
 
-async def test_a_samples_registration_is_completed_once_for_all_its_epochs() -> None:
+async def test_a_samples_registration_is_completed_once_for_each_attempt() -> None:
     stand_in = StandInSidecar()
     sidecars = TaskSidecars("auto", _FACTS)
     sidecar = await sidecars.sidecar(_model(stand_in).api)
     assert sidecar is not None
 
-    # each epoch's first call, at once
-    await tg_collect([lambda: sidecars.complete_registration(sidecar, _sample())] * 3)
+    # an attempt's calls, at once
+    await tg_collect(
+        [lambda: sidecars.complete_registration(sidecar, _sample(), "sample_123", 1)]
+        * 3
+    )
 
     [completed] = _registered(stand_in, "complete_registration")
     messages = completed.pop("sample_input")
@@ -370,7 +374,7 @@ async def test_a_sample_the_sidecar_wont_take_is_an_error() -> None:
     assert sidecar is not None
 
     with pytest.raises(SentinelProxyError, match="couldn't register the sample 1"):
-        await sidecars.complete_registration(sidecar, _sample())
+        await sidecars.complete_registration(sidecar, _sample(), "sample_123", 1)
     # a refusal isn't a forgotten task: nothing is registered again
     assert len(_registered(stand_in, "register_task")) == 1
 
@@ -395,7 +399,7 @@ async def test_a_task_the_sidecar_forgot_is_registered_again() -> None:
     sidecar = await sidecars.sidecar(_model(stand_in).api)
     assert sidecar is not None
 
-    await sidecars.complete_registration(sidecar, _sample())
+    await sidecars.complete_registration(sidecar, _sample(), "sample_123", 1)
 
     # the task's registration again, as first sent, then the sample's again
     [first, again] = _registered(stand_in, "register_task")
@@ -415,9 +419,46 @@ async def test_a_task_the_sidecar_forgets_again_is_an_error() -> None:
     assert sidecar is not None
 
     with pytest.raises(SentinelProxyError, match="couldn't register the sample 1"):
-        await sidecars.complete_registration(sidecar, _sample())
+        await sidecars.complete_registration(sidecar, _sample(), "sample_123", 1)
     # registered again once, not on and on
     assert len(_registered(stand_in, "register_task")) == 2
+
+
+async def test_each_epoch_and_retry_completes_the_samples_registration_again() -> None:
+    stand_in = StandInSidecar()
+    sidecars = TaskSidecars("auto", _FACTS)
+    sidecar = await sidecars.sidecar(_model(stand_in).api)
+    assert sidecar is not None
+
+    # the first epoch, its retry, and the second epoch
+    for sample_uuid, attempt in [("epoch_1", 1), ("epoch_1", 2), ("epoch_2", 1)]:
+        await sidecars.complete_registration(sidecar, _sample(), sample_uuid, attempt)
+
+    assert len(_registered(stand_in, "complete_registration")) == 3
+
+
+async def test_a_later_epoch_registers_a_task_the_sidecar_lost_again() -> None:
+    # the sidecar loses the task, as on a restart, after the sample's first
+    # epoch completed its registration
+    lost = [False]
+
+    def complete(_: dict[str, Any]) -> dict[str, Any]:
+        if lost[0]:
+            lost[0] = False
+            return {"error": {"code": -32009, "message": "no registration"}}
+        return {}
+
+    stand_in = StandInSidecar(methods={"complete_registration": complete})
+    sidecars = TaskSidecars("auto", _FACTS)
+    sidecar = await sidecars.sidecar(_model(stand_in).api)
+    assert sidecar is not None
+    await sidecars.complete_registration(sidecar, _sample(), "epoch_1", 1)
+
+    lost[0] = True
+    await sidecars.complete_registration(sidecar, _sample(), "epoch_2", 1)
+
+    assert len(_registered(stand_in, "register_task")) == 2
+    assert len(_registered(stand_in, "complete_registration")) == 3
 
 
 async def test_a_sidecar_found_after_the_task_started_is_registered_once() -> None:
@@ -1666,6 +1707,54 @@ def test_a_copy_cut_short_by_the_scoring_deadline_says_the_state_is_missing() ->
     again = (rescored.samples[0].scores or {})["_reads_monitor_state"]
     assert again.value == 0
     assert again.explanation is not None and "didn't finish" in again.explanation
+
+
+class _Unanswering(StandInSidecar):
+    # a sidecar that judges calls but never answers `sample_result` or
+    # `end_sample`, as one that has stopped responding
+    def http_client(self) -> httpx2.AsyncClient:
+        async def handle(request: httpx2.Request) -> httpx2.Response:
+            if request.url.path == "/sentinel/v1":
+                method = json.loads(request.content)["method"]
+                if method in ("sample_result", "end_sample"):
+                    self.requests.append(request)
+                    await anyio.sleep_forever()
+            return self._handle(request)
+
+        return httpx2.AsyncClient(transport=httpx2.MockTransport(handle))
+
+
+@solver
+def _asks_then_is_cancelled() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        state = await generate(state)
+        active = sample_active()
+        assert active is not None
+        active.interrupt("cancel")
+        await anyio.sleep_forever()
+        return state
+
+    return solve
+
+
+def test_a_cancelled_sample_doesnt_wait_on_its_sidecar() -> None:
+    stand_in = _Unanswering(methods={"sample_result": _kept({"Tally:lookups": 1})})
+    task = Task(
+        dataset=[Sample(input="Hi.")],
+        solver=_asks_then_is_cancelled(),
+        scorer=_reads_monitor_state(),
+    )
+
+    [log] = eval(task, model=_model(stand_in), display="none")
+
+    # neither asked, and scoring the log later is told why the monitor state
+    # is missing, rather than reading none as nothing flagged
+    assert _registered(stand_in, "sample_result") == []
+    assert _registered(stand_in, "end_sample") == []
+    assert log.samples is not None
+    [sample] = log.samples
+    marker = sample.store[MONITOR_STATE_COPY]
+    assert marker["copied"] is False and "cancelled" in marker["reason"]
 
 
 @solver

@@ -98,11 +98,11 @@ class TaskSidecars:
         return found if isinstance(found, Sidecar) else None
 
     async def complete_registration(
-        self, sidecar: Sidecar, sample: SampleFacts
+        self, sidecar: Sidecar, sample: SampleFacts, sample_uuid: str, attempt: int
     ) -> None:
-        """Send a sample's facts to a sidecar, once for the sample whatever its epochs, before the sidecar judges any of its calls.
+        """Send a sample's facts to a sidecar before the sidecar judges any of its calls, once for each epoch's attempt at the sample.
 
-        A sidecar that no longer keeps the task's registration, as after it restarted or the registration expired, has the task registered again first.
+        A sidecar that no longer keeps the task's registration, as after it restarted or the registration expired, has the task registered again first. Each epoch and each retry of a sample completes its registration again, so a later one finds a sidecar that has lost the task, rather than being judged without the task's facts or refused.
 
         Raises:
             SentinelProxyError: If the sidecar couldn't take the sample, or no longer kept the task and couldn't register it again.
@@ -135,7 +135,7 @@ class TaskSidecars:
                     f"The sentinel sidecar at {sidecar.origin} couldn't register the sample {sample.sample_id!r} of the task {self.facts.task!r}: {ex}"
                 ) from ex
 
-        await self._completed.run((sidecar.origin, sample.sample_id), complete)
+        await self._completed.run((sidecar.origin, sample_uuid, attempt), complete)
 
     def called_through(
         self, sample_uuid: str, attempt_number: int, sidecar: Sidecar
@@ -146,12 +146,19 @@ class TaskSidecars:
             attempt_number,
         )
 
-    async def end_sample(self, sample_uuid: str) -> None:
+    async def end_sample(self, sample_uuid: str, tell: bool = True) -> None:
         """Tell each sidecar a sample's calls went through that the sample has ended, after its final scoring, so it drops what it keeps for the sample.
 
         A sidecar that can't be told drops the sample once no request has named it for its run expiry, so a failure is logged and not raised.
+
+        Args:
+            sample_uuid: The sample's uuid.
+            tell: Whether to tell the sidecars. A cancelled sample's teardown can't be interrupted, so it doesn't wait on a sidecar that may not answer, and the sidecars drop the sample at its run expiry.
         """
-        for sidecar, _ in self._through.pop(sample_uuid, {}).values():
+        through = self._through.pop(sample_uuid, {}).values()
+        if not tell:
+            return
+        for sidecar, _ in through:
             with anyio.move_on_after(END_SAMPLE_TIMEOUT):
                 try:
                     await sidecar.call("end_sample", {"sample_uuid": sample_uuid})
@@ -169,17 +176,12 @@ class TaskSidecars:
 
         A sidecar only an earlier attempt called is left out: it still keeps that attempt's monitor state, and a retry starts with an empty sample store, as in Inspect's own process.
         """
-        through = [
-            sidecar
-            for sidecar, called_in in self._through.get(sample_uuid, {}).values()
-            if called_in == attempt_number
-        ]
+        through = self._attempt_sidecars(sample_uuid, attempt_number)
         if not through:
             return
         # the keys earlier copies wrote: any other key of the sample store
         # the copy would overwrite is a sentinel's inside Inspect
-        earlier = store.get(MONITOR_STATE_COPY)
-        copies = set(earlier.get("keys", [])) if isinstance(earlier, dict) else set()
+        copies = _copied_keys(store)
         # until the copy finishes: a copy cut short, as by the scoring's
         # deadline, still says the monitor state is missing
         store.set(
@@ -237,6 +239,29 @@ class TaskSidecars:
             },
         )
 
+    def skip_monitor_state_copy(
+        self, sample_uuid: str, attempt_number: int, store: Store, reason: str
+    ) -> None:
+        """Mark the monitor state of an attempt whose calls went through a sidecar as not copied, without asking the sidecar, so a scorer that reads the sample later never takes it for a sample in which nothing was flagged."""
+        if self._attempt_sidecars(sample_uuid, attempt_number):
+            store.set(
+                MONITOR_STATE_COPY,
+                {
+                    "copied": False,
+                    "reason": reason,
+                    "keys": sorted(_copied_keys(store)),
+                },
+            )
+
+    def _attempt_sidecars(self, sample_uuid: str, attempt_number: int) -> list[Sidecar]:
+        # the sidecars the attempt's calls went through: one only an earlier
+        # attempt called still keeps that attempt's monitor state
+        return [
+            sidecar
+            for sidecar, called_in in self._through.get(sample_uuid, {}).values()
+            if called_in == attempt_number
+        ]
+
     async def _probe(self, api: ModelAPI) -> Sidecar | str:
         client = proxy_client(api)
         if client is None:
@@ -291,6 +316,12 @@ class _Once(Generic[T]):
             finally:
                 self._running.pop(key).set()
         return self._done[key]
+
+
+def _copied_keys(store: Store) -> set[str]:
+    # the keys of the sample store that earlier copies wrote
+    earlier = store.get(MONITOR_STATE_COPY)
+    return set(earlier.get("keys", [])) if isinstance(earlier, dict) else set()
 
 
 def _copy_failure(sidecar: Sidecar, ex: SidecarCallError) -> str:

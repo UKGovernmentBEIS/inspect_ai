@@ -3439,7 +3439,9 @@ async def _task_run_sample_attempt(
                     # a sample saved without being scored keeps its monitor
                     # state too, as in process, for `inspect score` to read
                     if not monitor_state_copied:
-                        await save_sidecar_monitor_state(state)
+                        await save_sidecar_monitor_state(
+                            state, cancelled=cancelled_error is not None
+                        )
 
                     # ensure there are no base64 images in sample or messages
                     if not log_images:
@@ -3530,7 +3532,9 @@ async def _task_run_sample_attempt(
                         await emit_sample_end(
                             eval_set_id, run_id, task_id, state.uuid, eval_sample
                         )
-                        await end_sidecar_sample(state.uuid)
+                        await end_sidecar_sample(
+                            state.uuid, cancelled=cancelled_error is not None
+                        )
                     # deliver the sample to the run's sources (below) unless
                     # the TASK is unwinding (abort/retry cancel, ^C,
                     # fail_on_error teardown: any follow-ups could never run).
