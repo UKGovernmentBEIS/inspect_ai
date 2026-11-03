@@ -3989,6 +3989,68 @@ async def test_an_edited_output_whose_event_kept_the_live_message_has_no_input(
     assert before.input is None
 
 
+async def test_non_google_computer_scroll_with_observe_only_sentinel() -> None:
+    call = ToolCall(
+        id="scroll",
+        function="computer",
+        arguments={
+            "action": "scroll",
+            "coordinate": [100, 200],
+            "scroll_amount": 3.0,
+        },
+    )
+    seen: Steps = []
+    bridge = in_process_bridge([ChatMessageUser(content=TASK)])
+    with active([bridge_recording(seen)]):
+        output = await generate(
+            bridge,
+            Scripted(calls_output(call)),
+            [ChatMessageUser(content=TASK)],
+        )
+    assert output.message.tool_calls == [call]
+    assert [step.call.function for step in seen] == ["computer"]
+
+
+@pytest.mark.parametrize(("original", "edited"), [(True, 1), (False, 0), (1, True)])
+async def test_boolean_numeric_response_filter_edit_clears_tool_producer(
+    original: bool | int, edited: bool | int
+) -> None:
+    call = replace(READ, arguments={"path": original})
+    changed = replace(READ, arguments={"path": edited})
+    model = Scripted(calls_output(call), calls_output())
+    history: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+    bridge = in_process_bridge(history)
+    seen: Steps = []
+    filtered = False
+
+    async def response_filter(
+        model: Model, output: ModelOutput, input: GenerateInput
+    ) -> ModelOutput | None:
+        nonlocal filtered
+        if filtered:
+            return None
+        filtered = True
+        output.message.tool_calls = [changed]
+        return output
+
+    bridge.response_filter = response_filter
+    with active([bridge_recording(seen)]):
+        output = await generate(bridge, model, history)
+        await generate(
+            bridge,
+            model,
+            [
+                *history,
+                output.message,
+                ChatMessageTool(content="x", tool_call_id=READ.id),
+            ],
+        )
+    assert output.message.tool_calls == [changed]
+    before, after = seen
+    assert (before.input, after.input) == (None, None)
+    assert (before.tools, after.tools) == (None, None)
+
+
 async def test_an_output_two_generations_returned_has_no_input() -> None:
     # a model that returns the same object for two inputs: which one the
     # response answers can't be told

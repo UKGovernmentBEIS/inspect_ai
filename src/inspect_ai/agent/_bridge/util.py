@@ -37,7 +37,7 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.images import materialize_media
-from inspect_ai._util.json import to_json_str_safe
+from inspect_ai._util.json import json_equal, to_json_str_safe
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.url import data_uri_mime_type, is_data_uri
 from inspect_ai.agent._bridge._approval import (
@@ -1722,7 +1722,7 @@ def _same_response(output: ModelOutput, logged: ModelOutput) -> bool:
     message is: its id, content and tool calls.
     """
     return len(output.choices) == len(logged.choices) and all(
-        _handed(ours.message) == _handed(theirs.message)
+        json_equal(_handed(ours.message), _handed(theirs.message))
         for ours, theirs in zip(output.choices, logged.choices)
     )
 

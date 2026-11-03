@@ -41,8 +41,8 @@ from inspect_ai.model._chat_message import (
     ChatMessageTool,
 )
 from inspect_ai.model._model_output import ModelOutput
-from inspect_ai.model._providers._google_computer_use import (
-    gemini_action_from_tool_call,
+from inspect_ai.model._providers._google_computer_use_name import (
+    gemini_computer_action_name,
 )
 from inspect_ai.tool._tool import Tool, ToolResult
 from inspect_ai.tool._tool_call import (
@@ -217,8 +217,7 @@ class _ResultChecks:
         """Names a scaffold can use to echo this call's id."""
         names = {call.function.strip() or "generic_tool"}
         if call.function == "computer":
-            action, _ = gemini_action_from_tool_call(call)
-            names.add(action.strip() or "generic_tool")
+            names.add(gemini_computer_action_name(call.arguments))
         return names
 
     def _ambiguous_token(self, token: str, names: set[str]) -> bool:
