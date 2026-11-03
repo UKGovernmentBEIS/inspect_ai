@@ -692,8 +692,33 @@ So a log that a port has contributed to is never reused:
       beside it. If the durable write fails, `log_start` raises, the copy
       stops before reading or buffering any sample, and no copied sample is
       published. The flush writes what the archive holds at that point:
-      `start.json`, the marker and, for a destination seeded from an
-      existing file, what it was seeded with.
+      `start.json`, the marker and whatever the archive was seeded with.
+    - **A destination that is its own source.** Streamed `inspect score
+      --overwrite` writes back to the log it reads
+      (`src/inspect_ai/_cli/score.py:329`), and so does an in-place
+      streamed conversion (`src/inspect_ai/log/_convert.py:126-163`,
+      `tests/log/test_convert.py:226`); both read samples only after
+      `log_start` returns (`score.py:238-256`). `EvalRecorder.log_init`
+      restores an existing destination's metadata but not its sample bodies
+      (`src/inspect_ai/log/_recorders/eval.py:170-202`), so the durable
+      flush above would replace the source with a start record and the
+      marker and lose every unread sample. So when an `.eval` copy's
+      destination is its source and the source is marked, the copy first
+      calls the existing `log_seed(eval, source, keep=None)` (`eval.py:211`,
+      `seed_from_prior_log`, `:1658`) between `log_init` and `log_start`.
+      That byte-copies every source sample into the archive, so the durable
+      flush rewrites the file with `start.json`, the marker and every
+      original sample: the marker is durable before any sample the copy
+      writes; the unread samples are still there to be read; and a
+      re-written sample supersedes its seeded original, as the `.eval`
+      readers take the last entry for an `(id, epoch)`. An interruption at
+      any point leaves a marked file holding every sample, original or
+      re-written. A destination that is not its source needs no seed: the
+      source stays untouched. Recovery never writes in place: with
+      overwrite it writes a sibling file and moves it over the original
+      when done (`src/inspect_ai/log/_recover/_api.py:229-234`, `:355-358`).
+      A `.json` destination has no early flush, so this does not arise
+      for it.
     - `.json`: `log_start` sets the field on the in-memory log, so every
       snapshot `flush` writes holds the field with the samples it holds.
     - `log_finish` keeps the field set at start (the `.eval` journal member
@@ -1128,6 +1153,15 @@ test touched), with mockllm models:
     any write containing a sample; with that write made to fail, each copy
     raises from `log_start` and the destination holds no copied sample;
     copying an unmarked log adds no extra write;
+  - a destination that is its own source: streamed `inspect score
+    --overwrite` and in-place streamed conversion of a marked `.eval` log,
+    each with more samples than one flush interval, finish with every
+    sample present (re-written where the copy re-wrote it) and the marker
+    set; interrupted after the durable flush and again after the first
+    intermediate flush, the file still holds every sample, original or
+    re-written, reads as marked, and is refused by `eval_retry()`; the same
+    copies of an unmarked log, and copies to a separate output, run as
+    today with the source unchanged;
   - interrupted copies: conversion to `.eval` and to `.json`, streamed
     `inspect score`, and recovery through its buffer-sample and its
     crashed-`.eval` sample paths, each copying a marked log and cancelled
