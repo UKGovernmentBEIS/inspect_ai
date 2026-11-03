@@ -104,7 +104,7 @@ async def test_a_job_waited_for_now_goes_ahead_of_requested_ones() -> None:
     assert script.started == ["a", "new", "c", "b"]
 
 
-async def test_failure_goes_to_current_waiters_then_is_forgotten() -> None:
+async def test_failure_goes_to_waiters_and_is_kept() -> None:
     script = Script()
     errors: list[BaseException] = []
     told: list[SetupFailure | None] = []
@@ -125,16 +125,43 @@ async def test_failure_goes_to_current_waiters_then_is_forgotten() -> None:
             script.finish("a", ValueError("pull failed"))
         assert [str(ex) for ex in errors] == ["pull failed", "pull failed"]
         assert [str(f.error) for f in told if f] == ["pull failed"]
-        assert not _done(cache, ["a"])
-        # the next request starts a fresh job, which can succeed
-        [job] = cache.request(["a"])
-        async with anyio.create_task_group() as tg:
-            tg.start_soon(cache.ensure, ["a"])
-            await script.began_event("a").wait()
-            script.finish("a")
-        assert _done(cache, ["a"])
-    assert script.started == ["a", "a"]
-    assert len(told) == 2 and told[1] is None
+        # later requests join the failed job: no setup runs again
+        assert cache.request(["a"]) == [job]
+        await wait()
+        assert [str(ex) for ex in errors] == ["pull failed"] * 3
+    assert script.started == ["a"]
+
+
+async def test_a_retry_sets_a_failed_key_up_again_once_per_attempt() -> None:
+    # tasks share key a, whose setups fail: the first retry for attempt 2
+    # adds a job and the others join it; a task whose earlier attempt joined
+    # the failed attempt-2 job joins it again for its own attempt 2, and gets
+    # a new job only for attempt 3
+    script = Script()
+    async with SetupCache(script, on_done=lambda: None) as cache:
+        [first] = cache.request(["a"])
+        await script.began_event("a").wait()
+        script.finish("a", ValueError("broken"))
+        await first.done.wait()
+        [second] = cache.request_for_retry(["a"], attempt=2)
+        assert second is not first
+        assert cache.request_for_retry(["a"], attempt=2) == [second]
+        await script.began_event("a").wait()
+        script.finish("a", ValueError("broken"))
+        await second.done.wait()
+        # a later task: its first attempt joins the failed job, as does its
+        # retry for attempt 2
+        assert cache.request(["a"]) == [second]
+        assert cache.request_for_retry(["a"], attempt=2) == [second]
+        [third] = cache.request_for_retry(["a"], attempt=3)
+        assert third.attempt == 3
+        await script.began_event("a").wait()
+        script.finish("a")
+        await third.done.wait()
+        assert third.succeeded
+        # a succeeded job is joined by every retry
+        assert cache.request_for_retry(["a"], attempt=4) == [third]
+    assert script.started == ["a", "a", "a"]
 
 
 async def test_ensure_raises_the_first_failure() -> None:
@@ -258,7 +285,7 @@ async def test_base_exceptions_reach_waiters_and_are_kept_for_the_run() -> None:
         with pytest.raises(_Fatal):
             await cache.ensure(["a"])
         assert isinstance(cache.fatal, _Fatal)
-        # not remembered: the next request runs the setup again
+        # kept, like any failure: the next request raises it at once
         with pytest.raises(_Fatal):
             await cache.ensure(["a"])
 

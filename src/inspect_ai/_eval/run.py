@@ -988,7 +988,7 @@ class TaskDispatcher:
                     await wait_task_dispatch(
                         record.task_id, model=dispatch_model_name(record.model)
                     )
-                    await self.set_up_again(record)
+                    await self.set_up_again(record, attempt)
                 options = self.attempt_options(
                     configured.options(logger), record, attempt, sample_source
                 )
@@ -1025,17 +1025,18 @@ class TaskDispatcher:
             raise
         self.tasks.end(record)
 
-    async def set_up_again(self, record: TaskRecord) -> None:
+    async def set_up_again(self, record: TaskRecord, attempt: int) -> None:
         """Set up whatever of a record's setups failed, ahead of those waiting.
 
-        A failed setup's job was forgotten, so requesting the record's
-        configs again adds a job for it; the others are done already. Waits
+        Requests the record's configs for retry ``attempt``: a config whose
+        setup failed for an earlier attempt is set up again, unless another
+        task's retry already has for this attempt; the others are done. Waits
         until every job is done (or has failed again, which the next attempt
         then ends with), then sets the run's provider state in the attempt's
         context, so the retry sees the state its redone setups left (the
         context it started with predates them).
         """
-        record.setups = self.setups.request(record.setup_keys, first=True)
+        record.setups = self.setups.request_for_retry(record.setup_keys, attempt)
         for job in record.setups:
             await job.done.wait()
         self.apply_provider_state()

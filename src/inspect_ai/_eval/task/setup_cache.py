@@ -3,11 +3,13 @@
 Many tasks of a run can use the same sandbox config, whose setup (a provider's
 ``task_init``: an image build or pull, a cloud environment) is slow and must
 run once. :class:`SetupCache` keeps one job per key: a request joins the key's
-job if there is one (waiting, running or succeeded) and adds one otherwise. A
-worker runs the jobs one at a time, while there are any: in the order they
-were requested, except that a job someone waits for now (:meth:`SetupCache.ensure`)
-goes ahead of those requested ahead of need. A failed job is forgotten, so
-the next request for its key adds a new one. A waiting job nobody needs any
+job if there is one (waiting, running, succeeded or failed) and adds one
+otherwise. A worker runs the jobs one at a time, while there are any: in the
+order they were requested, except that a job someone waits for now
+(:meth:`SetupCache.ensure`, a task's retry) goes ahead of those requested
+ahead of need. A failed job is kept, so later requests for its key fail at
+once; only a task's retry sets a failed key up again, at most once per
+attempt number (see :meth:`SetupCache.request_for_retry`). A waiting job nobody needs any
 more (its task was cancelled before it started) is dropped; a job that has
 started always runs on. Leaving the cache cancels the job in progress and
 drops those still waiting.
@@ -61,8 +63,11 @@ class SetupFailure(NamedTuple):
 class SetupJob(Generic[K]):
     """The setup of one key."""
 
-    def __init__(self, key: K) -> None:
+    def __init__(self, key: K, attempt: int) -> None:
         self.key = key
+        self.attempt = attempt
+        """The task attempt it was added for: 1, or the retry that set its key
+        up again after a failure."""
         self.done = anyio.Event()
         self.failure: SetupFailure | None = None
 
@@ -129,24 +134,25 @@ class SetupCache(Generic[K]):
                     raise
                 return None
 
-    def request(self, keys: Iterable[K], *, first: bool = False) -> list[SetupJob[K]]:
-        """The jobs of ``keys``, adding those it lacks.
+    def request(self, keys: Iterable[K]) -> list[SetupJob[K]]:
+        """The jobs of ``keys``, adding those it lacks, for queued tasks."""
+        return [self._job_for(key, attempt=1) for key in keys]
 
-        With ``first``, those still waiting go ahead of the other jobs
-        waiting: for a caller that needs them now (a retry, a running task's
-        ``SampleSource`` adding samples with a new config, the seed before the
-        run starts). Other jobs are for queued tasks, which can wait.
+    def request_for_retry(self, keys: Iterable[K], attempt: int) -> list[SetupJob[K]]:
+        """The jobs of ``keys`` for a task's retry, ahead of the jobs waiting.
+
+        ``attempt`` is the retry's attempt number. A key whose job failed for
+        an earlier attempt gets a new job for this one; every other job is
+        joined, including a failed one that another task's retry added for
+        this attempt or a later one. So however many tasks share a broken
+        key, it is set up at most once per attempt number: 1 + retries times.
         """
-        jobs = [self._job(key) for key in keys]
-        if first:
-            waiting = [job for job in jobs if job in self._waiting]
-            for job in waiting:
-                self._waiting.remove(job)
-            self._waiting.extendleft(reversed(waiting))
+        jobs = [self._job_for(key, attempt) for key in keys]
+        self._move_ahead(jobs)
         return jobs
 
     def has_jobs(self, keys: Iterable[K]) -> bool:
-        """Whether every key has a job (waiting, running or succeeded), so requesting them adds none."""
+        """Whether every key has a job (waiting, running, succeeded or failed), so requesting them adds none."""
         return all(key in self._jobs for key in keys)
 
     async def ensure(self, keys: Iterable[K]) -> None:
@@ -155,7 +161,8 @@ class SetupCache(Generic[K]):
         Raises:
             BaseException: What the first failed job raised.
         """
-        jobs = self.request(keys, first=True)
+        jobs = self.request(keys)
+        self._move_ahead(jobs)
         self._ensuring.extend(jobs)
         try:
             for job in jobs:
@@ -180,17 +187,31 @@ class SetupCache(Generic[K]):
             self._waiting.remove(job)
             del self._jobs[job.key]
 
-    def _job(self, key: K) -> SetupJob[K]:
+    def _job_for(self, key: K, attempt: int) -> SetupJob[K]:
+        """The key's job, or a new one if it has none or failed for an earlier attempt."""
         job = self._jobs.get(key)
-        if job is None:
-            if self._tg is None:
-                raise RuntimeError("The setup cache has been left.")
-            job = self._jobs[key] = SetupJob(key)
-            self._waiting.append(job)
-            if not self._working:
-                self._working = True
-                self._context.copy().run(self._tg.start_soon, self._work)
+        if job is not None and not (job.failure is not None and job.attempt < attempt):
+            return job
+        if self._tg is None:
+            raise RuntimeError("The setup cache has been left.")
+        job = self._jobs[key] = SetupJob(key, attempt)
+        self._waiting.append(job)
+        if not self._working:
+            self._working = True
+            self._context.copy().run(self._tg.start_soon, self._work)
         return job
+
+    def _move_ahead(self, jobs: list[SetupJob[K]]) -> None:
+        """Move those of ``jobs`` still waiting ahead of the other jobs waiting.
+
+        For a caller that needs them now (a retry, a running task's
+        ``SampleSource`` adding samples with a new config, the seed before the
+        run starts); other jobs are for queued tasks, which can wait.
+        """
+        waiting = [job for job in jobs if job in self._waiting]
+        for job in waiting:
+            self._waiting.remove(job)
+        self._waiting.extendleft(reversed(waiting))
 
     async def _work(self) -> None:
         while self._waiting:
@@ -215,4 +236,3 @@ class SetupCache(Generic[K]):
 
     def _fail(self, job: SetupJob[K], error: BaseException) -> None:
         job.failure = SetupFailure.of(error)
-        del self._jobs[job.key]

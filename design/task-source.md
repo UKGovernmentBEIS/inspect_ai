@@ -335,7 +335,10 @@ makes it the active one for `enqueue_task`, starts up the seed and runs the
   holds (a task cancelled before it started), unless a running task's
   `SampleSource` waits for them; a job that has started always runs on. A
   record whose setup fails starts and ends with an error log (its retries
-  apply); the failure is forgotten, so the retry sets up again.
+  apply). A failed job is kept, so other tasks using that config fail at
+  once; a retry sets the config up again only if no other task's retry has
+  for the same attempt number, so a broken config is set up at most
+  1 + retries times.
 - **The seed** is set up before the task display opens: every seed setup runs
   (output streamed, the first failure raises before any log exists), then
   each seed logger is created; it is initialised as the task starts.

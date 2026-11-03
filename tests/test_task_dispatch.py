@@ -1157,6 +1157,45 @@ async def test_task_behind_the_front_joins_setups_already_requested(
     assert _starts(harness) == ["a@m1", "plain@m1", "first@m1", "shared@m1", "other@m1"]
 
 
+async def test_a_broken_shared_setup_is_set_up_once_per_attempt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # six tasks in two slots share config K, whose setup always fails: with
+    # two retries K is set up three times (once per attempt number), not once
+    # per task attempt
+    m1 = get_model("mockllm/m1")
+    harness = Harness([m1], parallel=3, retries=2)
+    _install(monkeypatch, harness)
+    builds: list[str] = []
+
+    async def broken(key: str) -> None:
+        builds.append(key)
+        await anyio.sleep(0)
+        raise RuntimeError("broken")
+
+    harness.setups = SetupCache(broken, on_done=harness.tasks.changed.set)
+    names = [f"t{i}" for i in range(6)]
+    for name in names:
+        harness.keys[f"{name}@m1"] = ["K"]
+
+    async def drive() -> None:
+        await _wait_started(harness, "a@m1")
+        await harness.tasks.add([_task(n) for n in names])
+        await _wait_until(
+            lambda: all(r.ended for r in harness.tasks.records if r.task in names)
+        )
+        harness.finish["a@m1"].set()
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(drive)
+        logs = await harness.run(_resolve(["a"], [m1]))
+    assert builds == ["K"] * 3
+    assert sorted((log.eval.task, log.status) for log in logs) == [
+        ("a@m1", "success"),
+        *[(f"{name}@m1", "error") for name in names],
+    ]
+
+
 @pytest.mark.parametrize("shared", [False, True])
 async def test_a_cancelled_queued_tasks_waiting_setup_is_dropped_unless_held(
     monkeypatch: pytest.MonkeyPatch, shared: bool
