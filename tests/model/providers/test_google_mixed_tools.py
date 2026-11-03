@@ -539,6 +539,75 @@ async def test_gemini_unsigned_function_call_replays_before_server_tool_response
     assert google_content.parts == candidate.content.parts
 
 
+_LATER_PARTS_AFTER_SEARCH: dict[str, list[Part]] = {
+    "text": [Part(text="Done.")],
+    "thought": [Part(text="Next step", thought=True)],
+    "second-search": [
+        Part(
+            thought_signature=b"search-2-signature",
+            tool_call=GeminiToolCall(
+                id="search-2",
+                tool_type=ToolType.GOOGLE_SEARCH_WEB,
+                args={"queries": ["leap years"]},
+            ),
+        ),
+        Part(
+            thought_signature=b"search-2-response-signature",
+            tool_response=ToolResponse(
+                id="search-2",
+                tool_type=ToolType.GOOGLE_SEARCH_WEB,
+                response={"search_suggestions": ["leap year rules"]},
+            ),
+        ),
+    ],
+}
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("later", list(_LATER_PARTS_AFTER_SEARCH))
+async def test_gemini_held_search_response_replays_before_later_content(
+    later: str,
+) -> None:
+    """A held search response replays before content that follows it."""
+    parts = [
+        Part(
+            thought_signature=b"search-signature",
+            tool_call=GeminiToolCall(
+                id="search-1",
+                tool_type=ToolType.GOOGLE_SEARCH_WEB,
+                args={"queries": ["earth diameter"]},
+            ),
+        ),
+        Part(
+            function_call=FunctionCall(
+                id="days-1", name="days_in_year", args={"year": 2024}
+            ),
+        ),
+        Part(
+            thought_signature=b"search-response-signature",
+            tool_response=ToolResponse(
+                id="search-1",
+                tool_type=ToolType.GOOGLE_SEARCH_WEB,
+                response={"search_suggestions": ["earth diameter km"]},
+            ),
+        ),
+        *_LATER_PARTS_AFTER_SEARCH[later],
+    ]
+    candidate = Candidate(
+        finish_reason=FinishReason.STOP,
+        content=Content(role="model", parts=parts),
+    )
+
+    choice = completion_choice_from_candidate("gemini-3.1-pro-preview", candidate)
+    stored = ModelOutput(
+        model="gemini-3.1-pro-preview", choices=[choice]
+    ).model_dump_json()
+    message = ModelOutput.model_validate_json(stored).message
+    google_content = await content(MagicMock(), message, emulate_reasoning=False)
+
+    assert google_content.parts == parts
+
+
 def test_gemini_unsupported_server_tool_call_is_omitted() -> None:
     candidate = Candidate(
         finish_reason=FinishReason.STOP,
