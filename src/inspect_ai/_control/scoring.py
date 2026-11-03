@@ -1189,7 +1189,7 @@ async def _score_live_sample(
     _init_pass_scoring_context(handle, target)
     init_transcript(active.transcript)
     init_subtask_store(live_state.store)
-    await copy_sidecar_monitor_state(live_state, eval_id=active.eval_id)
+    await copy_sidecar_monitor_state(live_state, active)
     if active.sandbox_environments:
         sandbox_environments_context_var.set(active.sandbox_environments)
         # mirror sample init: the first environment is the default (without

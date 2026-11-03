@@ -2,24 +2,30 @@
 
 from typing import TYPE_CHECKING
 
-from ._task import MONITOR_STATE_COPY, task_sidecars
+from ._task import MONITOR_STATE_COPY, attempt_number, task_sidecars
 
 if TYPE_CHECKING:
+    from inspect_ai.log._samples import ActiveSample
     from inspect_ai.solver._task_state import TaskState
 
 
 async def copy_sidecar_monitor_state(
-    state: "TaskState", eval_id: str | None = None
+    state: "TaskState", active: "ActiveSample | None" = None
 ) -> None:
-    """Copy the monitor state of the sidecars a sample's calls went through into its sample store, before it is scored.
+    """Copy the monitor state of the sidecars the running attempt's calls went through into its sample store, before it is scored.
 
     Args:
         state: The sample's state.
-        eval_id: The eval whose task the sample is of, where the task's context isn't the caller's, as for interim scoring.
+        active: The running sample, where it isn't the caller's own, as for interim scoring.
     """
-    sidecars = task_sidecars(eval_id)
-    if sidecars is not None:
-        await sidecars.copy_monitor_state(state.uuid, state.store)
+    from inspect_ai.log._samples import sample_active
+
+    sidecars = task_sidecars(active.eval_id if active is not None else None)
+    sample = active or sample_active()
+    if sidecars is not None and sample is not None:
+        await sidecars.copy_monitor_state(
+            state.uuid, attempt_number(sample), state.store
+        )
 
 
 def require_monitor_state() -> None:

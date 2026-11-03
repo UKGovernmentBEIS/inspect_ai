@@ -1236,6 +1236,47 @@ def test_a_sample_with_no_call_through_a_sidecar_copies_nothing() -> None:
     assert _registered(stand_in, "sample_result") == []
 
 
+@solver
+def _calls_then_fails(retry_calls: bool) -> Solver:
+    attempts = 0
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            await generate(state)
+            raise RuntimeError("The first attempt fails.")
+        return await generate(state) if retry_calls else state
+
+    return solve
+
+
+@pytest.mark.parametrize(
+    ("retry_calls", "read"), [(False, -1), (True, 1)], ids=["no call", "a call"]
+)
+def test_a_retry_is_scored_on_its_own_attempts_monitor_state(
+    retry_calls: bool, read: int
+) -> None:
+    stand_in = StandInSidecar(methods={"sample_result": _kept({"Tally:lookups": 1})})
+    task = Task(
+        dataset=[Sample(input="Hi.")],
+        solver=_calls_then_fails(retry_calls),
+        scorer=_reads_monitor_state(),
+    )
+
+    [log] = eval(task, model=_model(stand_in), retry_on_error=1, display="none")
+
+    assert log.samples is not None
+    [sample] = log.samples
+    assert sample.error is None
+    # the sidecar still keeps the first attempt's monitor state, which a retry
+    # that makes no call through it never reads, as in process
+    assert (sample.scores or {})["_reads_monitor_state"].value == read
+    assert len(_registered(stand_in, "sample_result")) == (1 if retry_calls else 0)
+    # the sidecar the first attempt called is still told the sample ended
+    assert _ended(stand_in) == [sample.uuid]
+
+
 def _two_models(first: StandInSidecar, second: StandInSidecar) -> tuple[Model, Model]:
     return (
         _model(first, base_url="http://proxy-a.test"),
