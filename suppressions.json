@@ -550,12 +550,6 @@
       "undescribed": 3
     }
   },
-  "src/inspect_ai/event/_pool.py": {
-    "type: ignore[attr-defined]": {
-      "count": 1,
-      "undescribed": 1
-    }
-  },
   "src/inspect_ai/event/_tree.py": {
     "type: ignore[overload-overlap]": {
       "count": 1,
