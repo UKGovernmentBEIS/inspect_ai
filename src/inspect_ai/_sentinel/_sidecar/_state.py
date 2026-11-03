@@ -29,11 +29,28 @@ async def copy_sidecar_monitor_state(
         )
 
 
-async def save_sidecar_monitor_state(state: "TaskState") -> None:
+async def save_sidecar_monitor_state(
+    state: "TaskState", cancelled: bool = False
+) -> None:
     """Copy the monitor state into the store of a sample saved without being scored, as a failed sample is.
 
     Inside Inspect, the sample store holds the monitor state when the sample is saved, so a later `inspect score` reads it. The sample has already failed, so a copy that fails doesn't fail it again: the marker in the sample store says why there is no state.
+
+    A cancelled sample's teardown can't be interrupted, so it doesn't wait on a sidecar that may not answer: the marker says the state wasn't copied.
     """
+    if cancelled:
+        from inspect_ai.log._samples import sample_active
+
+        sidecars = task_sidecars()
+        sample = sample_active()
+        if sidecars is not None and sample is not None:
+            sidecars.skip_monitor_state_copy(
+                state.uuid,
+                attempt_number(sample),
+                state.store,
+                "the sample was cancelled before it was copied",
+            )
+        return
     try:
         await copy_sidecar_monitor_state(state)
     except SentinelProxyError:

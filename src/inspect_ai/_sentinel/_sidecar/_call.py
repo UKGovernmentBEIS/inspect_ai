@@ -62,6 +62,8 @@ async def sidecar_call(model: "Model") -> SidecarCall | None:
             sample_input=state.input,
             metadata=state.metadata,
         ),
+        active.sample_uuid,
+        attempt_number(active),
     )
     header = json.dumps(
         {
@@ -84,8 +86,8 @@ async def sidecar_call(model: "Model") -> SidecarCall | None:
     return SidecarCall(sidecar, header, sidecars.mode)
 
 
-async def end_sidecar_sample(sample_uuid: str) -> None:
-    """Tell the sidecars a sample's calls went through that it has ended, after its final scoring."""
+async def end_sidecar_sample(sample_uuid: str, cancelled: bool = False) -> None:
+    """Tell the sidecars a sample's calls went through that it has ended, after its final scoring; a cancelled sample's aren't told, and drop it at their run expiry."""
     sidecars = task_sidecars()
     if sidecars is not None:
-        await sidecars.end_sample(sample_uuid)
+        await sidecars.end_sample(sample_uuid, tell=not cancelled)
