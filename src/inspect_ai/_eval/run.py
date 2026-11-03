@@ -624,8 +624,8 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
 
     A task's own abort or retry request always leaves a log, so the
     dispatcher never reads it as a run-level cancellation. In ``task_run``
-    the request cannot interrupt a final log write: the error-log write is
-    shielded (see ``abort_bounded_shield``), and an interrupted success
+    the request cannot interrupt a final log write: the error-log write
+    completes first (see ``abort_bounded_write``), and an interrupted success
     write is followed by the cancel handler's shielded write of the abort's
     error log. When the request interrupts ``task_run`` after the write, the
     written log is returned; when it interrupts it before any final log
@@ -633,9 +633,9 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
     log write.
 
     The run's ``TaskSource`` (if any) gets ``task_complete`` with the log of
-    each attempt that wrote one, but not for a failed write. It is called
-    after the task's cancel scope has exited, in the task's context, so a
-    task's abort does not interrupt it. Once that scope has exited the
+    each attempt that wrote one, but not for a failed write or a preview
+    (``run_samples=False``). It is called after the task's cancel scope has
+    exited, in the task's context, so a task's abort does not interrupt it. Once that scope has exited the
     attempt's outcome is decided: a later retry request (e.g. a cancel
     dialog answered while ``task_complete`` runs) is ignored, so it cannot
     re-run a finished task; only an abort of an attempt that ended in error
@@ -687,8 +687,7 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
                     # in-flight samples, queued samples are abandoned (they
                     # check the stamped cancel_type as they leave the queue),
                     # and the task runs to natural completion.
-                    if type in ("abort", "retry"):
-                        bound_log_write(tc)
+                    if type in ("abort", "retry") and not bound_log_write(tc):
                         scope.cancel()
 
                 task_cancel.cancel_task = cancel_task

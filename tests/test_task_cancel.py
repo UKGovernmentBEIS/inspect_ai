@@ -1257,26 +1257,62 @@ async def test_abort_of_stuck_error_log_write_times_out(
 
 
 @pytest.mark.anyio
-async def test_abort_bounded_shield_bounds_write_only_after_request() -> None:
-    """The shield bounds the write once a request is pending, and not before."""
-    from inspect_ai._eval.task.run import abort_bounded_shield
-
-    with anyio.CancelScope() as outer:
-        outer.cancel()
-        with abort_bounded_shield(TaskCancel(can_retry=False, cancel_task=print)):
-            await anyio.sleep(0.05)
-        finished_unbounded = True
-    assert finished_unbounded
+async def test_abort_before_error_log_write_shields_it_for_bounded_time() -> None:
+    """A request made before the write shields it from the cancellation, up to the timeout."""
+    import inspect_ai._eval.task.run as task_run_module
+    from inspect_ai._eval.task.run import abort_bounded_write
 
     pending = TaskCancel(can_retry=False, cancel_task=print, cancel_type="abort")
     with pytest.MonkeyPatch.context() as mp:
-        import inspect_ai._eval.task.run as task_run_module
-
         mp.setattr(task_run_module, "ABORTED_LOG_WRITE_TIMEOUT", 0.05)
-        with pytest.raises(TimeoutError):
-            with abort_bounded_shield(pending):
-                await anyio.sleep_forever()
+        with anyio.CancelScope() as task_scope:
+            task_scope.cancel()
+            with abort_bounded_write(pending):
+                await anyio.sleep(0)
+            with pytest.raises(TimeoutError):
+                with abort_bounded_write(pending):
+                    await anyio.sleep_forever()
     assert pending.log_write_scope is None
+
+
+@pytest.mark.anyio
+async def test_run_cancel_interrupts_error_log_write(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A run-level cancellation during a failing task's error-log write interrupts it at once.
+
+    No abort or retry request is pending, so the write is not shielded.
+    """
+    from inspect_ai import eval_async
+    from inspect_ai._eval.task.log import TaskLogger
+
+    original_log_finish = TaskLogger.log_finish
+    scopes: list[anyio.CancelScope] = []
+    write_ran_to_bound: list[bool] = []
+
+    async def log_finish(self: TaskLogger, *args: Any, **kwargs: Any) -> Any:
+        if args[0] == "error":
+            scopes[0].cancel()
+            # bounds the test if the write were shielded from the cancellation
+            with anyio.move_on_after(5) as bound:
+                await anyio.sleep_forever()
+            write_ran_to_bound.append(bound.cancelled_caught)
+        return await original_log_finish(self, *args, **kwargs)
+
+    monkeypatch.setattr(TaskLogger, "log_finish", log_finish)
+    runs: list[str] = []
+    with anyio.CancelScope() as scope:
+        scopes.append(scope)
+        await eval_async(
+            [_failing_task("a", runs, failures=1), _plain_task("b", runs)],
+            model="mockllm/model",
+            log_dir=str(tmp_path),
+            max_tasks=1,
+            task_retry_attempts=1,
+        )
+
+    assert write_ran_to_bound == []
+    assert runs == ["a"]
 
 
 @pytest.mark.anyio
@@ -1513,6 +1549,22 @@ async def test_task_source_task_complete_runs_to_completion_after_abort(
     ]
     assert [(log.eval.task, log.status) for log in logs] == [("a", "error")]
     assert await _disk_statuses(tmp_path) == [("a", "error")]
+
+
+@pytest.mark.anyio
+async def test_preview_does_not_report_to_task_source(tmp_path: Path) -> None:
+    """A preview (`run_samples=False`) runs no samples, so `task_complete` is not called."""
+    from inspect_ai import eval_async
+
+    runs: list[str] = []
+    source = _RecordingSource([_plain_task("a", runs)])
+    logs = await eval_async(
+        source, model="mockllm/model", log_dir=str(tmp_path), run_samples=False
+    )
+
+    assert not [event for event in source.events if event.startswith("task_complete")]
+    assert [(log.eval.task, log.status) for log in logs] == [("a", "started")]
+    assert runs == []
 
 
 class _LateCancelSource(TaskSource):

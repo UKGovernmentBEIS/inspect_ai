@@ -61,8 +61,9 @@ class TaskCancel:
     cancel_task: Callable[[CancelType], None]
     cancel_type: CancelType = None
     log_write_scope: anyio.CancelScope | None = None
-    """The shield around the task's log write in progress, which an abort or
-    retry request bounds (see ``abort_bounded_shield``)."""
+    """The scope around the task's error-log write while it runs. An abort or
+    retry request made then bounds the write and takes effect when it ends
+    (see ``abort_bounded_write``)."""
 
 
 @dataclass
