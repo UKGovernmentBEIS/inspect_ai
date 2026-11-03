@@ -5907,8 +5907,6 @@ def test_writers_leave_ordinary_logs_alone(tmp_path: Path, writer: str) -> None:
 def test_writers_refuse_when_the_shards_cannot_be_inspected(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, writer: str
 ) -> None:
-    from inspect_ai._util.file import filesystem
-
     merged, shards = _paths(tmp_path)
     task = _graded_task(Epochs(2, at_least(1, value=0.5)))
     _run(shards, "0", task, sample_id=[1, 2, 3])
@@ -5917,12 +5915,15 @@ def test_writers_refuse_when_the_shards_cannot_be_inspected(
     log = read_eval_log(merged)
     before = Path(merged).read_bytes(), _files(shards), log.model_dump_json()
 
-    def denied(self: Any, path: str, **kwargs: Any) -> Any:
-        raise PermissionError(f"denied: {path}")
+    scandir = os.scandir
 
-    # fsspec's exists() returns False on this error
+    def denied(path: Any = ".") -> Any:
+        if not isinstance(path, int) and os.fspath(path) == shards:
+            raise PermissionError(f"denied: {path}")
+        return scandir(path)
+
     with monkeypatch.context() as patched:
-        patched.setattr(type(filesystem(shards).fs), "info", denied)
+        patched.setattr(os, "scandir", denied)
         with pytest.raises(PermissionError, match="denied"):
             _write_with(writer, log)
     assert (Path(merged).read_bytes(), _files(shards), log.model_dump_json()) == before
@@ -5930,6 +5931,46 @@ def test_writers_refuse_when_the_shards_cannot_be_inspected(
     # genuine absence: once the merge has deleted the shards, the same call runs
     assert merge_eval_log_shards(merged, delete_shards=True).shards_deleted
     _write_with(writer, read_eval_log(merged))
+
+
+@pytest.mark.parametrize("form", ["tilde", "dot", "absolute"])
+@pytest.mark.parametrize("remnant", ["files", "directory-link"])
+def test_writers_inspect_the_companion_the_merge_uses(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, remnant: str, form: str
+) -> None:
+    import shutil
+
+    from inspect_ai.log._shards._live import check_shards_merged_async
+
+    # a relative `~` is a directory named `~`, as the merge and deletion
+    # take it; the home directory holds no companion
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.chdir(tmp_path)
+    merged, shards = _paths(tmp_path / "~" / "logs")
+    task = _graded_task(Epochs(2, at_least(1, value=0.5)))
+    _run(shards, "0", task, sample_id=[1, 2, 3])
+    _run(shards, "1", task, sample_id=[4, 5, 6])
+    merge_eval_log_shards(merged)
+    if remnant == "directory-link":
+        shutil.rmtree(shards)
+        os.makedirs(shards)
+        _touch(tmp_path / "target" / "data")
+        os.symlink(tmp_path / "target", f"{shards}/0", target_is_directory=True)
+    log = read_eval_log(merged)
+    log.location = {
+        "tilde": f"~/logs/{NAME}.eval",
+        "dot": f"./~/logs/{NAME}.eval",
+        "absolute": merged,
+    }[form]
+    before = log.model_dump_json(), _tree(str(tmp_path))
+
+    for writer in ["recompute_metrics", "edit_score", "score_overwrite"]:
+        with pytest.raises(ShardSetError, match="shards that still exist"):
+            _write_with(writer, log)
+    for backend in ["asyncio", "trio"]:
+        with pytest.raises(ShardSetError, match="shards that still exist"):
+            anyio.run(check_shards_merged_async, log, "rescore", backend=backend)
+    assert (log.model_dump_json(), _tree(str(tmp_path))) == before
 
 
 @pytest.mark.parametrize(

@@ -1562,10 +1562,14 @@ names, so on a merged log they would replace the reductions the shards
 recorded, and a later merge or deletion would then trust the rewritten
 ones. Each refuses (`ShardSetError`) a log that has `eval.shards` while the
 `<name>.shards/` directory beside its `location` exists with any entry:
-one shared helper (`log/_shards/_live.py`), a plain listing in the sync
-writers (on S3 a boto3 `list_objects_v2` call, since s3fs is not supported
-under a configured Trio backend) and `AsyncFilesystem.list_dir` in the
-async ones. Only a missing directory counts as absent: any other error
+one shared helper (`log/_shards/_live.py`). A local directory is read with
+`os.scandir` in both the sync and async writers (through `run_owned` in the
+async ones), so any entry counts, links included and never followed, and the
+path is taken as the merge and deletion take it (fsspec's local filesystem
+would expand a leading `~`). On S3 the sync writers make a boto3
+`list_objects_v2` call, since s3fs is not supported under a configured Trio
+backend, and the async ones use `AsyncFilesystem.list_dir`. Only a missing
+directory counts as absent: any other error
 inspecting it (a denied listing) propagates and the writer changes
 nothing; fsspec's `exists()` is not used, since it returns false on any
 error. Each operation
@@ -1728,9 +1732,11 @@ when every recorded current attempt is still unchanged, or no attempt is
 left, it returns the merged log as it is. A re-run with
 `delete_shards=True` on the `success` merged log takes them as left over
 when no shard is new or otherwise changed, verifies the merged log against
-its recorded ledger and deletes the rest. Once no `<k>/` has an attempt
-the companion counts as gone ("The merge", step 5), and every later pass
-returns the merged log as it is.
+its recorded ledger and deletes the rest. Once no `<k>/` has an attempt,
+every later pass returns the merged log as it is. The companion counts as
+gone only once it does not exist ("The merge", step 5); while it exists,
+even empty or holding only checkpoints, buffers or links, `delete_shards`
+runs step 12's retained checks before deleting it.
 
 What the user sees after an interruption:
 
@@ -2720,7 +2726,11 @@ Per PR (numbers from "Implementation plan"):
      `recompute_metrics=False`) propagate a denied inspection of the shards
      directory and leave the log unchanged, and on `mock_s3` under a
      configured Trio backend refuse while the shards exist and succeed
-     after a merge with `delete_shards=True`;
+     after a merge with `delete_shards=True`; with a location of
+     `~/logs/<name>.eval` (a directory named `~`), `./~/...` or an
+     absolute path, and shards that are files or a lone directory link,
+     the sync and async writers and the async guard on asyncio and Trio
+     refuse and leave the log, its reductions and the files unchanged;
    - scorer identity: an unreduced metric counting the raw scores whose
      `scorer` is the declared scorer gives the unsharded run's value in
      fresh and incremental merges, with a configured reducer and with

@@ -8,6 +8,9 @@ merged log until the merge has deleted its shards (decision: Ransom,
 2026-10-26).
 """
 
+import os
+from functools import partial
+
 from inspect_ai._util.asyncfiles import (
     AsyncFilesystem,
     is_s3_filename,
@@ -18,6 +21,8 @@ from inspect_ai._util.log_layout import eval_shards_dir
 from inspect_ai.log._log import EvalLog
 
 from ._errors import ShardSetError
+from ._owned import run_owned
+from ._publish import is_local
 from ._walk import check_s3_location
 
 
@@ -48,9 +53,13 @@ async def check_shards_merged_async(log: EvalLog, action: str) -> None:
     shards_dir = _shards_dir(log)
     if shards_dir is None:
         return
-    async with AsyncFilesystem() as fs:
-        if await _has_entries(fs, shards_dir):
-            raise _live_shards(log, shards_dir, action)
+    if is_local(shards_dir):
+        live = await run_owned(partial(_local_holds_entries, shards_dir))
+    else:
+        async with AsyncFilesystem() as fs:
+            live = await _has_entries(fs, shards_dir)
+    if live:
+        raise _live_shards(log, shards_dir, action)
 
 
 def _shards_dir(log: EvalLog) -> str | None:
@@ -61,7 +70,7 @@ def _shards_dir(log: EvalLog) -> str | None:
 
 
 def _holds_entries(shards_dir: str) -> bool:
-    """Whether `shards_dir` holds an entry, as :func:`_has_entries` counts them.
+    """Whether `shards_dir` holds an entry.
 
     Only a missing directory counts as empty: fsspec's `exists()` returns
     False on any error, a denied inspection included. S3 is listed with the
@@ -79,8 +88,23 @@ def _holds_entries(shards_dir: str) -> bool:
             .list_objects_v2(Bucket=bucket, Prefix=prefix, MaxKeys=2)
         )
         return any(obj["Key"] != prefix for obj in response.get("Contents", []))
+    if is_local(shards_dir):
+        return _local_holds_entries(shards_dir)
     try:
         return bool(filesystem(shards_dir).ls(shards_dir))
+    except FileNotFoundError:
+        return False
+
+
+def _local_holds_entries(shards_dir: str) -> bool:
+    """Whether the local `shards_dir` holds any entry, links included, unfollowed.
+
+    The path is used as the merge and deletion use it: fsspec's local
+    filesystem would expand a leading `~`, which they take literally.
+    """
+    try:
+        with os.scandir(shards_dir) as entries:
+            return next(entries, None) is not None
     except FileNotFoundError:
         return False
 
