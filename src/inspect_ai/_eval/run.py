@@ -754,15 +754,6 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
                                 ),
                             )
                             write_failed = True
-                    elif (
-                        write_failed
-                        and cancel_type in ("abort", "retry")
-                        and written_log is not None
-                    ):
-                        # the write deadline expired in the logger's cleanup,
-                        # after the recorder had written the log
-                        result = written_log
-                        write_failed = False
                     ended_in_error = result is not None and result.status == "error"
                     if abandoned or write_failed:
                         run_returned = True

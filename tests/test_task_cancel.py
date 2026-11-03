@@ -1436,9 +1436,11 @@ def _on_log_finalized(
 ) -> list[str]:
     """Run `action(eval_id)` once, after the recorder has finalized task `a`'s log.
 
-    `where` is the logger's cleanup (`logger_cleanup`), an awaiting
-    `on_task_end` hook (`task_end_hook`) or a legacy telemetry hook after
-    `task_run`'s handlers (`telemetry`). Returns the eval ids it ran for.
+    `where` is the logger's cleanup, before it releases the realtime buffer
+    (`buffer_release`) or as it stops the stale-flush timer at the end
+    (`logger_cleanup`), an awaiting `on_task_end` hook (`task_end_hook`) or
+    a legacy telemetry hook after `task_run`'s handlers (`telemetry`).
+    Returns the eval ids it ran for.
     """
     import inspect_ai.hooks._legacy as legacy_hooks
     from inspect_ai._eval.task.log import TaskLogger
@@ -1472,6 +1474,15 @@ def _on_log_finalized(
 
         monkeypatch.setattr(TaskLogger, "log_finish", log_finish)
         monkeypatch.setattr(legacy_hooks, "_send_telemetry", send_telemetry)
+    elif where == "buffer_release":
+        original_release = TaskLogger._release_buffer_db
+
+        async def release_buffer_db(self: TaskLogger, *, keep: bool) -> None:
+            if self.eval.task == "a" and self.finished and not fired:
+                await fire(self.eval.eval_id)
+            await original_release(self, keep=keep)
+
+        monkeypatch.setattr(TaskLogger, "_release_buffer_db", release_buffer_db)
     else:
         original_stop = TaskLogger._stop_stale_flush_timer
 
@@ -1486,9 +1497,43 @@ def _on_log_finalized(
     return fired
 
 
+_POST_ABORT_WAIT = 0.5
+"""Seconds an action waits after its cancellation, longer than the tests' 0.2 s write deadline.
+
+The wait is bounded because the logger's teardown is shielded: there it
+runs to its end, and the cancellation lands after the teardown.
+"""
+
+
 async def _abort_and_wait(eval_id: str) -> None:
     _task_cancel_handle(eval_id).cancel_task("abort")
-    await anyio.sleep_forever()
+    await anyio.sleep(_POST_ABORT_WAIT)
+
+
+def _record_teardown(monkeypatch: pytest.MonkeyPatch) -> list[tuple[Any, Any]]:
+    """Record task `a`'s logger and its realtime buffer database as it starts finishing its log."""
+    from inspect_ai._eval.task.log import TaskLogger
+
+    finishing: list[tuple[Any, Any]] = []
+    original_log_finish = TaskLogger.log_finish
+
+    async def log_finish(self: TaskLogger, *args: Any, **kwargs: Any) -> Any:
+        if self.eval.task == "a":
+            finishing.append((self, self._buffer_db))
+        return await original_log_finish(self, *args, **kwargs)
+
+    monkeypatch.setattr(TaskLogger, "log_finish", log_finish)
+    return finishing
+
+
+def _assert_torn_down(finishing: list[tuple[Any, Any]]) -> None:
+    """Assert the logger cleared its pending samples and closed and removed its buffer database."""
+    assert finishing
+    for logger, buffer_db in finishing:
+        assert logger.flush_pending == []
+        assert logger._buffer_db is None
+        assert buffer_db is not None
+        assert not buffer_db.db_path.exists()
 
 
 async def _raise_stray_cancellation() -> None:
@@ -1505,7 +1550,9 @@ async def _raise_stray_cancellation() -> None:
 
 
 @pytest.mark.anyio
-@pytest.mark.parametrize("where", ["logger_cleanup", "task_end_hook", "telemetry"])
+@pytest.mark.parametrize(
+    "where", ["buffer_release", "logger_cleanup", "task_end_hook", "telemetry"]
+)
 async def test_abort_after_log_finalized_returns_written_log(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, where: str
 ) -> None:
@@ -1513,13 +1560,14 @@ async def test_abort_after_log_finalized_returns_written_log(
 
     It lands in the logger's cleanup after the recorder wrote the log, in an
     awaiting `on_task_end` hook, or in a legacy telemetry hook after
-    `task_run`'s handlers. The task still returns its written log, its
-    display shows it succeeded, the TaskSource hears about it once, and the
-    run continues.
+    `task_run`'s handlers. The logger's cleanup still completes, the task
+    returns its written log, its display shows it succeeded, the TaskSource
+    hears about it once, and the run continues.
     """
     from inspect_ai import eval_async
 
     fired = _on_log_finalized(monkeypatch, where, _abort_and_wait)
+    finishing = _record_teardown(monkeypatch)
     displayed = _record_task_display_results(monkeypatch)
     runs: list[str] = []
     source = _RecordingSource([_plain_task("a", runs), _plain_task("b", runs)])
@@ -1532,6 +1580,7 @@ async def test_abort_after_log_finalized_returns_written_log(
     )
 
     assert fired
+    _assert_torn_down(finishing)
     assert [type(result).__name__ for result in displayed["a"]] == ["TaskSuccess"]
     assert [(log.eval.task, log.status) for log in logs] == [
         ("a", "success"),
@@ -1546,20 +1595,22 @@ async def test_abort_after_log_finalized_returns_written_log(
 
 
 @pytest.mark.anyio
+@pytest.mark.parametrize("where", ["buffer_release", "logger_cleanup"])
 async def test_abort_deadline_in_logger_cleanup_returns_written_error_log(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, where: str
 ) -> None:
     """An abort whose write deadline expires in the logger's cleanup returns the written error log.
 
-    The recorder had already written the full error log, so the task
-    returns it rather than a failed-write log, the TaskSource hears about
-    it once, and the run continues.
+    The recorder had already written the full error log, so the cleanup
+    completes, the task returns that log rather than a failed-write log,
+    the TaskSource hears about it once, and the run continues.
     """
     import inspect_ai._eval.task.run as task_run_module
     from inspect_ai import eval_async
 
     monkeypatch.setattr(task_run_module, "ABORTED_LOG_WRITE_TIMEOUT", 0.2)
-    fired = _on_log_finalized(monkeypatch, "logger_cleanup", _abort_and_wait)
+    fired = _on_log_finalized(monkeypatch, where, _abort_and_wait)
+    finishing = _record_teardown(monkeypatch)
     displayed = _record_task_display_results(monkeypatch)
     runs: list[str] = []
     source = _RecordingSource(
@@ -1574,6 +1625,7 @@ async def test_abort_deadline_in_logger_cleanup_returns_written_error_log(
     )
 
     assert fired
+    _assert_torn_down(finishing)
     assert len(displayed["a"]) == 1
     assert isinstance(displayed["a"][0], TaskError)
     assert [(log.eval.task, log.status) for log in logs] == [
@@ -1633,7 +1685,7 @@ async def test_run_cancel_after_log_finalized_stops_dispatch(
 
     async def cancel_run(eval_id: str) -> None:
         scopes[0].cancel()
-        await anyio.sleep_forever()
+        await anyio.sleep(_POST_ABORT_WAIT)
 
     fired = _on_log_finalized(monkeypatch, where, cancel_run)
     runs: list[str] = []
