@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Sequence
+from typing import Any, Sequence
 
 import anyio
 import pytest
@@ -275,6 +275,119 @@ def test_repair_cause_selects_message_text() -> None:
     r = ch._repair(msgs, reason="limit")[0]
     assert r.error is not None
     assert "limit" in r.error.message.lower()
+
+
+def _interrupted_history() -> list[ChatMessage]:
+    """A conversation interrupted during parallel calls to different tools.
+
+    The first call finished before the interrupt; the other two are repaired.
+    The operator's redirect follows the repairs, as ``after_cancel()`` returns.
+    """
+    msgs: list[ChatMessage] = [
+        ChatMessageUser(content="look around"),
+        ChatMessageAssistant(
+            content="ok",
+            tool_calls=[
+                ToolCall(id="t1", function="list_files", arguments={"path": "."}),
+                ToolCall(id="t2", function="read_file", arguments={"path": "a"}),
+                ToolCall(id="t3", function="run_shell", arguments={"cmd": "ls"}),
+            ],
+        ),
+        ChatMessageTool(tool_call_id="t1", function="list_files", content="a b"),
+    ]
+    return [
+        *msgs,
+        *AgentChannel()._repair(msgs),
+        ChatMessageUser(content="stop and do this instead", source="operator"),
+    ]
+
+
+def test_repair_names_each_repair_after_its_call() -> None:
+    repairs = [m for m in _interrupted_history() if isinstance(m, ChatMessageTool)][1:]
+    assert [(r.tool_call_id, r.function) for r in repairs] == [
+        ("t2", "read_file"),
+        ("t3", "run_shell"),
+    ]
+
+
+async def test_repaired_history_converts_for_anthropic() -> None:
+    pytest.importorskip("anthropic")
+    from inspect_ai.model import GenerateConfig
+    from inspect_ai.model._providers.anthropic import AnthropicAPI
+
+    api = AnthropicAPI(model_name="claude-sonnet-4-5", api_key="test-key")
+    _, _, _, params, _ = await api.resolve_chat_input(
+        input=_interrupted_history(),
+        tools=[],
+        config=GenerateConfig(cache_prompt=False),
+        cache_ttl=None,
+    )
+    results = [
+        block["tool_use_id"]
+        for param in params
+        if isinstance(param["content"], list)
+        for block in param["content"]
+        if block["type"] == "tool_result"
+    ]
+    assert results == ["t1", "t2", "t3"]
+
+
+async def test_repaired_history_converts_for_bedrock() -> None:
+    pytest.importorskip("aiobotocore")
+    from inspect_ai.model._providers.bedrock import converse_messages
+
+    _, converse = await converse_messages(_interrupted_history())
+    results = [
+        block.toolResult.toolUseId
+        for message in converse
+        for block in message.content
+        if block.toolResult is not None
+    ]
+    assert results == ["t1", "t2", "t3"]
+
+
+async def test_repaired_history_converts_for_google() -> None:
+    pytest.importorskip("google.genai")
+    from unittest.mock import MagicMock
+
+    from inspect_ai.model._providers.google import as_chat_messages
+
+    contents = await as_chat_messages(MagicMock(), _interrupted_history())
+    responses = [
+        (part.function_response.id, part.function_response.name)
+        for content in contents
+        for part in content.parts or []
+        if part.function_response is not None
+    ]
+    assert responses == [
+        ("t1", "list_files"),
+        ("t2", "read_file"),
+        ("t3", "run_shell"),
+    ]
+
+
+async def test_repaired_history_converts_for_openai_responses() -> None:
+    pytest.importorskip("openai")
+    from inspect_ai.model._openai_responses import openai_responses_inputs
+
+    items: list[dict[str, Any]] = [
+        dict(item) for item in await openai_responses_inputs(_interrupted_history())
+    ]
+    calls = [item["call_id"] for item in items if item["type"] == "function_call"]
+    outputs = [
+        item["call_id"] for item in items if item["type"] == "function_call_output"
+    ]
+    assert calls == outputs == ["t1", "t2", "t3"]
+
+
+async def test_repaired_history_converts_for_openai_chat_completions() -> None:
+    pytest.importorskip("openai")
+    from inspect_ai.model._openai import messages_to_openai
+
+    params = await messages_to_openai(_interrupted_history())
+    results = [p["tool_call_id"] for p in params if p["role"] == "tool"]
+    assert results == ["t1", "t2", "t3"]
+    assert params[-1] == {"role": "user", "content": "stop and do this instead"}
 
 
 # ---------------------------------------------------------------------------

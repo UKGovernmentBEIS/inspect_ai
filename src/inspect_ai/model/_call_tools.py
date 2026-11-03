@@ -674,6 +674,28 @@ async def _execute_tools_impl(
                         )
             except Exception as ex:
                 stage_exception = ex
+            except anyio.get_cancelled_exc_class():
+                # An enclosing scope (an agent channel interrupt, a sample
+                # limit) cancelled the stage. Finalise the calls still in
+                # flight so the log does not keep them pending, as generate
+                # does for a cancelled ModelEvent. Events already finalised
+                # (completed calls, ACP's interrupt snapshot) are left as is.
+                for idx in stage:
+                    event = stage_events[idx]
+                    if not event.pending:
+                        continue
+                    event._set_result(
+                        result="",
+                        truncated=None,
+                        error=ToolCallError("cancelled", "Tool call was cancelled."),
+                        working_time=sample_working_time_since(waiting_starts[idx]),
+                        agent=None,
+                        failed=True,
+                        message_id=None,
+                    )
+                    if event in transcript().events:
+                        transcript()._event_updated(event)
+                raise
 
             # Splice results into `result_messages` in declared order so the
             # message list matches the order of tool_calls (Anthropic and
