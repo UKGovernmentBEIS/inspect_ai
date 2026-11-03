@@ -11,13 +11,13 @@ on:
 # keys and installs nothing.
 permissions: {}
 
-env:
-  UV_VERSION: 0.13.5
-
 jobs:
   generate:
     if: github.repository == 'UKGovernmentBEIS/inspect_ai'
     runs-on: ubuntu-latest
+    # No Actions cache use, so the Actions cache refuses any write a malicious
+    # package could attempt with the Actions cache token.
+    cache-mode: none
     timeout-minutes: 10
     permissions:
       contents: read
@@ -26,21 +26,24 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+      # The script is self-contained (no inspect_ai imports), so sync just its
+      # two committed dependencies into the uv cache (versions: locked with a
+      # script lockfile) rather than the whole package; the run step below runs
+      # the file. actions-cache none: this job holds API keys, so it restores
+      # no cache (tests/test_workflow_cache.py).
+      - name: Install Python dependencies
+        uses: meridianlabs-ai/actions/install-python-dependencies@2e29d39eac45f500a64f443ec31aa6fb874f9ddc # main, 2026-11-02
         with:
-          version: ${{ env.UV_VERSION }}
+          versions: locked
           python-version: "3.11"
-          # This job holds API keys, so it restores no cache
-          # (tests/test_workflow_cache.py).
-          enable-cache: false
+          script: src/inspect_ai/model/_model_data/sync_models.py
+          project-uv-settings: ignore
+          actions-cache: none
 
-      # The script is self-contained (no inspect_ai imports), so run the file
-      # directly with just its two dependencies rather than installing the
-      # whole package. Its dependencies come from its committed script lockfile
-      # (--locked fails rather than re-resolving), since this step holds API
-      # keys. It validates every source's credentials before fetching, so a
-      # missing key fails before either file is written.
+      # The script's dependencies come from its committed lockfile (--locked
+      # fails rather than re-resolving), since this step holds API keys. It
+      # validates every source's credentials before fetching, so a missing key
+      # fails before either file is written.
       - name: Sync model data
         env:
           TOGETHER_API_KEY: ${{ secrets.TOGETHER_API_KEY }}
