@@ -211,44 +211,36 @@ def _check_function_options(
 ) -> dict[str, Any]:
     """Refuse a metric option the merge cannot recreate; restore enum members.
 
-    A log records a function option by its name only, so
-    `mean(to_float=value_to_float(correct=2))` is recorded as
-    `{"to_float": "to_float"}` and the merge cannot recreate it, and a
-    callable object (an `int` subclass with `__call__`) only as its plain
-    value. So any recorded value other than None or a metric reference is
-    refused for a parameter whose annotation admits a callable: `Callable`
-    (`ValueToFloat`), a class that defines `__call__`, or a union holding
-    one (decision: Ransom, 2026-11-03). A string option is accepted only
-    when its parameter's own annotation resolves to a type whose values
-    cannot be functions: `str`, a `Literal` of plain values, an enum,
-    numbers, either with `None`. A parameter annotated with any other type
-    (`Any`, `Hashable`, ...), one with no annotation or one whose
-    annotation does not resolve, and an option that matches no named
-    parameter (one passed through `**kwargs`) are refused (decision:
-    Ransom, 2026-10-30). Each annotation is resolved on its own, so another
-    parameter's or the return annotation does not affect it. Other scalar
-    option values are checked only for an enum parameter.
+    A log records a metric option as a plain value: a function by its name
+    (`mean(to_float=value_to_float(correct=2))` is recorded as
+    `{"to_float": "to_float"}`), an enum member by its value or name, a
+    callable or other object as whatever plain value it encodes to. So a
+    recorded value other than None is accepted only for a parameter whose
+    own annotation resolves to one of these shapes, alone or in a union,
+    optionally with `None` (decision: Ransom, 2026-11-03):
 
-    A log records the elements of a list or tuple option only as plain
-    values, and a tuple as a list. A list option is accepted only when its
-    parameter's annotation resolves to lists or sequences whose elements
-    are `str`, numbers, `None`, `Literal`s of those or such lists; anything
-    else, an unannotated or unresolvable parameter, and a `**kwargs` option
-    are refused (decision: Ransom, 2026-10-30).
+    - `str`, `int`, `float` or `bool`, or a `Literal` of such values, given
+      a value of that type (`float` also an `int`);
+    - lists and sequences of those, given a list of such values;
+    - a single enum, given a value that restores to one of its members (by
+      value when the enum derives from `str`, `int` or `float`, by member
+      name otherwise);
+    - `Metric`, given a registered metric reference, or lists and sequences
+      ending in `Metric` (see :func:`_metric_container`), given a list of
+      such references or empty lists.
 
-    A dictionary, at any depth, is accepted only as a single registered
-    metric reference where the annotation takes a metric: `Metric`, or
-    lists and sequences ending in `Metric` (see :func:`_metric_container`).
-    The log cannot tell plain data from an encoded metric or model, so
-    every other dictionary is refused, dictionaries of metrics included
-    (decisions: Ransom, 2026-11-02). The referenced metrics are checked by
-    :func:`_check_embedded`.
-
-    A log records an enum option by its value when the enum derives from
-    `str`, `int` or `float`, and by its member name otherwise; the option
-    is restored to the member the factory received. A value that is not a
-    member, an enum in a union with other types, and any value for a
-    `Literal` of enum members (which is not restored) are refused.
+    Every other annotation (a callable type or class, a parameterized
+    generic, a type alias, `Any`, `object`, a `Literal` of enum members, an
+    enum in a union with other types, ...), an `Annotated` form whose inner
+    type is not listed, a parameter with no annotation or one that does not
+    resolve, and an option that matches no named parameter (one passed
+    through `**kwargs`) are refused. Each annotation is resolved on its own,
+    so another parameter's or the return annotation does not affect it. A
+    dictionary, at any depth, is accepted only as a registered metric
+    reference: the log cannot tell plain data from an encoded metric or
+    model, so every other dictionary is refused, dictionaries of metrics
+    included (decisions: Ransom, 2026-11-02). The referenced metrics are
+    checked by :func:`_check_embedded`.
 
     Returns:
         The options, with enum members restored.
@@ -262,22 +254,9 @@ def _check_function_options(
     from inspect_ai._util.registry import is_registry_dict
 
     for argument, value in options.items():
+        if value is None:
+            continue
         resolved = _parameter_annotation(factory, argument)
-        # metric references are checked against the annotation below
-        if (
-            value is not None
-            and not (_holds_dict(value) or _metrics_only(value))
-            and resolved.reason is None
-            and _admits_callable(resolved.annotation)
-        ):
-            raise ShardSetError(
-                f"The metric '{name}' was given a function or callable object "
-                f"for '{argument}'. A log records it only by its name or as a "
-                "plain value, not the object, so the merge cannot recreate the "
-                "metric and does not merge such shards. Use a registered metric "
-                "that creates the function inside its factory, such as an "
-                "@metric that returns mean(to_float=value_to_float(correct=2))."
-            )
         if _holds_dict(value):
             if not (
                 resolved.reason is None
@@ -299,60 +278,51 @@ def _check_function_options(
                     "configuration inside its factory."
                 )
             continue
-        if isinstance(value, (list, tuple)):
-            reason = resolved.reason
-            if not (
-                reason is not None
-                or _plain_container(resolved.annotation)
-                or (_metrics_only(value) and _metric_container(resolved.annotation))
-            ):
-                reason = "whose element types are not plain"
-            if reason is not None:
-                raise ShardSetError(
-                    f"The metric '{name}' was given a list for '{argument}', "
-                    f"{reason}. A log records the elements of a list option "
-                    "only as plain values (strings, numbers, booleans, None), so "
-                    "the merge cannot recreate other elements and does not "
-                    f"merge such shards. Annotate '{argument}' with plain "
-                    "element types, such as list[str], or use a registered "
-                    "metric that builds the configuration inside its factory."
-                )
-            continue
-        if (
-            value is not None
-            and resolved.reason is None
-            and _enum_literal(resolved.annotation)
-        ):
-            raise ShardSetError(
-                f"The metric '{name}' records {value!r} for '{argument}', whose "
-                "Literal holds enum members, which the merge does not restore, "
-                "so it does not merge such shards. Annotate the parameter with "
-                "the enum itself, or use a registered metric that creates the "
-                "option inside its factory."
-            )
-        if resolved.reason is None and _enums(resolved.annotation):
-            if value is not None:
-                restored[argument] = _restore_enum(
-                    name, argument, resolved.annotation, value
-                )
-            continue
-        if not isinstance(value, str):
-            continue
         reason = resolved.reason
-        if reason is None and not _holds_no_function(resolved.annotation):
-            reason = "whose type can also hold a function"
-        if reason is not None:
-            raise ShardSetError(
-                f"The metric '{name}' was given a string for '{argument}', "
-                f"{reason}. A log records a function option only by its name, "
-                "so the merge cannot tell a function's name from a string and "
-                f"does not merge such shards. Annotate '{argument}' with a "
-                "type the merge can resolve whose values cannot be functions, "
-                "such as str, a Literal or an enum, or, if it takes a function, "
-                "use a registered metric that creates the function inside its "
-                "factory."
-            )
+        if reason is None:
+            annotation = resolved.annotation
+            if _metrics_only(value) and _metric_container(annotation):
+                # a list of empty lists of metrics
+                continue
+            if _enum_literal(annotation):
+                raise ShardSetError(
+                    f"The metric '{name}' records {value!r} for '{argument}', "
+                    "whose Literal holds enum members, which the merge does not "
+                    "restore, so it does not merge such shards. Annotate the "
+                    "parameter with the enum itself, or use a registered metric "
+                    "that creates the option inside its factory."
+                )
+            if _enums(annotation):
+                restored[argument] = _restore_enum(name, argument, annotation, value)
+                continue
+            if _plain_value(annotation, value):
+                continue
+            reason = "whose annotation is not one the merge restores"
+        raise ShardSetError(
+            f"The metric '{name}' was given {_kind(value)} for '{argument}', "
+            f"{reason}. A log records a function only by its name and other "
+            "objects only as plain values, so the merge recreates an option "
+            "only for a parameter annotated with str, int, float, bool, a "
+            "Literal of those, a single enum, a list of those, Metric or "
+            "list[Metric] (optionally with None), and does not merge such "
+            f"shards. Annotate '{argument}' with one of those types, or use a "
+            "registered metric that creates the option inside its factory, "
+            "such as an @metric that returns "
+            "mean(to_float=value_to_float(correct=2))."
+        )
     return restored
+
+
+def _kind(value: object) -> str:
+    if isinstance(value, str):
+        return "a string"
+    if isinstance(value, bool):
+        return "a boolean"
+    if isinstance(value, (int, float)):
+        return "a number"
+    if isinstance(value, (list, tuple)):
+        return "a list"
+    return "a value"
 
 
 class _Annotation(NamedTuple):
@@ -423,34 +393,7 @@ def _members(annotation: object) -> tuple[object, ...]:
     return (annotation,)
 
 
-def _is_function_type(annotation: object) -> bool:
-    """Whether the type names functions (`Callable`, alone or in a union)."""
-    return any(
-        member is collections.abc.Callable
-        or typing.get_origin(member) is collections.abc.Callable
-        for member in _members(annotation)
-    )
-
-
 _PLAIN = (str, int, float, bool, type(None))
-
-
-def _holds_no_function(annotation: object) -> bool:
-    """Whether no value of this type can be a function.
-
-    Only `str`, numbers, `None`, enums and `Literal`s of those qualify;
-    every other type is treated as able to hold one.
-    """
-    for member in _members(annotation):
-        if typing.get_origin(member) is typing.Literal:
-            if not all(type(value) in _PLAIN for value in typing.get_args(member)):
-                return False
-        elif not (
-            isinstance(member, type)
-            and (issubclass(member, _PLAIN) or issubclass(member, enum.Enum))
-        ):
-            return False
-    return True
 
 
 def _metric_container(annotation: object) -> bool:
@@ -479,25 +422,6 @@ def _metric_container(annotation: object) -> bool:
         ):
             return False
     return True
-
-
-def _admits_callable(annotation: object) -> bool:
-    """Whether the type admits a function or callable object.
-
-    `Callable` (and aliases such as `ValueToFloat`), or a class that defines
-    `__call__` (a callable `int` subclass, `Metric`), parameterized or not
-    (`Converter[float]` is checked as `Converter`), alone or in a union.
-    """
-
-    def callable_class(member: object) -> bool:
-        cls = typing.get_origin(member) or member
-        return isinstance(cls, type) and any(
-            "__call__" in vars(base) for base in cls.__mro__
-        )
-
-    return _is_function_type(annotation) or any(
-        callable_class(member) for member in _members(_unannotated(annotation))
-    )
 
 
 def _enum_literal(annotation: object) -> bool:
@@ -540,38 +464,38 @@ def _holds_dict(value: object) -> bool:
     return isinstance(value, (list, tuple)) and any(_holds_dict(v) for v in value)
 
 
-def _plain_container(annotation: object) -> bool:
-    """Whether a container recorded for a parameter of this type is restored.
+def _plain_value(annotation: object, value: object) -> bool:
+    """Whether a member of this type takes `value` as the log records it.
 
-    Every member of the union is :func:`_plain`, or a class (`type[...]`,
-    recorded by name, so never a container).
-    """
-    return all(
-        typing.get_origin(member) is type or _plain(member)
-        for member in _members(_unannotated(annotation))
-    )
-
-
-def _plain(annotation: object) -> bool:
-    """Whether every value of this type is recorded and restored unchanged.
-
-    `str`, `int`, `float`, `bool`, `None` and `Literal`s of those, and
-    lists and sequences of such values, alone or in a union. Enums,
-    dictionaries, tuples, sets and every other type are not.
+    `str`, `int`, `float` and `bool` take a value of that type (`float` also
+    an `int`), a `Literal` of plain values one of them, and a list or
+    sequence of such types a list of values each takes. No other type takes
+    a value here: enums and metrics are checked by their callers.
     """
     for member in _members(_unannotated(annotation)):
-        member = _unannotated(member)
         origin = typing.get_origin(member)
         args = typing.get_args(member)
         if origin is typing.Literal:
-            plain = all(type(value) in _PLAIN for value in args)
+            if any(
+                type(arg) in _PLAIN and type(arg) is type(value) and arg == value
+                for arg in args
+            ):
+                return True
         elif origin in (list, collections.abc.Sequence) and len(args) == 1:
-            plain = _plain(args[0])
-        else:
-            plain = member in _PLAIN
-        if not plain:
-            return False
-    return True
+            if isinstance(value, (list, tuple)) and all(
+                _plain_value(args[0], item) for item in value
+            ):
+                return True
+        elif member is float:
+            if isinstance(value, (int, float)):
+                return True
+        elif (
+            member in (str, int, bool)
+            and isinstance(member, type)
+            and isinstance(value, member)
+        ):
+            return True
+    return False
 
 
 def _enums(annotation: object) -> list[type[enum.Enum]]:

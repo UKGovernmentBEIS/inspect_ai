@@ -14,6 +14,7 @@ import anyio
 import boto3
 import pytest
 from test_helpers.utils import skip_if_asyncio
+from typing_extensions import TypeAliasType
 
 from inspect_ai import Epochs, Task, eval, eval_retry, task
 from inspect_ai._util.async_zip import AsyncZipReader, ZipCrcError
@@ -1658,6 +1659,25 @@ def shard_generic_converters(
     return compute
 
 
+# type aliases (as `type ConverterAlias = ValueToFloat` declares them)
+ConverterAlias = TypeAliasType("ConverterAlias", ValueToFloat)
+LevelAlias = TypeAliasType("LevelAlias", Level)
+
+
+@metric(name="shard_aliased")
+def shard_aliased(
+    to_float: ConverterAlias | None = None, level: LevelAlias | None = None
+) -> Metric:
+    """A metric whose options are annotated with type aliases."""
+
+    def compute(scores: list[SampleScore]) -> Value:
+        if to_float is not None:
+            return {"converted": to_float(CORRECT)}
+        return float(level.value) if level is not None else 0.0
+
+    return compute
+
+
 @metric(name="shard_optional_converter")
 def shard_optional_converter(to_float: ValueToFloat | None = None) -> Metric:
     """A metric whose converter parameter is optional."""
@@ -1825,10 +1845,15 @@ def test_metrics_with_their_own_converters_merge_to_the_unsharded_values(
 
 
 def _not_plain(kind: str, argument: str) -> str:
-    return (
-        f"'shard_containers' was given {kind} for '{argument}', whose element "
-        "types are not plain"
-    )
+    return f"'shard_containers' was given {kind} for '{argument}', {_NOT_RESTORED}"
+
+
+_NOT_RESTORED = "whose annotation is not one the merge restores"
+
+
+def _not_restored(metric: str, argument: str) -> str:
+    """The refusal of a recorded string or number for `argument` of `metric`."""
+    return f"'{metric}' was given a \\w+ for '{argument}', {_NOT_RESTORED}"
 
 
 def _dict_refused(metric: str, kind: str, argument: str) -> str:
@@ -1857,12 +1882,12 @@ def _enum_literal_refused(argument: str) -> str:
 _FUNCTION_OPTIONS: dict[str, tuple[Callable[[], list[Any]], str, bool]] = {
     "direct": (
         lambda: [mean(to_float=value_to_float(correct=2))],
-        "'inspect_ai/mean' was given a function or callable object for 'to_float'",
+        _not_restored("inspect_ai/mean", "to_float"),
         True,
     ),
     "aggregate": (
         lambda: [aggregate("verdict", mean(), to_float=value_to_float())],
-        "'inspect_ai/aggregate' was given a function or callable object for 'to_float'",
+        _not_restored("inspect_ai/aggregate", "to_float"),
         True,
     ),
     "nested": (
@@ -1872,22 +1897,22 @@ _FUNCTION_OPTIONS: dict[str, tuple[Callable[[], list[Any]], str, bool]] = {
                 "group",
             )
         ],
-        "'mean' was given a function or callable object for 'to_float'",
+        _not_restored("mean", "to_float"),
         True,
     ),
     "keyed": (
         lambda: [{"verdict": [accuracy(to_float=value_to_float(correct=2))]}],
-        "'inspect_ai/accuracy' was given a function or callable object for 'to_float'",
+        _not_restored("inspect_ai/accuracy", "to_float"),
         True,
     ),
     "class": (
         lambda: [ShardConverted(to_float=value_to_float(correct=2))],
-        "'shard_converted' was given a function or callable object for 'to_float'",
+        _not_restored("shard_converted", "to_float"),
         False,
     ),
     "class-nested": (
         lambda: [grouped(ShardConverted(to_float=value_to_float(correct=2)), "group")],
-        "'shard_converted' was given a function or callable object for 'to_float'",
+        _not_restored("shard_converted", "to_float"),
         False,
     ),
     "untyped": (
@@ -1897,78 +1922,92 @@ _FUNCTION_OPTIONS: dict[str, tuple[Callable[[], list[Any]], str, bool]] = {
     ),
     "callable-str": (
         lambda: [shard_callable_scalars(label=CallableLabel("x"))],
-        "'shard_callable_scalars' was given a function or callable object for 'label'",
+        _not_restored("shard_callable_scalars", "label"),
         False,
     ),
     "callable-int": (
         lambda: [shard_callable_scalars(scale=CallableScale(3))],
-        "'shard_callable_scalars' was given a function or callable object for 'scale'",
+        _not_restored("shard_callable_scalars", "scale"),
         False,
     ),
     "callable-str-grouped": (
         lambda: [grouped(shard_callable_scalars(label=CallableLabel("x")), "group")],
-        "'shard_callable_scalars' was given a function or callable object for 'label'",
+        _not_restored("shard_callable_scalars", "label"),
         False,
     ),
     # recorded as numbers, against a converter annotation
     "callable-int-converter": (
         lambda: [ShardConverted(to_float=CallableScale(3))],
-        "'shard_converted' was given a function or callable object for 'to_float'",
+        _not_restored("shard_converted", "to_float"),
         False,
     ),
     "callable-float-converter": (
         lambda: [shard_optional_converter(to_float=CallableRatio(0.5))],
-        "'shard_optional_converter' was given a function or callable object for "
-        "'to_float'",
+        _not_restored("shard_optional_converter", "to_float"),
         False,
     ),
     "callable-int-converter-grouped": (
         lambda: [grouped(ShardConverted(to_float=CallableScale(3)), "group")],
-        "'shard_converted' was given a function or callable object for 'to_float'",
+        _not_restored("shard_converted", "to_float"),
         False,
     ),
     "callable-float-converter-grouped": (
         lambda: [
             grouped(shard_optional_converter(to_float=CallableRatio(0.5)), "group")
         ],
-        "'shard_optional_converter' was given a function or callable object for "
-        "'to_float'",
+        _not_restored("shard_optional_converter", "to_float"),
         False,
     ),
     # parameterized callable classes, recorded as numbers
     "generic-int-converter": (
         lambda: [shard_generic_converters(scale=GenericScale(3))],
-        "'shard_generic_converters' was given a function or callable object for "
-        "'scale'",
+        _not_restored("shard_generic_converters", "scale"),
         False,
     ),
     "generic-float-converter": (
         lambda: [shard_generic_converters(ratio=GenericRatio(0.5))],
-        "'shard_generic_converters' was given a function or callable object for "
-        "'ratio'",
+        _not_restored("shard_generic_converters", "ratio"),
         False,
     ),
     "generic-int-converter-grouped": (
         lambda: [grouped(shard_generic_converters(scale=GenericScale(3)), "group")],
-        "'shard_generic_converters' was given a function or callable object for "
-        "'scale'",
+        _not_restored("shard_generic_converters", "scale"),
         False,
     ),
     "generic-float-converter-grouped": (
         lambda: [grouped(shard_generic_converters(ratio=GenericRatio(0.5)), "group")],
-        "'shard_generic_converters' was given a function or callable object for "
-        "'ratio'",
+        _not_restored("shard_generic_converters", "ratio"),
+        False,
+    ),
+    # type aliases, which the merge does not restore
+    "alias-converter": (
+        lambda: [shard_aliased(to_float=CallableScale(3))],
+        _not_restored("shard_aliased", "to_float"),
+        False,
+    ),
+    "alias-intenum": (
+        lambda: [shard_aliased(level=Level.TWO)],
+        _not_restored("shard_aliased", "level"),
+        False,
+    ),
+    "alias-converter-grouped": (
+        lambda: [grouped(shard_aliased(to_float=CallableScale(3)), "group")],
+        _not_restored("shard_aliased", "to_float"),
+        False,
+    ),
+    "alias-intenum-grouped": (
+        lambda: [grouped(shard_aliased(level=Level.TWO), "group")],
+        _not_restored("shard_aliased", "level"),
         False,
     ),
     "hidden-return": (
         lambda: [shard_hidden_return(to_float=value_to_float(correct=2))],
-        "'shard_hidden_return' was given a function or callable object for 'to_float'",
+        _not_restored("shard_hidden_return", "to_float"),
         False,
     ),
     "hashable": (
         lambda: [shard_hashable(option=len)],
-        "'shard_hashable' was given a string for 'option', whose type can also "
-        "hold a function",
+        _not_restored("shard_hashable", "option"),
         True,
     ),
     "enum-list": (
@@ -2132,26 +2171,78 @@ def test_a_metric_given_a_function_is_refused(
     assert _files(str(tmp_path)) == before
 
 
-@pytest.mark.parametrize(
-    "annotation,admits",
-    [
-        (ValueToFloat, True),
-        (CallableScale, True),
-        (GenericScale[float], True),
-        (GenericScale[float] | None, True),
-        (Annotated[GenericRatio[float], "converter"] | None, True),
-        (GenericWeight[float], False),
-        (GenericWeight[float] | None, False),
-        (int, False),
-        (list[str], False),
-    ],
-)
-def test_callable_annotations_include_parameterized_classes(
-    annotation: object, admits: bool
-) -> None:
-    from inspect_ai.log._shards._write import _admits_callable
+_ACCEPTED_ANNOTATIONS: list[tuple[object, object]] = [
+    (int, 3),
+    (float, 3),
+    (float, 0.5),
+    (str, "x"),
+    (bool, True),
+    (int | None, 3),
+    (Literal["a", "b"], "a"),
+    (Literal[1, 2] | None, 2),
+    (Annotated[int, "doc"], 3),
+    (Annotated[str, "doc"] | None, "x"),
+    (list[str], ["a"]),
+    (list[str] | None, []),
+    (Sequence[int | float], [1, 0.5]),
+    (list[list[str]], [["a"]]),
+    (Mode, "HIGH"),
+    (Level | None, 2),
+    (Label, "ARS"),
+    (list[Metric], []),
+]
 
-    assert _admits_callable(annotation) == admits
+_REFUSED_ANNOTATIONS: list[tuple[object, object]] = [
+    (ValueToFloat, "to_float"),
+    (ValueToFloat | None, 3),
+    (CallableScale, 3),
+    (GenericScale[float], 3),
+    (GenericWeight[float], 3),
+    (ConverterAlias, 3),
+    (LevelAlias, 2),
+    (Annotated[ValueToFloat, "doc"], 3),
+    (Any, 3),
+    (object, 3),
+    (Hashable, "x"),
+    (Literal["a"], "b"),
+    (int, "x"),
+    (str, 3),
+    (list[str], "a"),
+    (list[str], [1]),
+    (tuple[str, ...], ["a"]),
+    (set[str], ["a"]),
+    (Mode | str, "HIGH"),
+    (Literal[Scale.HIGH], 2),
+]
+
+
+@pytest.mark.parametrize("annotation,value", _ACCEPTED_ANNOTATIONS)
+def test_metric_options_are_accepted_for_listed_annotations(
+    annotation: object, value: object
+) -> None:
+    from inspect_ai.log._shards._write import _check_function_options
+
+    def factory(option: object = None) -> None:
+        return None
+
+    factory.__annotations__ = {"option": annotation}
+    _check_function_options("custom", factory, {"option": value})
+
+
+@pytest.mark.parametrize("annotation,value", _REFUSED_ANNOTATIONS)
+def test_metric_options_are_refused_for_other_annotations(
+    annotation: object, value: object
+) -> None:
+    from inspect_ai.log._shards._write import _check_function_options
+
+    def factory(option: object = None) -> None:
+        return None
+
+    factory.__annotations__ = {"option": annotation}
+    with pytest.raises(ShardSetError, match="'custom' "):
+        _check_function_options("custom", factory, {"option": value})
+    # None is never refused: the factory gets None either way
+    _check_function_options("custom", factory, {"option": None})
 
 
 async def _group_score(state: TaskState, target: Target) -> Score:
@@ -4464,17 +4555,21 @@ def test_string_options_need_a_resolvable_annotation() -> None:
     # as with postponed annotations whose names are imported only for typing:
     # another parameter's or the return annotation does not matter
     unrelated = {"other": "NotDefined", "return": "HiddenReturn"}
-    refused({"to_float": "ValueToFloat", **unrelated}, "to_float", "a function")
+    refused(
+        {"to_float": "ValueToFloat", **unrelated},
+        "to_float",
+        f"a string for 'to_float', {_NOT_RESTORED}",
+    )
     for annotation in ["Any", "object", "Hashable", "Hashable | None", "list[str]"]:
         refused(
             {"label": annotation, **unrelated},
             "label",
-            "a string for 'label', whose type can also hold a function",
+            f"a string for 'label', {_NOT_RESTORED}",
         )
     refused(
         {"label": Annotated[Hashable, "doc"]},
         "label",
-        "a string for 'label', whose type can also hold a function",
+        f"a string for 'label', {_NOT_RESTORED}",
     )
     accepted: list[tuple[object, str]] = [
         ("str", "x"),
@@ -4488,7 +4583,12 @@ def test_string_options_need_a_resolvable_annotation() -> None:
     ]
     for annotation_type, value in accepted:
         check({"label": annotation_type, **unrelated}, {"label": value})
-    check({"other": "NotDefined"}, {"other": 1})
+    with pytest.raises(
+        ShardSetError,
+        match="'custom' was given a number for 'other', whose annotation the "
+        "merge cannot resolve",
+    ):
+        check({"other": "NotDefined"}, {"other": 1})
     refused({}, "label", "a string for 'label', which has no annotation")
     refused(
         {"label": "NotDefined"},
@@ -4537,11 +4637,13 @@ def test_function_options_of_class_metrics_are_checked() -> None:
         ("shard_constructed", Constructed),
         ("shard_fields", Fields),
     ]:
-        with pytest.raises(ShardSetError, match=f"'{name}' was given a function"):
+        with pytest.raises(ShardSetError, match=_not_restored(name, "to_float")):
             _check_function_options(name, factory, recorded)
     _check_function_options("shard_key_sum", ShardKeySum, {"key": "points"})
     embedded = registry_params(grouped(ShardConverted(value_to_float()), "g"))
-    with pytest.raises(ShardSetError, match="'shard_converted' was given a function"):
+    with pytest.raises(
+        ShardSetError, match=_not_restored("shard_converted", "to_float")
+    ):
         _check_embedded(embedded)
 
     class PostponedClass(MetricProtocol):
@@ -4559,11 +4661,15 @@ def test_function_options_of_class_metrics_are_checked() -> None:
         "return": "None",
     }
     Postponed = metric(name="shard_postponed")(PostponedClass)
-    with pytest.raises(ShardSetError, match="'shard_postponed' was given a function"):
+    with pytest.raises(
+        ShardSetError, match=_not_restored("shard_postponed", "to_float")
+    ):
         _check_function_options("shard_postponed", Postponed, recorded)
     _check_function_options("shard_postponed", Postponed, {"label": "x"})
     embedded = registry_params(grouped(Postponed(to_float=value_to_float()), "g"))
-    with pytest.raises(ShardSetError, match="'shard_postponed' was given a function"):
+    with pytest.raises(
+        ShardSetError, match=_not_restored("shard_postponed", "to_float")
+    ):
         _check_embedded(embedded)
     with pytest.raises(ShardSetError, match="'shard_postponed' was given a string"):
         _check_function_options("shard_postponed", Postponed, {"other": "x"})
@@ -4790,6 +4896,8 @@ _UNSUPPORTED_ROOTS = [
     "simplecache::s3://test-bucket/logs",
     "file:///tmp/cache::memory://bucket/logs",
     "s3://test-bucket/cache::memory://bucket/logs",
+    # decodes to file:///tmp/cache::memory://bucket/logs
+    "file:///tmp/cache%3A%3Amemory%3A//bucket/logs",
 ]
 
 
@@ -4821,7 +4929,8 @@ def _memory_objects(root: str) -> dict[str, bytes]:
 @pytest.mark.parametrize(
     "root",
     _UNSUPPORTED_ROOTS,
-    ids=[r.split(":")[0] for r in _UNSUPPORTED_ROOTS[:-2]] + ["file-chain", "s3-chain"],
+    ids=[r.split(":")[0] for r in _UNSUPPORTED_ROOTS[:-3]]
+    + ["file-chain", "s3-chain", "encoded-file-chain"],
 )
 def test_a_merge_of_unsupported_storage_is_refused_before_any_io(
     monkeypatch: pytest.MonkeyPatch, root: str, backend: str
@@ -4850,32 +4959,43 @@ def test_a_merge_of_unsupported_storage_is_refused_before_any_io(
                     with pytest.raises(ValueError, match=_UNSUPPORTED):
                         merge_eval_log_shards(location, delete_shards=delete)
         for location in (merged, f"{root}.eval"):
-            with pytest.raises(ValueError, match=_UNSUPPORTED):
-                anyio.run(
-                    functools.partial(remove_shards_dir, location, include_log=True),
-                    backend=backend,
-                )
+            for include_log in (False, True):
+                with pytest.raises(ValueError, match=_UNSUPPORTED):
+                    anyio.run(
+                        functools.partial(
+                            remove_shards_dir, location, include_log=include_log
+                        ),
+                        backend=backend,
+                    )
     if root.startswith("memory://"):
         assert before and _memory_objects(root) == before
 
 
 @pytest.mark.parametrize(
-    "location",
+    "location,used",
     [
-        "/tmp/logs/run.eval",
-        "logs/run.eval",
-        "file:///tmp/logs/run.eval",
-        "s3://test-bucket/logs/run.eval",
-        "C:\\logs\\run.eval",
-        "C:/logs/run.eval",
-        "logs/2026-09-30T10:30:00+00:00_task.eval",
-        "run:1.eval",
+        ("/tmp/logs/run.eval", "/tmp/logs/run.eval"),
+        ("logs/run.eval", "logs/run.eval"),
+        ("file:///tmp/logs/run.eval", "/tmp/logs/run.eval"),
+        ("s3://test-bucket/logs/run.eval", "s3://test-bucket/logs/run.eval"),
+        ("C:\\logs\\run.eval", "C:\\logs\\run.eval"),
+        ("C:/logs/run.eval", "C:/logs/run.eval"),
+        (
+            "logs/2026-09-30T10:30:00+00:00_task.eval",
+            "logs/2026-09-30T10:30:00+00:00_task.eval",
+        ),
+        ("run:1.eval", "run:1.eval"),
+        # decoded once: encoded spaces, a literal percent sequence, a colon
+        ("file:///tmp/my%20logs/run.eval", "/tmp/my logs/run.eval"),
+        ("file:///tmp/run%252D1.eval", "/tmp/run%2D1.eval"),
+        ("/tmp/run%2D1.eval", "/tmp/run%2D1.eval"),
+        ("file:///tmp/run%3A1.eval", "/tmp/run:1.eval"),
     ],
 )
-def test_supported_locations_are_accepted(location: str) -> None:
-    from inspect_ai.log._shards._publish import check_supported_location
+def test_supported_locations_are_accepted(location: str, used: str) -> None:
+    from inspect_ai.log._shards._publish import supported_location
 
-    check_supported_location(location)
+    assert supported_location(location) == used
 
 
 def _s3_keys(prefix: str) -> list[str]:

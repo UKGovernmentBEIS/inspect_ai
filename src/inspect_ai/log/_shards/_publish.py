@@ -3,7 +3,7 @@
 Callers serialise merges of one log; these guards turn a broken contract
 into a refused publish. A local merged log is guarded by a lock file beside
 it, an S3 one by a conditional upload against the ETag the merge read. The
-merge supports no other storage (see :func:`check_supported_location`).
+merge supports no other storage (see :func:`supported_location`).
 """
 
 import os
@@ -30,28 +30,37 @@ from ._walk import _name
 _LOCK_SUFFIX = ".merge.lock"
 
 
-def check_supported_location(location: str) -> None:
-    """Refuse a location that is not a local path, ``file://`` URI or ``s3://`` URL.
+def supported_location(location: str) -> str:
+    """`location` as the merge and its deletion use it, once its form is checked.
 
-    The merge supports only these (decision: Ransom, 2026-10-30): other
-    fsspec backends differ in how they list, name and version objects. A
-    location is accepted only in one of these forms: it starts with
-    ``s3://`` or ``file://``, or fsspec reads no protocol in it (a plain
-    path, including a Windows drive path or a name holding a colon). Any
-    other protocol fsspec reads, such as ``data:`` without slashes, and a
-    chained URL (``simplecache::s3://...``) are refused. The location is
-    checked as text, so nothing is constructed, listed or read first.
+    The merge supports only local paths, ``file://`` URIs and ``s3://`` URLs
+    (decision: Ransom, 2026-10-30): other fsspec backends differ in how they
+    list, name and version objects. A ``file://`` URI is decoded once to
+    its local path, and that path is checked and returned, so nothing later
+    decodes it again (decision: Ransom, 2026-11-03). A location is accepted
+    only in one of these forms: an ``s3://`` URL, or a path in which fsspec
+    reads no protocol (a plain path, including a Windows drive path or a
+    name holding a colon), with no ``::`` anywhere. Any other protocol
+    fsspec reads, such as ``data:`` without slashes, and a chained URL
+    (``simplecache::s3://...``, also when percent-encoded in a ``file://``
+    URI) are refused. The location is checked as text, so nothing is
+    constructed, listed or read first.
 
     Raises:
         ValueError: `location` is not in an accepted form.
     """
-    if "::" in location or not (
-        location.startswith(("s3://", "file://")) or url_protocol(location) is None
-    ):
+    if location.startswith("file://"):
+        target = local_path(location)
+        supported = url_protocol(target) is None
+    else:
+        target = location
+        supported = location.startswith("s3://") or url_protocol(location) is None
+    if "::" in target or not supported:
         raise ValueError(
             f"{location} cannot be merged: shard merging supports local paths, "
             "file:// URIs and s3:// URLs only."
         )
+    return target
 
 
 def is_local(location: str) -> bool:

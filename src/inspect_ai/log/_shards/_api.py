@@ -14,7 +14,7 @@ from inspect_ai._util._async import run_coroutine, tg_collect
 from inspect_ai._util.async_zip import AsyncZipReader, CentralDirectory
 from inspect_ai._util.asyncfiles import AsyncFilesystem, is_s3_filename
 from inspect_ai._util.constants import get_deserializing_context
-from inspect_ai._util.file import FileInfo, basename, local_path, to_uri
+from inspect_ai._util.file import FileInfo, basename, to_uri
 from inspect_ai._util.log_layout import (
     eval_log_for_shards_dir,
     eval_shards_dir,
@@ -67,11 +67,10 @@ from ._plan import (
     selected_total,
 )
 from ._publish import (
-    check_supported_location,
-    is_local,
     merge_guard,
     merged_log_copy,
     publish,
+    supported_location,
 )
 from ._walk import ShardDir, check_s3_location, is_recovered_attempt, list_shard_set
 from ._write import (
@@ -270,11 +269,10 @@ async def merge_shards(
     delete_shards: bool = False,
 ) -> MergeOutcome:
     """Implement :func:`merge_eval_log_shards`, reporting what the CLI shows."""
-    check_supported_location(log)
+    location, merged_path, shards_dir = merge_paths(log)
     given = given_selection(sample_ids, sample_count)
     if delete_shards and allow_incomplete:
         raise ValueError("delete_shards cannot be combined with allow_incomplete.")
-    location, merged_path, shards_dir = merge_paths(log)
     check_s3_location(merged_path)
     check_s3_location(shards_dir)
     if delete_shards:
@@ -323,11 +321,15 @@ class MergePaths(NamedTuple):
 def merge_paths(log: str) -> MergePaths:
     """The merged log and its shards directory, from either.
 
-    A local ``file://`` URI is decoded to its path before anything is derived
-    or checked from it, so an encoded name cannot pass a check its decoded
-    form fails; the zip reader and the walk also need the decoded path.
+    The location is checked and a ``file://`` URI decoded once by
+    :func:`supported_location`; everything is derived and checked from that
+    path, so an encoded name cannot pass a check its decoded form fails.
+
+    Raises:
+        ValueError: `log` is not in a supported form, or is named after a
+            recovered log.
     """
-    target = local_path(log) if is_local(log) else log
+    target = supported_location(log)
     merged, shards_dir = _derive_paths(target)
     location = to_uri(merged) if log.startswith("file://") else merged
     return MergePaths(location, merged, shards_dir)
