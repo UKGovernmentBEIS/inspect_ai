@@ -922,9 +922,8 @@ def test_thread_connection_discards_on_cleanup_race(
     def open_then_cleanup_wins() -> sqlite3.Connection:
         conn = real_open()
         opened.append(conn)
-        db._db_phase = (
-            DbPhase.CLOSED
-        )  # simulate cleanup completing while we were opening
+        # simulate cleanup completing while we were opening
+        db._db_phase = DbPhase.CLOSED
         return conn
 
     monkeypatch.setattr(db, "_open_connection", open_then_cleanup_wins)

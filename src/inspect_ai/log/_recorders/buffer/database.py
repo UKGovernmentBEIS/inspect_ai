@@ -627,9 +627,9 @@ class SampleBufferDatabase(SampleBuffer):
         """Stop syncing and close connections while preserving recovery files.
 
         A requested shared-buffer upload that is not yet due is performed
-        before the worker stops: the buffer may hold completed samples that
-        never reached the destination, and the shared copy is how another
-        host recovers them. Active sample readers retain their connections
+        before the worker stops (unless an earlier cleanup dropped it): the
+        buffer may hold completed samples that never reached the destination,
+        and the shared copy is how another host recovers them. Active sample readers retain their connections
         until their leases end. SQLite data and shared buffer files remain
         available for recovery.
         """
@@ -674,12 +674,13 @@ class SampleBufferDatabase(SampleBuffer):
             release will.
         """
         with self._lease_lock:
+            if self._db_phase is DbPhase.CLOSED:
+                return True
             if self._sample_read_leases:
                 if self._db_phase is not DbPhase.CLEANUP_DEFERRED:
                     self._db_phase = deferred
                 return False
-            if self._db_phase is not DbPhase.CLOSED:
-                self._db_phase = DbPhase.CLOSING
+            self._db_phase = DbPhase.CLOSING
             return True
 
     def _close_sync_worker_for_cleanup(self, *, drain: bool = False) -> bool:
