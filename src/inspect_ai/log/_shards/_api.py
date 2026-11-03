@@ -257,8 +257,7 @@ class _Pass(NamedTuple):
     check_retained: bool
     """Whether deleting the shards must first check that the merged log keeps
     trusted reductions (no edited score, none missing): nothing was written
-    and objects remain under the shards directory (attempts, checkpoints,
-    buffers or anything else)."""
+    and the shards directory still exists, empty or not."""
 
 
 async def merge_shards(
@@ -420,8 +419,9 @@ async def _merge_pass(
             raise FileNotFoundError(
                 f"Neither {merged_path} nor any shard in {shards_dir} exists."
             )
-        # an interrupted deletion can leave checkpoints or buffers with no
-        # attempt; the retained checks still run before they are deleted
+        # an interrupted deletion can leave checkpoints, buffers or empty
+        # directories with no attempt; the retained checks still run before
+        # they are deleted
         gone = not await shards_remain(fs, shards_dir)
         return _recorded_pass(existing, given, allow_incomplete, shards_gone=gone)
 

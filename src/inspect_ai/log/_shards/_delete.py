@@ -92,17 +92,18 @@ async def remove_shards_dir(
 
 
 async def shards_remain(fs: AsyncFilesystem, shards_dir: str) -> bool:
-    """Whether any object remains under `shards_dir`.
+    """Whether `shards_dir` still exists, empty or not.
 
-    Any file counts (an attempt, a checkpoint, a sample buffer or anything
-    else); on S3 any key does, folder markers included. Empty local
-    directories do not.
+    Locally the directory, or whatever is at its path, counts without being
+    followed or listed; on S3 any key under the prefix does, folder markers
+    included.
 
     Raises:
-        OSError: A local directory under `shards_dir` cannot be listed.
+        OSError: The local path cannot be inspected for a reason other than
+            its absence.
     """
     if is_local(shards_dir):
-        return await run_owned(partial(_holds_a_file, shards_dir))
+        return await run_owned(partial(_exists, shards_dir))
     return await _remnant(fs, shards_dir) is not None
 
 
@@ -173,19 +174,16 @@ def _delete_s3_keys(s3: Any, bucket: str, keys: list[str]) -> None:
         )
 
 
-def _holds_a_file(path: str) -> bool:
-    """Whether any file is under `path`; a directory that cannot be listed raises.
+def _exists(path: str) -> bool:
+    """Whether `path` exists, without following a link; only its absence is False.
 
-    Only an absent `path` counts as empty: `os.walk` skips directories it
-    cannot list unless told to raise, which would hide what they hold.
+    `os.path.lexists` would also return False on any other error.
     """
-    if not os.path.lexists(path):
+    try:
+        os.lstat(path)
+    except FileNotFoundError:
         return False
-
-    def fail(error: OSError) -> None:
-        raise error
-
-    return any(files for _, _, files in os.walk(path, onerror=fail))
+    return True
 
 
 def _remove_local_file(path: str) -> None:

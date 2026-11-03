@@ -841,12 +841,15 @@ version objects, and each needs its own support and tests.
    classification applies only while the companion exists. When the
    listing finds no attempt in any `<k>/` and no stray file, steps 5–7 are
    skipped and step 10's companion-gone branch returns the merged log as
-   recorded. The companion counts as *gone* only when it holds no object
-   at all (`shards_remain`: no file locally, no key on S3; a local
-   directory it cannot list raises, rather than count as empty); while anything
-   remains, such as the checkpoints or sample buffers an interrupted
-   deletion leaves, `delete_shards` still runs step 12's retained checks
-   before deleting it (decision: Ransom, 2026-11-03). With
+   recorded. The companion counts as *gone* only when it does not exist
+   (`shards_remain`: locally an `lstat` of its path raises
+   `FileNotFoundError`, and any other error propagates; on S3 no key is
+   under its prefix). Nothing inside it is listed or followed. While it
+   exists, empty or holding the checkpoints, sample buffers or links an
+   interrupted deletion leaves, `delete_shards` still runs step 12's
+   retained checks before deleting it; they read only the merged log, so
+   a valid one lets an empty companion be deleted (decision: Ransom,
+   2026-11-03). With
    neither a merged log nor an attempt, the call raises
    `FileNotFoundError`, as when neither path exists.
 6. **Read changed and new shards**, bounded (16 concurrent), each through
@@ -1537,7 +1540,7 @@ in a shard or the merged log) is refused too: its recorded reduction
 predates the edit or was recomputed with a recreated reducer. A pass that
 writes checks the samples it parses; a pass that writes nothing but would
 delete shard data (no shard changed, or an interrupted deletion's
-remnant, including one with no attempt left but other objects) reads
+remnant, including an existing companion with no attempt left) reads
 every sample member of the merged log in step 12, before
 deleting, for the same check, since summaries drop edit histories. That
 pass also checks the merged log's `reductions.json`: every reduced view
@@ -2954,8 +2957,10 @@ Per PR (numbers from "Implementation plan"):
      shard changed and on an interrupted deletion's remnant (also one
      with no attempt left, only a checkpoint and a sample buffer, local
      and `mock_s3`, asyncio and Trio, where a valid merged log lets the
-     remnant be deleted; a remnant directory that cannot be listed raises
-     and deletes nothing), leaving the
+     remnant be deleted; locally also only a directory link, whose target
+     is kept, or only empty directories; a companion whose `lstat` fails
+     raises, and a nested directory that cannot be listed refuses or
+     raises, deleting nothing), leaving the
      merged log and shards byte-identical; on both of those paths a merged
      `reductions.json` that is absent, empty or partial refuses
      `delete_shards=True` the same way; an incomplete merge beside a

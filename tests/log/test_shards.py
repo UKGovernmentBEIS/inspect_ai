@@ -1,5 +1,6 @@
 import dataclasses
 import enum
+import errno
 import functools
 import json
 import os
@@ -1257,6 +1258,22 @@ def test_an_attempt_less_remnant_keeps_the_retained_checks(
     assert stored() == before
 
 
+def _tree(root: str) -> dict[str, Any]:
+    """Every entry under `root`, links recorded by their target, never followed."""
+    entries: dict[str, Any] = {}
+    for parent, dirs, files in os.walk(root):
+        for name in dirs + files:
+            path = os.path.join(parent, name)
+            relative = os.path.relpath(path, root)
+            if os.path.islink(path):
+                entries[relative] = ("link", os.readlink(path))
+            elif os.path.isdir(path):
+                entries[relative] = ("dir",)
+            else:
+                entries[relative] = ("file", Path(path).read_bytes())
+    return entries
+
+
 @pytest.mark.parametrize("backend", ["asyncio", "trio"])
 @pytest.mark.parametrize("unlistable", ["0/.buffer", "1/run.checkpoints/1"])
 def test_a_remnant_that_cannot_be_listed_is_not_deleted(
@@ -1268,46 +1285,110 @@ def test_a_remnant_that_cannot_be_listed_is_not_deleted(
     # the unlistable directory holds the only remnant left
     other = "1/run.checkpoints" if unlistable == "0/.buffer" else "0/.buffer"
     shutil.rmtree(f"{shards}/{other}")
-    before = _files(str(tmp_path))
+    before = _tree(str(tmp_path))
     scandir = os.scandir
-    failed: list[str] = []
 
     def denying(path: Any = ".") -> Any:
         # shutil.rmtree lists by file descriptor
         if not isinstance(path, int) and os.fspath(path) == f"{shards}/{unlistable}":
-            failed.append(os.fspath(path))
             raise PermissionError(13, "Permission denied", os.fspath(path))
         return scandir(path)
 
     with monkeypatch.context() as patched:
         patched.setattr(os, "scandir", denying)
-        with pytest.raises(PermissionError):
+        with pytest.raises((ShardSetError, PermissionError)):
             _merge_on(backend, monkeypatch, merged, delete_shards=True)
-    # the inspection reached the directory; nothing was deleted
+    assert _tree(str(tmp_path)) == before
+
+
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+@pytest.mark.parametrize("code", [errno.EACCES, errno.EIO], ids=["denied", "io"])
+def test_a_companion_that_cannot_be_inspected_is_not_deleted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, code: int, backend: str
+) -> None:
+    from inspect_ai.log._shards import _api
+
+    merged, shards = _attempt_less_companion(tmp_path, "absent")
+    before = _tree(str(tmp_path))
+    lstat = os.lstat
+    list_shard_set = _api.list_shard_set
+    listed: list[bool] = []
+    failed: list[str] = []
+
+    async def listing(*args: Any, **kwargs: Any) -> Any:
+        result = await list_shard_set(*args, **kwargs)
+        listed.append(True)
+        return result
+
+    def failing(path: Any, *args: Any, **kwargs: Any) -> Any:
+        # once, after the shard listing: the inspection that decides whether
+        # the companion is gone, not the deletion
+        if listed and not failed and os.fspath(path) == shards:
+            failed.append(shards)
+            raise OSError(code, os.strerror(code), shards)
+        return lstat(path, *args, **kwargs)
+
+    with monkeypatch.context() as patched:
+        patched.setattr(_api, "list_shard_set", listing)
+        patched.setattr(os, "lstat", failing)
+        with pytest.raises(OSError, match=os.strerror(code)):
+            _merge_on(backend, monkeypatch, merged, delete_shards=True)
     assert failed
-    assert _files(str(tmp_path)) == before
+    assert _tree(str(tmp_path)) == before
 
 
-def test_shards_remain_counts_files_and_raises_on_listing_errors(
+@pytest.mark.parametrize("damage", ["absent", "edited", "none"])
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+@pytest.mark.parametrize("remnant", ["directory-link", "empty-directories"])
+def test_a_companion_with_no_file_keeps_the_retained_checks(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    remnant: str,
+    backend: str,
+    damage: str,
+) -> None:
+    import shutil
+
+    merged, shards = _attempt_less_companion(tmp_path / "run", damage)
+    shutil.rmtree(shards)
+    os.makedirs(f"{shards}/0")
+    target = tmp_path / "target"
+    _touch(target / "1" / "data")
+    if remnant == "directory-link":
+        os.symlink(target, f"{shards}/0/checkpoints", target_is_directory=True)
+    else:
+        os.makedirs(f"{shards}/1/run.checkpoints/1")
+    kept = _tree(str(target))
+    before = _tree(str(tmp_path / "run"))
+
+    if damage == "none":
+        result = _merge_on(backend, monkeypatch, merged, delete_shards=True)
+        assert not result.written and result.shards_deleted
+        assert _tree(str(tmp_path / "run")) == {f"{NAME}.eval": before[f"{NAME}.eval"]}
+    else:
+        message = "was edited" if damage == "edited" else "no epoch reduction"
+        with pytest.raises(ShardSetError, match=f"{message}.*shards were not deleted"):
+            _merge_on(backend, monkeypatch, merged, delete_shards=True)
+        assert _tree(str(tmp_path / "run")) == before
+    assert _tree(str(target)) == kept
+
+
+def test_shards_remain_counts_an_existing_directory_and_raises_on_lstat_errors(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import errno
-
-    from inspect_ai.log._shards._delete import _holds_a_file
+    from inspect_ai.log._shards._delete import _exists
 
     root = tmp_path / "run.shards"
-    assert not _holds_a_file(str(root))
-    os.makedirs(root / "0" / "empty")
-    assert not _holds_a_file(str(root))
-    (root / "0" / "empty" / "data").write_bytes(b"x")
-    assert _holds_a_file(str(root))
+    assert not _exists(str(root))
+    os.makedirs(root)
+    assert _exists(str(root))
 
-    def failing(path: Any = ".") -> Any:
+    def failing(path: Any, *args: Any, **kwargs: Any) -> Any:
         raise OSError(errno.EIO, "I/O error", os.fspath(path))
 
-    monkeypatch.setattr(os, "scandir", failing)
+    monkeypatch.setattr(os, "lstat", failing)
     with pytest.raises(OSError, match="I/O error"):
-        _holds_a_file(str(root))
+        _exists(str(root))
 
 
 # armed while a test merges: an unreduced metric that must not run
