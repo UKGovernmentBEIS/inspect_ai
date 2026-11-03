@@ -84,7 +84,7 @@ class Curriculum(TaskSource):
         return None
 ```
 
-A source that returns follow-ups from these callbacks needs no `next_tasks()`: the run ends when the callbacks return nothing and `next_tasks()` returns `None`. Use `next_tasks()` for the blocking case a per-result callback can't express. An exception raised by `task_complete` ends the run, as one raised by `next_tasks()` does: the finished task's log is kept as written, and the task is not retried.
+A source that returns follow-ups from these callbacks needs no `next_tasks()`: the run ends when the callbacks return nothing and `next_tasks()` returns `None`. Use `next_tasks()` for the blocking case a per-result callback can't express. An exception raised by `task_complete` ends the run, as one raised by `next_tasks()` does: the finished task's log is kept as written, and the task is not retried. A follow-up task returned from `sample_complete` or `sample_abandoned` is resolved there, as `enqueue_task()` resolves it, so an invalid one (for example a task with duplicate sample ids, or a sandbox configuration that cannot be resolved) ends the task whose sample returned it with an error; the rest of the run continues.
 
 ## Cancelled samples
 
