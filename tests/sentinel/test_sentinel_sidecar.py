@@ -361,7 +361,7 @@ async def test_a_sample_the_sidecar_wont_take_is_an_error() -> None:
     stand_in = StandInSidecar(
         methods={
             "complete_registration": lambda _: {
-                "error": {"code": -32009, "message": "no registration"}
+                "error": {"code": -32001, "message": "not a registered sample"}
             }
         }
     )
@@ -371,6 +371,53 @@ async def test_a_sample_the_sidecar_wont_take_is_an_error() -> None:
 
     with pytest.raises(SentinelProxyError, match="couldn't register the sample 1"):
         await sidecars.complete_registration(sidecar, _sample())
+    # a refusal isn't a forgotten task: nothing is registered again
+    assert len(_registered(stand_in, "register_task")) == 1
+
+
+def _forgets_the_task(times: int) -> Callable[[dict[str, Any]], dict[str, Any]]:
+    # a sidecar that no longer keeps the task's registration, as after a
+    # restart, for its first `times` completions
+    forgotten = [times]
+
+    def complete(_: dict[str, Any]) -> dict[str, Any]:
+        if forgotten[0] > 0:
+            forgotten[0] -= 1
+            return {"error": {"code": -32009, "message": "no registration"}}
+        return {}
+
+    return complete
+
+
+async def test_a_task_the_sidecar_forgot_is_registered_again() -> None:
+    stand_in = StandInSidecar(methods={"complete_registration": _forgets_the_task(1)})
+    sidecars = TaskSidecars("auto", _FACTS)
+    sidecar = await sidecars.sidecar(_model(stand_in).api)
+    assert sidecar is not None
+
+    await sidecars.complete_registration(sidecar, _sample())
+
+    # the task's registration again, as first sent, then the sample's again
+    [first, again] = _registered(stand_in, "register_task")
+    assert again == first
+    assert [call["method"] for call in stand_in.calls] == [
+        "register_task",
+        "complete_registration",
+        "register_task",
+        "complete_registration",
+    ]
+
+
+async def test_a_task_the_sidecar_forgets_again_is_an_error() -> None:
+    stand_in = StandInSidecar(methods={"complete_registration": _forgets_the_task(2)})
+    sidecars = TaskSidecars("auto", _FACTS)
+    sidecar = await sidecars.sidecar(_model(stand_in).api)
+    assert sidecar is not None
+
+    with pytest.raises(SentinelProxyError, match="couldn't register the sample 1"):
+        await sidecars.complete_registration(sidecar, _sample())
+    # registered again once, not on and on
+    assert len(_registered(stand_in, "register_task")) == 2
 
 
 async def test_a_sidecar_found_after_the_task_started_is_registered_once() -> None:
