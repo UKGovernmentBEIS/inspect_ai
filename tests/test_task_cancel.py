@@ -1372,48 +1372,83 @@ async def test_run_cancel_interrupts_error_log_write(
 
 
 @pytest.mark.anyio
-async def test_abort_after_final_log_write_returns_written_log(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize("where", ["logger_cleanup", "task_end_hook", "telemetry"])
+async def test_abort_after_log_finalized_returns_written_log(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, where: str
 ) -> None:
-    """An abort that lands after the task wrote its final log returns that log.
+    """An abort that lands once the recorder has finalized the log returns that log.
 
-    It lands in an await after the write (a legacy telemetry hook), so
-    `task_run` returns no log; the run still continues with the written log.
+    It lands in the logger's cleanup after the recorder wrote the log, in an
+    awaiting `on_task_end` hook (in both, the cancel handler's second finish
+    then fails), or in a legacy telemetry hook after `task_run`'s handlers.
+    The task still returns its written log, the TaskSource hears about it
+    once, and the run continues.
     """
     import inspect_ai.hooks._legacy as legacy_hooks
     from inspect_ai import eval_async
     from inspect_ai._eval.task.log import TaskLogger
 
-    written: list[str] = []
-    original_log_finish = TaskLogger.log_finish
+    fired: list[str] = []
 
-    async def log_finish(self: TaskLogger, *args: Any, **kwargs: Any) -> Any:
-        if self.eval.task == "a":
-            written.append(self.eval.eval_id)
-        return await original_log_finish(self, *args, **kwargs)
+    async def abort_and_wait(eval_id: str) -> None:
+        fired.append(eval_id)
+        _task_cancel_handle(eval_id).cancel_task("abort")
+        await anyio.sleep_forever()
 
-    async def send_telemetry(type: str, json: str) -> bool:
-        if written and type == "eval_log_location":
-            _task_cancel_handle(written.pop()).cancel_task("abort")
-            await anyio.sleep_forever()
-        return False
+    if where == "task_end_hook":
 
-    monkeypatch.setattr(TaskLogger, "log_finish", log_finish)
-    monkeypatch.setattr(legacy_hooks, "_send_telemetry", send_telemetry)
+        async def emit_task_end(logger: TaskLogger, log: EvalLog) -> None:
+            if log.eval.task == "a" and not fired:
+                await abort_and_wait(log.eval.eval_id)
+
+        monkeypatch.setattr("inspect_ai.hooks._hooks.emit_task_end", emit_task_end)
+    elif where == "telemetry":
+        written: list[str] = []
+        original_log_finish = TaskLogger.log_finish
+
+        async def log_finish(self: TaskLogger, *args: Any, **kwargs: Any) -> Any:
+            if self.eval.task == "a":
+                written.append(self.eval.eval_id)
+            return await original_log_finish(self, *args, **kwargs)
+
+        async def send_telemetry(type: str, json: str) -> bool:
+            if written and type == "eval_log_location" and not fired:
+                await abort_and_wait(written[0])
+            return False
+
+        monkeypatch.setattr(TaskLogger, "log_finish", log_finish)
+        monkeypatch.setattr(legacy_hooks, "_send_telemetry", send_telemetry)
+    else:
+        original_stop = TaskLogger._stop_stale_flush_timer
+
+        async def stop_stale_flush_timer(self: TaskLogger) -> None:
+            if self.eval.task == "a" and self.finished and not fired:
+                await abort_and_wait(self.eval.eval_id)
+            await original_stop(self)
+
+        monkeypatch.setattr(
+            TaskLogger, "_stop_stale_flush_timer", stop_stale_flush_timer
+        )
+
     runs: list[str] = []
+    source = _RecordingSource([_plain_task("a", runs), _plain_task("b", runs)])
     logs = await eval_async(
-        [_plain_task("a", runs), _plain_task("b", runs)],
+        source,
         model="mockllm/model",
         log_dir=str(tmp_path),
         max_tasks=1,
         task_retry_attempts=1,
     )
 
+    assert fired
     assert [(log.eval.task, log.status) for log in logs] == [
         ("a", "success"),
         ("b", "success"),
     ]
-    assert logs[0].samples is not None and len(logs[0].samples) == 1
+    assert [e.split(":")[1:3] for e in source.events if "task_complete" in e] == [
+        ["a", "success"],
+        ["b", "success"],
+    ]
     assert runs == ["a", "b"]
     assert await _disk_statuses(tmp_path) == [("a", "success"), ("b", "success")]
 

@@ -628,7 +628,8 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
     completes first (see ``abort_bounded_write``), and an interrupted success
     write is followed by the cancel handler's shielded write of the abort's
     error log. When the request interrupts ``task_run`` after the write, the
-    written log is returned; when it interrupts it before any final log
+    written log is returned, also when the cancel handler's second finish
+    then fails; when it interrupts it before any final log
     write (during ``log_start()``), the attempt is reported like a failed
     log write.
 
@@ -725,13 +726,22 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
                             # eval_set() retries them once storage recovers.
                             if options.debug_errors:
                                 raise
-                            inner = inner_exception(ex)
-                            log.error(
-                                f"Task '{options.task.name}' encountered an error "
-                                f"while starting or writing its log: {inner}"
-                            )
-                            result = _unwritten_log(options, inner)
-                            write_failed = True
+                            # the task's abort/retry request interrupted it
+                            # after its log was written (e.g. in an
+                            # on_task_end hook), so the cancel handler's
+                            # second finish failed: the written log is
+                            # returned below
+                            if not (
+                                cancel_type in ("abort", "retry")
+                                and options.logger.finished
+                            ):
+                                inner = inner_exception(ex)
+                                log.error(
+                                    f"Task '{options.task.name}' encountered an "
+                                    f"error while starting or writing its log: {inner}"
+                                )
+                                result = _unwritten_log(options, inner)
+                                write_failed = True
                     scope_exited = True
                     written_log = options.logger.pop_finished_log()
                     if abandoned or write_failed:
