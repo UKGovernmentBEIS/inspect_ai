@@ -18,6 +18,8 @@ class SentinelStep(BaseModel):
     original: dict[str, Any] | None = None
     decision: dict[str, Any]
     recorded: list[dict[str, Any]] | None = None
+    models: list[dict[str, Any]] | None = None
+    """The models the step's monitors and protocols called, with the role each asked for."""
 
 
 class WithheldTurn(BaseModel):

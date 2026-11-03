@@ -34,6 +34,19 @@ Experimental: not yet a stable API; may change without notice.
 """
 
 
+class SentinelSidecarModel(BaseModel):
+    """A model a sentinel sidecar's monitors and protocols called while judging a step.
+
+    Experimental: not yet a stable API; may change without notice.
+    """
+
+    role: str | None = Field(default=None)
+    """The model role the call asked for, or None where it named its model without one."""
+
+    model: str
+    """The model the call went to."""
+
+
 class SentinelSidecar(BaseModel):
     """Where a report a sentinel sidecar made came from: the sidecar behind a model's proxy, and the agent call it came back with.
 
@@ -54,6 +67,9 @@ class SentinelSidecar(BaseModel):
 
     trimmed: bool = Field(default=False)
     """Whether the sidecar sends only what Inspect acts on, so the event records the step's decision without the monitor or protocol that made it, its function, explanation, references or metadata."""
+
+    models: list[SentinelSidecarModel] | None = Field(default=None)
+    """The models the sidecar's monitors and protocols called while judging the step, each once. The sidecar takes a role's model from its own configuration, not from the eval's model roles. None where none was called, or the sidecar sends only what Inspect acts on."""
 
 
 class SentinelEvent(BaseEvent):
