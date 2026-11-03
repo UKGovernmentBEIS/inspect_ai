@@ -3978,9 +3978,13 @@ async def test_alternate_selected_by_response_filter_names_its_model_choice() ->
     assert event.call_message_id == generation.output.choices[1].message.id
 
 
-@pytest.mark.parametrize("same_arguments", [False, True])
+@pytest.mark.parametrize(
+    ("same_arguments", "text_edited"),
+    [(False, False), (True, False), (False, True)],
+)
 async def test_reused_call_id_across_choices_keeps_selected_producer(
     same_arguments: bool,
+    text_edited: bool,
 ) -> None:
     """The selected choice wins; indistinguishable proposals stay unlinked."""
     bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)
@@ -4003,6 +4007,15 @@ async def test_reused_call_id_across_choices_keeps_selected_producer(
             ),
         ],
     )
+
+    async def edit_text(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput:
+        output.message.content = "filtered first"
+        return output
+
+    if text_edited:
+        bridge.response_filter = edit_text
 
     with recorded_transcript() as recorded:
         await run_bridge([generated], bridge=bridge, tools=declare("read_file"))

@@ -56,7 +56,7 @@ from inspect_ai.model._generate_config import (
     ResponseSchema,
     active_generate_config,
 )
-from inspect_ai.model._message_ids import with_edited_id
+from inspect_ai.model._message_ids import content_hash, edit_id, with_edited_id
 from inspect_ai.model._model import (
     GenerateFilter,
     GenerateInput,
@@ -578,6 +578,38 @@ def _settle_message_ids(original: ModelOutput, filtered: ModelOutput) -> None:
             )
             if source is not None:
                 with_edited_id(source, message, keep_provider_state=False)
+
+
+def _selected_generated_message_id(
+    generated: ModelOutput | None, output: ModelOutput
+) -> str | None:
+    """Identify the generated choice selected by a response filter before approval.
+
+    A text edit gives the selected reply an id derived from its source choice.
+    Approval may edit the reply again, so recover the source while this id is
+    still available. Ambiguous or synthetic choices have no known source.
+    """
+    if generated is None or output.message.id is None:
+        return None
+    selected_id = output.message.id
+    exact = [
+        choice.message.id
+        for choice in generated.choices
+        if choice.message.id == selected_id
+    ]
+    if exact:
+        return exact[0] if len(exact) == 1 else None
+    selected_content = content_hash(output.message)
+    matches = [
+        choice.message.id
+        for choice in generated.choices
+        if choice.message.id is not None
+        and (
+            choice.message.id == selected_id
+            or edit_id(choice.message.id, selected_content) == selected_id
+        )
+    ]
+    return matches[0] if len(matches) == 1 else None
 
 
 def _check_provider_owned_content(original: ModelOutput, filtered: ModelOutput) -> None:
@@ -1112,6 +1144,7 @@ async def _bridge_generate_impl(
         declarations: list[ToolInfo | Tool] = list(tools)
         if declared_in_input is not None:
             declarations.extend(declared_in_input(input_messages))
+        selected_generated_id = _selected_generated_message_id(generated, output)
         with agent_bridge_context_scope(_UTILITY_CONTEXT):
             reviewed = await apply_bridge_tool_approval(
                 bridge, output, input_messages, declarations
@@ -1134,7 +1167,7 @@ async def _bridge_generate_impl(
                     selected = [
                         proposal
                         for proposal in proposals
-                        if proposal[0] == output.message.id
+                        if proposal[0] == selected_generated_id
                     ]
                     if len(selected) == 1:
                         selected_args = json.dumps(

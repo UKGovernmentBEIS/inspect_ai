@@ -11,7 +11,7 @@
     {
       "parts": [
         {
-          "text": "<think redacted=\"true\" internal=\"eyJnZW1pbmlfZnVuY3Rpb25fY2FsbF9pZCI6ICI1dHBrS2RZVSJ9\">\nEswcCskcARFNMg+UgYioxFENZ1QwlBiDRcR55h9Y7qJN5bgGp30zTIGzFIbaX1uDdmjsTRIMMED\n</think>"
+          "text": "<think redacted=\"true\" internal=\"eyJnZW1pbmlfZnVuY3Rpb25fY2FsbF9pZCI6ICI1dHBrS2RZVSJ9\">\nEswcCskcARFNMg+UgYioxFENZ1QwlBiDRcR55h9Y7qJN5bgGp30zTIGzFIbaX1uDdmjsTRIMMED=\n</think>"
         },
         {
           "functionCall": {
@@ -24,7 +24,7 @@
             },
             "name": "call_mcp_tool"
           },
-          "thoughtSignature": "EswcCskcARFNMg+UgYioxFENZ1QwlBiDRcR55h9Y7qJN5bgGp30zTIGzFIbaX1uDdmjsTRIMMED"
+          "thoughtSignature": "EswcCskcARFNMg+UgYioxFENZ1QwlBiDRcR55h9Y7qJN5bgGp30zTIGzFIbaX1uDdmjsTRIMMED="
         }
       ],
       "role": "model"
