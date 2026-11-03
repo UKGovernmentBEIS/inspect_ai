@@ -963,9 +963,12 @@ def get_confirmation(
 
 
 def remove_directories(dry_run: bool = False) -> None:
-    """Remove build directories (but not binaries)."""
-    # Only remove dist directory, not binaries
-    dirs_to_remove = ["dist"]
+    """Remove build outputs (but not binaries).
+
+    The wheel is built from the checkout, so a stale `build/` would be copied
+    into it (e.g. old binaries or deleted modules under `build/lib`).
+    """
+    dirs_to_remove = ["dist", "build"]
 
     for dir_path in dirs_to_remove:
         if os.path.exists(dir_path):
@@ -1155,17 +1158,12 @@ def release_command(args):
                 raise
         run_command(["python3", "-m", "build", "--sdist", "--wheel"], dry_run=dry_run)
         if dry_run:
-            logging.info("[DRY RUN] Would verify built wheel contents")
+            logging.info("[DRY RUN] Would verify built distributions")
         else:
-            wheels = list(Path("dist").glob("*.whl"))
-            if not wheels:
-                logging.error("No wheel found in dist/ after build")
-                sys.exit(1)
             try:
-                for wheel in wheels:
-                    verify_wheel_contents(wheel, sandbox_version)
+                verify_dist(Path("dist"), tag_name, sandbox_version)
             except RuntimeError as e:
-                logging.error(f"Post-build wheel gate failed: {e}")
+                logging.error(f"Post-build distribution gate failed: {e}")
                 raise
         logging.info("   ✓ Package built successfully")
 

@@ -514,6 +514,21 @@ def test_pypi_verify_dist_runs_wheel_gate(
         pypi_release.verify_dist(tmp_path / "dist", "0.3.278", "10")
 
 
+def test_pypi_remove_directories_removes_stale_build(
+    pypi_release: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    stale = tmp_path / "build" / "lib" / "inspect_ai" / "binaries" / "old-binary"
+    stale.parent.mkdir(parents=True)
+    stale.write_bytes(b"stale")
+    (tmp_path / "dist").mkdir()
+    monkeypatch.chdir(tmp_path)
+
+    pypi_release.remove_directories()
+
+    assert not (tmp_path / "build").exists()
+    assert not (tmp_path / "dist").exists()
+
+
 def _prepare_repo(tmp_path: Path, digests: dict[str, str]) -> Path:
     utils = tmp_path / "src" / "inspect_ai" / "tool" / "_sandbox_tools_utils"
     utils.mkdir(parents=True)
