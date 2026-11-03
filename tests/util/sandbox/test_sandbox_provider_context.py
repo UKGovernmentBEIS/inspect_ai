@@ -529,6 +529,53 @@ async def test_sample_source_late_task_init(provider: str) -> None:
         assert seen(provider, "task_cleanup") == seen(provider, "task_init")
 
 
+# --- a retry after a failed setup ------------------------------------------------
+
+_failed_once: set[str] = set()
+
+
+@sandboxenv(name="fail_once_ctxvar_fake")
+class FailOnceCtxVarFake(CtxVarFake):
+    """``ctxvar_fake`` whose first ``task_init`` of each config fails."""
+
+    provider = "fail_once_ctxvar_fake"
+
+    @override
+    @classmethod
+    async def task_init(
+        cls, task_name: str, config: SandboxEnvironmentConfigType | None
+    ) -> None:
+        if _name(config) not in _failed_once:
+            _failed_once.add(_name(config))
+            raise RuntimeError(f"first task_init of {_name(config)} fails")
+        await super().task_init(task_name, config)
+
+
+async def test_retry_after_failed_setup_sees_the_redone_setups_state() -> None:
+    # an added task's setup fails; its retry sets the config up again and its
+    # sample sees the state that second task_init set (the parent has no
+    # sandbox, so the context the child started with holds no state at all)
+    _failed_once.clear()
+    provider = "fail_once_ctxvar_fake"
+
+    @solver
+    def add_child() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            await enqueue_task(fake_task("child", provider, "B"))
+            return state
+
+        return solve
+
+    logs = await eval_async(
+        Task(name="parent", dataset=[Sample(input="hi")], solver=add_child()),
+        model="mockllm/model",
+        max_tasks=2,
+        task_retry_attempts=1,
+    )
+    _ok(logs)
+    assert sample_state(provider, "child/1") == init_of(provider, "B")
+
+
 # --- what task_cleanup sees besides provider state -----------------------------
 
 _cleanup_saw_screen: list[bool] = []

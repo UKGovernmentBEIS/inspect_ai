@@ -1016,11 +1016,14 @@ class TaskDispatcher:
         A failed setup's job was forgotten, so requesting the record's
         configs again adds a job for it; the others are done already. Waits
         until every job is done (or has failed again, which the next attempt
-        then ends with).
+        then ends with), then sets the run's provider state in the attempt's
+        context, so the retry sees the state its redone setups left (the
+        context it started with predates them).
         """
         record.setups = self.setups.request(record.setup_keys, first=True)
         for job in record.setups:
             await job.done.wait()
+        self.apply_provider_state()
 
     def attempt_options(
         self,
