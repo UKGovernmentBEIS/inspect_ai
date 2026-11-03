@@ -179,13 +179,13 @@ class TestBatcher:
             init_sample_working_time(time.monotonic())
             batcher = FakeBatcher(
                 config=BatchConfig(size=10, send_delay=0.3, tick=0.01),
-                batch_completion_delay=0.3,
+                batch_completion_delay=1.0,
             )
             await batcher.generate_for_request({"prompt": "test"})
             timing = sample_timing()
             assert timing is not None and timing.open_waits == 0
-            # about 0.3 s queued; the 0.3 s in flight is working time
-            assert 0.2 <= sample_waiting_time() <= 0.45
+            # about 0.3 s queued; the 1.0 s in flight is working time
+            assert 0.2 <= sample_waiting_time() < 1.0
 
         await self._run_with_task_group(test_logic)
 
@@ -341,6 +341,24 @@ class TestBatcher:
             # Request should fail with the handling error wrapped in RetryError
             with pytest.raises(RetryError):
                 await batcher.generate_for_request({"prompt": "test"})
+
+        await self._run_with_task_group(test_logic)
+
+    async def test_result_send_failure_fails_batch_without_crashing_worker(self):
+        """A failure while sending results fails the batch, not the eval."""
+
+        class UnknownResultIdBatcher(FakeBatcher):
+            async def _handle_batch_result(self, batch, completion_info):
+                results = await super()._handle_batch_result(batch, completion_info)
+                return {"unknown-id": "stray", **results}
+
+        async def test_logic():
+            batcher = UnknownResultIdBatcher()
+
+            with pytest.raises(KeyError):
+                await batcher.generate_for_request({"prompt": "test"})
+
+            assert batcher._inflight_batches == {}
 
         await self._run_with_task_group(test_logic)
 
@@ -920,23 +938,26 @@ class TestBatcher:
                 )
             )
 
-            # Send fewer requests than minimum size
+            # Send fewer requests than minimum size. The ceiling only catches a
+            # hang or a fall back to the 15s DEFAULT_SEND_DELAY; a loaded CI
+            # runner can stretch the nominal ~20ms many times over.
             start_time = time.time()
-            results = await tg_collect(
-                [
-                    lambda i=i: batcher.generate_for_request(
-                        {"prompt": f"fast-tick-{i}"}
-                    )
-                    for i in range(3)
-                ]
-            )
-            elapsed = time.time() - start_time
+            with anyio.fail_after(5):
+                results = await tg_collect(
+                    [
+                        lambda i=i: batcher.generate_for_request(
+                            {"prompt": f"fast-tick-{i}"}
+                        )
+                        for i in range(3)
+                    ]
+                )
 
             assert len(results) == 3
 
-            # Should complete after send_delay timeout, not wait for minimum size
-            # Should be close to send_delay time (0.02s), not much longer
-            assert 0.01 < elapsed < 0.1  # Some tolerance for timing
+            # A single under-size batch, sent only once send_delay had passed
+            assert [len(ids) for ids in batcher._created_batches.values()] == [3]
+            (created_at,) = batcher._batch_creation_times.values()
+            assert created_at - start_time >= 0.02
 
         await self._run_with_task_group(test_logic)
 

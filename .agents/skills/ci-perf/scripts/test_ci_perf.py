@@ -351,9 +351,9 @@ def test_existing_issue_identity_and_empty_body(
     monkeypatch.setattr(
         publisher,
         "comments",
-        lambda number: []
-        if number == 1
-        else [{"body": "<!-- ci-perf-summary:123:1 -->"}],
+        lambda number: (
+            [] if number == 1 else [{"body": "<!-- ci-perf-summary:123:1 -->"}]
+        ),
     )
     monkeypatch.setattr(
         publisher,
@@ -883,9 +883,11 @@ def test_no_label_write_whether_or_not_a_human_labelled_the_issue(
     monkeypatch.setattr(
         publisher,
         "comments",
-        lambda number: [{"body": "@auto"}]
-        if number == 1
-        else [{"body": "<!-- ci-perf-summary:123:1 -->"}],
+        lambda number: (
+            [{"body": "@auto"}]
+            if number == 1
+            else [{"body": "<!-- ci-perf-summary:123:1 -->"}]
+        ),
     )
     monkeypatch.setattr(
         publisher,
@@ -934,12 +936,14 @@ def test_reused_issue_evidence_cadence_and_human_handoff(
     monkeypatch.setattr(
         publisher,
         "comments",
-        lambda number: list(posted)
-        if number == 1
-        else [
-            {"body": "<!-- ci-perf-summary:123:1 -->"},
-            {"body": "<!-- ci-perf-summary:124:1 -->"},
-        ],
+        lambda number: (
+            list(posted)
+            if number == 1
+            else [
+                {"body": "<!-- ci-perf-summary:123:1 -->"},
+                {"body": "<!-- ci-perf-summary:124:1 -->"},
+            ]
+        ),
     )
     monkeypatch.setattr(
         publisher,
