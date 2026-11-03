@@ -164,6 +164,10 @@ class TaskSidecars:
         ]
         if not through:
             return
+        # the keys earlier copies wrote: any other key of the sample store
+        # the copy would overwrite is a sentinel's inside Inspect
+        earlier = store.get(MONITOR_STATE_COPY)
+        copies = set(earlier.get("keys", [])) if isinstance(earlier, dict) else set()
         # until the copy finishes: a copy cut short, as by the scoring's
         # deadline, still says the monitor state is missing
         store.set(
@@ -183,9 +187,14 @@ class TaskSidecars:
                     failed = _copy_failure(sidecar, ex)
                     continue
                 for key, value in (result.get("store") or {}).items():
-                    # which sentinel a scorer reads can't be told
+                    # which sentinel a scorer reads can't be told, and a
+                    # sentinel inside Inspect would carry on from the copy
+                    conflict = None
                     if key in written_by:
                         conflict = f"The sentinels in the sidecars at {written_by[key]} and {sidecar.origin} both keep {key!r} for the sample."
+                    elif key in store and key not in copies:
+                        conflict = f"The sentinel inside Inspect and the one in the sidecar at {sidecar.origin} both keep {key!r} for the sample."
+                    if conflict is not None:
                         store.set(
                             MONITOR_STATE_COPY, {"copied": False, "reason": conflict}
                         )
@@ -200,7 +209,11 @@ class TaskSidecars:
             store.set(key, value)
         store.set(
             MONITOR_STATE_COPY,
-            {"copied": failed is None, "reason": failed},
+            {
+                "copied": failed is None,
+                "reason": failed,
+                "keys": sorted(copies | copied.keys()),
+            },
         )
 
     async def _probe(self, api: ModelAPI) -> Sidecar | str:
