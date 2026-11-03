@@ -63,14 +63,14 @@ def rich_initialise(
     plain = plain if plain is not None else display_type_plain()
     size_kwargs = _dumb_terminal_size_kwargs()
 
+    # undo an earlier call first (textual calls this for each eval), so the
+    # snapshot holds the user's settings rather than ours
+    rich_restore_defaults()
+    console = rich.get_console()
+    before = _display_settings(console)
+
     # set attributes rather than rich.reconfigure(), which would replace the
     # user's other console options and any active capture or live display
-    console = rich.get_console()
-    if _console_settings and _console_settings.console_state is console.__dict__:
-        before = _console_settings.before
-    else:
-        before = _display_settings(console)
-
     # reflect ansi prefs
     if plain:
         console.no_color = True

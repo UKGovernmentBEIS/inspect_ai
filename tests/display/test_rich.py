@@ -33,14 +33,18 @@ def test_terminal_size_override_requires_dumb_term(monkeypatch):
     assert _dumb_terminal_size_kwargs() == {}
 
 
-def test_restore_keeps_console_replaced_between_initialises(
-    fresh_display: None, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize("replace", [True, False])
+def test_restore_keeps_console_changed_between_initialises(
+    fresh_display: None, monkeypatch: pytest.MonkeyPatch, replace: bool
 ) -> None:
     # the textual display initialises the console for each eval, with no
     # restore between evals of the same display type
     monkeypatch.setattr(display_rich, "is_running_in_vscode", lambda: True)
     rich_initialise("full", plain=False)
-    rich.reconfigure(no_color=True)
+    if replace:
+        rich.reconfigure(no_color=True)
+    else:
+        rich.get_console().no_color = True
     rich_initialise("full", plain=False)
 
     rich_restore_defaults()
