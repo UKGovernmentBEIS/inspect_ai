@@ -116,7 +116,7 @@ In an emergency, for example a security fix, you can adopt a release that is les
 
 1. Under `[tool.uv.exclude-newer-package]` in `pyproject.toml`, add `<package> = "<timestamp>"`. The package must be a direct dependency. Use an RFC 3339 timestamp just after the upload time of the fixed release. Do not add a dated entry to `.github/dependabot.yml`.
 2. Run `uv lock --upgrade-package <package>`.
-3. If `src/inspect_ai/model/_model_data/sync_models.py` locks the package, add the same entry to its inline script metadata. Then run `uv lock --script src/inspect_ai/model/_model_data/sync_models.py --no-config`. Its workflow runs uv with `--no-config`, so it does not read `pyproject.toml`.
+3. If `src/inspect_ai/model/_model_data/sync_models.py` locks the package, add the same entry to its inline script metadata. Then run `uv lock --script src/inspect_ai/model/_model_data/sync_models.py --no-config --upgrade-package <package>`. Its workflow runs uv with `--no-config`, so it does not read `pyproject.toml`.
 4. Delete the entry within seven days, when the normal cooldown includes the release. A test fails when a dated entry is seven days old or older.
 
 uv is the supported way to set up Inspect. Installing with pip (`pip install -e ".[dev]"`) gets neither `uv.lock` nor the repository's cooldown.

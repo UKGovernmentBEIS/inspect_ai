@@ -235,7 +235,9 @@ def verify_exclude_newer_package(
         assert normalize(package) in direct, f"{package} is not a direct dependency"
         if cooldown != EXEMPT_COOLDOWN:
             age = now - datetime.fromisoformat(cooldown)
-            assert age < max_age, f'delete the dated entry {package} = "{cooldown}"'
+            assert timedelta(0) <= age < max_age, (
+                f'dated entry {package} = "{cooldown}" is in the future or stale'
+            )
 
 
 def test_exclude_newer_package_entries() -> None:
@@ -245,7 +247,7 @@ def test_exclude_newer_package_entries() -> None:
 def test_non_direct_entry_is_caught() -> None:
     config = uv_config()
     config["exclude-newer-package"]["torch"] = EXEMPT_COOLDOWN
-    with pytest.raises(AssertionError):
+    with pytest.raises(AssertionError, match="not a direct dependency"):
         verify_exclude_newer_package(config, direct_dependencies(), datetime.now(UTC))
 
 
@@ -261,7 +263,15 @@ def test_stale_dated_entry_is_caught() -> None:
     config = uv_config()
     now = datetime.now(UTC)
     config["exclude-newer-package"]["boto3"] = (now - timedelta(days=7)).isoformat()
-    with pytest.raises(AssertionError):
+    with pytest.raises(AssertionError, match="dated entry"):
+        verify_exclude_newer_package(config, direct_dependencies(), now)
+
+
+def test_future_dated_entry_is_caught() -> None:
+    config = uv_config()
+    now = datetime.now(UTC)
+    config["exclude-newer-package"]["boto3"] = (now + timedelta(days=1)).isoformat()
+    with pytest.raises(AssertionError, match="dated entry"):
         verify_exclude_newer_package(config, direct_dependencies(), now)
 
 
