@@ -1405,6 +1405,50 @@ def test_unmatched_checks_emit_one_counted_warning(
     ]
 
 
+@pytest.mark.parametrize("stage", ["model_input", "model_output"])
+@pytest.mark.parametrize("inputs", ["expanded", "pooled"])
+def test_empty_step_id_check_does_not_attach_to_uuidless_model_call(
+    stage: str, inputs: str, caplog: pytest.LogCaptureFixture
+) -> None:
+    from inspect_ai._sentinel import _replay
+
+    check = SentinelEvent(
+        factory="inspect_sentinel/human",
+        path="human",
+        function="check",
+        step_id="",
+        conversation="sample",
+        stage=stage,
+        kind="decision",
+        status="reported",
+        action="proceed",
+        span_id="check",
+    )
+    call = imported_call("unused", [ChatMessageUser(content="Go ahead")], "run")
+    call = call.model_copy(update={"uuid": None, "origin": "agent"})
+    events: list[Event] = [
+        SpanBeginEvent(id="check", name="human", type="sentinel"),
+        check,
+        SpanEndEvent(id="check"),
+        call,
+    ]
+    pool: list[ChatMessage] = []
+    if inputs == "pooled":
+        events, pool = _replay._condensed(events, [])
+    replay = steps_from_events(
+        [],
+        events,
+        pool,
+        sample_uuid="sample",
+        eval_info=EvalInfo(inspect_ai_version="0.3.200", sentinel=True),
+    )
+    [step] = [s for s in replay if s.stage == stage]
+    assert step.recorded_answers == {}
+    assert [r.message for r in caplog.records if "Skipped" in r.message] == [
+        "Skipped 1 sentinel model check(s) without a matching model call in this transcript."
+    ]
+
+
 @solver
 def r7_runs_two_branches() -> Solver:
     """Two attempts at the task in one conversation, each in a span of its own, as Petri's rollbacks are."""

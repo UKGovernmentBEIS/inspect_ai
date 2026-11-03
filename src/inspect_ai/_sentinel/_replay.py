@@ -623,7 +623,11 @@ class _Driver:
         last_index, last = group.attempts[-1]
         conversation = group.conversation
 
-        before_span = self.step_spans.get(("model_input", first.uuid or ""))
+        before_span = (
+            self.step_spans.get(("model_input", first.uuid))
+            if first.uuid is not None
+            else None
+        )
         before_id = first.uuid
         if before_id is None:
             before_id = f"{conversation}:{first_index}"
@@ -654,7 +658,11 @@ class _Driver:
         )
         if last.error is not None or last.pending or refused:
             return
-        after_span = self.step_spans.get(("model_output", first.uuid or ""))
+        after_span = (
+            self.step_spans.get(("model_output", first.uuid))
+            if first.uuid is not None
+            else None
+        )
         after_id = before_id
 
         def build_after() -> None:
