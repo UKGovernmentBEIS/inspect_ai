@@ -658,6 +658,51 @@ def test_writable_connection_recreates_missing_parent_dir(tmp_path):
         conn.close()
 
 
+def test_writable_connection_retries_when_parent_dir_removed_during_mkdir(
+    tmp_path, monkeypatch
+):
+    """A writable connect retries when a sibling removes its directory mid-mkdir.
+
+    Path.mkdir(exist_ok=True) gets EEXIST from os.mkdir and then checks
+    is_dir(). If a sibling's cleanup rmdir's the directory between those two
+    steps, mkdir raises FileExistsError.
+    """
+    import os
+
+    db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
+    db_path = db.db_path
+    subdir = db_path.parent
+
+    db._close_all_connections()
+    for suffix in ("", "-wal", "-shm"):
+        p = f"{db_path}{suffix}"
+        if os.path.exists(p):
+            os.unlink(p)
+
+    real_mkdir = os.mkdir
+    raced = False
+
+    def racing_mkdir(path, *args, **kwargs):
+        nonlocal raced
+        try:
+            real_mkdir(path, *args, **kwargs)
+        except FileExistsError:
+            if not raced and os.fspath(path) == os.fspath(subdir):
+                raced = True
+                os.rmdir(subdir)
+            raise
+
+    monkeypatch.setattr(os, "mkdir", racing_mkdir)
+
+    conn = db._open_connection()
+    try:
+        assert raced
+        assert subdir.exists()
+        conn.execute("SELECT 1")
+    finally:
+        conn.close()
+
+
 def test_read_only_connection_does_not_recreate_missing_parent_dir(tmp_path):
     """Read-only connections must not resurrect a removed log directory.
 

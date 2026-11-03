@@ -1247,6 +1247,13 @@ class SampleBufferDatabase(SampleBuffer):
                     time.sleep(retry_delay * (2**attempt))
                     continue
                 raise
+            except FileExistsError:
+                # mkdir(exist_ok=True) raises this when a sibling rmdir's the
+                # directory between mkdir's EEXIST and its is_dir() check
+                if attempt < max_retries - 1:
+                    time.sleep(retry_delay * (2**attempt))
+                    continue
+                raise
             except BaseException:
                 # close any half-open connection before propagating a
                 # non-retryable error raised during connect/PRAGMA setup
