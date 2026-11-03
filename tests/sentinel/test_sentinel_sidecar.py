@@ -407,6 +407,7 @@ def test_an_agent_call_names_its_sample(provider: str, base_url: str) -> None:
         "epoch": 1,
         "sample_uuid": sample.uuid,
         "attempt_number": 1,
+        "model": _MODELS[provider],
     }
     assert attempt
     # the sample's registration was complete before the sidecar saw its call
