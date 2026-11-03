@@ -63,3 +63,17 @@ def test_open_pr_job_holds_no_secrets_and_installs_nothing() -> None:
         run = step.get("run", "")
         for installer in ("uv ", "pip", "npm", "pnpm", "curl", "wget"):
             assert installer not in run, f"{step.get('name')!r} runs {installer!r}"
+
+
+def test_pull_request_title_passes_the_pr_title_lint() -> None:
+    # PR Title Lint (pr-title-lint.yml) requires a Conventional Commits type
+    # from meridianlabs-ai/actions' conventional-commit-types.json.
+    (create_pr,) = [
+        s
+        for s in job("open-pr")["steps"]
+        if s.get("uses", "").startswith("peter-evans/create-pull-request@")
+    ]
+    title = create_pr["with"]["title"]
+    types = "feat|fix|perf|revert|refactor|docs|chore|build|ci|test|style"
+    assert re.match(rf"({types})(\([\w-]+\))?!?: \S", title), title
+    assert create_pr["with"]["commit-message"] == title
