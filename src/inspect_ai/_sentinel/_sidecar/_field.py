@@ -40,6 +40,8 @@ class SentinelField(BaseModel):
     steps: list[SentinelStep] = Field(default_factory=list)
     withheld: WithheldTurn | None = None
     proposed: WithheldTurn | None = None
+    usage: dict[str, Any] | None = None
+    """What the provider billed for a reply the client was refused."""
 
 
 class ReceivedField:

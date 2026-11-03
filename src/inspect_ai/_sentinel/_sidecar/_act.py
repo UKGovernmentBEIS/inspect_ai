@@ -10,7 +10,11 @@ from pydantic import TypeAdapter
 
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.model._chat_message import ChatMessageAssistant
-from inspect_ai.model._model_output import ChatCompletionChoice, ModelOutput
+from inspect_ai.model._model_output import (
+    ChatCompletionChoice,
+    ModelOutput,
+    ModelUsage,
+)
 from inspect_ai.tool._tool_call import ToolCall
 
 from ._field import (
@@ -106,8 +110,9 @@ def _refusal(
     # the rejection to the conversation's later requests.
     if field.outcome == "reject" and (bridged or field.withheld is None):
         return None
+    # the reply the sidecar refused was billed, and counts as the call's usage
     if field.withheld is None or bridged:
-        return ModelOutput(model=model, choices=[])
+        return ModelOutput(model=model, choices=[], usage=_usage(field))
     return ModelOutput(
         model=model,
         choices=[
@@ -115,7 +120,19 @@ def _refusal(
                 message=_message(field.withheld), stop_reason="tool_calls"
             )
         ],
+        usage=_usage(field),
     )
+
+
+def refused_usage(received: ReceivedField) -> ModelUsage | None:
+    """What the provider billed for a reply the sidecar refused, which Inspect counts as it counts any model call's usage."""
+    return _usage(parse_field(received.field) if received.field is not None else None)
+
+
+def _usage(field: SentinelField | None) -> ModelUsage | None:
+    if field is None or field.usage is None:
+        return None
+    return ModelUsage.model_validate(field.usage)
 
 
 def act_on_field(
