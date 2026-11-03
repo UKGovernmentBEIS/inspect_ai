@@ -10,7 +10,7 @@ from inspect_ai.tool._sandbox_tools_utils._error_mapper import (
     SandboxToolsErrorMapper,
 )
 from inspect_ai.tool._sandbox_tools_utils.sandbox import sandbox_with_injected_tools
-from inspect_ai.util._sandbox._cli import SANDBOX_CLI, tools_user_param
+from inspect_ai.util._sandbox._cli import tools_user_param
 from inspect_ai.util._sandbox._json_rpc_transport import SandboxJSONRPCTransport
 from inspect_ai.util._sandbox.identity import (
     sandbox_identity_cwd,
@@ -140,7 +140,7 @@ def text_editor(timeout: int | None = None, user: str | None = None) -> Tool:
             method="text_editor",
             params=params,
             result_type=TextEditorResult,
-            transport=SandboxJSONRPCTransport(sandbox, SANDBOX_CLI),
+            transport=SandboxJSONRPCTransport(sandbox),
             error_mapper=SandboxToolsErrorMapper,
             timeout=timeout,
             user=sandbox._tools_user,
