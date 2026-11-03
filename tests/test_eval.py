@@ -6,6 +6,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from copy import deepcopy
 from pathlib import Path
+from types import ModuleType
 from typing import Any, Callable, Literal, NoReturn, cast
 from unittest import mock
 
@@ -27,6 +28,7 @@ from inspect_ai._eval.task.log import TaskLogger
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.dateutil import datetime_from_iso_format_safe, datetime_now_utc
 from inspect_ai._util.error import PrerequisiteError
+from inspect_ai._util.module import load_module
 from inspect_ai.approval._policy import ApprovalPolicyConfig, ApproverPolicyConfig
 from inspect_ai.dataset import Sample
 from inspect_ai.hooks._hooks import Hooks
@@ -584,20 +586,55 @@ def test_eval_set_task_instance_warns_once(caplog) -> None:
     )
 
 
-def test_eval_task_function_not_replaced_by_later_same_name_task() -> None:
-    @task(name="eval_task_function_same_name")
-    def first(prefix: str = "default") -> Task:
-        return Task(dataset=[Sample(input=f"{prefix}: first")])
+_SAME_NAME_TASK = """
+@task(name="{name}")
+def {fn}(prefix: str = "default") -> Task:
+    return Task(dataset=[Sample(input=f"{{prefix}}: {fn}")])
+"""
 
-    @task(name="eval_task_function_same_name")
-    def second(prefix: str = "default") -> Task:
-        return Task(dataset=[Sample(input=f"{prefix}: second")])
 
-    log = eval(first, task_args={"prefix": "custom"}, model="mockllm/model")[0]
+def _task_module(path: Path, name: str, *fns: str) -> ModuleType:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        "from inspect_ai import Task, task\n"
+        "from inspect_ai.dataset import Sample\n"
+        + "".join(_SAME_NAME_TASK.format(name=name, fn=fn) for fn in fns)
+    )
+    return load_module(path)
+
+
+def test_eval_task_function_not_replaced_by_same_name_task_in_other_file(
+    tmp_path: Path,
+) -> None:
+    name = "eval_task_function_same_name"
+    first = _task_module(tmp_path / "a" / "tasks.py", name, "first")
+    _task_module(tmp_path / "b" / "tasks.py", name, "second")
+
+    log = eval(first.first, task_args={"prefix": "custom"}, model="mockllm/model")[0]
     assert log.status == "success"
     assert log.samples and log.samples[0].input == "custom: first"
-    assert log.eval.task == "eval_task_function_same_name"
+    assert log.eval.task == name
     assert log.eval.task_args["prefix"] == "custom"
+
+
+def test_eval_task_function_same_name_twice_in_one_file_raises(
+    tmp_path: Path,
+) -> None:
+    tasks = _task_module(
+        tmp_path / "tasks.py", "eval_task_function_dup_in_file", "first", "second"
+    )
+    with pytest.raises(PrerequisiteError, match="registered more than once"):
+        eval(tasks.first, model="mockllm/model")
+
+
+def test_eval_task_function_from_file_loaded_twice(tmp_path: Path) -> None:
+    path = tmp_path / "tasks.py"
+    tasks = _task_module(path, "eval_task_function_file_loaded_twice", "first")
+    load_module(path)
+
+    log = eval(tasks.first, model="mockllm/model")[0]
+    assert log.status == "success"
+    assert log.samples and log.samples[0].input == "default: first"
 
 
 def test_eval_list_with_task_function_then_task_instance(caplog) -> None:

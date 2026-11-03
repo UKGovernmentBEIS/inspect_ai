@@ -1,8 +1,9 @@
 import inspect
 import logging
+import os
 from functools import wraps
 from pathlib import Path
-from typing import Any, Callable, TypeVar, cast, overload
+from typing import Any, Callable, NamedTuple, TypeVar, cast, overload
 
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.package import get_installed_package_name
@@ -62,6 +63,26 @@ def task_register(
     return task
 
 
+class _TaskDefinition(NamedTuple):
+    file: str
+    line: int
+
+
+def _task_definition(factory: object) -> _TaskDefinition | None:
+    """Source file and line of a registered task function or class.
+
+    A file loaded twice (e.g. imported and also loaded by path) registers two
+    objects with the same definition, which this treats as the same task.
+    """
+    try:
+        obj = inspect.unwrap(cast(Callable[..., Any], factory))
+        file = inspect.getsourcefile(obj)
+        line = inspect.getsourcelines(obj)[1]
+    except (OSError, TypeError):
+        return None
+    return _TaskDefinition(os.path.realpath(file), line) if file else None
+
+
 def _has_var_keyword(factory: object) -> bool:
     """Whether a registered factory declares a variadic keyword parameter.
 
@@ -108,11 +129,33 @@ def task_create_from_factory(factory: object, /, **kwargs: Any) -> Task:
 
     Returns:
         Task with registry info attribute
+
+    Raises:
+        PrerequisiteError: If `factory` is not a task, or if its file registers
+            another task under the same name.
     """
     task_info = registry_info(factory)
     name = task_info.name
     if task_info.type != "task":
         raise PrerequisiteError(f"'{name}' is a {task_info.type}, not a task.")
+
+    # eval_retry() rebuilds a task by loading its file and looking the name
+    # up, so it would run the file's last registration instead of `factory`
+    registered = registry_lookup("task", name)
+    if registered is not None and registered is not factory:
+        factory_def = _task_definition(factory)
+        registered_def = _task_definition(registered)
+        if (
+            factory_def is not None
+            and registered_def is not None
+            and factory_def.file == registered_def.file
+            and factory_def.line != registered_def.line
+        ):
+            raise PrerequisiteError(
+                f"Task name '{name}' is registered more than once in "
+                f"{factory_def.file}, so the task cannot be retried. Give each "
+                "@task in the file a unique name."
+            )
 
     # match kwargs params to signature (warn if param not found)
     # (note that we always pass the 'model' param but tasks aren't
