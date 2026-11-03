@@ -989,6 +989,10 @@ def test_markdown_or_fullwidth_final_verdict_wins_over_quoted_grade(
         pytest.param("Grade - I\r\nGrade - done\r\n", id="crlf_closing_remark"),
         pytest.param("Grade - I" + " " * 9, id="many_trailing_spaces"),
         pytest.param("Grade - I **" + "\t" * 12, id="trailing_tabs_after_marks"),
+        pytest.param("Grade - **I**", id="dash_bold_letter"),
+        pytest.param("Grade - _I_", id="dash_underscore_letter"),
+        pytest.param("Grade - `I`", id="dash_code_letter"),
+        pytest.param("GRADE -> [I]", id="arrow_bracketed_letter"),
     ],
 )
 def test_unread_final_verdict_does_not_fall_back_to_earlier_grade(
@@ -1034,6 +1038,9 @@ def test_unread_final_verdict_does_not_fall_back_to_earlier_grade(
         pytest.param(
             "GRADE: C\nGrade - I\nGrade - C" + " " * 9,
             id="correction_with_many_trailing_spaces",
+        ),
+        pytest.param(
+            "GRADE: C\nGrade - I\nGrade - **C**", id="wrapped_correction_agrees"
         ),
     ],
 )
@@ -1093,6 +1100,8 @@ def test_grade_pattern_is_linear_on_marks_after_label(pattern: str, text: str) -
         pytest.param("GRADE: C\nGRADE -" + " " * 20_000 + "!", id="spaces_after_sep"),
         pytest.param("GRADE: C\nGrade - I" + " " * 20_000 + "!", id="spaces_at_end"),
         pytest.param("GRADE: C\nGrade - I" + "* " * 10_000 + "!", id="marks_at_end"),
+        pytest.param("GRADE: C\nGrade - " + "*" * 20_000 + "!", id="marks_before_word"),
+        pytest.param("GRADE: C\nGrade - " + "_" * 20_000 + "!", id="under_before_word"),
     ],
 )
 def test_trailing_verdict_guard_is_linear_on_long_space_run(text: str) -> None:

@@ -532,7 +532,10 @@ _PERMISSIVE_GRADE_PATTERN = (
 # starts with "GRADE" (after optional markdown or an HTML tag), then a
 # separator such as "-", "->", an em dash, a short parenthetical or a closing
 # tag, then a single word that ends the line ("Grade - I", "GRADE (final): I",
-# "<b>GRADE</b>: I"). Mentions inside a sentence are prose and never match.
+# "<b>GRADE</b>: I"). The word may be wrapped in the same opening marks the
+# main pattern accepts ("Grade - **I**", "GRADE -> [I]"); the separator's
+# punctuation excludes those marks, so each run of marks matches in one way
+# only. Mentions inside a sentence are prose and never match.
 # Every part is bounded or uses characters its neighbours do not, so each run
 # of spaces matches in one way only and matching stays linear in the reply
 # length. Trailing spaces and tabs are accepted in any number and do not count
@@ -541,7 +544,8 @@ _TRAILING_VERDICT_RE = re.compile(
     r"^[ \t]*(?:(?:[*_#>`]{1,6}|<[a-z]{1,6}>)[ \t]*){0,3}"
     r"GRADE(?!\w)"
     r"(?P<sep>(?:[ \t]*(?:</?[a-z]{1,6}>|\([^()\n]{0,20}\))){0,3}"
-    r"[ \t]*(?:[^\w\s<(]{1,4}[ \t]*)?)"
+    r"[ \t]*(?:[^\w\s<(*`\[]{1,4}[ \t]*)?)"
+    r"[*_`\[(]*"
     r"(?P<grade>[a-z]{1,12})"
     r"[ \t]*(?:(?:[*_`)\].!]|</[a-z]{1,6}>)[ \t]*){0,8}\r?$",
     re.IGNORECASE | re.MULTILINE,
