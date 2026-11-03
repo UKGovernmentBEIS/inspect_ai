@@ -296,8 +296,8 @@ comes from the scope as well as from tool construction:
   as the scope's user (`ai/util/_sandbox/_cli.py`, `tools_user_param()`).
 - **Refuse.** The model-facing tools above, configured with a different user
   (`bash(user="root")`), raise `SandboxIdentityError` at their first call
-  rather than run as that user. `computer()` and `web_browser()`, which cannot
-  run as a user, and `skill()`, which does not yet install skills as a user,
+  rather than run as that user. `computer()`, which cannot run as a user,
+  and `skill()`, which does not yet install skills as a user,
   raise inside a scope. A saved `bash_session()` shell can be reused inside a
   scope only if it was created under the same user and sandbox; outside any
   scope a saved shell can still be used and keeps running as the user it was
