@@ -371,7 +371,8 @@ no other record has one. It keeps a `PortRequest` for each
 ```python
 @dataclass(eq=False)
 class PortRequest:
-    sample: Sample                   # as sent; an id assigned at delivery is kept
+    sample: Sample                   # the port's own copy; an id assigned at delivery is set on it
+    explicit_id: bool                # whether the caller's sample had an id when sent
     epoch: int | None
     state: Literal["sent", "admitted", "dropped", "refused", "done"]
     futures: dict[int, Future[EvalSample]]   # one per planned epoch
@@ -393,11 +394,31 @@ in `runs`, for the duplicate check below; a refused request never adds
 any. A pending request is kept until it is delivered and settled, or
 settled without delivery, including across an in-run retry. So an
 hours-long rollout task's port holds its pending requests and one small
-tuple per run, while the runner releases each completed sample as it
-does for any injected sample (`task/run.py:1018-1028`, `:1040-1059`).
+tuple per run. This is about the port's own references: the runner and
+the recorder keep theirs as they do for any injected sample. The runner
+keeps an errored or cancelled sample so the control channel can requeue
+it, and releases the others when they complete (`task/run.py:1018-1028`,
+`:1040-1059`); the recorder keeps an `EvalSample` until its buffered write
+is flushed (`src/inspect_ai/log/_recorders/eval.py:1152`, `:1277`;
+`src/inspect_ai/_eval/task/log.py:778`). Neither changes.
+
+**Ownership.** `enqueue_sample()` first takes its own copy of the caller's
+sample, `sample.model_copy()`, and records `explicit_id = sample.id is not
+None`. Every later step (the check at the call, the delivery checks, the
+marker write and `add_samples`) uses that copy. The runner's allocator
+assigns an automatic id by rebinding the top-level `id` field of the sample
+it reserves (`reserve_runs`, `task/run.py:1710-1717`), and nothing else it
+does changes the sample object, so a shallow copy is the depth needed: the
+id lands on the copy, and the nested input, metadata and files stay shared
+and read-only, as a source's own samples share them with its dataset
+today. So the caller's object never gains an id, and one anonymous
+`Sample` sent to two tasks, or to two task × model handles, gets an
+automatic id in each target independently; neither target sees the
+other's id as an explicit one, and a target suspended at the marker write
+(step 2 of "Delivery") cannot have its request's id changed under it.
 
 **Validation at the call.** `enqueue_sample()` validates `epoch` as the
-task-side `enqueue_sample()` does. For a sample with an id it computes the
+task-side `enqueue_sample()` does. For a sample with an explicit id it computes the
 planned runs with the runner's canonical rule (`(str(id), epoch)`, or
 `(str(id), 1..epochs)` when `epoch` is `None`) and raises `ValueError` to
 the caller, without reaching the task, when they intersect:
@@ -1131,10 +1152,21 @@ test touched), with mockllm models:
     fails with `SampleAbandonedError`, and the target finishes (each bounded
     with `fail_after`);
   - retention: a rollout task that receives many requests (successful,
-    errored, dropped and refused) holds, after each call returns, no
-    reference to its sample, futures or `EvalSample` (checked with weak
-    references), while its `runs` still refuse a duplicate id; a request
-    still pending across an in-run retry is kept and delivered.
+    errored, dropped and refused): after each call returns, the port holds
+    no `PortRequest` for it and no reference to its sample copy, futures or
+    `EvalSample` (checked on the port's own fields), while its `runs` still
+    refuse a duplicate id; after the run's sample buffer is flushed and the
+    runner has released the completed samples, weak references to the
+    successful requests' inputs and results are dead, and an errored
+    request's sample is still held by the runner for requeue, as today; a
+    request still pending across an in-run retry is kept and delivered;
+  - ownership: one anonymous `Sample` sent to task A (empty seed) and to
+    task B (whose seed reserves id 1), and to two task × model handles of
+    one task, each runs in every target with that target's own automatic
+    id; the caller's object still has `id is None`; with B's delivery held
+    at the marker write while A's delivery assigns its id, B's request is
+    admitted with B's own id and B does not fail; sending one object with
+    an explicit id that clashes is still refused with `ValueError`.
 - `tests/test_sample_source.py`:
   - port validation: an id equal to a seed id, its int/str equivalent
     (`1` and `"1"`), and a seed id excluded by `--sample-id` or `--limit`
