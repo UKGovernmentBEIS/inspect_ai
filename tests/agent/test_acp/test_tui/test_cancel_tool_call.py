@@ -30,7 +30,7 @@ from inspect_ai.agent._acp.tui.client import SessionRow
 from inspect_ai.agent._acp.tui.session_screen import SessionScreen
 from inspect_ai.agent._acp.tui.widgets.tool_call import ToolCallWidget
 
-from .conftest import make_fake_client
+from .conftest import make_fake_client, open_session_screen
 
 
 def _row() -> SessionRow:
@@ -46,20 +46,6 @@ def _row() -> SessionRow:
         target=TargetAddress(socket_path=Path("/tmp/acp_cancel_tool_test.sock")),
         fails_on_error=False,
     )
-
-
-async def _open_session_screen(pilot: Any, rows: list[SessionRow]) -> SessionScreen:
-    """Walk PickerScreen → SessionScreen via the picker's ``_on_select``."""
-    app = pilot.app
-    await pilot.pause()
-    if not isinstance(app.screen, SessionScreen):
-        app.screen._on_select(rows[0])
-        for _ in range(20):
-            await pilot.pause()
-            if isinstance(app.screen, SessionScreen):
-                break
-    assert isinstance(app.screen, SessionScreen)
-    return app.screen
 
 
 def _push_tool_start(
@@ -109,7 +95,7 @@ async def test_ctrl_l_cancels_only_in_flight_tool() -> None:
     client = make_fake_client(rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
-        screen = await _open_session_screen(pilot, rows)
+        screen = await open_session_screen(pilot, rows)
         _push_tool_start(screen, "tc-1")
         await pilot.pause()
 
@@ -138,7 +124,7 @@ async def test_ctrl_l_cancels_all_in_flight_tools() -> None:
     client = make_fake_client(rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
-        screen = await _open_session_screen(pilot, rows)
+        screen = await open_session_screen(pilot, rows)
         _push_tool_start(screen, "tc-older", title="bash sleep 30")
         _push_tool_start(screen, "tc-newer", title="bash sleep 60")
         await pilot.pause()
@@ -172,7 +158,7 @@ async def test_ctrl_l_is_noop_after_all_eligible_tools_cancelled() -> None:
     client = make_fake_client(rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
-        screen = await _open_session_screen(pilot, rows)
+        screen = await open_session_screen(pilot, rows)
         _push_tool_start(screen, "tc-older")
         _push_tool_start(screen, "tc-newer")
         await pilot.pause()
@@ -202,7 +188,7 @@ async def test_ctrl_l_is_noop_when_no_tools_in_flight() -> None:
     client = make_fake_client(rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
-        screen = await _open_session_screen(pilot, rows)
+        screen = await open_session_screen(pilot, rows)
         # No tool in flight — accessor returns None, binding is hidden
         # via check_action and a stray press is a no-op even if it
         # somehow fires.
@@ -239,7 +225,7 @@ async def test_card_header_flips_to_cancelling_after_dispatch() -> None:
     client = make_fake_client(rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
-        screen = await _open_session_screen(pilot, rows)
+        screen = await open_session_screen(pilot, rows)
         _push_tool_start(screen, "tc-1")
         await pilot.pause()
 
@@ -271,7 +257,7 @@ async def test_double_ctrl_l_fires_request_only_once_for_same_tool() -> None:
     client = make_fake_client(rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
-        screen = await _open_session_screen(pilot, rows)
+        screen = await open_session_screen(pilot, rows)
         _push_tool_start(screen, "tc-1")
         await pilot.pause()
 
@@ -306,7 +292,7 @@ async def test_cancel_request_exception_clears_cancel_requested() -> None:
     client = make_fake_client(rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
-        screen = await _open_session_screen(pilot, rows)
+        screen = await open_session_screen(pilot, rows)
         _push_tool_start(screen, "tc-1")
         await pilot.pause()
 
@@ -344,7 +330,7 @@ async def test_cancel_response_false_clears_cancel_requested() -> None:
     client = make_fake_client(rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
-        screen = await _open_session_screen(pilot, rows)
+        screen = await open_session_screen(pilot, rows)
         _push_tool_start(screen, "tc-1")
         await pilot.pause()
 
@@ -381,7 +367,7 @@ async def test_cancel_response_true_keeps_cancel_requested() -> None:
     client = make_fake_client(rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
-        screen = await _open_session_screen(pilot, rows)
+        screen = await open_session_screen(pilot, rows)
         _push_tool_start(screen, "tc-1")
         await pilot.pause()
 

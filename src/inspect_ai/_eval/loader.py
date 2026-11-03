@@ -26,6 +26,7 @@ from inspect_ai._util.registry import (
     registry_lookup,
     registry_params,
 )
+from inspect_ai._util.rich import escape_control_characters
 from inspect_ai.agent._agent import Agent
 from inspect_ai.agent._as_solver import as_solver
 from inspect_ai.log import EvalLog
@@ -827,6 +828,92 @@ def scorer_from_registry(name: str, /, **kwargs: Any) -> Scorer:
         )
 
 
+def scorer_from_log_name(name: str, task_path: Path | None, /, **kwargs: Any) -> Scorer:
+    """Create a scorer from a bare name, falling back to the log's task file.
+
+    The name is looked up in the registry only, never parsed as a path, so a
+    scorer name recorded in a log cannot select a file to import. When the
+    registry cannot build the scorer (not registered, or its factory raises
+    `ValueError` for these options), `task_path` is imported and the registry
+    tried again. The import is printed and logged so that `inspect score`
+    shows what it loaded.
+
+    Args:
+        name: Scorer name.
+        task_path: Task file recorded in the log, if any.
+        **kwargs: Arguments passed to the scorer factory.
+
+    Raises:
+        PrerequisiteError: If the scorer cannot be found or loaded.
+    """
+    try:
+        return scorer_from_registry(name, **kwargs)
+    except ValueError:
+        # We need a valid path to a scorer file to try to load the scorer from there
+        if not task_path:
+            raise PrerequisiteError(
+                f"The scorer '{name}' couldn't be loaded. Please provide a path to the file containing the scorer using the '--scorer' parameter"
+            )
+
+        task_pretty_path = task_path.as_posix()
+        if not task_path.exists():
+            raise PrerequisiteError(
+                f"The scorer `{name}` couldn't be loaded. The file '{task_pretty_path}' was not found. Please provide a path to the file containing the scorer using the '--scorer' parameter"
+            )
+
+        record = escape_control_characters(
+            f"Imported task file {task_path.absolute().as_posix()} (recorded in the log) to load scorer '{name}'."
+        )
+        print_record(record)
+        logger.info(record)
+
+        # We have the path to a file, so load that and try again
+        try:
+            load_module(task_path)
+            scorer_fn = scorer_from_registry(name, **kwargs)
+            _validate_scorer(scorer_fn, name, task_pretty_path)
+            return scorer_fn
+        except ValueError:
+            # we still couldn't load this, request the user provide a path
+            raise PrerequisiteError(
+                f"The scorer '{name}' in the file '{task_pretty_path}' couldn't be loaded. Please provide a path to the file containing the scorer using the '--scorer' parameter."
+            )
+        except ModuleNotFoundError:
+            # we still couldn't load this, request the user provide a path
+            raise PrerequisiteError(
+                f"The scorer '{name}' in the file '{task_pretty_path}' couldn't be loaded. Please provide a path to the file containing the scorer using the '--scorer' parameter."
+            )
+
+
+def print_record(record: str) -> None:
+    """Print a record of what a run operation took from a log.
+
+    Prints with the display once a display type has been chosen (as the CLI
+    does at startup), unless it is `none`. Nothing is printed before then, so
+    the display is not created early and a library caller's later choice of
+    display still applies.
+
+    Args:
+        record: Line to print.
+    """
+    from inspect_ai._display import display
+    from inspect_ai.util._display import display_type, display_type_initialized
+
+    if display_type_initialized() and display_type() != "none":
+        display().print(record)
+
+
+# See if the scorer doesn't have type annotations. Currently the registry will not load
+# the function without type annotations.
+# TODO: We could consider calling this ourselves if we're certain it is what we're looking for
+def _validate_scorer(scorer_fn: Scorer, scorer_name: str, scorer_path: str) -> None:
+    signature = inspect.signature(scorer_fn)
+    if signature.return_annotation is inspect.Signature.empty:
+        raise PrerequisiteError(
+            f"The function '{scorer_name}' in the file '{scorer_path}' requires a return type annotation. Please add a return type annotation to use this function with scoring."
+        )
+
+
 def scorer_from_spec(spec: ScorerSpec, task_path: Path | None, **kwargs: Any) -> Scorer:
     """
     Load a scorer
@@ -857,53 +944,13 @@ def scorer_from_spec(spec: ScorerSpec, task_path: Path | None, **kwargs: Any) ->
         cwd_relative_path(scorer_file.as_posix()) if scorer_file else None
     )
 
-    # See if the scorer doesn't have type annotations. Currently the registry will not load
-    # the function without type annotations.
-    # TODO: We could consider calling this ourselves if we're certain it is what we're looking for
-    def validate_scorer(scorer_fn: Scorer, scorer_name: str, scorer_path: str) -> None:
-        signature = inspect.signature(scorer_fn)
-        if signature.return_annotation is inspect.Signature.empty:
-            raise PrerequisiteError(
-                f"The function '{scorer_name}' in the file '{scorer_path}' requires a return type annotation. Please add a return type annotation to use this function with scoring."
-            )
-
     with create_cm:
         # is there a scorer file being provided? if not, load from registry
         if scorer_file is None:
             if scorer_name is None:
                 raise ValueError(f"Unable to resolve scorer name from {spec.scorer}")
 
-            try:
-                return scorer_from_registry(scorer_name, **kwargs)
-            except ValueError:
-                # We need a valid path to a scorer file to try to load the scorer from there
-                if not task_path:
-                    raise PrerequisiteError(
-                        f"The scorer '{scorer_name}' couldn't be loaded. Please provide a path to the file containing the scorer using the '--scorer' parameter"
-                    )
-
-                task_pretty_path = task_path.as_posix()
-                if not task_path.exists():
-                    raise PrerequisiteError(
-                        f"The scorer `{scorer_name}` couldn't be loaded. The file '{task_pretty_path}' was not found. Please provide a path to the file containing the scorer using the '--scorer' parameter"
-                    )
-
-                # We have the path to a file, so load that and try again
-                try:
-                    load_module(task_path)
-                    scorer_fn = scorer_from_registry(scorer_name, **kwargs)
-                    validate_scorer(scorer_fn, scorer_name, task_pretty_path)
-                    return scorer_fn
-                except ValueError:
-                    # we still couldn't load this, request the user provide a path
-                    raise PrerequisiteError(
-                        f"The scorer '{scorer_name}' in the file '{task_pretty_path}' couldn't be loaded. Please provide a path to the file containing the scorer using the '--scorer' parameter."
-                    )
-                except ModuleNotFoundError:
-                    # we still couldn't load this, request the user provide a path
-                    raise PrerequisiteError(
-                        f"The scorer '{scorer_name}' in the file '{task_pretty_path}' couldn't be loaded. Please provide a path to the file containing the scorer using the '--scorer' parameter."
-                    )
+            return scorer_from_log_name(scorer_name, task_path, **kwargs)
 
         # solver is a path, so load it that way
         else:
@@ -932,7 +979,7 @@ def scorer_from_spec(spec: ScorerSpec, task_path: Path | None, **kwargs: Any) ->
                 for solver in (scorer_decorators + scanner_decorators)
             ):
                 scorer_fn = scorer_from_registry(scorer_name, **kwargs)
-                validate_scorer(scorer_fn, scorer_name, pretty_scorer_file or "")
+                _validate_scorer(scorer_fn, scorer_name, pretty_scorer_file or "")
                 return scorer_fn
             else:
                 raise PrerequisiteError(

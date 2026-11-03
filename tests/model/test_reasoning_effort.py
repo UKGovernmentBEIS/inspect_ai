@@ -987,7 +987,7 @@ async def test_openrouter_max_reaches_responses_request(monkeypatch):
 # real effort level from grok-4.6, and xAI documents that grok-4-family models
 # without xhigh support (e.g. grok-4.5) treat it as high, so passing it
 # through preserves user intent on models that honor it. Requires xai_sdk >=
-# 1.18 (the requirements-dev.txt floor); older SDKs clamp to "high" (covered
+# 1.18 (the dev extra's floor); older SDKs clamp to "high" (covered
 # by test_grok_xhigh_clamped_on_older_sdk below).
 
 

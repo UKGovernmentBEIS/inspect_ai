@@ -514,6 +514,10 @@ async def _apply_response_filter(
         raise ResponseFilterError(
             "response_filter returned a ModelOutput with no choices"
         )
+    if output.choices and filtered.choices[0].message == output.choices[0].message:
+        # the provider's completion can differ from message.text (e.g. Gemini
+        # text continued across requests is joined with no separator)
+        filtered.completion = output.completion
     _check_provider_owned_content(output, filtered)
     _settle_message_ids(output, filtered)
     return filtered
@@ -1068,14 +1072,18 @@ async def _bridge_generate_impl(
         # are the only ones the scaffold may run as host tools, once each; they
         # resolve against the declarations this attempt generated with (tools and
         # in-input declarations alike), which a filter may have rewritten. Approval
-        # review is "utility" work — an approver's own model calls should read as
-        # utility, not as the agent whose calls are under review.
+        # resolves the calls against the same declarations, so it reviews the tool
+        # each grant binds. Approval review is "utility" work — an approver's own
+        # model calls should read as utility, not as the agent whose calls are
+        # under review.
+        declarations: list[ToolInfo | Tool] = list(tools)
+        if declared_in_input is not None:
+            declarations.extend(declared_in_input(input_messages))
         with agent_bridge_context_scope(_UTILITY_CONTEXT):
-            reviewed = await apply_bridge_tool_approval(bridge, output, input_messages)
+            reviewed = await apply_bridge_tool_approval(
+                bridge, output, input_messages, declarations
+            )
         if reviewed.rejection is None:
-            declarations: list[ToolInfo | Tool] = list(tools)
-            if declared_in_input is not None:
-                declarations.extend(declared_in_input(input_messages))
             # executions are placed in the proposing ModelEvent's span; only one
             # a sink chose is stored, so a rotating checkpoint span is followed
             bridge.register_tool_execution_grants(
