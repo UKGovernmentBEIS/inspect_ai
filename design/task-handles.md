@@ -3,9 +3,11 @@
 ## Overview
 
 `enqueue_task()` returns one `TaskHandle` per task and model it added. A
-handle waits for its task to start or end, cancels or closes it, and, when
-the task's dataset is a `SampleSource`, sends it samples and returns each
-sample's logged result. A task that a running task is waiting on borrows a
+handle waits for its task to start or end and cancels it. Called from a
+running task with `send_samples=True`, for a task whose dataset is a
+`SampleSource`, it also sends that task samples and returns each sample's
+logged result, keeping the task open until the handle is closed or its
+creator's attempt ends. A task that a running task is waiting on borrows a
 slot when every slot is taken, so a search that drives a rollout task works
 at the default `max_tasks=1`:
 
@@ -13,7 +15,7 @@ at the default `max_tasks=1`:
 @solver
 def search(n_steps: int) -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:
-        [rollouts] = enqueue_task(rollout_task())
+        [rollouts] = enqueue_task(rollout_task(), send_samples=True)
         for _ in range(n_steps):
             sample = await propose_next(state)
             [result] = await rollouts.enqueue_sample(sample)
@@ -129,10 +131,15 @@ Non-goals:
   every `PreviousTask` reaches: `eval_retry()`
   (`src/inspect_ai/_eval/eval.py:1973`), eval-set resume in ordinary and
   legacy retry rounds (`src/inspect_ai/_eval/evalset.py:1148`, `:1530`) and
-  selection-worker resume (`evalset.py:1763`). A task added by
-  `enqueue_task()` is resolved fresh (`_resolve_enqueued_tasks`), so today
-  its log reaches these paths through the in-run retry, an `eval_retry()`
-  pointed at it, or a requested task with the same task identifier.
+  selection-worker resume (`evalset.py:1763`). `enqueue_task()` passes
+  its `Tasks` argument to `_resolve_enqueued_tasks`
+  (`src/inspect_ai/_eval/eval.py:1291`), which resolves it like any other
+  `Tasks` value: a `ResolvedTask` is passed through with its
+  `sample_source`, and a `PreviousTask` (alone, in a list, or mixed with
+  `ResolvedTask`s) goes through `resolve_previous_tasks()`
+  (`src/inspect_ai/_eval/loader.py:134-145`, `:287-326`), so an added task
+  can start with a prior lookup, seed and checkpoint directory
+  (`tests/test_enqueue_task.py:147` enqueues a `ResolvedTask`).
 - Mid-run log state is recorded the way `inspect ctl config` retunes are:
   `.eval` appends a journal member and flushes it at once
   (`src/inspect_ai/log/_recorders/eval.py:281`, `:1133`), header reads of an
@@ -168,11 +175,33 @@ Non-goals:
 
 ### The handle API
 
-`enqueue_task(tasks, *, run_id=None) -> list[TaskHandle]`: still
-synchronous, one handle per task × model it added, in resolution order
-(decision: Ransom, 2026-11-03). Existing callers, which ignore the `None`
-returned today, are unaffected. New exports from `inspect_ai`:
+`enqueue_task(tasks, *, run_id=None, send_samples=False) -> list[TaskHandle]`:
+still synchronous, one handle per task × model it added, in resolution
+order (decision: Ransom, 2026-11-03). New exports from `inspect_ai`:
 `TaskHandle`, `TaskEndedError`, `SampleAbandonedError`.
+
+`send_samples` decides whether the handles can send samples, and only then
+does a task wait for its handles (see "Keeping the task open"). With the
+default `False` the added tasks run and end exactly as today, so existing
+callers, which ignore the `None` returned today, are unaffected: a parent
+that ignores the return value and waits for its child to finish (for
+example on its `TaskSource.task_complete` event) still sees it finish.
+`send_samples=True` checks, at the call and for every task it resolves:
+
+- that it is called from a running task attempt, which becomes the
+  creator: otherwise `RuntimeError` (the port would close at once);
+- that the dataset is a `SampleSource`: otherwise `TypeError` naming the
+  task;
+- that the resolved task carries no prior state
+  (`ResolvedTask.sample_source is None`): a `PreviousTask`, or a
+  `ResolvedTask` with a `sample_source`, raises `ValueError` ("tasks that
+  receive samples through a handle must start fresh; pass the Task"). Ids
+  of samples sent through a handle depend on when they arrive, so a prior
+  lookup keyed on id and epoch could hand one sample another's result (see
+  "Logs of tasks that received samples"). Those inputs stay supported with
+  `send_samples=False`.
+
+Nothing is enqueued when a check fails.
 
 ```python
 class TaskHandle:
@@ -259,11 +288,12 @@ Handles are returned to `enqueue_task()` callers in a solver, scorer, tool
 or `TaskSource` callback, under `eval()`, `eval_set()` and selection mode.
 Everything else is refused with a clear error:
 
-- `TaskHandle.enqueue_sample()` on a task whose dataset is not a
-  `SampleSource`: `TypeError` naming the task.
-- `TaskHandle.enqueue_sample()` on a handle that was not created by a
-  running task (for example from `TaskSource.next_tasks()`), or after
-  `close()`: `RuntimeError`.
+- `enqueue_task(..., send_samples=True)` outside a running task attempt
+  (for example in `TaskSource.next_tasks()`), for a task whose dataset is
+  not a `SampleSource`, or for a task with prior state: the errors under
+  "The handle API".
+- `TaskHandle.enqueue_sample()` on a handle created with
+  `send_samples=False`, or after `close()`: `RuntimeError`.
 - `TaskHandle.enqueue_sample()` after the task has ended: `TaskEndedError`
   as in the table.
 - Awaiting `started()`, `result()` or `enqueue_sample()` inside
@@ -306,8 +336,9 @@ the port, releasing its requests.
 
 ### Sending samples
 
-A record whose dataset is a `SampleSource` has a `SamplePort` (in
-`enqueue.py`), created when the record is configured. It keeps one
+A record added by `enqueue_task(..., send_samples=True)` has a
+`SamplePort` (in `enqueue.py`), created when the record is configured;
+no other record has one. It keeps one
 `PortRequest` per `enqueue_sample()` call:
 
 ```python
@@ -410,8 +441,9 @@ async with task group tg:                  # owned by the feeder
         if scheduler.outstanding > 0:
             await feeder_wake.wait(); continue   # rung by settle, enqueue, pull done, port send or close
         # no samples in flight or buffered
-        if limit exhausted:                    # held additions are counted over the limit, as today
-            await add_and_start(enqueuer.drain()); break   # an outstanding pull is cancelled below
+        if limit exhausted:                    # held additions: over the limit, as today, except
+            if await add_and_start(enqueuer.drain()): continue   # more epochs of an admitted id
+            break                              # nothing can start: an outstanding pull is cancelled below
         if pull is not None: await feeder_wake.wait(); continue
         if not source_done:
             port_during_pull = False
@@ -458,22 +490,30 @@ async with task group tg:                  # owned by the feeder
   enqueue during a terminal call (`task/run.py:1855-1860`,
   `sample_source.py:69`); verified on this branch's base: a `next_samples()`
   that enqueues a sample and returns `None` is called again and its next
-  batch runs. When the task is fully idle and the sample limit is
-  exhausted, an outstanding pull is cancelled and the task ends, since
-  nothing it returned could run.
+  batch runs.
+- **An exhausted limit ends the task only when nothing more can start.**
+  `--limit` counts distinct ids, and another epoch of an admitted id is
+  still admitted at zero budget (`task/run.py:1734-1742`). So when the task
+  is fully idle and the limit is exhausted, the feeder first admits the
+  held additions; if any of them starts (an epoch 2 a callback returned for
+  an admitted sample), it goes round the loop again, admitting each
+  callback's further epochs in turn, and only when an idle pass starts
+  nothing does it cancel an outstanding pull and end the task, since
+  nothing the pull returned could run.
 - A port closing does not end an outstanding pull: the source still decides
   when the task ends. An open port only keeps the task from ending after
   the source is done.
 
 ### Keeping the task open
 
-A `SampleSource` task with an open port does not end when its source is
-exhausted: the feeder waits for the port (a new sample or a close) instead
-of finishing. The port closes on `close()`, on `cancel()`, when the task
-attempt that created the handle ends, and when the run ends. A handle
-created outside any task attempt has its port closed from the start. So a
-creator that forgets `close()` cannot keep a rollout task open past its own
-attempt.
+A task with an open port does not end when its source is exhausted: the
+feeder waits for the port (a new sample or a close) instead of finishing.
+Only `send_samples=True` creates a port, so a caller that asks for one has
+said it will send samples. The port closes on `close()`, on `cancel()`,
+when the task attempt that created the handle ends, and when the run ends.
+So a creator that forgets `close()` cannot keep a rollout task open past
+its own attempt, and a task added without `send_samples` ends when its
+source is done, as today.
 
 ### Logs of tasks that received samples
 
@@ -547,24 +587,24 @@ So a log that a port has contributed to is never reused:
   first attempt failed in sandbox setup before any request arrived, or its
   only request was refused) has no marker and is retried, and its `sent`
   requests are delivered into the retry as new arrivals.
-- **A retry that can receive samples reuses nothing.** An unmarked attempt
+- **A retry of a task that can receive samples reuses nothing.** An unmarked attempt
   can still have completed samples of its own before it failed. If the retry
   reused them, a port request delivered before the source regenerates one
   could take its id: with an empty seed, source sample A completes as id 1,
   the attempt fails, and in the retry an anonymous request P arrives first,
   is given id 1, and the prior lookup (`task/run.py:1403-1424`) returns A's
   result for it; checkpoints copied at the retry's start (`task/run.py:957`,
-  `:989-998`) would likewise restore A's state into P. So when the
-  dispatcher queues an in-run retry of a record whose port is open (a
-  handle created by a running attempt, not yet closed), it gives the retry
-  the empty sample source instead of the one built at
+  `:989-998`) would likewise restore A's state into P. A closed port does
+  not prevent this: requests accepted before `close()`, or whose caller was
+  cancelled, are still delivered. So when the dispatcher queues an in-run
+  retry of a record that has a port, open or closed, it gives the retry the
+  empty sample source instead of the one built at
   `src/inspect_ai/_eval/run.py:979` or the previous attempt's
   (`:989-995`): no lookup, no seed, no checkpoint copy. The retry reruns
   the task's own samples from scratch, and ids are assigned in its own
-  admission order. A record whose port is closed can receive nothing more,
-  and is retried with reuse as today; a port never reopens. Only the in-run
-  retry needs this: a record with a port is always resolved fresh
-  (`_resolve_enqueued_tasks`), never from a `PreviousTask`.
+  admission order. A record without a port is retried with reuse as today.
+  The first attempt starts clean too: `send_samples=True` refuses a task
+  with prior state (see "The handle API").
 - **`eval_retry()` refuses a marked log** with `PrerequisiteError`
   ("<log> cannot be retried on its own: task '<task>' received samples
   through a task handle from the task that created it; retry that task
@@ -768,8 +808,10 @@ No migration required.
 
 Public API (additive):
 
-- `enqueue_task()` returns `list[TaskHandle]` instead of `None`; signature
-  and synchronous behaviour unchanged.
+- `enqueue_task()` returns `list[TaskHandle]` instead of `None` and gains
+  the keyword-only `send_samples=False`; synchronous behaviour unchanged.
+  Without `send_samples` an added task has no port and ends when its
+  source is done, as today, whatever the caller does with the handles.
 - New `inspect_ai.TaskHandle`, `TaskEndedError`, `SampleAbandonedError`.
 - `SampleSource` docstrings: samples sent through a handle start while
   `next_samples()` is awaiting, and their callbacks may fire meanwhile;
@@ -887,7 +929,7 @@ test touched), with mockllm models:
     `False` and is reused as today;
   - a request refused at delivery (the source reserved its id first),
     followed by an otherwise retryable error: no marker; the task is
-    retried, and since its port is open the retry reuses nothing;
+    retried, and since it has a port the retry reuses nothing;
   - the fallback log: after a delivery, a failing final log write (stub
     recorder) and a raising task-completion callback each end the task
     without a retry, and the log the dispatcher and `result()` return has
@@ -897,8 +939,26 @@ test touched), with mockllm models:
     retry an anonymous request P arrives before the source regenerates A;
     P's `EvalSample` has P's input and its own output, A reruns, and nothing
     is reused, with sample logging on and off and with checkpointing on (no
-    checkpoint is copied into the retry); the same task with its port
-    closed before the error reuses A as today.
+    checkpoint is copied into the retry); the same with the port closed,
+    and with the caller of a pending request cancelled, after P is sent and
+    before the failure (P is still delivered into the retry with its own
+    result, and no checkpoint of A is restored into it); a task added
+    without `send_samples` that fails the same way reuses A as today.
+- `tests/test_enqueue_task.py` (existing callers and the new keyword):
+  - a parent under a `TaskSource` at `max_tasks=2` enqueues a finite
+    `SampleSource` child, ignores the return value and awaits the child's
+    `task_complete` event: the child ends when its source is done and the
+    parent completes (bounded with `fail_after`);
+  - `send_samples=True` outside a running attempt, for a non-`SampleSource`
+    dataset, for a `PreviousTask`, a list of them, a mixed
+    `PreviousTask`/`ResolvedTask` list, and a `ResolvedTask` with a
+    `sample_source` each raise and enqueue nothing; the same inputs without
+    `send_samples` still run as today (the existing `ResolvedTask` case at
+    `tests/test_enqueue_task.py:147`), and `enqueue_sample()` on their
+    handles raises `RuntimeError`;
+  - with `send_samples=True` and a fresh task, P sent before the source's
+    first pull gets its own id and result (initial admission), as in the
+    retry case above.
 - `tests/test_sample_source.py`:
   - port validation: an id equal to a seed id, its int/str equivalent
     (`1` and `"1"`), and a seed id excluded by `--sample-id` or `--limit`
@@ -926,7 +986,10 @@ test touched), with mockllm models:
     and held additions; a pull that
     enqueues a sample and returns `None`, and a pull that returns `None`
     after a handle sample arrived during it, are each followed by another
-    pull once those samples have run.
+    pull once those samples have run; with `limit=1` and a pull blocked, a
+    port sample P whose `sample_complete` returns P at epoch 2, whose own
+    callback returns P at epoch 3, runs all three epochs before the pull is
+    cancelled and the task ends.
 
 ## Implementation plan
 
@@ -936,7 +999,8 @@ step 3 (the run queue and dispatcher) and independent of step 4:
 
 5. **Task handles.** `_eval/task/enqueue.py` (`TaskHandle`, `SamplePort`,
    `PortRequest`, the errors, `Loan`, the `next_tasks()` wait refusal, the
-   headroom warning; `enqueue_task()` returns handles), `_eval/task/run.py`
+   headroom warning; `enqueue_task()` returns handles and checks
+   `send_samples=True`), `_eval/task/run.py`
    (port attach, the three delivery steps, the result sites, the feeder's
    owned pull and held buffer, the open port, the attempt `ContextVar`, the
    marker check in `eval_log_sample_source()`), `_eval/task/log.py`
