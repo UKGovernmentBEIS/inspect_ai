@@ -12,7 +12,7 @@ Each tool should have its own subdirectory that contains the following files:
 
 -   `json_rpc_methods.py`
 
-    This module contains all of the JSON RPC `@method` functions — one for each tool (e.g. the web browser tool is actually a set of distinct tools). It is responsible for unpacking the JSON RPC request and forwarding the call to a transport-agnostic, strongly typed, stateful controller.
+    This module contains all of the JSON RPC `@method` functions — one for each tool operation. It is responsible for unpacking the JSON RPC request and forwarding the call to a transport-agnostic, strongly typed, stateful controller.
 
 -   `tool_types.py`
 
@@ -24,10 +24,7 @@ Each tool should have its own subdirectory that contains the following files:
 
 ## Architecture Overview
 
-The `inspect_sandbox_tools` package is part of a split architecture that separates tool support into two independent systems:
-
-- **Legacy system** (`inspect_tool_support`): Temporarily handles web browser functionality. Uses JSON-RPC communication but deploys code via Docker images built from Dockerfiles until the engineering to get Playwright included in the PyInstaller bundled executable works robustly.
-- **This system** (`inspect_sandbox_tools`): Handles all other tools (bash_session, text_editor, MCP). Uses JSON-RPC communication with runtime executable injection for deployment.
+The `inspect_sandbox_tools` package supports tools such as `bash_session()`, `text_editor()` and sandbox MCP servers. It uses JSON-RPC communication with runtime executable injection for deployment.
 
 ### Build Process
 
@@ -94,8 +91,8 @@ See [RELEASING.md](design/RELEASING.md) for the end-to-end process for building,
 
 ## Testing
 
-When running `pytest` with inspect to test interactions with this package, you may wish to test your _local_ version of the `inspect_tool_support` code instead of the latest published package. Passing the flag `--local-inspect-tools` to pytest when running tests from `test_inspect_container_tools.py` will build and install the package from source, for example:
+To test a local version of `inspect_sandbox_tools` instead of the published binaries, pass `--local-inspect-tools`. This builds the tools from source and injects them into the test sandboxes:
 
 ```sh
-pytest tests/tools/test_inspect_container_tools.py --runslow --local-inspect-tools
+pytest tests/tools/sandbox_tools_utils/test_sandbox_tools.py --runslow --local-inspect-tools
 ```
