@@ -14,17 +14,22 @@ Sandbox setup (a provider's `task_init`) moves beside the dispatcher. It runs
 once per sandbox configuration per run, in a background worker, while tasks
 that need no setup (or whose configuration is already set up) start. A failed
 setup ends only the tasks that need it, each with an error log, and their
-retries apply. Setup no longer changes the process's working directory or
-environment: the task directory and the setup's environment variables reach
-the provider through `sandbox_setup()` and are applied by Inspect's
-`subprocess()`. The `ContextVar` values a provider binds in `task_init` are
+retries apply. Build output streams to the task display's console, each line
+prefixed with its configuration. Setup no longer changes the process's
+working directory or environment: the task directory and the setup's
+environment variables reach the provider through `sandbox_setup()` and are
+applied by Inspect's `subprocess()`; a provider declares that it uses them,
+and Inspect warns when one that has not runs setup for a task outside the
+launch directory. The `ContextVar` values a provider binds in `task_init` are
 captured per setup and given to that configuration's samples and its
 `task_cleanup`, so each cleanup sees the state its own `task_init` produced.
 
 `enqueue_task()` returns one `TaskHandle` per task and model it added. A
 handle waits for its task to start or end, cancels or closes it, and, when
 the task's dataset is a `SampleSource`, sends it samples and returns each
-sample's logged result:
+sample's logged result. When a running task waits on a queued task and every
+slot is taken, the waited-on task borrows a slot, so the example below works
+at the default `max_tasks=1`:
 
 ```python
 @solver
@@ -193,7 +198,9 @@ builds the `TaskLogger` and awaits `logger.init()` inside
 `SandboxManager._start_sandboxenvs` (`run.py:1238`) serializes setups on
 `_init_lock`, suspends the task display (`run.py:1262`) and awaits
 `task_init` inside `with chdir(sandboxenv.run_dir), environ_vars(...)`
-(`run.py:1278`); `chdir` is `os.chdir` (`src/inspect_ai/_util/path.py:27`)
+(`run.py:1278`). The provider type's `default_concurrency()` is read for the
+sandbox limiter before that, outside the `chdir` (`run.py:1270`,
+`task/sandbox.py:51`). `chdir` is `os.chdir` (`src/inspect_ai/_util/path.py:27`)
 and `environ_vars` writes `os.environ` (`src/inspect_ai/_util/environ.py:30`).
 The same chdir wraps `await task_init_environment(...)`
 (`src/inspect_ai/_eval/task/sandbox.py:265`) and each `task_cleanup` at
@@ -206,6 +213,19 @@ resolves `ComposeConfig` build paths and the no-config compose lookup against
 A setup error in `prepare_options` escapes into the dispatcher's task group
 and fails the whole run. A `SampleSource` task's mid-run setup
 (`options.startup_sandboxes`, `task/run.py:1827`) fails only that task.
+
+Setup output reaches the terminal directly. Docker's `compose build` and
+`compose pull` (`src/inspect_ai/util/_sandbox/docker/compose.py:263`, `:275`)
+run through `subprocess()` without capturing output, so the child inherits
+the terminal, which is why the task display is suspended around `task_init`.
+`subprocess()` already has a line-streaming path for output it does not
+capture (`_log_stream`, selected by `INSPECT_SUBPROCESS_REDIRECT_TO_LOGGER`,
+`_subprocess.py:251`, `:523`). Third-party providers print too (Podman's
+`task_init` calls `print("")`). `display().print()` writes to the textual
+display's Console tab (`ConsoleView`,
+`src/inspect_ai/_display/textual/widgets/console.py`, which counts unread
+lines), above the progress area for the rich display, to stdout for the plain
+display and to the logger for the log display.
 
 The task's string sandbox config is made absolute against the task
 directory at resolution (`loader.py:500-506`), and the config-file probe
@@ -237,17 +257,44 @@ this repo):
 | Daytona (`daytona/_daytona.py:57-67`, `:105`) | rebinds the list, run id and `_daytona_client` | same; client of the last config only |
 | Podman (`inspect_podman/cleanup.py:22-26`) | rebinds project and compose-file registries | same |
 | k8s (`k8s_sandbox/_manager.py:26-37`, `_sandbox_environment.py:170-174`) | get-or-create `HelmReleaseManager` and `PodOpExecutor`; comment says sample contexts copy the task context | shared across configs because all `task_init` run in one context |
-| EC2, Proxmox, Vagrant | process-level class state or nothing | unaffected |
+| Proxmox (`_proxmox_pool.py:115-130`) | builds instance pools in class state from `PROXMOX_CONFIG_FILE` | shared across configs; see the working-directory note below |
+| EC2, Vagrant | process-level class state or nothing | unaffected |
 
 With an empty `SampleSource` seed, `task_init` runs in the feeder, a sibling
 of the samples, so its bindings are invisible to them: E2B and Modal raise
 `LookupError`, Daytona raises "client not initialized". Docker was fixed by
 its lifecycle scope.
 
-Relative-path resolution in Python during `task_init`, among those providers:
-Daytona's compose loader falls back to `Path.cwd()` for a `ComposeConfig`
-(`daytona/_compose.py:42`); Podman's no-config lookup searches `os.getcwd()`
-(`inspect_podman/util.py:67`). The others take absolute paths or none.
+Relative paths that these providers resolve in Python during `task_init`
+(checkouts: inspect_sandboxes `bbe0ff4`, inspect-podman `8f1151e`,
+inspect_proxmox_sandbox `bb359d4`):
+
+- **E2B** warms its template cache in `task_init` from a single-service
+  `ComposeConfig` (`e2b/_e2b.py:115`), whose build paths fall back to
+  `Path.cwd()` (`e2b/_compose.py:59`): the task directory today. Its
+  `sample_init` resolves the same config again (`_e2b.py:157`) in the launch
+  directory. Daytona's and Modal's identical fallbacks
+  (`daytona/_compose.py:42`, `modal/_compose.py:64`) run only in
+  `sample_init`, so they already use the launch directory.
+- **Podman** resolves a `None` config with a compose-file lookup in
+  `os.getcwd()` (`inspect_podman/util.py:67`, `config.py:80`) and writes the
+  YAML for a `ComposeConfig` to an auto-compose file there
+  (`util.py:52`), in `task_init` (`podman.py:77`) and again in
+  `sample_init` (`podman.py:126`). The loader's probe has already turned a
+  compose file or Dockerfile in the task directory into an absolute config,
+  so the lookup is reached only when the task directory has none.
+- **Proxmox** reads `PROXMOX_CONFIG_FILE` in `task_init`
+  (`_proxmox_sandbox_environment.py:360` → `_proxmox_pool.py:125` →
+  `schema.py:484`), so a relative value resolves against the task directory
+  and the pools it builds are cached for the samples. Its other readers of
+  the same variable, `default_concurrency()` (`_proxmox_pool.py:205`, read
+  outside the setup `chdir`) and `cli_cleanup()`
+  (`_proxmox_sandbox_environment.py:637`), already resolve it against the
+  launch directory. A path that is not found falls back to the single
+  instance named by `PROXMOX_HOST`, or to no pools. The README's example is
+  an absolute path, and GitHub code search finds no Inspect project other
+  than inspect_proxmox_sandbox that sets the variable.
+- k8s, EC2 and Vagrant take absolute paths or none.
 
 ## Design
 
@@ -289,13 +336,19 @@ TaskState = Literal["queued", "running", "ended"]
 class TaskRecord:
     """One task × model of the run, from queuing until it ends."""
     task_id: str
-    resolved: ResolvedTask
-    options: TaskRunOptions          # configured at add time; logger built, not yet initialised
+    task: str                        # task name and model: kept after the record ends
+    model: str
+    resolved: ResolvedTask | None    # released when the record ends
+    options: TaskRunOptions | None   # configured at add time; released when the record ends
     index: int                       # result order: seed first in input order, then arrival order
     creator: TaskAttempt | None      # the running task attempt that called enqueue_task(), if any
     state: TaskState = "queued"
+    admission: Literal["waiting", "running", "done"] = "waiting"
+    cancel_requested: bool = False   # set by a control-channel or handle cancel
     setups: TaskSetups | None = None # see "Sandbox setup"; None until admitted
+    loan: Loan | None = None         # see "Slot lending"
     log: EvalLog | None = None       # latest attempt's log; final log once ended
+    error: BaseException | None = None  # admission failure, for the handle
     ended: anyio.Event               # set exactly once, by RunQueue.end()
     port: SamplePort | None = None   # only when the dataset is a SampleSource
 
@@ -303,8 +356,9 @@ class RunQueue:
     run_id: str
     def add(self, resolved: list[ResolvedTask], *, ahead: bool = False) -> list[TaskRecord]
     def find(self, task_id: str) -> TaskRecord | None
+    def cancel(self, record: TaskRecord) -> None
     def end(self, record: TaskRecord, log: EvalLog | None) -> None
-    wake: Wake                       # rung by every add/end/cancel and by setups as they settle
+    wake: Wake                       # rung by every add/end/cancel/loan and by setups as they settle
 ```
 
 `RunQueue.add` is synchronous. It orders the addition sequence-major (the
@@ -322,17 +376,49 @@ was running (`ahead=True`), matching the order `run_batches` produces today.
 The set of task names the run has seen, used to resolve `task:id` sample
 selectors, moves from `eval_run` into the queue.
 
-Admission is the dispatcher's first step for each new record. It awaits
-`ensure_model_controller` and `logger.init()` (as `prepare_options` does
-today), requests the record's sandbox setups, registers the record with the
-control channel as queued, and grows the display's task count. The seed is
-admitted before the dispatch loop starts, and an admission failure raises
-from `eval()` as today. For an added task an admission failure ends that
-record (its handle raises the error; no log exists) and the run continues.
+`RunQueue.add` also registers each new record with the control channel as
+queued, in the same synchronous step, so a record is listed and cancellable
+from the moment `add` returns, before anything about it is awaited (see
+"Control channel").
 
-Records are kept until the run ends so the control channel and handles can
-report on them; an ended record drops its `options` (and with them the
-dataset) so a finished task's samples are not held until the run ends.
+**Admission** prepares a record to start: it awaits
+`ensure_model_controller` and `logger.init()` (as `prepare_options` does
+today), requests the record's sandbox setups, and grows the display's task
+count. Admissions run one record at a time, in queue order, in a background
+job in the dispatcher's task group, so a slow `logger.init()` blocks neither
+the dispatch loop nor the listing or cancelling of later records. The seed is
+admitted before the dispatch loop starts, and a seed admission failure raises
+from `eval()` as today. For an added task an admission failure ends that
+record with no log (its handle's `started()` and `enqueue_sample()` raise
+`TaskEndedError` with the failure as `error` and `__cause__`, and `result()`
+returns `None`) and the run continues.
+
+**Cancelling a queued record** (`RunQueue.cancel`, from the control channel or
+a handle) sets `cancel_requested` and rings the queue:
+
+- before its admission starts, the admission is skipped;
+- during its admission, the admission runs to the end (interrupting
+  `logger.init()` part-way leaves a recorder entry and temporary file behind)
+  and the record is then ended;
+- after admission, the dispatcher ends it on its next pass.
+
+A record that ends without starting, for any reason (cancel, run end), and
+whose logger was initialised calls `logger.discard()`
+(`src/inspect_ai/_eval/task/log.py:1076`), which releases the recorder entry
+and its temporary file; nothing reaches the log directory. It drops its
+setup jobs that have not started and that no other record needs.
+
+**Releasing what an ended record holds.** Records are kept until the run ends
+so that the control channel and handles can report on them, but an ended
+record keeps only its identity (`task_id`, `task`, `model`, `index`), its
+final `log` (the same object the run returns), `error` and `ended`. `RunQueue.end`
+clears `resolved`, `options`, `setups` and `loan`, and closes the port, which
+releases the samples it kept for retry replay. `ResolvedTask.task` holds the
+original dataset (`src/inspect_ai/_eval/task/resolved.py:17`) and the
+configured task is a shallow copy of it (`run.py:260`), so both references
+have to go for a finished added task's samples to be freed. The seed's
+`ResolvedTask`s are also held by `_eval_async_inner`'s own list until the run
+ends, as today.
 
 ### The dispatcher
 
@@ -343,13 +429,14 @@ model balancing are unchanged. The loop, inside `_run_task_screen` as today:
 
 ```
 loop:
-    admit records added since the last pass
-    drop queued records cancelled through the control channel or a handle
+    end queued records with cancel_requested whose admission is not running
     drop pending retries abandoned by a drain/cancel            (as today)
-    while not cancelled and in_flight < effective_max_tasks(parallel) + lent:
-        record = pick_balanced(startable)        # setups settled, not paused
+    while not cancelled and ordinary_in_flight < effective_max_tasks(parallel):
+        record = pick_balanced(startable)    # admitted, setups settled, not paused
         if record is None: break
         start run_one(record)
+    for record in startable records holding a loan, in queue order:
+        start run_one(record, on_loan=True)  # see "Slot lending"
     if cancelled: break
     if any record queued or running, or a setup or admission in progress:
         await queue.wake; continue
@@ -358,6 +445,8 @@ loop:
     if more is None: source_done = True
     else: queue.add(resolve(more), ahead=True)
 ```
+
+`ordinary_in_flight` counts running records that did not start on a loan.
 
 - **Start rule.** A record is startable when its setups have settled
   (succeeded, or one failed) or it needs none. A record whose setup is still
@@ -384,21 +473,33 @@ loop:
 - **`debug_errors`** is passed to the dispatcher at every `max_tasks` (today
   only the `max_tasks == 1` path passes it).
 
-`max_tasks` counts running records. One addition, the slot lending in
-"Task handles", lets a task that a running task is waiting on start beyond
-the limit; see Open question 4.
+`max_tasks` counts running records, with one exception: a task that a
+running task is waiting on through a handle can start on a loan beyond the
+limit ("Slot lending" under "Task handles"). The docs for `max_tasks`
+(`eval()`/`eval_set()` docstrings, `docs/parallelism.qmd`) and for the
+handles say so.
 
 ### Control channel
 
-A queued record is registered in a new process-level registry,
+`RunQueue.add` registers each record in a new process-level registry,
 `src/inspect_ai/_control/queued_tasks.py`, keyed by `task_id`, holding the
-task name, model, queue position, setup state and a `cancel()` callback into
-the `RunQueue`. The record leaves the registry when its first attempt calls
-`register_eval`.
+task name, model, queue position, admission and setup state and a `cancel()`
+callback into the `RunQueue`. Registration is synchronous and comes before
+admission, so a record whose `logger.init()` is slow, and every record behind
+it, is listed and cancellable at once. The record leaves the registry in the
+same synchronous step in which its first attempt calls `register_eval`
+(`task/run.py:1185`), with no `await` between, so a directive always finds it
+in one of the two. A cancel that arrives after the dispatcher has started
+the record but before `register_eval` sets `cancel_requested`; `task_run`
+checks it immediately after `register_eval` and applies it to the new attempt
+as a task cancel, as if it had arrived just after registration. A record
+that ends without starting leaves the registry when it ends.
 
 - `GET /tasks` (`current_eval_summaries`) appends one row per queued record
   with `status: "queued"`, `attempts: 0`, `samples` totals of zero, and
-  `setup: "waiting" | "running" | "failed" | null`. Selector resolution in the
+  `setup: "admitting" | "waiting" | "running" | "failed" | null`
+  (`"admitting"` until admission has requested the setups; `null` when the
+  task needs none). Selector resolution in the
   CLI uses this listing, so `inspect ctl task cancel <id>` resolves a queued
   task by any selector it accepts for running ones.
 - `_task_cancel_directive` consults the registry when `latest_eval_for_task`
@@ -407,9 +508,9 @@ the `RunQueue`. The record leaves the registry when its first attempt calls
   without acting). `action=score|error` on a queued record answers 409:
   "task … has not started, so there are no samples for a resolution to apply
   to; use cancel or drain", the same rule the between-attempts case uses.
-- Cancelling a queued record drops its setup jobs that have not started and
-  that no other queued or running record needs. A job that has started runs
-  to the end (interrupting `task_init` can leave resources nothing cleans up).
+- Cancelling a queued record follows "Cancelling a queued record" above; a
+  setup job that has started runs to the end (interrupting `task_init` can
+  leave resources nothing cleans up).
 - `CONTROL_API_VERSION` (`src/inspect_ai/_control/__init__.py:84`) increases
   by one; `inspect ctl task list` shows queued rows.
 - Under `eval_set()`, a seed task cancelled while queued has no log, so the
@@ -435,8 +536,8 @@ class SetupJob:
 class TaskSetups:                      # one per record
     def settled(self) -> bool
     def failure(self) -> BaseException | None
-    def bindings_for(self, sample_id: str | int) -> Mapping[ContextVar[Any], Any]
-    async def ensure(self, samples: list[Sample]) -> None   # SampleSource additions
+    def bindings_for(self, sample_index: int) -> Mapping[ContextVar[Any], Any]
+    async def ensure(self, samples: list[tuple[int, Sample]]) -> None   # SampleSource additions
 
 class SandboxSetups:                   # one per run
     def request(self, record: TaskRecord) -> TaskSetups
@@ -451,6 +552,17 @@ class SandboxSetups:                   # one per run
   runs as one background job per record, bounded by the subprocess limiter as
   today. `task_init` jobs run one at a time, as `_init_lock` serializes them
   today; a provider is never asked to run two `task_init` calls at once.
+- **Which samples use which job.** Key resolution records, for each sample
+  of the attempt, the `SetupKey` its sandbox resolves to, keyed by the
+  sample's index in the attempt's sample list: the `sample_index` that
+  `run_sample` receives (`task/run.py:1330`), seed samples first, then added
+  samples in the order they were added (`task/run.py:1757`). Each added
+  `Sample` object gets its own index, including separate objects added with
+  the same id for different explicit epochs (`task/run.py:1769`), whose
+  sandbox configuration or metadata (and so `task_init_environment` values)
+  may differ (`task/sandbox.py:249`). An id, or an `(id, epoch)` pair, is
+  not used as the key: one object can run several epochs with one
+  configuration, and two objects with one id can have two configurations.
 - **Once per configuration per run.** Jobs are keyed by `SetupKey` across
   all records of the run and kept until the run ends; a record whose keys all
   have succeeded jobs is startable at once. Because the run has one
@@ -473,24 +585,46 @@ class SandboxSetups:                   # one per run
   tasks share a broken configuration, it is set up at most once per attempt
   number.
 - **`SampleSource` additions.** `startup_sandboxes` becomes
-  `options.setups.ensure(samples)`: resolve the added samples' keys, request
-  any missing jobs as needed now, and await them. A failure fails that task,
-  as today.
+  `options.setups.ensure(samples)`, called by `add_and_start` with each
+  added sample and the index `add_samples` gave it: resolve the added
+  samples' keys, request any missing jobs as needed now, and await them. A
+  failure fails that task, as today.
 - **Cleanup.** `shutdown()` runs each succeeded job's `task_cleanup` once,
   in a task started from that job's captured context, inside the setup scope
   for its directory and environment (below), shielded as today. Jobs that
   failed or never started get no cleanup, as today. On a run-level
   cancellation the setup task group is cancelled first; a `task_init`
   interrupted that way gets no cleanup, as today.
-- **Display and output.** The task display is no longer suspended for a
-  setup. While a setup job runs, the output of subprocesses that would go to
-  the terminal is collected in a bounded buffer (the last 64 KiB) instead.
-  Setup start and end are logged at info level and shown in the queued
-  rows' `setup` field. On failure, the buffer's tail is logged at warning
-  level (shown above the task display and written to the trace file), and the
-  task's error log carries the exception only (see "Security"). Open
-  question 3 asks whether the seed's setups should instead run before the
-  display opens, as today.
+- **Display and output.** For a provider that declares support for
+  `sandbox_setup()` (below; Docker does), the task display is not suspended
+  while its setup runs. `subprocess()` pipes the output of a child that
+  would otherwise inherit the terminal (`capture_output=False`, as Docker's
+  `compose build` and `compose pull` use) and forwards each line, as it
+  arrives, prefixed with the setup's configuration (for example
+  `[docker tasks/ctf/compose.yaml]`: the sandbox type and the config file
+  relative to the launch directory, or the type alone for a structured or
+  empty config), to `display().print()`. In the textual display that is the
+  Console tab, whose unread count shows that output arrived; the rich display
+  prints it above the progress area, the plain display to stdout, and the
+  log display to the logger. With the `none` display the lines go to the
+  Python logger at info level, as `_log_stream` does today, so stdout stays
+  machine-readable. The same lines also go to the job's bounded buffer (the
+  last 64 KiB), and on failure the job logs a warning naming the
+  configuration and the exception and writes the buffer to the trace file;
+  the task's error log carries the exception only (see "Security"). Setup
+  start and end are logged at info level and shown in the queued rows'
+  `setup` field.
+- **Providers that have not declared support** keep today's terminal
+  behaviour: their `task_init` runs inside
+  `display().suspend_task_app()`, as every setup does today
+  (`run.py:1262`), and their subprocesses inherit the terminal. A provider
+  may start processes itself (an SDK, `asyncio.create_subprocess_exec`) or
+  print, as Podman's `task_init` does, and only suspension keeps that output
+  from corrupting the textual display. Other tasks keep running while the
+  display is suspended, as they do on today's live path. Seed setups run
+  beside the dispatcher like every other setup (decision: Ransom,
+  2026-11-03: one rule for every setup, with build output streamed to the
+  console rather than the terminal).
 
 ### Setup without changing the process's directory or environment
 
@@ -521,27 +655,67 @@ def sandbox_setup() -> SandboxSetup | None:
   `resolve_sandbox_for_task_and_sample`.
 - `inspect_ai.util.subprocess()` applies it: the default `cwd` is
   `task_dir` (a relative `cwd` is joined to it), and the child environment is
-  `os.environ | setup.env | env`. While a setup job runs, it also routes
-  output that would go to the terminal into the job's buffer (internal; not
-  part of `SandboxSetup`).
-- Docker adopts it: `ComposeProject.create` resolves `ComposeConfig` build
-  paths and the no-config compose lookup against `sandbox_setup().task_dir`
-  when set, else `os.getcwd()` (so `sample_init` keeps today's behaviour),
-  and any Python-side read of a `task_init_environment` variable reads
-  `setup.env`. Docker's own subprocesses already go through `subprocess()`.
-  For Docker the directory and environment its setup sees are therefore
-  exactly today's.
-- **Compatibility path for providers that have not adopted it:** their
-  subprocesses started through `inspect_ai.util.subprocess()` run in the task
-  directory with the setup's environment, as today. Python-level reads of the
-  working directory during their `task_init`/`task_cleanup` see the launch
-  directory, which is what their `sample_init` already sees. Subprocesses
-  they start another way (`asyncio.create_subprocess_exec`, an SDK) run in the
-  launch directory; the setup environment is empty for every provider but
-  Docker, so only the directory can differ.
+  `os.environ | setup.env | env`. While a setup job of a provider that
+  declares support runs, it also pipes and forwards output that would go to
+  the terminal ("Display and output" above; internal, not part of
+  `SandboxSetup`).
+- **Declaring support.** `SandboxEnvironment` gains a class attribute:
+
+  ```python
+  supports_sandbox_setup: ClassVar[bool] = False
+  """True when the provider's task-level calls take the task directory and
+  environment from `sandbox_setup()`, and write to the terminal only
+  through `subprocess()`."""
+  ```
+
+  It decides two things: whether the display is suspended around the
+  provider's setup ("Display and output"), and whether Inspect warns about
+  the working directory (next). An older Inspect ignores the attribute.
+- **Warning.** When a provider that does not declare support runs
+  `task_init` for a task whose directory is not the launch directory, Inspect
+  logs a warning once per provider type and task directory per run:
+  "Sandbox provider 'proxmox' does not declare support for sandbox_setup(),
+  so its task_init for task 'ctf' runs in the launch directory (/home/me)
+  rather than the task directory (/home/me/evals/ctf). Relative paths it
+  resolves itself are resolved against the launch directory."
+- Docker adopts it and declares support: `ComposeProject.create` resolves
+  `ComposeConfig` build paths and the no-config compose lookup against
+  `sandbox_setup().task_dir` when set, else `os.getcwd()` (so `sample_init`
+  keeps today's behaviour), and any Python-side read of a
+  `task_init_environment` variable reads `setup.env`. Docker's own
+  subprocesses already go through `subprocess()`. For Docker the directory
+  and environment its setup sees are therefore exactly today's.
+- **Providers that have not adopted it** (decision: Ransom, 2026-11-03: the
+  launch directory, with the warning above). Their subprocesses started
+  through `inspect_ai.util.subprocess()` run in the task directory with the
+  setup's environment, as today. Python-level reads of the working directory
+  during their `task_init`/`task_cleanup` see the launch directory.
+  Subprocesses they start another way run in the launch directory; the setup
+  environment is empty for every provider but Docker, so only the directory
+  can differ. For the providers surveyed in "Current behaviour" that resolve
+  a relative path in `task_init`, this is the boundary:
+  - E2B's template warm-up for a `ComposeConfig` resolves build paths
+    against the launch directory, the directory its `sample_init` already
+    uses for the same config, so the warm-up now builds the template the
+    samples ask for.
+  - Podman's `task_init` looks up the compose file and writes the
+    auto-compose file in the launch directory, as its `sample_init` already
+    does, so both calls now address the same project files.
+  - Proxmox's `task_init` resolves a relative `PROXMOX_CONFIG_FILE` against
+    the launch directory, as its `default_concurrency()` and `cli_cleanup()`
+    already do. A run whose config file is found only relative to the task
+    directory (a relative path, and a task loaded from another directory)
+    falls back to `PROXMOX_HOST` or to no pools instead of the file's pools.
+    This is the one surveyed case in which a working eval's behaviour
+    changes, and the warning names it. Making Proxmox adopt
+    `sandbox_setup()`, or warn when a set `PROXMOX_CONFIG_FILE` is not found,
+    is a follow-up in UKGovernmentBEIS/inspect_proxmox_sandbox, not a gate
+    for any step here.
 - **Opt-in:** a provider reads `sandbox_setup().task_dir` wherever it
-  resolves a relative path in Python during `task_init` or `task_cleanup`. A
-  provider that must also run on older Inspect versions feature-detects it
+  resolves a relative path in Python during `task_init` or `task_cleanup`,
+  sends terminal output through `subprocess()`, and sets
+  `supports_sandbox_setup = True`. A provider that must also run on older
+  Inspect versions feature-detects the accessor
   (`getattr(inspect_ai.util, "sandbox_setup", None)`) and falls back to
   `os.getcwd()`, which older versions set to the task directory, so it needs
   no raised dependency floor.
@@ -553,8 +727,8 @@ def sandbox_setup() -> SandboxSetup | None:
 - `SandboxEnvironment`'s class docstring and the sandbox extension docs
   state the contract: `task_init` may run while other tasks run, one call at
   a time; it runs in the launch directory and environment; use
-  `sandbox_setup()` for the task directory and environment; `ContextVar`
-  bindings as described next.
+  `sandbox_setup()` for the task directory and environment and declare
+  `supports_sandbox_setup`; `ContextVar` bindings as described next.
 
 ### Provider state per setup
 
@@ -576,10 +750,10 @@ are therefore shared across configurations, as today.
 
 The bindings reach the code that uses them:
 
-- **Samples.** `sandboxenv_context` (`task/sandbox.py:86`) takes the
-  sample's bindings (`options.setups.bindings_for(sample.id)`, recorded when
-  the sample's key was resolved) and sets each one in the sample's own task
-  context before `sample_init`. `sample_init`, the sample's sandbox calls and
+- **Samples.** `run_sample` passes `options.setups.bindings_for(sample_index)`
+  (the bindings of the job for the key recorded for that sample index) to
+  `sandboxenv_context` (`task/sandbox.py:86`), which sets each one in the
+  sample's own task context before `sample_init`. `sample_init`, the sample's sandbox calls and
   `sample_cleanup` then see the state their configuration's `task_init`
   produced, whether the setup ran before the task started, in a
   `SampleSource` feeder, or for another task. This fixes the empty-seed
@@ -625,6 +799,7 @@ class TaskHandle:
 
 class TaskEndedError(RuntimeError):
     log: EvalLog | None             # the task's final log, None if it never started
+    error: BaseException | None     # why it never started: an admission failure; None otherwise
 
 class SampleAbandonedError(RuntimeError):
     sample: Sample
@@ -656,17 +831,67 @@ Results come from the sites that already report samples to the source
 for a sample that will not run. `enqueue_sample()` returns when every epoch's
 future has resolved.
 
+**The feeder services the port while the source blocks.**
+`SampleSource.next_samples()` may block indefinitely
+(`sample_source.py:63`), and today the feeder awaits it inline
+(`task/run.py:1854`), so nothing buffered starts until it returns (verified
+on this branch's base: a sample enqueued while `next_samples()` blocks does
+not run until it returns). `feed_samples` changes so that a pull never
+blocks the buffer:
+
+```
+async with task group tg:                  # owned by the feeder
+    pull = None                            # the one outstanding next_samples() call
+    while True:
+        await checkpoint()
+        if buffered := enqueuer.drain():   # port, enqueue_sample(), callback returns
+            if await add_and_start(buffered): source_done = False
+            continue
+        if pull is done:
+            more = pull.result(); pull = None
+            if more is None: source_done = True
+            elif more: await add_and_start(more)
+            continue
+        if scheduler.outstanding > 0:
+            await feeder_wake.wait(); continue   # rung by settle, enqueue, pull done, port close
+        # no samples in flight or buffered
+        if limit exhausted: break              # cancels an outstanding pull below
+        if pull is not None: await feeder_wake.wait(); continue
+        if not source_done: pull = start next_samples() in tg; continue
+        if port is open: await feeder_wake.wait(); continue
+        break
+    cancel tg                              # an outstanding pull is cancelled, then joined
+```
+
+- A pull starts only when the task is fully idle, as today, and at most one
+  is outstanding. It runs as a child of the feeder's task group, so it is
+  joined before the feeder returns, its exception fails the task as an
+  inline pull's does today, and a task cancel, a run cancel or the task
+  ending cancels it with the feeder.
+- While a pull is outstanding, everything buffered starts at once, whether
+  it came through a handle, `enqueue_sample()` or a callback's return, and
+  those samples' `sample_complete` and `sample_abandoned` may fire while
+  `next_samples()` is still awaiting. The `SampleSource` docstrings say so.
+  This changes when a sample from `enqueue_sample()` starts while
+  `next_samples()` blocks (now, instead of after it returns); the samples
+  and their inputs are the same.
+- When the pull returns `None`, the source is consulted again only after
+  more samples have been added and run, as today after a late enqueue. When the task is
+  fully idle and the sample limit is exhausted, an outstanding pull is
+  cancelled and the task ends, since nothing it returned could run.
+- A port closing does not end an outstanding pull: the source still decides
+  when the task ends. An open port only keeps the task from ending after
+  the source is done.
+
 **Keeping the task open.** A `SampleSource` task with an open port does not
-end when its source is exhausted: in `feed_samples`, when `next_samples()`
-returned `None` and nothing was buffered, the feeder waits for the port
-(a new sample or a close) instead of finishing; after a sent sample runs, the
-source may be consulted again, as it may today after a late enqueue. The port
-closes on `close()`, on `cancel()`, when the task attempt that created the
-handle ends, and when the run ends. The creator is the attempt whose context
-`enqueue_task()` was called in (a `ContextVar` `_run_task` sets per attempt);
-`TaskSource` callbacks fired by a task count as that task. A handle created
-outside any task attempt has its port closed from the start. So a creator
-that forgets `close()` cannot keep a rollout task open past its own attempt.
+end when its source is exhausted: the feeder waits for the port (a new
+sample or a close) instead of finishing. The port closes on `close()`, on
+`cancel()`, when the task attempt that created the handle ends, and when the
+run ends. The creator is the attempt whose context `enqueue_task()` was
+called in (a `ContextVar` `_run_task` sets per attempt); `TaskSource`
+callbacks fired by a task count as that task. A handle created outside any
+task attempt has its port closed from the start. So a creator that forgets
+`close()` cannot keep a rollout task open past its own attempt.
 
 **When the task ends with samples outstanding.** If the task attempt ends
 and no retry follows (success after close, an abort, a setup failure, an
@@ -679,14 +904,61 @@ not resolve a future twice) and the rest run again. A cancelled caller's
 `enqueue_sample()` raises the cancellation; the sample it sent still runs
 and its result is dropped.
 
-**Slot lending.** While a running task's sample awaits `started()`,
-`result()` or `enqueue_sample()` on a queued task, that queued task may start
-even when `max_tasks` is reached: each such wait lends one start, counted in
-`lent`, and the lent task keeps its slot until it ends. Without this, the
-use case deadlocks at the default `max_tasks=1` (and in selection-mode
-workers, which run one task per process): the creator holds the only slot
-while waiting for its rollout. Open question 4 asks whether to lend or to
-warn.
+**Slot lending** (decision: Ransom, 2026-11-03: lend, with loans specific to
+the awaited task). Without it the use case deadlocks at the default
+`max_tasks=1`, and in selection-mode workers whose supervisor sets
+`max_tasks` to the selected batch size: the creator holds the only slot
+while it waits for its rollout.
+
+```python
+@dataclass(eq=False)
+class Loan:
+    target: TaskRecord              # the only record this loan can start
+    waiters: int = 0                # waits on the target that are blocked now
+    started: bool = False           # the target is running on this loan
+```
+
+- **Who lends.** A wait lends when it is made from inside a running task
+  attempt (a sample, scorer, tool or callback of a task the dispatcher
+  started, including one that is itself running on a loan) on a target
+  record that is queued: `started()`, `result()`, or an `enqueue_sample()`
+  whose sample cannot run until the target starts. A wait from outside any
+  running attempt lends nothing, because nothing is holding a slot while it
+  waits.
+- **One loan per target.** The first such wait creates `target.loan` and
+  rings the queue; later waits on the same queued target add to `waiters`
+  and share it. A wait on a target that is already running lends nothing,
+  so repeated `enqueue_sample()` calls to a running rollout task cost no
+  more slots.
+- **What it starts.** The dispatcher starts a record above the ordinary
+  limit only if the record holds a loan, after the ordinary picks, and only
+  when it is startable (admitted, setups settled, not paused). An earlier,
+  unrelated queued task never starts on another task's loan: at
+  `max_tasks=1`, with running parent P, an earlier queued task U and P's
+  child C, P's wait starts C, and U waits for an ordinary slot. If an
+  ordinary slot is free when the target becomes startable, the target takes
+  it and the loan is dropped unused.
+- **Lifetime.** While the target is queued, the loan lives while
+  `waiters > 0`; if every waiter stops waiting (cancelled, or its attempt
+  ended), the loan is dropped. Once the target has started on the loan, it
+  keeps its extra slot until that attempt ends, whatever its waiters do; the
+  loan is returned then. A retry of the target goes back to the queue
+  without a loan and borrows again only if someone is still waiting on it.
+  Loans nest: a target running on a loan that waits on its own child lends
+  to that child. The number of running loans is bounded by the number of
+  distinct tasks that running tasks are waiting on.
+- **Waits that cannot be served end with the handle's error.** A target
+  whose setup failed starts (on the loan or an ordinary slot) and its
+  attempt ends with an error log, so the waits raise `TaskEndedError` with
+  that log. A target cancelled or ended while queued, or whose admission
+  failed, ends with no log: `result()` returns `None`, and `started()` and
+  `enqueue_sample()` raise `TaskEndedError(log=None)` (with `error` set for
+  an admission failure). A run-level cancellation ends every queued record
+  the same way. No wait outlives its target.
+- **Docs.** The `max_tasks` docstrings, `docs/parallelism.qmd` and the
+  handle docs in `docs/task-source.qmd` state the exception: a task that a
+  running task is waiting on through a handle may run beyond `max_tasks`,
+  one extra task per awaited task.
 
 ### Interactions with related changes
 
@@ -725,7 +997,10 @@ warn.
   Async was needed because the prototype resolves sandbox configs at the
   call. Here the call stays synchronous (resolution and configuration are
   synchronous today; key resolution moves to the background), so the return
-  value is additive and nobody migrates. See Open question 1.
+  value is additive and nobody migrates (decision: Ransom, 2026-11-03).
+- **A separate `start_task(task, *, model=None) -> TaskHandle`** beside an
+  unchanged `enqueue_task()`. Additive too, but two functions for one
+  operation; not chosen (decision: Ransom, 2026-11-03).
 - **The prototype's run-wide provider state** (every task started later sees
   the latest value of each `ContextVar`, whichever configuration set it).
   Also fixes cleanup, but a task started before a later setup keeps the old
@@ -738,12 +1013,37 @@ warn.
   tasks' samples from seeing the directory change (reproduced above), so a
   running sample's relative file reads, `Sample.files` and subprocesses
   would change. Not correct for any run where setups overlap tasks.
+- **Keeping the `chdir` for the seed's setups by running them before
+  dispatch** (today's directory for every established eval, with output on
+  the terminal and the first failure raising from `eval()`). Two setup
+  policies, and sandbox-free seed tasks wait for every image. Not chosen:
+  one rule for every setup, with the warning for providers that have not
+  adopted `sandbox_setup()` (decision: Ransom, 2026-11-03).
+- **Suspending the display for every setup, as today.** Keeps output on the
+  terminal for every provider, but stops the textual display for every
+  image build while other tasks run. Kept only for providers that have not
+  declared support, which may write to the terminal by other routes.
 - **Running each `task_init` in a thread or a child process** to isolate the
   directory. The directory is process-wide, so a thread does not help; a
   child process loses the provider's in-memory state.
 - **Exporting the lifecycle scope** so providers keep state on a shared
   object. Works, but every provider must adopt it, and captured bindings
   make the pattern providers already use correct without a change.
+- **Cancelling an outstanding `next_samples()` when a sample arrives
+  through a handle,** then calling it again later. Simpler feeder, but it
+  breaks a source that is part-way through producing samples (an awaited
+  request is lost), and the source contract says it may block indefinitely.
+- **Slot lending counted globally** (raise the limit by the number of
+  waits and pick as usual). An earlier unrelated queued task takes the
+  borrowed slot and can hold it while the awaited task and its creator stay
+  blocked. Loans name their target instead.
+- **No lending, and a warning** when a handle waits on a queued task while
+  every slot is held. The use case then needs `max_tasks >= 2`, which a
+  selection-mode worker's supervisor may not allow. Not chosen (decision:
+  Ransom, 2026-11-03).
+- **Tasks added by a running task do not count toward `max_tasks`.** The
+  simplest rule, but unbounded: a task that adds one task per sample runs
+  them all at once.
 - **Breaking `enqueue_sample()` out as a free function taking a task id.**
   A handle carries the record directly and has a clear owner, which the port
   lifetime rule needs.
@@ -752,7 +1052,11 @@ warn.
 
 No migration required for eval authors. Third-party sandbox providers that
 resolve relative paths in Python during `task_init`/`task_cleanup` should
-read `sandbox_setup().task_dir` (see "Opt-in").
+read `sandbox_setup().task_dir`, and every provider that writes to the
+terminal only through `subprocess()` should declare
+`supports_sandbox_setup = True` (see "Opt-in"); until then they get the
+working-directory warning and today's display suspension. No provider needs
+a release for any step here.
 
 Public API (additive):
 
@@ -760,7 +1064,10 @@ Public API (additive):
   and synchronous behaviour unchanged. Its docstring and
   `docs/task-source.qmd` say added tasks always start when there is room.
 - New `inspect_ai.TaskHandle`, `TaskEndedError`, `SampleAbandonedError`;
-  new `inspect_ai.util.SandboxSetup`, `sandbox_setup()`.
+  new `inspect_ai.util.SandboxSetup`, `sandbox_setup()`; new class attribute
+  `SandboxEnvironment.supports_sandbox_setup` (default `False`).
+- `SampleSource` docstrings: buffered samples start while `next_samples()`
+  is awaiting, and their callbacks may fire meanwhile.
 - `inspect_ai.util.subprocess()` applies the setup's directory and
   environment inside a provider's task-level calls.
 
@@ -785,8 +1092,12 @@ inputs, sandbox and model):
   waits for an image.
 - `next_tasks()` batches go through the same queue; their order relative to
   concurrent `enqueue_task()` calls is today's.
+- A sample added by `enqueue_sample()` or a callback while
+  `next_samples()` blocks starts at once instead of after it returns.
 - Slot lending lets a task that a running task is waiting on start beyond
-  `max_tasks` (new API only; no existing eval waits on a handle).
+  `max_tasks` (new API only; no existing eval waits on a handle). A
+  supervisor that sets `max_tasks` as a ceiling, such as a selection-mode
+  worker's, sees one extra running task per awaited task.
 
 Failure reporting (the run's outcome changes only where today it fails):
 
@@ -798,22 +1109,31 @@ Failure reporting (the run's outcome changes only where today it fails):
 - An added task whose admission fails ends alone; today the run fails.
 - `debug_errors=True` now raises task errors at every `max_tasks` (explicit
   configuration only).
-- The seed's setup output no longer streams to the terminal before the task
-  display opens (Open question 3).
+- Seed setups run beside the dispatcher: a broken seed configuration ends
+  only its tasks instead of raising from `eval()`.
+- Build output from a provider that declares support (Docker) streams to the
+  task display's console, prefixed with its configuration, instead of to the
+  terminal with the display suspended.
+- A provider that has not declared support logs a working-directory warning
+  when it sets up a task outside the launch directory.
 
 Could change what an eval computes:
 
 - **`task_init`'s working directory for a third-party provider that has not
-  adopted `sandbox_setup()`,** when the task is loaded from a file in another
+  adopted `sandbox_setup()`,** when the task is loaded from another
   directory than the launch directory and the provider resolves a relative
-  path in Python (Daytona's and Podman's fallbacks above). Today such a
-  provider's `task_init` and `sample_init` already resolve that path against
-  different directories, so an eval that depends on the difference prepares
-  in `task_init` something its samples do not address by the same path. The
-  usual result of the change is a loud "not found", or the two calls now
-  agreeing. Docker, subprocesses through `subprocess()`, installed-package
+  path in Python during `task_init` ("Providers that have not adopted it"
+  lists the boundary per provider). For E2B and Podman, `task_init` and
+  `sample_init` now resolve the path against the same directory, where today
+  they disagree. For Proxmox, a relative `PROXMOX_CONFIG_FILE` that exists
+  only relative to the task directory stops being found by `task_init`, as
+  it already is not found by `default_concurrency()` and `cli_cleanup()`, so
+  the run uses `PROXMOX_HOST` or no pools instead; the warning names the
+  directories. Docker, subprocesses through `subprocess()`, installed-package
   tasks (whose task directory is the launch directory) and runs launched from
-  the task directory are unaffected. This is the reason for Open question 2.
+  the task directory are unaffected. Ransom accepted this under the
+  eval-defaults rule on the strength of the warning and the existing
+  inconsistency (decision: Ransom, 2026-11-03).
 - **Which `ContextVar` values a sample sees.** A sample now sees its own
   configuration's setup state rather than the last setup's. For the surveyed
   providers this changes which registry or run id a sandbox is recorded
@@ -836,9 +1156,12 @@ Could change what an eval computes:
   `os.environ` for the whole setup, visible to every subprocess any running
   sample starts meanwhile. Now they reach only the setup's own subprocesses.
 - **Setup output** (image build logs) can contain whatever a build prints.
-  Today it goes to the terminal only. The design keeps it out of the eval log
-  and the control channel: it is logged (terminal and trace file) on
-  failure, and the task's error log carries only the exception.
+  Today it goes to the terminal only. It now goes to the task display's
+  console (or the logger with the `none` display), and on failure its tail
+  goes to the trace file. It stays out of the eval log and the control
+  channel: the task's error log carries only the exception. The rich and
+  textual displays' `print()` already passes `markup=False`, so build output
+  cannot inject Rich markup into the display.
 - **Control channel:** cancelling a queued task uses the existing task
   directive's authorization (the control socket's permissions); the queued
   rows expose task name, model and setup state, which the running rows
@@ -865,8 +1188,16 @@ does (a new list per call):
   unchanged while `task_init` awaits (the reproduction above, inverted);
   per-setup bindings reach `sample_init`, `sample_cleanup` and the matching
   `task_cleanup` for two configurations, an added task's configuration, and
-  an empty `SampleSource` seed; a k8s-style get-or-create object is shared
-  across configurations.
+  an empty `SampleSource` seed; two samples with one id added for different
+  explicit epochs whose configurations differ, admitted before either runs,
+  each get their own configuration's bindings; a k8s-style get-or-create
+  object is shared across configurations; the working-directory warning is
+  logged once for a provider that does not declare support and a task
+  outside the launch directory, and not for one that does; output of a
+  `capture_output=False` subprocess during a declaring provider's setup
+  reaches `display().print()` line by line with the configuration prefix and
+  the failure buffer, while a non-declaring provider's setup suspends the
+  display and leaves output on the terminal.
 - `tests/util/sandbox/test_docker_cleanup.py`: Docker under the setup scope
   resolves `ComposeConfig` and no-config compose files against the task
   directory with the launch directory elsewhere (stubbed daemon, as the file
@@ -884,18 +1215,35 @@ does (a new list per call):
   queued and running, `close()`, `enqueue_sample()` results per epoch,
   abandoned and limit-dropped samples, duplicate ids, the task ending with
   outstanding samples, a retry replaying sent samples with reuse, the port
-  closing when the creator attempt ends, refusals listed under "Run shapes",
-  and slot lending at `max_tasks=1` (the overview's example as a test).
+  closing when the creator attempt ends, refusals listed under "Run shapes";
+  slot lending at `max_tasks=1`: the overview's example as a test; an
+  earlier unrelated queued task U ahead of the awaited child C, where C
+  starts on the loan and U waits for an ordinary slot; several samples
+  waiting on one queued task share one loan; repeated `enqueue_sample()`
+  calls on a running task lend nothing; the loan is returned when C ends;
+  waits on a target whose setup failed, that was cancelled while queued, or
+  whose admission failed raise `TaskEndedError` instead of hanging; an
+  ended record no longer references its `ResolvedTask`, options or
+  dataset.
 - `tests/test_task_source.py`: Ctrl-C (cancelling the run) while
   `next_tasks()` blocks returns the completed logs, at `max_tasks` 1 and > 1;
   the existing live-injection test also passes for a plain task list with
   `enqueue_task()`.
 - `tests/test_sample_source.py`: a mid-run configuration through
-  `setups.ensure()`; a failure fails only that task.
+  `setups.ensure()`; a failure fails only that task; a sample sent through a
+  handle, and one from `enqueue_sample()`, while `next_samples()` stays
+  blocked runs at once (the probe in "The feeder services the port", as a
+  test); the blocked pull is cancelled when the task is cancelled, when the
+  run is cancelled and when the sample limit is exhausted, and a pull's
+  exception still fails the task.
 - `tests/test_task_cancel.py` and `tests/_control/test_ctl.py`: queued rows
   in `GET /tasks`; cancel and drain of a queued task (no log, handle result
-  `None`, its unshared waiting setups dropped); `score`/`error` answer 409;
-  `dry_run`.
+  `None`, its unshared waiting setups dropped, its initialised logger
+  discarded with nothing in the log directory); `score`/`error` answer 409;
+  `dry_run`; while an earlier record's `logger.init()` blocks, a later
+  record is listed and can be cancelled, and the blocked record cancelled
+  during admission ends with no log once admission finishes; a cancel
+  between dispatch and `register_eval` reaches the attempt.
 - inspect_sandboxes: a test per provider that two configurations and an
   added task's configuration clean up every sandbox, run against an Inspect
   build with step 2; it needs the providers' API keys, so it runs where their
@@ -921,9 +1269,11 @@ batch has its own `eval_run` and cleans up its own state).
    `util/_subprocess.py`, `util/_sandbox/docker/util.py` and `config.py`,
    `_eval/run.py` (`SandboxManager` uses the scope; `await logger.init()` out
    of the `chdir` block), `_eval/task/sandbox.py:265`,
-   `util/_sandbox/environment.py` docstrings, `docs/extensions-sandboxes.qmd`.
-   Tests: `tests/util/sandbox/test_sandbox_setup.py`, Docker tests. Needs Open
-   question 2 answered.
+   `util/_sandbox/environment.py` (`supports_sandbox_setup`, docstrings),
+   `util/_sandbox/docker/docker.py` (declares support),
+   `docs/extensions-sandboxes.qmd`; the working-directory warning. The
+   display suspension stays for every provider in this step. Tests:
+   `tests/util/sandbox/test_sandbox_setup.py`, Docker tests.
 2. **Provider state per setup.** `_eval/run.py` (`SandboxManager` runs each
    `task_init` in the chained context and records bindings, contexts and the
    per-sample key map), `_eval/task/sandbox.py` (`sandboxenv_context` applies
@@ -940,7 +1290,9 @@ batch has its own `eval_run` and cleans up its own state).
    `_control/cancel.py`, `_control/state.py`, `_control/__init__.py`,
    `_cli/ctl/_task.py`; `docs/task-source.qmd`; `design/task-source.md`
    ("Live injection"), `design/ctl/task-drain.md` ("Out of scope"),
-   `design/sample-source.md` (the `SandboxManager` notes). Setups still run at
+   `design/sample-source.md` (the `SandboxManager` notes). Records register
+   with the control channel at `add`; admission runs as a background job.
+   Setups still run at
    admission inside the dispatcher, as the live path does today. Tests:
    `tests/test_enqueue_task.py`, `tests/test_task_source.py`,
    `tests/test_task_cancel.py`, `tests/_control/test_ctl.py`. Needs steps 1
@@ -948,86 +1300,43 @@ batch has its own `eval_run` and cleans up its own state).
 4. **Setup beside the dispatcher.** `_eval/sandbox_setups.py` (new; replaces
    `SandboxManager`), `_eval/run.py` (start rule, `setup_error`),
    `_eval/task/run.py` (setup-failure attempt path, `setups.ensure()`),
-   `util/_subprocess.py` (output collection), `_control/queued_tasks.py`
-   (`setup` field). Tests: setup failure, retry rule, sandbox-free start,
-   output collection, cancel dropping waiting jobs. Needs step 3 and Open
-   question 3 answered.
+   `util/_subprocess.py` (forwarding output to the display and the failure
+   buffer), suspension only for providers that do not declare support,
+   `_control/queued_tasks.py` (`setup` field). Tests: setup failure, retry
+   rule, sandbox-free start, output forwarding, cancel dropping waiting jobs.
+   Needs step 3.
 5. **Task handles.** `_eval/task/enqueue.py` (`TaskHandle`, `SamplePort`,
-   errors), `_eval/task/run.py` (port attach, result sites, feeder open
-   while the port is open, attempt `ContextVar`), `_eval/run.py` (port close
-   on attempt end, slot lending), `__init__.py` (exports),
-   `docs/task-source.qmd` and `docs/reference`. Tests: handle tests above.
-   Needs step 3 and Open questions 1 and 4 answered; independent of step 4.
-6. **inspect_sandboxes adopts `sandbox_setup()`.** Daytona's `ComposeConfig`
-   fallback (`daytona/_compose.py:42`) and any other relative-path
-   resolution in `task_init` the audit finds, feature-detected so the
-   dependency floor does not move; the cleanup tests above; a release. The
-   only step that needs an inspect_sandboxes release, and only for the
-   working-directory change in step 1; steps 1-5 do not wait for it.
+   errors, `Loan`), `_eval/task/run.py` (port attach, result sites, the
+   feeder's owned pull and open port, attempt `ContextVar`),
+   `_eval/task/sample_source.py` (docstrings), `_eval/run.py` (port close on
+   attempt end, loans in the dispatcher), `_eval/eval.py` and
+   `_eval/evalset.py` (`max_tasks` docstrings), `__init__.py` (exports),
+   `docs/task-source.qmd`, `docs/parallelism.qmd` and `docs/reference`.
+   Tests: handle and feeder tests above. Needs step 3; independent of
+   step 4.
+Follow-ups in provider repositories, none a gate for any step above:
+inspect_sandboxes declares `supports_sandbox_setup` for E2B, Modal and
+Daytona, with E2B's template warm-up reading `sandbox_setup().task_dir`
+(feature-detected, so its dependency floor does not move) and the
+per-provider cleanup tests above; inspect-podman adopts it for its compose
+lookup and auto-compose file; UKGovernmentBEIS/inspect_proxmox_sandbox
+adopts it for `PROXMOX_CONFIG_FILE`, or warns when a set
+`PROXMOX_CONFIG_FILE` is not found.
 
 ## Open questions
 
-1. **How should `enqueue_task()` hand back handles?**
-   Options: (a) keep it synchronous and return `list[TaskHandle]`, one per
-   task × model (additive; callers ignoring the result are unaffected);
-   (b) make it async and return `list[TaskHandle]` (the prototype; breaking:
-   every existing call must be awaited, and calls from synchronous code such
-   as a `TaskSource` callback's helpers break); (c) keep `enqueue_task()` as
-   is and add `start_task(task, *, model=None) -> TaskHandle` for exactly one
-   task × model (additive, single handle, two functions to document).
-   Recommendation: (a). Nothing in the handle needs an await at the call, so
-   there is no reason to break callers, and one function covers both uses.
-   Confidence: high.
+None. The questions raised by this design are decided (Ransom,
+2026-11-03) and recorded where they apply:
 
-2. **Where should a provider that has not adopted `sandbox_setup()` resolve
-   relative paths in Python during `task_init`/`task_cleanup`?**
-   Options: (a) the launch directory, with subprocesses through
-   `subprocess()` still in the task directory and `sandbox_setup()` as the
-   opt-in (one rule; affects only third-party providers that resolve relative
-   paths in Python for tasks loaded from another directory, whose
-   `sample_init` already uses the launch directory; the prototype's survey
-   of 30 providers found about five that resolve such a path); (b) the
-   launch directory for setups that overlap running tasks, but keep the
-   process-wide `chdir` for the seed's setups by running them before dispatch
-   starts (exactly today's behaviour for every established eval; two
-   policies, and the seed gives up starting sandbox-free tasks early; ties to
-   question 3); (c) keep `chdir` everywhere (unsafe: running samples see the
-   change).
-   Recommendation: (a). It is the only rule that is correct when setups
-   overlap tasks, Docker keeps its exact behaviour by adopting the accessor,
-   and the affected providers are few and get a feature-detectable fix.
-   Confidence: low, because under the eval-defaults rule (b) is the
-   conservative answer for established evals, and the choice is about how
-   much compatibility to buy with a second policy.
-
-3. **Should the seed's setups run beside the dispatcher, or before it as
-   today?**
-   Options: (a) beside, like every other setup (sandbox-free seed tasks start
-   at once; a broken seed configuration ends only its tasks; build output is
-   collected rather than streamed, and shown on failure); (b) before
-   dispatch, with output streamed to the terminal and the first failure
-   raising from `eval()` (today's start-up experience and fail-fast; the
-   prototype does this; a second policy).
-   Recommendation: (a), one rule for every setup. Users lose the live build
-   output at start-up; the failure tail and the queued rows' `setup` state
-   replace it.
-   Confidence: low, because it changes the start-up experience every
-   sandboxed eval sees.
-
-4. **What happens when a running task waits on a task it added and every
-   slot is taken (the default `max_tasks=1`, and selection-mode workers)?**
-   Options: (a) slot lending: the waited-on task starts beyond `max_tasks`
-   (one start per waiting sample; the use case works with no configuration);
-   (b) no lending, and the handle logs a warning once when it waits on a
-   queued task while every slot is held, naming `max_tasks` and
-   `inspect ctl config --max-tasks` (simpler; the use case needs
-   `max_tasks >= 2`, which a selection-mode worker may not allow); (c) tasks
-   added by a running task do not count toward `max_tasks` (simplest rule,
-   but unbounded: a task that adds one task per sample runs them all at
-   once).
-   Recommendation: (a). It is bounded by the number of waits, applies only
-   to the new handle API, and without it the use case deadlocks by default.
-   Confidence: low, because it is a new exception to what `max_tasks` means.
+- `enqueue_task()` stays synchronous and returns `list[TaskHandle]`, one per
+  task × model ("Task handles").
+- A provider that has not adopted `sandbox_setup()` resolves relative paths
+  in Python against the launch directory, with a warning when the task
+  directory differs ("Providers that have not adopted it").
+- Seed setups run beside the dispatcher like every other setup, with build
+  output streamed to the display's console ("Display and output").
+- A task that a running task waits on borrows a slot through a loan
+  specific to it ("Slot lending").
 
 ## Not this design
 
