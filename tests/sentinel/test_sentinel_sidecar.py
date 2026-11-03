@@ -1092,6 +1092,66 @@ def _sentinel_events(sample: EvalSample) -> list[SentinelEvent]:
     return [e for e in sample.events if isinstance(e, SentinelEvent)]
 
 
+@pytest.mark.parametrize(
+    ("roles", "warned"),
+    [
+        ({"monitor": "mockllm/other"}, True),
+        ({"monitor": "mockllm/judge"}, False),
+        ({}, False),
+    ],
+    ids=["another model", "the same model", "no role"],
+)
+def test_each_report_says_which_models_judged_it(
+    roles: dict[str, str], warned: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from inspect_ai._sentinel._sidecar import _events
+
+    warnings: list[str] = []
+    monkeypatch.setattr(
+        _events, "warn_once", lambda _, message: warnings.append(message)
+    )
+    step: dict[str, Any] = {
+        "stage": "tool_call",
+        "call": "call_1",
+        "decision": {"action": "proceed"},
+        "recorded": _RECORDED[:1],
+        "models": [
+            {"role": "monitor", "model": "mockllm/judge"},
+            {"model": "mockllm/named"},
+        ],
+    }
+    stand_in = StandInSidecar(
+        turns=[
+            Turn(
+                calls=[("call_1", "weather", {"city": "Oslo"})],
+                sentinel={"outcome": "proceed", "steps": [step]},
+            ),
+            Turn(),
+        ]
+    )
+    task = Task(
+        dataset=[Sample(input="What's the weather?")],
+        solver=[use_tools(weather()), generate()],
+    )
+
+    [log] = eval(task, model=_model(stand_in), model_roles=roles, display="none")
+
+    # the sidecar's own roles judged, whatever the eval set, and the log says so
+    assert log.samples is not None
+    [event] = _sentinel_events(log.samples[0])
+    assert event.sidecar is not None and event.sidecar.models is not None
+    assert [(m.role, m.model) for m in event.sidecar.models] == [
+        ("monitor", "mockllm/judge"),
+        (None, "mockllm/named"),
+    ]
+    if warned:
+        [warning] = warnings
+        assert "model role 'monitor' (mockllm/other)" in warning
+        assert "used mockllm/judge" in warning
+    else:
+        assert warnings == []
+
+
 def test_both_generate_stages_report_the_generates_id() -> None:
     proceed = {"action": "proceed"}
     stand_in = StandInSidecar(

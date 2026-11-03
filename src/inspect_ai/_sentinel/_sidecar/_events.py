@@ -1,12 +1,20 @@
 """The sidecar's reports in Inspect's transcript, as `SentinelEvent`s like an in-process sentinel's."""
 
+from logging import getLogger
 from typing import Any
 
-from inspect_ai.event._sentinel import SentinelEvent, SentinelSidecar
+from inspect_ai._util.logger import warn_once
+from inspect_ai.event._sentinel import (
+    SentinelEvent,
+    SentinelSidecar,
+    SentinelSidecarModel,
+)
 
 from .._conversation import current_conversation
 from ._endpoint import Sidecar
 from ._field import ReceivedField, SentinelField, parse_field
+
+logger = getLogger(__name__)
 
 
 def record_sidecar_reports(
@@ -31,6 +39,17 @@ def record_sidecar_reports(
     conversation = current_conversation()
     for step in field.steps:
         step_id = step.call if step.call is not None else generate_id
+        if step.models:
+            _warn_of_unused_roles(step.models, sidecar)
+            where = where.model_copy(
+                update={
+                    "models": [
+                        SentinelSidecarModel.model_validate(m) for m in step.models
+                    ]
+                }
+            )
+        else:
+            where = where.model_copy(update={"models": None})
         if field.trimmed or step.recorded is None:
             # a step without its records holds only what Inspect acts on
             trimmed = where.model_copy(update={"trimmed": True})
@@ -63,6 +82,28 @@ def record_sidecar_reports(
                         "sidecar": where,
                     }
                 )
+            )
+
+
+def _warn_of_unused_roles(models: list[dict[str, Any]], sidecar: Sidecar) -> None:
+    # A sentinel in a sidecar takes a role's model from the sidecar's own
+    # configuration. An eval that set the role for another model is told
+    # once, so it doesn't read the eval's role as the model that judged.
+    from inspect_ai.model._model import model_roles
+
+    roles = model_roles()
+    for used in models:
+        role, model = used.get("role"), used.get("model")
+        if role is None or role not in roles:
+            continue
+        assigned = roles[role]
+        names = [
+            str(m) for m in (assigned if isinstance(assigned, list) else [assigned])
+        ]
+        if model not in names:
+            warn_once(
+                logger,
+                f"The eval's model role {role!r} ({', '.join(names)}) doesn't reach the sentinel in the sidecar at {sidecar.origin}, which takes its roles from its own configuration: its monitors used {model} for {role!r}.",
             )
 
 
