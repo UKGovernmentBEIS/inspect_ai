@@ -19,6 +19,7 @@ from inspect_ai._util.working import (
 )
 from inspect_ai.model._generate_config import BatchConfig
 from inspect_ai.model._providers.util.batch import (
+    Batch,
     BatchCheckResult,
     Batcher,
     BatchRequest,
@@ -1501,7 +1502,6 @@ async def _run_openai_batch(
     from openai.types.chat import ChatCompletion
 
     from inspect_ai.model._providers._openai_batch import OpenAIBatcher
-    from inspect_ai.model._providers.util.batch import Batch
 
     completion = {
         "id": "chatcmpl-1",
