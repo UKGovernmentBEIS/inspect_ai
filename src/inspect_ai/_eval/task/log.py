@@ -1172,6 +1172,7 @@ class TaskLogger:
         reductions: list[EvalSampleReductions] | None = None,
         error: EvalError | None = None,
         prune_unplanned: bool = False,
+        total_samples: int | None = None,
     ) -> EvalLog:
         """Finish this attempt's log.
 
@@ -1204,7 +1205,14 @@ class TaskLogger:
 
             # finish and get log
             log = await self.recorder.log_finish(
-                self.eval, status, stats, results, reductions, error, self.header_only
+                self.eval,
+                status,
+                stats,
+                results,
+                reductions,
+                error,
+                self.header_only,
+                total_samples=total_samples,
             )
 
             # every completed sample is now on disk. Mark finished and drop the

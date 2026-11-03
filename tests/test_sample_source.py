@@ -83,6 +83,54 @@ def test_sample_source_runs_generations_in_one_task() -> None:
     assert sorted(sample.id for sample in (log.samples or [])) == [1, 2, 3]
 
 
+class _GrowThenFailSource(SampleSource):
+    """Seeds 2 samples, then adds 18 more (for the error-log denominator test)."""
+
+    def __init__(self) -> None:
+        self.added = False
+
+    def initial_samples(self) -> list[Sample]:
+        return [Sample(id=f"seed{i}", input="q") for i in range(2)]
+
+    async def next_samples(self) -> list[Sample] | None:
+        if self.added:
+            return None
+        self.added = True
+        return [Sample(id=f"extra{i}", input="q") for i in range(18)]
+
+
+@solver
+def _fail_on_extra2() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        if state.sample_id == "extra2":
+            raise ValueError("boom")
+        return state
+
+    return solve
+
+
+def test_sample_source_error_log_keeps_total_samples() -> None:
+    """An eval that errors mid-feed keeps its denominator on the log (#5814).
+
+    `results` is absent (the eval died before scoring), and the dataset spec
+    keeps describing only the seed (retry reuse depends on it), so without the
+    header's running count nothing in the log says how many sample runs the
+    attempt had accepted.
+    """
+    log = eval(
+        Task(dataset=_GrowThenFailSource(), solver=[_fail_on_extra2(), generate()]),
+        model="mockllm/model",
+        max_samples=1,
+        fail_on_error=True,
+        retry_on_error=0,
+    )[0]
+    log = read_eval_log(log.location)
+    assert log.status == "error"
+    assert log.results is None
+    assert log.eval.dataset.sample_ids == ["seed0", "seed1"]
+    assert log.total_samples == 20
+
+
 def test_sample_source_seed_only_when_next_is_none() -> None:
     # next_samples() returns None immediately -> only the seed runs
     logs = eval(

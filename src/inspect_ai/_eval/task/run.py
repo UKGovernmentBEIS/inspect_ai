@@ -915,6 +915,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             # dynamic feed that no longer produces them — and leave the log
             # (see TaskLogger.log_finish)
             prune_unplanned=status == "success" and not record_logged_samples,
+            total_samples=total_samples,
         )
 
     # handle sample errors (raise as required). use total_samples (sliced
@@ -1129,7 +1130,9 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
         try:
             # return immediately if we are not running samples
             if not options.run_samples:
-                return await logger.log_finish("started", stats)
+                return await logger.log_finish(
+                    "started", stats, total_samples=total_samples
+                )
 
             sample_semaphore = create_sample_semaphore(
                 config,
@@ -4076,6 +4079,7 @@ async def _finish_task_log(
     record_logged_samples: bool = False,
     resolved_unlogged_samples: int | None = None,
     prune_unplanned: bool = False,
+    total_samples: int | None = None,
 ) -> EvalLog:
     """Finish the task log.
 
@@ -4084,6 +4088,11 @@ async def _finish_task_log(
     logger's distinct-sample count — or, when sample logging is off and the
     logger therefore saw no samples, from ``resolved_unlogged_samples``, the
     attempt's resolved count per its terminal counters.
+
+    ``total_samples`` is the attempt's running count of accepted sample/epoch
+    runs (seed plus everything a SampleSource injected before the finish);
+    it lands on the log header so a denominator survives even when the
+    aggregate ``results`` is absent (#5814).
 
     The single finish chokepoint for ``task_run``'s terminal branches. A
     non-success finish may be a teardown that left planned samples unrun
@@ -4103,5 +4112,11 @@ async def _finish_task_log(
             else resolved_unlogged_samples
         )
     return await logger.log_finish(
-        status, stats, results, reductions, error, prune_unplanned=prune_unplanned
+        status,
+        stats,
+        results,
+        reductions,
+        error,
+        prune_unplanned=prune_unplanned,
+        total_samples=total_samples,
     )
