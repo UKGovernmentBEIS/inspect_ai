@@ -638,7 +638,10 @@ def test_repeated_exchanges_keep_ids_through_dialect(
     assert events[2].input[3].id == events[1].output.message.id
 
 
-async def test_edited_parallel_reply_links_results_from_separate_requests() -> None:
+@pytest.mark.parametrize("second_edit", [False, True])
+async def test_edited_parallel_reply_links_results_from_separate_requests(
+    second_edit: bool,
+) -> None:
     """An edited reply keeps its pending calls when a later result arrives."""
     task = ChatMessageUser(content="Read two files.")
     reply = ChatMessageAssistant(
@@ -662,7 +665,12 @@ async def test_edited_parallel_reply_links_results_from_separate_requests() -> N
     assert first.message_id == scaffold.sent[2].id
     assert second.message_id is None
 
-    await scaffold.request([task, edited, result_a, result_b])
+    later = (
+        reply.model_copy(update={"content": "Reading both.  "})
+        if second_edit
+        else edited
+    )
+    await scaffold.request([task, later, result_a, result_b])
     assert second.message_id == scaffold.sent[3].id
 
 

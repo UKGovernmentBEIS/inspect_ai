@@ -60,6 +60,9 @@ if TYPE_CHECKING:
 _MAX_AWAITED_RESULTS = 256
 """Host tool calls tracked for their result message, beyond which the oldest replies' are dropped."""
 
+_MAX_REPLY_EDIT_VERSIONS = 16
+"""Recent edited reply ids retained while their calls await results."""
+
 
 class _HandedCall(NamedTuple):
     """A call in a reply handed to the scaffold, as much of it as matching needs."""
@@ -130,6 +133,9 @@ class _AwaitedResult(NamedTuple):
 
     message_id: str | None = None
     """Id of the tool message the call was linked to, once settled."""
+
+    reply_versions: tuple[str, ...] = ()
+    """Recent edits of the handed reply, kept on one call per pending reply."""
 
 
 def _is_handed(copy_call: ToolCall, handed: _HandedCall) -> bool:
@@ -518,8 +524,11 @@ class AgentBridge:
                 original = next(
                     (
                         original
-                        for original in self._awaited_results
-                        if edit_id(original, content_hash(message)) == reply_id
+                        for original, calls in self._awaited_results.items()
+                        if any(
+                            reply_id in entry.reply_versions for entry in calls.values()
+                        )
+                        or edit_id(original, content_hash(message)) == reply_id
                     ),
                     None,
                 )
@@ -528,6 +537,12 @@ class AgentBridge:
                     awaited = self._awaited_results[original]
             if awaited is None:
                 continue
+            first_call = next(iter(awaited))
+            versions = awaited[first_call].reply_versions
+            if message.id is not None and message.id != reply_id:
+                awaited[first_call] = awaited[first_call]._replace(
+                    reply_versions=(*versions, message.id)[-_MAX_REPLY_EDIT_VERSIONS:]
+                )
             results: list[ChatMessageTool] = []
             for following in messages[index + 1 :]:
                 if isinstance(following, ChatMessageAssistant):

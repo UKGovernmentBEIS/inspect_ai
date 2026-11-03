@@ -1018,7 +1018,10 @@ async def _bridge_generate_impl(
                                 )
                             )
                             if isinstance(event, ModelEvent)
-                            and event.output.message.id == result.message.id
+                            and any(
+                                choice.message.id == result.message.id
+                                for choice in event.output.choices
+                            )
                         ),
                         None,
                     )
@@ -1118,21 +1121,38 @@ async def _bridge_generate_impl(
             # a sink chose is stored, so a rotating checkpoint span is followed
             # a call the model proposed names its output, though a response
             # filter or an approver may have changed the message handed over
-            proposed = (
-                {
-                    (call.id, call.function): message_id
-                    for choice in generated.choices
-                    if (message_id := choice.message.id) is not None
-                    for call in choice.message.tool_calls or []
-                }
-                if generated is not None
-                else {}
-            )
-            bridge._proposing_message_ids = {
-                call.id: proposed[(call.id, call.function)]
-                for call in reviewed.output.message.tool_calls or []
-                if proposed.get((call.id, call.function)) is not None
-            }
+            proposing: dict[str, str] = {}
+            if generated is not None:
+                for selected_call in reviewed.output.message.tool_calls or []:
+                    proposals = [
+                        (choice.message.id, call)
+                        for choice in generated.choices
+                        for call in choice.message.tool_calls or []
+                        if call.id == selected_call.id
+                        and call.function == selected_call.function
+                    ]
+                    selected = [
+                        proposal
+                        for proposal in proposals
+                        if proposal[0] == output.message.id
+                    ]
+                    if len(selected) == 1:
+                        selected_args = json.dumps(
+                            selected[0][1].arguments, sort_keys=True, default=str
+                        )
+                        matching = [
+                            proposal
+                            for proposal in proposals
+                            if json.dumps(
+                                proposal[1].arguments, sort_keys=True, default=str
+                            )
+                            == selected_args
+                        ]
+                        if len(matching) == 1 and selected[0][0] is not None:
+                            proposing[selected_call.id] = selected[0][0]
+                    elif len(proposals) == 1 and proposals[0][0] is not None:
+                        proposing[selected_call.id] = proposals[0][0]
+            bridge._proposing_message_ids = proposing
             bridge._proposing_reply_id = reviewed.output.message.id
             try:
                 bridge.register_tool_execution_grants(
