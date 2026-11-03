@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Generator, Iterator, cast
 
 import pytest
+from test_helpers.buffer import db_phase
 from test_helpers.transcript import make_model_event
 
 from inspect_ai._util.json import to_json_str_safe
@@ -20,6 +21,7 @@ from inspect_ai.log._recorders.buffer import SampleBufferDatabase
 from inspect_ai.log._recorders.buffer import database as database_module
 from inspect_ai.log._recorders.buffer import types as buffer_types_module
 from inspect_ai.log._recorders.buffer.database import (
+    DbPhase,
     sample_buffer_dbs,
     sample_buffer_shutdown_pending,
     sync_to_filestore,
@@ -739,7 +741,7 @@ def test_cleanup_closes_all_connections(
     db.cleanup()
 
     assert db._connections == []
-    assert db._closed is True
+    assert db._db_phase is DbPhase.CLOSED
     for conn in tracked:
         with pytest.raises(sqlite3.ProgrammingError):
             conn.execute("SELECT 1")
@@ -759,14 +761,14 @@ def test_close_preserves_data_until_readers_finish(
         with db._acquire_sample_read_lease(sample.id, sample.epoch):
             with db._acquire_sample_read_lease(sample.id, sample.epoch):
                 db.close()
-                assert not db._closed
+                assert db_phase(db) is DbPhase.CLOSE_DEFERRED
                 assert sample_buffer_shutdown_pending(db.location)
                 assert get_samples(db).samples == [sample]
-            assert not db._closed
+            assert db_phase(db) is DbPhase.CLOSE_DEFERRED
             if reader_fails:
                 raise ValueError("reader failed")
 
-    assert db._closed and not db._connections
+    assert db_phase(db) is DbPhase.CLOSED and not db._connections
     assert not sample_buffer_shutdown_pending(db.location)
     for conn in tracked:
         with pytest.raises(sqlite3.ProgrammingError):
@@ -838,7 +840,7 @@ def test_thread_connection_discards_on_cleanup_race(
 ) -> None:
     """If cleanup wins the race during open, the new connection is discarded.
 
-    The used-after-cleanup guard re-checks ``_closed`` under the lock after
+    The used-after-cleanup guard re-checks the phase under the lock after
     opening, so a connection opened concurrently with cleanup is closed and not
     tracked (rather than left pointing at an unlinked database).
     """
@@ -848,7 +850,9 @@ def test_thread_connection_discards_on_cleanup_race(
     def open_then_cleanup_wins() -> sqlite3.Connection:
         conn = real_open()
         opened.append(conn)
-        db._closed = True  # simulate cleanup completing while we were opening
+        db._db_phase = (
+            DbPhase.CLOSED
+        )  # simulate cleanup completing while we were opening
         return conn
 
     monkeypatch.setattr(db, "_open_connection", open_then_cleanup_wins)
