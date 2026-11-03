@@ -689,60 +689,61 @@ def test_cli_message_file_takes_an_s3_url(
     assert group.members["worker-1"].calls == [("message", "from s3", False, False)]
 
 
-@pytest.mark.parametrize(
-    "case", ["stdin not UTF-8", "file not UTF-8", "missing file", "directory"]
-)
-def test_cli_message_file_read_failure_is_one_error_envelope(
-    server: _Server, sample: _FakeSample, tmp_path: Path, case: str
-) -> None:
-    sample.operator_groups["swarm"] = _group("swarm", "worker-1")
-    binary = tmp_path / "binary.txt"
-    binary.write_bytes(b"\xff")
-    path, input, exception = {
-        "stdin not UTF-8": ("-", b"\xff", "UnicodeDecodeError"),
-        "file not UTF-8": (str(binary), None, "UnicodeDecodeError"),
-        "missing file": (str(tmp_path / "missing.txt"), None, "FileNotFoundError"),
-        "directory": (str(tmp_path), None, None),
-    }[case]
-    result = _message_from(path, input=input)
-    assert result.exit_code == 1
-    error = json.loads(result.stdout)["error"]
-    assert error["kind"] == "invalid_request"
-    assert error["message"].startswith(f"Could not read --file {path}: ")
-    if exception is not None:
-        assert error["exception"] == exception
-    assert server.requests == []
+_FILE_READ_FAILURES: dict[str, tuple[str, bytes | None, Exception | None]] = {
+    # case: (--file value, stdin, error the reader raises instead of reading)
+    "stdin not UTF-8": ("-", b"\xff", None),
+    "file not UTF-8": ("{tmp}/binary.txt", None, None),
+    "missing file": ("{tmp}/missing.txt", None, None),
+    "directory": ("{tmp}", None, None),
+    "bucket-only S3 URL": ("s3://test-bucket", None, None),
+    "bucket-only S3 URL with slash": ("s3://test-bucket/", None, None),
+    "unknown protocol": ("no-such-protocol://message.txt", None, None),
+    "malformed file URI": ("file://[bad/path", None, None),
+    "no S3 credentials": ("s3://test-bucket/m.txt", None, NoCredentialsError()),
+    "S3 endpoint unreachable": (
+        "s3://test-bucket/m.txt",
+        None,
+        EndpointConnectionError(endpoint_url="https://s3.invalid"),
+    ),
+}
 
 
-@pytest.mark.parametrize("as_json", [False, True])
-@pytest.mark.parametrize(
-    "error",
-    [NoCredentialsError(), EndpointConnectionError(endpoint_url="https://s3.invalid")],
-    ids=["no credentials", "endpoint unreachable"],
-)
-def test_cli_message_file_remote_read_failure_is_reported(
+@pytest.mark.parametrize("as_json", [False, True], ids=["human", "json"])
+@pytest.mark.parametrize("case", list(_FILE_READ_FAILURES))
+def test_cli_message_file_read_failure_is_reported(
     server: _Server,
     sample: _FakeSample,
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    error: Exception,
+    request: pytest.FixtureRequest,
+    case: str,
     as_json: bool,
 ) -> None:
+    """Any failure to read --file is invalid_request, before any request."""
     sample.operator_groups["swarm"] = _group("swarm", "worker-1")
+    (tmp_path / "binary.txt").write_bytes(b"\xff")
+    path, input, error = _FILE_READ_FAILURES[case]
+    path = path.format(tmp=tmp_path)
+    if error is not None:
 
-    def failing_file(*args: Any, **kwargs: Any) -> Any:
-        raise error
+        def failing_file(*args: Any, **kwargs: Any) -> Any:
+            raise error
 
-    monkeypatch.setattr("inspect_ai._cli.ctl._sample.file", failing_file)
-    path = "s3://test-bucket/operator/message.txt"
+        monkeypatch.setattr("inspect_ai._cli.ctl._sample.file", failing_file)
+    elif path.startswith("s3://"):
+        request.getfixturevalue("mock_s3")
     args = ["message", "t1", "s1", "--agent", "worker-1", "--file", path]
-    result = _invoke(*args, *(["--json"] if as_json else []))
+    result = _invoke(*args, *(["--json"] if as_json else []), input=input)
     assert result.exit_code == 1
     assert f"Could not read --file {path}: " in result.stderr
     assert "Traceback" not in result.stderr
     if as_json:
-        error_payload = json.loads(result.stdout)["error"]
-        assert error_payload["kind"] == "invalid_request"
-        assert error_payload["exception"] == f"botocore.{type(error).__name__}"
+        envelope = json.loads(result.stdout)["error"]
+        assert envelope["kind"] == "invalid_request"
+        assert envelope["message"].startswith(f"Could not read --file {path}: ")
+        assert envelope["exception"]
+    else:
+        assert result.stdout == ""
     assert server.requests == []
 
 

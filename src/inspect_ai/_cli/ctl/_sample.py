@@ -12,7 +12,6 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Literal, NamedTuple, cast
 
 import click
-from botocore.exceptions import BotoCoreError, ClientError
 
 from inspect_ai._control.cancel import (
     SAMPLE_ALREADY_FINISHED_REASON,
@@ -1398,16 +1397,20 @@ def _run_sample_agent_list(
 def _read_message_file(path: str) -> str:
     """Read `--file` as UTF-8 text: stdin for `-`, else a path or URL.
 
-    Remote reads can also fail with botocore's own errors (missing
-    credentials, an unreachable endpoint), which s3fs does not translate
-    to `OSError`.
+    Any failure is reported as `invalid_request`, naming the path and the
+    original exception. The catch is broad on purpose: the read happens
+    before any request is sent, so nothing is half done, and the failure is
+    reported rather than swallowed. Opening and reading a path or URL can
+    fail in many ways (`OSError`, decoding, fsspec's `ValueError` for an
+    unknown protocol or a bucket-only S3 URL, botocore's credential and
+    endpoint errors), and listing them one by one misses some.
     """
     try:
         if path == "-":
             return click.get_text_stream("stdin", encoding="utf-8").read()
         with file(local_path(path), "r", encoding="utf-8") as f:
             return f.read()
-    except (OSError, UnicodeDecodeError, BotoCoreError, ClientError) as ex:
+    except Exception as ex:
         _fail(
             "invalid_request",
             f"Could not read --file {_sanitize_line(path)}: {ex}",
