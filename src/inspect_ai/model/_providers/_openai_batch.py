@@ -153,20 +153,17 @@ class OpenAIBatcher(FileBatcher[ResponseT, CompletedBatchInfo], Generic[Response
                 and isinstance(response_body, dict)
                 and isinstance(response_body.get("error"), dict)
             ):
-                error = response_body["error"]
-                return request_id, self._openai_client._make_status_error_from_response(  # pyright: ignore[reportPrivateUsage]
-                    httpx2.Response(
-                        status_code=response["status_code"],
-                        text=error.get("message", ""),
-                    )
-                )
+                status_code = response["status_code"]
+                message = response_body["error"].get("message", "")
             else:
                 return request_id, self._response_cls.model_validate(response_body)
-        assert isinstance(error, dict)
-        return request_id, (
-            self._openai_client._make_status_error_from_response(  # pyright: ignore[reportPrivateUsage]
-                httpx2.Response(status_code=error["code"], text=error["message"])
-            )
+        else:
+            assert isinstance(error, dict)
+            status_code = error["code"]
+            message = error["message"]
+
+        return request_id, self._openai_client._make_status_error_from_response(  # pyright: ignore[reportPrivateUsage]
+            httpx2.Response(status_code=status_code, text=message)
         )
 
     # Batcher overrides

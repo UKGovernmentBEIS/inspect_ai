@@ -85,3 +85,23 @@ def test_openai_batcher_recognizes_error_embedded_in_response_body():
 
     assert request_id == "req-1"
     assert getattr(error, "status_code", None) == 503
+
+
+def test_openai_batcher_recognizes_error_in_error_field() -> None:
+    from openai.types.chat import ChatCompletion
+
+    client = MagicMock()
+    client._make_status_error_from_response.side_effect = lambda response: response
+    batcher = OpenAIBatcher(client, BatchConfig(), _retry_config(), ChatCompletion)
+
+    request_id, error = batcher._parse_jsonl_line(
+        {
+            "custom_id": "req-2",
+            "error": {"code": 429, "message": "rate limit"},
+        }
+    )
+
+    assert request_id == "req-2"
+    assert getattr(error, "status_code", None) == 429
+    assert getattr(error, "text", None) == "rate limit"
+    client._make_status_error_from_response.assert_called_once()
