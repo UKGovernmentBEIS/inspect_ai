@@ -4,7 +4,9 @@ from typing import Any, cast
 import pytest
 from anthropic.types import ThinkingBlockParam
 
-from inspect_ai._util.content import ContentDocument
+from inspect_ai._util.constants import NO_CONTENT
+from inspect_ai._util.content import ContentDocument, ContentReasoning, ContentText
+from inspect_ai._util.hash import mm3_hash
 from inspect_ai.agent._bridge.anthropic_api_impl import (
     anthropic_system_to_texts,
     base_64_data,
@@ -21,7 +23,14 @@ from inspect_ai.model._chat_message import (
     ChatMessageSystem,
     ChatMessageUser,
 )
-from inspect_ai.model._providers.anthropic import AnthropicAPI, message_block_params
+from inspect_ai.model._openai_convert import messages_from_openai
+from inspect_ai.model._providers.anthropic import (
+    AnthropicAPI,
+    assistant_internal,
+    assistant_message_block_params,
+    init_sample_anthropic_assistant_internal,
+    message_block_params,
+)
 from inspect_ai.tool import WebSearchProviders
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.tool._tool_util import tool_to_tool_info
@@ -449,3 +458,75 @@ def test_bridge_unknown_web_search_version_uses_provider_choice(
         "web_fetch_20260209",
         "web_search_20260209",
     ]
+
+
+@pytest.mark.anyio
+async def test_bridge_round_trip_tool_turn_no_trailing_text() -> None:
+    """A bridge round trip of a tool-call-only turn replays without trailing text.
+
+    A chat-completions loop inside ``agent_bridge`` replays its turns as
+    ``{"content": "", "reasoning_content": ..., "tool_calls": [...]}``, which
+    ``messages_from_openai`` rebuilds as reasoning plus an empty text sibling.
+    Materializing that sibling as a "(no content)" text block leaves trailing
+    text after the final ``tool_use``, which claude reads as an assistant
+    prefill attempt and rejects with a 400 (#5970).
+    """
+    # the conversation exactly as the bridged OpenAI client replays it: a
+    # tool-call-only assistant turn (empty content, reasoning carried in the
+    # OpenAI-compatible reasoning_content field)
+    openai_messages = [
+        {"role": "user", "content": "list the items"},
+        {
+            "role": "assistant",
+            "content": "",
+            "reasoning_content": "I should call list_items first.",
+            "tool_calls": [
+                {
+                    "id": "toolu_1",
+                    "type": "function",
+                    "function": {"name": "list_items", "arguments": "{}"},
+                }
+            ],
+        },
+        {"role": "tool", "tool_call_id": "toolu_1", "content": '["a1", "b2"]'},
+    ]
+    messages = await messages_from_openai(openai_messages, "claude-sonnet-5-5")
+    turns = [
+        message
+        for message in messages
+        if isinstance(message, ChatMessageAssistant) and message.tool_calls
+    ]
+    assert len(turns) == 1
+
+    # stand in for the provider-side state recorded when anthropic generated
+    # this turn during the bridge loop: the verbatim thinking block (keyed by
+    # content hash) and the wire position of the client tool call
+    init_sample_anthropic_assistant_internal()
+    internal = assistant_internal()
+    reasoning = turns[0].content[0]
+    assert isinstance(reasoning, ContentReasoning)
+    internal.thinking_blocks[mm3_hash(reasoning.reasoning)] = ThinkingBlockParam(
+        type="thinking", thinking=reasoning.reasoning, signature="sig-original"
+    )
+    internal.client_tool_call_positions[turns[0].tool_calls[0].id] = 1
+
+    blocks = await assistant_message_block_params(turns[0])
+    assert [block["type"] for block in blocks] == ["thinking", "tool_use"]
+    # no text block may follow the final tool_use block
+    last_tool_use = max(
+        i for i, block in enumerate(blocks) if block["type"] == "tool_use"
+    )
+    assert all(block["type"] != "text" for block in blocks[last_tool_use + 1 :])
+
+
+@pytest.mark.anyio
+async def test_assistant_empty_text_only_content_replays_placeholder() -> None:
+    """An empty-text-only assistant turn still replays a "(no content)" placeholder.
+
+    Dropping empty text items must not turn such a turn into an empty assistant
+    message, which claude rejects.
+    """
+    turn = ChatMessageAssistant(content=[ContentText(text="")])
+    blocks = await assistant_message_block_params(turn)
+    assert [block["type"] for block in blocks] == ["text"]
+    assert blocks[0]["text"] == NO_CONTENT

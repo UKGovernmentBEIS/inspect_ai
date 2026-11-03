@@ -3815,6 +3815,22 @@ async def assistant_message_block_params(
                 if id(span) not in emitted:
                     emitted.add(id(span))
                     segment.extend(_span_block_params(span, message))
+            elif (
+                isinstance(content, ContentText)
+                and not content.text
+                and content.internal is None
+                and not content.citations
+                and not _cache_breakpoint(content)
+            ):
+                # an empty text item is a round-trip artifact, not wire
+                # content: an agent bridge rebuilds a tool-call-only turn as
+                # reasoning plus an empty text sibling. `message_block_params`
+                # would materialize it as a "(no content)" placeholder, which
+                # lands after the spliced-in tool_use block — claude reads
+                # text after the final tool_use as an assistant prefill
+                # attempt and rejects the request. drop it here instead; a
+                # turn left with no blocks at all is handled below.
+                pass
             else:
                 segment.extend(await message_block_params(content))
             segments.append(segment)
@@ -3874,6 +3890,13 @@ async def assistant_message_block_params(
         block_params.extend(segment)
     block_params.extend(pending_span_params)
     block_params.extend(tools_by_position.get(content_len, []))
+
+    # a message whose every content item was dropped above (e.g. a single
+    # empty text item) has no blocks left, and claude rejects an empty
+    # assistant message — replay one placeholder, matching the empty-content
+    # handling in `message_to_anthropic_message`.
+    if not block_params:
+        block_params.append(TextBlockParam(type="text", text=NO_CONTENT))
 
     # move the first instance of thinking to the front (we only need to do this
     # for claude 3 models as we enable interleaved thinking for claude 4)
