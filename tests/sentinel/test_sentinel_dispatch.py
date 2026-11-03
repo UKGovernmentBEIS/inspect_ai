@@ -1679,6 +1679,53 @@ async def test_sample_cancellation_during_the_sentinel_propagates() -> None:
     )
 
 
+async def test_acp_interrupt_during_the_sentinel_records_the_call() -> None:
+    from test_helpers.acp import acp_test_active_sample
+
+    from inspect_ai.agent import AgentInterrupted, agent_channel
+    from inspect_ai.agent._acp.transport_live import LiveAcpTransport
+    from inspect_ai.log._samples import _sample_active
+
+    init_transcript(Transcript())
+    started = anyio.Event()
+    cleaned_up = anyio.Event()
+    sample = acp_test_active_sample(transcript())
+    assert isinstance(sample.acp_transport, LiveAcpTransport)
+    acp = sample.acp_transport
+
+    async def interrupt() -> None:
+        await started.wait()
+        acp.cancel_current_turn()
+
+    token = _sample_active.set(sample)
+    try:
+        with active([d3_waiting(started, cleaned_up)]):
+            async with agent_channel() as channel:
+                with anyio.fail_after(5):
+                    async with anyio.create_task_group() as tg:
+                        tg.start_soon(interrupt)
+                        with pytest.raises(AgentInterrupted):
+                            with channel.turn_scope():
+                                await execute_tools(
+                                    [
+                                        ChatMessageAssistant(
+                                            content=[], tool_calls=[addition_call()]
+                                        )
+                                    ],
+                                    [addition()],
+                                )
+    finally:
+        _sample_active.reset(token)
+
+    assert cleaned_up.is_set()
+    # ACP finalised the call before call_tool recorded it; it is still logged
+    [tool_event] = transcript_tool_events()
+    assert not tool_event.pending
+    assert tool_event.result == ""
+    assert tool_event.error is not None
+    assert tool_event.error.message == "Tool call cancelled by user."
+
+
 def test_sample_time_limit_during_the_sentinel_ends_the_sample() -> None:
     started = anyio.Event()
     cleaned_up = anyio.Event()

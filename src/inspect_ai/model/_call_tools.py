@@ -692,34 +692,37 @@ async def _execute_tools_impl(
                 # limit) cancelled the stage. Finalise the calls still in
                 # flight so the log does not keep them pending, as generate
                 # does for a cancelled ModelEvent. Events already finalised
-                # (completed calls, ACP's interrupt snapshot) are left as is.
+                # (completed calls, ACP's interrupt snapshot) keep their
+                # fields.
                 for idx in stage:
                     event = stage_events[idx]
-                    if not event.pending:
-                        continue
-                    completed, working_time = cancel_ends.get(
-                        idx,
-                        (
-                            datetime.now(timezone.utc),
-                            sample_working_time_since(waiting_starts[idx]),
-                        ),
-                    )
-                    event._set_result(
-                        result="",
-                        truncated=None,
-                        error=ToolCallError("cancelled", "Tool call was cancelled."),
-                        working_time=working_time,
-                        agent=None,
-                        failed=True,
-                        message_id=None,
-                    )
-                    event.completed = completed
+                    finalised_here = bool(event.pending)
+                    if finalised_here:
+                        completed, working_time = cancel_ends.get(
+                            idx,
+                            (
+                                datetime.now(timezone.utc),
+                                sample_working_time_since(waiting_starts[idx]),
+                            ),
+                        )
+                        event._set_result(
+                            result="",
+                            truncated=None,
+                            error=ToolCallError(
+                                "cancelled", "Tool call was cancelled."
+                            ),
+                            working_time=working_time,
+                            agent=None,
+                            failed=True,
+                            message_id=None,
+                        )
+                        event.completed = completed
                     # call_tool records the pending event only after approval
                     # and the sentinel's pre-call check; one cancelled before
-                    # then is appended now.
+                    # then (whoever finalised it) is appended now.
                     if event not in transcript().events:
                         transcript()._event(event)
-                    else:
+                    elif finalised_here:
                         transcript()._event_updated(event)
                 raise
 

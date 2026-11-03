@@ -7,7 +7,7 @@ that acts as a barrier preserving the model's declared call ordering.
 """
 
 import traceback
-from typing import Callable, NoReturn
+from typing import Callable, Literal, NoReturn
 
 import anyio
 import pytest
@@ -1039,6 +1039,91 @@ async def test_interrupt_during_approval_records_the_call() -> None:
     assert events[0].result == ""
     assert events[0].error is not None
     assert events[0].error.type == "cancelled"
+
+
+ACP_CANCEL_MESSAGES = {
+    "user_cancel": "Tool call cancelled by user.",
+    "limit": "Tool call cancelled by limit.",
+    "system": "Tool call cancelled by system.",
+}
+
+
+@pytest.mark.parametrize("cause", ["user_cancel", "limit", "system"])
+@pytest.mark.parametrize("parallel", [False, True])
+async def test_acp_interrupt_during_approval_records_the_calls(
+    parallel: bool, cause: Literal["user_cancel", "limit", "system"]
+) -> None:
+    """ACP finalising a call before it was recorded does not drop it from the log."""
+    from test_helpers.acp import acp_test_active_sample
+
+    from inspect_ai.agent import agent_channel
+    from inspect_ai.agent._acp.transport_live import LiveAcpTransport
+    from inspect_ai.approval._apply import _tool_approver
+    from inspect_ai.approval._approval import Approval
+    from inspect_ai.event import InterruptEvent
+    from inspect_ai.log._samples import _sample_active
+    from inspect_ai.log._transcript import transcript
+    from inspect_ai.model._chat_message import ChatMessage
+    from inspect_ai.tool._tool_call import ToolCallView
+
+    sample = acp_test_active_sample(transcript())
+    assert isinstance(sample.acp_transport, LiveAcpTransport)
+    acp = sample.acp_transport
+    call_ids = ["blocked-1", "blocked-2"] if parallel else ["blocked-1"]
+    function = "parallel_echo" if parallel else "serial_echo"
+    tdef = ToolDef(parallel_echo() if parallel else serial_echo())
+    all_waiting = anyio.Event()
+    waiting = [0]
+
+    async def blocking_approver(
+        message: str,
+        call: ToolCall,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Approval:
+        waiting[0] += 1
+        if waiting[0] == len(call_ids):
+            all_waiting.set()
+        await anyio.sleep(60)
+        return Approval(decision="approve")
+
+    async def interrupt() -> None:
+        await all_waiting.wait()
+        acp.cancel_current_turn(cause)
+
+    sample_token = _sample_active.set(sample)
+    approver_token = _tool_approver.set(blocking_approver)
+    try:
+        async with agent_channel() as channel:
+            with anyio.fail_after(5):
+                async with anyio.create_task_group() as tg:
+                    tg.start_soon(interrupt)
+                    with pytest.raises(AgentInterrupted):
+                        with channel.turn_scope():
+                            await execute_tools(
+                                [
+                                    assistant(
+                                        *[
+                                            call(function, call_id, label=call_id)
+                                            for call_id in call_ids
+                                        ]
+                                    )
+                                ],
+                                [tdef],
+                            )
+    finally:
+        _tool_approver.reset(approver_token)
+        _sample_active.reset(sample_token)
+
+    interrupts = [e for e in transcript().events if isinstance(e, InterruptEvent)]
+    assert len(interrupts) == 1
+    assert interrupts[0].interrupted_tool_call_id in call_ids
+    events = [e for e in transcript().events if isinstance(e, ToolEvent)]
+    assert sorted(e.id for e in events) == call_ids
+    for event in events:
+        assert not event.pending
+        assert event.error == ToolCallError("cancelled", ACP_CANCEL_MESSAGES[cause])
+        assert event.failed is True
 
 
 async def test_parallel_pending_events_coexist_with_distinct_uuids() -> None:
