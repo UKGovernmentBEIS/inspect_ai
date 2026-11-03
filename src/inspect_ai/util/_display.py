@@ -17,7 +17,6 @@ _display_type: DisplayType | None = None
 
 def init_display_type(display: str | None = None) -> DisplayType:
     global _display_type
-    previous_display_type = _display_type
     display = (
         display or os.environ.get("INSPECT_DISPLAY", DEFAULT_DISPLAY).lower().strip()
     )
@@ -34,16 +33,17 @@ def init_display_type(display: str | None = None) -> DisplayType:
     if display in ["full", "rich"] and not is_main_thread():
         display = "plain"
 
+    new_display_type: DisplayType
     match display:
         case "full" | "conversation" | "rich" | "plain" | "log" | "none":
-            _display_type = display
+            new_display_type = display
         case _:
             logger.warning(
                 f"Unknown display type '{display}' (setting display to 'full')"
             )
-            _display_type = "full"
+            new_display_type = "full"
 
-    if previous_display_type is not None and _display_type != previous_display_type:
+    if _display_type is not None and new_display_type != _display_type:
         from inspect_ai._display.core.active import clear_active_display
         from inspect_ai._eval import eval as eval_module
 
@@ -51,15 +51,16 @@ def init_display_type(display: str | None = None) -> DisplayType:
             # a running eval owns the display (e.g. eval() called from another
             # thread), so keep the type it is rendering with
             logger.warning(
-                f"Ignoring display type '{_display_type}' while an eval is "
-                f"running with display type '{previous_display_type}'."
+                f"Ignoring display type '{new_display_type}' while an eval is "
+                f"running with display type '{_display_type}'."
             )
-            _display_type = previous_display_type
-        else:
-            # the active display was built for the previous type (e.g. by an
-            # earlier eval() in this process), so drop it to be rebuilt
-            clear_active_display()
+            return _display_type
 
+        # the active display was built for the previous type (e.g. by an
+        # earlier eval() in this process), so drop it to be rebuilt
+        clear_active_display()
+
+    _display_type = new_display_type
     return _display_type
 
 

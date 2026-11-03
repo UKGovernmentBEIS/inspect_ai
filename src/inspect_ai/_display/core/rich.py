@@ -36,6 +36,9 @@ _DISPLAY_SETTINGS = (
 
 @dataclass
 class _ConsoleSettings:
+    console_state: dict[str, Any]
+    """The console's `__dict__`, which `rich.reconfigure()` replaces."""
+
     before: dict[str, Any]
     """Display settings before rich_initialise changed them."""
 
@@ -63,9 +66,10 @@ def rich_initialise(
     # set attributes rather than rich.reconfigure(), which would replace the
     # user's other console options and any active capture or live display
     console = rich.get_console()
-    before = (
-        _console_settings.before if _console_settings else _display_settings(console)
-    )
+    if _console_settings and _console_settings.console_state is console.__dict__:
+        before = _console_settings.before
+    else:
+        before = _display_settings(console)
 
     # reflect ansi prefs
     if plain:
@@ -82,7 +86,9 @@ def rich_initialise(
     if display == "none":
         console.quiet = True
 
-    _console_settings = _ConsoleSettings(before, _display_settings(console))
+    _console_settings = _ConsoleSettings(
+        console.__dict__, before, _display_settings(console)
+    )
 
     # consistent markdown code bock background
     from rich.markdown import CodeBlock, Markdown
@@ -113,15 +119,16 @@ def rich_restore_defaults() -> None:
     rich_initialise only sets what the current display type needs, so settings
     for an earlier type (e.g. quiet for "none", or plain's terminal detection)
     would otherwise carry over to the next one. Settings changed since
-    rich_initialise (e.g. by the user between evals) are left as they are.
+    rich_initialise (e.g. by the user between evals) are left as they are, as
+    is a console replaced by `rich.reconfigure()`.
     """
     global _console_settings
-    if _console_settings is not None:
-        console = rich.get_console()
+    console = rich.get_console()
+    if _console_settings and _console_settings.console_state is console.__dict__:
         for name, value in _console_settings.before.items():
             if getattr(console, name) == _console_settings.applied[name]:
                 setattr(console, name, value)
-        _console_settings = None
+    _console_settings = None
 
 
 def _dumb_terminal_size_kwargs() -> dict[str, int]:

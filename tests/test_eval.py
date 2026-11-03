@@ -416,6 +416,31 @@ def test_eval_display_change_keeps_console_settings_made_between_evals(
     assert console.quiet
 
 
+def test_eval_display_change_keeps_console_replaced_between_evals(
+    fresh_display: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import io
+
+    import rich
+
+    import inspect_ai._display.core.rich as display_rich
+
+    monkeypatch.setattr(display_rich, "is_running_in_vscode", lambda: False)
+    monkeypatch.delenv("TTY_COMPATIBLE", raising=False)
+    monkeypatch.delenv("TTY_INTERACTIVE", raising=False)
+    rich.reconfigure(force_terminal=True, force_interactive=True)
+    task = Task(dataset=[Sample(input="hi", target="hi")], scorer=match())
+    eval(task, model="mockllm/model", display="plain", log_dir=str(tmp_path))
+
+    # a console on a buffer is not a terminal, as plain also sets
+    rich.reconfigure(file=io.StringIO())
+    eval(task, model="mockllm/model", display="rich", log_dir=str(tmp_path))
+
+    console = rich.get_console()
+    assert not console.is_terminal
+    assert not console.is_interactive
+
+
 def test_display_type_change_during_eval_keeps_running_display(
     fresh_display: None,
     monkeypatch: pytest.MonkeyPatch,
