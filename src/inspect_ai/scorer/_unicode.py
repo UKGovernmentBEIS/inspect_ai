@@ -484,26 +484,44 @@ def _parse_chinese_integer_with_units(s: str) -> Optional[int]:
     is a lower-order remainder. This makes a smaller large unit's value the
     coefficient of a following larger unit (一万亿 = 一万 * 亿) while keeping
     descending sequences additive (一兆一万亿 = 一兆 + 一万亿).
-    """
-    max_val = 0
-    max_idx = -1
-    for i, ch in enumerate(s):
-        unit_val = _CH_LARGE_UNITS.get(ch)
-        if unit_val is not None and unit_val > max_val:
-            max_val = unit_val
-            max_idx = i
-    if max_idx < 0:
-        return _parse_chinese_small_segment(s)
 
-    left = s[:max_idx].strip()
-    right = s[max_idx + 1 :].strip()
-    coeff = _parse_chinese_integer_with_units(left) if left else 0
-    if coeff is None:
-        return None
-    rest = _parse_chinese_integer_with_units(right) if right else 0
-    if rest is None:
-        return None
-    return coeff * max_val + rest
+    The split is evaluated with an explicit stack, not recursion: a long
+    run of repeated large units (e.g. "万" * 1100) would otherwise recurse
+    once per unit and raise RecursionError before any value is produced.
+    """
+    # Each frame is ("eval", segment, 0) or ("combine", "", unit). Frames
+    # are pushed combine-first so the coefficient segment evaluates before
+    # the remainder segment, and the combine pops remainder then coefficient.
+    values: list[Optional[int]] = []
+    stack: list[tuple[str, str, int]] = [("eval", s, 0)]
+    while stack:
+        kind, segment, unit = stack.pop()
+        if kind == "combine":
+            rest = values.pop()
+            coeff = values.pop()
+            if coeff is None or rest is None:
+                values.append(None)
+            else:
+                values.append(coeff * unit + rest)
+            continue
+
+        max_val = 0
+        max_idx = -1
+        for i, ch in enumerate(segment):
+            unit_val = _CH_LARGE_UNITS.get(ch)
+            if unit_val is not None and unit_val > max_val:
+                max_val = unit_val
+                max_idx = i
+        if max_idx < 0:
+            values.append(_parse_chinese_small_segment(segment))
+            continue
+
+        left = segment[:max_idx].strip()
+        right = segment[max_idx + 1 :].strip()
+        stack.append(("combine", "", max_val))
+        stack.append(("eval", right, 0))
+        stack.append(("eval", left, 0))
+    return values[0]
 
 
 def _parse_chinese_small_segment(s: str) -> Optional[int]:
