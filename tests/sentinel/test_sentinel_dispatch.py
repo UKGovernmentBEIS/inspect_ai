@@ -1666,7 +1666,12 @@ async def test_sample_cancellation_during_the_sentinel_propagates() -> None:
         ("d3_waiting", "observation", "cancelled"),
         ("", "decision", "cancelled"),
     ]
-    assert transcript_tool_events() == []
+    # the call never ran, and is logged as cancelled rather than left out
+    [tool_event] = transcript_tool_events()
+    assert not tool_event.pending
+    assert tool_event.result == ""
+    assert tool_event.error is not None
+    assert tool_event.error.type == "cancelled"
     [span_id] = sentinel_span_ids(transcript().events)
     assert {e.span_id for e in events} == {span_id}
     assert any(

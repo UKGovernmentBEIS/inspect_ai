@@ -6,6 +6,7 @@ from typing import Any, Sequence
 
 import anyio
 import pytest
+from test_helpers.utils import skip_if_no_bedrock, skip_if_no_google
 
 from inspect_ai.agent import (
     AgentChannel,
@@ -388,6 +389,42 @@ async def test_repaired_history_converts_for_openai_chat_completions() -> None:
     results = [p["tool_call_id"] for p in params if p["role"] == "tool"]
     assert results == ["t1", "t2", "t3"]
     assert params[-1] == {"role": "user", "content": "stop and do this instead"}
+
+
+async def _continue_interrupted_history(model: str) -> None:
+    """Send the repaired history to a live model, which must accept it."""
+    from inspect_ai.model import GenerateConfig, get_model
+    from inspect_ai.tool import ToolInfo, ToolParam, ToolParams
+
+    tools = [
+        ToolInfo(
+            name=name,
+            description=f"Call {name}.",
+            parameters=ToolParams(
+                properties={arg: ToolParam(type="string", description=arg)},
+                required=[arg],
+            ),
+        )
+        for name, arg in [
+            ("list_files", "path"),
+            ("read_file", "path"),
+            ("run_shell", "cmd"),
+        ]
+    ]
+    output = await get_model(model).generate(
+        _interrupted_history(), tools=tools, config=GenerateConfig(max_tokens=256)
+    )
+    assert output.choices
+
+
+@skip_if_no_google
+async def test_repaired_history_continues_on_google() -> None:
+    await _continue_interrupted_history("google/gemini-2.5-flash")
+
+
+@skip_if_no_bedrock
+async def test_repaired_history_continues_on_bedrock() -> None:
+    await _continue_interrupted_history("bedrock/us.anthropic.claude-sonnet-4-6")
 
 
 # ---------------------------------------------------------------------------

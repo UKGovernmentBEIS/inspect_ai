@@ -939,6 +939,108 @@ async def test_interrupt_keeps_tool_events_already_finalised() -> None:
     assert events["slow-2"].error.message == "Tool call was cancelled."
 
 
+async def test_interrupt_times_each_call_by_its_own_cleanup() -> None:
+    """A sibling's slow cancellation cleanup does not delay another call's end."""
+    from inspect_ai.log._transcript import transcript
+
+    channel = AgentChannel()
+    both_started = anyio.Event()
+    started = [0]
+
+    @tool(parallel=True)
+    def cleanup():
+        async def cleanup(seconds: float) -> str:
+            """Wait, then clean up for some seconds when cancelled.
+
+            Args:
+                seconds: Shielded cleanup time.
+            """
+            started[0] += 1
+            if started[0] == 2:
+                both_started.set()
+            try:
+                await anyio.sleep(30)
+            finally:
+                with anyio.CancelScope(shield=True):
+                    await anyio.sleep(seconds)
+            return "unreachable"
+
+        return cleanup
+
+    async def interrupt() -> None:
+        await both_started.wait()
+        channel._ref().interrupt(Cancel(reason="user_cancel"))
+
+    calls = [
+        call("cleanup", "quick", seconds=0),
+        call("cleanup", "slow", seconds=0.3),
+    ]
+    with anyio.fail_after(5):
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(interrupt)
+            with pytest.raises(AgentInterrupted):
+                with channel.turn_scope():
+                    await execute_tools([assistant(*calls)], [ToolDef(cleanup())])
+
+    events = {e.id: e for e in transcript().events if isinstance(e, ToolEvent)}
+    quick, slow = events["quick"], events["slow"]
+    for event in (quick, slow):
+        assert not event.pending
+        assert event.error is not None
+        assert event.error.type == "cancelled"
+    assert quick.completed is not None and slow.completed is not None
+    assert (slow.completed - quick.completed).total_seconds() > 0.2
+    assert quick.working_time is not None and slow.working_time is not None
+    assert slow.working_time - quick.working_time > 0.2
+
+
+async def test_interrupt_during_approval_records_the_call() -> None:
+    """A call interrupted before call_tool recorded its event is still logged."""
+    from inspect_ai.approval._apply import _tool_approver
+    from inspect_ai.approval._approval import Approval
+    from inspect_ai.log._transcript import transcript
+    from inspect_ai.model._chat_message import ChatMessage
+    from inspect_ai.tool._tool_call import ToolCallView
+
+    channel = AgentChannel()
+    approval_reached = anyio.Event()
+
+    async def blocking_approver(
+        message: str,
+        call: ToolCall,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Approval:
+        approval_reached.set()
+        await anyio.sleep(60)
+        return Approval(decision="approve")
+
+    async def interrupt() -> None:
+        await approval_reached.wait()
+        channel._ref().interrupt(Cancel(reason="user_cancel"))
+
+    token = _tool_approver.set(blocking_approver)
+    try:
+        with anyio.fail_after(5):
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(interrupt)
+                with pytest.raises(AgentInterrupted):
+                    with channel.turn_scope():
+                        await execute_tools(
+                            [assistant(call("serial_echo", "blocked", label="x"))],
+                            [ToolDef(serial_echo())],
+                        )
+    finally:
+        _tool_approver.reset(token)
+
+    events = [e for e in transcript().events if isinstance(e, ToolEvent)]
+    assert [e.id for e in events] == ["blocked"]
+    assert not events[0].pending
+    assert events[0].result == ""
+    assert events[0].error is not None
+    assert events[0].error.type == "cancelled"
+
+
 async def test_parallel_pending_events_coexist_with_distinct_uuids() -> None:
     """Mid-execution, two parallel tools both have pending=True with distinct uuids.
 

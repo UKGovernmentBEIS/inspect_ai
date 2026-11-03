@@ -8,7 +8,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from copy import copy, deepcopy
 from dataclasses import dataclass, is_dataclass, replace
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timezone
 from enum import EnumMeta
 from logging import getLogger
 from textwrap import dedent
@@ -435,6 +435,9 @@ async def _execute_tools_impl(
             # time lets us compute working time.)
             stage_events: dict[int, ToolEvent] = {}
             waiting_starts: dict[int, float] = {}
+            # When each call's own unwind from a cancellation ended, and its
+            # working time then.
+            cancel_ends: dict[int, tuple[datetime, float]] = {}
             stage_results: dict[int, StreamItem | None] = {}
             for idx in stage:
                 call = tool_calls[idx]
@@ -501,6 +504,7 @@ async def _execute_tools_impl(
                 events: dict[int, ToolEvent],
                 results: dict[int, StreamItem | None],
                 waiting_starts: dict[int, float],
+                cancel_ends: dict[int, tuple[datetime, float]],
             ) -> None:
                 call = tool_calls[idx]
                 event = events[idx]
@@ -592,6 +596,14 @@ async def _execute_tools_impl(
                     # leave the post-task-group block below to detect and
                     # finalise the cancellation.
                     pass
+                except anyio.get_cancelled_exc_class():
+                    # Recorded here, after this call's own cleanup, so a
+                    # sibling's slower cleanup is not counted against it.
+                    cancel_ends[idx] = (
+                        datetime.now(timezone.utc),
+                        sample_working_time_since(waiting_start),
+                    )
+                    raise
 
                 if review_cancellation is not None:
                     raise review_cancellation
@@ -671,6 +683,7 @@ async def _execute_tools_impl(
                             stage_events,
                             stage_results,
                             waiting_starts,
+                            cancel_ends,
                         )
             except Exception as ex:
                 stage_exception = ex
@@ -684,16 +697,29 @@ async def _execute_tools_impl(
                     event = stage_events[idx]
                     if not event.pending:
                         continue
+                    completed, working_time = cancel_ends.get(
+                        idx,
+                        (
+                            datetime.now(timezone.utc),
+                            sample_working_time_since(waiting_starts[idx]),
+                        ),
+                    )
                     event._set_result(
                         result="",
                         truncated=None,
                         error=ToolCallError("cancelled", "Tool call was cancelled."),
-                        working_time=sample_working_time_since(waiting_starts[idx]),
+                        working_time=working_time,
                         agent=None,
                         failed=True,
                         message_id=None,
                     )
-                    if event in transcript().events:
+                    event.completed = completed
+                    # call_tool records the pending event only after approval
+                    # and the sentinel's pre-call check; one cancelled before
+                    # then is appended now.
+                    if event not in transcript().events:
+                        transcript()._event(event)
+                    else:
                         transcript()._event_updated(event)
                 raise
 
