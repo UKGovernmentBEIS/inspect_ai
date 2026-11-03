@@ -1799,15 +1799,6 @@ async def content(
     elif isinstance(message, ChatMessageAssistant):
         content_parts: list[Part] = []
         emitted_tool_call_ids: set[str] = set()
-        # Gemini sends a server tool's response after the unsigned function
-        # calls of the same step, but the tool's ContentToolUse holds both its
-        # call and response. Hold the response back until those calls are
-        # emitted: Gemini rejects an unsigned function_call after it.
-        held_tool_responses: list[Part] = []
-
-        def release_tool_responses() -> None:
-            content_parts.extend(held_tool_responses)
-            held_tool_responses.clear()
 
         def part_from_tool_call(tool_call: ToolCall) -> Part:
             if tool_call.function == "computer":
@@ -1872,7 +1863,6 @@ async def content(
                             and _GEMINI_FUNCTION_CALL_ID_KEY in content.internal
                         ):
                             continue
-                        release_tool_responses()
                         content_parts.append(Part(text=reasoning_to_think_tag(content)))
                     else:
                         # if this is encrypted reasoning, save it for applying the thought_signature
@@ -1898,10 +1888,7 @@ async def content(
                                 if tool_call is not None:
                                     part = part_from_tool_call(tool_call)
                                     if content.reasoning:
-                                        # a signed call starts a new step, so it
-                                        # follows any held server tool response
                                         apply_reasoning_signature(part, content)
-                                        release_tool_responses()
                                     # else: an unsigned call is a parallel
                                     # sibling of the step's first (signed) call.
                                     # Gemini accepts it unsigned at its original
@@ -1916,7 +1903,6 @@ async def content(
                             working_reasoning_block = content
                         else:
                             # unencrypted reasoning (for older models or debugging)
-                            release_tool_responses()
                             content_parts.append(
                                 Part(text=content.reasoning, thought=True)
                             )
@@ -1963,16 +1949,10 @@ async def content(
                             )
                         # Now, reset the previous reasoning block.
                         working_reasoning_block = None
-                    release_tool_responses()
-                    if isinstance(content, ContentToolUse):
-                        held_tool_responses.extend(
-                            p for p in parts_to_append if p.tool_response is not None
-                        )
-                        parts_to_append = [
-                            p for p in parts_to_append if p.tool_response is None
-                        ]
                     content_parts.extend(parts_to_append)
-            release_tool_responses()
+            content_parts = _replay_server_tool_responses_after_unsigned_calls(
+                content_parts
+            )
 
         # Now handle tool calls
         if message.tool_calls is not None:
@@ -2696,6 +2676,37 @@ def server_tool_use_from_tool_call(
         result=json.dumps(tool_response.response if tool_response else {}),
         internal={"gemini_parts": cast(JsonValue, internal_parts)},
     )
+
+
+def _replay_server_tool_responses_after_unsigned_calls(parts: list[Part]) -> list[Part]:
+    """Move each server tool response after the unsigned function calls that follow it.
+
+    Gemini sends a step that runs a server tool (such as search) and calls
+    functions in parallel as `[tool_call (signed), function_call (unsigned),
+    ..., tool_response (signed)]`. Inspect stores the server tool's call and
+    response together in one `ContentToolUse`, so they are rebuilt next to each
+    other. Gemini rejects an unsigned function_call placed after the response
+    ("Function call is missing a thought_signature") and one given the server
+    tool's signature ("Tool type of function_call part does not match with tool
+    call context"). This restores the order Gemini sent.
+
+    A run ends at any part other than an unsigned function_call: a signed
+    function_call starts a new step, and text, thoughts and other tool parts
+    came after the response.
+    """
+    replayed: list[Part] = []
+    held_responses: list[Part] = []
+    for part in parts:
+        if part.function_call is not None and part.thought_signature is None:
+            replayed.append(part)
+        elif part.tool_response is not None:
+            held_responses.append(part)
+        else:
+            replayed.extend(held_responses)
+            held_responses.clear()
+            replayed.append(part)
+    replayed.extend(held_responses)
+    return replayed
 
 
 def parts_from_server_tool_use(tool: ContentToolUse) -> list[Part]:

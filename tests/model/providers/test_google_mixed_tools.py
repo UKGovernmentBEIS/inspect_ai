@@ -52,6 +52,7 @@ from inspect_ai.model._compaction.edit import _clear_reasoning
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._providers.google import (
     GoogleGenAIAPI,
+    _replay_server_tool_responses_after_unsigned_calls,
     completion_choice_from_candidate,
     content,
     gemini_native_tool_combination,
@@ -606,6 +607,100 @@ async def test_gemini_held_search_response_replays_before_later_content(
     google_content = await content(MagicMock(), message, emulate_reasoning=False)
 
     assert google_content.parts == parts
+
+
+def _search_call(n: int) -> Part:
+    return Part(
+        thought_signature=f"call-{n}".encode(),
+        tool_call=GeminiToolCall(
+            id=f"search-{n}", tool_type=ToolType.GOOGLE_SEARCH_WEB, args={}
+        ),
+    )
+
+
+def _search_response(n: int) -> Part:
+    return Part(
+        thought_signature=f"response-{n}".encode(),
+        tool_response=ToolResponse(
+            id=f"search-{n}", tool_type=ToolType.GOOGLE_SEARCH_WEB, response={}
+        ),
+    )
+
+
+def _function_call(n: int, signature: bytes | None = None) -> Part:
+    return Part(
+        thought_signature=signature,
+        function_call=FunctionCall(id=f"f-{n}", name="days_in_year", args={}),
+    )
+
+
+# (parts as rebuilt from stored content, parts in the order Gemini sent them)
+_SERVER_TOOL_RESPONSE_ORDER: dict[str, tuple[list[Part], list[Part]]] = {
+    "unsigned-calls": (
+        [_search_call(1), _search_response(1), _function_call(1), _function_call(2)],
+        [_search_call(1), _function_call(1), _function_call(2), _search_response(1)],
+    ),
+    "signed-call-ends-run": (
+        [
+            _search_call(1),
+            _search_response(1),
+            _function_call(1),
+            _function_call(2, b"sig"),
+            _function_call(3),
+        ],
+        [
+            _search_call(1),
+            _function_call(1),
+            _search_response(1),
+            _function_call(2, b"sig"),
+            _function_call(3),
+        ],
+    ),
+    "text-ends-run": (
+        [_search_call(1), _search_response(1), Part(text="Done."), _function_call(1)],
+        [_search_call(1), _search_response(1), Part(text="Done."), _function_call(1)],
+    ),
+    "thought-ends-run": (
+        [
+            _search_call(1),
+            _search_response(1),
+            Part(text="Next", thought=True),
+            _function_call(1),
+        ],
+        [
+            _search_call(1),
+            _search_response(1),
+            Part(text="Next", thought=True),
+            _function_call(1),
+        ],
+    ),
+    "second-search": (
+        [
+            _search_call(1),
+            _search_response(1),
+            _function_call(1),
+            _search_call(2),
+            _search_response(2),
+        ],
+        [
+            _search_call(1),
+            _function_call(1),
+            _search_response(1),
+            _search_call(2),
+            _search_response(2),
+        ],
+    ),
+    "no-calls": (
+        [Part(text="Plan", thought=True), _search_call(1), _search_response(1)],
+        [Part(text="Plan", thought=True), _search_call(1), _search_response(1)],
+    ),
+}
+
+
+@pytest.mark.parametrize("case", list(_SERVER_TOOL_RESPONSE_ORDER))
+def test_gemini_server_tool_response_replays_after_unsigned_calls(case: str) -> None:
+    rebuilt, sent = _SERVER_TOOL_RESPONSE_ORDER[case]
+    assert _replay_server_tool_responses_after_unsigned_calls(rebuilt) == sent
 
 
 def test_gemini_unsupported_server_tool_call_is_omitted() -> None:
