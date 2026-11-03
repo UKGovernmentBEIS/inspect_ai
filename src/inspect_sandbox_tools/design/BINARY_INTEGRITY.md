@@ -55,8 +55,6 @@ Residual risks, explicitly out of scope:
 - Local-filesystem tampering on the host. An attacker who can write to
   `site-packages` can patch `inspect_ai` itself, so hashing local files buys
   nothing. See "What is deliberately not verified".
-- The legacy `inspect_tool_support` Docker-image path (separate distribution
-  mechanism; image digest pinning would be a separate piece of work).
 
 ## The digest file
 
