@@ -77,6 +77,7 @@ from inspect_ai._util.content import (
     ContentVideo,
 )
 from inspect_ai._util.error import PrerequisiteError, exception_message
+from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.http import status_code_of
 from inspect_ai._util.images import UnresolvedMediaError, inline_media_data_uri
 from inspect_ai._util.logger import warn_once
@@ -107,6 +108,7 @@ from inspect_ai.tool._tool_call import ToolCallModelInputHints
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.util import concurrency
 from inspect_ai.util._limit import (
+    LimitExceededError,
     check_cost_limit,
     check_message_limit,
     check_token_limit,
@@ -1113,6 +1115,10 @@ class Model:
                         on_stream=on_stream,
                         event_uuid=generate_id,
                     )
+                except (LimitExceededError, TerminateSampleError, ModelRefusalError):
+                    # Inspect's own outcomes, never a provider's error: a
+                    # refusal that reached one was acted on and counted there
+                    raise
                 except Exception as ex:
                     if receiving is None:
                         raise
