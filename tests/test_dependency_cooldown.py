@@ -279,8 +279,8 @@ def test_pinned_uv_versions_meet_required_version() -> None:
     # Removing the local pins keeps one source of truth for the uv version per
     # install path. So, before a required-version increase, the shared
     # setup-uv action must release a uv that meets it. This test does not
-    # check that. The sync_model_data generate job also does not: it runs uv
-    # with --no-config, so uv does not read required-version there.
+    # check that. The sync_model_data generate job also does not catch a miss:
+    # it runs uv with --no-config, so uv does not read required-version there.
     pin = yaml.safe_load((WORKFLOWS / "build.yml").read_text())["env"]["UV_VERSION"]
     assert version(pin) >= version(required[1]), f"build.yml: uv {pin}"
     for workflow in [
