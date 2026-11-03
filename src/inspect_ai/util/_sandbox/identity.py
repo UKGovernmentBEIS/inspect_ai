@@ -44,14 +44,13 @@ def sandbox_identity(
     sandbox-tool launches inherit the scope's user when omitted; they keep
     their existing working-directory behavior.
 
-    The tools above set `HOME` to the home directory of `user` in the sandbox's
-    passwd database, so a `HOME` the image or container sets for its default
-    user does not carry over. `bash()`, `python()`, `grep()`, `list_files()` and
-    `read_file()` look the home directory up once per block; `bash_session()`,
-    `text_editor()` and `exec_remote()` get it from the sandbox tools when they
-    switch to `user`. If the sandbox has no passwd entry for `user`, the first
-    five tools keep the `HOME` the sandbox gives them; if the entry's home
-    directory is empty, they raise `RuntimeError`.
+    `bash()`, `python()`, `grep()`, `list_files()` and `read_file()` set `HOME`
+    to the user's home from the sandbox's passwd database, looked up once per
+    block. They keep the inherited `HOME` if the user has no passwd entry and
+    raise `RuntimeError` if the entry has an empty home. `bash_session()`,
+    `text_editor()` and `exec_remote()` set `HOME` only when switching user; if
+    their tools process already runs as that user, they keep its inherited
+    `HOME`.
 
     Inside the block `sandbox` is also the default sandbox (as with
     `sandbox_default()`), and tools that find their sandbox by injection use it.
@@ -204,7 +203,10 @@ PASSWD_LOOKUP_TIMEOUT = 30
 # passwd database has no entry for it; any other failure, an entry without
 # exactly seven fields included, exits non-zero. Uses getent so NSS sources
 # count (exit status 2 means no entry), and reads /etc/passwd on images without
-# getent. Entries are split with parameter expansion, which cannot fail.
+# getent. Like getent, the fallback matches an all-digit $1 against the uid
+# field as a number and anything else against the name field, and like glibc
+# it skips lines starting with #. Entries are split with parameter expansion,
+# which cannot fail.
 _PASSWD_HOME_SCRIPT = """
 print_home() {
     case $1 in
@@ -233,13 +235,25 @@ if [ ! -r /etc/passwd ]; then
     echo "no getent and no readable /etc/passwd" >&2
     exit 1
 fi
+case $1 in
+    *[!0-9]*) by_uid=false ;;
+    *) by_uid=true ;;
+esac
 while IFS= read -r entry || [ -n "$entry" ]; do
-    name=${entry%%:*}
-    uid=${entry#*:*:}
-    uid=${uid%%:*}
-    if [ "$name" = "$1" ] || [ "$uid" = "$1" ]; then
-        print_home "$entry" /etc/passwd
+    case $entry in
+        "#"*) continue ;;
+    esac
+    if [ "$by_uid" = true ]; then
+        uid=${entry#*:*:}
+        uid=${uid%%:*}
+        case $uid in
+            "" | *[!0-9]*) continue ;;
+        esac
+        [ "$uid" -eq "$1" ] 2>/dev/null || continue
+    else
+        [ "${entry%%:*}" = "$1" ] || continue
     fi
+    print_home "$entry" /etc/passwd
 done < /etc/passwd
 """
 

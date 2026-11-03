@@ -409,6 +409,29 @@ async def test_vars_raise_on_a_bad_entry_and_retry_later(
     assert len(sb.exec_calls) == 3
 
 
+@pytest.mark.skipif(os.name != "posix", reason="requires a POSIX shell")
+@pytest.mark.parametrize(
+    "before",
+    ["1000:x:2000:2000::/home/numeric:/bin/sh", "#old:x:1000:1000::/home/old:/bin/sh"],
+    ids=["numeric-name", "comment"],
+)
+async def test_vars_find_a_bare_uid_by_its_uid_field(
+    tmp_path: Path, before: str
+) -> None:
+    passwd = tmp_path / "passwd"
+    passwd.write_text(before + "\nw:x:1000:1000::/home/w:/bin/sh\n")
+    sb = _LookupSandbox(passwd=passwd)
+    for user in ("1000", "01000"):
+        with _environments(default=sb), sandbox_identity(user):
+            assert await sandbox_identity_vars(sb, None) == {"HOME": "/home/w"}
+
+    # a uid with no account leaves HOME alone, and that answer is cached
+    with _environments(default=sb), sandbox_identity("4242"):
+        assert await sandbox_identity_vars(sb, None) is None
+        assert await sandbox_identity_vars(sb, None) is None
+    assert len(sb.exec_calls) == 3
+
+
 @pytest.mark.parametrize("timeout, expected", [(None, 30), (5, 5), (60, 30)])
 async def test_vars_lookup_is_bounded_by_the_tool_timeout(
     default: CannedSandbox, timeout: int | None, expected: int
