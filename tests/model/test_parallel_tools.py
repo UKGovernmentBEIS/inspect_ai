@@ -11,7 +11,7 @@ from typing import Any, Callable, Literal, NoReturn
 
 import anyio
 import pytest
-from test_helpers.transcript import FakeTranscriptHistoryProvider
+from test_helpers.transcript import PersistingHistoryProvider
 from test_helpers.utils import fail_in_a_group_with_handled_context
 
 from inspect_ai.agent import AgentChannel, AgentInterrupted
@@ -1157,20 +1157,6 @@ async def test_acp_interrupt_during_approval_records_the_calls(
         assert event.failed is True
 
 
-class _PersistingHistoryProvider(FakeTranscriptHistoryProvider):
-    """History that persists every notified event by uuid, as the sample buffer does."""
-
-    def __init__(self) -> None:
-        super().__init__([])
-
-    def persist(self, event: Event) -> None:
-        for index, existing in enumerate(self._events):
-            if existing.uuid == event.uuid:
-                self._events[index] = event
-                return
-        self._events.append(event)
-
-
 @pytest.mark.parametrize("parallel", [False, True])
 async def test_acp_interrupt_during_approval_records_the_calls_after_eviction(
     parallel: bool,
@@ -1182,7 +1168,7 @@ async def test_acp_interrupt_during_approval_records_the_calls_after_eviction(
     """
     from inspect_ai.event import InfoEvent
 
-    provider = _PersistingHistoryProvider()
+    provider = PersistingHistoryProvider()
     bounded = Transcript(bounded=True, resident_tail=3, history_provider=provider)
     bounded._subscribe(provider.persist)
     init_transcript(bounded)
@@ -1206,6 +1192,66 @@ async def test_acp_interrupt_during_approval_records_the_calls_after_eviction(
         assert event.error == ToolCallError(
             "cancelled", ACP_CANCEL_MESSAGES["user_cancel"]
         )
+
+
+async def test_interrupt_during_approval_after_many_serial_calls_is_recorded() -> None:
+    """Append tracking holds across stages once bounded history releases events."""
+    from inspect_ai.approval._apply import _tool_approver
+    from inspect_ai.approval._approval import Approval
+    from inspect_ai.model._chat_message import ChatMessage
+    from inspect_ai.tool._tool_call import ToolCallView
+
+    provider = PersistingHistoryProvider()
+    bounded = Transcript(bounded=True, resident_tail=3, history_provider=provider)
+    bounded._subscribe(provider.persist)
+    init_transcript(bounded)
+    channel = AgentChannel()
+    call_ids = [f"serial-{index}" for index in range(40)]
+    approval_reached = anyio.Event()
+
+    async def approver(
+        message: str,
+        call: ToolCall,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Approval:
+        if call.id == call_ids[-1]:
+            approval_reached.set()
+            await anyio.sleep(60)
+        return Approval(decision="approve")
+
+    async def interrupt() -> None:
+        await approval_reached.wait()
+        channel._ref().interrupt(Cancel(reason="user_cancel"))
+
+    token = _tool_approver.set(approver)
+    try:
+        with anyio.fail_after(10):
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(interrupt)
+                with pytest.raises(AgentInterrupted):
+                    with channel.turn_scope():
+                        await execute_tools(
+                            [
+                                assistant(
+                                    *[
+                                        call("serial_echo", call_id, label=call_id)
+                                        for call_id in call_ids
+                                    ]
+                                )
+                            ],
+                            [ToolDef(serial_echo())],
+                        )
+    finally:
+        _tool_approver.reset(token)
+
+    assert bounded.history.resident_events_truncated
+    assert bounded.history.event_count == provider.event_count
+    [last] = bounded.history.recent_events(1)
+    assert isinstance(last, ToolEvent)
+    assert last.id == call_ids[-1]
+    assert last.error is not None
+    assert last.error.type == "cancelled"
 
 
 async def test_parallel_pending_events_coexist_with_distinct_uuids() -> None:

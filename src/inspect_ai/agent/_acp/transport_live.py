@@ -1477,8 +1477,14 @@ class LiveAcpTransport:
             # Notify log writers / hook subscribers about the cleared
             # pending flag — without ``_event_updated``, downstream
             # consumers buffer the original pending event and never
-            # see the cancellation.
+            # see the cancellation. A pending event that was recorded is
+            # always resident; one that is not was never recorded (a tool
+            # call still in approval or the sentinel's pre-call check), and
+            # its recorder appends it later, so notifying it now would
+            # persist it ahead of its place in the transcript.
             for ev in snapshot.cancelled_events:
+                if not tr._is_resident(ev):
+                    continue
                 with acp_guard(
                     "ACP cancel_current_turn: failed to notify event update"
                 ):

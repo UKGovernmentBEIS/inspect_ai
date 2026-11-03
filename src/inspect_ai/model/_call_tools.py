@@ -248,10 +248,12 @@ async def _execute_tools_impl(
         if watch is not None:
             _report_handoffs(watch, tool_calls, tdefs)
 
-        # Events call_tool appended to the transcript. Tracked here because
-        # `event in transcript().events` can also match an event that was only
-        # updated (persisted) and never appended, once history is evicted.
-        recorded_events: set[int] = set()
+        # UUIDs of the events call_tool appended to the transcript. Tracked
+        # here because `event in transcript().events` can also match an event
+        # that was only updated (persisted) and never appended, once history
+        # is evicted; object ids are not used because released events' ids
+        # can be reused.
+        recorded_events: set[str | None] = set()
 
         async def call_tool_task(
             call: ToolCall,
@@ -305,7 +307,7 @@ async def _execute_tools_impl(
                             event,
                             conversation,
                             on_execute=note_executed_call,
-                            on_record=lambda: recorded_events.add(id(event)),
+                            on_record=lambda: recorded_events.add(event.uuid),
                         )
                         result = called.result
                         messages = called.messages
@@ -726,7 +728,7 @@ async def _execute_tools_impl(
                     # call_tool records the pending event only after approval
                     # and the sentinel's pre-call check; one cancelled before
                     # then (whoever finalised it) is appended now.
-                    if stage_results[idx] is None and id(event) not in recorded_events:
+                    if stage_results[idx] is None and event.uuid not in recorded_events:
                         transcript()._event(event)
                     elif finalised_here:
                         transcript()._event_updated(event)
