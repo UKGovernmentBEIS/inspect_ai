@@ -1556,7 +1556,7 @@ class _Continuity:
         needles = [text]
         if (at := text.rfind(_SUMMARY_TAG)) > 0:
             needles.append(text[at:])
-        for message in input:
+        for message in reversed(input):
             # an exact match by the fingerprint each message already has, else
             # the summary within a message the compaction wrapped it in
             if self._inputs.fingerprint(message).text_hash in texts:

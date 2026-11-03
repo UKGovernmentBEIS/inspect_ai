@@ -2079,6 +2079,40 @@ def test_tool_call_prompt_scan_without_system_message_is_linear(
     assert work[-1] <= 4.2 * work[0], work
 
 
+def test_summary_match_reads_linearly_with_retained_prefix_and_compactions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from inspect_ai.event import _timeline
+
+    original = _timeline._Inputs.fingerprint
+    work: list[int] = []
+
+    def count_fingerprint(inputs: Any, message: ChatMessage) -> Any:
+        work[-1] += 1
+        return original(inputs, message)
+
+    monkeypatch.setattr(_timeline._Inputs, "fingerprint", count_fingerprint)
+    for size in (100, 200, 400):
+        pool: list[ChatMessage] = [
+            ChatMessageUser(content=f"retained {n}", source="input")
+            for n in range(size)
+        ]
+        pool.extend(
+            ChatMessageUser(content=f"summary {n}") for n in range(size)
+        )
+        inputs = _timeline._Inputs([], pool)
+        continuity = _timeline._Continuity(inputs)
+        work.append(0)
+        for n in range(size):
+            event = imported_call(f"summary-{n}", [], "run")
+            event.output = ModelOutput.from_content("imported", f"summary {n}")
+            call = _timeline._Call(event, [], event.output.message)
+            next_input = PoolView(pool, [(0, size), (size + n, size + n + 1)])
+            assert continuity._summarizes(call, next_input)
+        assert work[-1] <= 3 * (len(pool) + size), work
+    assert work[-1] <= 4.2 * work[0], work
+
+
 @pytest.mark.parametrize("origins", [True, False])
 def test_replay_reads_each_pool_row_once_and_folds_linearly(
     origins: bool, monkeypatch: pytest.MonkeyPatch
