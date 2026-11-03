@@ -1837,10 +1837,11 @@ def _wrap_utility_events(
     for item in agent.content:
         if isinstance(item, TimelineEvent) and isinstance(item.event, ModelEvent):
             if _has_tool_calls(item.event) and _may_be_turn(item.event, inputs):
-                primary_prompts.setdefault(
-                    conversation(item.event),
-                    _get_system_prompt_for_event(item.event, inputs),
-                )
+                key = conversation(item.event)
+                if key not in primary_prompts:
+                    primary_prompts[key] = _get_system_prompt_for_event(
+                        item.event, inputs
+                    )
                 if not by_conversation:
                     break
 

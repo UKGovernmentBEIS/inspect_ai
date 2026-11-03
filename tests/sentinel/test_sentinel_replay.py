@@ -2043,6 +2043,42 @@ def test_an_adversarial_log_replays_in_linear_work(inputs: str) -> None:
     assert per_unit[2] <= 1.3 * per_unit[0], per_unit
 
 
+def test_tool_call_prompt_scan_without_system_message_is_linear(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from inspect_ai.event import _timeline
+
+    original = _timeline._get_system_prompt_for_event
+    work: list[int] = []
+
+    def count_prompt_input(event: ModelEvent, inputs: Any) -> str | None:
+        work[-1] += len(inputs.of(event))
+        return original(event, inputs)
+
+    monkeypatch.setattr(_timeline, "_get_system_prompt_for_event", count_prompt_input)
+    for turns in (100, 200, 400):
+        pool: list[ChatMessage] = [
+            ChatMessageUser(content=f"message {n}") for n in range(turns)
+        ]
+        events: list[Event] = [SpanBeginEvent(id="run", name="run", type="agent")]
+        for n in range(turns):
+            call = ToolCall(id=f"tool-{n}", function="lookup", arguments={})
+            event = imported_call(f"model-{n}", [], "run", call)
+            events.append(event.model_copy(update={"input_refs": [(0, n + 1)]}))
+        events.append(SpanEndEvent(id="run"))
+        work.append(0)
+        replay = steps_from_events(
+            [],
+            events,
+            pool,
+            sample_uuid="sample",
+            eval_info=EvalInfo(inspect_ai_version="0.3.200", sentinel=False),
+        )
+        assert len([s for s in replay if s.stage == "model_input"]) == turns
+        assert work[-1] <= 2 * len(pool), work
+    assert work[-1] <= 4.2 * work[0], work
+
+
 @pytest.mark.parametrize("origins", [True, False])
 def test_replay_reads_each_pool_row_once_and_folds_linearly(
     origins: bool, monkeypatch: pytest.MonkeyPatch
