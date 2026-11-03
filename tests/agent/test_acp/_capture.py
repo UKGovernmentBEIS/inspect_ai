@@ -11,7 +11,7 @@ from outside.
 from typing import Any
 
 import anyio
-from test_helpers.acp import acp_test_active_sample as acp_test_active_sample
+from test_helpers.acp_sample import acp_test_active_sample as acp_test_active_sample
 
 from inspect_ai.agent._acp import AcpTransport, current_acp_transport
 from inspect_ai.tool._tool import Tool, tool

@@ -1680,7 +1680,7 @@ async def test_sample_cancellation_during_the_sentinel_propagates() -> None:
 
 
 async def test_acp_interrupt_during_the_sentinel_records_the_call() -> None:
-    from test_helpers.acp import acp_test_active_sample
+    from test_helpers.acp_sample import acp_test_active_sample
 
     from inspect_ai.agent import AgentInterrupted, agent_channel
     from inspect_ai.agent._acp.transport_live import LiveAcpTransport

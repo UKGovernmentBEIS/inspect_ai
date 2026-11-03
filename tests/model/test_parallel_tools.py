@@ -7,14 +7,16 @@ that acts as a barrier preserving the model's declared call ordering.
 """
 
 import traceback
-from typing import Callable, Literal, NoReturn
+from typing import Any, Callable, Literal, NoReturn
 
 import anyio
 import pytest
+from test_helpers.transcript import FakeTranscriptHistoryProvider
 from test_helpers.utils import fail_in_a_group_with_handled_context
 
 from inspect_ai.agent import AgentChannel, AgentInterrupted
 from inspect_ai.agent._channel import Cancel
+from inspect_ai.event._event import Event
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log._transcript import Transcript, init_transcript
 from inspect_ai.model._call_tools import TOOL_CALLS_FAIL_FAST, execute_tools
@@ -899,7 +901,23 @@ async def _interrupt_during_slow_calls(
 
 async def test_interrupt_finalises_the_calls_it_cancels() -> None:
     """A turn interrupt finalises the tool events it cancels as `cancelled`."""
+    from inspect_ai.log._transcript import transcript
+
+    delivered: dict[str, dict[str, Any]] = {}
+
+    def record(event: Event) -> None:
+        if isinstance(event, ToolEvent):
+            delivered[event.id] = event.model_dump(mode="json")
+
+    transcript()._subscribe(record)
     events = await _interrupt_during_slow_calls()
+
+    # no tool event is still tracked as pending, and subscribers (log
+    # writers) saw each cancellation
+    assert not [e for e in transcript().pending_events if isinstance(e, ToolEvent)]
+    for call_id in ("slow-1", "slow-2"):
+        assert delivered[call_id]["pending"] is None
+        assert delivered[call_id]["error"]["type"] == "cancelled"
 
     done = events["done"]
     assert done.result == "done"
@@ -1048,19 +1066,19 @@ ACP_CANCEL_MESSAGES = {
 }
 
 
-@pytest.mark.parametrize("cause", ["user_cancel", "limit", "system"])
-@pytest.mark.parametrize("parallel", [False, True])
-async def test_acp_interrupt_during_approval_records_the_calls(
+async def _acp_interrupt_during_approval(
     parallel: bool, cause: Literal["user_cancel", "limit", "system"]
-) -> None:
-    """ACP finalising a call before it was recorded does not drop it from the log."""
-    from test_helpers.acp import acp_test_active_sample
+) -> list[str]:
+    """Interrupt through ACP while the calls wait for approval.
+
+    Runs in the current transcript and returns the interrupted call ids.
+    """
+    from test_helpers.acp_sample import acp_test_active_sample
 
     from inspect_ai.agent import agent_channel
     from inspect_ai.agent._acp.transport_live import LiveAcpTransport
     from inspect_ai.approval._apply import _tool_approver
     from inspect_ai.approval._approval import Approval
-    from inspect_ai.event import InterruptEvent
     from inspect_ai.log._samples import _sample_active
     from inspect_ai.log._transcript import transcript
     from inspect_ai.model._chat_message import ChatMessage
@@ -1114,6 +1132,19 @@ async def test_acp_interrupt_during_approval_records_the_calls(
     finally:
         _tool_approver.reset(approver_token)
         _sample_active.reset(sample_token)
+    return call_ids
+
+
+@pytest.mark.parametrize("cause", ["user_cancel", "limit", "system"])
+@pytest.mark.parametrize("parallel", [False, True])
+async def test_acp_interrupt_during_approval_records_the_calls(
+    parallel: bool, cause: Literal["user_cancel", "limit", "system"]
+) -> None:
+    """ACP finalising a call before it was recorded does not drop it from the log."""
+    from inspect_ai.event import InterruptEvent
+    from inspect_ai.log._transcript import transcript
+
+    call_ids = await _acp_interrupt_during_approval(parallel, cause)
 
     interrupts = [e for e in transcript().events if isinstance(e, InterruptEvent)]
     assert len(interrupts) == 1
@@ -1124,6 +1155,57 @@ async def test_acp_interrupt_during_approval_records_the_calls(
         assert not event.pending
         assert event.error == ToolCallError("cancelled", ACP_CANCEL_MESSAGES[cause])
         assert event.failed is True
+
+
+class _PersistingHistoryProvider(FakeTranscriptHistoryProvider):
+    """History that persists every notified event by uuid, as the sample buffer does."""
+
+    def __init__(self) -> None:
+        super().__init__([])
+
+    def persist(self, event: Event) -> None:
+        for index, existing in enumerate(self._events):
+            if existing.uuid == event.uuid:
+                self._events[index] = event
+                return
+        self._events.append(event)
+
+
+@pytest.mark.parametrize("parallel", [False, True])
+async def test_acp_interrupt_during_approval_records_the_calls_after_eviction(
+    parallel: bool,
+) -> None:
+    """Calls ACP finalised are appended even when ACP's update already persisted them.
+
+    Once bounded history has evicted events, membership checks go to the
+    provider, which also holds events that were only updated.
+    """
+    from inspect_ai.event import InfoEvent
+
+    provider = _PersistingHistoryProvider()
+    bounded = Transcript(bounded=True, resident_tail=3, history_provider=provider)
+    bounded._subscribe(provider.persist)
+    init_transcript(bounded)
+    for index in range(10):
+        bounded._event(InfoEvent(data=index))
+    assert bounded.history.resident_events_truncated
+    count_before = bounded.history.event_count
+
+    call_ids = await _acp_interrupt_during_approval(parallel, "user_cancel")
+
+    # the logical history and the persisted history agree
+    assert bounded.history.event_count == provider.event_count
+    appended = [
+        e for e in bounded.history.events_from(count_before) if isinstance(e, ToolEvent)
+    ]
+    assert sorted(e.id for e in appended) == call_ids
+    recent = bounded.history.recent_events(len(call_ids))
+    assert sorted(e.id for e in recent if isinstance(e, ToolEvent)) == call_ids
+    for event in appended:
+        assert not event.pending
+        assert event.error == ToolCallError(
+            "cancelled", ACP_CANCEL_MESSAGES["user_cancel"]
+        )
 
 
 async def test_parallel_pending_events_coexist_with_distinct_uuids() -> None:
