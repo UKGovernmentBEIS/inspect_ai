@@ -413,6 +413,21 @@ def test_sandbox_tools_unit_installs_from_its_hashed_lock() -> None:
     ]
 
 
+def test_ruff_action_pins_ruff_by_version_file() -> None:
+    # ruff-action must read the ruff pin from pyproject.toml. A `version` input
+    # in place of version-file would replace the pin.
+    steps = [
+        step
+        for step in build_job("ruff")["steps"]
+        if step.get("uses", "").startswith("astral-sh/ruff-action@")
+    ]
+    assert len(steps) == 2, "expected the lint and format ruff-action steps"
+    for step in steps:
+        with_ = step.get("with", {})
+        assert with_.get("version-file") == "pyproject.toml", step.get("name")
+        assert "version" not in with_, step.get("name")
+
+
 def workflow_run_lines() -> list[tuple[str, str]]:
     lines = [
         (f"{path.name}:{name}", line)
