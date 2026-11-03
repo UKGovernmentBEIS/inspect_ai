@@ -255,6 +255,7 @@ async def run_bridge(
     bridge: AgentBridge | None = None,
     input: list[ChatMessage] | None = None,
     tools: list[ToolInfo] | None = None,
+    config: GenerateConfig | None = None,
 ) -> BridgeRun:
     """Drive `bridge_generate`, recording the input each generation saw.
 
@@ -287,7 +288,7 @@ async def run_bridge(
         list(messages),
         list(tools or []),
         None,
-        GenerateConfig(),
+        config or GenerateConfig(),
         requested_model=None,
     )
     return BridgeRun(output, inputs)
@@ -4026,6 +4027,55 @@ async def test_reused_call_id_across_choices_keeps_selected_producer(
     assert event.call_message_id == (
         None if same_arguments else generation.output.choices[0].message.id
     )
+
+
+async def test_duplicate_call_ids_in_one_reply_keep_proposing_message() -> None:
+    """Two calls in one reply share one unambiguous proposing message."""
+    bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)
+    calls = [
+        ToolCall(id="unknown", function="read_file", arguments={"path": path})
+        for path in ("a", "b")
+    ]
+    generated = tool_calls_output(*calls)
+
+    with recorded_transcript() as recorded:
+        await run_bridge([generated], bridge=bridge, tools=declare("read_file"))
+        for path in ("a", "b"):
+            await call_host_tool(bridge)("host", "read_file", {"path": path})
+
+    [generation] = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    assert len(recorded.tool_events) == 2
+    assert [e.call_message_id for e in recorded.tool_events] == [
+        generation.output.message.id
+    ] * 2
+
+
+async def test_recovered_refusal_keeps_host_call_provenance() -> None:
+    """A response filter can recover a refusal without losing its producer."""
+    bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)
+    call = ToolCall(id="recovered", function="read_file", arguments={"path": "a"})
+    generated = tool_calls_output(call)
+    generated.choices[0].stop_reason = "content_filter"
+
+    async def recover(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput:
+        output.choices[0].stop_reason = "tool_calls"
+        return output
+
+    bridge.response_filter = recover
+    with recorded_transcript() as recorded:
+        await run_bridge(
+            [generated],
+            bridge=bridge,
+            tools=declare("read_file"),
+            config=GenerateConfig(fail_on_refusal=True),
+        )
+        await call_host_tool(bridge)("host", "read_file", {"path": "a"})
+
+    [generation] = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    [event] = recorded.tool_events
+    assert event.call_message_id == generation.output.message.id
 
 
 async def test_synthetic_request_filter_call_has_no_proposing_message() -> None:

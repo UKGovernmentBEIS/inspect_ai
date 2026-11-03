@@ -323,6 +323,7 @@ class AgentBridge:
         self._candidate_fps: list[_MessageFingerprint] | None = None
         self._pending_operator = 0
         self._awaited_results: dict[str, dict[int, _AwaitedResult]] = {}
+        self._result_edit_parent: dict[str, str] = {}
         self._operator_keys: set[str] = set()
         self._warned_request_settings: set[str] = set()
 
@@ -516,6 +517,14 @@ class AgentBridge:
             return
         tracked_ids: dict[str, list[tuple[str, str | None]]] | None = None
         linked_ids: set[str] = set()
+
+        def linked_result(message_id: str | None) -> bool:
+            while message_id is not None:
+                if message_id in linked_ids:
+                    return True
+                message_id = self._result_edit_parent.get(message_id)
+            return False
+
         for index, (message, reply_id) in enumerate(zip(messages, recognized)):
             if reply_id is None or not isinstance(message, ChatMessageAssistant):
                 continue
@@ -577,7 +586,7 @@ class AgentBridge:
                     continue
                 matches = [r for r in results if r.tool_call_id == copy_call.id]
                 if len(matches) == 1 and (
-                    matches[0].id in linked_ids
+                    linked_result(matches[0].id)
                     or any(
                         linked is None
                         for other, linked in tracked.get(copy_call.id, [])
@@ -761,6 +770,8 @@ class AgentBridge:
         self._content_by_id.setdefault(edited_id, content)
         if isinstance(message, ChatMessageAssistant):
             copy_assistant_internal(message_id, edited_id)
+        elif isinstance(message, ChatMessageTool):
+            self._result_edit_parent[edited_id] = message_id
         return edited_id
 
     def _align_with_tracked(

@@ -1089,6 +1089,7 @@ async def _bridge_generate_impl(
                     except ModelRefusalError as ex:
                         if bridge.response_filter is not None:
                             output = ex.output
+                            generated_output = ex.output
                         elif (
                             bridge.retry_refusals is not None
                             and refusals < bridge.retry_refusals
@@ -1169,22 +1170,27 @@ async def _bridge_generate_impl(
                         for proposal in proposals
                         if proposal[0] == selected_generated_id
                     ]
-                    if len(selected) == 1:
-                        selected_args = json.dumps(
-                            selected[0][1].arguments, sort_keys=True, default=str
-                        )
-                        matching = [
-                            proposal
-                            for proposal in proposals
-                            if json.dumps(
-                                proposal[1].arguments, sort_keys=True, default=str
-                            )
-                            == selected_args
-                        ]
-                        if len(matching) == 1 and selected[0][0] is not None:
-                            proposing[selected_call.id] = selected[0][0]
-                    elif len(proposals) == 1 and proposals[0][0] is not None:
-                        proposing[selected_call.id] = proposals[0][0]
+                    if selected:
+                        selected_args = {
+                            json.dumps(call.arguments, sort_keys=True, default=str)
+                            for _, call in selected
+                        }
+                        matching_sources = {
+                            source_id
+                            for source_id, call in proposals
+                            if json.dumps(call.arguments, sort_keys=True, default=str)
+                            in selected_args
+                        }
+                        if selected_generated_id is not None and matching_sources == {
+                            selected_generated_id
+                        }:
+                            proposing[selected_call.id] = selected_generated_id
+                    else:
+                        sources = {source_id for source_id, _ in proposals}
+                        if len(sources) == 1:
+                            [source_id] = sources
+                            if source_id is not None:
+                                proposing[selected_call.id] = source_id
             bridge._proposing_message_ids = proposing
             bridge._proposing_reply_id = reviewed.output.message.id
             try:

@@ -50,7 +50,7 @@ from inspect_ai.model import (
     ModelOutput,
     get_model,
 )
-from inspect_ai.model._message_ids import edited_message
+from inspect_ai.model._message_ids import content_hash, edited_message
 from inspect_ai.model._model_output import ChatCompletionChoice
 from inspect_ai.solver import generate, user_message
 from inspect_ai.tool import Tool, ToolCall, ToolResult, tool
@@ -1557,3 +1557,41 @@ def test_answer_linked_through_a_re_derived_id_is_not_claimed_again(
     assert (first.message_id, second.message_id) == (
         ("old", None) if copied else ("old", "new")
     )
+
+
+@pytest.mark.parametrize("regenerated", [False, True])
+def test_edited_earlier_answer_is_not_claimed_by_reused_call_id(
+    regenerated: bool,
+) -> None:
+    """An edited copy of a linked result still belongs to the earlier call."""
+    bridge = AgentBridge(AgentState(messages=[]))
+    first_id, second_id, returned_id = (
+        ("handed-1", "handed-2", "re-derived")
+        if regenerated
+        else ("reused", "reused", "reused")
+    )
+    first_call, second_call = _read(first_id, "a"), _read(second_id, "a")
+    returned = _read(returned_id, "a")
+    first = ToolEvent(id=first_id, function="read", arguments=first_call.arguments)
+    bridge._await_result_message(_handed_calls("first", [first_call])[0], first)
+    old = ChatMessageTool(
+        id="old", content="OLD", tool_call_id=returned_id, function="read"
+    )
+    bridge._link_result_messages(
+        [ChatMessageAssistant(id="first", content="", tool_calls=[returned]), old],
+        ["first", None],
+    )
+    assert first.message_id == "old"
+
+    second = ToolEvent(id=second_id, function="read", arguments=second_call.arguments)
+    bridge._await_result_message(_handed_calls("second", [second_call])[0], second)
+    bridge._content_by_id["old"] = content_hash(old)
+    edited = old.model_copy(update={"content": "OLD "})
+    edited.id = bridge._version_id("old", edited)
+    bridge._link_result_messages(
+        [ChatMessageAssistant(id="second", content="", tool_calls=[returned]), edited],
+        ["second", "old"],
+    )
+
+    assert edited.id != "old"
+    assert second.message_id is None
