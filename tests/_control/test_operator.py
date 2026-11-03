@@ -17,6 +17,7 @@ import anyio
 import boto3
 import httpx
 import pytest
+from botocore.exceptions import EndpointConnectionError, NoCredentialsError
 
 from _control.conftest import cli_runner
 from inspect_ai import Task, eval_async
@@ -710,6 +711,38 @@ def test_cli_message_file_read_failure_is_one_error_envelope(
     assert error["message"].startswith(f"Could not read --file {path}: ")
     if exception is not None:
         assert error["exception"] == exception
+    assert server.requests == []
+
+
+@pytest.mark.parametrize("as_json", [False, True])
+@pytest.mark.parametrize(
+    "error",
+    [NoCredentialsError(), EndpointConnectionError(endpoint_url="https://s3.invalid")],
+    ids=["no credentials", "endpoint unreachable"],
+)
+def test_cli_message_file_remote_read_failure_is_reported(
+    server: _Server,
+    sample: _FakeSample,
+    monkeypatch: pytest.MonkeyPatch,
+    error: Exception,
+    as_json: bool,
+) -> None:
+    sample.operator_groups["swarm"] = _group("swarm", "worker-1")
+
+    def failing_file(*args: Any, **kwargs: Any) -> Any:
+        raise error
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._sample.file", failing_file)
+    path = "s3://test-bucket/operator/message.txt"
+    args = ["message", "t1", "s1", "--agent", "worker-1", "--file", path]
+    result = _invoke(*args, *(["--json"] if as_json else []))
+    assert result.exit_code == 1
+    assert f"Could not read --file {path}: " in result.stderr
+    assert "Traceback" not in result.stderr
+    if as_json:
+        error_payload = json.loads(result.stdout)["error"]
+        assert error_payload["kind"] == "invalid_request"
+        assert error_payload["exception"] == f"botocore.{type(error).__name__}"
     assert server.requests == []
 
 
