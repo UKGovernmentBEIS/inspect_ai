@@ -8,7 +8,7 @@ from inspect_ai.model._generate_config import GenerateConfig
 from .._config import SentinelProxy
 from .._scope import current_origin, is_agent_turn
 from ._endpoint import Sidecar
-from ._task import SampleFacts, task_sidecars
+from ._task import SampleFacts, attempt_number, task_sidecars
 
 if TYPE_CHECKING:
     from inspect_ai.model._model import Model
@@ -53,7 +53,7 @@ async def sidecar_call(model: "Model") -> SidecarCall | None:
     if sidecar is None:
         return None
 
-    sidecars.called_through(active.sample_uuid, sidecar)
+    sidecars.called_through(active.sample_uuid, attempt_number(active), sidecar)
     await sidecars.complete_registration(
         sidecar,
         SampleFacts(
@@ -75,7 +75,7 @@ async def sidecar_call(model: "Model") -> SidecarCall | None:
             "attempt": active.id,
             # higher for each retry, so the sidecar can tell a late call of
             # an earlier attempt from the current one's
-            "attempt_number": active.retries + 1,
+            "attempt_number": attempt_number(active),
         }
     )
     return SidecarCall(sidecar, header, sidecars.mode)

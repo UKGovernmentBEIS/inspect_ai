@@ -3,7 +3,7 @@
 from collections.abc import Awaitable, Callable, Hashable
 from contextvars import ContextVar
 from logging import getLogger
-from typing import Any, Generic, NamedTuple, TypeVar
+from typing import TYPE_CHECKING, Any, Generic, NamedTuple, TypeVar
 from weakref import WeakValueDictionary
 
 import anyio
@@ -21,6 +21,9 @@ from ._endpoint import (
     probe,
     proxy_client,
 )
+
+if TYPE_CHECKING:
+    from inspect_ai.log._samples import ActiveSample
 
 REGISTRATION_REFUSED = -32001
 
@@ -72,8 +75,9 @@ class TaskSidecars:
         self.facts = facts
         self._found = _Once[Sidecar | str]()
         self._completed = _Once[None]()
-        # the sidecars each sample's calls went through, by the sample's uuid
-        self._through: dict[str, dict[str, Sidecar]] = {}
+        # the sidecars each sample's calls went through, by the sample's uuid,
+        # with the attempt that last called each
+        self._through: dict[str, dict[str, tuple[Sidecar, int]]] = {}
 
     async def start(self, model: Model) -> None:
         """Probe the endpoint of the task's assigned model, and register the task with a sidecar found there, before any sample runs.
@@ -121,16 +125,21 @@ class TaskSidecars:
 
         await self._completed.run((sidecar.origin, sample.sample_id), complete)
 
-    def called_through(self, sample_uuid: str, sidecar: Sidecar) -> None:
-        """Note that a sample's call went through a sidecar, which is told when the sample ends."""
-        self._through.setdefault(sample_uuid, {})[sidecar.origin] = sidecar
+    def called_through(
+        self, sample_uuid: str, attempt_number: int, sidecar: Sidecar
+    ) -> None:
+        """Note that a call of an attempt at a sample went through a sidecar, which is told when the sample ends."""
+        self._through.setdefault(sample_uuid, {})[sidecar.origin] = (
+            sidecar,
+            attempt_number,
+        )
 
     async def end_sample(self, sample_uuid: str) -> None:
         """Tell each sidecar a sample's calls went through that the sample has ended, after its final scoring, so it drops what it keeps for the sample.
 
         A sidecar that can't be told drops the sample once no request has named it for its run expiry, so a failure is logged and not raised.
         """
-        for sidecar in self._through.pop(sample_uuid, {}).values():
+        for sidecar, _ in self._through.pop(sample_uuid, {}).values():
             with anyio.move_on_after(END_SAMPLE_TIMEOUT):
                 try:
                     await sidecar.call("end_sample", {"sample_uuid": sample_uuid})
@@ -139,18 +148,26 @@ class TaskSidecars:
                         f"The sentinel sidecar at {sidecar.origin} couldn't be told the sample {sample_uuid} ended: {ex}"
                     )
 
-    async def copy_monitor_state(self, sample_uuid: str, store: Store) -> None:
-        """Copy the monitor state each sidecar the sample's calls went through keeps into the sample store, before Inspect's scorers read it.
+    async def copy_monitor_state(
+        self, sample_uuid: str, attempt_number: int, store: Store
+    ) -> None:
+        """Copy the monitor state each sidecar the attempt's calls went through keeps into the sample store, before Inspect's scorers read it.
 
         Inside Inspect, a monitor's state is in the sample store, where a scorer can read it; through a sidecar, it is kept by the sidecar. After the copy, a marker in the sample store says whether it succeeded, so a scorer never reads a failed copy as a sample in which nothing was flagged.
+
+        A sidecar only an earlier attempt called is left out: it still keeps that attempt's monitor state, and a retry starts with an empty sample store, as in Inspect's own process.
         """
-        through = self._through.get(sample_uuid)
+        through = [
+            sidecar
+            for sidecar, called_in in self._through.get(sample_uuid, {}).values()
+            if called_in == attempt_number
+        ]
         if not through:
             return
         copied: dict[str, Any] = {}
         written_by: dict[str, str] = {}
         failed: str | None = None
-        for sidecar in through.values():
+        for sidecar in through:
             with anyio.move_on_after(CALL_TIMEOUT) as scope:
                 try:
                     result = await sidecar.call(
@@ -265,6 +282,11 @@ async def init_task_sidecars(
     await sidecars.start(model)
     _task_sidecars.set(sidecars)
     _eval_sidecars[facts.eval_id] = sidecars
+
+
+def attempt_number(active: "ActiveSample") -> int:
+    """Which attempt at its sample is running: 1, then one higher for each retry."""
+    return active.retries + 1
 
 
 def task_sidecars(eval_id: str | None = None) -> TaskSidecars | None:

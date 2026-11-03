@@ -726,10 +726,12 @@ class _CopyingSidecars:
     """Stands in for a task's sentinel sidecars, whose monitor state a pass copies before scoring."""
 
     def __init__(self) -> None:
-        self.copied: list[str] = []
+        self.copied: list[tuple[str, int]] = []
 
-    async def copy_monitor_state(self, sample_uuid: str, store: Any) -> None:
-        self.copied.append(sample_uuid)
+    async def copy_monitor_state(
+        self, sample_uuid: str, attempt_number: int, store: Any
+    ) -> None:
+        self.copied.append((sample_uuid, attempt_number))
         store.set("Watch:count", 3)
 
 
@@ -776,7 +778,7 @@ async def test_score_pass_copies_sidecar_monitor_state_before_scoring(
     (row,) = score_pass.rows
     assert row["outcome"] == "scored"
     assert active.live_state is not None
-    assert sidecars.copied == [active.live_state.uuid]
+    assert sidecars.copied == [(active.live_state.uuid, 1)]
     assert seen["count"] == 3
 
 
