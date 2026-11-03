@@ -6,7 +6,7 @@ from typing import Any, Sequence
 
 import anyio
 import pytest
-from test_helpers.utils import skip_if_no_bedrock, skip_if_no_google
+from test_helpers.utils import skip_if_no_bedrock, skip_if_no_google, skip_if_trio
 
 from inspect_ai.agent import (
     AgentChannel,
@@ -423,6 +423,7 @@ async def test_repaired_history_continues_on_google() -> None:
 
 
 @skip_if_no_bedrock
+@skip_if_trio  # the bedrock provider refuses to run on trio
 async def test_repaired_history_continues_on_bedrock() -> None:
     await _continue_interrupted_history("bedrock/us.anthropic.claude-sonnet-4-6")
 
