@@ -229,9 +229,11 @@ Here is how Docker sandbox environments are created based on the presence of `Do
 
 | Config Files | Behavior |
 |---------------------------|---------------------------------------------|
-| None | Creates a sandbox environment based on the standard [inspect-tool-support](https://hub.docker.com/r/aisiuk/inspect-tool-support) image. |
+| None | Creates a sandbox environment based on the official [`python:3.12-bookworm`](https://hub.docker.com/_/python) image. |
 | `Dockerfile` | Creates a sandbox environment by building the image. |
 | `compose.yaml` | Creates sandbox environment(s) based on `compose.yaml`. |
+
+The default Docker sandbox and several examples use mutable image tags. A tag such as `python:3.12-bookworm` can refer to a different image when the publisher releases updates. To control when you adopt updates, pin an image digest in your own `compose.yaml`, for example `image: python:3.12-bookworm@sha256:<digest>`. You'll then need to update that digest to receive newer image versions. See Docker's [guidance on pinning images](https://docs.docker.com/build/building/best-practices/#pin-base-image-versions).
 
 Providing a `compose.yaml` is not strictly required, as Inspect will automatically generate one as needed. The generated Compose configuration sets `network_mode: none`, which prevents network access at container runtime.
 

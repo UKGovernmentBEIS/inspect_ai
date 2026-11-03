@@ -1818,8 +1818,8 @@
   },
   "tests/util/sandbox/test_json_rpc_transport.py": {
     "type: ignore[arg-type]": {
-      "count": 8,
-      "undescribed": 8
+      "count": 7,
+      "undescribed": 7
     }
   },
   "tests/util/sandbox/test_sandbox_timeout.py": {
