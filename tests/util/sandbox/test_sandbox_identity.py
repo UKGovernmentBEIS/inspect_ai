@@ -263,6 +263,7 @@ def test_home_lookup_script_reads_the_passwd_database() -> None:
         ("echo database-failed >&2; return 1", 1, ""),
         ("return 3", 1, ""),
         ("echo 'w:x:1000:1000:/srv/w'", 1, ""),
+        ("echo 'w:x:1000:1000::/srv/w:/bin/sh:extra'", 1, ""),
         ("return 0", 1, ""),
         ("echo 'w:x:1000:1000:: /srv/w :/bin/sh'", 0, " /srv/w \n"),
         ("echo 'w:x:1000:1000:W::/bin/sh'", 0, "\n"),
@@ -273,6 +274,7 @@ def test_home_lookup_script_reads_the_passwd_database() -> None:
         "failed",
         "unsupported",
         "malformed",
+        "extra-field",
         "empty",
         "spaces",
         "empty-home",
@@ -293,7 +295,7 @@ def test_home_lookup_script_reads_passwd_without_getent(
     passwd = tmp_path / "passwd"
     passwd.write_text(
         "root:x:0:0::/root:/bin/sh\ne:x:1001:1001:::/bin/sh\n"
-        "m:x:1002:1002::/srv/m\njunk\n"
+        "m:x:1002:1002::/srv/m\nx:x:1003:1003::/srv/x:/bin/sh:extra\njunk\n"
         "w:x:1000:1000:: /srv/w :/bin/sh" + newline
     )
 
@@ -307,6 +309,8 @@ def test_home_lookup_script_reads_passwd_without_getent(
     assert lookup("e") == (0, "\n")
     assert lookup("m") == (1, "")
     assert lookup("1002") == (1, "")
+    assert lookup("x") == (1, "")
+    assert lookup("1003") == (1, "")
     assert lookup("missing") == (0, "")
 
 
@@ -367,8 +371,9 @@ async def test_vars_raise_when_getent_fails_and_retry_later() -> None:
     [
         ("e:x:1001:1001:::/bin/sh", "empty home directory"),
         ("e:x:1001:1001::/srv/e", "malformed entry"),
+        ("e:x:1001:1001::/srv/e:/bin/sh:extra", "malformed entry"),
     ],
-    ids=["empty-home", "malformed"],
+    ids=["empty-home", "missing-field", "extra-field"],
 )
 async def test_vars_raise_on_a_bad_entry_and_retry_later(
     tmp_path: Path, source: str, record: str, error: str
