@@ -1565,9 +1565,13 @@ _ORPHAN_SLEEP = "86413"
 
 
 async def _orphan_running(sandbox: Any) -> bool:
+    return await _orphan_running_via(sandbox.exec)
+
+
+async def _orphan_running_via(exec: Any) -> bool:
     # the bracket keeps this probe's own command line from matching
     pattern = f"{_ORPHAN_SLEEP[:-1]}[{_ORPHAN_SLEEP[-1]}]"
-    result = await sandbox.exec(
+    result = await exec(
         ["sh", "-c", f"grep -l -a '{pattern}' /proc/[0-9]*/cmdline 2>/dev/null"]
     )
     return bool(result.stdout.strip())
@@ -1613,6 +1617,80 @@ async def test_timed_out_start_kills_the_job(docker_sandbox) -> None:
     with _start_reply_lost(docker_sandbox, "timeout"):
         with pytest.raises(TimeoutError):
             await exec_remote_streaming(docker_sandbox, ["sleep", _ORPHAN_SLEEP], 5)
+
+    assert not await _orphan_running(docker_sandbox)
+
+
+_BACKPRESSURED_INPUT = "x" * (512 * 1024)
+"""More input than a pipe buffers, so the start waits on a command that never reads it."""
+
+
+async def _wait_for_orphan(sandbox: Any) -> None:
+    with anyio.fail_after(30):
+        while not await _orphan_running(sandbox):
+            await anyio.sleep(0.1)
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+async def test_cancelled_start_with_backpressured_input_kills_the_job(
+    docker_sandbox,
+) -> None:
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(
+            exec_remote_streaming,
+            docker_sandbox,
+            ["sleep", _ORPHAN_SLEEP],
+            5,
+            ExecRemoteStreamingOptions(input=_BACKPRESSURED_INPUT),
+        )
+        await _wait_for_orphan(docker_sandbox)
+        tg.cancel_scope.cancel()
+
+    assert not await _orphan_running(docker_sandbox)
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+async def test_timed_out_start_with_backpressured_input_kills_the_job(
+    docker_sandbox,
+) -> None:
+    real_exec = docker_sandbox.exec
+
+    async def exec_timing_out_start(*args: Any, **kwargs: Any) -> Any:
+        if "exec_remote_start" not in (kwargs.get("input") or ""):
+            return await real_exec(*args, **kwargs)
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(lambda: real_exec(*args, **kwargs))
+            with anyio.fail_after(30):
+                while not await _orphan_running_via(real_exec):
+                    await anyio.sleep(0.1)
+            tg.cancel_scope.cancel()
+        raise TimeoutError("the start timed out.")
+
+    with patch.object(docker_sandbox, "exec", exec_timing_out_start):
+        with pytest.raises(TimeoutError):
+            await exec_remote_awaitable(
+                docker_sandbox,
+                ["sleep", _ORPHAN_SLEEP],
+                5,
+                ExecRemoteAwaitableOptions(input=_BACKPRESSURED_INPUT),
+            )
+
+    assert not await _orphan_running(docker_sandbox)
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+async def test_start_whose_command_closes_stdin_kills_the_job(docker_sandbox) -> None:
+    with pytest.raises(RuntimeError, match="Connection lost"):
+        await exec_remote_streaming(
+            docker_sandbox,
+            # exec so that no outer shell keeps stdin open
+            ["exec", "sh", "-c", f"exec 0<&-; exec sleep {_ORPHAN_SLEEP}"],
+            5,
+            ExecRemoteStreamingOptions(input=_BACKPRESSURED_INPUT),
+        )
 
     assert not await _orphan_running(docker_sandbox)
 

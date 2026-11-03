@@ -411,6 +411,23 @@ def _kill_group(pid: int) -> None:
 
 _JOB_KEY = "0123456789abcdef0123456789abcdef"
 
+_LARGE_INPUT = "x" * (512 * 1024)
+"""More input than a pipe buffers, so writing it waits on the command."""
+
+
+def _record_spawns(monkeypatch: pytest.MonkeyPatch) -> "asyncio.Queue[Job]":
+    """Queue each Job as soon as its process is spawned."""
+    spawned: asyncio.Queue[Job] = asyncio.Queue()
+    real_spawn = Job.spawn
+
+    async def recording_spawn(command: str, **kwargs: Any) -> Job:
+        job = await real_spawn(command, **kwargs)
+        spawned.put_nowait(job)
+        return job
+
+    monkeypatch.setattr(Job, "spawn", recording_spawn)
+    return spawned
+
 
 def _group_alive(pid: int) -> bool:
     try:
@@ -449,25 +466,25 @@ class TestKillByJobKey:
         assert controller._jobs == {}
 
     @pytest.mark.asyncio
-    async def test_kill_key_during_start_kills_the_job_when_it_starts(
+    async def test_kill_key_before_spawn_kills_the_job_when_it_starts(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        creating = asyncio.Event()
+        spawning = asyncio.Event()
         proceed = asyncio.Event()
         created: list[Job] = []
-        real_create = Job.create
+        real_spawn = Job.spawn
 
-        async def slow_create(command: str, **kwargs: Any) -> Job:
-            creating.set()
+        async def slow_spawn(command: str, **kwargs: Any) -> Job:
+            spawning.set()
             await proceed.wait()
-            job = await real_create(command, **kwargs)
+            job = await real_spawn(command, **kwargs)
             created.append(job)
             return job
 
-        monkeypatch.setattr(Job, "create", slow_create)
+        monkeypatch.setattr(Job, "spawn", slow_spawn)
         controller = Controller()
         submit = asyncio.create_task(controller.submit("sleep 30", job_key=_JOB_KEY))
-        await creating.wait()
+        await spawning.wait()
 
         result = await controller.kill_key(_JOB_KEY)
         proceed.set()
@@ -482,6 +499,74 @@ class TestKillByJobKey:
         finally:
             for job in created:
                 _kill_group(job.pid)
+
+    @pytest.mark.asyncio
+    async def test_kill_key_while_input_is_backpressured_kills_the_job(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        spawned = _record_spawns(monkeypatch)
+        controller = Controller()
+        submit = asyncio.create_task(
+            controller.submit("exec sleep 60", input=_LARGE_INPUT, job_key=_JOB_KEY)
+        )
+        job = await spawned.get()
+        try:
+            await anyio.sleep(0.1)
+            assert not submit.done()
+            with pytest.raises(ToolException, match="is already starting"):
+                await controller.submit("exec sleep 60", job_key=_JOB_KEY)
+
+            result = await controller.kill_key(_JOB_KEY)
+
+            assert result.killed is True
+            assert not _group_alive(job.pid)
+            with pytest.raises(ToolException, match="killed while it started"):
+                await submit
+            assert controller._jobs == {}
+        finally:
+            submit.cancel()
+            _kill_group(job.pid)
+
+    @pytest.mark.asyncio
+    async def test_cancelled_start_kills_a_job_whose_input_is_backpressured(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        spawned = _record_spawns(monkeypatch)
+        controller = Controller()
+        submit = asyncio.create_task(
+            controller.submit("exec sleep 60", input=_LARGE_INPUT, job_key=_JOB_KEY)
+        )
+        job = await spawned.get()
+        try:
+            await anyio.sleep(0.1)
+            submit.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await submit
+
+            assert not _group_alive(job.pid)
+            assert controller._jobs == {}
+        finally:
+            _kill_group(job.pid)
+
+    @pytest.mark.asyncio
+    async def test_start_whose_command_closes_stdin_kills_the_job(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        spawned = _record_spawns(monkeypatch)
+        controller = Controller()
+        try:
+            with pytest.raises((BrokenPipeError, ConnectionResetError)):
+                await controller.submit(
+                    "exec 0<&-; exec sleep 60", input=_LARGE_INPUT, job_key=_JOB_KEY
+                )
+            job = spawned.get_nowait()
+
+            assert not _group_alive(job.pid)
+            assert controller._jobs == {}
+            assert (await controller.kill_key(_JOB_KEY)).killed is False
+        finally:
+            while not spawned.empty():
+                _kill_group(spawned.get_nowait().pid)
 
     @pytest.mark.asyncio
     async def test_repeated_start_returns_the_running_job(self) -> None:
