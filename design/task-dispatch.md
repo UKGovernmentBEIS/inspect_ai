@@ -324,6 +324,7 @@ class TaskRecord:
     state: TaskState = "queued"
     admission: Literal["waiting", "running", "done"] = "waiting"
     cancel_requested: bool = False   # set by a control-channel or handle cancel
+    finalizing: bool = False         # a queued cancel's finalization has begun
     setups: TaskSetups | None = None # see "Sandbox setup"; None until admitted
     log: EvalLog | None = None       # latest attempt's log; final log once ended
     error: BaseException | None = None  # admission failure
@@ -380,7 +381,9 @@ code that called `enqueue_task()` next awaits, so every task added before
 that `await` (one call with several tasks, or consecutive calls) is in the
 set when any of them resolves its selectors, and so is every task added
 earlier. The seed is added in one step, so its selectors resolve against
-the whole seed as today. A selection error (a literal id the dataset does
+the whole seed as today. A task that a selector names must therefore be
+enqueued before its creator awaits, so that it is admitted in the same
+group (decision: Ransom, 2026-11-03). A selection error (a literal id the dataset does
 not have) is an admission failure: for the seed it raises from `eval()` as
 today, and for an added task it ends that record with no log, keeping the
 error for its handles.
@@ -404,14 +407,37 @@ is in [task-handles.md](task-handles.md#the-handle-api)), and the run
 continues.
 
 **Cancelling a queued record** whose first attempt has not started
-(`RunQueue.cancel`, from the control channel or a handle) sets
-`cancel_requested` and rings the queue:
+(`RunQueue.cancel`, from the control channel's cancel or drain, or a
+handle) is finished by the queue itself, never by the dispatcher, so it
+completes while the dispatcher is blocked anywhere, including inside a
+`next_tasks()` call that never returns (the source contract allows one,
+`src/inspect_ai/_eval/task/task_source.py:56`). `cancel()` is synchronous.
+It does nothing for a record that has ended or that the dispatcher has
+already picked (that attempt's cancel is the between-start-and-registration
+rule under "Control channel"); otherwise it sets `cancel_requested`, which
+also stops the dispatcher from picking the record, and then:
 
-- before its admission starts, the admission is skipped;
+- before its admission starts, it ends the record at once with
+  `RunQueue.end(record, None)`; the admission job skips a record that has
+  ended;
 - during its admission, the admission runs to the end (interrupting
-  `logger.init()` part-way leaves a recorder entry and temporary file behind)
-  and the record is then ended;
-- after admission, the dispatcher ends it on its next pass.
+  `logger.init()` part-way leaves a recorder entry and temporary file
+  behind), then sees `cancel_requested` and finalizes the record as below
+  instead of marking it admitted;
+- after admission, it starts the finalization as its own task in the
+  dispatcher's task group, where the admission job runs; a child of that
+  group runs while the dispatcher itself awaits, so the finalization runs
+  at once, whatever the dispatcher or the admission job is doing.
+
+Finalization (`RunQueue._finalize_queued(record)`) runs at most once per
+record, guarded by a `finalizing` flag set synchronously before its first
+`await`. It awaits `logger.discard()` in a shielded scope, then calls
+`RunQueue.end(record, None)`, which sets `ended`, removes the record from
+the queued registry and from the queue, releases what it holds (below) and
+so resolves every handle wait on it (`started()` and an unresolved request
+raise `TaskEndedError(log=None)`, `result()` returns `None`; see
+[task-handles.md](task-handles.md#the-handle-api)). The run's end waits for
+finalizations still in progress, as it waits for admissions.
 
 A record that ends before its first attempt starts, for any reason (cancel,
 run end), and whose logger was initialised calls `logger.discard()`
@@ -440,10 +466,9 @@ model balancing are unchanged. The loop, inside `_run_task_screen` as today:
 
 ```
 loop:
-    end queued records with cancel_requested whose admission is not running
     drop pending retries abandoned by a drain/cancel            (as today)
     while not cancelled and in_flight < effective_max_tasks(parallel):
-        record = pick_balanced(startable)    # admitted, setups settled, not paused
+        record = pick_balanced(startable)    # admitted, setups settled, not paused, not cancel_requested
         if record is None: break
         start run_one(record)
     if cancelled: break
@@ -994,7 +1019,7 @@ run):
   selector is a literal id: an admission failure if A has no sample `B:1`
   (loud, with the `slice_dataset` error), or that sample if it has one.
   Adding the tasks in one call, or naming each selected task before the
-  `await`, keeps today's result. Literal namespaced ids
+  `await`, keeps today's result (decision: Ransom, 2026-11-03). Literal namespaced ids
   (`user:cybergym/arvo_6008`) resolve as today.
 
 Failure reporting (the run's outcome changes only where today it fails):
@@ -1135,7 +1160,17 @@ does (a new list per call):
   discarded with nothing in the log directory); `score`/`error` answer 409;
   `dry_run`; while an earlier record's `logger.init()` blocks, a later
   record is listed and can be cancelled, and the blocked record cancelled
-  during admission ends with no log once admission finishes; a cancel
+  during admission ends with no log once admission finishes; with a
+  `TaskSource` whose `next_tasks()` enqueues a task and then blocks on an
+  `anyio.Event` nobody sets, a cancel and a drain from another coroutine,
+  each before, during (a `logger.init()` held on an event) and after the
+  task's admission, end the record while `next_tasks()` stays blocked: its
+  `ended` event is set, it leaves `GET /tasks`, `logger.discard()` runs
+  exactly once when a logger was initialised (a recorder spy; no recorder
+  entry, temporary file or log-directory file remains), and its handle's
+  `started()` raises `TaskEndedError(log=None)` and `result()` returns
+  `None` (each bounded with `fail_after`); a second cancel of the same
+  record changes nothing; a cancel
   between dispatch and `register_eval` reaches the attempt; a run
   cancelled, and a cancel or drain, while a task waits in the queue for its
   retry keep the prior attempt's error log (the existing between-attempts
@@ -1246,6 +1281,10 @@ None. The questions raised by this design are decided (Ransom,
   directory differs ("Providers that have not adopted it").
 - Seed setups run beside the dispatcher like every other setup, with build
   output streamed to the display's console ("Display and output").
+- Task-prefixed `sample_id` selectors resolve at admission against the task
+  names added so far; a task a selector names must be enqueued before its
+  creator awaits ("Sample selection waits for admission", and "Sample
+  selection" under "Compatibility and migration").
 
 ## Not this design
 
