@@ -248,13 +248,6 @@ async def _execute_tools_impl(
         if watch is not None:
             _report_handoffs(watch, tool_calls, tdefs)
 
-        # UUIDs of the events call_tool appended to the transcript. Tracked
-        # here because `event in transcript().events` can also match an event
-        # that was only updated (persisted) and never appended, once history
-        # is evicted; object ids are not used because released events' ids
-        # can be reused.
-        recorded_events: set[str | None] = set()
-
         async def call_tool_task(
             call: ToolCall,
             event: ToolEvent,
@@ -307,7 +300,6 @@ async def _execute_tools_impl(
                             event,
                             conversation,
                             on_execute=note_executed_call,
-                            on_record=lambda: recorded_events.add(event.uuid),
                         )
                         result = called.result
                         messages = called.messages
@@ -700,37 +692,31 @@ async def _execute_tools_impl(
                 # limit) cancelled the stage. Finalise the calls still in
                 # flight so the log does not keep them pending, as generate
                 # does for a cancelled ModelEvent. Events already finalised
-                # (completed calls, ACP's interrupt snapshot) keep their
-                # fields.
+                # (completed calls, ACP's interrupt snapshot) are left as is.
                 for idx in stage:
                     event = stage_events[idx]
-                    finalised_here = bool(event.pending)
-                    if finalised_here:
-                        completed, working_time = cancel_ends.get(
-                            idx,
-                            (
-                                datetime.now(timezone.utc),
-                                sample_working_time_since(waiting_starts[idx]),
-                            ),
-                        )
-                        event._set_result(
-                            result="",
-                            truncated=None,
-                            error=ToolCallError(
-                                "cancelled", "Tool call was cancelled."
-                            ),
-                            working_time=working_time,
-                            agent=None,
-                            failed=True,
-                            message_id=None,
-                        )
-                        event.completed = completed
-                    # call_tool records the pending event only after approval
-                    # and the sentinel's pre-call check; one cancelled before
-                    # then (whoever finalised it) is appended now.
-                    if stage_results[idx] is None and event.uuid not in recorded_events:
-                        transcript()._event(event)
-                    elif finalised_here:
+                    if not event.pending:
+                        continue
+                    completed, working_time = cancel_ends.get(
+                        idx,
+                        (
+                            datetime.now(timezone.utc),
+                            sample_working_time_since(waiting_starts[idx]),
+                        ),
+                    )
+                    event._set_result(
+                        result="",
+                        truncated=None,
+                        error=ToolCallError("cancelled", "Tool call was cancelled."),
+                        working_time=working_time,
+                        agent=None,
+                        failed=True,
+                        message_id=None,
+                    )
+                    event.completed = completed
+                    # A call cancelled before call_tool recorded it (in approval
+                    # or the sentinel's pre-call check) is not logged.
+                    if event in transcript().events:
                         transcript()._event_updated(event)
                 raise
 
@@ -871,7 +857,6 @@ async def call_tool(
     event: BaseModel,
     conversation: list[ChatMessage],
     on_execute: Callable[[ToolCall], None] | None = None,
-    on_record: Callable[[], None] | None = None,
 ) -> CalledTool:
     from inspect_ai.agent._handoff import AgentTool
     from inspect_ai.event._tool import ToolEvent
@@ -883,14 +868,9 @@ async def call_tool(
     # this function is responsible for transcript events so that it can
     # put them in the right enclosure (e.g. handoff/agent/tool). This
     # means that if we throw early we need to do the enclosure when raising.
-    def append_event() -> None:
-        transcript()._event(event)
-        if on_record is not None:
-            on_record()
-
     async def record_pending_tool_event() -> None:
         async with span(name=call.function, type="tool"):
-            append_event()
+            transcript()._event(event)
 
     async def record_tool_parsing_error(error: str) -> Exception:
         await record_pending_tool_event()
@@ -1043,7 +1023,7 @@ async def call_tool(
         if isinstance(tool_def.tool, AgentTool):
             async with span(tool_def.tool.name, type="handoff"):
                 async with span(name=call.function, type="tool"):
-                    append_event()
+                    transcript()._event(event)
                     if on_execute is not None:
                         on_execute(call)
                     handoff_result = await agent_handoff(
@@ -1054,7 +1034,7 @@ async def call_tool(
         # normal tool call
         else:
             async with span(name=call.function, type="tool"):
-                append_event()
+                transcript()._event(event)
                 if on_execute is not None:
                     on_execute(call)
                 with sentinel_scope("tool"):

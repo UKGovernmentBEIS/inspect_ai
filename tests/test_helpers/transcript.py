@@ -98,22 +98,3 @@ class FakeTranscriptHistoryProvider:
             set(self._attachments), self._attachments.get
         )
         return len(self._events)
-
-
-class PersistingHistoryProvider(FakeTranscriptHistoryProvider):
-    """History that persists a serialized copy of every notified event, as the sample buffer does.
-
-    Subscribe ``persist`` to the transcript. An event keeps the position it was
-    first written at; later writes of the same uuid replace it in place.
-    """
-
-    def __init__(self) -> None:
-        super().__init__([])
-
-    def persist(self, event: Event) -> None:
-        copy = type(event).model_validate_json(event.model_dump_json())
-        for index, existing in enumerate(self._events):
-            if existing.uuid == event.uuid:
-                self._events[index] = copy
-                return
-        self._events.append(copy)

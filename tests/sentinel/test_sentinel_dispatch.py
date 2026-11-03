@@ -1666,107 +1666,12 @@ async def test_sample_cancellation_during_the_sentinel_propagates() -> None:
         ("d3_waiting", "observation", "cancelled"),
         ("", "decision", "cancelled"),
     ]
-    # the call never ran, and is logged as cancelled rather than left out
-    [tool_event] = transcript_tool_events()
-    assert not tool_event.pending
-    assert tool_event.result == ""
-    assert tool_event.error is not None
-    assert tool_event.error.type == "cancelled"
+    assert transcript_tool_events() == []
     [span_id] = sentinel_span_ids(transcript().events)
     assert {e.span_id for e in events} == {span_id}
     assert any(
         isinstance(e, SpanEndEvent) and e.id == span_id for e in transcript().events
     )
-
-
-async def acp_interrupt_during_the_sentinel() -> None:
-    """Interrupt through ACP while the sentinel's pre-call check runs."""
-    from test_helpers.acp_sample import acp_test_active_sample
-
-    from inspect_ai.agent import AgentInterrupted, agent_channel
-    from inspect_ai.agent._acp.transport_live import LiveAcpTransport
-    from inspect_ai.log._samples import _sample_active
-
-    started = anyio.Event()
-    cleaned_up = anyio.Event()
-    sample = acp_test_active_sample(transcript())
-    assert isinstance(sample.acp_transport, LiveAcpTransport)
-    acp = sample.acp_transport
-
-    async def interrupt() -> None:
-        await started.wait()
-        acp.cancel_current_turn()
-
-    token = _sample_active.set(sample)
-    try:
-        with active([d3_waiting(started, cleaned_up)]):
-            async with agent_channel() as channel:
-                with anyio.fail_after(5):
-                    async with anyio.create_task_group() as tg:
-                        tg.start_soon(interrupt)
-                        with pytest.raises(AgentInterrupted):
-                            with channel.turn_scope():
-                                await execute_tools(
-                                    [
-                                        ChatMessageAssistant(
-                                            content=[], tool_calls=[addition_call()]
-                                        )
-                                    ],
-                                    [addition()],
-                                )
-    finally:
-        _sample_active.reset(token)
-    assert cleaned_up.is_set()
-
-
-async def test_acp_interrupt_during_the_sentinel_records_the_call() -> None:
-    init_transcript(Transcript())
-    await acp_interrupt_during_the_sentinel()
-
-    # ACP finalised the call before call_tool recorded it; it is still logged
-    [tool_event] = transcript_tool_events()
-    assert not tool_event.pending
-    assert tool_event.result == ""
-    assert tool_event.error is not None
-    assert tool_event.error.message == "Tool call cancelled by user."
-
-
-async def test_acp_interrupt_during_the_sentinel_keeps_one_event_order(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The persisted order of events matches the order they were recorded in.
-
-    The control channel pages events by position, reading persisted history
-    once older events are evicted.
-    """
-    from test_helpers.transcript import PersistingHistoryProvider
-
-    from inspect_ai.event import InfoEvent
-
-    provider = PersistingHistoryProvider()
-    bounded = Transcript(bounded=True, resident_tail=3, history_provider=provider)
-    bounded._subscribe(provider.persist)
-    recorded: list[str | None] = []
-    append = bounded._event
-
-    def record(event: Event) -> None:
-        append(event)
-        recorded.append(event.uuid)
-
-    monkeypatch.setattr(bounded, "_event", record)
-    init_transcript(bounded)
-    for index in range(10):
-        bounded._event(InfoEvent(data=index))
-
-    await acp_interrupt_during_the_sentinel()
-
-    assert bounded.history.resident_events_truncated
-    assert [e.uuid for e in provider.events()] == recorded
-    for cursor in range(len(recorded)):
-        assert [e.uuid for e in bounded.history.events_from(cursor)] == recorded[
-            cursor:
-        ]
-    assert [e for e in transcript_tool_events() if e.error is not None]
 
 
 def test_sample_time_limit_during_the_sentinel_ends_the_sample() -> None:
