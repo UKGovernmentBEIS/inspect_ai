@@ -84,7 +84,7 @@ from inspect_ai.tool._tools._web_search._web_search import (
     _normalize_config,
 )
 from inspect_ai.util._json import JSONSchema
-from inspect_ai.util._limit import LimitExceededError, check_message_limit
+from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._span import current_span_id
 
 if TYPE_CHECKING:
@@ -887,6 +887,11 @@ async def bridge_generate(
     `finalize_config` adjusts the config of the bridge's own generation call for
     the model, tools, tool choice and config it is made with, after any filter
     rewrite. It is not applied to a generation the filter makes itself.
+
+    A request is refused once a token or cost limit has been reached, before
+    compaction (which can make its own model call), the filter and the
+    generation's cache lookup, so a scaffold that retries after a limit's
+    error reply makes no further model call.
     """
     if routing is not None and routing.redirected:
         _warn_redirect(routing, bridge.model)
@@ -903,26 +908,6 @@ async def bridge_generate(
             routing,
             finalize_config,
         )
-
-
-def _check_limits_before_request(bridge: AgentBridge, input: list[ChatMessage]) -> None:
-    """Refuse a bridged request from an agent already over a limit.
-
-    Runs the checks `Model.generate()` makes before dispatch, but before the
-    bridge's compaction, which can dispatch its own model call. A scaffold may
-    retry after a limit's error reply; without this each retry pays for a
-    compaction before the generation refuses it.
-
-    The message limit is checked only for a conversation the bridge will track
-    as the agent's messages (see `AgentBridge._tracks_conversation`), against
-    its own length rather than the compacted input's: tracking a reply to a
-    conversation already at the limit would exceed it. Other requests, such as
-    a scaffold's title or path-detection calls, are left to the generation's
-    own check on the input it is given.
-    """
-    if bridge._tracks_conversation(input):
-        check_message_limit(len(input), raise_for_equal=True)
-    _check_limits_before_dispatch()
 
 
 async def _bridge_generate_impl(
@@ -947,7 +932,7 @@ async def _bridge_generate_impl(
     # ModelEvent input and state.messages (and thus the eval log).
     _restore_operator_message_source(bridge, input)
 
-    _check_limits_before_request(bridge, input)
+    _check_limits_before_dispatch()
 
     # get compaction function and run compaction once before retry loop
     compact = bridge.compaction(tools, model)

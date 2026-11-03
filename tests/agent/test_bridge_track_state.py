@@ -1532,28 +1532,3 @@ async def test_anthropic_handler_tracks_main_thread_end_to_end() -> None:
         "please continue",
         "Castle",
     ]
-
-
-async def test_tracks_conversation_includes_equal_and_extending_inputs() -> None:
-    """A call equal to or extending the tracked thread or the candidate is reported as tracked.
-
-    `_track_state` sees the input with its reply, so an input equal to either
-    is an extension once the reply is added. An unrelated call is not
-    reported.
-    """
-    bridge = task_bridge()
-    main: list[ChatMessage] = [ChatMessageUser(content=TASK)]
-    main_output = await track(bridge, main, "Castle")
-    side = title_generation_input()
-    side_output = await track(bridge, side, "Doctor Who Series 9 setting")
-    assert bridge._candidate_fps is not None
-
-    tracked: list[ChatMessage] = main + [main_output.message]
-    candidate: list[ChatMessage] = side + [side_output.message]
-    for conversation in (tracked, candidate):
-        assert bridge._tracks_conversation(conversation)
-        assert bridge._tracks_conversation(
-            conversation + [ChatMessageUser(content="Go on.")]
-        )
-        assert not bridge._tracks_conversation(conversation[:-1])
-    assert not bridge._tracks_conversation([ChatMessageUser(content="Unrelated.")])
