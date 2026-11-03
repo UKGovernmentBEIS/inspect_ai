@@ -316,12 +316,12 @@ async def _execute_granted(
         raise ToolParsingError(validation_errors)
     call_arguments = cast(dict[str, JsonValue], arguments)
     check: SentinelCheck | None
-    if grant is None or grant.proposal.check is None or len(candidates) > 1:
+    if grant is None or grant.check is None or len(candidates) > 1:
         # with no proposal's context; an ambiguous call's result is recorded
         # for each execution it could be
         check = sentinel_unproposed_host_check(bridge, tool, call_arguments, tool_fn)
     else:
-        check = grant.proposal.check
+        check = grant.check
         candidates = []
 
     event = ToolEvent(

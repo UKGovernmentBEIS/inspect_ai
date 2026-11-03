@@ -497,7 +497,8 @@ class _Driver:
 
         A native call has a ToolEvent even when it fails. Match its preceding
         tool_call check, if any; an unmatched check under that ID came from the
-        bridge, which checks scaffold calls without emitting a ToolEvent.
+        bridge. A scaffold call with only a result check has no before check or
+        ToolEvent, but its proposing ModelEvent remains in the log.
         """
         native = [call for call in calls if not _bridged(call.event)]
         native_ids = {call.event.id for call in native}
@@ -523,6 +524,10 @@ class _Driver:
                 span not in matched
                 for span in self.tool_spans.get(("tool_call", call_id), [])
             ):
+                shared.add(call_id)
+            if self.tool_spans.get(("tool_result", call_id)) and len(
+                self.proposed.get(call_id, [])
+            ) > sum(call.event.id == call_id for call in calls):
                 shared.add(call_id)
         return shared
 

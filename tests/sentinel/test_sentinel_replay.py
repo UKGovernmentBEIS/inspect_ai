@@ -3439,6 +3439,35 @@ def test_scaffold_result_does_not_become_failed_native_result(
     assert "call id(s) shared" in caplog.text
 
 
+def test_result_only_sentinel_skips_shared_scaffold_result(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    log = run_logged(
+        as_solver(r7_scaffold_reports_after_a_failed_native_call("terminate")),
+        outputs(
+            r7_tool_calls(
+                ToolCall(id="shared", function="echo", arguments={"text": "x"})
+            ),
+            r7_tool_calls(ToolCall(id="shared", function="explodes", arguments={})),
+            done(),
+        ),
+        sentinel=[r7_bridge_result_outcome("terminate")],
+    )
+    stages = [
+        event.stage
+        for event in logged_sample(log).events
+        if isinstance(event, SentinelEvent) and event.stage.startswith("tool")
+    ]
+    assert stages == ["tool_result"]
+    replay = replayed(log)
+    assert [
+        (step.stage, step.step.call.function)
+        for step in replay
+        if isinstance(step.step, BeforeToolCall | AfterToolCall)
+    ] == [("tool_call", "explodes")]
+    assert "call id(s) shared" in caplog.text
+
+
 def test_human_decision_at_shared_id_result_reaches_later_replay_steps(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

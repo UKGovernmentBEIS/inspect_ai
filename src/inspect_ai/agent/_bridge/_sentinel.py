@@ -101,6 +101,9 @@ class SentinelCheck(NamedTuple):
     """The id the scaffold was handed for the call (`sentinel_tokens`), or None
     for a host call no proposal accounts for."""
 
+    alternatives: tuple["SentinelCheck", ...] = ()
+    """Checks for other host tools denoted by the same handed call."""
+
 
 class _Identity(NamedTuple):
     """What the bridge keeps for every token it has handed out, for good."""

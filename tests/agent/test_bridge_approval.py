@@ -12,8 +12,18 @@ import logging
 import re
 from collections import deque
 from contextlib import contextmanager
+from dataclasses import replace
 from pathlib import PurePosixPath
-from typing import Any, Awaitable, Callable, Iterator, Literal, NamedTuple, cast
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Awaitable,
+    Callable,
+    Iterator,
+    Literal,
+    NamedTuple,
+    cast,
+)
 from unittest.mock import AsyncMock, MagicMock
 
 import anyio
@@ -27,6 +37,8 @@ from test_helpers.service_dispatch import (
 
 import inspect_ai._util.logger as inspect_logger
 from inspect_ai import Task, eval
+from inspect_ai._sentinel._config import resolve_sentinel_root, resolve_sentinel_spec
+from inspect_ai._sentinel._context import init_sentinel
 from inspect_ai._util.content import ContentImage, ContentText
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.agent._acp.event_mapping import _AcpEventRouter, replay_transcript
@@ -110,6 +122,29 @@ from inspect_ai.util._span import (
     span_id_provider,
 )
 from inspect_ai.util._store import Store, _subtask_store
+
+if TYPE_CHECKING:
+    from inspect_sentinel import (
+        AfterToolCall,
+        BeforeToolCall,
+        Context,
+        Decision,
+        Escalations,
+        Protocol,
+        ProtocolGroup,
+        protocol,
+    )
+else:
+    from test_helpers.fake_sentinel import (
+        AfterToolCall,
+        BeforeToolCall,
+        Context,
+        Decision,
+        Escalations,
+        Protocol,
+        ProtocolGroup,
+        protocol,
+    )
 
 TASK = "Tidy up the working directory."
 
@@ -1155,6 +1190,116 @@ def indistinct_read_and_delete(
     )
     bridge.approval = approval
     return bridge, read, delete
+
+
+@contextmanager
+def active_test_sentinel(sentinel: Any) -> Iterator[None]:
+    init_sentinel(resolve_sentinel_root(resolve_sentinel_spec(sentinel)))
+    try:
+        yield
+    finally:
+        init_sentinel(None)
+
+
+@protocol
+def reject_indistinct_delete() -> Protocol:
+    async def decide(
+        context: Context, step: BeforeToolCall, escalations: Escalations
+    ) -> Decision | None:
+        if step.call.function == "delete_file":
+            return Decision.reject("No deleting.")
+        return None
+
+    return decide
+
+
+@protocol
+def track_indistinct_targets(seen: list[tuple[str, str]]) -> ProtocolGroup:
+    async def before(
+        context: Context, step: BeforeToolCall, escalations: Escalations
+    ) -> Decision | None:
+        seen.append(("before", step.call.function))
+        return None
+
+    async def after(
+        context: Context, step: AfterToolCall, escalations: Escalations
+    ) -> Decision | None:
+        seen.append(("after", step.call.function))
+        return None
+
+    return ProtocolGroup(before, after)
+
+
+@protocol
+def modify_indistinct_read() -> Protocol:
+    async def decide(
+        context: Context, step: BeforeToolCall, escalations: Escalations
+    ) -> Decision | None:
+        if step.call.function == "read_file":
+            return Decision(
+                action="modify",
+                modified=replace(step.call, arguments={"path": "safe.txt"}),
+            )
+        return None
+
+    return decide
+
+
+@pytest.mark.usefixtures("fake_sentinel")
+async def test_sentinel_rejects_indistinct_delete_target() -> None:
+    bridge, read, delete = indistinct_read_and_delete([])
+    call = ToolCall(id="proposed", function="summarize", arguments={"path": "x"})
+
+    with active_test_sentinel(reject_indistinct_delete()):
+        run = await run_bridge(
+            [
+                tool_calls_output(call),
+                ModelOutput.from_content(model="mockllm/model", content="Done."),
+            ],
+            bridge=bridge,
+            tools=declare("summarize"),
+        )
+
+    assert run.generations == 2
+    assert not bridge._tool_execution_grants
+    read.assert_not_awaited()
+    delete.assert_not_awaited()
+
+
+@pytest.mark.usefixtures("fake_sentinel")
+async def test_sentinel_refuses_indistinct_modification() -> None:
+    bridge, _, _ = indistinct_read_and_delete([])
+    call = ToolCall(id="proposed", function="summarize", arguments={"path": "x"})
+
+    with active_test_sentinel(modify_indistinct_read()):
+        with pytest.raises(RuntimeError, match="several bridged tools"):
+            await run_bridge(
+                [tool_calls_output(call)], bridge=bridge, tools=declare("summarize")
+            )
+
+    assert isinstance(bridge._failure, RuntimeError)
+    assert not bridge._tool_execution_grants
+
+
+@pytest.mark.usefixtures("fake_sentinel")
+async def test_sentinel_result_names_executed_indistinct_target() -> None:
+    bridge, read, delete = indistinct_read_and_delete([])
+    call = ToolCall(id="proposed", function="summarize", arguments={"path": "x"})
+    seen: list[tuple[str, str]] = []
+
+    with active_test_sentinel(track_indistinct_targets(seen)):
+        await run_bridge(
+            [tool_calls_output(call)], bridge=bridge, tools=declare("summarize")
+        )
+        await call_host_tool(bridge)("two", "delete_file", {"path": "x"})
+
+    assert [name for stage, name in seen if stage == "after"] == ["delete_file"]
+    assert [name for stage, name in seen if stage == "before"] == [
+        "read_file",
+        "delete_file",
+    ]
+    read.assert_not_awaited()
+    delete.assert_awaited_once_with(path="x")
 
 
 async def test_call_denoting_indistinct_tools_is_approved_as_each_of_them() -> None:

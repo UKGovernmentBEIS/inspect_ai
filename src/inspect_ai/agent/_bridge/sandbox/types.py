@@ -201,6 +201,24 @@ class SandboxAgentBridge(AgentBridge):
             )
             targets, arguments = proposed.targets, proposed.arguments
             check = checks[index] if checks is not None else None
+            target_checks = (check, *check.alternatives) if check is not None else ()
+            if (
+                check is not None
+                and targets
+                and (
+                    len(target_checks) != len(targets)
+                    or any(
+                        target_check.call.function != target.tool
+                        for target_check, target in zip(target_checks, targets)
+                    )
+                )
+            ):
+                failure = RuntimeError(
+                    f"Sentinel checks for call '{call.function}' do not cover its "
+                    "bridged tool targets."
+                )
+                self.request_fail(failure)
+                raise failure
             if len(targets) > 1:
                 warn_once(
                     logger,
@@ -209,8 +227,13 @@ class SandboxAgentBridge(AgentBridge):
                     + ", ".join(f"{t.server}/{t.tool}" for t in targets)
                     + "); an execution grant was registered for each of them.",
                 )
-            proposal = _Proposal(call, span_id, check)
-            for target in targets:
+            proposal = _Proposal(call, span_id)
+            for target_index, target in enumerate(targets):
+                target_check = (
+                    target_checks[target_index]._replace(token=check.token)
+                    if check is not None
+                    else None
+                )
                 if (
                     len(self._tool_execution_grants)
                     == self._tool_execution_grants.maxlen
@@ -222,6 +245,7 @@ class SandboxAgentBridge(AgentBridge):
                         tool=target.tool,
                         arguments=to_jsonable_python(arguments, fallback=str),
                         proposal=proposal,
+                        check=target_check,
                     )
                 )
 
@@ -346,7 +370,7 @@ class SandboxAgentBridge(AgentBridge):
         """The sentinel checks of the distinct proposals a host call could execute."""
         checks: dict[str | None, "SentinelCheck"] = {}
         for index in self._matching_grants(server, tool, arguments):
-            check = self._tool_execution_grants[index].proposal.check
+            check = self._tool_execution_grants[index].check
             if check is not None:
                 checks.setdefault(check.token, check)
         return list(checks.values())
@@ -435,19 +459,14 @@ class _Proposal:
     and no pairing state outlives the bounded grant store.
     """
 
-    __slots__ = ("call", "span_id", "check", "paired")
+    __slots__ = ("call", "span_id", "paired")
 
-    def __init__(
-        self, call: ToolCall, span_id: str | None, check: "SentinelCheck | None"
-    ) -> None:
+    def __init__(self, call: ToolCall, span_id: str | None) -> None:
         self.call = call
         """The proposing call, with the function name as the model saw it."""
 
         self.span_id = span_id
         """Span to record executions under, or `None` for the span current then."""
-
-        self.check = check
-        """The sentinel's `tool_result` check for the call, if one is active."""
 
         self.paired = False
         """Whether an execution has already taken `call.id`."""
@@ -479,6 +498,9 @@ class _ToolExecutionGrant(NamedTuple):
 
     proposal: _Proposal
     """The proposing call, shared with the other grants it minted."""
+
+    check: "SentinelCheck | None"
+    """The result check for this grant's executed target."""
 
 
 class _BridgedToolId(NamedTuple):
