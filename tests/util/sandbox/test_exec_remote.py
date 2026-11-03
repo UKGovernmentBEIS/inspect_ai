@@ -789,14 +789,21 @@ class _GuestWithoutStartReply:
 
     The start registers a running job under its key, then either waits until
     cancelled (`lose="hang"`) or raises the sandbox's timeout
-    (`lose="timeout"`). exec_remote_kill_key marks the keyed job killed.
+    (`lose="timeout"`). exec_remote_kill_key marks the keyed job killed, after
+    `kill_answer` is set when one is given (as the real server answers only
+    once the job has terminated).
     """
 
     def __init__(
-        self, lose: Literal["hang", "timeout"], kill_hangs: bool = False
+        self,
+        lose: Literal["hang", "timeout"],
+        kill_hangs: bool = False,
+        kill_answer: anyio.Event | None = None,
     ) -> None:
         self.lose = lose
         self.kill_hangs = kill_hangs
+        self.kill_answer = kill_answer
+        self.kill_received = anyio.Event()
         self.jobs: dict[str, str] = {}
         self.kill_key_kwargs: list[dict[str, Any]] = []
         self.started = anyio.Event()
@@ -816,8 +823,11 @@ class _GuestWithoutStartReply:
             await anyio.sleep_forever()
         assert request["method"] == "exec_remote_kill_key"
         self.kill_key_kwargs.append(kwargs)
+        self.kill_received.set()
         if self.kill_hangs:
             await anyio.sleep_forever()
+        if self.kill_answer is not None:
+            await self.kill_answer.wait()
         killed = self.jobs.get(job_key) == "running"
         self.jobs[job_key] = "killed"
         return ExecResult(
@@ -855,6 +865,34 @@ class TestStartWithoutReply:
 
         with pytest.raises(TimeoutError):
             await exec_remote_streaming(guest.sandbox, ["sleep", "999"], 5)
+
+        assert list(guest.jobs.values()) == ["killed"]
+
+    @pytest.mark.parametrize("lose", ["hang", "timeout"])
+    async def test_start_cleanup_waits_for_the_kill_by_key_answer(
+        self, lose: Literal["hang", "timeout"]
+    ) -> None:
+        """The error reaches the caller only after the server answers the kill."""
+        kill_answer = anyio.Event()
+        guest = _GuestWithoutStartReply(lose=lose, kill_answer=kill_answer)
+        scope = anyio.CancelScope()
+        finished = anyio.Event()
+
+        async def start() -> None:
+            with scope, contextlib.suppress(TimeoutError):
+                await exec_remote_streaming(guest.sandbox, ["sleep", "999"], 5)
+            finished.set()
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(start)
+            await guest.started.wait()
+            scope.cancel()  # no effect once a timed-out start is cleaning up
+            await guest.kill_received.wait()
+            await anyio.wait_all_tasks_blocked()
+            assert not finished.is_set()
+
+            kill_answer.set()
+            await finished.wait()
 
         assert list(guest.jobs.values()) == ["killed"]
 

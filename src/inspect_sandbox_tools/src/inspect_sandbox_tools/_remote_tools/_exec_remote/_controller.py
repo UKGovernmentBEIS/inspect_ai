@@ -1,5 +1,4 @@
 import asyncio
-from typing import NoReturn
 
 from inspect_sandbox_tools._util.common_types import ToolException
 from inspect_sandbox_tools._util.user_switch import RunAs
@@ -31,9 +30,10 @@ class Controller:
         # does) so that a repeated start with the same key never starts a
         # second job.
         self._keyed_jobs: dict[str, Job] = {}
-        # Keys whose start is in progress, before and after the process spawns.
-        self._starting_keys: set[str] = set()
-        # Keys killed before their start finished; a start with one is refused.
+        # Starts in progress, by key: resolves to the job once its process
+        # exists, or None if the spawn failed.
+        self._spawning: dict[str, asyncio.Future[Job | None]] = {}
+        # Keys killed before any start with them arrived; such a start is refused.
         self._refused_keys: set[str] = set()
 
     async def submit(
@@ -76,61 +76,46 @@ class Controller:
                 raise ToolException(
                     f"exec_remote job {job_key} was killed before it started"
                 )
-            if job_key in self._starting_keys:
+            if job_key in self._spawning:
                 raise ToolException(f"exec_remote job {job_key} is already starting")
             if job_key in self._keyed_jobs:
                 return self._repeated_start(job_key)
-            self._starting_keys.add(job_key)
+        spawned: asyncio.Future[Job | None] = asyncio.get_running_loop().create_future()
+        if job_key is not None:
+            self._spawning[job_key] = spawned
         try:
-            job = await Job.spawn(
-                command,
-                stdin=input is not None or stdin_open,
-                env=env,
-                cwd=cwd,
-                user=user,
-                can_switch_user=can_switch_user,
-            )
+            try:
+                job = await Job.spawn(
+                    command,
+                    stdin=input is not None or stdin_open,
+                    env=env,
+                    cwd=cwd,
+                    user=user,
+                    can_switch_user=can_switch_user,
+                )
+            except BaseException:
+                spawned.set_result(None)
+                raise
             self._jobs[job.pid] = job
             if job_key is not None:
                 self._keyed_jobs[job_key] = job
-            await self._initialize(job, job_key, input=input, stdin_open=stdin_open)
+            spawned.set_result(job)
+            await self._initialize(job, input=input, stdin_open=stdin_open)
             return job.pid
         finally:
             if job_key is not None:
-                self._starting_keys.discard(job_key)
+                del self._spawning[job_key]
 
     async def _initialize(
-        self, job: Job, job_key: str | None, *, input: str | None, stdin_open: bool
+        self, job: Job, *, input: str | None, stdin_open: bool
     ) -> None:
-        """Initialize a registered job's stdin, killing the job if that fails.
-
-        A key refused while the process spawned is checked before and after
-        the stdin writes, which can wait as long as the command does not read.
-        """
-        if self._is_refused(job_key):
-            await self._kill_refused(job, job_key)
+        """Initialize a registered job's stdin, killing the job if that fails."""
         try:
             await job.initialize_stdin(input, stdin_open)
-        except BaseException as ex:
-            await self._kill_if_registered(job)
-            if isinstance(ex, Exception) and self._is_refused(job_key):
-                raise ToolException(
-                    f"exec_remote job {job_key} was killed while it started"
-                ) from ex
+        except BaseException:
+            if self._jobs.get(job.pid) is job:
+                await self.kill(job.pid, ack_seq=0)
             raise
-        if self._is_refused(job_key):
-            await self._kill_refused(job, job_key)
-
-    async def _kill_refused(self, job: Job, job_key: str | None) -> NoReturn:
-        await self._kill_if_registered(job)
-        raise ToolException(f"exec_remote job {job_key} was killed while it started")
-
-    def _is_refused(self, job_key: str | None) -> bool:
-        return job_key is not None and job_key in self._refused_keys
-
-    async def _kill_if_registered(self, job: Job) -> None:
-        if self._jobs.get(job.pid) is job:
-            await self.kill(job.pid, ack_seq=0)
 
     def _repeated_start(self, job_key: str) -> int:
         job = self._keyed_jobs[job_key]
@@ -142,13 +127,18 @@ class Controller:
         """Kill the job started with `job_key`, or refuse its start if none has.
 
         The host calls this when it submitted a start but never received the
-        PID, so the job may be running, starting, or not yet arrived. A start
-        still in progress is refused: its job is killed now if its process
-        exists, or as soon as it does.
+        PID. A key no start has used yet is refused, so a start that arrives
+        later is not run. For a start in progress, this waits until its process
+        exists (or its spawn fails), then kills it, which also ends any stdin
+        write the start is waiting on. It returns once the job has terminated.
         """
-        job = self._keyed_jobs.get(job_key)
-        if job is None or job_key in self._starting_keys:
-            self._refused_keys.add(job_key)
+        spawned = self._spawning.get(job_key)
+        if spawned is not None:
+            job = await asyncio.shield(spawned)
+        else:
+            job = self._keyed_jobs.get(job_key)
+            if job is None:
+                self._refused_keys.add(job_key)
         if job is None or self._jobs.get(job.pid) is not job:
             return KillKeyResult(killed=False)
         await self.kill(job.pid, ack_seq=0)

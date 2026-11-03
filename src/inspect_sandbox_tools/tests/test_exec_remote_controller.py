@@ -10,6 +10,7 @@ import shlex
 import signal
 import sys
 import time
+from asyncio import base_subprocess
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
@@ -466,42 +467,57 @@ class TestKillByJobKey:
         assert controller._jobs == {}
 
     @pytest.mark.asyncio
-    async def test_kill_key_before_spawn_kills_the_job_when_it_starts(
+    async def test_kill_key_during_spawn_waits_for_the_child_and_kills_it(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        spawning = asyncio.Event()
+        """The child exists before Job.spawn() returns; kill_key must wait for it."""
+        child_created = asyncio.Event()
         proceed = asyncio.Event()
-        created: list[Job] = []
-        real_spawn = Job.spawn
+        child_pids: list[int] = []
+        real_connect_pipes = base_subprocess.BaseSubprocessTransport._connect_pipes
 
-        async def slow_spawn(command: str, **kwargs: Any) -> Job:
-            spawning.set()
+        async def paused_connect_pipes(
+            transport: base_subprocess.BaseSubprocessTransport,
+            waiter: "asyncio.Future[None]",
+        ) -> None:
+            pid = transport.get_pid()
+            assert pid is not None
+            child_pids.append(pid)
+            child_created.set()
             await proceed.wait()
-            job = await real_spawn(command, **kwargs)
-            created.append(job)
-            return job
+            await real_connect_pipes(transport, waiter)
 
-        monkeypatch.setattr(Job, "spawn", slow_spawn)
+        monkeypatch.setattr(
+            base_subprocess.BaseSubprocessTransport,
+            "_connect_pipes",
+            paused_connect_pipes,
+        )
         controller = Controller()
         submit = asyncio.create_task(
             controller.submit("exec sleep 30", input=_LARGE_INPUT, job_key=_JOB_KEY)
         )
-        await spawning.wait()
-
-        result = await controller.kill_key(_JOB_KEY)
-        proceed.set()
+        await child_created.wait()
         try:
-            # the input is never read, so the job must be killed before it is written
-            with pytest.raises(ToolException, match="killed while it started"):
-                await asyncio.wait_for(submit, timeout=10)
+            kill = asyncio.create_task(controller.kill_key(_JOB_KEY))
+            for _ in range(10):
+                await asyncio.sleep(0)
+            assert not kill.done()
+            assert _group_alive(child_pids[0])
 
-            assert result.killed is False
-            assert len(created) == 1
-            assert not _group_alive(created[0].pid)
+            proceed.set()
+            result = await asyncio.wait_for(kill, timeout=10)
+
+            assert result.killed is True
+            assert not _group_alive(child_pids[0])
+            # killing the job ends the stdin write the start was waiting on
+            with pytest.raises((BrokenPipeError, ConnectionResetError)):
+                await asyncio.wait_for(submit, timeout=10)
             assert controller._jobs == {}
         finally:
-            for job in created:
-                _kill_group(job.pid)
+            proceed.set()
+            submit.cancel()
+            for pid in child_pids:
+                _kill_group(pid)
 
     @pytest.mark.asyncio
     async def test_kill_key_while_input_is_backpressured_kills_the_job(
@@ -523,7 +539,7 @@ class TestKillByJobKey:
 
             assert result.killed is True
             assert not _group_alive(job.pid)
-            with pytest.raises(ToolException, match="killed while it started"):
+            with pytest.raises((BrokenPipeError, ConnectionResetError)):
                 await submit
             assert controller._jobs == {}
         finally:
@@ -604,7 +620,7 @@ class TestKillByJobKey:
 
             assert result.killed is True
             assert not _group_alive(job.pid)
-            with pytest.raises(ToolException, match="killed while it started"):
+            with pytest.raises((BrokenPipeError, ConnectionResetError)):
                 await submit
             assert controller._jobs == {}
         finally:
