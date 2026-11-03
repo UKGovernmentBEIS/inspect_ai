@@ -30,6 +30,7 @@ REGISTRATION_REFUSED = -32001
 END_SAMPLE_TIMEOUT = 10.0
 
 UNKNOWN_SAMPLE = -32002
+UNKNOWN_TASK = -32009
 METHOD_NOT_FOUND = -32601
 
 MONITOR_STATE_COPY = "sentinel_sidecar:monitor_state"
@@ -101,8 +102,10 @@ class TaskSidecars:
     ) -> None:
         """Send a sample's facts to a sidecar, once for the sample whatever its epochs, before the sidecar judges any of its calls.
 
+        A sidecar that no longer keeps the task's registration, as after it restarted or the registration expired, has the task registered again first.
+
         Raises:
-            SentinelProxyError: If the sidecar couldn't take the sample.
+            SentinelProxyError: If the sidecar couldn't take the sample, or no longer kept the task and couldn't register it again.
         """
 
         async def complete() -> None:
@@ -117,7 +120,16 @@ class TaskSidecars:
                 "metadata": to_jsonable_python(sample.metadata),
             }
             try:
-                await sidecar.call("complete_registration", params)
+                try:
+                    await sidecar.call("complete_registration", params)
+                except SidecarCallError as ex:
+                    if ex.code != UNKNOWN_TASK:
+                        raise
+                    # registering the task again changes nothing for a
+                    # sidecar that still keeps it, so a sample that races
+                    # another here is safe
+                    await self._register(sidecar)
+                    await sidecar.call("complete_registration", params)
             except SidecarCallError as ex:
                 raise SentinelProxyError(
                     f"The sentinel sidecar at {sidecar.origin} couldn't register the sample {sample.sample_id!r} of the task {self.facts.task!r}: {ex}"
