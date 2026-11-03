@@ -188,6 +188,7 @@ async def sentinel_after_tool_call(
     producer: ModelEvent | None = None,
     *,
     find_producer: bool = True,
+    reject_on_viewer_error: bool = False,
 ) -> None:
     if not _watches(AfterToolCall):
         return
@@ -200,7 +201,9 @@ async def sentinel_after_tool_call(
         message=message,
         message_id=_message_id(message_id),
         call=call,
-        view=resolve_tool_call_view(call, viewer),
+        view=resolve_tool_call_view(
+            call, viewer, reject_on_error=reject_on_viewer_error
+        ),
         result=result,
         output=output,
         # None when the host cannot tell (a scaffold-run tool under a bridge)

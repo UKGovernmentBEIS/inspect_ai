@@ -112,6 +112,7 @@ from inspect_ai.tool._tool_call import (
     ToolCallContent,
     ToolCallError,
     ToolCallView,
+    ToolCallViewError,
 )
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_def import ToolDef
@@ -1401,6 +1402,100 @@ async def test_indistinct_target_viewer_failure_rejects_all_grants() -> None:
     assert run.generations == 2
     assert viewed == ["read_file", "delete_file"]
     assert not bridge._tool_execution_grants
+
+
+@protocol
+def stop_secret_delete_result(seen: list[tuple[str, str, str]]) -> Protocol:
+    async def after(
+        context: Context, step: AfterToolCall, escalations: Escalations
+    ) -> Decision | None:
+        assert step.view.call is not None
+        seen.append((step.call.function, step.result.text, step.view.call.content))
+        if step.call.function == "delete_file" and step.result.text == "secret":
+            return Decision.terminate("secret delete result")
+        return None
+
+    return after
+
+
+@pytest.mark.usefixtures("fake_sentinel")
+async def test_changed_scaffold_result_checks_every_indistinct_host_target() -> None:
+    bridge, _ = indistinct_tools_with_viewers()
+    seen: list[tuple[str, str, str]] = []
+    with active_test_sentinel(stop_secret_delete_result(seen)):
+        first = await run_bridge(
+            [
+                tool_calls_output(
+                    ToolCall(
+                        id="proposed", function="summarize", arguments={"path": "x"}
+                    )
+                )
+            ],
+            bridge=bridge,
+            tools=declare("summarize"),
+        )
+        [handed] = first.output.message.tool_calls or []
+        assert await call_host_tool(bridge)("two", "delete_file", {"path": "x"}) == "x"
+        with pytest.raises(TerminateSampleError, match="secret delete result"):
+            await run_bridge(
+                [ModelOutput.from_content(model="mockllm/model", content="Done.")],
+                bridge=bridge,
+                input=[
+                    ChatMessageUser(content=TASK),
+                    first.output.message,
+                    ChatMessageTool(
+                        content="secret",
+                        tool_call_id=handed.id,
+                        function="summarize",
+                    ),
+                ],
+                tools=declare("summarize"),
+            )
+
+    assert seen == [
+        ("delete_file", "x", "view of delete_file"),
+        ("read_file", "secret", "view of read_file"),
+        ("delete_file", "secret", "view of delete_file"),
+    ]
+
+
+@pytest.mark.usefixtures("fake_sentinel")
+async def test_changed_scaffold_result_rejects_raising_alternative_viewer() -> None:
+    bridge, _ = indistinct_tools_with_viewers(raising="delete_file")
+    seen: list[tuple[str, str, str]] = []
+    with active_test_sentinel(stop_secret_delete_result(seen)):
+        first = await run_bridge(
+            [
+                tool_calls_output(
+                    ToolCall(
+                        id="proposed", function="summarize", arguments={"path": "x"}
+                    )
+                )
+            ],
+            bridge=bridge,
+            tools=declare("summarize"),
+        )
+        [handed] = first.output.message.tool_calls or []
+        assert await call_host_tool(bridge)("one", "read_file", {"path": "x"}) == "x"
+        with pytest.raises(ToolCallViewError, match="delete_file"):
+            await run_bridge(
+                [ModelOutput.from_content(model="mockllm/model", content="Done.")],
+                bridge=bridge,
+                input=[
+                    ChatMessageUser(content=TASK),
+                    first.output.message,
+                    ChatMessageTool(
+                        content="secret",
+                        tool_call_id=handed.id,
+                        function="summarize",
+                    ),
+                ],
+                tools=declare("summarize"),
+            )
+    assert seen == [
+        ("read_file", "x", "view of read_file"),
+        ("read_file", "secret", "view of read_file"),
+    ]
 
 
 async def test_call_denoting_indistinct_tools_is_approved_as_each_of_them() -> None:

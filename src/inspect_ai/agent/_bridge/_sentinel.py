@@ -45,7 +45,12 @@ from inspect_ai.model._providers._google_computer_use import (
     gemini_action_from_tool_call,
 )
 from inspect_ai.tool._tool import Tool, ToolResult
-from inspect_ai.tool._tool_call import ToolCall, ToolCallError, ToolCallViewer
+from inspect_ai.tool._tool_call import (
+    ToolCall,
+    ToolCallError,
+    ToolCallViewer,
+    ToolCallViewError,
+)
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.util._anyio import inner_exception
 from inspect_ai.util._limit import LimitExceededError
@@ -124,7 +129,9 @@ class _Result(NamedTuple):
     keys: list[str]
     """The result's identity (first) and any it also answers for."""
 
-    check: SentinelCheck
+    checks: tuple[SentinelCheck, ...]
+    """The possible targets to check; a host execution has only its actual target."""
+
     message: ChatMessageTool
 
 
@@ -279,7 +286,7 @@ class _ResultChecks:
             ]
             proposal = self.proposals.get(token)
             if proposal is not None:
-                return _Result(keys, proposal, message)
+                return _Result(keys, (proposal, *proposal.alternatives), message)
             call = (
                 replace(found.call, id=identity.call_id)
                 if found is not None
@@ -310,7 +317,7 @@ class _ResultChecks:
             input[found.position].id if found is not None else _NO_MESSAGE_ID,
             history,
         )
-        return _Result(keys, check, message)
+        return _Result(keys, (check,), message)
 
     async def check(
         self,
@@ -320,7 +327,15 @@ class _ResultChecks:
         truncated: tuple[int, int] | Literal[False] | None = None,
     ) -> None:
         try:
-            await _tool_result(bridge, result.check, result.message, output, truncated)
+            for check in result.checks:
+                await _tool_result(
+                    bridge,
+                    check,
+                    result.message,
+                    output,
+                    truncated,
+                    reject_on_viewer_error=len(result.checks) > 1,
+                )
         except Exception as ex:
             for key in result.keys:
                 self.failed.setdefault(key, ex)
@@ -524,7 +539,7 @@ async def sentinel_host_tool_result(
     keys = keys or [f"unproposed:{uuid()}"]
     with bridge_request():
         await _result_checks(bridge).check_running(
-            bridge, _Result(keys, check, result), output, truncated
+            bridge, _Result(keys, (check,), result), output, truncated
         )
 
 
@@ -577,28 +592,34 @@ async def _tool_result(
     result: ChatMessageTool,
     output: ToolResult,
     truncated: tuple[int, int] | Literal[False] | None,
+    reject_on_viewer_error: bool = False,
 ) -> None:
     from inspect_ai._sentinel._dispatch import sentinel_after_tool_call
 
     producer = check.producer
     with producer.scope() if producer is not None else nullcontext():
-        await _guarded(
-            bridge,
-            partial(
-                sentinel_after_tool_call,
-                check.message,
-                check.message_id,
-                # a copy, so a monitor can't change the call the check keeps
-                deepcopy(check.call),
-                result,
-                output,
-                truncated,
-                check.viewer,
-                check.history,
-                producer.event if producer is not None else None,
-                find_producer=False,
-            ),
-        )
+        try:
+            await _guarded(
+                bridge,
+                partial(
+                    sentinel_after_tool_call,
+                    check.message,
+                    check.message_id,
+                    # a copy, so a monitor can't change the call the check keeps
+                    deepcopy(check.call),
+                    result,
+                    output,
+                    truncated,
+                    check.viewer,
+                    check.history,
+                    producer.event if producer is not None else None,
+                    find_producer=False,
+                    reject_on_viewer_error=reject_on_viewer_error,
+                ),
+            )
+        except ToolCallViewError as ex:
+            bridge.request_fail(ex)
+            raise
 
 
 async def _guarded(bridge: AgentBridge, run: Callable[[], Awaitable[T]]) -> T:

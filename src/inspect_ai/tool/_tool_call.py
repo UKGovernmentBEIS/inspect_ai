@@ -110,8 +110,8 @@ def resolve_tool_call_view(
     """Render `call` with `viewer`, or with the default view if it has none.
 
     If the viewer raises, the default rendering is used, unless `reject_on_error`
-    is set: decisions made before the call runs (approval, the before-tool
-    sentinel) must not see a view the tool's own viewer would not have shown.
+    is set: decisions made before a call runs or about an ambiguous scaffold
+    result must not see a view the tool's own viewer would not have shown.
 
     Raises:
         ToolCallViewError: The viewer raised and `reject_on_error` is set. Its
