@@ -1098,6 +1098,10 @@ class _Inputs:
     ) -> None:
         self._events = events
         self._pool = pool
+        self._all_inputs_pooled = pool is not None and all(
+            not isinstance(event, ModelEvent) or event.input_refs is not None
+            for event in events
+        )
         self.outside = outside
         self._views: dict[int, Sequence[ChatMessage]] = {}
         self._system_rows: list[int] | None = None
@@ -1259,6 +1263,10 @@ class _Inputs:
                 if not wanted:
                     break
         return list(found.items())
+
+    def may_have_tool_result(self, tool_call_id: str) -> bool:
+        """Whether a non-empty result can appear in an input for this call."""
+        return not self._all_inputs_pooled or tool_call_id in self._pool_tool_rows()
 
     def _pooled_tool_results(
         self, input: PoolView, tool_call_ids: Iterable[str]
@@ -1698,7 +1706,7 @@ def _extract_agent_results(parent: TimelineSpan, inputs: _Inputs) -> None:
     2. Span-based agents (static flow): sibling ToolEvent with agent_span_id == span.id
     3. Bridge flow: a later sibling ModelEvent's input has the ChatMessageTool answering the call the span is named for (``agent-{tool_call_id}``)
 
-    One pass over the content: each span waiting on the bridge flow is answered by the first later model event whose input holds its result (``_Inputs.tool_results``), each input looked at once for all the spans waiting.
+    One pass over the content: each span waiting on the bridge flow is answered by the first later model event whose input holds its result (``_Inputs.tool_results``). With pooled inputs, a span whose call id has no non-empty result row in the pool is left out of the pending lookup.
     """
     content = parent.content
     agent_tool_events: dict[str, ToolEvent] = {}
@@ -1735,7 +1743,9 @@ def _extract_agent_results(parent: TimelineSpan, inputs: _Inputs) -> None:
                 and len(item.id) > 6
                 and item.id.startswith("agent-")
             ):
-                waiting.setdefault(item.id[6:], []).append(item)
+                tool_call_id = item.id[6:]
+                if inputs.may_have_tool_result(tool_call_id):
+                    waiting.setdefault(tool_call_id, []).append(item)
 
         # Recurse into child spans
         _extract_agent_results(item, inputs)

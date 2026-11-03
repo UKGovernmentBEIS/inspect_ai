@@ -90,6 +90,8 @@ def steps_from_events(
 
     A log that does not record where a model call was made (`ModelEvent.origin`, written since inspect_ai PR #5990), as an older Inspect log does not, has its turns inferred from its span tree: a call made in the scorers' span (in a log from before spans, between a scorer's `StepEvent`s) is a scorer's, whatever tool or agent span holds it (live, the scorers' scope is final); one in a tool's span (or nested in its `ToolEvent`) a tool's, and one in the init span setup's; of the rest, those the inferred timeline shows as utility (`timeline_build`'s prompt and continuity rules, the calls above and a sentinel's taking no part in either) are not turns, and the others are. A final scope no span records reads as the region holding it: a `model_origin()` region, `score()` called by a solver or a tool, an approver's model call; where the timeline does not show such a call as utility, its call is a turn (or, in a tool, its calls are checked), as live it was not.
 
+    Inspect logs record origins on every model call or on none. If a transcript mixes calls with and without origins, recorded calls retain their recorded classification and calls without origins are inferred; continuity across that mixed sequence is not guaranteed.
+
     In logs without origins, recorded sentinel checks and human decisions are used only when their step id pairs with a model call's exact id. Inferred turns may differ from those seen by a sentinel that ran before origins were recorded; reproducing that sentinel's live steps is outside this replay contract.
 
     Args:

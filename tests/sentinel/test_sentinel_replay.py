@@ -2108,6 +2108,72 @@ def test_pooled_prompt_fallback_without_system_message_reads_pool_once() -> None
     assert work[-1] <= 4.2 * work[0], work
 
 
+@pytest.mark.parametrize("empty", [True, False])
+def test_bridge_result_lookup_with_empty_results_stays_bounded(
+    empty: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from inspect_ai.event import _timeline
+
+    original = _timeline._Inputs._pool_tool_rows
+    work: list[int] = []
+
+    class CountingRows(dict[str, list[int]]):
+        def get(self, key: str, default: Any = None) -> Any:
+            work[-1] += 1
+            return super().get(key, default)
+
+    def counted_rows(inputs: Any) -> dict[str, list[int]]:
+        rows = original(inputs)
+        if not isinstance(rows, CountingRows):
+            rows = CountingRows(rows)
+            inputs._tool_rows = rows
+        return rows
+
+    monkeypatch.setattr(_timeline._Inputs, "_pool_tool_rows", counted_rows)
+    for rounds in (100, 200, 400):
+        pool: list[ChatMessage] = [ChatMessageUser(content="Start")]
+        events: list[Event] = [SpanBeginEvent(id="main", name="main", type="agent")]
+        for n in range(rounds):
+            task = ToolCall(id=f"task-{n}", function="task", arguments={})
+            call = linked_call(f"m{n}", "main", [], "", None, task)
+            events.append(call.model_copy(update={"input_refs": [(0, len(pool))]}))
+            pool.append(call.output.message)
+            sub = f"agent-{task.id}"
+            events.extend(
+                [
+                    SpanBeginEvent(id=sub, name="sub", type="agent", parent_id="main"),
+                    linked_call(f"sub-{n}", sub, [], "done", None).model_copy(
+                        update={"input_refs": [(0, 1)]}
+                    ),
+                    SpanEndEvent(id=sub),
+                ]
+            )
+            pool.append(
+                ChatMessageTool(
+                    content="" if empty else f"result {n}",
+                    tool_call_id=task.id,
+                    function="task",
+                )
+            )
+        events.append(
+            linked_call("last", "main", [], "Done", None).model_copy(
+                update={"input_refs": [(0, len(pool))]}
+            )
+        )
+        events.append(SpanEndEvent(id="main"))
+        work.append(0)
+        replay = steps_from_events(
+            [],
+            events,
+            pool,
+            sample_uuid="sample",
+            eval_info=EvalInfo(inspect_ai_version="0.3.200", sentinel=False),
+        )
+        assert replay
+        assert work[-1] <= 4 * rounds, (rounds, work)
+    assert work[-1] <= 4.2 * work[0] + 10, work
+
+
 def test_summary_match_reads_linearly_with_retained_prefix_and_compactions(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
