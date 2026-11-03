@@ -27,6 +27,9 @@ class Turn:
     nested: bool = False
     """Put the field of an error at `error.provider_specific_fields.sentinel`, as LiteLLM does."""
 
+    stop_reason: str | None = None
+    """An Anthropic stop reason in place of the one the turn's content gives, such as `pause_turn`."""
+
 
 @dataclass
 class StandInSidecar:
@@ -101,7 +104,7 @@ def _anthropic(turn: Turn, stream: bool, asked: dict[str, Any]) -> httpx2.Respon
         {"type": "tool_use", "id": id, "name": name, "input": arguments}
         for id, name, arguments in turn.calls
     ]
-    stop = "tool_use" if turn.calls else "end_turn"
+    stop = turn.stop_reason or ("tool_use" if turn.calls else "end_turn")
     message = {
         "id": "msg_1",
         "type": "message",
