@@ -6,6 +6,7 @@ from typing import Any
 import anyio
 import httpx2
 import pytest
+from test_helpers import fake_sentinel as fake
 from test_helpers.stand_in_sidecar import StandInSidecar, Turn
 
 from inspect_ai import Task
@@ -47,6 +48,7 @@ from inspect_ai.scorer import (
 )
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver, use_tools
 from inspect_ai.tool import Tool, ToolCall, tool
+from inspect_ai.util import StoreModel
 
 _MODELS = {
     "anthropic": "anthropic/claude-haiku-4-5",
@@ -1498,6 +1500,54 @@ def test_two_sidecars_that_keep_the_same_key_fail_the_sample() -> None:
     # once each, though the sample failed after the copy
     assert len(_registered(first, "sample_result")) == 1
     assert len(_registered(second, "sample_result")) == 1
+
+
+class _Calls(StoreModel):
+    count: int = 0
+
+
+# the keys `counts_calls` kept, for the stand-in sidecar to keep too
+_KEPT: list[str] = []
+
+
+@fake.protocol
+def counts_calls() -> fake.Protocol:
+    # an in-process protocol keeping a count in its store, as the same rule in
+    # the sidecar does
+    async def decide(
+        context: fake.Context, step: fake.BeforeToolCall, escalations: fake.Escalations
+    ) -> fake.Decision | None:
+        context.store_as(_Calls).count += 1
+        _KEPT.extend(k for k in context.store.keys() if k.endswith(":count"))
+        return None
+
+    return decide
+
+
+@pytest.mark.usefixtures("fake_sentinel")
+def test_a_sidecar_that_keeps_an_in_process_sentinels_key_fails_the_sample() -> None:
+    _KEPT.clear()
+    stand_in = StandInSidecar(
+        turns=[Turn(calls=[("call_1", "weather", {"city": "Oslo"})]), Turn()],
+        methods={"sample_result": lambda params: _kept({_KEPT[0]: 10})(params)},
+    )
+    task = Task(
+        dataset=[Sample(input="What's the weather?")],
+        solver=[use_tools(weather()), generate()],
+        scorer=_reads_monitor_state(),
+        sentinel=counts_calls(),
+    )
+
+    [log] = eval(task, model=_model(stand_in), display="none")
+
+    # the same rule in both: the copy would overwrite the count the sentinel
+    # inside Inspect carries on from, so the sample fails, as two sidecars
+    # keeping one key do, and the count stays its own
+    assert log.samples is not None
+    [sample] = log.samples
+    assert sample.error is not None
+    assert "inside Inspect and the one in the sidecar" in sample.error.message
+    assert sample.store[_KEPT[0]] == 1
 
 
 class _HungCopy(StandInSidecar):
