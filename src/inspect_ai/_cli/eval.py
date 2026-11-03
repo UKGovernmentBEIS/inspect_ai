@@ -2681,6 +2681,13 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     help=INCOMPLETE_MAX_HELP,
     envvar="INSPECT_EVAL_INCOMPLETE_MAX",
 )
+@click.option(
+    "--sentinel-proxy",
+    type=click.Choice(["auto", "required", "off"]),
+    envvar="INSPECT_EVAL_SENTINEL_PROXY",
+    hidden=True,
+    help="Whether to look for a sentinel sidecar behind each model's proxy, as for eval. The log doesn't record it, so a retry is told again.",
+)
 @scanner_options
 @common_options
 def eval_retry_command(
@@ -2720,6 +2727,7 @@ def eval_retry_command(
     checkpoint: str | None,
     incomplete_action: IncompleteAction,
     incomplete_max: float | None,
+    sentinel_proxy: SentinelProxy | None,
     scanner: str | None,
     scanner_arg: tuple[str, ...] | None,
     scans: str | None,
@@ -2875,6 +2883,7 @@ def eval_retry_command(
                 checkpoint=parse_checkpoint(checkpoint),
                 incomplete_action=incomplete_action,
                 incomplete_max=incomplete_max,
+                sentinel_proxy=sentinel_proxy,
             )
 
         if json_output:

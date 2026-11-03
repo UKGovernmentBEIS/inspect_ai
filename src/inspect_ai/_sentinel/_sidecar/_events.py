@@ -4,17 +4,16 @@ from logging import getLogger
 from typing import Any
 
 from inspect_ai._util.logger import warn_once
-from inspect_ai.event._sentinel import (
-    SentinelEvent,
-    SentinelSidecar,
-    SentinelSidecarModel,
-)
+from inspect_ai.event._sentinel import SentinelEvent
 
 from .._conversation import current_conversation
 from ._endpoint import Sidecar
 from ._field import ReceivedField, SentinelField, parse_field
 
 logger = getLogger(__name__)
+
+SIDECAR_METADATA = "sentinel_sidecar"
+"""The key of a sidecar report's provenance in the event's `metadata`: the proxy, the endpoint's version and release mode, the call's `x-irid`, whether the report was trimmed, and the models the step's monitors and protocols called."""
 
 
 def record_sidecar_reports(
@@ -29,30 +28,24 @@ def record_sidecar_reports(
     """
     from inspect_ai.log._transcript import transcript
 
-    where = SentinelSidecar(
-        proxy=sidecar.origin,
-        version=sidecar.version,
-        release=sidecar.release,
-        request=request,
-        trimmed=bool(field.trimmed),
-    )
     conversation = current_conversation()
     for step in field.steps:
         step_id = step.call if step.call is not None else generate_id
         if step.models:
             _warn_of_unused_roles(step.models, sidecar)
-            where = where.model_copy(
-                update={
-                    "models": [
-                        SentinelSidecarModel.model_validate(m) for m in step.models
-                    ]
-                }
-            )
-        else:
-            where = where.model_copy(update={"models": None})
+        # where the report came from, in the event's metadata: the log
+        # format has no field for it
+        where: dict[str, Any] = {
+            "proxy": sidecar.origin,
+            "version": sidecar.version,
+            "release": sidecar.release,
+            "request": request,
+            "trimmed": bool(field.trimmed),
+            "models": step.models or None,
+        }
         if field.trimmed or step.recorded is None:
-            # a step without its records holds only what Inspect acts on
-            trimmed = where.model_copy(update={"trimmed": True})
+            # a step without its records holds only what Inspect acts on,
+            # with no monitor or protocol, so no function, to name
             transcript()._event(
                 SentinelEvent.model_validate(
                     {
@@ -61,10 +54,11 @@ def record_sidecar_reports(
                         "step_id": step_id,
                         "conversation": conversation,
                         "stage": step.stage,
+                        "function": "",
                         "kind": "decision",
                         "status": "reported",
                         **_decision(step.decision),
-                        "sidecar": trimmed,
+                        "metadata": {SIDECAR_METADATA: {**where, "trimmed": True}},
                     }
                 )
             )
@@ -78,11 +72,18 @@ def record_sidecar_reports(
                         "step_id": step_id,
                         "conversation": conversation,
                         "stage": step.stage,
-                        **_report(record),
-                        "sidecar": where,
+                        **_with_sidecar(_report(record), where),
                     }
                 )
             )
+
+
+def _with_sidecar(report: dict[str, Any], where: dict[str, Any]) -> dict[str, Any]:
+    # the report's own metadata, with where it came from beside it
+    return {
+        **report,
+        "metadata": {**(report.get("metadata") or {}), SIDECAR_METADATA: where},
+    }
 
 
 def _warn_of_unused_roles(models: list[dict[str, Any]], sidecar: Sidecar) -> None:

@@ -46,7 +46,7 @@ from inspect_ai._display import (
 )
 from inspect_ai._display.core.display import TaskCancel, TaskDisplayMetric
 from inspect_ai._eval.task.scan import Scanners
-from inspect_ai._sentinel._config import SentinelRoot
+from inspect_ai._sentinel._config import SentinelProxy, SentinelRoot
 from inspect_ai._sentinel._context import SentinelFailure
 from inspect_ai._sentinel._scope import sentinel_scope, sentinel_solving
 from inspect_ai._sentinel._sidecar._call import end_sidecar_sample
@@ -655,6 +655,7 @@ class TaskRunOptions:
     eval_wd: str
     config: EvalConfig = field(default_factory=EvalConfig)
     sentinel: "SentinelRoot | None" = field(default=None)
+    sentinel_proxy: SentinelProxy | None = field(default=None)
     """Resolved root protocol of the task's sentinel."""
     solver: Solver | None = field(default=None)
     scanner: "Scanners | None" = field(default=None)
@@ -1356,7 +1357,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             )
 
             await init_task_sidecars(
-                config.sentinel_proxy,
+                options.sentinel_proxy,
                 model,
                 TaskFacts(
                     eval_id=logger.eval.eval_id,
