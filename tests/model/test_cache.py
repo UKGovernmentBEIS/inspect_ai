@@ -116,10 +116,10 @@ async def test_cache_separates_model_args(
     assert cache_events == ["write", "write", "read"]
 
 
-def test_cache_model_args_key_is_canonical() -> None:
+def test_cache_model_args_key_is_stable() -> None:
     args = {"extra_body": {"system": "3", "options": [True, None, 0.5]}}
-    reordered = {"extra_body": {"options": [True, None, 0.5], "system": "3"}}
-    assert cache_model_args_key(args) == cache_model_args_key(reordered)
+    same = {"extra_body": {"system": "3", "options": [True, None, 0.5]}}
+    assert cache_model_args_key(args) == cache_model_args_key(same)
     assert cache_model_args_key(args) != cache_model_args_key(
         {"extra_body": {"system": "4", "options": [True, None, 0.5]}}
     )
@@ -136,6 +136,76 @@ def test_cache_model_args_key_rejects_unsafe_values(value: Any) -> None:
     assert cache_model_args_key({"option": {"nested": value}}) is None
 
 
+@pytest.mark.parametrize("instance_key", [None, "instance"])
+def test_cache_model_args_key_keeps_dict_order(instance_key: str | None) -> None:
+    """Providers resolve overlapping keys by order, so order is part of the key."""
+    client = {"client": object()} if instance_key else {}
+    headers_last_wins = cache_model_args_key(
+        {**client, "default_headers": {"x-model-route": "3", "X-Model-Route": "4"}},
+        instance_key=instance_key,
+    )
+    reversed_headers = cache_model_args_key(
+        {**client, "default_headers": {"X-Model-Route": "4", "x-model-route": "3"}},
+        instance_key=instance_key,
+    )
+    assert headers_last_wins != reversed_headers
+
+
+async def test_cache_separates_google_safety_setting_alias_order(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The later of two aliases for one harm category is the one Google applies."""
+    from inspect_ai.model._providers import google as google_provider
+
+    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path))
+    # the provider mutates these shared defaults when it applies user settings
+    monkeypatch.setattr(
+        google_provider,
+        "DEFAULT_SAFETY_SETTINGS",
+        deepcopy(google_provider.DEFAULT_SAFETY_SETTINGS),
+    )
+
+    async def threshold_completion(safety_settings: dict[str, str]) -> str:
+        model = get_model(
+            "google/gemini-2.5-flash",
+            api_key="test",
+            safety_settings=safety_settings,
+            memoize=False,
+        )
+        api = cast(google_provider.GoogleGenAIAPI, model.api)
+
+        async def generate_output(*args: Any, **kwargs: Any) -> ModelOutput:
+            threshold = next(
+                str(setting["threshold"])
+                for setting in api.safety_settings
+                if "HARASSMENT" in str(setting["category"])
+            )
+            return ModelOutput.from_content(model="google", content=threshold)
+
+        monkeypatch.setattr(model.api, "generate", generate_output)
+        return (await model.generate("Hello", cache=True)).completion
+
+    high = await threshold_completion(
+        {"harassment": "low", "HARM_CATEGORY_HARASSMENT": "high"}
+    )
+    low = await threshold_completion(
+        {"HARM_CATEGORY_HARASSMENT": "high", "harassment": "low"}
+    )
+    assert "HIGH" in high
+    assert "LOW" in low
+
+
+@pytest.mark.skipif(sys.get_int_max_str_digits() == 0, reason="no int conversion limit")
+async def test_cache_defers_unserializable_model_args_to_caching(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path))
+    model = get_model("mockllm/model", value=10**5000)
+    assert (await model.generate("Hello")).completion
+    with pytest.raises(ValueError):
+        await model.generate("Hello", cache=True)
+
+
 def test_cache_model_args_key_rejects_cycles() -> None:
     args: dict[str, Any] = {}
     args["cycle"] = args
@@ -146,12 +216,9 @@ def test_cache_model_args_key_rejects_cycles() -> None:
 def test_cache_model_args_instance_key_preserves_json_arguments() -> None:
     client = object()
     args = {"client": client, "extra_body": {"system": "3", "options": [True]}}
-    reordered = {
-        "extra_body": {"options": [True], "system": "3"},
-        "client": client,
-    }
+    same = {"client": client, "extra_body": {"system": "3", "options": [True]}}
     key = cache_model_args_key(args, instance_key="first")
-    assert key == cache_model_args_key(reordered, instance_key="first")
+    assert key == cache_model_args_key(same, instance_key="first")
     assert key != cache_model_args_key(args, instance_key="second")
     args["extra_body"] = {"system": "4", "options": [True]}
     assert key != cache_model_args_key(args, instance_key="first")

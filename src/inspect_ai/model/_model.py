@@ -2428,12 +2428,13 @@ def _init_model_args_key(model_args: dict[str, Any], instance_key: str) -> str |
     `safety_settings`) and others keep the nested objects they were given
     (Anthropic `extra_body`), so once the args differ from this fingerprint
     they no longer say what the provider sends, and caching is scoped to the
-    instance. Args that caching refuses raise only when caching is used, so
-    here they scope the fingerprint to the instance instead.
+    instance. Args that caching refuses or cannot serialize (such as an int
+    too long to convert) raise only when caching is used, so here they scope
+    the fingerprint to the instance instead.
     """
     try:
         return _model_args_key(model_args, instance_key, warn=False)
-    except (UnsupportedModelArgError, RecursionError):
+    except (UnsupportedModelArgError, RecursionError, ValueError):
         return instance_key
 
 

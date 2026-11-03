@@ -208,13 +208,16 @@ def cache_model_args_key(
     be given a reliable persistent identity. With an instance key, they can
     still share responses within that model's lifetime, while the JSON portions
     of the arguments continue to distinguish request defaults.
+
+    Dictionary order is kept: providers can resolve keys that overlap (header
+    names that differ in case, Google harm-category aliases) by order.
     """
     if not model_args:
         return ""
     try:
         if not _is_json_value(model_args):
             raise ValueError("Opaque model args")
-        serialized = json.dumps(model_args, sort_keys=True, allow_nan=False)
+        serialized = json.dumps(model_args, allow_nan=False)
     except (ValueError, RecursionError):
         if instance_key is None:
             return None
@@ -228,9 +231,7 @@ def cache_instance_model_args_key(model_args: dict[str, Any], instance_key: str)
     The JSON portions of the arguments still distinguish request defaults, and
     the encoding cannot match an instance-independent fingerprint.
     """
-    serialized = json.dumps(
-        [instance_key, _model_args_tree(model_args, set())], sort_keys=True
-    )
+    serialized = json.dumps([instance_key, _model_args_tree(model_args, set())])
     return sha256(serialized.encode("utf-8")).hexdigest()
 
 
