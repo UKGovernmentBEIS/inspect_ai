@@ -9,7 +9,7 @@ import json as json_lib
 import shlex
 import time
 from collections.abc import Callable
-from typing import IO, TYPE_CHECKING, Any, Literal, NamedTuple, cast
+from typing import TYPE_CHECKING, Any, Literal, NamedTuple, cast
 
 import click
 
@@ -18,6 +18,7 @@ from inspect_ai._control.cancel import (
     SAMPLE_CANCEL_OUTCOME,
 )
 from inspect_ai._control.state import DEFAULT_SAMPLE_LIST_LIMIT, SAMPLE_STATUSES
+from inspect_ai._util.file import file, local_path
 
 # Patch seam: tests monkeypatch functions on their defining module
 # (e.g. `inspect_ai._cli.ctl._http._request_json`), so cross-module
@@ -25,7 +26,13 @@ from inspect_ai._control.state import DEFAULT_SAMPLE_LIST_LIMIT, SAMPLE_STATUSES
 # "simplify" to `from ._http import _request_json` (see
 # design/ctl/cli-refactor.md).
 from . import _http
-from ._failure import _CtlFailure, _envelope_failures, _fail, _structured_failures
+from ._failure import (
+    _CtlFailure,
+    _envelope_failures,
+    _exception_name,
+    _fail,
+    _structured_failures,
+)
 from ._fetch import _fetch_sample_summaries, _resolve_target_eval
 from ._group import (
     _MUTATION_ENVELOPE_HELP,
@@ -725,9 +732,9 @@ def sample_agent_list_command(
 @click.option(
     "--file",
     "text_file",
-    type=click.File("r", encoding="utf-8"),
+    metavar="PATH",
     default=None,
-    help="Read the message text from a file (`-` for stdin).",
+    help="Read the message text from a file or URL (`-` for stdin).",
 )
 @click.option(
     "--interrupt",
@@ -752,7 +759,7 @@ def sample_agent_message_command(
     epoch: int | None,
     agent: str,
     text: str | None,
-    text_file: IO[str] | None,
+    text_file: str | None,
     interrupt: bool,
     dry_run: bool,
     as_json: bool,
@@ -767,8 +774,6 @@ def sample_agent_message_command(
     """
     if (text is None) == (text_file is None):
         raise click.UsageError("Pass exactly one of --text and --file.")
-    if text_file is not None:
-        text = text_file.read()
     _run_sample_agent_action(
         task,
         sample_id,
@@ -777,6 +782,7 @@ def sample_agent_message_command(
         agent=agent,
         group=None,
         text=text,
+        text_file=text_file,
         interrupt=interrupt,
         dry_run=dry_run,
         as_json=as_json,
@@ -1388,6 +1394,21 @@ def _run_sample_agent_list(
     )
 
 
+def _read_message_file(path: str) -> str:
+    """Read `--file` as UTF-8 text: stdin for `-`, else a path or URL."""
+    try:
+        if path == "-":
+            return click.get_text_stream("stdin", encoding="utf-8").read()
+        with file(local_path(path), "r", encoding="utf-8") as f:
+            return f.read()
+    except (OSError, UnicodeDecodeError) as ex:
+        _fail(
+            "invalid_request",
+            f"Could not read --file {_sanitize_line(path)}: {ex}",
+            exception=_exception_name(ex),
+        )
+
+
 @_envelope_failures
 def _run_sample_agent_action(
     task: str,
@@ -1402,7 +1423,10 @@ def _run_sample_agent_action(
     dry_run: bool,
     as_json: bool,
     terse: bool | None = None,
+    text_file: str | None = None,
 ) -> None:
+    if text_file is not None:
+        text = _read_message_file(text_file)
     who = _sanitize_line(
         f"agent '{agent}'" if agent is not None else f"group '{group}'"
     )

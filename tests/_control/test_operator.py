@@ -10,9 +10,11 @@ import json
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, cast
 
 import anyio
+import boto3
 import httpx
 import pytest
 
@@ -567,7 +569,7 @@ def server(monkeypatch: pytest.MonkeyPatch) -> _Server:
     return fake
 
 
-def _invoke(*args: str, input: str | None = None) -> Any:
+def _invoke(*args: str, input: str | bytes | None = None) -> Any:
     return cli_runner().invoke(ctl_command, ["sample", "agent", *args], input=input)
 
 
@@ -643,6 +645,72 @@ def test_cli_message_sends_the_text_once(server: _Server, sample: _FakeSample) -
         False,
     )
     assert "interrupt" not in server.requests[-1].url.params
+
+
+def _message_from(path: str, input: str | bytes | None = None) -> Any:
+    return _invoke(
+        "message",
+        "t1",
+        "s1",
+        "--agent",
+        "worker-1",
+        "--file",
+        path,
+        "--json",
+        input=input,
+    )
+
+
+def test_cli_message_file_takes_a_path_or_a_file_uri(
+    server: _Server, sample: _FakeSample, tmp_path: Path
+) -> None:
+    group = _group("swarm", "worker-1")
+    sample.operator_groups["swarm"] = group
+    message = tmp_path / "a message.txt"
+    message.write_text("from a file\n", encoding="utf-8")
+    for path in (str(message), message.as_uri()):
+        result = _message_from(path)
+        assert result.exit_code == 0, result.output
+        assert group.members["worker-1"].calls[-1][:2] == ("message", "from a file\n")
+    assert len(server.requests) == 2
+
+
+def test_cli_message_file_takes_an_s3_url(
+    mock_s3: None, server: _Server, sample: _FakeSample
+) -> None:
+    group = _group("swarm", "worker-1")
+    sample.operator_groups["swarm"] = group
+    boto3.client("s3").put_object(
+        Bucket="test-bucket", Key="operator/message.txt", Body=b"from s3"
+    )
+    result = _message_from("s3://test-bucket/operator/message.txt")
+    assert result.exit_code == 0, result.output
+    assert group.members["worker-1"].calls == [("message", "from s3", False, False)]
+
+
+@pytest.mark.parametrize(
+    "case", ["stdin not UTF-8", "file not UTF-8", "missing file", "directory"]
+)
+def test_cli_message_file_read_failure_is_one_error_envelope(
+    server: _Server, sample: _FakeSample, tmp_path: Path, case: str
+) -> None:
+    sample.operator_groups["swarm"] = _group("swarm", "worker-1")
+    binary = tmp_path / "binary.txt"
+    binary.write_bytes(b"\xff")
+    path, input, exception = {
+        "stdin not UTF-8": ("-", b"\xff", "UnicodeDecodeError"),
+        "file not UTF-8": (str(binary), None, "UnicodeDecodeError"),
+        "missing file": (str(tmp_path / "missing.txt"), None, "FileNotFoundError"),
+        "directory": (str(tmp_path), None, None),
+    }[case]
+    result = _message_from(path, input=input)
+    assert result.exit_code == 1
+    error = json.loads(result.stdout)["error"]
+    assert error["kind"] == "invalid_request"
+    assert error["message"].startswith(f"Could not read --file {path}: ")
+    if exception is not None:
+        assert error["exception"] == exception
+    assert server.requests == []
 
 
 def test_cli_usage_errors(server: _Server, sample: _FakeSample) -> None:

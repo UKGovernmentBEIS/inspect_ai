@@ -411,7 +411,7 @@ $ inspect ctl sample agent resume ctf 3 --group swarm
 $ inspect ctl sample agent stop ctf 3 --agent worker-2
 ```
 
-`message` gives one agent a message from the operator, from `--text` or from `--file` (`-` reads stdin). The agent takes it at its next turn. With `--interrupt`, its current turn is cancelled and it continues with the message now. What `pause`, `resume` and `stop` do is up to the framework that registered the agent or group. An action an agent cannot take fails with the reason, and `list --json` gives the reason for each action an agent does not take now. A repeat that changes nothing, such as a second pause, is a no-op. Every verb accepts `--dry-run`, and `EPOCH` is required whenever the task runs more than one epoch.
+`message` gives one agent a message from the operator, from `--text` or from `--file`, which takes a path or URL such as `s3://` (`-` reads stdin). The agent takes it at its next turn. With `--interrupt`, its current turn is cancelled and it continues with the message now. What `pause`, `resume` and `stop` do is up to the framework that registered the agent or group. An action an agent cannot take fails with the reason, and `list --json` gives the reason for each action an agent does not take now. A repeat that changes nothing, such as a second pause, is a no-op. Every verb accepts `--dry-run`, and `EPOCH` is required whenever the task runs more than one epoch.
 
 These verbs send each request once and never retry it, since a repeat could send a message twice. If a request is sent but its response does not arrive, the command fails with an unknown outcome (`kind: "unknown_outcome"` in the `--json` error envelope): the action may have taken effect, so check with `list` before sending it again.
 
