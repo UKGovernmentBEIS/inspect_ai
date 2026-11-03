@@ -5,7 +5,7 @@ import json
 import tempfile
 import zipfile
 from collections.abc import Sequence
-from contextvars import copy_context
+from contextvars import Context, copy_context
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal, NamedTuple
 
@@ -368,7 +368,9 @@ async def _merge_pass(
             raise FileNotFoundError(
                 f"Neither {merged_path} nor any shard in {shards_dir} exists."
             )
-        _check_task(task, existing.header, merged_path)
+        _check_task(
+            task, existing.header, merged_path, recorded_context(existing.header)
+        )
         return _recorded_pass(existing, given, allow_incomplete)
 
     ledger = (
@@ -403,7 +405,8 @@ async def _merge_pass(
     if existing is not None and len(changed) < len(shards):
         headers.append((merged_path, existing.header))
     check_headers(headers)
-    resolved = _check_task(task, base, base_source)
+    context = recorded_context(base)
+    resolved = _check_task(task, base, base_source, context)
 
     records = existing.records if existing is not None else set()
     if existing is not None:
@@ -481,6 +484,7 @@ async def _merge_pass(
                     read_member=read_member,
                     summaries=summaries,
                     task=resolved,
+                    context=context,
                     total_samples=total,
                     make_header=lambda scoring: build_header(
                         base=base,
@@ -516,18 +520,23 @@ async def _merge_pass(
     )
 
 
-def _check_task(task: "Task | str", header: EvalLog, source: str) -> "Task":
+def _check_task(
+    task: "Task | str", header: EvalLog, source: str, context: Context
+) -> "Task":
     """The task to compute results with, checked against what `source` recorded.
 
-    A task spec is loaded as `eval()` loads it (see :func:`_load_task`); a
-    `Task` is used as given.
+    A task spec is loaded as `eval()` loads it, with the task arguments the
+    shards recorded, in `context` (see :func:`recorded_context`); a `Task` is
+    used as given.
 
     Raises:
         ShardSetError: The task differs from the one the shards ran.
         ValueError: The spec does not name exactly one task.
     """
+    from inspect_ai._eval.loader import load_task_spec
+
     if isinstance(task, str):
-        loaded = copy_context().run(_load_task, task, header)
+        loaded = context.run(load_task_spec, task, header.eval.task_args_passed)
         if len(loaded) != 1:
             raise ValueError(
                 f"The task spec {task} names {len(loaded)} tasks; name one "
@@ -538,30 +547,37 @@ def _check_task(task: "Task | str", header: EvalLog, source: str) -> "Task":
     return task
 
 
-def _load_task(spec: str, header: EvalLog) -> list["Task"]:
-    """Load `spec` in the model context the shards ran with, as `eval()` does.
+def recorded_context(header: EvalLog) -> Context:
+    """A copy of the caller's context with the model context the shards ran with.
 
     The active model is built from the recorded model, generate config, base
     URL and model arguments, and the recorded model roles are installed, as
-    offline scoring rebuilds them, so a task factory that calls `get_model()`
-    builds the task the shards ran. Runs in a copy of the caller's context,
-    which keeps its own active model and roles.
+    `eval()` sets them before building tasks and running them and as offline
+    scoring rebuilds them. The merge builds a task spec and computes the
+    results in it, so a task factory, metric or epoch reducer that calls
+    `get_model()` or `get_model(role=...)` sees what the shards ran with.
+    The caller's own context is not changed.
     """
-    from inspect_ai._eval.loader import load_task_spec
     from inspect_ai.model import get_model
     from inspect_ai.model._model import init_active_model, init_model_roles
     from inspect_ai.model._model_config import model_roles_config_to_model_roles
 
-    config = header.plan.config.merge(header.eval.model_generate_config)
-    model = get_model(
-        model=header.eval.model,
-        config=config,
-        base_url=header.eval.model_base_url,
-        **header.eval.model_args,
-    )
-    init_model_roles(model_roles_config_to_model_roles(header.eval.model_roles) or {})
-    init_active_model(model, config)
-    return load_task_spec(spec, header.eval.task_args_passed)
+    def init() -> None:
+        config = header.plan.config.merge(header.eval.model_generate_config)
+        model = get_model(
+            model=header.eval.model,
+            config=config,
+            base_url=header.eval.model_base_url,
+            **header.eval.model_args,
+        )
+        init_model_roles(
+            model_roles_config_to_model_roles(header.eval.model_roles) or {}
+        )
+        init_active_model(model, config)
+
+    context = copy_context()
+    context.run(init)
+    return context
 
 
 def _recorded_pass(

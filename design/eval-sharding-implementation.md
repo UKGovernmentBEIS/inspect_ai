@@ -394,13 +394,10 @@ Parameters:
   is loaded with `load_task_spec` (`_eval/loader.py`), as `eval()` loads
   it, with the task arguments the shards recorded
   (`eval.task_args_passed`, as `eval_retry` uses), and must name exactly
-  one task (`ValueError` otherwise). As in `eval_resolve_tasks`, the model
-  context is set up first, in a copy of the caller's context, so a factory
-  that calls `get_model()` or `get_model(role=...)` builds the task the
-  shards ran: the active model from the recorded model, generate config,
-  base URL and model arguments, and the recorded model roles, as
-  `score_async` rebuilds them for offline scoring. The caller's own active
-  model and roles are unchanged afterwards. A `Task` is used as given. The merge computes results with it
+  one task (`ValueError` otherwise). The spec is loaded in the shards'
+  recorded model context ("Results"), so a factory that calls
+  `get_model()` or `get_model(role=...)` builds the task the shards ran.
+  A `Task` is used as given. The merge computes results with it
   ("Results") and refuses one that does not match the shards ("Matching
   the task").
 - `sample_ids` / `sample_count`: the intended selection, mutually exclusive
@@ -1213,6 +1210,18 @@ reductions it returns become the header's `results` and the merged log's
 `reductions.json`. An incomplete merge computes them over the samples it
 holds, as a cancelled native run computes partial results.
 
+The model context. `eval()` installs the active model and the model roles
+before it builds tasks (`eval_resolve_tasks`) and keeps them while the
+task runs, so a task factory, metric or epoch reducer may call
+`get_model()` or `get_model(role=...)`. The merge builds one context from
+the template shard's header (`recorded_context`, `_api.py`): a copy of
+the caller's context with the active model built from the recorded model,
+generate config, base URL and model arguments and with the recorded model
+roles, as `score_async` rebuilds them for offline scoring. It loads a task
+spec and runs `eval_results` in that context, for a spec and a supplied
+`Task` alike; the caller's own context is never changed, whether the merge
+returns, raises or is cancelled.
+
 The metric inputs are those of a fresh run (decision: Ransom,
 2026-10-27): each declared scorer's score gets the sample's dataset
 metadata, before any solver changed it, as `run.py` passes
@@ -1651,15 +1660,23 @@ Two PRs after the merge core, each with the measurement that justifies it:
   include-only streaming parse (ijson, the builder behind
   `_read_member_json_excluding`, `eval.py:666`, with the excluded set taken
   as every `EvalSample` field except `id`, `epoch`, `scores`, `metadata`,
-  `error`), so peak memory stops following the largest transcript. The
-  parse still tokenises the whole member; it no longer builds its objects.
+  `error` and `invalidation`), so peak memory stops following the largest
+  transcript. The merge also needs what `events` holds about the sample's
+  initialization: whether a `sample_init` event is present and that
+  event's `sample.metadata` ("Results"). The parse takes those from the
+  `sample_init` event alone, as it streams past the events array, and
+  builds no other event, so the transcript is still never materialized.
+  The parse still tokenises the whole member; it no longer builds its objects.
   One exception is inherited: the builder falls back to `json.loads` of the
   whole member for non-finite numbers and integers too large for the
   streaming parser (`eval.py:686`), so such a sample is still parsed whole;
   the bound holds for every other sample. Acceptance: the parent's memory
   test (peak memory independent of transcript size; growth with score
-  metadata accounted to the retained metric inputs), plus one sample that
-  takes the fallback, measured and reported rather than bounded.
+  metadata accounted to the retained metric inputs), the metric-input and
+  invalidation tests of PR 5 unchanged (dataset metadata from the
+  `sample_init` event, a sample without one refused, `invalidated`
+  following the merged samples), plus one sample that takes the fallback,
+  measured and reported rather than bounded.
 - **Raw compressed-member copy.** A writer in `src/inspect_ai/_util/zipfile.py`
   that appends a member from its compressed bytes: a fresh local header
   built from the source central-directory entry (method, CRC-32, sizes,
@@ -2144,12 +2161,13 @@ Per PR (numbers from "Implementation plan"):
      fresh, incremental, unchanged and shards-removed merge, on asyncio
      and Trio, with every file byte-identical; a spec naming two tasks
      raises `ValueError` and writes nothing;
-   - task loading: in fresh processes, through the API and the CLI on
-     asyncio and Trio, a factory that calls `get_model()` and one that
-     calls `get_model(role="grader", required=True)`, with a single and a
-     list role binding and recorded task arguments, merge to the native
-     result under an unrelated active model and role, which the caller
-     keeps;
+   - the model context: in fresh processes, a task whose factory, metric
+     and epoch reducer call `get_model()`, or with a recorded task argument
+     `get_model(role="grader", required=True)` under a single or a list
+     role binding, merges to the native results and reductions, fresh and
+     incremental, on asyncio and Trio: as a spec and as a supplied `Task`
+     under an unrelated active model and role, which the caller keeps, and
+     through the CLI with none;
    - metric inputs: raw scores keep their declared scorer; declared
      metrics take the dataset metadata from the `SampleInitEvent`; a
      sample with scores and no such event is refused; a solver-set score
@@ -2265,7 +2283,9 @@ Per PR (numbers from "Implementation plan"):
    (`tracemalloc`) of a merge over shards with large transcripts and small
    scores does not grow with transcript size; with large score metadata,
    growth matches the retained metric inputs and custom metrics receive
-   them unchanged.
+   them unchanged; declared metrics still take the dataset metadata from
+   the `sample_init` event, a scored sample without one is still refused,
+   and `invalidated` still follows the merged samples.
 8. **Raw copy.** `tests/util/test_zipfile.py`: raw-copied members read back
    byte-identical through `zipfile` and `AsyncZipReader`, including ZIP64
    sizes and offsets and both compression methods in use;
@@ -2361,7 +2381,8 @@ PR (decision: Ransom, 2026-09-24).
    landed by #5396. Files:
    `_eval/evalset.py`, `_eval/eval_set_manifest.py`, `docs/eval-sets.qmd`,
    `CHANGELOG.md`, `tests/test_eval_set.py`.
-7. **Streaming recomputation.** Include-only score extraction and the
+7. **Streaming recomputation.** Include-only score extraction, keeping
+   the `sample_init` event's data and the invalidation marker, and the
    memory tests. Depends on 5. Files: `log/_shards/_write.py`,
    `log/_recorders/eval.py` (expose the builder if needed),
    `tests/log/test_shards.py`.

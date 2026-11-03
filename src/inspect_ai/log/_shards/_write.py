@@ -4,6 +4,7 @@ import functools
 import json
 import zipfile
 from collections.abc import Awaitable, Callable, Sequence
+from contextvars import Context
 from typing import TYPE_CHECKING, Any, BinaryIO, NamedTuple
 
 from inspect_ai._util.constants import get_deserializing_context
@@ -130,6 +131,7 @@ async def write_merged_zip(
     read_member: Callable[[SampleRecordKey], Awaitable[bytes]],
     summaries: Sequence[EvalSampleSummary],
     task: "Task",
+    context: Context,
     total_samples: int,
     make_header: Callable[[MergedScoring], EvalLog],
 ) -> EvalLog:
@@ -139,7 +141,9 @@ async def write_merged_zip(
     rebuilt from its key and reduced to its scores before the next is read.
     Then the summaries, the reductions and the header (made by `make_header`
     from the results and the samples' invalidation) are written. No journal
-    is written: the merged log is always written finished.
+    is written: the merged log is always written finished. The results are
+    computed in `context`, the model context the shards ran with
+    (`recorded_context` in `_api.py`).
 
     Raises:
         ShardSetError: A sample member's id or epoch does not match its name,
@@ -153,7 +157,7 @@ async def write_merged_zip(
             inputs.append(
                 await run_owned(functools.partial(_write_sample, zf, key, data))
             )
-        results, reductions = _results(task, inputs, total_samples)
+        results, reductions = context.run(_results, task, inputs, total_samples)
         header = make_header(
             MergedScoring(
                 results=results,

@@ -3450,10 +3450,24 @@ def test_cli_json_stdout_holds_only_the_object_when_metric_code_prints(
 
 
 _MODEL_TASK = f"""
-from inspect_ai import Task, task
+from inspect_ai import Epochs, Task, task
 from inspect_ai.dataset import Sample
 from inspect_ai.model import get_model
-from inspect_ai.scorer import Metric, SampleScore, match, metric
+from inspect_ai.scorer import (
+    Metric,
+    SampleScore,
+    Score,
+    ScoreReducer,
+    match,
+    metric,
+    score_reducer,
+)
+
+
+def _ran_with(role: bool) -> bool:
+    if role:
+        return get_model(role="grader", required=True).name == "grader"
+    return get_model().name == "model"
 
 
 @metric
@@ -3462,6 +3476,22 @@ def built_with(name: str) -> Metric:
         return 1.0 if name in ("model", "grader") else 0.0
 
     return compute
+
+
+@metric
+def run_with(role: bool) -> Metric:
+    def compute(scores: list[SampleScore]) -> float:
+        return 1.0 if _ran_with(role) else 0.0
+
+    return compute
+
+
+@score_reducer(name="model_check")
+def model_check(role: bool) -> ScoreReducer:
+    def reduce(scores: list[Score]) -> Score:
+        return Score(value=1.0 if _ran_with(role) else 0.0)
+
+    return reduce
 
 
 @task
@@ -3474,14 +3504,17 @@ def {TASK}(role: bool = False) -> Task:
     return Task(
         dataset=[Sample(id=i, input="q", target="x") for i in range(1, 5)],
         scorer=match(),
-        metrics=[built_with(name)],
+        metrics=[built_with(name), run_with(role)],
+        epochs=Epochs(1, model_check(role)),
     )
 """
 
-# a merge in a fresh process, under an unrelated active model and role
+# a merge in a fresh process, under an unrelated active model and role, of
+# a task spec or of a Task the caller built as the shards ran it
 _MERGE_SCRIPT = f"""
 import json
 import sys
+from contextvars import copy_context
 
 import anyio
 
@@ -3490,6 +3523,22 @@ from inspect_ai.model import GenerateConfig, get_model
 from inspect_ai.model._model import active_model, init_active_model, init_model_roles
 from inspect_ai.model._model import model_roles
 
+backend, mode, incomplete = sys.argv[1], sys.argv[2], sys.argv[3] == "1"
+roles = json.loads(sys.argv[4])
+
+
+def build():
+    from custom_task import {TASK}
+
+    init_active_model(get_model("mockllm/model"), GenerateConfig())
+    init_model_roles({{
+        role: [get_model(m) for m in bound] if isinstance(bound, list) else get_model(bound)
+        for role, bound in roles.items()
+    }})
+    return {TASK}(role=bool(roles))
+
+
+task = copy_context().run(build) if mode == "task" else "custom_task.py@{TASK}"
 ambient = get_model("mockllm/ambient")
 init_active_model(ambient, GenerateConfig())
 init_model_roles({{"grader": ambient}})
@@ -3497,33 +3546,35 @@ init_model_roles({{"grader": ambient}})
 
 async def main() -> None:
     result = await merge_eval_log_shards_async(
-        "{NAME}.eval", "custom_task.py@{TASK}"
+        "{NAME}.eval", task, allow_incomplete=incomplete
     )
-    assert result.log.results is not None
     print(json.dumps({{
-        "value": result.log.results.scores[0].metrics["built_with"].value,
+        "status": result.log.status,
         "active": active_model().name,
         "grader": model_roles()["grader"].name,
     }}))
 
 
-anyio.run(main, backend=sys.argv[1])
+anyio.run(main, backend=backend)
 """
 
 
 @pytest.mark.parametrize("backend", ["asyncio", "trio"])
-@pytest.mark.parametrize("entry", ["api", "cli"])
+@pytest.mark.parametrize("write", ["fresh", "incremental"])
+@pytest.mark.parametrize("entry", ["spec", "task", "cli"])
 @pytest.mark.parametrize("binding", ["active", "role", "role-list"])
-def test_a_task_spec_is_built_in_the_recorded_model_context(
+def test_a_merge_runs_the_task_in_the_recorded_model_context(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     binding: str,
     entry: str,
+    write: str,
     backend: str,
 ) -> None:
     import subprocess
 
     monkeypatch.chdir(tmp_path)
+    Path("custom_task.py").write_text(_MODEL_TASK)
     kwargs: dict[str, Any] = {}
     if binding != "active":
         grader = ["mockllm/grader", "mockllm/other"]
@@ -3531,7 +3582,46 @@ def test_a_task_spec_is_built_in_the_recorded_model_context(
             task_args={"role": True},
             model_roles={"grader": grader if binding == "role-list" else grader[0]},
         )
-    _run_task_file(_MODEL_TASK, **kwargs)
+
+    def shard(k: str, ids: list[int]) -> None:
+        eval(
+            "custom_task.py",
+            model="mockllm/model",
+            log_dir=f"{NAME}.shards/{k}",
+            display="none",
+            sample_id=ids,
+            **kwargs,
+        )
+
+    env = {**os.environ, "INSPECT_ASYNC_BACKEND": backend}
+
+    def merge(incomplete: bool) -> None:
+        if entry == "cli":
+            # no active model or role around the merge
+            command = [sys.executable, "-m", "inspect_ai", "log", "merge-shards"]
+            command += [f"{NAME}.eval", "--task", f"custom_task.py@{TASK}", "--json"]
+            command += ["--allow-incomplete"] if incomplete else []
+            result = subprocess.run(command, capture_output=True, text=True, env=env)
+            assert result.returncode == 0, result.stdout + result.stderr
+            return
+        Path("merge.py").write_text(_MERGE_SCRIPT)
+        roles = json.dumps(kwargs.get("model_roles", {}))
+        args = [backend, entry, "1" if incomplete else "0", roles]
+        result = subprocess.run(
+            [sys.executable, "merge.py", *args], capture_output=True, text=True, env=env
+        )
+        assert result.returncode == 0, result.stderr
+        # the caller's own active model and roles are kept (the last line:
+        # startup can print enabled hooks first)
+        output = json.loads(result.stdout.splitlines()[-1])
+        assert (output["active"], output["grader"]) == ("ambient", "ambient")
+
+    shard("0", [1, 2])
+    if write == "incremental":
+        merge(incomplete=True)
+    shard("1", [3, 4])
+    merge(incomplete=False)
+
     native = eval(
         "custom_task.py",
         model="mockllm/model",
@@ -3539,35 +3629,12 @@ def test_a_task_spec_is_built_in_the_recorded_model_context(
         display="none",
         **kwargs,
     )[0]
-    assert native.results is not None
-    expected = native.results.scores[0].metrics["built_with"].value
-    assert expected == 1.0
-    env = {**os.environ, "INSPECT_ASYNC_BACKEND": backend}
-    if entry == "api":
-        Path("merge.py").write_text(_MERGE_SCRIPT)
-        result = subprocess.run(
-            [sys.executable, "merge.py", backend],
-            capture_output=True,
-            text=True,
-            env=env,
-        )
-        assert result.returncode == 0, result.stderr
-        # the caller's own active model and roles are kept (the last line:
-        # startup can print enabled hooks first)
-        assert json.loads(result.stdout.splitlines()[-1]) == {
-            "value": expected,
-            "active": "ambient",
-            "grader": "ambient",
-        }
-    else:
-        command = [sys.executable, "-m", "inspect_ai", "log", "merge-shards"]
-        command += [f"{NAME}.eval", "--task", f"custom_task.py@{TASK}", "--json"]
-        result = subprocess.run(command, capture_output=True, text=True, env=env)
-        assert result.returncode == 0, result.stdout + result.stderr
-        assert json.loads(result.stdout)["status"] == "success"
-        merged = read_eval_log(f"{NAME}.eval", header_only=True)
-        assert merged.results is not None
-        assert merged.results.scores[0].metrics["built_with"].value == expected
+    assert native.reductions is not None
+    assert {v for v in _metric_values(native).values()} == {1.0}
+    assert {s.value for s in native.reductions[0].samples} == {1.0}
+    merged = read_eval_log(f"{NAME}.eval")
+    assert _metric_values(merged) == _metric_values(native)
+    assert merged.reductions == native.reductions
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="uses the C library's printf")
