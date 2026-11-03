@@ -46,6 +46,8 @@ from inspect_ai.agent._bridge._approval import (
 )
 from inspect_ai.agent._bridge._errors import BridgePolicyError, ResponseFilterError
 from inspect_ai.agent._bridge.types import AgentBridge, message_json_hash
+from inspect_ai.event._model import ModelEvent
+from inspect_ai.log._transcript import transcript
 from inspect_ai.model._agent_message import validate_agent_message
 from inspect_ai.model._call_tools import get_tools_info
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
@@ -975,7 +977,10 @@ async def _bridge_generate_impl(
         with _routing_context(routing):
             # Apply filter if we have it (can either return output or alternate inputs)
             output: ModelOutput | None = None
+            generated_output: ModelOutput | None = None
             if bridge.filter:
+                history = transcript().history
+                events_before_filter = history.event_count
                 # get_tools_info (via ToolDef) preserves `options` — including the
                 # INTERNAL_TOOL_TYPE marker — so the filter sees the same ToolInfo
                 # the model provider would. parse_tool_info re-derives from the
@@ -1004,6 +1009,19 @@ async def _bridge_generate_impl(
                         result = ex.output
                 if isinstance(result, ModelOutput):
                     output = result
+                    generated_output = next(
+                        (
+                            event.output
+                            for event in reversed(
+                                history.recent_events(
+                                    history.event_count - events_before_filter
+                                )
+                            )
+                            if isinstance(event, ModelEvent)
+                            and event.output.message.id == result.message.id
+                        ),
+                        None,
+                    )
                 elif isinstance(result, GenerateInput):
                     # Update the inputs that will be used for generation
                     input_messages, tools, tool_choice, config = result
@@ -1032,6 +1050,7 @@ async def _bridge_generate_impl(
                             if finalize_config is not None
                             else config,
                         )
+                        generated_output = output
                     except ModelRefusalError as ex:
                         if bridge.response_filter is not None:
                             output = ex.output
@@ -1044,7 +1063,7 @@ async def _bridge_generate_impl(
                         else:
                             raise
 
-        generated = output
+        generated = generated_output
 
         # Update the compaction baseline with the actual input token count
         # from the generate call (most accurate source of truth). Record it
@@ -1099,13 +1118,20 @@ async def _bridge_generate_impl(
             # a sink chose is stored, so a rotating checkpoint span is followed
             # a call the model proposed names its output, though a response
             # filter or an approver may have changed the message handed over
-            proposed = {
-                (call.id, call.function) for call in generated.message.tool_calls or []
-            }
+            proposed = (
+                {
+                    (call.id, call.function): message_id
+                    for choice in generated.choices
+                    if (message_id := choice.message.id) is not None
+                    for call in choice.message.tool_calls or []
+                }
+                if generated is not None
+                else {}
+            )
             bridge._proposing_message_ids = {
-                call.id: generated.message.id
+                call.id: proposed[(call.id, call.function)]
                 for call in reviewed.output.message.tool_calls or []
-                if (call.id, call.function) in proposed and generated.message.id
+                if proposed.get((call.id, call.function)) is not None
             }
             bridge._proposing_reply_id = reviewed.output.message.id
             try:

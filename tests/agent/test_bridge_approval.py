@@ -3947,6 +3947,96 @@ async def test_proposed_host_tool_call_is_recorded_with_the_proposing_id(
     assert recorded.completions(event) == 1
 
 
+async def test_alternate_selected_by_response_filter_names_its_model_choice() -> None:
+    """A selected alternate host call names the choice that proposed it."""
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(tool, None)
+    call = ToolCall(id="alternate", function="read_file", arguments={"path": "a"})
+    generated = ModelOutput(
+        model="mockllm/model",
+        choices=[
+            ChatCompletionChoice(message=ChatMessageAssistant(content="first")),
+            ChatCompletionChoice(
+                message=ChatMessageAssistant(content="alternate", tool_calls=[call]),
+                stop_reason="tool_calls",
+            ),
+        ],
+    )
+
+    async def select_alternate(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput:
+        return output.model_copy(update={"choices": output.choices[::-1]})
+
+    bridge.response_filter = select_alternate
+    with recorded_transcript() as recorded:
+        await run_bridge([generated], bridge=bridge, tools=declare("read_file"))
+        await call_host_tool(bridge)("host", "read_file", {"path": "a"})
+
+    [event] = recorded.tool_events
+    [generation] = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    assert event.call_message_id == generation.output.choices[1].message.id
+
+
+async def test_synthetic_request_filter_call_has_no_proposing_message() -> None:
+    """A request filter's call has no producer when it did not generate."""
+    tool = AsyncMock(return_value="contents")
+
+    async def synthetic(
+        model: Model,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        return tool_calls_output(
+            ToolCall(id="synthetic", function="read_file", arguments={"path": "a"})
+        )
+
+    bridge = sandbox_bridge_with_tool(tool, None)
+    bridge.filter = synthetic
+    with recorded_transcript() as recorded:
+        await run_bridge(
+            [ModelOutput.from_content("mockllm/model", "unused")],
+            bridge=bridge,
+            tools=declare("read_file"),
+        )
+        await call_host_tool(bridge)("host", "read_file", {"path": "a"})
+
+    assert not any(isinstance(e, ModelEvent) for e in recorded.events)
+    [event] = recorded.tool_events
+    assert event.call_message_id is None
+
+
+async def test_generating_request_filter_keeps_proposing_message() -> None:
+    """A filter that calls the model still links its host call to that generation."""
+    tool = AsyncMock(return_value="contents")
+
+    async def generate_in_filter(
+        model: Model,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        return await model.generate(
+            input=input, tools=tools, tool_choice=tool_choice, config=config
+        )
+
+    bridge = sandbox_bridge_with_tool(tool, None)
+    bridge.filter = generate_in_filter
+    call = ToolCall(id="generated", function="read_file", arguments={"path": "a"})
+    with recorded_transcript() as recorded:
+        await run_bridge(
+            [tool_calls_output(call)], bridge=bridge, tools=declare("read_file")
+        )
+        await call_host_tool(bridge)("host", "read_file", {"path": "a"})
+
+    [event] = recorded.tool_events
+    [generation] = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    assert event.call_message_id == generation.output.message.id
+
+
 async def test_host_tool_event_has_the_native_span_layout() -> None:
     """The event sits beside its `tool` span, with the tool's own events inside it."""
 

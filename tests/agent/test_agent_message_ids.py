@@ -509,6 +509,163 @@ async def test_repeated_message_keeps_the_main_threads_id() -> None:
     assert len(set(final)) == len(final)
 
 
+async def test_append_only_repeated_exchanges_keep_occurrence_ids() -> None:
+    """An intact history wins over an equal suffix in the shared matcher."""
+    task = ChatMessageUser(content="continue")
+    first = ChatMessageAssistant(content="ok")
+    second_user = ChatMessageUser(content="continue")
+    second = ChatMessageAssistant(content="ok")
+    scaffold = _Scaffold(AgentBridge(AgentState(messages=[task])))
+
+    first_ids = await scaffold.request([task], first)
+    second_ids = await scaffold.request([task, first, second_user], second)
+    ids = await scaffold.request([task, first, second_user, second])
+
+    assert ids[:3] == second_ids
+    assert ids[0] == first_ids[0]
+    assert ids[3] == second.id
+
+
+@pytest.mark.parametrize("dialect", DIALECTS)
+def test_repeated_exchanges_keep_ids_through_dialect(
+    dialect: Dialect, tmp_path: Path
+) -> None:
+    """Three append-only requests retain occurrence ids over each wire dialect."""
+
+    @agent
+    def repeated() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            async with agent_bridge(state) as bridge:
+                if dialect == "completions":
+                    async with AsyncOpenAI(api_key="inspect") as client:
+                        messages: list[dict[str, Any]] = [
+                            {"role": "user", "content": "continue"}
+                        ]
+                        for turn in range(3):
+                            completion = await client.chat.completions.create(
+                                model="inspect", messages=cast(Any, messages)
+                            )
+                            messages.append(
+                                completion.choices[0].message.model_dump(
+                                    exclude_none=True
+                                )
+                            )
+                            if turn < 2:
+                                messages.append({"role": "user", "content": "continue"})
+                elif dialect == "responses":
+                    async with AsyncOpenAI(api_key="inspect") as client:
+                        input: list[dict[str, Any]] = [
+                            {"role": "user", "content": "continue"}
+                        ]
+                        for turn in range(3):
+                            response_result = await client.responses.create(
+                                model="inspect", input=cast(Any, input)
+                            )
+                            input.extend(
+                                item.model_dump(exclude_none=True)
+                                for item in response_result.output
+                            )
+                            if turn < 2:
+                                input.append({"role": "user", "content": "continue"})
+                elif dialect == "anthropic":
+                    async with AsyncAnthropic(api_key="inspect") as anthropic_client:
+                        messages = [{"role": "user", "content": "continue"}]
+                        for turn in range(3):
+                            anthropic_response = await anthropic_client.messages.create(
+                                model="inspect",
+                                max_tokens=32,
+                                messages=cast(Any, messages),
+                            )
+                            messages.append(
+                                {
+                                    "role": "assistant",
+                                    "content": [
+                                        block.model_dump(exclude_none=True)
+                                        for block in anthropic_response.content
+                                    ],
+                                }
+                            )
+                            if turn < 2:
+                                messages.append({"role": "user", "content": "continue"})
+                else:
+                    google_client = genai.Client(api_key="inspect")
+                    contents: list[dict[str, Any]] = [
+                        {"role": "user", "parts": [{"text": "continue"}]}
+                    ]
+                    for turn in range(3):
+                        google_response = (
+                            await google_client.aio.models.generate_content(
+                                model="inspect", contents=contents
+                            )
+                        )
+                        assert (
+                            google_response.candidates
+                            and google_response.candidates[0].content
+                        )
+                        contents.append(
+                            google_response.candidates[0].content.model_dump(
+                                exclude_none=True, by_alias=True
+                            )
+                        )
+                        if turn < 2:
+                            contents.append(
+                                {"role": "user", "parts": [{"text": "continue"}]}
+                            )
+                return bridge.state
+
+        return execute
+
+    log = eval(
+        Task(dataset=[Sample(input="continue")], solver=repeated()),
+        model=get_model(
+            "mockllm/model",
+            custom_outputs=[
+                ModelOutput.from_content("mockllm/model", "ok") for _ in range(3)
+            ],
+        ),
+        log_dir=str(tmp_path),
+    )[0]
+    assert log.status == "success", log.error
+    assert log.samples
+    sample = log.samples[0]
+    events = [e for e in sample.events if isinstance(e, ModelEvent)]
+    assert len(events) == 3
+    assert [m.id for m in events[2].input[:3]] == [
+        events[1].input[0].id,
+        events[0].output.message.id,
+        events[1].input[2].id,
+    ]
+    assert events[2].input[3].id == events[1].output.message.id
+
+
+async def test_edited_parallel_reply_links_results_from_separate_requests() -> None:
+    """An edited reply keeps its pending calls when a later result arrives."""
+    task = ChatMessageUser(content="Read two files.")
+    reply = ChatMessageAssistant(
+        content="Reading both.",
+        tool_calls=[
+            ToolCall(id="a", function="bash", arguments={"cmd": "cat a"}),
+            ToolCall(id="b", function="bash", arguments={"cmd": "cat b"}),
+        ],
+    )
+    scaffold = _Scaffold(AgentBridge(AgentState(messages=[task])))
+    await scaffold.request([task], reply)
+    [first] = _awaiting(scaffold.bridge, reply, index=0)
+    [second] = _awaiting(scaffold.bridge, reply, index=1)
+    edited = reply.model_copy(update={"content": "Reading both. "})
+    result_a = _result("a", "A")
+    result_b = _result("b", "B")
+
+    await scaffold.request(
+        [task, edited, result_a], ChatMessageAssistant(content="wait")
+    )
+    assert first.message_id == scaffold.sent[2].id
+    assert second.message_id is None
+
+    await scaffold.request([task, edited, result_a, result_b])
+    assert second.message_id == scaffold.sent[3].id
+
+
 class _Scaffold:
     """Drives a bridge the way a scaffold does: rebuilt requests, then the reply."""
 

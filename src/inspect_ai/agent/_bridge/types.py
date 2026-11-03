@@ -491,7 +491,8 @@ class AgentBridge:
 
         `recognized` is the id each message was recognized by (before an edit
         versioned it). A reply handed to the scaffold comes back as the assistant
-        message recognized by its id. In that copy, a call is the one with its id,
+        message recognized by its id or an edited version of it. In that copy,
+        a call is the one with its id,
         function and arguments (`_copy_calls`), picked by no other awaited call
         and with an id unique in the copy. Its result is a tool message before
         the next assistant message answering that id: exactly one links it, more
@@ -513,6 +514,18 @@ class AgentBridge:
             if reply_id is None or not isinstance(message, ChatMessageAssistant):
                 continue
             awaited = self._awaited_results.get(reply_id)
+            if awaited is None:
+                original = next(
+                    (
+                        original
+                        for original in self._awaited_results
+                        if edit_id(original, content_hash(message)) == reply_id
+                    ),
+                    None,
+                )
+                if original is not None:
+                    reply_id = original
+                    awaited = self._awaited_results[original]
             if awaited is None:
                 continue
             results: list[ChatMessageTool] = []
@@ -717,9 +730,10 @@ class AgentBridge:
     ) -> dict[int, str]:
         """Pair request messages with the tracked thread's, in order.
 
-        Each run of consecutive matches starts at the tracked message sharing the
-        strongest key, then the longest run (one that reaches the end of the
-        tracked thread continues it), then the latest position (scaffold
+        A request containing the entire tracked history keeps that alignment.
+        Otherwise, each run of consecutive matches starts at the tracked message
+        sharing the strongest key, then the longest run (one that reaches the end
+        of the tracked thread continues it), then the latest position (scaffold
         compaction keeps the tail). A same-role message between two runs, at the
         same offset in both, is an edit of the tracked one.
 
@@ -740,6 +754,13 @@ class AgentBridge:
                 (_key_strength(key) for key in keys[i] if key in tracked_keys[j]),
                 default=0,
             )
+
+        if (
+            tracked
+            and len(messages) >= len(tracked)
+            and all(strength(i, i) for i in range(len(tracked)))
+        ):
+            return {i: tracked[i][0] for i in range(len(tracked))}
 
         def run(i: int, j: int) -> int:
             length = 0
