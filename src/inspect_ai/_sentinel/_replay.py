@@ -369,12 +369,9 @@ class _Driver:
         self.span_steps: dict[str, tuple["Step", str]] = {}
         # the ids of the calls whose tool steps replay skips
         self.skipped: list[str] = []
-        self.ambiguous_results: set[str] = set()
-        self.native_ends: dict[str, list[int]] = {}
+        self.shared_bridge_ids: set[str] = set()
         # call id -> the indexes of the model events that proposed it
         self.proposed: dict[str, list[int]] = {}
-        # call id -> proposal, checked call, and execution starts in log order
-        self.invocations: dict[str, list[int]] = {}
         # each model event's input view and producer, shared by its steps
         self._views: dict[int, PoolView] = {}
         self._producers: dict[int, Producer] = {}
@@ -483,22 +480,7 @@ class _Driver:
                 calls.append(entry)
 
         self._check_generated(candidates, turn_ids)
-        for call_id, positions in self.proposed.items():
-            self.invocations.setdefault(call_id, []).extend(positions)
-        for entry in calls:
-            position = (
-                self.begins[entry.tool_span][0]
-                if entry.tool_span is not None
-                else entry.index
-            )
-            self.invocations.setdefault(entry.event.id, []).append(position)
-        for (stage, call_id), spans in self.tool_spans.items():
-            if stage == "tool_call":
-                self.invocations.setdefault(call_id, []).extend(
-                    self.begins[span][0] for span in spans
-                )
-        for positions in self.invocations.values():
-            positions.sort()
+        self.shared_bridge_ids = self._shared_bridge_ids(calls)
         for group in generates:
             self._generate(group)
         for entry in calls:
@@ -509,6 +491,40 @@ class _Driver:
         for action in sorted(self.actions, key=lambda a: (a.position, a.phase, a.seq)):
             action.run()
         return self.built
+
+    def _shared_bridge_ids(self, calls: list[_Call]) -> set[str]:
+        """Find native IDs also used by a host call or a checked scaffold call.
+
+        A native call has a ToolEvent even when it fails. Match its preceding
+        tool_call check, if any; an unmatched check under that ID came from the
+        bridge, which checks scaffold calls without emitting a ToolEvent.
+        """
+        native = [call for call in calls if not _bridged(call.event)]
+        native_ids = {call.event.id for call in native}
+        shared = {
+            call.event.id
+            for call in calls
+            if _bridged(call.event) and call.event.id in native_ids
+        }
+        matched: set[str] = set()
+        for call in native:
+            begin = (
+                self.begins[call.tool_span][0]
+                if call.tool_span is not None
+                else call.index
+            )
+            for span in self.tool_spans.get(("tool_call", call.event.id), []):
+                position = self.begins[span][0]
+                if span not in matched and call.produced_at < position < begin:
+                    matched.add(span)
+                    break
+        for call_id in native_ids:
+            if any(
+                span not in matched
+                for span in self.tool_spans.get(("tool_call", call_id), [])
+            ):
+                shared.add(call_id)
+        return shared
 
     def _sentinel_event(
         self, event: SentinelEvent, candidates: dict[str, list[str]]
@@ -727,22 +743,18 @@ class _Driver:
         # the span has ended
         begin = self.begins[tool_span][0] if tool_span else call.index
         end = self.ends.get(tool_span) if tool_span is not None else None
-        self.native_ends.setdefault(event.id, []).append(
-            end if end is not None else call.index
-        )
         before_span = self._tool_span_of(
             ("tool_call", event.id), call.produced_at, begin
         )
-        # A native result check belongs to this invocation only until another
-        # proposal or execution under the same id starts. A reviewer can log
-        # model calls between the tool span and its result check.
+        # An ID shared with the bridge cannot identify a native result check.
+        # For other IDs, retain the original replay span selection.
         after_span = (
             self._tool_span_of(
                 ("tool_result", event.id),
                 end,
-                self._next_invocation(event.id, end),
+                ending=event.failed is True,
             )
-            if end is not None
+            if end is not None and event.id not in self.shared_bridge_ids
             else None
         )
         proposal = call.proposal
@@ -781,10 +793,13 @@ class _Driver:
         )
         if not checked:
             return
-        ran = after_span is not None or (
-            (event.error is None or event.error.type not in ("parsing", "approval"))
-            and not event.failed
-            and not event.pending
+        ran = event.id not in self.shared_bridge_ids and (
+            after_span is not None
+            or (
+                (event.error is None or event.error.type not in ("parsing", "approval"))
+                and not event.failed
+                and not event.pending
+            )
         )
 
         modify = self._sentinel_modify(before_span, event)
@@ -853,57 +868,60 @@ class _Driver:
         self._at_point(after_cut, call.seq + 2, build_after)
         self._settle_at_end(after_span)
 
-    def _next_invocation(self, call_id: str, after: int) -> int | None:
-        """Start of the next proposal or execution under this call id, if any."""
-        starts = self.invocations.get(call_id, [])
-        index = bisect_right(starts, after)
-        return starts[index] if index < len(starts) else None
-
     def _tool_span_of(
         self,
         key: tuple[SentinelStage, str],
         after: int,
         before: int | None = None,
+        *,
+        ending: bool = False,
     ) -> str | None:
         """The first sentinel span with this tool step id that no call has taken and begins between the events at `after` and `before`.
 
-        A call takes the steps recorded under its id in log order, within its
-        own execution. A span no call takes is an agent bridge's check (a call
+        A span no call takes is an agent bridge's check (a call
         the bridged scaffold ran, a host call, or a check of a result the
-        scaffold reported), which replay does not rebuild, including one under
-        an id a native call used too.
+        scaffold reported). With `ending`, a failed call takes a result check
+        only when that check itself failed or terminated.
         """
         spans = self.tool_spans.get(key, [])
         for at, span in enumerate(spans):
             position = self.begins[span][0]
             if position > after and (before is None or position < before):
+                if ending and not self._ended_call(span):
+                    return None
                 return spans.pop(at)
         return None
 
+    def _ended_call(self, span: str) -> bool:
+        """Whether the result check failed or decided to terminate."""
+        return span in self.failed or any(
+            event.kind == "decision"
+            and event.status == "reported"
+            and event.action == "terminate"
+            for event in self.span_events.get(span, [])
+        )
+
     def _skip_bridge_checks(self) -> None:
-        """Publish the `human()` decisions of the tool steps no call took, which are an agent bridge's, and warn that replay skips them."""
+        """Settle skipped bridge checks except ambiguous results, then warn once."""
         for (stage, call_id), spans in self.tool_spans.items():
             for span in spans:
-                self._settle_at_end(span)
+                if stage != "tool_result" or call_id not in self.shared_bridge_ids:
+                    self._settle_at_end(span)
                 self.skipped.append(call_id)
-                if stage == "tool_result" and any(
-                    end < self.begins[span][0]
-                    for end in self.native_ends.get(call_id, [])
-                ):
-                    self.ambiguous_results.add(call_id)
-        if self.skipped:
+        if self.shared_bridge_ids:
+            logger.warning(
+                "Replay skipped tool checks under call id(s) %s and omitted native tool "
+                "result steps under shared call id(s) %s; the log cannot assign "
+                "result checks under those ids to a native call.",
+                ", ".join(dict.fromkeys(self.skipped)),
+                ", ".join(sorted(self.shared_bridge_ids)),
+            )
+        elif self.skipped:
             logger.warning(
                 "Replay skipped the tool steps of calls an agent bridge checked or "
                 "ran (%s): the log does not record which model call made each of "
                 "them.",
                 ", ".join(dict.fromkeys(self.skipped)),
-            )
-        if self.ambiguous_results:
-            logger.warning(
-                "Replay could not establish which invocation owns a tool result "
-                "check under call id(s) %s; no native result step was built from "
-                "those checks.",
-                ", ".join(sorted(self.ambiguous_results)),
             )
 
     def _checks_tool_calls(self, event: ToolEvent, producer: ModelEvent | None) -> bool:

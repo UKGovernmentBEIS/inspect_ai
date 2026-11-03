@@ -1061,7 +1061,9 @@ def test_a_bridged_host_tool_calls_steps_are_not_replayed(
     assert f"({ran.id})" in warning
 
 
-def test_a_native_call_reusing_a_bridged_call_id_replays_its_own_checks() -> None:
+def test_a_native_call_reusing_a_bridged_call_id_omits_its_result(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     seen: dict[str, Step] = {}
     log = run_logged(
         [as_solver(r7_runs_a_bridged_host_tool()), use_tools(addition()), generate()],
@@ -1096,18 +1098,20 @@ def test_a_native_call_reusing_a_bridged_call_id_replays_its_own_checks() -> Non
         (("tool_call", "shared"), {"x": 5, "y": 5}),
         (("tool_result", "shared"), {"x": 5, "y": 5}),
     ]
-    # the bridge's checks of the id are skipped, and the native call's are
-    # replayed after its own turn, as live checked them
+    # The shared id cannot attribute either result check to the native call.
     native = [
         (key, step)
         for key, step in live
         if not isinstance(step, BeforeToolCall | AfterToolCall)
-        or step.call.arguments == {"x": 5, "y": 5}
+        or (
+            isinstance(step, BeforeToolCall) and step.call.arguments == {"x": 5, "y": 5}
+        )
     ]
     replay = replayed(log)
     assert [(s.stage, s.id) for s in replay] == [key for key, _ in native]
     for (key, step), rebuilt in zip(native, replay):
         assert_step_equals_live(key, rebuilt, step)
+    assert "call id(s) shared" in caplog.text
 
 
 def test_a_person_s_decision_at_a_skipped_bridge_step_reaches_later_turns(
@@ -3103,6 +3107,7 @@ def r7_defers_a_bridged_host_call(
 @pytest.mark.parametrize("native_first", [False, True])
 def test_a_native_call_run_while_a_bridged_call_waits_replays_its_own_checks(
     native_first: bool,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     seen: dict[str, Step] = {}
     log = run_logged(
@@ -3143,13 +3148,20 @@ def test_a_native_call_run_while_a_bridged_call_waits_replays_its_own_checks(
     [_, turn] = [n for n, (key, _) in enumerate(live) if key[0] == "model_input"]
     assert bridged[0] < turn < native[0]
     assert (bridged[1] > native[1]) is native_first
-    # replay leaves out the bridge's checks, and the native call's steps are
-    # its own, in live's order
-    kept = [(key, step) for n, (key, step) in enumerate(live) if n not in bridged]
+    kept = [
+        (key, step)
+        for n, (key, step) in enumerate(live)
+        if n not in bridged and n != native[1]
+    ]
     replay = replayed(log)
     assert [(s.stage, s.id) for s in replay] == [key for key, _ in kept]
     for (key, step), rebuilt in zip(kept, replay):
         assert_step_equals_live(key, rebuilt, step)
+    assert "call id(s) shared" in caplog.text
+    assert (
+        sum(record.name == "inspect_ai._sentinel._replay" for record in caplog.records)
+        == 1
+    )
 
 
 def test_a_native_result_check_inside_its_invocation_is_replayed() -> None:
@@ -3207,7 +3219,7 @@ def test_a_native_result_check_follows_an_interleaved_reviewer_model_call(
         outputs(
             r7_tool_calls(
                 ToolCall(
-                    id="shared",
+                    id="host",
                     function="mcp__host__addition",
                     arguments={"x": 1, "y": 1},
                 )
@@ -3216,7 +3228,7 @@ def test_a_native_result_check_follows_an_interleaved_reviewer_model_call(
                 ToolCall(
                     id="native_ok", function="addition", arguments={"x": 5, "y": 5}
                 ),
-                ToolCall(id="shared", function="explodes", arguments={}),
+                ToolCall(id="other", function="explodes", arguments={}),
             ),
         ),
         sentinel=[r7_probe(seen, copies=True), r7_bridge_result_outcome("terminate")],
@@ -3276,7 +3288,7 @@ def r7_bridge_result_outcome(outcome: str) -> Protocol:
     async def after(
         context: Context, step: AfterToolCall, escalations: Escalations
     ) -> Decision | None:
-        if step.call.arguments == {"x": 1, "y": 1}:
+        if step.call.arguments == {"x": 1, "y": 1} or step.call.function == "echo":
             if outcome == "terminate":
                 return Decision.terminate("stop host result")
         return None
@@ -3287,7 +3299,7 @@ def r7_bridge_result_outcome(outcome: str) -> Protocol:
 @monitor
 def r7_bridge_result_failure() -> MonitorGroup:
     async def after(context: Context, step: AfterToolCall) -> Observation | None:
-        if step.call.arguments == {"x": 1, "y": 1}:
+        if step.call.arguments == {"x": 1, "y": 1} or step.call.function == "echo":
             raise RuntimeError("host result failed")
         return None
 
@@ -3295,12 +3307,12 @@ def r7_bridge_result_failure() -> MonitorGroup:
 
 
 @pytest.mark.parametrize("bridge_outcome", ["normal", "terminate", "fail"])
-def test_a_failed_native_call_takes_no_later_bridge_result_check(
+def test_a_shared_host_id_omits_native_result_check(
     bridge_outcome: str, caplog: pytest.LogCaptureFixture
 ) -> None:
     seen: dict[str, Step] = {}
     log = run_logged(
-        as_solver(r7_defers_a_bridged_host_call(native_first=True, native="explodes")),
+        as_solver(r7_defers_a_bridged_host_call(native_first=True)),
         outputs(
             r7_tool_calls(
                 ToolCall(
@@ -3309,7 +3321,9 @@ def test_a_failed_native_call_takes_no_later_bridge_result_check(
                     arguments={"x": 1, "y": 1},
                 )
             ),
-            r7_tool_calls(ToolCall(id="shared", function="explodes", arguments={})),
+            r7_tool_calls(
+                ToolCall(id="shared", function="addition", arguments={"x": 5, "y": 5})
+            ),
         ),
         sentinel=[
             r7_probe(seen, copies=True),
@@ -3318,12 +3332,6 @@ def test_a_failed_native_call_takes_no_later_bridge_result_check(
         ],
     )
     events = logged_sample(log).events
-    [failed] = [
-        e for e in events if isinstance(e, ToolEvent) and e.function == "explodes"
-    ]
-    assert failed.failed
-    # the native call raised, so live checked no result of it; the bridge
-    # checked its host call's result under the same id afterwards
     live = [
         (e.stage, seen[e.explanation or ""].call.arguments)
         for e in events
@@ -3333,14 +3341,101 @@ def test_a_failed_native_call_takes_no_later_bridge_result_check(
     ]
     assert live == [
         ("tool_call", {"x": 1, "y": 1}),
-        ("tool_call", {}),
+        ("tool_call", {"x": 5, "y": 5}),
+        ("tool_result", {"x": 5, "y": 5}),
         ("tool_result", {"x": 1, "y": 1}),
     ]
     assert [
         (s.stage, s.step.call.arguments)
         for s in replayed(log)
         if isinstance(s.step, BeforeToolCall | AfterToolCall)
-    ] == [("tool_call", {})]
+    ] == [("tool_call", {"x": 5, "y": 5})]
+    assert "call id(s) shared" in caplog.text
+
+
+@agent
+def r7_scaffold_reports_after_a_failed_native_call(outcome: str) -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        from inspect_ai.agent._bridge.completions import inspect_completions_api_request
+
+        bridge, tools = await r7_host_bridge(state)
+        tools.append(
+            {
+                "type": "function",
+                "function": {
+                    "name": "echo",
+                    "description": "Echo text",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"text": {"type": "string"}},
+                    },
+                },
+            }
+        )
+        messages: list[Any] = [{"role": "user", "content": "echo"}]
+        completion = await inspect_completions_api_request(
+            {"model": "inspect", "messages": messages, "tools": tools}, None, bridge
+        )
+        [proposed] = completion.choices[0].message.tool_calls or []
+        messages.append(completion.choices[0].message.model_dump(exclude_none=True))
+        history: list[ChatMessage] = [ChatMessageUser(content="native")]
+        native_tool = explodes()
+        output = await get_model().generate(history, tools=[native_tool])
+        history.append(output.message)
+        with pytest.raises(RuntimeError, match="boom"):
+            await execute_tools(history, [native_tool])
+        messages.append(
+            {"role": "tool", "tool_call_id": proposed.id, "content": "scaffold result"}
+        )
+        if outcome == "terminate":
+            with pytest.raises(TerminateSampleError, match="stop host result"):
+                await inspect_completions_api_request(
+                    {"model": "inspect", "messages": messages, "tools": tools},
+                    None,
+                    bridge,
+                )
+        else:
+            await inspect_completions_api_request(
+                {"model": "inspect", "messages": messages, "tools": tools}, None, bridge
+            )
+        return state
+
+    return execute
+
+
+def test_scaffold_result_does_not_become_failed_native_result(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    for outcome in ("normal", "terminate"):
+        seen: dict[str, Step] = {}
+        log = run_logged(
+            as_solver(r7_scaffold_reports_after_a_failed_native_call(outcome)),
+            outputs(
+                r7_tool_calls(
+                    ToolCall(id="shared", function="echo", arguments={"text": "x"})
+                ),
+                r7_tool_calls(ToolCall(id="shared", function="explodes", arguments={})),
+                done(),
+            ),
+            sentinel=[r7_probe(seen, copies=True), r7_bridge_result_outcome(outcome)],
+        )
+        live = [
+            (event.stage, seen[event.explanation or ""].call.function)
+            for event in logged_sample(log).events
+            if isinstance(event, SentinelEvent)
+            and event.path == "r7_probe"
+            and event.stage.startswith("tool")
+        ]
+        assert live == [
+            ("tool_call", "echo"),
+            ("tool_call", "explodes"),
+            ("tool_result", "echo"),
+        ]
+        assert [
+            (step.stage, step.step.call.function)
+            for step in replayed(log)
+            if isinstance(step.step, BeforeToolCall | AfterToolCall)
+        ] == [("tool_call", "explodes")]
     assert "call id(s) shared" in caplog.text
 
 
