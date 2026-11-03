@@ -11,7 +11,7 @@ import pytest
 from pydantic import SecretStr
 from test_helpers.utils import run_example
 
-from inspect_ai import Task, eval, eval_async
+from inspect_ai import Task, eval, eval_async, eval_retry, task
 from inspect_ai._eval.evalset import GENERATE_CONFIG_FIELDS_TO_EXCLUDE
 from inspect_ai._util import appdirs
 from inspect_ai._util import logger as inspect_logger
@@ -42,7 +42,7 @@ from inspect_ai.model._cache import (
     cache_store,
 )
 from inspect_ai.scorer import exact
-from inspect_ai.solver import generate
+from inspect_ai.solver import Generate, TaskState, generate, solver
 
 
 async def test_cache_separates_model_args(
@@ -110,6 +110,77 @@ async def test_cache_separates_model_args(
     assert means == [0.0, 1.0, 1.0]
     assert requests == ["3", "4"]
     assert cache_events == ["write", "write", "read"]
+
+
+@pytest.mark.parametrize("credential", ["api_key", "aws_session_token"])
+async def test_cache_shares_entries_across_credentials(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, credential: str
+) -> None:
+    """A rotated credential does not change the response."""
+    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path))
+    calls = 0
+
+    async def generate_output(*args: Any, **kwargs: Any) -> ModelOutput:
+        nonlocal calls
+        calls += 1
+        return ModelOutput.from_content(model="mockllm", content="3")
+
+    for value in ["first", "rotated"]:
+        credential_args: dict[str, Any] = {credential: value}
+        model = get_model(
+            "mockllm/model",
+            memoize=False,
+            extra_body={"system": "3"},
+            **credential_args,
+        )
+        monkeypatch.setattr(model.api, "generate", generate_output)
+        assert (await model.generate("Hello", cache=True)).completion == "3"
+    assert calls == 1
+
+
+_fail_after_generate = {"fail": False}
+
+
+@solver
+def _generate_then_fail_once():
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        state = await generate(state, cache=True)
+        if _fail_after_generate["fail"]:
+            _fail_after_generate["fail"] = False
+            raise ValueError("fail once after generate")
+        return state
+
+    return solve
+
+
+@task
+def cached_generate_then_fail_once() -> Task:
+    return Task(dataset=[Sample(input="Hello")], solver=_generate_then_fail_once())
+
+
+def test_cache_hit_on_retry_from_logged_model_args(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The log drops credentials, so a retry rebuilds model args without them."""
+    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path / "cache"))
+    monkeypatch.setitem(_fail_after_generate, "fail", True)
+    log = eval(
+        cached_generate_then_fail_once(),
+        model="mockllm/model",
+        model_args={"aws_session_token": "token", "extra_body": {"system": "3"}},
+        log_dir=str(tmp_path / "logs"),
+    )[0]
+    assert log.status == "error"
+    assert log.eval.model_args == {"extra_body": {"system": "3"}}
+
+    retried = eval_retry(log, log_dir=str(tmp_path / "logs"))[0]
+    assert retried.status == "success"
+    assert retried.samples
+    assert [
+        event.cache
+        for event in retried.samples[0].events
+        if isinstance(event, ModelEvent)
+    ] == ["read"]
 
 
 def test_cache_model_args_key_is_stable() -> None:

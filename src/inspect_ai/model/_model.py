@@ -1468,6 +1468,7 @@ class Model:
             cleared_retry_wait,
             track_active_model_event,
         )
+        from inspect_ai.model._model_config import model_args_for_log
 
         input, tdefs, base_tools, tool_choice = prepared
 
@@ -1556,8 +1557,11 @@ class Model:
 
                 # per attempt and after the hooks: providers read nested
                 # constructor args per request, and a hook, a retry or the
-                # provider (Anthropic compaction edits) can change them
-                model_args_key = cache_model_args_key(self.model_args)
+                # provider (Anthropic compaction edits) can change them.
+                # Leave out what the log leaves out (credentials), so a
+                # rotated credential or a retry from the log still hits.
+                model_args = model_args_for_log(self.model_args)
+                model_args_key = cache_model_args_key(model_args)
                 if model_args_key is None:
                     warn_once(
                         logger,
@@ -1566,7 +1570,7 @@ class Model:
                         "persistent identity.",
                     )
                     model_args_key = cache_model_args_key(
-                        self.model_args, instance_key=self._cache_instance_key
+                        model_args, instance_key=self._cache_instance_key
                     )
 
                 cache_entry = CacheEntry(
