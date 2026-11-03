@@ -5,6 +5,7 @@ import json
 import tempfile
 import zipfile
 from collections.abc import Sequence
+from contextvars import copy_context
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal, NamedTuple
 
@@ -130,7 +131,8 @@ def merge_eval_log_shards(
             path.
         task: The task the shards ran, or a task spec as `eval()` takes it
             (`file.py@name`, `file.py` or a registered name), which is loaded
-            with the task arguments the shards recorded.
+            with the task arguments, model and model roles the shards
+            recorded.
         sample_ids: Intended selection as sample ids. Replaces the selection
             recorded in the merged log; once the shards are deleted, it must
             equal the recorded one.
@@ -517,17 +519,15 @@ async def _merge_pass(
 def _check_task(task: "Task | str", header: EvalLog, source: str) -> "Task":
     """The task to compute results with, checked against what `source` recorded.
 
-    A task spec is loaded as `eval()` loads it, with the task arguments the
-    shards recorded.
+    A task spec is loaded as `eval()` loads it (see :func:`_load_task`); a
+    `Task` is used as given.
 
     Raises:
         ShardSetError: The task differs from the one the shards ran.
         ValueError: The spec does not name exactly one task.
     """
-    from inspect_ai._eval.loader import load_task_spec
-
     if isinstance(task, str):
-        loaded = load_task_spec(task, header.eval.task_args_passed)
+        loaded = copy_context().run(_load_task, task, header)
         if len(loaded) != 1:
             raise ValueError(
                 f"The task spec {task} names {len(loaded)} tasks; name one "
@@ -536,6 +536,32 @@ def _check_task(task: "Task | str", header: EvalLog, source: str) -> "Task":
         task = loaded[0]
     check_task_matches(task, header, source)
     return task
+
+
+def _load_task(spec: str, header: EvalLog) -> list["Task"]:
+    """Load `spec` in the model context the shards ran with, as `eval()` does.
+
+    The active model is built from the recorded model, generate config, base
+    URL and model arguments, and the recorded model roles are installed, as
+    offline scoring rebuilds them, so a task factory that calls `get_model()`
+    builds the task the shards ran. Runs in a copy of the caller's context,
+    which keeps its own active model and roles.
+    """
+    from inspect_ai._eval.loader import load_task_spec
+    from inspect_ai.model import get_model
+    from inspect_ai.model._model import init_active_model, init_model_roles
+    from inspect_ai.model._model_config import model_roles_config_to_model_roles
+
+    config = header.plan.config.merge(header.eval.model_generate_config)
+    model = get_model(
+        model=header.eval.model,
+        config=config,
+        base_url=header.eval.model_base_url,
+        **header.eval.model_args,
+    )
+    init_model_roles(model_roles_config_to_model_roles(header.eval.model_roles) or {})
+    init_active_model(model, config)
+    return load_task_spec(spec, header.eval.task_args_passed)
 
 
 def _recorded_pass(

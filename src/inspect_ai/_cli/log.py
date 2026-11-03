@@ -524,7 +524,8 @@ def recover_command(
     type=str,
     required=True,
     help="The task the shards ran (file.py@name, file.py or a registered name), "
-    "loaded as inspect eval loads it, with the task arguments the shards recorded.",
+    "loaded as inspect eval loads it, with the task arguments, model and model "
+    "roles the shards recorded.",
 )
 @click.option(
     "--sample-id",
