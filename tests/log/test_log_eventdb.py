@@ -7,7 +7,7 @@ import tempfile
 import threading
 from contextlib import contextmanager, nullcontext
 from pathlib import Path
-from typing import Any, Generator, Iterator, cast
+from typing import Any, Callable, Generator, Iterator, cast
 
 import pytest
 from test_helpers.buffer import db_phase
@@ -854,6 +854,113 @@ def test_writes_are_still_served_while_closing(
 
     assert phases == [DbPhase.CLOSING]
     assert db_phase(db) is DbPhase.CLOSED and not db._connections
+
+
+class _OrderRecordingLock:
+    """A lock that records, per thread, which named locks are held at each acquire."""
+
+    def __init__(
+        self, name: str, held: threading.local, nested: set[tuple[str, str]]
+    ) -> None:
+        self._name = name
+        self._held = held
+        self._nested = nested
+        self._lock = threading.Lock()
+
+    def _stack(self) -> list[str]:
+        if not hasattr(self._held, "stack"):
+            self._held.stack = []
+        return cast(list[str], self._held.stack)
+
+    def __enter__(self) -> None:
+        # record before blocking: the order is what can deadlock, not the wait
+        for outer in self._stack():
+            self._nested.add((outer, self._name))
+        self._lock.acquire()
+        self._stack().append(self._name)
+
+    def __exit__(self, *exc: object) -> None:
+        self._stack().remove(self._name)
+        self._lock.release()
+
+
+def _start_thread(fn: Callable[[], object]) -> Callable[[], None]:
+    """Run ``fn`` on a new thread; the returned join re-raises its error."""
+    errors: list[BaseException] = []
+
+    def target() -> None:
+        try:
+            fn()
+        except BaseException as ex:
+            errors.append(ex)
+
+    thread = threading.Thread(target=target)
+    thread.start()
+
+    def join() -> None:
+        thread.join()
+        if errors:
+            raise errors[0]
+
+    return join
+
+
+def _run_in_thread(fn: Callable[[], object]) -> None:
+    _start_thread(fn)()
+
+
+@pytest.mark.parametrize("shutdown", ["close", "cleanup"])
+def test_lease_lock_is_never_taken_while_holding_connections_lock(
+    db: SampleBufferDatabase,
+    sample: EvalSampleSummary,
+    monkeypatch: pytest.MonkeyPatch,
+    shutdown: str,
+) -> None:
+    # _close_all_connections nests _connections_lock inside _lease_lock; a path
+    # that took them the other way round could deadlock against it
+    held = threading.local()
+    nested: set[tuple[str, str]] = set()
+    monkeypatch.setattr(db, "_lease_lock", _OrderRecordingLock("lease", held, nested))
+    monkeypatch.setattr(
+        db, "_connections_lock", _OrderRecordingLock("connections", held, nested)
+    )
+    db.start_sample(sample)
+    event = SampleEvent(id=sample.id, epoch=sample.epoch, event=InfoEvent(data="x"))
+
+    # each step runs on a fresh thread, which opens its own connection
+    _run_in_thread(lambda: db.log_events([event]))
+    _run_in_thread(lambda: db.sample_event_count(sample.id, sample.epoch))
+
+    # a reader holds a lease while other threads write and shut down; the
+    # reader's lease release then runs the deferred shutdown on its thread
+    lease_held = threading.Event()
+    release_lease = threading.Event()
+
+    def reader() -> None:
+        with db.open_sample_history(sample.id, sample.epoch):
+            lease_held.set()
+            assert release_lease.wait(timeout=30)
+
+    join_reader = _start_thread(reader)
+    try:
+        assert lease_held.wait(timeout=30)
+        _run_in_thread(lambda: db.update_metrics([]))
+        _run_in_thread(lambda: db.remove_samples([(sample.id, sample.epoch)]))
+        _run_in_thread(getattr(db, shutdown))
+        assert db_phase(db) is (
+            DbPhase.CLOSE_DEFERRED if shutdown == "close" else DbPhase.CLEANUP_DEFERRED
+        )
+    finally:
+        release_lease.set()
+        join_reader()
+    assert db_phase(db) is DbPhase.CLOSED
+
+    # a second shutdown of the closed database, from yet another thread
+    _run_in_thread(db.close)
+    _run_in_thread(db.cleanup)
+
+    assert ("connections", "lease") not in nested
+    assert ("lease", "connections") in nested
 
 
 def test_use_after_cleanup_raises_and_does_not_resurrect_db(
