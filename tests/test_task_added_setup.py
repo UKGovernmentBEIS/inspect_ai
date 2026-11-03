@@ -347,6 +347,26 @@ async def test_collected_setup_output_keeps_multibyte_characters() -> None:
     assert "éééé" in error.traceback
 
 
+async def test_only_the_tail_of_a_failed_setups_output_is_kept() -> None:
+    # a setup that writes far more than is shown keeps (and shows) only the
+    # end of its output
+    async def emit() -> None:
+        await subprocess(
+            ["python3", "-c", "for i in range(100_000): print(f'line {i}')"],
+            capture_output=False,
+        )
+        raise RuntimeError("setup failed")
+
+    _box["task_init"] = emit
+    logs = await eval_async(_parent(_boxed("b")), model="mockllm/model", max_tasks=2)
+    error = logs[1].error
+    assert error is not None
+    shown = error.traceback.split("Output of the sandbox setup:")[1]
+    assert "line 99999" in shown
+    assert "line 0\n" not in shown
+    assert len(shown.encode()) < 5000
+
+
 # --- a task's lifecycle: hooks, control channel and logs agree --------------------
 
 

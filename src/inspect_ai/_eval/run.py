@@ -108,6 +108,7 @@ from inspect_ai.util._sandbox.environment import (
 from inspect_ai.util._sandbox.lifecycle import sandbox_lifecycle_scope
 from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
 from inspect_ai.util._sandbox.setup import SandboxSetup, sandbox_setup_scope
+from inspect_ai.util._subprocess import CircularByteBuffer
 
 from .loader import (
     as_solver_spec,
@@ -1221,8 +1222,11 @@ ProviderState = dict[ContextVar[Any], Any]
 
 _UNSET = object()
 
-# characters of a failed sandbox setup's output shown with its error
+# bytes of a failed sandbox setup's output kept, and shown with its error
 _SETUP_OUTPUT_SHOWN = 4000
+
+# the bytes a UTF-8 character can continue with (but not start with)
+_UTF8_CONTINUATION = bytes(range(0x80, 0xC0))
 
 
 class _TaskCleanup(NamedTuple):
@@ -1427,7 +1431,9 @@ class SandboxManager:
         setup = SandboxSetup(
             sandboxenv.run_dir,
             dict(sandboxenv.env),
-            output=[] if self.collect_output else None,
+            output=CircularByteBuffer(_SETUP_OUTPUT_SHOWN)
+            if self.collect_output
+            else None,
         )
         state = self._state
 
@@ -1449,11 +1455,11 @@ class SandboxManager:
         try:
             await _in_child_task(init, state, self._context, done=started)
         except Exception as ex:
-            if setup.output:
-                ex.add_note(
-                    "Output of the sandbox setup:\n"
-                    + "".join(setup.output)[-_SETUP_OUTPUT_SHOWN:]
-                )
+            shown = setup.output.getvalue() if setup.output is not None else b""
+            if shown:
+                # the kept tail can start inside a character
+                text = shown.lstrip(_UTF8_CONTINUATION).decode(errors="replace")
+                ex.add_note("Output of the sandbox setup:\n" + text)
             raise
 
 

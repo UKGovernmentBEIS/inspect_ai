@@ -15,7 +15,10 @@ task directory from :func:`sandbox_setup`.
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
-from typing import Iterator
+from typing import TYPE_CHECKING, Iterator
+
+if TYPE_CHECKING:
+    from inspect_ai.util._subprocess import CircularByteBuffer
 
 
 @dataclass(frozen=True)
@@ -29,9 +32,10 @@ class SandboxSetup:
     """Environment variables for the call's child processes (for ``task_init``,
     what the provider's ``task_init_environment`` returned)."""
 
-    output: list[str] | None = None
+    output: "CircularByteBuffer | None" = None
     """When set, the output of child processes that would go to the terminal
-    is collected here instead (so it can be shown if the setup fails)."""
+    is collected here instead (so it can be shown if the setup fails); the
+    buffer keeps only its most recent bytes."""
 
 
 class _Scope:

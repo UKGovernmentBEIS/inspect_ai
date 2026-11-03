@@ -1,4 +1,3 @@
-import codecs
 import contextlib
 import functools
 import io
@@ -541,19 +540,16 @@ async def _read_stream(
 
 
 async def _collect_stream(
-    stream: ByteReceiveStream | None, *, collected: list[str]
+    stream: ByteReceiveStream | None, *, collected: "CircularByteBuffer"
 ) -> bytes:
-    """Append a stream's output to ``collected`` as it arrives.
+    """Write a stream's output to ``collected`` as it arrives.
 
     As it arrives, so output written before a timeout or cancellation is
     kept.
     """
     if stream is not None:
-        # incremental, so a character split between chunks decodes whole
-        decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
         async for chunk in stream:
-            collected.append(decoder.decode(chunk))
-        collected.append(decoder.decode(b"", final=True))
+            collected.write(chunk)
     return bytes()
 
 
