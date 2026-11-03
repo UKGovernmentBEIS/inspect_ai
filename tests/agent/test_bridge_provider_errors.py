@@ -94,7 +94,14 @@ from inspect_ai.util import (
     turn_limit,
     working_limit,
 )
-from inspect_ai.util._limit import Limit, LimitExceededError
+from inspect_ai.util._limit import (
+    Limit,
+    LimitExceededError,
+    check_cost_limit,
+    check_token_limit,
+    record_model_cost,
+    record_model_usage,
+)
 from inspect_ai.util._sandbox.service import SandboxService, find_control_flow
 
 
@@ -876,6 +883,59 @@ async def test_forward_provider_errors_answers_later_requests_with_the_recorded_
     assert calls == 1
     assert replies[1:] == replies[:1] * 2
     assert all(PROVIDER_ERROR_KEY in reply for reply in replies)
+
+
+@pytest.mark.parametrize("budget", ["token", "cost"])
+async def test_forward_provider_errors_lets_a_reached_enclosing_limit_replace_the_recorded_one(
+    budget: str,
+) -> None:
+    """A request after a recorded limit is answered with an enclosing limit reached since.
+
+    The first request crosses an inner limit, which is recorded. Another call
+    then uses the rest of the enclosing limit. The next request is answered
+    with the enclosing limit, which replaces the recorded one, without
+    generating.
+    """
+    calls = 0
+    outer_limit: Limit
+    inner_limit: Limit
+    if budget == "token":
+        outer_limit, inner_limit = token_limit(10), token_limit(5)
+
+        def spend(amount: int) -> None:
+            record_model_usage(ModelUsage(total_tokens=amount))
+
+        check = check_token_limit
+    else:
+        outer_limit, inner_limit = cost_limit(0.010), cost_limit(0.005)
+
+        def spend(amount: int) -> None:
+            record_model_cost(amount / 1000)
+
+        check = check_cost_limit
+
+    async def generate(
+        json_data: dict[str, Any], headers: dict[str, str] | None = None
+    ) -> dict[str, Any]:
+        nonlocal calls
+        calls += 1
+        spend(7)
+        check()
+        return {}
+
+    with outer_limit as outer, inner_limit as inner:
+        bridge = _bridge()
+        forward = _forward_provider_errors(generate, bridge)
+        assert PROVIDER_ERROR_KEY in await forward({})
+        assert bridge.generation_limit is not None
+        assert bridge.generation_limit.source is inner
+        # another call in the enclosing limit's scope
+        spend(4)
+        reply = await forward({})
+    assert calls == 1
+    recorded = bridge.generation_limit
+    assert recorded is not None and recorded.source is outer
+    assert reply[PROVIDER_ERROR_KEY] == provider_error_payload(recorded)
 
 
 async def test_forward_provider_errors_keeps_only_the_first_limit() -> None:
@@ -2068,6 +2128,75 @@ def test_retries_after_a_bridged_limit_make_no_model_calls(
     assert calls == compactions
     events = outcome.sample.events
     assert sum(isinstance(event, ModelEvent) for event in events) == generations
+
+
+@pytest.mark.parametrize(
+    "make_limit",
+    [
+        # a compaction and a generation of 7 tokens each
+        pytest.param(lambda: token_limit(14), id="token"),
+        # $0.007 each at $1000 per million tokens
+        pytest.param(lambda: cost_limit(0.014), id="cost"),
+    ],
+)
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+@pytest.mark.usefixtures("_model_cost")
+def test_request_after_a_reached_budget_makes_no_model_call(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    backend: str,
+    make_limit: Callable[[], Limit],
+) -> None:
+    """A request once a token or cost limit is reached is refused before compaction and the filter.
+
+    The first request's compaction and generation use the whole budget
+    without exceeding it, so no limit is recorded. The next request, which
+    would be compacted, is refused with the limit without reaching the
+    filter or making a model call.
+    """
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    calls = 0
+    filtered = 0
+
+    async def compact(*args: Any) -> tuple[list[ChatMessage], ModelUsage]:
+        nonlocal calls
+        calls += 1
+        return await _compact_natively(*args)
+
+    async def count(
+        model: Model,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> None:
+        nonlocal filtered
+        filtered += 1
+        return None
+
+    monkeypatch.setattr(mockllm.MockLLM, "compact", compact)
+    limit = make_limit()
+
+    outcome = _run_bridged_agent(
+        tmp_path,
+        monkeypatch,
+        limit,
+        scaffold=_Scaffold(
+            [_Request(), _resend()],
+            filter=count,
+            # with the (empty) tools, a request is 4 tokens and its compacted input 3
+            compaction=CompactionNative(threshold=3),
+        ),
+    )
+
+    _assert_agent_limit(outcome, limit)
+    result, error = outcome.replies[0]
+    assert error is None
+    assert isinstance(result, dict) and PROVIDER_ERROR_KEY not in result
+    _assert_error_replies(outcome.replies[1:])
+    assert (calls, filtered) == (1, 1)
+    events = outcome.sample.events
+    assert sum(isinstance(event, ModelEvent) for event in events) == 1
 
 
 @pytest.mark.parametrize("shortened_by", ["compaction", "filter"])
