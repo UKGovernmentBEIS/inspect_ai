@@ -1025,7 +1025,7 @@ async def test_retry_sets_up_its_failed_config_ahead_of_waiting_setups(
         await harness.setup_began_event("X").wait()
         harness.finish_setup("X", RuntimeError("pull failed"))
         await harness.setup_began_event("Y").wait()
-        await _wait_until(lambda: "X" in harness.setups._jobs)
+        await _wait_until(lambda: harness.setups._jobs["X"].attempt == 2)
         for key in ("Y", "X", "Z"):
             harness.finish_setup(key)
         for label in ("a@m1", "n@m1", "m@m1"):
