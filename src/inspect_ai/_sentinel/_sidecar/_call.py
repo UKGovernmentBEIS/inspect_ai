@@ -76,6 +76,9 @@ async def sidecar_call(model: "Model") -> SidecarCall | None:
             # higher for each retry, so the sidecar can tell a late call of
             # an earlier attempt from the current one's
             "attempt_number": attempt_number(active),
+            # Inspect's name for the model, which the request names without
+            # the provider or a service, as in `openai-api/together/<model>`
+            "model": str(model),
         }
     )
     return SidecarCall(sidecar, header, sidecars.mode)
