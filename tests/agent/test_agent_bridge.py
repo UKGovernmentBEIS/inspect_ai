@@ -21,8 +21,9 @@ from test_helpers.utils import (
 )
 
 from inspect_ai import Task, eval, eval_async, task
-from inspect_ai._util.content import ContentToolUse
+from inspect_ai._util.content import ContentReasoning, ContentToolUse
 from inspect_ai.agent import Agent, AgentState, agent, agent_bridge
+from inspect_ai.agent._bridge.google_api_impl import _extract_model_parts
 from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.agent._bridge.util import bridge_generate
 from inspect_ai.dataset import Sample
@@ -719,6 +720,25 @@ def google_web_search_agent() -> Agent:
             return bridge.state
 
     return execute
+
+
+def test_google_bridge_normalizes_sdk_thought_signature() -> None:
+    """A URL-safe SDK signature remains replayable by the Google provider."""
+    signature = b"\xfb\xff\xfe\xfa"
+    sdk_signature = base64.urlsafe_b64encode(signature).decode()
+
+    content, calls = _extract_model_parts(
+        [
+            {
+                "functionCall": {"name": "echo_marker", "args": {}},
+                "thoughtSignature": sdk_signature,
+            }
+        ]
+    )
+
+    assert len(calls) == 1
+    assert content and isinstance(content[0], ContentReasoning)
+    assert content[0].reasoning == base64.b64encode(signature).decode()
 
 
 async def test_google_bridge_returns_logprobs_to_client() -> None:

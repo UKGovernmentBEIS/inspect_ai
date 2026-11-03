@@ -650,7 +650,10 @@ def _extract_model_parts(
 
             if thought_sig and not first_fc_signature_captured:
                 if isinstance(thought_sig, str):
-                    sig_str = thought_sig
+                    # The SDK serializes signature bytes as URL-safe base64.
+                    sig_str = base64.b64encode(
+                        base64.b64decode(thought_sig, altchars=b"-_", validate=True)
+                    ).decode()
                 else:
                     sig_str = base64.b64encode(thought_sig).decode()
 
