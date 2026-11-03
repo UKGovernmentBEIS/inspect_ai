@@ -37,8 +37,8 @@ def sandbox_identity(
     resolves relative paths against it. A `bash_session()` shell created in the
     block works only with the sandbox tools server that created it, and needs
     inspect-sandbox-tools 1.3.0 or later. A tool configured with a different
-    `user` raises `SandboxIdentityError`, and so do `computer()` and
-    `web_browser()`, which cannot run as a user, and `skill()`, which does not
+    `user` raises `SandboxIdentityError`, and so do `computer()`, which
+    cannot run as a user, and `skill()`, which does not
     yet install skills as a user. `exec_remote()` uses the
     scope's user and cwd when omitted and keeps explicit values. Other
     sandbox-tool launches inherit the scope's user when omitted; they keep

@@ -31,7 +31,7 @@ include = ["inspect_ai*"]
 [tool.setuptools.exclude-package-data]
 inspect_ai = ["_view/ts-mono*"]
 # Docker image build inputs are not needed at runtime.
-"inspect_ai.util._sandbox.docker" = ["Dockerfile*", "kali-archive-keyring.gpg"]
+"inspect_ai.util._sandbox.docker" = ["Dockerfile"]
 
 [tool.setuptools.package-data]
 inspect_ai = [
