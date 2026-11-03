@@ -2687,6 +2687,13 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     help="YAML or JSON file with model prices for cost tracking.",
     envvar="INSPECT_EVAL_MODEL_COST_CONFIG",
 )
+@click.option(
+    "--sentinel-proxy",
+    type=click.Choice(["auto", "required", "off"]),
+    envvar="INSPECT_EVAL_SENTINEL_PROXY",
+    hidden=True,
+    help="Whether to look for a sentinel sidecar behind each model's proxy, as for eval. The log doesn't record it, so a retry is told again.",
+)
 @scanner_options
 @common_options
 def eval_retry_command(
@@ -2727,6 +2734,7 @@ def eval_retry_command(
     incomplete_action: IncompleteAction,
     incomplete_max: float | None,
     model_cost_config: str | None,
+    sentinel_proxy: SentinelProxy | None,
     scanner: str | None,
     scanner_arg: tuple[str, ...] | None,
     scans: str | None,
@@ -2883,6 +2891,7 @@ def eval_retry_command(
                 incomplete_action=incomplete_action,
                 incomplete_max=incomplete_max,
                 model_cost_config=model_cost_config,
+                sentinel_proxy=sentinel_proxy,
             )
 
         if json_output:

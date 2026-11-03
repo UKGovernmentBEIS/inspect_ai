@@ -970,7 +970,6 @@ async def _eval_async_inner(
             sentinel=sentinel_config(eval_sentinel)
             if eval_sentinel is not None
             else None,
-            sentinel_proxy=sentinel_proxy,
             notification=notification,
             fail_on_error=fail_on_error,
             continue_on_fail=continue_on_fail,
@@ -1144,6 +1143,7 @@ async def _eval_async_inner(
                         approval=approval,
                         review=review,
                         sentinel=eval_sentinel,
+                        sentinel_proxy=sentinel_proxy,
                         solver=solver,
                         scanner=scanner,
                         scan_id=scan_id,
@@ -1394,6 +1394,7 @@ def eval_retry(
     incomplete_action: IncompleteAction = "retry",
     incomplete_max: int | float | None = None,
     model_cost_config: str | dict[str, ModelCost] | None = None,
+    sentinel_proxy: SentinelProxy | None = None,
 ) -> list[EvalLog]:
     """Retry a previously failed evaluation task.
 
@@ -1496,6 +1497,7 @@ def eval_retry(
             returned without retrying. A finalized log lives at
             `<name>-recovered.eval` alongside the crashed log rather than in
             `log_dir`, so read its location from `EvalLog.location`.
+        sentinel_proxy: Whether to look for a sentinel sidecar behind each model's proxy, as `eval()` takes it. The log doesn't record it, so a retry is told again. Experimental: not yet a stable API; may change without notice.
         incomplete_max: Safety threshold for `incomplete_action="error"`
             (count if >= 1, or proportion of expected samples if strictly
             less than 1, so `1.0` means one sample, not 100%): when more
@@ -1554,6 +1556,7 @@ def eval_retry(
             incomplete_action=incomplete_action,
             incomplete_max=incomplete_max,
             model_cost_config=model_cost_config,
+            sentinel_proxy=sentinel_proxy,
         )
 
     result = task_display().run_task_app(with_async_fs(run_task_app))
@@ -1646,6 +1649,7 @@ async def eval_retry_async(
     incomplete_action: IncompleteAction = "retry",
     incomplete_max: int | float | None = None,
     model_cost_config: str | dict[str, ModelCost] | None = None,
+    sentinel_proxy: SentinelProxy | None = None,
 ) -> list[EvalLog]:
     """Retry a previously failed evaluation task.
 
@@ -1723,6 +1727,7 @@ async def eval_retry_async(
             returned without retrying. A finalized log lives at
             `<name>-recovered.eval` alongside the crashed log rather than in
             `log_dir`, so read its location from `EvalLog.location`.
+        sentinel_proxy: Whether to look for a sentinel sidecar behind each model's proxy, as `eval()` takes it. The log doesn't record it, so a retry is told again. Experimental: not yet a stable API; may change without notice.
         incomplete_max: Safety threshold for `incomplete_action="error"`
             (count if >= 1, or proportion of expected samples if strictly
             less than 1, so `1.0` means one sample, not 100%): when more
@@ -1884,7 +1889,6 @@ async def eval_retry_async(
         approval = eval_log.eval.config.approval
         review = eval_log.eval.config.review
         sentinel = eval_log.eval.config.sentinel
-        sentinel_proxy = eval_log.eval.config.sentinel_proxy
         notification: bool | str | None = eval_log.eval.config.notification
         message_limit = eval_log.eval.config.message_limit
         config_token_limit = eval_log.eval.config.token_limit
