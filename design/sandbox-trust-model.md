@@ -184,7 +184,7 @@ The tools are not baked into images. On first use the host:
 
 1. Checks for a trustworthy existing install: the tools tree for this
    release's tools version (`/var/tmp/.da7be258e003d428-v<version>`, from
-   `sandbox_tools_version.txt`; `ai/util/_sandbox/_cli.py:40-53`) must satisfy
+   `sandbox_tools_version.txt`; `ai/util/_sandbox/_cli.py:40-59`) must satisfy
    the [verified-directory contract](#host-verified-directories) for the tools
    user and hold the launcher as a regular file. The check runs as the tools
    user that the root-access decision selects; when root is usable the default
