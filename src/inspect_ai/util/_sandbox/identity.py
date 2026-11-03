@@ -263,12 +263,20 @@ async def _passwd_home(env: SandboxEnvironment, user: str, timeout: int) -> str 
     """The home directory of `user` in the passwd database of `env`, if any.
 
     The path is kept exactly as the passwd entry gives it, whitespace included.
+    The lookup runs in `/`, so it does not depend on the provider's default
+    working directory.
 
     Raises:
        RuntimeError: If the lookup fails or the entry's home directory is empty.
     """
     result = await privileged_shell(
-        env, _PASSWD_HOME_SCRIPT, user, user=None, timeout=timeout, timeout_retry=False
+        env,
+        _PASSWD_HOME_SCRIPT,
+        user,
+        user=None,
+        cwd="/",
+        timeout=timeout,
+        timeout_retry=False,
     )
     if not result.success:
         error = result.stderr.strip() or f"exit status {result.returncode}"

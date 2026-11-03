@@ -453,6 +453,18 @@ async def test_vars_raise_unless_passwd_is_a_file_and_retry_later(
     assert len(sb.exec_calls) == 2
 
 
+@pytest.mark.skipif(os.name != "posix", reason="requires a POSIX shell")
+async def test_lookup_does_not_need_the_provider_default_cwd() -> None:
+    from inspect_ai.tool import read_file
+    from inspect_ai.util._sandbox.local import LocalSandboxEnvironment
+
+    local = LocalSandboxEnvironment()
+    local.directory.cleanup()  # the provider's default cwd no longer exists
+    user = str(os.geteuid())
+    with _environments(default=local), sandbox_identity(user, cwd="/"):
+        assert await read_file()(file_path="/etc/hosts", limit=1)
+
+
 @pytest.mark.parametrize("timeout, expected", [(None, 30), (5, 5), (60, 30)])
 async def test_vars_lookup_is_bounded_by_the_tool_timeout(
     default: CannedSandbox, timeout: int | None, expected: int
