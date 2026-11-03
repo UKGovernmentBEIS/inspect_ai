@@ -662,12 +662,37 @@ So a log that a port has contributed to is never reused:
     `_read_header_streaming` reads the key with the others (`json.py:613`)
     and the reuse and `eval_retry()` rules below apply to such a log too.
   - Every site that copies `config_updates` from one log into another
-    carries the field too: whole-log writes (`eval.py:654`, `:774`),
-    `convert_eval_logs` (`src/inspect_ai/log/_convert.py:174`), `inspect
-    score` (`src/inspect_ai/_cli/score.py:278`) and crashed-log recovery
-    (`src/inspect_ai/log/_recover/_read.py:87`, `_write.py:365`), which
-    eval-set resume and selection-worker resume run on a crashed log
-    (`src/inspect_ai/_eval/evalset.py:1526`, `:1762`).
+    carries the field too. Whole-log writes (`eval.py:654`, `:774`) write
+    the header and samples in one step and copy it with the header. Three
+    paths instead stream samples into a destination and flush it before
+    they finish, carrying `config_updates` only at `log_finish`:
+    `convert_eval_logs` (`src/inspect_ai/log/_convert.py:150`, `:158-159`,
+    `:174`), streamed `inspect score` (`src/inspect_ai/_cli/score.py:249`,
+    `:253-254`, `:278`), and crashed-log recovery, both its buffer-sample
+    and its crashed-`.eval` sample paths
+    (`src/inspect_ai/log/_recover/_write.py:146-147`, `:178`, `:253`,
+    `:365`), whose source it reads with the marker
+    (`log/_recover/_read.py:87`) and which eval-set resume and
+    selection-worker resume run on a crashed log
+    (`src/inspect_ai/_eval/evalset.py:1526`, `:1762`). An interrupted copy
+    must not leave a readable destination holding a marked log's samples
+    without the marker, so these paths set it at the start, not at the
+    end. `Recorder.log_start(eval, plan, *, handle_samples: bool = False)`
+    gains the keyword, and each of the three passes its source header's
+    `handle_samples` to it. That is copy initialization, separate from
+    the live `log_handle_samples()` and allowed for both formats:
+    - `.eval`: with `handle_samples=True`, `log_start` writes
+      `_journal/handle_samples.json` right after `start.json`, under the
+      same lock, before any sample can be buffered. A sample becomes
+      visible only through a flush, and every flush writes the members
+      already in the archive, so the first flush that publishes a copied
+      sample publishes the marker with it, readable by the unfinished-log
+      header readers above.
+    - `.json`: `log_start` sets the field on the in-memory log, so every
+      snapshot `flush` writes holds the field with the samples it holds.
+    - `log_finish` keeps the field set at start (the `.eval` journal member
+      is consolidated into `header.json`, the `.json` in-memory log already
+      has it); no copy path can clear it.
   - The errored `EvalLog` that `_run_task` builds when a log write, a
     retry's checkpoint startup copy or a task-completion callback escapes
     the attempt (`src/inspect_ai/_eval/run.py:682-687`) sets
@@ -1089,7 +1114,16 @@ test touched), with mockllm models:
     checkpoint, and the A/P/B ids are not crossed;
   - `convert_eval_logs` from a marked `.eval` log to `.json` and back,
     `inspect score` and `write_eval_log` keep the field, and `eval_retry()`
-    refuses the converted `.json` log; under `eval_set(log_dir_allow_dirty=True)`,
+    refuses the converted `.json` log;
+  - interrupted copies: conversion to `.eval` and to `.json`, streamed
+    `inspect score`, and recovery through its buffer-sample and its
+    crashed-`.eval` sample paths, each copying a marked log and cancelled
+    (or failing in a stub recorder) after its first intermediate flush and
+    before `log_finish`: the destination's header read (`header_only`)
+    reports `handle_samples`, recovering the destination keeps it,
+    `eval_retry()` refuses the destination, and eval-set resume of it
+    reuses no sample; the same copies of an unmarked log leave the field
+    `False` and are reused as today; under `eval_set(log_dir_allow_dirty=True)`,
     a parent that adds a rollout task, sends it a sample and then fails is
     retried in a legacy round (`retry_immediate=False`) and in a second
     invocation over the same directory: the rollout logs are ignored, the
@@ -1215,9 +1249,11 @@ companion change in Steward (step 6):
    marker check in `eval_log_sample_source()`), `_eval/task/log.py`
    (`TaskLogger.log_handle_samples()`, the field at `log_finish`),
    `log/_log.py` (`EvalLog.handle_samples`), `log/_recorders/recorder.py`
-   and `eval.py` (`log_handle_samples`, the journal member and header
-   reads), `json.py` (the streaming header key), the copy sites (`log/_convert.py`, `_cli/score.py`,
-   `log/_recover/`), `_eval/task/sample_source.py` (docstrings),
+   and `eval.py` (`log_handle_samples`, `log_start(..., handle_samples=)`,
+   the journal member and header reads), `json.py` (`log_start(...,
+   handle_samples=)`, the streaming header key), the copy sites
+   (`log/_convert.py`, `_cli/score.py`, `log/_recover/`, each passing its
+   source's marker to `log_start`), `_eval/task/sample_source.py` (docstrings),
    `_eval/run.py` (the retry decision reads the logger's flag and the
    marker, the fallback log carries it, an open-port retry gets the empty
    sample source, port close on attempt end, `SamplePort.stop()` from the
