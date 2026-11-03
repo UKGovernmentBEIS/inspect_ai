@@ -212,9 +212,22 @@ display and to the logger for the log display.
 
 The task's string sandbox config is made absolute against the task
 directory at resolution (`loader.py:500-506`), and the config-file probe
-looks in the task directory (`loader.py:439-446`), so a relative path reaches
-a provider's `task_init` only inside a structured config or through a
-provider's own default lookup. `sample_init` runs in the launch directory
+looks in the task directory (`loader.py:439-446`). A sample-level config is
+not: `resolve_sandbox()` forwards a sample's own string config unchanged
+(`src/inspect_ai/_eval/task/sandbox.py:305`, `:345`), for seed samples and
+samples a `SampleSource` adds alike, and per-sample compose files and
+Dockerfiles given as relative paths are documented use
+(`docs/sandboxing.qmd:183-189`; `tests/util/sandbox/test_docker_compatibility.py:313`,
+`:336`). So a relative path reaches a provider's `task_init_environment`
+and `task_init` as a sample's string config, inside a structured config, or
+through a provider's own default lookup. Docker reads such a string
+against the process directory, which the chdir makes the task directory
+during setup: `ComposeProject.create` resolves it
+(`src/inspect_ai/util/_sandbox/docker/util.py:47`, and a Dockerfile's
+generated compose file is based on its parent, `:60-65`), and
+`resolve_config_environment` checks that it exists and reads it to
+interpolate sample metadata (`docker/docker.py:824-828`), called from
+`task_init_environment` (`:177`) and `sample_init` (`:211`). `sample_init` runs in the launch directory
 (no chdir around `sandboxenv_context`, `sandbox.py:86`), so for a task loaded
 from another directory a provider's `task_init` and `sample_init` already
 resolve relative paths against different directories.
@@ -793,7 +806,18 @@ def sandbox_setup() -> SandboxSetup | None:
   `ComposeConfig` build paths and the no-config compose lookup against
   `sandbox_setup().task_dir` when set, else `os.getcwd()` (so `sample_init`
   keeps today's behaviour), and any Python-side read of a
-  `task_init_environment` variable reads `setup.env`. Docker's own
+  `task_init_environment` variable reads `setup.env`. A string config
+  (a sample's relative compose file or Dockerfile) goes through one new
+  helper, `setup_config_path(config) -> str`: inside a setup it joins a
+  relative path to `sandbox_setup().task_dir` (an absolute path is
+  returned unchanged), and outside one it returns the string as today, so
+  it resolves against the process directory. Both read sites call it
+  before using the path: `ComposeProject.create` (`docker/util.py:47`,
+  including the Dockerfile branch, which bases the generated compose file
+  on the resolved file's parent) and `resolve_config_environment`
+  (`docker/docker.py:824-828`), so the file `task_init_environment`
+  interpolates metadata from, the file `task_init` builds, and the file
+  today's chdir selected are the same. Docker's own
   subprocesses already go through `subprocess()`, and its one direct
   `print()` in `task_init`, the "Service …: using local image …" message
   (`src/inspect_ai/util/_sandbox/docker/docker.py:149`), becomes
@@ -1055,7 +1079,9 @@ Could change what an eval computes:
   only relative to the task directory stops being found by `task_init`, as
   it already is not found by `default_concurrency()` and `cli_cleanup()`, so
   the run uses `PROXMOX_HOST` or no pools instead; the warning names the
-  directories. Docker, subprocesses through `subprocess()`, installed-package
+  directories. Docker (including a sample's relative compose file or
+  Dockerfile, resolved against the task directory during setup as the
+  chdir resolved it), subprocesses through `subprocess()`, installed-package
   tasks (whose task directory is the launch directory) and runs launched from
   the task directory are unaffected. Ransom accepted this under the
   eval-defaults rule on the strength of the warning and the existing
@@ -1124,7 +1150,16 @@ does (a new list per call):
   resolves `ComposeConfig` and no-config compose files against the task
   directory with the launch directory elsewhere (stubbed daemon, as the file
   does today), and the local-image branch's message reaches the display with
-  the configuration prefix and not stdout under the `none` display. One
+  the configuration prefix and not stdout under the `none` display. With
+  the task directory different from the launch directory, and a file of the
+  same name in each, a sample-level relative `compose.yaml` and a relative
+  `Dockerfile`, on a seed sample and on a sample a `SampleSource` adds,
+  select the task directory's file in `task_init_environment` and
+  `task_init`, the `SAMPLE_METADATA_*` variables the task directory's file
+  names are interpolated, the Dockerfile's generated compose file is based
+  in the task directory, and an absolute path is used as given; outside a
+  setup, `setup_config_path` returns the string unchanged (the existing
+  `tests/util/sandbox/test_docker_compatibility.py` cases still pass). One
   `--runslow` real-Docker test builds a Dockerfile task loaded from another
   directory.
 - `tests/test_enqueue_task.py`: an added task starts while its creator runs
@@ -1219,7 +1254,9 @@ batch has its own `eval_run` and cleans up its own state).
    `util/_sandbox/environment.py` (`supports_sandbox_setup`, docstrings),
    `util/_sandbox/docker/docker.py` (declares support; its local-image
    message through `sandbox_setup().print()`, which prints as today until
-   step 4 routes it),
+   step 4 routes it; `resolve_config_environment` through
+   `setup_config_path`), `util/_sandbox/docker/util.py`
+   (`setup_config_path`, used by `ComposeProject.create`),
    `docs/extensions-sandboxes.qmd`; the working-directory warning. The
    display suspension stays for every provider in this step. Tests:
    `tests/util/sandbox/test_sandbox_setup.py`, Docker tests.
