@@ -1215,11 +1215,20 @@ class TaskLogger:
             if prune_unplanned and status == "success" and self._seeded_pending:
                 await self.recorder.log_prune(self.eval, set(self._seeded_pending))
 
-            # finish and get log
-            log = await self.recorder.log_finish(
-                self.eval, status, stats, results, reductions, error, self.header_only
-            )
-            self._finished_log = log
+            # finish and get log; shielded through retaining it, so an abort
+            # cannot land between the recorder's durable write and its return
+            # and leave a written log unretained
+            with anyio.CancelScope(shield=True):
+                log = await self.recorder.log_finish(
+                    self.eval,
+                    status,
+                    stats,
+                    results,
+                    reductions,
+                    error,
+                    self.header_only,
+                )
+                self._finished_log = log
 
             # every completed sample is now on disk. Mark finished and drop the
             # pending list so the still-attached flush/buffer directives (kept

@@ -43,7 +43,7 @@ from inspect_ai.hooks._startup import _load_registry_hooks, init_hooks
 from inspect_ai.log import EvalLog, list_eval_logs_async, read_eval_log_async
 from inspect_ai.log._file import read_eval_log
 from inspect_ai.log._log import EvalSample, EvalSpec
-from inspect_ai.log._recorders.eval import EvalRecorder
+from inspect_ai.log._recorders.eval import EvalRecorder, ZipLogFile
 from inspect_ai.log._transcript import transcript
 from inspect_ai.model import ModelOutput, get_model
 from inspect_ai.scorer import Metric, SampleScore, match, metric
@@ -1097,26 +1097,43 @@ async def test_task_end_hook_raising_cancellation_keeps_write_error(
         ) == [("queued", "success", None), ("victim", "error", victim.error.message)]
 
 
+def _abort_victim(eval: EvalSpec) -> None:
+    if eval.task == "victim":
+        result = cancel_task(eval.task_id)
+        assert result is not None and result.get("changed") is True
+
+
+@pytest.mark.parametrize("abort_at", ["durable_flush", "recorder_return"])
 async def test_task_end_hook_abort_after_log_write_keeps_log(
     first_hooks: TaskPairHooks,
     mock_hooks: MockHooks,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    abort_at: str,
 ) -> None:
-    # an abort landing after the recorder writes the log, while
-    # TaskLogger.log_finish still cleans up, must not discard that log
-    recorder_log_finish = EvalRecorder.log_finish
+    # an abort landing once the log is durably written, either before the
+    # recorder closes and returns it or while TaskLogger.log_finish still
+    # cleans up, must not discard that log
+    if abort_at == "durable_flush":
+        zip_flush = ZipLogFile.flush
 
-    async def log_finish(
-        self: EvalRecorder, eval: EvalSpec, *args: Any, **kwargs: Any
-    ) -> EvalLog:
-        log = await recorder_log_finish(self, eval, *args, **kwargs)
-        if eval.task == "victim":
-            result = cancel_task(eval.task_id)
-            assert result is not None and result.get("changed") is True
-        return log
+        async def flush(self: ZipLogFile, *, fsync: bool = True) -> None:
+            await zip_flush(self, fsync=fsync)
+            if fsync and self.log_start is not None:
+                _abort_victim(self.log_start.eval)
 
-    monkeypatch.setattr(EvalRecorder, "log_finish", log_finish)
+        monkeypatch.setattr(ZipLogFile, "flush", flush)
+    else:
+        recorder_log_finish = EvalRecorder.log_finish
+
+        async def log_finish(
+            self: EvalRecorder, eval: EvalSpec, *args: Any, **kwargs: Any
+        ) -> EvalLog:
+            log = await recorder_log_finish(self, eval, *args, **kwargs)
+            _abort_victim(eval)
+            return log
+
+        monkeypatch.setattr(EvalRecorder, "log_finish", log_finish)
     with anyio.fail_after(60):
         logs = await _eval_victim_and_queued(_victim_and_queued_tasks(), tmp_path)
 
