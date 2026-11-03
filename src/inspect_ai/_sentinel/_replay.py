@@ -215,7 +215,7 @@ def _has_spanless_native_tool(events: Sequence[Any]) -> bool:
                 and not (isinstance(metadata, dict) and "bridge" in metadata)
                 and not failed
                 and not pending
-                and error_type not in ("parsing", "approval")
+                and error_type not in ("parsing", "approval", "cancelled")
             ):
                 return True
             children = (

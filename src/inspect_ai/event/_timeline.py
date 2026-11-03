@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import contextlib
 from bisect import bisect_left
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterator
 from datetime import datetime, timezone
 from typing import (
     AbstractSet,
@@ -1111,6 +1111,7 @@ class _Inputs:
         # tool call id -> the pool rows holding a non-empty result of it,
         # ascending
         self._tool_rows: dict[str, list[int]] | None = None
+        self._tool_result_rows: list[int] | None = None
         # the pool rows holding an output of an open call, of any continuity
         # thread, by the output fingerprints added, each added once
         self._open_rows: _RowSet | None = None
@@ -1246,7 +1247,7 @@ class _Inputs:
     ) -> list[tuple[str, str]]:
         """The non-empty results in `event`'s input of the tool calls named, the last for each.
 
-        An input stored as ranges of the pool is looked up in the pool rows holding a result of each call, a bisection per range from the last. An expanded input is read once from its end, until each call's last result is found.
+        An input stored as ranges of the pool uses indexed result rows and probes whichever side is smaller: pending call ids or result rows in the input. An expanded input is read once from its end, until each call's last result is found.
         """
         input = self.of(event)
         if isinstance(input, PoolView):
@@ -1271,27 +1272,47 @@ class _Inputs:
         return not self._all_inputs_pooled or tool_call_id in self._pool_tool_rows()
 
     def _pooled_tool_results(
-        self, input: PoolView, tool_call_ids: Iterable[str]
+        self, input: PoolView, tool_call_ids: Sequence[str] | dict[str, Any]
     ) -> dict[str, str]:
         found: dict[str, str] = {}
         by_call = self._pool_tool_rows()
-        for tool_call_id in tool_call_ids:
-            rows = by_call.get(tool_call_id)
-            if not rows:
-                continue
-            # the last range holding such a row holds the last result
-            for (begin, end), start in zip(
-                reversed(input.refs), reversed(input.starts)
-            ):
-                at = bisect_left(rows, end) - 1
-                if at >= 0 and rows[at] >= begin:
-                    found[tool_call_id] = input[start + rows[at] - begin].text
-                    break
+        assert self._tool_result_rows is not None
+        ranges: list[tuple[int, int]] = []
+        candidates = 0
+        for begin, end in input.refs:
+            first = bisect_left(self._tool_result_rows, begin)
+            last = bisect_left(self._tool_result_rows, end)
+            ranges.append((first, last))
+            candidates += last - first
+        if len(tool_call_ids) < candidates:
+            for tool_call_id in tool_call_ids:
+                rows = by_call.get(tool_call_id)
+                if not rows:
+                    continue
+                for (begin, end), start in zip(
+                    reversed(input.refs), reversed(input.starts)
+                ):
+                    at = bisect_left(rows, end) - 1
+                    if at >= 0 and rows[at] >= begin:
+                        found[tool_call_id] = input[start + rows[at] - begin].text
+                        break
+        else:
+            wanted = (
+                tool_call_ids if isinstance(tool_call_ids, dict) else set(tool_call_ids)
+            )
+            for first, last in ranges:
+                for position in range(first, last):
+                    message = self.row(self._tool_result_rows[position])
+                    if isinstance(message, ChatMessageTool):
+                        result_id = message.tool_call_id
+                        if result_id is not None and result_id in wanted:
+                            found[result_id] = message.text
         return found
 
     def _pool_tool_rows(self) -> dict[str, list[int]]:
         if self._tool_rows is None:
             rows: dict[str, list[int]] = {}
+            result_rows: list[int] = []
             for row, message in enumerate(self._pool or []):
                 if (
                     isinstance(message, ChatMessageTool)
@@ -1299,7 +1320,9 @@ class _Inputs:
                     and message.text
                 ):
                     rows.setdefault(message.tool_call_id, []).append(row)
+                    result_rows.append(row)
             self._tool_rows = rows
+            self._tool_result_rows = result_rows
         return self._tool_rows
 
 

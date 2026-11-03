@@ -2112,13 +2112,16 @@ def test_pooled_prompt_fallback_without_system_message_reads_pool_once() -> None
 
 @pytest.mark.parametrize("setup", [False, True])
 @pytest.mark.parametrize("empty", [True, False])
+@pytest.mark.parametrize("delayed", [False, True])
 def test_bridge_result_lookup_with_empty_results_stays_bounded(
-    empty: bool, setup: bool, monkeypatch: pytest.MonkeyPatch
+    empty: bool, setup: bool, delayed: bool, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from inspect_ai.event import _timeline
 
     original = _timeline._Inputs._pool_tool_rows
+    original_results = _timeline._Inputs.tool_results
     work: list[int] = []
+    final_results: list[tuple[str, str]] = []
 
     class CountingRows(dict[str, list[int]]):
         def get(self, key: str, default: Any = None) -> Any:
@@ -2132,9 +2135,20 @@ def test_bridge_result_lookup_with_empty_results_stays_bounded(
             inputs._tool_rows = rows
         return rows
 
+    def counted_results(
+        inputs: Any, event: ModelEvent, ids: Any
+    ) -> list[tuple[str, str]]:
+        results = original_results(inputs, event, ids)
+        if event.uuid == "last":
+            final_results.extend(results)
+        return results
+
     monkeypatch.setattr(_timeline._Inputs, "_pool_tool_rows", counted_rows)
+    monkeypatch.setattr(_timeline._Inputs, "tool_results", counted_results)
     for rounds in (100, 200, 400):
+        final_results.clear()
         pool: list[ChatMessage] = [ChatMessageUser(content="Start")]
+        delayed_results: list[ChatMessageTool] = []
         events: list[Event] = []
         if setup:
             events.extend(
@@ -2167,13 +2181,16 @@ def test_bridge_result_lookup_with_empty_results_stays_bounded(
                     SpanEndEvent(id=sub),
                 ]
             )
-            pool.append(
-                ChatMessageTool(
-                    content="" if empty else f"result {n}",
-                    tool_call_id=task.id,
-                    function="task",
-                )
+            result = ChatMessageTool(
+                content="" if empty else f"result {n}",
+                tool_call_id=task.id,
+                function="task",
             )
+            if delayed:
+                delayed_results.append(result)
+            else:
+                pool.append(result)
+        pool.extend(delayed_results)
         events.append(
             linked_call("last", "main", [], "Done", None).model_copy(
                 update={"input_refs": [(0, len(pool))]}
@@ -2190,6 +2207,11 @@ def test_bridge_result_lookup_with_empty_results_stays_bounded(
             eval_info=EvalInfo(inspect_ai_version="0.3.200", sentinel=False),
         )
         assert replay
+        assert dict(final_results) == (
+            {f"task-{n}": f"result {n}" for n in range(rounds)}
+            if delayed and not empty
+            else ({f"task-{rounds - 1}": f"result {rounds - 1}"} if not empty else {})
+        )
         assert work[-1] <= 4 * rounds, (rounds, work)
     assert work[-1] <= 4.2 * work[0] + 10, work
 
@@ -3046,10 +3068,26 @@ def test_unknown_version_refuses_nested_spanless_native_tool(
 
 
 @pytest.mark.parametrize("version", [None, "unknown", "0.3.94", "0.3.200"])
-def test_spanless_halted_tool_is_allowed(version: str | None) -> None:
-    events: list[Event] = [
-        ToolEvent(id="halted", function="addition", arguments={}, pending=True)
-    ]
+@pytest.mark.parametrize("finalized", [False, True])
+@pytest.mark.parametrize("serialized", [False, True])
+def test_spanless_halted_tool_is_allowed(
+    version: str | None, finalized: bool, serialized: bool
+) -> None:
+    halted = ToolEvent(
+        id="halted",
+        function="addition",
+        arguments={},
+        pending=None if finalized else True,
+        completed=datetime.now(timezone.utc) if finalized else None,
+        error=(
+            ToolCallError(type="cancelled", message="earlier call failed")
+            if finalized
+            else None
+        ),
+    )
+    if serialized:
+        halted = ToolEvent.model_validate_json(halted.model_dump_json())
+    events: list[Event] = [halted]
     assert (
         steps_from_events(
             [], events, [], sample_uuid="sample", eval_info=EvalInfo(version, False)
