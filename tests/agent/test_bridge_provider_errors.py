@@ -48,11 +48,13 @@ from inspect_ai.agent._bridge.sandbox.bridge import sandbox_agent_bridge
 from inspect_ai.agent._bridge.sandbox.service import _forward_provider_errors
 from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
 from inspect_ai.dataset import Sample
-from inspect_ai.event import SampleLimitEvent
+from inspect_ai.event import ModelEvent, SampleLimitEvent
 from inspect_ai.log import EvalSample
 from inspect_ai.model import (
     ChatMessage,
     ChatMessageUser,
+    CompactionNative,
+    CompactionStrategy,
     GenerateConfig,
     ModelOutput,
     ModelUsage,
@@ -69,6 +71,7 @@ from inspect_ai.model._model import (
 )
 from inspect_ai.model._model_data.model_data import ModelCost, ModelInfo
 from inspect_ai.model._model_info import clear_model_info_cache, set_model_info
+from inspect_ai.model._providers import mockllm
 from inspect_ai.model._providers.anthropic import (
     _ANTHROPIC_ERROR_TYPE_STATUS,
     AnthropicAPI,
@@ -1128,13 +1131,14 @@ class _Scaffold:
     scope enclosing the bridge (`enclosing`), as an enclosing time limit
     expiring then would. With `overlap`, every request reaches the model
     before any generation returns, and each returns only once the reply to the
-    one before it has been written.
+    one before it has been written. The bridge compacts with `compaction`.
     """
 
     requests: list[_Request]
     fails: bool = False
     filter: ModelGenerateFilter | None = None
     response_filter: ModelResponseFilter | None = None
+    compaction: CompactionStrategy | None = None
     slow_kill: bool = False
     cancel_on_kill: bool = False
     overlap: bool = False
@@ -1294,7 +1298,10 @@ def _bridged_agent(scaffold: _Scaffold) -> Agent:
     async def execute(state: AgentState) -> AgentState:
         with anyio.CancelScope() as scaffold.enclosing:
             async with sandbox_agent_bridge(
-                state, filter=scaffold.filter, response_filter=scaffold.response_filter
+                state,
+                filter=scaffold.filter,
+                response_filter=scaffold.response_filter,
+                compaction=scaffold.compaction,
             ) as bridge:
                 request = scaffold.during_shutdown
                 if request is not None:
@@ -1867,6 +1874,68 @@ def test_request_after_a_bridged_turn_limit_does_not_generate(
     _assert_error_replies(outcome.replies, count=2)
     # one generation of 7 tokens
     assert outcome.sample.model_usage["mockllm/model"].total_tokens == 7
+
+
+@pytest.mark.parametrize(
+    ("make_limit", "compactions"),
+    [
+        # the first compaction's 7 tokens cross it
+        pytest.param(lambda: token_limit(5), 1, id="token"),
+        # the first compaction's $0.007 at $1000 per million tokens crosses it
+        pytest.param(lambda: cost_limit(0.001), 1, id="cost"),
+        # the request carries one message: no room for the reply
+        pytest.param(lambda: message_limit(1), 0, id="message"),
+    ],
+)
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+@pytest.mark.usefixtures("_model_cost")
+def test_retries_after_a_bridged_limit_make_no_model_calls(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    backend: str,
+    make_limit: Callable[[], Limit],
+    compactions: int,
+) -> None:
+    """Requests after a bridged limit get its error reply without compacting or generating.
+
+    The bridge compacts natively and each request is over the compaction
+    threshold. The first request's compaction crosses the token or cost limit;
+    the message limit is reached by the request itself. The scaffold retries
+    twice after its error reply, and neither retry makes a model call.
+    """
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    calls = 0
+
+    async def compact(
+        self: ModelAPI,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        config: GenerateConfig,
+        instructions: str | None = None,
+    ) -> tuple[list[ChatMessage], ModelUsage]:
+        nonlocal calls
+        calls += 1
+        usage = ModelUsage(input_tokens=3, output_tokens=4, total_tokens=7)
+        return [ChatMessageUser(content="compacted")], usage
+
+    monkeypatch.setattr(mockllm.MockLLM, "compact", compact)
+    limit = make_limit()
+
+    outcome = _run_bridged_agent(
+        tmp_path,
+        monkeypatch,
+        limit,
+        scaffold=_Scaffold(
+            [_Request(), _Request(after_first=True), _Request(after_first=True)],
+            # with the (empty) tools, a request is 4 tokens and its compacted input 3
+            compaction=CompactionNative(threshold=3),
+        ),
+    )
+
+    _assert_agent_limit(outcome, limit)
+    _assert_error_replies(outcome.replies, count=3)
+    assert calls == compactions
+    assert not any(isinstance(event, ModelEvent) for event in outcome.sample.events)
 
 
 def test_failure_after_a_bridged_limit_fails_the_sample(

@@ -65,6 +65,7 @@ from inspect_ai.model._model import (
     ModelRefusalError,
     ModelResolver,
     ModelResponseFilter,
+    _check_limits_before_dispatch,
     _StartingModelEventSink,
     active_model,
     get_model,
@@ -83,7 +84,7 @@ from inspect_ai.tool._tools._web_search._web_search import (
     _normalize_config,
 )
 from inspect_ai.util._json import JSONSchema
-from inspect_ai.util._limit import LimitExceededError
+from inspect_ai.util._limit import LimitExceededError, check_message_limit
 from inspect_ai.util._span import current_span_id
 
 if TYPE_CHECKING:
@@ -904,6 +905,22 @@ async def bridge_generate(
         )
 
 
+def _check_limits_before_request(input: list[ChatMessage]) -> None:
+    """Refuse a bridged request from an agent already over a limit.
+
+    Runs the checks `Model.generate()` makes before dispatch, but before the
+    bridge's compaction, which can dispatch its own model call. A scaffold may
+    retry after a limit's error reply; without this each retry pays for a
+    compaction before the generation refuses it.
+
+    The message limit is checked against the scaffold's conversation, not the
+    compacted input: it is what the bridge tracks as the agent's messages, so a
+    reply to a conversation already at the limit would exceed it there.
+    """
+    check_message_limit(len(input), raise_for_equal=True)
+    _check_limits_before_dispatch()
+
+
 async def _bridge_generate_impl(
     bridge: AgentBridge,
     model: Model,
@@ -925,6 +942,8 @@ async def _bridge_generate_impl(
     # before compaction/recording so the restored source persists in both the
     # ModelEvent input and state.messages (and thus the eval log).
     _restore_operator_message_source(bridge, input)
+
+    _check_limits_before_request(input)
 
     # get compaction function and run compaction once before retry loop
     compact = bridge.compaction(tools, model)
