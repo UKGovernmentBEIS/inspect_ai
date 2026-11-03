@@ -346,6 +346,9 @@ class TaskLogger:
         # torn-down recorder.
         self._finished = False
 
+        # the log the recorder returned from this attempt's log_finish()
+        self._finished_log: EvalLog | None = None
+
         # set once a retry attempt's log has been seeded with the prior
         # attempt's sample records (see seed_from_prior); the limit bounds the
         # sweep's read-back of those records (see read_prior_sample)
@@ -428,6 +431,7 @@ class TaskLogger:
         self._cancelled_sample_keys = set()
         self.flush_pending = []
         self._finished = False
+        self._finished_log = None
         self._discarded = False
         # the retry attempt re-enters task_run, which seeds its fresh log
         self._prior_seeded = False
@@ -526,6 +530,15 @@ class TaskLogger:
     def finished(self) -> bool:
         """Whether :meth:`log_finish` completed for this attempt (its log is written)."""
         return self._finished
+
+    @property
+    def finished_log(self) -> EvalLog | None:
+        """This attempt's written log, from when the recorder wrote it.
+
+        Set before :meth:`log_finish` finishes its cleanup, so it is the
+        attempt's result even if that cleanup, or anything after it, fails.
+        """
+        return self._finished_log
 
     async def seed_from_prior(
         self,
@@ -1206,6 +1219,7 @@ class TaskLogger:
             log = await self.recorder.log_finish(
                 self.eval, status, stats, results, reductions, error, self.header_only
             )
+            self._finished_log = log
 
             # every completed sample is now on disk. Mark finished and drop the
             # pending list so the still-attached flush/buffer directives (kept

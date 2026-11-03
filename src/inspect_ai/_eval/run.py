@@ -1,5 +1,6 @@
 import functools
 import logging
+import math
 import os
 from contextlib import ExitStack, asynccontextmanager
 from copy import copy
@@ -655,6 +656,12 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
                         # the errored prior attempt's log, which must remain
                         # the task's final state.
                         abandoned = True
+                    except BaseException as ex:
+                        if (
+                            written := _written_task_log(options, task_cancel, ex)
+                        ) is None:
+                            raise
+                        result = written
 
                 task_tg.start_soon(run)
         if abandoned:
@@ -685,6 +692,41 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
             except Exception as ex:
                 log.warning(f"Error closing prior log source: {exception_message(ex)}")
     return TaskRunResult(result, cancel_type)
+
+
+def _written_task_log(
+    options: TaskRunOptions, task_cancel: TaskCancel, ex: BaseException
+) -> EvalLog | None:
+    """The task's written log, as its result for an exception escaping `task_run`.
+
+    Once the attempt's log is written it is the task's result, however the
+    rest of `task_run` ends: logger cleanup, an end hook, the legacy telemetry
+    subscriber or `TaskSource.task_complete` failing or raising cancellation,
+    or this task's own abort or retry cancelling them. Returns None, so the
+    exception propagates as before, when no log was written, under
+    `debug_errors`, and for an external cancellation (an enclosing scope
+    cancelled with no abort or retry stamped).
+    """
+    written = options.logger.finished_log
+    if written is None:
+        return None
+    if isinstance(ex, anyio.get_cancelled_exc_class()):
+        if task_cancel.cancel_type in ("abort", "retry"):
+            return written
+        if anyio.current_effective_deadline() == -math.inf:
+            return None
+        log.warning(
+            f"Task '{options.task.name}' was cancelled after writing its log, "
+            "with no cancellation requested"
+        )
+        return written
+    if not isinstance(ex, Exception) or options.debug_errors:
+        return None
+    log.error(
+        f"Task '{options.task.name}' encountered an error after writing its log: "
+        f"{inner_exception(ex)}"
+    )
+    return written
 
 
 class PendingTask(NamedTuple):

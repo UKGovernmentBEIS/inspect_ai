@@ -1,6 +1,6 @@
 from contextlib import contextmanager, nullcontext
 from pathlib import Path
-from typing import Generator, Type, TypeVar
+from typing import Any, Generator, Type, TypeVar
 from unittest.mock import patch
 
 import anyio
@@ -43,6 +43,7 @@ from inspect_ai.hooks._startup import _load_registry_hooks, init_hooks
 from inspect_ai.log import EvalLog, list_eval_logs_async, read_eval_log_async
 from inspect_ai.log._file import read_eval_log
 from inspect_ai.log._log import EvalSample, EvalSpec
+from inspect_ai.log._recorders.eval import EvalRecorder
 from inspect_ai.log._transcript import transcript
 from inspect_ai.model import ModelOutput, get_model
 from inspect_ai.scorer import Metric, SampleScore, match, metric
@@ -783,6 +784,7 @@ class TaskPairHooks(Hooks):
         self.start_blocked: anyio.Event | None = None
         self.end_entered: anyio.Event | None = None
         self.end_release: anyio.Event | None = None
+        self.end_cancelled_task: str | None = None
 
     async def on_task_start(self, data: TaskStart) -> None:
         self.task_start_events.append(data)
@@ -796,9 +798,22 @@ class TaskPairHooks(Hooks):
         self.task_end_events.append(data)
         if self.end_limit:
             raise LimitExceededError("custom", value=1, limit=0)
+        if data.log.eval.task == self.end_cancelled_task:
+            raise await _captured_cancellation()
         if self.end_entered is not None and self.end_release is not None:
             self.end_entered.set()
             await self.end_release.wait()
+
+
+async def _captured_cancellation() -> BaseException:
+    """A cancellation exception caught from a scope that has since exited."""
+    with anyio.CancelScope() as scope:
+        scope.cancel()
+        try:
+            await anyio.lowlevel.checkpoint()
+        except anyio.get_cancelled_exc_class() as ex:
+            return ex
+    raise AssertionError("cancelled scope did not raise")
 
 
 @pytest.fixture
@@ -884,7 +899,79 @@ async def test_task_end_hook_runs_when_cancel_results_fail(
     assert task_end.log.error.message == log.error.message
 
 
-@pytest.mark.parametrize("consumer", [None, "task_source", "legacy_telemetry"])
+class _FailingEarlyStopping:
+    """Fails its task at startup, before any sample runs."""
+
+    async def start_task(
+        self, task: EvalSpec, samples: list[Sample], epochs: int
+    ) -> str:
+        raise RuntimeError("early stopping failed")
+
+    async def schedule_sample(self, id: str | int, epoch: int) -> EarlyStop | None:
+        return None
+
+    async def complete_sample(
+        self, id: str | int, epoch: int, scores: dict[str, SampleScore]
+    ) -> None:
+        pass
+
+    async def complete_task(self) -> dict[str, JsonValue]:
+        return {}
+
+
+def _victim_and_queued_tasks() -> list[Task]:
+    """A task that fails at startup, then one queued behind it."""
+    return [
+        Task(
+            dataset=[Sample("a")],
+            early_stopping=_FailingEarlyStopping(),
+            name="victim",
+        ),
+        Task(dataset=[Sample("b")], name="queued"),
+    ]
+
+
+async def _eval_victim_and_queued(
+    tasks: list[Task] | TaskSource, log_dir: Path
+) -> list[EvalLog]:
+    return await eval_async(
+        tasks,
+        model="mockllm/model",
+        max_tasks=1,
+        log_dir=str(log_dir),
+        ctl_server=False,
+    )
+
+
+async def _assert_victim_log_kept(
+    logs: list[EvalLog], *hooks: TaskPairHooks | MockHooks
+) -> None:
+    """The victim's written error log is returned and given to every hook."""
+    assert {log.eval.task: log.status for log in logs} == {
+        "victim": "error",
+        "queued": "success",
+    }
+    (victim,) = [log for log in logs if log.eval.task == "victim"]
+    assert victim.error is not None
+    assert "early stopping failed" in victim.error.message
+    written = await read_eval_log_async(victim.location, header_only=True)
+    assert written.status == "error"
+    assert written.error is not None
+    assert written.error.message == victim.error.message
+    for hooks_ in hooks:
+        assert sorted(
+            (
+                event.log.eval.task,
+                event.log.status,
+                event.log.error.message if event.log.error else None,
+            )
+            for event in hooks_.task_end_events
+        ) == [("queued", "success", None), ("victim", "error", victim.error.message)]
+
+
+@pytest.mark.parametrize(
+    "consumer", [None, "task_source", "task_source_error", "legacy_telemetry"]
+)
 async def test_task_end_hook_abort_during_error_end_keeps_log(
     first_hooks: TaskPairHooks,
     mock_hooks: MockHooks,
@@ -894,28 +981,9 @@ async def test_task_end_hook_abort_during_error_end_keeps_log(
 ) -> None:
     # an abort landing while an errored task's end hook runs must not discard
     # its written log, change the log later hooks get, or stop queued tasks,
-    # even when a completion consumer awaits after the end hooks
+    # even when a completion consumer awaits or fails after the end hooks
     first_hooks.end_entered = anyio.Event()
     first_hooks.end_release = anyio.Event()
-
-    class FailingEarlyStopping:
-        # fails the task at startup, before any sample runs, so it can still
-        # be aborted while its end hook runs
-        async def start_task(
-            self, task: EvalSpec, samples: list[Sample], epochs: int
-        ) -> str:
-            raise RuntimeError("early stopping failed")
-
-        async def schedule_sample(self, id: str | int, epoch: int) -> EarlyStop | None:
-            return None
-
-        async def complete_sample(
-            self, id: str | int, epoch: int, scores: dict[str, SampleScore]
-        ) -> None:
-            pass
-
-        async def complete_task(self) -> dict[str, JsonValue]:
-            return {}
 
     async def abort_during_end_hook() -> None:
         assert first_hooks.end_entered is not None
@@ -928,6 +996,8 @@ async def test_task_end_hook_abort_during_error_end_keeps_log(
         first_hooks.end_release.set()
 
     async def task_complete(log: EvalLog) -> list[Task] | None:
+        if consumer == "task_source_error" and log.eval.task == "victim":
+            raise RuntimeError("completion callback failure")
         await anyio.lowlevel.checkpoint()
         return None
 
@@ -938,26 +1008,16 @@ async def test_task_end_hook_abort_during_error_end_keeps_log(
     if consumer == "legacy_telemetry":
         monkeypatch.setattr("inspect_ai.hooks._legacy._send_telemetry", send_telemetry)
 
-    tasks = [
-        Task(
-            dataset=[Sample("a")],
-            early_stopping=FailingEarlyStopping(),
-            name="victim",
-        ),
-        Task(dataset=[Sample("b")], name="queued"),
-    ]
+    tasks = _victim_and_queued_tasks()
     logs: list[EvalLog] = []
 
     async def run_eval() -> None:
         logs.extend(
-            await eval_async(
+            await _eval_victim_and_queued(
                 TaskSource.from_tasks(tasks, task_complete=task_complete)
-                if consumer == "task_source"
+                if consumer in ("task_source", "task_source_error")
                 else tasks,
-                model="mockllm/model",
-                max_tasks=1,
-                log_dir=str(tmp_path),
-                ctl_server=False,
+                tmp_path,
             )
         )
 
@@ -966,26 +1026,46 @@ async def test_task_end_hook_abort_during_error_end_keeps_log(
             tg.start_soon(abort_during_end_hook)
             tg.start_soon(run_eval)
 
-    assert {log.eval.task: log.status for log in logs} == {
-        "victim": "error",
-        "queued": "success",
-    }
-    (victim,) = [log for log in logs if log.eval.task == "victim"]
-    assert victim.error is not None
-    assert "early stopping failed" in victim.error.message
-    written = await read_eval_log_async(victim.location, header_only=True)
-    assert written.status == "error"
-    assert written.error is not None
-    assert written.error.message == victim.error.message
-    for hooks_ in (first_hooks, mock_hooks):
-        assert sorted(
-            (
-                event.log.eval.task,
-                event.log.status,
-                event.log.error.message if event.log.error else None,
-            )
-            for event in hooks_.task_end_events
-        ) == [("queued", "success", None), ("victim", "error", victim.error.message)]
+    await _assert_victim_log_kept(logs, first_hooks, mock_hooks)
+
+
+async def test_task_end_hook_raising_cancellation_keeps_log(
+    first_hooks: TaskPairHooks, mock_hooks: MockHooks, tmp_path: Path
+) -> None:
+    # an end hook raising a cancellation exception of its own, with nothing
+    # cancelled, must not discard the written log or stop queued tasks; the
+    # later hook gets the written log and the raising hook gets no second end
+    first_hooks.end_cancelled_task = "victim"
+    with anyio.fail_after(60):
+        logs = await _eval_victim_and_queued(_victim_and_queued_tasks(), tmp_path)
+
+    await _assert_victim_log_kept(logs, first_hooks, mock_hooks)
+
+
+async def test_task_end_hook_abort_after_log_write_keeps_log(
+    first_hooks: TaskPairHooks,
+    mock_hooks: MockHooks,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # an abort landing after the recorder writes the log, while
+    # TaskLogger.log_finish still cleans up, must not discard that log
+    recorder_log_finish = EvalRecorder.log_finish
+
+    async def log_finish(
+        self: EvalRecorder, eval: EvalSpec, *args: Any, **kwargs: Any
+    ) -> EvalLog:
+        log = await recorder_log_finish(self, eval, *args, **kwargs)
+        if eval.task == "victim":
+            result = cancel_task(eval.task_id)
+            assert result is not None and result.get("changed") is True
+        return log
+
+    monkeypatch.setattr(EvalRecorder, "log_finish", log_finish)
+    with anyio.fail_after(60):
+        logs = await _eval_victim_and_queued(_victim_and_queued_tasks(), tmp_path)
+
+    await _assert_victim_log_kept(logs, first_hooks, mock_hooks)
 
 
 def test_task_end_hook_only_for_entered_start_hooks(
