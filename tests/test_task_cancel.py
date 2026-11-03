@@ -1658,6 +1658,42 @@ async def test_preview_does_not_report_to_task_source(tmp_path: Path) -> None:
     assert runs == []
 
 
+@pytest.mark.anyio
+async def test_cancel_handle_does_not_keep_task_log_alive(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A task's registered cancel handle does not keep its returned log alive.
+
+    The handle stays registered after the attempt ends (a late abort can
+    still stop a retry), so it must hold only what that check needs.
+    """
+    import gc
+    import weakref
+
+    from inspect_ai import eval_async
+
+    handles: list[TaskCancel] = []
+
+    async def capturing_task_run(options: Any, task_cancel: TaskCancel) -> EvalLog:
+        handles.append(task_cancel)
+        return await original_task_run(options, task_cancel=task_cancel)
+
+    monkeypatch.setattr("inspect_ai._eval.run.task_run", capturing_task_run)
+    runs: list[str] = []
+    logs = await eval_async(
+        [_plain_task("a", runs)], model="mockllm/model", log_dir=str(tmp_path)
+    )
+    assert logs[0].status == "success" and logs[0].samples
+    log_ref = weakref.ref(logs[0])
+    sample_ref = weakref.ref(logs[0].samples[0])
+    del logs
+    gc.collect()
+
+    assert handles
+    assert log_ref() is None
+    assert sample_ref() is None
+
+
 class _LateCancelSource(TaskSource):
     """Answers the task's cancel dialog with `cancel_type` while `task_complete` runs."""
 

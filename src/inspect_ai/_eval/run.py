@@ -648,6 +648,9 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
     cancel_type: CancelType = None
     abandoned = False
     scope_exited = False
+    # whether the attempt ended in error (the cancel handle, which outlives
+    # the attempt, keeps this rather than the log)
+    ended_in_error = False
     try:
         with trace_action(
             log, "Run Task", f"task: {options.task.name} ({options.model})"
@@ -670,11 +673,7 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
                     # after task_run the attempt's outcome is decided: only an
                     # abort of an attempt that ended in error still applies
                     # (it stops the dispatcher's retry)
-                    if scope_exited and not (
-                        type == "abort"
-                        and result is not None
-                        and result.status == "error"
-                    ):
+                    if scope_exited and not (type == "abort" and ended_in_error):
                         return
                     cancel_type = type
                     tc.cancel_type = type
@@ -694,7 +693,7 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
                 task_cancel.cancel_task = cancel_task
 
                 async def run() -> None:
-                    nonlocal result, abandoned, scope_exited
+                    nonlocal result, abandoned, scope_exited, ended_in_error
                     write_failed = False
                     with task_scope:
                         try:
@@ -744,22 +743,25 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
                                 write_failed = True
                     scope_exited = True
                     written_log = options.logger.pop_finished_log()
-                    if abandoned or write_failed:
-                        return
                     # task_scope swallows only its own cancellation (a
                     # run-level one propagates), so no log here means the
                     # task's abort/retry request interrupted task_run
-                    if result is None:
+                    if result is None and not abandoned:
                         assert cancel_type in ("abort", "retry")
-                        result = written_log
-                        if result is None:
+                        if written_log is not None:
+                            result = written_log
+                        else:
                             result = _unwritten_log(
                                 options,
                                 TerminateTaskError(
                                     f"Task cancelled by user ({cancel_type})"
                                 ),
                             )
-                            return
+                            write_failed = True
+                    ended_in_error = result is not None and result.status == "error"
+                    if abandoned or write_failed:
+                        return
+                    assert result is not None
                     try:
                         await notify_task_source(options, result)
                     except Exception as ex:
