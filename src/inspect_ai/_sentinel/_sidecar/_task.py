@@ -179,9 +179,11 @@ class TaskSidecars:
                 for key, value in (result.get("store") or {}).items():
                     # which sentinel a scorer reads can't be told
                     if key in written_by:
-                        raise SentinelProxyError(
-                            f"The sentinels in the sidecars at {written_by[key]} and {sidecar.origin} both keep {key!r} for the sample."
+                        conflict = f"The sentinels in the sidecars at {written_by[key]} and {sidecar.origin} both keep {key!r} for the sample."
+                        store.set(
+                            MONITOR_STATE_COPY, {"copied": False, "reason": conflict}
                         )
+                        raise SentinelProxyError(conflict)
                     written_by[key] = sidecar.origin
                     copied[key] = value
             if scope.cancel_called:

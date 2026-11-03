@@ -2,6 +2,7 @@
 
 from typing import TYPE_CHECKING
 
+from ._endpoint import SentinelProxyError
 from ._task import MONITOR_STATE_COPY, attempt_number, task_sidecars
 
 if TYPE_CHECKING:
@@ -26,6 +27,17 @@ async def copy_sidecar_monitor_state(
         await sidecars.copy_monitor_state(
             state.uuid, attempt_number(sample), state.store
         )
+
+
+async def save_sidecar_monitor_state(state: "TaskState") -> None:
+    """Copy the monitor state into the store of a sample saved without being scored, as a failed sample is.
+
+    Inside Inspect, the sample store holds the monitor state when the sample is saved, so a later `inspect score` reads it. The sample has already failed, so a copy that fails doesn't fail it again: the marker in the sample store says why there is no state.
+    """
+    try:
+        await copy_sidecar_monitor_state(state)
+    except SentinelProxyError:
+        pass
 
 
 def require_monitor_state() -> None:

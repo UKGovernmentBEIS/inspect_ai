@@ -50,7 +50,10 @@ from inspect_ai._sentinel._config import SentinelRoot
 from inspect_ai._sentinel._context import SentinelFailure
 from inspect_ai._sentinel._scope import sentinel_scope, sentinel_solving
 from inspect_ai._sentinel._sidecar._call import end_sidecar_sample
-from inspect_ai._sentinel._sidecar._state import copy_sidecar_monitor_state
+from inspect_ai._sentinel._sidecar._state import (
+    copy_sidecar_monitor_state,
+    save_sidecar_monitor_state,
+)
 from inspect_ai._sentinel._sidecar._task import TaskFacts, init_task_sidecars
 from inspect_ai._util._async import Wake, aexit_shielded_when, raise_unwrapped
 from inspect_ai._util.async_zip import AsyncZipReader
@@ -2890,6 +2893,7 @@ async def _task_run_sample_attempt(
             cancelled_error: BaseException | None = None
             solver_cancel: BaseException | None = None
             scoring_finished = False
+            monitor_state_copied = False
             operator_cancelled = False
             results: ScoresByScorer = {}
             limit: EvalSampleLimit | None = None
@@ -3357,6 +3361,8 @@ async def _task_run_sample_attempt(
                                     and attempt.retries_remaining == 0
                                     and cancelled_error is None
                                 ):
+                                    # once, even when the copy fails the sample
+                                    monitor_state_copied = True
                                     await copy_sidecar_monitor_state(state)
                                     async with span(name="scorers"):
                                         for scorer_idx, scorer in enumerate(
@@ -3508,6 +3514,11 @@ async def _task_run_sample_attempt(
                     or (cancelled_error is not None)
                 ):
                     reporter.progress()
+
+                    # a sample saved without being scored keeps its monitor
+                    # state too, as in process, for `inspect score` to read
+                    if not monitor_state_copied:
+                        await save_sidecar_monitor_state(state)
 
                     # ensure there are no base64 images in sample or messages
                     if not log_images:
