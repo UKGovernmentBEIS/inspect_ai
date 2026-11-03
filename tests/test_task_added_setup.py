@@ -25,6 +25,7 @@ from inspect_ai.log import EvalLog, list_eval_logs, read_eval_log_async
 from inspect_ai.solver import Generate, Solver, TaskState, solver
 from inspect_ai.util import (
     ExecResult,
+    LimitExceededError,
     SandboxEnvironment,
     SandboxEnvironmentConfigType,
     sandboxenv,
@@ -838,3 +839,62 @@ async def test_a_log_that_cannot_be_opened_errors_only_its_task(
         assert child_log.status == "error"
         assert child_log.error is not None
         assert "log directory unreachable" in child_log.error.message
+
+
+_end_hook: dict[str, Any] = {}
+
+
+class _InterruptingEndHook(Hooks):
+    """``on_task_end`` records the log's status, then is interrupted."""
+
+    async def on_task_end(self, data: TaskEnd) -> None:
+        _end_hook["ends"].append(data.log.status)
+        if _end_hook["interrupt"] == "cancel":
+            _end_hook["in_hook"].set()
+            await anyio.sleep_forever()
+        raise LimitExceededError("custom", value=1, limit=1, message="hook limit")
+
+
+@pytest.mark.parametrize("interrupt", ["cancel", "limit"])
+async def test_end_hook_interrupted_after_success_keeps_the_written_log(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, interrupt: str
+) -> None:
+    # on_task_end of a successful task runs after its log is written: a
+    # cancellation of the run or a limit error raised in the hook does not
+    # write the log again, and the hook runs once
+    from inspect_ai._eval.task.log import TaskLogger
+
+    finishes: list[str] = []
+    log_finish = TaskLogger.log_finish
+
+    async def counting_log_finish(logger: TaskLogger, *args: Any, **kwargs: Any) -> Any:
+        finishes.append(logger.eval.task)
+        return await log_finish(logger, *args, **kwargs)
+
+    monkeypatch.setattr(TaskLogger, "log_finish", counting_log_finish)
+    _end_hook.update(ends=[], interrupt=interrupt, in_hook=anyio.Event())
+
+    @hooks("interrupting_end_hook", description="Interrupts on_task_end")
+    def get_hooks() -> type[_InterruptingEndHook]:
+        return _InterruptingEndHook
+
+    try:
+        with anyio.fail_after(30), anyio.CancelScope() as scope:
+            async with anyio.create_task_group() as tg:
+
+                async def cancel_in_hook() -> None:
+                    await _end_hook["in_hook"].wait()
+                    scope.cancel()
+
+                if interrupt == "cancel":
+                    tg.start_soon(cancel_in_hook)
+                await eval_async(
+                    _plain("t"), model="mockllm/model", log_dir=str(tmp_path)
+                )
+                tg.cancel_scope.cancel()
+    finally:
+        del _registry["hooks:interrupting_end_hook"]
+    assert finishes == ["t"]
+    assert _end_hook["ends"] == ["success"]
+    [info] = list_eval_logs(str(tmp_path))
+    assert (await read_eval_log_async(info, header_only=True)).status == "success"

@@ -2026,17 +2026,6 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                 reductions=reductions,
             )
 
-            await emit_task_end(logger, eval_log)
-
-            # display task summary
-            td.complete(
-                TaskSuccess(
-                    samples_completed=logger.samples_completed,
-                    stats=stats,
-                    results=results or EvalResults(),
-                )
-            )
-
         except anyio.get_cancelled_exc_class():
             with anyio.CancelScope(shield=True):
                 # collect eval data
@@ -2136,6 +2125,21 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                 )
                 if task_start_emitted:
                     await emit_task_end(logger, eval_log)
+
+        else:
+            # the task has finished and its log is written, so a
+            # cancellation or error raised by the end hook is not the task's
+            # outcome
+            await emit_task_end(logger, eval_log)
+
+            # display task summary
+            td.complete(
+                TaskSuccess(
+                    samples_completed=logger.samples_completed,
+                    stats=stats,
+                    results=results or EvalResults(),
+                )
+            )
 
         finally:
             if sample_enqueuer_token is not None:
