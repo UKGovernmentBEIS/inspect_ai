@@ -446,11 +446,9 @@ _LITERAL_ARGV_ALLOWED = {
     "tool/_tools/_grep.py",
     "tool/_tools/_list_files.py",
     "tool/_tools/_read_file.py",
-    # Dedicated single-purpose images with no agent boundary, whose `python3`
-    # lives in /usr/local/bin: the computer tool (argv bound to a name, as above)
-    # and the deprecated web-browser image.
+    # The dedicated computer image has no agent boundary; its `python3` lives
+    # in /usr/local/bin (argv bound to a name, as above).
     "tool/_tools/_computer/_common.py",
-    "tool/_tools/_web_browser/_back_compat.py",
     # The provider conformance checks exercise a provider's own resolution of
     # `sh` and of root commands on purpose; they are not framework operations.
     "util/_sandbox/self_check.py",
@@ -482,8 +480,7 @@ def test_framework_exec_calls_never_pass_a_literal_argv() -> None:
     ``pinned_env`` passed), ``tool/_sandbox_tools_utils/sandbox.py`` and
     ``util/_sandbox/local.py`` (absolute ``SANDBOX_CLI``), the computer, grep and
     list_files tools (agent-facing, allowlisted), and
-    ``util/_sandbox/_json_rpc_transport.py`` (the legacy ``inspect-tool-support``
-    launcher by bare name, tracked as a follow-up with the k8s and proxmox wrappers).
+    ``util/_sandbox/_json_rpc_transport.py`` (absolute ``SANDBOX_CLI``).
     """
     assert _SRC.is_dir(), _SRC
     offenders: list[str] = []
