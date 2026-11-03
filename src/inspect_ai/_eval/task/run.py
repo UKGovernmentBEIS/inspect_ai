@@ -2127,7 +2127,10 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             # an exception escaping the handlers above (a debug_errors
             # re-raise, a failed log write, a failure computing partial
             # results, a hook raising cancellation) leaves started hooks
-            # without their end: give them the log _run_task returns for it
+            # without their end: give them the written log, or else an
+            # errored one. For an exception _run_task converts, that errored
+            # log is the result it returns; a cancellation before the write
+            # completes can leave eval() with no log for this task
             if task_end_pending and (escaping := sys.exc_info()[1]) is not None:
                 await emit_task_end(
                     logger,
