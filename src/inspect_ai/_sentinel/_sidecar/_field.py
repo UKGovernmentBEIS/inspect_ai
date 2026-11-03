@@ -79,6 +79,14 @@ def begin_attempt() -> None:
         received.looked = None
 
 
+def begin_continuation() -> None:
+    """Forget the field of a reply the provider continues under the same request, as Anthropic's `pause_turn` is: the continuation's reply says what the sidecar decided of the call."""
+    received = _received.get()
+    if received is not None:
+        received.field = None
+        received.looked = None
+
+
 def current_receiving() -> ReceivedField | None:
     """What is collected of the current agent call through a sidecar, or None for any other call."""
     return _received.get()

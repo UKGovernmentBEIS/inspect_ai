@@ -131,6 +131,7 @@ from pydantic import BaseModel, JsonValue, TypeAdapter, ValidationError
 from typing_extensions import override
 
 from inspect_ai._sentinel._sidecar._field import (
+    begin_continuation,
     report_sentinel_error,
     report_sentinel_field,
 )
@@ -1330,6 +1331,9 @@ class AnthropicAPI(ModelAPI):
             # inside a code execution container -- reuse it for the continuation
             if head_message.container:
                 tail_request["container"] = head_message.container.id
+            # a sentinel sidecar's decision of the call comes with the
+            # continuation's reply, not the paused one's
+            begin_continuation()
             _, tail_model_output = await self._perform_request_and_continuations(
                 tail_request,
                 streaming,

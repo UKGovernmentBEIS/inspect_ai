@@ -877,6 +877,30 @@ def test_a_reply_without_the_field_is_acted_on_as_request_result_says() -> None:
     assert _LOOKED_UP == ["Oslo"]
 
 
+def test_a_continued_reply_without_the_field_is_looked_up() -> None:
+    # Anthropic pauses a long turn, and Inspect continues it under the same
+    # request: the paused reply's field says nothing of the continuation's
+    paused = Turn(
+        text="Searching.",
+        stop_reason="pause_turn",
+        sentinel={"outcome": "proceed", "steps": []},
+    )
+    stand_in = StandInSidecar(
+        turns=[paused, Turn(calls=[("call_2", "weather", {"city": "Oslo"})]), Turn()],
+        methods={"request_result": _answers(_decided(_taken_out()))},
+    )
+
+    sample = _run_agent(stand_in)
+
+    # the continuation goes under the paused reply's request id, which the
+    # sidecar is asked about, as the agent's next turn is too
+    paused_call, continued = stand_in.model_calls[:2]
+    assert continued.headers["x-irid"] == paused_call.headers["x-irid"]
+    assert _looked_up(stand_in)[0] == paused_call.headers["x-irid"]
+    assert _tool_messages(sample)["call_1"].error is not None
+    assert _LOOKED_UP == ["Oslo"]
+
+
 @pytest.mark.parametrize(
     ("result", "judgment"),
     [
