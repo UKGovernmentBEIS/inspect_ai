@@ -214,7 +214,12 @@ releases used, are never read, modified or removed, and a
 server running from one keeps running until its sample or container ends. On a
 host that runs the `local` sandbox, one tree per tools version used there stays
 in `/var/tmp` until the system's temporary-file cleanup removes it. Builds with
-local edits to the tools (`-dev` artifacts) use their release's tree.
+local edits to the tools (`-dev` artifacts) use their release's tree. The server's
+state directory follows the tree unless `INSPECT_SANDBOX_TOOLS_DIR` overrides it.
+That variable is an internal setting, not a user setting, and must be unique per
+sandbox instance, as the `local` sandbox makes it. A fixed value shared across tools
+versions (set in an image, for example) would let a newer launcher reuse an older
+version's server, which per-version trees do not prevent.
 
 ### Pattern 1: host-driven agent
 

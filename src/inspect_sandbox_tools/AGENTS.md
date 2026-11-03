@@ -82,7 +82,7 @@ Tools communicate through a two-layer RPC architecture:
 **Layer 2 - Container Internal (stateful operations):**
 1. When stateful execution is needed, the injected executable acts as a client
 2. It starts a server process if not already running
-3. Sends JSON-RPC requests to the server via HTTP over a Unix socket in the server's private state directory (`.server/sandbox-tools.sock` beside the launcher; `INSPECT_SANDBOX_TOOLS_DIR` overrides the location, as the `local` sandbox does)
+3. Sends JSON-RPC requests to the server via HTTP over a Unix socket in the server's private state directory (`.server/sandbox-tools.sock` beside the launcher; `INSPECT_SANDBOX_TOOLS_DIR` overrides the location, as the `local` sandbox does). `INSPECT_SANDBOX_TOOLS_DIR` is an internal setting, not a user setting, and must be unique per sandbox instance: a fixed value shared across tools versions (set in an image, for example) would let a newer launcher reuse an older version's server, which the per-version install directories do not prevent
 4. Server maintains state across requests and returns responses
 5. The stateless executable forwards the response back through Layer 1
 
