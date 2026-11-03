@@ -1426,6 +1426,38 @@ def _bridged_turn(seen: list[ModelOutput | Exception]) -> Solver:
     return solve
 
 
+_BILLED = {"input_tokens": 5, "output_tokens": 2, "total_tokens": 7}
+
+
+def _total_tokens(sample: EvalSample) -> int:
+    return sum(usage.total_tokens for usage in sample.model_usage.values())
+
+
+def test_a_refused_turn_counts_the_usage_the_provider_billed() -> None:
+    withheld = {
+        "message": _turn_json(("call_1", "Tokyo")),
+        "results": {"call_1": "Tokyo is not allowed."},
+    }
+    refused = {"outcome": "reject", "withheld": withheld, "usage": _BILLED}
+    stand_in = StandInSidecar(
+        turns=[Turn(status=400, sentinel=refused), Turn(text="I can't look that up.")]
+    )
+    task = Task(
+        dataset=[Sample(input="What's the weather?")],
+        solver=[use_tools(weather()), generate()],
+        token_limit=10,
+    )
+
+    [log] = eval(task, model=_model(stand_in), display="none")
+
+    # the refused reply's tokens and the next reply's, as in process, where
+    # they reach the token limit
+    assert log.samples is not None
+    [sample] = log.samples
+    assert _total_tokens(sample) == 14
+    assert sample.limit is not None and sample.limit.type == "token"
+
+
 def test_a_bridged_agent_is_never_handed_a_rejected_call() -> None:
     withheld = {
         "message": _turn_json(("call_1", "Tokyo")),
@@ -1440,7 +1472,12 @@ def test_a_bridged_agent_is_never_handed_a_rejected_call() -> None:
         turns=[
             Turn(
                 status=400,
-                sentinel={"outcome": "reject", "steps": [step], "withheld": withheld},
+                sentinel={
+                    "outcome": "reject",
+                    "steps": [step],
+                    "withheld": withheld,
+                    "usage": _BILLED,
+                },
             )
         ]
     )
@@ -1456,6 +1493,8 @@ def test_a_bridged_agent_is_never_handed_a_rejected_call() -> None:
     assert log.samples is not None
     [event] = _sentinel_events(log.samples[0])
     assert (event.step_id, event.action) == ("call_1", "reject")
+    # the refused reply was billed, and counts
+    assert _total_tokens(log.samples[0]) == 7
 
 
 def test_a_bridged_agent_ends_at_the_model_call_for_a_terminate_at_a_call() -> None:

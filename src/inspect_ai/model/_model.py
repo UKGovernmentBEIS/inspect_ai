@@ -50,6 +50,7 @@ from inspect_ai._sentinel._sidecar._act import (
     end_if_terminated,
     refusal_after_error,
     refused_output,
+    refused_usage,
 )
 from inspect_ai._sentinel._sidecar._field import (
     begin_attempt,
@@ -1120,6 +1121,11 @@ class Model:
                     recovered = await refusal_after_error(
                         receiving, str(self), ex, _bridged()
                     )
+                    # the reply the sidecar refused was billed: its usage
+                    # counts, as a model call's does in process
+                    billed = refused_usage(receiving)
+                    if billed is not None:
+                        record_and_check_model_usage(self, billed, role=self.role)
                     if recovered is None:
                         # a refusal that stands as the error, as a bridged
                         # agent's does, still has its decisions recorded
