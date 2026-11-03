@@ -1205,7 +1205,17 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
         # start the log (do this outside fo the try b/c the try/except assumes
         # that the log is initialized)
         eval_plan = plan_to_eval_plan(plan, generate_config)
-        await logger.log_start(eval_plan)
+        try:
+            await logger.log_start(eval_plan)
+        except anyio.get_cancelled_exc_class():
+            # the dispatcher reports the task's own abort/retry here as an
+            # errored attempt and moves on, so show the task as finished
+            if task_cancel and task_cancel.cancel_type in ("abort", "retry"):
+                cancel_ex = TerminateTaskError(
+                    f"Task cancelled by user ({task_cancel.cancel_type})"
+                )
+                td.complete(TaskError(0, TerminateTaskError, cancel_ex, None))
+            raise
 
         try:
             # return immediately if we are not running samples
@@ -2086,6 +2096,20 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
 
         except anyio.get_cancelled_exc_class():
             with anyio.CancelScope(shield=True):
+                if logger.finished:
+                    # the cancellation landed after the log was written (e.g.
+                    # in an on_task_end hook): show the task as it ended and
+                    # keep that log (the caller returns it for the task's own
+                    # abort/retry)
+                    td.complete(
+                        TaskSuccess(
+                            samples_completed=logger.samples_completed,
+                            stats=stats,
+                            results=results or EvalResults(),
+                        )
+                    )
+                    raise
+
                 # collect eval data
                 collect_eval_data(stats)
 

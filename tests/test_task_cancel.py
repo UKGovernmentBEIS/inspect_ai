@@ -17,7 +17,7 @@ from typing_extensions import override
 
 from inspect_ai import Task, TaskSource
 from inspect_ai import eval as inspect_eval
-from inspect_ai._display.core.display import TaskCancel
+from inspect_ai._display.core.display import TaskCancel, TaskError
 from inspect_ai._eval.evalset import eval_set
 from inspect_ai._eval.task.run import task_run as original_task_run
 from inspect_ai.dataset import Sample
@@ -1224,6 +1224,65 @@ async def test_cancel_during_error_log_write_ends_only_that_task(
         ]
 
 
+@pytest.mark.anyio
+async def test_abort_pending_before_error_log_write_keeps_full_log(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An abort made after a sample failed but before the error-log write ends only that task.
+
+    The abort has already cancelled the task when the write starts, so the
+    write is shielded: the task returns its full error log, the TaskSource
+    hears about it, and the queued task runs.
+    """
+    from inspect_ai import eval_async
+    from inspect_ai._eval.task.log import collect_eval_data
+
+    handles: dict[str, TaskCancel] = {}
+    pending_at_write: list[object] = []
+
+    async def capturing_task_run(options: Any, task_cancel: TaskCancel) -> EvalLog:
+        handles[options.task.name] = task_cancel
+        return await original_task_run(options, task_cancel=task_cancel)
+
+    def collect_and_abort(stats: Any) -> None:
+        # called in task a's error handler just before its error-log write
+        if "a" in handles and not pending_at_write:
+            handles["a"].cancel_task("abort")
+            pending_at_write.append(handles["a"].cancel_type)
+        collect_eval_data(stats)
+
+    monkeypatch.setattr("inspect_ai._eval.run.task_run", capturing_task_run)
+    monkeypatch.setattr(
+        "inspect_ai._eval.task.run.collect_eval_data", collect_and_abort
+    )
+    runs: list[str] = []
+    source = _RecordingSource(
+        [_failing_task("a", runs, failures=1), _plain_task("b", runs)]
+    )
+    logs = await eval_async(
+        source,
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        max_tasks=1,
+        task_retry_attempts=1,
+    )
+
+    assert pending_at_write == ["abort"]
+    assert [(log.eval.task, log.status) for log in logs] == [
+        ("a", "error"),
+        ("b", "success"),
+    ]
+    assert logs[0].error is not None
+    assert "sample failure" in logs[0].error.message
+    assert logs[0].samples is not None and len(logs[0].samples) == 1
+    assert [e.split(":")[1:3] for e in source.events if "task_complete" in e] == [
+        ["a", "error"],
+        ["b", "success"],
+    ]
+    assert runs == ["a", "b"]
+    assert await _disk_statuses(tmp_path) == [("a", "error"), ("b", "success")]
+
+
 def _record_task_display_results(
     monkeypatch: pytest.MonkeyPatch,
 ) -> dict[str, list[object]]:
@@ -1277,7 +1336,6 @@ async def test_abort_of_stuck_error_log_write_times_out(
     """
     import inspect_ai._eval.task.run as task_run_module
     from inspect_ai import eval_async
-    from inspect_ai._display.core.display import TaskError
 
     monkeypatch.setattr(task_run_module, "ABORTED_LOG_WRITE_TIMEOUT", 0.2)
     displayed = _record_task_display_results(monkeypatch)
@@ -1381,8 +1439,8 @@ async def test_abort_after_log_finalized_returns_written_log(
     It lands in the logger's cleanup after the recorder wrote the log, in an
     awaiting `on_task_end` hook (in both, the cancel handler's second finish
     then fails), or in a legacy telemetry hook after `task_run`'s handlers.
-    The task still returns its written log, the TaskSource hears about it
-    once, and the run continues.
+    The task still returns its written log, its display shows it
+    succeeded, the TaskSource hears about it once, and the run continues.
     """
     import inspect_ai.hooks._legacy as legacy_hooks
     from inspect_ai import eval_async
@@ -1430,6 +1488,7 @@ async def test_abort_after_log_finalized_returns_written_log(
             TaskLogger, "_stop_stale_flush_timer", stop_stale_flush_timer
         )
 
+    displayed = _record_task_display_results(monkeypatch)
     runs: list[str] = []
     source = _RecordingSource([_plain_task("a", runs), _plain_task("b", runs)])
     logs = await eval_async(
@@ -1441,6 +1500,7 @@ async def test_abort_after_log_finalized_returns_written_log(
     )
 
     assert fired
+    assert [type(result).__name__ for result in displayed["a"]] == ["TaskSuccess"]
     assert [(log.eval.task, log.status) for log in logs] == [
         ("a", "success"),
         ("b", "success"),
@@ -1457,7 +1517,10 @@ async def test_abort_after_log_finalized_returns_written_log(
 async def test_abort_before_any_log_write_reports_errored_log(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """An abort that interrupts `log_start()` leaves an errored log, and the run continues."""
+    """An abort that interrupts `log_start()` leaves an errored log, and the run continues.
+
+    The task's display shows it finished with the abort's error.
+    """
     from inspect_ai import eval_async
     from inspect_ai._eval.task.log import TaskLogger
 
@@ -1477,6 +1540,7 @@ async def test_abort_before_any_log_write_reports_errored_log(
 
     monkeypatch.setattr("inspect_ai._eval.run.task_run", capturing_task_run)
     monkeypatch.setattr(TaskLogger, "log_start", log_start)
+    displayed = _record_task_display_results(monkeypatch)
     runs: list[str] = []
     logs = await eval_async(
         [_plain_task("a", runs), _plain_task("b", runs)],
@@ -1493,6 +1557,9 @@ async def test_abort_before_any_log_write_reports_errored_log(
     assert logs[0].error is not None
     assert "cancelled by user (abort)" in logs[0].error.message
     assert runs == ["b"]
+    assert len(displayed["a"]) == 1
+    assert isinstance(displayed["a"][0], TaskError)
+    assert "cancelled by user (abort)" in str(displayed["a"][0].exc_value)
 
 
 @pytest.mark.anyio
@@ -1692,6 +1759,46 @@ async def test_cancel_handle_does_not_keep_task_log_alive(
     assert handles
     assert log_ref() is None
     assert sample_ref() is None
+
+
+@pytest.mark.anyio
+async def test_task_complete_raising_stray_cancellation_ends_run(
+    tmp_path: Path,
+) -> None:
+    """A cancellation exception that `task_complete` raises on its own ends the run.
+
+    No cancellation of the run caused it, so it is not absorbed: the run
+    fails as for any `task_complete` error, and the queued task never runs.
+    """
+    from inspect_ai import eval_async
+
+    class _StrayCancelSource(TaskSource):
+        def initial_tasks(self) -> list[Task]:
+            return [_plain_task("a", runs), _plain_task("b", runs)]
+
+        async def task_complete(self, log: EvalLog) -> None:
+            # a cancellation caught from a scope that has since exited
+            saved: list[BaseException] = []
+            with anyio.CancelScope() as scope:
+                scope.cancel()
+                try:
+                    await anyio.sleep(0)
+                except anyio.get_cancelled_exc_class() as ex:
+                    saved.append(ex)
+                    raise
+            raise saved[0]
+
+    runs: list[str] = []
+    with pytest.raises(RuntimeError, match="task_complete\\(\\) for task 'a'"):
+        await eval_async(
+            _StrayCancelSource(),
+            model="mockllm/model",
+            log_dir=str(tmp_path),
+            max_tasks=1,
+        )
+
+    assert runs == ["a"]
+    assert await _disk_statuses(tmp_path) == [("a", "success")]
 
 
 class _LateCancelSource(TaskSource):

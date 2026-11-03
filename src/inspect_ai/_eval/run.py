@@ -628,8 +628,7 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
     completes first (see ``abort_bounded_write``), and an interrupted success
     write is followed by the cancel handler's shielded write of the abort's
     error log. When the request interrupts ``task_run`` after the write, the
-    written log is returned, also when the cancel handler's second finish
-    then fails; when it interrupts it before any final log
+    written log is returned; when it interrupts it before any final log
     write (during ``log_start()``), the attempt is reported like a failed
     log write.
 
@@ -642,7 +641,9 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
     re-run a finished task; only an abort of an attempt that ended in error
     is still recorded, so it stops the dispatcher from retrying it. An
     exception from ``task_complete`` is not a task error: it ends the run,
-    as an exception from ``next_tasks()`` does.
+    as an exception from ``next_tasks()`` does. So does a cancellation
+    exception it raises that no cancellation of the run caused (the task
+    group would otherwise absorb it).
     """
     result: EvalLog | None = None
     cancel_type: CancelType = None
@@ -651,6 +652,7 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
     # whether the attempt ended in error (the cancel handle, which outlives
     # the attempt, keeps this rather than the log)
     ended_in_error = False
+    notifying = False
     try:
         with trace_action(
             log, "Run Task", f"task: {options.task.name} ({options.model})"
@@ -694,6 +696,7 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
 
                 async def run() -> None:
                     nonlocal result, abandoned, scope_exited, ended_in_error
+                    nonlocal notifying
                     write_failed = False
                     with task_scope:
                         try:
@@ -725,22 +728,13 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
                             # eval_set() retries them once storage recovers.
                             if options.debug_errors:
                                 raise
-                            # the task's abort/retry request interrupted it
-                            # after its log was written (e.g. in an
-                            # on_task_end hook), so the cancel handler's
-                            # second finish failed: the written log is
-                            # returned below
-                            if not (
-                                cancel_type in ("abort", "retry")
-                                and options.logger.finished
-                            ):
-                                inner = inner_exception(ex)
-                                log.error(
-                                    f"Task '{options.task.name}' encountered an "
-                                    f"error while starting or writing its log: {inner}"
-                                )
-                                result = _unwritten_log(options, inner)
-                                write_failed = True
+                            inner = inner_exception(ex)
+                            log.error(
+                                f"Task '{options.task.name}' encountered an error "
+                                f"while starting or writing its log: {inner}"
+                            )
+                            result = _unwritten_log(options, inner)
+                            write_failed = True
                     scope_exited = True
                     written_log = options.logger.pop_finished_log()
                     # task_scope swallows only its own cancellation (a
@@ -763,7 +757,9 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
                         return
                     assert result is not None
                     try:
+                        notifying = True
                         await notify_task_source(options, result)
+                        notifying = False
                     except Exception as ex:
                         ex.add_note(
                             "Raised by TaskSource.task_complete() for task "
@@ -772,6 +768,11 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
                         raise
 
                 task_tg.start_soon(run)
+            if notifying:
+                raise RuntimeError(
+                    f"TaskSource.task_complete() for task '{options.task.name}' "
+                    "raised a cancellation that no cancellation of the run caused."
+                )
         if abandoned:
             return TaskRunResult(None, None, abandoned=True)
     finally:
