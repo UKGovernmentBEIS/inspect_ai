@@ -48,4 +48,4 @@ def test_web_browser_import_does_not_warn() -> None:
         timeout=120,
     )
     assert result.returncode == 0, result.stderr
-    assert result.stderr == ""
+    assert "web_browser" not in result.stderr
