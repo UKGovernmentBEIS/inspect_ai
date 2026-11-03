@@ -1100,7 +1100,9 @@ async def test_model_generate_wraps_returned_exception_with_status() -> None:
 class _Request:
     """One chat completion request the scaffold makes, and how it is held.
 
-    `messages` is the number of messages it carries, each with `content`. With `after_first`, it
+    `messages` is the number of messages it carries, each with `content`.
+    With `answered`, they are followed by the model's reply to them, as when a
+    scaffold sends a conversation it has completed. With `after_first`, it
     waits for the scaffold's first request to be replied to before it
     generates. With `during_shutdown`, the agent returns once it starts and it
     generates once the bridge is killing the model proxy. A `held` reply write
@@ -1109,6 +1111,7 @@ class _Request:
 
     messages: int = 1
     content: str = "Say hi."
+    answered: bool = False
     after_first: bool = False
     during_shutdown: bool = False
     held: bool = False
@@ -1258,7 +1261,12 @@ def _serve_generations(
                     "json_data": {
                         "model": "inspect",
                         "messages": [{"role": "user", "content": request.content}]
-                        * request.messages,
+                        * request.messages
+                        + (
+                            [{"role": "assistant", "content": "hi"}]
+                            if request.answered
+                            else []
+                        ),
                     }
                 },
                 [],
@@ -1937,6 +1945,60 @@ def test_retries_after_a_bridged_limit_make_no_model_calls(
     _assert_error_replies(outcome.replies, count=3)
     assert calls == compactions
     assert not any(isinstance(event, ModelEvent) for event in outcome.sample.events)
+
+
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_retries_of_a_tracked_conversation_at_the_message_limit_make_no_model_calls(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, backend: str
+) -> None:
+    """Resending the agent's conversation once it is at the message limit makes no model call.
+
+    The first request succeeds and leaves the tracked conversation (its
+    message and the reply) at the `run()` limit of two. The scaffold then
+    sends that conversation as it is, twice. Compaction would shorten it
+    enough for the generation, but tracking its reply would exceed the
+    limit, so neither request compacts or generates.
+    """
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    calls = 0
+
+    async def compact(
+        self: ModelAPI,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        config: GenerateConfig,
+        instructions: str | None = None,
+    ) -> tuple[list[ChatMessage], ModelUsage]:
+        nonlocal calls
+        calls += 1
+        return [ChatMessageUser(content="compacted")], ModelUsage()
+
+    monkeypatch.setattr(mockllm.MockLLM, "compact", compact)
+    limit = message_limit(2)
+
+    outcome = _run_bridged_agent(
+        tmp_path,
+        monkeypatch,
+        limit,
+        scaffold=_Scaffold(
+            [
+                _Request(),
+                _Request(answered=True, after_first=True),
+                _Request(answered=True, after_first=True),
+            ],
+            compaction=CompactionNative(threshold=3),
+        ),
+    )
+
+    _assert_agent_limit(outcome, limit)
+    result, error = outcome.replies[0]
+    assert error is None
+    assert isinstance(result, dict) and PROVIDER_ERROR_KEY not in result
+    _assert_error_replies(outcome.replies[1:], count=2)
+    # the first request's compaction and generation only
+    assert calls == 1
+    events = outcome.sample.events
+    assert sum(isinstance(event, ModelEvent) for event in events) == 1
 
 
 @pytest.mark.parametrize("shortened_by", ["compaction", "filter"])
