@@ -1429,35 +1429,31 @@ async def test_run_cancel_interrupts_error_log_write(
     assert runs == ["a"]
 
 
-@pytest.mark.anyio
-@pytest.mark.parametrize("where", ["logger_cleanup", "task_end_hook", "telemetry"])
-async def test_abort_after_log_finalized_returns_written_log(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, where: str
-) -> None:
-    """An abort that lands once the recorder has finalized the log returns that log.
+def _on_log_finalized(
+    monkeypatch: pytest.MonkeyPatch,
+    where: str,
+    action: Callable[[str], Awaitable[None]],
+) -> list[str]:
+    """Run `action(eval_id)` once, after the recorder has finalized task `a`'s log.
 
-    It lands in the logger's cleanup after the recorder wrote the log, in an
-    awaiting `on_task_end` hook (in both, the cancel handler's second finish
-    then fails), or in a legacy telemetry hook after `task_run`'s handlers.
-    The task still returns its written log, its display shows it
-    succeeded, the TaskSource hears about it once, and the run continues.
+    `where` is the logger's cleanup (`logger_cleanup`), an awaiting
+    `on_task_end` hook (`task_end_hook`) or a legacy telemetry hook after
+    `task_run`'s handlers (`telemetry`). Returns the eval ids it ran for.
     """
     import inspect_ai.hooks._legacy as legacy_hooks
-    from inspect_ai import eval_async
     from inspect_ai._eval.task.log import TaskLogger
 
     fired: list[str] = []
 
-    async def abort_and_wait(eval_id: str) -> None:
+    async def fire(eval_id: str) -> None:
         fired.append(eval_id)
-        _task_cancel_handle(eval_id).cancel_task("abort")
-        await anyio.sleep_forever()
+        await action(eval_id)
 
     if where == "task_end_hook":
 
         async def emit_task_end(logger: TaskLogger, log: EvalLog) -> None:
             if log.eval.task == "a" and not fired:
-                await abort_and_wait(log.eval.eval_id)
+                await fire(log.eval.eval_id)
 
         monkeypatch.setattr("inspect_ai.hooks._hooks.emit_task_end", emit_task_end)
     elif where == "telemetry":
@@ -1471,7 +1467,7 @@ async def test_abort_after_log_finalized_returns_written_log(
 
         async def send_telemetry(type: str, json: str) -> bool:
             if written and type == "eval_log_location" and not fired:
-                await abort_and_wait(written[0])
+                await fire(written[0])
             return False
 
         monkeypatch.setattr(TaskLogger, "log_finish", log_finish)
@@ -1481,13 +1477,49 @@ async def test_abort_after_log_finalized_returns_written_log(
 
         async def stop_stale_flush_timer(self: TaskLogger) -> None:
             if self.eval.task == "a" and self.finished and not fired:
-                await abort_and_wait(self.eval.eval_id)
+                await fire(self.eval.eval_id)
             await original_stop(self)
 
         monkeypatch.setattr(
             TaskLogger, "_stop_stale_flush_timer", stop_stale_flush_timer
         )
+    return fired
 
+
+async def _abort_and_wait(eval_id: str) -> None:
+    _task_cancel_handle(eval_id).cancel_task("abort")
+    await anyio.sleep_forever()
+
+
+async def _raise_stray_cancellation() -> None:
+    """Raise a cancellation caught from a scope that has since exited."""
+    saved: list[BaseException] = []
+    with anyio.CancelScope() as scope:
+        scope.cancel()
+        try:
+            await anyio.sleep(0)
+        except anyio.get_cancelled_exc_class() as ex:
+            saved.append(ex)
+            raise
+    raise saved[0]
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("where", ["logger_cleanup", "task_end_hook", "telemetry"])
+async def test_abort_after_log_finalized_returns_written_log(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, where: str
+) -> None:
+    """An abort that lands once the recorder has finalized the log returns that log.
+
+    It lands in the logger's cleanup after the recorder wrote the log, in an
+    awaiting `on_task_end` hook, or in a legacy telemetry hook after
+    `task_run`'s handlers. The task still returns its written log, its
+    display shows it succeeded, the TaskSource hears about it once, and the
+    run continues.
+    """
+    from inspect_ai import eval_async
+
+    fired = _on_log_finalized(monkeypatch, where, _abort_and_wait)
     displayed = _record_task_display_results(monkeypatch)
     runs: list[str] = []
     source = _RecordingSource([_plain_task("a", runs), _plain_task("b", runs)])
@@ -1511,6 +1543,112 @@ async def test_abort_after_log_finalized_returns_written_log(
     ]
     assert runs == ["a", "b"]
     assert await _disk_statuses(tmp_path) == [("a", "success"), ("b", "success")]
+
+
+@pytest.mark.anyio
+async def test_abort_deadline_in_logger_cleanup_returns_written_error_log(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An abort whose write deadline expires in the logger's cleanup returns the written error log.
+
+    The recorder had already written the full error log, so the task
+    returns it rather than a failed-write log, the TaskSource hears about
+    it once, and the run continues.
+    """
+    import inspect_ai._eval.task.run as task_run_module
+    from inspect_ai import eval_async
+
+    monkeypatch.setattr(task_run_module, "ABORTED_LOG_WRITE_TIMEOUT", 0.2)
+    fired = _on_log_finalized(monkeypatch, "logger_cleanup", _abort_and_wait)
+    displayed = _record_task_display_results(monkeypatch)
+    runs: list[str] = []
+    source = _RecordingSource(
+        [_failing_task("a", runs, failures=1), _plain_task("b", runs)]
+    )
+    logs = await eval_async(
+        source,
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        max_tasks=1,
+        task_retry_attempts=1,
+    )
+
+    assert fired
+    assert len(displayed["a"]) == 1
+    assert isinstance(displayed["a"][0], TaskError)
+    assert [(log.eval.task, log.status) for log in logs] == [
+        ("a", "error"),
+        ("b", "success"),
+    ]
+    assert logs[0].error is not None
+    assert "sample failure" in logs[0].error.message
+    assert logs[0].samples is not None and len(logs[0].samples) == 1
+    assert [e.split(":")[1:3] for e in source.events if "task_complete" in e] == [
+        ["a", "error"],
+        ["b", "success"],
+    ]
+    assert runs == ["a", "b"]
+    assert await _disk_statuses(tmp_path) == [("a", "error"), ("b", "success")]
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("where", ["logger_cleanup", "task_end_hook", "telemetry"])
+async def test_stray_cancellation_after_log_finalized_ends_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, where: str
+) -> None:
+    """A cancellation exception raised after the log was written, with no cancellation behind it, ends the run.
+
+    The task group would otherwise absorb it, and the task would return no
+    log, which the dispatcher reads as a run-level cancellation.
+    """
+    from inspect_ai import eval_async
+
+    async def raise_stray(eval_id: str) -> None:
+        await _raise_stray_cancellation()
+
+    fired = _on_log_finalized(monkeypatch, where, raise_stray)
+    runs: list[str] = []
+    with pytest.raises(RuntimeError, match="Task 'a' raised a cancellation"):
+        await eval_async(
+            [_plain_task("a", runs), _plain_task("b", runs)],
+            model="mockllm/model",
+            log_dir=str(tmp_path),
+            max_tasks=1,
+        )
+
+    assert fired
+    assert runs == ["a"]
+    assert await _disk_statuses(tmp_path) == [("a", "success")]
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("where", ["logger_cleanup", "task_end_hook", "telemetry"])
+async def test_run_cancel_after_log_finalized_stops_dispatch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, where: str
+) -> None:
+    """A run-level cancellation after the task's log was written stops the run, with no error."""
+    from inspect_ai import eval_async
+
+    scopes: list[anyio.CancelScope] = []
+
+    async def cancel_run(eval_id: str) -> None:
+        scopes[0].cancel()
+        await anyio.sleep_forever()
+
+    fired = _on_log_finalized(monkeypatch, where, cancel_run)
+    runs: list[str] = []
+    with anyio.CancelScope() as scope:
+        scopes.append(scope)
+        await eval_async(
+            [_plain_task("a", runs), _plain_task("b", runs)],
+            model="mockllm/model",
+            log_dir=str(tmp_path),
+            max_tasks=1,
+        )
+
+    assert fired
+    assert runs == ["a"]
+    assert await _disk_statuses(tmp_path) == [("a", "success")]
 
 
 @pytest.mark.anyio
@@ -1777,16 +1915,7 @@ async def test_task_complete_raising_stray_cancellation_ends_run(
             return [_plain_task("a", runs), _plain_task("b", runs)]
 
         async def task_complete(self, log: EvalLog) -> None:
-            # a cancellation caught from a scope that has since exited
-            saved: list[BaseException] = []
-            with anyio.CancelScope() as scope:
-                scope.cancel()
-                try:
-                    await anyio.sleep(0)
-                except anyio.get_cancelled_exc_class() as ex:
-                    saved.append(ex)
-                    raise
-            raise saved[0]
+            await _raise_stray_cancellation()
 
     runs: list[str] = []
     with pytest.raises(RuntimeError, match="task_complete\\(\\) for task 'a'"):

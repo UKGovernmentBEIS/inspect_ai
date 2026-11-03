@@ -642,8 +642,9 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
     is still recorded, so it stops the dispatcher from retrying it. An
     exception from ``task_complete`` is not a task error: it ends the run,
     as an exception from ``next_tasks()`` does. So does a cancellation
-    exception it raises that no cancellation of the run caused (the task
-    group would otherwise absorb it).
+    exception that no cancellation of the run caused, raised by
+    ``task_complete`` or escaping ``task_run`` (e.g. from an ``on_task_end``
+    hook): the task group would otherwise absorb it.
     """
     result: EvalLog | None = None
     cancel_type: CancelType = None
@@ -653,6 +654,7 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
     # the attempt, keeps this rather than the log)
     ended_in_error = False
     notifying = False
+    run_returned = False
     try:
         with trace_action(
             log, "Run Task", f"task: {options.task.name} ({options.model})"
@@ -696,7 +698,7 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
 
                 async def run() -> None:
                     nonlocal result, abandoned, scope_exited, ended_in_error
-                    nonlocal notifying
+                    nonlocal notifying, run_returned
                     write_failed = False
                     with task_scope:
                         try:
@@ -752,8 +754,18 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
                                 ),
                             )
                             write_failed = True
+                    elif (
+                        write_failed
+                        and cancel_type in ("abort", "retry")
+                        and written_log is not None
+                    ):
+                        # the write deadline expired in the logger's cleanup,
+                        # after the recorder had written the log
+                        result = written_log
+                        write_failed = False
                     ended_in_error = result is not None and result.status == "error"
                     if abandoned or write_failed:
+                        run_returned = True
                         return
                     assert result is not None
                     try:
@@ -766,12 +778,14 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
                             f"'{options.task.name}'."
                         )
                         raise
+                    run_returned = True
 
                 task_tg.start_soon(run)
-            if notifying:
+            if not run_returned:
+                source = "TaskSource.task_complete() for task" if notifying else "Task"
                 raise RuntimeError(
-                    f"TaskSource.task_complete() for task '{options.task.name}' "
-                    "raised a cancellation that no cancellation of the run caused."
+                    f"{source} '{options.task.name}' raised a cancellation "
+                    "that no cancellation of the run caused."
                 )
         if abandoned:
             return TaskRunResult(None, None, abandoned=True)
