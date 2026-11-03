@@ -511,6 +511,12 @@ So a log that a port has contributed to is never reused:
     (`src/inspect_ai/log/_recover/_read.py:87`, `_write.py:365`), which
     eval-set resume and selection-worker resume run on a crashed log
     (`src/inspect_ai/_eval/evalset.py:1526`, `:1762`).
+  - The errored `EvalLog` that `_run_task` builds when a log write, a
+    retry's checkpoint startup copy or a task-completion callback escapes
+    the attempt (`src/inspect_ai/_eval/run.py:682-687`) sets
+    `handle_samples` from the attempt's `TaskLogger`, so the log the
+    dispatcher, `result()` and `eval()` see is marked whenever the attempt
+    was.
 
   The marker is durable before the first request is reserved, so a log
   left by a crash at any later point carries it. A request refused at step
@@ -523,19 +529,42 @@ So a log that a port has contributed to is never reused:
   `eval_retry()`, eval-set resume in ordinary and legacy rounds, and
   selection-worker resume, for samples and checkpoints alike. A path that
   does reach a marked log reruns the task's own samples from scratch.
-- **No in-run retry.** Writing the marker also clears the attempt's
-  `TaskCancel.can_retry` and the `will_retry` it registered with the control
-  channel (`task/run.py:897`, `:1200`), and the dispatcher's retry decision
-  (`src/inspect_ai/_eval/run.py:923`) skips a log that carries it. A retry
-  would rerun the task without the samples its creator sent, so it ends
+- **No in-run retry.** `TaskLogger.handle_samples` is set in memory when
+  step 2 of "Delivery" begins, before the write is awaited, and is never
+  cleared within the attempt; `reinit()` for a retry starts a new log with
+  it unset. Setting it also clears the attempt's `TaskCancel.can_retry` and
+  the `will_retry` it registered with the control channel
+  (`task/run.py:897`, `:1200`). The dispatcher's retry decision
+  (`src/inspect_ai/_eval/run.py:921-923`) reads that flag from
+  `options.logger`, before `reinit()`, as well as the returned log's field,
+  so a fallback log, a failed marker write or a failed final write cannot
+  turn it back into a retry. A retry would rerun the task without the samples its creator sent, so it ends
   with its error log: every unresolved future fails with
   `TaskEndedError(log=<that log>)` (the table above), `result()` returns that
   log, and the creator, which holds the search state, decides what to do,
   typically enqueueing a fresh rollout task and sending the outstanding
   samples again. A task whose port delivered nothing (for example, its
   first attempt failed in sandbox setup before any request arrived, or its
-  only request was refused) has no marker and is retried as today, and its
-  `sent` requests are delivered into the retry as new arrivals.
+  only request was refused) has no marker and is retried, and its `sent`
+  requests are delivered into the retry as new arrivals.
+- **A retry that can receive samples reuses nothing.** An unmarked attempt
+  can still have completed samples of its own before it failed. If the retry
+  reused them, a port request delivered before the source regenerates one
+  could take its id: with an empty seed, source sample A completes as id 1,
+  the attempt fails, and in the retry an anonymous request P arrives first,
+  is given id 1, and the prior lookup (`task/run.py:1403-1424`) returns A's
+  result for it; checkpoints copied at the retry's start (`task/run.py:957`,
+  `:989-998`) would likewise restore A's state into P. So when the
+  dispatcher queues an in-run retry of a record whose port is open (a
+  handle created by a running attempt, not yet closed), it gives the retry
+  the empty sample source instead of the one built at
+  `src/inspect_ai/_eval/run.py:979` or the previous attempt's
+  (`:989-995`): no lookup, no seed, no checkpoint copy. The retry reruns
+  the task's own samples from scratch, and ids are assigned in its own
+  admission order. A record whose port is closed can receive nothing more,
+  and is retried with reuse as today; a port never reopens. Only the in-run
+  retry needs this: a record with a port is always resolved fresh
+  (`_resolve_enqueued_tasks`), never from a `PreviousTask`.
 - **`eval_retry()` refuses a marked log** with `PrerequisiteError`
   ("<log> cannot be retried on its own: task '<task>' received samples
   through a task handle from the task that created it; retry that task
@@ -698,6 +727,10 @@ under "The handle API" are unchanged.
   its result, and a later run (`eval_retry()`, a resume) has no creator to
   send the requests at all. Never reusing a marked log is exact, and the
   creator can resubmit.
+- **Refusing the first delivery into a retry that reuses prior state.**
+  Also exact, but the creator's requests would fail for the whole of that
+  attempt, and it would have to enqueue a fresh task anyway; rerunning the
+  retry's own samples keeps the task usable.
 - **Recording that a port delivered only in memory.** Enough to stop the
   in-run retry, but `eval_retry()`, eval-set resume and selection-worker
   resume read the log after the process has gone, and would reuse it.
@@ -853,8 +886,19 @@ test touched), with mockllm models:
     `write_eval_log` keep the field; an existing log without it reads as
     `False` and is reused as today;
   - a request refused at delivery (the source reserved its id first),
-    followed by an otherwise retryable error: no marker, and the task is
-    retried and reuses its completed samples.
+    followed by an otherwise retryable error: no marker; the task is
+    retried, and since its port is open the retry reuses nothing;
+  - the fallback log: after a delivery, a failing final log write (stub
+    recorder) and a raising task-completion callback each end the task
+    without a retry, and the log the dispatcher and `result()` return has
+    `handle_samples` set;
+  - a retry with an open port: with an empty seed, source sample A
+    completes as id 1, the attempt errors before any delivery, and in the
+    retry an anonymous request P arrives before the source regenerates A;
+    P's `EvalSample` has P's input and its own output, A reruns, and nothing
+    is reused, with sample logging on and off and with checkpointing on (no
+    checkpoint is copied into the retry); the same task with its port
+    closed before the error reuses A as today.
 - `tests/test_sample_source.py`:
   - port validation: an id equal to a seed id, its int/str equivalent
     (`1` and `"1"`), and a seed id excluded by `--sample-id` or `--limit`
@@ -901,8 +945,9 @@ step 3 (the run queue and dispatcher) and independent of step 4:
    `eval.py` and `json.py` (`log_handle_samples`, the journal member and
    header reads), the copy sites (`log/_convert.py`, `_cli/score.py`,
    `log/_recover/`), `_eval/task/sample_source.py` (docstrings),
-   `_eval/run.py` (the retry decision reads the marker, port close on
-   attempt end, loans in the dispatcher, the `next_tasks()` scope),
+   `_eval/run.py` (the retry decision reads the logger's flag and the
+   marker, the fallback log carries it, an open-port retry gets the empty
+   sample source, port close on attempt end, loans in the dispatcher, the `next_tasks()` scope),
    `_eval/eval.py` (the `eval_retry()` refusal, `max_tasks`, `max_samples`
    and `max_sandboxes` docstrings), `_eval/evalset.py` (docstrings),
    `__init__.py` (exports), `docs/task-source.qmd`, `docs/parallelism.qmd`
