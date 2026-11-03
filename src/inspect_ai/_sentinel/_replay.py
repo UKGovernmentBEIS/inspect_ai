@@ -807,13 +807,17 @@ class _Driver:
     def _checks_tool_calls(self, event: ToolEvent, producer: ModelEvent | None) -> bool:
         """Whether live checked the calls a model call produced, inferred from the region the model call was made in.
 
-        Live decides by the region that runs the call (`checks_tool_calls()` in `call_tool`), which the log does not record, so a call run in a region other than the one its producer was made in is replayed by its producer's. A call no model call produced (a pre-filled message) is taken as checked, unless it ran in the scorers' phase, whose scope is final live. A call a sandbox bridge ran on the host (`metadata["bridge"]`) is not: the host executor runs no tool stage.
+        Live decides by the region that runs the call (`checks_tool_calls()` in `call_tool`), which the log does not record, so a call run in a region other than the one its producer was made in is replayed by its producer's. For a producer without a recorded origin, continuity may reject its model turn but cannot cancel tool checks that already ran in an agent, tool, or setup region. A call no model call produced (a pre-filled message) is taken as checked, unless it ran in the scorers' phase, whose scope is final live. A call a sandbox bridge ran on the host (`metadata["bridge"]`) is not: the host executor runs no tool stage.
         """
         if event.metadata is not None and "bridge" in event.metadata:
             return False
         if producer is None:
             return not self._scoring(event)
-        return self._origin(producer) in _NON_FINAL
+        if producer.origin is not None:
+            return producer.origin in _NON_FINAL
+        return (
+            not self._scoring(producer) and not self._region(producer.span_id).sentinel
+        )
 
     # ---- origins the log does not record
 

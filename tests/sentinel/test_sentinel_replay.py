@@ -3211,6 +3211,95 @@ def linked_call(
     )
 
 
+@pytest.mark.parametrize("inputs", ["expanded", "pooled"])
+@pytest.mark.parametrize("shape", ["fork", "candidate"])
+def test_executed_tool_keeps_stages_when_producing_call_is_discarded(
+    shape: str, inputs: str
+) -> None:
+    from inspect_ai._sentinel import _replay
+
+    opening: list[ChatMessage] = [ChatMessageUser(content="Start the task")]
+    first = linked_call("first", "agent", opening, "First answer", None)
+    carried = [*opening, first.output.message]
+    tool_call = ToolCall(id="discarded-tool", function="lookup", arguments={})
+    if shape == "fork":
+        discarded_input = carried
+        kept = linked_call("kept", "agent", carried, "Kept answer", None)
+        continued_input = [*carried, kept.output.message]
+    else:
+        kept = linked_call("kept", "agent", carried, "Kept answer", None)
+        discarded_input = [ChatMessageUser(content="Side question")]
+        continued_input = [*carried, kept.output.message]
+    discarded = linked_call(
+        "discarded", "agent", discarded_input, "Looking up", None, tool_call
+    )
+    discarded.tools = [ToolInfo(name="lookup", description="Look up an answer")]
+    continued = linked_call("continued", "agent", continued_input, "Done", None)
+    events: list[Event] = [
+        SpanBeginEvent(id="agent", name="agent", type="agent"),
+        first,
+        *([kept] if shape == "candidate" else []),
+        discarded,
+        SpanBeginEvent(
+            id="tool-discarded", name="lookup", type="tool", parent_id="agent"
+        ),
+        imported_tool_event(tool_call, 0, "tool-discarded"),
+        SpanEndEvent(id="tool-discarded"),
+        *([kept] if shape == "fork" else []),
+        continued,
+        SpanEndEvent(id="agent"),
+    ]
+
+    def replay(recorded: bool) -> list[ReplayStep]:
+        chosen = [
+            event.model_copy(update={"origin": "agent"})
+            if recorded and isinstance(event, ModelEvent)
+            else event
+            for event in events
+        ]
+        pool: list[ChatMessage] = []
+        if inputs == "pooled":
+            chosen, pool = _replay._condensed(chosen, [])
+        return steps_from_events(
+            [],
+            chosen,
+            pool,
+            sample_uuid="sample",
+            eval_info=EvalInfo(inspect_ai_version="0.3.200", sentinel=False),
+        )
+
+    inferred = replay(False)
+    recorded = replay(True)
+    assert "discarded" not in [s.id for s in inferred if s.stage == "model_input"]
+    assert (
+        tool_steps(inferred)
+        == tool_steps(recorded)
+        == [
+            ("tool_call", "discarded-tool", "lookup", {}, None),
+            (
+                "tool_result",
+                "discarded-tool",
+                "lookup",
+                {},
+                "result of discarded-tool in turn 0",
+            ),
+        ]
+    )
+    # Inferred conversation history omits the discarded generate. Other
+    # tool-stage fields match after ignoring regenerated message ids.
+    assert not [
+        f.name
+        for ours, theirs in zip(
+            [s for s in inferred if s.stage.startswith("tool")],
+            [s for s in recorded if s.stage.startswith("tool")],
+        )
+        for f in dataclasses.fields(ours.step)
+        if f.name != "history"
+        and comparable(getattr(ours.step, f.name), ids=False)
+        != comparable(getattr(theirs.step, f.name), ids=False)
+    ]
+
+
 def side_calls(
     count: int, span_id: str | None, origin: str | None, tooled: bool
 ) -> list[ModelEvent]:
@@ -3694,7 +3783,7 @@ def test_batches_that_overlap_replay_as_they_ran(
         anyio.Event(),
     )
     tools = [synchronised(a1_started, b1_started, a2_started, b_done)]
-    replay = assert_replay_equals_live(
+    log = run_logged(
         r7_runs_batches_concurrently(tools, a1_started, b_done),
         outputs(
             calls(
@@ -3709,7 +3798,12 @@ def test_batches_that_overlap_replay_as_they_ran(
         # without origins the other's turn is utility
         inferred="two threads in one conversation",
     )
-    assert len([s for s in replay if s.stage == "tool_result"]) == 3
+    sample = logged_sample(log)
+    recorded = replay_events(log, sample.events)
+    inferred = replay_events(log, without_origins(sample.events))
+    assert tool_steps(inferred) == tool_steps(recorded)
+    assert len([s for s in inferred if s.stage == "tool_call"]) == 3
+    assert len([s for s in inferred if s.stage == "tool_result"]) == 3
 
 
 def inserted_block_inputs(turns: int) -> tuple[list[ModelEvent], list[ChatMessage]]:
