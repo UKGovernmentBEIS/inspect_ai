@@ -97,7 +97,7 @@ def steps_from_events(
 
     Inspect logs record origins on every model call or on none. If a transcript mixes calls with and without origins, recorded calls retain their recorded classification and calls without origins are inferred; continuity across that mixed sequence is not guaranteed.
 
-    In logs without origins, recorded sentinel checks and human decisions are used only when their step id pairs with a model call's exact id. Inferred turns may differ from those seen by a sentinel that ran before origins were recorded; reproducing that sentinel's live steps is outside this replay contract. For a run without a sentinel, human decisions are reconstructed from `ApprovalEvent`s only when the log records inspect_ai 0.3.277 or later. Older or unknown versions omit those decisions with one warning because older Inspect recorded modified approvals incorrectly; tool steps and turn inference remain available for supported logs. In those older or unknown logs, a modified approval supplies the tool-stage arguments because `ToolEvent` can still hold the original proposal. From 0.3.277 onward, `ToolEvent.arguments` is authoritative.
+    In logs without origins, recorded sentinel checks and human decisions are used only when their step id pairs with a model call's exact id. Inferred turns may differ from those seen by a sentinel that ran before origins were recorded; reproducing that sentinel's live steps is outside this replay contract. Older logs without a solvers wrapper span can classify side calls in top-level solver spans as agent turns. For a run without a sentinel, human decisions are reconstructed from `ApprovalEvent`s only when the log records inspect_ai 0.3.277 or later. Older or unknown versions omit those decisions with one warning because older Inspect recorded modified approvals incorrectly; tool steps and turn inference remain available for supported logs. In those older or unknown logs, an `ApprovalEvent.modified` payload on either an approve or modify decision supplies the tool-stage arguments because `ToolEvent` can still hold the original proposal. From 0.3.277 onward, `ToolEvent.arguments` is authoritative.
 
     Replay requires a log written by Inspect 0.3.94 or later. Earlier logs lack native tool spans and cannot be replayed reliably. If the recorded version is unknown, completed native tool events without a matching tool span are refused as potentially older logs.
 
@@ -860,9 +860,16 @@ class _Driver:
 
         modify = self._sentinel_modify(before_span, event)
         approved = approver_modified or proposal
+        historical_modified = (
+            approval.modified
+            if not self.approval_log_reliable
+            and approval is not None
+            and approval.decision in ("approve", "modify")
+            else None
+        )
         executed_arguments = (
-            approver_modified.arguments
-            if not self.approval_log_reliable and approver_modified is not None
+            historical_modified.arguments
+            if historical_modified is not None
             else event.arguments
         )
         if modify is not None:

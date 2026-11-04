@@ -3279,10 +3279,11 @@ def test_approval_tool_stages_use_arguments_that_ran(
 
 
 @pytest.mark.parametrize("inputs", ["expanded", "pooled"])
+@pytest.mark.parametrize("decision", ["approve", "modify"])
 def test_a_real_0_3_99_modified_approval_replays_executed_arguments(
-    inputs: str, caplog: pytest.LogCaptureFixture
+    inputs: str, decision: str, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """An archived 0.3.99 log, with its package header corrected, keeps proposal arguments in ToolEvent."""
+    """An archived 0.3.99 log keeps proposal arguments for both approval decisions."""
     from inspect_ai._sentinel import _replay
 
     path = Path(__file__).parent / "fixtures" / "approval_modified_0.3.99.json"
@@ -3296,7 +3297,10 @@ def test_a_real_0_3_99_modified_approval_replays_executed_arguments(
     assert approval.modified.arguments == {"x": 7, "y": 1}
     assert tool.arguments == {"x": 1, "y": 1}
     assert tool.result == "8"
-    events = sample.events
+    events = [
+        event.model_copy(update={"decision": decision}) if event is approval else event
+        for event in sample.events
+    ]
     pool: list[ChatMessage] = []
     if inputs == "pooled":
         events, pool = _replay._condensed(events, [])
