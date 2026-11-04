@@ -182,8 +182,9 @@ injects during its setup, before the agent starts.)
 
 The tools are not baked into images. On first use the host:
 
-1. Checks for a trustworthy existing install: the tools tree
-   (`/var/tmp/.da7be258e003d428`, `ai/util/_sandbox/_cli.py:31-33`) must satisfy
+1. Checks for a trustworthy existing install: the tools tree for this
+   release's tools version (`/var/tmp/.da7be258e003d428-v<version>`, from
+   `sandbox_tools_version.txt`; `ai/util/_sandbox/_cli.py:40-59`) must satisfy
    the [verified-directory contract](#host-verified-directories) for the tools
    user and hold the launcher as a regular file. The check runs as the tools
    user that the root-access decision selects; when root is usable the default
@@ -203,6 +204,22 @@ The tools are not baked into images. On first use the host:
    path another principal could write to (`sandbox.py:478-530`).
 5. Re-verifies the tree immediately before starting the server from it by
    absolute path (`sandbox.py:297-311`).
+
+A tree outlives the release that installed it: on the host for the `local`
+sandbox, in a reused container, or in an image with the tools preinstalled. A
+tree from another version may not speak this release's RPC protocol, so each
+version has its own tree and only that version ever adopts it. Trees from other
+versions, including the unversioned `/var/tmp/.da7be258e003d428` that earlier
+releases used, are never read, modified or removed, and a
+server running from one keeps running until its sample or container ends. On a
+host that runs the `local` sandbox, one tree per tools version used there stays
+in `/var/tmp` until the system's temporary-file cleanup removes it. Builds with
+local edits to the tools (`-dev` artifacts) use their release's tree. The server's
+state directory follows the tree unless `INSPECT_SANDBOX_TOOLS_DIR` overrides it.
+That variable is an internal setting, not a user setting, and must be unique per
+sandbox instance, as the `local` sandbox makes it. A fixed value shared across tools
+versions (set in an image, for example) would let a newer launcher reuse an older
+version's server, which per-version trees do not prevent.
 
 ### Pattern 1: host-driven agent
 
