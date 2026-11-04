@@ -92,7 +92,12 @@ from inspect_ai.model._generate_config import (
     active_generate_config_context_var,
 )
 from inspect_ai.model._message_ids import edited_message
-from inspect_ai.model._model import GenerateInput, Model, get_model
+from inspect_ai.model._model import (
+    GenerateInput,
+    Model,
+    get_model,
+    use_model_event_sink,
+)
 from inspect_ai.model._model_output import ChatCompletionChoice, ModelOutput
 from inspect_ai.model._openai_responses import (
     TOOL_SEARCH_NAME,
@@ -4568,6 +4573,96 @@ async def test_filter_generation_follows_checkpoint_rotated_before_return(
         async with anyio.create_task_group() as tg:
             tg.start_soon(rotate)
             await run_bridge(outputs, bridge=bridge, tools=declare("read_file"))
+        second = current_span_id()
+        proposal = bridge._tool_execution_grants[0].proposal
+        await call_host_tool(bridge)("host", "read_file", {"path": "a"})
+        await checkpoints.close()
+
+    generations = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    [event] = recorded.tool_events
+    assert first != second
+    assert generations[-1].span_id == first
+    assert event.call_message_id == generations[-1].output.message.id
+    assert proposal.span_id is None
+    assert event.span_id == second
+
+
+@pytest.mark.parametrize("where", ["request", "response"])
+@pytest.mark.parametrize("sink", ["on-pending", "on-start"])
+async def test_deferred_filter_generation_follows_rotating_checkpoint(
+    where: str, sink: str
+) -> None:
+    """Deferred event publication cannot pin a host call to an old checkpoint."""
+    bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)
+    checkpoints = SpanRotationScope(type="checkpoint")
+    started, resumed = anyio.Event(), anyio.Event()
+    call = ToolCall(id="filtered", function="read_file", arguments={"path": "a"})
+    outputs = [tool_calls_output(call)]
+    if where == "response":
+        outputs.insert(0, ModelOutput.from_content("mockllm/model", "First."))
+
+    async def custom_outputs(
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        output = outputs.pop(0)
+        if output.message.tool_calls:
+            started.set()
+            await resumed.wait()
+        return output
+
+    model = get_model("mockllm/model", custom_outputs=custom_outputs)
+
+    async def generate_with_sink(
+        model: Model,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        with use_model_event_sink(SINKS[sink]({"current"})):
+            return await model.generate(
+                input=input, tools=tools, tool_choice=tool_choice, config=config
+            )
+
+    async def response_filter(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput:
+        return await generate_with_sink(
+            model,
+            generate_input.input,
+            generate_input.tools,
+            generate_input.tool_choice,
+            generate_input.config,
+        )
+
+    async def rotate() -> None:
+        await started.wait()
+        await checkpoints.end_span()
+        await checkpoints.begin_span("checkpoint 2")
+        resumed.set()
+
+    if where == "request":
+        bridge.filter = generate_with_sink
+    else:
+        bridge.response_filter = response_filter
+
+    with recorded_transcript() as recorded:
+        await checkpoints.open("checkpoint 1")
+        first = current_span_id()
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(rotate)
+            await bridge_generate(
+                bridge,
+                model,
+                [ChatMessageUser(content="Read a")],
+                declare("read_file"),
+                None,
+                GenerateConfig(),
+                requested_model=None,
+            )
         second = current_span_id()
         proposal = bridge._tool_execution_grants[0].proposal
         await call_host_tool(bridge)("host", "read_file", {"path": "a"})
