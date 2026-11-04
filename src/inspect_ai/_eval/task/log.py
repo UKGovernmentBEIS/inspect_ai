@@ -620,6 +620,17 @@ class TaskLogger:
         self._seeded_pending = {_seeded_key(s.id, s.epoch) for s in seeded or []}
         _warn_if_clock_behind_prior(seeded or [], prior)
 
+    async def prior_sample_ids(
+        self, prior: "str | list[EvalSample]"
+    ) -> list[str | int]:
+        """The sample ids of every record in the prior attempt's log.
+
+        Read from the recorder's prior source, which is loaded once per
+        attempt and shared with seeding.
+        """
+        source = await self.recorder.seed_source(self.eval, prior)
+        return [id for id, _ in source.keys]
+
     async def seed_added_samples(
         self, prior: "str | list[EvalSample]", keep: set[tuple[str | int, int]]
     ) -> None:

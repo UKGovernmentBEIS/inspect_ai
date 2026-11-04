@@ -114,10 +114,16 @@ A `SampleSource` is passed as the **`dataset` argument to `Task`** (just as a
   dispatches between the two. Each injected sample runs for the task's
   configured `epochs`, like the seed.
 - **Ids** — each admission of a sample without an id runs as a copy with a
-  fresh unique string id (`shortuuid`), not the next integer; the source's
-  own `Sample` keeps `id=None`, so adding the same object twice runs two
-  samples, and returning it on a retry adds it anonymously again. An id from one attempt therefore never turns up in
-  another and retry reuse and checkpoint resume (both keyed on
+  generated string id, not the next integer: `dyn-<token>-<counter>`, where
+  the token is the attempt's start time in whole seconds in base 36, raised
+  above the largest token among the `dyn-` ids of the prior log the attempt
+  is seeded from, and the counter is the attempt's admission count,
+  zero-padded so ids sort in admission order (to 9999). Tokens increase
+  strictly across attempts, even a retry in the same second, so a retry's
+  ids sort after the prior attempt's. The source's own `Sample` keeps
+  `id=None`, so adding the same object twice runs two samples, and
+  returning it on a retry adds it anonymously again. An id from one attempt
+  therefore never turns up in another and retry reuse and checkpoint resume (both keyed on
   `(id, epoch)`) cannot hand one sample another's prior result. Seed samples
   keep their position-based integer ids. A duplicate explicit id is a hard
   error. Ids are compared by their `str()` form, matching `ensure_unique_ids`
@@ -190,7 +196,7 @@ dropping samples.
   `EvalSampleSource` lookup, and the reuse path re-fires
   `sample_feed.sample_complete` for each reused sample so a completion-driven
   source regenerates its follow-ups. Only follow-ups with explicit ids are
-  reused where they match; one without an id gets a fresh unique id and runs
+  reused where they match; one without an id gets a new generated id and runs
   again (see **Ids**). A source that instead holds internal
   `next_samples()` state resumes mid-state on retry — it must be resumable
   (or derive its follow-ups from `sample_complete`) for retries to

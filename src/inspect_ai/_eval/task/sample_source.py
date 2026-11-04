@@ -91,8 +91,8 @@ class SampleSource:
         On a task retry this is also called for samples reused from the prior
         attempt, so a completion-driven source regenerates its follow-ups. A
         returned sample with an explicit id that matches the prior attempt is
-        reused rather than re-run; one without an id gets a new unique id and
-        runs again.
+        reused rather than re-run; one without an id gets a new generated id
+        and runs again.
         """
         return None
 
@@ -273,9 +273,9 @@ def enqueue_sample(
     The samples run in the current task as soon as there is free capacity
     (bounded by ``max_samples``), each for the task's configured number of
     epochs. Each time a sample without an ``id`` is added, it runs under a
-    fresh unique string id (the ``Sample`` you pass is not changed), so on a
-    task retry it runs again; only samples with explicit ids are reused from
-    the prior attempt.
+    new generated id such as ``dyn-t4ab9c-0003`` (the ``Sample`` you pass is
+    not changed), so on a task retry it runs again; only samples with
+    explicit ids are reused from the prior attempt.
 
     Pass ``epoch`` to run each sample once, as that epoch, instead, so the
     same id can be run repeatedly. Samples added with ``epoch`` must have an

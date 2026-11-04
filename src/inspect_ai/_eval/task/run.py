@@ -1,4 +1,5 @@
 import contextlib
+import re
 import sys
 import time
 from contextvars import Token
@@ -11,6 +12,7 @@ from typing import (
     Any,
     Awaitable,
     Callable,
+    Iterable,
     Iterator,
     Literal,
     NamedTuple,
@@ -20,7 +22,6 @@ from typing import (
 
 import anyio
 from anyio.abc import TaskGroup
-from shortuuid import uuid
 from typing_extensions import Unpack
 
 from inspect_ai._control.eval_state import (
@@ -357,6 +358,45 @@ SampleTerminalOutcome = Literal["completed", "errored", "cancelled"]
 
 # One sample run's scores, keyed by scorer name.
 ScoresByScorer: TypeAlias = dict[str, SampleScore]
+
+# A generated id for a dynamic sample added without one:
+# dyn-<attempt token>-<admission counter> (see `dynamic_id_token`).
+DYNAMIC_ID_PATTERN = re.compile(r"dyn-([0-9a-z]+)-([0-9]+)")
+
+
+def dynamic_sample_id(token: str, counter: int) -> str:
+    """The generated id of an attempt's ``counter``-th anonymous dynamic sample.
+
+    The counter is zero-padded so ids sort in admission order as strings
+    (as ``sort_samples`` and the viewer compare them) up to 9999 admissions;
+    later ones stay unique but sort out of order.
+    """
+    return f"dyn-{token}-{counter:04d}"
+
+
+def dynamic_id_token(prior_ids: Iterable[int | str], now: float) -> str:
+    """The attempt's token for generated sample ids, in base 36.
+
+    It is ``now`` in whole Unix seconds, or one more than the largest token
+    among the prior attempt's generated ids (``prior_ids``) when that is not
+    smaller. Tokens therefore increase strictly across the attempts of a
+    task, even a retry within the same second: a generated id never repeats
+    in a later attempt, so retry reuse and checkpoint resume (keyed on
+    ``(id, epoch)``) never match it, and a retry's ids sort after the prior
+    attempt's.
+    """
+    token = int(now)
+    for id in prior_ids:
+        match = DYNAMIC_ID_PATTERN.fullmatch(id) if isinstance(id, str) else None
+        if match is not None:
+            token = max(token, int(match.group(1), 36) + 1)
+    digits = ""
+    while True:
+        token, digit = divmod(token, 36)
+        digits = "0123456789abcdefghijklmnopqrstuvwxyz"[digit] + digits
+        if token == 0:
+            return digits
+
 
 # Global sample index: position in the seed store when < store_len, else an
 # injected sample (see `get_sample`). A reading aid only — mypy treats it as
@@ -1058,6 +1098,16 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
         # file itself is closed by that discard on either path.
         if task_retry_abandoned(logger.eval.task_id):
             raise TaskRetryAbandonedError()
+
+    dynamic_token = dynamic_id_token(
+        await logger.prior_sample_ids(sample_source.seed.source)
+        if sample_feed is not None
+        and logger.prior_seeded
+        and sample_source is not None
+        and sample_source.seed is not None
+        else [],
+        time.time(),
+    )
 
     # this attempt's own eval checkpoints dir (None when checkpointing is
     # off or vetoed): the startup copy's destination, and where a retried
@@ -1800,22 +1850,34 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         sample: Sample
                         epochs: list[int]
 
+                    dynamic_count = 0
+
                     def reserve_runs(sample: Sample, epoch: int | None) -> ReservedRuns:
                         """Assign an id if needed and reserve the epochs to run.
 
                         A sample added without an id runs as a copy with a
-                        unique string id, not the next integer. The id stays
-                        local to this attempt: it is never written to the
-                        source's own object, so a source that returns the same
-                        object on a retry adds it without an id again. An id
-                        from one attempt then never turns up in another, so a
-                        task retry or checkpoint resume (both keyed on
+                        generated id (``dynamic_sample_id``: the attempt's
+                        token and an admission counter), not the next
+                        integer. The id stays local to this attempt: it is
+                        never written to the source's own object, so a source
+                        that returns the same object on a retry adds it
+                        without an id again. The token is new each attempt,
+                        so an id from one attempt never turns up in another,
+                        and a task retry or checkpoint resume (both keyed on
                         ``(id, epoch)``) cannot reuse another sample's prior
                         result. Only samples with explicit ids are reused
                         across attempts.
                         """
+                        nonlocal dynamic_count
                         if sample.id is None:
-                            sample = sample.model_copy(update={"id": uuid()})
+                            dynamic_count += 1
+                            sample = sample.model_copy(
+                                update={
+                                    "id": dynamic_sample_id(
+                                        dynamic_token, dynamic_count
+                                    )
+                                }
+                            )
                         key = str(sample.id)
                         planned = (
                             list(range(1, epochs + 1)) if epoch is None else [epoch]
