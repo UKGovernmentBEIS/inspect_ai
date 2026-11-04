@@ -79,8 +79,11 @@ def test_sample_source_runs_generations_in_one_task() -> None:
     assert log.status == "success"
     assert _sample_inputs(log) == ["s0", "s1", "s2"]
     assert sorted(source.samples_seen) == ["s0", "s1", "s2"]
-    # injected samples continue the seed's auto-id numbering
-    assert sorted(sample.id for sample in (log.samples or [])) == [1, 2, 3]
+    # the seed keeps its position id; injected samples get unique string ids
+    ids = {str(sample.input): sample.id for sample in (log.samples or [])}
+    assert ids["s0"] == 1
+    added = [ids["s1"], ids["s2"]]
+    assert all(isinstance(id, str) for id in added) and len(set(added)) == 2
 
 
 def test_sample_source_seed_only_when_next_is_none() -> None:
@@ -214,7 +217,8 @@ def test_sample_source_epochs_apply_to_injected_samples() -> None:
 
 
 def test_sample_source_explicit_and_auto_ids() -> None:
-    # explicit injected ids are honored; auto-ids skip ids already in use
+    # explicit injected ids are honored; a sample without an id gets a
+    # unique string id, never the next integer
     class _Ids(SampleSource):
         def __init__(self) -> None:
             self._produced = False
@@ -241,7 +245,7 @@ def test_sample_source_explicit_and_auto_ids() -> None:
     ids = {str(sample.input): sample.id for sample in (log.samples or [])}
     assert ids["seed"] == 1
     assert ids["explicit"] == 2
-    assert ids["auto"] == 3  # auto-id skipped the explicit 2
+    assert isinstance(ids["auto"], str)
 
 
 def test_sample_source_duplicate_id_errors() -> None:
@@ -1552,6 +1556,89 @@ def test_sample_source_task_retry_reuses_completed_followup() -> None:
     # the retry reused the completed follow-up rather than re-running it
     assert followup_runs["n"] == 1
     assert flaky_runs["n"] == 2
+
+
+def test_sample_source_task_retry_never_reuses_anonymous_followups() -> None:
+    # follow-ups without ids get unique ids, so a retry can never reuse one
+    # follow-up's prior record for another. Here the follow-ups are admitted
+    # in a different order in each attempt: attempt 1 admits seed b's
+    # follow-up before seed a's, and the retry's reuse sweep re-fires a
+    # first. With integer ids allocated in admission order, follow-a took
+    # follow-b's errored record (and its error history) and follow-b
+    # reused follow-a's clean record, so the log held follow-a twice.
+    runs: list[str] = []
+    events: dict[str, anyio.Event] = {}
+
+    def event(name: str) -> anyio.Event:
+        return events.setdefault(name, anyio.Event())
+
+    @solver
+    def swap_followups() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            name = state.input_text
+            runs.append(name)
+            if runs.count(name) == 1:
+                with anyio.fail_after(30):
+                    if name == "a":
+                        # admit b's follow-up first
+                        await event("follow-b started").wait()
+                    elif name == "follow-b":
+                        event("follow-b started").set()
+                        # fail the attempt once follow-a is logged
+                        await event("follow-a logged").wait()
+                        raise RuntimeError("transient failure")
+            return state
+
+        return solve
+
+    class _Src(SampleSource):
+        def initial_samples(self) -> list[Sample]:
+            return [Sample(input="a", target="ok"), Sample(input="b", target="ok")]
+
+        async def sample_complete(self, sample: EvalSample) -> list[Sample] | None:
+            name = str(sample.input)
+            if name == "follow-a":
+                event("follow-a logged").set()
+            if name in ("a", "b"):
+                return [Sample(input=f"follow-{name}", target="ok")]
+            return None
+
+    @task
+    def anonymous_followups_task() -> Task:
+        return Task(
+            dataset=_Src(),
+            solver=[swap_followups()],
+            name="anonymous_followups_task",
+        )
+
+    with tempfile.TemporaryDirectory() as d:
+        log_dir = str(Path(d) / "logs")
+        Path(log_dir).mkdir()
+        ok, logs = eval_set(
+            tasks=[anonymous_followups_task()],
+            log_dir=log_dir,
+            model="mockllm/model",
+            retry_attempts=2,
+            retry_on_error=0,  # no sample-level retry -> task-level retry
+            max_samples=4,  # a and follow-b block while follow-a runs
+        )
+        assert ok, "eval-set did not succeed after task retry"
+        log = read_eval_log(logs[0].location)
+
+    samples = log.samples or []
+    assert _sample_inputs(log) == ["a", "b", "follow-a", "follow-b"]
+    assert all(sample.error is None for sample in samples)
+    # the seed keeps its position ids; follow-ups get unique string ids
+    ids = {str(sample.input): sample.id for sample in samples}
+    assert ids["a"] == 1 and ids["b"] == 2
+    assert isinstance(ids["follow-a"], str) and isinstance(ids["follow-b"], str)
+    # no record of follow-b's errored run went to follow-a
+    follow_a = next(sample for sample in samples if sample.input == "follow-a")
+    assert not follow_a.error_retries
+    # the seeds were reused; both follow-ups ran fresh in the retry
+    assert sorted(runs) == sorted(
+        ["a", "b", "follow-a", "follow-a", "follow-b", "follow-b"]
+    )
 
 
 def test_sample_source_task_retry_drops_prior_records_outside_the_realized_plan() -> (

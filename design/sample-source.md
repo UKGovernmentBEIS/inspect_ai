@@ -113,10 +113,13 @@ A `SampleSource` is passed as the **`dataset` argument to `Task`** (just as a
   list indexed after the (possibly disk-paged) seed store; `get_sample(index)`
   dispatches between the two. Each injected sample runs for the task's
   configured `epochs`, like the seed.
-- **Ids** — injected samples without ids get auto-ids continuing the seed's
-  1-based numbering, skipping ids already in use; a duplicate explicit id is a
-  hard error. Ids are compared by their `str()` form, matching
-  `ensure_unique_ids` (log member names and score grouping key on it).
+- **Ids** — injected samples without ids get a unique string id
+  (`shortuuid`), not the next integer, so an id from one attempt never turns
+  up in another and retry reuse and checkpoint resume (both keyed on
+  `(id, epoch)`) cannot hand one sample another's prior result. Seed samples
+  keep their position-based integer ids. A duplicate explicit id is a hard
+  error. Ids are compared by their `str()` form, matching `ensure_unique_ids`
+  (log member names and score grouping key on it).
 - **Explicit epochs** — `enqueue_sample(samples, epoch=N)` adds each sample
   as the single run `(id, N)` in its own slot, so one id can run repeatedly
   under its real id. Uniqueness is on `(id, epoch)`: a seed sample or one
@@ -183,8 +186,9 @@ dropping samples.
   around the same `Task`); completed samples are reused via the normal
   `EvalSampleSource` lookup, and the reuse path re-fires
   `sample_feed.sample_complete` for each reused sample so a completion-driven
-  source regenerates its follow-ups (which are then themselves reused where
-  regenerated ids match). A source that instead holds internal
+  source regenerates its follow-ups. Only follow-ups with explicit ids are
+  reused where they match; one without an id gets a fresh unique id and runs
+  again (see **Ids**). A source that instead holds internal
   `next_samples()` state resumes mid-state on retry — it must be resumable
   (or derive its follow-ups from `sample_complete`) for retries to
   reconstruct the run; this is the same determinism contract as `TaskSource`
@@ -261,7 +265,8 @@ dropping samples.
 
 ## Tests
 
-`tests/test_sample_source.py` — generations under one task/log with auto-ids;
+`tests/test_sample_source.py` — generations under one task/log with unique
+ids for added samples;
 seed-only when `next_samples()` is `None`; `sample_complete` returning
 follow-ups chains generations; `from_samples` (callbacks and seed-only); empty
 seed; epochs applied to injected samples; explicit + auto id assignment and

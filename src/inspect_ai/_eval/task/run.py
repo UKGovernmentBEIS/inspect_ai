@@ -20,6 +20,7 @@ from typing import (
 
 import anyio
 from anyio.abc import TaskGroup
+from shortuuid import uuid
 from typing_extensions import Unpack
 
 from inspect_ai._control.eval_state import (
@@ -1768,15 +1769,13 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         else None
                     )
 
-                    # injected samples without ids continue the seed's 1-based
-                    # numbering, skipping ids already in use; ids are compared
-                    # by their str() form (matching ensure_unique_ids, since
-                    # log member names and score grouping key on it). the seed
-                    # ids come from the complete pre-slice seed set, so a
-                    # filtered-out id cannot be reclaimed by a dynamic sample.
+                    # ids are compared by their str() form (matching
+                    # ensure_unique_ids, since log member names and score
+                    # grouping key on it). the seed ids come from the complete
+                    # pre-slice seed set, so a filtered-out id cannot be
+                    # reclaimed by a dynamic sample.
                     # uniqueness is on (id, epoch): a sample added without an
                     # epoch reserves (id, 1..epochs), one with an epoch (id, epoch)
-                    seen_ids = set(seed_ids)
                     reserved_runs = {
                         SampleKey(id, epoch)
                         for id in seed_ids
@@ -1789,7 +1788,6 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         if remaining is not None
                         else set()
                     )
-                    auto_id = store_len
 
                     class AddedSamples(NamedTuple):
                         samples: list[Sample]
@@ -1799,13 +1797,17 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         explicit_epoch_runs: list[SampleIdEpoch]
 
                     def reserve_runs(sample: Sample, epoch: int | None) -> list[int]:
-                        """Assign an auto-id if needed and reserve the epochs to run."""
-                        nonlocal auto_id
+                        """Assign an id if needed and reserve the epochs to run.
+
+                        A sample added without an id gets a unique string id,
+                        not the next integer: an id from one attempt then never
+                        turns up in another, so a task retry or checkpoint
+                        resume (both keyed on ``(id, epoch)``) cannot reuse
+                        another sample's prior result. Only samples with
+                        explicit ids are reused across attempts.
+                        """
                         if sample.id is None:
-                            auto_id += 1
-                            while str(auto_id) in seen_ids:
-                                auto_id += 1
-                            sample.id = auto_id
+                            sample.id = uuid()
                         key = str(sample.id)
                         planned = (
                             list(range(1, epochs + 1)) if epoch is None else [epoch]
@@ -1819,7 +1821,6 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                                 "sample id is added once per epoch."
                             )
                         reserved_runs.update(runs)
-                        seen_ids.add(key)
                         return planned
 
                     def within_limit(sample: Sample) -> bool:

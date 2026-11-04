@@ -89,9 +89,10 @@ class SampleSource:
         :meth:`sample_abandoned` instead.
 
         On a task retry this is also called for samples reused from the prior
-        attempt, so a completion-driven source regenerates its follow-ups
-        (returned samples whose ids match the prior attempt are themselves
-        reused rather than re-run).
+        attempt, so a completion-driven source regenerates its follow-ups. A
+        returned sample with an explicit id that matches the prior attempt is
+        reused rather than re-run; one without an id gets a new unique id and
+        runs again.
         """
         return None
 
@@ -271,7 +272,9 @@ def enqueue_sample(
 
     The samples run in the current task as soon as there is free capacity
     (bounded by ``max_samples``), each for the task's configured number of
-    epochs. Samples without an ``id`` are assigned one automatically.
+    epochs. A sample without an ``id`` is given a unique string id, so on a
+    task retry it runs again; only samples with explicit ids are reused from
+    the prior attempt.
 
     Pass ``epoch`` to run each sample once, as that epoch, instead, so the
     same id can be run repeatedly. Each ``(id, epoch)`` may be added once (a

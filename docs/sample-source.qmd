@@ -54,7 +54,7 @@ eval(Task(dataset=MySource(), solver=my_solver(), scorer=my_scorer()),
 
 `initial_samples()` is synchronous and returns the seed, so it must return immediately rather than `await`. It may be empty, in which case the task starts by calling `next_samples()`. `next_samples()` is async, called whenever no samples remain in flight, and may block (for example, awaiting external input); return `None` to end the task.
 
-All generated samples run within the task (one log file and one set of results), and each runs for the task's configured number of [epochs](metrics.qmd#reducing-epochs). Samples without an `id` are assigned one automatically, continuing the seed's numbering.
+All generated samples run within the task (one log file and one set of results), and each runs for the task's configured number of [epochs](metrics.qmd#reducing-epochs). Seed samples without an `id` are numbered by position, as in any dataset. Generated samples without an `id` get a unique string id (see [Retries](#retries)).
 
 ## Returning follow-up samples
 
@@ -172,7 +172,11 @@ A *fractional* `fail_on_error` threshold (e.g. `0.5`) is evaluated at the end of
 
 ## Retries
 
-On a task retry (`eval_set` / task retry attempts), completed samples from the prior attempt are reused, and the source's `sample_complete` is called for each reused sample — so a source that derives its follow-ups from `sample_complete` (the patterns above) regenerates them naturally, and regenerated samples whose ids (and explicit epochs) match the prior attempt are themselves reused rather than re-run. Note that the retry re-drives the *same source instance*: a source that instead holds internal `next_samples()` state resumes where it left off, so such sources should be written to be resumable if used with retries.
+On a task retry (`eval_set` / task retry attempts), completed samples from the prior attempt are reused, and the source's `sample_complete` is called for each reused sample — so a source that derives its follow-ups from `sample_complete` (the patterns above) regenerates them naturally.
+
+A generated sample is reused on retry only when it has an explicit `id` (and explicit epoch, if any) that matches the prior attempt. A generated sample without an `id` gets a new unique id in each attempt, so it always runs again: give follow-ups stable ids if their results should be reused.
+
+Note that the retry re-drives the *same source instance*: a source that instead holds internal `next_samples()` state resumes where it left off, so such sources should be written to be resumable if used with retries.
 
 ## Logs
 
