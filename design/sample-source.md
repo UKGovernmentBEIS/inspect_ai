@@ -128,7 +128,11 @@ A `SampleSource` is passed as the **`dataset` argument to `Task`** (just as a
   zero-padded to 4 digits, and skips any id an explicit sample already
   holds in any epoch (the seed set, earlier explicit admissions). An
   explicit sample added under an id this attempt generated is a duplicate,
-  whatever its epoch. Generated ids sort in admission order up to 9,999
+  whatever its epoch. An explicit dynamic id of the generated shape with a
+  token above this attempt's is refused (`is_later_dynamic_id`): only a later
+  attempt generates such an id, and its prior record would otherwise be
+  reused for that attempt's anonymous sample. Seed ids need no such check,
+  since every attempt reserves the whole seed set. Generated ids sort in admission order up to 9,999
   admissions per attempt, and a retry's ids sort after the prior attempt's;
   beyond that count, and past a change of token width, they stay unique but
   no longer sort in order (accepted: Ransom, 2026-11-04). The source's own

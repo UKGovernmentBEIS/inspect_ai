@@ -2066,6 +2066,56 @@ def test_sample_source_explicit_sample_cannot_reuse_generated_id(
     assert f"duplicate id '{generated}' for epoch 2" in logs[0].error.message
 
 
+def test_sample_source_refuses_explicit_id_of_a_later_attempt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # an explicit id shaped like the next attempt's first generated id would
+    # hand that attempt's anonymous sample this sample's result, so it fails
+    # the task when added
+    _freeze_dynamic_clock(monkeypatch)
+    later = "dyn-tro8w1-0001"
+
+    class _Src(SampleSource):
+        def initial_samples(self) -> list[Sample]:
+            return [Sample(id="seed", input="seed", target="ok")]
+
+        async def sample_complete(self, sample: EvalSample) -> list[Sample] | None:
+            if sample.id == "seed":
+                return [Sample(id=later, input="explicit-old", target="ok")]
+            return None
+
+    logs = eval(
+        Task(dataset=_Src(), solver=[generate()]),
+        model="mockllm/model",
+        display="none",
+    )
+    assert logs[0].status == "error"
+    assert logs[0].error is not None
+    assert f"id '{later}', which has the form of an id generated" in (
+        logs[0].error.message
+    )
+
+
+def test_is_later_dynamic_id() -> None:
+    from inspect_ai._eval.task.run import is_later_dynamic_id
+
+    later = ["dyn-tro8w1-0001", "dyn-tro8w00-1", "dyn-" + "z" * 5000 + "-1"]
+    not_later: list[int | str | None] = [
+        "dyn-tro8w0-0002",  # this attempt's
+        "dyn-tro8vz-0001",  # an earlier attempt's
+        "dyn-0tro8w0-0001",
+        "dyn-TRO8W1-0001",
+        "dyn-tro8w1-x",
+        "dyn--0001",
+        "dyn-tro8w1",
+        "tro8w1-0001",
+        7,
+        None,
+    ]
+    assert all(is_later_dynamic_id(id, DYNAMIC_TOKEN) for id in later)
+    assert not any(is_later_dynamic_id(id, DYNAMIC_TOKEN) for id in not_later)
+
+
 @pytest.mark.parametrize("route", ["next_samples", "sample_complete", "enqueue_sample"])
 def test_sample_source_generated_id_not_written_to_source_sample(route: str) -> None:
     # every admission path runs an anonymous sample under a copy carrying
