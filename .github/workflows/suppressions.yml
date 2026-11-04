@@ -37,7 +37,7 @@ jobs:
       # and saving its near-empty cache would take the key build.yml's 3.11
       # jobs restore.
       - name: Install uv
-        uses: meridianlabs-ai/actions/setup-uv@f4ae19412da5597fc283e3ef62db1a67384ae609 # main, 2026-11-02
+        uses: meridianlabs-ai/actions/setup-uv@62bc8360498822ef3eab7c9584d1bd523de3febf # main, 2026-11-02
         with:
           python-version: "3.11"
           actions-cache: none
