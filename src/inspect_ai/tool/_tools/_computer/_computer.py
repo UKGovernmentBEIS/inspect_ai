@@ -161,7 +161,7 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
           text (str | None): The text to type or the key to press. Required when action is "key" or "type".
           repeat (int | None): The number of times to press the key (1-100). Used only by `action=key`. Defaults to 1.
           press_enter (bool): If True and action is "type", press Return after typing. Defaults to False.
-          clear_before_typing (bool): If True and action is "type", triple-click at `coordinate` to select the existing text so the typed text replaces it. Requires `coordinate`. In multi-line text only the clicked line, sentence or paragraph is selected, depending on the application. Defaults to False.
+          clear_before_typing (bool): If True and action is "type", triple-click at `coordinate` to select the existing text so the typed text replaces it. If `text` is empty, the selected text is deleted. Requires `coordinate`. In multi-line text only the clicked line, sentence or paragraph is selected, depending on the application. Defaults to False.
           actions (list[dict] | None): A list of action dicts to execute sequentially (OpenAI multi-action format).
 
         Returns:
@@ -234,6 +234,9 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
                             "coordinate must be provided when clear_before_typing is True"
                         )
                     await common.triple_click(coordinate, timeout=timeout)
+                    # typing "" sends no keystrokes, so delete the selection
+                    if text == "":
+                        await common.press_key("BackSpace", timeout=timeout)
                 elif coordinate is not None:
                     await common.left_click(coordinate, timeout=timeout)
                 result = await common.type(not_none(text, "text"), timeout=timeout)

@@ -334,6 +334,32 @@ async def test_computer_type_clear_before_typing(
     assert sent_cmds[0][1:] == ["--coordinate", "3", "4"]
 
 
+@pytest.mark.parametrize(
+    "clear_before_typing,expected",
+    [
+        (False, [["left_click", "--coordinate", "3", "4"], ["type", "--text="]]),
+        (
+            True,
+            [
+                ["triple_click", "--coordinate", "3", "4"],
+                ["key", "--text", "BackSpace"],
+                ["type", "--text="],
+            ],
+        ),
+    ],
+)
+async def test_computer_type_clear_before_typing_empty_text(
+    sent_cmds: list[list[str]], clear_before_typing: bool, expected: list[list[str]]
+) -> None:
+    await computer()(
+        action="type",
+        text="",
+        coordinate=[3, 4],
+        clear_before_typing=clear_before_typing,
+    )
+    assert sent_cmds == expected
+
+
 async def test_computer_actions_list_clear_before_typing(
     sent_cmds: list[list[str]],
 ) -> None:
