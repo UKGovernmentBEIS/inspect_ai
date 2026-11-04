@@ -5,8 +5,10 @@ The read runners live in ``_sample_read``.
 
 from __future__ import annotations
 
+import io
 import json as json_lib
 import shlex
+import sys
 import time
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Literal, NamedTuple, cast
@@ -1407,7 +1409,8 @@ def _read_message_file(path: str) -> str:
     """
     try:
         if path == "-":
-            return click.get_text_stream("stdin", encoding="utf-8").read()
+            stdin = io.BytesIO(sys.stdin.buffer.read())
+            return io.TextIOWrapper(stdin, encoding="utf-8").read()
         with file(local_path(path), "r", encoding="utf-8") as f:
             return f.read()
     except Exception as ex:

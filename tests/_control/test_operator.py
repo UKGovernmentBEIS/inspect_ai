@@ -689,6 +689,16 @@ def test_cli_message_file_takes_an_s3_url(
     assert group.members["worker-1"].calls == [("message", "from s3", False, False)]
 
 
+def test_cli_message_stdin_is_utf8_with_universal_newlines(
+    server: _Server, sample: _FakeSample
+) -> None:
+    group = _group("swarm", "worker-1")
+    sample.operator_groups["swarm"] = group
+    result = _message_from("-", input="héllo\r\nwörld\r".encode())
+    assert result.exit_code == 0, result.output
+    assert group.members["worker-1"].calls[-1][:2] == ("message", "héllo\nwörld\n")
+
+
 _FILE_READ_FAILURES: dict[str, tuple[str, bytes | None, Exception | None]] = {
     # case: (--file value, stdin, error the reader raises instead of reading)
     "stdin not UTF-8": ("-", b"\xff", None),
