@@ -183,8 +183,9 @@ class _ResultChecks:
     conversation before the bridge ran, and are not checked again, as a native
     agent handed a conversation does not check its results again
     (`inherited_result_keys`). Each is recorded under its conservative key,
-    taken when the bridge is constructed, so a result reported with other
-    content (including one changed in place since) is checked.
+    taken when the bridge is first constructed and kept in its checkpoint, so
+    a result reported with other content (including one changed in place
+    since, before or after a resume) is checked.
 
     Held by its bridge, since a failure's traceback references the bridge.
     """
@@ -499,8 +500,9 @@ def _content_key(result: ChatMessageTool) -> str:
 def inherited_result_keys(input: Sequence[ChatMessage]) -> frozenset[str]:
     """The keys of the results a bridge starts with, which it does not check.
 
-    Taken when the bridge is constructed, from the messages as they are then:
-    a result later changed in place has a different key and is checked.
+    Taken when the bridge is first constructed, from the messages as they are
+    then, and restored from its checkpoint on resume: a result later changed
+    in place has a different key and is checked.
     """
     return frozenset(
         _unissued(message, found)[1] for _, message, found in _answers(input)

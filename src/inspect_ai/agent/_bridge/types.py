@@ -169,7 +169,17 @@ class AgentBridge:
         # deferred: `_sentinel` imports this module
         from ._sentinel import inherited_result_keys
 
-        self._inherited_results = inherited_result_keys(self._compaction_prefix)
+        # a checkpoint written without the keys exempts nothing
+        self._inherited_results = frozenset(
+            self._cp.track(
+                "bridge_inherited_results",
+                lambda: sorted(self._inherited_results),
+                sorted(inherited_result_keys(state.messages))
+                if self._cp.attempt == "initial"
+                else [],
+                value_type=list[str],
+            )
+        )
 
     state: AgentState
     """State updated from messages traveling over the bridge."""

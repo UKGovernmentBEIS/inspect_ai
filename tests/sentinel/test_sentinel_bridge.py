@@ -3,17 +3,26 @@ from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from copy import deepcopy
 from dataclasses import replace
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 from unittest.mock import AsyncMock, patch
 
 import anyio
 import pytest
+from checkpoint.test_checkpointer import (
+    _CountingCheckpointer,
+    _fake_hydration,
+    _patch_sample_runtime,
+)
+from pydantic import TypeAdapter
+from pydantic_core import to_json
 from test_helpers.checkpoint import RecordingCheckpointer
 
 from inspect_ai import Task, eval
 from inspect_ai._sentinel._config import resolve_sentinel_root, resolve_sentinel_spec
 from inspect_ai._sentinel._context import SentinelFailure, init_sentinel
 from inspect_ai._sentinel._scope import sentinel_solving
+from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.content import (
     Content,
     ContentImage,
@@ -62,6 +71,10 @@ from inspect_ai.tool import (
 from inspect_ai.tool._tool import ToolParsingError
 from inspect_ai.tool._tool_call import default_tool_call_viewer
 from inspect_ai.tool._tool_params import ToolParam, ToolParams
+from inspect_ai.util._checkpoint import Manual
+from inspect_ai.util._checkpoint._layout.host_context import read as read_host_context
+from inspect_ai.util._checkpoint.checkpointer import Checkpointer, ResumeCheckpoint
+from inspect_ai.util._checkpoint.config import ResolvedCheckpointConfig
 from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._span import span
 
@@ -2478,7 +2491,7 @@ def started_with(
     sandbox: bool,
     model: Model,
     state: AgentState,
-    checkpointer: RecordingCheckpointer | None = None,
+    checkpointer: Checkpointer | None = None,
 ) -> AgentBridge:
     return (
         SandboxAgentBridge(
@@ -2543,29 +2556,42 @@ async def test_a_result_the_bridge_started_with_changed_in_place_is_checked(
     ] == [(READ, as_handed(dialect, "secret"))]
 
 
+def conversation(result: str) -> list[ChatMessage]:
+    return [
+        ChatMessageUser(content=TASK),
+        ChatMessageAssistant(content="Reading.", tool_calls=[READ]),
+        ChatMessageTool(content=result, tool_call_id=READ.id, function=READ.function),
+    ]
+
+
+def saved(checkpointer: RecordingCheckpointer, *keys: str) -> dict[str, object]:
+    """Tracked values as a checkpoint saves and resume restores them."""
+    types: dict[str, Any] = {
+        "bridge_compaction_prefix": list[ChatMessage],
+        "bridge_inherited_results": list[str],
+    }
+    return {
+        key: TypeAdapter(types[key]).validate_json(
+            to_json(checkpointer.callbacks[key]())
+        )
+        for key in keys
+    }
+
+
 @pytest.mark.parametrize("sandbox", [False, True])
 async def test_a_resumed_bridge_inherits_the_results_it_first_started_with(
     sandbox: bool,
 ) -> None:
-    def conversation(result: str) -> list[ChatMessage]:
-        return [
-            ChatMessageUser(content=TASK),
-            ChatMessageAssistant(content="Reading.", tool_calls=[READ]),
-            ChatMessageTool(
-                content=result, tool_call_id=READ.id, function=READ.function
-            ),
-        ]
-
     seen: Steps = []
     model = Scripted(calls_output(), calls_output())
-    restored = conversation("safe")
+    first = RecordingCheckpointer()
+    started_with(sandbox, model.model, AgentState(messages=conversation("safe")), first)
     checkpointer = RecordingCheckpointer(
-        restored={"bridge_compaction_prefix": restored}
+        restored=saved(first, "bridge_compaction_prefix", "bridge_inherited_results")
     )
     bridge = started_with(
         sandbox, model.model, AgentState(messages=conversation("secret")), checkpointer
     )
-    restored[2].content = "changed after resume"
 
     with active([bridge_recording(seen)]):
         await dialect_history_request("completions", bridge, READ, "safe")
@@ -2576,6 +2602,94 @@ async def test_a_resumed_bridge_inherits_the_results_it_first_started_with(
         for step in seen
         if isinstance(step, AfterToolCall)
     ] == [(READ, "secret")]
+
+
+@pytest.mark.parametrize("sandbox", [False, True])
+async def test_a_bridge_resumed_without_its_inherited_results_checks_every_result(
+    sandbox: bool,
+) -> None:
+    seen: Steps = []
+    model = Scripted(calls_output())
+    first = RecordingCheckpointer()
+    started_with(sandbox, model.model, AgentState(messages=conversation("safe")), first)
+    checkpointer = RecordingCheckpointer(
+        restored=saved(first, "bridge_compaction_prefix")
+    )
+    bridge = started_with(
+        sandbox, model.model, AgentState(messages=conversation("safe")), checkpointer
+    )
+
+    with active([bridge_recording(seen)]):
+        await dialect_history_request("completions", bridge, READ, "safe")
+
+    assert [
+        (step.call, step.result.text)
+        for step in seen
+        if isinstance(step, AfterToolCall)
+    ] == [(READ, "safe")]
+
+
+def real_checkpointer(
+    root: Path, agent_state: dict[str, Any] | None = None
+) -> _CountingCheckpointer:
+    """The production checkpointer with restic stubbed; resuming `agent_state` if given."""
+    context = root / "context"
+    context.mkdir(exist_ok=True)
+    hydration = _fake_hydration(str(root), str(context))
+    hydration.host.agent_state = agent_state
+    return _CountingCheckpointer(
+        config=ResolvedCheckpointConfig(trigger=Manual()),
+        hydration=hydration,
+        resume_checkpoint=None
+        if agent_state is None
+        else ResumeCheckpoint(attempt="resume"),
+        reset_transcript_store=agent_state is None,
+    )
+
+
+@pytest.mark.parametrize("sandbox", [False, True])
+@pytest.mark.parametrize("dialect", DIALECTS)
+async def test_a_result_changed_before_a_checkpoint_is_checked_after_resume(
+    dialect: str, sandbox: bool, tmp_path: Path
+) -> None:
+    model = Scripted(calls_output())
+    result = ChatMessageTool(
+        content=as_handed(dialect, "safe"), tool_call_id=READ.id, function=READ.function
+    )
+    state = AgentState(
+        messages=[
+            ChatMessageUser(content=TASK),
+            ChatMessageAssistant(content="Reading.", tool_calls=[READ]),
+            result,
+        ]
+    )
+
+    async with AsyncFilesystem():
+        with _patch_sample_runtime([]):
+            first = real_checkpointer(tmp_path)
+            started_with(sandbox, model.model, state, first)
+            # changed before the checkpoint, and before the bridge checks it
+            result.content = as_handed(dialect, "secret")
+            await first.checkpoint()
+            first.close()
+            assert first.fire_count == 1
+
+            saved = read_host_context(str(tmp_path / "context")).agent_state
+            resumed = real_checkpointer(tmp_path, saved)
+            try:
+                bridge = started_with(
+                    sandbox,
+                    model.model,
+                    AgentState(messages=deepcopy(state.messages)),
+                    resumed,
+                )
+                with active(terminate_on_secret()):
+                    with pytest.raises(TerminateSampleError, match="blocked secret"):
+                        await dialect_history_request(dialect, bridge, READ, "secret")
+            finally:
+                resumed.close()
+
+    assert model.inputs == []
 
 
 @pytest.mark.parametrize("dialect", DIALECTS)
