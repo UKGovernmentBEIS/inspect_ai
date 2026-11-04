@@ -69,9 +69,11 @@ Goals:
   samples to a `SampleSource` task and returns their results, with one
   terminal outcome per method for every way the task can end; no wait
   hangs.
-- Samples sent through a handle never change which of the receiving task's
-  own samples run (`--limit`, `--sample-id`, ids), and a request the port
-  refuses fails only its sender. An accepted explicit id reserves its runs
+- Samples sent through a handle obey the receiving task's selection rules
+  (`--limit`, `--sample-id`) and share its remaining sample budget, so they
+  can take budget that would otherwise run a source sample; tasks without
+  handles keep their selection behavior. A request the port refuses fails
+  only its sender. An accepted explicit id reserves its runs
   as a source sample's does, so a later duplicate from the source fails the
   task and its unresolved requests, as a source duplicate does today. No
   later run reuses one sample's result for another: the
