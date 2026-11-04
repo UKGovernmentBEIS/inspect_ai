@@ -953,6 +953,13 @@ def test_enqueue_sample_rejected_outside_task() -> None:
         enqueue_sample(Sample(input="x"))
 
 
+def test_enqueue_sample_epoch_requires_an_id() -> None:
+    # a sample without an id gets a fresh id each time it is added, so its
+    # explicit epochs could never share one: refused before it is queued
+    with pytest.raises(ValueError, match="requires each sample to have an id"):
+        enqueue_sample([Sample(id="q", input="x"), Sample(input="y")], epoch=2)
+
+
 class _TrackedGenerations(_Generations):
     """`_Generations` that counts `next_samples()` calls."""
 

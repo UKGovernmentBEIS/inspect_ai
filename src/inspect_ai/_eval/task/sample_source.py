@@ -272,12 +272,15 @@ def enqueue_sample(
 
     The samples run in the current task as soon as there is free capacity
     (bounded by ``max_samples``), each for the task's configured number of
-    epochs. A sample without an ``id`` runs under a unique string id (the
-    ``Sample`` you pass is not changed), so on a task retry it runs again;
-    only samples with explicit ids are reused from the prior attempt.
+    epochs. Each time a sample without an ``id`` is added, it runs under a
+    fresh unique string id (the ``Sample`` you pass is not changed), so on a
+    task retry it runs again; only samples with explicit ids are reused from
+    the prior attempt.
 
     Pass ``epoch`` to run each sample once, as that epoch, instead, so the
-    same id can be run repeatedly. Each ``(id, epoch)`` may be added once (a
+    same id can be run repeatedly. Samples added with ``epoch`` must have an
+    explicit ``id``, since a sample without one gets a fresh id each time it
+    is added. Each ``(id, epoch)`` may be added once (a
     sample added without ``epoch`` takes epochs 1 to the task's ``epochs``);
     a duplicate fails the task.
 
@@ -300,7 +303,8 @@ def enqueue_sample(
     Raises:
         RuntimeError: If the current task is not driven by a ``SampleSource``
             (or no task is running in this context).
-        ValueError: If ``epoch`` is not an integer of 1 or more.
+        ValueError: If ``epoch`` is not an integer of 1 or more, or is given
+            for a sample without an ``id``.
     """
     from inspect_ai.dataset import Sample
 
@@ -310,12 +314,17 @@ def enqueue_sample(
         raise ValueError(
             f"enqueue_sample() epoch must be an integer of 1 or more (got {epoch!r})."
         )
+    sample_list = [samples] if isinstance(samples, Sample) else list(samples)
+    if epoch is not None and any(sample.id is None for sample in sample_list):
+        raise ValueError(
+            "enqueue_sample() with epoch requires each sample to have an id: "
+            "a sample without an id gets a new id each time it is added, so "
+            "its epochs would run as separate samples."
+        )
     enqueuer = get_sample_enqueuer()
     if enqueuer is None:
         raise RuntimeError(
             "enqueue_sample() can only be called from within a running task "
             "whose dataset is a SampleSource."
         )
-    enqueuer.enqueue(
-        [samples] if isinstance(samples, Sample) else list(samples), epoch=epoch
-    )
+    enqueuer.enqueue(sample_list, epoch=epoch)

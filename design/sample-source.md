@@ -113,10 +113,10 @@ A `SampleSource` is passed as the **`dataset` argument to `Task`** (just as a
   list indexed after the (possibly disk-paged) seed store; `get_sample(index)`
   dispatches between the two. Each injected sample runs for the task's
   configured `epochs`, like the seed.
-- **Ids** — injected samples without ids run as an attempt-owned copy with a
-  unique string id (`shortuuid`), not the next integer; the source's own
-  `Sample` keeps `id=None`, so returning the same object on a retry adds it
-  anonymously again. An id from one attempt therefore never turns up in
+- **Ids** — each admission of a sample without an id runs as a copy with a
+  fresh unique string id (`shortuuid`), not the next integer; the source's
+  own `Sample` keeps `id=None`, so adding the same object twice runs two
+  samples, and returning it on a retry adds it anonymously again. An id from one attempt therefore never turns up in
   another and retry reuse and checkpoint resume (both keyed on
   `(id, epoch)`) cannot hand one sample another's prior result. Seed samples
   keep their position-based integer ids. A duplicate explicit id is a hard
@@ -124,9 +124,10 @@ A `SampleSource` is passed as the **`dataset` argument to `Task`** (just as a
   (log member names and score grouping key on it).
 - **Explicit epochs** — `enqueue_sample(samples, epoch=N)` adds each sample
   as the single run `(id, N)` in its own slot, so one id can run repeatedly
-  under its real id. Uniqueness is on `(id, epoch)`: a seed sample or one
-  added without an epoch reserves `(id, 1..epochs)`. `--limit` counts
-  distinct ids.
+  under its real id. `enqueue_sample` rejects `epoch` for a sample without
+  an id, which would get a new id per add. Uniqueness is on `(id, epoch)`: a
+  seed sample or one added without an epoch reserves `(id, 1..epochs)`.
+  `--limit` counts distinct ids.
 - **Growing totals** — `total_samples` grows as samples are added, updating the
   display denominator (`td.sample_complete`), the fractional `fail_on_error`
   threshold (`SampleErrorHandler.total_samples`), the end-of-run

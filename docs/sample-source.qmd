@@ -124,7 +124,7 @@ Enqueued samples share a buffer with samples returned from `sample_complete`. `e
 
 ### Running a sample again as a new epoch
 
-Pass `epoch` to `enqueue_sample()` to run a sample once, as that epoch, rather than for the task's configured epochs. This lets a source run the same sample repeatedly under its own id:
+Pass `epoch` to `enqueue_sample()` to run a sample once, as that epoch, rather than for the task's configured epochs. This lets a source run the same sample repeatedly under its own id, so the sample must have an explicit `id`:
 
 ```python
 class Rollouts(SampleSource):
@@ -174,7 +174,7 @@ A *fractional* `fail_on_error` threshold (e.g. `0.5`) is evaluated at the end of
 
 On a task retry (`eval_set` / task retry attempts), completed samples from the prior attempt are reused, and the source's `sample_complete` is called for each reused sample — so a source that derives its follow-ups from `sample_complete` (the patterns above) regenerates them naturally.
 
-A generated sample is reused on retry only when it has an explicit `id` (and explicit epoch, if any) that matches the prior attempt. A generated sample without an `id` gets a new unique id in each attempt, even when the source returns the same `Sample` object, so it always runs again: give follow-ups stable ids if their results should be reused.
+A generated sample is reused on retry only if its explicit `id` (and explicit epoch, if any) matches the prior attempt. Each time a sample without an `id` is added, it receives a fresh unique string id; the source's `Sample` stays unchanged. So adding the same object twice runs two separate samples, and on a retry it runs again. Give follow-ups explicit stable ids to reuse their results on retry.
 
 Note that the retry re-drives the *same source instance*: a source that instead holds internal `next_samples()` state resumes where it left off, so such sources should be written to be resumable if used with retries.
 
