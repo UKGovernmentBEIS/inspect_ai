@@ -242,7 +242,7 @@ three-tier fallback:
 
 The install state detection (`_get_install_state`) determines which tiers are attempted:
 
-- **pypi** install → expects binary in package, warns if missing
+- **pypi** install → uses the bundled binary; if it is missing, downloads from S3. Warns only when the installed `RECORD` lists the binary (a broken wheel install); an install built from the sdist never had it, so it downloads without a warning
 - **clean** editable install → tries S3 download
 - **edited** editable install → builds a `-dev` suffixed binary locally
 

@@ -1,5 +1,6 @@
 """Tests for sandbox tools injection."""
 
+import importlib.metadata
 import os
 import sys
 import warnings
@@ -1504,3 +1505,81 @@ async def test_sample_init_records_root_access_for_every_sandbox_last(
         if isinstance(e, SandboxEvent) and (e.options or {}).get("user") == "root"
     ]
     assert len(probe_events) == 2
+
+
+class _FakeDistribution:
+    def __init__(self, files: list[str] | None) -> None:
+        self.files = (
+            None
+            if files is None
+            else [importlib.metadata.PackagePath(f) for f in files]
+        )
+
+
+def _missing_binary_then_download(
+    monkeypatch: pytest.MonkeyPatch, record_files: list[str] | None | Exception
+) -> list[str]:
+    """Stub a `pypi` install whose binary is missing until an S3 download runs."""
+    downloaded: list[str] = []
+
+    @asynccontextmanager
+    async def fake_open_executable(executable: str) -> AsyncIterator[BinaryIO]:
+        if executable not in downloaded:
+            raise FileNotFoundError(executable)
+        yield BytesIO(b"binary")
+
+    async def fake_download_from_s3(filename: str) -> bool:
+        downloaded.append(filename)
+        return True
+
+    def fake_distribution(name: str) -> _FakeDistribution:
+        assert name == "inspect-ai"
+        if isinstance(record_files, Exception):
+            raise record_files
+        return _FakeDistribution(record_files)
+
+    monkeypatch.setattr(sandbox_tools, "_get_install_state", lambda: "pypi")
+    monkeypatch.setattr(sandbox_tools, "_open_executable", fake_open_executable)
+    monkeypatch.setattr(sandbox_tools, "_download_from_s3", fake_download_from_s3)
+    monkeypatch.setattr(importlib.metadata, "distribution", fake_distribution)
+    return downloaded
+
+
+@pytest.mark.parametrize(
+    "record_files",
+    [
+        pytest.param(["inspect_ai/__init__.py"], id="not-in-record"),
+        pytest.param(None, id="no-record"),
+        pytest.param(
+            importlib.metadata.PackageNotFoundError("inspect-ai"), id="no-metadata"
+        ),
+    ],
+)
+async def test_sdist_install_downloads_missing_binary_without_warning(
+    monkeypatch: pytest.MonkeyPatch,
+    _warn_once_messages: list[str],
+    record_files: list[str] | None | Exception,
+) -> None:
+    downloaded = _missing_binary_then_download(monkeypatch, record_files)
+
+    async with sandbox_tools._open_executable_for_arch("amd64", False) as (name, f):
+        assert f.read() == b"binary"
+
+    assert downloaded == [name]
+    assert _warn_once_messages == []
+
+
+async def test_wheel_install_missing_bundled_binary_warns_and_downloads(
+    monkeypatch: pytest.MonkeyPatch, _warn_once_messages: list[str]
+) -> None:
+    name = sandbox_tools._get_executable_name("amd64", False, False)
+    downloaded = _missing_binary_then_download(
+        monkeypatch, ["inspect_ai/__init__.py", f"inspect_ai/binaries/{name}"]
+    )
+
+    async with sandbox_tools._open_executable_for_arch("amd64", False) as (_, f):
+        assert f.read() == b"binary"
+
+    assert downloaded == [name]
+    assert len(_warn_once_messages) == 1
+    assert "missing from the PyPI package" in _warn_once_messages[0]
