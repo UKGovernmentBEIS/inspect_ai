@@ -430,6 +430,17 @@ The merge does not delete shards ("Removing shards").
 `ShardSetIncomplete.missing` lists the ids with at least one selected epoch
 that no shard holds (`None` for a count selection).
 
+Early stopping: a worker whose task stops samples or epochs early finishes
+`success` without records for them (the runner returns before recording a
+stopped sample). Completeness counts records, not shard statuses, so such
+a set is incomplete for its original selection: the merge raises
+`ShardSetIncomplete`, or writes `started` with `allow_incomplete`, and the
+merged `results` carry no `early_stopping` summary (see the results table
+below). A complete merge needs those shards re-run with early stopping
+turned off; removing it only from the task passed to the merge supplies no
+records. The merge neither supports early-stopped sets nor refuses a task
+merely because it has an early-stopping callback.
+
 Raises: `ShardSetError` (and its subclass `ShardSelectionError`, for
 shards that hold samples the selection does not include, "Validation";
 also for a task that does not match the shards), `ShardSetIncomplete`,

@@ -126,6 +126,12 @@ def merge_eval_log_shards(
     read error (for example a CRC or JSON error). Nothing is written; run
     the merge again, or merge after the workers have exited.
 
+    Workers whose task has early stopping can finish with `success` but
+    leave out the samples or epochs they stopped. The merge needs a record
+    for every selected sample and epoch, so such a set is incomplete, and
+    the merged log has no `early_stopping` summary. Re-run those shards with
+    early stopping turned off to merge the full selection.
+
     Args:
         log: The merged log `<dir>/<name>.eval`, or its shards directory
             `<dir>/<name>.shards`, as a local path, `file://` URI or `s3://`
