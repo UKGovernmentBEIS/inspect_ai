@@ -305,7 +305,8 @@ The script stays stdlib-only; it parses `SHA256SUMS` itself (or imports
   still bundles them. `verify-dist` fails if the sdist has a file under
   `src/inspect_ai/binaries/`. An install built from the sdist (e.g.
   conda-forge) downloads the binaries from S3 at first use, verified against
-  `SHA256SUMS`.
+  `SHA256SUMS`. `inspect download sandbox-tools` does this
+  download ahead of time, for air-gapped use.
 - The glibc-only download set is now checked against a four-entry sums file.
   The lookup is by filename, so the two musl entries are simply unused here.
 
