@@ -785,10 +785,9 @@ class _Driver:
         ) or self._sentinel_modify(before_span, event) is not None:
             return
         raise ValueError(
-            "steps_from_events cannot replay modified approvals whose ToolEvent "
-            "does not record the approved call, as Inspect logs before "
-            "inspect_ai 0.3.277 wrote them. Replay this transcript from its "
-            "messages instead."
+            "steps_from_events cannot replay an approval whose approved call "
+            "does not match the ToolEvent that ran, so the log cannot show which "
+            "arguments ran. Replay this transcript from its messages instead."
         )
 
     def _tool_call(self, call: _Call) -> None:

@@ -970,7 +970,7 @@ def test_an_approvers_non_canonical_memory_path_is_refused() -> None:
     assert tool_event.arguments["path"] == "/memories/secret.txt"
     with pytest.raises(
         ValueError,
-        match=r"modified approvals.*Replay this transcript from its messages instead",
+        match=r"approved call does not match the ToolEvent that ran.*Replay this transcript from its messages instead",
     ):
         replayed(log)
 
@@ -1109,7 +1109,7 @@ def test_an_older_custom_memory_tools_modified_path_is_refused(
         events, pool = _replay._condensed(events, [])
     with pytest.raises(
         ValueError,
-        match=r"modified approvals.*0\.3\.277.*Replay this transcript from its messages instead",
+        match=r"approved call does not match the ToolEvent that ran.*Replay this transcript from its messages instead",
     ):
         steps_from_events(
             sample.messages,
@@ -1151,7 +1151,7 @@ def test_an_older_approval_that_changed_the_call_in_place_is_refused(
         events, pool = _replay._condensed(events, [])
     with pytest.raises(
         ValueError,
-        match=r"modified approvals.*0\.3\.277.*Replay this transcript from its messages instead",
+        match=r"approved call does not match the ToolEvent that ran.*Replay this transcript from its messages instead",
     ):
         steps_from_events(
             sample.messages,
@@ -3743,7 +3743,7 @@ def test_older_modified_approval_log_is_refused(
     refusal = (
         r"0\.3\.100 or later"
         if renamed and version is None
-        else r"modified approvals.*0\.3\.277"
+        else r"approved call does not match the ToolEvent that ran"
     )
     with pytest.raises(
         ValueError,
@@ -3766,7 +3766,7 @@ def test_unknown_version_modified_approval_is_refused(
     messages, events, pool = _historical_approval_events(inputs, "modify", True)
     with pytest.raises(
         ValueError,
-        match=r"modified approvals.*0\.3\.277.*Replay this transcript from its messages instead",
+        match=r"approved call does not match the ToolEvent that ran.*Replay this transcript from its messages instead",
     ):
         steps_from_events(
             messages,
