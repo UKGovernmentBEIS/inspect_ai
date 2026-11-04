@@ -375,14 +375,21 @@ def score_is_excluded(score: Score) -> bool:
     """`reason == "excluded"` and the value is a float NaN at the root."""
 
 def score_value_is_counted(value: Value) -> bool:
-    """No float NaN at the root, among a dict's values, or among a list's elements."""
+    """No float NaN and no None at the root, among a dict's values, or among a list's elements."""
 ```
 
-`score_value_is_counted` is the rule for an epoch score that every metric
-over it counts. It is stricter than the metrics, which count a dict's finite
-keys even when another key is `NaN`. A zero requires the stricter rule, so
-that each zeroed epoch score is counted, under every key, by the metrics
-that read epoch scores. It is a check on raw values only:
+`score_value_is_counted` rules out the two values Inspect's metrics skip
+inside a value: the framework's dict-metric expansion and `aggregate()`
+skip a `NaN` key, and `aggregate(..., on_missing="skip")` also skips a key
+that is `None` (`src/inspect_ai/scorer/_metrics/aggregate.py:120`, `:134`).
+It is stricter than the metrics, which count a dict's other keys when one
+is skipped, so that a zeroed epoch score is not skipped under any key. It
+does not establish that every metric counts the value: a metric that reads
+a named key skips a dict that lacks the key (`aggregate(..., on_missing=
+"skip")` treats a missing key as it treats `None`). Zero therefore adds a
+key check against the log (the "Missing key" refusal under "Which score
+names a disposition covers"). Beyond these, it is a check on raw values
+only:
 
 - Whether the verdict fits the log's metrics (a scalar where a dict metric
   expects a dict, after the task changed) is checked by computing the
@@ -459,19 +466,32 @@ The only difference from a score under every scorer is in the other
 scorers' `unscored_samples` counts, which do not count it.
 
 **Zero** edits exactly the names the empty attempt scored. A target is
-refused, before anything changes, in three cases:
+refused, before anything changes, in four cases:
 
 - **No verdict.** The empty attempt produced no score: every scorer returned
   `None`. Message: "the empty attempt of sample <id> (epoch <n>) produced no
   score; exclude it instead".
 - **Unscored verdict.** A score of the empty attempt fails
   `score_value_is_counted()`: a root `NaN` (a grader failure), or a `NaN`
-  among a dict's or list's values (HLE's `{"score": NaN, ...}`), whether the
-  other values are finite or not. Copying it would label a sample `zeroed`
+  among a dict's or list's values (HLE's `{"score": NaN, ...}`), or a `None`
+  among them (`{"x": None}`), whether the other values are finite or not. Copying it would label a sample `zeroed`
   that some metric leaves out of its denominator. This holds whether every
   scorer's verdict is unscored or only one. Message: "the empty attempt of
   sample <id> (epoch <n>) was not scored by <name> (<reason>:
   <explanation>); zero it again, or exclude it".
+- **Missing key.** A dict-valued verdict lacks a key that the log's counted
+  dict values under the same name hold. The reference is the union of the
+  key sets of every value in the input log, on any sample and epoch, held
+  under that name and passing `score_value_is_counted()`. A metric that
+  reads a named key (`aggregate("x", ...)`, or a wrapper built on it, as
+  inspect_evals' BrowseComp and AssistantBench use with
+  `on_missing="skip"`) would skip a verdict without it, while the scorer's
+  results still counted the sample as scored. Message: "the empty attempt of
+  sample <id> (epoch <n>) scored <name> without the keys <keys> that its
+  other scores hold; exclude it instead". When the log holds no counted dict
+  value under that name, there is nothing to compare with and the check
+  passes; the staged metric computation still refuses a verdict that a
+  metric rejects.
 - **Uncovered score.** The sample holds a score under a name the empty attempt
   did not produce: a scorer that returned `None` on the empty attempt but
   scored the original, or a solver-written score. Leaving that score would
@@ -874,7 +894,7 @@ the task may have changed since the log was written".
        model=None,                   # explicit, as eval_set passes it with ResolvedTasks
        solver=empty_attempt(),
        sample_id=_requalify_sample_ids(
-           log.eval.task, [literal_sample_id(id) for id in target_ids]
+           prepared.task.name, [literal_sample_id(id) for id in target_ids]
        ),
        epochs=<Epochs(config.epochs, config.epochs_reducer), or None when unrecorded, as eval-retry>,
        time_limit=..., working_limit=..., retry_on_error=...,
@@ -882,6 +902,7 @@ the task may have changed since the log was written".
        sandbox_cleanup=True,
        fail_on_error=False,
        log_format="eval",
+       log_buffer=1,
        log_dir=<tempdir>,
    )
    ```
@@ -898,7 +919,14 @@ the task may have changed since the log was written".
    - **Literal ids.** `literal_sample_id(id: str) -> str`, a new helper in
      `src/inspect_ai/_eval/task/util.py` beside `sample_id_filter`, escapes
      the `fnmatch` metacharacters of an id (`*` as `[*]`, `?` as `[?]`, `[`
-     as `[[]`). Re-qualification then protects a `:`. I verified this by
+     as `[[]`). Re-qualification then protects a `:`. It uses the prepared
+     task's name, `prepared.task.name`, not the log's `log.eval.task`: the
+     scratch run resolves selectors against the names of the tasks it runs
+     (`resolve_task_sample_ids`, `src/inspect_ai/_eval/task/util.py:101`),
+     and a task file edited since the log was written may have renamed the
+     task (`Task(name=...)`). Under the old name, `old:a` would not be a
+     scope but a literal id, and would run a sample with that id instead of
+     `a`. I verified this by
      running the selection functions on candidates `case[1]`, `case1`,
      `case*`, `caseX`, `case?`, `t1:a:b` and `a:b`: each escaped and
      re-qualified target selected only itself. Step 5 has established that
@@ -920,6 +948,18 @@ the task may have changed since the log was written".
      copied; the scratch log's other samples, results and reductions are
      ignored.
    - **Scratch log.** It is read back whole and the directory removed.
+   - **Unbuffered.** `log_buffer=1` writes each scratch sample to the log
+     file as it completes. With a larger buffer, the recorder holds the
+     sample until a flush (`ZipLogFile.buffer_sample()`,
+     `src/inspect_ai/log/_recorders/eval.py:1155`), and the held record
+     shares its score objects with the ones end-of-run reduction and metrics
+     receive (`condense_sample()`, `src/inspect_ai/log/_condense.py:402`).
+     A reducer or metric that writes into its inputs (an epoch mean stored
+     in the first score) would then change verdicts before they reach disk:
+     the reviewer reproduced this with seven samples, two epochs and
+     `max_samples=1`, and confirmed `log_buffer=1` prevents it. Each
+     verdict is therefore serialized before any aggregation runs, and the
+     verdicts zero reads back are the scorers' own.
 7. Checks that the scratch eval completed. Its log must have `status ==
    "success"`. A cancelled or errored scratch log raises with its status and
    error, without editing anything. `eval_async` can return a cancelled log
@@ -1310,6 +1350,13 @@ backends; run the zero tests with `--runtrio` locally.
     failure, whose original log holds both epochs: zeroing every epoch runs
     both empty attempts and zeroes both, and the task's own
     `early_stopping` object and the log are otherwise unchanged.
+  - Renamed task: a log of task `old` with a target `a`, zeroed after the
+    task file renames the task to `new` and its dataset also holds a sample
+    with the literal id `old:a`: only `a` runs in the scratch eval.
+  - Scratch aggregation: seven samples, two epochs, `max_samples=1`, and a
+    reducer that writes the epoch mean into its first input, plus a metric
+    that mutates its inputs and succeeds: the zeroed scores equal each
+    scorer's per-epoch verdict.
   - Cached task: a registered factory that returns the same cached `Task`
     with an early-stopping manager, zeroed on a log whose target the dataset
     no longer holds, so zero refuses after preparation: the cached task's
@@ -1339,6 +1386,11 @@ backends; run the zero tests with `--runtrio` locally.
     - a conditional scorer that scored the original and returns `None` on the
       empty attempt;
     - a solver-written score;
+    - with a dict-valued scorer whose other samples score `{"x": 1, ...}`
+      and a metric `aggregate("x", mean(), on_missing="skip")`, alone and
+      inside a wrapper metric, with epoch reduction disabled: an empty
+      attempt returning `{"other": 0}` (missing key) and one returning
+      `{"x": None}`;
     - a `Task.setup` that writes `state.scores` while the task's only scorer
       returns `None` on the empty attempt, both with and without setting
       `state.completed`: refused with the setup-scores message, and the
