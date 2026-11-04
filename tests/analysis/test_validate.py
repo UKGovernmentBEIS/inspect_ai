@@ -1,5 +1,7 @@
+import importlib
 from typing import Any
 
+import jsonpath_ng
 import pytest
 from jsonpath_ng import Child, Fields, JSONPath
 from jsonpath_ng.ext import parse  # type: ignore
@@ -96,11 +98,14 @@ def test_skip_wildcard_node(
     monkeypatch: pytest.MonkeyPatch, expanded_schema: dict[str, Any]
 ) -> None:
     """A Wildcard node is not validated, like a Slice before jsonpath-ng 1.16.0."""
-    monkeypatch.setattr(
-        validate, "UNSUPPORTED", validate.UNSUPPORTED + (_StandInWildcard,)
-    )
-    # results.scores[*].scorer as jsonpath-ng 1.16.0 parses it
-    scores = Child(Fields("results"), Fields("scores"))
-    jp = Child(Child(scores, _StandInWildcard()), Fields("scorer"))
-    assert validate.find_unsupported(jp) == [_StandInWildcard]
-    assert jsonpath_in_schema(jp, expanded_schema) is True
+    monkeypatch.setattr(jsonpath_ng, "Wildcard", _StandInWildcard, raising=False)
+    try:
+        importlib.reload(validate)
+        # results.scores[*].scorer as jsonpath-ng 1.16.0 parses it
+        scores = Child(Fields("results"), Fields("scores"))
+        jp = Child(Child(scores, _StandInWildcard()), Fields("scorer"))
+        assert validate.find_unsupported(jp) == [_StandInWildcard]
+        assert validate.jsonpath_in_schema(jp, expanded_schema) is True
+    finally:
+        monkeypatch.undo()
+        importlib.reload(validate)
