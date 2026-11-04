@@ -6,12 +6,15 @@ from collections.abc import Callable, Iterator
 from pathlib import Path
 
 import pytest
+from test_helpers.buffer import db_phase, sync_phase
 
 from inspect_ai.event._info import InfoEvent
 from inspect_ai.log._log import EvalSampleSummary
 from inspect_ai.log._recorders.buffer import database as database_module
 from inspect_ai.log._recorders.buffer.database import (
+    DbPhase,
     SampleBufferDatabase,
+    SyncPhase,
     sample_buffer_shutdown_pending,
 )
 from inspect_ai.log._recorders.buffer.filestore import SampleBufferFilestore
@@ -296,6 +299,32 @@ def test_sync_worker_thread_identity_is_reused(
     assert sync_threads[0] is sync_threads[1]
 
 
+def test_sync_worker_returns_to_idle_once_it_takes_the_request(
+    shared_db: SampleBufferDatabase,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    phases: list[SyncPhase] = []
+    synced = threading.Event()
+
+    def record_phase(
+        db: SampleBufferDatabase, filestore: SampleBufferFilestore
+    ) -> None:
+        phases.append(sync_phase(db))
+        synced.set()
+
+    monkeypatch.setattr(database_module, "sync_to_filestore", record_phase)
+    # request first, then make it due: one coalesced request, so no write can
+    # land between the worker taking it and the callback reading the phase
+    _write_event(shared_db)
+    with shared_db._sync_lock:
+        _force_sync_due(shared_db)
+        shared_db._sync_wakeup.notify_all()
+    _assert_event(synced, "sync did not run")
+
+    # idle while uploading, so a write made meanwhile requests another upload
+    assert phases == [SyncPhase.IDLE]
+
+
 def test_sync_exception_does_not_prevent_later_sync(
     shared_db: SampleBufferDatabase,
     monkeypatch: pytest.MonkeyPatch,
@@ -343,7 +372,7 @@ def test_sync_request_pending_when_thread_reference_exists_but_not_alive(
 
     _write_event(shared_db, "pending")
 
-    assert shared_db._sync_pending is True
+    assert sync_phase(shared_db) is SyncPhase.REQUESTED
 
 
 def test_close_waits_for_sync_without_deleting_recovery_files(
@@ -360,14 +389,14 @@ def test_close_waits_for_sync_without_deleting_recovery_files(
     try:
         _assert_event(join_started, "close did not wait for sync")
         assert not finished.is_set()
-        assert not shared_db._closed
+        assert db_phase(shared_db) is DbPhase.OPEN
     finally:
         release.set()
         closer.join(timeout=2)
 
     assert finished.is_set() and not errors
     assert not sync_thread.is_alive()
-    assert shared_db._closed and not shared_db._connections
+    assert db_phase(shared_db) is DbPhase.CLOSED and not shared_db._connections
     assert shared_db.db_path.exists()
     assert cleanup_recorder.calls == []
 
@@ -387,12 +416,12 @@ def test_close_drains_a_pending_upload_before_stopping(
 
     monkeypatch.setattr(database_module, "sync_to_filestore", record_sync)
     _write_event(shared_db, "pending")
-    assert shared_db._sync_pending is True
+    assert sync_phase(shared_db) is SyncPhase.REQUESTED
 
     shared_db.close()
 
     assert synced == ["sync"]
-    assert shared_db._sync_pending is False
+    assert sync_phase(shared_db) is SyncPhase.STOPPED
     assert shared_db._sync_thread is None
     assert shared_db.db_path.exists()
     assert cleanup_recorder.calls == []
@@ -418,6 +447,53 @@ def test_cleanup_drops_a_pending_upload(
     assert shared_db._sync_thread is None
 
 
+@pytest.mark.parametrize("close_first", [True, False])
+def test_cleanup_drops_a_pending_upload_whichever_order_it_meets_close(
+    shared_db: SampleBufferDatabase,
+    monkeypatch: pytest.MonkeyPatch,
+    sync_releases: list[threading.Event],
+    close_first: bool,
+) -> None:
+    # both stops time out on an upload in progress, with another requested
+    release = threading.Event()
+    recorder = SyncRecorder()
+    started = threading.Event()
+    sync_releases.append(release)
+
+    def blocked_sync(
+        db: SampleBufferDatabase, filestore: SampleBufferFilestore
+    ) -> None:
+        recorder.next_call()
+        started.set()
+        release.wait(timeout=5)
+
+    monkeypatch.setattr(database_module, "sync_to_filestore", blocked_sync)
+    monkeypatch.setattr(database_module, "SYNC_CLEANUP_TIMEOUT", 0.01)
+    _request_sync(shared_db, "uploading")
+    _assert_event(started, "sync worker did not start")
+    worker = _current_sync_thread(shared_db)
+    _write_event(shared_db, "pending")
+    assert sync_phase(shared_db) is SyncPhase.REQUESTED
+
+    if close_first:
+        shared_db.close()
+        assert sync_phase(shared_db) is SyncPhase.DRAINING
+        shared_db.cleanup()
+    else:
+        shared_db.cleanup()
+        shared_db.close()
+    assert sync_phase(shared_db) is SyncPhase.STOPPED
+
+    # a stopped worker takes no new requests either
+    _write_event(shared_db, "after stop")
+    assert sync_phase(shared_db) is SyncPhase.STOPPED
+
+    release.set()
+    worker.join(timeout=5)
+    assert not worker.is_alive()
+    assert recorder.calls == 1
+
+
 @pytest.mark.parametrize("keep_files", [False, True])
 def test_cleanup_skips_deletion_when_sync_remains_active(
     shared_db: SampleBufferDatabase,
@@ -436,8 +512,10 @@ def test_cleanup_skips_deletion_when_sync_remains_active(
         shared_db.cleanup()
 
     assert cleanup_recorder.calls == []
-    assert shared_db._sync_closed is True
-    assert not shared_db._closed
+    # a close can stop in DRAINING: a write can request another upload after
+    # the worker took the first one, and the timed-out join leaves it pending
+    assert not sync_phase(shared_db).accepts_requests()
+    assert db_phase(shared_db) is DbPhase.OPEN
     # retry cleanup must not sweep the files the worker still uses
     assert sample_buffer_shutdown_pending(shared_db.location)
     release.set()
@@ -521,7 +599,7 @@ def test_cleanup_from_sync_worker_does_not_delete_while_worker_is_on_stack(
     worker_thread.join(timeout=1)
     assert worker_thread.is_alive() is False
     assert cleanup_recorder.calls == []
-    assert shared_db._sync_closed is True
+    assert sync_phase(shared_db) is SyncPhase.STOPPED
 
 
 def test_cleanup_discards_pending_sync_work(
@@ -550,7 +628,7 @@ def test_cleanup_discards_pending_sync_work(
     _assert_event(first_started, "first sync did not start")
 
     _request_sync(shared_db, "pending")
-    assert shared_db._sync_pending is True
+    assert sync_phase(shared_db) is SyncPhase.REQUESTED
 
     join_started = _signal_when_join_starts(
         monkeypatch,
@@ -596,7 +674,7 @@ def test_cleanup_interrupts_pending_sync_throttle_wait(
     _assert_event(first_started, "first sync did not start")
 
     _write_event(shared_db, "pending")
-    assert shared_db._sync_pending is True
+    assert sync_phase(shared_db) is SyncPhase.REQUESTED
 
     release_first.set()
     _assert_event(first_finished, "first sync did not finish")
@@ -635,18 +713,16 @@ def test_base_exception_finalizes_sync_worker_state(
     # consume it, and exit — leaving this thread's direct call blocked forever
     # in _sync_wakeup.wait(timeout=None).
     with shared_db._sync_lock:
-        shared_db._sync_closed = True
+        shared_db._sync_phase = SyncPhase.STOPPED
         shared_db._sync_wakeup.notify_all()
         background_worker = shared_db._sync_thread
     if background_worker is not None and (
         background_worker is not threading.current_thread()
     ):
         background_worker.join(timeout=5)
-    shared_db._sync_closed = False
 
     shared_db._sync_thread = threading.current_thread()
-    shared_db._sync_requested = True
-    shared_db._sync_pending = True
+    shared_db._sync_phase = SyncPhase.REQUESTED
     _force_sync_due(shared_db)
 
     sync_filestore = shared_db._sync_filestore
@@ -656,7 +732,7 @@ def test_base_exception_finalizes_sync_worker_state(
         shared_db._sync_to_filestore(sync_filestore)
 
     assert shared_db._sync_thread is None
-    assert shared_db._sync_pending is False
+    assert sync_phase(shared_db) is SyncPhase.IDLE
 
 
 def test_set_sync_interval_retunes_shared_sync(
