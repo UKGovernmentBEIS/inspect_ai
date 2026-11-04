@@ -12,7 +12,7 @@ from inspect_ai.util._limit import (
 )
 
 from .._config import SentinelProxy
-from ._endpoint import SidecarCallError
+from ._endpoint import SentinelProxyError, SidecarCallError
 from ._field import ReceivedField
 
 FIRST_WAIT = 0.5
@@ -21,6 +21,14 @@ LONGEST_WAIT = 10.0
 
 class SidecarNotJudgedError(RuntimeError):
     """An agent call came back as an error, and the sidecar says it couldn't judge it."""
+
+
+SAMPLE_FAILURES: tuple[type[Exception], ...] = (
+    SampleRefusedError,
+    SidecarNotJudgedError,
+    SentinelProxyError,
+)
+"""The errors a call through a sidecar raises to fail its sample, which a sandbox-bridged agent must not be handed as a provider's error to retry."""
 
 
 class Looked(NamedTuple):

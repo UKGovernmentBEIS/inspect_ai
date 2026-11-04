@@ -7,9 +7,13 @@ import anyio
 import httpx2
 import pytest
 from test_helpers import fake_sentinel as fake
+from test_helpers.service_dispatch import (
+    dispatching_service,
+    serve_beside_failure_monitor,
+)
 from test_helpers.stand_in_sidecar import StandInSidecar, Turn
 
-from inspect_ai import Task
+from inspect_ai import Task, eval_async
 from inspect_ai import eval as inspect_eval
 from inspect_ai import score as score_log
 from inspect_ai._sentinel._sidecar._endpoint import (
@@ -28,7 +32,12 @@ from inspect_ai._sentinel._sidecar._task import (
 )
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.exception import TerminateSampleError
-from inspect_ai.agent import react
+from inspect_ai.agent import AgentState, react
+from inspect_ai.agent._bridge.sandbox.service import (
+    _forward_provider_errors,
+    generate_anthropic,
+)
+from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
 from inspect_ai.agent._bridge.util import bridge_model_generate
 from inspect_ai.approval import Approval, ApprovalPolicy, Approver, approver
 from inspect_ai.dataset import Sample
@@ -2144,6 +2153,298 @@ def test_a_bridged_agent_is_handed_the_turn_as_the_sidecar_left_it() -> None:
     [handed] = seen
     assert isinstance(handed, ModelOutput)
     assert [c.id for c in handed.message.tool_calls or []] == ["call_2"]
+
+
+_ANTHROPIC_REQUEST = {
+    "model": "inspect",
+    "max_tokens": 64,
+    "messages": [{"role": "user", "content": "Hi."}],
+}
+
+
+@solver
+def _sandbox_bridged_turn(monkeypatch: pytest.MonkeyPatch) -> Solver:
+    # a sandbox-bridged agent's call, through the model service's own method
+    # as `run_model_service` registers it, the service dispatcher and the
+    # bridge's failure monitor, which `sandbox_agent_bridge` runs in one task
+    # group
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        bridge = SandboxAgentBridge(
+            state=AgentState(messages=state.messages),
+            filter=None,
+            retry_refusals=None,
+            compaction=None,
+            port=13131,
+            model=None,
+        )
+        service = dispatching_service(
+            monkeypatch,
+            "generate_anthropic",
+            _forward_provider_errors(generate_anthropic(None, None, bridge), bridge),
+            {"json_data": _ANTHROPIC_REQUEST},
+            [],
+        )
+        unwound = await serve_beside_failure_monitor(service, bridge)
+
+        # the failure the monitor raised unwinds the agent, and reaches the
+        # sample runner as the sample's error
+        if unwound:
+            [failure] = unwound
+            raise failure
+        return state
+
+    return solve
+
+
+def test_a_sandbox_bridged_sample_the_sidecar_never_accepted_is_never_retried_or_scored(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stand_in = StandInSidecar(
+        turns=[Turn(status=400)] * 3,
+        methods={
+            "complete_registration": lambda _: {"fixed": True},
+            "request_result": _answers(
+                {"records": "held", "state": "not_judged", "reason": "unregistered"}
+            ),
+        },
+    )
+    task = Task(
+        dataset=[Sample(input="Hi.")],
+        solver=_sandbox_bridged_turn(monkeypatch),
+        scorer=_graded(),
+    )
+
+    [log] = eval(
+        task,
+        model=_model(stand_in),
+        retry_on_error=2,
+        score_on_error=True,
+        display="none",
+    )
+
+    # failed, not handed to the agent as a provider's error to carry on from
+    assert log.samples is not None
+    [sample] = log.samples
+    assert sample.error is not None
+    assert "SampleRefusedError" in sample.error.message
+    assert sample.scores is None or sample.scores == {}
+    assert len(stand_in.model_calls) == 1
+
+
+def test_a_sandbox_bridged_sample_the_sidecar_lost_is_retried_and_registered_again(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    completions = [0]
+
+    def complete(_: dict[str, Any]) -> dict[str, Any]:
+        completions[0] += 1
+        if completions[0] == 2:
+            return {"error": {"code": -32009, "message": "no registration"}}
+        return {"fixed": False}
+
+    stand_in = StandInSidecar(
+        turns=[
+            Turn(status=400),
+            Turn(text="Sunny.", sentinel={"outcome": "proceed", "steps": []}),
+        ],
+        methods={
+            "complete_registration": complete,
+            "request_result": _answers(
+                {"records": "held", "state": "not_judged", "reason": "unregistered"}
+            ),
+        },
+    )
+    task = Task(
+        dataset=[Sample(input="Hi.")],
+        solver=_sandbox_bridged_turn(monkeypatch),
+        scorer=_graded(),
+    )
+
+    [log] = eval(task, model=_model(stand_in), retry_on_error=1, display="none")
+
+    # the retry registers the task again, and its call goes through
+    assert log.samples is not None
+    [sample] = log.samples
+    assert sample.error is None
+    assert len(sample.error_retries or []) == 1
+    assert len(_registered(stand_in, "register_task")) == 2
+    assert len(_registered(stand_in, "complete_registration")) == 3
+    assert sample.scores
+
+
+def test_a_sandbox_bridged_reply_whose_judgment_is_unavailable_fails_a_required_sample(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stand_in = StandInSidecar(
+        turns=[Turn(text="Sunny.")],
+        methods={"request_result": _answers({"records": "dropped"})},
+    )
+    task = Task(
+        dataset=[Sample(input="Hi.")], solver=_sandbox_bridged_turn(monkeypatch)
+    )
+
+    [log] = eval(
+        task, model=_model(stand_in), sentinel_proxy="required", display="none"
+    )
+
+    assert log.samples is not None
+    error = log.samples[0].error
+    assert error is not None
+    assert "SidecarNotJudgedError" in error.message
+    assert "a sidecar is required" in error.message
+
+
+def test_a_sandbox_bridged_sample_the_sidecar_couldnt_register_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stand_in = StandInSidecar(
+        methods={
+            "complete_registration": lambda _: {
+                "error": {"code": -32000, "message": "The sidecar is full."}
+            }
+        },
+    )
+    task = Task(
+        dataset=[Sample(input="Hi.")], solver=_sandbox_bridged_turn(monkeypatch)
+    )
+
+    [log] = eval(task, model=_model(stand_in), display="none")
+
+    assert log.samples is not None
+    error = log.samples[0].error
+    assert error is not None
+    assert "SentinelProxyError" in error.message
+    assert "The sidecar is full." in error.message
+    assert stand_in.model_calls == []
+
+
+# a provider error Inspect doesn't retry, which the Anthropic provider raises
+# (403) or returns with the call it made (400): each is looked up at its own
+# place in the model call
+_RAISED, _RETURNED = 403, 400
+
+_CANCELLED = "cancelled by the deadline"
+
+
+@solver
+def _turn_within(
+    seconds: float, seen: list[ModelOutput | BaseException | str]
+) -> Solver:
+    # an agent call that a deadline can cancel, as an interim-scoring deadline
+    # does
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        with anyio.move_on_after(seconds) as scope:
+            try:
+                seen.append(await get_model().generate(state.messages))
+            except Exception as ex:
+                seen.append(ex)
+                raise
+        if scope.cancelled_caught:
+            seen.append(_CANCELLED)
+        return state
+
+    return solve
+
+
+def _discards(monkeypatch: pytest.MonkeyPatch) -> list[None]:
+    # each time a failed attempt's partial streamed output is dropped
+    from inspect_ai.model._stream import ModelStreamObserver
+
+    discarded: list[None] = []
+    original = ModelStreamObserver.discard_partial_output
+
+    def discard(self: ModelStreamObserver) -> None:
+        discarded.append(None)
+        original(self)
+
+    monkeypatch.setattr(ModelStreamObserver, "discard_partial_output", discard)
+    return discarded
+
+
+def _model_events(log: EvalLog) -> list[ModelEvent]:
+    assert log.samples is not None
+    return [e for e in log.samples[0].events if isinstance(e, ModelEvent)]
+
+
+@pytest.mark.parametrize("status", [_RAISED, _RETURNED], ids=["raised", "returned"])
+async def test_a_lookup_a_deadline_cancels_completes_the_calls_event(
+    monkeypatch: pytest.MonkeyPatch, status: int
+) -> None:
+    discarded = _discards(monkeypatch)
+    stand_in = StandInSidecar(
+        turns=[Turn(status=status)],
+        # still judging whenever it is asked
+        methods={
+            "request_result": lambda params: {
+                "id": params["id"],
+                "records": "held",
+                "state": "judging",
+            }
+        },
+    )
+    seen: list[ModelOutput | BaseException | str] = []
+    task = Task(dataset=[Sample(input="Hi.")], solver=_turn_within(0.3, seen))
+
+    [log] = await eval_async(task, model=_model(stand_in), sentinel_proxy="auto")
+
+    # the cancellation went on to the deadline's scope
+    assert seen == [_CANCELLED]
+    # and the event isn't left pending: it has the call's own error
+    [event] = _model_events(log)
+    assert event.pending is None
+    assert event.error is not None and str(status) in event.error
+    assert discarded
+
+
+@pytest.mark.parametrize("status", [_RAISED, _RETURNED], ids=["raised", "returned"])
+async def test_a_field_that_cant_be_read_completes_the_calls_event(
+    monkeypatch: pytest.MonkeyPatch, status: int
+) -> None:
+    discarded = _discards(monkeypatch)
+    stand_in = StandInSidecar(
+        turns=[Turn(status=status, sentinel={"outcome": "perhaps"})]
+    )
+    seen: list[ModelOutput | BaseException | str] = []
+    task = Task(dataset=[Sample(input="Hi.")], solver=_turn_within(10, seen))
+
+    [log] = await eval_async(task, model=_model(stand_in), sentinel_proxy="auto")
+
+    # the field's error is the sample's
+    [failed] = seen
+    assert isinstance(failed, ValueError)
+    assert log.samples is not None
+    error = log.samples[0].error
+    assert error is not None and "sentinel field can't be read" in error.message
+    # and the event has the call's own error
+    [event] = _model_events(log)
+    assert event.pending is None
+    assert event.error is not None and str(status) in event.error
+    assert discarded
+
+
+@pytest.mark.parametrize("status", [_RAISED, _RETURNED], ids=["raised", "returned"])
+async def test_a_refusal_at_either_place_is_still_acted_on_as_the_models_turn(
+    status: int,
+) -> None:
+    withheld = {
+        "message": _turn_json(("call_1", "Tokyo")),
+        "results": {"call_1": "Tokyo is not allowed."},
+    }
+    stand_in = StandInSidecar(
+        turns=[
+            Turn(status=status, sentinel={"outcome": "reject", "withheld": withheld})
+        ]
+    )
+    seen: list[ModelOutput | BaseException | str] = []
+    task = Task(dataset=[Sample(input="Hi.")], solver=_turn_within(10, seen))
+
+    [log] = await eval_async(task, model=_model(stand_in), sentinel_proxy="auto")
+
+    [handed] = seen
+    assert isinstance(handed, ModelOutput)
+    assert [c.id for c in handed.message.tool_calls or []] == ["call_1"]
+    [event] = _model_events(log)
+    assert event.pending is None and event.error is None
 
 
 def test_an_approver_sees_the_sidecars_change_and_its_own_change_runs() -> None:
