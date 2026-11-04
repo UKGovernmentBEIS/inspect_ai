@@ -6,10 +6,12 @@ from typing import Any, Callable, Literal, NamedTuple, Sequence
 
 import anyio
 import pytest
+from test_helpers.sandbox import CannedSandbox
 
 from inspect_ai import Task, eval, eval_async
 from inspect_ai._util.content import ContentReasoning, ContentText
 from inspect_ai.agent._agent import Agent, AgentState, agent, agent_with
+from inspect_ai.agent._as_solver import as_solver
 from inspect_ai.agent._as_tool import as_tool
 from inspect_ai.agent._channel import (
     AgentChannel,
@@ -51,11 +53,23 @@ from inspect_ai.model._compaction._compaction import compaction
 from inspect_ai.model._compaction.auto import CompactionAuto
 from inspect_ai.model._compaction.native import CompactionNative
 from inspect_ai.model._compaction.trim import CompactionTrim
-from inspect_ai.scorer import Score, Target, accuracy, includes, scorer
+from inspect_ai.scorer import (
+    CORRECT,
+    Score,
+    Scorer,
+    Target,
+    accuracy,
+    includes,
+    scorer,
+)
 from inspect_ai.solver import Generate, Solver, TaskState, solver
 from inspect_ai.tool import Tool, ToolCall, ToolError, ToolSource, tool
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tool_info import ToolInfo
+from inspect_ai.util import SandboxEnvironment, sandbox, sandboxenv
+from inspect_ai.util._sandbox.environment import SandboxEnvironmentConfigType
+from inspect_ai.util._sandbox.identity import sandbox_identity, sandbox_identity_active
+from inspect_ai.util._subprocess import ExecResult
 
 
 @tool
@@ -2323,3 +2337,89 @@ def test_turn_loop_reads_loop_mark(make: Callable[[], Agent], background: bool) 
 )
 def test_turn_loop_refuses_other_agents(make: Callable[[], Agent]) -> None:
     assert turn_loop(make()) is None
+
+
+_scope_execs: list[tuple[str, str | None, bool]] = []
+"""(command, user, scope active) of each `tool` or `scorer` exec."""
+
+
+def _record_scope_exec(cmd: list[str], user: str | None) -> ExecResult[str]:
+    if cmd[0] in ("tool", "scorer"):
+        _scope_execs.append((cmd[0], user, sandbox_identity_active()))
+    return ExecResult(True, 0, "", "")
+
+
+@sandboxenv(name="react_scope_recorder")
+class _ScopeRecorderSandbox(CannedSandbox):
+    """Records the user of `tool` and `scorer` execs; other commands succeed."""
+
+    def __init__(self) -> None:
+        super().__init__(_record_scope_exec)
+
+    @classmethod
+    async def sample_init(
+        cls,
+        task_name: str,
+        config: SandboxEnvironmentConfigType | None,
+        metadata: dict[str, str],
+    ) -> dict[str, SandboxEnvironment]:
+        return {"default": cls()}
+
+
+@tool
+def sandbox_probe() -> Tool:
+    async def execute() -> str:
+        """Run a command in the sandbox."""
+        await sandbox().exec(["tool"])
+        return "ok"
+
+    return execute
+
+
+@scorer(metrics=[accuracy()])
+def sandbox_probe_scorer() -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
+        await sandbox().exec(["scorer"])
+        return Score(value=CORRECT)
+
+    return score
+
+
+@solver
+def _in_identity_scope(inner: Agent) -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        with sandbox_identity("w-1"):
+            return await as_solver(inner)(state, generate)
+
+    return solve
+
+
+def test_react_in_loop_scorer_keeps_the_default_user_in_a_scope() -> None:
+    """In-loop scoring runs as the default user; the agent's tools as the scope's."""
+    _scope_execs.clear()
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                model="mockllm/model", tool_name="sandbox_probe", tool_arguments={}
+            ),
+            ModelOutput.for_tool_call(
+                model="mockllm/model",
+                tool_name="submit",
+                tool_arguments={"answer": "2"},
+            ),
+        ],
+    )
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=_in_identity_scope(react(tools=[sandbox_probe()], attempts=2)),
+        scorer=sandbox_probe_scorer(),
+        sandbox="react_scope_recorder",
+    )
+    [log] = eval(task, model=model)
+    assert log.status == "success", log.error
+    assert _scope_execs == [
+        ("tool", "w-1", True),
+        ("scorer", None, True),  # in-loop
+        ("scorer", None, False),  # final
+    ]

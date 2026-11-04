@@ -319,19 +319,45 @@ comes from the scope as well as from tool construction:
   scope only if it was created under the same user and sandbox; outside any
   scope a saved shell can still be used and keeps running as the user it was
   created as. Nested scopes raise.
-- **Unchanged.** `SandboxEnvironment.exec()`, `read_file()` and `write_file()`
-  do not read the scope: they run as the sandbox's default user unless given
-  `user`. Framework operations that call them (tool injection, identity
-  probes, checkpointing, scorers) are unaffected, and so is a scope on another
-  sandbox.
+- **Sandbox operations.** `SandboxEnvironment.exec()`, `read_file()` and
+  `write_file()` calls on the scope's sandbox that name no user run as the
+  scope's user; a call that names a user keeps it. The sample's sandbox proxy
+  applies this default (`ai/util/_sandbox/events.py`,
+  `sandbox_operation_user()` in `ai/util/_sandbox/identity.py`). Inspect's own
+  operations keep the sandbox's default user. They are marked where they run
+  (see the framework-operation contract below): the privileged-command
+  helpers (`_privileged.py`), the framework-directory helper
+  (`_framework_directory.py`), the sandbox-tools transport
+  (`_json_rpc_transport.py`) and `start-server` launch
+  (`ai/tool/_sandbox_tools_utils/sandbox.py`), the sandbox-file detector's read
+  (`ai/util/_sandbox/context.py`), the checkpoint chunk read
+  (`ai/util/_checkpoint/_copy.py`), in-loop scoring (`ai/scorer/_score.py`)
+  and the write of an `install_skills()` call that names a user. In-loop
+  scoring keeps the default user, so a scorer that executes submitted code
+  does so as the default user while other members are still running, and
+  member user isolation does not protect peers from it. Calls on the provider
+  object that `as_type()` returns bypass the default, and so do calls on
+  another sandbox. The scope's `cwd` is not applied to these calls.
 
-A custom tool that runs model-chosen work by calling `exec()`, `read_file()` or
-`write_file()` does not run as the scope's user. Inside a scope it runs as the
-sandbox's default user, which is often root, unless it passes `user`
-explicitly. Today it can learn the scope's user only through the private
-helper `sandbox_identity_user()` (`ai/util/_sandbox/identity.py`). This is a
-known gap in the scope: the confinement holds for the built-in tools listed
-above, not for custom tools that do not resolve the user themselves.
+Custom tools inherit the scope's user with no change of their own: a tool that
+calls `exec()`, `read_file()` or `write_file()` without a user runs as the
+scope's user. A custom tool that passes an explicit user, such as
+`user="root"`, keeps it. That is a grant made in code, as with
+`bash(user="root")` outside a scope.
+
+**Framework-operation contract.** Code that acts with the framework's authority
+and means "the sandbox's default user" by `user=None` must go through a marked
+helper, which wraps the single sandbox call in the private
+`framework_sandbox_operation()` context manager
+(`ai/util/_sandbox/_framework_operation.py`). Inside the marked block an
+omitted user stays the default user; the scope, injection targeting, the
+sandbox-tools request user and the model-facing tools' strict resolution are
+unchanged. The marker is never placed around model-chosen work; in-loop
+scoring, which runs trusted task code, is the one marked block that runs code
+Inspect does not fix. A tripwire test lists the marked modules
+(`tests/util/sandbox/test_sandbox_identity.py`,
+`test_framework_operation_marker_sites`), so a new marked site is a reviewed
+change.
 
 ### File-operation users
 
@@ -339,7 +365,8 @@ above, not for custom tools that do not resolve the user themselves.
 these operations as that user, or the container's default execution user when
 omitted. The kernel checks access to symlink targets. Root-default evals that
 confine agent tools to another user must supply that user for file operations
-performed on the agent's behalf. Human session-log collection carries its
+performed on the agent's behalf outside a sandbox identity scope; inside one
+the scope supplies it. Human session-log collection carries its
 configured user through to reads. Providers without user-aware reads cannot
 collect recordings for an explicit human user: collection warns and omits the
 logs, and callers can disable recording with `record_session=False`. Falling
@@ -349,6 +376,20 @@ installation's default-user writes followed by privileged ownership and mode
 changes remain a known pre-existing gap: an agent-controlled destination can
 redirect these operations through symlinks. That gap is tracked separately in
 [meridianlabs-ai/inspect_ai#590](https://github.com/meridianlabs-ai/inspect_ai/issues/590).
+
+Inside a sandbox identity scope, a `read_file()` or `write_file()` call that
+names no user takes the scope's user. A provider whose method cannot take a
+user raises `SandboxUserUnsupportedError` naming the scope rather than reading
+or writing as its default user; marked framework operations still pass no
+user. `install_skills()` inside a scope keeps its existing behaviour when it
+is given a `user`: a write with the default user's authority, then `chown` to
+that user. Given no `user`, it installs as the scope's user: the write, the
+`pwd` for a relative directory and `chmod +x` all name that user, and no
+`chown` runs, because the writer owns the files. On a provider whose
+`write_file()` cannot take a user, that install raises
+`SandboxUserUnsupportedError` before writing anything. Inside a marked block
+(in-loop scoring), an install with no `user` takes the legacy default-user
+path, as at final scoring.
 
 Docker runs system `tar` inside the container, following symlinks without
 recursing into directories. The bounded archive reader rejects anything
@@ -640,6 +681,11 @@ operation that acts on a trusted directory with elevated authority:
 - **reads only entries of the expected kind**: `stat_in_framework_directory`
   reports a symbolic link as one, and the guest's `_open_private` accepts only
   regular files owned by the tools user.
+
+A shared artifact at a fixed path that several members of a sandbox identity
+scope execute or load (an agent binary, an interpreter, a source file) is
+provisioned inside the framework-operation marker with `user=None`, and falls
+under this contract and the verified-directory contract.
 
 Commands Inspect issues on its own behalf, as any user, follow the same rule
 for programs: `ai/util/_sandbox/_privileged.py` launches `/bin/sh` by absolute
