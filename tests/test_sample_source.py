@@ -16,7 +16,15 @@ import pytest
 from pydantic import BaseModel
 from typing_extensions import override
 
-from inspect_ai import SampleSource, Task, enqueue_sample, eval, eval_set, task
+from inspect_ai import (
+    SampleSource,
+    Task,
+    enqueue_sample,
+    eval,
+    eval_retry,
+    eval_set,
+    task,
+)
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.dataset import Sample
 from inspect_ai.log import EvalLog, EvalSample, read_eval_log, read_eval_log_samples
@@ -1761,25 +1769,36 @@ def test_dynamic_id_token_increases_past_prior_tokens() -> None:
     assert dynamic_id_token([], now=36.9) == "10"
     assert dynamic_id_token([1, "x", "dyn-1-0001", "dyn-zz-x"], now=36) == "10"
     assert dynamic_id_token(["dyn-10-0001", "dyn-zz-0002"], now=36) == "100"
+    # explicit ids that only look generated never fail or widen the token:
+    # wider tokens are ignored, and one at the width limit leaves the next
+    # unused value from the clock
+    huge = "dyn-" + "z" * 5000 + "-0001"
+    assert dynamic_id_token([huge, "dyn-ZZ-0001", "dyn--0001"], now=36) == "10"
+    assert dynamic_id_token(["dyn-" + "z" * 12 + "-0001", "dyn-10-0001"], 36) == "11"
 
 
-def test_sample_source_task_retry_within_a_second_gets_later_ids(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    # an immediate task retry can start in the same second as the attempt it
-    # retries. Its token still goes past the prior attempt's, so the
-    # follow-up runs again under a new id that sorts after the prior one,
-    # rather than reusing the prior attempt's record for that id
+DYNAMIC_CLOCK = 1_800_000_000
+DYNAMIC_TOKEN = "tro8w0"  # DYNAMIC_CLOCK in base 36
+
+
+def _freeze_dynamic_clock(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Give every attempt the same start second, keeping the prior-token check."""
     from inspect_ai._eval.task import run as run_module
 
-    clock = 1_800_000_000
     real_token = run_module.dynamic_id_token
     monkeypatch.setattr(
         run_module,
         "dynamic_id_token",
-        lambda prior_ids, now: real_token(prior_ids, clock),
+        lambda prior_ids, now: real_token(prior_ids, DYNAMIC_CLOCK),
     )
-    runs: list[str] = []
+
+
+def _retried_followup_task(runs: list[str], seed: list[Sample]) -> Task:
+    """A task whose seed id 1 adds one anonymous follow-up.
+
+    The seed sample with input "flaky" fails in the first attempt once the
+    follow-up is logged, so a retry must decide whether to reuse it.
+    """
     followup_logged = anyio.Event()
 
     @solver
@@ -1796,10 +1815,7 @@ def test_sample_source_task_retry_within_a_second_gets_later_ids(
 
     class _Src(SampleSource):
         def initial_samples(self) -> list[Sample]:
-            return [
-                Sample(id=1, input="seed", target="ok"),
-                Sample(id=2, input="flaky", target="ok"),
-            ]
+            return seed
 
         async def sample_complete(self, sample: EvalSample) -> list[Sample] | None:
             if sample.id == 1:
@@ -1809,24 +1825,31 @@ def test_sample_source_task_retry_within_a_second_gets_later_ids(
             return None
 
     @task
-    def same_second_retry_task() -> Task:
+    def retried_followup_task() -> Task:
         return Task(
             dataset=_Src(),
             solver=[fail_flaky_once()],
-            name="same_second_retry_task",
+            name="retried_followup_task",
         )
 
+    return retried_followup_task()
+
+
+def _eval_set_with_one_retry(
+    runs: list[str], seed: list[Sample]
+) -> tuple[EvalLog, EvalLog]:
+    """Run the follow-up task with one task retry: (failed log, final log)."""
     with tempfile.TemporaryDirectory() as d:
         log_dir = str(Path(d) / "logs")
         Path(log_dir).mkdir()
         ok, logs = eval_set(
-            tasks=[same_second_retry_task()],
+            tasks=[_retried_followup_task(runs, seed)],
             log_dir=log_dir,
             model="mockllm/model",
             retry_attempts=2,
             retry_on_error=0,  # no sample-level retry -> task-level retry
             retry_cleanup=False,
-            max_samples=3,  # flaky blocks while the follow-up runs
+            max_samples=len(seed) + 1,  # flaky blocks while the follow-up runs
         )
         assert ok, "eval-set did not succeed after task retry"
         final = read_eval_log(logs[0].location)
@@ -1837,13 +1860,170 @@ def test_sample_source_task_retry_within_a_second_gets_later_ids(
             )
             if log.status == "error"
         )
+    return first, final
 
+
+def _followup_id(log: EvalLog) -> int | str:
+    return next(s.id for s in (log.samples or []) if s.input == "follow")
+
+
+def test_sample_source_task_retry_within_a_second_gets_later_ids(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # an immediate task retry can start in the same second as the attempt it
+    # retries. Its token still goes past the prior attempt's, so the
+    # follow-up runs again under a new id that sorts after the prior one,
+    # rather than reusing the prior attempt's record for that id
+    _freeze_dynamic_clock(monkeypatch)
+    runs: list[str] = []
+    first, final = _eval_set_with_one_retry(
+        runs,
+        [
+            Sample(id=1, input="seed", target="ok"),
+            Sample(id=2, input="flaky", target="ok"),
+        ],
+    )
     assert runs.count("follow") == 2
-    first_id = next(s.id for s in (first.samples or []) if s.input == "follow")
-    final_id = next(s.id for s in (final.samples or []) if s.input == "follow")
-    assert first_id == f"dyn-{real_token([], clock)}-0001"
-    assert final_id == f"dyn-{real_token([], clock + 1)}-0001"
-    assert str(final_id) > str(first_id)
+    assert _followup_id(first) == f"dyn-{DYNAMIC_TOKEN}-0001"
+    assert _followup_id(final) == "dyn-tro8w1-0001"
+    assert str(_followup_id(final)) > str(_followup_id(first))
+
+
+def test_sample_source_retry_without_sample_logging_gets_later_ids(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # a retry that does not log samples still reads the prior results, so
+    # its token must also go past the prior log's
+    _freeze_dynamic_clock(monkeypatch)
+    runs: list[str] = []
+    seed = [
+        Sample(id=1, input="seed", target="ok"),
+        Sample(id=2, input="flaky", target="ok"),
+    ]
+    with tempfile.TemporaryDirectory() as log_dir:
+        first = eval(
+            _retried_followup_task(runs, seed),
+            model="mockllm/model",
+            log_dir=log_dir,
+            display="none",
+            retry_on_error=0,
+            max_samples=3,
+        )[0]
+        assert first.status == "error"
+        retried = eval_retry(first, log_dir=log_dir, log_samples=False, display="none")[
+            0
+        ]
+    assert retried.status == "success"
+    assert runs.count("follow") == 2
+    assert _followup_id(first) == f"dyn-{DYNAMIC_TOKEN}-0001"
+
+
+def test_sample_source_retry_with_generated_looking_explicit_ids(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # explicit ids are unrestricted: one that looks generated, however long,
+    # is logged and must not stop the retry from choosing a new token
+    _freeze_dynamic_clock(monkeypatch)
+    runs: list[str] = []
+    huge = "dyn-" + "z" * 5000 + "-0001"
+    at_limit = "dyn-" + "z" * 12 + "-0001"
+    first, final = _eval_set_with_one_retry(
+        runs,
+        [
+            Sample(id=1, input="seed", target="ok"),
+            Sample(id=2, input="flaky", target="ok"),
+            Sample(id=huge, input="huge", target="ok"),
+            Sample(id=at_limit, input="at limit", target="ok"),
+        ],
+    )
+    assert runs.count("follow") == 2
+    assert _followup_id(first) == f"dyn-{DYNAMIC_TOKEN}-0001"
+    assert _followup_id(final) == "dyn-tro8w1-0001"
+    assert {s.id for s in (final.samples or [])} >= {huge, at_limit}
+
+
+def test_sample_source_generated_ids_skip_explicit_ids(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # a generated id is never one an explicit sample already holds, in any
+    # epoch: the seed's, an earlier explicit admission's, or one added only
+    # for a further epoch
+    _freeze_dynamic_clock(monkeypatch)
+
+    def dyn(n: int) -> str:
+        return f"dyn-{DYNAMIC_TOKEN}-{n:04d}"
+
+    class _Src(SampleSource):
+        def __init__(self) -> None:
+            self._calls = 0
+
+        def initial_samples(self) -> list[Sample]:
+            return [Sample(id=dyn(1), input="seed", target="ok")]
+
+        async def next_samples(self) -> list[Sample] | None:
+            self._calls += 1
+            if self._calls == 1:
+                return [
+                    Sample(id=dyn(2), input="explicit", target="ok"),
+                    Sample(input="anon-1", target="ok"),
+                ]
+            if self._calls == 2:
+                enqueue_sample(Sample(id=dyn(4), input="epoch-2", target="ok"), epoch=2)
+                return []
+            if self._calls == 3:
+                return [Sample(input="anon-2", target="ok")]
+            return None
+
+    logs = eval(
+        Task(dataset=_Src(), solver=[generate()]),
+        model="mockllm/model",
+        display="none",
+    )
+    assert logs[0].status == "success"
+    ids = {str(s.input): s.id for s in (logs[0].samples or [])}
+    assert ids == {
+        "seed": dyn(1),
+        "explicit": dyn(2),
+        "anon-1": dyn(3),
+        "epoch-2": dyn(4),
+        "anon-2": dyn(5),
+    }
+
+
+def test_sample_source_explicit_sample_cannot_reuse_generated_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # a generated id holds every epoch, so an explicit sample added under it
+    # for a further epoch is a duplicate, not a second input for that id
+    _freeze_dynamic_clock(monkeypatch)
+    generated = f"dyn-{DYNAMIC_TOKEN}-0001"
+
+    class _Src(SampleSource):
+        def __init__(self) -> None:
+            self._calls = 0
+
+        def initial_samples(self) -> list[Sample]:
+            return [Sample(id="seed", input="seed", target="ok")]
+
+        async def next_samples(self) -> list[Sample] | None:
+            self._calls += 1
+            if self._calls == 1:
+                return [Sample(input="anon", target="ok")]
+            if self._calls == 2:
+                enqueue_sample(
+                    Sample(id=generated, input="other", target="ok"), epoch=2
+                )
+                return []
+            return None
+
+    logs = eval(
+        Task(dataset=_Src(), solver=[generate()]),
+        model="mockllm/model",
+        display="none",
+    )
+    assert logs[0].status == "error"
+    assert logs[0].error is not None
+    assert f"duplicate id '{generated}' for epoch 2" in logs[0].error.message
 
 
 @pytest.mark.parametrize("route", ["next_samples", "sample_complete", "enqueue_sample"])

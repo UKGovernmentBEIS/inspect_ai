@@ -114,20 +114,31 @@ A `SampleSource` is passed as the **`dataset` argument to `Task`** (just as a
   dispatches between the two. Each injected sample runs for the task's
   configured `epochs`, like the seed.
 - **Ids** — each admission of a sample without an id runs as a copy with a
-  generated string id, not the next integer: `dyn-<token>-<counter>`, where
-  the token is the attempt's start time in whole seconds in base 36, raised
-  above the largest token among the `dyn-` ids of the prior log the attempt
-  is seeded from, and the counter is the attempt's admission count,
-  zero-padded so ids sort in admission order (to 9999). Tokens increase
-  strictly across attempts, even a retry in the same second, so a retry's
-  ids sort after the prior attempt's. The source's own `Sample` keeps
-  `id=None`, so adding the same object twice runs two samples, and
-  returning it on a retry adds it anonymously again. An id from one attempt
-  therefore never turns up in another and retry reuse and checkpoint resume (both keyed on
-  `(id, epoch)`) cannot hand one sample another's prior result. Seed samples
-  keep their position-based integer ids. A duplicate explicit id is a hard
-  error. Ids are compared by their `str()` form, matching `ensure_unique_ids`
-  (log member names and score grouping key on it).
+  generated string id, not the next integer: `dyn-<token>-<counter>`. The
+  token is the attempt's start time in whole seconds in base 36 (6
+  characters until 2039), raised above the largest token among the `dyn-`
+  ids in the prior log whenever there is one, whether or not this attempt
+  logs samples. Prior tokens wider than 12 characters are ignored, so an
+  explicit id that only looks generated cannot fail the retry; if the bump
+  would itself pass 12 characters, the token is the first unused value from
+  the clock. The counter is the attempt's admission count, zero-padded to 4
+  digits, and skips any id an explicit sample already holds in any epoch
+  (the seed set, earlier explicit admissions). An explicit sample added under
+  an id this attempt generated is a duplicate, whatever its epoch.
+  Generated ids sort in admission order up to 9,999 admissions per attempt,
+  and a retry's ids sort after the prior attempt's; beyond that count, and
+  past a change of token width, they stay unique but no longer sort in
+  order. The source's own `Sample` keeps `id=None`, so adding the same
+  object twice runs two samples, and returning it on a retry adds it
+  anonymously again. An id from one attempt therefore never turns up in
+  another, and retry reuse and checkpoint resume (both keyed on
+  `(id, epoch)`) cannot hand one sample another's prior result. The check
+  reads only the prior log: a sample that committed a checkpoint but has no
+  record there is not seen, so a retry in the same second can give its id
+  to another sample (accepted: Ransom, 2026-11-04). Seed samples keep their
+  position-based integer ids. A duplicate explicit id is a hard error. Ids
+  are compared by their `str()` form, matching `ensure_unique_ids` (log
+  member names and score grouping key on it).
 - **Explicit epochs** — `enqueue_sample(samples, epoch=N)` adds each sample
   as the single run `(id, N)` in its own slot, so one id can run repeatedly
   under its real id. `enqueue_sample` rejects `epoch` for a sample without

@@ -626,9 +626,14 @@ class TaskLogger:
         """The sample ids of every record in the prior attempt's log.
 
         Read from the recorder's prior source, which is loaded once per
-        attempt and shared with seeding.
+        attempt and shared with seeding, whether or not this attempt logs
+        samples. A prior log that no longer exists has no ids (as
+        :meth:`seed_from_prior` then leaves the attempt unseeded).
         """
-        source = await self.recorder.seed_source(self.eval, prior)
+        try:
+            source = await self.recorder.seed_source(self.eval, prior)
+        except FileNotFoundError:
+            return []
         return [id for id, _ in source.keys]
 
     async def seed_added_samples(

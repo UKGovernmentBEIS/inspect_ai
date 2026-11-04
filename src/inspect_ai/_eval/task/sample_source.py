@@ -275,7 +275,10 @@ def enqueue_sample(
     epochs. Each time a sample without an ``id`` is added, it runs under a
     new generated id such as ``dyn-t4ab9c-0003`` (the ``Sample`` you pass is
     not changed), so on a task retry it runs again; only samples with
-    explicit ids are reused from the prior attempt.
+    explicit ids are reused from the prior attempt. Generated ids sort in
+    the order they were added, up to 9,999 per attempt; beyond that, and
+    past a change in the token's width, they stay unique but no longer sort
+    in order.
 
     Pass ``epoch`` to run each sample once, as that epoch, instead, so the
     same id can be run repeatedly. Samples added with ``epoch`` must have an

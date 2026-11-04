@@ -54,7 +54,7 @@ eval(Task(dataset=MySource(), solver=my_solver(), scorer=my_scorer()),
 
 `initial_samples()` is synchronous and returns the seed, so it must return immediately rather than `await`. It may be empty, in which case the task starts by calling `next_samples()`. `next_samples()` is async, called whenever no samples remain in flight, and may block (for example, awaiting external input); return `None` to end the task.
 
-All generated samples run within the task (one log file and one set of results), and each runs for the task's configured number of [epochs](metrics.qmd#reducing-epochs). Seed samples without an `id` are numbered by position, as in any dataset. Generated samples without an `id` get a generated id such as `dyn-t4ab9c-0003`, which sorts in the order they were added (see [Retries](#retries)).
+All generated samples run within the task (one log file and one set of results), and each runs for the task's configured number of [epochs](metrics.qmd#reducing-epochs). Seed samples without an `id` are numbered by position, as in any dataset. Generated samples without an `id` get a generated id such as `dyn-t4ab9c-0003`, which never repeats in a later retry attempt. Generated ids sort in the order they were added, up to 9,999 per attempt; beyond that, and past a change in the token's width (in 2039), they stay unique but no longer sort in order. A generated id skips any id an explicit sample already holds (see [Retries](#retries)).
 
 ## Returning follow-up samples
 

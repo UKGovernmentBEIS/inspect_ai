@@ -363,13 +363,18 @@ ScoresByScorer: TypeAlias = dict[str, SampleScore]
 # dyn-<attempt token>-<admission counter> (see `dynamic_id_token`).
 DYNAMIC_ID_PATTERN = re.compile(r"dyn-([0-9a-z]+)-([0-9]+)")
 
+# Widest token treated as generated. The clock needs 6 base-36 digits until
+# 2039 and 7 for millennia after; a wider token in a prior id is an explicit
+# id, which the floor ignores so that parsing stays bounded.
+DYNAMIC_TOKEN_MAX_WIDTH = 12
+
 
 def dynamic_sample_id(token: str, counter: int) -> str:
     """The generated id of an attempt's ``counter``-th anonymous dynamic sample.
 
-    The counter is zero-padded so ids sort in admission order as strings
-    (as ``sort_samples`` and the viewer compare them) up to 9999 admissions;
-    later ones stay unique but sort out of order.
+    The counter is zero-padded to 4 digits, so ids sort in admission order
+    as strings (as ``sort_samples`` and the viewer compare them) up to 9,999
+    admissions per attempt; later ones stay unique but sort out of order.
     """
     return f"dyn-{token}-{counter:04d}"
 
@@ -378,18 +383,31 @@ def dynamic_id_token(prior_ids: Iterable[int | str], now: float) -> str:
     """The attempt's token for generated sample ids, in base 36.
 
     It is ``now`` in whole Unix seconds, or one more than the largest token
-    among the prior attempt's generated ids (``prior_ids``) when that is not
-    smaller. Tokens therefore increase strictly across the attempts of a
+    among the prior attempt's generated-looking ids (``prior_ids``) when
+    that is not smaller. Tokens therefore increase across the attempts of a
     task, even a retry within the same second: a generated id never repeats
     in a later attempt, so retry reuse and checkpoint resume (keyed on
     ``(id, epoch)``) never match it, and a retry's ids sort after the prior
-    attempt's.
+    attempt's while the token keeps its width (6 characters until 2039).
+    Only the prior log is read: a sample that committed a checkpoint but
+    has no record there is not seen.
+
+    Prior tokens wider than ``DYNAMIC_TOKEN_MAX_WIDTH`` are ignored (no
+    generated token is that wide). If one more than the largest prior token
+    would be that wide, the token is instead the first value from ``now``
+    that no prior id uses: still unique, but no longer sorted after the
+    prior attempt's ids.
     """
-    token = int(now)
+    used = set()
     for id in prior_ids:
         match = DYNAMIC_ID_PATTERN.fullmatch(id) if isinstance(id, str) else None
-        if match is not None:
-            token = max(token, int(match.group(1), 36) + 1)
+        if match is not None and len(match.group(1)) <= DYNAMIC_TOKEN_MAX_WIDTH:
+            used.add(int(match.group(1), 36))
+    token = max(int(now), max(used, default=-1) + 1)
+    if token >= 36**DYNAMIC_TOKEN_MAX_WIDTH:
+        token = int(now)
+        while token in used:
+            token += 1
     digits = ""
     while True:
         token, digit = divmod(token, 36)
@@ -1102,7 +1120,6 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
     dynamic_token = dynamic_id_token(
         await logger.prior_sample_ids(sample_source.seed.source)
         if sample_feed is not None
-        and logger.prior_seeded
         and sample_source is not None
         and sample_source.seed is not None
         else [],
@@ -1851,6 +1868,11 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         epochs: list[int]
 
                     dynamic_count = 0
+                    # ids taken in any epoch: a generated id skips them, and
+                    # an explicit sample may not reuse a generated id at a
+                    # further epoch
+                    reserved_ids = set(seed_ids)
+                    generated_ids: set[str] = set()
 
                     def reserve_runs(sample: Sample, epoch: int | None) -> ReservedRuns:
                         """Assign an id if needed and reserve the epochs to run.
@@ -1866,24 +1888,27 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         and a task retry or checkpoint resume (both keyed on
                         ``(id, epoch)``) cannot reuse another sample's prior
                         result. Only samples with explicit ids are reused
-                        across attempts.
+                        across attempts. A generated id skips any id already
+                        taken by an explicit sample, in any epoch.
                         """
                         nonlocal dynamic_count
-                        if sample.id is None:
-                            dynamic_count += 1
-                            sample = sample.model_copy(
-                                update={
-                                    "id": dynamic_sample_id(
-                                        dynamic_token, dynamic_count
-                                    )
-                                }
-                            )
+                        generated = sample.id is None
+                        if generated:
+                            generated_id = ""
+                            while not generated_id or generated_id in reserved_ids:
+                                dynamic_count += 1
+                                generated_id = dynamic_sample_id(
+                                    dynamic_token, dynamic_count
+                                )
+                            sample = sample.model_copy(update={"id": generated_id})
                         key = str(sample.id)
                         planned = (
                             list(range(1, epochs + 1)) if epoch is None else [epoch]
                         )
                         runs = {SampleKey(key, e) for e in planned}
-                        if not runs.isdisjoint(reserved_runs):
+                        if not runs.isdisjoint(reserved_runs) or (
+                            not generated and key in generated_ids
+                        ):
                             for_epoch = "" if epoch is None else f" for epoch {epoch}"
                             raise ValueError(
                                 f"SampleSource added a sample with duplicate "
@@ -1891,6 +1916,9 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                                 "sample id is added once per epoch."
                             )
                         reserved_runs.update(runs)
+                        reserved_ids.add(key)
+                        if generated:
+                            generated_ids.add(key)
                         return ReservedRuns(sample, planned)
 
                     def within_limit(sample: Sample) -> bool:
