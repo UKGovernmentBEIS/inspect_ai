@@ -1,9 +1,12 @@
 """Tests for trailing-edge throttle decorator."""
 
+import asyncio
 from collections.abc import Callable
 from unittest.mock import patch
 
 import anyio
+import anyio.abc
+import pytest
 from test_helpers.utils import skip_if_trio
 
 from inspect_ai._util.background import (
@@ -460,6 +463,87 @@ class TestThrottleAsync:
 
         await self._with_task_group(run)
 
+    async def test_trailing_fire_resumes_after_deferred_raises(self) -> None:
+        """An exception from func in the deferred fire must not stop later trailing fires."""
+        clock = FakeClock()
+        calls: list[str] = []
+        fail_once = [RuntimeError("boom")]
+
+        @throttle(1.0)
+        def record(arg: str) -> None:
+            calls.append(arg)
+            if arg == "boom" and fail_once:
+                raise fail_once.pop()
+
+        with (
+            patch("inspect_ai.util._throttle.time") as mock_time,
+            patch("inspect_ai.util._throttle.anyio") as mock_anyio,
+        ):
+            mock_time.time = clock.time
+
+            async def fake_sleep(secs: float) -> None:
+                clock.advance(secs)
+
+            mock_anyio.sleep = fake_sleep
+            record("first")
+
+            async def schedule_boom(tg: object) -> None:
+                record("boom")
+
+            # the exception escapes into the background task group
+            with pytest.raises(ExceptionGroup) as exc_info:
+                await self._with_task_group(schedule_boom)
+            assert exc_info.group_contains(RuntimeError, match="boom")
+
+            async def resume(tg: object) -> None:
+                record("second")
+                # within the new window: must schedule a trailing fire
+                record("third")
+                await _flush_background()
+                assert calls[-1] == "third"
+
+            await self._with_task_group(resume)
+
+    async def test_trailing_fire_resumes_after_deferred_cancelled(self) -> None:
+        """Cancelling the deferred fire mid-sleep must not stop later trailing fires."""
+        clock = FakeClock()
+
+        with (
+            patch("inspect_ai.util._throttle.time") as mock_time,
+            patch("inspect_ai.util._throttle.anyio") as mock_anyio,
+        ):
+            mock_time.time = clock.time
+            sleeping = anyio.Event()
+
+            async def blocking_sleep(secs: float) -> None:
+                sleeping.set()
+                await anyio.Event().wait()
+
+            mock_anyio.sleep = blocking_sleep
+            fn, calls = _make_recorder(1.0, clock)
+            fn("first")
+
+            async def cancel_deferred(tg: anyio.abc.TaskGroup) -> None:
+                fn("cancelled")
+                await sleeping.wait()
+                tg.cancel_scope.cancel()
+
+            await self._with_task_group(cancel_deferred)
+            assert [c[1] for c in calls] == [("first",)]
+
+            async def fake_sleep(secs: float) -> None:
+                clock.advance(secs)
+
+            mock_anyio.sleep = fake_sleep
+
+            async def resume(tg: object) -> None:
+                # still within the first window
+                fn("later")
+                await _flush_background()
+                assert [c[1] for c in calls] == [("first",), ("later",)]
+
+            await self._with_task_group(resume)
+
 
 # ---------------------------------------------------------------------------
 # Async tests WITHOUT background task group
@@ -495,6 +579,37 @@ class TestThrottleAsyncNoTaskGroup:
             await _flush_background()
             assert len(calls) == 2
             assert calls[1][1] == ("trailing",)
+
+    @skip_if_trio
+    async def test_asyncio_trailing_fire_resumes_after_fallback_cancelled_before_start(
+        self,
+    ) -> None:
+        """Cancelling the fallback task before its first step must not stop later trailing fires."""
+        clock = FakeClock()
+        with (
+            patch("inspect_ai.util._throttle.time") as mock_time,
+            patch("inspect_ai.util._throttle.anyio") as mock_anyio,
+        ):
+            mock_time.time = clock.time
+
+            async def fake_sleep(secs: float) -> None:
+                clock.advance(secs)
+
+            mock_anyio.sleep = fake_sleep
+            fn, calls = _make_recorder(1.0, clock)
+            fn("first")
+            before = asyncio.all_tasks()
+            fn("cancelled")
+            (deferred,) = asyncio.all_tasks() - before
+            deferred.cancel()
+            await _flush_background()
+            assert deferred.cancelled()
+            assert [c[1] for c in calls] == [("first",)]
+
+            # still within the first window
+            fn("later")
+            await _flush_background()
+            assert [c[1] for c in calls] == [("first",), ("later",)]
 
     async def test_trio_no_task_group_falls_back_to_sync(self) -> None:
         """Trio without task group: no deferred scheduled, falls back to sync behavior."""
