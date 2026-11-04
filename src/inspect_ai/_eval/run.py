@@ -628,12 +628,14 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
     dialog answered while ``task_complete`` runs) is ignored, so it cannot
     re-run a finished task; only an abort of an attempt that ended in error
     is still recorded, so it stops the dispatcher from retrying it. An
-    exception from ``task_complete`` is not a task error: it is logged, and
-    the attempt keeps its written log and is not retried for it (with
-    ``debug_errors`` it ends the run). A cancellation exception that no
-    cancellation of the run caused, raised by ``task_complete`` or escaping
-    ``task_run`` (e.g. from an ``on_task_end`` hook), ends the run: the task
-    group would otherwise absorb it.
+    exception from the ``task_complete`` callback is not a task error: it is
+    logged, and the attempt keeps its written log and is not retried for it
+    (see ``notify_task_source``); with ``debug_errors``, or for an error
+    adding the tasks it returned, the exception ends the run. A
+    cancellation exception that no cancellation of the run caused, raised
+    by ``task_complete`` or escaping ``task_run`` (e.g. from an
+    ``on_task_end`` hook), ends the run: the task group would otherwise
+    absorb it.
     """
     result: EvalLog | None = None
     cancel_type: CancelType = None
@@ -765,19 +767,11 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
                         await notify_task_source(options, result)
                         notifying = False
                     except Exception as ex:
-                        if options.debug_errors:
-                            ex.add_note(
-                                "Raised by TaskSource.task_complete() for task "
-                                f"'{options.task.name}'."
-                            )
-                            raise
-                        # the source failing is not a task failure: the
-                        # attempt keeps its written log and is not retried
-                        notifying = False
-                        log.error(
-                            "TaskSource.task_complete() raised an error for task "
-                            f"'{options.task.name}': {inner_exception(ex)}"
+                        ex.add_note(
+                            "Raised by TaskSource.task_complete() for task "
+                            f"'{options.task.name}'."
                         )
+                        raise
                     run_returned = True
 
                 task_tg.start_soon(run)

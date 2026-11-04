@@ -735,9 +735,24 @@ async def notify_task_source(options: TaskRunOptions, eval_log: EvalLog) -> None
     retry request cancels that scope, so the callback runs (and can await)
     whether or not the task was cancelled. A preview (``run_samples=False``)
     ran no samples, so it is not reported.
+
+    An exception from the callback is not a task failure: it is logged, the
+    attempt keeps its written log and is not retried for it, and no follow-up
+    tasks are added (with ``debug_errors`` it propagates). Errors adding the
+    tasks the callback returned propagate.
     """
     if options.task_source is not None and options.run_samples:
-        _enqueue_source_tasks(await options.task_source.task_complete(eval_log))
+        try:
+            tasks = await options.task_source.task_complete(eval_log)
+        except Exception as ex:
+            if options.debug_errors:
+                raise
+            py_logger.error(
+                "TaskSource.task_complete() raised an error for task "
+                f"'{options.task.name}': {inner_exception(ex)}"
+            )
+            return
+        _enqueue_source_tasks(tasks)
 
 
 ABORTED_LOG_WRITE_TIMEOUT = 10.0

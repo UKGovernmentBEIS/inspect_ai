@@ -158,7 +158,7 @@ class WBHooks(Hooks):
     ...
 ```
 
-Because `enabled()` is consulted before every hook invocation (potentially many times per sample), keep its implementation cheap or cache the result.
+Because `enabled()` is consulted before every hook invocation (potentially many times per sample), keep its implementation cheap or cache the result. One exception: a hook that received `on_task_start` always gets the matching `on_task_end`, even if `enabled()` returns `False` by then.
 
 ## Skipping Full Sample Materialization
 
