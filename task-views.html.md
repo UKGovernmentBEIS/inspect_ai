@@ -301,7 +301,7 @@ The viewer option only lowers trust. Leaving it unset, or passing `--trust-conte
 
 > **NOTE: Note**
 >
-> `trust_content` is applied by the viewer when it reads the log. Viewers that predate the setting (including older versions of the VS Code extension) ignore it, and older versions of Inspect drop it if they rewrite the log. Scout does not yet honor it. The setting controls rendering only; it doesn’t make the content safe to copy or act on.
+> `trust_content` is applied by the viewer when it reads the log. Viewers that predate the setting (including older versions of the VS Code extension) ignore it, and older versions of Inspect drop it if they rewrite the log. Scout honors it from version 0.5.5, including for results of scanners run during [eval_set()](./reference/inspect_ai.html.md#eval_set). The setting controls rendering only; it doesn’t make the content safe to copy or act on.
 
 ## Reference
 

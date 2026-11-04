@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.10.18">
+<meta name="generator" content="quarto-1.10.19">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -80,7 +80,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-64a204ab8560d761af7679ceaba22944.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-bf27225e3a48a9273f3daa8f8e829971.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
 <link href="site_libs/bootstrap/bootstrap-6be907ae78873760d36834dbe5a66008.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
@@ -787,6 +787,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval-retry logs/2024-05-29T12-38-43_math_43_math_Gprr29Mv.json</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Or from Python with:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>eval_retry(<span class="st">"logs/2024-05-29T12-38-43_math_43_math_Gprr29Mv.json"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>A retry runs code named by the log: its task file, scorers and solver, or for an <code>hf/</code> task the Hugging Face repo it names, whose <code>eval.yaml</code> chooses the dataset and the solver and scorer arguments. It also uses the model endpoint, sandbox and other settings recorded in the log. Only retry logs you trust.</p>
 <p>Note that retry only works for tasks that are created from <code>@task</code> decorated functions (as if a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task">Task</a></span> is created dynamically outside of an <code>@task</code> function Inspect does not know how to reconstruct it for the retry).</p>
 <p>Note also that <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_retry">eval_retry()</a></span> does not overwrite the previous log file, but rather creates a new one (preserving the <code>task_id</code> from the original file).</p>
 <p>Here’s an example of retrying a failed eval with a lower number of <code>max_connections</code> (the theory being that too many concurrent connections may have caused a rate limit error):</p>
@@ -923,6 +924,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 To re-run the 5 failed/cancelled samples:
   inspect eval-retry path/to/crashed-recovered.eval</code></pre>
+<p>Recovery recomputes the eval’s metrics without importing the task file the log records. If a metric or epoch reducer is not registered (for example, a custom metric defined in the task file), or a metric’s options would create a model or another object, <code>inspect log recover</code> stops with an error before writing anything. For a log you trust, rerun with <code>--trust-log</code> (<code>trust_log=True</code> for <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#recover_eval_log">recover_eval_log()</a></span>), which imports the task file and runs its code; anything it still can’t resolve is then recovered without results.</p>
 <div class="callout callout-style-simple callout-note">
 <div class="callout-body d-flex">
 <div class="callout-icon-container">
@@ -955,7 +957,7 @@ To re-run the 5 failed/cancelled samples:
 <p>The <code>--incomplete-action</code> option resolves this by letting you choose the disposition for in-progress samples:</p>
 <ul>
 <li><code>retry</code> (the default) marks them as cancelled errors that a later retry re-runs.</li>
-<li><code>error</code> resolves them as operator terminations. When every expected sample is then final, the recovered log is finalized with status <code>"success"</code> and full results — nothing will retry it. If expected samples are missing entirely (never started), the log keeps status <code>"error"</code> and stays retryable. Expected samples are matched by id and epoch against the ids recorded in the log, so for a task with a dynamic <code>sample_source</code> (whose log records only the seed samples’ ids) finalization happens only when the written samples are exactly the seed samples; once produced samples have been written, the log stays retryable. Finalization also requires the eval’s metrics to be recomputed, so if a scorer or metric cannot be resolved in the recovery process (for example, a custom metric from a package that is not installed there) the log is not finalized either. Whenever <code>error</code> does not finalize, <code>inspect log recover</code> prints a <code>not finalized:</code> line giving the reason.</li>
+<li><code>error</code> resolves them as operator terminations. When every expected sample is then final, the recovered log is finalized with status <code>"success"</code> and full results — nothing will retry it. If expected samples are missing entirely (never started), the log keeps status <code>"error"</code> and stays retryable. Expected samples are matched by id and epoch against the ids recorded in the log, so for a task with a dynamic <code>sample_source</code> (whose log records only the seed samples’ ids) finalization happens only when the written samples are exactly the seed samples; once produced samples have been written, the log stays retryable. Finalization also requires the eval’s metrics to be recomputed, so if a metric cannot be resolved during automatic recovery, or during manual recovery with <code>--trust-log</code> (for example, a custom metric from a package that is not installed there), the log is not finalized either. Whenever <code>error</code> does not finalize, <code>inspect log recover</code> prints a <code>not finalized:</code> line giving the reason.</li>
 </ul>
 <p>Note that finalization freezes <em>every</em> errored sample in the recovered log, not only the ones resolved during recovery: samples that had already failed before the crash (within the eval’s <code>fail_on_error</code> tolerance, or with <code>fail_on_error=False</code>) are recorded as errors in the finalized log rather than re-run — the same outcome the eval would have reached had it not crashed. An explicit <code>inspect eval-retry</code> on the finalized log can still re-run its errored samples later.</p>
 <p>For example, to bring a crashed eval with a few hung samples to a terminal state:</p>

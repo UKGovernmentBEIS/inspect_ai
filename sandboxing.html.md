@@ -142,7 +142,7 @@ The `exec_remote()` options ([ExecRemoteStreamingOptions](./reference/inspect_ai
 
 ``` python
 async def write_file(
-    self, file: str, contents: str | bytes
+    self, file: str, contents: str | bytes, *, user: str | None = None
 ) -> None:
     """
     Raises:
@@ -161,7 +161,7 @@ Note that `write_file()` automatically creates parent directories as required if
 
 ``` python
 async def read_file(
-    self, file: str, text: bool = True
+    self, file: str, text: bool = True, *, user: str | None = None
 ) -> Union[str | bytes]:
     """
     Raises:
@@ -182,6 +182,19 @@ async def read_file(
 The [read_file()](./reference/inspect_ai.tool.html.md#read_file) method should enforce the `SandboxEnvironmentLimits.MAX_READ_FILE_SIZE` limit (default 100MB, configurable via the `INSPECT_SANDBOX_MAX_READ_FILE_SIZE` environment variable) and raise an `OutputLimitExceededError` when it is exceeded.
 
 The [read_file()](./reference/inspect_ai.tool.html.md#read_file) method should preserve newline constructs (e.g. crlf should be preserved not converted to lf). This is equivalent to specifying `newline=""` in a call to the Python `open()` function.
+
+Both file methods accept `user` to enforce that user’s filesystem permissions, including when following symlinks and creating parent directories. Omitting `user` uses the sandbox’s default execution user. A provider that cannot honour an explicit user must raise [SandboxUserUnsupportedError](./reference/inspect_ai.util.html.md#sandboxuserunsupportederror) before any file operation. Declare a named `user` parameter: accepting `**kwargs` alone does not establish support.
+
+Pass the same user as the agent’s tools when reading or writing on the agent’s behalf. Inspect does not infer this user from the tool configuration. If the sandbox’s default user is root, omitting `user` still gives root access.
+
+``` python
+contents = await sandbox().read_file("/home/agent/output.txt", user="agent")
+await sandbox().write_file("/home/agent/input.txt", contents, user="agent")
+```
+
+Older sandbox providers remain usable for calls without `user`; their existing default behavior is retained. Explicit-user calls through [sandbox()](./reference/inspect_ai.util.html.md#sandbox) are rejected until the sandbox provider implements this contract. Checkpoint export requests `user="root"` from sandbox providers that accept the parameter.
+
+Sandbox provider authors must update override signatures to type-check against the new base class, even though existing calls remain usable at runtime.
 
 ### connection()
 
@@ -273,6 +286,8 @@ def my_task(cpus: float = 1.0):
 
 The [ComposeConfig](./reference/inspect_ai.util.html.md#composeconfig) and [ComposeService](./reference/inspect_ai.util.html.md#composeservice) classes mirror the structure of Docker Compose files, supporting fields like `image`, `build`, `command`, `environment`, `volumes`, `ports`, `mem_limit`, `cpus`, and more. Extension fields (prefixed with `x-`) are also supported.
 
+Bind-mount sources and `env_file` paths in a [ComposeConfig](./reference/inspect_ai.util.html.md#composeconfig) must be absolute (or start with `~/`). The generated Compose file is stored outside the task directory, so Inspect rejects a relative bind-mount source or `env_file` rather than let Compose resolve it there. Build such paths from the task file, for example `Path(__file__).parent / "data"`.
+
 ## Sandbox Limits
 
 By default, sandboxes limit the size of file reads to 100MB and execution output to 10MB. These limits exist to prevent boundary cases of outputs or executions that don’t terminate and result in OOM or hung evaluations (i.e. they usually indicate an error by the model).
@@ -314,7 +329,15 @@ Before using Docker sandbox environments, please be sure to install [Docker Engi
 
 Docker Compose is checked separately: Inspect requires version 2.21.0 or greater, and version 2.22.0 or greater when Inspect pulls sandbox images from a registry.
 
+Inspect’s prerequisite checks confirm that Docker supports the features Inspect needs. They do not check whether security updates are installed. You are responsible for using vendor-supported releases and applying security updates to Docker Engine or Docker Desktop, Compose, the container runtime (such as runc), and the Docker host’s operating system. This also applies when the Docker host is remote.
+
 If you plan on running evaluations with large numbers of concurrent containers (\> 30) you should also configure Docker’s [default address pools](https://straz.to/2021-09-08-docker-address-pools/) to accommodate this.
+
+### File Access
+
+File reads require a running Linux container with `/bin/sh`, `/usr/bin/timeout` and `tar` supporting `--no-recursion`. Reads enforce the requested user’s filesystem permissions, including for symlink targets. Pass `user="root"` when privileged access is intended.
+
+Reads follow kernel permissions, so root can normally read files with no read bits (mode `000`). Reads of concurrently modified files return best-effort contents or fail, including when a file shrinks during the read.
 
 ### Task Configuration
 
@@ -324,9 +347,11 @@ Here is how Docker sandbox environments are created based on the presence of `Do
 
 | Config Files | Behavior |
 |----|----|
-| None | Creates a sandbox environment based on the standard [inspect-tool-support](https://hub.docker.com/r/aisiuk/inspect-tool-support) image. |
+| None | Creates a sandbox environment based on the official [`python:3.12-bookworm`](https://hub.docker.com/_/python) image. |
 | `Dockerfile` | Creates a sandbox environment by building the image. |
 | `compose.yaml` | Creates sandbox environment(s) based on `compose.yaml`. |
+
+The default Docker sandbox and several examples use mutable image tags. A tag such as `python:3.12-bookworm` can refer to a different image when the publisher releases updates. To control when you adopt updates, pin an image digest in your own `compose.yaml`, for example `image: python:3.12-bookworm@sha256:<digest>`. You’ll then need to update that digest to receive newer image versions. See Docker’s [guidance on pinning images](https://docs.docker.com/build/building/best-practices/#pin-base-image-versions).
 
 Providing a `compose.yaml` is not strictly required, as Inspect will automatically generate one as needed. The generated Compose configuration sets `network_mode: none`, which prevents network access at container runtime.
 

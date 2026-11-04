@@ -6,7 +6,7 @@
 
 Automatically apply a decision to tool calls.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/bbb6682c6cdc578948fd66cee3fbbb3f9ea75f88/src/inspect_ai/approval/_auto.py#L9)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/approval/_auto.py#L9)
 
 ``` python
 @approver(name="auto")
@@ -20,7 +20,7 @@ Decision to apply.
 
 Interactive human approver.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/bbb6682c6cdc578948fd66cee3fbbb3f9ea75f88/src/inspect_ai/approval/_human/approver.py#L16)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/approval/_human/approver.py#L16)
 
 ``` python
 @approver(name="human")
@@ -36,7 +36,7 @@ Choices to present to human. “modify” is not supported, since a human cannot
 
 Read approval policies from a JSON or YAML config file.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/bbb6682c6cdc578948fd66cee3fbbb3f9ea75f88/src/inspect_ai/approval/_policy.py#L138)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/approval/_policy.py#L289)
 
 ``` python
 def read_approval_policies(file: str) -> list[ApprovalPolicy]
@@ -49,7 +49,7 @@ JSON or YAML config file with approval policies.
 
 Context manager to temporarily replace tool approval policies.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/bbb6682c6cdc578948fd66cee3fbbb3f9ea75f88/src/inspect_ai/approval/_apply.py#L94)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/approval/_apply.py#L107)
 
 ``` python
 @contextlib.contextmanager
@@ -67,7 +67,7 @@ Approval policies to use within the context.
 
 Approve or reject a tool call.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/bbb6682c6cdc578948fd66cee3fbbb3f9ea75f88/src/inspect_ai/approval/_approver.py#L12)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/approval/_approver.py#L12)
 
 ``` python
 class Approver(Protocol):
@@ -96,7 +96,7 @@ The current conversation history.
 
 Approval details (decision, explanation, etc.)
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/bbb6682c6cdc578948fd66cee3fbbb3f9ea75f88/src/inspect_ai/approval/_approval.py#L19)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/approval/_approval.py#L19)
 
 ``` python
 class Approval(BaseModel)
@@ -120,7 +120,7 @@ Additional approval metadata.
 
 Represents the possible decisions in an approval.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/bbb6682c6cdc578948fd66cee3fbbb3f9ea75f88/src/inspect_ai/approval/_approval.py#L7)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/approval/_approval.py#L7)
 
 ``` python
 ApprovalDecision = Literal["approve", "modify", "reject", "terminate", "escalate"]
@@ -130,7 +130,7 @@ ApprovalDecision = Literal["approve", "modify", "reject", "terminate", "escalate
 
 Policy mapping approvers to tools.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/bbb6682c6cdc578948fd66cee3fbbb3f9ea75f88/src/inspect_ai/approval/_policy.py#L21)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/approval/_policy.py#L22)
 
 ``` python
 @dataclass
@@ -143,7 +143,10 @@ class ApprovalPolicy
 Approver for policy.
 
 `tools` str \| list\[str\]  
-Tools to use this approver for (can be full tool names or globs).
+Tools to use this approver for: function names or globs (a name with no glob characters also matches longer names it begins).
+
+`arguments` dict\[str, str\] \| None  
+Arguments the call must have: each argument name maps to a glob matched against the argument’s value (a string as is, any other value as JSON).
 
 ## Decorator
 
@@ -151,7 +154,7 @@ Tools to use this approver for (can be full tool names or globs).
 
 Decorator for registering approvers.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/bbb6682c6cdc578948fd66cee3fbbb3f9ea75f88/src/inspect_ai/approval/_registry.py#L28)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/approval/_registry.py#L28)
 
 ``` python
 def approver(*args: Any, name: str | None = None, **attribs: Any) -> Any

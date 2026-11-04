@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.10.18">
+<meta name="generator" content="quarto-1.10.19">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -80,7 +80,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-64a204ab8560d761af7679ceaba22944.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-bf27225e3a48a9273f3daa8f8e829971.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
 <link href="site_libs/bootstrap/bootstrap-6be907ae78873760d36834dbe5a66008.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
@@ -766,7 +766,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </ul></li>
   <li><a href="#deepseek" id="toc-deepseek" class="nav-link" data-scroll-target="#deepseek">DeepSeek</a></li>
   <li><a href="#moonshot-ai" id="toc-moonshot-ai" class="nav-link" data-scroll-target="#moonshot-ai">Moonshot AI</a></li>
-  <li><a href="#meta" id="toc-meta" class="nav-link" data-scroll-target="#meta">Meta</a></li>
+  <li><a href="#meta" id="toc-meta" class="nav-link" data-scroll-target="#meta">Meta</a>
+  <ul class="collapse">
+  <li><a href="#meta-prompt-caching" id="toc-meta-prompt-caching" class="nav-link" data-scroll-target="#meta-prompt-caching">Prompt Caching</a></li>
+  </ul></li>
   <li><a href="#grok" id="toc-grok" class="nav-link" data-scroll-target="#grok">Grok</a>
   <ul class="collapse">
   <li><a href="#model-args-1" id="toc-model-args-1" class="nav-link" data-scroll-target="#model-args-1">Model Args</a></li>
@@ -929,7 +932,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>To use the <a href="https://platform.openai.com/">OpenAI</a> provider, install the <code>openai</code> package, set your credentials, and specify a model using the <code>--model</code> option:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install openai</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">OPENAI_API_KEY</span><span class="op">=</span>your-openai-api-key</span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> openai/gpt-4o-mini</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> openai/gpt-6-luna</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>The following environment variables are supported by the OpenAI provider</p>
 <table class="caption-top table">
 <colgroup>
@@ -998,7 +1001,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tr>
 <tr class="odd">
 <td><code>background</code></td>
-<td>Execute generate requests asynchronously, polling response objects to check status over time. Defaults to <code>True</code> for <code>gpt-5-pro</code> and <code>deep-research</code> models and for requests with <code>reasoning_mode="pro"</code>, and <code>False</code> otherwise.</td>
+<td>Execute generate requests asynchronously, polling response objects to check status over time. Defaults to <code>True</code> for <code>-pro</code> models such as <code>gpt-5.5-pro</code>, for <code>deep-research</code> models, and for requests with <code>reasoning_mode="pro"</code>, and <code>False</code> otherwise.</td>
 </tr>
 <tr class="even">
 <td><code>safety_identifier</code></td>
@@ -1023,24 +1026,24 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tbody>
 </table>
 <p>For example:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> openai/gpt-4o-mini <span class="dt">\ </span></span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>   <span class="ex">-M</span> responses_api=true</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> openai/gpt-6-luna <span class="dt">\</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>   <span class="at">-M</span> service_tier=flex</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Or from Python:</p>
-<div id="086ad94d" class="cell">
+<div id="39e639bc" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> <span class="bu">eval</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(</span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">"arc.py"</span>, model<span class="op">=</span><span class="st">" openai/gpt-4o-mini"</span>, </span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>    model_args<span class="op">=</span> { <span class="st">"responses_api"</span>: <span class="va">True</span> }</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">"arc.py"</span>, model<span class="op">=</span><span class="st">"openai/gpt-6-luna"</span>,</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>    model_args<span class="op">=</span> { <span class="st">"service_tier"</span>: <span class="st">"flex"</span> }</span>
 <span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 </section>
 <section id="responses-api" class="level3">
 <h3 class="anchored" data-anchor-id="responses-api">Responses API</h3>
-<p>By default, Inspect uses the standard OpenAI Chat Completions API for GPT-4 models and the new <a href="https://platform.openai.com/docs/api-reference/responses">Responses API</a> for GPT-5 and later (including GPT-6), o-series models, and the <code>computer_use_preview</code> model.</p>
+<p>By default, Inspect uses the standard OpenAI Chat Completions API for GPT-4 models and the new <a href="https://platform.openai.com/docs/api-reference/responses">Responses API</a> for GPT-5 and later (including GPT-6) and o-series models.</p>
 <p>If you want to manually enable or disable the Responses API you can use the <code>responses_api</code> model argument. For example:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="at">--model</span> openai/gpt-4o <span class="at">-M</span> responses_api=true</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>Note that certain models including <code>o1-pro</code> and <code>computer_use_preview</code> <em>require</em> the use of the Responses API. Check the Open AI <a href="https://platform.openai.com/docs/models">models documentation</a> for details on which models are supported by the respective APIs.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="at">--model</span> openai/gpt-6-luna <span class="at">-M</span> responses_api=false</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Note that certain models including <code>gpt-5.5-pro</code> <em>require</em> the use of the Responses API. On Chat Completions, GPT-6 Luna supports function calling only with reasoning off, so set <code>reasoning_effort="none"</code> when using tools with <code>responses_api=false</code>. Check the Open AI <a href="https://platform.openai.com/docs/models">models documentation</a> for details on which models are supported by the respective APIs.</p>
 </section>
 <section id="responses-phase" class="level3">
 <h3 class="anchored" data-anchor-id="responses-phase">Responses Phase</h3>
@@ -1051,23 +1054,23 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="responses-store" class="level3">
 <h3 class="anchored" data-anchor-id="responses-store">Responses Store</h3>
 <p>By default, Inspect’s implementation of the Responses API does not store messages on the server. Reasoning content (which is intended to be opaque to clients) is handled using encrypted payloads (via the “reasoning.encrypted_content” include option). To control this behavior explicitly use the <code>responses_store</code> model argument. For example:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="at">--model</span> openai/o4-mini <span class="at">-M</span> responses_store=True</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="at">--model</span> openai/gpt-6-luna <span class="at">-M</span> responses_store=True</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 <section id="responses-metadata" class="level3">
 <h3 class="anchored" data-anchor-id="responses-metadata">Responses Metadata</h3>
-<p>You can attach <a href="https://platform.openai.com/docs/api-reference/responses/create#responses-create-metadata"><code>metadata</code></a> key-value pairs to Responses API requests via the <code>extra_body</code> generation config. For example:</p>
+<p>You can attach <a href="https://developers.openai.com/api/reference/resources/responses/methods/create"><code>metadata</code></a> key-value pairs to Responses API requests via the <code>extra_body</code> generation config (<code>--extra-body</code> on the command line). For example:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="at">--model</span> openai/gpt-5.4 <span class="dt">\</span></span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    <span class="at">-M</span> extra_body=<span class="st">'{"metadata": {"experiment": "baseline"}}'</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    <span class="at">--extra-body</span> <span class="st">'{"metadata": {"experiment": "baseline"}}'</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>The <code>metadata</code> returned on responses (the echoed request metadata, which some models augment with additional fields) is surfaced as <code>ModelOutput.metadata</code>. Note that request metadata is not sent when <code>responses_store=True</code>.</p>
 </section>
 <section id="flex-processing" class="level3">
 <h3 class="anchored" data-anchor-id="flex-processing">Flex Processing</h3>
 <p><a href="https://platform.openai.com/docs/guides/flex-processing">Flex processing</a> provides significantly lower costs for requests in exchange for slower response times and occasional resource unavailability (input and output tokens are priced using <a href="https://platform.openai.com/docs/guides/batch">batch API rates</a> for flex requests).</p>
-<p>Note that flex processing is in beta, and currently <strong>only available for o3 and o4-mini models</strong>.</p>
+<p>Note that flex processing is in beta with limited model availability. The OpenAI <a href="https://platform.openai.com/docs/pricing">pricing page</a> lists the supported models.</p>
 <p>To enable flex processing, use the <code>service_tier</code> model argument, setting it to “flex”. For example:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="at">--model</span> openai/o4-mini <span class="at">-M</span> service_tier=flex</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="at">--model</span> openai/gpt-6-luna <span class="at">-M</span> service_tier=flex</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>OpenAI recommends using a <a href="https://platform.openai.com/docs/guides/flex-processing#api-request-timeouts">higher client timeout</a> when making flex requests (15 minutes rather than the standard 10). Inspect automatically increases the client timeout to 15 minutes (900 seconds) for flex requests. To specify another value, use the <code>client_timeout</code> model argument. For example:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="at">--model</span> openai/o4-mini <span class="dt">\</span></span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="at">--model</span> openai/gpt-6-luna <span class="dt">\</span></span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    <span class="at">-M</span> service_tier=flex <span class="at">-M</span> client_timeout=1200</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 <section id="openai-on-azure" class="level3">
@@ -1107,17 +1110,17 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tr>
 </tbody>
 </table>
-<p>You can then use the normal <code>openai</code> provider with the <code>azure</code> qualifier and the name of your model deployment (e.g.&nbsp;<code>gpt-4o-mini</code>). For example:</p>
+<p>You can then use the normal <code>openai</code> provider with the <code>azure</code> qualifier and the name of your model deployment (e.g.&nbsp;<code>gpt-6-luna</code>). For example:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb10"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">AZUREAI_OPENAI_API_KEY</span><span class="op">=</span>your-api-key</span>
 <span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">AZUREAI_OPENAI_BASE_URL</span><span class="op">=</span>https://your-url-at.azure.com</span>
 <span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">AZUREAI_OPENAI_API_VERSION</span><span class="op">=</span>2025-03-01-preview</span>
-<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="at">--model</span> openai/azure/gpt-4o-mini</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="at">--model</span> openai/azure/gpt-6-luna</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>If using managed identity for authentication, install the <code>azure-identity</code> package and do not specify <code>AZUREAI_API_KEY</code>.</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb11"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install azure-identity</span>
 <span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">AZUREAI_OPENAI_BASE_URL</span><span class="op">=</span>https://your-url-at.azure.com</span>
 <span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">AZUREAI_AUDIENCE</span><span class="op">=</span>https://cognitiveservices.azure.com/.default</span>
 <span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">AZUREAI_OPENAI_API_VERSION</span><span class="op">=</span>2025-03-01-preview</span>
-<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="at">--model</span> openai/azure/gpt-4o-mini</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="at">--model</span> openai/azure/gpt-6-luna</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Note that if the <code>AZUREAI_OPENAI_API_VERSION</code> is not specified, Inspect will generally default to the latest deployed version, which as of this writing is <code>2025-03-01-preview</code>. When using managed identity for authentication, install the <code>azure-identity</code> package and leave <code>AZUREAI_OPENAI_API_KEY</code> undefined.</p>
 </section>
 <section id="openai-on-aws-bedrock" class="level3">
@@ -1181,6 +1184,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">ANTHROPIC_API_KEY</span><span class="op">=</span>your-anthropic-api-key</span>
 <span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> anthropic/claude-sonnet-4-0</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>For the <code>anthropic</code> provider, custom model args (<code>-M</code>) are forwarded to the constructor of the <code>AsyncAnthropic</code> class.</p>
+<p>The <code>anthropic</code> provider does not pass <code>temperature</code>, <code>top_p</code>, or <code>top_k</code> to the model, because the Anthropic API rejects them as of API version <code>2026-10-21</code> (sent by <code>anthropic&gt;=2.0</code>). It logs a warning when one of them is set.</p>
 <p>The following environment variables are supported by the Anthropic provider</p>
 <table class="caption-top table">
 <colgroup>
@@ -1602,6 +1606,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tr>
 </tbody>
 </table>
+<section id="meta-prompt-caching" class="level3">
+<h3 class="anchored" data-anchor-id="meta-prompt-caching">Prompt Caching</h3>
+<p>Inspect sets Meta’s <a href="https://dev.meta.ai/docs/prompt-caching#prompt-cache-key"><code>prompt_cache_key</code></a> to the running sample’s unique id (no key is sent outside a sample) and, on the Responses API, sets <code>prompt_cache_retention</code> to <code>"24h"</code>. Use the <code>prompt_cache_key</code> and <code>prompt_cache_retention</code> model args to override these (e.g.&nbsp;<code>-M prompt_cache_retention=in_memory</code>). Values supplied in <code>GenerateConfig(extra_body=...)</code> take precedence. Cached tokens are reported as <code>input_tokens_cache_read</code>.</p>
+</section>
 </section>
 <section id="grok" class="level2">
 <h2 class="anchored" data-anchor-id="grok">Grok</h2>
@@ -2070,11 +2078,13 @@ Note
 </tr>
 <tr class="even">
 <td><code>PERPLEXITY_BASE_URL</code></td>
-<td>Base URL for requests (optional, defaults to <code>https://api.perplexity.ai</code>)</td>
+<td>Base URL for requests (optional, defaults to <code>https://api.perplexity.ai/v1</code>)</td>
 </tr>
 </tbody>
 </table>
-<p>Perplexity responses include citations when available. These are surfaced as <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#urlcitation">UrlCitation</a></span>s attached to the assistant message. Additional usage metrics such as <code>reasoning_tokens</code> and <code>citation_tokens</code> are recorded in <code>ModelOutput.metadata</code>.</p>
+<p>The provider uses Perplexity’s <a href="https://docs.perplexity.ai/docs/agent-api/quickstart">Agent API</a>. Name models as <code>perplexity/&lt;provider&gt;/&lt;model&gt;</code>, using the ids in Perplexity’s <a href="https://docs.perplexity.ai/docs/agent-api/models">model list</a> (for example <code>perplexity/openai/gpt-5.6-luna</code>). Perplexity’s own models can omit the provider, so <code>perplexity/sonar</code> is the same as <code>perplexity/perplexity/sonar</code>. Perplexity retired <code>sonar-pro</code>, <code>sonar-reasoning-pro</code>, and <code>sonar-deep-research</code> with its Sonar API; use another Agent API model instead.</p>
+<p>Perplexity models search the web only when you pass the <a href="./tools-standard.html#perplexity-options"><span class="element-type-name ref-interlink"><span>web_search()</span></span></a> tool, which also takes the search options. This is true for <code>perplexity/sonar</code> as well: Sonar searched on every request, but the Agent API does not. Add <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#web_search">web_search()</a></span> to keep search-grounded answers and citations. Other Agent API request fields can be passed with <code>extra_body</code>. Fields that Inspect sets from the generation config, such as <code>include</code> and <code>text</code>, are not replaced. From a <code>reasoning</code> object, only fields that the config has no option for, such as <code>context</code>, are sent. Set the effort, mode and summary with <code>reasoning_effort</code>, <code>reasoning_mode</code> and <code>reasoning_summary</code>. The <code>tools</code> in <code>extra_body</code> can include Perplexity’s <a href="https://docs.perplexity.ai/docs/agent-api/tools/fetch-url"><code>fetch_url</code></a> tool; <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#web_search">web_search()</a></span> adds its tool to that list. Inspect’s <code>tool_choice</code> does not apply to the tools in <code>extra_body</code>. To turn them off, set <code>tool_choice</code> in <code>extra_body</code>. The request has a single tool choice, so that value applies to the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#web_search">web_search()</a></span> tool as well. A <code>tool_choice</code> that forces a search raises an error if <code>extra_body</code> sets a different <code>tool_choice</code>. Inspect cannot read the results of Perplexity’s other tools, so a response with them raises an error.</p>
+<p>When the model searches or fetches a page, the results are recorded in <code>ModelOutput.metadata["search_results"]</code> or <code>ModelOutput.metadata["fetch_url_results"]</code> and attached as <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#urlcitation">UrlCitation</a></span>s to the assistant message. The number of searches, which Perplexity bills per search, is recorded in <code>ModelOutput.metadata["num_search_queries"]</code>.</p>
 </section>
 <section id="hugging-face" class="level2">
 <h2 class="anchored" data-anchor-id="hugging-face">Hugging Face</h2>

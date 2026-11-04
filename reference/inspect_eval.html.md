@@ -20,9 +20,9 @@ inspect eval [OPTIONS] [TASKS]...
 | `--model-base-url` | text | Base URL for for model API | `Sentinel.UNSET` |
 | `-M` | text | One or more native model arguments (e.g. -M arg=value) | `Sentinel.UNSET` |
 | `--model-config` | text | YAML or JSON config file with model arguments. | `Sentinel.UNSET` |
-| `--model-spec` | text | Model to evaluate along with its own generate config, model args, and base url, as inline YAML or JSON, e.g. –model-spec “{model: openai/gpt-4o, temperature: 0}” (same fields as –model-role, plus base_url). Repeat the option to evaluate several models, each with its own options. Cannot be combined with –model, –model-base-url, –model-config, or -M. | `Sentinel.UNSET` |
+| `--model-spec` | text | Model to evaluate along with its own generate config, model args, and base url, as inline YAML or JSON, e.g. –model-spec “{model: openai/gpt-6-luna, reasoning_effort: low}” (same fields as –model-role, plus base_url). Repeat the option to evaluate several models, each with its own options. Cannot be combined with –model, –model-base-url, –model-config, or -M. | `Sentinel.UNSET` |
 | `--run-config` | text | YAML or JSON file with full run configuration (task, model, model roles, generate config, solver, eval config). CLI flags override values from this file. Cannot be combined with –generate-config, –task-config, or –solver-config. | `Sentinel.UNSET` |
-| `--model-role` | text | Named model role with model name or YAML/JSON config, e.g. –model-role critic=openai/gpt-4o or –model-role grader=“{model: mockllm/model, temperature: 0.5}”. Bind multiple models to a role with a comma-separated list of names or a YAML/JSON list of configs, e.g. –model-role grader=openai/gpt-4o,google/gemini-2.0-flash | `Sentinel.UNSET` |
+| `--model-role` | text | Named model role with model name or YAML/JSON config, e.g. –model-role critic=openai/gpt-6-luna or –model-role grader=“{model: mockllm/model, temperature: 0.5}”. Bind multiple models to a role with a comma-separated list of names or a YAML/JSON list of configs, e.g. –model-role grader=openai/gpt-6-luna,google/gemini-2.0-flash | `Sentinel.UNSET` |
 | `-T` | text | One or more task arguments (e.g. -T arg=value) | `Sentinel.UNSET` |
 | `--task-config` | text | YAML or JSON config file with task arguments. | `Sentinel.UNSET` |
 | `--solver` | text | Solver to execute (overrides task default solver) | `Sentinel.UNSET` |
@@ -75,7 +75,7 @@ inspect eval [OPTIONS] [TASKS]...
 | `--cost-limit` | float | Limit on total cost (in dollars) for each sample. | `Sentinel.UNSET` |
 | `--model-cost-config` | text | YAML or JSON file with model prices for cost tracking. | `Sentinel.UNSET` |
 | `--time-limit` | integer | Limit on total running time for each sample. | `Sentinel.UNSET` |
-| `--working-limit` | integer | Limit on total working time (e.g. model generation, tool calls, etc.) for each sample. Work done while any wait is open is not charged, so also set –time-limit to bound wall clock time. | `Sentinel.UNSET` |
+| `--working-limit` | integer | Limit on total working time (e.g. model generation, tool calls, etc.) for each sample. While a wait is open, only model calls, sandbox commands and tool calls are charged, so also set –time-limit to bound wall clock time. | `Sentinel.UNSET` |
 | `--fail-on-error` | float | Threshold of sample errors to tolerage (by default, evals fail when any error occurs). Value between 0 to 1 to set a proportion; value greater than 1 to set a count. | `Sentinel.UNSET` |
 | `--no-fail-on-error` | boolean | Do not fail the eval if errors occur within samples (instead, continue running other samples) | `False` |
 | `--continue-on-fail` | boolean | Do not immediately fail the eval if the error threshold is exceeded (instead, continue running other samples until the eval completes, and then possibly fail the eval). | None |
@@ -101,7 +101,7 @@ inspect eval [OPTIONS] [TASKS]...
 | `--stop-seqs` | text | Sequences where the API will stop generating further tokens. The returned text will not contain the stop sequence. | `Sentinel.UNSET` |
 | `--temperature` | float | What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic. | `Sentinel.UNSET` |
 | `--top-p` | float | An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the tokens with top_p probability mass. | `Sentinel.UNSET` |
-| `--top-k` | integer | Randomly sample the next word from the top_k most likely next words. Anthropic, Google, HuggingFace, and vLLM only. | `Sentinel.UNSET` |
+| `--top-k` | integer | Randomly sample the next word from the top_k most likely next words. Google, HuggingFace, and vLLM only. | `Sentinel.UNSET` |
 | `--num-choices` | integer | How many chat completion choices to generate for each input message. OpenAI, Grok, Google, TogetherAI, and vLLM only. | `Sentinel.UNSET` |
 | `--logprobs` | boolean | Return log probabilities of the output tokens. OpenAI, Google, TogetherAI, Huggingface, llama-cpp-python, and vLLM only. | `False` |
 | `--top-logprobs` | integer | Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Google, TogetherAI, Huggingface, and vLLM only. | `Sentinel.UNSET` |

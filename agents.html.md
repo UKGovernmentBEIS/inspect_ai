@@ -51,8 +51,8 @@ def web_surfer() -> Agent:
         # some general guidance for the agent
         state.messages.append(
             ChatMessageSystem(
-                content="You are an expert at using a " + 
-                "web browser to answer questions."
+                content="You are an expert at using " +
+                "web search to answer questions."
             )
         )
 
@@ -82,8 +82,8 @@ def web_surfer() -> Agent:
     return react(
         name="web_surfer",
         description="Web research assistant",
-        prompt="You are an expert at using a " + 
-            "web browser to answer questions.",
+        prompt="You are an expert at using " +
+            "web search to answer questions.",
         tools=[web_search()]
     )
 ```

@@ -76,7 +76,7 @@ A solver is a pipeline. Here [system_message()](./reference/inspect_ai.solver.ht
 The `@task` decorator lets `inspect eval` discover and run the task by name. Run it from the command line:
 
 ``` bash
-inspect eval security_guide.py --model openai/gpt-5 --model-role grader=google/gemini-2.5-pro
+inspect eval security_guide.py --model openai/gpt-6-luna --model-role grader=google/gemini-2.5-pro
 ```
 
 When it finishes you’ll get a results summary and a link to the log. To explore that log interactively, launch the log viewer with `inspect view`:
@@ -143,7 +143,7 @@ HellaSwag stores the answer as an integer index, so we convert it to a choice le
 Run it, limiting to 50 samples while developing:
 
 ``` bash
-inspect eval hellaswag.py --limit 50 --model openai/gpt-5
+inspect eval hellaswag.py --limit 50 --model openai/gpt-6-luna
 ```
 
 ## Agent Evals
@@ -298,7 +298,7 @@ def math():
 Run it, limiting to 50 samples while developing:
 
 ``` bash
-inspect eval math_500.py --limit 50 --model openai/gpt-5
+inspect eval math_500.py --limit 50 --model openai/gpt-6-luna
 ```
 
 See [Scoring](./scoring.html.md) for the full scorer and metric APIs.
@@ -375,7 +375,7 @@ The second generation only runs for samples where the model requested a hint. Ot
 Run it from the command line:
 
 ``` bash
-inspect eval capitals.py --model openai/gpt-5
+inspect eval capitals.py --model openai/gpt-6-luna
 ```
 
 See [Solvers](./solvers.html.md) for the full solver API.
@@ -445,10 +445,10 @@ def addition_problem():
 Run it from the command line:
 
 ``` bash
-inspect eval addition.py --model openai/gpt-5
+inspect eval addition.py --model openai/gpt-6-luna
 ```
 
-Inspect includes many [standard tools](./tools-standard.html.md) (code execution, web search, web browsing, computer use, etc.) so check the built-in tools before writing your own.
+Inspect includes many [standard tools](./tools-standard.html.md) (code execution, web search, computer use, etc.) so check the built-in tools before writing your own.
 
 ## Log Analysis
 
@@ -510,7 +510,7 @@ Coding agents do real work like editing files and running tests, so they run ins
 Run it like any other task, choosing the model the agent should drive:
 
 ``` bash
-inspect eval coding_agent.py --model openai/gpt-5
+inspect eval coding_agent.py --model openai/gpt-6-luna
 ```
 
 See the [Inspect SWE](https://meridianlabs-ai.github.io/inspect_swe/) documentation for the full set of agents and options.
@@ -524,7 +524,7 @@ from inspect_ai import eval_set
 
 success, logs = eval_set(
     tasks=[security_guide(), hellaswag(), math()],
-    model=["openai/gpt-5", "anthropic/claude-sonnet-4-6"],
+    model=["openai/gpt-6-sol", "anthropic/claude-sonnet-4-6"],
     log_dir="logs/run-1",     # required, enables retry & resume
 )
 ```

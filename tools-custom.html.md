@@ -220,7 +220,7 @@ The `exec_remote()` options ([ExecRemoteStreamingOptions](./reference/inspect_ai
 
 ``` python
 async def write_file(
-    self, file: str, contents: str | bytes
+    self, file: str, contents: str | bytes, *, user: str | None = None
 ) -> None:
     """
     Raises:
@@ -239,7 +239,7 @@ Note that `write_file()` automatically creates parent directories as required if
 
 ``` python
 async def read_file(
-    self, file: str, text: bool = True
+    self, file: str, text: bool = True, *, user: str | None = None
 ) -> Union[str | bytes]:
     """
     Raises:
@@ -260,6 +260,19 @@ async def read_file(
 The [read_file()](./reference/inspect_ai.tool.html.md#read_file) method should enforce the `SandboxEnvironmentLimits.MAX_READ_FILE_SIZE` limit (default 100MB, configurable via the `INSPECT_SANDBOX_MAX_READ_FILE_SIZE` environment variable) and raise an `OutputLimitExceededError` when it is exceeded.
 
 The [read_file()](./reference/inspect_ai.tool.html.md#read_file) method should preserve newline constructs (e.g. crlf should be preserved not converted to lf). This is equivalent to specifying `newline=""` in a call to the Python `open()` function.
+
+Both file methods accept `user` to enforce that user’s filesystem permissions, including when following symlinks and creating parent directories. Omitting `user` uses the sandbox’s default execution user. A provider that cannot honour an explicit user must raise [SandboxUserUnsupportedError](./reference/inspect_ai.util.html.md#sandboxuserunsupportederror) before any file operation. Declare a named `user` parameter: accepting `**kwargs` alone does not establish support.
+
+Pass the same user as the agent’s tools when reading or writing on the agent’s behalf. Inspect does not infer this user from the tool configuration. If the sandbox’s default user is root, omitting `user` still gives root access.
+
+``` python
+contents = await sandbox().read_file("/home/agent/output.txt", user="agent")
+await sandbox().write_file("/home/agent/input.txt", contents, user="agent")
+```
+
+Older sandbox providers remain usable for calls without `user`; their existing default behavior is retained. Explicit-user calls through [sandbox()](./reference/inspect_ai.util.html.md#sandbox) are rejected until the sandbox provider implements this contract. Checkpoint export requests `user="root"` from sandbox providers that accept the parameter.
+
+Sandbox provider authors must update override signatures to type-check against the new base class, even though existing calls remain usable at runtime.
 
 ### connection()
 
@@ -302,7 +315,7 @@ When a batch mixes parallel and serial calls, each serial call acts as a barrier
 
 If one parallel call raises an unhandled exception, its in-flight siblings are cancelled. [ToolError](./reference/inspect_ai.tool.html.md#toolerror) is not an unhandled exception — it becomes tool-result content and siblings continue.
 
-Only opt a tool in to parallel execution after auditing it for concurrent-safety. Stateful tools like [bash_session()](./reference/inspect_ai.tool.html.md#bash_session) and [web_browser()](./reference/inspect_ai.tool.html.md#web_browser) keep the default (`parallel=False`) and run serially.
+Only opt a tool in to parallel execution after auditing it for concurrent-safety. Stateful tools like [bash_session()](./reference/inspect_ai.tool.html.md#bash_session) keep the default (`parallel=False`) and run serially.
 
 ## Output Size
 
@@ -329,11 +342,9 @@ Note that a single unbounded result is not the same risk as an unbounded *accumu
 
 ## Stateful Tools
 
-Some tools need to retain state across invocations (for example, the [bash_session()](./reference/inspect_ai.tool.html.md#bash_session) and [web_browser()](./reference/inspect_ai.tool.html.md#web_browser) tools both interact with a stateful remote process). You can create stateful tools by using the [store_as()](./reference/inspect_ai.util.html.md#store_as) function to access discrete storage for your tool and/or specific instances of your tool.
+Some tools need to retain state across invocations (for example, the [bash_session()](./reference/inspect_ai.tool.html.md#bash_session) tool interacts with a stateful remote process). You can create stateful tools by using the [store_as()](./reference/inspect_ai.util.html.md#store_as) function to access discrete storage for your tool and/or specific instances of your tool.
 
-For example, imagine we were creating a `web_surfer()` tool that builds on the [web_browser()](./reference/inspect_ai.tool.html.md#web_browser) tool to complete sequences of browser actions in service of researching a topic. We might want to ask multiple questions of the web surfer and have it retain its message history and browser state.
-
-Note that [web_browser()](./reference/inspect_ai.tool.html.md#web_browser) is [deprecated](./tools-standard.html.md#sec-web-browser); it is used here only to illustrate how a stateful tool is composed.
+For example, imagine we were creating a `web_surfer()` tool that builds on the [web_search()](./reference/inspect_ai.tool.html.md#web_search) tool to complete sequences of web searches in service of researching a topic. We might want to ask multiple questions of the web surfer and have it retain its message history.
 
 Here’s the complete source code for this tool.
 
@@ -341,12 +352,11 @@ Here’s the complete source code for this tool.
 from textwrap import dedent
 
 from pydantic import Field
-from shortuuid import uuid
 
 from inspect_ai.model import (
   ChatMessage, ChatMessageSystem, ChatMessageUser, get_model
 )
-from inspect_ai.tool import Tool, tool, web_browser
+from inspect_ai.tool import Tool, tool, web_search
 from inspect_ai.util import StoreModel, store_as
 
 class WebSurferState(StoreModel):
@@ -356,16 +366,16 @@ class WebSurferState(StoreModel):
 def web_surfer(instance: str | None = None) -> Tool:
     """Web surfer tool for researching topics.
 
-    The web_surfer tool builds on the web_browser tool to complete
-    sequences of web_browser actions in service of researching a topic.
-    Input can either be requests to do research or questions about 
+    The web_surfer tool builds on the web_search tool to complete
+    sequences of web searches in service of researching a topic.
+    Input can either be requests to do research or questions about
     previous research.
     """
     async def execute(input: str, clear_history: bool = False) -> str:
         """Use the web to research a topic.
 
-        You may ask the web surfer any question. These questions can 
-        either prompt new web searches or be clarifying or follow up 
+        You may ask the web surfer any question. These questions can
+        either prompt new web searches or be clarifying or follow up
         questions about previous web searches.
 
         Args:
@@ -388,16 +398,13 @@ def web_surfer(instance: str | None = None) -> Tool:
             surfer_state.messages.append(
                 ChatMessageSystem(
                     content=dedent("""
-                You are a helpful assistant that can use a browser
-                to answer questions. You don't need to answer the 
-                questions with a single web browser request, rather,
-                you can perform searches, follow links, backtrack, 
-                and otherwise use the browser to its fullest 
-                capability to help answer the question.
+                You are a helpful assistant that can use web search to
+                answer questions. You can perform multiple searches to
+                gather the information needed to answer the question.
 
                 In some cases questions will be about your previous
                 web searches, in those cases you don't always need
-                to use the web browser tool but can answer by 
+                to use the web search tool but can answer by
                 consulting previous conversation messages.
                 """)
                 )
@@ -406,9 +413,8 @@ def web_surfer(instance: str | None = None) -> Tool:
         # append the latest question
         surfer_state.messages.append(ChatMessageUser(content=input))
 
-        # run tool loop with web browser
         messages, output = await get_model().generate_loop(
-            surfer_state.messages, tools=web_browser(instance=instance)
+            surfer_state.messages, tools=[web_search()]
         )
 
         # update state
@@ -420,9 +426,9 @@ def web_surfer(instance: str | None = None) -> Tool:
     return execute
 ```
 
-We make available an `instance` parameter that enables creation of multiple instances of the `web_surfer()` tool. We then pass this `instance` to the [store_as()](./reference/inspect_ai.util.html.md#store_as) function (to store our own tool’s message history) and the [web_browser()](./reference/inspect_ai.tool.html.md#web_browser) function (so that we also provision a unique browser for the web surfer session).
+We make available an `instance` parameter that enables creation of multiple instances of the `web_surfer()` tool. We pass this `instance` to [store_as()](./reference/inspect_ai.util.html.md#store_as) so each instance retains its own message history.
 
-For example, this creates a distinct instance of the `web_surfer()` with its own state and browser:
+For example, this creates a distinct instance of the `web_surfer()` with its own message history:
 
 ``` python
 from shortuuid import uuid

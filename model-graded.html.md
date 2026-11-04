@@ -166,7 +166,7 @@ model_graded_qa(model=[...], reducer="mode")
 
 Because the grader sees dataset- and model-controlled text (the question, the submission, and any per-sample criterion), the built-in graders take two precautions against a model steering its own grade.
 
-Grade extraction binds to the last grade. The default `grade_pattern` (`(?is).*(?<!\w)GRADE(?!\w)[\s\u200b\u200c\u200d\u200e\u200f\u2060\u2063\ufeff]*:[\s\u200b\u200c\u200d\u200e\u200f\u2060\u2063\ufeff]*([CPI])`) matches the last `GRADE: X` in the grader’s output, tolerating common zero-width formatting characters around the separator. The instructions tell the grader to end with its grade, so an earlier `GRADE: C` (echoed in chain-of-thought, or injected via the submission) does not win, and prose such as `downgrade:` is not treated as a verdict. If you customise `grade_pattern`, keep this behaviour in mind.
+Grade extraction binds to the last grade. The default `grade_pattern` matches the last `GRADE: X` in the grader’s output, tolerating common zero-width formatting characters around the separator, markdown emphasis or brackets around the label or verdict (`**GRADE**: I`, `GRADE: [I]`), a fullwidth colon or `=` as the separator, and a `## GRADE` heading with the verdict alone on the next line. The instructions tell the grader to end with its grade, so an earlier `GRADE: C` (echoed in chain-of-thought, or injected via the submission) does not win, and prose such as `downgrade:` is not treated as a verdict. If you customise `grade_pattern`, keep this behaviour in mind.
 
 Structural delimiters are neutralized. The default templates wrap content in `[BEGIN DATA]` / `[END DATA]` markers. Before formatting the prompt, Inspect rewrites any `[BEGIN DATA]` / `[END DATA]` markers that appear in the model-controlled `answer`, the `question`, the `criterion`, and any `metadata` values (for example to `[END-DATA]`) so a model cannot inject a fake delimiter and smuggle grading instructions into the prompt. The `instructions` you provide are author-controlled and left untouched.
 
@@ -182,15 +182,20 @@ By default the grader model runs with the provider’s default generation settin
 from inspect_ai.model import get_model, GenerateConfig
 from inspect_ai.scorer import model_graded_qa
 
-grader = get_model("openai/gpt-4o", config=GenerateConfig(temperature=0, seed=42))
+grader = get_model(
+    "openai/gpt-6-luna",
+    config=GenerateConfig(reasoning_effort="none", temperature=0),
+)
 
 model_graded_qa(model=grader)
 ```
+
+GPT-6 Luna reasons by default, and Inspect drops `temperature` (with a warning) while an OpenAI model reasons, so the example sets `reasoning_effort="none"`. See [Reasoning Effort](./reasoning.html.md#reasoning-effort). The OpenAI Responses API, which Inspect uses by default for GPT-5 and later, does not accept `seed`.
 
 You can apply the same configuration through the `grader` model role instead of the `model` argument — see [Model Roles](./models.html.md#model-roles).
 
 For more reproducible grading:
 
-1.  Set `temperature=0` so the grader is as deterministic as the provider allows.
+1.  Set `temperature=0`, where the model accepts it, so the grader is as deterministic as the provider allows.
 2.  Set a `seed` where the provider supports it.
 3.  Run multiple `epochs` and inspect grade variance — setting `temperature=0` reduces, but does not always eliminate, run-to-run disagreement.

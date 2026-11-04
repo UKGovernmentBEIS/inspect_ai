@@ -33,6 +33,17 @@
     ]
   },
   {
+    "id": "lizard-sandboxes",
+    "name": "Lizard Sandboxes",
+    "url": "https://github.com/lizard-build/integrations/tree/main/packages/inspect-lizard",
+    "desc": "Run Inspect tasks in Firecracker microVMs on Lizard (lizard.build).",
+    "author": "Lizard",
+    "author_url": "https://github.com/lizard-build",
+    "categories": [
+      "Sandboxes"
+    ]
+  },
+  {
     "id": "ec2-sandbox",
     "name": "EC2 Sandbox",
     "url": "https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox",
@@ -94,6 +105,17 @@
     "desc": "Sandbox wrapper that allows fine grained control over command execution and file I/O.",
     "author": "Arnab Mitra",
     "author_url": "https://github.com/Dedulus",
+    "categories": [
+      "Sandboxes"
+    ]
+  },
+  {
+    "id": "runtime-sandbox",
+    "name": "Runtime Sandbox",
+    "url": "https://withruntime.com/docs/inspect",
+    "desc": "Runs each sample in a Firecracker microVM on Runtime Cloud, from the same Dockerfile or single-service compose file as the Docker sandbox.",
+    "author": "Runtime",
+    "author_url": "https://github.com/withruntime/runtime",
     "categories": [
       "Sandboxes"
     ]
@@ -457,6 +479,17 @@
     "desc": "Steers a model's sampling towards any target behaviour, surfacing on-policy examples in fewer samples, accessing only the model's logits.",
     "author": "Adrians Skapars",
     "author_url": "https://scholar.google.com/citations?user=9Vf0mWkAAAAJ&hl=en",
+    "categories": [
+      "Tooling"
+    ]
+  },
+  {
+    "id": "inspect-drex",
+    "name": "inspect-drex",
+    "url": "https://github.com/nace-ai/inspect-drex",
+    "desc": "Scorer that asks Drex decision models whether a sample meets your criteria and returns probabilities, so the pass threshold can be chosen after the run.",
+    "author": "Nace",
+    "author_url": "https://github.com/nace-ai",
     "categories": [
       "Tooling"
     ]

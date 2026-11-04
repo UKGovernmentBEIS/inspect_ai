@@ -30,6 +30,8 @@ Or from Python with:
 eval_retry("logs/2024-05-29T12-38-43_math_43_math_Gprr29Mv.json")
 ```
 
+A retry runs code named by the log: its task file, scorers and solver, or for an `hf/` task the Hugging Face repo it names, whose `eval.yaml` chooses the dataset and the solver and scorer arguments. It also uses the model endpoint, sandbox and other settings recorded in the log. Only retry logs you trust.
+
 Note that retry only works for tasks that are created from `@task` decorated functions (as if a [Task](./reference/inspect_ai.html.md#task) is created dynamically outside of an `@task` function Inspect does not know how to reconstruct it for the retry).
 
 Note also that [eval_retry()](./reference/inspect_ai.html.md#eval_retry) does not overwrite the previous log file, but rather creates a new one (preserving the `task_id` from the original file).
@@ -180,6 +182,8 @@ After recovery, if there are cancelled or failed samples, the CLI will suggest r
     To re-run the 5 failed/cancelled samples:
       inspect eval-retry path/to/crashed-recovered.eval
 
+Recovery recomputes the eval’s metrics without importing the task file the log records. If a metric or epoch reducer is not registered (for example, a custom metric defined in the task file), or a metric’s options would create a model or another object, `inspect log recover` stops with an error before writing anything. For a log you trust, rerun with `--trust-log` (`trust_log=True` for [recover_eval_log()](./reference/inspect_ai.log.html.md#recover_eval_log)), which imports the task file and runs its code; anything it still can’t resolve is then recovered without results.
+
 > **NOTE:**
 >
 > The sample buffer database is retained for 3 days after the eval process exits. Recovery should be performed soon after a crash to ensure the data is still available.
@@ -211,7 +215,7 @@ By default, samples that were still in progress at the time of the crash are rec
 The `--incomplete-action` option resolves this by letting you choose the disposition for in-progress samples:
 
 - `retry` (the default) marks them as cancelled errors that a later retry re-runs.
-- `error` resolves them as operator terminations. When every expected sample is then final, the recovered log is finalized with status `"success"` and full results — nothing will retry it. If expected samples are missing entirely (never started), the log keeps status `"error"` and stays retryable. Expected samples are matched by id and epoch against the ids recorded in the log, so for a task with a dynamic `sample_source` (whose log records only the seed samples’ ids) finalization happens only when the written samples are exactly the seed samples; once produced samples have been written, the log stays retryable. Finalization also requires the eval’s metrics to be recomputed, so if a scorer or metric cannot be resolved in the recovery process (for example, a custom metric from a package that is not installed there) the log is not finalized either. Whenever `error` does not finalize, `inspect log recover` prints a `not finalized:` line giving the reason.
+- `error` resolves them as operator terminations. When every expected sample is then final, the recovered log is finalized with status `"success"` and full results — nothing will retry it. If expected samples are missing entirely (never started), the log keeps status `"error"` and stays retryable. Expected samples are matched by id and epoch against the ids recorded in the log, so for a task with a dynamic `sample_source` (whose log records only the seed samples’ ids) finalization happens only when the written samples are exactly the seed samples; once produced samples have been written, the log stays retryable. Finalization also requires the eval’s metrics to be recomputed, so if a metric cannot be resolved during automatic recovery, or during manual recovery with `--trust-log` (for example, a custom metric from a package that is not installed there), the log is not finalized either. Whenever `error` does not finalize, `inspect log recover` prints a `not finalized:` line giving the reason.
 
 Note that finalization freezes *every* errored sample in the recovered log, not only the ones resolved during recovery: samples that had already failed before the crash (within the eval’s `fail_on_error` tolerance, or with `fail_on_error=False`) are recorded as errors in the finalized log rather than re-run — the same outcome the eval would have reached had it not crashed. An explicit `inspect eval-retry` on the finalized log can still re-run its errored samples later.
 

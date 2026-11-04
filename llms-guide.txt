@@ -12,7 +12,7 @@ Inspect is a framework for frontier AI evaluations developed by the [UK AI Secur
 - Composable building blocks—datasets, agents, tools, and scorers—that make evaluations easy to write and reuse.
 - A collection of over 200 pre-built evaluations ready to run on any model.
 - Extensive tooling, including a web-based Inspect View tool for monitoring and visualizing evaluations and a VS Code Extension that assists with authoring and debugging.
-- Flexible support for tool calling—custom and MCP tools, as well as built-in bash, python, text editing, web search, web browsing, and computer tools.
+- Flexible support for tool calling—custom and MCP tools, as well as built-in bash, python, text editing, web search, and computer tools.
 - Support for agent evaluations, including flexible built-in agents, multi-agent primitives, and the ability to run arbitrary external agents like Claude Code, Codex CLI, and Gemini CLI.
 - A sandboxing system that supports running untrusted model code in Docker, Kubernetes, Modal, Proxmox, Vagrant, and other systems via an extension API.
 
@@ -37,7 +37,7 @@ To develop and run evaluations, you’ll also need access to a model, which typi
 ``` bash
 pip install openai
 export OPENAI_API_KEY=your-openai-api-key
-inspect eval simpleqa.py --model openai/gpt-4o
+inspect eval simpleqa.py --model openai/gpt-6-luna
 ```
 
 ``` bash
@@ -122,7 +122,7 @@ Because the answers are free-form text, [model_graded_qa()](./reference/inspect_
 Run it from the command line with `inspect eval`, choosing a model with `--model`:
 
 ``` bash
-inspect eval simpleqa.py --model openai/gpt-5
+inspect eval simpleqa.py --model openai/gpt-6-luna
 ```
 
 Use `inspect view` to view the results:
@@ -186,7 +186,7 @@ Above we demonstrated using `inspect eval` from CLI to run evaluations—you can
 from inspect_ai import eval
 from simpleqa import simpleqa
 
-eval(simpleqa(), model="openai/gpt-5")
+eval(simpleqa(), model="openai/gpt-6-luna")
 ```
 
 ## LLM Assistance
@@ -319,7 +319,7 @@ A solver is a pipeline. Here [system_message()](./reference/inspect_ai.solver.ht
 The `@task` decorator lets `inspect eval` discover and run the task by name. Run it from the command line:
 
 ``` bash
-inspect eval security_guide.py --model openai/gpt-5 --model-role grader=google/gemini-2.5-pro
+inspect eval security_guide.py --model openai/gpt-6-luna --model-role grader=google/gemini-2.5-pro
 ```
 
 When it finishes you’ll get a results summary and a link to the log. To explore that log interactively, launch the log viewer with `inspect view`:
@@ -386,7 +386,7 @@ HellaSwag stores the answer as an integer index, so we convert it to a choice le
 Run it, limiting to 50 samples while developing:
 
 ``` bash
-inspect eval hellaswag.py --limit 50 --model openai/gpt-5
+inspect eval hellaswag.py --limit 50 --model openai/gpt-6-luna
 ```
 
 ## Agent Evals
@@ -541,7 +541,7 @@ def math():
 Run it, limiting to 50 samples while developing:
 
 ``` bash
-inspect eval math_500.py --limit 50 --model openai/gpt-5
+inspect eval math_500.py --limit 50 --model openai/gpt-6-luna
 ```
 
 See [Scoring](./scoring.html.md) for the full scorer and metric APIs.
@@ -618,7 +618,7 @@ The second generation only runs for samples where the model requested a hint. Ot
 Run it from the command line:
 
 ``` bash
-inspect eval capitals.py --model openai/gpt-5
+inspect eval capitals.py --model openai/gpt-6-luna
 ```
 
 See [Solvers](./solvers.html.md) for the full solver API.
@@ -688,10 +688,10 @@ def addition_problem():
 Run it from the command line:
 
 ``` bash
-inspect eval addition.py --model openai/gpt-5
+inspect eval addition.py --model openai/gpt-6-luna
 ```
 
-Inspect includes many [standard tools](./tools-standard.html.md) (code execution, web search, web browsing, computer use, etc.) so check the built-in tools before writing your own.
+Inspect includes many [standard tools](./tools-standard.html.md) (code execution, web search, computer use, etc.) so check the built-in tools before writing your own.
 
 ## Log Analysis
 
@@ -753,7 +753,7 @@ Coding agents do real work like editing files and running tests, so they run ins
 Run it like any other task, choosing the model the agent should drive:
 
 ``` bash
-inspect eval coding_agent.py --model openai/gpt-5
+inspect eval coding_agent.py --model openai/gpt-6-luna
 ```
 
 See the [Inspect SWE](https://meridianlabs-ai.github.io/inspect_swe/) documentation for the full set of agents and options.
@@ -767,7 +767,7 @@ from inspect_ai import eval_set
 
 success, logs = eval_set(
     tasks=[security_guide(), hellaswag(), math()],
-    model=["openai/gpt-5", "anthropic/claude-sonnet-4-6"],
+    model=["openai/gpt-6-sol", "anthropic/claude-sonnet-4-6"],
     log_dir="logs/run-1",     # required, enables retry & resume
 )
 ```
@@ -883,7 +883,7 @@ For more detail on the different methods of configuration, see [Configuration](.
 | `--model-config` | Model specific arguments (JSON or YAML file) |
 | `-M` | Model specific arguments (`key=value`). |
 | `--model-spec` | Model with its own generation config, model args, and base url (inline JSON or YAML, same fields as `--model-role`). Repeat for several models. Cannot be combined with the four options above, nor with the `model` field of `--run-config`. See [Multiple Models](./models.html.md#multiple-models). |
-| `--model-role` | Named model role with model name or config (e.g. `grader=openai/gpt-4o`). See [Model Roles](./models.html.md#model-roles). |
+| `--model-role` | Named model role with model name or config (e.g. `grader=openai/gpt-6-luna`). See [Model Roles](./models.html.md#model-roles). |
 
 ## Model Generation
 
@@ -894,7 +894,7 @@ For more detail on the different methods of configuration, see [Configuration](.
 | `--system-message` | Override the default system message. |
 | `--temperature` | What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic. |
 | `--top-p` | An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the tokens with top_p probability mass. |
-| `--top-k` | Randomly sample the next word from the top_k most likely next words. Anthropic, Google, HuggingFace, and vLLM only. |
+| `--top-k` | Randomly sample the next word from the top_k most likely next words. Google, HuggingFace, and vLLM only. |
 | `--frequency-penalty` | Number between -2.0 and 2.0. Positive values penalize new tokens based on their existing frequency in the text so far, decreasing the model’s likelihood to repeat the same line verbatim. OpenAI, Google, Grok, Groq, llama- cpp-python and vLLM only. |
 | `--presence-penalty` | Number between -2.0 and 2.0. Positive values penalize new tokens based on whether they appear in the text so far, increasing the model’s likelihood to talk about new topics. OpenAI, Google, Grok, Groq, llama-cpp-python and vLLM only. |
 | `--logit-bias` | Map token Ids to an associated bias value from -100 to 100 (e.g. “42=10,43=-10”). OpenAI and Grok only. |
@@ -968,7 +968,7 @@ For a complete matrix of which task, solver, and runtime settings can be configu
 | `--message-limit` | Limit on total messages used for each sample. |
 | `--token-limit` | Limit on total tokens used for each sample. |
 | `--time-limit` | Limit on total running time for each sample. |
-| `--working-limit` | Limit on total working time (model generation, tool calls, etc.) for each sample. Work done while any wait is open is not charged, so also set `--time-limit`. |
+| `--working-limit` | Limit on total working time (model generation, tool calls, etc.) for each sample. While a wait is open, only model calls, sandbox commands and tool calls are charged, so also set `--time-limit`. |
 | `--cost-limit` | Limit on total cost (in dollars) for each sample. Requires model cost data via [set_model_cost()](./reference/inspect_ai.model.html.md#set_model_cost) or `--model-cost-config`. |
 | `--model-cost-config` | YAML or JSON file with model prices for cost tracking. |
 
@@ -1549,7 +1549,7 @@ from inspect_ai.solver import generate, system_message
 def security_guide(
     system="devops.txt",
     grader="expert.txt",
-    grader_model="openai/gpt-4o"
+    grader_model="openai/gpt-6-luna"
 ):
    return Task(
       dataset=example_dataset("security_guide"),
@@ -1963,14 +1963,14 @@ Individual CLI flags (e.g. `--temperature`) take precedence over values in the 
 Model roles assign models to named purposes within a task (for example, a “grader” model for scoring). They can be set on [Task](./reference/inspect_ai.html.md#task), with [task_with()](./reference/inspect_ai.html.md#task_with), with [eval()](./reference/inspect_ai.html.md#eval), or on the CLI with `--model-role` (see the [override reference](#override-reference) for where each form fits). The most common pattern:
 
 ``` python
-Task(..., model_roles={"grader": "openai/gpt-4o"})
+Task(..., model_roles={"grader": "openai/gpt-6-luna"})
 eval(my_task(), model_roles={"grader": "google/gemini-2.0-flash"})
 ```
 
 Inside a solver or scorer, resolve the role with [get_model()](./reference/inspect_ai.model.html.md#get_model):
 
 ``` python
-model = get_model(role="grader", default="openai/gpt-4o")
+model = get_model(role="grader", default="openai/gpt-6-luna")
 ```
 
 For inline YAML/JSON examples and role-resolution details, see [Model Roles](./models.html.md#model-roles).
@@ -2000,8 +2000,9 @@ model:
 
 model_roles:
   grader:
-    model: openai/gpt-4o
+    model: openai/gpt-6-luna
     config:
+      reasoning_effort: none
       temperature: 0.0
 
 generate_config:
@@ -2147,7 +2148,7 @@ The same packaging mechanism works for solvers, scorers, and tools. See [Compone
 Datasets hosted on Hugging Face Hub can include an `eval.yaml` file that provides Inspect task definitions. For example, the [OpenEvals/aime_24](https://huggingface.co/datasets/OpenEvals/aime_24) dataset can be evaluated with:
 
 ``` bash
-inspect eval hf/OpenEvals/aime_24 --model openai/gpt-5
+inspect eval hf/OpenEvals/aime_24 --model openai/gpt-6-luna
 ```
 
 Here are the `eval.yaml` definitions for several Hugging Face datasets:
@@ -2182,16 +2183,16 @@ Datasets can define multiple named tasks. For example, the [OpenEvals/MuSR](http
 
 ``` bash
 # run all 3 tasks defined by OpenEvals/MuSR
-inspect eval hf/OpenEvals/MuSR --model openai/gpt-5
+inspect eval hf/OpenEvals/MuSR --model openai/gpt-6-luna
 
 # run only the musr:murder_mysteries task
-inspect eval hf/OpenEvals/MuSR/musr:murder_mysteries --model openai/gpt-5
+inspect eval hf/OpenEvals/MuSR/musr:murder_mysteries --model openai/gpt-6-luna
 ```
 
 Note that when running multiple tasks, you may want to increase `--max-tasks` for more concurrency:
 
 ``` bash
-inspect eval hf/OpenEvals/MuSR --model openai/gpt-5 --max-tasks 3
+inspect eval hf/OpenEvals/MuSR --model openai/gpt-6-luna --max-tasks 3
 ```
 
 ### Revisions
@@ -2199,7 +2200,7 @@ inspect eval hf/OpenEvals/MuSR --model openai/gpt-5 --max-tasks 3
 All of the examples above execute evals from the `main` branch. You can alternatively execute from a branch, tag, or revision hash by appending an `@` qualifier. For example:
 
 ``` bash
-inspect eval hf/OpenEvals/MuSR@df154a5 --model openai/gpt-5
+inspect eval hf/OpenEvals/MuSR@df154a5 --model openai/gpt-6-luna
 ```
 
 ## Exploratory
@@ -2215,7 +2216,7 @@ from itertools import product
 params = {
     "system": ["devops.txt", "researcher.txt"],
     "grader": ["hacker.txt", "expert.txt"],
-    "grader_model": ["openai/gpt-4o", "google/gemini-2.5-pro"],
+    "grader_model": ["openai/gpt-6-luna", "google/gemini-2.5-pro"],
 }
 grid = list(product(*(params[name] for name in params)))
 
@@ -2336,6 +2337,8 @@ dataset = json_dataset(
 ```
 
 To read `Sample.description` (a short statement of what the sample asks of the agent) from a dataset field, name the field with `FieldSpec(description=...)`. Descriptions are not read unless the field is named, so existing datasets with a `description` column are unaffected. The description is recorded with the sample in the eval log and appears as the `description` column of [samples_df()](./reference/inspect_ai.analysis.html.md#samples_df).
+
+A `checkpoint` field is read as the sample’s checkpoint configuration (`Sample.checkpoint`). Use `FieldSpec(checkpoint=...)` to read it from a different field, or `FieldSpec(checkpoint=None)` if your dataset has an unrelated `checkpoint` column. Dataset records cannot set the checkpoint `trigger`; set it on the task or eval instead.
 
 If you need to do more than just map field names and actually do custom processing of the data, you can instead pass a function which takes a `record` (represented as a `dict`) from the underlying file and returns a [Sample](./reference/inspect_ai.dataset.html.md#sample). For example:
 
@@ -2857,7 +2860,7 @@ Before presenting the examples we’ll take a more in-depth look at the [TaskSta
 | Member | Type | Description |
 |----|----|----|
 | `messages` | list\[ChatMessage\] | Chat conversation history for sample. It is automatically appended to by the [generate()](./reference/inspect_ai.solver.html.md#generate) solver, and is often manipulated by other solvers (e.g. for prompt engineering or elicitation). |
-| `user_prompt` | ChatMessageUser | Convenience property for accessing the first user message in the message history (commonly used for prompt engineering). |
+| `user_prompt` | ChatMessageUser | Convenience property for accessing the last user message in the message history (commonly used for prompt engineering). |
 | `output` | ModelOutput | The ‘final’ model output once we’ve completed all solving. This field is automatically updated with the last “assistant” message by the [generate()](./reference/inspect_ai.solver.html.md#generate) solver. |
 
 > **NOTE:**
@@ -2918,7 +2921,7 @@ A few things to note about this implementation:
 
 3.  The [resource()](./reference/inspect_ai.util.html.md#resource) function is used to read the specified `template`. This function accepts a string, file, or URL as its argument, and then returns a string with the contents of the resource.
 
-4.  We make use of the `user_prompt` property on the [TaskState](./reference/inspect_ai.solver.html.md#taskstate). This is a convenience property for locating the first `role="user"` message (otherwise you might need to skip over system messages, etc). Since this is a string templating solver, we use the `state.user_prompt.text` property to get a plain string. This is necessary because the `content` field of a [ChatMessageUser](./reference/inspect_ai.model.html.md#chatmessageuser) can be either a string or a list of multimodal [Content](./reference/inspect_ai.model.html.md#content) objects, and `.text` handles either case.
+4.  We make use of the `user_prompt` property on the [TaskState](./reference/inspect_ai.solver.html.md#taskstate). This is a convenience property for locating the last `role="user"` message (otherwise you might need to skip over assistant and tool messages, etc). Since this is a string templating solver, we use the `state.user_prompt.text` property to get a plain string. This is necessary because the `content` field of a [ChatMessageUser](./reference/inspect_ai.model.html.md#chatmessageuser) can be either a string or a list of multimodal [Content](./reference/inspect_ai.model.html.md#content) objects, and `.text` handles either case.
 
 5.  We make sample `metadata` available to the template as well as any `params` passed to the function.
 
@@ -3224,14 +3227,14 @@ Below we’ll describe various ways to specify and provide options to models in 
 To select a model for an evaluation, pass it’s name on the command line or use the `model` argument of the [eval()](./reference/inspect_ai.html.md#eval) function:
 
 ``` bash
-inspect eval arc.py --model openai/gpt-4o-mini
+inspect eval arc.py --model openai/gpt-6-luna
 inspect eval arc.py --model anthropic/claude-sonnet-4-0
 ```
 
 Or:
 
 ``` python
-eval("arc.py", model="openai/gpt-4o-mini")
+eval("arc.py", model="openai/gpt-6-luna")
 eval("arc.py", model="anthropic/claude-sonnet-4-0")
 ```
 
@@ -3262,25 +3265,25 @@ eval("arc.py", model=None)
 To evaluate several models with the same options, pass a comma-separated list:
 
 ``` bash
-inspect eval arc.py --model openai/gpt-4o,anthropic/claude-sonnet-4-0
+inspect eval arc.py --model openai/gpt-6-luna,anthropic/claude-sonnet-4-0
 ```
 
 To give each model its own options, use `--model-spec`. Each option holds one inline YAML or JSON mapping. A mapping takes the same fields as a [model role](#model-roles) — a required `model`, any generation config field, and `model_args` — plus a `base_url`:
 
 ``` bash
 inspect eval arc.py \
-    --model-spec '{model: openai/gpt-4o, temperature: 0}' \
-    --model-spec '{model: openai/gpt-4o, temperature: 1}'
+    --model-spec '{model: openai/gpt-6-luna, reasoning_effort: low}' \
+    --model-spec '{model: openai/gpt-6-luna, reasoning_effort: high}'
 ```
 
-This runs the same model twice, once at each temperature. `--model` cannot do that, because it applies one shared parameter set to every model it names.
+This runs the same model twice, once at each reasoning effort. `--model` cannot do that, because it applies one shared parameter set to every model it names.
 
 Or:
 
 ``` python
 eval("arc.py", model=[
-    get_model("openai/gpt-4o", config=GenerateConfig(temperature=0)),
-    get_model("openai/gpt-4o", config=GenerateConfig(temperature=1)),
+    get_model("openai/gpt-6-luna", config=GenerateConfig(reasoning_effort="low")),
+    get_model("openai/gpt-6-luna", config=GenerateConfig(reasoning_effort="high")),
 ])
 ```
 
@@ -3288,20 +3291,20 @@ A spec supplies the whole model, so you cannot combine `--model-spec` with `--mo
 
 An option you type beats an ambient environment value, so `--model-spec` and `INSPECT_EVAL_MODEL` never fail together. A spec you type replaces an `INSPECT_EVAL_MODEL`, and an `INSPECT_EVAL_MODEL_SPEC` yields to a `--model` you type.
 
-A generation config option on the command line still applies to every model, and it overrides the same field in every spec. For example, `--temperature 0.9` added to the command above runs both models at 0.9. Set the temperature only in the specs to keep the two values apart.
+A generation config option on the command line still applies to every model, and it overrides the same field in every spec. For example, `--reasoning-effort medium` added to the command above runs both models at `medium`. Set the reasoning effort only in the specs to keep the two values apart.
 
 `INSPECT_EVAL_MODEL_SPEC` holds one spec per model, separated by a space, in the same way as `INSPECT_EVAL_MODEL_ARGS`. A comma cannot separate the specs, because a spec uses commas between its own fields. Write each spec as JSON without spaces:
 
 ``` bash
-export INSPECT_EVAL_MODEL_SPEC='{"model":"openai/gpt-4o","temperature":0} {"model":"openai/gpt-4o","temperature":1}'
+export INSPECT_EVAL_MODEL_SPEC='{"model":"openai/gpt-6-luna","reasoning_effort":"low"} {"model":"openai/gpt-6-luna","reasoning_effort":"high"}'
 ```
 
 `--model-spec` combines with `--model-role`, because a spec fills the main model and a role fills a named one. A role applies to every spec, and it does not override a spec. A role you leave unset inherits the spec that is running, so each model grades its own samples:
 
 ``` bash
 inspect eval arc.py \
-    --model-spec '{model: openai/gpt-4o, temperature: 0}' \
-    --model-spec '{model: openai/gpt-4o, temperature: 1}' \
+    --model-spec '{model: openai/gpt-6-luna, reasoning_effort: low}' \
+    --model-spec '{model: openai/gpt-6-luna, reasoning_effort: high}' \
     --model-role grader=anthropic/claude-sonnet-4-0
 ```
 
@@ -3311,17 +3314,19 @@ inspect eval arc.py \
 
 There are a variety of configuration options that affect the behaviour of model generation. There are options which affect the generated tokens (`temperature`, `top_p`, etc.) as well as the connection to model providers (`timeout`, `max_retries`, etc.)
 
+Many current models reject sampling options such as `temperature` and `top_p`: OpenAI reasoning models while reasoning is on (the default for GPT-5.5 and later), and Anthropic models always. Inspect drops these options with a warning. See [Reasoning Effort](./reasoning.html.md#reasoning-effort) for how to turn OpenAI reasoning off so they are sent with the Responses API.
+
 You can specify generation options either on the command line or in direct calls to [eval()](./reference/inspect_ai.html.md#eval). For example:
 
 ``` bash
-inspect eval arc.py --model openai/gpt-4 --temperature 0.9
+inspect eval arc.py --model openai/gpt-6-luna --reasoning-effort high
 inspect eval arc.py --model google/gemini-2.5-pro --max-connections 20
 ```
 
 Or:
 
 ``` python
-eval("arc.py", model="openai/gpt-4", temperature=0.9)
+eval("arc.py", model="openai/gpt-6-luna", reasoning_effort="high")
 eval("arc.py", model="google/gemini-2.5-pro", max_connections=20)
 ```
 
@@ -3363,11 +3368,11 @@ response = await model.generate("Say hello")
 If you want to use other models in your solvers and scorers, call [get_model()](./reference/inspect_ai.model.html.md#get_model) with an alternate model name, along with optional generation config. For example:
 
 ``` python
-model = get_model("openai/gpt-4o")
+model = get_model("openai/gpt-6-luna")
 
 model = get_model(
-    "openai/gpt-4o",
-    config=GenerateConfig(temperature=0.9)
+    "openai/gpt-6-luna",
+    config=GenerateConfig(reasoning_effort="high")
 )
 ```
 
@@ -3382,13 +3387,13 @@ model = get_model("hf/openai-community/gpt2", device="cuda:0")
 By default, calls to [get_model()](./reference/inspect_ai.model.html.md#get_model) are memoized, meaning that calls with identical parameters resolve to a cached version of the model. You can disable this by passing `memoize=False`:
 
 ``` python
-model = get_model("openai/gpt-4o", memoize=False)
+model = get_model("openai/gpt-6-luna", memoize=False)
 ```
 
 Finally, if you prefer to create and fully close model clients at their place of use, you can use the async context manager built in to the [Model](./reference/inspect_ai.model.html.md#model) class. For example:
 
 ``` python
-async with get_model("openai/gpt-4o") as model:
+async with get_model("openai/gpt-6-luna") as model:
     eval(mytask(), model=model)
 ```
 
@@ -3453,7 +3458,7 @@ Model roles can be specified in several ways:
 ``` python
 Task(
     ...,
-    model_roles={"grader": "openai/gpt-4o"}
+    model_roles={"grader": "openai/gpt-6-luna"}
 )
 ```
 
@@ -3464,9 +3469,9 @@ Task(
     ...,
     model_roles={
         "grader": {
-            "model": "openai/gpt-4o",
-            "temperature": 0.5,
-            "max_tokens": 2048
+            "model": "openai/gpt-6-luna",
+            "reasoning_effort": "low",
+            "max_tokens": 8192
         }
     }
 )
@@ -3495,10 +3500,10 @@ inspect eval math.py --model-role grader=google/gemini-2.0-flash
 ``` bash
 # JSON
 inspect eval math.py \
-    --model-role 'grader={"model": "openai/gpt-4o", "temperature": 0.5}'
+    --model-role 'grader={"model": "openai/gpt-6-luna", "reasoning_effort": "low"}'
 # YAML
 inspect eval math.py \
-    --model-role 'grader={model: openai/gpt-4o, temperature: 0.5}'
+    --model-role 'grader={model: openai/gpt-6-luna, reasoning_effort: low}'
 ```
 
 Note that the built-in [model-graded scorers](./model-graded.html.md) (e.g. [model_graded_qa()](./reference/inspect_ai.scorer.html.md#model_graded_qa), [model_graded_fact()](./reference/inspect_ai.scorer.html.md#model_graded_fact)) look for the `grader` role by default.
@@ -3512,7 +3517,7 @@ eval(
     "math.py",
     model_roles={
         "grader": [
-            "openai/gpt-4o",
+            "openai/gpt-6-luna",
             "google/gemini-2.0-flash",
             "anthropic/claude-sonnet-4-0"
         ]
@@ -3524,7 +3529,7 @@ Or equivalently on the CLI with comma-separated model names:
 
 ``` bash
 inspect eval math.py \
-    --model-role grader=openai/gpt-4o,google/gemini-2.0-flash,anthropic/claude-sonnet-4-0
+    --model-role grader=openai/gpt-6-luna,google/gemini-2.0-flash,anthropic/claude-sonnet-4-0
 ```
 
 When a list is bound to the role used by a [model-graded scorer](./model-graded.html.md), each model grades independently and the final grade is chosen by majority vote (the same behaviour as passing a list of models to the scorer’s `model` parameter). Prefer an odd number of graders: with an even-sized ensemble, a tied vote is resolved in favour of the earliest-listed model. Elsewhere, `get_model(role="...")` resolves to the first model in the list—use [model_roles()](./reference/inspect_ai.model.html.md#model_roles) (from `inspect_ai.model`) to access all of the models bound to a role. Note that a single-element list is equivalent to binding the single model directly.
@@ -3570,7 +3575,7 @@ Role is visible since we are calling this after [eval()](./reference/inspect_ai.
 By default if there is a no role explicitly defined then `get_model(role="...")` will return the default model for the evaluation. You can specify an alternate default model as follows:
 
 ``` python
-model = get_model(role="grader", default="openai/gpt-4o")
+model = get_model(role="grader", default="openai/gpt-6-luna")
 ```
 
 This means that you can use model roles as a means of external configurability even if you aren’t yet explicitly taking advantage of them.
@@ -3587,12 +3592,12 @@ from ctf_tasks import blues_clues
 
 tasks = [
     task_with(blues_clues(), model_roles = {
-        "red_team": "openai/gpt-4o",
+        "red_team": "openai/gpt-6-luna",
         "blue_team": "google/gemini-2.0-flash"
     }),
     task_with(blues_clues(), model_roles = {
         "red_team": "google/gemini-2.0-flash",
-        "blue_team": "openai/gpt-4o"
+        "blue_team": "openai/gpt-6-luna"
     })
 ]
 
@@ -3606,7 +3611,7 @@ As illustrated above, you can define as many named roles as you need. When using
 ``` bash
 inspect eval math.py \
    --model-role red_team=google/gemini-2.0-flash \
-   --model-role blue_team=openai/gpt-4o-mini
+   --model-role blue_team=openai/gpt-6-luna
 ```
 
 ## Learning More
@@ -3658,7 +3663,7 @@ To use the [OpenAI](https://platform.openai.com/) provider, install the `openai`
 ``` bash
 pip install openai
 export OPENAI_API_KEY=your-openai-api-key
-inspect eval arc.py --model openai/gpt-4o-mini
+inspect eval arc.py --model openai/gpt-6-luna
 ```
 
 The following environment variables are supported by the OpenAI provider
@@ -3681,7 +3686,7 @@ The `openai` provider supports the following custom model args (other model args
 | `responses_store` | Pass `store=True` to the Responses API (defaults to `True`). |
 | `responses_phase` | Synthesize missing assistant message `phase` values when replaying Responses API histories. |
 | `service_tier` | Processing type used for serving the request (“auto”, “default”, or “flex”). |
-| `background` | Execute generate requests asynchronously, polling response objects to check status over time. Defaults to `True` for `gpt-5-pro` and `deep-research` models and for requests with `reasoning_mode="pro"`, and `False` otherwise. |
+| `background` | Execute generate requests asynchronously, polling response objects to check status over time. Defaults to `True` for `-pro` models such as `gpt-5.5-pro`, for `deep-research` models, and for requests with `reasoning_mode="pro"`, and `False` otherwise. |
 | `safety_identifier` | A stable identifier used to help detect users of your application. |
 | `streaming` | Whether to use streaming responses. The default (“auto”) streams when the caller passes an `on_stream` callback to [generate()](./reference/inspect_ai.solver.html.md#generate) — except Azure chat-completions requests, which never auto-stream (accumulated streamed responses would lose content-filter stop details); pass `true` or `false` to override. If the server rejects the streaming request itself (a 400 naming the `stream` param — e.g. reasoning models on organizations that haven’t completed verification), auto mode retries the request non-streamed. |
 | `prompt_cache_key` | Used by OpenAI to cache responses for similar requests. |
@@ -3691,8 +3696,8 @@ The `openai` provider supports the following custom model args (other model args
 For example:
 
 ``` bash
-inspect eval arc.py --model openai/gpt-4o-mini \ 
-   -M responses_api=true
+inspect eval arc.py --model openai/gpt-6-luna \
+   -M service_tier=flex
 ```
 
 Or from Python:
@@ -3701,22 +3706,22 @@ Or from Python:
 from inspect_ai import eval
 
 eval(
-    "arc.py", model=" openai/gpt-4o-mini", 
-    model_args= { "responses_api": True }
+    "arc.py", model="openai/gpt-6-luna",
+    model_args= { "service_tier": "flex" }
 )
 ```
 
 ### Responses API
 
-By default, Inspect uses the standard OpenAI Chat Completions API for GPT-4 models and the new [Responses API](https://platform.openai.com/docs/api-reference/responses) for GPT-5 and later (including GPT-6), o-series models, and the `computer_use_preview` model.
+By default, Inspect uses the standard OpenAI Chat Completions API for GPT-4 models and the new [Responses API](https://platform.openai.com/docs/api-reference/responses) for GPT-5 and later (including GPT-6) and o-series models.
 
 If you want to manually enable or disable the Responses API you can use the `responses_api` model argument. For example:
 
 ``` bash
-inspect eval math.py --model openai/gpt-4o -M responses_api=true
+inspect eval math.py --model openai/gpt-6-luna -M responses_api=false
 ```
 
-Note that certain models including `o1-pro` and `computer_use_preview` *require* the use of the Responses API. Check the Open AI [models documentation](https://platform.openai.com/docs/models) for details on which models are supported by the respective APIs.
+Note that certain models including `gpt-5.5-pro` *require* the use of the Responses API. On Chat Completions, GPT-6 Luna supports function calling only with reasoning off, so set `reasoning_effort="none"` when using tools with `responses_api=false`. Check the Open AI [models documentation](https://platform.openai.com/docs/models) for details on which models are supported by the respective APIs.
 
 ### Responses Phase
 
@@ -3733,16 +3738,16 @@ When enabled, assistant messages with tool calls are labeled `commentary`; other
 By default, Inspect’s implementation of the Responses API does not store messages on the server. Reasoning content (which is intended to be opaque to clients) is handled using encrypted payloads (via the “reasoning.encrypted_content” include option). To control this behavior explicitly use the `responses_store` model argument. For example:
 
 ``` bash
-inspect eval math.py --model openai/o4-mini -M responses_store=True
+inspect eval math.py --model openai/gpt-6-luna -M responses_store=True
 ```
 
 ### Responses Metadata
 
-You can attach [`metadata`](https://platform.openai.com/docs/api-reference/responses/create#responses-create-metadata) key-value pairs to Responses API requests via the `extra_body` generation config. For example:
+You can attach [`metadata`](https://developers.openai.com/api/reference/resources/responses/methods/create) key-value pairs to Responses API requests via the `extra_body` generation config (`--extra-body` on the command line). For example:
 
 ``` bash
 inspect eval math.py --model openai/gpt-5.4 \
-    -M extra_body='{"metadata": {"experiment": "baseline"}}'
+    --extra-body '{"metadata": {"experiment": "baseline"}}'
 ```
 
 The `metadata` returned on responses (the echoed request metadata, which some models augment with additional fields) is surfaced as `ModelOutput.metadata`. Note that request metadata is not sent when `responses_store=True`.
@@ -3751,18 +3756,18 @@ The `metadata` returned on responses (the echoed request metadata, which some mo
 
 [Flex processing](https://platform.openai.com/docs/guides/flex-processing) provides significantly lower costs for requests in exchange for slower response times and occasional resource unavailability (input and output tokens are priced using [batch API rates](https://platform.openai.com/docs/guides/batch) for flex requests).
 
-Note that flex processing is in beta, and currently **only available for o3 and o4-mini models**.
+Note that flex processing is in beta with limited model availability. The OpenAI [pricing page](https://platform.openai.com/docs/pricing) lists the supported models.
 
 To enable flex processing, use the `service_tier` model argument, setting it to “flex”. For example:
 
 ``` bash
-inspect eval math.py --model openai/o4-mini -M service_tier=flex
+inspect eval math.py --model openai/gpt-6-luna -M service_tier=flex
 ```
 
 OpenAI recommends using a [higher client timeout](https://platform.openai.com/docs/guides/flex-processing#api-request-timeouts) when making flex requests (15 minutes rather than the standard 10). Inspect automatically increases the client timeout to 15 minutes (900 seconds) for flex requests. To specify another value, use the `client_timeout` model argument. For example:
 
 ``` bash
-inspect eval math.py --model openai/o4-mini \
+inspect eval math.py --model openai/gpt-6-luna \
     -M service_tier=flex -M client_timeout=1200
 ```
 
@@ -3778,13 +3783,13 @@ The `openai` provider supports OpenAI models deployed on the [Azure AI Foundry](
 | `AZUREAI_OPENAI_API_VERSION` | OpenAI API version (optional) |
 | `AZUREAI_AUDIENCE` | Azure resource URI that the access token is intended for when using managed identity (optional, defaults to `https://cognitiveservices.azure.com/.default`) |
 
-You can then use the normal `openai` provider with the `azure` qualifier and the name of your model deployment (e.g. `gpt-4o-mini`). For example:
+You can then use the normal `openai` provider with the `azure` qualifier and the name of your model deployment (e.g. `gpt-6-luna`). For example:
 
 ``` bash
 export AZUREAI_OPENAI_API_KEY=your-api-key
 export AZUREAI_OPENAI_BASE_URL=https://your-url-at.azure.com
 export AZUREAI_OPENAI_API_VERSION=2025-03-01-preview
-inspect eval math.py --model openai/azure/gpt-4o-mini
+inspect eval math.py --model openai/azure/gpt-6-luna
 ```
 
 If using managed identity for authentication, install the `azure-identity` package and do not specify `AZUREAI_API_KEY`.
@@ -3794,7 +3799,7 @@ pip install azure-identity
 export AZUREAI_OPENAI_BASE_URL=https://your-url-at.azure.com
 export AZUREAI_AUDIENCE=https://cognitiveservices.azure.com/.default
 export AZUREAI_OPENAI_API_VERSION=2025-03-01-preview
-inspect eval math.py --model openai/azure/gpt-4o-mini
+inspect eval math.py --model openai/azure/gpt-6-luna
 ```
 
 Note that if the `AZUREAI_OPENAI_API_VERSION` is not specified, Inspect will generally default to the latest deployed version, which as of this writing is `2025-03-01-preview`. When using managed identity for authentication, install the `azure-identity` package and leave `AZUREAI_OPENAI_API_KEY` undefined.
@@ -3854,6 +3859,8 @@ inspect eval arc.py --model anthropic/claude-sonnet-4-0
 ```
 
 For the `anthropic` provider, custom model args (`-M`) are forwarded to the constructor of the `AsyncAnthropic` class.
+
+The `anthropic` provider does not pass `temperature`, `top_p`, or `top_k` to the model, because the Anthropic API rejects them as of API version `2026-10-21` (sent by `anthropic>=2.0`). It logs a warning when one of them is set.
 
 The following environment variables are supported by the Anthropic provider
 
@@ -4208,6 +4215,10 @@ The following environment variables are supported by the Meta provider
 | `META_API_KEY` | API key credentials (required unless `MODEL_API_KEY` is set). |
 | `MODEL_API_KEY` | API key credentials (Meta’s official variable name; used when `META_API_KEY` is not set). |
 | `META_BASE_URL` | Base URL for requests (optional, defaults to `https://api.meta.ai/v1`). |
+
+### Prompt Caching
+
+Inspect sets Meta’s [`prompt_cache_key`](https://dev.meta.ai/docs/prompt-caching#prompt-cache-key) to the running sample’s unique id (no key is sent outside a sample) and, on the Responses API, sets `prompt_cache_retention` to `"24h"`. Use the `prompt_cache_key` and `prompt_cache_retention` model args to override these (e.g. `-M prompt_cache_retention=in_memory`). Values supplied in `GenerateConfig(extra_body=...)` take precedence. Cached tokens are reported as `input_tokens_cache_read`.
 
 ## Grok
 
@@ -4596,9 +4607,13 @@ The following environment variables are supported by the Perplexity provider
 | Variable | Description |
 |----|----|
 | `PERPLEXITY_API_KEY` | API key credentials (required). |
-| `PERPLEXITY_BASE_URL` | Base URL for requests (optional, defaults to `https://api.perplexity.ai`) |
+| `PERPLEXITY_BASE_URL` | Base URL for requests (optional, defaults to `https://api.perplexity.ai/v1`) |
 
-Perplexity responses include citations when available. These are surfaced as [UrlCitation](./reference/inspect_ai.model.html.md#urlcitation)s attached to the assistant message. Additional usage metrics such as `reasoning_tokens` and `citation_tokens` are recorded in `ModelOutput.metadata`.
+The provider uses Perplexity’s [Agent API](https://docs.perplexity.ai/docs/agent-api/quickstart). Name models as `perplexity/<provider>/<model>`, using the ids in Perplexity’s [model list](https://docs.perplexity.ai/docs/agent-api/models) (for example `perplexity/openai/gpt-5.6-luna`). Perplexity’s own models can omit the provider, so `perplexity/sonar` is the same as `perplexity/perplexity/sonar`. Perplexity retired `sonar-pro`, `sonar-reasoning-pro`, and `sonar-deep-research` with its Sonar API; use another Agent API model instead.
+
+Perplexity models search the web only when you pass the [web_search()](./tools-standard.html.md#perplexity-options) tool, which also takes the search options. This is true for `perplexity/sonar` as well: Sonar searched on every request, but the Agent API does not. Add [web_search()](./reference/inspect_ai.tool.html.md#web_search) to keep search-grounded answers and citations. Other Agent API request fields can be passed with `extra_body`. Fields that Inspect sets from the generation config, such as `include` and `text`, are not replaced. From a `reasoning` object, only fields that the config has no option for, such as `context`, are sent. Set the effort, mode and summary with `reasoning_effort`, `reasoning_mode` and `reasoning_summary`. The `tools` in `extra_body` can include Perplexity’s [`fetch_url`](https://docs.perplexity.ai/docs/agent-api/tools/fetch-url) tool; [web_search()](./reference/inspect_ai.tool.html.md#web_search) adds its tool to that list. Inspect’s `tool_choice` does not apply to the tools in `extra_body`. To turn them off, set `tool_choice` in `extra_body`. The request has a single tool choice, so that value applies to the [web_search()](./reference/inspect_ai.tool.html.md#web_search) tool as well. A `tool_choice` that forces a search raises an error if `extra_body` sets a different `tool_choice`. Inspect cannot read the results of Perplexity’s other tools, so a response with them raises an error.
+
+When the model searches or fetches a page, the results are recorded in `ModelOutput.metadata["search_results"]` or `ModelOutput.metadata["fetch_url_results"]` and attached as [UrlCitation](./reference/inspect_ai.model.html.md#urlcitation)s to the assistant message. The number of searches, which Perplexity bills per search, is recorded in `ModelOutput.metadata["num_search_queries"]`.
 
 ## Hugging Face
 
@@ -5448,7 +5463,7 @@ There are two types of caching available: Inspect local caching and provider lev
 
 Use the `cache` option of [GenerateConfig](./reference/inspect_ai.model.html.md#generateconfig) to activate the use of the cache. The keys for caching (what determines if a request can be fulfilled from the cache) are as follows:
 
-- Model name and base URL (e.g. `openai/gpt-5`)
+- Model name and base URL (e.g. `openai/gpt-6-luna`)
 - Model prompt (i.e. message history)
 - Epoch number (for ensuring distinct generations per epoch)
 - Generate configuration (e.g. `temperature`, `top_p`, etc.)
@@ -5481,15 +5496,15 @@ output = model.generate(
 
 ### Model Versions
 
-The model name (e.g. `openai/gpt-4-turbo`) is used as part of the cache key. Note though that many model names are aliases to specific model versions. For example, `gpt-4`, `gpt-4-turbo`, may resolve to different versions over time as updates are released.
+The model name (e.g. `openai/gpt-5.5`) is used as part of the cache key. Note though that many model names are aliases to specific model versions. For example, `gpt-5.5` may resolve to a different version over time as updates are released.
 
 If you want to invalidate caches for updated model versions, it’s much better to use an explicitly versioned model name. For example:
 
 ``` bash
-$ inspect eval ctf.py --model openai/gpt-4-turbo-2024-04-09
+$ inspect eval ctf.py --model openai/gpt-5.5-2026-04-23
 ```
 
-If you do this, then when a new version of `gpt-4-turbo` is deployed a call to the model will occur rather than resolving from the cache.
+If you do this, then when a new version of `gpt-5.5` is deployed a call to the model will occur rather than resolving from the cache.
 
 ## Cache Policy
 
@@ -5535,12 +5550,12 @@ $ inspect cache list
 
 # clear the cache (globally or by model)
 $ inspect cache clear
-$ inspect cache clear --model openai/gpt-4-turbo-2024-04-09
+$ inspect cache clear --model openai/gpt-5.5-2026-04-23
 
 # prune expired entries from the cache
 $ inspect cache list --pruneable
 $ inspect cache prune
-$ inspect cache prune --model openai/gpt-4-turbo-2024-04-09
+$ inspect cache prune --model openai/gpt-5.5-2026-04-23
 ```
 
 See `inspect cache --help` for further details on management commands.
@@ -5631,8 +5646,8 @@ For other forms of parallelism (multiple tasks, sandbox containers, custom code)
 Use the `--adaptive-connections` option to automatically scale model concurrency to your available capacity. Adaptive connections starts at 20 in-flight per model, grows up to the maximum while the provider keeps up, and backs off on rate-limit retries. Adaptive connections is on by default (with a maximum of 100), so the following commands are equivalent:
 
 ``` bash
-inspect eval --model openai/gpt-5
-inspect eval --model openai/gpt-5 --adaptive-connections=100
+inspect eval --model openai/gpt-6-luna
+inspect eval --model openai/gpt-6-luna --adaptive-connections=100
 ```
 
 Adaptive connections are a new feature introduced in Inspect v0.3.217. If you previously used `--max-connections` we recommend migrating to `--adaptive-connections`, as you will ramp up to the same maximum concurrency with less exposure to exponential backoff from rate limits.
@@ -5650,22 +5665,22 @@ Set `max` higher than where you expect the controller to settle, since it’s a 
 The simplest form of bounds tuning is a single integer setting just the maximum:
 
 ``` bash
-inspect eval --model openai/gpt-5 --adaptive-connections 50
-inspect eval --model openai/gpt-5 --adaptive-connections 200
+inspect eval --model openai/gpt-6-luna --adaptive-connections 50
+inspect eval --model openai/gpt-6-luna --adaptive-connections 200
 ```
 
 `min-max` constrains the range (`start` defaults to 20, clamped into the range):
 
 ``` bash
-inspect eval --model openai/gpt-5 --adaptive-connections 5-50
-inspect eval --model openai/gpt-5 --adaptive-connections 10-200
+inspect eval --model openai/gpt-6-luna --adaptive-connections 5-50
+inspect eval --model openai/gpt-6-luna --adaptive-connections 10-200
 ```
 
 `min-start-max` also sets the starting value:
 
 ``` bash
-inspect eval --model openai/gpt-5 --adaptive-connections 5-10-50
-inspect eval --model openai/gpt-5 --adaptive-connections 10-20-200
+inspect eval --model openai/gpt-6-luna --adaptive-connections 5-10-50
+inspect eval --model openai/gpt-6-luna --adaptive-connections 10-20-200
 ```
 
 In Python, pass `True` for defaults, `False` to disable adaptive (uses static `max_connections` instead), `int` to set the maximum, or an [AdaptiveConcurrency](./reference/inspect_ai.util.html.md#adaptiveconcurrency) to customize:
@@ -5675,7 +5690,7 @@ from inspect_ai.util import AdaptiveConcurrency
 
 eval(
     "task.py",
-    model="openai/gpt-5",
+    model="openai/gpt-6-luna",
     adaptive_connections=AdaptiveConcurrency(min=4, max=80),
 )
 ```
@@ -5687,7 +5702,7 @@ While an eval runs, `inspect ctl config` shows each model’s live controller st
 ``` bash
 inspect ctl config                              # view live controller state
 inspect ctl config --max-connections 20         # throttle mid-run
-inspect ctl config --max-connections 200 --model gpt-5
+inspect ctl config --max-connections 200 --model gpt-6-luna
 ```
 
 See [Control Channel](./control-channel.html.md#configuration) for details.
@@ -5717,7 +5732,7 @@ from inspect_ai.util import AdaptiveConcurrency
 
 eval(
     "task.py",
-    model="openai/gpt-5",
+    model="openai/gpt-6-luna",
     adaptive_connections=AdaptiveConcurrency(
         min=4,
         max=80,
@@ -5741,7 +5756,7 @@ inspect trace dump --filter "[connections]"
 By default, Inspect will retry model API calls indefinitely (with exponential backoff) when a recoverable HTTP error occurs. The initial backoff is 3 seconds and exponentiation will result in a 25 minute wait for the 10th request (then 30 minutes for the 11th and subsequent requests). You can limit Inspect’s retries using the `--max-retries` option:
 
 ``` bash
-inspect eval --model openai/gpt-4 --max-retries 10
+inspect eval --model openai/gpt-6-luna --max-retries 10
 ```
 
 Note that model interfaces themselves may have internal retry behavior (for example, the `openai` and `anthropic` packages both retry twice by default).
@@ -5749,7 +5764,7 @@ Note that model interfaces themselves may have internal retry behavior (for exam
 You can put a limit on the total time for retries using the `--timeout` option:
 
 ``` bash
-inspect eval --model openai/gpt-4 --timeout 600
+inspect eval --model openai/gpt-6-luna --timeout 600
 ```
 
 ## Debugging Retries
@@ -5757,7 +5772,7 @@ inspect eval --model openai/gpt-4 --timeout 600
 If you want more insight into Model API connections and retries, specify `log_level=http`. For example:
 
 ``` bash
-inspect eval --model openai/gpt-4 --log-level=http
+inspect eval --model openai/gpt-6-luna --log-level=http
 ```
 
 You can also view all of the HTTP requests for the current (or most recent) evaluation run using the `inspect trace http` command. For example:
@@ -5772,13 +5787,13 @@ inspect trace http --failed  # show only failed requests
 If you prefer a static limit for connections, use `--max-connections` rather than `--adaptive-connections`. For example:
 
 ``` bash
-$ inspect eval --model openai/gpt-4 --max-connections 20
+$ inspect eval --model openai/gpt-6-luna --max-connections 20
 ```
 
 When both `--max-connections` and `--adaptive-connections` are set, the explicit `max_connections` value takes precedence and adaptive is disabled. To opt out of adaptive without picking a specific cap (the provider’s default applies), pass `--adaptive-connections false`:
 
 ``` bash
-inspect eval --model openai/gpt-4 --adaptive-connections false
+inspect eval --model openai/gpt-6-luna --adaptive-connections false
 ```
 
 [Batch mode](./models-batch.html.md) likewise uses static concurrency regardless of `--adaptive-connections`.
@@ -5946,7 +5961,7 @@ react(
     tools=[bash(), text_editor()],
     compaction=CompactionSummary(
         threshold=0.9,
-        model="openai/gpt-5-mini"
+        model="openai/gpt-6-luna"
     )
 )
 ```
@@ -6124,7 +6139,7 @@ Like other generation config, `fail_on_refusal` can be set eval-wide (as above, 
 
 ``` bash
 inspect eval ctf.py --fail-on-refusal \
-  --model-role grader="{model: openai/gpt-5, fail_on_refusal: false}"
+  --model-role grader="{model: openai/gpt-6-luna, fail_on_refusal: false}"
 ```
 
 Some things to be aware of:
@@ -6319,7 +6334,7 @@ ContentImage(image="picture.png", detail="low")
 
 The following models currently support audio inputs:
 
-- Open AI: `gpt-4o-audio-preview`
+- Open AI: `gpt-audio-1.5`
 - Google: All Gemini models
 - Mistral: All Voxtral models
 
@@ -6448,7 +6463,7 @@ input = [
 
 Some models can generate multimodal output along with text:
 
-- OpenAI `gpt-4o` and `gpt-5` models support image generation
+- OpenAI models that support the Responses API `image_generation` tool (e.g. `gpt-6-luna`) can generate images
 
 - Google models `gemini-2.5-flash-image`, `gemini-3-pro-image-preview`, and `gemini-3.1-flash-image-preview` support image generation.
 
@@ -6462,10 +6477,10 @@ Text output is always implicitly included—you only need to specify additional 
 
 ### OpenAI
 
-Image generation uses `gpt-image-1` / `gpt-image-1.5` under the hood (you can custmize this using [ImageOutput](./reference/inspect_ai.model.html.md#imageoutput) options).
+Image generation uses the Responses API `image_generation` tool with OpenAI’s default GPT Image model. To choose a model such as `gpt-image-2.5-flare` or `gpt-image-2.5-sunburst`, set `model` in [ImageOutput](./reference/inspect_ai.model.html.md#imageoutput) options.
 
 ``` python
-model = get_model("openai/gpt-5.4")
+model = get_model("openai/gpt-6-luna")
 output = await model.generate(
     input=[ChatMessageUser(content="Generate an image of a sunset")],
     config=GenerateConfig(modalities=["image"]),
@@ -6483,7 +6498,7 @@ config = GenerateConfig(modalities=[
             "quality": "high", 
             "size": "1024x1024", 
             "output_format": "png",
-            "model": "gpt-image-1.5"
+            "model": "gpt-image-2.5-flare"
         }
     })
 ])
@@ -6512,7 +6527,7 @@ for content in output.choices[0].message.content:
 
 ## Uploads
 
-When using audio and video with the Google Gemini API, media is first uploaded using the [File API](https://ai.google.dev/gemini-api/docs/audio?lang=python#upload-audio) and then the URL to the uploaded file is referenced in the chat message. This results in much faster performance for subsequent uses of the media file.
+When using audio and video with the Google Gemini API, media is first uploaded using the [File API](https://ai.google.dev/gemini-api/docs/files) and then the URL to the uploaded file is referenced in the chat message. This results in much faster performance for subsequent uses of the media file.
 
 The File API lets you store up to 20GB of files per project, with a per-file maximum size of 2GB. Files are stored for 48 hours. They can be accessed in that period with your API key, but cannot be downloaded from the API. The File API is available at no cost in all regions where the Gemini API is available.
 
@@ -6544,13 +6559,13 @@ The `reasoning_effort` option controls how much reasoning is performed. Inspect 
 For example:
 
 ``` bash
-inspect eval math.py --model openai/gpt-5 --reasoning-effort high
+inspect eval math.py --model openai/gpt-6-luna --reasoning-effort high
 ```
 
 Or from Python:
 
 ``` python
-eval("math.py", model="openai/gpt-5", reasoning_effort="high")
+eval("math.py", model="openai/gpt-6-luna", reasoning_effort="high")
 ```
 
 ### Provider Mapping
@@ -6565,7 +6580,7 @@ eval("math.py", model="openai/gpt-5", reasoning_effort="high")
 
 GPT-5.5 and later reason at the server default effort when `reasoning_effort` is not set, and in that state the API rejects `temperature`, `top_p`, and `logprobs`. Inspect drops those options with a warning; pass `reasoning_effort="none"` to disable reasoning and have them sent.
 
-GPT-6 Sol and GPT-6 Luna accept `none` and `low` through `max` (the API rejects `minimal`) and follow the GPT-5.5+ rules above (they reason at `medium` unless `reasoning_effort` is set). GPT-6 Astra and GPT-6.1 Sol always reason: they accept `low` through `max` only, and the API rejects `none` and `minimal` with an error. They also reject `temperature`, `top_p`, and `logprobs` regardless of effort, so Inspect drops those options with a warning for these models.
+GPT-6 Sol, GPT-6 Luna, and GPT-6.1 Terra accept `none` and `low` through `max` (the API rejects `minimal`) and follow the GPT-5.5+ rules above (they reason at `medium` unless `reasoning_effort` is set). GPT-6 Astra and GPT-6.1 Sol always reason: they accept `low` through `max` only, and the API rejects `none` and `minimal` with an error. They also reject `temperature`, `top_p`, and `logprobs` regardless of effort, so Inspect drops those options with a warning for these models.
 
 Note that GPT-5.6 models treat `reasoning_effort` as a ceiling rather than a floor: on prompts the model judges easy it may perform no reasoning at all (producing zero reasoning tokens), even at higher effort levels.
 
@@ -6705,15 +6720,7 @@ Together accepts `low` / `medium` / `high` for all reasoning models, and additio
 
 #### Perplexity
 
-Accepts `minimal` in addition to `low` / `medium` / `high`, so Inspect keeps `minimal` and clamps only the top-end values. `none` is not a supported value, so it is omitted and the provider/model default applies (reasoning is not disabled):
-
-| Inspect input            | API value                        |
-|--------------------------|----------------------------------|
-| `none`                   | omitted (provider/model default) |
-| `minimal`                | `minimal`                        |
-| `low`                    | `low`                            |
-| `medium`                 | `medium`                         |
-| `high` / `xhigh` / `max` | `high`                           |
+Perplexity’s Agent API accepts every effort value, so Inspect passes `reasoning_effort` through unchanged.
 
 #### Fireworks
 
@@ -6776,6 +6783,8 @@ When Inspect does not pass `reasoning_effort`, each provider applies its own def
 | mistral/mistral-medium-2604          | none            |
 | mistral/mistral-small-2603           | none            |
 | moonshotai/kimi-k3                   | max             |
+| moonshotai/kimi-k3.1-pro             | max             |
+| moonshotai/kimi-k3.1-pro-highspeed   | max             |
 | openai/gpt-5                         | medium          |
 | openai/gpt-5-mini                    | medium          |
 | openai/gpt-5-nano                    | medium          |
@@ -6799,6 +6808,7 @@ When Inspect does not pass `reasoning_effort`, each provider applies its own def
 | openai/gpt-6-luna                    | medium          |
 | openai/gpt-6-sol                     | medium          |
 | openai/gpt-6.1-sol                   | medium          |
+| openai/gpt-6.1-terra                 | medium          |
 | z-ai/glm-5.3                         | max             |
 | z-ai/glm-5.3-flash                   | max             |
 | zai-org/GLM-5.3-FP8                  | max             |
@@ -6822,7 +6832,7 @@ eval("math.py", model="openai/gpt-5.6", reasoning_mode="pro")
 
 Reasoning mode is independent of `reasoning_effort` — effort controls how much reasoning occurs within the selected mode.
 
-Since pro mode requests can run for several minutes, Inspect enables [background processing](./providers.html.md#openai) by default when `reasoning_mode="pro"` (as it does for the `gpt-5-pro` model line); pass `-M background=false` to override.
+Since pro mode requests can run for several minutes, Inspect enables [background processing](./providers.html.md#openai) by default when `reasoning_mode="pro"` (as it does for `-pro` models such as `gpt-5.5-pro`); pass `-M background=false` to override.
 
 Inspect passes `reasoning_mode` through to the API for any OpenAI model: models that can’t honor it (those prior to GPT-5.6, other than the `-pro` model line which accepts the redundant `"pro"`) reject the request with an error naming the parameter.
 
@@ -7085,20 +7095,20 @@ Pass the `--batch` CLI option or `batch=True` to [eval()](./reference/inspect_ai
 
 ``` bash
 # Enable batching with default configuration
-inspect eval arc.py --model openai/gpt-4o --batch
+inspect eval arc.py --model openai/gpt-6-luna --batch
 
 # Specify a batch size (e.g. 1000 requests per batch)
-inspect eval arc.py --model openai/gpt-4o --batch 1000
+inspect eval arc.py --model openai/gpt-6-luna --batch 1000
 
 # Pass a YAML or JSON config file with batch configuration
-inspect eval arc.py --model openai/gpt-4o --batch batch.yml
+inspect eval arc.py --model openai/gpt-6-luna --batch batch.yml
 ```
 
 Or from Python:
 
 ``` python
-eval("arc.py", model="openai/gpt-4o", batch=True)
-eval("arc.py", model="openai/gpt-4o", batch=1000)
+eval("arc.py", model="openai/gpt-6-luna", batch=True)
+eval("arc.py", model="openai/gpt-6-luna", batch=1000)
 ```
 
 If a provider does not support batch processing the `batch` option is ignored for that provider.
@@ -7110,7 +7120,7 @@ For more advanced batch processing configuration, you can specify a [BatchConfig
 ``` python
 from inspect_ai.model import BatchConfig
 eval(
-    "arc.py", model="openai/gpt-4o", 
+    "arc.py", model="openai/gpt-6-luna", 
     batch=BatchConfig(size=200, send_delay=60)
 )
 ```
@@ -7869,7 +7879,7 @@ model_graded_qa(model=[...], reducer="mode")
 
 Because the grader sees dataset- and model-controlled text (the question, the submission, and any per-sample criterion), the built-in graders take two precautions against a model steering its own grade.
 
-Grade extraction binds to the last grade. The default `grade_pattern` (`(?is).*(?<!\w)GRADE(?!\w)[\s\u200b\u200c\u200d\u200e\u200f\u2060\u2063\ufeff]*:[\s\u200b\u200c\u200d\u200e\u200f\u2060\u2063\ufeff]*([CPI])`) matches the last `GRADE: X` in the grader’s output, tolerating common zero-width formatting characters around the separator. The instructions tell the grader to end with its grade, so an earlier `GRADE: C` (echoed in chain-of-thought, or injected via the submission) does not win, and prose such as `downgrade:` is not treated as a verdict. If you customise `grade_pattern`, keep this behaviour in mind.
+Grade extraction binds to the last grade. The default `grade_pattern` matches the last `GRADE: X` in the grader’s output, tolerating common zero-width formatting characters around the separator, markdown emphasis or brackets around the label or verdict (`**GRADE**: I`, `GRADE: [I]`), a fullwidth colon or `=` as the separator, and a `## GRADE` heading with the verdict alone on the next line. The instructions tell the grader to end with its grade, so an earlier `GRADE: C` (echoed in chain-of-thought, or injected via the submission) does not win, and prose such as `downgrade:` is not treated as a verdict. If you customise `grade_pattern`, keep this behaviour in mind.
 
 Structural delimiters are neutralized. The default templates wrap content in `[BEGIN DATA]` / `[END DATA]` markers. Before formatting the prompt, Inspect rewrites any `[BEGIN DATA]` / `[END DATA]` markers that appear in the model-controlled `answer`, the `question`, the `criterion`, and any `metadata` values (for example to `[END-DATA]`) so a model cannot inject a fake delimiter and smuggle grading instructions into the prompt. The `instructions` you provide are author-controlled and left untouched.
 
@@ -7885,16 +7895,21 @@ By default the grader model runs with the provider’s default generation settin
 from inspect_ai.model import get_model, GenerateConfig
 from inspect_ai.scorer import model_graded_qa
 
-grader = get_model("openai/gpt-4o", config=GenerateConfig(temperature=0, seed=42))
+grader = get_model(
+    "openai/gpt-6-luna",
+    config=GenerateConfig(reasoning_effort="none", temperature=0),
+)
 
 model_graded_qa(model=grader)
 ```
+
+GPT-6 Luna reasons by default, and Inspect drops `temperature` (with a warning) while an OpenAI model reasons, so the example sets `reasoning_effort="none"`. See [Reasoning Effort](./reasoning.html.md#reasoning-effort). The OpenAI Responses API, which Inspect uses by default for GPT-5 and later, does not accept `seed`.
 
 You can apply the same configuration through the `grader` model role instead of the `model` argument — see [Model Roles](./models.html.md#model-roles).
 
 For more reproducible grading:
 
-1.  Set `temperature=0` so the grader is as deterministic as the provider allows.
+1.  Set `temperature=0`, where the model accepts it, so the grader is as deterministic as the provider allows.
 2.  Set a `seed` where the provider supports it.
 3.  Run multiple `epochs` and inspect grade variance — setting `temperature=0` reduces, but does not always eliminate, run-to-run disagreement.
 
@@ -8415,7 +8430,7 @@ Task(
         generate()
     ],
     scorer=[
-        model_graded_qa(model="openai/gpt-4"),
+        model_graded_qa(model="openai/gpt-6-luna"),
         model_graded_qa(model="google/gemini-2.5-pro")
     ],
 )
@@ -8620,7 +8635,7 @@ If instead of grading task success you want to flag transcripts that exhibit a p
 By default, model output in evaluations is automatically scored. However, you can defer scoring by using the `--no-score` option. For example:
 
 ``` bash
-inspect eval popularity.py --model openai/gpt-4 --no-score
+inspect eval popularity.py --model openai/gpt-6-luna --no-score
 ```
 
 This will produce a log with samples that have not yet been scored and with no evaluation metrics.
@@ -8639,6 +8654,12 @@ inspect score ./logs/2024-02-23_task_gpt-4_TUhnCn473c6.eval
 ```
 
 This will use the scorers and metrics that were declared when the evaluation was run, applying them to score each sample and generate metrics for the evaluation.
+
+> **WARNING:**
+>
+> `inspect score` runs code named by the log (its task file and scorers) and uses the model endpoint and other settings recorded in it. Only run it on logs you trust. With `--scorer`, the log’s metrics are rebuilt without importing its task file; the log’s model and model roles are still used.
+>
+> When a scorer is not registered, `inspect score` imports the task file the log records to find it, and prints the path it imported. When it scores with the log’s model at a base URL the log records, it prints the model and URL.
 
 You may choose to use a different scorer than the task scorer to score a log file. In this case, you can use the `--scorer` option to pass the name of a scorer (including one in a package) or the path to a source code file containing a scorer to use. For example:
 
@@ -8695,15 +8716,17 @@ inspect score ./logs/2024-02-23_task_gpt-4_TUhnCn473c6.eval --scorer custom_scor
 inspect score ./logs/2024-02-23_task_gpt-4_TUhnCn473c6.eval --scorer custom_scorer.py --action overwrite
 ```
 
+With `--action overwrite`, the log’s task-level metrics are rebuilt and applied to the new scores, before any sample is scored. When you score with your own scorer (`--scorer`, or the [score()](./reference/inspect_ai.scorer.html.md#score) function) they are rebuilt without importing the log’s task file, and metric options that would create a model or an object other than a metric or reducer are refused. If the log’s metrics can’t be rebuilt this way, scoring fails with an error naming the metric. Pass `--metric` (or `metrics` to [score()](./reference/inspect_ai.scorer.html.md#score)) to use your own metrics instead. When you rescore with the log’s own scorers (no `--scorer`), the log’s metrics are rebuilt as recorded.
+
 ## Score Function
 
 You can also use the [score()](./reference/inspect_ai.scorer.html.md#score) function in your Python code to score evaluation logs. For example, if you are exploring the performance of different scorers, you might find it more useful to call the [score()](./reference/inspect_ai.scorer.html.md#score) function using varying scorers or scorer options. For example:
 
 ``` python
-log = eval(popularity, model="openai/gpt-4")[0]
+log = eval(popularity, model="openai/gpt-6-luna")[0]
 
 grader_models = [
-    "openai/gpt-4",
+    "openai/gpt-6-luna",
     "anthropic/claude-3-opus-20240229",
     "google/gemini-2.5-pro",
     "mistral/mistral-large-latest"
@@ -8723,7 +8746,7 @@ input_log_path = "./logs/2025-02-11T15-17-00-05-00_popularity_dPiJifoWeEQBrfWsAo
 log = read_eval_log(input_log_path)
 
 grader_models = [
-    "openai/gpt-4",
+    "openai/gpt-6-luna",
     "anthropic/claude-3-opus-20240229",
     "google/gemini-2.5-pro",
     "mistral/mistral-large-latest"
@@ -8739,6 +8762,8 @@ for model, scored_log in zip(grader_models, scoring_logs):
     output_file = f"{base}_{model.replace('/', '_')}{ext}"
     write_eval_log(scored_log, output_file)
 ```
+
+[score()](./reference/inspect_ai.scorer.html.md#score) uses the model (unless you pass `model`) and model roles recorded in the log, with their base URLs and model args, so only score logs you trust. The log’s metrics are rebuilt without importing its task file.
 
 ## Editing Scores
 
@@ -8863,8 +8888,8 @@ def web_surfer() -> Agent:
         # some general guidance for the agent
         state.messages.append(
             ChatMessageSystem(
-                content="You are an expert at using a " + 
-                "web browser to answer questions."
+                content="You are an expert at using " +
+                "web search to answer questions."
             )
         )
 
@@ -8894,8 +8919,8 @@ def web_surfer() -> Agent:
     return react(
         name="web_surfer",
         description="Web research assistant",
-        prompt="You are an expert at using a " + 
-            "web browser to answer questions.",
+        prompt="You are an expert at using " +
+            "web search to answer questions.",
         tools=[web_search()]
     )
 ```
@@ -9041,7 +9066,7 @@ task = Task(
     scorer=includes()
 )
 
-eval(task, model="openai/gpt-4o")
+eval(task, model="openai/gpt-6-luna")
 ```
 
 ## Prompt
@@ -9537,8 +9562,10 @@ The system prompt teaches the model the dispatch discipline: do useful independe
 
 Two automatic signals keep the parent aware of its background agents without forcing it to poll:
 
-- Completion notifications: The turn a background agent finishes (or fails), a one-line user message is injected (it is notification-only: the result itself is still fetched on demand).
+- Completion notifications: The turn a background agent finishes, a one-line user message is injected (it is notification-only: the result itself is still fetched on demand).
 - Forgetting backstop: If the agent goes several turns without touching its background agents, a passive reminder is injected — listing what is still running, plus any finished agents whose results are still worth collecting.
+
+Unexpected errors in a background subagent fail the sample, just as foreground subagent errors do. The sample’s `fail_on_error` and `retry_on_error` settings apply. Recoverable tool errors remain tool results, and a subagent’s own limits stop only that subagent.
 
 ### Fork Mode
 
@@ -9722,11 +9749,11 @@ from inspect_ai import eval
 from inspect_ai.util import CheckpointConfig, TurnInterval
 
 # checkpoint using default trigger (500K tokens)
-eval("ctf.py", model="openai/gpt-5", checkpoint=True)
+eval("ctf.py", model="openai/gpt-6-luna", checkpoint=True)
 
 # checkpoint every 3 turns
 eval(
-    "ctf.py", model="openai/gpt-5",
+    "ctf.py", model="openai/gpt-6-luna",
     checkpoint=CheckpointConfig(
         trigger=TurnInterval(every=3)
     )
@@ -9749,6 +9776,8 @@ inspect eval arc.py --checkpoint             # CRASH!
 inspect eval-retry logs/<log-file-name>.eval # recover
 ```
 
+Sample-level retries with `retry_on_error` also restore the latest committed checkpoint. If no checkpoint has been committed, the sample restarts from the beginning.
+
 For incomplete samples, Inspect locates the checkpoint directory, restores each sample’s most recent committed checkpoint, and continues. The following is restored before the agent runs:
 
 1.  Agent State: Any state values the agent registered (e.g. message or compaction history).
@@ -9768,7 +9797,7 @@ from inspect_ai import eval
 from inspect_ai.util import CheckpointConfig, TokenInterval
 
 eval(
-    "arc.py", model="openai/gpt-5",
+    "arc.py", model="openai/gpt-6-luna",
     checkpoint=CheckpointConfig(
         trigger=TokenInterval(every=1_000_000)
     )
@@ -9806,7 +9835,7 @@ from datetime import timedelta
 from inspect_ai.util import CheckpointConfig, TimeInterval
 
 eval(
-    "arc.py", model="openai/gpt-4o",
+    "arc.py", model="openai/gpt-6-luna",
     checkpoint=CheckpointConfig(
         trigger=TimeInterval(every=timedelta(minutes=15)),
         max_consecutive_failures=3,
@@ -9869,7 +9898,7 @@ Sample(
 )
 
 # enable at the eval or task level (uses the sample config)
-eval("ctf.py", model="openai/gpt-5", checkpoint=True)
+eval("ctf.py", model="openai/gpt-6-luna", checkpoint=True)
 ```
 
 Sample-level configuration covers capture: *what* to capture per sandbox and, via [snapshot strategies](#snapshot-strategies), *how* — a sample whose workload rewrites large amounts of data can select the `archive` strategy while the rest of the dataset uses the restic default. The eval-wide storage policy (`checkpoints_location`, `retention`) can only be set by the task or eval layer.
@@ -9915,7 +9944,7 @@ from inspect_ai.util import (
 )
 
 eval(
-    "training.py", model="openai/gpt-5",
+    "training.py", model="openai/gpt-6-luna",
     checkpoint=CheckpointConfig(
         sandbox_paths={
             "default": SandboxSnapshotConfig(
@@ -10228,13 +10257,13 @@ inspect eval ctf_challenge --notification
 Or using Python:
 
 ``` python
-eval(task, model="openai/gpt-5", notification=True)
+eval(task, model="openai/gpt-6-luna", notification=True)
 ```
 
 You can also point at an Apprise config file directly, with no environment variable required:
 
 ``` python
-eval(task, model="openai/gpt-5", notification="/path/to/apprise.yml")
+eval(task, model="openai/gpt-6-luna", notification="/path/to/apprise.yml")
 ```
 
 ``` bash
@@ -10491,7 +10520,7 @@ web_surfer = react(
     name="web_surfer",
     description="Web research assistant",
     prompt="You are a tenacious web researcher that is expert "
-           + "at using a web browser to answer questions.",
+           + "at using web search to answer questions.",
     tools=[web_search()]   
 )
 
@@ -10518,7 +10547,7 @@ web_surfer = react(
     name="web_surfer",
     description="Web research assistant",
     prompt="You are a tenacious web researcher that is expert "
-           + "at using a web browser to answer questions.",
+           + "at using web search to answer questions.",
     tools=[web_search()]
 )
 ```
@@ -10622,7 +10651,7 @@ def web_surfer() -> Agent:
         state.messages.append(
             ChatMessageSystem(
                 content="You are a tenacious web researcher that is "
-                + "expert at using a web browser to answer questions."
+                + "expert at using web search to answer questions."
             )
         )
 
@@ -10786,6 +10815,10 @@ Call `record_output()` after `model.generate()` to calibrate token estimation us
 
 To recover from a context window overflow (`stop_reason == "model_length"`), call `compact_input()` with `force=True`, which compacts regardless of the threshold, and generate again. The handler does not check that a forced compaction reduced the input. If the retry also overflows, truncate the messages or stop rather than forcing compaction again.
 
+The handler adds only messages it has not seen before. If your agent changes, removes or reorders messages already in the history, call `reset()` with the new prefix before the next `compact_input()`, so that the next input is built from the changed history.
+
+`reset()` clears the handler’s state but does not remove summaries from your messages. A summary compaction (including [CompactionAuto](./reference/inspect_ai.model.html.md#compactionauto)’s summary fallback) starts from the latest summary in the conversation, so before resetting, remove any summaries that the changed history invalidated.
+
 > **NOTE: Note**
 >
 > The returned `compact` handler maintains internal state for a single growing conversation history. Concurrent calls within the same conversation are safe, but do not share one handler across divergent message histories — the compacted result mixes them.
@@ -10884,7 +10917,7 @@ async def run_worker(name: str, worker: Agent, state: AgentState) -> AgentState:
         return await worker(state)
 ```
 
-Inside the scope, [memory()](./reference/inspect_ai.tool.html.md#memory), [bash_session()](./reference/inspect_ai.tool.html.md#bash_session), [web_browser()](./reference/inspect_ai.tool.html.md#web_browser) and [skill()](./reference/inspect_ai.tool.html.md#skill) use the scope as their default instance (`"@<name>"`), so each agent gets its own memory, shell, browser and skills. A tool given an explicit instance, such as `memory(instance="team")`, is still shared between agents. Nested scopes join their names with “/” (`"@outer/inner"`). Instances that start with “@” are reserved for scopes, so an explicit instance never shares state with a scope by accident. Tasks started inside the scope inherit it. Outside any scope, tools behave as before. Skill files are the exception: they live in the sandbox, so [skill()](./reference/inspect_ai.tool.html.md#skill) tools that install into the same directory share them. A skill file that already exists with the same contents is not written again, and one that exists with different contents raises an error.
+Inside the scope, [memory()](./reference/inspect_ai.tool.html.md#memory), [bash_session()](./reference/inspect_ai.tool.html.md#bash_session) and [skill()](./reference/inspect_ai.tool.html.md#skill) use the scope as their default instance (`"@<name>"`), so each agent gets its own memory, shell and skills. A tool given an explicit instance, such as `memory(instance="team")`, is still shared between agents. Nested scopes join their names with “/” (`"@outer/inner"`). Instances that start with “@” are reserved for scopes, so an explicit instance never shares state with a scope by accident. Tasks started inside the scope inherit it. Outside any scope, tools behave as before. Skill files are the exception: they live in the sandbox, so [skill()](./reference/inspect_ai.tool.html.md#skill) tools that install into the same directory share them. A skill file that already exists with the same contents is not written again, and one that exists with different contents raises an error.
 
 Custom tools and agents can follow the scope by passing `tool_state_instance(instance)` to [store_as()](./reference/inspect_ai.util.html.md#store_as). Library code that picks an instance name itself and wants it kept private to the scope can use `private_tool_instance(name)`, which returns `"<scope>#<name>"` inside a scope (for example `"@w-1#general"`) and `name` outside one.
 
@@ -10986,7 +11019,7 @@ supervisor = react(
     tools=[
         addition(), 
         handoff(web_surfer()), 
-        handoff(critic(model="openai/gpt-5-mini"))
+        handoff(critic(model="openai/gpt-6-luna"))
     ]
 )
 ```
@@ -11059,6 +11092,21 @@ There are two reasons that you might want to create spans:
 2.  The Inspect log viewer will create a visual delineation for the span, which will make it easier to see the flow of activity within the transcript.
 
 Spans are automatically created for sample initialisation, solvers, scorers, subtasks, tool calls, and agent execution.
+
+### Model Call Origins
+
+Each [ModelEvent](./reference/inspect_ai.event.html.md#modelevent) records where the call was made in its `origin` field. During the solve a call is `"agent"`, one of its conversation’s agent turns, unless it is made by a tool, a compaction, an approver, a reviewer, MCP sampling, a sentinel or a scorer, which Inspect marks itself (`"tool"`, `"compaction"`, `"approval"`, `"review"`, `"sampling"`, `"sentinel"`, `"scorer"`). A scorer’s calls are `"scorer"`, including those of an agent run inside it, and a sentinel does not check a scorer’s tool calls. Any other call outside the solve, such as one made at sample init, is `"setup"`. A sentinel checks only agent turns at its generate stages, and the transcript timeline shows other calls as utility.
+
+If your agent makes model calls that are part of the solve but are not the evaluated agent’s turns, mark them with [model_origin()](./reference/inspect_ai.model.html.md#model_origin). Use `"environment"` for the setup being evaluated against, such as an auditor model or a simulated user, and `"helper"` for a scaffold’s own helper calls, such as its own summarizer:
+
+``` python
+from inspect_ai.model import get_model, model_origin
+
+with model_origin("environment"):
+    reply = await get_model(role="user").generate(messages)
+```
+
+An agent run inside the block keeps the block’s kind, and a sentinel does not check the tool calls made within it. The marker is a context variable, so it reaches the calls made in the task that entered the block and in tasks that task starts while inside it, and no others. If the evaluated agent’s calls are made from inside an environment block (for example, by an auditor’s tool that generates the target’s turn), they are marked as environment too, so make them outside the block.
 
 ## Parallelism
 
@@ -11387,6 +11435,8 @@ The bridge handles:
 - Writing an MCP server script to the sandbox that forwards tool calls to the host
 - Returning [MCPServerConfigStdio](./reference/inspect_ai.tool.html.md#mcpserverconfigstdio) configs that CLI agents can use to connect
 
+Bridged tool arguments are checked as for other tool calls: arguments nested more than 100 levels deep, or that do not match the tool’s parameters, are rejected with a parsing error the agent returns to the model. The nesting check comes first; a call the model did not propose is then denied before its arguments are checked against the tool’s parameters.
+
 Bridged tool results are truncated in the same way as other tool results: at the tool’s own `max_output` if it declares one, otherwise at `max_tool_output` from the generate config (16KB by default). Results returned as content (e.g. `list[ContentText]`) are not truncated, as for other tools.
 
 ### Execution Contract
@@ -11414,7 +11464,7 @@ Some agents call MCP tools from code the model writes instead of offering each t
 
 ### Matching a Proposal
 
-Agents rename MCP tools to their models under their own schemes (Claude Code declares `mcp__<server>__<tool>`, Codex CLI the bare name inside a Responses API namespace (outside code mode; see above), Gemini CLI `mcp_<server>_<tool>`, OpenCode `<server>_<tool>`, some cut or hash long names), so the bridge does not match a proposed call by name. It matches the call’s declaration in the agent’s request to a bridged tool by the description the bridge itself served in `tools/list`. A declaration whose description matches no bridged tool denotes nothing and the call is denied. Tools an agent discovers through the Responses API’s `tool_search` (declared to the model inside a `tool_search_output` item rather than the request’s tool list) count as declarations too. Two or more bridged tools the served content cannot tell apart are each granted by a proposal for any of them: one proposal then authorizes one execution of each, still bound to the proposed arguments. An empty description is matched like any other, so an undocumented bridged tool is indistinguishable from every other undocumented tool. The bridge warns at setup, naming the tools that share a description (an empty one included); give bridged tools distinct docstrings to keep matching one-to-one. The supported agents forward the served description to their models unchanged. An agent that truncates long descriptions is tolerated: a declaration that agrees with a served description for at least 64 characters and adds at most a short trailing marker identifies that tool. An exact description match wins even when that description is a prefix of another bridged tool’s; a truncated declaration that could refer to both grants both. An agent that rewrote the leading text would be denied on every call. An agent-local tool declared with a bridged tool’s exact description is indistinguishable from it and would grant it.
+Agents rename MCP tools to their models under their own schemes (Claude Code declares `mcp__<server>__<tool>`, Codex CLI the bare name inside a Responses API namespace (outside code mode; see above), Gemini CLI `mcp_<server>_<tool>`, OpenCode `<server>_<tool>`, some cut or hash long names), so the bridge does not match a proposed call by name. It matches the call’s declaration in the agent’s request to a bridged tool by the description the bridge itself served in `tools/list`. A declaration whose description matches no bridged tool denotes nothing and the call is denied. Tools an agent discovers through the Responses API’s `tool_search` (declared to the model inside a `tool_search_output` item rather than the request’s tool list) count as declarations too. Two or more bridged tools the served content cannot tell apart are each granted by a proposal for any of them: one proposal then authorizes one execution of each, still bound to the proposed arguments. An empty description is matched like any other, so an undocumented bridged tool is indistinguishable from every other undocumented tool. The bridge warns at setup, naming the tools that share a description (an empty one included); give bridged tools distinct docstrings to keep matching one-to-one. The supported agents forward the served description to their models unchanged. An agent that truncates long descriptions is tolerated: a declaration that agrees with a served description for at least 64 characters and adds at most a short trailing marker identifies that tool. An exact description match wins even when that description is a prefix of another bridged tool’s; a truncated declaration that could refer to both grants both. An agent that rewrote the leading text would be denied on every call. An agent-local tool declared with a bridged tool’s exact description is indistinguishable from it: a call to it grants the bridged tool and is approved under the bridged tool’s name, so policies scoped only to the local name do not apply.
 
 One other shape is recognized: an agent that exposes every MCP tool through a single dispatcher function, Antigravity’s `call_mcp_tool`, whose arguments carry string `ServerName` and `ToolName` values naming a bridged tool and an object `Arguments`. Such a call denotes that tool with those nested arguments. The dispatcher is recognized by that function name together with the argument shape, so an ordinary tool call cannot denote a bridged tool by naming it in its arguments; a dispatcher with another name or other parameter names is not supported and its calls are denied.
 
@@ -11435,7 +11485,7 @@ The [sandbox_agent_bridge()](./reference/inspect_ai.agent.html.md#sandbox_agent_
 3.  `"inspect"`, and the eval’s own model name (e.g. `claude-sonnet-4-5` for an eval on `anthropic/claude-sonnet-4-5`), go to the eval’s model.
 4.  Any other name, including `inspect/<model>` names and model role names, also goes to the eval’s model. The bridge logs a warning once for each such name, and the `requested_model` field of the model event in the transcript records the name the agent sent.
 
-Pass `model` to send unmatched names (and the eval’s own model name) to another model instead, e.g. `model="inspect/openai/gpt-4o"`.
+Pass `model` to send unmatched names (and the eval’s own model name) to another model instead, e.g. `model="inspect/openai/gpt-6-luna"`.
 
 Agents often call more than one model: Claude Code, for example, makes background calls to a smaller model. These calls are served by the eval’s model unless you map the names. To send a name to another model, add it to `model_aliases`. Keys are the exact names the agent sends, as shown in the warning. To send a sub-agent tier to a model role you define for it, map the name to `get_model(role=...)`:
 
@@ -11520,7 +11570,7 @@ Rejection works by telling the model rather than by editing the response: the re
 
 For `bridged_tools`, the approved call is also what the agent may execute on the host: a bridged tool runs once per proposed call, with the arguments as approved or modified (see [Execution Contract](#bridged-tools-execution)).
 
-An agent that reaches every bridged tool through one dispatcher function (Antigravity’s `call_mcp_tool`) is approved as if the model had called the bridged tool directly: policies match the tool’s own name, and approvers see and modify the tool’s own arguments.
+A call to a bridged tool is approved under the bridged tool’s own name, whatever name the agent declared it under: the bridge identifies the tool by its description (see [Execution Contract](#bridged-tools-execution)), so policies match the tool that will run. A call that could be several bridged tools sharing a description is approved only if each of them is approved, and a `modify` decision for it fails the sample. Each of those approvals is logged as its own [ApprovalEvent](./reference/inspect_ai.event.html.md#approvalevent) under the call’s id, and Sentinel replay of the log keeps only the last of them, so a person’s earlier review of one of the tools is not among the replayed human decisions. As for other tool calls, only a `modify` decision changes a call’s arguments: a `modified` call attached to an `approve` decision is ignored, and a call an approver changed in place and approved is rejected. An agent that reaches every bridged tool through one dispatcher function (Antigravity’s `call_mcp_tool`) is approved as if the model had called the bridged tool directly: policies match the tool’s own name, and approvers see and modify the tool’s own arguments.
 
 ## Agent Context
 
@@ -11554,6 +11604,10 @@ Model requests carry one additional ambient fact: [current_bridge_request()](./r
 ## Transcript
 
 Custom agents run through a bridge still get most of the benefit of the Inspect transcript and log viewer. All model calls are captured and produce the same transcript output as when using conventional agents.
+
+Tools the agent runs itself (e.g. its own shell or file tools) appear only in the model calls. [Bridged tools](#bridged-tools) run by Inspect are recorded as tool events, like other tool calls, including calls that were denied or rejected. A call the model proposed takes the id of the model’s tool call, so the log viewer shows it with that call. Each event’s `metadata["bridge"]` records the server and tool, the name the model called it by, the id of the proposing call, and whether a proposal matched (`grant`: `"consumed"`, `"denied"`, `"exempt"` for a `require_proposal=False` server, or `None` for a request rejected before that check). Counts of tool events in a bridged sample (e.g. from [events_df()](./reference/inspect_ai.analysis.html.md#events_df)) include bridged tool calls but not the agent’s own tools.
+
+On a `require_proposal=False` server, a call is paired with the oldest pending proposal for the same tool and arguments, whichever call arrives first. A call the model did not propose (for example, one made from code the model wrote) with the same arguments as a pending proposal takes that proposal’s id, and the proposed call is then recorded as `"exempt"` with a fresh id. Both calls run as usual; only the pairing in the log is wrong.
 
 If you want to use additional features of Inspect transcripts (e.g. spans, markdown output, etc.) you can still import and use the `transcript` function as normal. For example:
 
@@ -11728,6 +11782,8 @@ You can disable session recording with the `record_session` option:
 --solver human_cli -S record_session=false
 ```
 
+When you specify `user`, collecting recordings requires the sandbox provider to support `read_file(user=...)`. Providers without this support warn and omit the recordings from the sample log. Disable recording until the provider adds support, or use the sandbox’s default user if that is the intended human identity.
+
 ## Headless
 
 The examples above demonstrate human baselining being initiated from the CLI and standard task display. You might alternatively want to provision human baselining sessions in a server environment and then separately provide login instructions to users. To suppress the standard task display in favour of just printing out the container login information, pass the `--display=plain` CLI option:
@@ -11754,7 +11810,7 @@ docker exec -it inspect-gdm_intercod-iebwzkg-default-1 bash -l
 
 Many models now have the ability to interact with client-side Python functions in order to expand their capabilities. This enables you to equip models with your own set of custom tools so they can perform a wider variety of tasks.
 
-Inspect natively supports registering Python functions as tools and providing these tools to models that support them. Inspect also includes several standard tools for code execution, text editing, computer use, web search, and web browsing.
+Inspect natively supports registering Python functions as tools and providing these tools to models that support them. Inspect also includes several standard tools for code execution, text editing, computer use, and web search.
 
 > **NOTE: NoteTools and Agents**
 >
@@ -11770,7 +11826,6 @@ Inspect has built-in tools for computing and agentic planning. Computing tools i
 - [Text Editor](./tools-standard.html.md#sec-text-editor) which enables viewing, creating and editing text files (requires a [sandbox](./sandboxing.html.md)).
 - [Computer](./tools-standard.html.md#sec-computer), which provides the model with a desktop computer (viewed through screenshots) that supports mouse and keyboard interaction (requires a [sandbox](./sandboxing.html.md)).
 - [Code Execution](./tools-standard.html.md#sec-code-execution), which gives models a Python code execution environment hosted within the model provider’s infrastructure rather than an Inspect sandbox.
-- [Web Browser](./tools-standard.html.md#sec-web-browser), which provides the model with a headless Chromium web browser that supports navigation, history, and mouse/keyboard interactions (requires a [sandbox](./sandboxing.html.md)). Deprecated: use Web Search, Computer, or a [browser MCP server](./tools-mcp.html.md#sandboxes) in the sandbox instead.
 
 Agentic tools include:
 
@@ -11865,7 +11920,7 @@ See the [Custom Tools](./tools-custom.html.md) article for details on more advan
 
 ## Learning More
 
-- [Standard Tools](./tools-standard.html.md) describes Inspect’s built-in tools for code execution, text editing computer use, web search, and web browsing.
+- [Standard Tools](./tools-standard.html.md) describes Inspect’s built-in tools for code execution, text editing, computer use, and web search.
 
 - [MCP Tools](./tools-mcp.html.md) covers how to integrate tools from the growing list of [Model Context Protocol](https://modelcontextprotocol.io/introduction) providers.
 
@@ -11884,7 +11939,6 @@ Inspect has built-in tools for computing and agentic planning. Computing tools i
 - [Text Editor](./tools-standard.html.md#sec-text-editor) which enables viewing, creating and editing text files (requires a [sandbox](./sandboxing.html.md)).
 - [Computer](./tools-standard.html.md#sec-computer), which provides the model with a desktop computer (viewed through screenshots) that supports mouse and keyboard interaction (requires a [sandbox](./sandboxing.html.md)).
 - [Code Execution](./tools-standard.html.md#sec-code-execution), which gives models a Python code execution environment hosted within the model provider’s infrastructure rather than an Inspect sandbox.
-- [Web Browser](./tools-standard.html.md#sec-web-browser), which provides the model with a headless Chromium web browser that supports navigation, history, and mouse/keyboard interactions (requires a [sandbox](./sandboxing.html.md)). Deprecated: use Web Search, Computer, or a [browser MCP server](./tools-mcp.html.md#sandboxes) in the sandbox instead.
 
 Agentic tools include:
 
@@ -11942,7 +11996,7 @@ web_search({
 
 ### OpenAI Options
 
-The [web_search()](./reference/inspect_ai.tool.html.md#web_search) tool can use OpenAI’s built-in search capability when running on a limited number of OpenAI models (currently “gpt-4o”, “gpt-4o-mini”, “gpt-4.1”, “o3”, “o4-mini”, and GPT-5 and later, including GPT-6). This provider does not require any API keys beyond what’s needed for the model itself.
+The [web_search()](./reference/inspect_ai.tool.html.md#web_search) tool can use OpenAI’s built-in search capability when running on a limited number of OpenAI models (currently “gpt-4o”, “gpt-4o-mini”, “gpt-4.1”, “o3”, and GPT-5 and later, including GPT-6). This provider does not require any API keys beyond what’s needed for the model itself.
 
 For more details on OpenAI’s web search parameters, see [OpenAI Web Search Documentation](https://platform.openai.com/docs/guides/tools-web-search?api-mode=responses).
 
@@ -11974,17 +12028,27 @@ Note that when using the “gemini” provider, you should also specify a fallba
 
 ### Grok Options
 
-The [web_search()](./reference/inspect_ai.tool.html.md#web_search) tool can use Grok’s built-in live search capability when running on Grok 3.0 models and later. This provider does not require any API keys beyond what’s needed for the model itself.
+The [web_search()](./reference/inspect_ai.tool.html.md#web_search) tool can use Grok’s built-in web search when running on Grok 4 models and later. This provider does not require any API keys beyond what’s needed for the model itself. The `grok` provider options are the parameters of xAI’s web search tool, such as `allowed_domains` and `excluded_domains`. For example:
 
-For more details, see [Live Search](https://docs.x.ai/docs/guides/live-search).
+``` python
+web_search({"grok": {"allowed_domains": ["arxiv.org"]}})
+```
 
-Note that when using the “grok” provider, you should also specify a fallback external provider (like “tavily”, “exa”, or “google”) if you are also running the evaluation with non-Grok models.
+For more details, see [Web Search](https://docs.x.ai/developers/tools/web-search).
+
+Note that when using the “grok” provider, you should also specify a fallback external provider (like “tavily”, “exa”, or “google”) if you are also running the evaluation with non-Grok models or with Grok models before Grok 4.
 
 ### Perplexity Options
 
-The [web_search()](./reference/inspect_ai.tool.html.md#web_search) tool can use Perplexity’s built-in search capability when running on Perplexity models. This provider does not require any API keys beyond what’s needed for the model itself. Search parameters can be passed using the `perplexity` provider options and will be forwarded to the model API.
+The [web_search()](./reference/inspect_ai.tool.html.md#web_search) tool can use Perplexity’s built-in search capability when running on Perplexity models. This provider does not require any API keys beyond what’s needed for the model itself. Perplexity models do not search without the [web_search()](./reference/inspect_ai.tool.html.md#web_search) tool, including `perplexity/sonar`. The `perplexity` provider options are the fields of the Agent API’s `web_search` tool, such as `filters`, `search_type`, `max_results`, and the search token budgets `max_tokens` and `max_tokens_per_page`. For example:
 
-For more details, see [Perplexity API Documentation](https://docs.perplexity.ai/api-reference/chat-completions-post).
+``` python
+web_search({"perplexity": {"filters": {"search_domain_filter": ["arxiv.org"]}}})
+```
+
+For all the options, see Perplexity’s [Web Search](https://docs.perplexity.ai/docs/agent-api/tools/web-search) documentation. Sonar search parameters such as `search_mode` and `search_context_size` are not accepted. Use the token budgets in place of `search_context_size`; Perplexity’s [migration guide](https://docs.perplexity.ai/docs/agent-api/migrate-from-sonar/how-to#parameter-reference) lists the other replacements.
+
+The model decides whether to search. To make it search, set `tool_choice` to `"any"` or `ToolFunction("web_search")`.
 
 Note that when using the “perplexity” provider, you should also specify a fallback external provider (like “tavily”, “exa”, or “google”) if you are also running the evaluation with non-Perplexity models.
 
@@ -12315,17 +12379,18 @@ Here is an approval policy that requires approval for key combos (e.g. `Enter` 
 ``` yaml
 approvers:
   - name: human
-    tools:
-      - computer(action='key'
-      - computer(action='left_click'
-      - computer(action='middle_click'
-      - computer(action='double_click'
+    tools: computer
+    arguments: {action: key}
+
+  - name: human
+    tools: computer
+    arguments: {action: "*_click"}
 
   - name: auto
     tools: "*"
 ```
 
-Note that since this is a prefix match and there could be other arguments, we don’t end the tool match pattern with a parentheses.
+See [Auto Approver](./approval.html.md#auto-approver) for how `arguments` are matched.
 
 You can apply this policy using the `--approval` command line option:
 
@@ -12399,102 +12464,6 @@ code_execution(
 ```
 
 When falling back to the [python()](./reference/inspect_ai.tool.html.md#python) provider you should ensure that your [Task](./reference/inspect_ai.html.md#task) has a `sandbox` with access to Python enabled.
-
-## Web Browser
-
-The web browser tools provides models with the ability to browse the web using a headless Chromium browser. Navigation, history, and mouse/keyboard interactions are all supported.
-
-> **WARNING: Warning**
->
-> The [web_browser()](./reference/inspect_ai.tool.html.md#web_browser) tool is deprecated and its implementation will be removed around November 2026. Calling [web_browser()](./reference/inspect_ai.tool.html.md#web_browser) now logs a deprecation warning; after removal it will raise an error. Most websites now block headless browsers, so for web information retrieval use the [web_search()](#sec-web-search) tool. For interacting with web applications (local web apps, forms, multi-step flows) use the [computer()](#sec-computer) tool, or run a browser MCP server such as [Playwright MCP](https://github.com/microsoft/playwright-mcp) inside your sandbox with [mcp_server_sandbox()](./tools-mcp.html.md#sandboxes). See [issue \#5497](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5497) for details, and comment there if you rely on [web_browser()](./reference/inspect_ai.tool.html.md#web_browser) in a way these paths do not cover.
-
-### Configuration
-
-Under the hood, the web browser is an instance of [Chromium](https://www.chromium.org/chromium-projects/) orchestrated by [Playwright](https://playwright.dev/), and runs in a [Sandbox Environment](./sandboxing.html.md). In addition, you’ll need some dependencies installed in the sandbox container. Please see **Sandbox Dependencies** below for additional instructions.
-
-Note that Playwright (used for the [web_browser()](./reference/inspect_ai.tool.html.md#web_browser) tool) does not support some versions of Linux (e.g. Kali Linux).
-
-> **NOTE: NoteSandbox Dependencies**
->
-> You should add the following to your sandbox `Dockerfile` in order to use the web browser tool:
->
-> ``` dockerfile
-> RUN apt-get update && apt-get install -y pipx && \
->     apt-get clean && rm -rf /var/lib/apt/lists/*
-> ENV PATH="$PATH:/opt/inspect/bin"
-> RUN PIPX_HOME=/opt/inspect/pipx PIPX_BIN_DIR=/opt/inspect/bin PIPX_VENV_DIR=/opt/inspect/pipx/venvs \
->     pipx install inspect-tool-support && \
->     chmod -R 755 /opt/inspect && \
->     inspect-tool-support post-install
-> ```
->
-> If you don’t have a custom Dockerfile, you can alternatively use the pre-built `aisiuk/inspect-tool-support` image. This configuration intentionally permits outbound Internet access so the browser can visit external sites:
->
->     compose.yaml
->
-> ``` yaml
-> services:
->   default:
->     image: aisiuk/inspect-tool-support
->     init: true
->     # network_mode is omitted because the browser visits external sites.
-> ```
->
-> The pre-built image runs as root by default and also provides a `nonroot` account (UID/GID 65532) for evaluations that should not run the agent as root; add `user: nonroot` to the service to use it. The web browser tool works under either user.
-
-### Task Setup
-
-A task configured to use the web browser tools might look like this:
-
-``` python
-from inspect_ai import Task, task
-from inspect_ai.scorer import match
-from inspect_ai.solver import generate, use_tools
-from inspect_ai.tool import bash, python, web_browser
-
-@task
-def browser_task():
-    return Task(
-        dataset=read_dataset(),
-        solver=[
-            use_tools([bash(), python()] + web_browser()),
-            generate(),
-        ],
-        scorer=match(),
-        sandbox=("docker", "compose.yaml"),
-    )
-```
-
-Unlike some other tool functions like [bash()](./reference/inspect_ai.tool.html.md#bash), the [web_browser()](./reference/inspect_ai.tool.html.md#web_browser) function returns a list of tools. Therefore, we concatenate it with a list of the other tools we are using in the call to [use_tools()](./reference/inspect_ai.solver.html.md#use_tools).
-
-Note that a separate web browser process is created within the sandbox for each instance of the web browser tool. See the [web_browser()](./reference/inspect_ai.tool.html.md#web_browser) reference docs for details on customizing this behavior.
-
-### Browsing
-
-If you review the transcripts of a sample with access to the web browser tool, you’ll notice that there are several distinct tools made available for control of the web browser. These tools include:
-
-| Tool | Description |
-|----|----|
-| `web_browser_go(url)` | Navigate the web browser to a URL. |
-| `web_browser_click(element_id)` | Click an element on the page currently displayed by the web browser. |
-| `web_browser_type(element_id)` | Type text into an input on a web browser page. |
-| `web_browser_type_submit(element_id, text)` | Type text into a form input on a web browser page and press ENTER to submit the form. |
-| `web_browser_scroll(direction)` | Scroll the web browser up or down by one page. |
-| `web_browser_forward()` | Navigate the web browser forward in the browser history. |
-| `web_browser_back()` | Navigate the web browser back in the browser history. |
-| `web_browser_refresh()` | Refresh the current page of the web browser. |
-
-The return value of each of these tools is a [web accessibility tree](https://web.dev/articles/the-accessibility-tree) for the page, which provides a clean view of the content, links, and form fields available on the page (you can look at the accessibility tree for any web page using [Chrome Developer Tools](https://developer.chrome.com/blog/full-accessibility-tree)).
-
-### Disabling Interactions
-
-You can use the web browser tools with page interactions disabled by specifying `interactive=False`, for example:
-
-``` python
-use_tools(web_browser(interactive=False))
-```
-
-In this mode, the interactive tools (`web_browser_click()`, `web_browser_type()`, and `web_browser_type_submit()`) are not made available to the model.
 
 ## Skill
 
@@ -13087,7 +13056,7 @@ return Task(
 
 #### Custom Agents
 
-For general purpose custom agents, you will also likely want to use the [mcp_connection()](./reference/inspect_ai.tool.html.md#mcp_connection) connect manager to preserve connection state throughout your tool use loop. For example, here is a web surfer agent that uses a web browser along with a memory server:
+For general purpose custom agents, you will also likely want to use the [mcp_connection()](./reference/inspect_ai.tool.html.md#mcp_connection) connect manager to preserve connection state throughout your tool use loop. For example, here is a web surfer agent that uses web search along with a memory server:
 
 ```` python
 @agent
@@ -13099,7 +13068,7 @@ def web_surfer() -> Agent:
         state.messages.append(
             ChatMessageSystem(
                 content="You are a tenacious web researcher that is "
-                + "expert at using a web browser to answer questions. "
+                + "expert at using web search to answer questions. "
                 + "Use the memory tools to track your research."
             )
         )
@@ -13114,7 +13083,7 @@ def web_surfer() -> Agent:
         # run tool loop w/ then update & return state
         async with mcp_connection(memory_server):
             messages, state.output = await get_model().generate_loop(
-                state.messages, tools=web_browser() + [memory_server]
+                state.messages, tools=[web_search(), memory_server]
             )
             state.messages.extend(messages)
             return state
@@ -13122,8 +13091,6 @@ def web_surfer() -> Agent:
     return execute
 ```
 ````
-
-The [web_browser()](./reference/inspect_ai.tool.html.md#web_browser) tool used above is [deprecated](./tools-standard.html.md#sec-web-browser); it appears here only to illustrate [mcp_connection()](./reference/inspect_ai.tool.html.md#mcp_connection).
 
 Note that the [mcp_connection()](./reference/inspect_ai.tool.html.md#mcp_connection) function can take an arbitrary list of `tools` and will discover and connect to any MCP-based [ToolSource](./reference/inspect_ai.tool.html.md#toolsource) in the list. So if your agent takes a `tools` parameter you can just forward it on. For example:
 
@@ -13405,7 +13372,7 @@ The `exec_remote()` options ([ExecRemoteStreamingOptions](./reference/inspect_ai
 
 ``` python
 async def write_file(
-    self, file: str, contents: str | bytes
+    self, file: str, contents: str | bytes, *, user: str | None = None
 ) -> None:
     """
     Raises:
@@ -13424,7 +13391,7 @@ Note that `write_file()` automatically creates parent directories as required if
 
 ``` python
 async def read_file(
-    self, file: str, text: bool = True
+    self, file: str, text: bool = True, *, user: str | None = None
 ) -> Union[str | bytes]:
     """
     Raises:
@@ -13445,6 +13412,19 @@ async def read_file(
 The [read_file()](./reference/inspect_ai.tool.html.md#read_file) method should enforce the `SandboxEnvironmentLimits.MAX_READ_FILE_SIZE` limit (default 100MB, configurable via the `INSPECT_SANDBOX_MAX_READ_FILE_SIZE` environment variable) and raise an `OutputLimitExceededError` when it is exceeded.
 
 The [read_file()](./reference/inspect_ai.tool.html.md#read_file) method should preserve newline constructs (e.g. crlf should be preserved not converted to lf). This is equivalent to specifying `newline=""` in a call to the Python `open()` function.
+
+Both file methods accept `user` to enforce that user’s filesystem permissions, including when following symlinks and creating parent directories. Omitting `user` uses the sandbox’s default execution user. A provider that cannot honour an explicit user must raise [SandboxUserUnsupportedError](./reference/inspect_ai.util.html.md#sandboxuserunsupportederror) before any file operation. Declare a named `user` parameter: accepting `**kwargs` alone does not establish support.
+
+Pass the same user as the agent’s tools when reading or writing on the agent’s behalf. Inspect does not infer this user from the tool configuration. If the sandbox’s default user is root, omitting `user` still gives root access.
+
+``` python
+contents = await sandbox().read_file("/home/agent/output.txt", user="agent")
+await sandbox().write_file("/home/agent/input.txt", contents, user="agent")
+```
+
+Older sandbox providers remain usable for calls without `user`; their existing default behavior is retained. Explicit-user calls through [sandbox()](./reference/inspect_ai.util.html.md#sandbox) are rejected until the sandbox provider implements this contract. Checkpoint export requests `user="root"` from sandbox providers that accept the parameter.
+
+Sandbox provider authors must update override signatures to type-check against the new base class, even though existing calls remain usable at runtime.
 
 ### connection()
 
@@ -13487,7 +13467,7 @@ When a batch mixes parallel and serial calls, each serial call acts as a barrier
 
 If one parallel call raises an unhandled exception, its in-flight siblings are cancelled. [ToolError](./reference/inspect_ai.tool.html.md#toolerror) is not an unhandled exception — it becomes tool-result content and siblings continue.
 
-Only opt a tool in to parallel execution after auditing it for concurrent-safety. Stateful tools like [bash_session()](./reference/inspect_ai.tool.html.md#bash_session) and [web_browser()](./reference/inspect_ai.tool.html.md#web_browser) keep the default (`parallel=False`) and run serially.
+Only opt a tool in to parallel execution after auditing it for concurrent-safety. Stateful tools like [bash_session()](./reference/inspect_ai.tool.html.md#bash_session) keep the default (`parallel=False`) and run serially.
 
 ## Output Size
 
@@ -13514,11 +13494,9 @@ Note that a single unbounded result is not the same risk as an unbounded *accumu
 
 ## Stateful Tools
 
-Some tools need to retain state across invocations (for example, the [bash_session()](./reference/inspect_ai.tool.html.md#bash_session) and [web_browser()](./reference/inspect_ai.tool.html.md#web_browser) tools both interact with a stateful remote process). You can create stateful tools by using the [store_as()](./reference/inspect_ai.util.html.md#store_as) function to access discrete storage for your tool and/or specific instances of your tool.
+Some tools need to retain state across invocations (for example, the [bash_session()](./reference/inspect_ai.tool.html.md#bash_session) tool interacts with a stateful remote process). You can create stateful tools by using the [store_as()](./reference/inspect_ai.util.html.md#store_as) function to access discrete storage for your tool and/or specific instances of your tool.
 
-For example, imagine we were creating a `web_surfer()` tool that builds on the [web_browser()](./reference/inspect_ai.tool.html.md#web_browser) tool to complete sequences of browser actions in service of researching a topic. We might want to ask multiple questions of the web surfer and have it retain its message history and browser state.
-
-Note that [web_browser()](./reference/inspect_ai.tool.html.md#web_browser) is [deprecated](./tools-standard.html.md#sec-web-browser); it is used here only to illustrate how a stateful tool is composed.
+For example, imagine we were creating a `web_surfer()` tool that builds on the [web_search()](./reference/inspect_ai.tool.html.md#web_search) tool to complete sequences of web searches in service of researching a topic. We might want to ask multiple questions of the web surfer and have it retain its message history.
 
 Here’s the complete source code for this tool.
 
@@ -13526,12 +13504,11 @@ Here’s the complete source code for this tool.
 from textwrap import dedent
 
 from pydantic import Field
-from shortuuid import uuid
 
 from inspect_ai.model import (
   ChatMessage, ChatMessageSystem, ChatMessageUser, get_model
 )
-from inspect_ai.tool import Tool, tool, web_browser
+from inspect_ai.tool import Tool, tool, web_search
 from inspect_ai.util import StoreModel, store_as
 
 class WebSurferState(StoreModel):
@@ -13541,16 +13518,16 @@ class WebSurferState(StoreModel):
 def web_surfer(instance: str | None = None) -> Tool:
     """Web surfer tool for researching topics.
 
-    The web_surfer tool builds on the web_browser tool to complete
-    sequences of web_browser actions in service of researching a topic.
-    Input can either be requests to do research or questions about 
+    The web_surfer tool builds on the web_search tool to complete
+    sequences of web searches in service of researching a topic.
+    Input can either be requests to do research or questions about
     previous research.
     """
     async def execute(input: str, clear_history: bool = False) -> str:
         """Use the web to research a topic.
 
-        You may ask the web surfer any question. These questions can 
-        either prompt new web searches or be clarifying or follow up 
+        You may ask the web surfer any question. These questions can
+        either prompt new web searches or be clarifying or follow up
         questions about previous web searches.
 
         Args:
@@ -13573,16 +13550,13 @@ def web_surfer(instance: str | None = None) -> Tool:
             surfer_state.messages.append(
                 ChatMessageSystem(
                     content=dedent("""
-                You are a helpful assistant that can use a browser
-                to answer questions. You don't need to answer the 
-                questions with a single web browser request, rather,
-                you can perform searches, follow links, backtrack, 
-                and otherwise use the browser to its fullest 
-                capability to help answer the question.
+                You are a helpful assistant that can use web search to
+                answer questions. You can perform multiple searches to
+                gather the information needed to answer the question.
 
                 In some cases questions will be about your previous
                 web searches, in those cases you don't always need
-                to use the web browser tool but can answer by 
+                to use the web search tool but can answer by
                 consulting previous conversation messages.
                 """)
                 )
@@ -13591,9 +13565,8 @@ def web_surfer(instance: str | None = None) -> Tool:
         # append the latest question
         surfer_state.messages.append(ChatMessageUser(content=input))
 
-        # run tool loop with web browser
         messages, output = await get_model().generate_loop(
-            surfer_state.messages, tools=web_browser(instance=instance)
+            surfer_state.messages, tools=[web_search()]
         )
 
         # update state
@@ -13605,9 +13578,9 @@ def web_surfer(instance: str | None = None) -> Tool:
     return execute
 ```
 
-We make available an `instance` parameter that enables creation of multiple instances of the `web_surfer()` tool. We then pass this `instance` to the [store_as()](./reference/inspect_ai.util.html.md#store_as) function (to store our own tool’s message history) and the [web_browser()](./reference/inspect_ai.tool.html.md#web_browser) function (so that we also provision a unique browser for the web surfer session).
+We make available an `instance` parameter that enables creation of multiple instances of the `web_surfer()` tool. We pass this `instance` to [store_as()](./reference/inspect_ai.util.html.md#store_as) so each instance retains its own message history.
 
-For example, this creates a distinct instance of the `web_surfer()` with its own state and browser:
+For example, this creates a distinct instance of the `web_surfer()` with its own message history:
 
 ``` python
 from shortuuid import uuid
@@ -13895,7 +13868,7 @@ The `exec_remote()` options ([ExecRemoteStreamingOptions](./reference/inspect_ai
 
 ``` python
 async def write_file(
-    self, file: str, contents: str | bytes
+    self, file: str, contents: str | bytes, *, user: str | None = None
 ) -> None:
     """
     Raises:
@@ -13914,7 +13887,7 @@ Note that `write_file()` automatically creates parent directories as required if
 
 ``` python
 async def read_file(
-    self, file: str, text: bool = True
+    self, file: str, text: bool = True, *, user: str | None = None
 ) -> Union[str | bytes]:
     """
     Raises:
@@ -13935,6 +13908,19 @@ async def read_file(
 The [read_file()](./reference/inspect_ai.tool.html.md#read_file) method should enforce the `SandboxEnvironmentLimits.MAX_READ_FILE_SIZE` limit (default 100MB, configurable via the `INSPECT_SANDBOX_MAX_READ_FILE_SIZE` environment variable) and raise an `OutputLimitExceededError` when it is exceeded.
 
 The [read_file()](./reference/inspect_ai.tool.html.md#read_file) method should preserve newline constructs (e.g. crlf should be preserved not converted to lf). This is equivalent to specifying `newline=""` in a call to the Python `open()` function.
+
+Both file methods accept `user` to enforce that user’s filesystem permissions, including when following symlinks and creating parent directories. Omitting `user` uses the sandbox’s default execution user. A provider that cannot honour an explicit user must raise [SandboxUserUnsupportedError](./reference/inspect_ai.util.html.md#sandboxuserunsupportederror) before any file operation. Declare a named `user` parameter: accepting `**kwargs` alone does not establish support.
+
+Pass the same user as the agent’s tools when reading or writing on the agent’s behalf. Inspect does not infer this user from the tool configuration. If the sandbox’s default user is root, omitting `user` still gives root access.
+
+``` python
+contents = await sandbox().read_file("/home/agent/output.txt", user="agent")
+await sandbox().write_file("/home/agent/input.txt", contents, user="agent")
+```
+
+Older sandbox providers remain usable for calls without `user`; their existing default behavior is retained. Explicit-user calls through [sandbox()](./reference/inspect_ai.util.html.md#sandbox) are rejected until the sandbox provider implements this contract. Checkpoint export requests `user="root"` from sandbox providers that accept the parameter.
+
+Sandbox provider authors must update override signatures to type-check against the new base class, even though existing calls remain usable at runtime.
 
 ### connection()
 
@@ -14026,6 +14012,8 @@ def my_task(cpus: float = 1.0):
 
 The [ComposeConfig](./reference/inspect_ai.util.html.md#composeconfig) and [ComposeService](./reference/inspect_ai.util.html.md#composeservice) classes mirror the structure of Docker Compose files, supporting fields like `image`, `build`, `command`, `environment`, `volumes`, `ports`, `mem_limit`, `cpus`, and more. Extension fields (prefixed with `x-`) are also supported.
 
+Bind-mount sources and `env_file` paths in a [ComposeConfig](./reference/inspect_ai.util.html.md#composeconfig) must be absolute (or start with `~/`). The generated Compose file is stored outside the task directory, so Inspect rejects a relative bind-mount source or `env_file` rather than let Compose resolve it there. Build such paths from the task file, for example `Path(__file__).parent / "data"`.
+
 ## Sandbox Limits
 
 By default, sandboxes limit the size of file reads to 100MB and execution output to 10MB. These limits exist to prevent boundary cases of outputs or executions that don’t terminate and result in OOM or hung evaluations (i.e. they usually indicate an error by the model).
@@ -14067,7 +14055,15 @@ Before using Docker sandbox environments, please be sure to install [Docker Engi
 
 Docker Compose is checked separately: Inspect requires version 2.21.0 or greater, and version 2.22.0 or greater when Inspect pulls sandbox images from a registry.
 
+Inspect’s prerequisite checks confirm that Docker supports the features Inspect needs. They do not check whether security updates are installed. You are responsible for using vendor-supported releases and applying security updates to Docker Engine or Docker Desktop, Compose, the container runtime (such as runc), and the Docker host’s operating system. This also applies when the Docker host is remote.
+
 If you plan on running evaluations with large numbers of concurrent containers (\> 30) you should also configure Docker’s [default address pools](https://straz.to/2021-09-08-docker-address-pools/) to accommodate this.
+
+### File Access
+
+File reads require a running Linux container with `/bin/sh`, `/usr/bin/timeout` and `tar` supporting `--no-recursion`. Reads enforce the requested user’s filesystem permissions, including for symlink targets. Pass `user="root"` when privileged access is intended.
+
+Reads follow kernel permissions, so root can normally read files with no read bits (mode `000`). Reads of concurrently modified files return best-effort contents or fail, including when a file shrinks during the read.
 
 ### Task Configuration
 
@@ -14077,9 +14073,11 @@ Here is how Docker sandbox environments are created based on the presence of `Do
 
 | Config Files | Behavior |
 |----|----|
-| None | Creates a sandbox environment based on the standard [inspect-tool-support](https://hub.docker.com/r/aisiuk/inspect-tool-support) image. |
+| None | Creates a sandbox environment based on the official [`python:3.12-bookworm`](https://hub.docker.com/_/python) image. |
 | `Dockerfile` | Creates a sandbox environment by building the image. |
 | `compose.yaml` | Creates sandbox environment(s) based on `compose.yaml`. |
+
+The default Docker sandbox and several examples use mutable image tags. A tag such as `python:3.12-bookworm` can refer to a different image when the publisher releases updates. To control when you adopt updates, pin an image digest in your own `compose.yaml`, for example `image: python:3.12-bookworm@sha256:<digest>`. You’ll then need to update that digest to receive newer image versions. See Docker’s [guidance on pinning images](https://docs.docker.com/build/building/best-practices/#pin-base-image-versions).
 
 Providing a `compose.yaml` is not strictly required, as Inspect will automatically generate one as needed. The generated Compose configuration sets `network_mode: none`, which prevents network access at container runtime.
 
@@ -14392,10 +14390,10 @@ Approvers can be specified at either the eval level or at the task level. The ex
 The simplest approval policy is interactive human approval of all tool calls. You can enable this policy by using the `--approval human` CLI option (or the `approval = "human"`) argument to [eval()](./reference/inspect_ai.html.md#eval):
 
 ``` bash
-inspect eval browser.py --approval human
+inspect eval task.py --approval human
 ```
 
-This example provides the model with the built-in [web browser](./tools-standard.html.md#sec-web-browser) tool and asks it to navigate to a web and perform a search.
+This asks a human to approve each tool call made by the task.
 
 The human approver offers approve, reject and terminate by default (`human_approver(choices=...)` changes this). It cannot offer modify, since an operator has no way to enter a modified tool call: if `choices` includes `"modify"`, it is dropped with a warning, and if `"modify"` is the only choice, [human_approver()](./reference/inspect_ai.approval.html.md#human_approver) raises an error.
 
@@ -14403,43 +14401,72 @@ The human approver offers approve, reject and terminate by default (`human_appro
 
 Whenever you enable approval mode, all tool calls must be handled in some fashion (otherwise they are rejected). However, approving every tool call can be quite tedious, and not all tool calls are necessarily worthy of human oversight.
 
-You can chain together the `human` and `auto` approvers in an *approval policy* to only approve selected tool calls. For example, here we create a policy that asks for human approval of only interactive web browser tool calls:
+You can chain together the `human` and `auto` approvers in an *approval policy* to only approve selected tool calls. For example, here we create a policy that asks for human approval of shell and Python tool calls:
 
 ``` yaml
 approvers:
   - name: human
-    tools: ["web_browser_click", "web_browser_type"]
+    tools: ["bash", "python"]
 
   - name: auto
     tools: "*"
 ```
 
-Navigational web browser tool calls (e.g. `web_browser_go`) are approved automatically via the catch-all `auto` approver at the end of the chain. Note that when listing an approver in a policy you indicate which tools it should handle using a glob or list of globs. These globs are prefix matched so the `web_browser_type` glob matches both `web_browser_type` and `web_browser_type_submit`.
+Other tool calls (e.g. `read_file`) are approved automatically via the catch-all `auto` approver at the end of the chain. Note that when listing an approver in a policy you indicate which tools it should handle using a glob or list of globs. A name with no glob characters (`*`, `?`, `[`) is prefix matched, so `bash` matches both `bash` and `bash_session`. A glob must match the whole name, so `*bash` matches `bash` but not `bash_helper`.
 
 To use this policy, pass the path to the policy YAML file as the approver. For example:
 
 ``` bash
-inspect eval browser.py --approval approval.yaml
+inspect eval task.py --approval approval.yaml
 ```
 
-You can also match on tool arguments (for tools that dispatch many action types). For example, here is an approval policy for the [Computer Tool](./tools-standard.html.md#sec-computer) which allows typing and mouse movement but requires approval for key combos (e.g. Enter or a shortcut) and typing:
+You can also match on tool arguments (for tools that dispatch many action types) by adding `arguments` to a policy. Each key is an argument name and each value is a glob for that argument’s value. For example, here is an approval policy for the [Computer Tool](./tools-standard.html.md#sec-computer) which requires approval for key combos (e.g. Enter or a shortcut) and mouse clicks:
 
     approval.yaml
 
 ``` yaml
 approvers:
   - name: human
-    tools:
-      - computer(action='key'
-      - computer(action='left_click'
-      - computer(action='middle_click'
-      - computer(action='double_click'
+    tools: computer
+    arguments: {action: key}
+
+  - name: human
+    tools: computer
+    arguments: {action: "*_click"}
 
   - name: auto
     tools: "*"
 ```
 
-Note that since this is a prefix match and there could be other arguments, we don’t end the tool match pattern with a parentheses.
+An argument glob must match the whole value: `key` matches only `key`, while `*_click` matches `left_click`, `right_click` and the other click actions. A string is matched as is; any other value is matched as its JSON (e.g. `true` or `10`). That JSON has a space after each comma and colon, keeps object keys in the order the model sent them, and does not escape Unicode characters. `10` and `10.0` differ. For example, `'{"force": true}'` matches the object `{"force": true}`. In a glob `[` starts a character set, so write `[[]` to match a literal `[`. Every listed argument must be present and match, and the call may have other arguments. Globs must be strings, so quote boolean or numeric values in config files, for example `arguments: {timeout: "10", sudo: "true"}`.
+
+Argument globs are case-sensitive. Function names are case-sensitive too, except on Windows, where they ignore case (but not in the legacy form below).
+
+In Python, pass `arguments` to [ApprovalPolicy](./reference/inspect_ai.approval.html.md#approvalpolicy):
+
+``` python
+ApprovalPolicy(human_approver(), "computer", arguments={"action": "key"})
+```
+
+> **NOTE: Note**
+>
+> Earlier versions matched arguments within `tools`, as in `computer(action='key'`. This legacy form still works for one argument with a single-quoted value, with these limitations:
+>
+> - The function name must match exactly and cannot contain glob characters (`*`, `?`, `[`, `]`).
+> - Only string argument values match. Other values never do.
+> - The glob must match the whole value.
+> - Matching is case-sensitive on every platform.
+> - Path separators are literal, so on Windows `/` and `\` are different characters.
+> - The closed form `name(arg='value')` matches only calls with no other arguments.
+> - Any other `tools` pattern containing `(`, including one with an unclosed value such as `bash(cmd='rm`, raises an error.
+>
+> Use `arguments` for any other matching.
+>
+> Older logs still open, but [eval_retry()](./reference/inspect_ai.html.md#eval_retry) restores the policies saved in the log and raises an error for a pattern that is no longer supported. Updating the task’s current policies does not replace the saved ones. Migrate the saved approval or review configuration in a copy of the log, or start a new evaluation with migrated policies.
+
+For native tool calls, approval sees a call after its arguments pass the tool’s schema and are converted to the tool’s parameter types, so a call with invalid arguments fails before any approver or sentinel monitor sees it. While approval or a sentinel is active, approvers see the converted arguments serialized as JSON, including Pydantic model field defaults and any value a validator or `__post_init__` changed, and the tool runs what is rebuilt from the approved JSON. Arguments that do not convert back to the same JSON and the same value are a parsing error, for example a `SecretStr`, which serializes masked, or a field with `exclude=True`. A `modify` decision must give each argument in full, as shown: if the modified arguments do not convert back to exactly what was selected (for example, because a field with a default was left out), the call does not run. If a tool’s arguments serialize to a form its schema does not accept (for example, a field serializer that turns a number into text), the call can be approved but not modified. Approvers of a bridged agent’s calls get the arguments the agent supplies, without this step.
+
+Approvers and sentinel monitors change a call only by returning a `modify` decision with a new `ToolCall`. If one changes the call it was given in place and approves it, the call does not run.
 
 ## Approvers in Code
 
@@ -14450,11 +14477,11 @@ from inspect_ai import eval
 from inspect_ai.approval import ApprovalPolicy, human_approver, auto_approver
 
 approval = [
-    ApprovalPolicy(human_approver(), ["web_browser_click", "web_browser_type*"]),
+    ApprovalPolicy(human_approver(), ["bash", "python"]),
     ApprovalPolicy(auto_approver(), "*")
 ]
 
-eval("browser.py", approval=approval, trace=True)
+eval("task.py", approval=approval, trace=True)
 ```
 
 ## Task Approvers
@@ -14607,7 +14634,7 @@ There are five possible approval decisions:
 
 A `modify` decision must carry the modified call in `modified`. Without one, the decision is treated as a rejection: the tool does not run, and the model is told that a modification was chosen but no modified call was supplied. The approval event still records the `modify` decision.
 
-A `modify` decision may change only the arguments of the tool call. If the modified call names a different function, neither tool runs and the sample fails with an error, since this is a bug in the approver rather than something to report to the model. For a modified call, the tool event records the arguments that ran, while the model output and the approval event keep the call the model proposed.
+A `modify` decision may change only the arguments of the tool call. If the modified call names a different function or, for a native call, has a different id, neither tool runs and the sample fails with an error, since this is a bug in the approver rather than something to report to the model. For a modified native call, the tool event records the arguments that ran, the model output keeps the call the model proposed, and the approval event keeps the call as presented for approval, with the modified call in `modified`.
 
 Here’s a more complicated custom approver that implements an allow list for bash commands. Imagine that we’ve implemented this approver within a Python package named `evaltools`:
 
@@ -14658,15 +14685,9 @@ See the documentation on [Approver Extensions](./extensions-approvers.html.md#se
 
 ## Tool Views
 
-By default, when a tool call is presented for human approval the tool function and its arguments are printed. For some tool calls this is adequate, but some tools can benefit from enhanced presentation. For example:
+By default, when a tool call is presented for human approval the tool function and its arguments are printed. For some tool calls this is adequate, but some tools can benefit from enhanced presentation. For example, the [bash()](./reference/inspect_ai.tool.html.md#bash) and [python()](./reference/inspect_ai.tool.html.md#python) tools take their input as a string, which can be difficult to read for multi-line commands. These tools provide an alternative view of the call that formats the code as a multi-line syntax highlighted code block.
 
-1.  The interactive features of the web browser tool (clicking, typing, submitting forms, etc.) reference an `element_id`, however this ID isn’t enough context to approve or reject the call. To compensate, the web browser tool provides some additional context (a snippet of the page around the `element_id` being interacted with).
-
-    [![](images/web-browser-tool-view.png)](images/web-browser-tool-view.png)
-
-2.  The [bash()](./reference/inspect_ai.tool.html.md#bash) and [python()](./reference/inspect_ai.tool.html.md#python) tools take their input as a string, which especially for multi-line commands can be difficult to read and understand. To compensate, these tools provide an alternative view of the call that formats the code and as multi-line syntax highlighted code block.
-
-    [![](images/python-tool-view.png)](images/python-tool-view.png)
+[![](images/python-tool-view.png)](images/python-tool-view.png)
 
 ### Example
 
@@ -14698,7 +14719,9 @@ def bash(timeout: int | None = None) -> Tool:
 
 The `ToolCallViewer` gets passed the `ToolCall` and returns a `ToolCallView` that provides one or both of `context` (additional information for understand the call) and `call` (alternate rendering of the call). In the case of the bash tool we provide a markdown code block rendering of the bash code to be executed.
 
-The `context` is typically used for stateful tools that need to present some context from the current state. For example, the web browsing tool provides a snippet from the currently loaded page.
+The `context` is typically used for stateful tools that need to present some context from the current state. For example, a custom editor could display the text surrounding a proposed edit.
+
+If a viewer raises an exception when tool approval or a sentinel step before the tool runs (`BeforeToolCall`) checks the call, the call is rejected and the model is told why. Approvers and those sentinel monitors never see a fallback rendering in its place. Other steps still use the default rendering: steps that see the call when the model proposes it, such as sentinel steps after generation, and steps after the call has run, such as tool result review.
 
 
 # Tool Result Review – Inspect
@@ -14804,7 +14827,7 @@ reviewers:
 inspect eval task.py --review review.yaml
 ```
 
-Reviewers defined in your own Python modules are referenced by their registry name; use the `@reviewer(name=...)` decorator to control it. The `tools` field uses the same glob syntax as approval policies, matching either the tool name or the tool name and its arguments.
+Reviewers defined in your own Python modules are referenced by their registry name; use the `@reviewer(name=...)` decorator to control it. The `tools` and `arguments` fields work as in [approval policies](./approval.html.md#auto-approver): `tools` matches tool names and `arguments` matches argument values.
 
 In Python, pass a list of [ReviewPolicy](./reference/inspect_ai.review.html.md#reviewpolicy) objects:
 
@@ -14911,7 +14934,7 @@ Run a set of evaluations using the `inspect eval-set` command or [eval_set()](./
 
 ``` bash
 $ inspect eval-set mmlu.py mathematics.py \
-   --model openai/gpt-4o,anthropic/claude-3-5-sonnet-20240620 \
+   --model openai/gpt-6-luna,anthropic/claude-3-5-sonnet-20240620 \
    --log-dir logs-run-42
 ```
 
@@ -14922,7 +14945,7 @@ from inspect_ai import eval_set
 
 success, logs = eval_set(
    tasks=["mmlu.py", "mathematics.py"],
-   model=["openai/gpt-4o", "anthropic/claude-3-5-sonnet-20240620"],
+   model=["openai/gpt-6-luna", "anthropic/claude-3-5-sonnet-20240620"],
    log_dir="logs-run-42"      
 )
 ```
@@ -14943,8 +14966,8 @@ You can also amend an eval set with additional tasks, models, or epochs. Just re
 
 ``` bash
 $ inspect eval-set mmlu.py mathematics.py \
-   --model openai/gpt-5,openai/gpt-4o,anthropic/claude-3-5-sonnet-20240620 \
-   --epochs 3
+   --model openai/gpt-6-sol,openai/gpt-6-luna,anthropic/claude-3-5-sonnet-20240620 \
+   --epochs 3 \
    --log-dir logs-run-42
 ```
 
@@ -14957,7 +14980,7 @@ Use the `max_tasks` option to override the default behavior:
 ``` python
 eval_set(
    tasks=["mmlu.py", "mathematics.py", "ctf.py", "science.py"],
-   model=["openai/gpt-4o", "anthropic/claude-3-5-sonnet-20240620"],
+   model=["openai/gpt-6-luna", "anthropic/claude-3-5-sonnet-20240620"],
    max_tasks=8,
    log_dir="logs-run-42"      
 )
@@ -14979,7 +15002,7 @@ maths = create_task("maths.csv")
 
 eval_set(
    [mmlu, maths],
-   model=["openai/gpt-4o", "anthropic/claude-3-5-sonnet-20240620"],
+   model=["openai/gpt-6-luna", "anthropic/claude-3-5-sonnet-20240620"],
    log_dir="logs-run-42"      
 )
 ```
@@ -15272,7 +15295,7 @@ You can evaluate multiple models in parallel by passing a list of models to the 
 
 ``` python
 eval("mathematics.py", model=[
-    "openai/gpt-4-turbo",
+    "openai/gpt-6-luna",
     "anthropic/claude-3-opus-20240229",
     "google/gemini-2.5-pro"
 ])
@@ -15285,7 +15308,7 @@ Since each model provider has its own `max_connections` they don’t contend wit
 If you want to specify multiple models when using the `--model` CLI argument or `INSPECT_EVAL_MODEL` environment variable, just separate the model names with commas. For example:
 
 ``` bash
-INSPECT_EVAL_MODEL=openai/gpt-4-turbo,google/gemini-2.5-pro
+INSPECT_EVAL_MODEL=openai/gpt-6-luna,google/gemini-2.5-pro
 ```
 
 ## Multiple Tasks
@@ -15306,12 +15329,12 @@ tasks = [
         dataset=csv_dataset("dataset.csv"),
         solver=[system_message(SYSTEM_MESSAGE), generate()],
         scorer=match(),
-        config=GenerateConfig(temperature=temperature),
+        config=GenerateConfig(reasoning_effort=effort),
     )
-    for temperature in [0.5, 0.6, 0.7, 0.8, 0.9, 1]
+    for effort in ["low", "medium", "high"]
 ]
 
-eval(tasks, max_tasks=5)
+eval(tasks, max_tasks=3)
 ```
 
 It’s critical to reinforce that this will only provide a performance gain if the number of samples is very small. For example, if the dataset contains 10 samples and your `max_connections` is 10, there is no gain to be had by running tasks in parallel.
@@ -15320,26 +15343,26 @@ Note that you can combine parallel tasks with parallel models as follows:
 
 ``` python
 eval(
-    tasks, # 6 tasks for various temperature values
-    model=["openai/gpt-4", "anthropic/claude-haiku-4-5"],
+    tasks, # 3 tasks for various reasoning efforts
+    model=["openai/gpt-6-luna", "anthropic/claude-haiku-4-5"],
     max_tasks=5,
 )
 ```
 
-This code will evaluate a total of 12 tasks (6 temperature variations against 2 models each) with up to 5 tasks run in parallel.
+This code will evaluate a total of 6 tasks (3 reasoning effort variations against 2 models each) with up to 5 tasks run in parallel.
 
 ## Dataset Memory
 
 When you run an evaluation, the full dataset of samples is loaded into memory. For most evaluations this is fine, but for very large datasets (e.g. hundreds of thousands of samples with long inputs) the memory footprint can become significant. The `--max-dataset-memory` option lets you set a per-task budget (in MB) for dataset sample data. When the estimated memory exceeds this budget, samples are automatically paged to a temporary file on disk and read back on demand as each sample is executed.
 
 ``` bash
-$ inspect eval --model openai/gpt-4 --max-dataset-memory 512
+$ inspect eval --model openai/gpt-6-luna --max-dataset-memory 512
 ```
 
 Or equivalently in Python:
 
 ``` python
-eval("task.py", model="openai/gpt-4", max_dataset_memory=512)
+eval("task.py", model="openai/gpt-6-luna", max_dataset_memory=512)
 ```
 
 By default, no memory limit is applied and all samples remain in memory.
@@ -15416,7 +15439,7 @@ Let’s say you have a scorer that uses three different models to score based on
 from inspect_ai.model import get_model
 
 models = [
-  get_model("openai/gpt-5"),
+  get_model("openai/gpt-6-sol"),
   get_model("anthropic/claude-sonnet-4-5"),
   get_model("mistral/mistral-large-latest")
 ]
@@ -15496,7 +15519,7 @@ def list_files():
 The maximum number of concurrent subprocesses can be modified using the `--max-subprocesses` option. For example:
 
 ``` bash
-$ inspect eval --model openai/gpt-4 --max-subprocesses 4
+$ inspect eval --model openai/gpt-6-luna --max-subprocesses 4
 ```
 
 Note that if you need to execute computationally expensive code in an eval, you should always factor it into a call to [subprocess()](./reference/inspect_ai.util.html.md#subprocess) so that you get optimal concurrency and performance.
@@ -15583,6 +15606,8 @@ Or from Python with:
 ``` python
 eval_retry("logs/2024-05-29T12-38-43_math_43_math_Gprr29Mv.json")
 ```
+
+A retry runs code named by the log: its task file, scorers and solver, or for an `hf/` task the Hugging Face repo it names, whose `eval.yaml` chooses the dataset and the solver and scorer arguments. It also uses the model endpoint, sandbox and other settings recorded in the log. Only retry logs you trust.
 
 Note that retry only works for tasks that are created from `@task` decorated functions (as if a [Task](./reference/inspect_ai.html.md#task) is created dynamically outside of an `@task` function Inspect does not know how to reconstruct it for the retry).
 
@@ -15734,6 +15759,8 @@ After recovery, if there are cancelled or failed samples, the CLI will suggest r
     To re-run the 5 failed/cancelled samples:
       inspect eval-retry path/to/crashed-recovered.eval
 
+Recovery recomputes the eval’s metrics without importing the task file the log records. If a metric or epoch reducer is not registered (for example, a custom metric defined in the task file), or a metric’s options would create a model or another object, `inspect log recover` stops with an error before writing anything. For a log you trust, rerun with `--trust-log` (`trust_log=True` for [recover_eval_log()](./reference/inspect_ai.log.html.md#recover_eval_log)), which imports the task file and runs its code; anything it still can’t resolve is then recovered without results.
+
 > **NOTE:**
 >
 > The sample buffer database is retained for 3 days after the eval process exits. Recovery should be performed soon after a crash to ensure the data is still available.
@@ -15765,7 +15792,7 @@ By default, samples that were still in progress at the time of the crash are rec
 The `--incomplete-action` option resolves this by letting you choose the disposition for in-progress samples:
 
 - `retry` (the default) marks them as cancelled errors that a later retry re-runs.
-- `error` resolves them as operator terminations. When every expected sample is then final, the recovered log is finalized with status `"success"` and full results — nothing will retry it. If expected samples are missing entirely (never started), the log keeps status `"error"` and stays retryable. Expected samples are matched by id and epoch against the ids recorded in the log, so for a task with a dynamic `sample_source` (whose log records only the seed samples’ ids) finalization happens only when the written samples are exactly the seed samples; once produced samples have been written, the log stays retryable. Finalization also requires the eval’s metrics to be recomputed, so if a scorer or metric cannot be resolved in the recovery process (for example, a custom metric from a package that is not installed there) the log is not finalized either. Whenever `error` does not finalize, `inspect log recover` prints a `not finalized:` line giving the reason.
+- `error` resolves them as operator terminations. When every expected sample is then final, the recovered log is finalized with status `"success"` and full results — nothing will retry it. If expected samples are missing entirely (never started), the log keeps status `"error"` and stays retryable. Expected samples are matched by id and epoch against the ids recorded in the log, so for a task with a dynamic `sample_source` (whose log records only the seed samples’ ids) finalization happens only when the written samples are exactly the seed samples; once produced samples have been written, the log stays retryable. Finalization also requires the eval’s metrics to be recomputed, so if a metric cannot be resolved during automatic recovery, or during manual recovery with `--trust-log` (for example, a custom metric from a package that is not installed there), the log is not finalized either. Whenever `error` does not finalize, `inspect log recover` prints a `not finalized:` line giving the reason.
 
 Note that finalization freezes *every* errored sample in the recovered log, not only the ones resolved during recovery: samples that had already failed before the crash (within the eval’s `fail_on_error` tolerance, or with `fail_on_error=False`) are recorded as errors in the finalized log rather than re-run — the same outcome the eval would have reached had it not crashed. An explicit `inspect eval-retry` on the finalized log can still re-run its errored samples later.
 
@@ -15863,11 +15890,13 @@ The `working_limit` differs from the `time_limit` in that it measures only the t
 - A model call held by `inspect ctl pause --now`.
 - Code inside [suspend_working_limit()](./reference/inspect_ai.util.html.md#suspend_working_limit).
 
+There is one exception: while any task in the sample is running a model request, a sandbox command, or a tool call, the sample is working, even if another task is waiting. A model request that fails and is retried does not count as working. A tool call or sandbox command that is itself waiting (for example for approval or a `max_subprocesses` slot) is not counted as working for that time. Model requests and tool calls made inside a wait (for example by a model approver or a monitor) are not counted as working either. This exception does not apply to a command run with `exec_remote()` once it has started, or to sandbox commands run inside [sandbox_agent_bridge()](./reference/inspect_ai.agent.html.md#sandbox_agent_bridge), such as the one that launches a bridged agent, because Inspect cannot see when they are working. A tool call that runs such a command is still counted as working, and so are a bridged agent’s model requests and bridged tool calls.
+
 Waits that overlap count once, so working time is never negative and never more than clock time.
 
 > **WARNING:**
 >
-> Work done while any wait is in progress is not charged. While one part of a sample waits, other work in the same sample is free: concurrent tasks, parallel tool calls, sub-agents, background processes in a sandbox, and the work of in-process agent libraries. Working time can therefore undercount, and a sample can run much longer than its working limit. Always set a `time_limit` alongside a `working_limit` to bound clock time.
+> Other work done while a wait is in progress is not charged. This includes background processes in a sandbox, the commands a sandboxed agent runs on its own, and the work of in-process agent libraries. Working time can therefore undercount, and a sample can run much longer than its working limit. Always set a `time_limit` alongside a `working_limit` to bound clock time.
 
 > **NOTE:**
 >
@@ -16048,9 +16077,9 @@ Cost tracking requires cost data for each model present in the eval or eval set.
 ``` python
 from inspect_ai.model import set_model_cost, ModelCost
 
-set_model_cost("openai/gpt-4o", ModelCost(
-    input=2.50, output=10.00,
-    input_cache_write=0, input_cache_read=1.25,
+set_model_cost("openai/gpt-6-luna", ModelCost(
+    input=0.10, output=0.50,
+    input_cache_write=0.125, input_cache_read=0.01,
 ))
 ```
 
@@ -16061,23 +16090,23 @@ Each model needs a price set for `input`, `output`, `input_cache_write`, and `in
 Below is an example cost config file given in YAML:
 
 ``` yaml
-openai/gpt-4o:
-    input: 2.50
+openai/gpt-6-luna:
+    input: 0.10
+    output: 0.50
+    input_cache_write: 0.125
+    input_cache_read: 0.01
+anthropic/claude-sonnet-5-5:
+    input: 2.00
     output: 10.00
-    input_cache_write: 0
-    input_cache_read: 1.25
-anthropic/claude-sonnet-4-5-20250514:
-    input: 3.00
-    output: 15.00
-    input_cache_write: 3.75
-    input_cache_read: 0.30
+    input_cache_write: 2.50
+    input_cache_read: 0.10
 ```
 
 (As of Feb 9 2026, all major model providers count reasoning tokens as output tokens, so no separate price needs to be provided for reasoning tokens. If your use case requires separate calculation of reasoning token prices, contact us.)
 
 When model cost data is configured, costs will be tracked for the sample as a whole, as well as any events within the sample that have a ModelUsage field.
 
-A request is priced at the rates of the model that served it, when the provider reports one other than the model requested: a [refusal fallback](./fallbacks.html.md), an Azure OpenAI, Azure AI or Microsoft Foundry deployment, an OpenRouter, Bedrock or Fireworks router, or a LiteLLM proxy fallback. A dated snapshot of the requested model is priced at the requested model’s rates. If the served model has no cost data, the request is priced at the requested model’s rates and a warning names the served model (e.g. `openai/gpt-4o-mini-2024-07-18`). Set cost data under that name. [set_model_cost()](./reference/inspect_ai.model.html.md#set_model_cost) and `--model-cost-config` accept only models in Inspect’s model database; for any other model, use [set_model_info()](./reference/inspect_ai.model.html.md#set_model_info):
+A request is priced at the rates of the model that served it, when the provider reports one other than the model requested: a [refusal fallback](./fallbacks.html.md), an Azure OpenAI, Azure AI or Microsoft Foundry deployment, an OpenRouter, Bedrock or Fireworks router, or a LiteLLM proxy fallback. A dated snapshot of the requested model is priced at the requested model’s rates. If the served model has no cost data, the request is priced at the requested model’s rates and a warning names the served model (e.g. `openai/gpt-5.4-mini-2026-03-17`). Set cost data under that name. [set_model_cost()](./reference/inspect_ai.model.html.md#set_model_cost) and `--model-cost-config` accept only models in Inspect’s model database; for any other model, use [set_model_info()](./reference/inspect_ai.model.html.md#set_model_info):
 
 ``` python
 from inspect_ai.model import set_model_info, ModelCost, ModelInfo
@@ -16196,11 +16225,13 @@ The `working_limit` differs from the `time_limit` in that it measures only the t
 - A model call held by `inspect ctl pause --now`.
 - Code inside [suspend_working_limit()](./reference/inspect_ai.util.html.md#suspend_working_limit).
 
+There is one exception: while any task in the sample is running a model request, a sandbox command, or a tool call, the sample is working, even if another task is waiting. A model request that fails and is retried does not count as working. A tool call or sandbox command that is itself waiting (for example for approval or a `max_subprocesses` slot) is not counted as working for that time. Model requests and tool calls made inside a wait (for example by a model approver or a monitor) are not counted as working either. This exception does not apply to a command run with `exec_remote()` once it has started, or to sandbox commands run inside [sandbox_agent_bridge()](./reference/inspect_ai.agent.html.md#sandbox_agent_bridge), such as the one that launches a bridged agent, because Inspect cannot see when they are working. A tool call that runs such a command is still counted as working, and so are a bridged agent’s model requests and bridged tool calls.
+
 Waits that overlap count once, so working time is never negative and never more than clock time.
 
 > **WARNING:**
 >
-> Work done while any wait is in progress is not charged. While one part of a sample waits, other work in the same sample is free: concurrent tasks, parallel tool calls, sub-agents, background processes in a sandbox, and the work of in-process agent libraries. Working time can therefore undercount, and a sample can run much longer than its working limit. Always set a `time_limit` alongside a `working_limit` to bound clock time.
+> Other work done while a wait is in progress is not charged. This includes background processes in a sandbox, the commands a sandboxed agent runs on its own, and the work of in-process agent libraries. Working time can therefore undercount, and a sample can run much longer than its working limit. Always set a `time_limit` alongside a `working_limit` to bound clock time.
 
 > **NOTE:**
 >
@@ -16228,7 +16259,7 @@ with working_limit(10 * 60):
     await generate()  # counts again
 ```
 
-Unlike [suspend_token_limit()](./reference/inspect_ai.util.html.md#suspend_token_limit) and `suspend_turn_limit()`, which only affect code inside the block, [suspend_working_limit()](./reference/inspect_ai.util.html.md#suspend_working_limit) makes the whole sample count as waiting while the block is open, including work done by other tasks in the sample. Only code in the eval process can call it (not agent code running in a sandbox). Inspect already does this for tool approval and review.
+Unlike [suspend_token_limit()](./reference/inspect_ai.util.html.md#suspend_token_limit) and `suspend_turn_limit()`, which only affect code inside the block, [suspend_working_limit()](./reference/inspect_ai.util.html.md#suspend_working_limit) makes the whole sample count as waiting while the block is open, unless another task in the sample is running a model call, sandbox command or tool call (not counting commands run with `exec_remote()` or inside [sandbox_agent_bridge()](./reference/inspect_ai.agent.html.md#sandbox_agent_bridge)). Model calls, sandbox commands and tool calls made inside the block are not charged. Only code in the eval process can call it (not agent code running in a sandbox). Inspect already does this for tool approval and review.
 
 ### Message Limit
 
@@ -16471,7 +16502,7 @@ Commands are grouped by resource noun (`task`, `sample`, `model`, `process`), pl
 
 A bare noun implies `list`: `inspect ctl task` ≡ `inspect ctl task list`, and likewise for `sample` and `process`. All commands accept `--json` for structured output, which makes them straightforward to use from scripts and from coding agents like Claude Code. The `list` / `show` / `errors` / `events` / `messages` / `store` / `anomalies` commands are read-only. The others direct the run deliberately: `config` retunes launch parameters (concurrency changes never interrupt in-flight work; the per-sample limit overrides deliberately reach in-flight samples), `task log-flush` forces a log write that would happen anyway, `process keep`/`release` only affect what happens after the eval finishes, `task pause`/`resume`, `model pause`/`resume`, and `process pause`/`resume` stop and restart dispatch reversibly — leaving in-flight work untouched unless `pause --now` asks for a hard pause (which also holds in-flight samples at their next model call), `task cancel` / `sample cancel` interrupt work explicitly, `task drain` stops new samples while in-flight ones finish naturally, `sample requeue` re-runs an errored or cancelled sample (all idempotently, with `--dry-run` support), and `task score` / `sample score` score a running task’s samples (or one sample) without ending them (each in-flight sample is briefly held while its work-so-far is scored).
 
-The endpoint is a Unix domain socket under the current user’s Inspect data directory. It is not reachable over the network or by other users on the same machine, and it requires no configuration.
+The endpoint is a Unix domain socket under the current user’s Inspect data directory. It is not reachable over the network or by other users on the same machine, and it requires no configuration. To follow a run from its logs instead, for example from another machine, see [Reading a Log Directory](#reading-a-log-directory).
 
 ## Launch Handoff
 
@@ -16560,7 +16591,7 @@ For evals that may run longer than a few minutes, do not run
 $ inspect ctl task
 task_id       task                        model                      solver    samples             started
 ------------  --------------------------  -------------------------  --------  ------------------  --------
-ZByxJpK4bKSz  inspect_evals/gpqa_diamond  openai/gpt-5               react     12/40 (3 running)   14:02:11
+ZByxJpK4bKSz  inspect_evals/gpqa_diamond  openai/gpt-6-sol           react     12/40 (3 running)   14:02:11
 fR8mWn2cQspD  inspect_evals/humaneval     anthropic/claude-sonnet-5  generate  164/164 (complete)  13:58:40
 ```
 
@@ -16578,7 +16609,7 @@ Commands that operate on one task take a `TASK` argument that selects a task fro
 
 Task ids are stable across retries, so a command keeps working after a task errors and is retried (per-attempt eval ids are not stable, which is why commands don’t use them).
 
-One task run against several models (`--model openai/gpt-5,anthropic/claude-fable-5`) makes the task name ambiguous — it matches both rows. Pass `--model` alongside the selector to pick the row running that model (matched at the name start or after a `/`, so `--model gpt-5` matches `openai/gpt-5`): `inspect ctl task cancel my_task --model gpt-5`. The model filter applies within the tasks the selector matches — what other tasks happen to be running can’t change the outcome. If the combination is still ambiguous you get the same candidate-table error, and a combination matching nothing the same not-found error — each qualified with the model. An exact task id paired with a `--model` its task isn’t running errors by naming the contradiction (the task’s actual model) rather than being silently ignored.
+One task run against several models (`--model openai/gpt-6-sol,anthropic/claude-fable-5`) makes the task name ambiguous — it matches both rows. Pass `--model` alongside the selector to pick the row running that model (matched at the name start or after a `/`, so `--model gpt-6-sol` matches `openai/gpt-6-sol`): `inspect ctl task cancel my_task --model gpt-6-sol`. The model filter applies within the tasks the selector matches — what other tasks happen to be running can’t change the outcome. If the combination is still ambiguous you get the same candidate-table error, and a combination matching nothing the same not-found error — each qualified with the model. An exact task id paired with a `--model` its task isn’t running errors by naming the contradiction (the task’s actual model) rather than being silently ignored.
 
 On *reads* (`sample list`, `sample errors`) the selector is a filter: omitting it lists across **all** running tasks (each row carries its `task_id`), which makes “what’s erroring anywhere in this eval set?” the zero-argument spelling. On *mutations* (`task log-flush`, the task-scoped `config` knobs) an omitted selector must resolve to exactly one target — the sole running task is the default, and anything ambiguous errors with the candidate list rather than fanning out. Destructive commands (`task cancel`, `task drain`) require the selector outright.
 
@@ -16588,7 +16619,7 @@ On *reads* (`sample list`, `sample errors`) the selector is a filter: omitting i
 
 ``` bash
 $ inspect ctl sample list gpqa
-inspect_evals/gpqa_diamond (ZByxJpK4bKSz)  ·  openai/gpt-5  ·  running  ·  12/40 (3 running)
+inspect_evals/gpqa_diamond (ZByxJpK4bKSz)  ·  openai/gpt-6-sol  ·  running  ·  12/40 (3 running)
 
 sample  epoch  status     time   idle  activity         tokens  messages  turns
 ------  -----  ---------  -----  ----  ---------------  ------  --------  -----
@@ -16656,9 +16687,9 @@ $ inspect ctl sample show gpqa 9 --traceback
 $ inspect ctl sample events gpqa 17 --content
 time      event  summary
 --------  -----  -------------------------------------------------
-14:09:01  model  openai/gpt-5 · 1840 tok · stop · The compound is...
+14:09:01  model  openai/gpt-6-sol · 1840 tok · stop · The compound is...
 14:09:04  tool   bash(ls /data) → README.md results.csv
-14:09:11  model  openai/gpt-5 · generating 2:31
+14:09:11  model  openai/gpt-6-sol · generating 2:31
 
 3 events  ·  more
 next: eyJuIjoiYWJjMTIzOjAiLCJpIjozfQ  (resume with --cursor)
@@ -16856,14 +16887,14 @@ Pause is the missing state between “running” and “cancelled”: it stops a
 ``` bash
 $ inspect ctl process pause                    # pause the whole run (eval or eval-set)
 $ inspect ctl process resume                   # pick up exactly where it left off
-$ inspect ctl model pause openai/gpt-5-nano    # pause just one model's work
-$ inspect ctl model resume openai/gpt-5-nano   # the rest of the run kept going
+$ inspect ctl model pause openai/gpt-6-luna    # pause just one model's work
+$ inspect ctl model resume openai/gpt-6-luna   # the rest of the run kept going
 $ inspect ctl process pause --now              # hard pause: also hold in-flight samples
 ```
 
 Under a pause, in-flight samples finish naturally — solving, scoring, and log writes complete under their original limits — but no new samples leave the queue, no task retries start, and (for an eval set) no further tasks dispatch. Queued samples spend none of their time limits: they are exactly as resumable as before the pause. Quiesce time is therefore bounded by the longest in-flight work: a long-running agentic sample, or a batched generate call awaiting a provider batch, holds the run semi-active until it completes. When in-flight work must wind down faster than that, compose pause with `inspect ctl config --max-connections` (throttle in-flight demand without discarding progress) or a targeted `inspect ctl sample cancel` — or reach for the hard pause.
 
-Adding `--now` to any pause verb makes it a *hard* pause: in addition to stopping dispatch, in-flight samples hold at their next model call. Outstanding model calls (and batch waits) finish, then no new call starts until resume — the lever for a provider incident or budget stop where an hour-long agentic sample should neither keep spending nor be cancelled and lose its progress. The hold covers provider-native compaction too (compacting rewrites the conversation, and for a long-context sample can be its most expensive single call), but not token counting: `count_tokens()` traffic is non-generative and cheap, and continues under a hard pause. A held sample’s parked time counts as waiting, so a `working_limit` does not burn down while held — but the wall clock keeps running: a sample held past its `time_limit` takes an ordinary time-limit outcome (though if scoring itself calls a model — a model-graded scorer — that call holds at the gate too, so the sample fully completes only after resume), the trade-off you accept for freezing it in place. `resume` clears both strengths, a plain `pause` after a `pause --now` downgrades it to the soft pause (last-write-wins), and cancel still escalates over a hold. One scoping difference from the soft model latch: `model pause MODEL --now` holds every generate call *to* MODEL — other tasks’ role and grader calls included — not just the tasks whose primary model matches.
+Adding `--now` to any pause verb makes it a *hard* pause: in addition to stopping dispatch, in-flight samples hold at their next model call. Outstanding model calls (and batch waits) finish, then no new call starts until resume — the lever for a provider incident or budget stop where an hour-long agentic sample should neither keep spending nor be cancelled and lose its progress. The hold covers provider-native compaction too (compacting rewrites the conversation, and for a long-context sample can be its most expensive single call), but not token counting: `count_tokens()` traffic is non-generative and cheap, and continues under a hard pause. Time spent parked is a known wait. A `working_limit` still burns down while other [known work](./setting-limits.html.md#working-limit) runs in the same sample; otherwise the hold does not consume it. The wall clock keeps running: a sample held past its `time_limit` takes an ordinary time-limit outcome (though if scoring itself calls a model — a model-graded scorer — that call holds at the gate too, so the sample fully completes only after resume), the trade-off you accept for freezing it in place. `resume` clears both strengths, a plain `pause` after a `pause --now` downgrades it to the soft pause (last-write-wins), and cancel still escalates over a hold. One scoping difference from the soft model latch: `model pause MODEL --now` holds every generate call *to* MODEL — other tasks’ role and grader calls included — not just the tasks whose primary model matches.
 
 `inspect ctl task pause` / `resume` scope the same thing to one task of an eval set, and `inspect ctl model pause MODEL` / `resume MODEL` to one model of a multi-model run: every task whose *primary* model matches holds — including eval-set tasks that haven’t started yet, which task-level pause can’t reach — while other models’ work continues (in-flight samples, including other tasks’ role/grader calls to the paused model, still finish naturally). `MODEL` is the exact name shown by `inspect ctl task list`. The task, model, and process pauses are independent latches — resuming one never clears another, so resuming a run after an incident never silently un-pauses a task (or model) you paused for its own reasons. All the verbs accept `--dry-run` and report `changed: false` on an idempotent repeat. Pause never blocks teardown: cancel and drain work unchanged on a paused task (a stamped cancel or drain passes the pause gate, so queued samples held by a soft pause abandon at once and the drain completes under the pause; under a hard `pause --now` the held in-flight samples stay parked, so the drain concludes on `resume` or on escalation to `cancel --action score`), config retunes compose with it, and pausing a task that is *between attempts* works, parking the queued retry (which a later `task cancel` or `task drain` can abandon outright).
 
@@ -16889,14 +16920,14 @@ Unlike the other reads, this one opens the process’s trace file directly rathe
 
 ``` bash
 $ inspect ctl config gpqa
-inspect_evals/gpqa_diamond (ZByxJpK4bKSz)  ·  openai/gpt-5  ·  running  ·  12/40
+inspect_evals/gpqa_diamond (ZByxJpK4bKSz)  ·  openai/gpt-6-sol  ·  running  ·  12/40
 
 config:
   max samples [task]:         50 (40 in use, tracking adaptive connections — set to pin)
   max sandboxes [process]:    docker 40 (12 in use)
   max subprocesses [process]: 16 (9 in use)
   adaptive connections [process]:
-    openai/gpt-5: 45 (38 in use), range 10–100, last: 40→45 steady_state_up
+    openai/gpt-6-sol: 45 (38 in use), range 10–100, last: 40→45 steady_state_up
   log buffer [task]:          10 samples (2 pending)
   shared sync [task]:         off
 
@@ -16968,6 +16999,42 @@ inspect ctl process release
 You can also latch keep-alive onto an eval that is *already running* (launched without `--ctl-server=keep`) with `inspect ctl process keep`.
 
 If more than one process is parked, `release` lists their pids and you disambiguate by passing one (`inspect ctl process release <pid>`). Release also works ahead of time: issued while the eval is still running, it means “exit when done” — the process skips the park and exits as soon as the eval finishes (it never cancels in-flight work). `keep` and `release` are last-write-wins, so a `keep` issued after a `release` (while the eval is still running) restores the park. From Python, pass `ctl_server="keep"` to [eval()](./reference/inspect_ai.html.md#eval) or [eval_set()](./reference/inspect_ai.html.md#eval_set). For eval sets, keep-alive requires `retry_immediate=True` (the default).
+
+## Reading a Log Directory
+
+`inspect ctl task list` and the `sample` reads can read a run’s `.eval` logs instead of a live process. Pass `--log-dir` with a local path or an S3 (or other fsspec) URL:
+
+``` bash
+inspect ctl task list --log-dir s3://my-bucket/logs
+inspect ctl sample errors gpqa --log-dir s3://my-bucket/logs
+```
+
+Use it when the eval runs on another machine, or after it has finished. It needs only read access to the directory and writes nothing there. It never runs task code or recomputes metrics.
+
+Data is only as fresh as the log: a completed sample normally reaches it within about 60 seconds. Running samples are visible only when the eval runs with `--log-shared`, as of its last sync (every 10 seconds by default). These are usual intervals, not guarantees: a failed upload or a stopped worker delays them. Human output starts with a line on stderr that says where the data comes from.
+
+| Command | With `--log-dir` |
+|----|----|
+| `task list` | Live-only fields (pause state, `refusals`, `http_retries`, `pid`, …) are null. |
+| `sample list`, `sample errors` | Running rows have no `activity` or idle time. `--active-since` is not supported: poll the full listing. |
+| `sample show` | A running or not-yet-flushed sample shows its summary from the shared buffer, without error history. |
+| `sample events` | A running sample’s events run up to the last buffer sync. |
+| `sample messages`, `sample store` | Samples in the log only. For a running or not-yet-flushed sample, use `sample events --type model`. |
+| Other commands | Not available: `--log-dir` is an unknown option there. |
+
+With `--json`, task rows carry `source: "log_dir"` and these extra fields:
+
+| Field | Description |
+|----|----|
+| `updated_at` | When the task’s log or shared buffer last changed. A running task whose `updated_at` stops moving may have a stopped worker: nothing in the logs tells a crashed worker from a slow one. |
+| `samples.total_final` | `false` while `samples.total` is a lower bound (the run is not finished, or the log does not record its total). |
+| `samples.unfinished` | Samples not yet completed, errored or cancelled. |
+| `live_samples` | `buffer`, `none` or `partial`: whether running samples are visible. Unless it is `buffer`, `samples.in_flight` is null. |
+| `incomplete`, `unreadable` | Logs that could not be read, with the reason. |
+
+Sample rows add `log_location`, the log to open with `inspect log` commands. Errors use the usual `--json` envelope, with two kinds of their own: `unsupported` (an option or a read the logs cannot serve) and `storage_error` (reading the directory failed, for example on permissions, credentials or throttling, or a log kept changing during the read).
+
+Each invocation lists the directory. For local and S3 log directories it then reads only what changed since the last invocation: nothing for an unchanged finished log whose sample summaries an earlier invocation read, and for a running log its zip index plus the summaries of samples logged since. On other storage (such as GCS or Azure) it reads each log’s header and sample summaries every time. What it parsed is cached under the Inspect data directory (`ctl/log-dir-cache`), readable only by you and safe to delete at any time. Polling every 30 seconds keeps request costs down. With `--log-shared`, polling more often shows updates after each buffer sync (every 10 seconds by default).
 
 ## Disabling the Control Server
 
@@ -17167,7 +17234,7 @@ Pass an instance as `tasks`:
 ``` python
 from inspect_ai import eval
 
-eval(MySource(), model="openai/gpt-4o", limit=10)
+eval(MySource(), model="openai/gpt-6-luna", limit=10)
 ```
 
 `initial_tasks()` is synchronous and returns the seed. It is resolved up front like any task list, so it must return immediately rather than `await`. `next_tasks()` is async, called after each batch completes, and may block (for example, awaiting external input); return `None` to end the run.
@@ -17211,7 +17278,7 @@ async def on_task(log):
     return [next_task()] if sum(scores) / len(scores) < 0.9 else None
 
 source = TaskSource.from_tasks([seed_task()], task_complete=on_task)
-eval(source, model="openai/gpt-4o")
+eval(source, model="openai/gpt-6-luna")
 ```
 
 `from_tasks(initial_tasks, *, next_tasks=None, sample_complete=None, task_complete=None, sample_abandoned=None)` delegates to the callables. Omitting `next_tasks` and returning nothing from the callbacks stops after the seed.
@@ -17236,7 +17303,7 @@ def curriculum(target: float = 0.8) -> TaskSource:
 Run it from the CLI like a task, including `-T` arguments and a `file.py@name` spec:
 
 ``` bash
-inspect eval curriculum.py@curriculum -T target=0.9 --model openai/gpt-4o
+inspect eval curriculum.py@curriculum -T target=0.9 --model openai/gpt-6-luna
 ```
 
 [eval()](./reference/inspect_ai.html.md#eval) accepts a [TaskSource](./reference/inspect_ai.html.md#tasksource) instance, a `@task_source` function, a registered name, or a `file.py@name` spec.
@@ -17268,7 +17335,7 @@ A [TaskSource](./reference/inspect_ai.html.md#tasksource) run is live: a task ad
 Capacity is bounded by `max_tasks` (the number of concurrent task × model units). If the seed fills every slot, a follow-up waits until a slot frees, so to run follow-ups alongside the seed, set `max_tasks` above the number of seed units. A seed of two tasks across two models is four units, so `--max-tasks 6` leaves room:
 
 ``` bash
-inspect eval curriculum.py@curriculum --max-tasks 6 --model openai/gpt-4o,openai/gpt-4o-mini
+inspect eval curriculum.py@curriculum --max-tasks 6 --model openai/gpt-6-luna,openai/gpt-6-sol
 ```
 
 With the default `max_tasks` (the model count), follow-ups run after a seed task finishes rather than alongside it. See [Parallelism](./parallelism.html.md) for more on `max_tasks`.
@@ -17322,7 +17389,7 @@ Pass an instance as the task’s `dataset`:
 from inspect_ai import Task, eval
 
 eval(Task(dataset=MySource(), solver=my_solver(), scorer=my_scorer()),
-     model="openai/gpt-4o")
+     model="openai/gpt-6-luna")
 ```
 
 `initial_samples()` is synchronous and returns the seed, so it must return immediately rather than `await`. It may be empty, in which case the task starts by calling `next_samples()`. `next_samples()` is async, called whenever no samples remain in flight, and may block (for example, awaiting external input); return `None` to end the task.
@@ -17588,7 +17655,7 @@ Once an evaluation has run, Inspect provides a number of tools for inspecting, a
 Every time you use `inspect eval` or call the [eval()](./reference/inspect_ai.html.md#eval) function, an evaluation log is written for each task evaluated. By default, logs are written to the `./logs` sub-directory of the current working directory (we’ll cover how to change this below). You will find a link to the log at the bottom of the results for each task:
 
 ``` bash
-$ inspect eval security_guide.py --model openai/gpt-4
+$ inspect eval security_guide.py --model openai/gpt-6-luna
 ```
 
 [![The Inspect task results displayed in the terminal. A link to the evaluation log is at the bottom of the results display.](images/eval-log.png)](images/eval-log.png)
@@ -17622,13 +17689,13 @@ This article will focus primarily on configuring Inspect’s logging behavior (l
 By default, logs are written to the `./logs` sub-directory of the current working directory You can change where logs are written using eval options or an environment variable:
 
 ``` bash
-$ inspect eval popularity.py --model openai/gpt-4 --log-dir ./experiment-log
+$ inspect eval popularity.py --model openai/gpt-6-luna --log-dir ./experiment-log
 ```
 
 Or:
 
 ``` python
-log = eval(popularity, model="openai/gpt-4", log_dir = "./experiment-log")
+log = eval(popularity, model="openai/gpt-6-luna", log_dir = "./experiment-log")
 ```
 
 Note that in addition to logging the [eval()](./reference/inspect_ai.html.md#eval) function also returns an [EvalLog](./reference/inspect_ai.log.html.md#evallog) object for programmatic access to the details of the evaluation. We’ll talk more about how to use this object below.
@@ -17779,7 +17846,7 @@ The [EvalLog](./reference/inspect_ai.log.html.md#evallog) object returned from [
 Before analysing results from a log, you should always check their status to ensure they represent a successful run:
 
 ``` python
-log = eval(popularity, model="openai/gpt-4")
+log = eval(popularity, model="openai/gpt-6-luna")
 if log.status == "success":
    ...
 ```
@@ -17839,8 +17906,8 @@ A common workflow is to define an `INSPECT_LOG_DIR` for running a set of evaluat
 os.environ["INSPECT_LOG_DIR"] = "./experiment-logs"
 
 # do a bunch of evals
-eval(popularity, model="openai/gpt-4")
-eval(security_guide, model="openai/gpt-4")
+eval(popularity, model="openai/gpt-6-luna")
+eval(security_guide, model="openai/gpt-6-luna")
 
 # analyze the results in the logs
 logs = list_eval_logs()
@@ -17949,6 +18016,8 @@ Or from Python with:
 ``` python
 eval_retry("logs/2024-05-29T12-38-43_math_43_math_Gprr29Mv.json")
 ```
+
+A retry runs code named by the log: its task file, scorers and solver, or for an `hf/` task the Hugging Face repo it names, whose `eval.yaml` chooses the dataset and the solver and scorer arguments. It also uses the model endpoint, sandbox and other settings recorded in the log. Only retry logs you trust.
 
 Note that retry only works for tasks that are created from `@task` decorated functions (as if a [Task](./reference/inspect_ai.html.md#task) is created dynamically outside of an `@task` function Inspect does not know how to reconstruct it for the retry).
 
@@ -18075,6 +18144,24 @@ recompute_metrics(log)
 write_eval_log(log)
 ```
 
+Metrics and epoch reducers are rebuilt from the registry. If the eval used a custom metric defined in its task file, import that file before you edit or recompute (in the process that ran the eval this is already done):
+
+``` python
+import my_task  # registers the custom metrics defined in my_task.py
+
+edit_score(log, sample_id, "accuracy", edit)
+```
+
+Otherwise [edit_score()](./reference/inspect_ai.log.html.md#edit_score) and [recompute_metrics()](./reference/inspect_ai.log.html.md#recompute_metrics) raise a `LookupError` that names the metric, and the log is not changed.
+
+### Logs from Others
+
+Reading, viewing, editing, recomputing and recovering a log do not import any file that the log names. Whoever wrote a log controls every field in it, including the task file it records and the options of its metrics. These operations do not import the task file, and they refuse metric options that would create a model or any object other than a metric or reducer (a `ValueError` naming the option).
+
+If you trust a log, pass `trust_log=True` to [edit_score()](./reference/inspect_ai.log.html.md#edit_score), [recompute_metrics()](./reference/inspect_ai.log.html.md#recompute_metrics) or [recover_eval_log()](./reference/inspect_ai.log.html.md#recover_eval_log) (`--trust-log` for `inspect log recover`). This imports the task file the log records for metrics that are not registered, and rebuilds metric options as recorded. It runs the task file’s code, so use it only for logs you trust.
+
+Retrying a log (`inspect eval-retry`) and rescoring it (`inspect score`) are different: they run code and use settings named by the log. Only run them on logs you trust (see [Eval Retries](#eval-retries) and [Scoring Workflow](./scoring-workflow.html.md)).
+
 ### Score Edit Events
 
 When you edit a score, a [ScoreEditEvent](./reference/inspect_ai.event.html.md#scoreeditevent) is automatically added to the sample’s event log. This provides a complete audit trail of all score modifications that can be viewed in the log viewer.
@@ -18131,6 +18218,8 @@ AWS_DEFAULT_REGION=eu-west-2
 
 One thing to keep in mind if you are storing logs on S3 is that they will no longer be easily viewable using a local text editor. You will likely want to configure a [FUSE filesystem](https://github.com/s3fs-fuse/s3fs-fuse) so you can easily browse the S3 logs locally.
 
+Large `.eval` logs on S3 use multipart uploads. With the default asyncio backend, later writes can copy existing log data server-side and upload only new data and the ZIP directory. If Inspect is killed during a write, the unfinished upload stays in the bucket, and is billed as storage, until it is removed. We recommend a [lifecycle rule](https://docs.aws.amazon.com/AmazonS3/latest/userguide/mpu-abort-incomplete-mpu-lifecycle-config.html) on the log bucket that aborts incomplete multipart uploads after a day.
+
 ## Hugging Face Storage Buckets
 
 You can store evaluation logs in [Hugging Face Storage Buckets](https://huggingface.co/docs/hub/storage-buckets) using the `hf://buckets/<owner>/<bucket>/<path>` URI scheme. Storage buckets are useful for durable, shared log storage and are accessed through the `huggingface_hub` filesystem integration.
@@ -18153,7 +18242,7 @@ HF_TOKEN=hf_...
 You can then run evaluations and view logs directly from the bucket:
 
 ``` bash
-inspect eval popularity.py --model openai/gpt-4
+inspect eval popularity.py --model openai/gpt-6-luna
 inspect view --log-dir hf://buckets/my-org/inspect-logs/runs
 ```
 
@@ -18199,7 +18288,7 @@ Also set `AZURE_STORAGE_ANON=false` here—leaving it empty reverts to anonymous
 
 **Running Evaluations & Viewer**
 
-    inspect eval popularity.py --model openai/gpt-4
+    inspect eval popularity.py --model openai/gpt-6-luna
     inspect view  # streams directly from Azure
 
 For web deployment (App Service / Container Apps), just replicate the same environment variable setup; managed identity remains the most secure pattern.
@@ -18375,7 +18464,7 @@ RangeIndex: 408 entries, 0 to 407
 Columns: 19 entries, sample_id to fallbacks
 ```
 
-By default, `sample_df()` reads all of the columns in the [EvalSampleSummary](./reference/inspect_ai.log.html.md#evalsamplesummary) data structure (18 columns), along with the `eval_id` for linking back to the parent eval log file.
+By default, [samples_df()](./reference/inspect_ai.analysis.html.md#samples_df) reads all of the columns in the [EvalSampleSummary](./reference/inspect_ai.log.html.md#evalsamplesummary) data structure (18 columns), along with the `eval_id` for linking back to the parent eval log file.
 
 ### Column Groups
 
@@ -18807,7 +18896,7 @@ The `description` column is the sample’s `description` (`None` when the sample
 
 The `turn_count` column is the number of turns (top-level model generations) used by the sample, and `token_limit_usage` is the metered value of the sample’s token limit, respecting the limit’s type (`None` when no token limit was configured). Both are `None` for logs written by older versions of Inspect.
 
-The `working_time` column is clock time minus the time when any wait was open in the sample, so work done during a wait is not counted. See [Working Limit](./setting-limits.html.md#working-limit) for its limitations.
+The `working_time` column is clock time minus the time when a wait was open in the sample and no model call, sandbox command or tool call was running (not counting commands run with `exec_remote()` or inside [sandbox_agent_bridge()](./reference/inspect_ai.agent.html.md#sandbox_agent_bridge)). See [Working Limit](./setting-limits.html.md#working-limit) for its limitations.
 
 The `fallbacks` column is the total number of requests served by a [fallback model](./providers.html.md#anthropic-refusal-fallback) (0 if none). One generate call can add more than 1 when Anthropic continues a turn after `pause_turn`. For the full per-pair rollup, add a custom column reading the underlying summary field: `SampleColumn("model_fallbacks", path="model_fallbacks")`.
 
@@ -19103,7 +19192,7 @@ from my_scanners import refusal, eval_awareness
 
 eval(
     "tasks/agentic_search.py",
-    model="openai/gpt-5",
+    model="openai/gpt-6-luna",
     scanner=[refusal(), eval_awareness()],
 )
 ```
@@ -19116,7 +19205,7 @@ from my_scanners import refusal, eval_awareness
 
 eval(
     "tasks/agentic_search.py",
-    model="openai/gpt-5",
+    model="openai/gpt-6-luna",
     scanner=ScannerConfig(
         scanners=[refusal(), eval_awareness()],
         model="anthropic/claude-opus-4-7",
@@ -19128,7 +19217,7 @@ The same scanners can be specified from the CLI with `--scanner`:
 
 ``` bash
 inspect eval tasks/agentic_search.py \
-    --model openai/gpt-5 \
+    --model openai/gpt-6-luna \
     --scanner my_scanners.py \
     --scan-model anthropic/claude-opus-4-7
 ```
@@ -19144,7 +19233,7 @@ On the CLI, `--scanner` accepts a YAML/JSON config file, a Python file containin
 To run scanners over a directory of existing logs (for example, to look across many evals for evaluation awareness), use the `scout scan` CLI:
 
 ``` bash
-scout scan my_scanners.py -T ./logs --model openai/gpt-5
+scout scan my_scanners.py -T ./logs --model openai/gpt-6-luna
 ```
 
 Results are written to `./logs/scans/`, the same location as online scanning.
@@ -19581,7 +19670,7 @@ The viewer option only lowers trust. Leaving it unset, or passing `--trust-conte
 
 > **NOTE: Note**
 >
-> `trust_content` is applied by the viewer when it reads the log. Viewers that predate the setting (including older versions of the VS Code extension) ignore it, and older versions of Inspect drop it if they rewrite the log. Scout does not yet honor it. The setting controls rendering only; it doesn’t make the content safe to copy or act on.
+> `trust_content` is applied by the viewer when it reads the log. Viewers that predate the setting (including older versions of the VS Code extension) ignore it, and older versions of Inspect drop it if they rewrite the log. Scout honors it from version 0.5.5, including for results of scanners run during [eval_set()](./reference/inspect_ai.html.md#eval_set). The setting controls rendering only; it doesn’t make the content safe to copy or act on.
 
 ## Reference
 
@@ -19989,7 +20078,7 @@ To deal with potential unreliability of container services, the `exec()` method 
 
 ``` python
 async def write_file(
-    self, file: str, contents: str | bytes
+    self, file: str, contents: str | bytes, *, user: str | None = None
 ) -> None:
     """
     Raises:
@@ -20008,7 +20097,7 @@ Note that `write_file()` automatically creates parent directories as required if
 
 ``` python
 async def read_file(
-    self, file: str, text: bool = True
+    self, file: str, text: bool = True, *, user: str | None = None
 ) -> Union[str | bytes]:
     """
     Raises:
@@ -20029,6 +20118,19 @@ async def read_file(
 The [read_file()](./reference/inspect_ai.tool.html.md#read_file) method should enforce the `SandboxEnvironmentLimits.MAX_READ_FILE_SIZE` limit (default 100MB, configurable via the `INSPECT_SANDBOX_MAX_READ_FILE_SIZE` environment variable) and raise an `OutputLimitExceededError` when it is exceeded.
 
 The [read_file()](./reference/inspect_ai.tool.html.md#read_file) method should preserve newline constructs (e.g. crlf should be preserved not converted to lf). This is equivalent to specifying `newline=""` in a call to the Python `open()` function.
+
+Both file methods accept `user` to enforce that user’s filesystem permissions, including when following symlinks and creating parent directories. Omitting `user` uses the sandbox’s default execution user. A provider that cannot honour an explicit user must raise [SandboxUserUnsupportedError](./reference/inspect_ai.util.html.md#sandboxuserunsupportederror) before any file operation. Declare a named `user` parameter: accepting `**kwargs` alone does not establish support.
+
+Pass the same user as the agent’s tools when reading or writing on the agent’s behalf. Inspect does not infer this user from the tool configuration. If the sandbox’s default user is root, omitting `user` still gives root access.
+
+``` python
+contents = await sandbox().read_file("/home/agent/output.txt", user="agent")
+await sandbox().write_file("/home/agent/input.txt", contents, user="agent")
+```
+
+Older sandbox providers remain usable for calls without `user`; their existing default behavior is retained. Explicit-user calls through [sandbox()](./reference/inspect_ai.util.html.md#sandbox) are rejected until the sandbox provider implements this contract. Checkpoint export requests `user="root"` from sandbox providers that accept the parameter.
+
+Sandbox provider authors must update override signatures to type-check against the new base class, even though existing calls remain usable at runtime.
 
 ### connection()
 
@@ -20180,7 +20282,7 @@ Note if a provider’s `config_files()` method returns `compose.yaml` in its lis
 If a provider is docker compatible, then the `config` argument passed to it’s method may be one of the following (in addition to whatever native configuration the provider supports):
 
 1.  A path to a `Dockerfile`
-2.  A path to a `compose.yaml` file.
+2.  A path to a Compose file with a filename recognized by [is_compose_yaml()](./reference/inspect_ai.util.html.md#is_compose_yaml), such as `compose.yaml` or `task-compose.yaml`.
 3.  An instance of the [ComposeConfig](./reference/inspect_ai.util.html.md#composeconfig) class.
 
 These input for `config` might be handled as follows:
@@ -20420,7 +20522,7 @@ These events track the lifecycle of individual samples. Note the distinction bet
 | `on_sample_attempt_end` | [SampleAttemptEnd](./reference/inspect_ai.hooks.html.md#sampleattemptend) | At the end of every attempt — `data.error` and `data.will_retry` describe the outcome. |
 | `on_sample_event` | [SampleEvent](./reference/inspect_ai.hooks.html.md#sampleevent) | Each time a sample event (e.g. a [ModelEvent](./reference/inspect_ai.event.html.md#modelevent) or [ToolEvent](./reference/inspect_ai.event.html.md#toolevent)) is logged. Fires many times per sample. |
 | `on_sample_scoring` | `SampleScoring` | After the solver completes and before scoring begins. |
-| `on_sample_end` | [SampleEnd](./reference/inspect_ai.hooks.html.md#sampleend) | When a sample completes (or errors with no retries remaining). Once per epoch; `data.sample` is the full [EvalSample](./reference/inspect_ai.log.html.md#evalsample). |
+| `on_sample_end` | [SampleEnd](./reference/inspect_ai.hooks.html.md#sampleend) | When a sample completes (or errors with no retries remaining). Once per epoch; `data.sample` is the full [EvalSample](./reference/inspect_ai.log.html.md#evalsample) (unless every hook [opts out](#skipping-full-sample-materialization)). |
 
 ### Model
 
@@ -20438,7 +20540,7 @@ These events surround calls to model providers, and are useful for tracking usag
 
 Hooks run within the evaluation, so keep them fast and resilient. Events from different samples and tasks may fire concurrently, and any exception raised by a hook is caught and logged as a warning (it does not fail the run) — with the exception of [LimitExceededError](./reference/inspect_ai.util.html.md#limitexceedederror), which is allowed to propagate so that hooks can enforce limits.
 
-In addition to these lifecycle events, two non-event methods let you control hook behaviour: [`enabled()`](#disabling-hooks) gates whether a hook is active, and [`override_api_key()`](#api-key-override) can rewrite model API keys. Both are covered below.
+Hooks can also control whether they are active with [`enabled()`](#disabling-hooks), opt out of full sample histories with [`needs_full_sample()`](#skipping-full-sample-materialization), and rewrite model API keys with [`override_api_key()`](#api-key-override).
 
 ## Hook Object Lifecycle
 
@@ -20497,6 +20599,22 @@ class WBHooks(Hooks):
 ```
 
 Because `enabled()` is consulted before every hook invocation (potentially many times per sample), keep its implementation cheap or cache the result.
+
+## Skipping Full Sample Materialization
+
+By default, `on_sample_end` receives the full sample history. Hooks using the default `Hooks.on_sample_end` do not require full sample materialization. Reconstructing history for long samples can be expensive. Hooks that read only summary fields, such as scores or timings, can opt out:
+
+``` python
+@hooks(name="score_tracker", description="Tracks sample scores")
+class ScoreTracker(Hooks):
+    def needs_full_sample(self) -> bool:
+        return False
+
+    async def on_sample_end(self, data: SampleEnd) -> None:
+        record(data.sample_id, data.sample.scores)
+```
+
+Returning `False` permits empty `events` and `attachments` and `timelines=None`. This reduction requires every enabled hook implementing `on_sample_end` to opt out and no other consumer to need the history. Opted-out hooks must accept both full and reduced samples.
 
 ## Requiring Hooks
 

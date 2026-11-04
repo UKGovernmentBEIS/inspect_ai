@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.10.18">
+<meta name="generator" content="quarto-1.10.19">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -80,7 +80,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-64a204ab8560d761af7679ceaba22944.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-bf27225e3a48a9273f3daa8f8e829971.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
 <link href="site_libs/bootstrap/bootstrap-6be907ae78873760d36834dbe5a66008.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
@@ -825,6 +825,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li>A model call held by <code>inspect ctl pause --now</code>.</li>
 <li>Code inside <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#suspend_working_limit">suspend_working_limit()</a></span>.</li>
 </ul>
+<p>There is one exception: while any task in the sample is running a model request, a sandbox command, or a tool call, the sample is working, even if another task is waiting. A model request that fails and is retried does not count as working. A tool call or sandbox command that is itself waiting (for example for approval or a <code>max_subprocesses</code> slot) is not counted as working for that time. Model requests and tool calls made inside a wait (for example by a model approver or a monitor) are not counted as working either. This exception does not apply to a command run with <code>exec_remote()</code> once it has started, or to sandbox commands run inside <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#sandbox_agent_bridge">sandbox_agent_bridge()</a></span>, such as the one that launches a bridged agent, because Inspect cannot see when they are working. A tool call that runs such a command is still counted as working, and so are a bridged agent’s model requests and bridged tool calls.</p>
 <p>Waits that overlap count once, so working time is never negative and never more than clock time.</p>
 <div class="callout callout-style-simple callout-warning">
 <div class="callout-body d-flex">
@@ -832,7 +833,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <i class="callout-icon"></i>
 </div>
 <div class="callout-body-container">
-<p>Work done while any wait is in progress is not charged. While one part of a sample waits, other work in the same sample is free: concurrent tasks, parallel tool calls, sub-agents, background processes in a sandbox, and the work of in-process agent libraries. Working time can therefore undercount, and a sample can run much longer than its working limit. Always set a <code>time_limit</code> alongside a <code>working_limit</code> to bound clock time.</p>
+<p>Other work done while a wait is in progress is not charged. This includes background processes in a sandbox, the commands a sandboxed agent runs on its own, and the work of in-process agent libraries. Working time can therefore undercount, and a sample can run much longer than its working limit. Always set a <code>time_limit</code> alongside a <code>working_limit</code> to bound clock time.</p>
 </div>
 </div>
 </div>
@@ -998,26 +999,26 @@ Important
 <p><strong>Python API:</strong></p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.model <span class="im">import</span> set_model_cost, ModelCost</span>
 <span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>set_model_cost(<span class="st">"openai/gpt-4o"</span>, ModelCost(</span>
-<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>    <span class="bu">input</span><span class="op">=</span><span class="fl">2.50</span>, output<span class="op">=</span><span class="fl">10.00</span>,</span>
-<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>    input_cache_write<span class="op">=</span><span class="dv">0</span>, input_cache_read<span class="op">=</span><span class="fl">1.25</span>,</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>set_model_cost(<span class="st">"openai/gpt-6-luna"</span>, ModelCost(</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>    <span class="bu">input</span><span class="op">=</span><span class="fl">0.10</span>, output<span class="op">=</span><span class="fl">0.50</span>,</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>    input_cache_write<span class="op">=</span><span class="fl">0.125</span>, input_cache_read<span class="op">=</span><span class="fl">0.01</span>,</span>
 <span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p><strong>CLI (YAML or JSON file):</strong></p>
 <p>Each model needs a price set for <code>input</code>, <code>output</code>, <code>input_cache_write</code>, and <code>input_cache_read</code>. Prices should be given in dollars per million tokens. Set unused fields to <code>0</code>.</p>
 <p>Below is an example cost config file given in YAML:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb12"><pre class="sourceCode yaml code-with-copy"><code class="sourceCode yaml"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="fu">openai/gpt-4o</span><span class="kw">:</span></span>
-<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">input</span><span class="kw">:</span><span class="at"> </span><span class="fl">2.50</span></span>
-<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">output</span><span class="kw">:</span><span class="at"> </span><span class="fl">10.00</span></span>
-<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">input_cache_write</span><span class="kw">:</span><span class="at"> </span><span class="dv">0</span></span>
-<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">input_cache_read</span><span class="kw">:</span><span class="at"> </span><span class="fl">1.25</span></span>
-<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a><span class="fu">anthropic/claude-sonnet-4-5-20250514</span><span class="kw">:</span></span>
-<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">input</span><span class="kw">:</span><span class="at"> </span><span class="fl">3.00</span></span>
-<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">output</span><span class="kw">:</span><span class="at"> </span><span class="fl">15.00</span></span>
-<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">input_cache_write</span><span class="kw">:</span><span class="at"> </span><span class="fl">3.75</span></span>
-<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">input_cache_read</span><span class="kw">:</span><span class="at"> </span><span class="fl">0.30</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb12"><pre class="sourceCode yaml code-with-copy"><code class="sourceCode yaml"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="fu">openai/gpt-6-luna</span><span class="kw">:</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">input</span><span class="kw">:</span><span class="at"> </span><span class="fl">0.10</span></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">output</span><span class="kw">:</span><span class="at"> </span><span class="fl">0.50</span></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">input_cache_write</span><span class="kw">:</span><span class="at"> </span><span class="fl">0.125</span></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">input_cache_read</span><span class="kw">:</span><span class="at"> </span><span class="fl">0.01</span></span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a><span class="fu">anthropic/claude-sonnet-5-5</span><span class="kw">:</span></span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">input</span><span class="kw">:</span><span class="at"> </span><span class="fl">2.00</span></span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">output</span><span class="kw">:</span><span class="at"> </span><span class="fl">10.00</span></span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">input_cache_write</span><span class="kw">:</span><span class="at"> </span><span class="fl">2.50</span></span>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">input_cache_read</span><span class="kw">:</span><span class="at"> </span><span class="fl">0.10</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>(As of Feb 9 2026, all major model providers count reasoning tokens as output tokens, so no separate price needs to be provided for reasoning tokens. If your use case requires separate calculation of reasoning token prices, contact us.)</p>
 <p>When model cost data is configured, costs will be tracked for the sample as a whole, as well as any events within the sample that have a ModelUsage field.</p>
-<p>A request is priced at the rates of the model that served it, when the provider reports one other than the model requested: a <a href="./fallbacks.html">refusal fallback</a>, an Azure OpenAI, Azure AI or Microsoft Foundry deployment, an OpenRouter, Bedrock or Fireworks router, or a LiteLLM proxy fallback. A dated snapshot of the requested model is priced at the requested model’s rates. If the served model has no cost data, the request is priced at the requested model’s rates and a warning names the served model (e.g.&nbsp;<code>openai/gpt-4o-mini-2024-07-18</code>). Set cost data under that name. <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#set_model_cost">set_model_cost()</a></span> and <code>--model-cost-config</code> accept only models in Inspect’s model database; for any other model, use <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#set_model_info">set_model_info()</a></span>:</p>
+<p>A request is priced at the rates of the model that served it, when the provider reports one other than the model requested: a <a href="./fallbacks.html">refusal fallback</a>, an Azure OpenAI, Azure AI or Microsoft Foundry deployment, an OpenRouter, Bedrock or Fireworks router, or a LiteLLM proxy fallback. A dated snapshot of the requested model is priced at the requested model’s rates. If the served model has no cost data, the request is priced at the requested model’s rates and a warning names the served model (e.g.&nbsp;<code>openai/gpt-5.4-mini-2026-03-17</code>). Set cost data under that name. <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#set_model_cost">set_model_cost()</a></span> and <code>--model-cost-config</code> accept only models in Inspect’s model database; for any other model, use <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#set_model_info">set_model_info()</a></span>:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.model <span class="im">import</span> set_model_info, ModelCost, ModelInfo</span>
 <span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>set_model_info(<span class="st">"privateorg/routed-model"</span>, ModelInfo(cost<span class="op">=</span>ModelCost(</span>
@@ -1099,6 +1100,7 @@ Important
 <li>A model call held by <code>inspect ctl pause --now</code>.</li>
 <li>Code inside <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#suspend_working_limit">suspend_working_limit()</a></span>.</li>
 </ul>
+<p>There is one exception: while any task in the sample is running a model request, a sandbox command, or a tool call, the sample is working, even if another task is waiting. A model request that fails and is retried does not count as working. A tool call or sandbox command that is itself waiting (for example for approval or a <code>max_subprocesses</code> slot) is not counted as working for that time. Model requests and tool calls made inside a wait (for example by a model approver or a monitor) are not counted as working either. This exception does not apply to a command run with <code>exec_remote()</code> once it has started, or to sandbox commands run inside <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#sandbox_agent_bridge">sandbox_agent_bridge()</a></span>, such as the one that launches a bridged agent, because Inspect cannot see when they are working. A tool call that runs such a command is still counted as working, and so are a bridged agent’s model requests and bridged tool calls.</p>
 <p>Waits that overlap count once, so working time is never negative and never more than clock time.</p>
 <div class="callout callout-style-simple callout-warning">
 <div class="callout-body d-flex">
@@ -1106,7 +1108,7 @@ Important
 <i class="callout-icon"></i>
 </div>
 <div class="callout-body-container">
-<p>Work done while any wait is in progress is not charged. While one part of a sample waits, other work in the same sample is free: concurrent tasks, parallel tool calls, sub-agents, background processes in a sandbox, and the work of in-process agent libraries. Working time can therefore undercount, and a sample can run much longer than its working limit. Always set a <code>time_limit</code> alongside a <code>working_limit</code> to bound clock time.</p>
+<p>Other work done while a wait is in progress is not charged. This includes background processes in a sandbox, the commands a sandboxed agent runs on its own, and the work of in-process agent libraries. Working time can therefore undercount, and a sample can run much longer than its working limit. Always set a <code>time_limit</code> alongside a <code>working_limit</code> to bound clock time.</p>
 </div>
 </div>
 </div>
@@ -1133,7 +1135,7 @@ Important
 <span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a>        <span class="co"># time spent here counts as waiting</span></span>
 <span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a>        <span class="cf">await</span> wait_for_operator()</span>
 <span id="cb24-6"><a href="#cb24-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">await</span> generate()  <span class="co"># counts again</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>Unlike <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#suspend_token_limit">suspend_token_limit()</a></span> and <code>suspend_turn_limit()</code>, which only affect code inside the block, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#suspend_working_limit">suspend_working_limit()</a></span> makes the whole sample count as waiting while the block is open, including work done by other tasks in the sample. Only code in the eval process can call it (not agent code running in a sandbox). Inspect already does this for tool approval and review.</p>
+<p>Unlike <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#suspend_token_limit">suspend_token_limit()</a></span> and <code>suspend_turn_limit()</code>, which only affect code inside the block, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#suspend_working_limit">suspend_working_limit()</a></span> makes the whole sample count as waiting while the block is open, unless another task in the sample is running a model call, sandbox command or tool call (not counting commands run with <code>exec_remote()</code> or inside <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#sandbox_agent_bridge">sandbox_agent_bridge()</a></span>). Model calls, sandbox commands and tool calls made inside the block are not charged. Only code in the eval process can call it (not agent code running in a sandbox). Inspect already does this for tool approval and review.</p>
 </section>
 </section>
 <section id="message-limit-1" class="level3">

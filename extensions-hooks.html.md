@@ -73,7 +73,7 @@ These events track the lifecycle of individual samples. Note the distinction bet
 | `on_sample_attempt_end` | [SampleAttemptEnd](./reference/inspect_ai.hooks.html.md#sampleattemptend) | At the end of every attempt — `data.error` and `data.will_retry` describe the outcome. |
 | `on_sample_event` | [SampleEvent](./reference/inspect_ai.hooks.html.md#sampleevent) | Each time a sample event (e.g. a [ModelEvent](./reference/inspect_ai.event.html.md#modelevent) or [ToolEvent](./reference/inspect_ai.event.html.md#toolevent)) is logged. Fires many times per sample. |
 | `on_sample_scoring` | `SampleScoring` | After the solver completes and before scoring begins. |
-| `on_sample_end` | [SampleEnd](./reference/inspect_ai.hooks.html.md#sampleend) | When a sample completes (or errors with no retries remaining). Once per epoch; `data.sample` is the full [EvalSample](./reference/inspect_ai.log.html.md#evalsample). |
+| `on_sample_end` | [SampleEnd](./reference/inspect_ai.hooks.html.md#sampleend) | When a sample completes (or errors with no retries remaining). Once per epoch; `data.sample` is the full [EvalSample](./reference/inspect_ai.log.html.md#evalsample) (unless every hook [opts out](#skipping-full-sample-materialization)). |
 
 ### Model
 
@@ -91,7 +91,7 @@ These events surround calls to model providers, and are useful for tracking usag
 
 Hooks run within the evaluation, so keep them fast and resilient. Events from different samples and tasks may fire concurrently, and any exception raised by a hook is caught and logged as a warning (it does not fail the run) — with the exception of [LimitExceededError](./reference/inspect_ai.util.html.md#limitexceedederror), which is allowed to propagate so that hooks can enforce limits.
 
-In addition to these lifecycle events, two non-event methods let you control hook behaviour: [`enabled()`](#disabling-hooks) gates whether a hook is active, and [`override_api_key()`](#api-key-override) can rewrite model API keys. Both are covered below.
+Hooks can also control whether they are active with [`enabled()`](#disabling-hooks), opt out of full sample histories with [`needs_full_sample()`](#skipping-full-sample-materialization), and rewrite model API keys with [`override_api_key()`](#api-key-override).
 
 ## Hook Object Lifecycle
 
@@ -150,6 +150,22 @@ class WBHooks(Hooks):
 ```
 
 Because `enabled()` is consulted before every hook invocation (potentially many times per sample), keep its implementation cheap or cache the result.
+
+## Skipping Full Sample Materialization
+
+By default, `on_sample_end` receives the full sample history. Hooks using the default `Hooks.on_sample_end` do not require full sample materialization. Reconstructing history for long samples can be expensive. Hooks that read only summary fields, such as scores or timings, can opt out:
+
+``` python
+@hooks(name="score_tracker", description="Tracks sample scores")
+class ScoreTracker(Hooks):
+    def needs_full_sample(self) -> bool:
+        return False
+
+    async def on_sample_end(self, data: SampleEnd) -> None:
+        record(data.sample_id, data.sample.scores)
+```
+
+Returning `False` permits empty `events` and `attachments` and `timelines=None`. This reduction requires every enabled hook implementing `on_sample_end` to opt out and no other consumer to need the history. Opted-out hooks must accept both full and reduced samples.
 
 ## Requiring Hooks
 

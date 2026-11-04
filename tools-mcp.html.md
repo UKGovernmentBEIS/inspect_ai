@@ -196,7 +196,7 @@ return Task(
 
 #### Custom Agents
 
-For general purpose custom agents, you will also likely want to use the [mcp_connection()](./reference/inspect_ai.tool.html.md#mcp_connection) connect manager to preserve connection state throughout your tool use loop. For example, here is a web surfer agent that uses a web browser along with a memory server:
+For general purpose custom agents, you will also likely want to use the [mcp_connection()](./reference/inspect_ai.tool.html.md#mcp_connection) connect manager to preserve connection state throughout your tool use loop. For example, here is a web surfer agent that uses web search along with a memory server:
 
 ```` python
 @agent
@@ -208,7 +208,7 @@ def web_surfer() -> Agent:
         state.messages.append(
             ChatMessageSystem(
                 content="You are a tenacious web researcher that is "
-                + "expert at using a web browser to answer questions. "
+                + "expert at using web search to answer questions. "
                 + "Use the memory tools to track your research."
             )
         )
@@ -223,7 +223,7 @@ def web_surfer() -> Agent:
         # run tool loop w/ then update & return state
         async with mcp_connection(memory_server):
             messages, state.output = await get_model().generate_loop(
-                state.messages, tools=web_browser() + [memory_server]
+                state.messages, tools=[web_search(), memory_server]
             )
             state.messages.extend(messages)
             return state
@@ -231,8 +231,6 @@ def web_surfer() -> Agent:
     return execute
 ```
 ````
-
-The [web_browser()](./reference/inspect_ai.tool.html.md#web_browser) tool used above is [deprecated](./tools-standard.html.md#sec-web-browser); it appears here only to illustrate [mcp_connection()](./reference/inspect_ai.tool.html.md#mcp_connection).
 
 Note that the [mcp_connection()](./reference/inspect_ai.tool.html.md#mcp_connection) function can take an arbitrary list of `tools` and will discover and connect to any MCP-based [ToolSource](./reference/inspect_ai.tool.html.md#toolsource) in the list. So if your agent takes a `tools` parameter you can just forward it on. For example:
 

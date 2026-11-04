@@ -5,7 +5,7 @@
 Every time you use `inspect eval` or call the [eval()](./reference/inspect_ai.html.md#eval) function, an evaluation log is written for each task evaluated. By default, logs are written to the `./logs` sub-directory of the current working directory (we’ll cover how to change this below). You will find a link to the log at the bottom of the results for each task:
 
 ``` bash
-$ inspect eval security_guide.py --model openai/gpt-4
+$ inspect eval security_guide.py --model openai/gpt-6-luna
 ```
 
 [![The Inspect task results displayed in the terminal. A link to the evaluation log is at the bottom of the results display.](images/eval-log.png)](images/eval-log.png)
@@ -39,13 +39,13 @@ This article will focus primarily on configuring Inspect’s logging behavior (l
 By default, logs are written to the `./logs` sub-directory of the current working directory You can change where logs are written using eval options or an environment variable:
 
 ``` bash
-$ inspect eval popularity.py --model openai/gpt-4 --log-dir ./experiment-log
+$ inspect eval popularity.py --model openai/gpt-6-luna --log-dir ./experiment-log
 ```
 
 Or:
 
 ``` python
-log = eval(popularity, model="openai/gpt-4", log_dir = "./experiment-log")
+log = eval(popularity, model="openai/gpt-6-luna", log_dir = "./experiment-log")
 ```
 
 Note that in addition to logging the [eval()](./reference/inspect_ai.html.md#eval) function also returns an [EvalLog](./reference/inspect_ai.log.html.md#evallog) object for programmatic access to the details of the evaluation. We’ll talk more about how to use this object below.
@@ -196,7 +196,7 @@ The [EvalLog](./reference/inspect_ai.log.html.md#evallog) object returned from [
 Before analysing results from a log, you should always check their status to ensure they represent a successful run:
 
 ``` python
-log = eval(popularity, model="openai/gpt-4")
+log = eval(popularity, model="openai/gpt-6-luna")
 if log.status == "success":
    ...
 ```
@@ -256,8 +256,8 @@ A common workflow is to define an `INSPECT_LOG_DIR` for running a set of evaluat
 os.environ["INSPECT_LOG_DIR"] = "./experiment-logs"
 
 # do a bunch of evals
-eval(popularity, model="openai/gpt-4")
-eval(security_guide, model="openai/gpt-4")
+eval(popularity, model="openai/gpt-6-luna")
+eval(security_guide, model="openai/gpt-6-luna")
 
 # analyze the results in the logs
 logs = list_eval_logs()
@@ -366,6 +366,8 @@ Or from Python with:
 ``` python
 eval_retry("logs/2024-05-29T12-38-43_math_43_math_Gprr29Mv.json")
 ```
+
+A retry runs code named by the log: its task file, scorers and solver, or for an `hf/` task the Hugging Face repo it names, whose `eval.yaml` chooses the dataset and the solver and scorer arguments. It also uses the model endpoint, sandbox and other settings recorded in the log. Only retry logs you trust.
 
 Note that retry only works for tasks that are created from `@task` decorated functions (as if a [Task](./reference/inspect_ai.html.md#task) is created dynamically outside of an `@task` function Inspect does not know how to reconstruct it for the retry).
 
@@ -492,6 +494,24 @@ recompute_metrics(log)
 write_eval_log(log)
 ```
 
+Metrics and epoch reducers are rebuilt from the registry. If the eval used a custom metric defined in its task file, import that file before you edit or recompute (in the process that ran the eval this is already done):
+
+``` python
+import my_task  # registers the custom metrics defined in my_task.py
+
+edit_score(log, sample_id, "accuracy", edit)
+```
+
+Otherwise [edit_score()](./reference/inspect_ai.log.html.md#edit_score) and [recompute_metrics()](./reference/inspect_ai.log.html.md#recompute_metrics) raise a `LookupError` that names the metric, and the log is not changed.
+
+### Logs from Others
+
+Reading, viewing, editing, recomputing and recovering a log do not import any file that the log names. Whoever wrote a log controls every field in it, including the task file it records and the options of its metrics. These operations do not import the task file, and they refuse metric options that would create a model or any object other than a metric or reducer (a `ValueError` naming the option).
+
+If you trust a log, pass `trust_log=True` to [edit_score()](./reference/inspect_ai.log.html.md#edit_score), [recompute_metrics()](./reference/inspect_ai.log.html.md#recompute_metrics) or [recover_eval_log()](./reference/inspect_ai.log.html.md#recover_eval_log) (`--trust-log` for `inspect log recover`). This imports the task file the log records for metrics that are not registered, and rebuilds metric options as recorded. It runs the task file’s code, so use it only for logs you trust.
+
+Retrying a log (`inspect eval-retry`) and rescoring it (`inspect score`) are different: they run code and use settings named by the log. Only run them on logs you trust (see [Eval Retries](#eval-retries) and [Scoring Workflow](./scoring-workflow.html.md)).
+
 ### Score Edit Events
 
 When you edit a score, a [ScoreEditEvent](./reference/inspect_ai.event.html.md#scoreeditevent) is automatically added to the sample’s event log. This provides a complete audit trail of all score modifications that can be viewed in the log viewer.
@@ -548,6 +568,8 @@ AWS_DEFAULT_REGION=eu-west-2
 
 One thing to keep in mind if you are storing logs on S3 is that they will no longer be easily viewable using a local text editor. You will likely want to configure a [FUSE filesystem](https://github.com/s3fs-fuse/s3fs-fuse) so you can easily browse the S3 logs locally.
 
+Large `.eval` logs on S3 use multipart uploads. With the default asyncio backend, later writes can copy existing log data server-side and upload only new data and the ZIP directory. If Inspect is killed during a write, the unfinished upload stays in the bucket, and is billed as storage, until it is removed. We recommend a [lifecycle rule](https://docs.aws.amazon.com/AmazonS3/latest/userguide/mpu-abort-incomplete-mpu-lifecycle-config.html) on the log bucket that aborts incomplete multipart uploads after a day.
+
 ## Hugging Face Storage Buckets
 
 You can store evaluation logs in [Hugging Face Storage Buckets](https://huggingface.co/docs/hub/storage-buckets) using the `hf://buckets/<owner>/<bucket>/<path>` URI scheme. Storage buckets are useful for durable, shared log storage and are accessed through the `huggingface_hub` filesystem integration.
@@ -570,7 +592,7 @@ HF_TOKEN=hf_...
 You can then run evaluations and view logs directly from the bucket:
 
 ``` bash
-inspect eval popularity.py --model openai/gpt-4
+inspect eval popularity.py --model openai/gpt-6-luna
 inspect view --log-dir hf://buckets/my-org/inspect-logs/runs
 ```
 
@@ -616,7 +638,7 @@ Also set `AZURE_STORAGE_ANON=false` here—leaving it empty reverts to anonymous
 
 **Running Evaluations & Viewer**
 
-    inspect eval popularity.py --model openai/gpt-4
+    inspect eval popularity.py --model openai/gpt-6-luna
     inspect view  # streams directly from Azure
 
 For web deployment (App Service / Container Apps), just replicate the same environment variable setup; managed identity remains the most secure pattern.

@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.10.18">
+<meta name="generator" content="quarto-1.10.19">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -80,7 +80,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-64a204ab8560d761af7679ceaba22944.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-bf27225e3a48a9273f3daa8f8e829971.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
 <link href="site_libs/bootstrap/bootstrap-6be907ae78873760d36834dbe5a66008.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
@@ -1073,7 +1073,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <tr class="even">
 <td><code>user_prompt</code></td>
 <td>ChatMessageUser</td>
-<td>Convenience property for accessing the first user message in the message history (commonly used for prompt engineering).</td>
+<td>Convenience property for accessing the last user message in the message history (commonly used for prompt engineering).</td>
 </tr>
 <tr class="odd">
 <td><code>output</code></td>
@@ -1211,7 +1211,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li><p>The function applies the <code>@solver</code> decorator—this registers the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#solver">Solver</a></span> with Inspect, making it possible to capture its name and parameters for logging, as well as make it callable from a configuration file (e.g.&nbsp;a YAML specification of an eval).</p></li>
 <li><p>The <code>solve()</code> function is declared as <code>async</code>. This is so that it can participate in Inspect’s optimised scheduling for expensive model generation calls (this solver doesn’t call <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#generate">generate()</a></span> but others will).</p></li>
 <li><p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#resource">resource()</a></span> function is used to read the specified <code>template</code>. This function accepts a string, file, or URL as its argument, and then returns a string with the contents of the resource.</p></li>
-<li><p>We make use of the <code>user_prompt</code> property on the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#taskstate">TaskState</a></span>. This is a convenience property for locating the first <code>role="user"</code> message (otherwise you might need to skip over system messages, etc). Since this is a string templating solver, we use the <code>state.user_prompt.text</code> property to get a plain string. This is necessary because the <code>content</code> field of a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#chatmessageuser">ChatMessageUser</a></span> can be either a string or a list of multimodal <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#content">Content</a></span> objects, and <code>.text</code> handles either case.</p></li>
+<li><p>We make use of the <code>user_prompt</code> property on the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#taskstate">TaskState</a></span>. This is a convenience property for locating the last <code>role="user"</code> message (otherwise you might need to skip over assistant and tool messages, etc). Since this is a string templating solver, we use the <code>state.user_prompt.text</code> property to get a plain string. This is necessary because the <code>content</code> field of a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#chatmessageuser">ChatMessageUser</a></span> can be either a string or a list of multimodal <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#content">Content</a></span> objects, and <code>.text</code> handles either case.</p></li>
 <li><p>We make sample <code>metadata</code> available to the template as well as any <code>params</code> passed to the function.</p></li>
 </ol>
 </section>

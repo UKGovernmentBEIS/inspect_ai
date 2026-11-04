@@ -57,7 +57,7 @@ Pass an instance as `tasks`:
 ``` python
 from inspect_ai import eval
 
-eval(MySource(), model="openai/gpt-4o", limit=10)
+eval(MySource(), model="openai/gpt-6-luna", limit=10)
 ```
 
 `initial_tasks()` is synchronous and returns the seed. It is resolved up front like any task list, so it must return immediately rather than `await`. `next_tasks()` is async, called after each batch completes, and may block (for example, awaiting external input); return `None` to end the run.
@@ -101,7 +101,7 @@ async def on_task(log):
     return [next_task()] if sum(scores) / len(scores) < 0.9 else None
 
 source = TaskSource.from_tasks([seed_task()], task_complete=on_task)
-eval(source, model="openai/gpt-4o")
+eval(source, model="openai/gpt-6-luna")
 ```
 
 `from_tasks(initial_tasks, *, next_tasks=None, sample_complete=None, task_complete=None, sample_abandoned=None)` delegates to the callables. Omitting `next_tasks` and returning nothing from the callbacks stops after the seed.
@@ -126,7 +126,7 @@ def curriculum(target: float = 0.8) -> TaskSource:
 Run it from the CLI like a task, including `-T` arguments and a `file.py@name` spec:
 
 ``` bash
-inspect eval curriculum.py@curriculum -T target=0.9 --model openai/gpt-4o
+inspect eval curriculum.py@curriculum -T target=0.9 --model openai/gpt-6-luna
 ```
 
 [eval()](./reference/inspect_ai.html.md#eval) accepts a [TaskSource](./reference/inspect_ai.html.md#tasksource) instance, a `@task_source` function, a registered name, or a `file.py@name` spec.
@@ -158,7 +158,7 @@ A [TaskSource](./reference/inspect_ai.html.md#tasksource) run is live: a task ad
 Capacity is bounded by `max_tasks` (the number of concurrent task × model units). If the seed fills every slot, a follow-up waits until a slot frees, so to run follow-ups alongside the seed, set `max_tasks` above the number of seed units. A seed of two tasks across two models is four units, so `--max-tasks 6` leaves room:
 
 ``` bash
-inspect eval curriculum.py@curriculum --max-tasks 6 --model openai/gpt-4o,openai/gpt-4o-mini
+inspect eval curriculum.py@curriculum --max-tasks 6 --model openai/gpt-6-luna,openai/gpt-6-sol
 ```
 
 With the default `max_tasks` (the model count), follow-ups run after a seed task finishes rather than alongside it. See [Parallelism](./parallelism.html.md) for more on `max_tasks`.

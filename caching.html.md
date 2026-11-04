@@ -10,7 +10,7 @@ There are two types of caching available: Inspect local caching and provider lev
 
 Use the `cache` option of [GenerateConfig](./reference/inspect_ai.model.html.md#generateconfig) to activate the use of the cache. The keys for caching (what determines if a request can be fulfilled from the cache) are as follows:
 
-- Model name and base URL (e.g. `openai/gpt-5`)
+- Model name and base URL (e.g. `openai/gpt-6-luna`)
 - Model prompt (i.e. message history)
 - Epoch number (for ensuring distinct generations per epoch)
 - Generate configuration (e.g. `temperature`, `top_p`, etc.)
@@ -43,15 +43,15 @@ output = model.generate(
 
 ### Model Versions
 
-The model name (e.g. `openai/gpt-4-turbo`) is used as part of the cache key. Note though that many model names are aliases to specific model versions. For example, `gpt-4`, `gpt-4-turbo`, may resolve to different versions over time as updates are released.
+The model name (e.g. `openai/gpt-5.5`) is used as part of the cache key. Note though that many model names are aliases to specific model versions. For example, `gpt-5.5` may resolve to a different version over time as updates are released.
 
 If you want to invalidate caches for updated model versions, it’s much better to use an explicitly versioned model name. For example:
 
 ``` bash
-$ inspect eval ctf.py --model openai/gpt-4-turbo-2024-04-09
+$ inspect eval ctf.py --model openai/gpt-5.5-2026-04-23
 ```
 
-If you do this, then when a new version of `gpt-4-turbo` is deployed a call to the model will occur rather than resolving from the cache.
+If you do this, then when a new version of `gpt-5.5` is deployed a call to the model will occur rather than resolving from the cache.
 
 ## Cache Policy
 
@@ -97,12 +97,12 @@ $ inspect cache list
 
 # clear the cache (globally or by model)
 $ inspect cache clear
-$ inspect cache clear --model openai/gpt-4-turbo-2024-04-09
+$ inspect cache clear --model openai/gpt-5.5-2026-04-23
 
 # prune expired entries from the cache
 $ inspect cache list --pruneable
 $ inspect cache prune
-$ inspect cache prune --model openai/gpt-4-turbo-2024-04-09
+$ inspect cache prune --model openai/gpt-5.5-2026-04-23
 ```
 
 See `inspect cache --help` for further details on management commands.

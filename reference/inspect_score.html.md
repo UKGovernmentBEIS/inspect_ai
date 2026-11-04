@@ -2,6 +2,8 @@
 
 Score a previous evaluation run.
 
+This runs code named by the log (its task file and scorers) and uses the model endpoint and other settings recorded in it. Only run it on logs you trust. With –scorer, the log’s metrics are rebuilt without importing its task file; the log’s model and model roles are still used.
+
 #### Usage
 
 ``` text
@@ -15,7 +17,7 @@ inspect score [OPTIONS] LOG_FILE
 | `--model` | text | Model used for re-scoring (overrides the primary model recorded in the log). | `Sentinel.UNSET` |
 | `--model-base-url` | text | Base URL for model API | `Sentinel.UNSET` |
 | `-M` | text | One or more native model arguments (e.g. -M arg=value) | `Sentinel.UNSET` |
-| `--model-role` | text | Named model role with model name or YAML/JSON config, e.g. –model-role critic=openai/gpt-4o or –model-role grader=“{model: mockllm/model, temperature: 0.5}”. Bind multiple models to a role with a comma-separated list of names or a YAML/JSON list of configs. Merged over the model roles recorded in the log. | `Sentinel.UNSET` |
+| `--model-role` | text | Named model role with model name or YAML/JSON config, e.g. –model-role critic=openai/gpt-6-luna or –model-role grader=“{model: mockllm/model, temperature: 0.5}”. Bind multiple models to a role with a comma-separated list of names or a YAML/JSON list of configs. Merged over the model roles recorded in the log. | `Sentinel.UNSET` |
 | `--scorer` | text | Scorer to use for scoring | `Sentinel.UNSET` |
 | `-S` | text | One or more scorer arguments (e.g. -S arg=value) | `Sentinel.UNSET` |
 | `--metric` | text | Metric to use for scoring (overrides metrics in the log). | `Sentinel.UNSET` |

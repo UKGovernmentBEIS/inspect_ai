@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.10.18">
+<meta name="generator" content="quarto-1.10.19">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -80,7 +80,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-64a204ab8560d761af7679ceaba22944.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-bf27225e3a48a9273f3daa8f8e829971.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
 <link href="site_libs/bootstrap/bootstrap-6be907ae78873760d36834dbe5a66008.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
@@ -738,6 +738,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#hook-object-lifecycle" id="toc-hook-object-lifecycle" class="nav-link" data-scroll-target="#hook-object-lifecycle">Hook Object Lifecycle</a></li>
   <li><a href="#registration" id="toc-registration" class="nav-link" data-scroll-target="#registration">Registration</a></li>
   <li><a href="#disabling-hooks" id="toc-disabling-hooks" class="nav-link" data-scroll-target="#disabling-hooks">Disabling Hooks</a></li>
+  <li><a href="#skipping-full-sample-materialization" id="toc-skipping-full-sample-materialization" class="nav-link" data-scroll-target="#skipping-full-sample-materialization">Skipping Full Sample Materialization</a></li>
   <li><a href="#requiring-hooks" id="toc-requiring-hooks" class="nav-link" data-scroll-target="#requiring-hooks">Requiring Hooks</a></li>
   </ul>
 </nav>
@@ -894,7 +895,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <tr class="odd">
 <td><code>on_sample_end</code></td>
 <td><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.hooks.html#sampleend">SampleEnd</a></span></td>
-<td>When a sample completes (or errors with no retries remaining). Once per epoch; <code>data.sample</code> is the full <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#evalsample">EvalSample</a></span>.</td>
+<td>When a sample completes (or errors with no retries remaining). Once per epoch; <code>data.sample</code> is the full <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#evalsample">EvalSample</a></span> (unless every hook <a href="#skipping-full-sample-materialization">opts out</a>).</td>
 </tr>
 </tbody>
 </table>
@@ -939,7 +940,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </div>
 </div>
 <p>Hooks run within the evaluation, so keep them fast and resilient. Events from different samples and tasks may fire concurrently, and any exception raised by a hook is caught and logged as a warning (it does not fail the run) — with the exception of <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#limitexceedederror">LimitExceededError</a></span>, which is allowed to propagate so that hooks can enforce limits.</p>
-<p>In addition to these lifecycle events, two non-event methods let you control hook behaviour: <a href="#disabling-hooks"><code>enabled()</code></a> gates whether a hook is active, and <a href="#api-key-override"><code>override_api_key()</code></a> can rewrite model API keys. Both are covered below.</p>
+<p>Hooks can also control whether they are active with <a href="#disabling-hooks"><code>enabled()</code></a>, opt out of full sample histories with <a href="#skipping-full-sample-materialization"><code>needs_full_sample()</code></a>, and rewrite model API keys with <a href="#api-key-override"><code>override_api_key()</code></a>.</p>
 </section>
 </section>
 <section id="hook-object-lifecycle" class="level2">
@@ -992,10 +993,22 @@ pyproject.toml</code></pre>
 <span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    ...</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Because <code>enabled()</code> is consulted before every hook invocation (potentially many times per sample), keep its implementation cheap or cache the result.</p>
 </section>
+<section id="skipping-full-sample-materialization" class="level2">
+<h2 class="anchored" data-anchor-id="skipping-full-sample-materialization">Skipping Full Sample Materialization</h2>
+<p>By default, <code>on_sample_end</code> receives the full sample history. Hooks using the default <code>Hooks.on_sample_end</code> do not require full sample materialization. Reconstructing history for long samples can be expensive. Hooks that read only summary fields, such as scores or timings, can opt out:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="at">@hooks</span>(name<span class="op">=</span><span class="st">"score_tracker"</span>, description<span class="op">=</span><span class="st">"Tracks sample scores"</span>)</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ScoreTracker(Hooks):</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> needs_full_sample(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">bool</span>:</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">False</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> on_sample_end(<span class="va">self</span>, data: SampleEnd) <span class="op">-&gt;</span> <span class="va">None</span>:</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>        record(data.sample_id, data.sample.scores)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Returning <code>False</code> permits empty <code>events</code> and <code>attachments</code> and <code>timelines=None</code>. This reduction requires every enabled hook implementing <code>on_sample_end</code> to opt out and no other consumer to need the history. Opted-out hooks must accept both full and reduced samples.</p>
+</section>
 <section id="requiring-hooks" class="level2">
 <h2 class="anchored" data-anchor-id="requiring-hooks">Requiring Hooks</h2>
 <p>Another thing you might want to do is <em>ensure</em> that all users in a given environment are running with a particular set of hooks enabled. To do this, define the <code>INSPECT_REQUIRED_HOOKS</code> environment variable, listing all of the hooks that are required:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="va">INSPECT_REQUIRED_HOOKS</span><span class="op">=</span>w<span class="kw">&amp;</span><span class="ex">b_hooks</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb10"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="va">INSPECT_REQUIRED_HOOKS</span><span class="op">=</span>w<span class="kw">&amp;</span><span class="ex">b_hooks</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>If the required hooks aren’t installed then an appropriate error will occur at startup time.</p>
 </section>
 <section id="api-key-override" class="level2 unlisted">
@@ -1007,18 +1020,18 @@ pyproject.toml</code></pre>
 <li>Inject API keys at runtime (e.g.&nbsp;fetched from a secrets manager), to avoid having to store these in your environment or .env file</li>
 <li>Use some custom model API authentication mechanism in conjunction with a custom reverse proxy for the model API to avoid Inspect ever having access to real API keys</li>
 </ul>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.hooks <span class="im">import</span> hooks, Hooks, ApiKeyOverride</span>
-<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="at">@hooks</span>(name<span class="op">=</span><span class="st">"api_key_fetcher"</span>, description<span class="op">=</span><span class="st">"Fetches API key from secrets manager"</span>)</span>
-<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ApiKeyFetcher(Hooks):</span>
-<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> override_api_key(<span class="va">self</span>, data: ApiKeyOverride) <span class="op">-&gt;</span> <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span>:</span>
-<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>        original_env_var_value <span class="op">=</span> data.value</span>
-<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> original_env_var_value.startswith(<span class="st">"arn:aws:secretsmanager:"</span>):</span>
-<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> fetch_aws_secret(original_env_var_value)</span>
-<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">None</span></span>
-<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> fetch_aws_secret(aws_arn: <span class="bu">str</span>) <span class="op">-&gt;</span> <span class="bu">str</span>:</span>
-<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a>    ...</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.hooks <span class="im">import</span> hooks, Hooks, ApiKeyOverride</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="at">@hooks</span>(name<span class="op">=</span><span class="st">"api_key_fetcher"</span>, description<span class="op">=</span><span class="st">"Fetches API key from secrets manager"</span>)</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ApiKeyFetcher(Hooks):</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> override_api_key(<span class="va">self</span>, data: ApiKeyOverride) <span class="op">-&gt;</span> <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span>:</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>        original_env_var_value <span class="op">=</span> data.value</span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> original_env_var_value.startswith(<span class="st">"arn:aws:secretsmanager:"</span>):</span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> fetch_aws_secret(original_env_var_value)</span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">None</span></span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> fetch_aws_secret(aws_arn: <span class="bu">str</span>) <span class="op">-&gt;</span> <span class="bu">str</span>:</span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a>    ...</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 
 
 </section>

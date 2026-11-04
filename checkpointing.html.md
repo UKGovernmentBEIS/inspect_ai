@@ -44,11 +44,11 @@ from inspect_ai import eval
 from inspect_ai.util import CheckpointConfig, TurnInterval
 
 # checkpoint using default trigger (500K tokens)
-eval("ctf.py", model="openai/gpt-5", checkpoint=True)
+eval("ctf.py", model="openai/gpt-6-luna", checkpoint=True)
 
 # checkpoint every 3 turns
 eval(
-    "ctf.py", model="openai/gpt-5",
+    "ctf.py", model="openai/gpt-6-luna",
     checkpoint=CheckpointConfig(
         trigger=TurnInterval(every=3)
     )
@@ -71,6 +71,8 @@ inspect eval arc.py --checkpoint             # CRASH!
 inspect eval-retry logs/<log-file-name>.eval # recover
 ```
 
+Sample-level retries with `retry_on_error` also restore the latest committed checkpoint. If no checkpoint has been committed, the sample restarts from the beginning.
+
 For incomplete samples, Inspect locates the checkpoint directory, restores each sample’s most recent committed checkpoint, and continues. The following is restored before the agent runs:
 
 1.  Agent State: Any state values the agent registered (e.g. message or compaction history).
@@ -90,7 +92,7 @@ from inspect_ai import eval
 from inspect_ai.util import CheckpointConfig, TokenInterval
 
 eval(
-    "arc.py", model="openai/gpt-5",
+    "arc.py", model="openai/gpt-6-luna",
     checkpoint=CheckpointConfig(
         trigger=TokenInterval(every=1_000_000)
     )
@@ -128,7 +130,7 @@ from datetime import timedelta
 from inspect_ai.util import CheckpointConfig, TimeInterval
 
 eval(
-    "arc.py", model="openai/gpt-4o",
+    "arc.py", model="openai/gpt-6-luna",
     checkpoint=CheckpointConfig(
         trigger=TimeInterval(every=timedelta(minutes=15)),
         max_consecutive_failures=3,
@@ -191,7 +193,7 @@ Sample(
 )
 
 # enable at the eval or task level (uses the sample config)
-eval("ctf.py", model="openai/gpt-5", checkpoint=True)
+eval("ctf.py", model="openai/gpt-6-luna", checkpoint=True)
 ```
 
 Sample-level configuration covers capture: *what* to capture per sandbox and, via [snapshot strategies](#snapshot-strategies), *how* — a sample whose workload rewrites large amounts of data can select the `archive` strategy while the rest of the dataset uses the restic default. The eval-wide storage policy (`checkpoints_location`, `retention`) can only be set by the task or eval layer.
@@ -237,7 +239,7 @@ from inspect_ai.util import (
 )
 
 eval(
-    "training.py", model="openai/gpt-5",
+    "training.py", model="openai/gpt-6-luna",
     checkpoint=CheckpointConfig(
         sandbox_paths={
             "default": SandboxSnapshotConfig(

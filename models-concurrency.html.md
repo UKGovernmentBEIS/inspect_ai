@@ -19,8 +19,8 @@ For other forms of parallelism (multiple tasks, sandbox containers, custom code)
 Use the `--adaptive-connections` option to automatically scale model concurrency to your available capacity. Adaptive connections starts at 20 in-flight per model, grows up to the maximum while the provider keeps up, and backs off on rate-limit retries. Adaptive connections is on by default (with a maximum of 100), so the following commands are equivalent:
 
 ``` bash
-inspect eval --model openai/gpt-5
-inspect eval --model openai/gpt-5 --adaptive-connections=100
+inspect eval --model openai/gpt-6-luna
+inspect eval --model openai/gpt-6-luna --adaptive-connections=100
 ```
 
 Adaptive connections are a new feature introduced in Inspect v0.3.217. If you previously used `--max-connections` we recommend migrating to `--adaptive-connections`, as you will ramp up to the same maximum concurrency with less exposure to exponential backoff from rate limits.
@@ -38,22 +38,22 @@ Set `max` higher than where you expect the controller to settle, since it’s a 
 The simplest form of bounds tuning is a single integer setting just the maximum:
 
 ``` bash
-inspect eval --model openai/gpt-5 --adaptive-connections 50
-inspect eval --model openai/gpt-5 --adaptive-connections 200
+inspect eval --model openai/gpt-6-luna --adaptive-connections 50
+inspect eval --model openai/gpt-6-luna --adaptive-connections 200
 ```
 
 `min-max` constrains the range (`start` defaults to 20, clamped into the range):
 
 ``` bash
-inspect eval --model openai/gpt-5 --adaptive-connections 5-50
-inspect eval --model openai/gpt-5 --adaptive-connections 10-200
+inspect eval --model openai/gpt-6-luna --adaptive-connections 5-50
+inspect eval --model openai/gpt-6-luna --adaptive-connections 10-200
 ```
 
 `min-start-max` also sets the starting value:
 
 ``` bash
-inspect eval --model openai/gpt-5 --adaptive-connections 5-10-50
-inspect eval --model openai/gpt-5 --adaptive-connections 10-20-200
+inspect eval --model openai/gpt-6-luna --adaptive-connections 5-10-50
+inspect eval --model openai/gpt-6-luna --adaptive-connections 10-20-200
 ```
 
 In Python, pass `True` for defaults, `False` to disable adaptive (uses static `max_connections` instead), `int` to set the maximum, or an [AdaptiveConcurrency](./reference/inspect_ai.util.html.md#adaptiveconcurrency) to customize:
@@ -63,7 +63,7 @@ from inspect_ai.util import AdaptiveConcurrency
 
 eval(
     "task.py",
-    model="openai/gpt-5",
+    model="openai/gpt-6-luna",
     adaptive_connections=AdaptiveConcurrency(min=4, max=80),
 )
 ```
@@ -75,7 +75,7 @@ While an eval runs, `inspect ctl config` shows each model’s live controller st
 ``` bash
 inspect ctl config                              # view live controller state
 inspect ctl config --max-connections 20         # throttle mid-run
-inspect ctl config --max-connections 200 --model gpt-5
+inspect ctl config --max-connections 200 --model gpt-6-luna
 ```
 
 See [Control Channel](./control-channel.html.md#configuration) for details.
@@ -105,7 +105,7 @@ from inspect_ai.util import AdaptiveConcurrency
 
 eval(
     "task.py",
-    model="openai/gpt-5",
+    model="openai/gpt-6-luna",
     adaptive_connections=AdaptiveConcurrency(
         min=4,
         max=80,
@@ -129,7 +129,7 @@ inspect trace dump --filter "[connections]"
 By default, Inspect will retry model API calls indefinitely (with exponential backoff) when a recoverable HTTP error occurs. The initial backoff is 3 seconds and exponentiation will result in a 25 minute wait for the 10th request (then 30 minutes for the 11th and subsequent requests). You can limit Inspect’s retries using the `--max-retries` option:
 
 ``` bash
-inspect eval --model openai/gpt-4 --max-retries 10
+inspect eval --model openai/gpt-6-luna --max-retries 10
 ```
 
 Note that model interfaces themselves may have internal retry behavior (for example, the `openai` and `anthropic` packages both retry twice by default).
@@ -137,7 +137,7 @@ Note that model interfaces themselves may have internal retry behavior (for exam
 You can put a limit on the total time for retries using the `--timeout` option:
 
 ``` bash
-inspect eval --model openai/gpt-4 --timeout 600
+inspect eval --model openai/gpt-6-luna --timeout 600
 ```
 
 ## Debugging Retries
@@ -145,7 +145,7 @@ inspect eval --model openai/gpt-4 --timeout 600
 If you want more insight into Model API connections and retries, specify `log_level=http`. For example:
 
 ``` bash
-inspect eval --model openai/gpt-4 --log-level=http
+inspect eval --model openai/gpt-6-luna --log-level=http
 ```
 
 You can also view all of the HTTP requests for the current (or most recent) evaluation run using the `inspect trace http` command. For example:
@@ -160,13 +160,13 @@ inspect trace http --failed  # show only failed requests
 If you prefer a static limit for connections, use `--max-connections` rather than `--adaptive-connections`. For example:
 
 ``` bash
-$ inspect eval --model openai/gpt-4 --max-connections 20
+$ inspect eval --model openai/gpt-6-luna --max-connections 20
 ```
 
 When both `--max-connections` and `--adaptive-connections` are set, the explicit `max_connections` value takes precedence and adaptive is disabled. To opt out of adaptive without picking a specific cap (the provider’s default applies), pass `--adaptive-connections false`:
 
 ``` bash
-inspect eval --model openai/gpt-4 --adaptive-connections false
+inspect eval --model openai/gpt-6-luna --adaptive-connections false
 ```
 
 [Batch mode](./models-batch.html.md) likewise uses static concurrency regardless of `--adaptive-connections`.

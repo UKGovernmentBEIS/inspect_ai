@@ -19,7 +19,7 @@ Run a set of evaluations using the `inspect eval-set` command or [eval_set()](./
 
 ``` bash
 $ inspect eval-set mmlu.py mathematics.py \
-   --model openai/gpt-4o,anthropic/claude-3-5-sonnet-20240620 \
+   --model openai/gpt-6-luna,anthropic/claude-3-5-sonnet-20240620 \
    --log-dir logs-run-42
 ```
 
@@ -30,7 +30,7 @@ from inspect_ai import eval_set
 
 success, logs = eval_set(
    tasks=["mmlu.py", "mathematics.py"],
-   model=["openai/gpt-4o", "anthropic/claude-3-5-sonnet-20240620"],
+   model=["openai/gpt-6-luna", "anthropic/claude-3-5-sonnet-20240620"],
    log_dir="logs-run-42"      
 )
 ```
@@ -51,8 +51,8 @@ You can also amend an eval set with additional tasks, models, or epochs. Just re
 
 ``` bash
 $ inspect eval-set mmlu.py mathematics.py \
-   --model openai/gpt-5,openai/gpt-4o,anthropic/claude-3-5-sonnet-20240620 \
-   --epochs 3
+   --model openai/gpt-6-sol,openai/gpt-6-luna,anthropic/claude-3-5-sonnet-20240620 \
+   --epochs 3 \
    --log-dir logs-run-42
 ```
 
@@ -65,7 +65,7 @@ Use the `max_tasks` option to override the default behavior:
 ``` python
 eval_set(
    tasks=["mmlu.py", "mathematics.py", "ctf.py", "science.py"],
-   model=["openai/gpt-4o", "anthropic/claude-3-5-sonnet-20240620"],
+   model=["openai/gpt-6-luna", "anthropic/claude-3-5-sonnet-20240620"],
    max_tasks=8,
    log_dir="logs-run-42"      
 )
@@ -87,7 +87,7 @@ maths = create_task("maths.csv")
 
 eval_set(
    [mmlu, maths],
-   model=["openai/gpt-4o", "anthropic/claude-3-5-sonnet-20240620"],
+   model=["openai/gpt-6-luna", "anthropic/claude-3-5-sonnet-20240620"],
    log_dir="logs-run-42"      
 )
 ```

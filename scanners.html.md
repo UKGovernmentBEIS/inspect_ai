@@ -30,7 +30,7 @@ from my_scanners import refusal, eval_awareness
 
 eval(
     "tasks/agentic_search.py",
-    model="openai/gpt-5",
+    model="openai/gpt-6-luna",
     scanner=[refusal(), eval_awareness()],
 )
 ```
@@ -43,7 +43,7 @@ from my_scanners import refusal, eval_awareness
 
 eval(
     "tasks/agentic_search.py",
-    model="openai/gpt-5",
+    model="openai/gpt-6-luna",
     scanner=ScannerConfig(
         scanners=[refusal(), eval_awareness()],
         model="anthropic/claude-opus-4-7",
@@ -55,7 +55,7 @@ The same scanners can be specified from the CLI with `--scanner`:
 
 ``` bash
 inspect eval tasks/agentic_search.py \
-    --model openai/gpt-5 \
+    --model openai/gpt-6-luna \
     --scanner my_scanners.py \
     --scan-model anthropic/claude-opus-4-7
 ```
@@ -71,7 +71,7 @@ On the CLI, `--scanner` accepts a YAML/JSON config file, a Python file containin
 To run scanners over a directory of existing logs (for example, to look across many evals for evaluation awareness), use the `scout scan` CLI:
 
 ``` bash
-scout scan my_scanners.py -T ./logs --model openai/gpt-5
+scout scan my_scanners.py -T ./logs --model openai/gpt-6-luna
 ```
 
 Results are written to `./logs/scans/`, the same location as online scanning.

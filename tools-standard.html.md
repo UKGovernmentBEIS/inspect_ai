@@ -10,7 +10,6 @@ Inspect has built-in tools for computing and agentic planning. Computing tools i
 - [Text Editor](./tools-standard.html.md#sec-text-editor) which enables viewing, creating and editing text files (requires a [sandbox](./sandboxing.html.md)).
 - [Computer](./tools-standard.html.md#sec-computer), which provides the model with a desktop computer (viewed through screenshots) that supports mouse and keyboard interaction (requires a [sandbox](./sandboxing.html.md)).
 - [Code Execution](./tools-standard.html.md#sec-code-execution), which gives models a Python code execution environment hosted within the model provider’s infrastructure rather than an Inspect sandbox.
-- [Web Browser](./tools-standard.html.md#sec-web-browser), which provides the model with a headless Chromium web browser that supports navigation, history, and mouse/keyboard interactions (requires a [sandbox](./sandboxing.html.md)). Deprecated: use Web Search, Computer, or a [browser MCP server](./tools-mcp.html.md#sandboxes) in the sandbox instead.
 
 Agentic tools include:
 
@@ -68,7 +67,7 @@ web_search({
 
 ### OpenAI Options
 
-The [web_search()](./reference/inspect_ai.tool.html.md#web_search) tool can use OpenAI’s built-in search capability when running on a limited number of OpenAI models (currently “gpt-4o”, “gpt-4o-mini”, “gpt-4.1”, “o3”, “o4-mini”, and GPT-5 and later, including GPT-6). This provider does not require any API keys beyond what’s needed for the model itself.
+The [web_search()](./reference/inspect_ai.tool.html.md#web_search) tool can use OpenAI’s built-in search capability when running on a limited number of OpenAI models (currently “gpt-4o”, “gpt-4o-mini”, “gpt-4.1”, “o3”, and GPT-5 and later, including GPT-6). This provider does not require any API keys beyond what’s needed for the model itself.
 
 For more details on OpenAI’s web search parameters, see [OpenAI Web Search Documentation](https://platform.openai.com/docs/guides/tools-web-search?api-mode=responses).
 
@@ -100,17 +99,27 @@ Note that when using the “gemini” provider, you should also specify a fallba
 
 ### Grok Options
 
-The [web_search()](./reference/inspect_ai.tool.html.md#web_search) tool can use Grok’s built-in live search capability when running on Grok 3.0 models and later. This provider does not require any API keys beyond what’s needed for the model itself.
+The [web_search()](./reference/inspect_ai.tool.html.md#web_search) tool can use Grok’s built-in web search when running on Grok 4 models and later. This provider does not require any API keys beyond what’s needed for the model itself. The `grok` provider options are the parameters of xAI’s web search tool, such as `allowed_domains` and `excluded_domains`. For example:
 
-For more details, see [Live Search](https://docs.x.ai/docs/guides/live-search).
+``` python
+web_search({"grok": {"allowed_domains": ["arxiv.org"]}})
+```
 
-Note that when using the “grok” provider, you should also specify a fallback external provider (like “tavily”, “exa”, or “google”) if you are also running the evaluation with non-Grok models.
+For more details, see [Web Search](https://docs.x.ai/developers/tools/web-search).
+
+Note that when using the “grok” provider, you should also specify a fallback external provider (like “tavily”, “exa”, or “google”) if you are also running the evaluation with non-Grok models or with Grok models before Grok 4.
 
 ### Perplexity Options
 
-The [web_search()](./reference/inspect_ai.tool.html.md#web_search) tool can use Perplexity’s built-in search capability when running on Perplexity models. This provider does not require any API keys beyond what’s needed for the model itself. Search parameters can be passed using the `perplexity` provider options and will be forwarded to the model API.
+The [web_search()](./reference/inspect_ai.tool.html.md#web_search) tool can use Perplexity’s built-in search capability when running on Perplexity models. This provider does not require any API keys beyond what’s needed for the model itself. Perplexity models do not search without the [web_search()](./reference/inspect_ai.tool.html.md#web_search) tool, including `perplexity/sonar`. The `perplexity` provider options are the fields of the Agent API’s `web_search` tool, such as `filters`, `search_type`, `max_results`, and the search token budgets `max_tokens` and `max_tokens_per_page`. For example:
 
-For more details, see [Perplexity API Documentation](https://docs.perplexity.ai/api-reference/chat-completions-post).
+``` python
+web_search({"perplexity": {"filters": {"search_domain_filter": ["arxiv.org"]}}})
+```
+
+For all the options, see Perplexity’s [Web Search](https://docs.perplexity.ai/docs/agent-api/tools/web-search) documentation. Sonar search parameters such as `search_mode` and `search_context_size` are not accepted. Use the token budgets in place of `search_context_size`; Perplexity’s [migration guide](https://docs.perplexity.ai/docs/agent-api/migrate-from-sonar/how-to#parameter-reference) lists the other replacements.
+
+The model decides whether to search. To make it search, set `tool_choice` to `"any"` or `ToolFunction("web_search")`.
 
 Note that when using the “perplexity” provider, you should also specify a fallback external provider (like “tavily”, “exa”, or “google”) if you are also running the evaluation with non-Perplexity models.
 
@@ -441,17 +450,18 @@ Here is an approval policy that requires approval for key combos (e.g. `Enter` 
 ``` yaml
 approvers:
   - name: human
-    tools:
-      - computer(action='key'
-      - computer(action='left_click'
-      - computer(action='middle_click'
-      - computer(action='double_click'
+    tools: computer
+    arguments: {action: key}
+
+  - name: human
+    tools: computer
+    arguments: {action: "*_click"}
 
   - name: auto
     tools: "*"
 ```
 
-Note that since this is a prefix match and there could be other arguments, we don’t end the tool match pattern with a parentheses.
+See [Auto Approver](./approval.html.md#auto-approver) for how `arguments` are matched.
 
 You can apply this policy using the `--approval` command line option:
 
@@ -525,102 +535,6 @@ code_execution(
 ```
 
 When falling back to the [python()](./reference/inspect_ai.tool.html.md#python) provider you should ensure that your [Task](./reference/inspect_ai.html.md#task) has a `sandbox` with access to Python enabled.
-
-## Web Browser
-
-The web browser tools provides models with the ability to browse the web using a headless Chromium browser. Navigation, history, and mouse/keyboard interactions are all supported.
-
-> **WARNING: Warning**
->
-> The [web_browser()](./reference/inspect_ai.tool.html.md#web_browser) tool is deprecated and its implementation will be removed around November 2026. Calling [web_browser()](./reference/inspect_ai.tool.html.md#web_browser) now logs a deprecation warning; after removal it will raise an error. Most websites now block headless browsers, so for web information retrieval use the [web_search()](#sec-web-search) tool. For interacting with web applications (local web apps, forms, multi-step flows) use the [computer()](#sec-computer) tool, or run a browser MCP server such as [Playwright MCP](https://github.com/microsoft/playwright-mcp) inside your sandbox with [mcp_server_sandbox()](./tools-mcp.html.md#sandboxes). See [issue \#5497](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5497) for details, and comment there if you rely on [web_browser()](./reference/inspect_ai.tool.html.md#web_browser) in a way these paths do not cover.
-
-### Configuration
-
-Under the hood, the web browser is an instance of [Chromium](https://www.chromium.org/chromium-projects/) orchestrated by [Playwright](https://playwright.dev/), and runs in a [Sandbox Environment](./sandboxing.html.md). In addition, you’ll need some dependencies installed in the sandbox container. Please see **Sandbox Dependencies** below for additional instructions.
-
-Note that Playwright (used for the [web_browser()](./reference/inspect_ai.tool.html.md#web_browser) tool) does not support some versions of Linux (e.g. Kali Linux).
-
-> **NOTE: NoteSandbox Dependencies**
->
-> You should add the following to your sandbox `Dockerfile` in order to use the web browser tool:
->
-> ``` dockerfile
-> RUN apt-get update && apt-get install -y pipx && \
->     apt-get clean && rm -rf /var/lib/apt/lists/*
-> ENV PATH="$PATH:/opt/inspect/bin"
-> RUN PIPX_HOME=/opt/inspect/pipx PIPX_BIN_DIR=/opt/inspect/bin PIPX_VENV_DIR=/opt/inspect/pipx/venvs \
->     pipx install inspect-tool-support && \
->     chmod -R 755 /opt/inspect && \
->     inspect-tool-support post-install
-> ```
->
-> If you don’t have a custom Dockerfile, you can alternatively use the pre-built `aisiuk/inspect-tool-support` image. This configuration intentionally permits outbound Internet access so the browser can visit external sites:
->
->     compose.yaml
->
-> ``` yaml
-> services:
->   default:
->     image: aisiuk/inspect-tool-support
->     init: true
->     # network_mode is omitted because the browser visits external sites.
-> ```
->
-> The pre-built image runs as root by default and also provides a `nonroot` account (UID/GID 65532) for evaluations that should not run the agent as root; add `user: nonroot` to the service to use it. The web browser tool works under either user.
-
-### Task Setup
-
-A task configured to use the web browser tools might look like this:
-
-``` python
-from inspect_ai import Task, task
-from inspect_ai.scorer import match
-from inspect_ai.solver import generate, use_tools
-from inspect_ai.tool import bash, python, web_browser
-
-@task
-def browser_task():
-    return Task(
-        dataset=read_dataset(),
-        solver=[
-            use_tools([bash(), python()] + web_browser()),
-            generate(),
-        ],
-        scorer=match(),
-        sandbox=("docker", "compose.yaml"),
-    )
-```
-
-Unlike some other tool functions like [bash()](./reference/inspect_ai.tool.html.md#bash), the [web_browser()](./reference/inspect_ai.tool.html.md#web_browser) function returns a list of tools. Therefore, we concatenate it with a list of the other tools we are using in the call to [use_tools()](./reference/inspect_ai.solver.html.md#use_tools).
-
-Note that a separate web browser process is created within the sandbox for each instance of the web browser tool. See the [web_browser()](./reference/inspect_ai.tool.html.md#web_browser) reference docs for details on customizing this behavior.
-
-### Browsing
-
-If you review the transcripts of a sample with access to the web browser tool, you’ll notice that there are several distinct tools made available for control of the web browser. These tools include:
-
-| Tool | Description |
-|----|----|
-| `web_browser_go(url)` | Navigate the web browser to a URL. |
-| `web_browser_click(element_id)` | Click an element on the page currently displayed by the web browser. |
-| `web_browser_type(element_id)` | Type text into an input on a web browser page. |
-| `web_browser_type_submit(element_id, text)` | Type text into a form input on a web browser page and press ENTER to submit the form. |
-| `web_browser_scroll(direction)` | Scroll the web browser up or down by one page. |
-| `web_browser_forward()` | Navigate the web browser forward in the browser history. |
-| `web_browser_back()` | Navigate the web browser back in the browser history. |
-| `web_browser_refresh()` | Refresh the current page of the web browser. |
-
-The return value of each of these tools is a [web accessibility tree](https://web.dev/articles/the-accessibility-tree) for the page, which provides a clean view of the content, links, and form fields available on the page (you can look at the accessibility tree for any web page using [Chrome Developer Tools](https://developer.chrome.com/blog/full-accessibility-tree)).
-
-### Disabling Interactions
-
-You can use the web browser tools with page interactions disabled by specifying `interactive=False`, for example:
-
-``` python
-use_tools(web_browser(interactive=False))
-```
-
-In this mode, the interactive tools (`web_browser_click()`, `web_browser_type()`, and `web_browser_type_submit()`) are not made available to the model.
 
 ## Skill
 

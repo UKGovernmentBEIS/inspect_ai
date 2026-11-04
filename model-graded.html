@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.10.18">
+<meta name="generator" content="quarto-1.10.19">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -80,7 +80,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-64a204ab8560d761af7679ceaba22944.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-bf27225e3a48a9273f3daa8f8e829971.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
 <link href="site_libs/bootstrap/bootstrap-6be907ae78873760d36834dbe5a66008.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
@@ -926,7 +926,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="grading-robustness" class="level2">
 <h2 class="anchored" data-anchor-id="grading-robustness">Grading Robustness</h2>
 <p>Because the grader sees dataset- and model-controlled text (the question, the submission, and any per-sample criterion), the built-in graders take two precautions against a model steering its own grade.</p>
-<p>Grade extraction binds to the last grade. The default <code>grade_pattern</code> (<code>(?is).*(?&lt;!\w)GRADE(?!\w)[\s\u200b\u200c\u200d\u200e\u200f\u2060\u2063\ufeff]*:[\s\u200b\u200c\u200d\u200e\u200f\u2060\u2063\ufeff]*([CPI])</code>) matches the last <code>GRADE: X</code> in the grader’s output, tolerating common zero-width formatting characters around the separator. The instructions tell the grader to end with its grade, so an earlier <code>GRADE: C</code> (echoed in chain-of-thought, or injected via the submission) does not win, and prose such as <code>downgrade:</code> is not treated as a verdict. If you customise <code>grade_pattern</code>, keep this behaviour in mind.</p>
+<p>Grade extraction binds to the last grade. The default <code>grade_pattern</code> matches the last <code>GRADE: X</code> in the grader’s output, tolerating common zero-width formatting characters around the separator, markdown emphasis or brackets around the label or verdict (<code>**GRADE**: I</code>, <code>GRADE: [I]</code>), a fullwidth colon or <code>=</code> as the separator, and a <code>## GRADE</code> heading with the verdict alone on the next line. The instructions tell the grader to end with its grade, so an earlier <code>GRADE: C</code> (echoed in chain-of-thought, or injected via the submission) does not win, and prose such as <code>downgrade:</code> is not treated as a verdict. If you customise <code>grade_pattern</code>, keep this behaviour in mind.</p>
 <p>Structural delimiters are neutralized. The default templates wrap content in <code>[BEGIN DATA]</code> / <code>[END DATA]</code> markers. Before formatting the prompt, Inspect rewrites any <code>[BEGIN DATA]</code> / <code>[END DATA]</code> markers that appear in the model-controlled <code>answer</code>, the <code>question</code>, the <code>criterion</code>, and any <code>metadata</code> values (for example to <code>[END-DATA]</code>) so a model cannot inject a fake delimiter and smuggle grading instructions into the prompt. The <code>instructions</code> you provide are author-controlled and left untouched.</p>
 <p>The built-in scorers make one grading request per grader. An unparsable verdict produces <code>Score.unscored(reason="grader_failed")</code> without retrying the verdict. The score retains the grader output and has a <code>NaN</code> value, which metrics exclude. See <a href="./scoring-policy.html#interpreting-coverage">Scoring Policy</a> for how epoch reduction affects coverage counts.</p>
 </section>
@@ -937,13 +937,17 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.model <span class="im">import</span> get_model, GenerateConfig</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.scorer <span class="im">import</span> model_graded_qa</span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>grader <span class="op">=</span> get_model(<span class="st">"openai/gpt-4o"</span>, config<span class="op">=</span>GenerateConfig(temperature<span class="op">=</span><span class="dv">0</span>, seed<span class="op">=</span><span class="dv">42</span>))</span>
-<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>model_graded_qa(model<span class="op">=</span>grader)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>grader <span class="op">=</span> get_model(</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">"openai/gpt-6-luna"</span>,</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>    config<span class="op">=</span>GenerateConfig(reasoning_effort<span class="op">=</span><span class="st">"none"</span>, temperature<span class="op">=</span><span class="dv">0</span>),</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>model_graded_qa(model<span class="op">=</span>grader)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>GPT-6 Luna reasons by default, and Inspect drops <code>temperature</code> (with a warning) while an OpenAI model reasons, so the example sets <code>reasoning_effort="none"</code>. See <a href="./reasoning.html#reasoning-effort">Reasoning Effort</a>. The OpenAI Responses API, which Inspect uses by default for GPT-5 and later, does not accept <code>seed</code>.</p>
 <p>You can apply the same configuration through the <code>grader</code> model role instead of the <code>model</code> argument — see <a href="./models.html#model-roles">Model Roles</a>.</p>
 <p>For more reproducible grading:</p>
 <ol type="1">
-<li>Set <code>temperature=0</code> so the grader is as deterministic as the provider allows.</li>
+<li>Set <code>temperature=0</code>, where the model accepts it, so the grader is as deterministic as the provider allows.</li>
 <li>Set a <code>seed</code> where the provider supports it.</li>
 <li>Run multiple <code>epochs</code> and inspect grade variance — setting <code>temperature=0</code> reduces, but does not always eliminate, run-to-run disagreement.</li>
 </ol>

@@ -109,7 +109,7 @@ web_surfer = react(
     name="web_surfer",
     description="Web research assistant",
     prompt="You are a tenacious web researcher that is expert "
-           + "at using a web browser to answer questions.",
+           + "at using web search to answer questions.",
     tools=[web_search()]   
 )
 
@@ -136,7 +136,7 @@ web_surfer = react(
     name="web_surfer",
     description="Web research assistant",
     prompt="You are a tenacious web researcher that is expert "
-           + "at using a web browser to answer questions.",
+           + "at using web search to answer questions.",
     tools=[web_search()]
 )
 ```

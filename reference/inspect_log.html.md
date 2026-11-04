@@ -154,6 +154,7 @@ inspect log recover [OPTIONS] [LOG_FILE]
 | `--no-events` | boolean | Exclude event transcript from recovered samples (reduces output size). | `False` |
 | `--incomplete-action` | choice (`retry` \| `error`) | Disposition for samples that were in progress at crash: ‘retry’ (default) marks them as cancelled errors that a later eval-retry re-runs; ‘error’ resolves them as operator terminations, finalizing the recovered log with status ‘success’ when every expected sample is final (nothing will retry it). | `retry` |
 | `--incomplete-max` | float range (`0` and above) | Safety threshold for –incomplete-action error (count if \>= 1, or proportion of expected samples if strictly less than 1): refuse to recover when more than this many samples are in progress. Has no effect (a warning is logged) with –incomplete-action retry. | None |
+| `--trust-log` | boolean | Import the log’s task file to load metrics that are not registered, and rebuild metric options that hold models or other objects. This runs the task file’s code, so use it only for logs you trust. | `False` |
 | `--list` | boolean | List recoverable logs instead of recovering. | `False` |
 | `--json` | boolean | Output listing as JSON (only with –list). | `False` |
 | `--log-level` | choice (`debug` \| `trace` \| `http` \| `info` \| `warning` \| `error` \| `critical` \| `notset`) | Set the log level (defaults to ‘warning’) | `warning` |

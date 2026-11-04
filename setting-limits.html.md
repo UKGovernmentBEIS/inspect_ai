@@ -56,11 +56,13 @@ The `working_limit` differs from the `time_limit` in that it measures only the t
 - A model call held by `inspect ctl pause --now`.
 - Code inside [suspend_working_limit()](./reference/inspect_ai.util.html.md#suspend_working_limit).
 
+There is one exception: while any task in the sample is running a model request, a sandbox command, or a tool call, the sample is working, even if another task is waiting. A model request that fails and is retried does not count as working. A tool call or sandbox command that is itself waiting (for example for approval or a `max_subprocesses` slot) is not counted as working for that time. Model requests and tool calls made inside a wait (for example by a model approver or a monitor) are not counted as working either. This exception does not apply to a command run with `exec_remote()` once it has started, or to sandbox commands run inside [sandbox_agent_bridge()](./reference/inspect_ai.agent.html.md#sandbox_agent_bridge), such as the one that launches a bridged agent, because Inspect cannot see when they are working. A tool call that runs such a command is still counted as working, and so are a bridged agent’s model requests and bridged tool calls.
+
 Waits that overlap count once, so working time is never negative and never more than clock time.
 
 > **WARNING:**
 >
-> Work done while any wait is in progress is not charged. While one part of a sample waits, other work in the same sample is free: concurrent tasks, parallel tool calls, sub-agents, background processes in a sandbox, and the work of in-process agent libraries. Working time can therefore undercount, and a sample can run much longer than its working limit. Always set a `time_limit` alongside a `working_limit` to bound clock time.
+> Other work done while a wait is in progress is not charged. This includes background processes in a sandbox, the commands a sandboxed agent runs on its own, and the work of in-process agent libraries. Working time can therefore undercount, and a sample can run much longer than its working limit. Always set a `time_limit` alongside a `working_limit` to bound clock time.
 
 > **NOTE:**
 >
@@ -241,9 +243,9 @@ Cost tracking requires cost data for each model present in the eval or eval set.
 ``` python
 from inspect_ai.model import set_model_cost, ModelCost
 
-set_model_cost("openai/gpt-4o", ModelCost(
-    input=2.50, output=10.00,
-    input_cache_write=0, input_cache_read=1.25,
+set_model_cost("openai/gpt-6-luna", ModelCost(
+    input=0.10, output=0.50,
+    input_cache_write=0.125, input_cache_read=0.01,
 ))
 ```
 
@@ -254,23 +256,23 @@ Each model needs a price set for `input`, `output`, `input_cache_write`, and `in
 Below is an example cost config file given in YAML:
 
 ``` yaml
-openai/gpt-4o:
-    input: 2.50
+openai/gpt-6-luna:
+    input: 0.10
+    output: 0.50
+    input_cache_write: 0.125
+    input_cache_read: 0.01
+anthropic/claude-sonnet-5-5:
+    input: 2.00
     output: 10.00
-    input_cache_write: 0
-    input_cache_read: 1.25
-anthropic/claude-sonnet-4-5-20250514:
-    input: 3.00
-    output: 15.00
-    input_cache_write: 3.75
-    input_cache_read: 0.30
+    input_cache_write: 2.50
+    input_cache_read: 0.10
 ```
 
 (As of Feb 9 2026, all major model providers count reasoning tokens as output tokens, so no separate price needs to be provided for reasoning tokens. If your use case requires separate calculation of reasoning token prices, contact us.)
 
 When model cost data is configured, costs will be tracked for the sample as a whole, as well as any events within the sample that have a ModelUsage field.
 
-A request is priced at the rates of the model that served it, when the provider reports one other than the model requested: a [refusal fallback](./fallbacks.html.md), an Azure OpenAI, Azure AI or Microsoft Foundry deployment, an OpenRouter, Bedrock or Fireworks router, or a LiteLLM proxy fallback. A dated snapshot of the requested model is priced at the requested model’s rates. If the served model has no cost data, the request is priced at the requested model’s rates and a warning names the served model (e.g. `openai/gpt-4o-mini-2024-07-18`). Set cost data under that name. [set_model_cost()](./reference/inspect_ai.model.html.md#set_model_cost) and `--model-cost-config` accept only models in Inspect’s model database; for any other model, use [set_model_info()](./reference/inspect_ai.model.html.md#set_model_info):
+A request is priced at the rates of the model that served it, when the provider reports one other than the model requested: a [refusal fallback](./fallbacks.html.md), an Azure OpenAI, Azure AI or Microsoft Foundry deployment, an OpenRouter, Bedrock or Fireworks router, or a LiteLLM proxy fallback. A dated snapshot of the requested model is priced at the requested model’s rates. If the served model has no cost data, the request is priced at the requested model’s rates and a warning names the served model (e.g. `openai/gpt-5.4-mini-2026-03-17`). Set cost data under that name. [set_model_cost()](./reference/inspect_ai.model.html.md#set_model_cost) and `--model-cost-config` accept only models in Inspect’s model database; for any other model, use [set_model_info()](./reference/inspect_ai.model.html.md#set_model_info):
 
 ``` python
 from inspect_ai.model import set_model_info, ModelCost, ModelInfo
@@ -389,11 +391,13 @@ The `working_limit` differs from the `time_limit` in that it measures only the t
 - A model call held by `inspect ctl pause --now`.
 - Code inside [suspend_working_limit()](./reference/inspect_ai.util.html.md#suspend_working_limit).
 
+There is one exception: while any task in the sample is running a model request, a sandbox command, or a tool call, the sample is working, even if another task is waiting. A model request that fails and is retried does not count as working. A tool call or sandbox command that is itself waiting (for example for approval or a `max_subprocesses` slot) is not counted as working for that time. Model requests and tool calls made inside a wait (for example by a model approver or a monitor) are not counted as working either. This exception does not apply to a command run with `exec_remote()` once it has started, or to sandbox commands run inside [sandbox_agent_bridge()](./reference/inspect_ai.agent.html.md#sandbox_agent_bridge), such as the one that launches a bridged agent, because Inspect cannot see when they are working. A tool call that runs such a command is still counted as working, and so are a bridged agent’s model requests and bridged tool calls.
+
 Waits that overlap count once, so working time is never negative and never more than clock time.
 
 > **WARNING:**
 >
-> Work done while any wait is in progress is not charged. While one part of a sample waits, other work in the same sample is free: concurrent tasks, parallel tool calls, sub-agents, background processes in a sandbox, and the work of in-process agent libraries. Working time can therefore undercount, and a sample can run much longer than its working limit. Always set a `time_limit` alongside a `working_limit` to bound clock time.
+> Other work done while a wait is in progress is not charged. This includes background processes in a sandbox, the commands a sandboxed agent runs on its own, and the work of in-process agent libraries. Working time can therefore undercount, and a sample can run much longer than its working limit. Always set a `time_limit` alongside a `working_limit` to bound clock time.
 
 > **NOTE:**
 >
@@ -421,7 +425,7 @@ with working_limit(10 * 60):
     await generate()  # counts again
 ```
 
-Unlike [suspend_token_limit()](./reference/inspect_ai.util.html.md#suspend_token_limit) and `suspend_turn_limit()`, which only affect code inside the block, [suspend_working_limit()](./reference/inspect_ai.util.html.md#suspend_working_limit) makes the whole sample count as waiting while the block is open, including work done by other tasks in the sample. Only code in the eval process can call it (not agent code running in a sandbox). Inspect already does this for tool approval and review.
+Unlike [suspend_token_limit()](./reference/inspect_ai.util.html.md#suspend_token_limit) and `suspend_turn_limit()`, which only affect code inside the block, [suspend_working_limit()](./reference/inspect_ai.util.html.md#suspend_working_limit) makes the whole sample count as waiting while the block is open, unless another task in the sample is running a model call, sandbox command or tool call (not counting commands run with `exec_remote()` or inside [sandbox_agent_bridge()](./reference/inspect_ai.agent.html.md#sandbox_agent_bridge)). Model calls, sandbox commands and tool calls made inside the block are not charged. Only code in the eval process can call it (not agent code running in a sandbox). Inspect already does this for tool approval and review.
 
 ### Message Limit
 

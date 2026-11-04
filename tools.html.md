@@ -4,7 +4,7 @@
 
 Many models now have the ability to interact with client-side Python functions in order to expand their capabilities. This enables you to equip models with your own set of custom tools so they can perform a wider variety of tasks.
 
-Inspect natively supports registering Python functions as tools and providing these tools to models that support them. Inspect also includes several standard tools for code execution, text editing, computer use, web search, and web browsing.
+Inspect natively supports registering Python functions as tools and providing these tools to models that support them. Inspect also includes several standard tools for code execution, text editing, computer use, and web search.
 
 > **NOTE: NoteTools and Agents**
 >
@@ -20,7 +20,6 @@ Inspect has built-in tools for computing and agentic planning. Computing tools i
 - [Text Editor](./tools-standard.html.md#sec-text-editor) which enables viewing, creating and editing text files (requires a [sandbox](./sandboxing.html.md)).
 - [Computer](./tools-standard.html.md#sec-computer), which provides the model with a desktop computer (viewed through screenshots) that supports mouse and keyboard interaction (requires a [sandbox](./sandboxing.html.md)).
 - [Code Execution](./tools-standard.html.md#sec-code-execution), which gives models a Python code execution environment hosted within the model provider’s infrastructure rather than an Inspect sandbox.
-- [Web Browser](./tools-standard.html.md#sec-web-browser), which provides the model with a headless Chromium web browser that supports navigation, history, and mouse/keyboard interactions (requires a [sandbox](./sandboxing.html.md)). Deprecated: use Web Search, Computer, or a [browser MCP server](./tools-mcp.html.md#sandboxes) in the sandbox instead.
 
 Agentic tools include:
 
@@ -115,7 +114,7 @@ See the [Custom Tools](./tools-custom.html.md) article for details on more advan
 
 ## Learning More
 
-- [Standard Tools](./tools-standard.html.md) describes Inspect’s built-in tools for code execution, text editing computer use, web search, and web browsing.
+- [Standard Tools](./tools-standard.html.md) describes Inspect’s built-in tools for code execution, text editing, computer use, and web search.
 
 - [MCP Tools](./tools-mcp.html.md) covers how to integrate tools from the growing list of [Model Context Protocol](https://modelcontextprotocol.io/introduction) providers.
 
