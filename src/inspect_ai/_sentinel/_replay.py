@@ -948,15 +948,27 @@ class _Driver:
         return None
 
     def _native_before_span(self, call_id: str, begin: int) -> str | None:
-        """Take a native before-check only when it directly precedes its tool span.
+        """Take a native before-check at the boundary of its tool invocation.
 
-        Native ``call_tool`` opens the tool span synchronously after its sentinel
-        check returns. A bridge check under the same id can finish earlier, but
-        cannot sit between that native check and the native tool span.
+        Native ``call_tool`` opens the tool span after its sentinel check, or
+        opens a handoff span and then the tool span for an agent handoff. These
+        spans normally open directly after the check returns. If another event
+        intervenes (for example while an async span-ID provider runs), the
+        boundary is absent and this lookup leaves the check unclaimed.
         """
         if begin == 0:
             return None
+        tool_begin = self.events[begin]
         previous = self.events[begin - 1]
+        if (
+            isinstance(previous, SpanBeginEvent)
+            and previous.type == "handoff"
+            and isinstance(tool_begin, SpanBeginEvent)
+            and tool_begin.parent_id == previous.id
+        ):
+            if begin < 2:
+                return None
+            previous = self.events[begin - 2]
         if not isinstance(previous, SpanEndEvent):
             return None
         ended = previous.id

@@ -3272,6 +3272,121 @@ def test_native_before_check_follows_interleaved_turn_after_bridge_filter() -> N
     assert native_at > interleaved_at
 
 
+@agent(name="r10_handoff", description="Handle the requested task.")
+def r10_handoff() -> Agent:
+    async def execute(state: AgentState, task: str) -> AgentState:
+        """Handle a task.
+
+        Args:
+            state: Agent state.
+            task: Task to handle.
+        """
+        state.messages.append(ChatMessageAssistant(content=task))
+        return state
+
+    return execute
+
+
+@protocol
+def r10_modify_handoff() -> Protocol:
+    async def modify(
+        context: Context, step: BeforeToolCall, escalations: Escalations
+    ) -> Decision | None:
+        if step.call.function == "transfer_to_r10_handoff":
+            return Decision(
+                action="modify",
+                modified=replace(step.call, arguments={"task": "modified"}),
+            )
+        return None
+
+    return modify
+
+
+@agent
+def r10_bridged_proposal_before_native_handoff() -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        from inspect_ai.agent._bridge.completions import (
+            inspect_completions_api_request,
+        )
+
+        bridge, tools = await r7_host_bridge(state)
+        await inspect_completions_api_request(
+            {
+                "model": "inspect",
+                "messages": [{"role": "user", "content": "bridge"}],
+                "tools": tools,
+            },
+            None,
+            bridge,
+        )
+        handoff_tool = handoff(r10_handoff())
+        history: list[ChatMessage] = [ChatMessageUser(content="native")]
+        output = await get_model().generate(history, tools=[handoff_tool])
+        history.append(output.message)
+        await execute_tools(history, [handoff_tool])
+        return state
+
+    return execute
+
+
+@pytest.mark.parametrize("case", ["modify", "human"])
+def test_shared_id_native_handoff_keeps_its_before_check(
+    case: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen: dict[str, Step] = {}
+    sentinel: list[Any] = [r7_probe(seen, copies=True)]
+    if case == "modify":
+        sentinel.append(r10_modify_handoff())
+    else:
+        Panel("approve", "handoff approved").install(monkeypatch)
+        sentinel.append(h_ask("tool_call", ["approve", "reject"]))
+    log = run_logged(
+        as_solver(r10_bridged_proposal_before_native_handoff()),
+        outputs(
+            r7_tool_calls(
+                ToolCall(
+                    id="shared",
+                    function="mcp__host__addition",
+                    arguments={"x": 1, "y": 1},
+                )
+            ),
+            r7_tool_calls(
+                ToolCall(
+                    id="shared",
+                    function="transfer_to_r10_handoff",
+                    arguments={"task": "original"},
+                )
+            ),
+        ),
+        sentinel=sentinel,
+    )
+    events = logged_sample(log).events
+    live = [
+        seen[event.explanation or ""]
+        for event in events
+        if isinstance(event, SentinelEvent)
+        and event.path == "r7_probe"
+        and event.stage == "tool_call"
+    ]
+    native = next(
+        step for step in live if step.call.function == "transfer_to_r10_handoff"
+    )
+    [rebuilt] = [
+        step
+        for step in replayed(log)
+        if step.stage == "tool_call" and step.id == "shared"
+    ]
+    assert isinstance(rebuilt.step, BeforeToolCall)
+    if case == "modify":
+        assert (
+            rebuilt.step.call.arguments == native.call.arguments == {"task": "original"}
+        )
+    else:
+        assert dict(rebuilt.recorded_answers) == {
+            "human": HumanAnswer(decision="approve", reason="handoff approved")
+        }
+
+
 def test_a_native_result_check_inside_its_invocation_is_replayed() -> None:
     log = run_logged(
         as_solver(r7_defers_a_bridged_host_call(native_first=True, native="both")),
