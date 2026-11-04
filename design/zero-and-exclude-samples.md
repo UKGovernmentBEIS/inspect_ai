@@ -576,21 +576,36 @@ caller. These rules are checked before anything changes:
 **Staged commit.** Both functions apply their edits to a staged log and
 compute its metrics before the input log changes:
 
-1. `staged = log.model_copy(update={"samples": samples})`, where `samples`
-   is a new list holding a deep copy of each target sample and the other
-   samples unchanged. This is a shallow copy of the log: only the targets
-   are copied.
+1. `staged = log.model_copy(update={"samples": samples, "results":
+   deepcopy(log.results)})`, where `samples` is a new list with one entry per
+   sample:
+   - a target: `deepcopy(sample)`, since the edits change its scores and
+     events;
+   - any other sample: `sample.model_copy(update={"scores":
+     deepcopy(sample.scores), "metadata": deepcopy(sample.metadata)})`, a
+     shallow copy whose scores and metadata are its own.
+
+   `compute_log_metrics()` reads only each sample's `id`, `error`, `scores`
+   and `metadata` (`src/inspect_ai/log/_metric.py:98-128`). It wraps the
+   score and metadata objects in `SampleScore`s that reach reducers
+   (`reduce_scores()`, `results.py:715`) and metrics, which may mutate them.
+   With these copies, nothing a reducer or metric receives belongs to the
+   input log. Events, messages and outputs of untargeted samples are shared,
+   because no computation reads them. The log header is small, so `results`
+   is copied whole.
 2. The edits are applied to `staged` with `edit_score(staged, ...,
    recompute_metrics=False, epoch=...)`, which changes only the copied
-   samples' scores and events.
+   target samples' scores and events.
 3. `compute_log_metrics(staged, resolved)` runs once. It assigns
-   `staged.results` and `staged.reductions` and leaves the input log's.
-4. Only when that returns are `log.samples`, `log.results` and
-   `log.reductions` replaced by the staged ones. Nothing in this step awaits
-   or raises.
+   `staged.results` and `staged.reductions`.
+4. Only when that returns are the target entries of `log.samples` replaced
+   by their staged copies, and `log.results` and `log.reductions` by the
+   staged ones. Untargeted samples keep their original objects; their staged
+   copies are discarded, with whatever a callback did to them. Nothing in
+   this step awaits or raises.
 
-An edit or metric computation that raises therefore leaves the input log
-exactly as it was. For zero this is how a verdict that does not fit the
+An edit, reducer or metric that raises, or mutates its inputs before
+raising, therefore leaves the input log exactly as it was. For zero this is how a verdict that does not fit the
 log's metrics is refused: for example, a task edited since the log was
 written now returns a scalar where the logged dict metrics expect a dict,
 and `eval_results()` raises `TypeError` (`results.py:543`). Zero re-raises
@@ -600,8 +615,9 @@ the task may have changed since the log was written".
 `exclude_samples`:
 
 1. Resolves metrics with the caller's `trust_log`, as `recompute_metrics()`
-   does. A log with no task scorers is accepted; it is refused only for a
-   target with no covered name.
+   does. With `trust_log=True` this may import the task file, so it runs
+   inside `inline_eval_set_suppressed()`. A log with no task scorers is
+   accepted; it is refused only for a target with no covered name.
 2. Builds the exclusion edits for the covered names of every target that is
    not already excluded, and commits them as above.
 
@@ -610,14 +626,17 @@ the task may have changed since the log was written".
 1. Requires `log.eval.scorers` to be non-empty. A log with no task scorers
    has no verdict to copy: "the task of <log> has no scorers, so an empty
    attempt has no verdict; exclude the samples instead".
-2. Resolves metrics with `trust_log=True`. Zero imports and runs the task's
+2. Enters `inline_eval_set_suppressed()` (see "Inline `eval_set()` calls"
+   below) for steps 3 to 6, so that importing the task file never starts an
+   evaluation the file runs at module scope.
+3. Resolves metrics with `trust_log=True`. Zero imports and runs the task's
    code, exactly as `inspect eval-retry` does, so the caller has already
    decided to trust the log. With trusted resolution, the log's task file is
    imported and metric options naming a model or solver rebuild, as they do
    when `inspect score` runs the log's own scorers. The docstring, CLI help
    and docs say to zero only logs you trust.
-3. Selects the targets that are not already zeroed.
-4. Reconstructs the task as eval-retry does. The task-spec resolution
+4. Selects the targets that are not already zeroed.
+5. Reconstructs and loads the task as eval-retry would. The task-spec resolution
    (`src/inspect_ai/_eval/eval.py:1781-1803`) and the recorded model
    configuration move into helpers that both call. The spec holds the
    recorded models as configurations, not as constructed models, so an
@@ -660,33 +679,41 @@ the task may have changed since the log was written".
    exactly what it constructs today. A task that is neither in a task file
    nor registered raises the same `FileNotFoundError` that eval-retry raises.
 
+   Zero then loads the task itself, before the scratch eval:
+   `load_tasks([spec.task], spec.task_args)` (`src/inspect_ai/_eval/loader.py:532`),
+   which must return exactly one task. The scratch eval is given that `Task`
+   instance, which carries its task-file attributes for sandbox resolution,
+   so the task file is executed once for the scratch eval.
+
    **Models the task constructs itself.** The overrides replace the models
    the eval supplied, not models the task's own code constructs:
    - `Task(model=...)` and `Task(model_roles=...)` are constructed when the
      task factory runs (`Task.__init__`, `src/inspect_ai/_eval/task/task.py:254`),
-     inside the scratch eval, before any override applies. Their providers
-     must be available, as for `inspect eval-retry` of the same log. Zero
-     cannot avoid that construction, and a provider error there fails the
-     scratch eval before any edit.
+     which is during this load. Their providers must be available, as for
+     `inspect eval-retry` of the same log. Zero cannot avoid that
+     construction, and a provider error there fails the zero before any
+     empty attempt runs or any edit.
    - A task-pinned primary model takes precedence over the eval's model
      (`model=task.model or model`, `src/inspect_ai/_eval/loader.py:119`).
-     When the caller passes `model` and the scratch log's `eval.model` is not
-     that model, zero refuses before any edit: "the task pins its model
-     (<m>), so the model override does not apply; zero without it, or change
-     the task". Eval-level roles take precedence over task roles
-     (`_merge_model_roles`, `loader.py:66`), so a role override applies, even
-     though the task's own role model is still constructed.
+     So when the caller passes `model` and the loaded task's `task.model` is
+     not `None`, zero refuses at once, before the scratch eval: "the task
+     pins its model (<m>), so the model override does not apply; zero
+     without it, or change the task". This tests the pin itself rather than
+     comparing names afterwards, so a pinned model with the same name and a
+     different configuration, base URL or arguments is refused too.
+     Eval-level roles take precedence over task roles (`_merge_model_roles`,
+     `loader.py:66`), so a role override applies, even though the task's own
+     role model is still constructed.
    - A task that takes its model as a task argument (inspect_evals' `b3`
      `model` parameter, `b3/b3.py:98`) receives the recorded argument. Zero
      has no task-argument override.
 
    The docstring and CLI help say this.
-5. Runs one scratch eval in a temporary local directory:
+6. Runs one scratch eval in a temporary local directory:
 
    ```python
    eval_async(
-       tasks=spec.task,
-       task_args=spec.task_args,
+       tasks=task,                   # the instance loaded in step 5
        model=models.model, model_roles=models.model_roles,
        sandbox=spec.sandbox,
        solver=empty_attempt(),
@@ -711,7 +738,7 @@ the task may have changed since the log was written".
      candidates `case[1]`, `case1`, `case*`, `caseX`, `case?`, `t1:a:b` and
      `a:b`: each escaped and re-qualified target selected only itself.
    - **Normalised ids.** Because selection normalises ids, a dataset holding
-     both `"12"` and `12` runs both. Step 7 matches by value and ignores the
+     both `"12"` and `12` runs both. Step 8 matches by value and ignores the
      extra one.
    - **Epochs.** The scratch eval runs the log's recorded epoch count and
      reducers, as eval-retry passes them (`eval.py:1844-1846`). A smaller
@@ -729,20 +756,20 @@ the task may have changed since the log was written".
      copied; the scratch log's other samples, results and reductions are
      ignored.
    - **Scratch log.** It is read back whole and the directory removed.
-6. Checks that the scratch eval completed. Its log must have `status ==
+7. Checks that the scratch eval completed. Its log must have `status ==
    "success"`. A cancelled or errored scratch log raises with its status and
    error, without editing anything. `eval_async` can return a cancelled log
    whose targets are already scored and error-free (verified by the
    reviewer under Trio with unfinished extra epochs), so valid target records
    alone do not show that the zero completed.
-7. For every target, requires a scratch sample with the same `(id, epoch)`
+8. For every target, requires a scratch sample with the same `(id, epoch)`
    and no `error`, then applies the zero refusals under "Which score names a
    disposition covers". Any failure raises, naming every failing target and
    its cause, without editing anything. A missing scratch sample reads "the
    empty attempt of sample <id> (epoch <n>) did not run: the task's dataset no
    longer holds it". An errored one reads "...did not score: <error>". This is
    atomic where Steward's was not required to be: nothing is half-applied.
-8. Stages the zero edits and computes metrics (see "Staged commit"), then
+9. Stages the zero edits and computes metrics (see "Staged commit"), then
    calls `await anyio.lowlevel.checkpoint()`, which raises if the caller was
    cancelled meanwhile. Only then does it commit the staged samples and
    results, with no further await.
@@ -750,6 +777,55 @@ the task may have changed since the log was written".
 `zero_samples` is the synchronous wrapper. It initializes the display type
 from `display` and runs the coroutine, as `score()` does: `anyio.run` with
 the configured backend, or `run_coroutine` in a notebook.
+
+### Inline `eval_set()` calls
+
+An eval-set definition may call `eval_set()` at module scope, so importing it
+runs the evaluation. Steward's definitions are such files: its fixture
+`tests/evalset/fixtures/erroring_evalset.py:47` of meridianlabs-ai/inspect_steward
+calls `eval_set(..., log_dir="logs")` unguarded, and Steward sets
+`INSPECT_EVAL_SET_CAPTURE` before its first import of a definition
+(`_marks/run.py:93`) for that reason. Inspect imports a task file by executing
+it (`load_module`, `src/inspect_ai/_util/module.py:35`), both when loading a
+task (`load_tasks`) and when trusted metric resolution imports the log's task
+file (`load_file_tasks`, `src/inspect_ai/_eval/score.py:678`). Capture mode
+is not a library guard: it writes a manifest and raises `SystemExit(0)`
+(`src/inspect_ai/_eval/evalset.py:845`), which would end the caller's
+process.
+
+The disposition functions therefore import task files inside a new guard:
+
+```python
+# src/inspect_ai/_util/module.py, beside load_module(); eval_set() and eval() import it
+_inline_eval_set_suppressed: ContextVar[bool] = ContextVar(..., default=False)
+
+class InlineEvalSetSuppressed(BaseException):
+    """Raised by `eval_set()` / `eval()` called while a task file is imported under the guard."""
+
+@contextmanager
+def inline_eval_set_suppressed() -> Iterator[None]:
+    """Stop a task file's module-scope `eval_set()` or `eval()` call from running while it is imported."""
+```
+
+- The context manager sets the variable and resets it with its token in a
+  `finally`, so it is restored when the body raises or is cancelled.
+- While it is set, `eval_set()` raises `InlineEvalSetSuppressed` as its first
+  statement, before the capture branch or any log-directory side effect.
+  `eval()` (the synchronous entry point a script calls at module scope) does
+  the same. `eval_async()` does not check it, because zero's own scratch
+  eval runs inside the guard, and a module cannot await at its top level.
+- `load_module()` catches `InlineEvalSetSuppressed` around
+  `loader.exec_module(module)` and returns the module, executed up to the
+  call. Tasks the file defines above its `eval_set()` call are registered
+  and load normally, which is what capture mode also relies on. The
+  notebook loader does the same around its cell execution.
+- A task defined below the call is never registered, and loading it fails
+  with the loader's ordinary "task not found" error.
+
+The exception derives from `BaseException`, so a definition's own
+`except Exception` around its `eval_set()` call does not swallow it. The
+variable is a `ContextVar`, so it reaches the task loading that `eval_async`
+does in its child tasks, and it does not leak to unrelated tasks.
 
 ### CLI
 
@@ -784,7 +860,7 @@ inspect log zero    LOG_FILE --sample ID [--sample ID ...] [--epoch N]
   that selection is literal.
 - **Changed dataset.** Suppose a task's dataset changed so that a targeted
   sample no longer exists, or its samples come from a `SampleSource` feed
-  that no longer yields it. Zero then fails step 7 with that said, and
+  that no longer yields it. Zero then fails step 8 with that said, and
   nothing is edited.
 - **Edited task file.** A task file edited since the log was written runs as
   edited, as eval-retry does. The scratch log is not kept, but the zero edits
@@ -798,7 +874,7 @@ inspect log zero    LOG_FILE --sample ID [--sample ID ...] [--epoch N]
 - **Cancellation.** Cancelling `zero_samples_async` cancels the scratch eval
   and leaves the log unchanged. Sandbox cleanup runs as for any cancelled
   eval. If the scratch eval absorbs the cancellation and returns a cancelled
-  log, step 6 refuses it. If the cancellation arrives after the scratch eval
+  log, step 7 refuses it. If the cancellation arrives after the scratch eval
   returns, the checkpoint before the commit raises it. The commit itself has
   no await, so a cancellation lands either before it (log unchanged) or after
   it (edits complete).
@@ -876,6 +952,9 @@ No migration required.
   `SampleSelector`. `edit_score()` and `recompute_metrics()` are unchanged.
 - **CLI.** New `inspect log exclude` and `inspect log zero`. `inspect ctl` is
   unchanged.
+- **Task-file imports.** `eval_set()`, `eval()` and `load_module()` behave
+  as today unless `inline_eval_set_suppressed()` is active, which only the
+  disposition functions enter. Capture mode is unchanged.
 - **Eval-retry.** Its task and model reconstruction moves into
   `log_task_spec()` and `log_task_models()`, with the same results and the
   same errors.
@@ -897,7 +976,10 @@ No migration required.
   does it). `zero_samples` imports and runs the task, like
   `inspect eval-retry`, and resolves the log's metrics trusted. The
   docstring, CLI help and docs say to zero only trusted logs. There is no new
-  code-execution path beyond eval-retry's.
+  code-execution path beyond eval-retry's. Both functions import task files
+  under `inline_eval_set_suppressed()`, so a definition's module-scope
+  `eval_set()` or `eval()` does not start an evaluation, write logs or reach
+  a provider.
 - **Reason and author** are free text from the local caller: the Python
   caller or the CLI user. They are stored as data in `ProvenanceData` and
   `Score.explanation`, and the viewer renders explanations as it renders any
@@ -941,8 +1023,17 @@ backends; run the zero tests with `--runtrio` locally.
     one. A repeat reports the target `unchanged`.
   - Idempotence holds only with the invariant: an excluded score later given
     `ScoreEdit(value=1)` is excluded again, not reported unchanged.
-  - Staged commit: a metric computation that raises (a stub) leaves the
-    input log's samples, events, results and reductions unchanged.
+  - Staged commit, each leaving the input log's samples, scores, score and
+    sample metadata, events, results and reductions unchanged:
+    - an epoch reducer that mutates an untargeted sample's score and its
+      nested metadata, then raises;
+    - a metric (taking `list[SampleScore]`) that mutates an untargeted
+      sample's metadata, then raises.
+  - Inline `eval_set()`: a task file that defines a task and then calls
+    `eval_set(..., log_dir=<tmp>/inline)` at module scope.
+    `exclude_samples(..., trust_log=True)` and `zero_samples` both succeed,
+    `<tmp>/inline` is never created, and the guard variable is reset
+    afterwards, also when the body raises.
   - Refusals that raise and leave the log unchanged: unknown selectors, a
     `started` log, an empty reason, and an unresolvable metric.
 - `tests/log/test_zero_samples.py` (new: no existing file covers running an
@@ -963,8 +1054,12 @@ backends; run the zero tests with `--runtrio` locally.
   - Models: a log whose recorded model is `openai/gpt-4o`, zeroed with
     `OPENAI_API_KEY` unset and `model="mockllm/model"`, succeeds; so does a
     log with a recorded `openai` role overridden by a `mockllm` role.
-  - A task that pins `Task(model="mockllm/other")`, zeroed with
-    `model="mockllm/model"`, is refused with the pinned-model message.
+  - A task that pins its model, zeroed with a `model` override, is refused
+    with the pinned-model message before the scratch eval runs. That holds
+    for a different name, and for a pinned `mockllm/model` overridden by a
+    `mockllm/model` instance with another temperature and base URL.
+  - A task defined below its file's module-scope `eval_set()` call fails
+    with the loader's "task not found" error, and the log is unchanged.
   - A metric whose options name a model resolves.
   - A sample whose `zeroed` score holds `NaN` (a Steward zero) is zeroed
     again rather than reported unchanged.
@@ -1027,6 +1122,11 @@ path.
    - `inspect log exclude` in `src/inspect_ai/_cli/log.py`, with the default
      author helper moved from `src/inspect_ai/_cli/ctl/_config.py` to
      `src/inspect_ai/_cli/util.py`.
+   - `inline_eval_set_suppressed()` and `InlineEvalSetSuppressed` in
+     `src/inspect_ai/_util/module.py`, caught by `load_module()` and the
+     notebook loader (`src/inspect_ai/_util/notebook.py`), and checked first
+     in `eval_set()` (`src/inspect_ai/_eval/evalset.py`) and `eval()`
+     (`src/inspect_ai/_eval/eval.py`).
    - A "Zeroing and Excluding Samples" section in `docs/eval-logs.qmd`,
      including the retry behaviour and, for a running eval, `inspect ctl
      sample cancel --action cancel` followed by these commands once the log
