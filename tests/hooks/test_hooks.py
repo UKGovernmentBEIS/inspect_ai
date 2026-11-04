@@ -1048,6 +1048,7 @@ async def test_successful_task_keeps_log_after_completion_failure(
     mock_hooks: MockHooks,
     tmp_path: Path,
     failure: str,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     # a successful task whose TaskSource.task_complete raises, or whose end
     # hook raises LimitExceededError, returns its written success log and is
@@ -1061,6 +1062,7 @@ async def test_successful_task_keeps_log_after_completion_failure(
         return None
 
     first_hooks.end_limit = failure == "end_hook_limit"
+    caplog.set_level("ERROR", logger="inspect_ai._eval")
     with anyio.fail_after(60):
         (log,) = await eval_async(
             TaskSource.from_tasks(
@@ -1079,6 +1081,14 @@ async def test_successful_task_keeps_log_after_completion_failure(
     assert written.status == "success"
     assert written.error is None
     assert [log.eval.eval_id for log in completed] == [log.eval.eval_id]
+    # the logged error keeps the suppressed exception's traceback
+    logged = (
+        "task_complete() raised"
+        if failure == "task_complete_error"
+        else ("error after writing its log")
+    )
+    (record,) = [r for r in caplog.records if logged in r.getMessage()]
+    assert record.exc_info is not None and record.exc_info[2] is not None
     for hooks_ in (first_hooks, mock_hooks):
         assert [start.eval_id for start in hooks_.task_start_events] == [
             log.eval.eval_id

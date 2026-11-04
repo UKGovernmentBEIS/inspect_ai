@@ -729,7 +729,8 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
                                 error_after_write = True
                                 log.error(
                                     f"Task '{options.task.name}' encountered an "
-                                    f"error after writing its log: {inner}"
+                                    f"error after writing its log: {inner}",
+                                    exc_info=ex,
                                 )
                             else:
                                 log.error(

@@ -749,7 +749,8 @@ async def notify_task_source(options: TaskRunOptions, eval_log: EvalLog) -> None
                 raise
             py_logger.error(
                 "TaskSource.task_complete() raised an error for task "
-                f"'{options.task.name}': {inner_exception(ex)}"
+                f"'{options.task.name}': {inner_exception(ex)}",
+                exc_info=ex,
             )
             return
         _enqueue_source_tasks(tasks)

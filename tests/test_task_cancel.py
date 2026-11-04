@@ -5,6 +5,7 @@ import signal
 import tempfile
 import threading
 import time
+import traceback
 from collections.abc import Awaitable, Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -2045,15 +2046,18 @@ async def test_cancel_after_task_finished_does_not_rerun_it(
 @pytest.mark.anyio
 @pytest.mark.parametrize("debug_errors", [False, True])
 async def test_task_complete_error_keeps_task_log(
-    tmp_path: Path, debug_errors: bool
+    tmp_path: Path, debug_errors: bool, caplog: pytest.LogCaptureFixture
 ) -> None:
     """An exception from `task_complete` is logged, and the task keeps its log.
 
     It is not reported as a failure of the task's log write: the task's
     success log stays as written, is returned, and the task is not retried.
     With `debug_errors` the exception ends the run, naming `task_complete`.
+    The logged error keeps the callback's traceback.
     """
     from inspect_ai import eval_async
+
+    caplog.set_level("ERROR", logger="inspect_ai._eval.task.run")
 
     class _RaisingSource(TaskSource):
         def initial_tasks(self) -> list[Task]:
@@ -2079,6 +2083,16 @@ async def test_task_complete_error_keeps_task_log(
         logs = await eval_async(_RaisingSource(), **kwargs)
         assert [log.status for log in logs] == ["success"]
         assert logs[0].error is None
+        (record,) = [
+            r for r in caplog.records if "task_complete() raised" in r.getMessage()
+        ]
+        assert record.exc_info is not None
+        assert record.exc_info[1] is not None
+        assert str(record.exc_info[1]) == "task_complete failed"
+        assert any(
+            frame.name == "task_complete"
+            for frame in traceback.extract_tb(record.exc_info[2])
+        )
 
     assert runs == ["a"]
     assert await _disk_statuses(tmp_path) == [("a", "success")]
