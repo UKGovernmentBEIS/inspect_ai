@@ -32,6 +32,7 @@ Inspect runs evaluations that execute model-generated code, and tasks, solvers, 
 ### In scope
 
 - Code execution or file access triggered by opening or reading an eval log or transcript
+- Code execution triggered by loading a dataset file before any sample is run, such as `hf_dataset` running Hub code without `trust=True`
 - Escape from a Docker sandbox to the host, or from one sandbox to another
 - API keys, tokens, or other secrets written to logs, transcripts, or error messages
 - Path traversal, unauthenticated access, or other flaws in the log viewer or its server
@@ -42,6 +43,7 @@ Inspect runs evaluations that execute model-generated code, and tasks, solvers, 
 - The `local` sandbox runs commands directly on your machine with no isolation. This is documented behavior and is not a vulnerability.
 - Model-generated code running inside a sandbox is the purpose of the sandbox and is not a vulnerability.
 - Loading a task, solver, scorer, or config file from an untrusted source runs that code. Treat these files the same way you would treat any other Python you did not write.
+- Running an evaluation on an untrusted dataset. A sample can select its sandbox, copy files from the host into it, and run a setup script, so treat a dataset the same way you would treat a task file.
 - Docker provides limited isolation. If you run untrusted code, use a stronger sandbox such as gVisor. Weaknesses in Docker itself should be reported to Docker.
 - An escape that depends on an unpatched Docker Engine, container runtime (such as runc) or host. Inspect's prerequisite checks do not check for security updates. Users are responsible for Docker and host security updates.
 - Vulnerabilities in third-party dependencies should be reported to that project. Tell us if `inspect_ai` needs a change in response, such as a version pin.
