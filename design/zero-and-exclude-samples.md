@@ -24,7 +24,8 @@ Both keep the sample's transcript and error. Both record who decided and why
 as score-edit provenance, so the earlier score stays in `Score.history`, and
 both recompute the log's metrics. They are Python functions in
 `inspect_ai.log` and two `inspect log` subcommands. Zero runs its empty
-attempts in a scratch eval of the same task and copies the verdicts in.
+attempts in a scratch eval of the same task, with the log's recorded
+models, and copies the verdicts in.
 Neither applies to a log that is still being written.
 
 ## Why
@@ -273,6 +274,18 @@ counted.
   Constructing a model checks its provider's credentials. `get_model("openai/gpt-4o")`
   raises without `OPENAI_API_KEY` (`src/inspect_ai/model/_providers/openai.py:257`),
   and so does constructing a recorded role on that provider (both verified).
+- **Task resolution.** `eval_resolve_tasks()` (`src/inspect_ai/_eval/eval.py:2086`)
+  installs the model roles and then, per model, the active model before it
+  constructs tasks (`:2104-2119`), so a task factory can call `get_model()`
+  or read a role. `eval_async` calls it in its own child task, and
+  `eval_set()` calls it to resolve tasks before passing the `ResolvedTask`s
+  to `eval()` (`src/inspect_ai/_eval/evalset.py:1052`, `:551-554`).
+- **Sample ids.** A dataset sample without an id gets its 1-based position as
+  its id when the task runs (`src/inspect_ai/_eval/run.py:222-228`), after
+  any `sample_shuffle` (`src/inspect_ai/_eval/loader.py:106`).
+- **Epoch reducers on recompute.** `resolve_log_metrics()` builds the epoch
+  reducers before it considers importing the task file for missing metrics
+  (`src/inspect_ai/log/_metric.py:64`).
 - **Sample-id selection** goes through two steps:
   1. `resolve_task_sample_ids` (`src/inspect_ai/_eval/task/util.py`) strips a
      leading `<task>:` scope. `_requalify_sample_ids`
@@ -311,8 +324,9 @@ reader, and the viewer shows any reason string as text. The design therefore
 supports:
 
 - zero for tasks that eval-retry can reload (file or registered) and that
-  have scorers, samples the task's dataset still holds, and samples whose
-  scores all come from the task's scorers;
+  have scorers, run with the log's recorded models; datasets whose samples
+  carry their own ids; samples the task's dataset still holds; and samples
+  whose scores all come from the task's scorers;
 - exclusion for any landed log that names at least one score: from its
   results, its samples or its scorers.
 
@@ -537,8 +551,6 @@ def zero_samples(
     samples: Sequence[SampleSelector],
     provenance: ProvenanceData,
     *,
-    model: str | Model | None = None,
-    model_roles: ModelRoles | None = None,
     display: DisplayType | None = None,
 ) -> DispositionResult: ...
 
@@ -546,9 +558,6 @@ async def zero_samples_async(
     log: EvalLog,
     samples: Sequence[SampleSelector],
     provenance: ProvenanceData,
-    *,
-    model: str | Model | None = None,
-    model_roles: ModelRoles | None = None,
 ) -> DispositionResult: ...
 ```
 
@@ -626,21 +635,11 @@ the task may have changed since the log was written".
 1. Requires `log.eval.scorers` to be non-empty. A log with no task scorers
    has no verdict to copy: "the task of <log> has no scorers, so an empty
    attempt has no verdict; exclude the samples instead".
-2. Enters `inline_eval_set_suppressed()` (see "Inline `eval_set()` calls"
-   below) for steps 3 to 6, so that importing the task file never starts an
-   evaluation the file runs at module scope.
-3. Resolves metrics with `trust_log=True`. Zero imports and runs the task's
-   code, exactly as `inspect eval-retry` does, so the caller has already
-   decided to trust the log. With trusted resolution, the log's task file is
-   imported and metric options naming a model or solver rebuild, as they do
-   when `inspect score` runs the log's own scorers. The docstring, CLI help
-   and docs say to zero only logs you trust.
-4. Selects the targets that are not already zeroed.
-5. Reconstructs and loads the task as eval-retry would. The task-spec resolution
-   (`src/inspect_ai/_eval/eval.py:1781-1803`) and the recorded model
-   configuration move into helpers that both call. The spec holds the
-   recorded models as configurations, not as constructed models, so an
-   override replaces a recorded model before anything constructs it:
+2. Selects the targets that are not already zeroed. When none are left it
+   returns without loading the task.
+3. Reconstructs the task spec as eval-retry does. The task-spec resolution
+   (`src/inspect_ai/_eval/eval.py:1781-1803`) and the model and model-role
+   construction (`:1817-1825`) move into a helper that both call:
 
    ```python
    # src/inspect_ai/_eval/eval.py
@@ -648,74 +647,90 @@ the task may have changed since the log was written".
        task: str                     # "<file>@<name>" or a registry name
        task_args: dict[str, Any]
        sandbox: SandboxEnvironmentType | None
-       model: ModelConfig            # eval.model, model_generate_config, model_base_url, model_args
-       model_roles: dict[str, ModelConfig | list[ModelConfig]] | None   # eval.model_roles
-
-   class LogTaskModels(NamedTuple):
-       model: Model
-       model_roles: ModelRoles | None
+       model: Model                  # constructed from the recorded config, as eval-retry does
+       model_roles: dict[str, Model | list[Model]] | None
+       config: GenerateConfig        # log.plan.config, as eval-retry passes it
 
    def log_task_spec(eval_log: EvalLog) -> LogTaskSpec: ...
-
-   def log_task_models(
-       spec: LogTaskSpec,
-       model: str | Model | None = None,
-       model_roles: ModelRoles | None = None,
-   ) -> LogTaskModels: ...
    ```
 
-   `log_task_models` constructs only what is not overridden:
-   - the primary model: `model` resolved with `get_model()` when given,
-     otherwise the recorded configuration, constructed with the same
-     `get_model(model=..., config=..., base_url=..., **args)` call eval-retry
-     makes today;
-   - the roles: every role in `model_roles` as given (`eval_async` resolves
-     them), and every recorded role not named there, constructed and labelled
-     with its role as `model_roles_config_to_model_roles()` does.
+   Zero runs with the log's recorded models, exactly as eval-retry does and
+   as Steward's zero does; it takes no model overrides (see Future
+   improvements). Constructing a recorded model needs its provider's
+   credentials and SDK, as eval-retry does. A task that is neither in a task
+   file nor registered raises the same `FileNotFoundError` that eval-retry
+   raises.
+4. Prepares the task and the log's metrics in one isolated step, through the
+   task resolution a native eval uses:
 
-   A recorded model whose provider is unavailable (no credentials, no SDK) is
-   therefore not constructed by this helper when the caller overrides it.
-   Eval-retry calls `log_task_models(spec)` with no overrides and constructs
-   exactly what it constructs today. A task that is neither in a task file
-   nor registered raises the same `FileNotFoundError` that eval-retry raises.
+   ```python
+   def prepare() -> tuple[ResolvedTask, LogMetrics]:
+       with inline_eval_set_suppressed():
+           models = eval_init(model=spec.model, **spec.config.model_dump(exclude_none=True))
+           resolved, _, _ = eval_resolve_tasks(
+               spec.task, spec.task_args, models, spec.model_roles, spec.config,
+               approval=None, sandbox=spec.sandbox, sample_shuffle=None,
+               input_media_policy="trusted_pre_run",
+           )
+           metrics = resolve_log_metrics(log, trust_log=True)
+       return one(resolved), metrics
 
-   Zero then loads the task itself, before the scratch eval:
-   `load_tasks([spec.task], spec.task_args)` (`src/inspect_ai/_eval/loader.py:532`),
-   which must return exactly one task. The scratch eval is given that `Task`
-   instance, which carries its task-file attributes for sandbox resolution,
-   so the task file is executed once for the scratch eval.
+   prepared, metrics = contextvars.copy_context().run(prepare)
+   ```
 
-   **Models the task constructs itself.** The overrides replace the models
-   the eval supplied, not models the task's own code constructs:
-   - `Task(model=...)` and `Task(model_roles=...)` are constructed when the
-     task factory runs (`Task.__init__`, `src/inspect_ai/_eval/task/task.py:254`),
-     which is during this load. Their providers must be available, as for
-     `inspect eval-retry` of the same log. Zero cannot avoid that
-     construction, and a provider error there fails the zero before any
-     empty attempt runs or any edit.
-   - A task-pinned primary model takes precedence over the eval's model
-     (`model=task.model or model`, `src/inspect_ai/_eval/loader.py:119`).
-     So when the caller passes `model` and the loaded task's `task.model` is
-     not `None`, zero refuses at once, before the scratch eval: "the task
-     pins its model (<m>), so the model override does not apply; zero
-     without it, or change the task". This tests the pin itself rather than
-     comparing names afterwards, so a pinned model with the same name and a
-     different configuration, base URL or arguments is refused too.
-     Eval-level roles take precedence over task roles (`_merge_model_roles`,
-     `loader.py:66`), so a role override applies, even though the task's own
-     role model is still constructed.
-   - A task that takes its model as a task argument (inspect_evals' `b3`
-     `model` parameter, `b3/b3.py:98`) receives the recorded argument. Zero
-     has no task-argument override.
+   - **Model context.** `eval_resolve_tasks()` installs the model roles and
+     the primary model in the active context before any task factory runs
+     (`src/inspect_ai/_eval/eval.py:2104-2119`). A factory that calls
+     `get_model()` or looks up a role while it constructs the task
+     (inspect_evals' NIAH calls `get_model()`, `niah/niah.py:84`) gets the
+     log's models, not whatever the caller's context holds or nothing.
+     Running `prepare` in a copy of the caller's context keeps those
+     installations out of the caller's context, as native eval keeps them in
+     its own child task. `eval_set()` resolves tasks the same way before
+     handing `ResolvedTask`s to `eval()` (`src/inspect_ai/_eval/evalset.py:1052`).
+   - **Order.** The task is resolved first, so importing the task file
+     registers its reducers and metrics before `resolve_log_metrics()`
+     rebuilds them. `resolve_log_metrics()` builds epoch reducers before it
+     considers importing the task file (`src/inspect_ai/log/_metric.py:64`),
+     so a task-file reducer such as HLE's (`hle/hle.py:98`) would otherwise
+     be missing in a fresh process. The resolver's own trust and refusal
+     rules are unchanged; zero only calls it after the import.
+   - **Trust.** Metrics are resolved with `trust_log=True`. Zero imports and
+     runs the task's code, exactly as `inspect eval-retry` does, so the
+     caller has already decided to trust the log. With trusted resolution,
+     metric options naming a model or solver rebuild, as they do when
+     `inspect score` runs the log's own scorers. The docstring, CLI help and
+     docs say to zero only logs you trust.
+   - **Import guard.** Both the task resolution and any import by metric
+     resolution run inside `inline_eval_set_suppressed()` (see "Inline
+     `eval_set()` calls" below), so importing the task file never starts an
+     evaluation the file runs at module scope.
+   - **Task-constructed models.** `Task(model=...)` and `Task(model_roles=...)`
+     are constructed when the task factory runs (`Task.__init__`,
+     `src/inspect_ai/_eval/task/task.py:254`), and a task-pinned primary
+     takes precedence (`src/inspect_ai/_eval/loader.py:119`), as in any eval
+     of the task. Their providers must be available, as for eval-retry.
 
-   The docstring and CLI help say this.
+   `eval_resolve_tasks()` must return exactly one task; the scratch eval
+   reuses it, so the task file is executed once.
+5. Refuses a dataset whose sample ids were assigned by position. Inspect
+   gives a sample without an id the id of its position, after any shuffle
+   (`src/inspect_ai/_eval/run.py:222-228`, shuffling at
+   `src/inspect_ai/_eval/loader.py:106`). A logged positional id therefore
+   need not name the same sample in a new run: with source samples `[A, B]`
+   shuffled, the logged id 1 can be `B` while the scratch eval's id 1 is `A`,
+   and every later identity check would pass on the wrong sample. Zero
+   requires every sample of `prepared.task.dataset` to carry its own id
+   before the run assigns any. Otherwise it refuses before the scratch eval:
+   "the dataset of task <name> assigns sample ids by position, so a logged
+   id need not name the same sample; zero needs a dataset with sample ids".
+   Steward's datasets have ids (see "Who uses which shapes"). Exclusion is
+   unaffected: it edits the logged record and never re-runs a sample.
 6. Runs one scratch eval in a temporary local directory:
 
    ```python
    eval_async(
-       tasks=task,                   # the instance loaded in step 5
-       model=models.model, model_roles=models.model_roles,
-       sandbox=spec.sandbox,
+       tasks=prepared,               # the ResolvedTask from step 4, which carries its models and sandbox
        solver=empty_attempt(),
        sample_id=_requalify_sample_ids(
            log.eval.task, [literal_sample_id(id) for id in target_ids]
@@ -730,6 +745,7 @@ the task may have changed since the log was written".
    )
    ```
 
+   - **Generate config.** `log.plan.config`, as eval-retry passes it.
    - **Literal ids.** `literal_sample_id(id: str | int) -> str | int`, a new
      helper in `src/inspect_ai/_eval/task/util.py` beside `sample_id_filter`,
      escapes the `fnmatch` metacharacters of a string id (`*` as `[*]`, `?` as
@@ -836,7 +852,7 @@ Two subcommands of `inspect log` (`src/inspect_ai/_cli/log.py`, beside
 inspect log exclude LOG_FILE --sample ID [--sample ID ...] [--epoch N]
                     --reason TEXT [--author NAME] [--trust-log] [--json]
 inspect log zero    LOG_FILE --sample ID [--sample ID ...] [--epoch N]
-                    --reason TEXT [--author NAME] [--model ...] [--model-role ...] [--json]
+                    --reason TEXT [--author NAME] [--json]
 ```
 
 - `--sample` is repeatable and required. `--epoch N` narrows every named
@@ -956,7 +972,7 @@ No migration required.
   as today unless `inline_eval_set_suppressed()` is active, which only the
   disposition functions enter. Capture mode is unchanged.
 - **Eval-retry.** Its task and model reconstruction moves into
-  `log_task_spec()` and `log_task_models()`, with the same results and the
+  `log_task_spec()`, with the same results and the
   same errors.
 - **Eval-set retry.** Unchanged (decision: Ransom, 2026-11-04). A disposition
   does not clear `error`. An errored sample that was zeroed or excluded is
@@ -1051,13 +1067,18 @@ backends; run the zero tests with `--runtrio` locally.
     the scratch eval, and those samples are left unedited.
   - Epoch reducers: zeroing epoch 1 of a log recorded with `Epochs(5, r)`
     succeeds for each of `pass_at_5`, `pass_k_5` and `at_least_5`.
-  - Models: a log whose recorded model is `openai/gpt-4o`, zeroed with
-    `OPENAI_API_KEY` unset and `model="mockllm/model"`, succeeds; so does a
-    log with a recorded `openai` role overridden by a `mockllm` role.
-  - A task that pins its model, zeroed with a `model` override, is refused
-    with the pinned-model message before the scratch eval runs. That holds
-    for a different name, and for a pinned `mockllm/model` overridden by a
-    `mockllm/model` instance with another temperature and base URL.
+  - Task preparation, run in a fresh context and in a context whose active
+    model and a `grader` role are unrelated `mockllm` models: a task factory
+    that calls `get_model()` and one that reads the `grader` role while
+    constructing the task both receive the log's recorded models, and the
+    caller's active model and roles are unchanged afterwards.
+  - A file-backed task with its own epoch reducer, defined in the task file
+    and absent from the registry before the zero: zeroing succeeds in a
+    fresh process (the reducer is registered by step 4 before metrics
+    resolve).
+  - Positional ids: a log of a task whose dataset samples have no ids, run
+    with `sample_shuffle`, is refused before the scratch eval, with the log
+    unchanged; so is the same task run without a shuffle.
   - A task defined below its file's module-scope `eval_set()` call fails
     with the loader's "task not found" error, and the log is unchanged.
   - A metric whose options name a model resolves.
@@ -1091,7 +1112,7 @@ backends; run the zero tests with `--runtrio` locally.
   - A scorer that needs a sandbox, using the `local` sandbox, sees files from
     `Sample.files` and nothing the original attempt wrote.
 - `tests/test_eval.py`: the existing eval-retry tests pass unchanged after
-  the reconstruction moves into `log_task_spec()` and `log_task_models()`.
+  the reconstruction moves into `log_task_spec()`.
 - `tests/_cli/`: `inspect log exclude|zero` parse `--sample`, `--epoch`,
   `--reason` and `--author`, write in place, and print the per-sample lines
   and the `--json` envelope.
@@ -1134,7 +1155,7 @@ path.
 
    Tests as above.
 3. **Zero.**
-   - `log_task_spec`, `log_task_models` and their types, extracted in
+   - `log_task_spec` and `LogTaskSpec`, extracted in
      `src/inspect_ai/_eval/eval.py` and used by `eval_retry_async`.
    - `literal_sample_id` in `src/inspect_ai/_eval/task/util.py`.
    - `src/inspect_ai/_eval/zero.py`: `empty_attempt` and the scratch eval.
@@ -1178,6 +1199,13 @@ additions later:
     retries left;
   - a rule for samples that have not started, which a drain or graceful task
     resolution abandons at the queue exit (`run.py:2565`).
+- **Model overrides for zero.** `zero_samples(..., model=..., model_roles=...)`
+  and `inspect log zero --model / --model-role`, for a log whose recorded
+  provider is unavailable, plus a task-argument override for tasks that take
+  their model as an argument. Overrides need rules for models the task
+  constructs or pins itself, which take precedence over or are constructed
+  before an eval-level model, and neither the issue nor Steward needs them
+  (decision: Ransom, 2026-11-04).
 - **Live zero** (`inspect ctl sample cancel --action zero`), for queued and
   initializing samples. The runner would resolve it at start by running a
   setup-only plan (`Task.setup` alone) and passing each scorer's result
@@ -1194,8 +1222,6 @@ additions later:
 - Showing dispositions distinctly in the viewer: a badge for `excluded` /
   `zeroed`, and the provenance author and reason on the sample header.
 - An `inspect log invalidate`-style CLI for the existing re-run path.
-- A task-argument override for zero, for tasks that take their model as an
-  argument.
 - Two recomputation defects that affect any score edit today, with or
   without these functions:
   - `compute_log_metrics()` passes no scorer identities to `eval_results()`
