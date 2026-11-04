@@ -5011,3 +5011,135 @@ def test_native_calls_handed_to_a_bridge_keep_their_own_checks(
                 )
             }
     assert bridge_warning_ids(caplog) == handed.bridge_calls
+
+
+R13_HELPER = ToolCall(id="helper_add", function="addition", arguments={"x": 2, "y": 3})
+
+
+def r13_helper_filter(helper: str) -> Any:
+    """A bridge request filter that, on the first request, runs a native tool loop (or a native agent) in a conversation of its own, then lets the request through."""
+    ran: list[bool] = []
+
+    async def run_helper(
+        model: Any,
+        messages: list[ChatMessage],
+        tools: list[Any],
+        tool_choice: Any,
+        config: Any,
+    ) -> None:
+        if ran:
+            return None
+        ran.append(True)
+        conversation: list[ChatMessage] = [ChatMessageUser(content="helper task")]
+        if helper == "agent":
+            await react(tools=[addition()], submit=False)(
+                AgentState(messages=conversation)
+            )
+            return None
+        assert helper == "tool_loop"
+        while True:
+            output = await get_model().generate(conversation, tools=[addition()])
+            conversation.append(output.message)
+            if not output.message.tool_calls:
+                return None
+            results, _ = await execute_tools(conversation, [addition()])
+            conversation.extend(results)
+
+    return run_helper
+
+
+@agent
+def r13_filtered(bridge: str, helper: str) -> Agent:
+    """A scaffold whose bridge's request filter runs a native helper."""
+
+    async def execute(state: AgentState) -> AgentState:
+        from openai import AsyncOpenAI
+
+        from inspect_ai.agent._bridge.completions import (
+            inspect_completions_api_request,
+        )
+        from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
+
+        request_filter = r13_helper_filter(helper)
+        if bridge == "sandbox":
+            sandbox_bridge = SandboxAgentBridge(
+                state=state,
+                filter=request_filter,
+                retry_refusals=None,
+                compaction=None,
+                port=8080,
+                model=None,
+            )
+
+            async def create_sandbox(messages: list[Any]) -> Any:
+                return await inspect_completions_api_request(
+                    {"model": "inspect", "messages": messages, "tools": [R12_ECHO]},
+                    None,
+                    sandbox_bridge,
+                )
+
+            await r12_scaffold_turns(state, create_sandbox)
+            return sandbox_bridge.state
+
+        assert bridge == "in_process"
+        async with agent_bridge(state, filter=request_filter) as in_process:
+            async with AsyncOpenAI(api_key="sk-test") as client:
+
+                async def create(messages: list[Any]) -> Any:
+                    return await client.chat.completions.create(
+                        model="inspect", messages=messages, tools=[R12_ECHO]
+                    )
+
+                await r12_scaffold_turns(state, create)
+            return in_process.state
+
+    return execute
+
+
+@pytest.mark.parametrize("helper", ["tool_loop", "agent"])
+@pytest.mark.parametrize("bridge", ["in_process", "sandbox"])
+def test_a_native_helper_in_a_bridge_request_filter_keeps_its_tool_steps(
+    bridge: str, helper: str
+) -> None:
+    seen: dict[str, Step] = {}
+    log = run_logged(
+        as_solver(r13_filtered(bridge, helper)),
+        outputs(r7_tool_calls(R13_HELPER), done("helper done"), done("bridge done")),
+        sentinel=[r7_probe(seen, copies=True)],
+    )
+    sample = logged_sample(log)
+    # the helper's generations ran under the bridge's routing
+    assert all(
+        event.requested_model == "inspect"
+        for event in sample.events
+        if isinstance(event, ModelEvent)
+    )
+    # the helper's conversation is not in the scaffold's history
+    assert all(
+        "helper" not in message.text
+        for message in sample.messages
+        if not isinstance(message, ChatMessageTool)
+    )
+    assert "helper_add" not in {
+        call.id
+        for message in sample.messages
+        if isinstance(message, ChatMessageAssistant)
+        for call in message.tool_calls or []
+    }
+
+    replay = assert_replay_skips_bridge_steps(
+        log, seen, lambda step: step.call.id == "helper_add"
+    )
+    rebuilt = [
+        step for step in replay if isinstance(step.step, BeforeToolCall | AfterToolCall)
+    ]
+    assert [(step.stage, step.id) for step in rebuilt] == [
+        ("tool_call", "helper_add"),
+        ("tool_result", "helper_add"),
+    ]
+    # the producer's context, which assert_replay_skips_bridge_steps has
+    # checked equals live's
+    for step in rebuilt:
+        assert step.step.input and step.step.input[-1].text == "helper task"
+        assert [tool.name for tool in step.step.tools or []] == ["addition"]
+        assert step.step.tool_choice is not None

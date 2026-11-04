@@ -84,7 +84,7 @@ def steps_from_events(
 
     Every step's `agent_messages` is None: the log does not record the agent's own messages, and model input can hold messages the agent kept out of them.
 
-    The tool steps of an agent bridge's calls are not rebuilt, recorded or not: a call the bridged scaffold ran itself leaves no `ToolEvent`, and for a call a sandbox bridge ran on the host (`ToolEvent.metadata["bridge"]`) the log records neither which model call produced it (the bridge can hand over a response filter's output, or one of several generations under one call id) nor its result as the bridge's service delivered it (the error text a scaffold received, for one). Replay skips these steps until the log records which message made each call, and logs a warning naming the calls. A `human()` decision at a skipped step, and a person's approval of a host call, still reach the later steps of the conversation, as live. A bridge's tool checks are recorded in spans named `sentinel_bridge`, so a native call under an id a bridge also checked keeps its own checks.
+    The tool steps of an agent bridge's calls are not rebuilt, recorded or not: a call the bridged scaffold ran itself leaves no `ToolEvent`, and for a call a sandbox bridge ran on the host (`ToolEvent.metadata["bridge"]`) the log records neither which model call produced it (the bridge can hand over a response filter's output, or one of several generations under one call id) nor its result as the bridge's service delivered it (the error text a scaffold received, for one). Replay skips these steps until the log records which message made each call, and logs a warning naming the calls. A `human()` decision at a skipped step, and a person's approval of a host call, still reach the later steps of the conversation, as live. A bridge's tool checks are recorded in spans named `sentinel_bridge`, so a native call under an id a bridge also checked keeps its own checks. A native call's producer is the latest model call that proposed its id, a bridge's generation included (a native loop in a bridge request filter generates under the bridge's routing), so a native call run under an id a bridge generation proposed before it is given that generation; bridge-issued ids are reserved against the history, so this needs a prefilled native call or a provider or filter reusing an id.
 
     Args:
         messages: The sample's messages (`EvalSample.messages`).
@@ -390,11 +390,8 @@ class _Driver:
         last_turn: dict[str, int] = {}
         candidates: dict[str, list[str]] = {}
         turn_ids: set[str | None] = set()
-        # call id -> its latest proposal: by any model call, and by a native one
+        # call id -> its latest proposal
         produced: dict[str, tuple[ChatMessageAssistant, ModelEvent, ToolCall, int]] = {}
-        produced_natively: dict[
-            str, tuple[ChatMessageAssistant, ModelEvent, ToolCall, int]
-        ] = {}
         approvals: dict[str, ApprovalEvent] = {}
         calls: list[_Call] = []
 
@@ -420,10 +417,7 @@ class _Driver:
                 if message_id is not None:
                     message = event.output.choices[0].message
                     for tool_call in message.tool_calls or []:
-                        made = (message, event, tool_call, index)
-                        produced[tool_call.id] = made
-                        if event.requested_model is None:
-                            produced_natively[tool_call.id] = made
+                        produced[tool_call.id] = (message, event, tool_call, index)
                         self.proposed.setdefault(tool_call.id, []).append(index)
                 if not is_agent_turn(event.origin):
                     continue
@@ -457,10 +451,7 @@ class _Driver:
             elif isinstance(event, ToolEvent):
                 if self._in_sentinel_span(event.span_id):
                     continue
-                # a native call is never a bridge generation's
-                found = (produced if _bridged(event) else produced_natively).get(
-                    event.id
-                )
+                found = produced.get(event.id)
                 producer: ModelEvent | None = None
                 produced_at = -1
                 assistant: ChatMessageAssistant | None
