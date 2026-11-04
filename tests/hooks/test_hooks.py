@@ -1078,8 +1078,7 @@ async def test_successful_task_keeps_log_after_completion_failure(
     written = await read_eval_log_async(log.location, header_only=True)
     assert written.status == "success"
     assert written.error is None
-    if failure == "task_complete_error":
-        assert [log.eval.eval_id for log in completed] == [log.eval.eval_id]
+    assert [log.eval.eval_id for log in completed] == [log.eval.eval_id]
     for hooks_ in (first_hooks, mock_hooks):
         assert [start.eval_id for start in hooks_.task_start_events] == [
             log.eval.eval_id
