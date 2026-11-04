@@ -249,10 +249,10 @@ async def test_score_stream_flushes_periodically(
         def __getattr__(self, name):
             return getattr(self.recorder, name)
 
-        async def flush(self, eval, **kwargs):
+        async def flush(self, eval):
             self.flush_count += 1
             flush_counts.append(self.flush_count)
-            await self.recorder.flush(eval, **kwargs)
+            await self.recorder.flush(eval)
 
     def create_recorder(location: str, log_dir: str):
         recorder = create_recorder_for_location(location, log_dir)

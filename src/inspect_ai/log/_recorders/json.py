@@ -289,9 +289,7 @@ class JSONRecorder(FileRecorder):
                 pass
 
     @override
-    async def flush(self, eval: EvalSpec, *, to_destination: bool = True) -> None:
-        if not to_destination:
-            return
+    async def flush(self, eval: EvalSpec) -> None:
         log = self.data[self._log_file_key(eval)]
         # intermediate snapshot: skip fsync (see _write_log_impl)
         await self._write_log_impl(log.file, log.data, fsync=False)

@@ -249,7 +249,10 @@ async def score(
                 nonlocal samples_written
                 samples_written += 1
                 if samples_written % stream_batch == 0:
-                    await write_recorder.flush(eval_log.eval, to_destination=new_output)
+                    if new_output:
+                        await write_recorder.flush(eval_log.eval)
+                    else:
+                        await write_recorder.write_buffered_samples(eval_log.eval)
                 del sample
 
         read_sample = _read_sample

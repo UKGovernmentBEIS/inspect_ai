@@ -306,7 +306,7 @@ class EvalRecorder(FileRecorder):
             await log.discard(keep_destination=keep_destination)
 
     @override
-    async def flush(self, eval: EvalSpec, *, to_destination: bool = True) -> None:
+    async def flush(self, eval: EvalSpec) -> None:
         # get the zip log
         log = self.data[self._log_file_key(eval)]
 
@@ -314,8 +314,12 @@ class EvalRecorder(FileRecorder):
         await log.write_buffered_samples()
 
         # flush to underlying stream (intermediate snapshot: skip fsync)
-        if to_destination:
-            await log.flush(fsync=False)
+        await log.flush(fsync=False)
+
+    @override
+    async def write_buffered_samples(self, eval: EvalSpec) -> None:
+        log = self.data[self._log_file_key(eval)]
+        await log.write_buffered_samples()
 
     @override
     async def log_finish(
