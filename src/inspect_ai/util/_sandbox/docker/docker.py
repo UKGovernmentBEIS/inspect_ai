@@ -30,6 +30,7 @@ from ..environment import (
     SandboxUserUnsupportedError,
     sandbox_prebuilt,
 )
+from ..events import SandboxCommandTimeoutError
 from ..limits import OutputLimitExceededError, SandboxEnvironmentLimits
 from ..registry import sandboxenv
 from .cleanup import (
@@ -385,10 +386,8 @@ class DockerSandboxEnvironment(SandboxEnvironment):
             concurrency=concurrency,
         )
 
-        # in-container timeout fired. the docker CLI returned cleanly
-        # — this is NOT a daemon hang — so fail hard with a TimeoutError
-        # rather than returning the exit code. exit codes vary by
-        # implementation:
+        # In-container timeouts return exit codes without triggering host retries.
+        # Timeout exit codes vary by implementation:
         #   124: GNU timeout, command killed by SIGTERM (the normal case)
         #   137: SIGKILL escalation via -k (command ignored SIGTERM)
         #   143: BusyBox timeout, command killed by SIGTERM (128 + 15)
@@ -402,15 +401,11 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         elapsed = time.monotonic() - start_time
         if timeout is not None and exec_result.returncode in (124, 137, 143):
             if elapsed >= timeout:
-                # preserve the partial output captured before the timeout so it can
-                # be surfaced to the caller via SandboxTimeoutError.truncated_output
-                timeout_error = TimeoutError(
-                    f"Command timed out after {timeout} seconds"
-                )
                 partial_output = (exec_result.stdout or "") + (exec_result.stderr or "")
-                if partial_output:
-                    setattr(timeout_error, "truncated_output", partial_output)
-                raise timeout_error
+                raise SandboxCommandTimeoutError(
+                    f"Command timed out after {timeout} seconds",
+                    truncated_output=partial_output or None,
+                )
             # else: the command's own exit code or a signal death that came
             # too fast to be a timeout (e.g. OOM kill) — fall through and
             # return the ExecResult

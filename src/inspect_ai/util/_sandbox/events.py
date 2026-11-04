@@ -32,6 +32,10 @@ class SandboxTimeoutError(TimeoutError):
         """Partial command output captured before the timeout, if available."""
 
 
+class SandboxCommandTimeoutError(SandboxTimeoutError):
+    """Raised when a sandbox command exceeds its execution timeout."""
+
+
 class SandboxEnvironmentProxy(SandboxEnvironment):
     def __init__(self, sandbox: SandboxEnvironment) -> None:
         super().__init__()
@@ -74,6 +78,8 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
         try:
             with sandbox_exec_work():
                 result = await self._sandbox.exec(**params)
+        except SandboxTimeoutError:
+            raise
         except TimeoutError as ex:
             raise SandboxTimeoutError(
                 str(ex), truncated_output=getattr(ex, "truncated_output", None)
