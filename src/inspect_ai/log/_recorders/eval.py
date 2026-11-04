@@ -45,7 +45,7 @@ from typing_extensions import override
 
 from inspect_ai._util._async import current_async_backend, tg_collect
 from inspect_ai._util.async_bytes_reader import adapt_to_reader
-from inspect_ai._util.async_zip import AsyncZipReader
+from inspect_ai._util.async_zip import AsyncZipReader, is_torn_read
 from inspect_ai._util.asyncfiles import (
     S3_COMPOSE_MIN_PREFIX,
     AsyncFilesystem,
@@ -422,13 +422,26 @@ class EvalRecorder(FileRecorder):
                         with open(temp_log, "wb") as dest:
                             await async_fs.read_file_into(location, dest)
 
-                # read log (use temp_log if we have it)
-                read_location = temp_log or location
-                reader = AsyncZipReader(async_fs, read_location)
-                cd = await reader.entries()
-                log = await _read_log(
-                    reader, cd.entries, location, header_only, exclude_fields
-                )
+                # read log (use temp_log if we have it). A log read in place
+                # is replaced by its writer on every flush, so one read's range
+                # requests can span two versions: pin the central directory to
+                # one version, check each member's CRC, and re-read a torn read
+                in_place = temp_log is None
+
+                async def read() -> tuple[EvalLog, AsyncZipReader]:
+                    reader = AsyncZipReader(
+                        async_fs,
+                        temp_log or location,
+                        verify_crc=in_place,
+                        pin_version=in_place,
+                    )
+                    cd = await reader.entries()
+                    log = await _read_log(
+                        reader, cd.entries, location, header_only, exclude_fields
+                    )
+                    return log, reader
+
+                log, reader = await (_read_in_place(read) if in_place else read())
 
                 if etag is not None:
                     log.etag = etag
@@ -837,6 +850,22 @@ async def _write_s3(
             raise
 
 
+async def _read_in_place(
+    read: Callable[[], Awaitable[tuple[EvalLog, AsyncZipReader]]],
+) -> tuple[EvalLog, AsyncZipReader]:
+    """Run a read of a log in place, re-reading it while its reads are torn.
+
+    After ``READ_IN_PLACE_ATTEMPTS`` attempts the last one's error is raised.
+    """
+    for _ in range(READ_IN_PLACE_ATTEMPTS - 1):
+        try:
+            return await read()
+        except Exception as ex:
+            if not is_torn_read(ex):
+                raise
+    return await read()
+
+
 async def _s3_download_with_etag(
     location: str, local_path: str, async_fs: AsyncFilesystem
 ) -> str:
@@ -872,6 +901,10 @@ def _copy_temp_to_local(temp_file: BinaryIO, dest: str, fsync: bool) -> None:
     with atomic_write(dest, fsync=fsync) as out:
         shutil.copyfileobj(temp_file, out, length=1024 * 1024)
 
+
+# A log read in place (not from a downloaded copy) whose reads kept tearing,
+# because its writer kept replacing it, fails after this many attempts.
+READ_IN_PLACE_ATTEMPTS = 3
 
 # Compaction rewrites (decompress + recompress) every live member of the log,
 # so it only pays off once dead bytes are a real share of the file.

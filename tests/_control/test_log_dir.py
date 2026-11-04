@@ -27,6 +27,7 @@ from typing import Any, Literal, NamedTuple
 import anyio
 import boto3
 import pytest
+from botocore.exceptions import ClientError
 from test_helpers.utils import skip_if_trio
 
 from inspect_ai import Task, eval, eval_async
@@ -658,6 +659,21 @@ async def test_read_consistently_retries_torn_reads_then_succeeds(
         )
     # the first attempt reused the given central directory; re-reads did not
     assert attempts == [False, True, True]
+
+
+async def test_read_consistently_re_reads_an_invalid_range(log_dir: Path) -> None:
+    # a member offset past the end of a shorter replacement (S3 416)
+    [path] = list(log_dir.glob("*.eval"))
+    attempts: list[bool] = []
+
+    async def read(reader: AsyncZipReader, fresh: bool) -> str:
+        attempts.append(fresh)
+        raise ClientError({"Error": {"Code": "InvalidRange"}}, "GetObject")
+
+    async with AsyncFilesystem() as fs:
+        with pytest.raises(LogChangedError):
+            await read_consistently(fs, str(path), read)
+    assert len(attempts) == consistency.MAX_REREADS + 1
 
 
 async def test_an_unparseable_log_is_reported_not_raised(
