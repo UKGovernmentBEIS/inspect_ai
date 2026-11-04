@@ -502,8 +502,8 @@
   },
   "src/inspect_ai/analysis/_dataframe/validate.py": {
     "type: ignore": {
-      "count": 3,
-      "undescribed": 3
+      "count": 2,
+      "undescribed": 2
     }
   },
   "src/inspect_ai/analysis/_prepare/log_viewer.py": {

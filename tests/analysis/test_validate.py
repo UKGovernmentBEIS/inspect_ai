@@ -1,8 +1,9 @@
 from typing import Any
 
 import pytest
-from jsonpath_ng import Child, Descendants, Fields, JSONPath
+from jsonpath_ng import Child, Descendants, Fields, Index, JSONPath, Parent
 from jsonpath_ng.ext import parse  # type: ignore
+from jsonpath_ng.jsonpath import _Union
 
 from inspect_ai.analysis._dataframe import validate
 from inspect_ai.analysis._dataframe.validate import (
@@ -86,16 +87,27 @@ class _StandInWildcard(JSONPath):
 
 
 _SCORES = Child(Fields("results"), Fields("scores"))
+_SCORERS = Child(Child(_SCORES, _StandInWildcard()), Fields("scorer"))
+_LIMIT = Child(Child(Fields("eval"), Fields("config")), Fields("limit"))
 
 
 @pytest.mark.parametrize(
     "expr,valid",
     [
-        (Child(Child(_SCORES, _StandInWildcard()), Fields("scorer")), True),
+        (_SCORERS, True),
         (Child(Child(Fields("eval"), Fields("packages")), _StandInWildcard()), True),
         (Child(Child(Fields("eval"), Fields("solver")), _StandInWildcard()), False),
         (Child(Descendants(_SCORES, _StandInWildcard()), Fields("value")), True),
         (Child(Child(_SCORES, _StandInWildcard()), Fields("scorer", "name")), True),
+        (Child(_LIMIT, _StandInWildcard()), True),
+        (
+            Child(
+                Child(Child(Child(_SCORES, _StandInWildcard()), Parent()), Index(0)),
+                Fields("scorer"),
+            ),
+            True,
+        ),
+        (_Union(_SCORERS, Child(Fields("eval"), Fields("model"))), True),
     ],
     ids=[
         "results.scores[*].scorer",
@@ -103,6 +115,9 @@ _SCORES = Child(Fields("results"), Fields("scores"))
         "eval.solver.*",
         "results.scores..[*].value",
         "results.scores[*][scorer,name]",
+        "eval.config.limit[*]",
+        "results.scores[*].`parent`[0].scorer",
+        "(results.scores[*].scorer) | (eval.model)",
     ],
 )
 def test_wildcard_node(
@@ -113,7 +128,8 @@ def test_wildcard_node(
 ) -> None:
     """A Wildcard node matches every child, as `[*]` and `*` do.
 
-    Paths with `..` or `[foo,bar]` are not validated, as before the node existed.
+    Paths with nodes the walker cannot follow (`..`, `[foo,bar]`, `parent`, `|`)
+    are not validated, as before the node existed.
     """
     monkeypatch.setattr(validate, "WILDCARD", (_StandInWildcard,))
     assert validate.jsonpath_in_schema(expr, expanded_schema) is valid
@@ -126,6 +142,6 @@ def test_skip_filter_expression(expanded_schema: dict[str, Any]) -> None:
 
 
 def test_skip_slice_expression(expanded_schema: dict[str, Any]) -> None:
-    """True slice 1:5 is in UNSUPPORTED and therefore skipped."""
+    """True slice 1:5 is not validated and therefore skipped."""
     jp = parse("results.scores[1:5].name")
     assert jsonpath_in_schema(jp, expanded_schema) is True

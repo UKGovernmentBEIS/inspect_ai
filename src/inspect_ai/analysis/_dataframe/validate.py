@@ -5,8 +5,7 @@ from typing import Any, Iterator, Mapping, Type
 
 import jsonpath_ng
 import jsonref  # type: ignore
-from jsonpath_ng import Descendants, Fields, Index, JSONPath, Slice, Where  # type: ignore
-from jsonpath_ng.ext.filter import Filter  # type: ignore
+from jsonpath_ng import Child, Fields, Index, JSONPath, Root, Slice, This  # type: ignore
 from pydantic import BaseModel
 
 logger = getLogger(__name__)
@@ -74,6 +73,8 @@ def jsonpath_in_schema(expr: JSONPath, schema: Schema) -> bool:
                 open_dict(sch)
             if "array" in _types(sch) and "items" in sch:
                 outs.extend(_normalize_items(sch["items"]))
+            if "array" in _types(sch) and "prefixItems" in sch:  # tuple
+                outs.extend(sch["prefixItems"])
             return outs
 
         # Property access ----------------------------------------------------
@@ -148,12 +149,16 @@ def _expand_union(sch: Schema) -> list[Schema]:
     return [sch]
 
 
-UNSUPPORTED: tuple[type[JSONPath], ...] = (
-    Filter,  # [?foo > 0]
-    Where,  # .foo[(@.bar < 42)]
-    Slice,  # [1:5]; before jsonpath-ng 1.16.0 "[*]" is also Slice()
-    Descendants,  # foo..bar
-)
+# Node types the linear walker can validate. A path with any other node is
+# not validated: filters, slices (before jsonpath-ng 1.16.0 "[*]" is Slice()),
+# `..`, `parent`, unions, and the ext functions.
+VALIDATED: tuple[type[JSONPath], ...] = (Child, Index, Root, This)
+
+
+def _is_validated(node: JSONPath) -> bool:
+    if isinstance(node, Fields):
+        return len(node.fields) == 1  # not [foo,bar]
+    return type(node) in VALIDATED or isinstance(node, WILDCARD)
 
 
 def find_unsupported(node: JSONPath) -> list[type[JSONPath]]:
@@ -162,10 +167,8 @@ def find_unsupported(node: JSONPath) -> list[type[JSONPath]]:
     stack: list[JSONPath] = [node]
     while stack:
         n = stack.pop()
-        if isinstance(n, UNSUPPORTED):
+        if not _is_validated(n):
             bad.append(type(n))
-        elif isinstance(n, Fields) and len(n.fields) > 1:  # [foo,bar]
-            bad.append(Fields)
         # Drill into children (jsonpath-ng uses .left / .right / .child attributes)
         for attr in ("left", "right", "child", "expression"):
             stack.extend(
