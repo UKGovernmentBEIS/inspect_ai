@@ -398,7 +398,11 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
                 batch.requests[request_id].submitted()
                 await batch.requests[request_id].result_stream.send(response)
         except Exception as e:
-            await self._fail_and_cleanup_inflight_batch("sending results", batch, e)
+            await self._fail_all_requests(
+                f"Batch {batch.id} failed (sending results), failing all {len(batch.requests)} requests in batch",
+                list(batch.requests.values()),
+                e,
+            )
         finally:
             del self._inflight_batches[batch.id]
 

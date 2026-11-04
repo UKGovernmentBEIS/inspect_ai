@@ -308,7 +308,10 @@ class TranscriptEventStore:
                 self._write_json_object_from_rows(
                     Path(attachments_path),
                     self._conn.execute(
-                        "SELECT hash, content FROM attachments ORDER BY hash"
+                        # Insertion order leaves existing attachments in place
+                        # as new ones are added, so checkpoint backups (restic)
+                        # deduplicate the file.
+                        "SELECT hash, content FROM attachments ORDER BY rowid"
                     ),
                 )
                 self._write_json_array(

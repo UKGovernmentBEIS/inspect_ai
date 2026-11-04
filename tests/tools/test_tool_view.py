@@ -16,6 +16,7 @@ from inspect_ai.tool._tool_call import (
     ToolCall,
     ToolCallContent,
     ToolCallView,
+    resolve_tool_call_view,
 )
 from inspect_ai.tool._tool_def import ToolDef
 
@@ -118,7 +119,19 @@ def test_tool_call_view_returns_view_when_viewer_succeeds():
     assert result.content == "rendered ok"
 
 
-async def test_apply_tool_approval_falls_back_when_viewer_raises() -> None:
+def test_resolve_tool_call_view_falls_back_when_viewer_raises() -> None:
+    def raising_viewer(call: ToolCall) -> ToolCallView:
+        raise TypeError("not a string")
+
+    # the default mode, used after the call has run (after-tool sentinel,
+    # tool result review), keeps the default rendering
+    call = ToolCall(id="1", function="viewer_fallback_tool", arguments={"x": 1})
+    view = resolve_tool_call_view(call, raising_viewer)
+    assert view.call is not None
+    assert "viewer_fallback_tool" in view.call.content
+
+
+async def test_apply_tool_approval_rejects_when_viewer_raises() -> None:
     def raising_viewer(call: ToolCall) -> ToolCallView:
         raise TypeError("not a string")
 
@@ -133,7 +146,7 @@ async def test_apply_tool_approval_falls_back_when_viewer_raises() -> None:
     token = _tool_approver.set(capture_approver)
     handler = _attach("inspect_ai.tool._tool_call")
     try:
-        approved, _ = await apply_tool_approval(
+        approved, approval = await apply_tool_approval(
             "msg",
             ToolCall(id="1", function="viewer_typeerror_tool", arguments={"x": 1}),
             raising_viewer,
@@ -143,12 +156,41 @@ async def test_apply_tool_approval_falls_back_when_viewer_raises() -> None:
         _tool_approver.reset(token)
         logging.getLogger("inspect_ai.tool._tool_call").removeHandler(handler)
 
-    assert approved is True
-    view = captured["view"]
-    assert view.call is not None
-    assert "viewer_typeerror_tool" in view.call.content
+    # the approver is not asked to decide on a fallback rendering
+    assert approved is False
+    assert captured == {}
+    assert approval is not None
+    assert approval.decision == "reject"
+    assert approval.explanation is not None
+    assert "viewer for tool 'viewer_typeerror_tool' failed" in approval.explanation
+    assert "not a string" in approval.explanation
     assert any(
         "viewer_typeerror_tool" in r.getMessage()
         and "Error in viewer" in r.getMessage()
         for r in handler.records
     )
+
+
+async def test_generate_views_the_call_as_the_model_gave_it() -> None:
+    """The generation-time view renders the model's call without validating it."""
+    viewed: list[dict[str, object]] = []
+
+    def viewer(call: ToolCall) -> ToolCallView:
+        viewed.append(call.arguments)
+        return ToolCallView(call=ToolCallContent(format="text", content="viewed"))
+
+    tdef = _make_tool_def("viewer_unvalidated_tool", viewer)
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                "mockllm/model", tool_name=tdef.name, tool_arguments={"thought": 5}
+            )
+        ],
+    )
+    output = await model.generate("go", tools=[tdef])
+
+    assert output.message.tool_calls
+    view = output.message.tool_calls[0].view
+    assert view is not None and view.content == "viewed"
+    assert viewed == [{"thought": 5}]

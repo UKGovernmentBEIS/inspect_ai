@@ -11,15 +11,20 @@ from argparse import Namespace
 from collections.abc import AsyncIterator, Iterator
 from io import StringIO
 from pathlib import Path
-from typing import Callable, Literal, NamedTuple, overload
+from typing import Awaitable, Callable, Literal, NamedTuple, overload
+from unittest.mock import AsyncMock
 from uuid import uuid4
 
+import anyio
 import pytest
+from pydantic import JsonValue
 from test_helpers.local_shell_sandbox import LocalShellSandbox
 from test_helpers.sandbox import CannedSandbox
 from test_helpers.utils import skip_if_no_docker
 
 from inspect_ai import Task, eval
+from inspect_ai._util.exception import TerminateSampleError
+from inspect_ai.agent._agent import AgentState
 from inspect_ai.agent._human import install as human_install
 from inspect_ai.agent._human.agent import human_cli
 from inspect_ai.agent._human.commands import submit
@@ -37,6 +42,11 @@ from inspect_ai.agent._human.install import (
     human_agent_commands,
     install_human_agent,
 )
+from inspect_ai.agent._human.service import run_human_agent_service
+from inspect_ai.agent._human.state import HumanAgentState
+from inspect_ai.dataset import Sample
+from inspect_ai.solver import Generate, Solver, TaskState, solver
+from inspect_ai.util import sandbox
 from inspect_ai.util._sandbox._framework_directory import (
     _SCRIPT,
     _STAT_ENTRY,
@@ -52,6 +62,7 @@ from inspect_ai.util._sandbox.docker.docker import DockerSandboxEnvironment
 from inspect_ai.util._sandbox.environment import (
     SandboxEnvironment,
     SandboxEnvironmentConfigType,
+    SandboxUserUnsupportedError,
 )
 from inspect_ai.util._sandbox.local import LocalSandboxEnvironment
 from inspect_ai.util._subprocess import ExecResult
@@ -85,6 +96,74 @@ def test_session_end_commands_decline_on_eof(
     command.cli(args)
 
     assert calls == expected_calls
+
+
+@pytest.mark.parametrize("command_type", [QuitCommand, SubmitCommand])
+@pytest.mark.parametrize("failure", [PermissionError, SandboxUserUnsupportedError])
+async def test_session_end_continues_when_log_listing_raises(
+    command_type: type[QuitCommand] | type[SubmitCommand],
+    failure: type[Exception],
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    def listing(cmd: list[str], user: str | None) -> ExecResult[str]:
+        assert user == "agent"
+        raise failure("cannot list recordings")
+
+    provider = CannedSandbox(listing)
+    read_mock = AsyncMock()
+    monkeypatch.setattr(provider, "read_file", read_mock)
+    monkeypatch.setattr(submit, "sandbox", lambda: provider)
+    state = HumanAgentState(instructions="test")
+    state.running = True
+    command = command_type(record_session=True, user="agent")
+
+    if isinstance(command, SubmitCommand):
+        await command.service(state)("answer")
+        assert state.answer == "answer"
+    else:
+        await command.service(state)()
+        assert state.answer == ""
+
+    assert not state.running
+    assert state.logs == {}
+    read_mock.assert_not_awaited()
+    assert len(caplog.records) == 1
+    assert "cannot list recordings" in caplog.text
+
+
+@pytest.mark.parametrize(
+    "failure,expected_reads,expected_logs",
+    [
+        (SandboxUserUnsupportedError("user unsupported"), 1, {}),
+        (PermissionError("file denied"), 2, {"second": "recording"}),
+    ],
+)
+async def test_session_log_read_failures_preserve_user_and_submission(
+    failure: Exception,
+    expected_reads: int,
+    expected_logs: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    provider = CannedSandbox.returning(
+        ExecResult(success=True, returncode=0, stdout="first\nsecond\n", stderr="")
+    )
+    read_mock = AsyncMock(side_effect=[failure, "recording"])
+    monkeypatch.setattr(provider, "read_file", read_mock)
+    monkeypatch.setattr(submit, "sandbox", lambda: provider)
+    state = HumanAgentState(instructions="test")
+
+    await SubmitCommand(record_session=True, user="agent").service(state)("answer")
+
+    assert state.answer == "answer"
+    assert not state.running
+    assert state.logs == expected_logs
+    assert provider.exec_calls[0][1] == "agent"
+    assert read_mock.await_count == expected_reads
+    assert all(call.kwargs == {"user": "agent"} for call in read_mock.await_args_list)
+    assert len(caplog.records) == 1
+    assert str(failure) in caplog.text
 
 
 # ---------------------------------------------------------------------------
@@ -572,16 +651,24 @@ class _HomeSandbox(SandboxEnvironment):
             [SHELL_PATH, "-c", self.script, *cmd[3:]], input, env=self.env
         )
 
-    async def write_file(self, file: str, contents: str | bytes) -> None:
+    async def write_file(
+        self, file: str, contents: str | bytes, *, user: str | None = None
+    ) -> None:
         raise NotImplementedError
 
     @overload
-    async def read_file(self, file: str, text: Literal[True] = True) -> str: ...
+    async def read_file(
+        self, file: str, text: Literal[True] = True, *, user: str | None = None
+    ) -> str: ...
 
     @overload
-    async def read_file(self, file: str, text: Literal[False]) -> bytes: ...
+    async def read_file(
+        self, file: str, text: Literal[False], *, user: str | None = None
+    ) -> bytes: ...
 
-    async def read_file(self, file: str, text: bool = True) -> str | bytes:
+    async def read_file(
+        self, file: str, text: bool = True, *, user: str | None = None
+    ) -> str | bytes:
         raise NotImplementedError
 
     @classmethod
@@ -1134,3 +1221,85 @@ def test_human_cli_submit_no_answer(capsys: pytest.CaptureFixture[str]):
             assert log.samples[0].output.choices[0].message.content == ""
         else:
             raise Exception("eval() did not complete within timeout")
+
+
+class _TerminateCommand(HumanAgentCommand):
+    """A service command that terminates the sample, as a tool call can."""
+
+    @property
+    def name(self) -> str:
+        return "stop_now"
+
+    @property
+    def description(self) -> str:
+        return "Terminate the sample."
+
+    @property
+    def contexts(self) -> list[Literal["cli", "service"]]:
+        return ["service"]
+
+    def service(self, state: HumanAgentState) -> Callable[..., Awaitable[JsonValue]]:
+        async def stop_now() -> None:
+            raise TerminateSampleError("human tool says stop")
+
+        return stop_now
+
+
+_CALL_STOP_NOW = """
+import os, sys, time
+service_dir = "/var/tmp/sandbox-services/human_agent"
+while not os.path.exists(f"{service_dir}/human_agent.py"):
+    time.sleep(0.1)
+sys.path.append(service_dir)
+from human_agent import call_human_agent
+call_human_agent("stop_now")
+"""
+
+
+@pytest.mark.slow
+@skip_if_no_docker
+def test_human_agent_service_terminate_ends_the_sample() -> None:
+    """A service method's `TerminateSampleError` ends the sample as a termination.
+
+    The service dispatcher answers the call and propagates the termination out of
+    `run_human_agent_service`, so the sample ends once with an operator limit
+    rather than the error being logged and the service left running.
+    """
+    completed: list[bool] = []
+
+    @solver
+    def terminating_service() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            await sandbox().write_file("stop_now.py", _CALL_STOP_NOW)
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(sandbox().exec, ["python3", "stop_now.py"])
+                with anyio.fail_after(60):
+                    await run_human_agent_service(
+                        None, AgentState(messages=[]), [_TerminateCommand()], None
+                    )
+            # must not be reached: the termination unwinds the service
+            completed.append(True)
+            return state
+
+        return solve
+
+    log = eval(
+        Task(dataset=[Sample(input="Stop.")], solver=terminating_service()),
+        sandbox="docker",
+        model="mockllm/model",
+    )[0]
+
+    assert log.status == "success"
+    assert log.samples is not None
+    sample = log.samples[0]
+    assert sample.error is None, sample.error
+    assert sample.limit is not None
+    assert (sample.limit.type, sample.limit.reason) == (
+        "operator",
+        "human tool says stop",
+    )
+    limits = [e for e in sample.events if e.event == "sample_limit"]
+    assert [(e.type, e.message) for e in limits] == [
+        ("operator", "human tool says stop")
+    ]
+    assert completed == []
