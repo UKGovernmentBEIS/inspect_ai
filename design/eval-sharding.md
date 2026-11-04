@@ -19,9 +19,11 @@ was agreed by Ransom and JJ Allaire on 2026-09-18 and refined by Ransom on
 merged log, `<dir>/<name>.shards/<k>/`, mirroring sandbox checkpointing's
 `<name>.checkpoints/` (2026-09-21). The first implementation ships no
 launcher: merging is done through a Python API, a CLI command, or
-`eval_set()` at startup (2026-09-21). Deleting a merged log deletes its
-companion, and eval-set cleanup keeps an unsharded `success` log over a
-merged log that shares its `task_id` regardless of mtime (2026-09-22).
+`eval_set()` at startup (2026-09-21). Eval-set cleanup prefers an
+unsharded `success` log over a merged log that shares its `task_id`
+regardless of mtime (2026-09-22). Step 1 deletes no companion: the user
+removes `<name>.shards/` by hand, and the implementation plan's
+shard-deletion PR designs deletion (2026-11-03).
 Merges are serialised by their callers, one merger at a time per merged
 log, with compare-and-swap publication as the guard (2026-09-22). The
 "Scale" section covers roughly 300 shards on S3 (2026-09-23). No API
@@ -607,16 +609,20 @@ while unchanged shards' records are carried from the merged log (until the
 raw-copy CRC shortcut, the changed shard's members are all read; see the
 implementation plan's "The sample set"), and the ledger
 travels with the log, and the merged log stays the whole truth for
-`<name>`. Deleting a merged log deletes its companion `<name>.shards/` with
-it (decision: Ransom, 2026-09-22): a merged log with no shards is complete
-on its own, and shards with no merged log would only be re-merged into one
-at the next `eval_set()` startup. The companion's *placement* mirrors
-checkpoints; its deletion coupling is new, because no log deletion path
-removes a companion today: `retry_cleanup` removes just the file
-(`fs.rm(id_log.info.name)`, `evalset.py:1972`) and the viewer's delete
-endpoint is a bare `fs.rm` (`_view/common.py:409-411`). Every path that
-removes a merged log, those two and any explicit delete the API or CLI
-offers, must therefore remove `<name>.shards/` with it. In the viewer that
+`<name>`. Deleting a merged log is meant to delete its companion
+`<name>.shards/` with it (decision: Ransom, 2026-09-22): a merged log with
+no shards is complete on its own, and shards with no merged log would only
+be re-merged into one at the next `eval_set()` startup. Step 1 defers that
+coupling (decision: Ransom, 2026-11-03): nothing in Step 1 deletes a
+companion, the user removes `<name>.shards/` by hand, and the
+implementation plan's shard-deletion PR designs one rule for the merge and
+retry cleanup. The requirements below apply to that later work. The
+companion's *placement* mirrors checkpoints; its deletion coupling is new,
+because no log deletion path removes a companion today: `retry_cleanup`
+removes just the file (`fs.rm(id_log.info.name)`, `evalset.py:1972`) and
+the viewer's delete endpoint is a bare `fs.rm` (`_view/common.py:409-411`).
+Once deletion is added, every path that removes a merged log must remove
+`<name>.shards/` with it. In the viewer that
 widens what one request deletes, and the endpoint authorizes only the
 requested file: `_validate_delete` asks the access policy about `name.eval`
 alone (`fastapi_server.py:177-180,227-232`) and `delete_log` sees neither
@@ -625,8 +631,8 @@ while denying `name.shards/0/<shard>.eval` (today the endpoint returns 200
 for the first and 403 for the second). The viewer must therefore authorize
 every companion member through the same access policy before deleting
 anything, and refuse the whole operation, canonical log included, when any
-member is denied (see "Security"). Trusted paths (`retry_cleanup`, the API
-and CLI) have no HTTP policy to consult and delete both outright. The field
+member is denied (see "Security"). Trusted paths (`retry_cleanup` and the
+merge) have no HTTP policy to consult and delete both outright. The field
 is absent on unsharded logs. It is a public log-schema change: the JSON
 schema and the `ts-mono` generated types change even though the viewer
 ignores the field until Step 3, so Step 1 needs a coordinated `ts-mono`
@@ -701,8 +707,9 @@ companion on success (`retention: Literal["delete", "retain"] = "delete"`,
 `util/_checkpoint/config.py:233`; not implemented on `main` as of
 2026-10-09, meridianlabs-ai/inspect_ai#582, so checkpoint companions
 currently stay); shards are kept because re-merge after a merge bug and
-adding shards later both need the shards to still exist. When the merged log itself is deleted,
-the shards go with it (see "Provenance and ledger"). No move is needed. For reference, an
+adding shards later both need the shards to still exist. In Step 1,
+deleting the merged log leaves its shards too (see "Provenance and
+ledger"). No move is needed. For reference, an
 S3 move would be a server-side copy plus a delete, one API round trip per
 shard, not a transfer through the client.
 
@@ -734,26 +741,25 @@ samples; the retry's log is an ordinary unsharded log. `as_previous_tasks`
 gives the retry the prior log's `task_id` (`evalset.py:1464-1505`,
 `PreviousTask(id=eval_log.eval.task_id)`), so the retry log and the merged
 log share a `task_id` and `latest_completed_task_eval_logs` treats them as
-attempts of one another. Two rules make that safe (decision: Ransom,
-2026-09-22):
+attempts of one another. Two rules make that safe:
 
-- *Cleanup deletes the companion with the merged log.* Under
-  `retry_cleanup`, removing the merged log also removes `<name>.shards/`
-  (see "Provenance and ledger"). Without this the next startup would find
-  the companion with no merged log, re-merge it under the same `task_id`,
-  and the regenerated merged log, now the newer file, would cause the
-  successful retry log to be deleted at the following cleanup.
-- *The unsharded `success` log wins regardless of mtime.* When a
-  provenance-bearing merged log and an unsharded log share a `task_id`,
-  cleanup keeps the unsharded `success` log and removes the merged log with
-  its shards, whatever the two files' mtimes. Mtime is the wrong ordering
+- *The unsharded `success` log wins regardless of mtime* (decision:
+  Ransom, 2026-09-22). When a provenance-bearing merged log and an
+  unsharded log share a `task_id`, the unsharded `success` log is the one
+  chosen, whatever the two files' mtimes. Mtime is the wrong ordering
   here: a startup re-merge rewrites `<name>.eval` whenever a straggler shard
   lands, so the merged log can be newer than the retry seeded from it, and
   the retry holds re-run samples the merged log lacks.
+- *Retry cleanup leaves the merged log and its companion in place*
+  (decision: Ransom, 2026-11-03). Under `retry_cleanup`, ordinary logs are
+  cleaned as today, but a superseded merged log and its `<name>.shards/`
+  stay until the user removes them or the shard-deletion PR adds a rule
+  that removes both together (see "Provenance and ledger"). Removing the
+  merged log alone is not allowed: the next startup would find the
+  companion with no merged log and re-merge it under the same `task_id`.
 
 So after a successful retry the merged log and shards are the redundant
-copy and, with `retry_cleanup` on, are removed; with `retry_cleanup=False`
-everything stays, as today. A retry should not run while shards can still
+copy, kept until the user removes them, with `retry_cleanup` on or off. A retry should not run while shards can still
 grow, and `eval_set()` cannot tell; the launcher hands the directory to
 `eval_set()` only after its workers are done (see "Notes for harnesses").
 
@@ -890,8 +896,7 @@ What readers that list shards pay:
 
 Decisions Ransom has not yet made, each with the recommendation the design
 assumes where it has one. Questions resolved on 2026-09-21 (listing exclusion, conflict
-policy, the CLI merge's use of the `task_file` fallback, the
-`shards_location` override, the shape of `<name>`) and on 2026-09-22 (the
+policy, the `shards_location` override, the shape of `<name>`) and on 2026-09-22 (the
 merged log's `task_id` under an eval-set retry, see "Eval-set integration";
 stale publication by overlapping merges, see "Overlapping merges" under
 "The merge") are recorded where they apply in "Design" and under "Alternatives not
@@ -949,17 +954,21 @@ Pydantic models. New boundaries:
 - **The intended selection** reaches the merge as a parameter or from the
   merged log's own header, never from a separate file in the shard
   directory, so the directory holds only `.eval` files and their buffers.
-- **Recomputation executes code the log names.** The merge is the only place
-  metrics are recomputed, and it runs only as a trusted Python step (the
-  API or CLI called by the launcher or by hand, `eval_set()` startup); no
-  reader path (viewer server,
-  `read_eval_log`, `evals_df`) recomputes or follows the `task_file`
-  fallback. The CLI merge may follow the fallback with a visible notice
-  (Ransom, 2026-09-21; see "Trust").
+- **Recomputation executes the caller's code.** The merge is the only place
+  metrics are recomputed from shards, and it runs only as a trusted Python
+  step (the API called by the launcher or by hand, `eval_set()` startup).
+  It computes results only with the `Task` the caller passes and never
+  imports a log-named `task_file` or rebuilds metrics from what a log
+  records (decisions: Ransom, 2026-11-03 and 2026-11-04; see "Trust"). How
+  the CLI gets its task is designed in the implementation plan's step 5b.
+  No reader path (viewer server, `read_eval_log`, `evals_df`) recomputes
+  or follows the `task_file` fallback.
 - **Listing shards beside the merged log** changes no authorization: every
   file, shard or merged, is authorized per file as today (`_validate_read`).
-- **Companion deletion widens the viewer's delete scope.** Deleting a merged
-  log deletes `<name>.shards/` with it, but the viewer's delete endpoint
+- **Companion deletion, once added, widens the viewer's delete scope.**
+  Step 1 deletes no companion. When deleting a merged log comes to delete
+  `<name>.shards/` with it (deferred, see "Provenance and ledger"), the
+  viewer's delete endpoint
   authorizes only the requested path (`_validate_delete`,
   `fastapi_server.py:177-180`) before calling a helper that has no access to
   the request or policy (`delete_log`, `_view/common.py:409-411`). A cascade
@@ -969,8 +978,8 @@ Pydantic models. New boundaries:
   canonical log, and deletes nothing unless every check passes; a denied
   member is a 403 for the whole request with the canonical log left in
   place. Path mapping (`_map_file`) applies to the members as it does to
-  the requested file. Trusted callers (`retry_cleanup`, the API, the CLI)
-  are outside the HTTP policy and delete both directly.
+  the requested file. Trusted callers (`retry_cleanup` and the merge) are
+  outside the HTTP policy and delete both directly.
 
 ## Testing
 
@@ -1019,15 +1028,17 @@ Pydantic models. New boundaries:
   surviving merged log alone; a `started` merged log is re-merged, not
   recovered; a shard set with an `error` shard merges into an `error` log
   that the set retries seeded with the merged samples; after a successful
-  retry, cleanup removes the merged log and its `<name>.shards/` together;
-  in the viewer, a delete of a merged log under an access policy that allows
-  the canonical file but denies a companion member returns 403 and deletes
+  retry, cleanup keeps the retry log even when the merged log has the
+  newer mtime and leaves the merged log and its `<name>.shards/` in place;
+  a second startup after that cleanup finds nothing new to merge; with
+  `retry_cleanup=False` both logs and the shards remain.
+- Deletion tests, with the deferred deletion work: cleanup removes a
+  superseded merged log and its `<name>.shards/` together; in the viewer,
+  a delete of a merged log under an access policy that allows the
+  canonical file but denies a companion member returns 403 and deletes
   nothing, and under a policy that allows both removes the log and its
   companion together (a FastAPI test client over `/log-delete`, in
-  `tests/view/`)
-  and keeps the retry log even when the merged log has the newer mtime; a
-  second startup after that cleanup finds nothing to re-merge; with
-  `retry_cleanup=False` both logs and the shards remain.
+  `tests/view/`).
 - Errored-shard tests: an `error` or `cancelled` shard's completed samples
   are merged and the merged log is `error`, never `started`, with the
   shard's message in the ledger; a rerun in the same `<k>/` supersedes the
@@ -1172,7 +1183,8 @@ Kept for the record and as the rationale for the design above.
   recovery triggered during eval-set resume and eval retry, on any log;
   whether those operations should require an opt-in before importing
   log-named code is a separate question (the merge's slice of it is decided:
-  the CLI merge may follow the fallback with a visible notice).
+  the merge computes results with the caller's `Task` and never imports
+  log-named code; decision: Ransom, 2026-11-03).
 - `EvalDataset.samples` records the full dataset size while `sample_ids` is
   the slice; the pair is the only present hint that a log is partial and its
   documentation could say so.
