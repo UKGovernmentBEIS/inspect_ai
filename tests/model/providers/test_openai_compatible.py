@@ -1059,6 +1059,59 @@ async def test_together_batch_sends_each_header_set_separately() -> None:
     ]
 
 
+@pytest.mark.parametrize(
+    ("base_url", "expected_root"),
+    [
+        ("https://api.together.xyz/v1", "https://api.together.xyz/v1"),
+        ("https://api.together.xyz/v1/", "https://api.together.xyz/v1"),
+        (
+            "https://proxy.example.com/together/v1",
+            "https://proxy.example.com/together/v1",
+        ),
+    ],
+)
+def test_together_batch_clients_build_versioned_urls_once(
+    base_url: str, expected_root: str
+) -> None:
+    """The Together SDK clients reach /v1/files and /v1/batches, not /v1/v1/...
+
+    together 3.x switched from relative paths ("files") to paths that carry
+    the version ("/v1/files"), so the batcher must not pass on the OpenAI
+    client's "/v1" suffix there (#6300).
+    """
+    from openai import AsyncOpenAI
+    from together import AsyncTogether
+
+    from inspect_ai._util.version import has_required_version
+    from inspect_ai.model._generate_config import BatchConfig
+    from inspect_ai.model._providers._together_batch import (
+        TogetherBatcher,
+        _together_sdk_base_url,
+    )
+    from inspect_ai.model._retry import model_retry_config
+
+    openai_client = AsyncOpenAI(api_key="test", base_url=base_url)
+    batcher = TogetherBatcher(
+        openai_client,
+        BatchConfig(),
+        model_retry_config(
+            "test", 3, None, lambda e: True, lambda ex: None, lambda m, s: None
+        ),
+    )
+    async_client = AsyncTogether(
+        api_key="test", base_url=_together_sdk_base_url(openai_client)
+    )
+
+    # the resource paths each SDK major uses for uploads and batch creation
+    v3 = has_required_version("together", "3.0.0-0")
+    files_path = "/v1/files" if v3 else "/files"
+    batches_path = "/v1/batches" if v3 else "/batches"
+
+    sync_client = batcher._together_sync_client
+    assert str(sync_client._prepare_url(files_path)) == f"{expected_root}/files"
+    assert str(async_client._prepare_url(batches_path)) == f"{expected_root}/batches"
+
+
 def test_together_resolve_stream_declines_logprobs() -> None:
     """Auto mode declines to stream when logprobs is requested.
 

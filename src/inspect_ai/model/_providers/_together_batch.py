@@ -12,7 +12,7 @@ from typing_extensions import TypedDict, override
 
 from inspect_ai._util.dateutil import datetime_from_iso_format_safe
 from inspect_ai._util.error import pip_dependency_error
-from inspect_ai._util.version import verify_required_version
+from inspect_ai._util.version import has_required_version, verify_required_version
 from inspect_ai.model._generate_config import BatchConfig
 from inspect_ai.model._providers._openai_batch import OpenAIBatcher
 from inspect_ai.model._retry import ModelRetryConfig
@@ -44,7 +44,7 @@ class TogetherBatcher(OpenAIBatcher[ChatCompletion]):
         # together uses different file upload method than openai
         # async client doesn't have .upload method implemented
         self._together_sync_client = Together(
-            api_key=client.api_key, base_url=str(client.base_url)
+            api_key=client.api_key, base_url=_together_sdk_base_url(client)
         )
 
     # OpenAIBatcher overrides
@@ -118,7 +118,7 @@ class TogetherBatcher(OpenAIBatcher[ChatCompletion]):
         # extra_headers in the request.
         client = AsyncTogether(
             api_key=self._openai_client.api_key,
-            base_url=str(self._openai_client.base_url),
+            base_url=_together_sdk_base_url(self._openai_client),
             default_headers=extra_headers,
         )
 
@@ -138,6 +138,24 @@ class TogetherBatcher(OpenAIBatcher[ChatCompletion]):
             raise RuntimeError(
                 f"Unable to create batch: {response.warning or 'unknown error'}"
             )
+
+
+def _together_sdk_base_url(client: AsyncOpenAI) -> str:
+    """The base URL to give the Together SDK, derived from the OpenAI client's.
+
+    The OpenAI client's base URL includes the API version
+    (``https://api.together.xyz/v1/``). together 2.x joins it with relative
+    paths (``files``), but together 3.x uses paths that already start with
+    ``/v1`` (``/v1/files``), so on 3.x the version suffix must be removed or
+    requests go to ``/v1/v1/...``. On 3.x a custom ``TOGETHER_BASE_URL`` should
+    therefore end in ``/v1`` (as the default does); any other base URL is passed
+    to the SDK unchanged.
+    """
+    base_url = str(client.base_url).rstrip("/")
+    # "3.0.0-0" so that 3.0.0 pre-releases (rc, dev) count as 3.x
+    if has_required_version("together", "3.0.0-0") and base_url.endswith("/v1"):
+        base_url = base_url.removesuffix("/v1")
+    return base_url
 
 
 def _iso_to_unix(input: OpenAIBatch, field: str) -> int | None:
