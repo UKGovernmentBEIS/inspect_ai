@@ -1102,7 +1102,9 @@ class Model:
         async with self._connection_concurrency(config) as connection:
             # generate
             with (
-                receiving_field(through_sidecar.sidecar)
+                receiving_field(
+                    through_sidecar.sidecar, through_sidecar.registered_beforehand
+                )
                 if through_sidecar is not None
                 else contextlib.nullcontext()
             ) as receiving:

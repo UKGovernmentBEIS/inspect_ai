@@ -1096,13 +1096,16 @@ def test_a_refusal_without_the_field_is_acted_on_as_request_result_says() -> Non
     assert _tool_messages(sample)["call_1"].error is not None
 
 
-def test_a_sample_the_sidecar_cant_place_is_never_retried_or_scored() -> None:
+def test_a_sample_the_sidecar_never_accepted_is_never_retried_or_scored() -> None:
+    # a task the sidecar's admin registered beforehand, whose tasks folder
+    # doesn't hold the sample: a retry would be refused the same way
     stand_in = StandInSidecar(
         turns=[Turn(status=400)] * 3,
         methods={
+            "complete_registration": lambda _: {"fixed": True},
             "request_result": _answers(
                 {"records": "held", "state": "not_judged", "reason": "unregistered"}
-            )
+            ),
         },
     )
     task = Task(dataset=[Sample(input="Hi.")], solver=generate(), scorer=_graded())
@@ -1121,6 +1124,82 @@ def test_a_sample_the_sidecar_cant_place_is_never_retried_or_scored() -> None:
     assert "SampleRefusedError" in sample.error.message
     assert sample.scores is None or sample.scores == {}
     assert len(stand_in.model_calls) == 1
+
+
+def test_a_sample_the_sidecar_lost_is_retried_and_registered_again() -> None:
+    # the sidecar restarts mid-sample and loses the task's registration: the
+    # running attempt's call is refused as unregistered, and the retry
+    # registers the task again
+    completions = [0]
+
+    def complete(_: dict[str, Any]) -> dict[str, Any]:
+        completions[0] += 1
+        if completions[0] == 2:
+            return {"error": {"code": -32009, "message": "no registration"}}
+        return {"fixed": False}
+
+    stand_in = StandInSidecar(
+        turns=[
+            Turn(status=400),
+            Turn(text="Sunny.", sentinel={"outcome": "proceed", "steps": []}),
+        ],
+        methods={
+            "complete_registration": complete,
+            "request_result": _answers(
+                {"records": "held", "state": "not_judged", "reason": "unregistered"}
+            ),
+        },
+    )
+    task = Task(dataset=[Sample(input="Hi.")], solver=generate(), scorer=_graded())
+
+    [log] = eval(task, model=_model(stand_in), retry_on_error=1, display="none")
+
+    assert log.samples is not None
+    [sample] = log.samples
+    assert sample.error is None
+    assert len(sample.error_retries or []) == 1
+    assert len(_registered(stand_in, "register_task")) == 2
+    assert sample.scores
+
+
+@pytest.mark.parametrize("retry_on_error", [0, 1], ids=["no retries", "retries spent"])
+def test_a_sample_the_sidecar_lost_isnt_scored_on_what_it_holds_since(
+    retry_on_error: int,
+) -> None:
+    # every attempt is lost, and the sample is scored on its error: the
+    # sidecar's store began afresh after the restart, so it isn't the
+    # sample's monitor state, and a scorer that reads it is told so
+    stand_in = StandInSidecar(
+        turns=[Turn(status=400)] * 2,
+        methods={
+            "request_result": _answers(
+                *[{"records": "held", "state": "not_judged", "reason": "unregistered"}]
+                * 2
+            ),
+            "sample_result": _kept({}),
+        },
+    )
+    task = Task(
+        dataset=[Sample(input="Hi.")],
+        solver=generate(),
+        scorer=_reads_monitor_state(),
+    )
+
+    [log] = eval(
+        task,
+        model=_model(stand_in),
+        retry_on_error=retry_on_error,
+        score_on_error=True,
+        display="none",
+    )
+
+    assert log.samples is not None
+    [sample] = log.samples
+    assert sample.error is not None
+    score = (sample.scores or {})["_reads_monitor_state"]
+    assert score.value == 0
+    assert score.explanation is not None and "lost the sample" in score.explanation
+    assert _registered(stand_in, "sample_result") == []
 
 
 def test_a_refusal_the_sidecar_couldnt_judge_fails_the_sample_with_why() -> None:
@@ -1403,6 +1482,42 @@ def test_the_sidecars_reports_are_written_as_sentinel_events(trimmed: bool) -> N
         )
         assert decided.function == "decide"
         assert not where["trimmed"]
+
+
+def test_a_step_without_records_keeps_its_decisions_metadata() -> None:
+    # a sidecar that sends results, with a step that has no records: the
+    # decision's own metadata is kept beside where it came from
+    field: dict[str, Any] = {
+        "outcome": "proceed",
+        "steps": [
+            {
+                "stage": "tool_call",
+                "call": "call_1",
+                "decision": {
+                    "action": "reject",
+                    "message": "Tokyo is not allowed.",
+                    "metadata": {"rule": "no_tokyo"},
+                },
+            }
+        ],
+        "proposed": {
+            "message": _turn_json(("call_1", "Tokyo"), ("call_2", "Oslo")),
+            "results": {"call_1": "Tokyo is not allowed."},
+        },
+    }
+    stand_in = StandInSidecar(
+        turns=[
+            Turn(calls=[("call_2", "weather", {"city": "Oslo"})], sentinel=field),
+            Turn(),
+        ]
+    )
+
+    sample = _run_agent(stand_in)
+
+    [event] = _sentinel_events(sample)
+    assert event.metadata is not None
+    assert event.metadata["rule"] == "no_tokyo"
+    assert event.metadata[SIDECAR_METADATA]["trimmed"] is False
 
 
 @scorer(metrics=[mean()])

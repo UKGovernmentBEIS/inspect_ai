@@ -75,13 +75,16 @@ class TaskSidecars:
         self.mode: SentinelProxy = mode
         self.facts = facts
         self._found = _Once[Sidecar | str]()
-        self._completed = _Once[None]()
+        self._completed = _Once[bool]()
         # the sidecars each sample's calls went through, by the sample's uuid,
         # with the attempt that last called each
         self._through: dict[str, dict[str, tuple[Sidecar, int]]] = {}
         # the models each attempt at a sample called with no sidecar behind
         # them, by the sample's uuid, so each is noted in its transcript once
         self._unjudged: dict[str, set[tuple[int, str]]] = {}
+        # the attempts at each sample whose monitor state a sidecar lost, by
+        # the sample's uuid
+        self._lost: dict[str, set[int]] = {}
 
     async def start(self, model: Model) -> None:
         """Probe the endpoint of the task's assigned model, and register the task with a sidecar found there, before any sample runs.
@@ -102,8 +105,11 @@ class TaskSidecars:
 
     async def complete_registration(
         self, sidecar: Sidecar, sample: SampleFacts, sample_uuid: str, attempt: int
-    ) -> None:
+    ) -> bool:
         """Send a sample's facts to a sidecar before the sidecar judges any of its calls, once for each epoch's attempt at the sample.
+
+        Returns:
+            Whether the sidecar's admin registered the task beforehand, in its tasks folder. Such a sidecar takes only the samples the folder holds, so a sample it later says it can't place was never accepted, rather than lost.
 
         A sidecar that no longer keeps the task's registration, as after it restarted or the registration expired, has the task registered again first. Each epoch and each retry of a sample completes its registration again, so a later one finds a sidecar that has lost the task, rather than being judged without the task's facts or refused.
 
@@ -111,7 +117,7 @@ class TaskSidecars:
             SentinelProxyError: If the sidecar couldn't take the sample, or no longer kept the task and couldn't register it again.
         """
 
-        async def complete() -> None:
+        async def complete() -> bool:
             params = {
                 "eval_id": self.facts.eval_id,
                 "task": self.facts.task,
@@ -124,7 +130,7 @@ class TaskSidecars:
             }
             try:
                 try:
-                    await sidecar.call("complete_registration", params)
+                    result = await sidecar.call("complete_registration", params)
                 except SidecarCallError as ex:
                     if ex.code != UNKNOWN_TASK:
                         raise
@@ -132,13 +138,20 @@ class TaskSidecars:
                     # sidecar that still keeps it, so a sample that races
                     # another here is safe
                     await self._register(sidecar)
-                    await sidecar.call("complete_registration", params)
+                    result = await sidecar.call("complete_registration", params)
+                return result.get("fixed") is True
             except SidecarCallError as ex:
                 raise SentinelProxyError(
                     f"The sentinel sidecar at {sidecar.origin} couldn't register the sample {sample.sample_id!r} of the task {self.facts.task!r}: {ex}"
                 ) from ex
 
-        await self._completed.run((sidecar.origin, sample_uuid, attempt), complete)
+        return await self._completed.run(
+            (sidecar.origin, sample_uuid, attempt), complete
+        )
+
+    def lost_monitor_state(self, sample_uuid: str, attempt_number: int) -> None:
+        """Note that a sidecar lost an attempt's sample partway through, as on a restart, so the attempt's monitor state is never copied: what the sidecar holds for it began afresh."""
+        self._lost.setdefault(sample_uuid, set()).add(attempt_number)
 
     def note_unjudged(self, sample_uuid: str, attempt_number: int, model: str) -> bool:
         """Note that an attempt at a sample called a model with no sidecar behind it; whether this is the attempt's first such call to the model."""
@@ -168,6 +181,7 @@ class TaskSidecars:
         """
         through = self._through.pop(sample_uuid, {}).values()
         self._unjudged.pop(sample_uuid, None)
+        self._lost.pop(sample_uuid, None)
         if not tell:
             return
         for sidecar, _ in through:
@@ -187,9 +201,21 @@ class TaskSidecars:
         Inside Inspect, a monitor's state is in the sample store, where a scorer can read it; through a sidecar, it is kept by the sidecar. After the copy, a marker in the sample store says whether it succeeded, so a scorer never reads a failed copy as a sample in which nothing was flagged.
 
         A sidecar only an earlier attempt called is left out: it still keeps that attempt's monitor state, and a retry starts with an empty sample store, as in Inspect's own process.
+
+        An attempt whose sample a sidecar lost partway through, as on a restart, isn't copied: the marker says its monitor state was lost, since what the sidecar holds began afresh.
         """
         through = self._attempt_sidecars(sample_uuid, attempt_number)
         if not through:
+            return
+        if attempt_number in self._lost.get(sample_uuid, set()):
+            # what the sidecar holds began afresh after it lost the sample,
+            # so it isn't the attempt's monitor state
+            self.skip_monitor_state_copy(
+                sample_uuid,
+                attempt_number,
+                store,
+                "the sentinel sidecar lost the sample partway through, as on a restart",
+            )
             return
         # the keys earlier copies wrote: any other key of the sample store
         # the copy would overwrite is a sentinel's inside Inspect

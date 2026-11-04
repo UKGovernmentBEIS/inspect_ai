@@ -45,7 +45,9 @@ def record_sidecar_reports(
         }
         if field.trimmed or step.recorded is None:
             # a step without its records holds only what Inspect acts on,
-            # with no monitor or protocol, so no function, to name
+            # with no monitor or protocol, so no function, to name. The
+            # decision's own metadata is kept when the sidecar sent it: a
+            # trimmed field leaves it out, and nothing restores it
             transcript()._event(
                 SentinelEvent.model_validate(
                     {
@@ -57,8 +59,7 @@ def record_sidecar_reports(
                         "function": "",
                         "kind": "decision",
                         "status": "reported",
-                        **_decision(step.decision),
-                        "metadata": {SIDECAR_METADATA: {**where, "trimmed": True}},
+                        **_with_sidecar(_decision(step.decision), where),
                     }
                 )
             )
