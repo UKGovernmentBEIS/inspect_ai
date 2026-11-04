@@ -1,6 +1,5 @@
 # Exclude specific subdirectories
 recursive-exclude src/inspect_ai/tool/_tools/_computer/_resources *
-recursive-exclude src/inspect_ai/tool/_tools/_web_browser/_resources *
 
 # Trim the sdist: none of these are needed to build or install from it
 # (the JS viewer ships prebuilt as src/inspect_ai/_view/dist). See #4588.
@@ -9,4 +8,4 @@ prune src/inspect_sandbox_tools/tests
 prune docs
 prune src/inspect_ai/_view/ts-mono
 exclude uv.lock
-exclude yarn.lock
+exclude src/inspect_ai/model/_model_data/sync_models.py.lock

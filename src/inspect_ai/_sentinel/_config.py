@@ -1,7 +1,10 @@
 import importlib
-from collections.abc import Mapping, Sequence
+import typing
+from collections.abc import Awaitable, Callable, Mapping, Sequence
+from importlib.metadata import PackageNotFoundError, version
 from typing import TYPE_CHECKING, Annotated, Any, TypeAlias, Union, cast
 
+import yaml
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -13,14 +16,31 @@ from pydantic import (
     Tag,
 )
 
+from inspect_ai._util.config import parse_cli_args
 from inspect_ai._util.error import PrerequisiteError
+from inspect_ai._util.file import exists, local_path
 from inspect_ai._util.registry import is_registry_object
+from inspect_ai._util.version import has_required_version
 
 if TYPE_CHECKING:
+    import inspect_sentinel._integration
     from inspect_sentinel import Protocol
-    from inspect_sentinel._integration import Sentinels
-else:
-    Sentinels: TypeAlias = Any
+
+
+# The shape of inspect_sentinel's `Sentinels`, so that public signatures type
+# check without inspect_sentinel installed. A monitor takes (context, step) and a
+# protocol (context, step, escalations), as inspect_sentinel's own types define.
+SentinelFunction: TypeAlias = Callable[..., Awaitable[Any]]
+
+
+class SentinelGroup(typing.Protocol):
+    @property
+    def functions(self) -> Sequence[SentinelFunction]: ...
+
+
+Sentinel: TypeAlias = SentinelFunction | SentinelGroup
+
+Sentinels: TypeAlias = Sentinel | Mapping[str, Sentinel] | Sequence[Sentinel]
 
 
 class SentinelEntry(BaseModel):
@@ -106,6 +126,51 @@ SentinelSpec: TypeAlias = Union[
 ]
 
 
+def sentinel_with_args(
+    sentinel: str | None,
+    args: tuple[str, ...] | list[str] | None,
+    *,
+    sentinel_source: str = "--sentinel",
+    args_source: str = "--sentinel-arg",
+) -> str | SentinelConfig | None:
+    """A registered monitor or protocol name with `key=value` arguments, as the entry that builds it.
+
+    The arguments become the entry's `params`, parsed like `-T` and `-S` values. A config file carries its own params, so arguments are rejected with a file, as they are without a sentinel. A path that exists is a file, as `inspect_sentinel` decides.
+
+    Args:
+        sentinel: A config file or a registered monitor or protocol name.
+        args: `key=value` arguments for the named monitor or protocol.
+        sentinel_source: The option or variable that gave `sentinel`, for errors.
+        args_source: The option or variable that gave `args`, for errors.
+    """
+    if not args:
+        return sentinel
+    if sentinel is None:
+        raise PrerequisiteError(f"{args_source} requires {sentinel_source}.")
+    malformed = [arg for arg in args if "=" not in arg]
+    if malformed:
+        raise PrerequisiteError(f"{args_source} takes key=value, not {malformed[0]!r}.")
+    if exists(local_path(sentinel)):
+        raise PrerequisiteError(
+            f"{args_source} cannot be used with the sentinel config file '{sentinel}'; "
+            "set params in the file instead."
+        )
+    params: dict[str, Any] = {}
+    for arg in args:
+        try:
+            params.update(parse_cli_args([arg]))
+        except yaml.YAMLError as ex:
+            raise PrerequisiteError(
+                f"{args_source} {arg!r} does not have a valid YAML value: "
+                f"{getattr(ex, 'problem', None) or ex}."
+            ) from None
+    return SentinelConfig.model_validate({"name": sentinel, "params": params})
+
+
+SENTINEL_MIN_VERSION = "0.3.0"
+"""The oldest inspect_sentinel that this inspect_ai works with."""
+
+
 def _require_sentinel() -> None:
     try:
         importlib.import_module("inspect_sentinel._integration")
@@ -115,16 +180,32 @@ def _require_sentinel() -> None:
             "Install it with:\n\n"
             "[bold]pip install inspect-sentinel[/bold]"
         ) from ex
+    try:
+        supported = has_required_version("inspect-sentinel", SENTINEL_MIN_VERSION)
+    except PackageNotFoundError as ex:
+        raise PrerequisiteError(
+            "[bold]ERROR[/bold]: The installed inspect_sentinel has no package metadata, "
+            "so its version can't be checked. Sentinel support requires "
+            f"inspect-sentinel>={SENTINEL_MIN_VERSION}. Install it with:\n\n"
+            f'[bold]pip install "inspect-sentinel>={SENTINEL_MIN_VERSION}"[/bold]'
+        ) from ex
+    if not supported:
+        raise PrerequisiteError(
+            f"[bold]ERROR[/bold]: Sentinel support requires inspect-sentinel>={SENTINEL_MIN_VERSION} "
+            f"(you have version {version('inspect-sentinel')} installed). "
+            "Upgrade it with:\n\n"
+            f'[bold]pip install --upgrade "inspect-sentinel>={SENTINEL_MIN_VERSION}"[/bold]'
+        )
 
 
-def resolve_sentinel_spec(spec: SentinelSpec) -> "Sentinels":
+def resolve_sentinel_spec(spec: SentinelSpec) -> Sentinels:
     _require_sentinel()
     from inspect_sentinel._integration import sentinel_from_config
 
     if isinstance(spec, str | SentinelConfig) or not _is_constructed(spec):
-        sentinels = sentinel_from_config(cast(str | SentinelConfig, spec))
+        sentinels: Sentinels = sentinel_from_config(cast(str | SentinelConfig, spec))
     else:
-        sentinels = cast("Sentinels", spec)
+        sentinels = cast(Sentinels, spec)
     resolve_sentinel_root(sentinels)
     return sentinels
 
@@ -148,15 +229,17 @@ def _is_constructed(spec: object) -> bool:
     return bool(values) and all(constructed)
 
 
-def resolve_sentinel_root(sentinels: "Sentinels") -> SentinelRoot:
+def resolve_sentinel_root(sentinels: Sentinels) -> SentinelRoot:
     _require_sentinel()
     from inspect_sentinel._integration import resolve_sentinel
 
-    return resolve_sentinel(sentinels)
+    return resolve_sentinel(cast("inspect_sentinel._integration.Sentinels", sentinels))
 
 
-def sentinel_config(sentinels: "Sentinels") -> SentinelConfig:
+def sentinel_config(sentinels: Sentinels) -> SentinelConfig:
     _require_sentinel()
     from inspect_sentinel._integration import config_from_sentinel
 
-    return config_from_sentinel(sentinels)
+    return config_from_sentinel(
+        cast("inspect_sentinel._integration.Sentinels", sentinels)
+    )

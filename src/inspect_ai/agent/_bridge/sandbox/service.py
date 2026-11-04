@@ -1,30 +1,23 @@
 from logging import getLogger  # noqa: E402
-from typing import Awaitable, Callable, Protocol, Sequence, cast
+from typing import Awaitable, Callable, Protocol, TypeGuard, cast
 
 import anyio
-from pydantic import JsonValue, TypeAdapter
+from pydantic import JsonValue
 
-from inspect_ai._sentinel._scope import AgentScope, sentinel_scope
-from inspect_ai._util.content import Content, ContentImage, ContentText
-from inspect_ai._util.exception import TerminateSampleError
-from inspect_ai._util.json import to_json_str_safe
-from inspect_ai._util.logger import warn_once
-from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64, is_data_uri
-from inspect_ai.model._call_tools import (
-    get_tools_info,
-    tool_call_error,
-    tool_result_content_list,
-    truncate_tool_output,
-    validate_tool_input,
-)
+from inspect_ai._sentinel._scope import solving
+from inspect_ai.model._call_tools import get_tools_info
 from inspect_ai.model._model import ModelRefusalError
-from inspect_ai.tool._tool import ToolParsingError
-from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
 from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
-from inspect_ai.util._anyio import inner_exception
-from inspect_ai.util._limit import LimitExceededError
+from inspect_ai.util._limit import (
+    Limit,
+    LimitExceededError,
+    _Node,
+    check_turn_limit,
+    sample_limits,
+)
 from inspect_ai.util._sandbox import SandboxEnvironment, sandbox_service
+from inspect_ai.util._sandbox.service import find_control_flow
 
 from .._errors import PROVIDER_ERROR_KEY, ResponseFilterError, provider_error_payload
 from ..anthropic_api import inspect_anthropic_api_request
@@ -32,12 +25,12 @@ from ..bridge import filter_sandbox_client_headers
 from ..completions import inspect_completions_api_request
 from ..google_api import inspect_google_api_request
 from ..responses import inspect_responses_api_request
+from .host_tool import execute_host_tool
 from .types import SandboxAgentBridge
 
 logger = getLogger(__name__)
 
 MODEL_SERVICE = "bridge_model_service"
-JSON_VALUE_ADAPTER: TypeAdapter[JsonValue] = TypeAdapter(JsonValue)
 
 
 class GenerateMethod(Protocol):
@@ -58,16 +51,37 @@ def _forward_provider_errors(
     channel. This lets the model proxy emit a provider-dialect error response
     and stay up, instead of the RPC `error` channel triggering a fatal exit.
 
-    `LimitExceededError` is deliberately excluded so message/token/cost limit
-    hit during generation properly end the sample.
+    A termination is re-raised: a `TerminateSampleError` (from an approver's
+    `terminate` decision, too many consecutive rejections, or a request or
+    response filter), bare or anywhere in the exception as `find_control_flow`
+    finds it. The sandbox service dispatcher answers the RPC and propagates the
+    termination out of the service task, which ends the sample.
 
-    A `ModelRefusalError` (`fail_on_refusal`), a `ResponseFilterError` (a
-    `response_filter` is eval logic, not a passive observer) and a
-    `TerminateSampleError` (for example one raised by a request or response
-    filter) must also end the sample, but the sandbox service dispatcher would
-    swallow a re-raise into an RPC error, so they are signalled through
-    `bridge.request_fail` (raised on the agent's side by the bridge's monitor
-    task) while the scaffold still gets an error reply.
+    A `ModelRefusalError` (`fail_on_refusal`) and a `ResponseFilterError` (a
+    `response_filter` is eval logic, not a passive observer) must also end the
+    sample, but the dispatcher would turn a re-raise into an RPC error, so they
+    are signalled through `bridge.request_fail` (raised on the agent's side by
+    the bridge's monitor task) while the scaffold still gets an error reply.
+
+    A `LimitExceededError` (message, token, cost or turn limit), bare or in an
+    exception group such as a filter's task group, is returned as an error
+    reply too. The first limit reached is recorded in `bridge.generation_limit`:
+    once the agent has unwound, `sandbox_agent_bridge` raises it, so the scope
+    that applied it (`run()`, or the sample) handles it, as for a native agent.
+    A later limit replaces it only when it encloses it (see `_encloses`), so a
+    sample limit reached by a concurrent generation is not lost behind an inner
+    limit that a caller catches.
+    A limit only in an exception's cause or context is not recorded: it was
+    handled, or replaced by the error that escaped (a refusal reduced from a
+    response filter's group, a `ResponseFilterError`, a fallback's provider
+    error), which takes its own route. A group of only limits and refusals
+    that holds a limit, such as a generate filter's, counts as its first
+    member, as a response filter's group does: a refusal first fails the
+    sample, a limit first is recorded. Other errors in a group a limit was
+    selected from are logged, as for any error forwarded with no HTTP status.
+
+    A turn limit is checked after a generation, so a request that arrives
+    once one is exceeded gets its error reply without another generation.
     """
 
     async def generate_forwarding_errors(
@@ -75,15 +89,31 @@ def _forward_provider_errors(
         headers: dict[str, str] | None = None,
     ) -> dict[str, JsonValue]:
         try:
+            check_turn_limit()
             return await generate(json_data, headers)
-        except LimitExceededError:
-            raise
-        except (ModelRefusalError, ResponseFilterError, TerminateSampleError) as ex:
-            bridge.request_fail(ex)
-            # no non-provider-error warning: the failure is reported once, by
-            # the sample error the monitor task raises
-            return {PROVIDER_ERROR_KEY: cast(JsonValue, provider_error_payload(ex))}
         except Exception as ex:
+            if find_control_flow(ex) is not None:
+                # the service dispatcher ends the sample with it
+                raise
+            control = _first_control(ex)
+            if isinstance(control, LimitExceededError):
+                # only one is raised, so the others are not kept; no local
+                # holds a displaced one, since this frame stays in the
+                # traceback of the error that replaces it
+                if bridge.generation_limit is None or _encloses(
+                    control, bridge.generation_limit
+                ):
+                    bridge.generation_limit = control
+                _warn_other_errors(ex)
+                return {PROVIDER_ERROR_KEY: cast(JsonValue, provider_error_payload(ex))}
+            failure = control or ex
+            if isinstance(failure, (ModelRefusalError, ResponseFilterError)):
+                bridge.request_fail(failure)
+                # no non-provider-error warning: the failure is reported once,
+                # by the sample error the monitor task raises
+                return {
+                    PROVIDER_ERROR_KEY: cast(JsonValue, provider_error_payload(failure))
+                }
             payload = provider_error_payload(ex)
             # A payload with no recoverable HTTP status almost always means the
             # failure came from our own request translation rather than the
@@ -100,6 +130,102 @@ def _forward_provider_errors(
             return {PROVIDER_ERROR_KEY: cast(JsonValue, payload)}
 
     return generate_forwarding_errors
+
+
+def _encloses(outer: LimitExceededError, inner: LimitExceededError) -> bool:
+    """Whether the limit that raised `outer` encloses the one that raised `inner`.
+
+    It does when it is an ancestor of `inner`'s in the same limit tree, or,
+    while the solvers run, one of the sample's own limits (the roots of the
+    live limit trees) while `inner`'s is not. Other limits in different trees
+    are not compared: outside the solve (scorers run after the sample's limits
+    have exited) a tree's root can be an agent's limit, so nesting across trees
+    cannot be told. A limit error with no source, or a source in no limit tree,
+    encloses nothing and is enclosed by nothing.
+    """
+    outer_node, inner_node = outer.source, inner.source
+    if not _in_tree(outer_node) or not _in_tree(inner_node):
+        return False
+    roots = _sample_roots()
+    if any(outer.source is root for root in roots):
+        return not any(inner.source is root for root in roots)
+    node: _Node | None = inner_node.parent
+    while node is not None:
+        if node is outer_node:
+            return True
+        node = node.parent
+    return False
+
+
+def _sample_roots() -> list[Limit]:
+    """The sample's own limits while its solvers run, else none."""
+    if not solving():
+        return []
+    limits = sample_limits()
+    return [
+        limits.token,
+        limits.cost,
+        limits.message,
+        limits.turn,
+        limits.working,
+        limits.time,
+    ]
+
+
+def _in_tree(source: Limit | None) -> TypeGuard[_Node]:
+    """Whether `source` is a limit tree node that has been entered (so has a parent)."""
+    return isinstance(source, _Node) and source._entered
+
+
+def _first_control(ex: Exception) -> LimitExceededError | ModelRefusalError | None:
+    """The limit to record, or refusal to fail with, for a failed generation.
+
+    The first limit of `ex` and its group members, except that a group of only
+    limits and refusals that holds a limit counts as its first member, depth
+    first in order, as `_apply_response_filter` reduces a response filter's
+    group.
+    """
+    if isinstance(ex, ExceptionGroup):
+        control, rest = ex.split((LimitExceededError, ModelRefusalError))
+        if (
+            control is not None
+            and rest is None
+            and control.subgroup(LimitExceededError) is not None
+        ):
+            first: Exception = control
+            while isinstance(first, ExceptionGroup):
+                first = first.exceptions[0]
+            return cast(LimitExceededError | ModelRefusalError, first)
+    return _first_limit(ex)
+
+
+def _warn_other_errors(ex: Exception) -> None:
+    """Log the members of a group other than limits and refusals, with their traceback.
+
+    They are likely bugs (a filter's own), which the limit's error reply would
+    otherwise mask.
+    """
+    if isinstance(ex, ExceptionGroup):
+        _, rest = ex.split((LimitExceededError, ModelRefusalError))
+        if rest is not None:
+            logger.warning(
+                "Agent bridge model request reached a limit and failed with other "
+                "errors (forwarding the limit to the client as an error response): %s",
+                rest,
+                exc_info=rest,
+            )
+
+
+def _first_limit(ex: BaseException) -> LimitExceededError | None:
+    """The first `LimitExceededError` of `ex` and its group members, depth first in order."""
+    if isinstance(ex, LimitExceededError):
+        return ex
+    if isinstance(ex, BaseExceptionGroup):
+        for member in ex.exceptions:
+            limit = _first_limit(member)
+            if limit is not None:
+                return limit
+    return None
 
 
 async def run_model_service(
@@ -238,122 +364,12 @@ def list_tools(
     return execute
 
 
-def _mcp_tool_content_block(content: JsonValue) -> JsonValue:
-    match content:
-        case {"type": "image", "image": str() as image} if is_data_uri(image):
-            return {
-                "type": "image",
-                "data": data_uri_to_base64(image),
-                "mimeType": data_uri_mime_type(image) or "image/png",
-            }
-        case {"type": "image", "image": str() as image}:
-            return {"type": "text", "text": image}
-        case _:
-            return content
-
-
-def _mcp_tool_result_content(
-    result: ContentImage | Sequence[Content],
-) -> list[JsonValue]:
-    content = JSON_VALUE_ADAPTER.validate_json(to_json_str_safe(result))
-    match content:
-        case list():
-            return [_mcp_tool_content_block(block) for block in content]
-        case _:
-            return [_mcp_tool_content_block(content)]
-
-
 def call_tool(
     bridge: SandboxAgentBridge,
-) -> Callable[[str, str, dict[str, JsonValue]], Awaitable[JsonValue]]:
-    """Execute a bridged tool and return result.
+) -> Callable[[str, str, JsonValue], Awaitable[JsonValue]]:
+    """Execute a bridged tool and return its result (`execute_host_tool`)."""
 
-    A tool runs only for a call the model proposed in a bridged generation, once
-    per proposal (see `SandboxAgentBridge.register_tool_execution_grants`), unless
-    its server was registered with `require_proposal=False`.
-
-    Arguments are validated against the tool's schema as for a native call, so
-    a scaffold's malformed arguments surface as a `ToolParsingError` the model
-    can recover from; they are otherwise forwarded as the scaffold sent them.
-    Exceptions are classified after unwrapping any task-group
-    `ExceptionGroup`, as `execute_tools` does, and with the same
-    `tool_call_error` mapping. Those a native call would show the model
-    propagate unchanged as the RPC error the scaffold reads as tool output. Any other exception is a bug in the eval's
-    tool, which natively fails the sample: the unwrapped exception is
-    signalled through `bridge.request_fail` so the bridge's monitor task ends
-    the sample at once, and the original still propagates so the RPC unwinds
-    with an error reply (the teardown may pre-empt its delivery; the
-    scaffold's turn is over either way).
-
-    A result a native call would pass to the model as text (anything but
-    content) is truncated to the same output limit, in the same format
-    (`truncate_tool_output`).
-    """
-
-    async def execute(
-        server: str, tool: str, arguments: dict[str, JsonValue]
-    ) -> JsonValue:
-        if server not in bridge.bridged_tools:
-            raise ValueError(f"Unknown bridged tools server: {server}")
-
-        server_tools = bridge.bridged_tools[server]
-        if tool not in server_tools:
-            raise ValueError(f"Unknown tool '{tool}' in server '{server}'")
-
-        if (
-            server not in bridge.proposal_exempt_servers
-            and not bridge.consume_tool_execution_grant(server, tool, arguments)
-        ):
-            warn_once(
-                logger,
-                f"Denied host tool call '{server}/{tool}': the model did not "
-                "propose it in a bridged generation (or its proposal has "
-                "already executed). An agent that calls host tools from code "
-                "the model writes (Codex CLI in code mode) can never match a "
-                "proposal; set require_proposal=False on the existing "
-                f"BridgedToolsSpec for server '{server}' for such an agent.",
-            )
-            raise PermissionError(
-                f"Host tool call '{server}/{tool}' was not proposed by the model "
-                "in a bridged generation (a bridged host tool runs once per "
-                "proposed call)"
-            )
-
-        tool_fn = server_tools[tool]
-        try:
-            tool_def = ToolDef(tool_fn)
-            validation_errors = validate_tool_input(arguments, tool_def.parameters)
-            if validation_errors:
-                raise ToolParsingError(validation_errors)
-            # as in call_tool: the tool's own model calls are not agent turns
-            with sentinel_scope(AgentScope.OFF):
-                result = await tool_fn(**arguments)
-        except Exception as ex:
-            # classify the unwrapped exception, but let the original propagate:
-            # the service dispatcher special-cases a bare LimitExceededError
-            # (ending the sample), and unwrapping a grouped one would newly
-            # route it there
-            inner_ex = inner_exception(ex)
-            if tool_call_error(inner_ex, tool) is None:
-                bridge.request_fail(inner_ex)
-            raise
-
-        # Plain strings are returned verbatim (the MCP `tools/call` text part
-        # carries them as-is). For anything else, use pydantic_core.to_json so
-        # Pydantic models (e.g. list[ContentText] from real MCP tools) are
-        # serialized correctly — json.dumps can't handle BaseModel.
-        if tool_result_content_list(result) is None:
-            text = result if isinstance(result, str) else to_json_str_safe(result)
-            truncated = truncate_tool_output(tool, text, tool_def.max_output)
-            return truncated.output if truncated else text
-        if isinstance(result, ContentImage) or (
-            isinstance(result, list)
-            and all(
-                isinstance(content, (ContentText, ContentImage)) for content in result
-            )
-            and any(isinstance(content, ContentImage) for content in result)
-        ):
-            return _mcp_tool_result_content(result)
-        return to_json_str_safe(result)
+    async def execute(server: str, tool: str, arguments: JsonValue) -> JsonValue:
+        return await execute_host_tool(bridge, server, tool, arguments)
 
     return execute

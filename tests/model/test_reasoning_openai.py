@@ -12,7 +12,7 @@ from inspect_ai.tool import Tool, tool
 def test_openai_reasoning_summary():
     log = eval(
         Task(dataset=[Sample(input="Solve 3*x^3-5*x=1")]),
-        model="openai/o4-mini",
+        model="openai/gpt-5-mini",
         reasoning_summary="auto",
     )[0]
     assert log.status == "success"
@@ -46,7 +46,7 @@ def test_openai_reasoning_summary_playback():
             ],
             solver=react(tools=[validate()]),
         ),
-        model="openai/o4-mini",
+        model="openai/gpt-5-mini",
         reasoning_summary="auto",
     )[0]
     assert log.status == "success"

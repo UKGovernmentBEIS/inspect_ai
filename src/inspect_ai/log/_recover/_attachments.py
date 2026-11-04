@@ -6,15 +6,16 @@ import json as json_module
 import os
 import shutil
 from collections.abc import Iterator, MutableMapping
-from typing import IO
+
+from inspect_ai.log._recorders.json_write import BinaryWriteStream
 
 
 class StreamingAttachmentStore(MutableMapping[str, str]):
     """Dict-like store that writes each unique attachment to its own file.
 
     Subclasses `MutableMapping[str, str]` so it can be passed anywhere a
-    mapping is expected (e.g. `condense_event`). In practice only
-    `__setitem__` is exercised by the recovery pipeline; the other
+    mapping is expected (e.g. `condense_event`). The recovery pipeline
+    writes with `__setitem__` and resolves refs with `get`; the other
     `MutableMapping` methods are provided for type-checker compatibility
     and read-back (e.g. `iter_items`).
 
@@ -75,10 +76,10 @@ class StreamingAttachmentStore(MutableMapping[str, str]):
 
 
 def write_attachments_field(
-    stream: IO[bytes],
+    stream: BinaryWriteStream,
     store: StreamingAttachmentStore,
     *,
-    comma: bool,
+    comma: bool = False,
 ) -> None:
     """Stream the `"attachments"` JSON field to `stream` from `store`.
 

@@ -248,7 +248,8 @@ Evaluations that depend on tool-level auditing should use Pattern 1.
 ### Tool user confinement
 
 The user a tool runs as is host-side configuration, chosen by the eval author
-when the tool is constructed: `bash(user=...)`, `python(user=...)`,
+when the tool is constructed (or by a sandbox identity scope, below):
+`bash(user=...)`, `python(user=...)`,
 `bash_session(user=...)`, `text_editor(user=...)`, or `user` on the
 `exec_remote` options (`ai/util/_sandbox/exec_remote.py:107`). It is captured
 in the tool's closure and is not part of the model-facing schema: `bash()`'s
@@ -261,8 +262,9 @@ chooses what to run, not as whom.**
 use_tools([bash_session(user="nobody")])
 ```
 
-Omitting `user` means the sandbox's default user for every one of these
-tools. For plain `bash()` and `python()` the omitted user goes to
+Outside a sandbox identity scope (below), omitting `user` means the
+sandbox's default user for every one of these tools. For plain `bash()` and
+`python()` the omitted user goes to
 `sandbox.exec()` unchanged. For the injected tools, when the tools user is
 root the host captures the default exec identity (uid, gid, groups and
 `HOME`, `sandbox.py:427-470`) at injection and supplies it with every call
@@ -274,6 +276,97 @@ root therefore requires an explicit grant from the eval author:
 or an `exec_remote` user of `"root"`. In a sandbox whose default user is root,
 omitting `user` runs the tool as root. A tools process that is not root never
 switches user (`guest/_util/user_switch.py:36-50`).
+
+#### Sandbox identity scopes
+
+A host-side scope, `sandbox_identity(user, cwd=..., sandbox=...)`
+(`ai/util/_sandbox/identity.py`), lets a framework such as inspect_swarm run
+model-facing work as a chosen user for the duration of a block, without
+reconstructing the tools. It is private to inspect_ai. Inside the block the user
+comes from the scope as well as from tool construction:
+
+- **Inherit the scope.** `bash()`, `python()`, `grep()`, `list_files()` and the
+  `read_file()` tool run as the scope's user and start in its `cwd`.
+  `bash_session()` and `text_editor()` run as the scope's user; a new
+  `bash_session()` shell starts (and restarts) in the `cwd`, and fails to start
+  if the user cannot enter it; `text_editor()` resolves relative paths against
+  the `cwd`. `exec_remote()` uses the scope's user and `cwd` when its options
+  omit them and keeps explicit values; the agent bridge launches its proxy
+  this way, as root when the tools user is root. The sandbox MCP server runs
+  as the scope's user (`ai/util/_sandbox/_cli.py`, `tools_user_param()`).
+- **Refuse.** The model-facing tools above, configured with a different user
+  (`bash(user="root")`), raise `SandboxIdentityError` at their first call
+  rather than run as that user. `computer()`, which cannot run as a user,
+  and `skill()`, which does not yet install skills as a user,
+  raise inside a scope. A saved `bash_session()` shell can be reused inside a
+  scope only if it was created under the same user and sandbox; outside any
+  scope a saved shell can still be used and keeps running as the user it was
+  created as. Nested scopes raise.
+- **Unchanged.** `SandboxEnvironment.exec()`, `read_file()` and `write_file()`
+  do not read the scope: they run as the sandbox's default user unless given
+  `user`. Framework operations that call them (tool injection, identity
+  probes, checkpointing, scorers) are unaffected, and so is a scope on another
+  sandbox.
+
+A custom tool that runs model-chosen work by calling `exec()`, `read_file()` or
+`write_file()` does not run as the scope's user. Inside a scope it runs as the
+sandbox's default user, which is often root, unless it passes `user`
+explicitly. Today it can learn the scope's user only through the private
+helper `sandbox_identity_user()` (`ai/util/_sandbox/identity.py`). This is a
+known gap in the scope: the confinement holds for the built-in tools listed
+above, not for custom tools that do not resolve the user themselves.
+
+### File-operation users
+
+`read_file` and `write_file` accept a keyword-only `user`. Docker performs
+these operations as that user, or the container's default execution user when
+omitted. The kernel checks access to symlink targets. Root-default evals that
+confine agent tools to another user must supply that user for file operations
+performed on the agent's behalf. Human session-log collection carries its
+configured user through to reads. Providers without user-aware reads cannot
+collect recordings for an explicit human user: collection warns and omits the
+logs, and callers can disable recording with `record_session=False`. Falling
+back to a userless read would let a less privileged human redirect a log path
+to a file readable only by the provider's more privileged reader. Skill
+installation's default-user writes followed by privileged ownership and mode
+changes remain a known pre-existing gap: an agent-controlled destination can
+redirect these operations through symlinks. That gap is tracked separately in
+[meridianlabs-ai/inspect_ai#590](https://github.com/meridianlabs-ai/inspect_ai/issues/590).
+
+Docker runs system `tar` inside the container, following symlinks without
+recursing into directories. The bounded archive reader rejects anything
+other than one regular file and never extracts on the host. `TAR_OPTIONS` is
+cleared so image settings cannot change the archive format. Actual kernel
+permissions replace the old owner-read-bit heuristic. Concurrently modified
+files can return best-effort contents or fail. GNU tar's changed-file warning
+is accepted only when its complete diagnostics contain no other failures;
+the archive still passes the same type and size checks. Shrinking-file errors
+and other tar failures propagate without retrying under another user.
+
+Reads require a running Linux container with `tar --no-recursion`,
+`/bin/sh` and `/usr/bin/timeout`. Reads share Docker exec's cancellation
+limitation: cancelling the host call does not guarantee immediate termination
+inside the container; the ten-minute in-container timeout remains the fallback.
+
+The sandbox proxy rejects an explicit user before calling a provider that does
+not declare a keyword-capable `user` parameter. Calls without a user retain
+the old provider interface. Successful file events record an explicit user in
+the existing `options` map; the schema is unchanged. Producers are proxy reads
+and writes; consumers are transcript/log readers, hooks, dataframes, the
+viewer and replay. Old events retain their existing shape.
+
+Checkpoint export requests `user="root"` when the provider declares support,
+including through nested proxies. Only the old interface receives the old
+call. Permission errors, timeouts, unsupported-root errors and internal
+`TypeError`s propagate after one attempt. This exception is confined to
+checkpoint chunks under a verified root-owned private directory. The directory
+and verify-before-use requirements elsewhere in this document remain necessary.
+Existing calls to Kubernetes, Modal, Daytona and E2B remain unchanged; this
+does not add checkpoint support to those providers.
+
+Docker reads use container execution rather than daemon-backed copies, with no
+privileged fallback. Callers that intentionally need privileged reads must
+specify `user="root"`.
 
 ## Threat model
 

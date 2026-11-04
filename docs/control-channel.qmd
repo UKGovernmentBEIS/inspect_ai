@@ -42,7 +42,7 @@ Commands are grouped by resource noun (`task`, `sample`, `model`, `process`), pl
 
 A bare noun implies `list`: `inspect ctl task` ≡ `inspect ctl task list`, and likewise for `sample` and `process`. All commands accept `--json` for structured output, which makes them straightforward to use from scripts and from coding agents like Claude Code. The `list` / `show` / `errors` / `events` / `messages` / `store` / `anomalies` commands are read-only. The others direct the run deliberately: `config` retunes launch parameters (concurrency changes never interrupt in-flight work; the per-sample limit overrides deliberately reach in-flight samples), `task log-flush` forces a log write that would happen anyway, `process keep`/`release` only affect what happens after the eval finishes, `task pause`/`resume`, `model pause`/`resume`, and `process pause`/`resume` stop and restart dispatch reversibly — leaving in-flight work untouched unless `pause --now` asks for a hard pause (which also holds in-flight samples at their next model call), `task cancel` / `sample cancel` interrupt work explicitly, `task drain` stops new samples while in-flight ones finish naturally, `sample requeue` re-runs an errored or cancelled sample (all idempotently, with `--dry-run` support), and `task score` / `sample score` score a running task's samples (or one sample) without ending them (each in-flight sample is briefly held while its work-so-far is scored).
 
-The endpoint is a Unix domain socket under the current user's Inspect data directory. It is not reachable over the network or by other users on the same machine, and it requires no configuration.
+The endpoint is a Unix domain socket under the current user's Inspect data directory. It is not reachable over the network or by other users on the same machine, and it requires no configuration. To follow a run from its logs instead, for example from another machine, see [Reading a Log Directory](#reading-a-log-directory).
 
 ## Launch Handoff
 
@@ -131,7 +131,7 @@ For evals that may run longer than a few minutes, do not run
 $ inspect ctl task
 task_id       task                        model                      solver    samples             started
 ------------  --------------------------  -------------------------  --------  ------------------  --------
-ZByxJpK4bKSz  inspect_evals/gpqa_diamond  openai/gpt-5               react     12/40 (3 running)   14:02:11
+ZByxJpK4bKSz  inspect_evals/gpqa_diamond  openai/gpt-6-sol           react     12/40 (3 running)   14:02:11
 fR8mWn2cQspD  inspect_evals/humaneval     anthropic/claude-sonnet-5  generate  164/164 (complete)  13:58:40
 ```
 
@@ -149,7 +149,7 @@ Commands that operate on one task take a `TASK` argument that selects a task fro
 
 Task ids are stable across retries, so a command keeps working after a task errors and is retried (per-attempt eval ids are not stable, which is why commands don't use them).
 
-One task run against several models (`--model openai/gpt-5,anthropic/claude-fable-5`) makes the task name ambiguous — it matches both rows. Pass `--model` alongside the selector to pick the row running that model (matched at the name start or after a `/`, so `--model gpt-5` matches `openai/gpt-5`): `inspect ctl task cancel my_task --model gpt-5`. The model filter applies within the tasks the selector matches — what other tasks happen to be running can't change the outcome. If the combination is still ambiguous you get the same candidate-table error, and a combination matching nothing the same not-found error — each qualified with the model. An exact task id paired with a `--model` its task isn't running errors by naming the contradiction (the task's actual model) rather than being silently ignored.
+One task run against several models (`--model openai/gpt-6-sol,anthropic/claude-fable-5`) makes the task name ambiguous — it matches both rows. Pass `--model` alongside the selector to pick the row running that model (matched at the name start or after a `/`, so `--model gpt-6-sol` matches `openai/gpt-6-sol`): `inspect ctl task cancel my_task --model gpt-6-sol`. The model filter applies within the tasks the selector matches — what other tasks happen to be running can't change the outcome. If the combination is still ambiguous you get the same candidate-table error, and a combination matching nothing the same not-found error — each qualified with the model. An exact task id paired with a `--model` its task isn't running errors by naming the contradiction (the task's actual model) rather than being silently ignored.
 
 On *reads* (`sample list`, `sample errors`) the selector is a filter: omitting it lists across **all** running tasks (each row carries its `task_id`), which makes "what's erroring anywhere in this eval set?" the zero-argument spelling. On *mutations* (`task log-flush`, the task-scoped `config` knobs) an omitted selector must resolve to exactly one target — the sole running task is the default, and anything ambiguous errors with the candidate list rather than fanning out. Destructive commands (`task cancel`, `task drain`) require the selector outright.
 
@@ -159,7 +159,7 @@ On *reads* (`sample list`, `sample errors`) the selector is a filter: omitting i
 
 ```bash
 $ inspect ctl sample list gpqa
-inspect_evals/gpqa_diamond (ZByxJpK4bKSz)  ·  openai/gpt-5  ·  running  ·  12/40 (3 running)
+inspect_evals/gpqa_diamond (ZByxJpK4bKSz)  ·  openai/gpt-6-sol  ·  running  ·  12/40 (3 running)
 
 sample  epoch  status     time   idle  activity         tokens  messages  turns
 ------  -----  ---------  -----  ----  ---------------  ------  --------  -----
@@ -231,9 +231,9 @@ $ inspect ctl sample show gpqa 9 --traceback
 $ inspect ctl sample events gpqa 17 --content
 time      event  summary
 --------  -----  -------------------------------------------------
-14:09:01  model  openai/gpt-5 · 1840 tok · stop · The compound is...
+14:09:01  model  openai/gpt-6-sol · 1840 tok · stop · The compound is...
 14:09:04  tool   bash(ls /data) → README.md results.csv
-14:09:11  model  openai/gpt-5 · generating 2:31
+14:09:11  model  openai/gpt-6-sol · generating 2:31
 
 3 events  ·  more
 next: eyJuIjoiYWJjMTIzOjAiLCJpIjozfQ  (resume with --cursor)
@@ -437,14 +437,14 @@ Pause is the missing state between "running" and "cancelled": it stops a run fro
 ```bash
 $ inspect ctl process pause                    # pause the whole run (eval or eval-set)
 $ inspect ctl process resume                   # pick up exactly where it left off
-$ inspect ctl model pause openai/gpt-5-nano    # pause just one model's work
-$ inspect ctl model resume openai/gpt-5-nano   # the rest of the run kept going
+$ inspect ctl model pause openai/gpt-6-luna    # pause just one model's work
+$ inspect ctl model resume openai/gpt-6-luna   # the rest of the run kept going
 $ inspect ctl process pause --now              # hard pause: also hold in-flight samples
 ```
 
 Under a pause, in-flight samples finish naturally — solving, scoring, and log writes complete under their original limits — but no new samples leave the queue, no task retries start, and (for an eval set) no further tasks dispatch. Queued samples spend none of their time limits: they are exactly as resumable as before the pause. Quiesce time is therefore bounded by the longest in-flight work: a long-running agentic sample, or a batched generate call awaiting a provider batch, holds the run semi-active until it completes. When in-flight work must wind down faster than that, compose pause with `inspect ctl config --max-connections` (throttle in-flight demand without discarding progress) or a targeted `inspect ctl sample cancel` — or reach for the hard pause.
 
-Adding `--now` to any pause verb makes it a *hard* pause: in addition to stopping dispatch, in-flight samples hold at their next model call. Outstanding model calls (and batch waits) finish, then no new call starts until resume — the lever for a provider incident or budget stop where an hour-long agentic sample should neither keep spending nor be cancelled and lose its progress. The hold covers provider-native compaction too (compacting rewrites the conversation, and for a long-context sample can be its most expensive single call), but not token counting: `count_tokens()` traffic is non-generative and cheap, and continues under a hard pause. A held sample's parked time counts as waiting, so a `working_limit` does not burn down while held — but the wall clock keeps running: a sample held past its `time_limit` takes an ordinary time-limit outcome (though if scoring itself calls a model — a model-graded scorer — that call holds at the gate too, so the sample fully completes only after resume), the trade-off you accept for freezing it in place. `resume` clears both strengths, a plain `pause` after a `pause --now` downgrades it to the soft pause (last-write-wins), and cancel still escalates over a hold. One scoping difference from the soft model latch: `model pause MODEL --now` holds every generate call *to* MODEL — other tasks' role and grader calls included — not just the tasks whose primary model matches.
+Adding `--now` to any pause verb makes it a *hard* pause: in addition to stopping dispatch, in-flight samples hold at their next model call. Outstanding model calls (and batch waits) finish, then no new call starts until resume — the lever for a provider incident or budget stop where an hour-long agentic sample should neither keep spending nor be cancelled and lose its progress. The hold covers provider-native compaction too (compacting rewrites the conversation, and for a long-context sample can be its most expensive single call), but not token counting: `count_tokens()` traffic is non-generative and cheap, and continues under a hard pause. Time spent parked is a known wait. A `working_limit` still burns down while other [known work](setting-limits.qmd#working-limit) runs in the same sample; otherwise the hold does not consume it. The wall clock keeps running: a sample held past its `time_limit` takes an ordinary time-limit outcome (though if scoring itself calls a model — a model-graded scorer — that call holds at the gate too, so the sample fully completes only after resume), the trade-off you accept for freezing it in place. `resume` clears both strengths, a plain `pause` after a `pause --now` downgrades it to the soft pause (last-write-wins), and cancel still escalates over a hold. One scoping difference from the soft model latch: `model pause MODEL --now` holds every generate call *to* MODEL — other tasks' role and grader calls included — not just the tasks whose primary model matches.
 
 `inspect ctl task pause` / `resume` scope the same thing to one task of an eval set, and `inspect ctl model pause MODEL` / `resume MODEL` to one model of a multi-model run: every task whose *primary* model matches holds — including eval-set tasks that haven't started yet, which task-level pause can't reach — while other models' work continues (in-flight samples, including other tasks' role/grader calls to the paused model, still finish naturally). `MODEL` is the exact name shown by `inspect ctl task list`. The task, model, and process pauses are independent latches — resuming one never clears another, so resuming a run after an incident never silently un-pauses a task (or model) you paused for its own reasons. All the verbs accept `--dry-run` and report `changed: false` on an idempotent repeat. Pause never blocks teardown: cancel and drain work unchanged on a paused task (a stamped cancel or drain passes the pause gate, so queued samples held by a soft pause abandon at once and the drain completes under the pause; under a hard `pause --now` the held in-flight samples stay parked, so the drain concludes on `resume` or on escalation to `cancel --action score`), config retunes compose with it, and pausing a task that is *between attempts* works, parking the queued retry (which a later `task cancel` or `task drain` can abandon outright).
 
@@ -470,14 +470,14 @@ Unlike the other reads, this one opens the process's trace file directly rather 
 
 ```bash
 $ inspect ctl config gpqa
-inspect_evals/gpqa_diamond (ZByxJpK4bKSz)  ·  openai/gpt-5  ·  running  ·  12/40
+inspect_evals/gpqa_diamond (ZByxJpK4bKSz)  ·  openai/gpt-6-sol  ·  running  ·  12/40
 
 config:
   max samples [task]:         50 (40 in use, tracking adaptive connections — set to pin)
   max sandboxes [process]:    docker 40 (12 in use)
   max subprocesses [process]: 16 (9 in use)
   adaptive connections [process]:
-    openai/gpt-5: 45 (38 in use), range 10–100, last: 40→45 steady_state_up
+    openai/gpt-6-sol: 45 (38 in use), range 10–100, last: 40→45 steady_state_up
   log buffer [task]:          10 samples (2 pending)
   shared sync [task]:         off
 
@@ -551,6 +551,46 @@ inspect ctl process release
 You can also latch keep-alive onto an eval that is *already running* (launched without `--ctl-server=keep`) with `inspect ctl process keep`.
 
 If more than one process is parked, `release` lists their pids and you disambiguate by passing one (`inspect ctl process release <pid>`). Release also works ahead of time: issued while the eval is still running, it means "exit when done" — the process skips the park and exits as soon as the eval finishes (it never cancels in-flight work). `keep` and `release` are last-write-wins, so a `keep` issued after a `release` (while the eval is still running) restores the park. From Python, pass `ctl_server="keep"` to `eval()` or `eval_set()`. For eval sets, keep-alive requires `retry_immediate=True` (the default).
+
+## Reading a Log Directory
+
+`inspect ctl task list` and the `sample` reads can read a run's `.eval` logs instead of a live process. Pass `--log-dir` with a local path or an S3 (or other fsspec) URL:
+
+```bash
+inspect ctl task list --log-dir s3://my-bucket/logs
+inspect ctl sample errors gpqa --log-dir s3://my-bucket/logs
+```
+
+Use it when the eval runs on another machine, or after it has finished. It needs only read access to the directory and writes nothing there. It never runs task code or recomputes metrics.
+
+Data is only as fresh as the log: a completed sample normally reaches it within about 60 seconds. Running samples are visible only when the eval runs with `--log-shared`, as of its last sync (every 10 seconds by default). These are usual intervals, not guarantees: a failed upload or a stopped worker delays them. Human output starts with a line on stderr that says where the data comes from.
+
+| Command | With `--log-dir` |
+|----|----|
+| `task list` | Live-only fields (pause state, `refusals`, `http_retries`, `pid`, ...) are null. |
+| `sample list`, `sample errors` | Running rows have no `activity` or idle time. `--active-since` is not supported: poll the full listing. |
+| `sample show` | A running or not-yet-flushed sample shows its summary from the shared buffer, without error history. |
+| `sample events` | A running sample's events run up to the last buffer sync. |
+| `sample messages`, `sample store` | Samples in the log only. For a running or not-yet-flushed sample, use `sample events --type model`. |
+| Other commands | Not available: `--log-dir` is an unknown option there. |
+
+: {tbl-colwidths=[35,65]}
+
+With `--json`, task rows carry `source: "log_dir"` and these extra fields:
+
+| Field | Description |
+|----|----|
+| `updated_at` | When the task's log or shared buffer last changed. A running task whose `updated_at` stops moving may have a stopped worker: nothing in the logs tells a crashed worker from a slow one. |
+| `samples.total_final` | `false` while `samples.total` is a lower bound (the run is not finished, or the log does not record its total). |
+| `samples.unfinished` | Samples not yet completed, errored or cancelled. |
+| `live_samples` | `buffer`, `none` or `partial`: whether running samples are visible. Unless it is `buffer`, `samples.in_flight` is null. |
+| `incomplete`, `unreadable` | Logs that could not be read, with the reason. |
+
+: {tbl-colwidths=[35,65]}
+
+Sample rows add `log_location`, the log to open with `inspect log` commands. Errors use the usual `--json` envelope, with two kinds of their own: `unsupported` (an option or a read the logs cannot serve) and `storage_error` (reading the directory failed, for example on permissions, credentials or throttling, or a log kept changing during the read).
+
+Each invocation lists the directory. For local and S3 log directories it then reads only what changed since the last invocation: nothing for an unchanged finished log whose sample summaries an earlier invocation read, and for a running log its zip index plus the summaries of samples logged since. On other storage (such as GCS or Azure) it reads each log's header and sample summaries every time. What it parsed is cached under the Inspect data directory (`ctl/log-dir-cache`), readable only by you and safe to delete at any time. Polling every 30 seconds keeps request costs down. With `--log-shared`, polling more often shows updates after each buffer sync (every 10 seconds by default).
 
 ## Disabling the Control Server
 

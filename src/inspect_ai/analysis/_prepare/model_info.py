@@ -1,8 +1,8 @@
 from typing import Dict
 
 from inspect_ai.analysis._prepare.operation import Operation
-from inspect_ai.model import get_model_info
 from inspect_ai.model._model_data.model_data import ModelInfo
+from inspect_ai.model._model_info import _get_model_info_direct
 
 
 def model_info(
@@ -28,6 +28,8 @@ def model_info(
     : The model's knowledge cutoff date
 
     Inspect includes built in support for many models (based upon the `model` string in the dataframe). If you are using models for which Inspect does not include model metadata, you may include your own model metadata via the `model_info` argument.
+
+    The `model` string is looked up in the model database without creating a provider. Names that require provider canonicalization get no metadata unless you supply it with the `model_info` argument or `set_model_info()`.
 
     Args:
         model_info: Additional model info for models not supported directly by Inspect's internal database.
@@ -63,9 +65,9 @@ def model_info(
             # Check transient user-provided model_info first
             model_data = model_info.get(model) if model_info else None
 
-            # Fall back to get_model_info() for built-in + globally registered models
+            # Fall back to built-in + globally registered models
             if model_data is None:
-                model_data = get_model_info(model)
+                model_data = _get_model_info_direct(model)
 
             if model_data is not None:
                 for df_field, model_field in fields.items():

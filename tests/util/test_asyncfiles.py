@@ -30,9 +30,15 @@ from test_helpers.utils import skip_if_trio
 from inspect_ai._util import asyncfiles
 from inspect_ai._util._async import current_async_backend, run_coroutine, tg_collect
 from inspect_ai._util.asyncfiles import (
+    S3_COMPOSE_MIN_PREFIX,
     AsyncFilesystem,
+    ComposeSource,
+    ComposeSourceChangedError,
+    ObjectChangedError,
     _current_async_fs,
     _RetiredClient,
+    _s3_compose_async,
+    _s3_copy_ranges,
     _s3_download_file_async,
     _s3_upload_fileobj_async,
     get_async_filesystem,
@@ -56,9 +62,28 @@ async def test_read_file_into_local_file(tmp_path: Path) -> None:
 
     with tempfile.TemporaryFile() as dest:
         async with AsyncFilesystem() as fs:
-            await fs.read_file_into(str(source), dest, chunk_size=1024)
+            etag = await fs.read_file_into(str(source), dest, chunk_size=1024)
         dest.seek(0)
         assert dest.read() == payload
+    assert etag is None
+
+
+async def test_read_file_into_s3_returns_the_response_etag(mock_s3: None) -> None:
+    # the seed's compose prefix pins the prior log to the version it copied,
+    # so the ETag must come from the same response as the bytes
+    payload = os.urandom(3 * 1024)
+    s3_path = f"{S3_BUCKET}/read_file_into/etag.bin"
+    with tempfile.TemporaryFile() as dest:
+        async with AsyncFilesystem() as fs:
+            await fs.write_file(s3_path, payload)
+            etag = await fs.read_file_into(s3_path, dest, chunk_size=1024)
+            info = await fs.info(s3_path)
+        dest.seek(0)
+        assert dest.read() == payload
+    if current_async_backend() == "asyncio":
+        assert etag == info.etag
+    else:
+        assert etag is None
 
 
 @pytest.mark.parametrize("as_uri", [False, True])
@@ -730,6 +755,41 @@ async def test_read_file_info_s3_returns_the_response_etag_and_last_modified(
     assert content.mtime == head["LastModified"].timestamp() * 1000
 
 
+async def test_read_file_bytes_s3_pinned_to_an_etag_fails_once_the_object_changes(
+    mock_s3: None,
+) -> None:
+    import boto3
+
+    s3 = boto3.client("s3")
+    s3.put_object(Bucket="test-bucket", Key="if_match/a.bin", Body=b"0123456789")
+    etag = s3.head_object(Bucket="test-bucket", Key="if_match/a.bin")["ETag"]
+    url = f"{S3_BUCKET}/if_match/a.bin"
+    sent: list[str | None] = []
+
+    def record(request: Any, **kwargs: Any) -> None:
+        sent.append(request.headers.get("If-Match"))
+
+    async with AsyncFilesystem() as fs:
+        client = (
+            await fs.s3_client_async()
+            if current_async_backend() == "asyncio"
+            else fs.s3_client()
+        )
+        client.meta.events.register("before-send.s3.GetObject", record)
+        pinned = await fs.read_file_bytes_fully(url, 2, 5, if_match=etag.strip('"'))
+        s3.put_object(Bucket="test-bucket", Key="if_match/a.bin", Body=b"abcdefghij")
+        with pytest.raises(ObjectChangedError):
+            await fs.read_file_bytes_fully(url, 2, 5, if_match=etag.strip('"'))
+        unpinned = await fs.read_file_bytes_fully(url, 2, 5)
+    assert (pinned, unpinned) == (b"234", b"cde")
+    # an HTTP entity tag, quoted
+    assert [h.decode() if isinstance(h, bytes) else h for h in sent] == [
+        etag,
+        etag,
+        None,
+    ]
+
+
 async def test_write_file_local():
     """Test AsyncFilesystem.write_file with local files."""
     test_data = b"Test write data"
@@ -1373,6 +1433,496 @@ async def test_s3_upload_async_multipart_aborts_on_cancel() -> None:
 
     assert client.completed is None
     assert client.aborted == ["upload-1"]
+
+
+# =============================================================================
+# Tests for compose_file(): server-side prefix copy plus an uploaded tail
+# =============================================================================
+
+_MIB = 1024 * 1024
+
+
+def _assert_contiguous_equal_ranges(ranges: list[tuple[int, int]], length: int) -> None:
+    assert ranges[0][0] == 0 and ranges[-1][1] == length
+    assert all(a[1] == b[0] for a, b in zip(ranges, ranges[1:]))
+    sizes = [end - start for start, end in ranges]
+    # equal slices: no small remainder that would break the 5 MiB part minimum
+    assert max(sizes) - min(sizes) <= 1
+    assert min(sizes) >= 5 * _MIB
+
+
+def test_s3_copy_ranges_split_into_parallel_parts() -> None:
+    part = asyncfiles._S3_COPY_PART_SIZE
+    assert _s3_copy_ranges(S3_COMPOSE_MIN_PREFIX + 1) == [
+        (0, S3_COMPOSE_MIN_PREFIX + 1)
+    ]
+    assert _s3_copy_ranges(part) == [(0, part)]
+    assert _s3_copy_ranges(3 * part) == [
+        (0, part),
+        (part, 2 * part),
+        (2 * part, 3 * part),
+    ]
+    for length in [part + 1, 3 * part - 1, 7 * part + 12345]:
+        ranges = _s3_copy_ranges(length)
+        assert len(ranges) == -(-length // part)
+        assert max(end - start for start, end in ranges) <= part
+        _assert_contiguous_equal_ranges(ranges, length)
+
+
+def test_s3_copy_ranges_stay_within_the_part_count_limit() -> None:
+    max_parts = asyncfiles._S3_MAX_COPY_PARTS
+    length = max_parts * asyncfiles._S3_COPY_PART_SIZE + 1
+    ranges = _s3_copy_ranges(length)
+    assert len(ranges) == max_parts
+    _assert_contiguous_equal_ranges(ranges, length)
+
+
+async def test_can_compose_only_s3_under_asyncio() -> None:
+    async with AsyncFilesystem() as fs:
+        assert fs.can_compose("s3://bucket/key.eval") == (
+            current_async_backend() == "asyncio"
+        )
+        assert not fs.can_compose("/tmp/key.eval")
+        assert not fs.can_compose("gs://bucket/key.eval")
+
+
+@skip_if_trio
+@pytest.mark.parametrize("own_key", [False, True])
+async def test_compose_file_s3_copies_prefix_and_uploads_tail(
+    mock_s3: None, own_key: bool
+) -> None:
+    source_bytes = os.urandom(12 * _MIB)
+    prefix_length = 10 * _MIB
+    tail_bytes = os.urandom(_MIB)
+    source_path = f"{S3_BUCKET}/compose/source-{own_key}.eval"
+    dest_path = source_path if own_key else f"{S3_BUCKET}/compose/dest.eval"
+
+    # the tail is read from its current position, not from 0
+    tail = io.BytesIO(b"skipped" + tail_bytes)
+    tail.seek(len(b"skipped"))
+    async with AsyncFilesystem() as fs:
+        source_etag = await fs.write_file(source_path, source_bytes)
+        assert source_etag is not None
+        etag = await fs.compose_file(
+            dest_path, ComposeSource(source_path, source_etag, prefix_length), tail
+        )
+        assert (
+            await fs.read_file(dest_path) == source_bytes[:prefix_length] + tail_bytes
+        )
+        assert etag == (await fs.info(dest_path)).etag
+        if not own_key:
+            assert await fs.read_file(source_path) == source_bytes
+        client = await fs.s3_client_async()
+        uploads = await client.list_multipart_uploads(Bucket="test-bucket")
+        assert not uploads.get("Uploads")
+    assert not tail.closed
+
+
+@skip_if_trio
+async def test_compose_file_s3_copies_prefix_in_several_parts(
+    mock_s3: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(asyncfiles, "_S3_COPY_PART_SIZE", 6 * _MIB)
+    source_bytes = os.urandom(24 * _MIB)
+    prefix_length = 20 * _MIB + 3
+    tail_bytes = os.urandom(_MIB)
+    source_path = f"{S3_BUCKET}/compose/several-source.eval"
+    dest_path = f"{S3_BUCKET}/compose/several-dest.eval"
+
+    async with AsyncFilesystem() as fs:
+        source_etag = await fs.write_file(source_path, source_bytes)
+        assert source_etag is not None
+        etag = await fs.compose_file(
+            dest_path,
+            ComposeSource(source_path, source_etag, prefix_length),
+            io.BytesIO(tail_bytes),
+        )
+        assert (
+            await fs.read_file(dest_path) == source_bytes[:prefix_length] + tail_bytes
+        )
+        # four copied parts and one uploaded tail part
+        assert etag.endswith("-5")
+        assert etag == (await fs.info(dest_path)).etag
+
+
+class _ComposeClient(_MultipartClient):
+    """Fake aiobotocore S3 client recording a compose."""
+
+    def __init__(
+        self,
+        *,
+        etag: str = "source-etag",
+        size: int = 2 * S3_COMPOSE_MIN_PREFIX,
+        head_error: str | None = None,
+        copy_error: str | None = None,
+        fail_part: int | None = None,
+    ) -> None:
+        super().__init__(fail_part=fail_part)
+        self.etag = etag
+        self.size = size
+        self.head_error = head_error
+        self.copy_error = copy_error
+        self.copies: list[dict[str, Any]] = []
+        self.complete_error: str | None = None
+        self.completed_parts: list[list[tuple[int, bytes]]] = []
+
+    async def head_object(self, **kwargs: Any) -> dict[str, Any]:
+        if self.head_error is not None:
+            raise ClientError(
+                cast(Any, {"Error": {"Code": self.head_error, "Message": "head"}}),
+                "HeadObject",
+            )
+        return {"ETag": f'"{self.etag}"', "ContentLength": self.size}
+
+    async def upload_part_copy(self, **kwargs: Any) -> dict[str, Any]:
+        assert kwargs["UploadId"] == "upload-1"
+        if self.copy_error is not None:
+            raise ClientError(
+                cast(Any, {"Error": {"Code": self.copy_error, "Message": "copy"}}),
+                "UploadPartCopy",
+            )
+        self.copies.append(kwargs)
+        return {"CopyPartResult": {"ETag": f'"copy-{kwargs["PartNumber"]}"'}}
+
+    async def complete_multipart_upload(
+        self, MultipartUpload: dict[str, Any], **kwargs: Any
+    ) -> dict[str, Any]:
+        self.completed_parts.append(sorted(self.parts))
+        self.parts = []
+        if self.complete_error is not None:
+            code, self.complete_error = self.complete_error, None
+            raise ClientError(
+                cast(Any, {"Error": {"Code": code, "Message": "complete"}}),
+                "CompleteMultipartUpload",
+            )
+        return await super().complete_multipart_upload(MultipartUpload, **kwargs)
+
+
+_COMPOSE_PREFIX = ComposeSource(
+    "s3://bucket/prior.eval", "source-etag", S3_COMPOSE_MIN_PREFIX
+)
+
+
+async def test_s3_compose_async_copies_prefix_then_numbers_tail_parts() -> None:
+    client = _ComposeClient()
+
+    etag = await _s3_compose_async(
+        client,
+        "bucket",
+        "dest.eval",
+        _COMPOSE_PREFIX,
+        io.BytesIO(b"aaaabb"),
+        _SMALL_PARTS(),
+    )
+
+    assert etag == "final-etag-3"
+    assert [
+        (c["PartNumber"], c["CopySource"], c["CopySourceRange"], c["CopySourceIfMatch"])
+        for c in client.copies
+    ] == [
+        (
+            1,
+            {"Bucket": "bucket", "Key": "prior.eval"},
+            f"bytes=0-{S3_COMPOSE_MIN_PREFIX - 1}",
+            '"source-etag"',
+        )
+    ]
+    assert client.completed_parts == [[(2, b"aaaa"), (3, b"bb")]]
+    assert client.completed == [
+        {"ETag": '"copy-1"', "PartNumber": 1},
+        {"ETag": '"etag-2"', "PartNumber": 2},
+        {"ETag": '"etag-3"', "PartNumber": 3},
+    ]
+    assert client.aborted == []
+
+
+async def test_s3_compose_async_copies_every_part_conditionally(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(asyncfiles, "_S3_COPY_PART_SIZE", S3_COMPOSE_MIN_PREFIX // 2)
+    client = _ComposeClient()
+    half = S3_COMPOSE_MIN_PREFIX // 2
+
+    await _s3_compose_async(
+        client,
+        "bucket",
+        "dest.eval",
+        _COMPOSE_PREFIX,
+        io.BytesIO(b"aaaabb"),
+        _SMALL_PARTS(),
+    )
+
+    assert sorted(
+        (c["PartNumber"], c["CopySourceRange"], c["CopySourceIfMatch"])
+        for c in client.copies
+    ) == [
+        (1, f"bytes=0-{half - 1}", '"source-etag"'),
+        (2, f"bytes={half}-{S3_COMPOSE_MIN_PREFIX - 1}", '"source-etag"'),
+    ]
+    assert client.completed_parts == [[(3, b"aaaa"), (4, b"bb")]]
+    assert client.completed == [
+        {"ETag": '"copy-1"', "PartNumber": 1},
+        {"ETag": '"copy-2"', "PartNumber": 2},
+        {"ETag": '"etag-3"', "PartNumber": 3},
+        {"ETag": '"etag-4"', "PartNumber": 4},
+    ]
+
+
+class _ConcurrencyComposeClient(_ComposeClient):
+    """Fake client recording peak concurrent copies and part uploads.
+
+    Part uploads wait until ten are in flight. With ``hold_copies``, copies never finish: ``copy_full`` is set once
+    ``_S3_MAX_COPY_CONCURRENCY`` are in flight, and with ``fail_copy`` that
+    last one raises instead.
+    """
+
+    def __init__(self, *, hold_copies: bool = False, fail_copy: bool = False):
+        super().__init__()
+        self.hold_copies = hold_copies
+        self.fail_copy = fail_copy
+        self.copy_full = anyio.Event()
+        self.uploads_full = anyio.Event()
+        self.copying = 0
+        self.uploading = 0
+        self.peak_copies = 0
+        self.peak_uploads = 0
+
+    async def upload_part_copy(self, **kwargs: Any) -> dict[str, Any]:
+        self.copying += 1
+        self.peak_copies = max(self.peak_copies, self.copying)
+        try:
+            if self.copying == asyncfiles._S3_MAX_COPY_CONCURRENCY:
+                self.copy_full.set()
+                if self.fail_copy:
+                    raise ClientError(
+                        cast(Any, {"Error": {"Code": "InternalError"}}),
+                        "UploadPartCopy",
+                    )
+            if self.hold_copies:
+                await anyio.sleep_forever()
+            for _ in range(5):
+                await anyio.sleep(0)
+            return await super().upload_part_copy(**kwargs)
+        finally:
+            self.copying -= 1
+
+    async def upload_part(
+        self, PartNumber: int, Body: bytes, UploadId: str, **kwargs: Any
+    ) -> dict[str, Any]:
+        self.uploading += 1
+        self.peak_uploads = max(self.peak_uploads, self.uploading)
+        try:
+            # parts are read off the loop one at a time; hold them until ten
+            # are in flight (a lower bound times out)
+            if self.uploading == 10:
+                self.uploads_full.set()
+            with anyio.fail_after(10):
+                await self.uploads_full.wait()
+            return await super().upload_part(PartNumber, Body, UploadId, **kwargs)
+        finally:
+            self.uploading -= 1
+
+
+# more copy parts than the copy limit runs at once
+_MANY_COPY_PARTS = S3_COMPOSE_MIN_PREFIX // 40
+
+
+async def test_s3_compose_async_bounds_copies_apart_from_uploads(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(asyncfiles, "_S3_COPY_PART_SIZE", _MANY_COPY_PARTS)
+    client = _ConcurrencyComposeClient()
+
+    await _s3_compose_async(
+        client,
+        "bucket",
+        "dest.eval",
+        _COMPOSE_PREFIX,
+        io.BytesIO(b"x" * 4 * 30),
+        TransferConfig(multipart_chunksize=4, max_concurrency=10),
+    )
+
+    assert len(client.copies) > asyncfiles._S3_MAX_COPY_CONCURRENCY
+    assert client.peak_copies == asyncfiles._S3_MAX_COPY_CONCURRENCY == 32
+    assert client.peak_uploads == 10
+    assert client.aborted == []
+
+
+@pytest.mark.parametrize("stop", ["fail", "cancel"])
+async def test_s3_compose_async_aborts_with_every_copy_in_flight(
+    monkeypatch: pytest.MonkeyPatch, stop: str
+) -> None:
+    monkeypatch.setattr(asyncfiles, "_S3_COPY_PART_SIZE", _MANY_COPY_PARTS)
+    client = _ConcurrencyComposeClient(hold_copies=True, fail_copy=stop == "fail")
+
+    async def compose() -> None:
+        await _s3_compose_async(
+            client,
+            "bucket",
+            "dest.eval",
+            _COMPOSE_PREFIX,
+            io.BytesIO(b"t"),
+            _SMALL_PARTS(),
+        )
+
+    # a lower copy limit never fills: time out rather than hang
+    if stop == "fail":
+        with anyio.fail_after(10), pytest.raises(ClientError) as exc_info:
+            await compose()
+        assert exc_info.value.response["Error"]["Code"] == "InternalError"
+    else:
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(compose)
+            with anyio.fail_after(10):
+                await client.copy_full.wait()
+            tg.cancel_scope.cancel()
+
+    assert client.copy_full.is_set()
+    assert client.copying == 0
+    assert client.aborted == ["upload-1"]
+    assert client.completed is None
+
+
+@skip_if_trio
+async def test_s3_client_pool_fits_the_copy_limit() -> None:
+    client = await AsyncFilesystem._create_s3_client_async(region_name="us-east-1")
+    try:
+        assert (
+            client.meta.config.max_pool_connections
+            >= asyncfiles._S3_MAX_COPY_CONCURRENCY
+        )
+    finally:
+        await client.__aexit__(None, None, None)
+
+
+@pytest.mark.parametrize(
+    "head",
+    [
+        {"etag": "other-etag"},
+        {"size": S3_COMPOSE_MIN_PREFIX - 1},
+        {"head_error": "404"},
+        {"head_error": "NoSuchKey"},
+    ],
+    ids=["etag", "size", "404", "no-such-key"],
+)
+async def test_s3_compose_async_changed_source_starts_no_upload(
+    head: dict[str, Any],
+) -> None:
+    client = _ComposeClient(**head)
+    with pytest.raises(ComposeSourceChangedError):
+        await _s3_compose_async(
+            client,
+            "bucket",
+            "dest.eval",
+            _COMPOSE_PREFIX,
+            io.BytesIO(b"t"),
+            _SMALL_PARTS(),
+        )
+    assert client.created is None
+    assert client.copies == []
+
+
+async def test_s3_compose_async_precondition_failure_aborts_then_reports_change() -> (
+    None
+):
+    client = _ComposeClient(copy_error="PreconditionFailed")
+
+    with pytest.raises(ComposeSourceChangedError):
+        await _s3_compose_async(
+            client,
+            "bucket",
+            "dest.eval",
+            _COMPOSE_PREFIX,
+            io.BytesIO(b"t"),
+            _SMALL_PARTS(),
+        )
+    assert client.aborted == ["upload-1"]
+    assert client.completed is None
+
+
+async def test_s3_compose_async_tail_failure_aborts() -> None:
+    client = _ComposeClient(fail_part=3)
+
+    with pytest.raises(ClientError) as exc_info:
+        await _s3_compose_async(
+            client,
+            "bucket",
+            "dest.eval",
+            _COMPOSE_PREFIX,
+            io.BytesIO(b"aaaabbbbcc"),
+            _SMALL_PARTS(),
+        )
+    assert exc_info.value.response["Error"]["Code"] == "InternalError"
+    assert client.aborted == ["upload-1"]
+    assert client.completed is None
+
+
+async def test_s3_compose_async_cancel_during_tail_aborts() -> None:
+    client = _ComposeClient()
+    client.block_part = 3
+
+    async def compose() -> None:
+        await _s3_compose_async(
+            client,
+            "bucket",
+            "dest.eval",
+            _COMPOSE_PREFIX,
+            io.BytesIO(b"aaaabbbbcc"),
+            _SMALL_PARTS(),
+        )
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(compose)
+        await client.blocked.wait()
+        tg.cancel_scope.cancel()
+
+    assert client.aborted == ["upload-1"]
+    assert client.completed is None
+
+
+async def test_compose_file_retries_stale_signature_from_tail_start(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    if current_async_backend() != "asyncio":
+        pytest.skip("compose runs under asyncio only")
+    client = _ComposeClient()
+    client.complete_error = "RequestTimeTooSkewed"
+
+    async def s3_client_async(self: AsyncFilesystem) -> Any:
+        return client
+
+    async def no_sleep(seconds: float) -> None:
+        pass
+
+    monkeypatch.setattr(AsyncFilesystem, "s3_client_async", s3_client_async)
+    monkeypatch.setattr("inspect_ai._util.asyncfiles.anyio.sleep", no_sleep)
+
+    tail = io.BytesIO(b"prefix-bytes|the tail")
+    tail.seek(len(b"prefix-bytes|"))
+    async with AsyncFilesystem() as fs:
+        etag = await fs.compose_file("s3://bucket/dest.eval", _COMPOSE_PREFIX, tail)
+
+    assert etag == "final-etag-3"
+    assert client.aborted == ["upload-1"]
+    assert client.completed_parts == [[(2, b"the tail")], [(2, b"the tail")]]
+
+
+async def test_compose_file_rejects_what_it_cannot_compose() -> None:
+    async with AsyncFilesystem() as fs:
+        with pytest.raises(ValueError):
+            await fs.compose_file("/tmp/dest.eval", _COMPOSE_PREFIX, io.BytesIO())
+        with pytest.raises(ValueError):
+            await fs.compose_file(
+                "s3://bucket/dest.eval",
+                _COMPOSE_PREFIX._replace(filename="/tmp/prior.eval"),
+                io.BytesIO(),
+            )
+        with pytest.raises(ValueError):
+            await fs.compose_file(
+                "s3://bucket/dest.eval",
+                _COMPOSE_PREFIX._replace(length=S3_COMPOSE_MIN_PREFIX - 1),
+                io.BytesIO(),
+            )
 
 
 class _RangedGetClient:

@@ -71,7 +71,7 @@ For more detail on the different methods of configuration, see [Configuration](t
 | `--model-config`   | Model specific arguments (JSON or YAML file) |
 | `-M`               | Model specific arguments (`key=value`).      |
 | `--model-spec`     | Model with its own generation config, model args, and base url (inline JSON or YAML, same fields as `--model-role`). Repeat for several models. Cannot be combined with the four options above, nor with the `model` field of `--run-config`. See [Multiple Models](models.qmd#multiple-models). |
-| `--model-role`     | Named model role with model name or config (e.g. `grader=openai/gpt-4o`). See [Model Roles](models.qmd#model-roles). |
+| `--model-role`     | Named model role with model name or config (e.g. `grader=openai/gpt-6-luna`). See [Model Roles](models.qmd#model-roles). |
 
 ## Model Generation
 
@@ -82,7 +82,7 @@ For more detail on the different methods of configuration, see [Configuration](t
 | `--system-message` | Override the default system message. |
 | `--temperature` | What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic. |
 | `--top-p` | An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the tokens with top_p probability mass. |
-| `--top-k` | Randomly sample the next word from the top_k most likely next words. Anthropic, Google, HuggingFace, and vLLM only. |
+| `--top-k` | Randomly sample the next word from the top_k most likely next words. Google, HuggingFace, and vLLM only. |
 | `--frequency-penalty` | Number between -2.0 and 2.0. Positive values penalize new tokens based on their existing frequency in the text so far, decreasing the model's likelihood to repeat the same line verbatim. OpenAI, Google, Grok, Groq, llama- cpp-python and vLLM only. |
 | `--presence-penalty` | Number between -2.0 and 2.0. Positive values penalize new tokens based on whether they appear in the text so far, increasing the model's likelihood to talk about new topics. OpenAI, Google, Grok, Groq, llama-cpp-python and vLLM only. |
 | `--logit-bias` | Map token Ids to an associated bias value from -100 to 100 (e.g. "42=10,43=-10"). OpenAI and Grok only. |
@@ -156,7 +156,7 @@ For a complete matrix of which task, solver, and runtime settings can be configu
 | `--message-limit` | Limit on total messages used for each sample. |
 | `--token-limit` | Limit on total tokens used for each sample. |
 | `--time-limit` | Limit on total running time for each sample. |
-| `--working-limit` | Limit on total working time (model generation, tool calls, etc.) for each sample. Work done while any wait is open is not charged, so also set `--time-limit`. |
+| `--working-limit` | Limit on total working time (model generation, tool calls, etc.) for each sample. While a wait is open, only model calls, sandbox commands and tool calls are charged, so also set `--time-limit`. |
 | `--cost-limit` | Limit on total cost (in dollars) for each sample. Requires model cost data via `set_model_cost()` or `--model-cost-config`. |
 | `--model-cost-config` | YAML or JSON file with model prices for cost tracking. |
 

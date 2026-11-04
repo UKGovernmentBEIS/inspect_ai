@@ -9,6 +9,7 @@ verification helpers in `scripts/pypi-release.py`. See
 from __future__ import annotations
 
 import argparse
+import base64
 import hashlib
 import importlib.util
 import io
@@ -23,7 +24,7 @@ import zipfile
 from email.message import Message
 from pathlib import Path
 from types import ModuleType
-from typing import Iterator
+from typing import Any, Iterator
 from unittest.mock import MagicMock, patch
 
 import httpx
@@ -1055,3 +1056,159 @@ def test_pypi_verify_parity_rejects_duplicate_sdist_members(
 
     with pytest.raises(RuntimeError, match="duplicate member 'PKG-INFO'"):
         pypi_release.verify_parity(dist, "0.3.277")
+
+
+_DIST_INFO = "inspect_ai-0.3.277.dist-info"
+
+
+def _record_hash(content: bytes) -> str:
+    digest = base64.urlsafe_b64encode(hashlib.sha256(content).digest())
+    return digest.rstrip(b"=").decode()
+
+
+def _wheel_with_dist_info(
+    members: dict[str, bytes],
+    generator: str = "setuptools (84.0.0)",
+    root_is_purelib: str = "true",
+    tag: str = "py3-none-any",
+) -> dict[str, bytes]:
+    """`members` plus WHEEL and a RECORD listing every member's hash and size."""
+    wheel = (
+        f"Wheel-Version: 1.0\nGenerator: {generator}\n"
+        f"Root-Is-Purelib: {root_is_purelib}\nTag: {tag}\n\n"
+    )
+    members = {**members, f"{_DIST_INFO}/WHEEL": wheel.encode()}
+    record = [
+        f"{name},sha256={_record_hash(content)},{len(content)}"
+        for name, content in members.items()
+    ] + [f"{_DIST_INFO}/RECORD,,"]
+    return {**members, f"{_DIST_INFO}/RECORD": "\n".join(record).encode() + b"\n"}
+
+
+def _compare_wheels(
+    pypi_release: ModuleType, tmp_path: Path, built: dict[str, bytes]
+) -> Any:
+    published = _write_wheel(
+        tmp_path / "published.whl", _wheel_with_dist_info(_wheel_members())
+    )
+    return pypi_release.compare_archives(
+        published, _write_wheel(tmp_path / _WHEEL, built)
+    )
+
+
+def test_pypi_compare_archives_ignores_wheel_generator(
+    pypi_release: ModuleType, tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    built = _wheel_with_dist_info(_wheel_members(), generator="setuptools (84.2.0)")
+
+    with caplog.at_level("INFO"):
+        result = _compare_wheels(pypi_release, tmp_path, built)
+
+    assert result == pypi_release.ParityResult([], [], [], len(built))
+    assert "'Generator: setuptools (84.0.0)' on PyPI" in caplog.text
+    assert "'Generator: setuptools (84.2.0)' built" in caplog.text
+
+
+def _record_with_changed_hash(members: dict[str, bytes], name: str) -> bytes:
+    content = members[name]
+    return members[f"{_DIST_INFO}/RECORD"].replace(
+        f"{name},sha256={_record_hash(content)}".encode(),
+        f"{name},sha256={_record_hash(content + b'x')}".encode(),
+    )
+
+
+def _with_changed_record_hash(members: dict[str, bytes]) -> dict[str, bytes]:
+    return {
+        **members,
+        f"{_DIST_INFO}/RECORD": _record_with_changed_hash(
+            members, "inspect_ai/_util/config.yml"
+        ),
+    }
+
+
+_NEW_GENERATOR = "setuptools (84.2.0)"
+
+
+@pytest.mark.parametrize(
+    "built,missing,extra,differing",
+    [
+        (
+            _wheel_with_dist_info(
+                {**_wheel_members(), "inspect_ai/_util/config.yml": b"key: other"},
+                generator=_NEW_GENERATOR,
+            ),
+            [],
+            [],
+            [f"{_DIST_INFO}/RECORD", "inspect_ai/_util/config.yml"],
+        ),
+        (
+            _wheel_with_dist_info(
+                {**_wheel_members(), "inspect_ai/new.py": b"x"},
+                generator=_NEW_GENERATOR,
+            ),
+            [],
+            ["inspect_ai/new.py"],
+            [f"{_DIST_INFO}/RECORD"],
+        ),
+        (
+            _wheel_with_dist_info(
+                {
+                    k: v
+                    for k, v in _wheel_members().items()
+                    if k != "inspect_ai/py.typed"
+                },
+                generator=_NEW_GENERATOR,
+            ),
+            ["inspect_ai/py.typed"],
+            [],
+            [f"{_DIST_INFO}/RECORD"],
+        ),
+        (
+            _wheel_with_dist_info(
+                _wheel_members(), generator=_NEW_GENERATOR, tag="py3-none-linux_x86_64"
+            ),
+            [],
+            [],
+            [f"{_DIST_INFO}/RECORD", f"{_DIST_INFO}/WHEEL"],
+        ),
+        (
+            _wheel_with_dist_info(
+                _wheel_members(), generator=_NEW_GENERATOR, root_is_purelib="false"
+            ),
+            [],
+            [],
+            [f"{_DIST_INFO}/RECORD", f"{_DIST_INFO}/WHEEL"],
+        ),
+        (
+            _with_changed_record_hash(
+                _wheel_with_dist_info(_wheel_members(), generator=_NEW_GENERATOR)
+            ),
+            [],
+            [],
+            [f"{_DIST_INFO}/RECORD"],
+        ),
+    ],
+    ids=[
+        "changed-member",
+        "extra-member",
+        "missing-member",
+        "wheel-tag",
+        "wheel-root-is-purelib",
+        "record-hash-of-a-member",
+    ],
+)
+def test_pypi_compare_archives_reports_other_differences_beside_generator(
+    pypi_release: ModuleType,
+    tmp_path: Path,
+    built: dict[str, bytes],
+    missing: list[str],
+    extra: list[str],
+    differing: list[str],
+) -> None:
+    result = _compare_wheels(pypi_release, tmp_path, built)
+
+    assert (result.missing, result.extra, result.differing) == (
+        missing,
+        extra,
+        differing,
+    )
