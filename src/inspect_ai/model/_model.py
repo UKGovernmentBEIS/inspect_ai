@@ -3244,7 +3244,7 @@ def use_model_event_sink(sink: ModelEventSink | None) -> Iterator[None]:
 def observe_model_event_creation(
     observer: Callable[["ModelEvent"], None],
 ) -> Iterator[None]:
-    """Observe new model events before a sink can defer their publication."""
+    """Observe generations made within a scoped filter, including unlogged ones."""
     token = _model_event_created_observer.set(observer)
     try:
         yield

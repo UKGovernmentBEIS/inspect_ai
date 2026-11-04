@@ -4175,8 +4175,8 @@ async def test_request_filter_preserves_an_already_edited_generation() -> None:
     assert event.call_message_id == generation.output.message.id
 
 
-async def test_generating_response_filter_keeps_proposing_message() -> None:
-    """A host call returned by a generating response filter names that generation."""
+async def test_generating_response_filter_leaves_proposer_unset() -> None:
+    """A filter-generated replacement does not claim a host-call producer."""
     bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)
 
     async def generate_in_response_filter(
@@ -4205,11 +4205,11 @@ async def test_generating_response_filter_keeps_proposing_message() -> None:
     generations = [e for e in recorded.events if isinstance(e, ModelEvent)]
     assert len(generations) == 2
     [event] = recorded.tool_events
-    assert event.call_message_id == generations[1].output.message.id
+    assert event.call_message_id is None
 
 
-async def test_response_filter_preserves_an_already_edited_generation() -> None:
-    """An Inspect edit of a filter generation still names that generation."""
+async def test_response_filter_edit_of_own_generation_leaves_proposer_unset() -> None:
+    """An edited filter generation remains unlinked to the host call."""
     bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)
 
     async def generate_and_edit(
@@ -4242,7 +4242,71 @@ async def test_response_filter_preserves_an_already_edited_generation() -> None:
     generations = [e for e in recorded.events if isinstance(e, ModelEvent)]
     assert len(generations) == 2
     [event] = recorded.tool_events
-    assert event.call_message_id == generations[1].output.message.id
+    assert event.call_message_id is None
+
+
+async def test_response_filter_generation_does_not_claim_equal_initial_call() -> None:
+    """Equal proposals cannot make an unrelated initial generation the producer."""
+    bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)
+
+    async def generate_in_filter(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput:
+        return await model.generate(
+            input=generate_input.input,
+            tools=generate_input.tools,
+            tool_choice=generate_input.tool_choice,
+            config=generate_input.config,
+        )
+
+    bridge.response_filter = generate_in_filter
+    call = ToolCall(id="same", function="read_file", arguments={"path": "a"})
+    with recorded_transcript() as recorded:
+        await run_bridge(
+            [tool_calls_output(call), tool_calls_output(call)],
+            bridge=bridge,
+            tools=declare("read_file"),
+        )
+        await call_host_tool(bridge)("host", "read_file", {"path": "a"})
+
+    assert len([e for e in recorded.events if isinstance(e, ModelEvent)]) == 2
+    [event] = recorded.tool_events
+    assert event.call_message_id is None
+
+
+async def test_response_filter_generating_but_returning_none_keeps_original_producer() -> (
+    None
+):
+    """A filter that returns None leaves the original generated call selected."""
+    bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)
+
+    async def generate_then_keep_original(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> None:
+        await model.generate(
+            input=generate_input.input,
+            tools=generate_input.tools,
+            tool_choice=generate_input.tool_choice,
+            config=generate_input.config,
+        )
+
+    bridge.response_filter = generate_then_keep_original
+    call = ToolCall(id="original", function="read_file", arguments={"path": "a"})
+    with recorded_transcript() as recorded:
+        await run_bridge(
+            [
+                tool_calls_output(call),
+                ModelOutput.from_content("mockllm/model", "Later."),
+            ],
+            bridge=bridge,
+            tools=declare("read_file"),
+        )
+        await call_host_tool(bridge)("host", "read_file", {"path": "a"})
+
+    generations = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    assert len(generations) == 2
+    [event] = recorded.tool_events
+    assert event.call_message_id == generations[0].output.message.id
 
 
 async def test_generating_request_filter_reordered_choice_keeps_provenance() -> None:
@@ -4438,8 +4502,10 @@ SINKS = {
 
 
 @pytest.mark.parametrize("source", ["on-pending", "on-start", "nested"])
-async def test_response_filter_generation_uses_its_own_span(source: str) -> None:
-    """A filter-generated host call follows its proposing event's span."""
+async def test_response_filter_generation_keeps_host_in_current_span(
+    source: str,
+) -> None:
+    """A filter-generated call does not inherit an uncertain proposing span."""
     bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)
     if source != "nested":
         bridge.model_event_sink = SINKS[source]({"stamp", "open"})
@@ -4466,6 +4532,7 @@ async def test_response_filter_generation_uses_its_own_span(source: str) -> None
     call = ToolCall(id="filtered", function="read_file", arguments={"path": "a"})
     with recorded_transcript() as recorded:
         async with span("outer"):
+            outer = current_span_id()
             await run_bridge(
                 [
                     ModelOutput.from_content("mockllm/model", "First."),
@@ -4479,12 +4546,12 @@ async def test_response_filter_generation_uses_its_own_span(source: str) -> None
     first, second = [e for e in recorded.events if isinstance(e, ModelEvent)]
     [event] = recorded.tool_events
     assert first.span_id != second.span_id
-    assert event.call_message_id == second.output.message.id
-    assert event.span_id == second.span_id
+    assert event.call_message_id is None
+    assert event.span_id == outer
 
 
-async def test_request_filter_generation_uses_its_own_span() -> None:
-    """A request filter's generation can also propose from a nested span."""
+async def test_request_filter_nested_generation_keeps_execution_span() -> None:
+    """A request filter retains its known proposal without pinning its span."""
     bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)
 
     async def generate_in_filter(
@@ -4503,6 +4570,7 @@ async def test_request_filter_generation_uses_its_own_span() -> None:
     call = ToolCall(id="filtered", function="read_file", arguments={"path": "a"})
     with recorded_transcript() as recorded:
         async with span("outer"):
+            outer = current_span_id()
             await run_bridge(
                 [tool_calls_output(call)], bridge=bridge, tools=declare("read_file")
             )
@@ -4511,7 +4579,7 @@ async def test_request_filter_generation_uses_its_own_span() -> None:
     [generation] = [e for e in recorded.events if isinstance(e, ModelEvent)]
     [event] = recorded.tool_events
     assert event.call_message_id == generation.output.message.id
-    assert event.span_id == generation.span_id
+    assert event.span_id == outer
 
 
 @pytest.mark.parametrize("where", ["request", "response"])
@@ -4582,7 +4650,9 @@ async def test_filter_generation_follows_checkpoint_rotated_before_return(
     [event] = recorded.tool_events
     assert first != second
     assert generations[-1].span_id == first
-    assert event.call_message_id == generations[-1].output.message.id
+    assert event.call_message_id == (
+        generations[-1].output.message.id if where == "request" else None
+    )
     assert proposal.span_id is None
     assert event.span_id == second
 
@@ -4672,9 +4742,109 @@ async def test_deferred_filter_generation_follows_rotating_checkpoint(
     [event] = recorded.tool_events
     assert first != second
     assert generations[-1].span_id == first
-    assert event.call_message_id == generations[-1].output.message.id
+    assert event.call_message_id == (
+        generations[-1].output.message.id if where == "request" else None
+    )
     assert proposal.span_id is None
     assert event.span_id == second
+
+
+@pytest.mark.parametrize("where", ["request", "response"])
+async def test_filter_completion_current_span_does_not_pin_checkpoint(
+    where: str,
+) -> None:
+    """A sink's completion-time current span is not a host-call attribution."""
+
+    class CompletionCurrentSink(StampingSink):
+        def on_complete(self, event: ModelEvent) -> None:
+            event.span_id = current_span_id()
+            transcript()._event(event)
+
+    bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)
+    checkpoints = SpanRotationScope(type="checkpoint")
+    started, resumed = anyio.Event(), anyio.Event()
+    call = ToolCall(id="filtered", function="read_file", arguments={"path": "a"})
+    outputs = [tool_calls_output(call)]
+    if where == "response":
+        outputs.insert(0, ModelOutput.from_content("mockllm/model", "First."))
+
+    async def custom_outputs(
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        output = outputs.pop(0)
+        if output.message.tool_calls:
+            started.set()
+            await resumed.wait()
+        return output
+
+    model = get_model("mockllm/model", custom_outputs=custom_outputs)
+
+    async def generate_with_sink(
+        model: Model,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        with use_model_event_sink(CompletionCurrentSink({"current"})):
+            return await model.generate(
+                input=input, tools=tools, tool_choice=tool_choice, config=config
+            )
+
+    async def response_filter(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput:
+        return await generate_with_sink(
+            model,
+            generate_input.input,
+            generate_input.tools,
+            generate_input.tool_choice,
+            generate_input.config,
+        )
+
+    async def rotate() -> None:
+        await started.wait()
+        await checkpoints.end_span()
+        await checkpoints.begin_span("checkpoint 2")
+        resumed.set()
+
+    if where == "request":
+        bridge.filter = generate_with_sink
+    else:
+        bridge.response_filter = response_filter
+
+    with recorded_transcript() as recorded:
+        await checkpoints.open("checkpoint 1")
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(rotate)
+            await bridge_generate(
+                bridge,
+                model,
+                [ChatMessageUser(content="Read a")],
+                declare("read_file"),
+                None,
+                GenerateConfig(),
+                requested_model=None,
+            )
+        second = current_span_id()
+        await checkpoints.end_span()
+        await checkpoints.begin_span("checkpoint 3")
+        third = current_span_id()
+        proposal = bridge._tool_execution_grants[0].proposal
+        await call_host_tool(bridge)("host", "read_file", {"path": "a"})
+        await checkpoints.close()
+
+    generations = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    [event] = recorded.tool_events
+    assert generations[-1].span_id == second
+    assert event.call_message_id == (
+        generations[-1].output.message.id if where == "request" else None
+    )
+    assert proposal.span_id is None
+    assert event.span_id == third
 
 
 def sandbox_bridge_with_sink(tool: AsyncMock, sink: StampingSink) -> SandboxAgentBridge:

@@ -50,11 +50,7 @@ from inspect_ai.event._model import ModelEvent
 from inspect_ai.log._transcript import transcript
 from inspect_ai.model._agent_message import validate_agent_message
 from inspect_ai.model._call_tools import get_tools_info
-from inspect_ai.model._chat_message import (
-    ChatMessage,
-    ChatMessageAssistant,
-    ChatMessageUser,
-)
+from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
 from inspect_ai.model._generate_config import (
     GenerateConfig,
     ResponseSchema,
@@ -96,7 +92,7 @@ from inspect_ai.tool._tools._web_search._web_search import (
 )
 from inspect_ai.util._json import JSONSchema
 from inspect_ai.util._limit import LimitExceededError
-from inspect_ai.util._span import current_span_follows_rotation, current_span_id
+from inspect_ai.util._span import current_span_id
 
 if TYPE_CHECKING:
     from inspect_ai.event._model import ModelEvent
@@ -473,8 +469,6 @@ async def _apply_response_filter(
     are not the filter's to answer for.
     """
     candidate = output.model_copy(deep=True)
-    history = transcript().history
-    events_before_filter = history.event_count
     try:
         filtered = await response_filter(model, candidate, generate_input)
     except Exception as ex:
@@ -533,22 +527,11 @@ async def _apply_response_filter(
         # text continued across requests is joined with no separator)
         filtered.completion = output.completion
     _check_provider_owned_content(output, filtered)
-    generated_messages = {
-        choice.message.id: choice.message
-        for event in history.recent_events(history.event_count - events_before_filter)
-        if isinstance(event, ModelEvent)
-        for choice in event.output.choices
-        if choice.message.id is not None
-    }
-    _settle_message_ids(output, filtered, generated_messages)
+    _settle_message_ids(output, filtered)
     return filtered
 
 
-def _settle_message_ids(
-    original: ModelOutput,
-    filtered: ModelOutput,
-    generated_messages: Mapping[str, ChatMessageAssistant] | None = None,
-) -> None:
+def _settle_message_ids(original: ModelOutput, filtered: ModelOutput) -> None:
     """Set the ids of returned messages so id-keyed replay state matches them.
 
     Dialects key some replay state by message id. Anthropic records server work
@@ -564,8 +547,7 @@ def _settle_message_ids(
     A changed or new message that keeps none replaces the original whose id it
     had, else the original choice at its index: it gets an id derived from that
     original's and its own content (`with_edited_id`), so the same edit is the
-    same message. A message returned from a generation made by the filter uses
-    that generation as its source instead.
+    same message.
     """
     owners = {
         content.id: choice.message.id
@@ -600,18 +582,6 @@ def _settle_message_ids(
                 (m for m in original_messages if m.id == message.id),
                 original_messages[index] if index < len(original_messages) else None,
             )
-            if generated_messages is not None and message.id is not None:
-                matching = [
-                    generated
-                    for generated in generated_messages.values()
-                    if generated.id is not None
-                    and (
-                        generated.id == message.id
-                        or edit_id(generated.id, content_hash(message)) == message.id
-                    )
-                ]
-                if len(matching) == 1:
-                    source = matching[0]
             if source is not None:
                 with_edited_id(source, message, keep_provider_state=False)
 
@@ -646,41 +616,6 @@ def _selected_generated_message_id(
         )
     ]
     return matches[0] if len(matches) == 1 else None
-
-
-class _CreatedGeneration(NamedTuple):
-    ambient_span_id: str | None
-    follows_rotation: bool
-
-
-class _FilterGenerationSpans:
-    """Retain a filter generation's ambient span until its event is published."""
-
-    def __init__(self) -> None:
-        self.start_span_id = current_span_id()
-        self.created: dict[int, _CreatedGeneration] = {}
-
-    def on_created(self, event: ModelEvent) -> None:
-        self.created[id(event)] = _CreatedGeneration(
-            current_span_id(), current_span_follows_rotation()
-        )
-
-    def span_id(self, event: ModelEvent) -> str | None:
-        created = self.created.get(id(event))
-        if created is None:
-            return None
-        if event.span_id != created.ambient_span_id:
-            return event.span_id
-        if created.follows_rotation:
-            return None
-        return event.span_id if event.span_id != self.start_span_id else None
-
-
-@contextmanager
-def _capture_filter_generation_spans() -> Iterator[_FilterGenerationSpans]:
-    spans = _FilterGenerationSpans()
-    with observe_model_event_creation(spans.on_created):
-        yield spans
 
 
 def _check_provider_owned_content(original: ModelOutput, filtered: ModelOutput) -> None:
@@ -1081,8 +1016,6 @@ async def _bridge_generate_impl(
             # Apply filter if we have it (can either return output or alternate inputs)
             output: ModelOutput | None = None
             generated_output: ModelOutput | None = None
-            generated_event: ModelEvent | None = None
-            filter_spans = _FilterGenerationSpans()
             if bridge.filter:
                 history = transcript().history
                 events_before_filter = history.event_count
@@ -1092,10 +1025,7 @@ async def _bridge_generate_impl(
                 # function signature and drops options.
                 tool_info = get_tools_info(tools)
                 # under the bridge's approval policies, as a filter may generate
-                with (
-                    _capture_filter_generation_spans() as filter_spans,
-                    bridge_approval_scope(bridge.approval),
-                ):
+                with bridge_approval_scope(bridge.approval):
                     try:
                         if _is_model_filter(bridge.filter):
                             result = await bridge.filter(
@@ -1117,9 +1047,9 @@ async def _bridge_generate_impl(
                         result = ex.output
                 if isinstance(result, ModelOutput):
                     output = result
-                    generated_event = next(
+                    generated_output = next(
                         (
-                            event
+                            event.output
                             for event in reversed(
                                 history.recent_events(
                                     history.event_count - events_before_filter
@@ -1130,9 +1060,6 @@ async def _bridge_generate_impl(
                             is not None
                         ),
                         None,
-                    )
-                    generated_output = (
-                        generated_event.output if generated_event is not None else None
                     )
                 elif isinstance(result, GenerateInput):
                     # Update the inputs that will be used for generation
@@ -1177,10 +1104,7 @@ async def _bridge_generate_impl(
                             raise
 
         generated = generated_output
-        if generated_event is not None:
-            proposing_span_id = filter_spans.span_id(generated_event)
-        else:
-            proposing_span_id = sink.span_id if sink is not None else None
+        proposing_span_id = sink.span_id if sink is not None else None
 
         # Update the compaction baseline with the actual input token count
         # from the generate call (most accurate source of truth). Record it
@@ -1191,11 +1115,16 @@ async def _bridge_generate_impl(
 
         # Inside the refusal-retry loop so a content_filter replacement is retried.
         if bridge.response_filter is not None:
-            history = transcript().history
-            events_before_response_filter = history.event_count
+            before_response_filter = output
+            response_filter_generated = False
+
+            def note_generation(_event: ModelEvent) -> None:
+                nonlocal response_filter_generated
+                response_filter_generated = True
+
             # under the bridge's approval policies, as a filter may generate
             with (
-                _capture_filter_generation_spans() as response_spans,
+                observe_model_event_creation(note_generation),
                 bridge_approval_scope(bridge.approval),
             ):
                 output = await _apply_response_filter(
@@ -1206,22 +1135,11 @@ async def _bridge_generate_impl(
                         input_messages, get_tools_info(tools), tool_choice, config
                     ),
                 )
-            response_event = next(
-                (
-                    event
-                    for event in reversed(
-                        history.recent_events(
-                            history.event_count - events_before_response_filter
-                        )
-                    )
-                    if isinstance(event, ModelEvent)
-                    and _selected_generated_message_id(event.output, output) is not None
-                ),
-                None,
-            )
-            if response_event is not None:
-                generated = response_event.output
-                proposing_span_id = response_spans.span_id(response_event)
+            # A replacement made after the filter generated has no verified
+            # producer; the initial generation may have an equal call.
+            if response_filter_generated and output is not before_response_filter:
+                generated = None
+                proposing_span_id = None
 
         # Check for refusal and retry if needed
         if not output.empty and output.stop_reason == "content_filter":

@@ -140,11 +140,6 @@ def current_span_id() -> str | None:
     return current.id if isinstance(current, _SpanCell) else current
 
 
-def current_span_follows_rotation() -> bool:
-    """Whether the current span comes from a shared rotating span cell."""
-    return isinstance(_current_span_id.get(), _SpanCell)
-
-
 def current_agent_span_id() -> str | None:
     return _current_agent_span_id.get()
 
