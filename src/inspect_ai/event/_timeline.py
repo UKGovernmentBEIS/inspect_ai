@@ -1078,6 +1078,32 @@ class _Fingerprint(NamedTuple):
     calls: tuple[tuple[str, str], ...]
 
 
+class _ToolResultProgress(NamedTuple):
+    """One bridge-result lookup's input position and newly pending ids."""
+
+    waiting: dict[str, Any]
+    refs: tuple[tuple[int, int], ...]
+    new_ids: list[str]
+
+
+def _new_pool_ref_ranges(
+    previous: tuple[tuple[int, int], ...], current: Sequence[tuple[int, int]]
+) -> list[tuple[int, int]] | None:
+    """The newly appended input ranges, or None if this input is not an extension."""
+    if not previous:
+        return list(current)
+    if (
+        len(current) < len(previous)
+        or tuple(current[: len(previous) - 1]) != previous[:-1]
+    ):
+        return None
+    old_begin, old_end = previous[-1]
+    begin, end = current[len(previous) - 1]
+    if begin != old_begin or end < old_end:
+        return None
+    return [(old_end, end), *current[len(previous) :]]
+
+
 # an input's identity hashes its messages' fingerprints as a polynomial
 # modulo this prime
 _MODULUS = (1 << 61) - 1
@@ -1112,6 +1138,7 @@ class _Inputs:
         # ascending
         self._tool_rows: dict[str, list[int]] | None = None
         self._tool_result_rows: list[int] | None = None
+        self._tool_result_progress: dict[int, _ToolResultProgress] = {}
         # the pool rows holding an output of an open call, of any continuity
         # thread, by the output fingerprints added, each added once
         self._open_rows: _RowSet | None = None
@@ -1247,7 +1274,7 @@ class _Inputs:
     ) -> list[tuple[str, str]]:
         """The non-empty results in `event`'s input of the tool calls named, the last for each.
 
-        An input stored as ranges of the pool uses indexed result rows and probes whichever side is smaller: pending call ids or result rows in the input. An expanded input is read once from its end, until each call's last result is found.
+        Pooled bridge results reuse scan progress across extending inputs. Other pooled lookups use indexed result rows and probe whichever side is smaller: pending call ids or result rows in the input. An expanded input is read once from its end, until each call's last result is found.
         """
         input = self.of(event)
         if isinstance(input, PoolView):
@@ -1267,6 +1294,17 @@ class _Inputs:
                     break
         return list(found.items())
 
+    def register_pending_bridge_result(
+        self, waiting: dict[str, Any], tool_call_id: str
+    ) -> None:
+        """Track a newly pending bridge id for incremental pooled result lookup."""
+        key = id(waiting)
+        progress = self._tool_result_progress.get(key)
+        if progress is None or progress.waiting is not waiting:
+            progress = _ToolResultProgress(waiting, (), [])
+            self._tool_result_progress[key] = progress
+        progress.new_ids.append(tool_call_id)
+
     def may_have_tool_result(self, tool_call_id: str) -> bool:
         """Whether a non-empty result can appear in an input for this call."""
         return not self._all_inputs_pooled or tool_call_id in self._pool_tool_rows()
@@ -1277,6 +1315,39 @@ class _Inputs:
         found: dict[str, str] = {}
         by_call = self._pool_tool_rows()
         assert self._tool_result_rows is not None
+        progress: _ToolResultProgress | None = None
+        if isinstance(tool_call_ids, dict):
+            progress = self._tool_result_progress.get(id(tool_call_ids))
+            if progress is not None and progress.waiting is not tool_call_ids:
+                progress = None
+            new_ranges = (
+                _new_pool_ref_ranges(progress.refs, input.refs)
+                if progress is not None
+                else None
+            )
+            if progress is not None and new_ranges is not None:
+                for tool_call_id in progress.new_ids:
+                    rows = by_call.get(tool_call_id)
+                    if not rows:
+                        continue
+                    for begin, end in reversed(progress.refs):
+                        at = bisect_left(rows, end) - 1
+                        if at >= 0 and rows[at] >= begin:
+                            found[tool_call_id] = self.row(rows[at]).text
+                            break
+                for begin, end in new_ranges:
+                    first = bisect_left(self._tool_result_rows, begin)
+                    last = bisect_left(self._tool_result_rows, end)
+                    for position in range(first, last):
+                        message = self.row(self._tool_result_rows[position])
+                        if isinstance(message, ChatMessageTool):
+                            result_id = message.tool_call_id
+                            if result_id is not None and result_id in tool_call_ids:
+                                found[result_id] = message.text
+                self._tool_result_progress[id(tool_call_ids)] = _ToolResultProgress(
+                    tool_call_ids, tuple(input.refs), []
+                )
+                return found
         ranges: list[tuple[int, int]] = []
         candidates = 0
         for begin, end in input.refs:
@@ -1307,6 +1378,10 @@ class _Inputs:
                         result_id = message.tool_call_id
                         if result_id is not None and result_id in wanted:
                             found[result_id] = message.text
+        if isinstance(tool_call_ids, dict) and progress is not None:
+            self._tool_result_progress[id(tool_call_ids)] = _ToolResultProgress(
+                tool_call_ids, tuple(input.refs), []
+            )
         return found
 
     def _pool_tool_rows(self) -> dict[str, list[int]]:
@@ -1770,6 +1845,8 @@ def _extract_agent_results(parent: TimelineSpan, inputs: _Inputs) -> None:
             ):
                 tool_call_id = item.id[6:]
                 if inputs.may_have_tool_result(tool_call_id):
+                    if tool_call_id not in waiting:
+                        inputs.register_pending_bridge_result(waiting, tool_call_id)
                     waiting.setdefault(tool_call_id, []).append(item)
 
         # Recurse into child spans

@@ -2113,15 +2113,22 @@ def test_pooled_prompt_fallback_without_system_message_reads_pool_once() -> None
 @pytest.mark.parametrize("setup", [False, True])
 @pytest.mark.parametrize("empty", [True, False])
 @pytest.mark.parametrize("delayed", [False, True])
+@pytest.mark.parametrize("ordinary", [False, True])
 def test_bridge_result_lookup_with_empty_results_stays_bounded(
-    empty: bool, setup: bool, delayed: bool, monkeypatch: pytest.MonkeyPatch
+    empty: bool,
+    setup: bool,
+    delayed: bool,
+    ordinary: bool,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from inspect_ai.event import _timeline
 
     original = _timeline._Inputs._pool_tool_rows
     original_results = _timeline._Inputs.tool_results
+    original_row = _timeline._Inputs.row
     work: list[int] = []
     final_results: list[tuple[str, str]] = []
+    active_lookup = False
 
     class CountingRows(dict[str, list[int]]):
         def get(self, key: str, default: Any = None) -> Any:
@@ -2138,13 +2145,24 @@ def test_bridge_result_lookup_with_empty_results_stays_bounded(
     def counted_results(
         inputs: Any, event: ModelEvent, ids: Any
     ) -> list[tuple[str, str]]:
-        results = original_results(inputs, event, ids)
+        nonlocal active_lookup
+        active_lookup = True
+        try:
+            results = original_results(inputs, event, ids)
+        finally:
+            active_lookup = False
         if event.uuid == "last":
             final_results.extend(results)
         return results
 
+    def counted_row(inputs: Any, row: int) -> ChatMessage:
+        if active_lookup:
+            work[-1] += 1
+        return original_row(inputs, row)
+
     monkeypatch.setattr(_timeline._Inputs, "_pool_tool_rows", counted_rows)
     monkeypatch.setattr(_timeline._Inputs, "tool_results", counted_results)
+    monkeypatch.setattr(_timeline._Inputs, "row", counted_row)
     for rounds in (100, 200, 400):
         final_results.clear()
         pool: list[ChatMessage] = [ChatMessageUser(content="Start")]
@@ -2190,6 +2208,14 @@ def test_bridge_result_lookup_with_empty_results_stays_bounded(
                 delayed_results.append(result)
             else:
                 pool.append(result)
+            if ordinary:
+                pool.append(
+                    ChatMessageTool(
+                        content=f"ordinary result {n}",
+                        tool_call_id=f"ordinary-{n}",
+                        function="ordinary",
+                    )
+                )
         pool.extend(delayed_results)
         events.append(
             linked_call("last", "main", [], "Done", None).model_copy(
@@ -3036,9 +3062,11 @@ def test_nested_pre_tool_span_log_is_refused_after_json_read(
         )
 
 
+@pytest.mark.parametrize("version", [None, "unknown"])
 @pytest.mark.parametrize("serialized", [False, True])
+@pytest.mark.parametrize("failed", [False, True])
 def test_unknown_version_refuses_nested_spanless_native_tool(
-    serialized: bool,
+    version: str | None, serialized: bool, failed: bool
 ) -> None:
     inner = ToolEvent(
         id="inner",
@@ -3046,6 +3074,7 @@ def test_unknown_version_refuses_nested_spanless_native_tool(
         arguments={},
         result="2",
         completed=datetime.now(timezone.utc),
+        failed=failed,
     )
     outer = ToolEvent(
         id="outer", function="handoff", arguments={}, result="done", events=[inner]
@@ -3063,8 +3092,32 @@ def test_unknown_version_refuses_nested_spanless_native_tool(
         match="0.3.94 or later.*Replay this transcript from its messages instead",
     ):
         steps_from_events(
-            [], events, [], sample_uuid="sample", eval_info=EvalInfo(None, False)
+            [], events, [], sample_uuid="sample", eval_info=EvalInfo(version, False)
         )
+
+
+@pytest.mark.parametrize("version", [None, "unknown"])
+@pytest.mark.parametrize("serialized", [False, True])
+def test_unknown_version_keeps_failed_tool_with_matching_span(
+    version: str | None, serialized: bool
+) -> None:
+    messages, events, pool = _historical_approval_events("expanded", "approve", True)
+    tool = next(event for event in events if isinstance(event, ToolEvent))
+    tool.failed = True
+    tool.completed = datetime.now(timezone.utc)
+    if serialized:
+        adapter = TypeAdapter(list[Event])
+        events = adapter.validate_json(adapter.dump_json(events))
+    replay = steps_from_events(
+        messages,
+        events,
+        pool,
+        sample_uuid="sample",
+        eval_info=EvalInfo(version, False),
+    )
+    assert [step.stage for step in replay if step.stage.startswith("tool")] == [
+        "tool_call"
+    ]
 
 
 @pytest.mark.parametrize("version", [None, "unknown", "0.3.94", "0.3.200"])
@@ -3274,6 +3327,89 @@ def test_modern_approval_tool_stages_use_recorded_arguments(
 
 @pytest.mark.parametrize("inputs", ["expanded", "pooled"])
 @pytest.mark.parametrize("decision", ["approve", "modify"])
+def test_modern_approval_without_modified_payload_keeps_tool_stages(
+    inputs: str, decision: str
+) -> None:
+    messages, events, pool = _historical_approval_events(inputs, "approve", True)
+    approval = next(event for event in events if isinstance(event, ApprovalEvent))
+    approval.decision = cast(ApprovalDecision, decision)
+    adapter = TypeAdapter(list[Event])
+    events = adapter.validate_json(adapter.dump_json(events))
+    replay = steps_from_events(
+        messages,
+        events,
+        pool,
+        sample_uuid="sample",
+        eval_info=EvalInfo("0.3.277", False),
+    )
+    tool_steps = [
+        step.step
+        for step in replay
+        if isinstance(step.step, BeforeToolCall | AfterToolCall)
+    ]
+    assert [step.call.arguments for step in tool_steps] == [
+        {"x": 1, "y": 1},
+        {"x": 1, "y": 1},
+    ]
+    assert isinstance(tool_steps[1], AfterToolCall)
+    assert tool_steps[1].result.text == "2"
+
+
+@pytest.mark.parametrize("inputs", ["expanded", "pooled"])
+@pytest.mark.parametrize("version", ["0.3.277", "0.3.285"])
+@pytest.mark.parametrize("decision", ["approve", "modify"])
+def test_modern_approval_uses_executed_tool_view_at_both_stages(
+    inputs: str, version: str, decision: str
+) -> None:
+    from inspect_ai._sentinel import _replay
+
+    path = Path(__file__).parent / "fixtures" / "approval_modified_0.3.99.json"
+    log = read_eval_log(str(path), resolve_attachments="full")
+    [sample] = log.samples or []
+    events: list[Event] = []
+    for event in sample.events:
+        if isinstance(event, ApprovalEvent):
+            event = event.model_copy(update={"decision": decision})
+        elif isinstance(event, ToolEvent):
+            event = event.model_copy(
+                update={
+                    "arguments": {"x": 7, "y": 1},
+                    "view": ToolCallContent(
+                        format="markdown",
+                        content="```python\naddition(x=7, y=1)\n```\n",
+                    ),
+                }
+            )
+        events.append(event)
+    adapter = TypeAdapter(list[Event])
+    events = adapter.validate_json(adapter.dump_json(events))
+    pool: list[ChatMessage] = []
+    if inputs == "pooled":
+        events, pool = _replay._condensed(events, [])
+    replay = steps_from_events(
+        sample.messages,
+        events,
+        pool,
+        sample_uuid=sample.uuid or "sample",
+        eval_info=EvalInfo(version, False),
+    )
+    tool_steps = [
+        step.step
+        for step in replay
+        if isinstance(step.step, BeforeToolCall | AfterToolCall)
+    ]
+    assert [step.call.arguments for step in tool_steps] == [
+        {"x": 7, "y": 1},
+        {"x": 7, "y": 1},
+    ]
+    assert [
+        step.view.call.content if step.view.call is not None else None
+        for step in tool_steps
+    ] == ["```python\naddition(x=7, y=1)\n```\n"] * 2
+
+
+@pytest.mark.parametrize("inputs", ["expanded", "pooled"])
+@pytest.mark.parametrize("decision", ["approve", "modify"])
 @pytest.mark.parametrize("renamed", [False, True])
 def test_older_modified_approval_log_is_refused(
     inputs: str, decision: str, renamed: bool
@@ -3407,6 +3543,26 @@ def test_approval_decision_without_tool_event_respects_log_version(
         if "Skipped human decisions from ApprovalEvents" in record.message
     ]
     assert len(warnings) == (0 if reconstruct else 1)
+
+
+@pytest.mark.parametrize("human_approvers", [(), ("other",)])
+def test_old_log_warns_only_for_selected_human_approvals(
+    human_approvers: tuple[str, ...], caplog: pytest.LogCaptureFixture
+) -> None:
+    messages, events, pool = _historical_approval_events("expanded", "reject", True)
+    steps_from_events(
+        messages,
+        events,
+        pool,
+        sample_uuid="sample",
+        eval_info=EvalInfo("0.3.99", False),
+        human_approvers=human_approvers,
+    )
+    assert not [
+        record
+        for record in caplog.records
+        if "Skipped human decisions from ApprovalEvents" in record.message
+    ]
 
 
 @pytest.mark.parametrize("inputs", ["expanded", "pooled"])
