@@ -1,7 +1,5 @@
 from dataclasses import dataclass, field
 
-from shortuuid import uuid
-
 from inspect_ai._util.content import Content, ContentText
 
 from ._chat_message import ChatMessage
@@ -71,12 +69,7 @@ async def trim_messages(
             ]
             if len(valid_tool_calls) != len(msg.tool_calls):
                 # Some tool_calls were orphaned, update the message
-                msg = msg.model_copy(
-                    update={
-                        "id": uuid(),
-                        "tool_calls": valid_tool_calls if valid_tool_calls else None,
-                    }
-                )
+                msg = edited_message(msg, tool_calls=valid_tool_calls or None)
         sanitized_messages.append(msg)
     conversation_messages = sanitized_messages
 

@@ -2,12 +2,16 @@ import pytest
 
 from inspect_ai._util.citation import UrlCitation
 from inspect_ai._util.content import ContentText
+from inspect_ai.event import ModelEvent
+from inspect_ai.event._pool import condense_model_event_inputs
 from inspect_ai.model import (
     ChatMessage,
     ChatMessageAssistant,
     ChatMessageSystem,
     ChatMessageTool,
     ChatMessageUser,
+    GenerateConfig,
+    ModelOutput,
     trim_messages,
 )
 from inspect_ai.model._trim import (
@@ -527,6 +531,44 @@ async def test_orphan_tool_calls_from_trimming() -> None:
             tool_ids_in_result = {m.tool_call_id for m in trimmed if m.role == "tool"}
             for tc in msg.tool_calls:
                 assert tc.id in tool_ids_in_result, f"Orphan tool_call {tc.id} found"
+
+
+async def test_repeated_orphan_trim_is_one_message() -> None:
+    messages: list[ChatMessage] = [
+        ChatMessageUser(content="User message"),
+        ChatMessageAssistant(
+            content="Calling tools",
+            tool_calls=[
+                ToolCall(id="answered", function="func1", arguments={}),
+                ToolCall(id="orphaned", function="func2", arguments={}),
+            ],
+        ),
+        ChatMessageTool(content="result", tool_call_id="answered", function="func1"),
+    ]
+
+    first, second = [
+        next(
+            m
+            for m in await trim_messages(messages, preserve=1.0)
+            if m.role == "assistant"
+        )
+        for _ in range(2)
+    ]
+
+    assert first.id == second.id != messages[1].id
+    events = [
+        ModelEvent(
+            model="mockllm/model",
+            input=[message],
+            tools=[],
+            tool_choice="auto",
+            config=GenerateConfig(),
+            output=ModelOutput.from_content("mockllm/model", "ok"),
+        )
+        for message in (first, second)
+    ]
+    _, _, pool = condense_model_event_inputs(events, 0, {})
+    assert len(pool) == 1
 
 
 # Tests for citation stripping
