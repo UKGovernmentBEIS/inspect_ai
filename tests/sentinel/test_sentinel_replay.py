@@ -4656,29 +4656,21 @@ def test_an_approvers_view_replays_whole() -> None:
     assert before.view.context.content == "adding for the user"
 
 
-PAGE = "\n".join(
-    ["RootWebArea 'page'", *(f"  [{n}] button 'item {n}'" for n in range(1, 9))]
-)
-
-
-@solver
-def r7_opens_page() -> Solver:
-    async def solve(state: TaskState, generate: Generate) -> TaskState:
-        from inspect_ai.tool._tools._web_browser._web_browser import WebBrowserStore
-        from inspect_ai.util._store_model import store_as
-        from inspect_ai.util._tool_state import tool_state_instance
-
-        store_as(WebBrowserStore, instance=tool_state_instance(None)).web_at = PAGE
-        return state
-
-    return solve
-
-
 class ClickOptions(BaseModel):
     button: str = "left"
 
 
-@tool
+def r7_click_viewer(call: ToolCall) -> ToolCallView:
+    """A context that depends on the call's arguments: the page, with the element clicked marked."""
+    element_id = call.arguments.get("element_id")
+    page = [
+        f"{'*' if n == element_id else ' '} [{n}] button 'item {n}'"
+        for n in range(1, 9)
+    ]
+    return ToolCallView(context=ToolCallContent(format="text", content="\n".join(page)))
+
+
+@tool(viewer=r7_click_viewer)
 def r7_click() -> Tool:
     async def execute(element_id: int, options: ClickOptions | None = None) -> str:
         """Click an element.
@@ -4718,14 +4710,11 @@ def test_an_approvals_context_replays_only_for_the_call_it_viewed(
 ) -> None:
     """An approval's view is of the call it was shown; a changed call's context is not recorded."""
     from inspect_ai._sentinel import _replay
-    from inspect_ai.tool._tools._web_browser._web_browser import (
-        tool_with_web_at_viewer,
-    )
 
     seen: dict[str, Step] = {}
     task = Task(
         dataset=[Sample(input="Click item 1", target="")],
-        solver=[r7_opens_page(), *tool_loop(tool_with_web_at_viewer(r7_click()))],
+        solver=tool_loop(r7_click()),
         sentinel=[r7_probe(seen, copies=True)],
         approval=[
             ApprovalPolicy(
