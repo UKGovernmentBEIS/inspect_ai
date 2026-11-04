@@ -438,21 +438,36 @@ three sets:
    each configured scorer as the runner named it (including one that scored
    no sample), each solver-written key and each appended key;
 2. every score key of every sample in the log;
-3. `unique_scorer_name()` applied in order to the `log.eval.scorers` names,
-   whether or not the log has results. For the task's own scorers this is
-   the runner's derivation (`run.py:1162-1166`), so it names a configured
-   scorer that has neither a result row nor a key on any sample: a scorer
-   with `metrics=[]` that always returns `None`, alone or beside other
-   scorers.
+3. names for configured scorers that hold no key, added only where the log
+   determines them, as below.
 
 Sets 1 and 2 are the keys the log actually holds, so every appended key is
 covered as written, including one that `inspect score --action append`
-named differently on one sample. Set 3 adds a name only for a scorer that
-wrote nothing anywhere. For an appended scorer, the derived name is the one
-append gives it on a sample holding every earlier scorer's key and no
-solver key of that name (both apply `unique_scorer_name()` over the earlier
-names), so set 3 adds no name that append would not have used. A derived
-name that equals a solver-written key is already covered by set 2.
+named differently on one sample. Set 3 exists for a configured scorer that
+wrote nothing anywhere and has no result row: a scorer with `metrics=[]`
+that always returns `None` (BFCL's prerequisite scorer), alone or beside
+other scorers. It is built per base name. For each registry name `n` in
+`log.eval.scorers`, let `k` be the number of entries named `n`, and `R` the
+held keys (sets 1 and 2) that `unique_scorer_name()` or append could have
+given such a scorer: `n`, `n` followed by digits, and `n-` followed by
+digits.
+
+- `len(R) >= k`: every entry is represented; set 3 adds nothing for `n`.
+  An appended scorer that took a vacant key (an original `probe` that
+  never scored, and an appended `probe` written under `probe`) adds no
+  invented `probe1`.
+- `R` is empty: no scorer named `n` wrote anything, so there is no appended
+  key to conflict with. Set 3 adds the runner's names for those `k` entries,
+  `unique_scorer_name()` in order (`run.py:1162-1166`): `n`, `n1`, ...
+- `0 < len(R) < k`: the log cannot tell which entries the held keys belong
+  to, so the name a silent entry would use is unknown. Exclusion refuses,
+  before anything changes: "the log has <k> scorers named <n> but scores
+  only under <R>; exclude cannot tell which name the others would use".
+  This needs two scorers of one name, one of which never scored, so it is
+  rare, and refusing is safer than writing a score under a guessed name.
+
+A scorer without metrics affects no metric, so set 3 changes no result. It
+keeps the promise that an excluded sample is unscored under every scorer.
 
 An excluded errored sample is therefore unscored under every scorer, not only
 the first. That includes a scorer that never produced a score for any sample,
@@ -694,8 +709,33 @@ the task may have changed since the log was written".
            metrics = resolve_log_metrics(log, trust_log=True)
        return one(resolved), metrics
 
+   if eval_async_running():
+       raise RuntimeError("zero cannot run while an eval is running in this process")
    prepared, metrics = contextvars.copy_context().run(prepare)
+   prepared.task.early_stopping = None
    ```
+
+   - **Running eval.** `eval_init()` resets process-wide state, not only
+     context variables: it clears the active-sample registry and replaces
+     the concurrency registries (`src/inspect_ai/_eval/context.py:34`,
+     `:51`; `src/inspect_ai/log/_samples.py:480`;
+     `src/inspect_ai/util/_concurrency.py:440`). `copy_context()` does not
+     isolate those. Zero therefore checks the native running-eval flag
+     (`_eval_async_running`, `src/inspect_ai/_eval/eval.py:795`, read
+     through a small accessor) before `prepare` runs, and refuses while
+     another eval runs in the process, so a refused zero leaves that eval's
+     active samples, control-channel and TUI views, and concurrency limits
+     as they were. `prepare` is synchronous, so nothing interleaves between
+     the check and its end; the scratch eval then applies the native check
+     again.
+   - **Early stopping.** The prepared `Task` is a scratch-only instance,
+     built by the task factory in `prepare`. Zero clears its
+     `early_stopping` (`Task.early_stopping`,
+     `src/inspect_ai/_eval/task/task.py:276`), because the runner may stop a
+     sample-epoch before setup and scoring (`run.py:2729`) and the scratch
+     log would still report success. Each target's empty attempt is a
+     separate verdict, so nothing in the scratch run should stop early. The
+     original task and log are untouched.
 
    - **Model context.** `eval_resolve_tasks()` installs the model roles and
      the primary model in the active context before any task factory runs
@@ -732,7 +772,12 @@ the task may have changed since the log was written".
 
    `eval_resolve_tasks()` must return exactly one task; the scratch eval
    reuses it, so the task file is executed once.
-5. Refuses a dataset whose sample ids were assigned by position. Inspect
+5. Establishes that each target id names the same sample it named in the
+   original run, and refuses otherwise. Three checks, all before the scratch
+   eval:
+
+   **Ids of its own.** Zero refuses a dataset whose sample ids are
+   assigned by position. Inspect
    gives a sample without an id the id of its position, after any shuffle
    (`src/inspect_ai/_eval/run.py:222-228`, shuffling at
    `src/inspect_ai/_eval/loader.py:106`). A logged positional id therefore
@@ -751,8 +796,28 @@ the task may have changed since the log was written".
    cover them: "task <name> produces its samples from a sample source, so a
    logged id need not name the same sample; zero needs a static dataset with
    sample ids". Steward's datasets are static and have ids (see "Who uses
-   which shapes"). Exclusion is unaffected: it edits the logged record and
-   never re-runs a sample.
+   which shapes").
+
+   **Same sample as logged.** Today's dataset having ids does not show that
+   the original run's ids meant the same samples: a log written when the
+   dataset numbered `[A, B]` by position after a shuffle (logged id 1 is
+   `B`) is followed by a task edit that gives `A` id 1 and `B` id 2. The log
+   does not record where its ids came from (`EvalDataset` holds the ids and
+   the shuffle flag, `src/inspect_ai/log/_log.py:993`), so zero checks the
+   correspondence itself. For each target, the dataset sample with the
+   target's id must match the logged `EvalSample` on `input`, `choices`,
+   `target`, `setup` and the names of `files`. Logged attachments are
+   resolved first (`resolve_sample_attachments`,
+   `src/inspect_ai/log/_condense.py:678`), and message inputs are compared
+   by role and content, without message ids. A mismatch refuses: "the
+   task's sample <id> does not match the logged sample (<field> differs);
+   the dataset or its sample ids changed since the log was written". This
+   fails closed: a sample whose input the dataset now renders differently
+   (for example an image materialized another way) is refused rather than
+   zeroed from a sample that might be another one.
+
+   Exclusion needs none of this: it edits the logged record and never
+   re-runs a sample.
 6. Runs one scratch eval in a temporary local directory:
 
    ```python
@@ -1072,6 +1137,12 @@ backends; run the zero tests with `--runtrio` locally.
   - An appended log in which one sample lacked an earlier key, so append
     named its score differently there: the exclusion covers both appended
     keys and adds no other name.
+  - An original `probe` that never scored and an appended `probe` written
+    under the vacant `probe` key on every sample: the exclusion edits
+    `probe` and creates no `probe1`.
+  - Two configured scorers named `probe`, one with keys and one silent, on
+    a log whose keys cannot be attributed (`0 < len(R) < k`): refused, with
+    the log unchanged.
   - `exclude_samples` on a solver-only log with task-level metrics
     (`log.eval.scorers` `None`): the solver key is excluded and metrics
     recompute. A log that names no score refuses the target.
@@ -1127,6 +1198,17 @@ backends; run the zero tests with `--runtrio` locally.
   - Environment models: with `INSPECT_EVAL_MODEL` naming two `mockllm`
     models, the scratch eval runs the prepared task once, with the recorded
     model; with it naming an unregistered provider, zero still succeeds.
+  - Changed ids: a log written when the dataset numbered `[A, B]` by
+    position after a shuffle, zeroed after the task file gives `A` id 1 and
+    `B` id 2, is refused by the same-sample check, with the log unchanged.
+  - Running eval: zeroing a landed log while another eval in the process
+    holds a live sample (asyncio and Trio) is refused before preparation,
+    and the running eval's active samples and concurrency registries are
+    unchanged; that eval then finishes normally.
+  - Early stopping: a task whose early-stopping manager stops after a
+    failure, whose original log holds both epochs: zeroing every epoch runs
+    both empty attempts and zeroes both, and the task's own
+    `early_stopping` object and the log are otherwise unchanged.
   - A task defined below its file's module-scope `eval_set()` call fails
     with the loader's "task not found" error, and the log is unchanged.
   - A metric whose options name a model resolves.
