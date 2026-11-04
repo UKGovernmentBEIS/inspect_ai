@@ -971,57 +971,6 @@ def test_configured_reducers_merge_with_the_workers_results(
     assert read_eval_log(merged).reductions == unsharded.reductions
 
 
-def test_a_task_spec_merges_with_the_reducer_its_file_defines(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    from inspect_ai._util import registry
-
-    monkeypatch.chdir(tmp_path)
-    _run_task_file(_SHORTHAND_REDUCER_TASK)
-    # as in a fresh process: loading the spec registers the file's reducer,
-    # named like built-in shorthand (pass_at(k=1))
-    monkeypatch.delitem(registry._registry, "score_reducer:pass_at_1")
-    header = merge_eval_log_shards(f"{NAME}.eval", f"custom_task.py@{TASK}").log
-    assert header.results is not None
-    assert header.results.scores[0].metrics["mean"].value == 1.0
-    reductions = read_eval_log(f"{NAME}.eval").reductions
-    assert reductions is not None and reductions[0].reducer == "pass_at_1"
-    assert [s.value for s in reductions[0].samples] == [1.0] * 4
-
-
-_SHORTHAND_REDUCER_TASK = f"""
-from inspect_ai import Epochs, Task, task
-from inspect_ai.dataset import Sample
-from inspect_ai.scorer import Score, ScoreReducer, Target, mean, score_reducer, scorer
-from inspect_ai.solver import TaskState
-
-
-@score_reducer(name="pass_at_1")
-def first_epoch() -> ScoreReducer:
-    def reduce(scores: list[Score]) -> Score:
-        return scores[0]
-
-    return reduce
-
-
-@scorer(metrics=[mean()])
-def by_epoch():
-    async def score(state: TaskState, target: Target) -> Score:
-        return Score(value=1.0 if state.epoch == 1 else 0.0)
-
-    return score
-
-
-@task
-def {TASK}() -> Task:
-    return Task(
-        dataset=[Sample(id=i, input="q") for i in range(1, 5)],
-        scorer=by_epoch(),
-        epochs=Epochs(2, first_epoch()),
-    )
-"""
-
-
 def _replace_member(location: str, name: str, data: bytes | None) -> None:
     """Replace (or, with `None`, remove) a member of a log, keeping the rest."""
     path = local_path(location)
@@ -1687,7 +1636,7 @@ def _merge_on(
     backend: str,
     monkeypatch: pytest.MonkeyPatch,
     merged: str,
-    task: Task | str,
+    task: Task,
     **kwargs: Any,
 ) -> ShardMergeResult:
     """Merge with the async API on `backend` (the drain producers run on asyncio)."""
@@ -2117,18 +2066,22 @@ def test_a_task_that_differs_from_the_shards_is_refused(
     assert _files(str(tmp_path)) == before
 
 
-def test_a_task_spec_naming_several_tasks_is_refused(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+@pytest.mark.parametrize("task", [f"custom_task.py@{TASK}", None], ids=["spec", "none"])
+def test_a_task_that_is_not_a_task_object_is_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, task: Any, backend: str
 ) -> None:
-    monkeypatch.chdir(tmp_path)
-    _run_task_file(_SHORTHAND_REDUCER_TASK)
-    with open("custom_task.py", "a") as file:
-        file.write(f"\n\n@task\ndef second() -> Task:\n    return {TASK}()\n")
-    before = _files(f"{NAME}.shards")
-    with pytest.raises(ValueError, match="names 2 tasks"):
-        merge_eval_log_shards(f"{NAME}.eval", "custom_task.py")
-    assert not os.path.exists(f"{NAME}.eval")
-    assert _files(f"{NAME}.shards") == before
+    merged, shards = _paths(tmp_path)
+    _run(shards, "0", sample_id=[1, 2, 3])
+    before = _files(str(tmp_path))
+    with monkeypatch.context() as patched:
+        _refuse_storage(patched)
+        with pytest.raises(TypeError, match="must be the Task the shards ran"):
+            _merge_on(backend, monkeypatch, merged, task)
+        if backend == "asyncio":
+            with pytest.raises(TypeError, match="must be the Task the shards ran"):
+                merge_eval_log_shards(merged, task)
+    assert _files(str(tmp_path)) == before
 
 
 def test_merge_refuses_a_different_reducer_and_a_newer_format(tmp_path: Path) -> None:
@@ -3109,20 +3062,6 @@ def test_a_shard_sample_that_does_not_validate_fails_at_once(
     assert not os.path.exists(merged)
 
 
-def _run_task_file(source: str, **kwargs: Any) -> None:
-    """Run the task in `source` as two shards from the current directory."""
-    Path("custom_task.py").write_text(source)
-    for k, ids in (("0", [1, 2]), ("1", [3, 4])):
-        eval(
-            "custom_task.py",
-            model="mockllm/model",
-            log_dir=f"{NAME}.shards/{k}",
-            display="none",
-            sample_id=ids,
-            **kwargs,
-        )
-
-
 _UNSUPPORTED = "supports local paths, file:// URIs and s3:// URLs only"
 
 _UNSUPPORTED_ROOTS = [
@@ -3231,6 +3170,9 @@ def test_a_merge_of_unsupported_storage_is_refused_before_any_io(
 def test_supported_locations_are_accepted(location: str, used: str) -> None:
     from inspect_ai.log._shards._publish import supported_location
 
+    # a local path is made absolute against the working directory
+    if not used.startswith("s3://"):
+        used = os.path.join(os.getcwd(), used)
     assert supported_location(location) == used
 
 
@@ -3424,31 +3366,6 @@ def test_merge_of_a_local_file_uri_with_reserved_characters(tmp_path: Path) -> N
     assert read_eval_log(merged, header_only=True).status == "success"
 
 
-@pytest.mark.parametrize("fail", [False, True])
-def test_cli_json_stdout_holds_only_the_object_when_metric_code_prints(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fail: bool
-) -> None:
-    from click.testing import CliRunner
-
-    from inspect_ai._cli.log import log_command
-
-    monkeypatch.chdir(tmp_path)
-    _run_task_file(_NOISY_TASK)
-    if fail:
-        monkeypatch.setenv("SHARD_NOISY_FAIL", "1")
-    result = CliRunner().invoke(
-        log_command,
-        ["merge-shards", f"{NAME}.eval", "--task", f"custom_task.py@{TASK}", "--json"],
-    )
-    assert result.exit_code == (1 if fail else 0), result.output
-    output = json.loads(result.stdout)
-    if fail:
-        assert output["error"]["type"] == "ValueError"
-    else:
-        assert output["status"] == "success"
-    assert "metric noise" in result.stderr
-
-
 _MODEL_TASK = f"""
 from inspect_ai import Epochs, Task, task
 from inspect_ai.dataset import Sample
@@ -3543,7 +3460,7 @@ def {TASK}(role: bool = False) -> Task:
 """
 
 # a merge in a fresh process, under an unrelated active model and role, of
-# a task spec or of a Task the caller built as the shards ran it
+# the Task the caller built as the shards ran it
 _MERGE_SCRIPT = f"""
 import json
 import sys
@@ -3556,9 +3473,9 @@ from inspect_ai.model import GenerateConfig, get_model
 from inspect_ai.model._model import active_model, init_active_model, init_model_roles
 from inspect_ai.model._model import model_roles
 
-backend, mode, incomplete = sys.argv[1], sys.argv[2], sys.argv[3] == "1"
-roles = json.loads(sys.argv[4])
-temperature = json.loads(sys.argv[5])
+backend, incomplete = sys.argv[1], sys.argv[2] == "1"
+roles = json.loads(sys.argv[3])
+temperature = json.loads(sys.argv[4])
 
 
 def build():
@@ -3571,7 +3488,7 @@ def build():
     return {TASK}(role=bool(roles))
 
 
-task = copy_context().run(build) if mode == "task" else "custom_task.py@{TASK}"
+task = copy_context().run(build)
 ambient = get_model("mockllm/ambient")
 init_active_model(ambient, GenerateConfig())
 init_model_roles({{"grader": ambient}})
@@ -3594,13 +3511,11 @@ anyio.run(main, backend=backend)
 
 @pytest.mark.parametrize("backend", ["asyncio", "trio"])
 @pytest.mark.parametrize("write", ["fresh", "incremental"])
-@pytest.mark.parametrize("entry", ["spec", "task", "cli"])
 @pytest.mark.parametrize("binding", ["active", "role", "role-list"])
 def test_a_merge_runs_the_task_in_the_recorded_model_context(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     binding: str,
-    entry: str,
     write: str,
     backend: str,
 ) -> None:
@@ -3637,17 +3552,9 @@ def test_a_merge_runs_the_task_in_the_recorded_model_context(
     env = {**os.environ, "INSPECT_ASYNC_BACKEND": backend}
 
     def merge(incomplete: bool) -> None:
-        if entry == "cli":
-            # no active model or role around the merge
-            command = [sys.executable, "-m", "inspect_ai", "log", "merge-shards"]
-            command += [f"{NAME}.eval", "--task", f"custom_task.py@{TASK}", "--json"]
-            command += ["--allow-incomplete"] if incomplete else []
-            result = subprocess.run(command, capture_output=True, text=True, env=env)
-            assert result.returncode == 0, result.stdout + result.stderr
-            return
         Path("merge.py").write_text(_MERGE_SCRIPT)
         roles = json.dumps(kwargs.get("model_roles", {}))
-        args = [backend, entry, "1" if incomplete else "0", roles]
+        args = [backend, "1" if incomplete else "0", roles]
         args += [json.dumps(temperature)]
         result = subprocess.run(
             [sys.executable, "merge.py", *args], capture_output=True, text=True, env=env
@@ -3686,74 +3593,6 @@ def test_a_merge_runs_the_task_in_the_recorded_model_context(
     assert merged.reductions == native.reductions
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="uses the C library's printf")
-@pytest.mark.parametrize("fail", [False, True])
-def test_cli_json_stdout_holds_only_the_object_in_a_real_process(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fail: bool
-) -> None:
-    import subprocess
-
-    monkeypatch.chdir(tmp_path)
-    _run_task_file(_NATIVE_TASK)
-    Path("merge.py").write_text(
-        "from inspect_ai._cli.log import log_command\n"
-        f"log_command.main(['merge-shards', '{NAME}.eval', '--task', "
-        f"'custom_task.py@{TASK}', '--json'])\n"
-    )
-    # a legacy hook makes startup print a banner, which must not reach stdout
-    Path("key_hook.py").write_text("def override(var, value):\n    return None\n")
-    env = {
-        **os.environ,
-        "SHARD_NATIVE_PRINT": "1",
-        "INSPECT_API_KEY_OVERRIDE": "key_hook.override",
-    }
-    if fail:
-        env["SHARD_NATIVE_FAIL"] = "1"
-    # a real process: the C library buffers printf output to a pipe
-    result = subprocess.run(
-        [sys.executable, "merge.py"], capture_output=True, text=True, env=env
-    )
-    assert result.returncode == (1 if fail else 0), result.stderr
-    output = json.loads(result.stdout)
-    if fail:
-        assert output["error"]["type"] == "ValueError"
-    else:
-        assert output["status"] == "success"
-    assert "native noise" in result.stderr
-    assert "api key override enabled" in result.stderr
-
-
-_NATIVE_TASK = f"""
-import ctypes
-import os
-
-from inspect_ai import Task, task
-from inspect_ai.dataset import Sample
-from inspect_ai.scorer import Metric, SampleScore, match, metric
-
-
-@metric
-def shard_native_count() -> Metric:
-    def compute(scores: list[SampleScore]) -> float:
-        if os.environ.get("SHARD_NATIVE_PRINT"):
-            ctypes.CDLL(None).printf(b"native noise\\n")
-        if os.environ.get("SHARD_NATIVE_FAIL"):
-            raise ValueError("metric failed")
-        return float(len(scores))
-
-    return compute
-
-
-@task
-def {TASK}() -> Task:
-    return Task(
-        dataset=[Sample(id=i, input="q", target="x") for i in range(1, 5)],
-        scorer=match(),
-        metrics=[shard_native_count()],
-    )
-"""
-
-
 def test_score_names_from_the_log_never_load_files(tmp_path: Path) -> None:
     evil = tmp_path / "evil.py"
     marker = tmp_path / "imported"
@@ -3779,35 +3618,6 @@ def test_score_names_from_the_log_never_load_files(tmp_path: Path) -> None:
     with pytest.raises(ShardSetError, match="cannot merge solver-set scores"):
         merge_eval_log_shards(merged, task)
     assert not marker.exists()
-
-
-_NOISY_TASK = f"""
-import os
-
-from inspect_ai import Task, task
-from inspect_ai.dataset import Sample
-from inspect_ai.scorer import Metric, SampleScore, match, metric
-
-
-@metric
-def shard_noisy_count() -> Metric:
-    def compute(scores: list[SampleScore]) -> float:
-        print("metric noise")
-        if os.environ.get("SHARD_NOISY_FAIL"):
-            raise ValueError("metric failed")
-        return float(len(scores))
-
-    return compute
-
-
-@task
-def {TASK}() -> Task:
-    return Task(
-        dataset=[Sample(id=i, input="q", target="x") for i in range(1, 5)],
-        scorer=match(),
-        metrics=[shard_noisy_count()],
-    )
-"""
 
 
 @pytest.mark.parametrize("suffix", [".shards", ".eval"])
@@ -3838,6 +3648,59 @@ def test_merge_paths_keep_literal_percent_signs() -> None:
     assert s3.location == "s3://bucket/run%2Drecovered.eval"
     with pytest.raises(ValueError, match="recovered"):
         merge_paths("file:///logs/run%2Drecovered.eval")
+
+
+_LOCAL_FORMS = ["tilde", "relative", "dot", "absolute", "file-uri"]
+
+
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+@pytest.mark.parametrize("state", ["fresh", "ordinary"])
+@pytest.mark.parametrize("form", _LOCAL_FORMS)
+def test_a_local_location_is_one_absolute_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    form: str,
+    state: str,
+    backend: str,
+) -> None:
+    import shutil
+
+    from inspect_ai._util.file import to_uri
+
+    cwd, home = tmp_path / "cwd", tmp_path / "home"
+    # `~` here is a literal directory name, as native file operations read it
+    directory = cwd / ("~" if form == "tilde" else "") / "logs"
+    merged, shards = _paths(directory)
+    first = _run(shards, "0", sample_id=[1, 2, 3])
+    _run(shards, "1", sample_id=[4, 5, 6])
+    home.mkdir()
+    if state == "ordinary":
+        Path(merged).write_bytes(Path(first.location).read_bytes())
+        # the same shards where an expanded `~` would read them, and no merged log
+        shutil.copytree(directory, home / "logs")
+        os.remove(home / "logs" / f"{NAME}.eval")
+    monkeypatch.chdir(cwd)
+    monkeypatch.setattr(
+        os.path,
+        "expanduser",
+        lambda path: f"{home}{path[1:]}" if path.startswith("~") else path,
+    )
+    location = {
+        "tilde": f"~/logs/{NAME}.eval",
+        "relative": f"logs/{NAME}.eval",
+        "dot": f"./logs/{NAME}.eval",
+        "absolute": merged,
+        "file-uri": to_uri(merged),
+    }[form]
+    before, home_before = _files(str(directory)), _files(str(home))
+    if state == "ordinary":
+        with pytest.raises(ShardSetError, match="ordinary log"):
+            _merge_on(backend, monkeypatch, location, _task())
+        assert _files(str(directory)) == before
+    else:
+        assert _merge_on(backend, monkeypatch, location, _task()).written
+        assert _keys(merged) == {(str(i), 1) for i in range(1, 7)}
+    assert _files(str(home)) == home_before
 
 
 def _s3_copy(source: str, target: str) -> None:

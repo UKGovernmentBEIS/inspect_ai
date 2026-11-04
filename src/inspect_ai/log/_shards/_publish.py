@@ -39,13 +39,18 @@ def supported_location(location: str) -> str:
     list, name and version objects. A location is accepted only as an
     ``s3://`` URL, a ``file://`` URI, or a plain local path (see
     :func:`_plain_local_path`), with no ``::`` anywhere. A ``file://`` URI is
-    decoded once to its local path, which must itself be a plain local path;
-    that path is returned, so nothing later decodes it again (decisions:
-    Ransom, 2026-11-03). Everything else is refused: another protocol, with
-    or without slashes (``data:``, ``file:/``, ``local:/``), and a chained
-    URL (``simplecache::s3://...``, also when percent-encoded in a
-    ``file://`` URI). The location is checked as text, so nothing is
+    decoded once to its local path, which must itself be a plain local path
+    (decisions: Ransom, 2026-11-03). Everything else is refused: another
+    protocol, with or without slashes (``data:``, ``file:/``, ``local:/``),
+    and a chained URL (``simplecache::s3://...``, also when percent-encoded
+    in a ``file://`` URI). The location is checked as text, so nothing is
     constructed, listed or read first.
+
+    A local location is returned as one absolute path, joined to the working
+    directory and not otherwise normalised, so nothing later decodes it again
+    and every read, the lock and publication name the same file. A leading
+    ``~`` stays a literal directory name, as native file operations read it:
+    fsspec would expand it in a relative path, but not in an absolute one.
 
     Raises:
         ValueError: `location` is not in an accepted form.
@@ -60,7 +65,7 @@ def supported_location(location: str) -> str:
             f"{location} cannot be merged: shard merging supports local paths, "
             "file:// URIs and s3:// URLs only."
         )
-    return target
+    return target if location.startswith("s3://") else os.path.join(os.getcwd(), target)
 
 
 _DRIVE = re.compile(r"[A-Za-z]:[\\/]")

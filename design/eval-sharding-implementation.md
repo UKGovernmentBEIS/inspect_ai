@@ -4,20 +4,22 @@
 
 Inspect will merge per-worker eval logs ("shards", written under
 `<name>.shards/<k>/` beside the log they belong to) into one canonical
-`<name>.eval` with whole-task results. A Python API and an `inspect log
-merge-shards` command validate the shards, merge only what changed since
-the last pass, compute the results with the task the caller passes,
-record which shard attempts the merged log holds, and publish it with a
+`<name>.eval` with whole-task results. A Python API validates the shards,
+merges only what changed since the last pass, computes the results with
+the `Task` the caller passes,
+records which shard attempts the merged log holds, and publishes it with a
 guard against overlapping merges. The merge does not delete shards; the
 user removes the shards directory once the merged log is checked.
 `eval_set()` runs the same merge at startup and then resumes the task from
-the merged log like any other. The work is split into nine PRs, two of
-them already landed, and shares its layout and directory-walk helpers
-with the read-only `inspect ctl --log-dir` mode.
+the merged log like any other. A merge command, `inspect log
+merge-shards`, follows as its own step (5b), designed and then built
+after PR 5. The work is split into nine PRs plus that step, two of the
+PRs already landed, and shares its layout and directory-walk helpers with
+the read-only `inspect ctl --log-dir` mode.
 
-Status: proposed, 2026-09-24; current as of 2026-11-03, when the merge
-took its metrics from the caller's task and shard deletion moved to its
-own PR (decisions: Ransom, 2026-11-03). Issue:
+Status: proposed, 2026-09-24; current as of 2026-11-04, when the merge
+came to take only a built `Task` and the merge CLI moved to its own step
+(decisions: Ransom, 2026-11-04). Issue:
 https://github.com/meridianlabs-ai/inspect_ai/issues/529 (part of #509).
 Author: agent (Claude), reviewed by Codex.
 
@@ -51,8 +53,8 @@ diverge.
 
 Goals:
 
-- A public Python API and CLI command for the merge, with every parameter
-  the parent requires: the intended selection as an id list or a count and
+- A public Python API for the merge, with every parameter the parent
+  requires: the intended selection as an id list or a count and
   the option to write an incomplete (`started` or `error`) merged log, and
   the task whose scorers, metrics and epoch reducer compute the results.
 - The typed `EvalSpec` field that carries provenance and the ledger, with its
@@ -89,6 +91,9 @@ Non-goals:
 - Rebuilding metric, reducer or scorer code from what a log records
   (decision: Ransom, 2026-11-03). The results come from the caller's task
   ("Matching the task").
+- Task specs and a merge CLI in PR 5 (decision: Ransom, 2026-11-04). The
+  merge takes a built `Task` ("Python API"); the CLI is step 5b
+  ("Implementation plan").
 
 ## Current behaviour
 
@@ -333,7 +338,7 @@ pattern:
 ```python
 def merge_eval_log_shards(
     log: str,
-    task: Task | str,
+    task: Task,
     *,
     sample_ids: Sequence[str | int] | None = None,
     sample_count: int | None = None,
@@ -389,17 +394,17 @@ Parameters:
   `task_id`, beside the one the next startup merge writes. Refusing is
   chosen over silently writing `<name>.eval` instead, because the caller
   named a different output file.
-- `task`: the task the shards ran, as a `Task` or a task spec of the kind
-  `eval()` takes (`file.py@name`, `file.py` or a registered name). A spec
-  is loaded with `load_task_spec` (`_eval/loader.py`), as `eval()` loads
-  it, with the task arguments the shards recorded
-  (`eval.task_args_passed`, as `eval_retry` uses), and must name exactly
-  one task (`ValueError` otherwise). The spec is loaded in the shards'
-  recorded model context ("Results"), so a factory that calls
-  `get_model()` or `get_model(role=...)` builds the task the shards ran.
-  A `Task` is used as given. The merge computes results with it
-  ("Results") and refuses one that does not match the shards ("Matching
-  the task").
+- `task`: the `Task` the shards ran, built as the caller passed it to
+  `eval()`; for shards run with `--epochs N`, `task_with(task,
+  epochs=N)`. Anything else, a task spec string included, raises
+  `TypeError` before any storage is accessed (decision: Ransom,
+  2026-11-04). `eval()` calls a task factory before it applies the task's
+  own `model`, `config` and `model_roles`, and the logs record only the
+  state after those overrides. A spec the merge reloaded could therefore
+  build different metrics or reducers under the same names, which name
+  matching cannot detect. A `Task` the caller built is the object that
+  ran. The merge computes results with it ("Results") and refuses one
+  that does not match the shards ("Matching the task").
 - `sample_ids` / `sample_count`: the intended selection, mutually exclusive
   (`ValueError` if both). Ids are compared as `str(id)`, the readers' sample
   key. An empty `sample_ids` or a `sample_count` below 1 raises
@@ -428,71 +433,15 @@ shards that hold samples the selection does not include, "Validation";
 also for a task that does not match the shards), `ShardSetIncomplete`,
 `WriteConflictError` (another merge holds the lock or published first;
 re-run later), `FileNotFoundError` (neither the merged log nor any shard
-attempt exists), `ValueError` (invalid arguments, or a task spec that does
-not name one task), and storage errors as they occur.
+attempt exists), `TypeError` (`task` is not a `Task`), `ValueError`
+(invalid arguments), and storage errors as they occur.
 
 Trust (decision: Ransom, 2026-11-03): the merge computes results only with
 the task the caller passes and never rebuilds metric, reducer or scorer
-code from what a log records. The caller names that code, as with
-`inspect eval`. The launcher and the `eval_set()` startup merge (PR 6)
-already hold the task. Parent "Trust": the merge runs only as a trusted
+code from what a log records. The caller passes that code as the `Task`
+it ran. The launcher and the `eval_set()` startup merge (PR 6) already
+hold the task. Parent "Trust": the merge runs only as a trusted
 step; no reader path calls it.
-
-#### CLI
-
-`inspect log merge-shards`, in `src/inspect_ai/_cli/log.py` beside
-`recover`, a thin wrapper over the Python API (decision: Ransom,
-2026-10-21):
-
-```
-inspect log merge-shards LOG --task SPEC
-    [--sample-id IDS | --sample-count N]
-    [--allow-incomplete] [--json]
-```
-
-- `LOG` is one merged log path or its companion directory, as the API's
-  `log`. There is no directory discovery and no batch of targets: to
-  merge several, run the command once per log.
-- `--task` (required) is the task the shards ran, as `inspect eval` takes
-  it (`file.py@name`, `file.py` or a registered name), loaded through the
-  same path with the task arguments the shards recorded. There is no `-T`
-  override: membership already requires the shards' task arguments to be
-  equal.
-- `--sample-id` takes comma-separated ids (`parse_sample_id`,
-  `src/inspect_ai/_util/samples.py:17`), concrete ids only; `--sample-count`
-  an integer. Passing both is a usage error (exit 2).
-- Output: one line with the merged log, its status, the number of samples,
-  new samples and shards, and, when incomplete, the missing count and the
-  running and failed shard names.
-- `--json` (decision: Ransom, 2026-10-21: a model or launcher calling the
-  command needs machine-readable output): one JSON object on stdout. On
-  success: `log`, `status`, `written`, `shards`, `samples`,
-  `new_samples`, `missing` (ids or null), `running` and `failed`. For
-  the whole merge, stdout is redirected to stderr at the file-descriptor
-  level (`_stdout_owned_for_json`, as `inspect eval --json` does) and the
-  object is written to the saved stdout, so output from task, metric or
-  reducer code or its subprocesses goes
-  to stderr and stdout stays parseable. Before fd 1 is restored the helper
-  flushes Python's original stdout and the C library's buffers
-  (`fflush(NULL)`), so native output buffered during the merge also lands
-  on stderr.
-- Exit 0 when the merge wrote or had nothing new. The API's documented
-  errors (`ShardSetError`, `ShardSetIncomplete`, `WriteConflictError`,
-  `FileNotFoundError` and `ValueError`) print their message and exit 1; an
-  incomplete set without `--allow-incomplete` raises. With `--json`, each
-  of them and the usage error for both selection options goes through
-  one helper that prints `{"error": {"type", "message"}}` on stdout
-  (`type` the exception's class name; a `ShardSetIncomplete` adds
-  `status`, `missing`, `running` and `failed`) and exits 1. Without
-  `--json`, other errors propagate as in other `inspect log` commands.
-  With it, any other `Exception` anywhere in the command, startup (hooks,
-  common options) included and a bug such as `KeyError` too, goes through
-  the same helper, after its traceback (a `PrerequisiteError`'s message) is
-  written to stderr (decision: Ransom, 2026-10-29); click's own exceptions
-  and `BaseException` pass through.
-
-The command imports the merge lazily inside the function body, as
-`recover` does, so `tests/cli/test_startup_imports.py` is unaffected.
 
 #### The `EvalSpec.shards` field
 
@@ -674,8 +623,8 @@ Choices the parent left open:
   is finished anyway. The alternative, passing no selection when the eval
   set covers the whole dataset so that the log records `"none"`, was not
   taken: with no selection the merge uses the recorded one, so an eval set
-  could no longer replace a narrower selection recorded by an earlier CLI
-  merge; and an id selection that covers the whole dataset is already
+  could no longer replace a narrower selection recorded by an earlier
+  launcher merge; and an id selection that covers the whole dataset is already
   refused (Ransom, 2026-09-29). The sharding docs (PR 5) and the eval-sets
   note (PR 6) state the restriction.
 - **`size`, `etag`, `mtime`** are what `FileInfo` carries
@@ -735,6 +684,14 @@ before or after a supported prefix (`simplecache::s3://...`,
 `file://` URI (`file:///tmp/cache%3A%3Amemory%3A//...`). Nothing is
 constructed, listed, read or written first. Other fsspec backends differ in how they list, name and
 version objects, and each needs its own support and tests.
+
+A local location is then made one absolute path, joined to the working
+directory and not otherwise normalised, and every read (the
+`AsyncZipReader` size lookup included), the lock and publication use that
+one path (decision: Ransom, 2026-11-04). A leading `~` stays a literal
+directory name, as native file operations read it: fsspec expands `~` in
+a relative path but not in an absolute one, so a relative `~/...` would
+otherwise be read in the home directory and written in the literal one.
 
 1. **Derive the pair.** From `log`, derive `<name>.eval` (or the given
    `.eval` path) and `<name>.shards/` with `eval_shards_dir` /
@@ -800,7 +757,7 @@ version objects, and each needs its own support and tests.
    *selection* `S_k` is its header's `eval.dataset.sample_ids`, as
    `str(id)`.
 7. **Validate** ("Validation") and **match the task** against the
-   template's header ("Matching the task"), loading a task spec first.
+   template's header ("Matching the task").
    Refuse with `ShardSetError` on any failure.
 8. **Plan** the sample set ("The sample set"), the status ("Status") and
    the header ("Building the merged log"), from the ledger entries of
@@ -1167,8 +1124,8 @@ from what a log records. A log records metric and reducer options lossily
 without its arguments), so code rebuilt from a log can differ from the
 code that ran; the caller's task is the code that ran.
 
-Before anything is written, the merge compares the task (loaded first when
-given as a spec, "Python API") with what the shards recorded, by name only
+Before anything is written, the merge compares the task with what the
+shards recorded, by name only
 (`check_task_matches`, `_write.py`), against the template shard's header,
 or the merged header when no shard attempt is left:
 
@@ -1210,9 +1167,8 @@ reductions it returns become the header's `results` and the merged log's
 `reductions.json`. An incomplete merge computes them over the samples it
 holds, as a cancelled native run computes partial results.
 
-The model context. `eval()` installs the active model and the model roles
-before it builds tasks (`eval_resolve_tasks`) and keeps them while the
-task runs, so a task factory, metric or epoch reducer may call
+The model context. `eval()` keeps the active model and the model roles
+installed while the task runs, so a metric or epoch reducer may call
 `get_model()` or `get_model(role=...)`. The merge builds one context from
 the template shard's header (`recorded_context`, `_api.py`): a copy of
 the caller's context with the model context a task run installs
@@ -1222,10 +1178,10 @@ arguments; the task's generate config (`plan.config`) as the active
 generate config, kept apart from the model's, as a task run keeps them;
 and the recorded model roles resolved as `eval()` resolves them
 (`resolve_model_roles`), each model a copy labelled with its role, list
-bindings included. It loads a task
-spec and runs `eval_results` in that context, for a spec and a supplied
-`Task` alike; the caller's own context is never changed, whether the merge
-returns, raises or is cancelled.
+bindings included. It runs `eval_results` in that context; the caller's
+own context is never changed, whether the merge returns, raises or is
+cancelled. The merge never builds the task: the caller does
+("Python API").
 
 The metric inputs are those of a fresh run (decision: Ransom,
 2026-10-27): each declared scorer's score gets the sample's dataset
@@ -1610,8 +1566,8 @@ selection ("Recorded selection": the ids themselves, or the held ids,
 which then are the whole selection). After a successful startup merge this
 agrees with the merged status, since the startup merge records the eval
 set's own selection; the branch keeps the rule right on its own, for
-example for a merged log last written by the CLI with a different
-selection.
+example for a merged log last written by a launcher's merge with a
+different selection.
 
 **No recovery of merged logs.** `_recover_crashed_log` returns its inputs
 unchanged when `eval_log.eval.shards` is set, so neither call site recovers
@@ -1866,11 +1822,12 @@ PR 2. Neither depends on the merge.
   2026-10-21): a restart crosses task-group boundaries where the original
   error is lost, and merging after the workers have exited, the supported
   use, needs none.
-- **`inspect log merge-shards` over log directories and several `LOG`s,
-  with a `--json` array of per-item results.** Not taken (Ransom,
-  2026-10-21): discovery and per-item errors need rules of their own; one
-  target per call keeps the command a thin wrapper over the API, and
-  `--json` prints one object.
+- **Load a task spec in the merge** (`file.py@name`, with the recorded
+  task arguments, model and roles). Not in PR 5 (Ransom, 2026-11-04): a
+  factory's construction context, the model, generate config and roles
+  before the task's own overrides, is not in the logs, so a reloaded spec
+  can build different metrics or reducers under the same names. Step 5b
+  designs how the CLI gets that context.
 - **Mint the merged log's `task_id` whenever `<name>` gives no usable id.**
   A random id breaks the rebuild of a merged log deleted by retry
   cleanup from a leftover companion: the rebuilt log would get a new
@@ -1914,12 +1871,9 @@ PR 2. Neither depends on the merge.
 - **Merge core before the guards, guards later.** Shorter path to a first
   merge, but a release could ship an unguarded public merge. The guard
   primitives are independent of the merge, so they go first.
-- **Directory-wide merge.** The API and the CLI take one merged log. A
+- **Directory-wide merge.** The API takes one merged log. A
   caller with a directory can list companions itself; a second public
   entry point now is surface without a caller.
-- **Name the CLI `inspect log merge`.** Shorter, but reads as merging
-  arbitrary logs. `merge-shards` matches the Python name
-  (`merge_eval_log_shards`).
 - **Warn and continue when the startup merge refuses a companion**,
   including only for a lost S3 publish race. Lets an eval set run, but then
   it pairs against a stale merged log or re-runs the task from scratch while
@@ -1945,13 +1899,12 @@ today.
   any I/O (a known limitation, decision: Ransom, 2026-10-30). Workers can
   still write shards elsewhere, and ctl's read-only discovery lists them;
   merging them needs support for that backend in its own change.
-- **The task.** The merge computes results with the task the caller
-  passes (`task`, `--task`), and refuses one whose name, scorer names,
-  metric names, number of epochs or epoch reducer names differ from what
-  the shards recorded; options are not compared, so passing the task the
-  shards ran is the caller's responsibility (decision: Ransom,
-  2026-11-03). A CLI spec is loaded with the shards' recorded task
-  arguments and has no `-T` override.
+- **The task.** The merge computes results with the `Task` the caller
+  passes, and refuses one whose name, scorer names, metric names, number
+  of epochs or epoch reducer names differ from what the shards recorded;
+  options are not compared, so passing the task the shards ran is the
+  caller's responsibility (decision: Ransom, 2026-11-03). Anything but a
+  `Task` raises `TypeError` (decision: Ransom, 2026-11-04).
 - **No deletion.** The merge never deletes shards; the user removes
   `<name>.shards/` by hand once the merged log is checked. `score()`,
   `recompute_metrics()` and `edit_score()` are unchanged and treat a
@@ -1987,7 +1940,6 @@ today.
   listed in a "Sharding" section of `docs/reference/inspect_ai.log.qmd`.
   `list_all_eval_logs` (internal, but imported by `inspect_flow`) gains a
   keyword argument whose default keeps its behaviour.
-- **CLI.** New `inspect log merge-shards`. No existing command changes.
 - **Eval sets.** Behaviour changes only for task groups that contain a
   merged log: startup merges, shards skipped before header reads (attempts
   and stray files only; a log nested deeper in a companion is listed and
@@ -2052,11 +2004,12 @@ today.
   selection) refuses a stray or
   hostile file rather than skipping it; a merge never overwrites a
   `<name>.eval` without the field.
-- **Code execution.** The merge runs the task the caller passes, loading
-  a spec as `inspect eval` does, and never loads code a log names: no
+- **Code execution.** The merge runs only the `Task` object the caller
+  passes, and never loads code a log names: no
   metric, reducer or scorer is rebuilt from the log, and a score key that
   names a file is refused rather than loaded ("Results"). The merge runs only in
-  trusted steps (API, CLI, `eval_set()` startup). No reader path (viewer
+  trusted steps (the API, called by a launcher or by hand, and
+  `eval_set()` startup). No reader path (viewer
   server, `read_eval_log*`, dataframes, ctl log-dir mode) calls it.
 - **Viewer.** No change to the viewer server; its delete endpoint still
   authorizes and deletes only the requested file, so the new companion
@@ -2077,7 +2030,7 @@ All tests run in the default CI job unless noted: mock-model evals
 (`mockllm/model`) write real shards into a temp directory, and S3 cases use
 the `mock_s3` fixture (`tests/conftest.py`, a moto server). New sharding
 tests go in `tests/log/test_shards.py`, since no existing file covers the
-area; eval-set, CLI, viewer and filesystem tests go in the existing files
+area; eval-set, viewer and filesystem tests go in the existing files
 named below. Async tests run under asyncio by default and under Trio with
 `--runtrio` before each PR.
 
@@ -2142,9 +2095,11 @@ Per PR (numbers from "Implementation plan"):
    The local lock helper, in `tests/util/test_file.py`: a second acquire
    raises `WriteConflictError` naming the holder; release in `finally`
    after an exception and after cancellation.
-5. **Merge core, API and CLI.** `tests/log/test_shards.py`, local and
+5. **Merge core and API.** `tests/log/test_shards.py`, local and
    `mock_s3`:
-   - arguments: `<name>-recovered.eval` (also percent-encoded, and as a
+   - arguments: a task spec string or `None` as `task` raises `TypeError`
+     before any storage is accessed, on asyncio and Trio;
+     `<name>-recovered.eval` (also percent-encoded, and as a
      companion name) raises `ValueError`, reads nothing and writes no
      second merged log; `sample_ids=[]`, `sample_count=0` and both
      together raise `ValueError`; neither a merged log nor a shard raises
@@ -2158,23 +2113,20 @@ Per PR (numbers from "Implementation plan"):
      over a metric with a converter, a class metric with a converter, a
      dictionary of metrics, enum members, list options), merged on Trio;
      a scorer declared twice; a per-key result named like a later scorer;
-     dictionary scores whose samples merge in another order; a reducer a
-     task file defines under a built-in shorthand name, through a
-     `file.py@name` spec in a fresh registry;
+     dictionary scores whose samples merge in another order;
    - matching the task: a task with another name, other scorers, other
      metrics, another number of epochs or another reducer is refused on a
      fresh, incremental, unchanged and shards-removed merge, on asyncio
-     and Trio, with every file byte-identical; a spec naming two tasks
-     raises `ValueError` and writes nothing;
+     and Trio, with every file byte-identical;
    - the model context: in fresh processes, a task whose factory, metric
-     and epoch reducer call `get_model()`, or with a recorded task argument
+     and epoch reducer call `get_model()`, or with a task argument
      `get_model(role="grader", required=True)` under a single or a list
      role binding (every member labelled `grader`), and read the model's
      own temperature and the task's (the task sets 0.8; the model none, or
      a conflicting 0.2), merges to the native results and reductions, fresh and
-     incremental, on asyncio and Trio: as a spec and as a supplied `Task`
-     under an unrelated active model and role, which the caller keeps, and
-     through the CLI with none;
+     incremental, on asyncio and Trio: a `Task` the caller built as the
+     workers did, merged under an unrelated active model and role, which
+     the caller keeps;
    - metric inputs: raw scores keep their declared scorer; declared
      metrics take the dataset metadata from the `SampleInitEvent`; a
      sample with scores and no such event is refused; a solver-set score
@@ -2213,7 +2165,12 @@ Per PR (numbers from "Implementation plan"):
    - storage: every location other than a local path, `file://` URI or
      `s3://` URL is refused before any filesystem is constructed, on the
      sync API and the async API on asyncio and Trio; the accepted forms
-     decode once; a relative `name:` path is refused; reserved characters
+     decode once and a local path is made absolute once; a relative
+     `name:` path is refused; a literal `~` directory is read, locked and
+     written as one path: an ordinary log there is refused with every file
+     byte-identical even when an expanded `~` holds copies of the shards,
+     and a fresh set there merges, with relative, `./`, absolute and
+     `file://` controls, on asyncio and Trio; reserved characters
      in a `file://` URI and a literal `%23` in S3 names merge; S3 names S3
      would read as another key are refused;
    - publication and ownership: a held local lock is reported, and an
@@ -2225,14 +2182,6 @@ Per PR (numbers from "Implementation plan"):
      the merge dispatches a thread outside `_owned.py`; a failed shard
      read fails the merge with its error, and a sample that does not
      validate fails it at once;
-   - CLI (`tests/cli/test_log.py`, and the stdout tests in
-     `tests/log/test_shards.py`): `--task` with a `file.py@name` spec,
-     merged log and companion arguments, selections, refused arguments,
-     `--json` success and error objects (incomplete, conflict, stray,
-     unsupported storage, a task that does not match, unexpected,
-     prerequisite and startup errors, a missing required hook), and stdout
-     holding only the object while task or metric code prints, also from
-     native code in a real process.
 6. **Eval-set integration.** `tests/test_eval_set.py`: `log_samples_complete`
    on a `success` merged log is true when its `dataset.sample_ids` equals the
    eval set's selection (for each recorded form: ids, count, neither) and
@@ -2307,8 +2256,9 @@ enforce) is recommended and reported in the PR's "Slow tests" section.
 
 ## Implementation plan
 
-Step 1 in nine PRs, of which PRs 1 and 3 have landed. There is no viewer
-PR (decision: Ransom, 2026-09-24).
+Step 1 in nine PRs, of which PRs 1 and 3 have landed, and step 5b, the
+merge CLI, designed and then built. There is no viewer PR (decision:
+Ransom, 2026-09-24).
 
 | PR | Depends on | Can run in parallel with |
 |---|---|---|
@@ -2316,8 +2266,9 @@ PR (decision: Ransom, 2026-09-24).
 | 2 field + `ts-mono` | none | 4 |
 | 3 shared walk | landed (UKGovernmentBEIS/inspect_ai#5622) | — |
 | 4 guard primitives | none | 2 |
-| 5 merge core, API, CLI | 2, 4 (3 landed) | none |
-| 6 eval-set integration | 5 | 7 |
+| 5 merge core, API | 2, 4 (3 landed) | none |
+| 5b merge CLI: design, then implementation | 5 | 7, 8 |
+| 6 eval-set integration | 5, 5b | 7 |
 | 7 streaming recomputation | 5 | 6 |
 | 8 raw member copy | 5, 7 | 6 |
 | 9 shard deletion | 6 | 7, 8 |
@@ -2352,31 +2303,43 @@ PR (decision: Ransom, 2026-09-24).
    manager`). Independent of 1–3. Files: `_util/asyncfiles.py`,
    `_util/file.py`, `tests/util/test_asyncfiles.py`,
    `tests/util/test_file.py`.
-5. **Merge core, public API and CLI.** `log/_shards/{_api,_plan,_write,
+5. **Merge core and public API.** `log/_shards/{_api,_plan,_write,
    _publish,_owned,_errors}.py` (`_plan.py` holds the member-name parser,
    the selection digest, attribution by id and the ledger checks;
    `_write.py` matches the task and computes the results with it), the
    `eval_retry` refusal for id- and count-selected merged logs (`_eval/eval.py`), exports and
    the reference section, `merged_log_task_id` in `_util/log_layout.py`
-   (unless ctl's step 4 added it first), `inspect log
-   merge-shards --task`, docs (a "Sharding" section in `docs/parallelism.qmd`
+   (unless ctl's step 4 added it first), docs (a "Sharding" section in
+   `docs/parallelism.qmd`
    covering the layout, the launcher's job (disjoint `--sample-id` or
    `limit` selections, fixed per `<k>/`; no `SampleSource` tasks) and the harness notes from the
-   parent, the task the caller passes, removing shards by hand, and the
+   parent, merging from Python with the `Task` the shards ran (a shell
+   launcher runs a short Python step), removing shards by hand, and the
    limitations: `eval_retry` refuses a merged log merged with a selection
    (every one `eval_set()` writes), `INSPECT_EVAL_LOG_FILE_PATTERN` must not
    change while a companion exists, and a viewer delete of a merged log
    leaves its companion,
    whose shards the viewer lists again until the next eval set re-merges
    them). Depends on 2 and 4 (3 landed). Files as listed
-   plus `log/__init__.py`, `_cli/log.py`, `_eval/eval.py`,
+   plus `log/__init__.py`, `_eval/eval.py`,
    `_util/log_layout.py`, `tests/log/test_log_filename.py`,
    `_control/log_dir/snapshot.py` (ctl keys a shard set with no readable
    merged log by `merged_log_task_id`), `tests/_control/test_log_dir.py`,
    `docs/reference/inspect_ai.log.qmd`, `docs/parallelism.qmd`,
-   `tests/log/test_shards.py`, `tests/cli/test_log.py`.
+   `tests/log/test_shards.py`.
    Uses the landed `ZipEntry` CRC and `verify_crc=True` reads
    ("Consistent reads").
+
+**5b. Merge CLI**, `inspect log merge-shards`: a design PR first, then
+its implementation, after 5 and before 6. The command takes one `LOG`
+and has `--json` (decisions: Ransom, 2026-10-21). Its design must solve
+the task input. A task factory's construction context (the incoming
+model, generate config and model roles, before the task's own `model`,
+`config` and `model_roles` apply) is not in the logs, so the CLI must
+get it from the user or the run, not rebuild it from recorded state. A
+candidate, not a decision: the CLI takes `inspect eval`'s task options
+and resolves the task through eval's own task resolution.
+
 6. **Eval-set integration.** Startup merge, `selected_sample_ids`,
    `skip_shards`, completeness branch, no recovery of merged logs, cleanup
    ordering that keeps merged logs and their companions in place until
@@ -2384,7 +2347,7 @@ PR (decision: Ransom, 2026-09-24).
    and its shards stay until the user removes them,
    that `eval_retry` refuses an eval set's merged log, and that an eval
    set whose selection is narrower than its shards, or empty, stops),
-   CHANGELOG entry. Depends on 5. Builds on the `owned_run_ids` cleanup
+   CHANGELOG entry. Depends on 5 and 5b. Builds on the `owned_run_ids` cleanup
    landed by #5396. Files:
    `_eval/evalset.py`, `_eval/eval_set_manifest.py`, `docs/eval-sets.qmd`,
    `CHANGELOG.md`, `tests/test_eval_set.py`.
@@ -2423,10 +2386,11 @@ its shards hold, or empty, stops with `PrerequisiteError` ("Eval-set
 integration"). Resolved by Ransom on 2026-10-13: the merged log's
 `task_id` is stable only while the file name pattern is unchanged, with
 no pattern-independent check ("The merged log's `task_id`"). Resolved
-by Ransom on 2026-10-21: `inspect log merge-shards` takes one `LOG`, and a
-torn shard read fails the merge instead of restarting it. Resolved by
-Ransom on 2026-11-03: the merge takes its metrics from the caller's task
-and does not delete shards; deletion is PR 9.
+by Ransom on 2026-10-21: a torn shard read fails the merge instead of
+restarting it. Resolved by Ransom on 2026-11-03: the merge takes its
+metrics from the caller's task and does not delete shards; deletion is
+PR 9. Resolved by Ransom on 2026-11-04: the merge takes only a built
+`Task`; the merge CLI is step 5b.
 
 Stale local locks are report-only, as the parent's test list requires; a
 same-host dead-pid check can be added if crashed merges turn out to happen.

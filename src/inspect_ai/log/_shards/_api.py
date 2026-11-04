@@ -83,7 +83,7 @@ class ShardMergeResult:
 
 def merge_eval_log_shards(
     log: str,
-    task: "Task | str",
+    task: "Task",
     *,
     sample_ids: Sequence[str | int] | None = None,
     sample_count: int | None = None,
@@ -128,11 +128,10 @@ def merge_eval_log_shards(
         log: The merged log `<dir>/<name>.eval`, or its shards directory
             `<dir>/<name>.shards`, as a local path, `file://` URI or `s3://`
             URL. Other storage is refused, as is a `<name>-recovered.eval`
-            path.
-        task: The task the shards ran, or a task spec as `eval()` takes it
-            (`file.py@name`, `file.py` or a registered name), which is loaded
-            with the task arguments, model and model roles the shards
-            recorded.
+            path. A local path does not expand `~`.
+        task: The task the shards ran, built as it was passed to `eval()`.
+            For shards run with `epochs=N` or `--epochs N`, pass
+            `task_with(task, epochs=N)`.
         sample_ids: Intended selection as sample ids. Replaces the selection
             recorded in the merged log; once the shards are deleted, it must
             equal the recorded one.
@@ -155,8 +154,9 @@ def merge_eval_log_shards(
         WriteConflictError: Another merge holds the lock or published first.
             Run the merge again later.
         FileNotFoundError: Neither the merged log nor any shard exists.
+        TypeError: `task` is not a `Task`.
         ValueError: Invalid arguments: `log` is not a local path, `file://`
-            URI or `s3://` URL, or the `task` spec does not name one task.
+            URI or `s3://` URL.
     """
     return run_coroutine(
         merge_eval_log_shards_async(
@@ -171,7 +171,7 @@ def merge_eval_log_shards(
 
 async def merge_eval_log_shards_async(
     log: str,
-    task: "Task | str",
+    task: "Task",
     *,
     sample_ids: Sequence[str | int] | None = None,
     sample_count: int | None = None,
@@ -181,52 +181,13 @@ async def merge_eval_log_shards_async(
 
     See :func:`merge_eval_log_shards`.
     """
-    outcome = await merge_shards(
-        log,
-        task,
-        sample_ids=sample_ids,
-        sample_count=sample_count,
-        allow_incomplete=allow_incomplete,
-    )
-    return outcome.result
+    from inspect_ai._eval.task.task import Task
 
-
-class MergeOutcome(NamedTuple):
-    """A merge's result, with what the CLI reports beyond it."""
-
-    result: ShardMergeResult
-    new_samples: int
-    """Records the merged log did not hold before this call."""
-    status: Status
-    """The merged status, with the missing ids and running and failed shards."""
-
-
-class _Merged(NamedTuple):
-    """The existing merged log, as read at the start of a merge."""
-
-    header: EvalLog
-    records: set[SampleRecordKey]
-    etag: str | None
-
-
-class _Pass(NamedTuple):
-    """What one pass decided."""
-
-    header: EvalLog
-    written: bool
-    new_samples: int
-    status: Status
-
-
-async def merge_shards(
-    log: str,
-    task: "Task | str",
-    *,
-    sample_ids: Sequence[str | int] | None = None,
-    sample_count: int | None = None,
-    allow_incomplete: bool = False,
-) -> MergeOutcome:
-    """Implement :func:`merge_eval_log_shards`, reporting what the CLI shows."""
+    if not isinstance(task, Task):
+        raise TypeError(
+            f"task must be the Task the shards ran, not {type(task).__name__}. "
+            "Build the task as you passed it to eval() and pass that."
+        )
     location, merged_path, shards_dir = merge_paths(log)
     given = given_selection(sample_ids, sample_count)
     check_s3_location(merged_path)
@@ -247,18 +208,29 @@ async def merge_shards(
 
     header = merge_pass.header
     header.location = location
-    return MergeOutcome(
-        result=ShardMergeResult(log=header, written=merge_pass.written),
-        new_samples=merge_pass.new_samples,
-        status=merge_pass.status,
-    )
+    return ShardMergeResult(log=header, written=merge_pass.written)
+
+
+class _Merged(NamedTuple):
+    """The existing merged log, as read at the start of a merge."""
+
+    header: EvalLog
+    records: set[SampleRecordKey]
+    etag: str | None
+
+
+class _Pass(NamedTuple):
+    """What one pass decided."""
+
+    header: EvalLog
+    written: bool
 
 
 class MergePaths(NamedTuple):
     """The paths of a merge (see :func:`merge_paths`)."""
 
     location: str
-    """The merged log, in the form the argument was given in."""
+    """The merged log as reported: a ``file://`` URI when given as one."""
 
     merged: str
     """The merged log as read and written."""
@@ -270,9 +242,10 @@ class MergePaths(NamedTuple):
 def merge_paths(log: str) -> MergePaths:
     """The merged log and its shards directory, from either.
 
-    The location is checked and a ``file://`` URI decoded once by
-    :func:`supported_location`; everything is derived and checked from that
-    path, so an encoded name cannot pass a check its decoded form fails.
+    The location is checked, a ``file://`` URI decoded once and a local path
+    made absolute by :func:`supported_location`; everything is derived and
+    checked from that path, so an encoded name cannot pass a check its
+    decoded form fails, and every read, the lock and publication use it.
 
     Raises:
         ValueError: `log` is not in a supported form, or is named after a
@@ -350,7 +323,7 @@ async def _merge_pass(
     shards_dir: str,
     existing: _Merged | None,
     given: Selection | None,
-    task: "Task | str",
+    task: "Task",
     *,
     allow_incomplete: bool,
 ) -> _Pass:
@@ -368,9 +341,7 @@ async def _merge_pass(
             raise FileNotFoundError(
                 f"Neither {merged_path} nor any shard in {shards_dir} exists."
             )
-        _check_task(
-            task, existing.header, merged_path, recorded_context(existing.header)
-        )
+        check_task_matches(task, existing.header, merged_path)
         return _recorded_pass(existing, given, allow_incomplete)
 
     ledger = (
@@ -405,8 +376,7 @@ async def _merge_pass(
     if existing is not None and len(changed) < len(shards):
         headers.append((merged_path, existing.header))
     check_headers(headers)
-    context = recorded_context(base)
-    resolved = _check_task(task, base, base_source, context)
+    check_task_matches(task, base, base_source)
 
     records = existing.records if existing is not None else set()
     if existing is not None:
@@ -437,7 +407,7 @@ async def _merge_pass(
         raise _incomplete(merged_path, status)
 
     if existing is not None and not changed and selection.same_as(recorded):
-        return _Pass(existing.header, False, 0, status)
+        return _Pass(existing.header, False)
 
     with tempfile.TemporaryDirectory() as temp_dir:
         carried_zip: zipfile.ZipFile | None = None
@@ -483,8 +453,8 @@ async def _merge_pass(
                     keys=keys,
                     read_member=read_member,
                     summaries=summaries,
-                    task=resolved,
-                    context=context,
+                    task=task,
+                    context=recorded_context(base),
                     total_samples=total,
                     make_header=lambda scoring: build_header(
                         base=base,
@@ -512,39 +482,7 @@ async def _merge_pass(
             if carried_zip is not None:
                 carried_zip.close()
 
-    return _Pass(
-        header=header,
-        written=True,
-        new_samples=len(set(keys) - records),
-        status=status,
-    )
-
-
-def _check_task(
-    task: "Task | str", header: EvalLog, source: str, context: Context
-) -> "Task":
-    """The task to compute results with, checked against what `source` recorded.
-
-    A task spec is loaded as `eval()` loads it, with the task arguments the
-    shards recorded, in `context` (see :func:`recorded_context`); a `Task` is
-    used as given.
-
-    Raises:
-        ShardSetError: The task differs from the one the shards ran.
-        ValueError: The spec does not name exactly one task.
-    """
-    from inspect_ai._eval.loader import load_task_spec
-
-    if isinstance(task, str):
-        loaded = context.run(load_task_spec, task, header.eval.task_args_passed)
-        if len(loaded) != 1:
-            raise ValueError(
-                f"The task spec {task} names {len(loaded)} tasks; name one "
-                "(for example file.py@name)."
-            )
-        task = loaded[0]
-    check_task_matches(task, header, source)
-    return task
+    return _Pass(header=header, written=True)
 
 
 def recorded_context(header: EvalLog) -> Context:
@@ -555,9 +493,9 @@ def recorded_context(header: EvalLog) -> Context:
     (`model_generate_config`), base URL and model arguments, the active
     generate config is the task's (`plan.config`), and the recorded model
     roles are resolved as `eval()` resolves them, each model a copy labelled
-    with its role. The merge builds a task spec and computes the results in
-    it, so a task factory, metric or epoch reducer that calls `get_model()`
-    or `get_model(role=...)` sees what the shards ran with. The caller's own
+    with its role. The merge computes the results and epoch reductions in it,
+    so a metric or epoch reducer that calls `get_model()` or
+    `get_model(role=...)` sees what the shards ran with. The caller's own
     context is not changed.
     """
     from inspect_ai.model import get_model
@@ -601,7 +539,7 @@ def _recorded_pass(
     )
     if header.status != "success" and not allow_incomplete:
         raise _incomplete(header.location, status)
-    return _Pass(header, False, 0, status)
+    return _Pass(header, False)
 
 
 def _incomplete(location: str, status: Status) -> ShardSetIncomplete:

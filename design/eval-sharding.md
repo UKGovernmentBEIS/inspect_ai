@@ -514,11 +514,10 @@ revisit when a distributed caller exists.
 a trusted Python step (the Python API or CLI, called by the launcher or by
 hand, or `eval_set()` at startup). The viewer, `list_eval_logs` and the dataframe layer never create or
 recompute it. The merge computes results only with the task the caller
-passes: the Python API's `task` (a `Task`, or a task spec loaded as `eval()`
-loads it) and the CLI's required `--task <spec>`, loaded as `inspect eval`
-loads it with the task arguments the shards recorded. It never rebuilds
-metric, reducer or scorer code from what a log records. The caller names
-that code, as with `inspect eval`, and must pass the task the shards ran:
+passes: the Python API's `task`, a built `Task` (decision: Ransom,
+2026-11-04). How the CLI gets its task is designed in the implementation
+plan's step 5b. The merge never rebuilds metric, reducer or scorer code
+from what a log records. The caller must pass the task the shards ran:
 the merge refuses a task whose name, scorer names, metric names, number of
 epochs or epoch reducer names differ from what the shards recorded, and
 does not compare options (decision: Ransom, 2026-11-03). The launcher and
