@@ -157,6 +157,14 @@ class AwaitingRunHooks(Hooks):
         self.run_end_events.append(data)
 
 
+class DisablingHooks(MockHooks):
+    """Mock hooks that disable themselves once their task start is entered."""
+
+    async def on_task_start(self, data: TaskStart) -> None:
+        await super().on_task_start(data)
+        self.should_enable = False
+
+
 @pytest.fixture(autouse=True)
 def reset_hooks() -> None:
     # Reset the _registry_hooks_loaded flag before each test, which ensures that
@@ -173,6 +181,11 @@ def mock_hooks() -> Generator[MockHooks, None, None]:
 @pytest.fixture
 def hooks_2() -> Generator[MockHooks, None, None]:
     yield from _create_mock_hooks("test_hooks_2", MockHooks)
+
+
+@pytest.fixture
+def disabling_hooks() -> Generator[DisablingHooks, None, None]:
+    yield from _create_mock_hooks("test_disabling_hooks", DisablingHooks)
 
 
 @pytest.fixture
@@ -201,6 +214,26 @@ def test_respects_enabled(mock_hooks: MockHooks) -> None:
     eval(Task(dataset=[Sample("sample_1")]), model="mockllm/model")
 
     assert len(mock_hooks.run_start_events) == 1
+
+
+async def test_task_end_reaches_hook_disabled_after_task_start(
+    disabling_hooks: DisablingHooks,
+) -> None:
+    # a hook whose on_task_start was entered still gets its one on_task_end
+    # after enabled() turns false, while its other callbacks stay filtered
+    log = await eval_async(Task(dataset=[Sample("sample_1")]), model="mockllm/model")
+
+    assert [start.eval_id for start in disabling_hooks.task_start_events] == [
+        log[0].eval.eval_id
+    ]
+    assert [
+        (end.eval_id, end.log.status) for end in disabling_hooks.task_end_events
+    ] == [(log[0].eval.eval_id, "success")]
+    assert len(disabling_hooks.run_start_events) == 1
+    assert not disabling_hooks.sample_start_events
+    assert not disabling_hooks.sample_end_events
+    assert not disabling_hooks.model_usage_events
+    assert not disabling_hooks.run_end_events
 
 
 def test_can_subscribe_to_events(mock_hooks: MockHooks) -> None:
