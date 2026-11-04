@@ -503,6 +503,7 @@ async def sentinel_tool_call(
                 history,
                 producer.event if producer is not None else None,
                 find_producer=False,
+                bridge=True,
             ),
         )
 
@@ -662,6 +663,7 @@ async def _tool_result(
                     producer.event if producer is not None else None,
                     find_producer=False,
                     reject_on_viewer_error=reject_on_viewer_error,
+                    bridge=True,
                 ),
             )
         except ToolCallViewError as ex:

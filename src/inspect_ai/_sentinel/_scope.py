@@ -18,6 +18,10 @@ ModelOrigin = Literal[
 ]
 """Where a model call was made (`ModelEvent.origin`); only `"agent"` is an agent turn."""
 
+# the name of an agent bridge's tool-stage check span (type `sentinel`), which
+# replay never assigns to a native call
+BRIDGE_CHECK_SPAN = "sentinel_bridge"
+
 
 class _Scope(NamedTuple):
     origin: ModelOrigin

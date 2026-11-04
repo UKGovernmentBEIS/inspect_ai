@@ -1027,6 +1027,49 @@ async def test_host_tool_result_is_checked_in_the_service() -> None:
     assert observations() == [(read.id, "tool_call"), (read.id, "tool_result")]
 
 
+async def test_a_bridge_s_tool_checks_are_marked_for_replay() -> None:
+    read = ToolCall(
+        id="host_1", function="mcp__host__read_file", arguments=READ.arguments
+    )
+    model = Scripted(calls_output(read), calls_output())
+    bridge = sandbox_bridge(AsyncMock(return_value="host contents"))
+
+    with active([bridge_recording([])]):
+        output = await generate(
+            bridge, model, [ChatMessageUser(content=TASK)], declare_read_file()
+        )
+        await call_host_tool(bridge)("host", "read_file", READ.arguments)
+        # the scaffold reports the host call's result changed, so it is
+        # checked again
+        await generate(
+            bridge,
+            model,
+            [
+                ChatMessageUser(content=TASK),
+                output.message,
+                ChatMessageTool(
+                    content="host contents, edited",
+                    tool_call_id=read.id,
+                    function=read.function,
+                ),
+            ],
+            declare_read_file(),
+        )
+
+    begins = {e.id: e for e in transcript().events if isinstance(e, SpanBeginEvent)}
+    checks = {
+        e.span_id: (e.stage, begins[e.span_id].type, begins[e.span_id].name)
+        for e in sentinel_events()
+        if e.span_id is not None
+    }
+    # a call, a host call's result, and the scaffold's report of it
+    assert list(checks.values()) == [
+        ("tool_call", "sentinel", "sentinel_bridge"),
+        ("tool_result", "sentinel", "sentinel_bridge"),
+        ("tool_result", "sentinel", "sentinel_bridge"),
+    ]
+
+
 async def test_host_tool_result_terminate_propagates_from_the_service() -> None:
     read = ToolCall(
         id="host_1", function="mcp__host__read_file", arguments=READ.arguments

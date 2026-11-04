@@ -106,7 +106,7 @@ from ._context import (
     active_task_metadata,
 )
 from ._conversation import current_conversation
-from ._scope import sentinel_scope
+from ._scope import BRIDGE_CHECK_SPAN, sentinel_scope
 from ._steps import (
     ConversationRecord,
     after_generate,
@@ -134,6 +134,7 @@ async def sentinel_before_tool_call(
     producer: ModelEvent | None = None,
     *,
     find_producer: bool = True,
+    bridge: bool = False,
 ) -> Decision | None:
     if not _watches(BeforeToolCall):
         return None
@@ -155,7 +156,7 @@ async def sentinel_before_tool_call(
         agent_messages=agent_messages(conversation),
         record=_record(conversation),
     )
-    return await _run(step, call.id)
+    return await _run(step, call.id, bridge=bridge)
 
 
 def apply_sentinel_decision(decision: Decision | None, call: ToolCall) -> ToolCall:
@@ -189,6 +190,7 @@ async def sentinel_after_tool_call(
     *,
     find_producer: bool = True,
     reject_on_viewer_error: bool = False,
+    bridge: bool = False,
 ) -> None:
     if not _watches(AfterToolCall):
         return
@@ -212,7 +214,7 @@ async def sentinel_after_tool_call(
         agent_messages=agent_messages(conversation),
         record=_record(conversation),
     )
-    decision = await _run(step, call.id)
+    decision = await _run(step, call.id, bridge=bridge)
     if decision is not None and decision.action == "terminate":
         raise TerminateSampleError(
             decision.explanation or "Sentinel requested termination."
@@ -299,14 +301,16 @@ def _watches(stage: type[Step]) -> bool:
     return root is not None and stage in watched_stages(root)
 
 
-async def _run(step: Step, step_id: str) -> Decision | None:
+async def _run(step: Step, step_id: str, *, bridge: bool = False) -> Decision | None:
     root = active_sentinel()
     if root is None or type(step) not in watched_stages(root):
         return None
     recorder = _Recorder(step_id)
     try:
         try:
-            async with span(name="sentinel", type="sentinel"):
+            async with span(
+                name=BRIDGE_CHECK_SPAN if bridge else "sentinel", type="sentinel"
+            ):
                 try:
                     with (
                         suspend_token_limit(),
