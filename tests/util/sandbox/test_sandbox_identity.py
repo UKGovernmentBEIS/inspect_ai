@@ -1,7 +1,10 @@
 """The sandbox identity scope: resolution, default sandbox and injection target."""
 
+import os
+import subprocess
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
+from pathlib import Path
 from typing import TypeVar, overload
 
 import anyio
@@ -13,6 +16,7 @@ from inspect_ai.util import (
     sandbox,
     sandbox_default,
 )
+from inspect_ai.util._sandbox._privileged import pinned_shell_command
 from inspect_ai.util._sandbox.context import (
     SandboxInjectable,
     sandbox_default_context_var,
@@ -25,6 +29,7 @@ from inspect_ai.util._sandbox.identity import (
     sandbox_identity_active,
     sandbox_identity_cwd,
     sandbox_identity_user,
+    sandbox_identity_vars,
 )
 from inspect_ai.util._subprocess import ExecResult
 
@@ -138,6 +143,15 @@ def test_empty_user_raises(default: CannedSandbox) -> None:
                 pass
 
 
+@pytest.mark.parametrize("user", ["w1:1000", "1000:1000"])
+def test_user_with_a_group_raises(default: CannedSandbox, user: str) -> None:
+    with _environments(default=default):
+        with pytest.raises(ValueError, match="a username or a numeric uid"):
+            with sandbox_identity(user):
+                pass
+        assert not sandbox_identity_active()
+
+
 def test_relative_cwd_raises(default: CannedSandbox) -> None:
     with _environments(default=default):
         with pytest.raises(ValueError, match="requires an absolute cwd"):
@@ -196,6 +210,299 @@ async def test_exec_is_unchanged_inside_a_scope(default: CannedSandbox) -> None:
     with _environments(default=default), sandbox_identity("w-1"):
         await sandbox().exec(["true"])
     assert default.exec_calls == [(["true"], None)]
+
+
+async def test_vars_have_no_home_without_a_passwd_entry(
+    default: CannedSandbox,
+) -> None:
+    # `default` prints nothing for the lookup, as for a user with no entry
+    with _environments(default=default), sandbox_identity("w-1"):
+        assert await sandbox_identity_vars(default, None) is None
+        assert await sandbox_identity_vars(default, None) is None
+    [(lookup, user)] = default.exec_calls
+    assert (lookup[-1], user) == ("w-1", None)
+
+
+async def test_vars_raise_when_the_home_lookup_fails() -> None:
+    default = CannedSandbox.returning(ExecResult(False, 126, "", "no shell"))
+    with _environments(default=default), sandbox_identity("w-1"):
+        with pytest.raises(RuntimeError, match="'w-1': no shell"):
+            await sandbox_identity_vars(default, None)
+
+
+def _run_lookup(
+    user: str, getent: str = "", passwd: Path | None = None
+) -> subprocess.CompletedProcess[str]:
+    """Run the home lookup script on the host.
+
+    `getent` replaces getent with a shell function; `passwd` makes the script
+    read that file instead of /etc/passwd, as on an image without getent.
+    """
+    from inspect_ai.util._sandbox.identity import _PASSWD_HOME_SCRIPT
+
+    script = _PASSWD_HOME_SCRIPT
+    if passwd is not None:
+        has_getent = "command -v getent >/dev/null 2>&1"
+        assert has_getent in script and "/etc/passwd" in script
+        script = script.replace(has_getent, "false").replace("/etc/passwd", str(passwd))
+    argv = pinned_shell_command(script, user)
+    if getent:
+        argv[2] = f"getent() {{ {getent}; }}\n" + argv[2]
+    return subprocess.run(argv, capture_output=True, text=True, check=False)
+
+
+@pytest.mark.skipif(os.name != "posix", reason="requires a POSIX shell")
+def test_home_lookup_script_reads_the_passwd_database() -> None:
+    import pwd
+
+    root_home = pwd.getpwuid(0).pw_dir
+    for user in (pwd.getpwuid(0).pw_name, "0"):
+        result = _run_lookup(user)
+        assert (result.returncode, result.stdout) == (0, f"{root_home}\n"), result
+    result = _run_lookup("no-such-user-for-inspect")
+    assert (result.returncode, result.stdout) == (0, ""), result
+
+
+@pytest.mark.skipif(os.name != "posix", reason="requires a POSIX shell")
+@pytest.mark.parametrize(
+    "getent, status, stdout",
+    [
+        ("echo 'w:x:1000:1000:W, Jr:/srv/w:/bin/sh'", 0, "/srv/w\n"),
+        ("return 2", 0, ""),
+        ("echo database-failed >&2; return 1", 1, ""),
+        ("return 3", 1, ""),
+        ("echo 'w:x:1000:1000:/srv/w'", 1, ""),
+        ("echo 'w:x:1000:1000::/srv/w:/bin/sh:extra'", 1, ""),
+        ("return 0", 1, ""),
+        ("echo 'w:x:1000:1000:: /srv/w :/bin/sh'", 0, " /srv/w \n"),
+        ("echo 'w:x:1000:1000:W::/bin/sh'", 0, "\n"),
+    ],
+    ids=[
+        "entry",
+        "no-entry",
+        "failed",
+        "unsupported",
+        "malformed",
+        "extra-field",
+        "empty",
+        "spaces",
+        "empty-home",
+    ],
+)
+def test_home_lookup_script_fails_unless_getent_answers(
+    getent: str, status: int, stdout: str
+) -> None:
+    result = _run_lookup("w", getent)
+    assert (result.returncode, result.stdout) == (status, stdout), result
+
+
+@pytest.mark.skipif(os.name != "posix", reason="requires a POSIX shell")
+@pytest.mark.parametrize("newline", ["\n", ""], ids=["terminated", "unterminated"])
+def test_home_lookup_script_reads_passwd_without_getent(
+    tmp_path: Path, newline: str
+) -> None:
+    passwd = tmp_path / "passwd"
+    passwd.write_text(
+        "root:x:0:0::/root:/bin/sh\ne:x:1001:1001:::/bin/sh\n"
+        "m:x:1002:1002::/srv/m\nx:x:1003:1003::/srv/x:/bin/sh:extra\njunk\n"
+        "w:x:1000:1000:: /srv/w :/bin/sh" + newline
+    )
+
+    def lookup(user: str) -> tuple[int, str]:
+        result = _run_lookup(user, passwd=passwd)
+        return result.returncode, result.stdout
+
+    assert lookup("w") == (0, " /srv/w \n")
+    assert lookup("1000") == (0, " /srv/w \n")
+    assert lookup("root") == (0, "/root\n")
+    assert lookup("e") == (0, "\n")
+    assert lookup("m") == (1, "")
+    assert lookup("1002") == (1, "")
+    assert lookup("x") == (1, "")
+    assert lookup("1003") == (1, "")
+    assert lookup("missing") == (0, "")
+
+
+async def test_vars_keep_whitespace_in_the_home() -> None:
+    sb = CannedSandbox.returning(ExecResult(True, 0, " /srv/w \n", ""))
+    with _environments(default=sb), sandbox_identity("w"):
+        assert await sandbox_identity_vars(sb, None) == {"HOME": " /srv/w "}
+
+
+class _LookupSandbox(CannedSandbox):
+    """Runs the home lookup on the host with a replaced `getent`; can stall it."""
+
+    def __init__(self, getent: str = "", passwd: Path | None = None) -> None:
+        super().__init__(lambda _cmd, _user: OK)
+        self.getent = getent
+        self.passwd = passwd
+        self.stall = False
+        self.stalled = anyio.Event()
+
+    async def exec(
+        self,
+        cmd: list[str],
+        input: str | bytes | None = None,
+        cwd: str | None = None,
+        env: dict[str, str] | None = None,
+        user: str | None = None,
+        timeout: int | None = None,
+        timeout_retry: bool = True,
+        concurrency: bool = True,
+    ) -> ExecResult[str]:
+        await super().exec(
+            cmd, input, cwd, env, user, timeout, timeout_retry, concurrency
+        )
+        if self.stall:
+            self.stalled.set()
+            await anyio.sleep_forever()
+        result = _run_lookup(cmd[-1], self.getent, self.passwd)
+        return ExecResult(
+            result.returncode == 0, result.returncode, result.stdout, result.stderr
+        )
+
+
+@pytest.mark.skipif(os.name != "posix", reason="requires a POSIX shell")
+async def test_vars_raise_when_getent_fails_and_retry_later() -> None:
+    default = _LookupSandbox("echo database-failed >&2; return 1")
+    with _environments(default=default), sandbox_identity("w-1"):
+        with pytest.raises(RuntimeError, match="'w-1': database-failed"):
+            await sandbox_identity_vars(default, None)
+        default.getent = "echo 'w-1:x:1000:1000::/srv/w-1:/bin/sh'"
+        assert await sandbox_identity_vars(default, None) == {"HOME": "/srv/w-1"}
+    assert len(default.exec_calls) == 2
+
+
+@pytest.mark.skipif(os.name != "posix", reason="requires a POSIX shell")
+@pytest.mark.parametrize("source", ["getent", "passwd"])
+@pytest.mark.parametrize(
+    "record, error",
+    [
+        ("e:x:1001:1001:::/bin/sh", "empty home directory"),
+        ("e:x:1001:1001::/srv/e", "malformed entry"),
+        ("e:x:1001:1001::/srv/e:/bin/sh:extra", "malformed entry"),
+    ],
+    ids=["empty-home", "missing-field", "extra-field"],
+)
+async def test_vars_raise_on_a_bad_entry_and_retry_later(
+    tmp_path: Path, source: str, record: str, error: str
+) -> None:
+    passwd = tmp_path / "passwd"
+    passwd.write_text(record + "\n")
+    if source == "getent":
+        sb = _LookupSandbox(getent=f'grep "^$2:" {passwd} || return 2')
+    else:
+        sb = _LookupSandbox(passwd=passwd)
+
+    # no entry: HOME is left alone, and that answer is cached
+    with _environments(default=sb), sandbox_identity("missing"):
+        assert await sandbox_identity_vars(sb, None) is None
+        assert await sandbox_identity_vars(sb, None) is None
+    assert len(sb.exec_calls) == 1
+
+    # a bad entry raises, is not cached, and is looked up again
+    with _environments(default=sb), sandbox_identity("e"):
+        with pytest.raises(RuntimeError, match=f"'e': .*{error}"):
+            await sandbox_identity_vars(sb, None)
+        passwd.write_text("e:x:1001:1001::/srv/e:/bin/sh\n")
+        assert await sandbox_identity_vars(sb, None) == {"HOME": "/srv/e"}
+    assert len(sb.exec_calls) == 3
+
+
+@pytest.mark.skipif(os.name != "posix", reason="requires a POSIX shell")
+@pytest.mark.parametrize(
+    "before",
+    [
+        "1000:x:2000:2000::/home/numeric:/bin/sh",
+        "#old:x:1000:1000::/home/old:/bin/sh",
+        "  #old:x:1000:1000::/home/old:/bin/sh",
+        "\t#old:x:1000:1000::/home/old:/bin/sh",
+    ],
+    ids=["numeric-name", "comment", "indented-comment", "tabbed-comment"],
+)
+async def test_vars_find_a_bare_uid_by_its_uid_field(
+    tmp_path: Path, before: str
+) -> None:
+    passwd = tmp_path / "passwd"
+    passwd.write_text(before + "\nw:x:1000:1000::/home/w:/bin/sh\n")
+    sb = _LookupSandbox(passwd=passwd)
+    for user in ("1000", "01000"):
+        with _environments(default=sb), sandbox_identity(user):
+            assert await sandbox_identity_vars(sb, None) == {"HOME": "/home/w"}
+
+    # a uid with no account leaves HOME alone, and that answer is cached
+    with _environments(default=sb), sandbox_identity("4242"):
+        assert await sandbox_identity_vars(sb, None) is None
+        assert await sandbox_identity_vars(sb, None) is None
+    assert len(sb.exec_calls) == 3
+
+
+@pytest.mark.skipif(os.name != "posix", reason="requires a POSIX shell")
+async def test_vars_raise_unless_passwd_is_a_file_and_retry_later(
+    tmp_path: Path,
+) -> None:
+    passwd = tmp_path / "passwd"
+    passwd.mkdir()
+    sb = _LookupSandbox(passwd=passwd)
+    with _environments(default=sb), sandbox_identity("w"):
+        with pytest.raises(RuntimeError, match="'w': .*not a readable file"):
+            await sandbox_identity_vars(sb, None)
+        passwd.rmdir()
+        passwd.write_text("w:x:1000:1000::/home/w:/bin/sh\n")
+        assert await sandbox_identity_vars(sb, None) == {"HOME": "/home/w"}
+    assert len(sb.exec_calls) == 2
+
+
+@pytest.mark.skipif(os.name != "posix", reason="requires a POSIX shell")
+async def test_lookup_does_not_need_the_provider_default_cwd() -> None:
+    from inspect_ai.tool import read_file
+    from inspect_ai.util._sandbox.local import LocalSandboxEnvironment
+
+    local = LocalSandboxEnvironment()
+    local.directory.cleanup()  # the provider's default cwd no longer exists
+    user = str(os.geteuid())
+    with _environments(default=local), sandbox_identity(user, cwd="/"):
+        assert await read_file()(file_path="/etc/hosts", limit=1)
+
+
+@pytest.mark.parametrize("timeout, expected", [(None, 30), (5, 5), (60, 30)])
+async def test_vars_lookup_is_bounded_by_the_tool_timeout(
+    default: CannedSandbox, timeout: int | None, expected: int
+) -> None:
+    with _environments(default=default), sandbox_identity("w-1"):
+        await sandbox_identity_vars(default, timeout)
+    assert default.timeouts == [(expected, False)]
+
+
+async def test_vars_lookup_timeout_is_not_cached() -> None:
+    lookups: list[str] = []
+
+    def time_out_once(cmd: list[str], _user: str | None) -> ExecResult[str]:
+        lookups.append(cmd[-1])
+        if len(lookups) == 1:
+            raise TimeoutError("lookup timed out")
+        return ExecResult(True, 0, "/srv/w-1\n", "")
+
+    sb = CannedSandbox(time_out_once)
+    with _environments(default=sb), sandbox_identity("w-1"):
+        with pytest.raises(TimeoutError):
+            await sandbox_identity_vars(sb, 1)
+        assert await sandbox_identity_vars(sb, 1) == {"HOME": "/srv/w-1"}
+    assert lookups == ["w-1", "w-1"]
+
+
+@pytest.mark.skipif(os.name != "posix", reason="requires a POSIX shell")
+async def test_vars_lookup_cancelled_before_it_resolves_runs_again() -> None:
+    default = _LookupSandbox("echo 'w-1:x:1000:1000::/srv/w-1:/bin/sh'")
+    default.stall = True
+    with _environments(default=default), sandbox_identity("w-1"):
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(sandbox_identity_vars, default, None)
+            await default.stalled.wait()
+            tg.cancel_scope.cancel()
+        default.stall = False
+        assert await sandbox_identity_vars(default, None) == {"HOME": "/srv/w-1"}
+    assert len(default.exec_calls) == 2
 
 
 def _injectable(installed: set[SandboxEnvironment]) -> SandboxInjectable:

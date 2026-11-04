@@ -3,6 +3,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Iterator, NamedTuple
 
+from ._privileged import privileged_shell
 from .context import (
     default_sandbox_environment,
     raise_no_sandbox,
@@ -43,6 +44,14 @@ def sandbox_identity(
     sandbox-tool launches inherit the scope's user when omitted; they keep
     their existing working-directory behavior.
 
+    `bash()`, `python()`, `grep()`, `list_files()` and `read_file()` set `HOME`
+    to the user's home from the sandbox's passwd database, looked up once per
+    block. They keep the inherited `HOME` if the user has no passwd entry and
+    raise `RuntimeError` if the entry has an empty home. `bash_session()`,
+    `text_editor()` and `exec_remote()` set `HOME` only when switching user; if
+    their tools process already runs as that user, they keep its inherited
+    `HOME`.
+
     Inside the block `sandbox` is also the default sandbox (as with
     `sandbox_default()`), and tools that find their sandbox by injection use it.
     If code inside the block replaces the sample's sandbox environments with a
@@ -55,19 +64,24 @@ def sandbox_identity(
     inherit it.
 
     Args:
-       user: User to run as.
+       user: User to run as: a username or a numeric uid. A `user:group`
+          selector is not supported.
        cwd: Absolute working directory for the tools above and for
           `exec_remote()` commands that do not set one.
        sandbox: Name of the sandbox environment the identity applies to.
 
     Raises:
        SandboxIdentityError: If a scope is already active.
-       ValueError: If `user` is empty, `cwd` is not absolute, or `sandbox` is
-          not one of the sample's environments.
+       ValueError: If `user` is empty or contains `:`, `cwd` is not absolute, or
+          `sandbox` is not one of the sample's environments.
        ProcessLookupError: If there are no sandboxes available.
     """
     if not user:
         raise ValueError("sandbox_identity() requires a user.")
+    if ":" in user:
+        raise ValueError(
+            f"sandbox_identity() takes a username or a numeric uid, not '{user}'."
+        )
     if cwd is not None and not posixpath.isabs(cwd):
         raise ValueError(f"sandbox_identity() requires an absolute cwd, not '{cwd}'.")
     if (outer := _sandbox_identity.get()) is not None:
@@ -90,7 +104,9 @@ def sandbox_identity(
             f" Available environments: {', '.join(environments)}."
         )
 
-    token = _sandbox_identity.set(SandboxIdentityScope(user, cwd, name, environment))
+    token = _sandbox_identity.set(
+        SandboxIdentityScope(user, cwd, name, environment, _ScopeHome())
+    )
     try:
         with sandbox_default(name):
             yield
@@ -147,6 +163,134 @@ def sandbox_identity_cwd(env: SandboxEnvironment, cwd: str | None) -> str | None
     return identity.cwd if identity is not None else None
 
 
+async def sandbox_identity_vars(
+    env: SandboxEnvironment, timeout: int | None
+) -> dict[str, str] | None:
+    """Environment variables for a command the scope's user runs in `env`.
+
+    None outside a `sandbox_identity()` scope for `env`. Inside one, `HOME` set
+    to the user's home directory from the sandbox's passwd database, or None if
+    it has no entry for the user. The lookup runs once per scope and is cached;
+    concurrent first calls may each run it, which is harmless. A lookup that
+    fails, times out or is cancelled is not cached, and neither is an entry
+    with an empty home directory.
+
+    Args:
+       env: Sandbox environment the command runs in.
+       timeout: Timeout (in seconds) of the caller's command, if any. The lookup
+          times out after this or `PASSWD_LOOKUP_TIMEOUT`, whichever is shorter.
+
+    Raises:
+       RuntimeError: If the lookup command fails, or the user's passwd entry
+          has an empty home directory.
+       TimeoutError: If the lookup times out.
+    """
+    identity = sandbox_identity_scope(env)
+    if identity is None:
+        return None
+    if not identity.home.resolved:
+        lookup_timeout = min(timeout or PASSWD_LOOKUP_TIMEOUT, PASSWD_LOOKUP_TIMEOUT)
+        identity.home.value = await _passwd_home(env, identity.user, lookup_timeout)
+        identity.home.resolved = True
+    return {"HOME": identity.home.value} if identity.home.value is not None else None
+
+
+PASSWD_LOOKUP_TIMEOUT = 30
+"""Longest time (in seconds) the home directory lookup may take."""
+
+# Prints the home directory of the user named (or numbered) $1, followed by a
+# newline (a bare newline when the home field is empty), or nothing when the
+# passwd database has no entry for it; any other failure, an entry without
+# exactly seven fields included, exits non-zero. Uses getent so NSS sources
+# count (exit status 2 means no entry), and reads /etc/passwd on images without
+# getent. Like getent, the fallback matches an all-digit $1 against the uid
+# field as a number and anything else against the name field, and like glibc
+# it skips lines whose first non-blank character is #. It fails unless
+# /etc/passwd is a readable regular file. Entries are split with parameter
+# expansion, which cannot fail.
+_PASSWD_HOME_SCRIPT = """
+print_home() {
+    case $1 in
+        *:*:*:*:*:*:*:*) ;;
+        *:*:*:*:*:*:*)
+            rest=$1
+            for _ in 1 2 3 4 5; do rest=${rest#*:}; done
+            printf '%s\\n' "${rest%%:*}"
+            exit 0
+            ;;
+    esac
+    echo "$2 has a malformed entry for the user" >&2
+    exit 1
+}
+if command -v getent >/dev/null 2>&1; then
+    entry=$(getent passwd "$1")
+    status=$?
+    [ "$status" -eq 2 ] && exit 0
+    if [ "$status" -ne 0 ]; then
+        echo "getent passwd exited with status $status" >&2
+        exit 1
+    fi
+    print_home "$entry" "getent passwd"
+fi
+if [ ! -f /etc/passwd ] || [ ! -r /etc/passwd ]; then
+    echo "no getent and /etc/passwd is not a readable file" >&2
+    exit 1
+fi
+case $1 in
+    *[!0-9]*) by_uid=false ;;
+    *) by_uid=true ;;
+esac
+while IFS= read -r entry || [ -n "$entry" ]; do
+    case ${entry#"${entry%%[! \t]*}"} in
+        "#"*) continue ;;
+    esac
+    if [ "$by_uid" = true ]; then
+        uid=${entry#*:*:}
+        uid=${uid%%:*}
+        case $uid in
+            "" | *[!0-9]*) continue ;;
+        esac
+        [ "$uid" -eq "$1" ] 2>/dev/null || continue
+    else
+        [ "${entry%%:*}" = "$1" ] || continue
+    fi
+    print_home "$entry" /etc/passwd
+done < /etc/passwd
+"""
+
+
+async def _passwd_home(env: SandboxEnvironment, user: str, timeout: int) -> str | None:
+    """The home directory of `user` in the passwd database of `env`, if any.
+
+    The path is kept exactly as the passwd entry gives it, whitespace included.
+    The lookup runs in `/`, so it does not depend on the provider's default
+    working directory.
+
+    Raises:
+       RuntimeError: If the lookup fails or the entry's home directory is empty.
+    """
+    result = await privileged_shell(
+        env,
+        _PASSWD_HOME_SCRIPT,
+        user,
+        user=None,
+        cwd="/",
+        timeout=timeout,
+        timeout_retry=False,
+    )
+    if not result.success:
+        error = result.stderr.strip() or f"exit status {result.returncode}"
+    elif not result.stdout:
+        return None
+    elif home := result.stdout.removesuffix("\n"):
+        return home
+    else:
+        error = "its passwd entry has an empty home directory"
+    raise RuntimeError(
+        f"Could not look up the home directory of sandbox user '{user}': {error}"
+    )
+
+
 def sandbox_identity_active(env: SandboxEnvironment | None = None) -> bool:
     """Whether a `sandbox_identity()` scope is active.
 
@@ -195,6 +339,14 @@ def check_sandbox_identity_supported(env: SandboxEnvironment, tool: str) -> None
         )
 
 
+class _ScopeHome:
+    """Cache for the home directory of a scope's user."""
+
+    def __init__(self) -> None:
+        self.resolved = False
+        self.value: str | None = None
+
+
 class SandboxIdentityScope(NamedTuple):
     """An active `sandbox_identity()` scope."""
 
@@ -203,6 +355,8 @@ class SandboxIdentityScope(NamedTuple):
     sandbox: str
     """Name of the sandbox environment."""
     environment: SandboxEnvironment
+    home: _ScopeHome
+    """The user's home directory, looked up on first use."""
 
 
 def sandbox_identity_scope(env: SandboxEnvironment) -> SandboxIdentityScope | None:
