@@ -4580,6 +4580,130 @@ def test_an_approvers_view_replays_whole() -> None:
     assert before.view.context.content == "adding for the user"
 
 
+PAGE = "\n".join(
+    ["RootWebArea 'page'", *(f"  [{n}] button 'item {n}'" for n in range(1, 9))]
+)
+
+
+@solver
+def r7_opens_page() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        from inspect_ai.tool._tools._web_browser._web_browser import WebBrowserStore
+        from inspect_ai.util._store_model import store_as
+        from inspect_ai.util._tool_state import tool_state_instance
+
+        store_as(WebBrowserStore, instance=tool_state_instance(None)).web_at = PAGE
+        return state
+
+    return solve
+
+
+class ClickOptions(BaseModel):
+    button: str = "left"
+
+
+@tool
+def r7_click() -> Tool:
+    async def execute(element_id: int, options: ClickOptions | None = None) -> str:
+        """Click an element.
+
+        Args:
+            element_id: ID of the element to click.
+            options: How to click it.
+        """
+        return f"clicked {element_id}"
+
+    return execute
+
+
+@approver
+def r7_clicks(decision: str, element_id: int) -> Approver:
+    async def approve(
+        message: str, call: ToolCall, view: ToolCallView, history: list[ChatMessage]
+    ) -> Approval:
+        if decision == "modify":
+            return Approval(
+                decision="modify",
+                modified=replace(
+                    call, arguments={**call.arguments, "element_id": element_id}
+                ),
+            )
+        return Approval(decision="approve")
+
+    return approve
+
+
+@pytest.mark.parametrize("inputs", ["expanded", "pooled"])
+@pytest.mark.parametrize("origins", [True, False])
+@pytest.mark.parametrize("decision", ["approve", "modify"])
+@pytest.mark.parametrize("changed", [False, True])
+def test_an_approvals_context_replays_only_for_the_call_it_viewed(
+    inputs: str, origins: bool, decision: str, changed: bool
+) -> None:
+    """An approval's view is of the call it was shown; a changed call's context is not recorded."""
+    from inspect_ai._sentinel import _replay
+    from inspect_ai.tool._tools._web_browser._web_browser import (
+        tool_with_web_at_viewer,
+    )
+
+    seen: dict[str, Step] = {}
+    task = Task(
+        dataset=[Sample(input="Click item 1", target="")],
+        solver=[r7_opens_page(), *tool_loop(tool_with_web_at_viewer(r7_click()))],
+        sentinel=[r7_probe(seen, copies=True)],
+        approval=[
+            ApprovalPolicy(
+                r7_clicks("modify" if changed else decision, 7 if changed else 1),
+                "*",
+            )
+        ],
+    )
+    model = outputs(call("r7_click", element_id=1, options={}), done())
+    log = eval(task, model=model)[0]
+    assert log.status == "success", log.error
+    assert_logged_replay_equals_live(log, seen)
+    sample = logged_sample(log)
+    [(_, live)] = [
+        (key, step)
+        for key, step in live_steps(sample, seen).items()
+        if key[0] == "tool_call"
+    ]
+    assert live.view.context is not None
+    clicked = "7" if changed else "1"
+    assert f"* [{clicked}] button" in live.view.context.content
+
+    # with `changed`, an approve whose call differs from the one that ran is a
+    # synthetic log (live refuses it); it shows the decision does not matter
+    events: list[Event] = [
+        event.model_copy(update={"decision": decision})
+        if isinstance(event, ApprovalEvent)
+        else event
+        for event in (sample.events if origins else without_origins(sample.events))
+    ]
+    pool: list[ChatMessage] = []
+    if inputs == "pooled":
+        events, pool = _replay._condensed(events, [])
+    adapter = TypeAdapter(list[Event])
+    events = adapter.validate_json(adapter.dump_json(events))
+    replay = steps_from_events(
+        sample.messages,
+        events,
+        pool,
+        sample_uuid=sample.uuid or "",
+        eval_info=EvalInfo.from_eval(log.eval),
+    )
+    [before] = [s.step for s in replay if isinstance(s.step, BeforeToolCall)]
+    # validation fills in the options' defaults before the approver sees the call
+    assert before.call.arguments == {
+        "element_id": int(clicked),
+        "options": {"button": "left"},
+    }
+    if changed:
+        assert before.view.context is None
+    else:
+        assert comparable(before.view.context) == comparable(live.view.context)
+
+
 def test_a_result_is_the_message_the_tool_event_names() -> None:
     from inspect_ai._sentinel._replay import _Driver
 

@@ -98,7 +98,7 @@ def steps_from_events(
 
     Inspect logs record origins on every model call or on none. If a transcript mixes calls with and without origins, recorded calls retain their recorded classification and calls without origins are inferred; continuity across that mixed sequence is not guaranteed.
 
-    In logs without origins, recorded sentinel checks and human decisions are used only when their step id pairs with a model call's exact id. Inferred turns may differ from those seen by a sentinel that ran before origins were recorded; reproducing that sentinel's live steps is outside this replay contract. Older logs without a solvers wrapper span can classify side calls in top-level solver spans as agent turns. For a run without a sentinel, human decisions are reconstructed from `ApprovalEvent`s only when the log records inspect_ai 0.3.277 or later; older or unknown versions omit them and warn once when a selected human approver appears. An older or unknown-version log containing any modified approval is refused because Inspect recorded those calls inconsistently; replay that transcript from its messages instead.
+    In logs without origins, recorded sentinel checks and human decisions are used only when their step id pairs with a model call's exact id. Inferred turns may differ from those seen by a sentinel that ran before origins were recorded; reproducing that sentinel's live steps is outside this replay contract. Older logs without a solvers wrapper span can classify side calls in top-level solver spans as agent turns. For a run without a sentinel, human decisions are reconstructed from `ApprovalEvent`s only when the log records inspect_ai 0.3.277 or later; older or unknown versions omit them and warn once when a selected human approver appears. A `tool_call` step whose call an approver changed has no `view.context`: the `ApprovalEvent` view describes the call the approver was shown, and live renders the changed call's context again, which the log does not record. An older or unknown-version log containing any modified approval is refused because Inspect recorded those calls inconsistently; replay that transcript from its messages instead.
 
     Replay requires a log written by Inspect 0.3.94 or later. Earlier logs lack native tool spans and cannot be replayed reliably. If the recorded version is unknown, completed native tool events without a matching tool span, including execution failures, are refused as potentially older logs. Pre-execution halts remain allowed.
 
@@ -901,8 +901,13 @@ class _Driver:
             and approval.view is not None
             and modify is None
         ):
+            # the approval's view is of the call it was shown; a changed call's
+            # context is not recorded
+            shown = event.function == approval.call.function and json_equal(
+                event.arguments, approval.call.arguments
+            )
             before_view = ToolCallView(
-                context=approval.view.context,
+                context=approval.view.context if shown else None,
                 call=event.view or _default_view(before_call),
             )
         elif (
