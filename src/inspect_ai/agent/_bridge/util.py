@@ -1182,6 +1182,7 @@ async def _bridge_generate_impl(
                 )
         if verified_calls is None and generated is not None:
             verified_calls = _verified_generated_calls(generated, output)
+            verified_source_id = _selected_generated_message_id(generated, output)
 
         # Check for refusal and retry if needed
         if not output.empty and output.stop_reason == "content_filter":
@@ -1207,11 +1208,6 @@ async def _bridge_generate_impl(
         declarations: list[ToolInfo | Tool] = list(tools)
         if declared_in_input is not None:
             declarations.extend(declared_in_input(input_messages))
-        selected_generated_id = (
-            verified_source_id
-            if bridge.response_filter is not None and verified_calls is not None
-            else _selected_generated_message_id(generated, output)
-        )
         with agent_bridge_context_scope(_UTILITY_CONTEXT):
             reviewed = await apply_bridge_tool_approval(
                 bridge, output, input_messages, declarations
@@ -1234,7 +1230,7 @@ async def _bridge_generate_impl(
                     selected = [
                         proposal
                         for proposal in proposals
-                        if proposal[0] == selected_generated_id
+                        if proposal[0] == verified_source_id
                     ]
                     if selected:
                         selected_args = {
@@ -1246,10 +1242,10 @@ async def _bridge_generate_impl(
                             for source_id, call in proposals
                             if canonical_tool_arguments(call.arguments) in selected_args
                         }
-                        if selected_generated_id is not None and matching_sources == {
-                            selected_generated_id
+                        if verified_source_id is not None and matching_sources == {
+                            verified_source_id
                         }:
-                            proposing[selected_call.id] = selected_generated_id
+                            proposing[selected_call.id] = verified_source_id
                     else:
                         sources = {source_id for source_id, _ in proposals}
                         if len(sources) == 1:

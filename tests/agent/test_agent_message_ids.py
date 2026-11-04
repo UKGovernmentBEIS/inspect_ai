@@ -1663,6 +1663,36 @@ def test_re_derived_ids_match_only_while_handed_ids_are_kept(calls: int) -> None
     assert ids == (["result-0"] if calls <= bridge_types._MAX_HANDED_IDS else [None])
 
 
+@pytest.mark.parametrize(
+    "calls", [bridge_types._MAX_HANDED_IDS, bridge_types._MAX_HANDED_IDS + 1]
+)
+def test_re_derived_ids_do_not_match_while_a_tracked_replys_ids_are_unknown(
+    calls: int,
+) -> None:
+    """A copy carrying an unexecuted call's id from a tracked reply that kept no handed ids isn't the current call."""
+    bridge = AgentBridge(AgentState(messages=[]))
+    earlier = [_read(f"call_{n}", str(n)) for n in range(calls)]
+    current = _read("current", "a")
+    events = []
+    for reply_id, reply in (("earlier-reply", earlier), ("current-reply", [current])):
+        event = ToolEvent(id=reply[0].id, function="read", arguments=reply[0].arguments)
+        bridge._await_result_message(_handed_calls(reply_id, reply)[0], event)
+        events.append(event)
+    copy = _read("call_5", "a")
+    answer = ChatMessageTool(
+        id="earlier-answer", content="5", tool_call_id=copy.id, function="read"
+    )
+    bridge._link_result_messages(
+        [
+            ChatMessageAssistant(id="current-reply", content="", tool_calls=[copy]),
+            answer,
+        ],
+        ["current-reply", None],
+    )
+
+    assert [event.message_id for event in events] == [None, None]
+
+
 def test_host_results_under_an_id_handed_to_two_calls_stay_unlinked() -> None:
     """A kept id handed to two calls is ambiguous, even when the arguments pick one."""
     handed = [_read("same", "a"), _read("same", "b")]

@@ -103,10 +103,10 @@ class ToolEvent(BaseEvent):
     the scaffold sent), the reply doesn't identify the call (exactly one call
     with its id, function and arguments, an id handed to no other call of the
     reply, or in Google its function and arguments, shared by no other call of
-    the reply, in a reply of at most 256 calls), the call executed more than
-    once, more than one tool message answers it, the only answer is already
-    linked to another call, or 256 later host calls are tracked before its
-    result arrives.
+    the reply, while no reply of more than 256 calls is still tracked), the
+    call executed more than once, more than one tool message answers it, the
+    only answer is already linked to another call, or 256 later host calls are
+    tracked before its result arrives.
     """
 
     call_message_id: str | None = Field(default=None)

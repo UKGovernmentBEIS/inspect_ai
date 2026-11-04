@@ -91,7 +91,12 @@ from inspect_ai.model._generate_config import (
     GenerateConfig,
     active_generate_config_context_var,
 )
-from inspect_ai.model._model import GenerateInput, Model, get_model
+from inspect_ai.model._model import (
+    GenerateInput,
+    Model,
+    ModelResponseFilter,
+    get_model,
+)
 from inspect_ai.model._model_output import ChatCompletionChoice, ModelOutput
 from inspect_ai.model._openai_responses import (
     TOOL_SEARCH_NAME,
@@ -3980,14 +3985,20 @@ async def test_alternate_selected_by_response_filter_names_its_model_choice() ->
 
 
 @pytest.mark.parametrize(
-    ("same_arguments", "text_edited"),
-    [(False, False), (True, False), (False, True)],
+    ("same_arguments", "response_filter"),
+    [
+        (False, None),
+        (True, None),
+        (False, "edit_text"),
+        (False, "returns_none"),
+        (False, "returns_unchanged"),
+    ],
 )
 async def test_reused_call_id_across_choices_keeps_selected_producer(
     same_arguments: bool,
-    text_edited: bool,
+    response_filter: str | None,
 ) -> None:
-    """The selected choice wins; indistinguishable proposals stay unlinked."""
+    """The selected choice wins, whatever the filter returns; indistinguishable proposals stay unlinked."""
     bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)
     first = ToolCall(id="same", function="read_file", arguments={"path": "a"})
     second = ToolCall(
@@ -4015,8 +4026,23 @@ async def test_reused_call_id_across_choices_keeps_selected_producer(
         output.message.content = "filtered first"
         return output
 
-    if text_edited:
-        bridge.response_filter = edit_text
+    async def returns_none(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> None:
+        return None
+
+    async def returns_unchanged(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput:
+        return output
+
+    filters: dict[str, ModelResponseFilter] = {
+        "edit_text": edit_text,
+        "returns_none": returns_none,
+        "returns_unchanged": returns_unchanged,
+    }
+    if response_filter is not None:
+        bridge.response_filter = filters[response_filter]
 
     with recorded_transcript() as recorded:
         await run_bridge([generated], bridge=bridge, tools=declare("read_file"))
