@@ -1211,10 +1211,7 @@ with `ShardSetError` before publishing, whether or not the task declares
 a scorer; the message names the sample and the score key. A fresh run
 passes such a score to metrics with `SampleScore.scorer` unset, while
 `eval_retry` reuse sets it to the stored key, so the merge cannot
-establish one set of metric inputs; and `eval_results` would build its
-scorer info with `ScorerInfo.from_name`, which loads a file-qualified name
-(`task.py@scorer`, or an existing file) as a module. A score name in a log
-therefore never imports a file.
+establish one set of metric inputs.
 
 Stored form (decisions: Ransom, 2026-10-29, extended 2026-11-02).
 Merged metrics see samples, scores and metadata exactly as the log stores
@@ -2024,8 +2021,8 @@ today.
   (decision: Ransom, 2026-11-04). Like `eval_set()`, it takes its task from
   the caller, and the logs supply only samples. It runs only the `Task`
   object the caller passes and never loads code a log names: no metric,
-  reducer or scorer is rebuilt from the log, and a score key that names a
-  file is refused rather than loaded ("Results"). It builds no model
+  reducer or scorer is rebuilt from the log, and a score key no declared
+  scorer produced is refused ("Results"). It builds no model
   provider from log values (model, base URL, `model_args`, roles), so a
   log cannot select an SDK, credentials or `trust_remote_code`; metrics
   and reducers run in the caller's model context. It has no `trust_log`

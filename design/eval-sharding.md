@@ -1185,14 +1185,14 @@ Kept for the record and as the rationale for the design above.
   error would help.
 - Per-epoch sharding (running one epoch of a sample on one worker) is not
   expressible with `sample_id`/`limit` and is out of scope.
-- `resolve_scorers_info` imports a log's `task_file` to find unregistered
-  metrics (`score.py:653-665`). That is today's behaviour for `inspect score`,
-  the public `recompute_metrics` and `edit_score`, and recovery including
-  recovery triggered during eval-set resume and eval retry, on any log;
-  whether those operations should require an opt-in before importing
-  log-named code is a separate question (the merge's slice of it is decided:
-  the merge computes results with the caller's `Task` and never imports
-  log-named code; decision: Ransom, 2026-11-03).
+- Whether other operations import a log's `task_file` is settled by
+  [`malicious-log-code-execution.md`](malicious-log-code-execution.md):
+  read operations (`recompute_metrics`, `edit_score`, recovery) import it
+  only with `trust_log=True`, and run operations (`eval-retry`,
+  `inspect score` with the log's scorers) keep their stated trust
+  boundary. The merge is a read operation that computes results with the
+  caller's `Task` and never imports log-named code (decisions: Ransom,
+  2026-11-03 and 2026-11-04).
 - `EvalDataset.samples` records the full dataset size while `sample_ids` is
   the slice; the pair is the only present hint that a log is partial and its
   documentation could say so.

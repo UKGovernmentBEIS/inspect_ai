@@ -224,8 +224,8 @@ def _results(
     (from its `SampleInitEvent`) and the declared scorer's name.
 
     A score with no declared scorer (set by a solver) is refused: a fresh run
-    and a retry give its metrics different inputs, and `eval_results` would
-    load a scorer named after it (decision: Ransom, 2026-10-28).
+    and a retry give its metrics different inputs (decision: Ransom,
+    2026-10-28).
 
     Shards run with `score=False` hold samples that completed without
     scoring. Their results have no scorer entries and no reductions, as a
