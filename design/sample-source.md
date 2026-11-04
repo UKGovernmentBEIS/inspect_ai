@@ -118,10 +118,10 @@ A `SampleSource` is passed as the **`dataset` argument to `Task`** (just as a
   token is the attempt's start time in whole seconds in base 36 (6
   characters until 2039), raised above the largest token among the `dyn-`
   ids in the prior log whenever there is one, whether or not this attempt
-  logs samples. Prior tokens wider than 12 characters are ignored, so an
-  explicit id that only looks generated cannot fail the retry; if the bump
-  would itself pass 12 characters, the token is the first unused value from
-  the clock. The counter is the attempt's admission count, zero-padded to 4
+  logs samples. Prior tokens more than a day ahead of the clock, or wider
+  than 12 characters, are ignored: they can only be explicit ids that look
+  generated, so they neither fail the retry nor lift the token away from
+  the generated tokens it must stay above. The counter is the attempt's admission count, zero-padded to 4
   digits, and skips any id an explicit sample already holds in any epoch
   (the seed set, earlier explicit admissions). An explicit sample added under
   an id this attempt generated is a duplicate, whatever its epoch.

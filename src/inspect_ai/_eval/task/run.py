@@ -363,10 +363,13 @@ ScoresByScorer: TypeAlias = dict[str, SampleScore]
 # dyn-<attempt token>-<admission counter> (see `dynamic_id_token`).
 DYNAMIC_ID_PATTERN = re.compile(r"dyn-([0-9a-z]+)-([0-9]+)")
 
-# Widest token treated as generated. The clock needs 6 base-36 digits until
-# 2039 and 7 for millennia after; a wider token in a prior id is an explicit
-# id, which the floor ignores so that parsing stays bounded.
+# Prior tokens the floor reads. A generated token is the clock, or a little
+# above it after retries within one second; a token more than a day ahead of
+# the clock is an explicit id that only looks generated, and is ignored so it
+# cannot push the token up to where a later attempt would ignore it too.
+# Wider tokens are not parsed at all, which keeps parsing bounded.
 DYNAMIC_TOKEN_MAX_WIDTH = 12
+DYNAMIC_TOKEN_MAX_AHEAD = 24 * 60 * 60
 
 
 def dynamic_sample_id(token: str, counter: int) -> str:
@@ -392,22 +395,22 @@ def dynamic_id_token(prior_ids: Iterable[int | str], now: float) -> str:
     Only the prior log is read: a sample that committed a checkpoint but
     has no record there is not seen.
 
-    Prior tokens wider than ``DYNAMIC_TOKEN_MAX_WIDTH`` are ignored (no
-    generated token is that wide). If one more than the largest prior token
-    would be that wide, the token is instead the first value from ``now``
-    that no prior id uses: still unique, but no longer sorted after the
-    prior attempt's ids.
+    Prior tokens more than a day ahead of ``now`` (or wider than
+    ``DYNAMIC_TOKEN_MAX_WIDTH``) are ignored: they are explicit ids that
+    only look generated, and ignoring them keeps the floor on the generated
+    tokens, which stay near the clock. One edge remains: an explicit token exactly a day
+    ahead, seen by retries within the same second, can lead a later such
+    retry to repeat an id whose record the prior log no longer holds.
     """
-    used = set()
+    token = int(now)
+    ahead_limit = token + DYNAMIC_TOKEN_MAX_AHEAD
     for id in prior_ids:
         match = DYNAMIC_ID_PATTERN.fullmatch(id) if isinstance(id, str) else None
-        if match is not None and len(match.group(1)) <= DYNAMIC_TOKEN_MAX_WIDTH:
-            used.add(int(match.group(1), 36))
-    token = max(int(now), max(used, default=-1) + 1)
-    if token >= 36**DYNAMIC_TOKEN_MAX_WIDTH:
-        token = int(now)
-        while token in used:
-            token += 1
+        if match is None or len(match.group(1)) > DYNAMIC_TOKEN_MAX_WIDTH:
+            continue
+        prior = int(match.group(1), 36)
+        if prior <= ahead_limit:
+            token = max(token, prior + 1)
     digits = ""
     while True:
         token, digit = divmod(token, 36)

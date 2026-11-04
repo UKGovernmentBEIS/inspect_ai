@@ -1762,6 +1762,10 @@ def test_sample_source_generated_ids_sort_in_admission_order() -> None:
     assert [s.id for s in followups] == [f"dyn-{token}-{n:04d}" for n in range(1, 11)]
 
 
+DYNAMIC_CLOCK = 1_800_000_000
+DYNAMIC_TOKEN = "tro8w0"  # DYNAMIC_CLOCK in base 36
+
+
 def test_dynamic_id_token_increases_past_prior_tokens() -> None:
     from inspect_ai._eval.task.run import dynamic_id_token
 
@@ -1769,16 +1773,25 @@ def test_dynamic_id_token_increases_past_prior_tokens() -> None:
     assert dynamic_id_token([], now=36.9) == "10"
     assert dynamic_id_token([1, "x", "dyn-1-0001", "dyn-zz-x"], now=36) == "10"
     assert dynamic_id_token(["dyn-10-0001", "dyn-zz-0002"], now=36) == "100"
-    # explicit ids that only look generated never fail or widen the token:
-    # wider tokens are ignored, and one at the width limit leaves the next
-    # unused value from the clock
+    # explicit ids that only look generated never fail the retry or move the
+    # floor off the generated tokens: wider tokens are not parsed, and
+    # tokens more than a day ahead of the clock (the whole family below the
+    # width ceiling included) are ignored
     huge = "dyn-" + "z" * 5000 + "-0001"
     assert dynamic_id_token([huge, "dyn-ZZ-0001", "dyn--0001"], now=36) == "10"
-    assert dynamic_id_token(["dyn-" + "z" * 12 + "-0001", "dyn-10-0001"], 36) == "11"
+    ceiling = [f"dyn-{'z' * 11}{last}-0001" for last in "xyz"]
+    assert dynamic_id_token([*ceiling, "dyn-tro8w1-0001"], DYNAMIC_CLOCK) == "tro8w2"
+    day_ahead = DYNAMIC_CLOCK + 24 * 60 * 60
+    assert dynamic_id_token(
+        [_dyn_token_id(day_ahead), _dyn_token_id(day_ahead + 1)], DYNAMIC_CLOCK
+    ) == dynamic_id_token([], day_ahead + 1)
 
 
-DYNAMIC_CLOCK = 1_800_000_000
-DYNAMIC_TOKEN = "tro8w0"  # DYNAMIC_CLOCK in base 36
+def _dyn_token_id(token: int) -> str:
+    """A generated-looking id whose token is ``token``."""
+    from inspect_ai._eval.task.run import dynamic_id_token
+
+    return f"dyn-{dynamic_id_token([], token)}-0001"
 
 
 def _freeze_dynamic_clock(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1940,6 +1953,65 @@ def test_sample_source_retry_with_generated_looking_explicit_ids(
     assert _followup_id(first) == f"dyn-{DYNAMIC_TOKEN}-0001"
     assert _followup_id(final) == "dyn-tro8w1-0001"
     assert {s.id for s in (final.samples or [])} >= {huge, at_limit}
+
+
+def test_sample_source_limited_retries_never_repeat_a_token(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # a limited retry carries only the selected runs into its log, so the
+    # third attempt's prior log no longer holds the first attempt's
+    # follow-up. An explicit seed id at the token width ceiling must not
+    # make the token fall back to the clock and repeat that first id
+    _freeze_dynamic_clock(monkeypatch)
+    runs: list[str] = []
+
+    @solver
+    def fail_follow_twice() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            runs.append(state.input_text)
+            if state.input_text == "follow" and runs.count("follow") <= 2:
+                raise RuntimeError("transient failure")
+            return state
+
+        return solve
+
+    class _Src(SampleSource):
+        def initial_samples(self) -> list[Sample]:
+            return [Sample(id="dyn-" + "z" * 12 + "-0001", input="seed", target="ok")]
+
+        async def sample_complete(self, sample: EvalSample) -> list[Sample] | None:
+            if sample.input == "seed":
+                return [Sample(input="follow", target="ok")]
+            return None
+
+    @task
+    def limited_retry_task() -> Task:
+        return Task(
+            dataset=_Src(), solver=[fail_follow_twice()], name="limited_retry_task"
+        )
+
+    with tempfile.TemporaryDirectory() as d:
+        log_dir = str(Path(d) / "logs")
+        Path(log_dir).mkdir()
+        ok, _ = eval_set(
+            tasks=[limited_retry_task()],
+            log_dir=log_dir,
+            model="mockllm/model",
+            limit=2,
+            retry_attempts=3,
+            retry_on_error=0,  # no sample-level retry -> task-level retry
+            retry_cleanup=False,
+        )
+        assert ok, "eval-set did not succeed after task retries"
+        attempts = sorted(
+            (read_eval_log(str(path)) for path in Path(log_dir).glob("*.eval")),
+            key=lambda log: log.eval.created,
+        )
+
+    assert runs.count("follow") == 3
+    assert [_followup_id(log) for log in attempts] == [
+        f"dyn-{token}-0001" for token in ("tro8w0", "tro8w1", "tro8w2")
+    ]
 
 
 def test_sample_source_generated_ids_skip_explicit_ids(
