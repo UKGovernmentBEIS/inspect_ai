@@ -2832,6 +2832,109 @@ async def test_gemini_cli_results_are_matched_by_the_ids_it_echoes(
     ]
 
 
+@pytest.mark.parametrize("with_old_call", [False, True])
+@pytest.mark.parametrize(
+    ("old_id", "new_id"),
+    [("read_file__123", "123"), ("123", "read_file__123")],
+)
+async def test_google_initial_history_alias_cannot_claim_new_result(
+    with_old_call: bool, old_id: str, new_id: str
+) -> None:
+    from inspect_ai.agent._bridge.google_api import inspect_google_api_request
+
+    seen: Steps = []
+    new = ToolCall(id=new_id, function="delete_file", arguments={"path": "new.txt"})
+    model = Scripted(calls_output(new), calls_output())
+    bridge = AgentBridge(
+        AgentState(messages=[]), model_aliases={"inspect": model.model}
+    )
+    contents: list[Any] = [
+        {"role": "user", "parts": [{"text": "Read old.txt, then delete new.txt."}]}
+    ]
+    if with_old_call:
+        contents.append(
+            {
+                "role": "model",
+                "parts": [
+                    {
+                        "functionCall": {
+                            "id": old_id,
+                            "name": "read_file",
+                            "args": {"path": "old.txt"},
+                        }
+                    }
+                ],
+            }
+        )
+    contents.append(
+        {
+            "role": "user",
+            "parts": [
+                {
+                    "functionResponse": {
+                        "id": old_id,
+                        "name": "read_file",
+                        "response": {"out": "old contents"},
+                    }
+                }
+            ],
+        }
+    )
+    tools: list[Any] = [
+        {"functionDeclarations": [{"name": "read_file"}, {"name": "delete_file"}]}
+    ]
+
+    async def request() -> Any:
+        return await inspect_google_api_request(
+            {"model": "inspect", "contents": contents, "tools": tools},
+            None,
+            None,
+            bridge,
+        )
+
+    with active([bridge_recording(seen)]):
+        first = await request()
+        parts = first["candidates"][0]["content"]["parts"]
+        handed = next(
+            part["functionCall"]["id"] for part in parts if "functionCall" in part
+        )
+        contents.append({"role": "model", "parts": parts})
+        await request()
+        afters = [step for step in seen if isinstance(step, AfterToolCall)]
+        assert [(step.call.function, step.output) for step in afters] == [
+            ("read_file", '{"out": "old contents"}')
+        ]
+        assert handed not in {old_id, new_id}
+
+        contents.append(
+            {
+                "role": "user",
+                "parts": [
+                    {
+                        "functionResponse": {
+                            "id": handed,
+                            "name": "delete_file",
+                            "response": {"out": "deleted"},
+                        }
+                    }
+                ],
+            }
+        )
+        await request()
+
+    afters = [step for step in seen if isinstance(step, AfterToolCall)]
+    assert [
+        (step.call.function, step.call.arguments, step.output) for step in afters
+    ] == [
+        (
+            "read_file",
+            {"path": "old.txt"} if with_old_call else {},
+            '{"out": "old contents"}',
+        ),
+        ("delete_file", {"path": "new.txt"}, '{"out": "deleted"}'),
+    ]
+
+
 async def test_google_results_without_ids_are_checked_once_per_call_and_result() -> (
     None
 ):

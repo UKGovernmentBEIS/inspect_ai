@@ -191,14 +191,33 @@ class _ResultChecks:
         self.failed: dict[str, Exception] = {}
 
     def reserve(self, input: Sequence[ChatMessage]) -> None:
-        """Keep IDs already in the scaffold's history out of future tokens."""
+        """Keep historical IDs and their wire aliases out of future tokens."""
         for message in input:
             if isinstance(message, ChatMessageAssistant):
-                self.reserved_ids.update(
-                    call.id for call in message.tool_calls or [] if call.id
-                )
+                for call in message.tool_calls or []:
+                    self._reserve_id(call.id, self._wire_names(call))
             elif isinstance(message, ChatMessageTool) and message.tool_call_id:
-                self.reserved_ids.add(message.tool_call_id)
+                self._reserve_id(
+                    message.tool_call_id,
+                    {message.function.strip() or "generic_tool"}
+                    if message.function
+                    else set(),
+                )
+
+    def _reserve_id(self, call_id: str, names: set[str]) -> None:
+        """Reserve the raw ID and any alias Google could strip from it later."""
+        if not call_id:
+            return
+        self.reserved_ids.add(call_id)
+        for name in names:
+            stripped = call_id.removeprefix(f"{name}__")
+            if stripped and stripped != call_id:
+                self.reserved_ids.add(stripped)
+        if not names:
+            while "__" in call_id:
+                call_id = call_id.partition("__")[2]
+                if call_id:
+                    self.reserved_ids.add(call_id)
 
     def issue(self, checks: Sequence[SentinelCheck]) -> list[SentinelCheck]:
         issued: list[SentinelCheck] = []
