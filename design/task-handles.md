@@ -30,10 +30,13 @@ def search(n_steps: int) -> Solver:
 the searcher's model through `generate`, or another one through
 `get_model(...)`.
 
-A task's sample ids depend on when samples sent through a handle arrived,
-so a task that has received one records that in its log, and nothing is
-ever reused from that log: the task is not retried, `eval_retry()` refuses
-it, and its creator sends the samples to a fresh task instead. Loans lend
+The design relies on anonymous dynamic samples having unique ids (a
+companion change), so samples sent through a handle shift no id a later
+run would reuse. A task that can receive samples records that in its eval
+spec: nothing is reused from its logs, `eval_retry()` refuses them and
+`eval_set()` never counts them complete, and once it has received a sample
+it is not retried; its creator sends the samples to a fresh task instead.
+Loans lend
 task slots, never sandboxes or sample slots, so `max_sandboxes` and
 `max_samples` need headroom for samples that wait through handles.
 
@@ -69,8 +72,8 @@ Goals:
 - Samples sent through a handle never change which of the receiving task's
   own samples run (`--limit`, `--sample-id`, ids), and a bad request fails
   only its sender. No later run reuses one sample's result for another: the
-  log of a task that has received samples through a handle says so, and
-  nothing is ever reused from it.
+  log of a task that can receive samples through a handle says so, and
+  nothing is reused from it.
 - The search example works at the default `max_tasks=1`. `max_sandboxes`
   and `max_samples` are never exceeded; a run that waits through handles
   needs headroom in them, which the docs state and a warning points out.
@@ -117,6 +120,11 @@ Non-goals:
   (`:1710-1731`). A duplicate raises `ValueError` inside the receiving task
   and fails it. `--limit` counts distinct ids against a budget recomputed at
   each attempt (`:1674-1678`); `--sample-id` drops non-matching samples.
+- A dynamic sample admitted without an id gets the next integer after the
+  seed's size that is not already taken (`reserve_runs`, `:1701`,
+  `:1712-1717`), so its id depends on its admission order. The companion
+  change this design builds on (see "Logs of tasks that can receive
+  samples") replaces that rule.
 - On a task retry, the prior attempt's completed samples are reused, and a
   reused sample's `sample_complete` fires again so a completion-driven
   source regenerates its follow-ups (`:1473`); a limited feed's later
@@ -153,18 +161,6 @@ Non-goals:
   whether a task needs running (`:507`) and whether a log in its reuse
   store can be imported (`_store/match.py:74`); attempts are cached in a
   file versioned by `CACHE_VERSION` (`_evalset/cache.py:25`).
-- Mid-run log state is recorded the way `inspect ctl config` retunes are:
-  `.eval` appends a journal member and flushes it at once
-  (`src/inspect_ai/log/_recorders/eval.py:281`, `:1133`), header reads of an
-  unfinished `.eval` log read the journal (`_read_header_async`, `:2135`;
-  `_read_header`, `:2266`), and `log_finish` consolidates it into the header
-  (`:365`). The deprecated `.json` recorder keeps it on the in-memory log
-  (`src/inspect_ai/log/_recorders/json.py:203`) and writes the whole file
-  on `flush` without fsync (`:292-296`), through a snapshot write that
-  skips the file on `PermissionError` (`src/inspect_ai/log/_recorders/file.py:33-38`,
-  `:60-70`), so a mid-run `.json` write is not guaranteed to reach disk.
-  Its streaming header reader lists header keys one by one (`json.py:613`).
-  Only these two recorders exist (`src/inspect_ai/log/_recorders/create.py:7`).
 - The sites that report a sample to the source are `task/run.py:1480`,
   `:1619` and `:3372` (`sample_complete`, and `sample_abandoned` for a
   sample cancelled before it was logged).
@@ -211,19 +207,18 @@ example on its `TaskSource.task_complete` event) still sees it finish.
 - that the resolved task carries no prior state
   (`ResolvedTask.sample_source is None`): a `PreviousTask`, or a
   `ResolvedTask` with a `sample_source`, raises `ValueError` ("tasks that
-  receive samples through a handle must start fresh; pass the Task"). Ids
-  of samples sent through a handle depend on when they arrive, so a prior
-  lookup keyed on id and epoch could hand one sample another's result (see
-  "Logs of tasks that received samples"). Those inputs stay supported with
+  receive samples through a handle must start fresh; pass the Task"). A
+  prior lookup keyed on id and epoch could hand a sample sent with an
+  explicit id the prior result of another sample with that id (see "Logs
+  of tasks that can receive samples"). Those inputs stay supported with
   `send_samples=False`;
 - that the run logs in the `.eval` format (the log format `eval()` or
   `eval_set()` resolved for its loggers): with the deprecated `.json`
   format it raises `ValueError` ("send_samples=True needs the .eval log
-  format: a task that receives samples records that in its log, durably,
-  before each first delivery, and only .eval logs are written that way")
-  (decision: Ransom, 2026-11-03). See "Logs of tasks that received
-  samples" for why the record must be durable; the `enqueue_task()`
-  docstring and the handle docs in `docs/task-source.qmd` say the same.
+  format; the .json format is deprecated") (decision: Ransom, 2026-11-03).
+  No tool sends samples into a `.json` run, so the deprecated format is
+  refused rather than supported; the `enqueue_task()` docstring and the
+  handle docs in `docs/task-source.qmd` say the same.
 
 Nothing is enqueued when a check fails.
 
@@ -332,8 +327,9 @@ Everything else is refused with a clear error:
   dispatcher sets a `ContextVar` around that await, and the handle checks
   it before waiting. Calling `enqueue_task()` there, and `cancel()` or
   `close()` on its handles, stays allowed.
-- `eval_retry()` of a log whose task received samples through a handle:
-  `PrerequisiteError` (see "Logs of tasks that received samples").
+- `eval_retry()` of a log whose task could receive samples through a
+  handle: `PrerequisiteError` (see "Logs of tasks that can receive
+  samples").
 
 ### What the handles add to the run queue
 
@@ -382,6 +378,7 @@ class SamplePort:
     runs: set[tuple[str, int]]       # (str(id), epoch) of every request that reserved runs
     closed: bool                     # close(), cancel(), creator attempt or run ended
     stopped: bool                    # a graceful directive: also ends the source
+    delivered: bool                  # a request has passed step 1 of "Delivery"; never cleared
 ```
 
 **Retention.** A request stays in `pending`, with its sample, until every
@@ -404,8 +401,8 @@ is flushed (`src/inspect_ai/log/_recorders/eval.py:1152`, `:1277`;
 
 **Ownership.** `enqueue_sample()` first takes its own copy of the caller's
 sample, `sample.model_copy()`, and records `explicit_id = sample.id is not
-None`. Every later step (the check at the call, the delivery checks, the
-marker write and `add_samples`) uses that copy. The runner's allocator
+None`. Every later step (the check at the call, the delivery check and
+`add_samples`) uses that copy. The runner's allocator
 assigns an automatic id by rebinding the top-level `id` field of the sample
 it reserves (`reserve_runs`, `task/run.py:1710-1717`), and nothing else it
 does changes the sample object, so a shallow copy is the depth needed: the
@@ -413,9 +410,8 @@ id lands on the copy, and the nested input, metadata and files stay shared
 and read-only, as a source's own samples share them with its dataset
 today. So the caller's object never gains an id, and one anonymous
 `Sample` sent to two tasks, or to two task × model handles, gets an
-automatic id in each target independently; neither target sees the
-other's id as an explicit one, and a target suspended at the marker write
-(step 2 of "Delivery") cannot have its request's id changed under it.
+automatic id in each target independently, and neither target sees the
+other's id as an explicit one.
 
 **Validation at the call.** `enqueue_sample()` validates `epoch` as the
 task-side `enqueue_sample()` does. For a sample with an explicit id it computes the
@@ -434,8 +430,9 @@ the caller, without reaching the task, when they intersect:
 - the runs of earlier requests on this port (`SamplePort.runs`);
 - while an attempt runs, that attempt's own reservations.
 
-A sample without an id is given one at delivery by the runner's auto-id
-rule.
+A sample without an id is given one at delivery by the runner's rule for
+anonymous dynamic samples, which under the companion change is unique (see
+"Logs of tasks that can receive samples").
 
 **Delivery.** While an attempt runs, the port is attached to that attempt's
 feeder (after `log_start`, `task/run.py:1127`), which delivers requests as
@@ -443,7 +440,7 @@ they arrive, so a request starts as soon as `max_samples` allows; a request
 sent while the task is queued is delivered when its first attempt starts.
 The source's own additions can still reserve an id between the check at
 the call and the delivery (the source returns or enqueues the same id
-first). The feeder therefore delivers each request on its own, in three
+first). The feeder therefore delivers each request on its own, in two
 steps:
 
 1. It checks the request's planned runs against the attempt's reservations,
@@ -453,16 +450,13 @@ steps:
    `ValueError`, and the receiving task continues. Only an explicit id can
    clash; an automatic id never does. A duplicate from the source's own
    samples still fails the task, as today.
-2. If this is the attempt's first delivery to pass step 1, it awaits
-   `TaskLogger.log_handle_samples()`, which writes the marker described
-   under "Logs of tasks that received samples" before anything is
-   reserved. The feeder is the task's only admitter (see "Current
-   behaviour"), and the source's additions wait in its buffers while it
-   awaits, so nothing changes the reservations between step 1 and step 3.
-   A failure to write the marker fails the task as any log write failure
-   does.
-3. It calls `add_samples` with the request alone, which reserves its runs
-   and gives it an automatic id if it has none, then records one of:
+2. It sets `SamplePort.delivered`, which ends the task's in-run retries
+   (see "No in-run retry after a delivery" under "Logs of tasks that can
+   receive samples"), and calls `add_samples` with the request alone,
+   which reserves its runs and gives it an automatic id if it has none.
+   The feeder is the task's only admitter (see "Current behaviour"), so
+   nothing changes the reservations between the two steps. It then records
+   one of:
    - **`dropped`**: `--sample-id` or `--limit` filtered it out after
      reservation (`task/run.py:1749-1755`), as for the source's own
      samples. Its futures fail with `SampleAbandonedError`, so a caller
@@ -626,185 +620,125 @@ An abort (including `TaskHandle.cancel()`) or a run cancellation tears the
 attempt down and closes the port as above; a `retry` directive leaves the
 port open, so its `sent` requests reach the retry.
 
-### Logs of tasks that received samples
+### Logs of tasks that can receive samples
 
-A task's sample ids depend on the order in which samples were admitted,
-and with a port that order interleaves three producers: the source's pulls,
-its callbacks (including callbacks fired by port samples), and port
-deliveries. With an empty seed, source sample A gets id 1, port request P
-id 2, and P's callback follow-up B id 3. A later run of the same task has
-no port requests unless its creator sends them again, so B gets id 2, and
-a lookup by id and epoch (`task/run.py:3843`, `:3870`) would return P's
-result as B's.
-So a log that a port has contributed to is never reused:
+This design builds on a companion change in Inspect, **unique ids for
+anonymous dynamic samples** (decision: Ransom, 2026-11-04). Every sample a
+task admits without an id after its seed (from `next_samples()`, the task's
+own `enqueue_sample()`, a callback follow-up, or a handle) gets an id no
+other attempt or run gives a sample, such as a UUID string, instead of the
+next free integer (see "Current behaviour"). Seed samples and explicit ids are unchanged. So an
+anonymous dynamic sample's id never appears in another attempt: a lookup or
+a checkpoint resume misses, and the sample runs fresh. Port deliveries
+therefore shift no id that a rerun would reuse. With integer ids and an
+empty seed, source sample A would get id 1, port request P id 2 and P's
+callback follow-up B id 3, and a later run without P would give B id 2 and
+hand it P's result; with unique ids each of the three has an id of its own
+that no later run gives anything.
 
-- **The marker.** A new header field,
-  `EvalLog.handle_samples: bool = False`, after `config_updates`:
-  "the task received samples through a `TaskHandle`; its sample ids depend
-  on when they arrived, so no later run reuses its samples or checkpoints,
-  and `eval_retry()` refuses it". `TaskLogger.log_handle_samples()` sets it
-  once per attempt, at step 2 of "Delivery", through a new
-  `Recorder.log_handle_samples(eval)`:
-  - `.eval` (`EvalRecorder`) appends `_journal/handle_samples.json` and
-    flushes the log at once, as a config update is journalled and flushed
-    (see "Current behaviour"), but with fsync, which a config update's
-    flush skips; a failed write raises, and nothing is delivered. The
-    header readers of an unfinished log (`_read_header_async`,
-    `_read_header`) and `log_init`'s re-read of an existing destination
-    (`eval.py:181`) read the member, and `log_finish` writes the field
-    into `header.json`.
-  - `.json` is never written with the marker: its mid-run writes are not
-    durable (see "Current behaviour"), so `send_samples=True` refuses a run
-    that logs in that format (see "The handle API"), and the base
-    `Recorder.log_handle_samples` raises `NotImplementedError` naming the
-    format for any recorder that reaches it anyway. A `.json` log carries
-    the field only when converted from a marked `.eval` log, so
-    `_read_header_streaming` reads the key with the others (`json.py:613`)
-    and the reuse and `eval_retry()` rules below apply to such a log too.
-  - Every site that copies `config_updates` from one log into another
-    carries the field too. Whole-log writes (`eval.py:654`, `:774`) write
-    the header and samples in one step and copy it with the header. Three
-    paths instead stream samples into a destination and flush it before
-    they finish, carrying `config_updates` only at `log_finish`:
-    `convert_eval_logs` (`src/inspect_ai/log/_convert.py:150`, `:158-159`,
-    `:174`), streamed `inspect score` (`src/inspect_ai/_cli/score.py:249`,
-    `:253-254`, `:278`), and crashed-log recovery, both its buffer-sample
-    and its crashed-`.eval` sample paths
-    (`src/inspect_ai/log/_recover/_write.py:146-147`, `:178`, `:253`,
-    `:365`), whose source it reads with the marker
-    (`log/_recover/_read.py:87`) and which eval-set resume and
-    selection-worker resume run on a crashed log
-    (`src/inspect_ai/_eval/evalset.py:1526`, `:1762`). An interrupted copy
-    must not leave a readable destination holding a marked log's samples
-    without the marker, so these paths set it at the start, not at the
-    end. `Recorder.log_start(eval, plan, *, handle_samples: bool = False)`
-    gains the keyword, and each of the three passes its source header's
-    `handle_samples` to it. That is copy initialization, separate from
-    the live `log_handle_samples()` and allowed for both formats:
-    - `.eval`: with `handle_samples=True`, `log_start` writes
-      `_journal/handle_samples.json` right after `start.json`, under the
-      same lock, then flushes the log with fsync (the ordinary
-      `EvalRecorder.flush()` skips fsync, `src/inspect_ai/log/_recorders/eval.py:309-317`)
-      and returns only after that durable write. So the marker is on disk
-      and readable by the unfinished-log header readers above before the
-      copy can accept its first sample; a later flush writes the members
-      already in the archive, so every published sample has the marker
-      beside it. If the durable write fails, `log_start` raises, the copy
-      stops before reading or buffering any sample, and no copied sample is
-      published. The flush writes what the archive holds at that point:
-      `start.json`, the marker and whatever the archive was seeded with.
-    - **A destination that is its own source.** Streamed `inspect score
-      --overwrite` writes back to the log it reads
-      (`src/inspect_ai/_cli/score.py:329`), and so does an in-place
-      streamed conversion (`src/inspect_ai/log/_convert.py:126-163`,
-      `tests/log/test_convert.py:226`); both read samples only after
-      `log_start` returns (`score.py:238-256`). `EvalRecorder.log_init`
-      restores an existing destination's metadata but not its sample bodies
-      (`src/inspect_ai/log/_recorders/eval.py:170-202`), so the durable
-      flush above would replace the source with a start record and the
-      marker and lose every unread sample. So when an `.eval` copy's
-      destination is its source and the source is marked, the copy first
-      calls the existing `log_seed(eval, source, keep=None)` (`eval.py:211`,
-      `seed_from_prior_log`, `:1658`) between `log_init` and `log_start`.
-      That byte-copies every source sample into the archive, so the durable
-      flush rewrites the file with `start.json`, the marker and every
-      original sample: the marker is durable before any sample the copy
-      writes; the unread samples are still there to be read; and a
-      re-written sample supersedes its seeded original, as the `.eval`
-      readers take the last entry for an `(id, epoch)`. An interruption at
-      any point leaves a marked file holding every sample, original or
-      re-written. A destination that is not its source needs no seed: the
-      source stays untouched. Recovery never writes in place: with
-      overwrite it writes a sibling file and moves it over the original
-      when done (`src/inspect_ai/log/_recover/_api.py:229-234`, `:355-358`).
-      A `.json` destination has no early flush, so this does not arise
-      for it.
-    - `.json`: `log_start` sets the field on the in-memory log, so every
-      snapshot `flush` writes holds the field with the samples it holds.
-    - `log_finish` keeps the field set at start (the `.eval` journal member
-      is consolidated into `header.json`, the `.json` in-memory log already
-      has it); no copy path can clear it.
-  - The errored `EvalLog` that `_run_task` builds when a log write, a
-    retry's checkpoint startup copy or a task-completion callback escapes
-    the attempt (`src/inspect_ai/_eval/run.py:682-687`) sets
-    `handle_samples` from the attempt's `TaskLogger`, so the log the
-    dispatcher, `result()` and `eval()` see is marked whenever the attempt
-    was.
+What the design records, and which restrictions stay, and why:
 
-  The marker is durable before the first request is reserved, so a log
-  left by a crash at any later point carries it. A request refused at step
-  1 writes nothing, so a race on an explicit id leaves the task's retries as
-  they were.
-- **No reuse.** `eval_log_sample_source()` returns the empty source (no
-  lookup, no seed, no `prior_checkpoints_dir`) for a marked log, with a
-  warning naming it, before its other guards. That one check covers every
-  path that reuses a prior log (see "Current behaviour"): the in-run retry,
-  `eval_retry()`, eval-set resume in ordinary and legacy rounds, and
-  selection-worker resume, for samples and checkpoints alike. A path that
-  does reach a marked log reruns the task's own samples from scratch.
-- **Never counted complete.** `list_latest_eval_logs()` puts a marked log
+- **The record.** A new `EvalSpec` field, `send_samples: bool = False`,
+  after `task_args_passed`: "the task was added by
+  `enqueue_task(..., send_samples=True)` and could receive samples through
+  a `TaskHandle`; no later run reuses its samples or checkpoints, and
+  `eval_retry()` refuses it". `admit_task()` passes
+  `send_samples=record.port is not None` to the `TaskLogger` it constructs
+  (see [task-dispatch.md](task-dispatch.md#the-run-queue)), which sets it on
+  the spec it builds (`src/inspect_ai/_eval/task/log.py:282`); `reinit()`
+  copies that spec for a retry (`:425`). Being part of the spec, the field
+  is in the log from its first write: `start.json` of an unfinished `.eval`
+  log, the header of a finished one, the errored `EvalLog` that `_run_task`
+  builds when a log write escapes the attempt (`eval=options.logger.eval`,
+  `src/inspect_ai/_eval/run.py:682-687`), and every copy, since whole-log
+  writes, conversion, streamed `inspect score` and crashed-log recovery all
+  write the source's spec from their first write
+  (`src/inspect_ai/log/_convert.py:158-159`,
+  `src/inspect_ai/_cli/score.py:253-254`,
+  `src/inspect_ai/log/_recover/_write.py:146-147`). No copy path changes
+  and no write is added. It records the capability, not a delivery: a
+  rollout task whose creator never sent it a sample carries it too
+  (decision: Ransom, 2026-11-04), and loses reuse and `eval_retry()`
+  (below), neither of which a task fed by its creator can use; it keeps its
+  in-run retries ("No in-run retry after a delivery").
+- **No reuse from such a log** (stays, for explicit ids). Anonymous port
+  samples, and the anonymous samples admitted after them, are safe under
+  the companion rule. A port sample sent with an explicit id is not: no
+  rerun regenerates it, and a rerun's own source can produce the same id.
+  In a log where request P with id `"x"` completed, a rerun whose source
+  adds a sample `"x"` (which the first attempt could not do after P
+  without a duplicate failure) would be handed P's result by the lookup by
+  id and epoch (`task/run.py:3843`, `:3870`), and checkpoint resume would
+  restore P's state into it. The same can happen inside the run: an in-run
+  retry (which follows only an attempt without a delivery, below) whose
+  failed attempt's source completed `"x"` can admit a request P with `"x"`
+  before its source adds `"x"` again, and the lookup returns the source
+  sample's result for P. The log does not say which samples came through
+  the port, so `eval_log_sample_source()` returns the empty source (no
+  lookup, no seed, no `prior_checkpoints_dir`) for a log whose
+  `eval.send_samples` is set, with a warning naming it, before its other
+  guards. That one check covers every path that reuses a prior log (see
+  "Current behaviour"), for samples and checkpoints alike: the in-run retry,
+  whose two branches (`src/inspect_ai/_eval/run.py:968-995`) either build
+  the source from the failed attempt's log, which carries the field, or keep
+  the source the failed attempt ran with, which for such a task is none (the
+  first attempt starts clean, below) or the empty source; `eval_retry()`;
+  eval-set resume in ordinary and legacy rounds; and selection-worker
+  resume. Checkpoints and epochs need nothing more:
+  checkpoint resume keys on `(id, epoch)` as the lookup does, so another
+  attempt never finds an anonymous sample's checkpoints, and the empty
+  source copies none; a request at an explicit epoch reserves that
+  `(id, epoch)` like any run.
+- **The first attempt starts clean** (stays, for the same reason):
+  `send_samples=True` refuses a task with prior state ("The handle API"),
+  whose lookup could hold an explicit id a request then takes.
+- **Never counted complete** (stays; Ransom's decision, which does not
+  depend on ids).
+  `list_latest_eval_logs()` puts a log whose `eval.send_samples` is set
   among the incomplete logs whatever its status, checked with
   `invalidated` (`src/inspect_ai/_eval/evalset.py:1858-1861`) and so after
-  any resolving recovery has finalized it, so `eval_set()` never returns a
-  marked log as an existing success; it reruns the task through a
-  `PreviousTask`, which reuses nothing (above). The deprecated
-  `retryable_eval_logs()` (`src/inspect_ai/log/_retry.py`) lists logs for
-  `eval_retry()`, which refuses a marked one.
+  any resolving recovery has finalized it, so `eval_set()` never returns
+  such a log, which holds samples a creator sent, as an existing success;
+  it reruns the task through a `PreviousTask`, which reuses nothing (above).
+  The deprecated `retryable_eval_logs()` (`src/inspect_ai/log/_retry.py`)
+  lists logs for `eval_retry()`, which refuses such a log.
 - **Steward does the same** (a companion change in `inspect_steward`).
-  `LogAttempt` gains `handle_samples: bool`, read from the header in
-  `_attempt()`; `_incomplete_reason()` returns a new
-  `IncompleteReason.HANDLE_SAMPLES` for a marked attempt before its other
-  checks, so a marked log is never counted complete and never imported
-  from the reuse store (`_store/match.py` skips it and logs why);
-  `CACHE_VERSION` goes up because `LogAttempt` changes shape, so attempts
-  cached without the field are re-read. Steward then runs the task again,
-  and if it resumes from the marked log, Inspect's own guard reuses
-  nothing. Steward's `inspect-ai` floor rises to the first release with
-  `EvalLog.handle_samples`, since it reads the field.
-- **No in-run retry.** `TaskLogger.handle_samples` is set in memory when
-  step 2 of "Delivery" begins, before the write is awaited, and is never
-  cleared within the attempt; `reinit()` for a retry starts a new log with
-  it unset. Setting it also clears the attempt's `TaskCancel.can_retry` and
-  the `will_retry` it registered with the control channel
-  (`task/run.py:897`, `:1200`). The dispatcher's retry decision
-  (`src/inspect_ai/_eval/run.py:921-923`) reads that flag from
-  `options.logger`, before `reinit()`, as well as the returned log's field,
-  so a fallback log, a failed marker write or a failed final write cannot
-  turn it back into a retry. A retry would rerun the task without the samples its creator sent, so it ends
-  with its error log: every unresolved future fails with
-  `TaskEndedError(log=<that log>)` (the table above), `result()` returns that
-  log, and the creator, which holds the search state, decides what to do,
-  typically enqueueing a fresh rollout task and sending the outstanding
-  samples again. A task whose port delivered nothing (for example, its
-  first attempt failed in sandbox setup before any request arrived, or its
-  only request was refused) has no marker and is retried, and its `sent`
-  requests are delivered into the retry as new arrivals.
-- **A retry of a task that can receive samples reuses nothing.** An unmarked attempt
-  can still have completed samples of its own before it failed. If the retry
-  reused them, a port request delivered before the source regenerates one
-  could take its id: with an empty seed, source sample A completes as id 1,
-  the attempt fails, and in the retry an anonymous request P arrives first,
-  is given id 1, and the prior lookup (`task/run.py:1403-1424`) returns A's
-  result for it; checkpoints copied at the retry's start (`task/run.py:957`,
-  `:989-998`) would likewise restore A's state into P. A closed port does
-  not prevent this: requests accepted before `close()`, or whose caller was
-  cancelled, are still delivered. So when the dispatcher queues an in-run
-  retry of a record that has a port, open or closed, it gives the retry the
-  empty sample source instead of the one built at
-  `src/inspect_ai/_eval/run.py:979` or the previous attempt's
-  (`:989-995`): no lookup, no seed, no checkpoint copy. The retry reruns
-  the task's own samples from scratch, and ids are assigned in its own
-  admission order. A record without a port is retried with reuse as today.
-  The first attempt starts clean too: `send_samples=True` refuses a task
-  with prior state (see "The handle API").
-- **`eval_retry()` refuses a marked log** with `PrerequisiteError`
-  ("<log> cannot be retried on its own: task '<task>' received samples
-  through a task handle from the task that created it; retry that task
-  instead"), checked when the logs are read
-  (`src/inspect_ai/_eval/eval.py:1712`), before any recovery writes. With
-  no creator, a rerun would lack the samples it was sent and could end
-  `success` while missing them. After a restart, the creator's own task
-  reruns and enqueues fresh rollout tasks.
+  `LogAttempt` gains `send_samples: bool`, read from the header's eval spec
+  in `_attempt()`; `_incomplete_reason()` returns a new
+  `IncompleteReason.SEND_SAMPLES` for such an attempt before its other
+  checks, so the log is never counted complete and never imported from the
+  reuse store (`_store/match.py` skips it and logs why); `CACHE_VERSION`
+  goes up because `LogAttempt` changes shape, so attempts cached without
+  the field are re-read. Steward then runs the task again, and if it
+  resumes from that log, Inspect's own check reuses nothing. Steward's
+  `inspect-ai` floor rises to the first release with
+  `EvalSpec.send_samples`, since it reads the field.
+- **No in-run retry after a delivery** (stays; it does not depend on ids).
+  `SamplePort.delivered` is set when a request first passes step 1 of
+  "Delivery" and is never cleared. Setting it also clears the attempt's
+  `TaskCancel.can_retry` and the `will_retry` it registered with the control
+  channel (`task/run.py:897`, `:1200`), and the dispatcher's retry decision
+  (`src/inspect_ai/_eval/run.py:921-923`) reads it from the record, so
+  neither a fallback log nor a failed final write turns the attempt back
+  into a retry. A retry would rerun the task without the samples its
+  creator sent, so it ends with its error log: every unresolved future
+  fails with `TaskEndedError(log=<that log>)` (the table above), `result()`
+  returns that log, and the creator, which holds the search state, decides
+  what to do, typically enqueueing a fresh rollout task and sending the
+  outstanding samples again. A task whose port delivered nothing (for
+  example, its first attempt failed in sandbox setup before any request
+  arrived, or its only request was refused) is retried, reusing nothing
+  (above), and its `sent` requests are delivered into the retry as new
+  arrivals, including requests accepted before `close()` and those whose
+  caller was cancelled.
+- **`eval_retry()` refuses such a log** (stays; Ransom's decision, which
+  does not depend on ids) with `PrerequisiteError` ("<log> cannot be
+  retried on its own: task '<task>' was added to receive samples through a
+  task handle from the task that created it; retry that task instead"),
+  checked when the logs are read (`src/inspect_ai/_eval/eval.py:1712`),
+  before any recovery writes. With no creator, a rerun would lack the
+  samples it was sent and could end `success` while missing them. After a
+  restart, the creator's own task reruns and enqueues fresh rollout tasks.
 - **Restarting under `eval_set()` needs `log_dir_allow_dirty=True`.** Every
   added task writes its own log into the eval set's log directory, under
   its own task identifier, which is not one of the tasks passed to
@@ -967,26 +901,38 @@ under "The handle API" are unchanged.
   rejection would then have to be told apart from a limit drop; checking
   the seed reservations at the call refuses the common case at once, and
   the delivery check covers the race.
-- **Replaying port requests into an in-run retry**, admitting recorded
-  requests first with their limit budget and keeping dropped requests' IDs
-  reserved. A retry reuses results by id, and ids follow the first
-  attempt's admission order across source pulls, callbacks and port
-  deliveries; nothing short of recording and re-enforcing that whole order
-  keeps a callback follow-up from taking a source sample's id and reusing
-  its result, and a later run (`eval_retry()`, a resume) has no creator to
-  send the requests at all. Never reusing a marked log is exact, and the
-  creator can resubmit.
+- **Replaying port requests into an in-run retry** after a delivery,
+  admitting the delivered requests again and rebinding their callers'
+  futures. Unique ids keep an anonymous request from taking another
+  sample's result, but each request would need its id, epochs, limit budget
+  and outcome recorded and re-enforced, and a later run (`eval_retry()`, a
+  resume) has no creator to send the requests at all. Ending the task with
+  its error log is exact, and the creator can resubmit.
 - **Refusing the first delivery into a retry that reuses prior state.**
   Also exact, but the creator's requests would fail for the whole of that
   attempt, and it would have to enqueue a fresh task anyway; rerunning the
   retry's own samples keeps the task usable.
-- **Recording that a port delivered only in memory.** Enough to stop the
-  in-run retry, but `eval_retry()`, eval-set resume and selection-worker
-  resume read the log after the process has gone, and would reuse it.
-- **Marking every task that has a port at `log_start`.** No mid-run write,
-  but a rollout task whose creator never sent it a sample would lose its
-  retries and reuse for nothing; the marker is written only when a request
-  is first reserved.
+- **A durable log record of the first delivery** instead of the spec
+  field: a header field written, with fsync, before the first request is
+  reserved, so that only logs that had received a sample were refused.
+  Without unique ids for anonymous dynamic samples it was needed, because a
+  delivery shifted the integer ids of every anonymous sample admitted after
+  it. It costs a durable mid-run write, and every path that copies a log
+  (conversion, streamed `inspect score`, crashed-log recovery, including a
+  copy that writes over its own source) must write the record before it
+  publishes a sample. With unique ids, nothing about reuse depends on when
+  a sample arrived, and the spec field reaches every copy from its first
+  write with no change to any copy path; a rollout task that was never
+  sent a sample loses only reuse and `eval_retry()`, which a task fed by
+  its creator cannot use.
+- **Refusing explicit ids on samples sent through a handle.** Every port
+  sample would then have a unique id, so a rerun could never be handed a
+  port sample's result, and reuse from a rollout task's log could be
+  allowed; the validation at the call and the `refused` outcome would go.
+  Not chosen: explicit ids let a creator name the samples it sends in the
+  log and the viewer, and the reuse it would allow is of
+  little value, since a rollout task is not retried after a delivery and is
+  not rerun without its creator.
 - **Refusing waits that would never end** with a process-level wait-for
   graph: every blocking event (a handle wait, and a sample about to wait
   for a `sandboxes/<provider>` or `max_samples` permit) checked by a
@@ -1048,27 +994,29 @@ Behaviour changes:
 
 Eval logs:
 
-- New header field `EvalLog.handle_samples` (default `False`), and in
-  unfinished `.eval` logs the journal member `_journal/handle_samples.json`.
-  Logs without it read as `False`, so every existing log behaves as today.
-  Producers: `TaskLogger` through the `.eval` recorder, and conversion of
-  a marked `.eval` log to `.json`. Consumers:
-  `eval_log_sample_source()` (no reuse), `eval_retry()` (refusal), the
-  dispatcher's retry decision, the header readers, and the copy sites
-  listed under "Logs of tasks that received samples". It is part of
-  `EvalLog`, so the viewer's OpenAPI schema and generated TypeScript types
-  change (a coordinated ts-mono update); the viewer does not display it.
+- New `EvalSpec` field `send_samples` (default `False`), written with the
+  rest of the spec. Logs without it read as `False`, so every existing log
+  behaves as today. Producer: `TaskLogger`, from the record's port; every
+  path that writes or copies a log writes it with the spec, unchanged.
+  Consumers: `eval_log_sample_source()` (no reuse), `eval_retry()`
+  (refusal), `list_latest_eval_logs()` (never complete) and Steward. It is
+  part of `EvalSpec`, so the viewer's OpenAPI schema and generated
+  TypeScript types change (a coordinated ts-mono update); the viewer does
+  not display it.
 - An Inspect version without the field ignores it (pydantic drops unknown
-  keys), so an older `eval_retry()` or eval-set resume would reuse a marked
-  log as today: a marked log must be retried or resumed with a version that
-  has the field.
+  keys), so an older `eval_retry()` or eval-set resume would reuse such a
+  log, and an older `eval_set()` could count it complete: such a log must be
+  retried or resumed with a version that has the field.
 - Steward reads the field through the companion change (step 6 of the
-  plan). A Steward release without it would count a marked successful log
+  plan). A Steward release without it would count such a successful log
   complete and could import one from its reuse store, so runs that use
   `send_samples=True` under Steward need a Steward release with the change;
   its `inspect-ai` floor rises with it.
-- `eval_retry()` of a marked log raises `PrerequisiteError` instead of
+- `eval_retry()` of such a log raises `PrerequisiteError` instead of
   rerunning it.
+- Sample ids of anonymous dynamic samples change in every task with the
+  companion change this design builds on; that change owns the
+  compatibility of its ids, and this design adds nothing to it.
 - `enqueue_task(..., send_samples=True)` is refused in a run that logs in
   the deprecated `.json` format; `send_samples=False` works with either
   format.
@@ -1087,10 +1035,10 @@ Eval logs:
   treats any dataset sample.
 - A handle is an in-process object; nothing new is exposed on the control
   channel.
-- **The marker in a log** only restricts reuse. A log edited to clear it
-  is reused as any log is today, which is the same trust the reuse paths
-  already place in a log's sample ids; setting it only makes Inspect rerun
-  samples instead of reusing them.
+- **`EvalSpec.send_samples` in a log** only restricts reuse. A log edited
+  to clear it is reused as any log is today, which is the same trust the
+  reuse paths already place in a log's sample ids; setting it only makes
+  Inspect rerun samples instead of reusing them, and refuse `eval_retry()`.
 
 ## Testing
 
@@ -1125,81 +1073,58 @@ test touched), with mockllm models:
     handle wait that starts while every permit of the target's provider is
     held logs the warning once per provider, and none when the target uses
     another provider or the provider has no limit.
-- `tests/test_eval_retry.py` and `tests/test_eval_set.py` (the marker, in
-  `.eval` logs):
-  - a rollout task that has received a port request and then errors: its
-    log carries `handle_samples` (read from the journal while unfinished,
-    from the header when finished, and after `recover_eval_log`); it is not
+- `tests/test_eval_retry.py` and `tests/test_eval_set.py` (logs of tasks
+  that can receive samples, with the companion change in place):
+  - a rollout task added with `send_samples=True` has `eval.send_samples`
+    set in its log while unfinished, when finished, after
+    `recover_eval_log`, after `convert_eval_logs` to `.json` and back,
+    after streamed `inspect score` and after `write_eval_log`, including
+    when it was never sent a sample; a task added without it, and every
+    existing log, reads `False`;
+  - a rollout task that has received a port request and then errors is not
     retried in-run even with `task_retry_attempts` set; its outstanding
     requests raise `TaskEndedError` with its error log; and the log holds
-    each sample under the input it was sent with (the empty-seed A/P/B
-    case: source sample A, port request P and P's callback follow-up B keep
-    ids 1, 2 and 3);
-  - the same log after a simulated crash (process killed after the first
-    delivery): the marker is on disk; a failing marker write (stub
-    filesystem) fails the task and delivers nothing;
-  - `eval_retry()` of a marked log raises `PrerequisiteError` before any
-    recovery writes; eval-set resume (ordinary and legacy
-    `retry_immediate=False` rounds) and selection-worker resume of a marked
-    log with a requested task's identifier reuse no sample and copy no
-    checkpoint, and the A/P/B ids are not crossed;
-  - `convert_eval_logs` from a marked `.eval` log to `.json` and back,
-    `inspect score` and `write_eval_log` keep the field, and `eval_retry()`
-    refuses the converted `.json` log;
-  - durable copy initialization: conversion to `.eval`, streamed
-    `inspect score` and both recovery sample paths, copying a marked log
-    into `.eval` through a filesystem stub that records writes and fsyncs,
-    perform an fsynced write containing `start.json` and the marker before
-    any write containing a sample; with that write made to fail, each copy
-    raises from `log_start` and the destination holds no copied sample;
-    copying an unmarked log adds no extra write;
-  - a destination that is its own source: streamed `inspect score
-    --overwrite` and in-place streamed conversion of a marked `.eval` log,
-    each with more samples than one flush interval, finish with every
-    sample present (re-written where the copy re-wrote it) and the marker
-    set; interrupted after the durable flush and again after the first
-    intermediate flush, the file still holds every sample, original or
-    re-written, reads as marked, and is refused by `eval_retry()`; the same
-    copies of an unmarked log, and copies to a separate output, run as
-    today with the source unchanged;
-  - interrupted copies: conversion to `.eval` and to `.json`, streamed
-    `inspect score`, and recovery through its buffer-sample and its
-    crashed-`.eval` sample paths, each copying a marked log and cancelled
-    (or failing in a stub recorder) after its first intermediate flush and
-    before `log_finish`: the destination's header read (`header_only`)
-    reports `handle_samples`, recovering the destination keeps it,
-    `eval_retry()` refuses the destination, and eval-set resume of it
-    reuses no sample; the same copies of an unmarked log leave the field
-    `False` and are reused as today; under `eval_set(log_dir_allow_dirty=True)`,
-    a parent that adds a rollout task, sends it a sample and then fails is
-    retried in a legacy round (`retry_immediate=False`) and in a second
-    invocation over the same directory: the rollout logs are ignored, the
-    parent reruns and adds fresh rollout tasks, and nothing is reused from
-    the rollout logs; without the flag, the existing prerequisite error is
-    raised and names the option; `eval_set()` over a log directory
-    holding a marked successful log of a requested empty-seed task (so
-    `planned == 0`), and over a marked crashed log that recovery under
-    `incomplete_action="error"` finalizes as `success`, reruns the task
-    rather than returning the log as an existing success, and reuses none
-    of its samples; an existing log without it reads as
-    `False` and is reused as today;
-  - a request refused at delivery (the source reserved its id first),
-    followed by an otherwise retryable error: no marker; the task is
-    retried, and since it has a port the retry reuses nothing;
+    each sample under the input it was sent with: with an empty seed,
+    source sample A, port request P and P's callback follow-up B each have
+    their own unique id;
   - the fallback log: after a delivery, a failing final log write (stub
     recorder) and a raising task-completion callback each end the task
     without a retry, and the log the dispatcher and `result()` return has
-    `handle_samples` set;
-  - a retry with an open port: with an empty seed, source sample A
-    completes as id 1, the attempt errors before any delivery, and in the
-    retry an anonymous request P arrives before the source regenerates A;
-    P's `EvalSample` has P's input and its own output, A reruns, and nothing
-    is reused, with sample logging on and off and with checkpointing on (no
-    checkpoint is copied into the retry); the same with the port closed,
-    and with the caller of a pending request cancelled, after P is sent and
-    before the failure (P is still delivered into the retry with its own
-    result, and no checkpoint of A is restored into it); a task added
-    without `send_samples` that fails the same way reuses A as today.
+    `eval.send_samples` set;
+  - `eval_retry()` of such a log, with and without deliveries, raises
+    `PrerequisiteError` before any recovery writes; eval-set resume
+    (ordinary and legacy `retry_immediate=False` rounds) and
+    selection-worker resume of such a log with a requested task's
+    identifier reuse no sample, copy no checkpoint and log the warning;
+  - explicit ids: in a log of such a task in which request P with id `"x"`
+    completed, a resume of it whose own source adds a sample `"x"` runs
+    that sample fresh and does not return P's result or restore P's
+    checkpoint;
+  - under `eval_set(log_dir_allow_dirty=True)`, a parent that adds a
+    rollout task, sends it a sample and then fails is retried in a legacy
+    round (`retry_immediate=False`) and in a second invocation over the
+    same directory: the rollout logs are ignored, the parent reruns and
+    adds fresh rollout tasks, and nothing is reused from the rollout logs;
+    without the flag, the existing prerequisite error is raised and names
+    the option; `eval_set()` over a log directory holding such a successful
+    log of a requested empty-seed task (so `planned == 0`), and over such a
+    crashed log that recovery under `incomplete_action="error"` finalizes
+    as `success`, reruns the task rather than returning the log as an
+    existing success, and reuses none of its samples; an existing log
+    without the field is reused as today;
+  - a request refused at delivery (the source reserved its id first),
+    followed by an otherwise retryable error: `SamplePort.delivered` is
+    unset, the task is retried, and the retry reuses nothing;
+  - a retry with an open port (the first attempt errors before any
+    delivery): source sample A completes, A reruns in the retry and is not
+    reused, with sample logging on and off and with checkpointing on (no
+    checkpoint is copied into the retry); with a source that adds a sample
+    with id `"x"` once per process, which completes before the failure, a
+    request P with id `"x"` sent after it is delivered into the retry and
+    returns P's own result, not the source sample's; the same with the port
+    closed, and with the caller of a pending request cancelled, after P is
+    sent and before the failure; a task added without `send_samples` that
+    fails the same way reuses A as today.
 - `tests/test_enqueue_task.py` (existing callers and the new keyword):
   - a parent under a `TaskSource` at `max_tasks=2` enqueues a finite
     `SampleSource` child, ignores the return value and awaits the child's
@@ -1213,8 +1138,7 @@ test touched), with mockllm models:
     `tests/test_enqueue_task.py:147`), and `enqueue_sample()` on their
     handles raises `RuntimeError`;
   - with `send_samples=True` and a fresh task, P sent before the source's
-    first pull gets its own id and result (initial admission), as in the
-    retry case above;
+    first pull gets its own id and result (initial admission);
   - `send_samples=True` in a run with `log_format="json"` raises
     `ValueError` naming the `.eval` requirement and enqueues nothing, while
     `send_samples=False` in the same run still adds the task;
@@ -1244,10 +1168,9 @@ test touched), with mockllm models:
   - ownership: one anonymous `Sample` sent to task A (empty seed) and to
     task B (whose seed reserves id 1), and to two task × model handles of
     one task, each runs in every target with that target's own automatic
-    id; the caller's object still has `id is None`; with B's delivery held
-    at the marker write while A's delivery assigns its id, B's request is
-    admitted with B's own id and B does not fail; sending one object with
-    an explicit id that clashes is still refused with `ValueError`.
+    id, and B does not fail; the caller's object still has `id is None`;
+    sending one object with an explicit id that clashes is still refused
+    with `ValueError`.
 - `tests/test_sample_source.py`:
   - port validation: an id equal to a seed id, its int/str equivalent
     (`1` and `"1"`), and a seed id excluded by `--sample-id` or `--limit`
@@ -1284,45 +1207,42 @@ test touched), with mockllm models:
 
 This design is step 5 of the plan in
 [task-dispatch.md](task-dispatch.md#implementation-plan), one PR, after
-step 3 (the run queue and dispatcher) and independent of step 4, plus a
+step 3 (the run queue and dispatcher) and after the companion change that
+gives anonymous dynamic samples unique ids, independent of step 4, plus a
 companion change in Steward (step 6):
 
 5. **Task handles.** `_eval/task/enqueue.py` (`TaskHandle`, `SamplePort`,
    `PortRequest`, the errors, `Loan`, the `next_tasks()` wait refusal, the
    headroom warning; `enqueue_task()` returns handles and checks
    `send_samples=True`), `_eval/task/run.py`
-   (port attach, the three delivery steps, the result sites, the feeder's
-   owned pull and held buffer, the open port, the attempt `ContextVar`, the
-   marker check in `eval_log_sample_source()`), `_eval/task/log.py`
-   (`TaskLogger.log_handle_samples()`, the field at `log_finish`),
-   `log/_log.py` (`EvalLog.handle_samples`), `log/_recorders/recorder.py`
-   and `eval.py` (`log_handle_samples`, `log_start(..., handle_samples=)`,
-   the journal member and header reads), `json.py` (`log_start(...,
-   handle_samples=)`, the streaming header key), the copy sites
-   (`log/_convert.py`, `_cli/score.py`, `log/_recover/`, each passing its
-   source's marker to `log_start`), `_eval/task/sample_source.py` (docstrings),
-   `_eval/run.py` (the retry decision reads the logger's flag and the
-   marker, the fallback log carries it, an open-port retry gets the empty
-   sample source, port close on attempt end, `SamplePort.stop()` from the
-   `cancel_task` callback for drain, score and error, loans in the
-   dispatcher, the `next_tasks()` scope),
+   (port attach, the two delivery steps and `SamplePort.delivered`, the
+   result sites, the feeder's owned pull and held buffer, the open port,
+   the attempt `ContextVar`, the `send_samples` check in
+   `eval_log_sample_source()`), `_eval/task/log.py` (the `send_samples`
+   argument to `TaskLogger`, set on the spec), `log/_log.py`
+   (`EvalSpec.send_samples`), `_eval/task/sample_source.py` (docstrings),
+   `_eval/run.py` (the retry decision reads `SamplePort.delivered`, port
+   close on attempt end, `SamplePort.stop()` from the `cancel_task`
+   callback for drain, score and error, loans in the dispatcher, the
+   `next_tasks()` scope, `admit_task()` passing `send_samples`),
    `_eval/eval.py` (the `eval_retry()` refusal, `max_tasks`, `max_samples`
-   and `max_sandboxes` docstrings), `_eval/evalset.py` (a marked log is
+   and `max_sandboxes` docstrings), `_eval/evalset.py` (such a log is
    incomplete in `list_latest_eval_logs()`; docstrings),
    `__init__.py` (exports), `docs/task-source.qmd`, `docs/parallelism.qmd`
-   and `docs/reference`. The new `EvalLog` field changes the viewer's
-   OpenAPI schema and generated TypeScript types, landed with the
-   coordinated ts-mono update the repo's process requires. Tests: those
-   above.
+   and `docs/reference`. No recorder or log-copy code changes. The new
+   `EvalSpec` field changes the viewer's OpenAPI schema and generated
+   TypeScript types, landed with the coordinated ts-mono update the repo's
+   process requires. Tests: those above.
 6. **Steward companion** (`inspect_steward`, after the Inspect release that
-   adds `EvalLog.handle_samples`): `_evalset/observe.py` (`LogAttempt.handle_samples`,
-   read in `_attempt()`; `IncompleteReason.HANDLE_SAMPLES`, checked first in
+   adds `EvalSpec.send_samples`): `_evalset/observe.py`
+   (`LogAttempt.send_samples`, read from the header's eval spec in
+   `_attempt()`; `IncompleteReason.SEND_SAMPLES`, checked first in
    `_incomplete_reason()`), `_store/match.py` (the skipped candidate's log
    line), `_evalset/cache.py` (`CACHE_VERSION` raised), `pyproject.toml`
-   (the `inspect-ai` floor). Tests in its suite: an observed marked success
-   log of an empty-seed manifest task is incomplete with that reason; a
-   marked log in the reuse store is not imported; a cache written by the
-   previous version is discarded and the marked attempt re-read.
+   (the `inspect-ai` floor). Tests in its suite: an observed successful log
+   of an empty-seed manifest task with the field set is incomplete with
+   that reason; such a log in the reuse store is not imported; a cache
+   written by the previous version is discarded and the attempt re-read.
 
 ## Open questions
 
@@ -1330,9 +1250,19 @@ None. Ransom decided (2026-11-03) that `enqueue_task()` stays synchronous
 and returns `list[TaskHandle]`, that sending samples is enabled by the
 keyword-only `send_samples=False` and refused for `.json` logs ("The handle
 API"), and that a task a running task waits on borrows a slot through a
-loan specific to it ("Slot lending").
+loan specific to it ("Slot lending"). He decided (2026-11-04) that the
+design builds on unique ids for anonymous dynamic samples and records the
+capability to receive samples in the eval spec ("Logs of tasks that can
+receive samples").
 
 ## Not this design
+
+- Unique ids for anonymous dynamic samples, the companion change this
+  design builds on.
+- Ids of seed samples, which are positions when the dataset gives none: a
+  rerun over an edited or reordered dataset of the same length can map a
+  prior record onto a different sample. This holds for every task, with or
+  without handles.
 
 - Handles across processes (a task in another selection-mode worker).
 - A handle for tasks a `TaskSource` returns from `next_tasks()` (only

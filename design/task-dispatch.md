@@ -1310,7 +1310,8 @@ batch has its own `eval_run` and cleans up its own state).
    rule, sandbox-free start, output forwarding, cancel dropping waiting jobs.
    Needs step 3.
 5. **Task handles**, designed in [task-handles.md](task-handles.md) (its
-   "Implementation plan" lists the files and tests). Needs step 3;
+   "Implementation plan" lists the files and tests). Needs step 3 and the
+   separate change that gives anonymous dynamic samples unique ids;
    independent of step 4.
 
 Follow-ups in provider repositories, none a gate for any step above:
