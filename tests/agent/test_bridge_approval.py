@@ -4565,6 +4565,51 @@ async def test_filter_generated_replacement_with_server_item_stays_unlinked() ->
     assert event.span_id == outer
 
 
+async def test_filter_retained_server_item_does_not_replace_verified_call_source() -> (
+    None
+):
+    """Replay ownership cannot replace a different choice's verified producer."""
+    bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)
+    bridge.model_event_sink = StartingStampingSink({"stamp", "open"})
+
+    async def select_second(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput:
+        output.choices[1].message.content = output.choices[0].message.content
+        return output.model_copy(update={"choices": [output.choices[1]]})
+
+    bridge.response_filter = select_second
+    first = tool_calls_output(
+        ToolCall(id="same", function="read_file", arguments={"path": "a"})
+    )
+    first.message.content = [
+        ContentText(text="Searched."),
+        ContentToolUse(
+            id="server-search",
+            tool_type="web_search",
+            name="web_search",
+            arguments='{"query":"test"}',
+            result="found",
+        ),
+    ]
+    second = tool_calls_output(
+        ToolCall(id="same", function="read_file", arguments={"path": "b"})
+    )
+    generated = ModelOutput(
+        model=first.model,
+        choices=[first.choices[0], second.choices[0]],
+    )
+    with recorded_transcript() as recorded:
+        async with span("outer"):
+            await run_bridge([generated], bridge=bridge, tools=declare("read_file"))
+            await call_host_tool(bridge)("host", "read_file", {"path": "b"})
+
+    [generation] = [event for event in recorded.events if isinstance(event, ModelEvent)]
+    [event] = recorded.tool_events
+    assert event.call_message_id == generation.output.choices[1].message.id
+    assert event.span_id == "agent-sub"
+
+
 async def test_filter_prepended_duplicate_id_does_not_claim_original() -> None:
     """Duplicate IDs are matched by their arguments across reordered calls."""
     bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)

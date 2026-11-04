@@ -1156,13 +1156,17 @@ async def _bridge_generate_impl(
 
         # Inside the refusal-retry loop so a content_filter replacement is retried.
         verified_calls: list[bool] | None = None
+        verified_source_id: str | None = None
         if bridge.response_filter is not None:
 
             def check_proposal(
                 filtered: ModelOutput, source: ModelOutput | None = generated
             ) -> None:
-                nonlocal verified_calls
+                nonlocal verified_calls, verified_source_id
                 if source is not None and filtered.message.tool_calls:
+                    verified_source_id = _selected_generated_message_id(
+                        source, filtered
+                    )
                     verified_calls = _verified_generated_calls(source, filtered)
 
             # under the bridge's approval policies, as a filter may generate
@@ -1205,7 +1209,11 @@ async def _bridge_generate_impl(
         declarations: list[ToolInfo | Tool] = list(tools)
         if declared_in_input is not None:
             declarations.extend(declared_in_input(input_messages))
-        selected_generated_id = _selected_generated_message_id(generated, output)
+        selected_generated_id = (
+            verified_source_id
+            if bridge.response_filter is not None and verified_calls is not None
+            else _selected_generated_message_id(generated, output)
+        )
         with agent_bridge_context_scope(_UTILITY_CONTEXT):
             reviewed = await apply_bridge_tool_approval(
                 bridge, output, input_messages, declarations
