@@ -109,10 +109,11 @@ class ExecRemoteCommonOptions:
     """User to run the command as"""
 
     poll_interval: float | None = None
-    """Interval between poll requests in seconds. Values below 5 seconds are
-    raised to 5 seconds; 0 or `None` uses the sandbox default, which is then
-    raised to 5 seconds. During the first 10 seconds, sandbox tools that support
-    it wait on the server for the command to exit or produce output instead."""
+    """Interval between poll requests in seconds. The minimum is 5 seconds; 0 or
+    `None` uses the sandbox default (also at least 5 seconds). For the first 10
+    seconds after the start, sandbox tools that support it hold each poll on the
+    server until the command exits or produces output, instead of sleeping
+    between polls (not when `stdin_open` is set)."""
 
     poll_timeout: float | None = None
     """Timeout for individual RPC poll requests in seconds. Defaults to 120 seconds.
@@ -372,10 +373,11 @@ class ExecRemoteProcess:
                 params["input"] = self._options.input.decode("utf-8")
             else:
                 params["input"] = self._options.input
-        if (
+        stdin_open = (
             isinstance(self._options, ExecRemoteStreamingOptions)
             and self._options.stdin_open
-        ):
+        )
+        if stdin_open:
             params["stdin_open"] = True
         if self._options.env:
             params["env"] = self._options.env
@@ -388,7 +390,9 @@ class ExecRemoteProcess:
 
         result = await self._rpc("exec_remote_start", params, _StartResult)
         self._pid = result.pid
-        if result.poll_wait:
+        # A waiting poll that overlaps a stdin write (same ack_seq) can return
+        # output twice, so stdin_open processes do not wait on the server.
+        if result.poll_wait and not stdin_open:
             self._server_wait_end = time.monotonic() + SERVER_WAIT_WINDOW_SECONDS
 
     # -------------------------------------------------------------------------

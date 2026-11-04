@@ -1135,6 +1135,19 @@ class TestServerWait:
         ]
         assert sleeps == [5, 5]
 
+    async def test_stdin_open_process_gets_no_wait(self, sleeps: list[float]) -> None:
+        sandbox = _make_scripted_sandbox(
+            [_poll_wait_start_response(42), _RUNNING, _poll_response()]
+        )
+        proc = await exec_remote_streaming(
+            sandbox, ["cmd"], 5, ExecRemoteStreamingOptions(stdin_open=True)
+        )
+
+        _ = [event async for event in proc]
+
+        assert all("wait" not in params for params in _polls(sandbox))
+        assert sleeps == [5]
+
     @staticmethod
     def _sandbox_with_blocking_poll() -> tuple[AsyncMock, list[str], anyio.Event]:
         """A sandbox that supports poll waits and never answers a poll."""
