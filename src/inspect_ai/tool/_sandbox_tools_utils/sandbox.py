@@ -39,6 +39,7 @@ from inspect_ai.util._sandbox._framework_directory import (
     stat_in_framework_directory,
     verify_framework_directory,
 )
+from inspect_ai.util._sandbox._framework_operation import framework_sandbox_operation
 from inspect_ai.util._sandbox._privileged import privileged_shell
 from inspect_ai.util._sandbox.context import (
     SandboxInjectable,
@@ -297,7 +298,8 @@ async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
 
         # As root the server can setuid to any user for exec_remote; as the
         # default user, user-switching is disabled (auto-detected by the server).
-        result = await sandbox.exec([SANDBOX_CLI, "start-server"], user=user)
+        with framework_sandbox_operation():
+            result = await sandbox.exec([SANDBOX_CLI, "start-server"], user=user)
         if not result.success:
             raise RuntimeError(f"Failed to start sandbox tools server: {result.stderr}")
     except SandboxInjectionError:
