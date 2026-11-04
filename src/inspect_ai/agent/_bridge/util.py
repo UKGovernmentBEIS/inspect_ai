@@ -450,6 +450,7 @@ async def _apply_response_filter(
     model: Model,
     output: ModelOutput,
     generate_input: GenerateInput,
+    on_returned_original: Callable[[bool], None] | None = None,
 ) -> ModelOutput:
     """Apply `response_filter` under the `ModelResponseFilter` contract.
 
@@ -471,6 +472,8 @@ async def _apply_response_filter(
     candidate = output.model_copy(deep=True)
     try:
         filtered = await response_filter(model, candidate, generate_input)
+        if on_returned_original is not None:
+            on_returned_original(filtered is None or filtered is candidate)
     except Exception as ex:
         control_flow = (LimitExceededError, TerminateSampleError, ModelRefusalError)
         inner: Exception = ex
@@ -1115,12 +1118,16 @@ async def _bridge_generate_impl(
 
         # Inside the refusal-retry loop so a content_filter replacement is retried.
         if bridge.response_filter is not None:
-            before_response_filter = output
             response_filter_generated = False
+            returned_original = False
 
             def note_generation(_event: ModelEvent) -> None:
                 nonlocal response_filter_generated
                 response_filter_generated = True
+
+            def note_returned_original(value: bool) -> None:
+                nonlocal returned_original
+                returned_original = value
 
             # under the bridge's approval policies, as a filter may generate
             with (
@@ -1134,12 +1141,20 @@ async def _bridge_generate_impl(
                     GenerateInput(
                         input_messages, get_tools_info(tools), tool_choice, config
                     ),
+                    on_returned_original=note_returned_original,
                 )
             # A replacement made after the filter generated has no verified
             # producer; the initial generation may have an equal call.
-            if response_filter_generated and output is not before_response_filter:
+            if response_filter_generated and not returned_original:
                 generated = None
                 proposing_span_id = None
+                if output.message.tool_calls:
+                    warn_once(
+                        logger,
+                        "A response filter returned a replacement after generating; "
+                        "host tool call_message_id is unset because its producer "
+                        "cannot be identified.",
+                    )
 
         # Check for refusal and retry if needed
         if not output.empty and output.stop_reason == "content_filter":

@@ -2218,6 +2218,11 @@ after the filter is handled like a model refusal (``retry_refusals``,
 ``fail_on_refusal``). The ``ModelEvent`` keeps the model's
 own output; the replacement is what the agent, bridge state and later turns see.
 Model calls the filter makes run under the bridge's approval policies.
+Returning the supplied output, including after editing it in place, preserves
+the original host-tool proposal link and span when the call still matches.
+If the filter generates and returns a separate replacement, the host event's
+``call_message_id`` is unset because the replacement's producer cannot be
+identified; the event uses the span current when the tool executes.
 
 An exception fails the sample as a ``ResponseFilterError``, except that a
 ``LimitExceededError``, ``TerminateSampleError`` or ``ModelRefusalError`` keeps

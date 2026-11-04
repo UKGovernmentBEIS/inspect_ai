@@ -4309,6 +4309,47 @@ async def test_response_filter_generating_but_returning_none_keeps_original_prod
     assert event.call_message_id == generations[0].output.message.id
 
 
+@pytest.mark.parametrize("returned", ["unchanged", "text-edit"])
+@pytest.mark.parametrize("stamp", [False, True])
+async def test_judging_response_filter_keeps_original_proposal(
+    returned: str, stamp: bool
+) -> None:
+    """An unrelated judge call does not change the returned reply's producer."""
+    bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)
+    if stamp:
+        bridge.model_event_sink = StartingStampingSink({"stamp", "open"})
+
+    async def judge(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput:
+        judgement = await model.generate("Is this action allowed?")
+        assert judgement.message.text == "Allowed."
+        if returned == "text-edit":
+            output.choices[0].message.content = "Approved action."
+        return output
+
+    bridge.response_filter = judge
+    call = ToolCall(id="original", function="read_file", arguments={"path": "a"})
+    with recorded_transcript() as recorded:
+        async with span("outer"):
+            outer = current_span_id()
+            await run_bridge(
+                [
+                    tool_calls_output(call),
+                    ModelOutput.from_content("mockllm/model", "Allowed."),
+                ],
+                bridge=bridge,
+                tools=declare("read_file"),
+            )
+            await call_host_tool(bridge)("host", "read_file", {"path": "a"})
+
+    generations = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    assert len(generations) == 2
+    [event] = recorded.tool_events
+    assert event.call_message_id == generations[0].output.message.id
+    assert event.span_id == ("agent-sub" if stamp else outer)
+
+
 async def test_generating_request_filter_reordered_choice_keeps_provenance() -> None:
     """A filter's selected alternate links to its recorded generated choice."""
     bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)
