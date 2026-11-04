@@ -33,8 +33,6 @@ exclude = ["inspect_ai._view.ts-mono*", "inspect_ai.tool._tools._computer._resou
 # node_modules. The viewer ships prebuilt as _view/dist.
 [tool.setuptools.exclude-package-data]
 inspect_ai = ["_view/ts-mono*", "tool/_tools/_computer/_resources*"]
-# Docker image build inputs are not needed at runtime.
-"inspect_ai.util._sandbox.docker" = ["Dockerfile"]
 
 [tool.setuptools.package-data]
 inspect_ai = [
