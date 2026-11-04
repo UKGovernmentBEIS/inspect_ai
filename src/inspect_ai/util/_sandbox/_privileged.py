@@ -222,7 +222,7 @@ async def image_path_lookup(
     """Look ``name`` up on the *image's* ``PATH`` with a ``which`` resolved via :data:`SYSTEM_PATH`.
 
     For the questions that are about what the image offers the sandbox user (does
-    it ship ``python3``; is ``inspect-tool-support`` installed), whose answer often
+    it ship ``python3``; is ``git`` installed), whose answer often
     lives in ``/usr/local/bin`` or a venv/conda directory that :data:`SYSTEM_PATH`
     deliberately excludes. Only ``which`` itself is pinned; it searches the ``PATH``
     the shell inherited. The provider is deliberately not given :func:`pinned_env`,

@@ -98,6 +98,40 @@ class NotSerializable:
     name: str
 
 
+@pytest.mark.parametrize("format", ["json", "eval"])
+def test_removed_web_browser_log_round_trip(
+    tmp_path: Path, format: Literal["json", "eval"]
+) -> None:
+    """Old browser results and stored state remain readable without the tools."""
+    source = (
+        Path(__file__).parents[1]
+        / "analysis/test_logs/2025-05-12T20-27-36-04-00_browser.json"
+    )
+    log = read_eval_log(source)
+    assert log.samples
+    sample = log.samples[0]
+    browser_events = [
+        event
+        for event in sample.events
+        if isinstance(event, ToolEvent) and event.function.startswith("web_browser_")
+    ]
+    assert browser_events
+    assert any(key.startswith("WebBrowserStore:") for key in sample.store)
+
+    target = tmp_path / f"browser.{format}"
+    write_eval_log(log, target, format=format)
+    restored = read_eval_log(target)
+    assert restored.samples
+    restored_sample = restored.samples[0]
+    assert restored_sample.store == sample.store
+    assert restored_sample.messages == sample.messages
+    assert [
+        event
+        for event in restored_sample.events
+        if isinstance(event, ToolEvent) and event.function.startswith("web_browser_")
+    ] == browser_events
+
+
 def test_ignore_unserializable():
     @solver
     def inject_unserializable():

@@ -55,8 +55,6 @@ Residual risks, explicitly out of scope:
 - Local-filesystem tampering on the host. An attacker who can write to
   `site-packages` can patch `inspect_ai` itself, so hashing local files buys
   nothing. See "What is deliberately not verified".
-- The legacy `inspect_tool_support` Docker-image path (separate distribution
-  mechanism; image digest pinning would be a separate piece of work).
 
 ## The digest file
 
@@ -89,10 +87,11 @@ Decisions:
   `sandbox_tools_version.txt` entry). PyPI installs need it at runtime to
   verify the on-demand musl download; the version file and sums file must
   always travel together.
-- **Lives outside the injectable tree**, so editing it never triggers the
-  `injectable_src` CI filter (which would demand a version bump). It is
-  deliberately not added to `_check_main_divergence`'s pathspec groups
-  either; see "Install-state detection" below.
+- **Not an injectable input**, so editing it never sets `injectable_src` (it
+  is absent from `injectable_paths.txt`, the pathspec list the CI gate and
+  `_check_main_divergence` both read), which would otherwise demand a version
+  bump. It is deliberately not added to `_check_main_divergence`'s pathspec
+  groups either; see "Install-state detection" below.
 
 A small stdlib-only module `_digests.py` in `_sandbox_tools_utils` owns
 reading/writing/parsing (parse tolerates the optional `*` binary marker, as

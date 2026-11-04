@@ -366,6 +366,17 @@ def test_evals_df_sentinel_column(tmp_path: Path) -> None:
     assert df["sentinel"].isna().all()
 
 
+def test_evals_df_model_args_column(tmp_path: Path) -> None:
+    model = get_model(
+        "mockllm/model", base_url="http://example.invalid/v1", custom_arg=123
+    )
+    eval(Task(), model=model, log_dir=str(tmp_path))
+
+    df = evals_df(tmp_path)
+    assert df["model_base_url"].to_list() == ["http://example.invalid/v1"]
+    assert df["model_args"].to_list() == ['{"custom_arg": 123}']
+
+
 def test_messages_df():
     df = messages_df(LOGS_DIR)
     assert len(df) == 34
@@ -656,8 +667,13 @@ def test_dataframe_functions_empty_list(
         model="mockllm/model",
         log_dir=log_dir,
     )
-    monkeypatch.setenv("INSPECT_LOG_DIR", log_dir)
-    assert len(list_eval_logs()) > 0
+    # list_eval_logs() reads INSPECT_LOG_DIR at import, so setting the env var
+    # here has no effect; point the default listing at log_dir directly
+    monkeypatch.setattr(
+        "inspect_ai.analysis._dataframe.util.list_eval_logs",
+        lambda: list_eval_logs(log_dir),
+    )
+    assert len(resolve_logs(None)) > 0
 
     assert resolve_logs([]) == []
     assert resolve_logs(()) == []

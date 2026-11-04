@@ -3,6 +3,7 @@ from __future__ import annotations
 import functools
 import json
 import time
+from typing import NamedTuple
 
 import anyio
 import pytest
@@ -18,6 +19,7 @@ from inspect_ai._util.working import (
 )
 from inspect_ai.model._generate_config import BatchConfig
 from inspect_ai.model._providers.util.batch import (
+    Batch,
     BatchCheckResult,
     Batcher,
     BatchRequest,
@@ -179,13 +181,13 @@ class TestBatcher:
             init_sample_working_time(time.monotonic())
             batcher = FakeBatcher(
                 config=BatchConfig(size=10, send_delay=0.3, tick=0.01),
-                batch_completion_delay=0.3,
+                batch_completion_delay=1.0,
             )
             await batcher.generate_for_request({"prompt": "test"})
             timing = sample_timing()
             assert timing is not None and timing.open_waits == 0
-            # about 0.3 s queued; the 0.3 s in flight is working time
-            assert 0.2 <= sample_waiting_time() <= 0.45
+            # about 0.3 s queued; the 1.0 s in flight is working time
+            assert 0.2 <= sample_waiting_time() < 1.0
 
         await self._run_with_task_group(test_logic)
 
@@ -341,6 +343,24 @@ class TestBatcher:
             # Request should fail with the handling error wrapped in RetryError
             with pytest.raises(RetryError):
                 await batcher.generate_for_request({"prompt": "test"})
+
+        await self._run_with_task_group(test_logic)
+
+    async def test_result_send_failure_fails_batch_without_crashing_worker(self):
+        """A failure while sending results fails the batch, not the eval."""
+
+        class UnknownResultIdBatcher(FakeBatcher):
+            async def _handle_batch_result(self, batch, completion_info):
+                results = await super()._handle_batch_result(batch, completion_info)
+                return {"unknown-id": "stray", **results}
+
+        async def test_logic():
+            batcher = UnknownResultIdBatcher()
+
+            with pytest.raises(KeyError):
+                await batcher.generate_for_request({"prompt": "test"})
+
+            assert batcher._inflight_batches == {}
 
         await self._run_with_task_group(test_logic)
 
@@ -920,23 +940,26 @@ class TestBatcher:
                 )
             )
 
-            # Send fewer requests than minimum size
+            # Send fewer requests than minimum size. The ceiling only catches a
+            # hang or a fall back to the 15s DEFAULT_SEND_DELAY; a loaded CI
+            # runner can stretch the nominal ~20ms many times over.
             start_time = time.time()
-            results = await tg_collect(
-                [
-                    lambda i=i: batcher.generate_for_request(
-                        {"prompt": f"fast-tick-{i}"}
-                    )
-                    for i in range(3)
-                ]
-            )
-            elapsed = time.time() - start_time
+            with anyio.fail_after(5):
+                results = await tg_collect(
+                    [
+                        lambda i=i: batcher.generate_for_request(
+                            {"prompt": f"fast-tick-{i}"}
+                        )
+                        for i in range(3)
+                    ]
+                )
 
             assert len(results) == 3
 
-            # Should complete after send_delay timeout, not wait for minimum size
-            # Should be close to send_delay time (0.02s), not much longer
-            assert 0.01 < elapsed < 0.1  # Some tolerance for timing
+            # A single under-size batch, sent only once send_delay had passed
+            assert [len(ids) for ids in batcher._created_batches.values()] == [3]
+            (created_at,) = batcher._batch_creation_times.values()
+            assert created_at - start_time >= 0.02
 
         await self._run_with_task_group(test_logic)
 
@@ -1476,3 +1499,123 @@ async def test_openai_file_batcher_sends_each_header_set_separately() -> None:
         call.kwargs["extra_headers"] for call in client.batches.create.call_args_list
     ]
     assert sorted(create_headers, key=str) == [{"x-org": "a"}, {"x-org": "b"}]
+
+
+class _OpenAIBatchRun(NamedTuple):
+    results: dict[str, object]
+    """Each request's result, by custom id."""
+    polls: int
+    """How many times the batch was polled."""
+
+
+async def _run_openai_batch(
+    polls: list[tuple[str, str | None]],
+) -> _OpenAIBatchRun:
+    """Run an `OpenAIBatcher` worker over one batch of two requests.
+
+    Each poll of the batch returns the next (status, output_file_id) in `polls`.
+    The output file has a result for the "answered" request only. Returns each
+    request's result and the number of polls.
+    """
+    from unittest.mock import AsyncMock, MagicMock
+
+    from openai.types import Batch as OpenAIBatch
+    from openai.types.chat import ChatCompletion
+
+    from inspect_ai.model._providers._openai_batch import OpenAIBatcher
+
+    completion = {
+        "id": "chatcmpl-1",
+        "object": "chat.completion",
+        "created": 0,
+        "model": "gpt-test",
+        "choices": [],
+    }
+    output_file = json.dumps(
+        {"custom_id": "answered", "response": {"body": completion}}
+    ).encode()
+
+    client = MagicMock()
+    client.batches.retrieve = AsyncMock(
+        side_effect=[
+            OpenAIBatch.model_validate(
+                {
+                    "id": "batch-1",
+                    "completion_window": "24h",
+                    "created_at": 0,
+                    "endpoint": "/v1/chat/completions",
+                    "input_file_id": "file-in",
+                    "object": "batch",
+                    "status": status,
+                    "output_file_id": output_file_id,
+                }
+            )
+            for status, output_file_id in polls
+        ]
+    )
+    client.files.content = AsyncMock(
+        return_value=MagicMock(aread=AsyncMock(return_value=output_file))
+    )
+    batcher = OpenAIBatcher(
+        client,
+        BatchConfig(tick=0.001),
+        model_retry_config(
+            "test", 3, None, lambda e: True, lambda ex: None, lambda m, s: None
+        ),
+        ChatCompletion,
+    )
+    receivers = {}
+    requests = {}
+    for custom_id in ["answered", "unanswered"]:
+        send, receivers[custom_id] = anyio.create_memory_object_stream[
+            ChatCompletion | Exception
+        ](1)
+        requests[custom_id] = BatchRequest[ChatCompletion](
+            request={}, result_stream=send, custom_id=custom_id
+        )
+    batcher._inflight_batches["batch-1"] = Batch(id="batch-1", requests=requests)
+
+    with anyio.fail_after(5):
+        await batcher._batch_worker()
+
+    results: dict[str, object] = {
+        custom_id: receiver.receive_nowait()
+        for custom_id, receiver in receivers.items()
+    }
+    return _OpenAIBatchRun(results, client.batches.retrieve.await_count)
+
+
+@pytest.mark.parametrize("status", ["cancelled", "expired"])
+async def test_openai_batcher_fails_requests_missing_from_ended_batch(
+    status: str,
+) -> None:
+    """Requests an ended batch has no result for fail instead of waiting forever.
+
+    A cancelled batch has only the partial results (if any) in its output file,
+    so it can end with no result files or with results for some requests.
+    """
+    from openai.types.chat import ChatCompletion
+
+    no_files = (await _run_openai_batch([(status, None)])).results
+    assert all(isinstance(result, RuntimeError) for result in no_files.values())
+    assert status in str(no_files["unanswered"])
+
+    partial = (await _run_openai_batch([(status, "file-out")])).results
+    assert isinstance(partial["answered"], ChatCompletion)
+    assert isinstance(partial["unanswered"], RuntimeError)
+
+
+async def test_openai_batcher_polls_completed_batch_until_it_has_files() -> None:
+    """A completed batch without file ids is polled until a later poll has them.
+
+    Its results are then kept, and only requests missing from them fail.
+    """
+    from openai.types.chat import ChatCompletion
+
+    run = await _run_openai_batch(
+        [("completed", None), ("completed", None), ("completed", "file-out")]
+    )
+    assert run.polls == 3
+    assert isinstance(run.results["answered"], ChatCompletion)
+    assert isinstance(run.results["unanswered"], RuntimeError)
+    assert "completed" in str(run.results["unanswered"])
