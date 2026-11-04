@@ -49,9 +49,13 @@ class SentinelField(BaseModel):
 class ReceivedField:
     """The field of the latest attempt at a call, once a provider has handed it over, and the id the attempt was sent under."""
 
-    def __init__(self, sidecar: Any = None) -> None:
+    def __init__(
+        self, sidecar: Any = None, registered_beforehand: bool = False
+    ) -> None:
         self.sidecar = sidecar
         """The sidecar the call goes through, which `request_result` asks."""
+        self.registered_beforehand = registered_beforehand
+        """Whether the sidecar's admin registered the call's task beforehand, so a sample the sidecar can't place was never accepted, rather than lost."""
         self.field: dict[str, Any] | None = None
         self.request_id: str | None = None
         self.looked: Any = None
@@ -64,9 +68,11 @@ _received: ContextVar[ReceivedField | None] = ContextVar(
 
 
 @contextmanager
-def receiving_field(sidecar: Any = None) -> Iterator[ReceivedField]:
+def receiving_field(
+    sidecar: Any = None, registered_beforehand: bool = False
+) -> Iterator[ReceivedField]:
     """Collect the `sentinel` field of an agent call through a sidecar, for the providers to report it into."""
-    received = ReceivedField(sidecar)
+    received = ReceivedField(sidecar, registered_beforehand)
     token = _received.set(received)
     try:
         yield received

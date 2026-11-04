@@ -26,7 +26,7 @@ from ._field import (
     parse_field,
     received_field,
 )
-from ._lookup import request_result, unjudged_error
+from ._lookup import lost_sample, request_result, unjudged_error
 
 _ENDED = "A sentinel in the sidecar ended the sample."
 
@@ -97,9 +97,24 @@ async def refusal_after_error(
         received.looked = await request_result(received, replied=False)
         if received.looked.state == "decided":
             received.field = received.looked.field
-    unjudged_error(received.looked, error)
+    if lost_sample(received.looked, received.registered_beforehand):
+        _note_lost(received)
+    unjudged_error(received.looked, error, received.registered_beforehand)
     field = parse_field(received.field) if received.field is not None else None
     return _refusal(field, model, bridged)
+
+
+def _note_lost(received: ReceivedField) -> None:
+    # the sidecar lost the sample, so whatever it holds for this attempt now
+    # started afresh partway through: the attempt's monitor state is lost
+    from inspect_ai.log._samples import sample_active
+
+    from ._task import attempt_number, task_sidecars
+
+    sidecars = task_sidecars()
+    active = sample_active()
+    if sidecars is not None and active is not None:
+        sidecars.lost_monitor_state(active.sample_uuid, attempt_number(active))
 
 
 def _refusal(

@@ -29,6 +29,8 @@ class SidecarCall(NamedTuple):
     header: str
     """`x-inspect-context`, naming the call's sample and attempt."""
     mode: SentinelProxy
+    registered_beforehand: bool = False
+    """Whether the sidecar's admin registered the task beforehand, so a sample it can't place was never accepted."""
 
     def config(self, config: GenerateConfig) -> GenerateConfig:
         """The call's config, with its `x-inspect-context` header."""
@@ -61,7 +63,7 @@ async def sidecar_call(model: "Model") -> SidecarCall | None:
         return None
 
     sidecars.called_through(active.sample_uuid, attempt_number(active), sidecar)
-    await sidecars.complete_registration(
+    registered_beforehand = await sidecars.complete_registration(
         sidecar,
         SampleFacts(
             sample_id=state.sample_id,
@@ -90,7 +92,7 @@ async def sidecar_call(model: "Model") -> SidecarCall | None:
             "model": str(model),
         }
     )
-    return SidecarCall(sidecar, header, sidecars.mode)
+    return SidecarCall(sidecar, header, sidecars.mode, registered_beforehand)
 
 
 def _unjudged(sidecars: TaskSidecars, active: "ActiveSample", model: str) -> None:

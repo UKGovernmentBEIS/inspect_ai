@@ -105,18 +105,41 @@ def unjudged_reply(looked: Looked, mode: SentinelProxy, request_id: str | None) 
     )
 
 
-def unjudged_error(looked: Looked | None, error: BaseException) -> None:
+def lost_sample(looked: Looked | None, registered_beforehand: bool) -> bool:
+    """Whether the sidecar says it can't place a sample it had accepted: the eval registered the task, so the sidecar has lost the sample since, as on a restart."""
+    return (
+        looked is not None
+        and looked.state == "not_judged"
+        and looked.reason == "unregistered"
+        and not registered_beforehand
+    )
+
+
+def unjudged_error(
+    looked: Looked | None, error: BaseException, registered_beforehand: bool = False
+) -> None:
     """Fail the sample for an agent call that came back as an error the sidecar says it couldn't judge.
 
+    A sample the sidecar can't place was never accepted when its task is one the sidecar's admin registered beforehand, whose samples the sidecar takes only as its tasks folder holds them: a retry would be refused the same way. A task the eval registered was accepted when the sample's registration completed, so the sidecar has lost it since, as on a restart, and a retry registers it again.
+
+    Args:
+        looked: What `request_result` said of the call.
+        error: The call's error.
+        registered_beforehand: Whether the sidecar's admin registered the task beforehand.
+
     Raises:
-        SampleRefusedError: If the sidecar couldn't place the sample, so it can't run there.
-        SidecarNotJudgedError: If the sidecar couldn't judge the call for another reason.
+        SampleRefusedError: If the sidecar never accepted the sample, so it can't run there.
+        SidecarNotJudgedError: If the sidecar couldn't judge the call for another reason, including a sample it has lost, which Inspect retries as it does other errors.
     """
     if looked is None or looked.state != "not_judged":
         return
     if looked.reason == "unregistered":
-        raise SampleRefusedError(
-            f"The sentinel sidecar refused the sample, which it isn't registered to judge: {error}"
+        if registered_beforehand:
+            raise SampleRefusedError(
+                f"The sentinel sidecar refused the sample, which its tasks folder doesn't hold: {error}"
+            ) from error
+        raise SidecarNotJudgedError(
+            f"The sentinel sidecar no longer holds the sample's registration, as after a restart, so it couldn't judge the call; a retry registers the sample again: {error}"
         ) from error
     raise SidecarNotJudgedError(
         f"The sentinel sidecar couldn't judge the call ({looked.reason}): {error}"
