@@ -76,7 +76,6 @@ from inspect_ai.model._model import (
     active_model,
     get_model,
     model_roles,
-    observe_model_event_creation,
     requested_model,
     use_model_event_sink,
 )
@@ -450,7 +449,7 @@ async def _apply_response_filter(
     model: Model,
     output: ModelOutput,
     generate_input: GenerateInput,
-    on_returned_original: Callable[[bool], None] | None = None,
+    on_filtered_output: Callable[[ModelOutput], None] | None = None,
 ) -> ModelOutput:
     """Apply `response_filter` under the `ModelResponseFilter` contract.
 
@@ -472,8 +471,6 @@ async def _apply_response_filter(
     candidate = output.model_copy(deep=True)
     try:
         filtered = await response_filter(model, candidate, generate_input)
-        if on_returned_original is not None:
-            on_returned_original(filtered is None or filtered is candidate)
     except Exception as ex:
         control_flow = (LimitExceededError, TerminateSampleError, ModelRefusalError)
         inner: Exception = ex
@@ -530,6 +527,8 @@ async def _apply_response_filter(
         # text continued across requests is joined with no separator)
         filtered.completion = output.completion
     _check_provider_owned_content(output, filtered)
+    if on_filtered_output is not None:
+        on_filtered_output(filtered)
     _settle_message_ids(output, filtered)
     return filtered
 
@@ -619,6 +618,27 @@ def _selected_generated_message_id(
         )
     ]
     return matches[0] if len(matches) == 1 else None
+
+
+def _retains_generated_proposal(generated: ModelOutput, filtered: ModelOutput) -> bool:
+    """Check the returned proposal before filter settlement rewrites its ID."""
+    source_id = _selected_generated_message_id(generated, filtered)
+    if source_id is None:
+        return False
+    sources = [
+        choice.message for choice in generated.choices if choice.message.id == source_id
+    ]
+    if len(sources) != 1:
+        return False
+    source_calls = {
+        (call.id, call.function, canonical_tool_arguments(call.arguments))
+        for call in sources[0].tool_calls or []
+    }
+    return all(
+        (call.id, call.function, canonical_tool_arguments(call.arguments))
+        in source_calls
+        for call in filtered.message.tool_calls or []
+    )
 
 
 def _check_provider_owned_content(original: ModelOutput, filtered: ModelOutput) -> None:
@@ -1059,8 +1079,10 @@ async def _bridge_generate_impl(
                                 )
                             )
                             if isinstance(event, ModelEvent)
-                            and _selected_generated_message_id(event.output, result)
-                            is not None
+                            and any(
+                                choice.message.id == result.message.id
+                                for choice in event.output.choices
+                            )
                         ),
                         None,
                     )
@@ -1107,7 +1129,6 @@ async def _bridge_generate_impl(
                             raise
 
         generated = generated_output
-        proposing_span_id = sink.span_id if sink is not None else None
 
         # Update the compaction baseline with the actual input token count
         # from the generate call (most accurate source of truth). Record it
@@ -1117,23 +1138,20 @@ async def _bridge_generate_impl(
             await compact.record_output(input_messages, output)
 
         # Inside the refusal-retry loop so a content_filter replacement is retried.
+        replaced_proposal = False
         if bridge.response_filter is not None:
-            response_filter_generated = False
-            returned_original = False
 
-            def note_generation(_event: ModelEvent) -> None:
-                nonlocal response_filter_generated
-                response_filter_generated = True
-
-            def note_returned_original(value: bool) -> None:
-                nonlocal returned_original
-                returned_original = value
+            def check_proposal(
+                filtered: ModelOutput, source: ModelOutput | None = generated
+            ) -> None:
+                nonlocal replaced_proposal
+                if source is not None and filtered.message.tool_calls:
+                    replaced_proposal = not _retains_generated_proposal(
+                        source, filtered
+                    )
 
             # under the bridge's approval policies, as a filter may generate
-            with (
-                observe_model_event_creation(note_generation),
-                bridge_approval_scope(bridge.approval),
-            ):
+            with bridge_approval_scope(bridge.approval):
                 output = await _apply_response_filter(
                     bridge.response_filter,
                     model,
@@ -1141,20 +1159,10 @@ async def _bridge_generate_impl(
                     GenerateInput(
                         input_messages, get_tools_info(tools), tool_choice, config
                     ),
-                    on_returned_original=note_returned_original,
+                    on_filtered_output=check_proposal,
                 )
-            # A replacement made after the filter generated has no verified
-            # producer; the initial generation may have an equal call.
-            if response_filter_generated and not returned_original:
+            if replaced_proposal:
                 generated = None
-                proposing_span_id = None
-                if output.message.tool_calls:
-                    warn_once(
-                        logger,
-                        "A response filter returned a replacement after generating; "
-                        "host tool call_message_id is unset because its producer "
-                        "cannot be identified.",
-                    )
 
         # Check for refusal and retry if needed
         if not output.empty and output.stop_reason == "content_filter":
@@ -1231,7 +1239,13 @@ async def _bridge_generate_impl(
                 bridge.register_tool_execution_grants(
                     reviewed.output.message.tool_calls or [],
                     declarations,
-                    span_id=proposing_span_id,
+                    span_id=(
+                        None
+                        if replaced_proposal
+                        else sink.span_id
+                        if sink is not None
+                        else None
+                    ),
                 )
             finally:
                 bridge._proposing_message_ids = {}

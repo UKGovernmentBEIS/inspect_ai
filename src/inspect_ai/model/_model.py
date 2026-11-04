@@ -2091,9 +2091,6 @@ class Model:
             from inspect_ai._sentinel._dispatch import record_agent_turn
 
             record_agent_turn(snapshot)
-        created_observer = _model_event_created_observer.get()
-        if created_observer is not None:
-            created_observer(event)
         sink = _model_event_sink.get()
         if sink is None:
             transcript()._event(event)
@@ -2218,11 +2215,6 @@ after the filter is handled like a model refusal (``retry_refusals``,
 ``fail_on_refusal``). The ``ModelEvent`` keeps the model's
 own output; the replacement is what the agent, bridge state and later turns see.
 Model calls the filter makes run under the bridge's approval policies.
-Returning the supplied output, including after editing it in place, preserves
-the original host-tool proposal link and span when the call still matches.
-If the filter generates and returns a separate replacement, the host event's
-``call_message_id`` is unset because the replacement's producer cannot be
-identified; the event uses the span current when the tool executes.
 
 An exception fails the sample as a ``ResponseFilterError``, except that a
 ``LimitExceededError``, ``TerminateSampleError`` or ``ModelRefusalError`` keeps
@@ -3131,10 +3123,6 @@ _model_event_sink: ContextVar[ModelEventSink | None] = ContextVar(
     "_model_event_sink", default=None
 )
 
-_model_event_created_observer: ContextVar[Callable[["ModelEvent"], None] | None] = (
-    ContextVar("_model_event_created_observer", default=None)
-)
-
 
 class _Snapshot(NamedTuple):
     message: weakref.ReferenceType[ChatMessage]
@@ -3243,18 +3231,6 @@ def use_model_event_sink(sink: ModelEventSink | None) -> Iterator[None]:
         yield
     finally:
         _model_event_sink.reset(token)
-
-
-@contextlib.contextmanager
-def observe_model_event_creation(
-    observer: Callable[["ModelEvent"], None],
-) -> Iterator[None]:
-    """Observe generations made within a scoped filter, including unlogged ones."""
-    token = _model_event_created_observer.set(observer)
-    try:
-        yield
-    finally:
-        _model_event_created_observer.reset(token)
 
 
 @contextlib.contextmanager
