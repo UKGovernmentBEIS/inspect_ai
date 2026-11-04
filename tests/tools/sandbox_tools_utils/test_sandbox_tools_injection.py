@@ -1507,17 +1507,22 @@ async def test_sample_init_records_root_access_for_every_sandbox_last(
     assert len(probe_events) == 2
 
 
-class _FakeDistribution:
-    def __init__(self, files: list[str] | None) -> None:
-        self.files = (
-            None
-            if files is None
-            else [importlib.metadata.PackagePath(f) for f in files]
+def _dist_info(tmp_path: Path, record: list[str] | None) -> Path:
+    """Write a real dist-info dir; listed RECORD paths do not exist on disk."""
+    dist_info = tmp_path / "inspect_ai-0.0.0.dist-info"
+    dist_info.mkdir()
+    (dist_info / "METADATA").write_text(
+        "Metadata-Version: 2.1\nName: inspect-ai\nVersion: 0.0.0\n"
+    )
+    if record is not None:
+        (dist_info / "RECORD").write_text(
+            "".join(f"{path},sha256=abc,1\n" for path in record)
         )
+    return dist_info
 
 
 def _missing_binary_then_download(
-    monkeypatch: pytest.MonkeyPatch, record_files: list[str] | None | Exception
+    monkeypatch: pytest.MonkeyPatch, dist_info: Path | None
 ) -> list[str]:
     """Stub a `pypi` install whose binary is missing until an S3 download runs."""
     downloaded: list[str] = []
@@ -1532,11 +1537,11 @@ def _missing_binary_then_download(
         downloaded.append(filename)
         return True
 
-    def fake_distribution(name: str) -> _FakeDistribution:
+    def fake_distribution(name: str) -> importlib.metadata.Distribution:
         assert name == "inspect-ai"
-        if isinstance(record_files, Exception):
-            raise record_files
-        return _FakeDistribution(record_files)
+        if dist_info is None:
+            raise importlib.metadata.PackageNotFoundError(name)
+        return importlib.metadata.PathDistribution(dist_info)
 
     monkeypatch.setattr(sandbox_tools, "_get_install_state", lambda: "pypi")
     monkeypatch.setattr(sandbox_tools, "_open_executable", fake_open_executable)
@@ -1546,21 +1551,21 @@ def _missing_binary_then_download(
 
 
 @pytest.mark.parametrize(
-    "record_files",
+    "record",
     [
         pytest.param(["inspect_ai/__init__.py"], id="not-in-record"),
         pytest.param(None, id="no-record"),
-        pytest.param(
-            importlib.metadata.PackageNotFoundError("inspect-ai"), id="no-metadata"
-        ),
+        pytest.param("no-metadata", id="no-metadata"),
     ],
 )
 async def test_sdist_install_downloads_missing_binary_without_warning(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
     _warn_once_messages: list[str],
-    record_files: list[str] | None | Exception,
+    record: list[str] | None | str,
 ) -> None:
-    downloaded = _missing_binary_then_download(monkeypatch, record_files)
+    dist_info = None if isinstance(record, str) else _dist_info(tmp_path, record)
+    downloaded = _missing_binary_then_download(monkeypatch, dist_info)
 
     async with sandbox_tools._open_executable_for_arch("amd64", False) as (name, f):
         assert f.read() == b"binary"
@@ -1570,12 +1575,13 @@ async def test_sdist_install_downloads_missing_binary_without_warning(
 
 
 async def test_wheel_install_missing_bundled_binary_warns_and_downloads(
-    monkeypatch: pytest.MonkeyPatch, _warn_once_messages: list[str]
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, _warn_once_messages: list[str]
 ) -> None:
     name = sandbox_tools._get_executable_name("amd64", False, False)
-    downloaded = _missing_binary_then_download(
-        monkeypatch, ["inspect_ai/__init__.py", f"inspect_ai/binaries/{name}"]
+    dist_info = _dist_info(
+        tmp_path, ["inspect_ai/__init__.py", f"inspect_ai/binaries/{name}"]
     )
+    downloaded = _missing_binary_then_download(monkeypatch, dist_info)
 
     async with sandbox_tools._open_executable_for_arch("amd64", False) as (_, f):
         assert f.read() == b"binary"

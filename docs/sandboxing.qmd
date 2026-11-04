@@ -308,7 +308,7 @@ eval("ctf.py", sandbox_prebuilt=True)
 
 With this option set, task startup verifies images instead of building them. Every service with a `build` section or `x-local: true` must name an `image` that already exists locally, and Inspect's internal images (e.g. for the computer tool) must also be present. Other services use their local image when present, and a failed pull of a missing one is also an error. A missing image results in an error before any samples run. The option can also be set via the `INSPECT_EVAL_SANDBOX_PREBUILT` environment variable.
 
-Inspect injects sandbox tools binaries into sandboxes for some tools. An install built from the sdist (e.g. conda-forge or `pip install --no-binary inspect-ai`) does not bundle them and downloads them at first use. For offline / air-gapped use, run `inspect download sandbox-tools` while online to fetch them ahead of time.
+Inspect injects sandbox tools binaries into sandboxes for some tools. An install built from the sdist (e.g. conda-forge or `pip install --no-binary inspect-ai`) does not bundle them and downloads them at first use. For offline / air-gapped use, run `inspect download sandbox-tools` while online to fetch them ahead of time. The download writes into the `inspect_ai` package directory. For a read-only shared install, a user who can write to that directory should run `inspect download sandbox-tools` once.
 
 ### Multiple Environments
 

@@ -1,3 +1,4 @@
+import csv
 import gzip
 import importlib.metadata
 import os
@@ -685,14 +686,17 @@ def _record_lists_binary(executable_name: str) -> bool:
     The released wheel bundles the glibc binaries, so a RECORD entry for a
     binary that is missing on disk means a broken install. Installs built from
     the sdist (``pip install --no-binary``, conda-forge) never had it, and
-    fetch it from S3 as intended.
+    fetch it from S3 as intended. Reads the raw RECORD because
+    ``Distribution.files`` omits paths missing on disk on Python 3.12+.
     """
     try:
-        files = importlib.metadata.distribution("inspect-ai").files
+        record = importlib.metadata.distribution("inspect-ai").read_text("RECORD")
     except importlib.metadata.PackageNotFoundError:
         return False
+    if record is None:
+        return False
     target = f"inspect_ai/binaries/{executable_name}"
-    return files is not None and any(f.as_posix() == target for f in files)
+    return any(row and row[0] == target for row in csv.reader(record.splitlines()))
 
 
 async def _download_from_s3(filename: str) -> bool:
