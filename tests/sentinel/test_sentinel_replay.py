@@ -3480,11 +3480,12 @@ def test_modern_approval_without_modified_payload_keeps_tool_stages(
 
 
 @pytest.mark.parametrize("inputs", ["expanded", "pooled"])
-@pytest.mark.parametrize("version", ["0.3.277", "0.3.285"])
+@pytest.mark.parametrize("version", ["0.3.100", None, "0.3.277", "0.3.285", "0.3.300"])
 @pytest.mark.parametrize("decision", ["approve", "modify"])
 def test_modern_approval_uses_executed_tool_view_at_both_stages(
-    inputs: str, version: str, decision: str
+    inputs: str, version: str | None, decision: str
 ) -> None:
+    """A ToolEvent that records the modified call replays whatever the header says."""
     from inspect_ai._sentinel import _replay
 
     path = Path(__file__).parent / "fixtures" / "approval_modified_0.3.100.json"
@@ -3530,15 +3531,17 @@ def test_modern_approval_uses_executed_tool_view_at_both_stages(
         step.view.call.content if step.view.call is not None else None
         for step in tool_steps
     ] == ["```python\naddition(x=7, y=1)\n```\n"] * 2
+    assert tool_steps[0].view.context is None
 
 
 @pytest.mark.parametrize("inputs", ["expanded", "pooled"])
 @pytest.mark.parametrize("decision", ["approve", "modify"])
 @pytest.mark.parametrize("renamed", [False, True])
+@pytest.mark.parametrize("version", ["0.3.100", "0.3.300", None])
 def test_older_modified_approval_log_is_refused(
-    inputs: str, decision: str, renamed: bool
+    inputs: str, decision: str, renamed: bool, version: str | None
 ) -> None:
-    """The archived 0.3.100 log cannot reliably identify the executed call."""
+    """The archived 0.3.100 sample cannot identify the executed call, even under the newer header a retried eval gives it."""
     from inspect_ai._sentinel import _replay
 
     path = Path(__file__).parent / "fixtures" / "approval_modified_0.3.100.json"
@@ -3565,16 +3568,22 @@ def test_older_modified_approval_log_is_refused(
     pool: list[ChatMessage] = []
     if inputs == "pooled":
         events, pool = _replay._condensed(events, [])
+    # without a version, the renamed tool span reads as a log before 0.3.94
+    refusal = (
+        r"0\.3\.100 or later"
+        if renamed and version is None
+        else r"modified approvals.*0\.3\.277"
+    )
     with pytest.raises(
         ValueError,
-        match=r"modified approvals.*0\.3\.277.*Replay this transcript from its messages instead",
+        match=rf"{refusal}.*Replay this transcript from its messages instead",
     ):
         steps_from_events(
             sample.messages,
             events,
             pool,
             sample_uuid=sample.uuid or "sample",
-            eval_info=EvalInfo.from_eval(log.eval),
+            eval_info=EvalInfo(version, False),
         )
 
 
@@ -3780,7 +3789,8 @@ def test_recorded_sentinel_change_controls_executed_arguments(
 def test_sentinel_modify_does_not_match_a_different_json_argument_type(
     inputs: str,
 ) -> None:
-    messages, events, pool = _historical_approval_events(inputs, "modify", True)
+    messages, events, pool = _historical_approval_events(inputs, "approve", True)
+    events = [event for event in events if not isinstance(event, ApprovalEvent)]
     proposal = ToolCall(id="c1", function="addition", arguments={"x": 1, "y": 1})
     check: list[Event] = [
         SpanBeginEvent(id="check", name="probe", type="sentinel", parent_id="agent"),

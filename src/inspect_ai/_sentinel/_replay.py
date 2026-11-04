@@ -97,7 +97,7 @@ def steps_from_events(
 
     Inspect logs record origins on every model call or on none. If a transcript mixes calls with and without origins, recorded calls retain their recorded classification and calls without origins are inferred; continuity across that mixed sequence is not guaranteed.
 
-    In logs without origins, recorded sentinel checks and human decisions are used only when their step id pairs with a model call's exact id. Inferred turns may differ from those seen by a sentinel that ran before origins were recorded; reproducing that sentinel's live steps is outside this replay contract. For a run without a sentinel, human decisions are reconstructed from `ApprovalEvent`s only when the log records inspect_ai 0.3.277 or later; older or unknown versions omit them and warn once when a selected human approver appears. A `tool_call` step whose call an approver changed has no `view.context`: the `ApprovalEvent` view describes the call the approver was shown, and live renders the changed call's context again, which the log does not record. An older or unknown-version log containing any modified approval is refused because Inspect recorded those calls inconsistently; replay that transcript from its messages instead.
+    In logs without origins, recorded sentinel checks and human decisions are used only when their step id pairs with a model call's exact id. Inferred turns may differ from those seen by a sentinel that ran before origins were recorded; reproducing that sentinel's live steps is outside this replay contract. For a run without a sentinel, human decisions are reconstructed from `ApprovalEvent`s only when the log records inspect_ai 0.3.277 or later; older or unknown versions omit them and warn once when a selected human approver appears. A `tool_call` step whose call an approver changed has no `view.context`: the `ApprovalEvent` view describes the call the approver was shown, and live renders the changed call's context again, which the log does not record. A log is refused where an approval's modified call is not the call its `ToolEvent` records (and no recorded sentinel modify changed it again), as Inspect before 0.3.277 wrote them, whatever version its header records, since a retried eval keeps its completed samples under a newer header; replay that transcript from its messages instead.
 
     Replay requires a log written by Inspect 0.3.100 or later. Earlier logs lack the `solvers` and `scorers` spans (and, before 0.3.94, native tool spans) and cannot be replayed reliably. A log whose samples have an earlier layout is refused whatever its header says, since a retried eval keeps its completed samples under a newer header: a `ToolEvent` that nests other events, a solver or scorer `StepEvent`, or a top-level solver or scorer span (outside the `solvers` and `scorers` spans). If the recorded version is unknown, completed native tool events without a matching tool span, including execution failures, are also refused as potentially older logs. Pre-execution halts remain allowed.
 
@@ -114,7 +114,7 @@ def steps_from_events(
         The steps, in the order they ran live.
 
     Raises:
-        ValueError: `eval_info` is `None`, the log predates Inspect 0.3.100 or its samples have an earlier layout (or it has an unknown version and completed spanless native tool events), or an older or unknown-version log contains a modified approval. Replay such transcripts from their messages instead.
+        ValueError: `eval_info` is `None`, the log predates Inspect 0.3.100 or its samples have an earlier layout (or it has an unknown version and completed spanless native tool events), or an approval's modified call is not the call its `ToolEvent` records. Replay such transcripts from their messages instead.
         MalformedLogError: Two steps of one stage have one step id, the span tree has a `parent_id` cycle, or a model input names rows outside the message pool.
         Unmatched recorded model_input checks are skipped with one warning per transcript.
     """
@@ -135,15 +135,6 @@ def steps_from_events(
         raise ValueError(
             "steps_from_events requires an Inspect log written by inspect_ai "
             "0.3.100 or later. Replay this transcript from its messages instead."
-        )
-    if not _records_approval_decisions(version) and any(
-        isinstance(e, ApprovalEvent) and e.modified is not None for e in events
-    ):
-        raise ValueError(
-            "steps_from_events cannot replay modified approvals from Inspect "
-            "logs before inspect_ai 0.3.277 or with an unknown version; "
-            "those logs recorded them inconsistently. Replay this transcript "
-            "from its messages instead."
         )
     pool: list[ChatMessage] | Sequence[ChatMessage] = message_pool
     if any(isinstance(e, ModelEvent) and e.input_refs is None for e in events):
@@ -592,6 +583,8 @@ class _Driver:
                         (index, 2),
                         self._next_seq(),
                     )
+        for entry in calls:
+            self._check_modified_approval(entry)
         for group in generates:
             self._generate(group)
         for entry in calls:
@@ -759,6 +752,37 @@ class _Driver:
         )
         self._settle_at_end(after_span)
 
+    def _check_modified_approval(self, call: _Call) -> None:
+        """Refuse an approval whose modified call its `ToolEvent` does not record.
+
+        Before 0.3.277 the `ToolEvent` kept the proposal while the approved call
+        ran, and a retried eval keeps such samples under a newer header, so
+        only the events can show which call ran. A sentinel's recorded modify
+        can change the call again after the approval.
+        """
+        approval = call.approval
+        event = call.event
+        if (
+            approval is None
+            or approval.modified is None
+            or approval.decision not in ("approve", "modify")
+            or (
+                event.function == approval.modified.function
+                and json_equal(event.arguments, _arguments_run(approval.modified))
+            )
+            or self._sentinel_modify(
+                self.step_spans.get(("tool_call", event.id)), event
+            )
+            is not None
+        ):
+            return
+        raise ValueError(
+            "steps_from_events cannot replay modified approvals whose ToolEvent "
+            "does not record the approved call, as Inspect logs before "
+            "inspect_ai 0.3.277 wrote them. Replay this transcript from its "
+            "messages instead."
+        )
+
     def _tool_call(self, call: _Call) -> None:
         event = call.event
         before_span = self.step_spans.get(("tool_call", event.id))
@@ -841,7 +865,8 @@ class _Driver:
             not self.approval_log_reliable
             and approval is not None
             and approval.view is not None
-            and not approver_modified
+            and event.function == approval.call.function
+            and json_equal(event.arguments, approval.call.arguments)
         ):
             before_view = approval.view
         elif modify is None or event.view is None:
@@ -1251,6 +1276,15 @@ def _approval_report(approval: ApprovalEvent) -> Any:
         report=decision,
         function=approval.approver,
     )
+
+
+def _arguments_run(call: ToolCall) -> dict[str, Any]:
+    """The arguments a modified call runs on: the memory tool, the only one with canonical arguments, resolves its paths first."""
+    if call.function != "memory":
+        return call.arguments
+    from inspect_ai.tool._tools._memory import _canonical_arguments
+
+    return _canonical_arguments(call.arguments)
 
 
 def _default_view(call: ToolCall) -> Any:
