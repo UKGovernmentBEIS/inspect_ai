@@ -576,14 +576,14 @@ async def test_approver_inference_exempt_from_limits():
 
 def test_approval_policy_comma_separated_tools():
     policy = ApprovalPolicy(
-        approver=auto_approver(), tools="web_browser*, addition, python"
+        approver=auto_approver(), tools="custom_tool*, addition, python"
     )
     check_approval(policy, decision="approve")
 
 
 def test_approval_policy_comma_separated_list():
     policy = ApprovalPolicy(
-        approver=auto_approver(), tools=["web_browser*", "addition, python"]
+        approver=auto_approver(), tools=["custom_tool*", "addition, python"]
     )
     check_approval(policy, decision="approve")
 
@@ -2080,11 +2080,11 @@ async def test_policy_arguments_match_in_any_order() -> None:
 
 
 async def test_policy_comma_list_of_names_with_arguments() -> None:
-    for function in ("web_browser_type", "computer"):
+    for function in ("custom_tool", "computer"):
         call = make_tool_call(function, action="key")
-        assert await routed(call, "web_browser_type, computer", action="key")
+        assert await routed(call, "custom_tool, computer", action="key")
     call = make_tool_call("computer", action="type")
-    assert not await routed(call, "web_browser_type, computer", action="key")
+    assert not await routed(call, "custom_tool, computer", action="key")
 
 
 async def test_policy_arguments_are_whole_value_globs() -> None:
@@ -2224,8 +2224,8 @@ async def test_policy_case_and_separator_rules_on_windows(
     "tools",
     [
         "bash(cmd='ls', timeout=10)",
-        "computer(action='key', web_browser_type",
-        "web_browser_type, computer(action='key'",
+        "computer(action='key', custom_tool",
+        "custom_tool, computer(action='key'",
         "computer(*'key'*",
         'bash(cmd="ls"',
         "bash(cmd='it\\'s'",
