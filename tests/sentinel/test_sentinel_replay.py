@@ -3189,7 +3189,10 @@ def _historical_approval_events(
     approved = replace(proposal, arguments={"x": 7, "y": 1})
     first = linked_call("m1", "agent", [user], "Adding", None, proposal)
     first.tools = [ToolInfo(name="addition", description="Add numbers")]
-    result = ChatMessageTool(content="8", tool_call_id="c1", function="addition")
+    result_text = "8" if decision == "modify" else "2"
+    result = ChatMessageTool(
+        content=result_text, tool_call_id="c1", function="addition"
+    )
     second = linked_call(
         "m2", "agent", [user, first.output.message, result], "Done", None
     )
@@ -3205,7 +3208,7 @@ def _historical_approval_events(
             span_id="agent",
         ),
     ]
-    if decision == "modify":
+    if decision in ("approve", "modify"):
         events.extend(
             [
                 SpanBeginEvent(
@@ -3217,7 +3220,7 @@ def _historical_approval_events(
                     arguments=proposal.arguments
                     if legacy_arguments
                     else approved.arguments,
-                    result="8",
+                    result=result_text,
                     message_id=result.id,
                     span_id="tool",
                 ),
@@ -3237,159 +3240,124 @@ def _historical_approval_events(
 
 
 @pytest.mark.parametrize("inputs", ["expanded", "pooled"])
-@pytest.mark.parametrize(
-    "version,legacy_arguments,expected_x",
-    [("0.3.99", True, 7), (None, True, 7), ("0.3.277", False, 7)],
-)
-def test_approval_tool_stages_use_arguments_that_ran(
+def test_modern_approval_tool_stages_use_recorded_arguments(
     inputs: str,
-    version: str | None,
-    legacy_arguments: bool,
-    expected_x: int,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    messages, events, pool = _historical_approval_events(
-        inputs, "modify", legacy_arguments
-    )
+    messages, events, pool = _historical_approval_events(inputs, "modify", False)
     replay = steps_from_events(
         messages,
         events,
         pool,
         sample_uuid="sample",
-        eval_info=EvalInfo(version, False),
+        eval_info=EvalInfo("0.3.277", False),
         human_approvers=("human",),
     )
     assert [
         step.step.call.arguments
         for step in replay
         if isinstance(step.step, BeforeToolCall | AfterToolCall)
-    ] == [{"x": expected_x, "y": 1}, {"x": expected_x, "y": 1}]
+    ] == [{"x": 7, "y": 1}, {"x": 7, "y": 1}]
     later = next(
         step for step in replay if step.stage == "model_input" and step.id == "m2"
     )
     assert [
         decision.decided.report.action for decision in later.step.human_decisions or []
-    ] == (["modify"] if version == "0.3.277" else [])
+    ] == ["modify"]
     warnings = [
         record.message
         for record in caplog.records
         if "Skipped human decisions from ApprovalEvents" in record.message
     ]
-    assert len(warnings) == (0 if version == "0.3.277" else 1)
+    assert not warnings
 
 
 @pytest.mark.parametrize("inputs", ["expanded", "pooled"])
 @pytest.mark.parametrize("decision", ["approve", "modify"])
-@pytest.mark.parametrize("tool_view", [False, True])
-def test_a_real_0_3_99_modified_approval_replays_executed_arguments(
-    inputs: str,
-    decision: str,
-    tool_view: bool,
-    caplog: pytest.LogCaptureFixture,
+@pytest.mark.parametrize("renamed", [False, True])
+def test_older_modified_approval_log_is_refused(
+    inputs: str, decision: str, renamed: bool
 ) -> None:
-    """An archived 0.3.99 log keeps proposal arguments for both approval decisions."""
+    """The archived 0.3.99 log cannot reliably identify the executed call."""
     from inspect_ai._sentinel import _replay
 
     path = Path(__file__).parent / "fixtures" / "approval_modified_0.3.99.json"
     log = read_eval_log(str(path), resolve_attachments="full")
-    assert log.eval.packages["inspect_ai"] == "0.3.99"
     [sample] = log.samples or []
     approval = next(e for e in sample.events if isinstance(e, ApprovalEvent))
-    tool = next(e for e in sample.events if isinstance(e, ToolEvent))
-    assert approval.call.arguments == {"x": 1, "y": 1}
     assert approval.modified is not None
-    assert approval.modified.arguments == {"x": 7, "y": 1}
-    assert approval.view is not None
-    assert approval.view.call is not None
-    assert "addition(x=1, y=1)" in approval.view.call.content
-    assert tool.arguments == {"x": 1, "y": 1}
-    assert tool.result == "8"
-    events = []
+    events: list[Event] = []
     for event in sample.events:
         if event is approval:
-            event = event.model_copy(update={"decision": decision})
-        elif event is tool and tool_view:
-            event = event.model_copy(update={"view": approval.view.call})
+            modified = (
+                replace(approval.modified, function="renamed")
+                if renamed
+                else approval.modified
+            )
+            event = approval.model_copy(
+                update={"decision": decision, "modified": modified}
+            )
+        elif renamed and isinstance(event, SpanBeginEvent) and event.type == "tool":
+            event = event.model_copy(update={"name": "renamed"})
         events.append(event)
     adapter = TypeAdapter(list[Event])
     events = adapter.validate_json(adapter.dump_json(events))
     pool: list[ChatMessage] = []
     if inputs == "pooled":
         events, pool = _replay._condensed(events, [])
-    replay = steps_from_events(
-        sample.messages,
-        events,
-        pool,
-        sample_uuid=sample.uuid or "sample",
-        eval_info=EvalInfo.from_eval(log.eval),
-        human_approvers=("change",),
-    )
-    assert [
-        step.step.call.arguments
-        for step in replay
-        if isinstance(step.step, BeforeToolCall | AfterToolCall)
-    ] == [{"x": 7, "y": 1}, {"x": 7, "y": 1}]
-    assert [
-        step.step.view.call.content if step.step.view.call is not None else None
-        for step in replay
-        if isinstance(step.step, BeforeToolCall | AfterToolCall)
-    ] == ["```python\naddition(x=7, y=1)\n```\n"] * 2
-    assert [
-        step.step.result.text for step in replay if isinstance(step.step, AfterToolCall)
-    ] == ["8"]
-    assert (
-        sum(
-            "Skipped human decisions from ApprovalEvents" in record.message
-            for record in caplog.records
+    with pytest.raises(
+        ValueError,
+        match=r"modified approvals.*0\.3\.277.*Replay this transcript from its messages instead",
+    ):
+        steps_from_events(
+            sample.messages,
+            events,
+            pool,
+            sample_uuid=sample.uuid or "sample",
+            eval_info=EvalInfo.from_eval(log.eval),
         )
-        == 1
-    )
 
 
 @pytest.mark.parametrize("inputs", ["expanded", "pooled"])
-def test_a_real_0_3_99_approve_bool_replays_the_executed_view(inputs: str) -> None:
-    """The 0.3.99 writer kept the proposed integer view after running a boolean."""
-    from inspect_ai._sentinel import _replay
-
-    path = Path(__file__).parent / "fixtures" / "approval_bool_0.3.99.json"
-    log = read_eval_log(str(path), resolve_attachments="full")
-    assert log.eval.packages["inspect_ai"] == "0.3.99"
-    [sample] = log.samples or []
-    approval = next(e for e in sample.events if isinstance(e, ApprovalEvent))
-    tool = next(e for e in sample.events if isinstance(e, ToolEvent))
-    assert approval.decision == "approve"
-    assert approval.call.arguments["value"] == 1
-    assert type(approval.call.arguments["value"]) is int
-    assert approval.modified is not None
-    assert approval.modified.arguments["value"] is True
-    assert tool.arguments["value"] == 1
-    assert type(tool.arguments["value"]) is int
-    assert tool.result == "bool"
-    adapter = TypeAdapter(list[Event])
-    events = adapter.validate_json(adapter.dump_json(sample.events))
-    pool: list[ChatMessage] = []
-    if inputs == "pooled":
-        events, pool = _replay._condensed(events, [])
+def test_older_unmodified_approval_still_replays(inputs: str) -> None:
+    messages, events, pool = _historical_approval_events(inputs, "approve", True)
     replay = steps_from_events(
-        sample.messages,
+        messages,
         events,
         pool,
-        sample_uuid=sample.uuid or "sample",
-        eval_info=EvalInfo.from_eval(log.eval),
+        sample_uuid="sample",
+        eval_info=EvalInfo("0.3.99", False),
     )
     tool_steps = [
         step.step
         for step in replay
         if isinstance(step.step, BeforeToolCall | AfterToolCall)
     ]
-    assert len(tool_steps) == 2
-    assert all(step.call.arguments["value"] is True for step in tool_steps)
-    assert [
-        step.view.call.content if step.view.call is not None else None
-        for step in tool_steps
-    ] == ["```python\nvalue_type(value=True)\n```\n"] * 2
+    assert [step.call.arguments for step in tool_steps] == [
+        {"x": 1, "y": 1},
+        {"x": 1, "y": 1},
+    ]
     assert isinstance(tool_steps[1], AfterToolCall)
-    assert tool_steps[1].result.text == "bool"
+    assert tool_steps[1].result.text == "2"
+
+
+@pytest.mark.parametrize("version", [None, "unknown"])
+@pytest.mark.parametrize("serialized", [False, True])
+def test_unknown_version_nested_modified_approval_is_refused(
+    version: str | None, serialized: bool
+) -> None:
+    _, events, _ = _historical_approval_events("expanded", "modify", True)
+    approval = next(e for e in events if isinstance(e, ApprovalEvent))
+    outer = ToolEvent(id="outer", function="outer", arguments={}, events=[approval])
+    if serialized:
+        outer = ToolEvent.model_validate_json(outer.model_dump_json())
+    with pytest.raises(
+        ValueError,
+        match=r"modified approvals.*0\.3\.277.*Replay this transcript from its messages instead",
+    ):
+        steps_from_events(
+            [], [outer], [], sample_uuid="sample", eval_info=EvalInfo(version, False)
+        )
 
 
 @pytest.mark.parametrize("inputs", ["expanded", "pooled"])

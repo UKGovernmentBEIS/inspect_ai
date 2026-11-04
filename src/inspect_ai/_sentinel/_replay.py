@@ -98,7 +98,7 @@ def steps_from_events(
 
     Inspect logs record origins on every model call or on none. If a transcript mixes calls with and without origins, recorded calls retain their recorded classification and calls without origins are inferred; continuity across that mixed sequence is not guaranteed.
 
-    In logs without origins, recorded sentinel checks and human decisions are used only when their step id pairs with a model call's exact id. Inferred turns may differ from those seen by a sentinel that ran before origins were recorded; reproducing that sentinel's live steps is outside this replay contract. Older logs without a solvers wrapper span can classify side calls in top-level solver spans as agent turns. For a run without a sentinel, human decisions are reconstructed from `ApprovalEvent`s only when the log records inspect_ai 0.3.277 or later. Older or unknown versions omit those decisions with one warning because older Inspect recorded modified approvals incorrectly; tool steps and turn inference remain available for supported logs. In those older or unknown logs, an `ApprovalEvent.modified` payload on either an approve or modify decision supplies the tool-stage arguments because `ToolEvent` can still hold the original proposal. When that payload changes the call, replay renders a default view because stored views can also describe the proposal. From 0.3.277 onward, `ToolEvent` arguments and view are authoritative.
+    In logs without origins, recorded sentinel checks and human decisions are used only when their step id pairs with a model call's exact id. Inferred turns may differ from those seen by a sentinel that ran before origins were recorded; reproducing that sentinel's live steps is outside this replay contract. Older logs without a solvers wrapper span can classify side calls in top-level solver spans as agent turns. For a run without a sentinel, human decisions are reconstructed from `ApprovalEvent`s only when the log records inspect_ai 0.3.277 or later; older or unknown versions omit those decisions with one warning. An older or unknown-version log containing any modified approval is refused because Inspect recorded those calls inconsistently; replay that transcript from its messages instead.
 
     Replay requires a log written by Inspect 0.3.94 or later. Earlier logs lack native tool spans and cannot be replayed reliably. If the recorded version is unknown, completed native tool events without a matching tool span are refused as potentially older logs.
 
@@ -115,7 +115,7 @@ def steps_from_events(
         The steps, in the order they ran live.
 
     Raises:
-        ValueError: `eval_info` is `None`, or the log predates Inspect 0.3.94 (or has an unknown version and completed spanless native tool events). Replay such transcripts from their messages instead.
+        ValueError: `eval_info` is `None`, the log predates Inspect 0.3.94 (or has an unknown version and completed spanless native tool events), or an older or unknown-version log contains a modified approval. Replay such transcripts from their messages instead.
         MalformedLogError: Two steps of one stage have one step id, the span tree has a `parent_id` cycle, or a model input names rows outside the message pool.
         Unmatched recorded model_input checks are skipped with one warning per transcript.
     """
@@ -125,6 +125,13 @@ def steps_from_events(
             "(EvalInfo.from_eval). Replay this transcript from its messages instead."
         )
     version = eval_info.inspect_ai_version
+    if not _records_approval_decisions(version) and _has_modified_approval(events):
+        raise ValueError(
+            "steps_from_events cannot replay modified approvals from Inspect "
+            "logs before inspect_ai 0.3.277 or with an unknown version; "
+            "those logs recorded them inconsistently. Replay this transcript "
+            "from its messages instead."
+        )
     if _before_tool_spans(version) or (
         (version is None or _VERSION.fullmatch(version.strip()) is None)
         and _has_spanless_native_tool(events)
@@ -164,6 +171,27 @@ def _flatten(events: Sequence[Event]) -> tuple[list[Event], list[bool]]:
 
     walk(events, False)
     return flat, nested
+
+
+def _has_modified_approval(events: Sequence[Any]) -> bool:
+    """Find modified approval payloads, including those nested in old tool events."""
+    for event in events:
+        if isinstance(event, ApprovalEvent):
+            if event.modified is not None:
+                return True
+        elif isinstance(event, dict) and event.get("event") == "approval":
+            if event.get("modified") is not None:
+                return True
+        children = (
+            event.events
+            if isinstance(event, ToolEvent)
+            else event.get("events")
+            if isinstance(event, dict) and event.get("event") == "tool"
+            else None
+        )
+        if isinstance(children, list) and _has_modified_approval(children):
+            return True
+    return False
 
 
 def _has_spanless_native_tool(events: Sequence[Any]) -> bool:
@@ -476,11 +504,9 @@ class _Driver:
         self.keys = _PoolKeys(pool)
         self.eval_info = eval_info
         self.human_approvers = set(human_approvers)
-        self.approval_log_reliable = _records_approval_decisions(
-            eval_info.inspect_ai_version
-        )
         self.reconstruct_approval_decisions = (
-            not eval_info.sentinel and self.approval_log_reliable
+            not eval_info.sentinel
+            and _records_approval_decisions(eval_info.inspect_ai_version)
         )
         self.spans = SpanConversations(sample_uuid)
         self.timeline = _timeline_conversations(timeline) if timeline else None
@@ -861,37 +887,16 @@ class _Driver:
 
         modify = self._sentinel_modify(before_span, event)
         approved = approver_modified or proposal
-        historical_modified = (
-            approval.modified
-            if not self.approval_log_reliable
-            and approval is not None
-            and approval.decision in ("approve", "modify")
-            else None
-        )
-        executed_arguments = (
-            historical_modified.arguments
-            if historical_modified is not None
-            else event.arguments
-        )
-        historical_view_stale = historical_modified is not None and (
-            historical_modified.function != proposal.function
-            or not json_equal(historical_modified.arguments, proposal.arguments)
-        )
-        event_view = event.view if not historical_view_stale else None
         if modify is not None:
             before_call = approved
         else:
-            before_call = replace(approved, arguments=executed_arguments)
-        if (
-            approval is not None
-            and approval.view is not None
-            and approver_modified is None
-            and not historical_view_stale
-        ):
+            before_call = replace(approved, arguments=event.arguments)
+        if approval is not None and approval.view is not None and not approver_modified:
             before_view = approval.view
-        elif modify is None or event_view is None:
-            # Older views may still describe the proposal rather than the call.
-            before_view = ToolCallView(call=event_view or _default_view(before_call))
+        elif modify is None or event.view is None:
+            # a ToolEvent without a view is a call to a tool without a viewer,
+            # whose view is the default rendering of the call
+            before_view = ToolCallView(call=event.view or _default_view(before_call))
         else:
             # a sentinel's modify replaced the view with the modified call's,
             # and the tool's viewer is not in the log
@@ -925,7 +930,7 @@ class _Driver:
             after_call,
             id=event.id,
             function=event.function,
-            arguments=executed_arguments,
+            arguments=event.arguments,
         )
         truncated = self._truncated(event)
         result = self._result(event)
@@ -936,7 +941,7 @@ class _Driver:
                 message=assistant.text,
                 message_id=assistant_id,
                 call=after_call,
-                view=ToolCallView(call=event_view or _default_view(after_call)),
+                view=ToolCallView(call=event.view or _default_view(after_call)),
                 result=result,
                 output=None,
                 truncated=truncated,
