@@ -694,7 +694,7 @@ def _run_agent(
         approval=approval,
     )
     [log] = eval(task, model=_model(stand_in), display="none")
-    assert log.status == "success", log.error
+    assert log.status == "success"
     assert log.samples is not None
     return log.samples[0]
 
@@ -938,6 +938,32 @@ def _answers(*results: dict[str, Any]) -> Callable[[dict[str, Any]], dict[str, A
     return answer
 
 
+@pytest.mark.parametrize("sentinel_proxy", [None, "off"], ids=["not set", "off"])
+def test_a_failed_call_with_no_sidecar_asks_the_provider_nothing_more(
+    sentinel_proxy: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # whether Inspect retries the error is the provider's `should_retry`, which
+    # can log or raise, so it is asked only of a call through a sidecar
+    from inspect_ai.model import _model as model_module
+
+    asked: list[BaseException] = []
+
+    def would_retry(api: Any, ex: BaseException) -> bool:
+        asked.append(ex)
+        return False
+
+    monkeypatch.setattr(model_module, "_would_retry", would_retry)
+    stand_in = StandInSidecar(turns=[Turn(status=400)])
+    task = Task(dataset=[Sample(input="Hi.")], solver=generate())
+
+    [log] = eval(
+        task, model=_model(stand_in), sentinel_proxy=sentinel_proxy, display="none"
+    )
+
+    assert log.samples is not None and log.samples[0].error is not None
+    assert asked == []
+
+
 def _decided(field: dict[str, Any]) -> dict[str, Any]:
     return {"records": "held", "state": "decided", "sentinel": field}
 
@@ -1005,8 +1031,12 @@ def test_a_continued_reply_without_the_field_is_looked_up() -> None:
     [
         ({"records": "held", "state": "not_judged", "reason": "error"}, "not judged"),
         ({"records": "unknown"}, "unavailable"),
+        # the proxy passed the reply on without handing it to the sidecar
+        ({"records": "held", "state": "awaiting_reply"}, "unavailable"),
+        # a state of a newer sidecar
+        ({"records": "held", "state": "reviewing"}, "unavailable"),
     ],
-    ids=["not judged", "unknown"],
+    ids=["not judged", "unknown", "reply passed on", "unknown state"],
 )
 def test_a_reply_the_sidecar_didnt_judge_is_used_and_says_so(
     result: dict[str, Any], judgment: str
@@ -1017,6 +1047,8 @@ def test_a_reply_the_sidecar_didnt_judge_is_used_and_says_so(
 
     sample = _run_agent(stand_in)
 
+    # an answer, not a wait
+    assert len(_looked_up(stand_in)) == 1
     [info] = [
         e
         for e in sample.events
@@ -1539,6 +1571,43 @@ def _two_models(first: StandInSidecar, second: StandInSidecar) -> tuple[Model, M
         _model(first, base_url="http://proxy-a.test"),
         _model(second, base_url="http://proxy-b.test"),
     )
+
+
+@solver
+def _asks_another_twice(other: Model) -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        state = await generate(state)
+        for _ in range(2):
+            await other.generate(state.messages)
+        return state
+
+    return solve
+
+
+def test_required_says_when_an_agent_call_goes_through_a_model_with_no_sidecar() -> (
+    None
+):
+    stand_in = StandInSidecar(
+        turns=[Turn(text="Sunny.", sentinel={"outcome": "proceed", "steps": []})]
+    )
+    # a second model reached without a proxy, which no sidecar judges
+    other = _model(StandInSidecar(), base_url=None)
+    task = Task(dataset=[Sample(input="Hi.")], solver=_asks_another_twice(other))
+
+    [log] = eval(
+        task, model=_model(stand_in), sentinel_proxy="required", display="none"
+    )
+
+    # `required` covers the task's model; the other goes on, noted once
+    assert log.status == "success"
+    assert log.samples is not None
+    noted = [
+        e.data
+        for e in log.samples[0].events
+        if isinstance(e, InfoEvent) and e.source == "sentinel sidecar"
+    ]
+    assert len(noted) == 1
+    assert isinstance(noted[0], dict) and noted[0]["model"] == str(other)
 
 
 @solver

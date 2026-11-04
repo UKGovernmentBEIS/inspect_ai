@@ -1807,8 +1807,9 @@ class Model:
                 except Exception as ex:
                     # a sidecar's refusal of an agent call is acted on as the
                     # model's turn, as an in-process sentinel's decision is
+                    raised = ex
                     refused = await refused_output(
-                        str(self), _would_retry(self.api, ex), _bridged()
+                        str(self), lambda: _would_retry(self.api, raised), _bridged
                     )
                     if refused is None:
                         # Mark event as failed for uncaught provider exceptions
@@ -1853,8 +1854,9 @@ class Model:
                 call = None
 
             if isinstance(output, Exception):
+                failed = output
                 refused = await refused_output(
-                    str(self), _would_retry(self.api, output), _bridged()
+                    str(self), lambda: _would_retry(self.api, failed), _bridged
                 )
                 if refused is not None:
                     stream_observer.discard_partial_output()
