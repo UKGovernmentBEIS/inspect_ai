@@ -433,8 +433,9 @@ def _write_dist(
     wheel_version: str,
     sdist_version: str,
     sdist_files: tuple[str, ...] = (),
+    sdist_text_files: dict[str, str] | None = None,
 ) -> None:
-    dist.mkdir()
+    dist.mkdir(exist_ok=True)
     _write_wheel(
         dist / f"inspect_ai-{wheel_version}-py3-none-any.whl", _wheel_members()
     )
@@ -444,6 +445,11 @@ def _write_dist(
             info = tarfile.TarInfo(f"{root}/{name}")
             info.size = len(name)
             sdist.addfile(info, io.BytesIO(name.encode()))
+        for name, content in (sdist_text_files or {}).items():
+            data = content.encode()
+            info = tarfile.TarInfo(f"{root}/{name}")
+            info.size = len(data)
+            sdist.addfile(info, io.BytesIO(data))
 
 
 @pytest.fixture
@@ -495,14 +501,62 @@ def test_pypi_verify_dist_rejects_unexpected_files(
         pypi_release.verify_dist(dist, "0.3.278", "9")
 
 
+_MANIFEST_EXCLUDES_BINARIES = """\
+# Keep the sandbox tools binaries out of the sdist.
+recursive-exclude src/inspect_ai/binaries *
+"""
+
+_MANIFEST_KEEPS_BINARIES = """\
+prune tests
+exclude uv.lock
+"""
+
+
 @pytest.mark.usefixtures("wheel_globs")
 def test_pypi_verify_dist_rejects_binaries_in_sdist(
     pypi_release: ModuleType, tmp_path: Path
 ) -> None:
     binary = "src/inspect_ai/binaries/inspect-sandbox-tools-amd64-v9"
-    _write_dist(tmp_path / "dist", "0.3.278", "0.3.278", (binary,))
+    _write_dist(
+        tmp_path / "dist",
+        "0.3.278",
+        "0.3.278",
+        (binary,),
+        sdist_text_files={"MANIFEST.in": _MANIFEST_EXCLUDES_BINARIES},
+    )
     with pytest.raises(RuntimeError, match="must not contain the sandbox tools"):
         pypi_release.verify_dist(tmp_path / "dist", "0.3.278", "9")
+
+
+@pytest.mark.usefixtures("wheel_globs")
+def test_pypi_verify_dist_allows_binaries_when_manifest_keeps_them(
+    pypi_release: ModuleType, tmp_path: Path
+) -> None:
+    """Publish-parity rebuilds older tags whose sdist still shipped binaries."""
+    binary = "src/inspect_ai/binaries/inspect-sandbox-tools-amd64-v9"
+    _write_dist(
+        tmp_path / "dist",
+        "0.3.278",
+        "0.3.278",
+        (binary,),
+        sdist_text_files={"MANIFEST.in": _MANIFEST_KEEPS_BINARIES},
+    )
+    pypi_release.verify_dist(tmp_path / "dist", "0.3.278", "9")
+
+
+@pytest.mark.parametrize(
+    "manifest,excludes",
+    [
+        (_MANIFEST_EXCLUDES_BINARIES, True),
+        ("prune src/inspect_ai/binaries\n", True),
+        (_MANIFEST_KEEPS_BINARIES, False),
+        ("", False),
+    ],
+)
+def test_manifest_excludes_sandbox_binaries(
+    pypi_release: ModuleType, manifest: str, excludes: bool
+) -> None:
+    assert pypi_release._manifest_excludes_sandbox_binaries(manifest) is excludes
 
 
 @pytest.mark.usefixtures("wheel_globs")

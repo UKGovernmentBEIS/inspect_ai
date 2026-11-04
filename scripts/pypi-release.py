@@ -489,6 +489,36 @@ def verify_wheel_contents(
     logging.info(f"✓ Wheel contents verified: {wheel_path.name}")
 
 
+def _manifest_excludes_sandbox_binaries(manifest_text: str) -> bool:
+    """True when MANIFEST.in keeps sandbox tools binaries out of the sdist."""
+    return (
+        re.search(
+            r"^(?:recursive-exclude|prune)\s+src/inspect_ai/binaries\b",
+            manifest_text,
+            flags=re.MULTILINE,
+        )
+        is not None
+    )
+
+
+def _sdist_manifest_excludes_sandbox_binaries(archive: tarfile.TarFile) -> bool:
+    """Read MANIFEST.in from an sdist and report whether it excludes the binaries.
+
+    Publish-parity rebuilds the latest PyPI tag with this revision's verify-dist.
+    Older tags shipped binaries in the sdist and their MANIFEST.in does not
+    exclude them; the gate must not fail those rebuilds. New trees that exclude
+    the binaries in MANIFEST.in still fail if the sdist packs them.
+    """
+    for member in archive.getmembers():
+        if not member.isfile() or member.name.partition("/")[2] != "MANIFEST.in":
+            continue
+        extracted = archive.extractfile(member)
+        if extracted is None:
+            return False
+        return _manifest_excludes_sandbox_binaries(extracted.read().decode())
+    return False
+
+
 def verify_dist(dist_dir: Path, version: str, sandbox_version: str) -> None:
     """Post-build gate for CI: dist/ holds one sdist and one wheel of `version`.
 
@@ -499,8 +529,8 @@ def verify_dist(dist_dir: Path, version: str, sandbox_version: str) -> None:
     Raises:
         RuntimeError: If dist/ holds anything other than exactly one sdist
             and one wheel of `version`, the sdist contains a file under
-            `src/inspect_ai/binaries/`, or the wheel fails
-            `verify_wheel_contents`.
+            `src/inspect_ai/binaries/` while its MANIFEST.in excludes them,
+            or the wheel fails `verify_wheel_contents`.
     """
     files = sorted(f.name for f in dist_dir.iterdir()) if dist_dir.is_dir() else []
     wheels = [f for f in files if f.endswith(".whl")]
@@ -524,10 +554,16 @@ def verify_dist(dist_dir: Path, version: str, sandbox_version: str) -> None:
             for name in archive.getnames()
             if name.partition("/")[2].startswith("src/inspect_ai/binaries/")
         ]
-    if binaries:
+        excludes = _sdist_manifest_excludes_sandbox_binaries(archive)
+    if binaries and excludes:
         raise RuntimeError(
             f"{sdist} must not contain the sandbox tools binaries; found "
             f"{binaries}. Check MANIFEST.in."
+        )
+    if binaries:
+        logging.info(
+            f"{sdist} contains sandbox tools binaries; its MANIFEST.in does not "
+            f"exclude them (expected when rebuilding a release that shipped them)"
         )
 
     verify_wheel_contents(dist_dir / wheel, sandbox_version)
