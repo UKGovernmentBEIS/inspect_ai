@@ -5,7 +5,6 @@ import json
 import tempfile
 import zipfile
 from collections.abc import Sequence
-from contextvars import Context, copy_context
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal, NamedTuple
 
@@ -108,6 +107,9 @@ def merge_eval_log_shards(
     run computes them. Pass the task the shards ran. The merge refuses a task
     whose name, scorer names, metric names, epochs or epoch reducer names
     differ from what the shards recorded, but does not compare options.
+    Metrics and epoch reducers run in the caller's model context: the merge
+    builds no model from what the shards record. Shards run with
+    `score=False` merge to a log with no metrics.
 
     The merge does not delete the shards. Once you have checked the merged
     log, delete `<dir>/<name>.shards/` yourself. Deleting one shard directory
@@ -454,7 +456,6 @@ async def _merge_pass(
                     read_member=read_member,
                     summaries=summaries,
                     task=task,
-                    context=recorded_context(base),
                     total_samples=total,
                     make_header=lambda scoring: build_header(
                         base=base,
@@ -483,40 +484,6 @@ async def _merge_pass(
                 carried_zip.close()
 
     return _Pass(header=header, written=True)
-
-
-def recorded_context(header: EvalLog) -> Context:
-    """A copy of the caller's context with the model context the shards ran with.
-
-    As a task run installs them (`init_task_context`): the active model is
-    built from the recorded model with its own generate config
-    (`model_generate_config`), base URL and model arguments, the active
-    generate config is the task's (`plan.config`), and the recorded model
-    roles are resolved as `eval()` resolves them, each model a copy labelled
-    with its role. The merge computes the results and epoch reductions in it,
-    so a metric or epoch reducer that calls `get_model()` or
-    `get_model(role=...)` sees what the shards ran with. The caller's own
-    context is not changed.
-    """
-    from inspect_ai.model import get_model
-    from inspect_ai.model._model import init_active_model, init_model_roles
-    from inspect_ai.model._model_config import model_roles_config_to_model_roles
-    from inspect_ai.model._util import resolve_model_roles
-
-    def init() -> None:
-        model = get_model(
-            model=header.eval.model,
-            config=header.eval.model_generate_config,
-            base_url=header.eval.model_base_url,
-            **header.eval.model_args,
-        )
-        roles = model_roles_config_to_model_roles(header.eval.model_roles)
-        init_model_roles(resolve_model_roles(roles) or {})
-        init_active_model(model, header.plan.config)
-
-    context = copy_context()
-    context.run(init)
-    return context
 
 
 def _recorded_pass(

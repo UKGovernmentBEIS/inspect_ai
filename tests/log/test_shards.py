@@ -1,8 +1,8 @@
+import contextlib
 import enum
 import functools
 import json
 import os
-import sys
 import zipfile
 from collections.abc import Callable, Iterator
 from pathlib import Path
@@ -38,6 +38,7 @@ from inspect_ai.log._shards._walk import (
     is_shard_path,
     list_shard_set,
 )
+from inspect_ai.model import get_model
 from inspect_ai.scorer import (
     CORRECT,
     INCORRECT,
@@ -3409,231 +3410,278 @@ def test_merge_of_a_local_file_uri_with_reserved_characters(tmp_path: Path) -> N
     assert read_eval_log(merged, header_only=True).status == "success"
 
 
-_MODEL_TASK = f"""
-from inspect_ai import Epochs, Task, task
-from inspect_ai.dataset import Sample
-from inspect_ai.model import GenerateConfig, get_model, model_roles
-from inspect_ai.model._generate_config import active_generate_config
-from inspect_ai.scorer import (
-    Metric,
-    SampleScore,
-    Score,
-    ScoreReducer,
-    match,
-    metric,
-    score_reducer,
-)
+def _merge_parts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    backend: str,
+    write: str,
+    run: Callable[[str, str, list[int]], EvalLog],
+    task: Task,
+    first: Task | None = None,
+) -> Callable[[], ShardMergeResult]:
+    """Run shard 0, merge it first when `write` is incremental, run shard 1.
+
+    Returns the final merge, for the test to run (with `first`, or `task`,
+    for the first merge).
+    """
+    merged, shards = _paths(tmp_path)
+    run(shards, "0", [1, 2, 3])
+    if write == "incremental":
+        _merge_on(backend, monkeypatch, merged, first or task, allow_incomplete=True)
+    run(shards, "1", [4, 5, 6])
+    return lambda: _merge_on(backend, monkeypatch, merged, task)
 
 
-def _ran_with(role: bool) -> bool:
-    if role:
-        grader = get_model(role="grader", required=True)
-        bound = model_roles()["grader"]
-        labels = [m.role for m in (bound if isinstance(bound, list) else [bound])]
-        return (grader.name, grader.role, set(labels)) == ("grader", "grader", {{"grader"}})
-    return get_model().name == "model"
-
-
-def _settings() -> float:
-    # the model's own temperature, and the task's as the active config
-    model = get_model().config.temperature or 0.0
-    return model + 10 * (active_generate_config().temperature or 0.0)
-
-
-@metric
-def built_with(name: str) -> Metric:
-    def compute(scores: list[SampleScore]) -> float:
-        return 1.0 if name in ("model", "grader") else 0.0
-
-    return compute
-
-
-@metric
-def run_with(role: bool) -> Metric:
-    def compute(scores: list[SampleScore]) -> float:
-        return 1.0 if _ran_with(role) else 0.0
-
-    return compute
-
-
-@metric
-def built_config(temperature: float) -> Metric:
-    def compute(scores: list[SampleScore]) -> float:
-        return temperature
-
-    return compute
-
-
-@metric
-def run_config() -> Metric:
-    def compute(scores: list[SampleScore]) -> float:
-        return _settings()
-
-    return compute
-
-
-@score_reducer(name="model_check")
-def model_check(role: bool) -> ScoreReducer:
-    def reduce(scores: list[Score]) -> Score:
-        return Score(value=(1.0 if _ran_with(role) else 0.0) + _settings())
-
-    return reduce
-
-
-@task
-def {TASK}(role: bool = False) -> Task:
-    # the model the task is built for, as browse_comp does
-    if role:
-        grader = get_model(role="grader", required=True)
-        name = grader.name if grader.role == "grader" else "unlabelled"
-    else:
-        name = get_model().name
-    return Task(
-        dataset=[Sample(id=i, input="q", target="x") for i in range(1, 5)],
-        scorer=match(),
-        metrics=[
-            built_with(name),
-            run_with(role),
-            built_config(get_model().config.temperature or 0.0),
-            run_config(),
-        ],
-        epochs=Epochs(1, model_check(role)),
-        config=GenerateConfig(temperature=0.8),
+def _fresh_native(tmp_path: Path, task: Task, **kwargs: Any) -> EvalLog:
+    return read_eval_log(
+        eval(
+            task,
+            model="mockllm/model",
+            log_dir=str(tmp_path / "native"),
+            display="none",
+            **kwargs,
+        )[0].location
     )
-"""
-
-# a merge in a fresh process, under an unrelated active model and role, of
-# the Task the caller built as the shards ran it
-_MERGE_SCRIPT = f"""
-import json
-import sys
-from contextvars import copy_context
-
-import anyio
-
-from inspect_ai.log import merge_eval_log_shards_async
-from inspect_ai.model import GenerateConfig, get_model
-from inspect_ai.model._model import active_model, init_active_model, init_model_roles
-from inspect_ai.model._model import model_roles
-
-backend, incomplete = sys.argv[1], sys.argv[2] == "1"
-roles = json.loads(sys.argv[3])
-temperature = json.loads(sys.argv[4])
 
 
-def build():
-    from custom_task import {TASK}
-    from inspect_ai.model._util import resolve_model_roles
-
-    model = get_model("mockllm/model", config=GenerateConfig(temperature=temperature))
-    init_active_model(model, GenerateConfig())
-    init_model_roles(resolve_model_roles(roles) or {{}})
-    return {TASK}(role=bool(roles))
-
-
-task = copy_context().run(build)
-ambient = get_model("mockllm/ambient")
-init_active_model(ambient, GenerateConfig())
-init_model_roles({{"grader": ambient}})
-
-
-async def main() -> None:
-    result = await merge_eval_log_shards_async(
-        "{NAME}.eval", task, allow_incomplete=incomplete
-    )
-    print(json.dumps({{
-        "status": result.log.status,
-        "active": active_model().name,
-        "grader": model_roles()["grader"].name,
-    }}))
-
-
-anyio.run(main, backend=backend)
-"""
+_REDUCERS: dict[str, list[str] | None] = {"implicit": None, "disabled": []}
 
 
 @pytest.mark.parametrize("backend", ["asyncio", "trio"])
 @pytest.mark.parametrize("write", ["fresh", "incremental"])
-@pytest.mark.parametrize("binding", ["active", "role", "role-list"])
-def test_a_merge_runs_the_task_in_the_recorded_model_context(
+@pytest.mark.parametrize("given", list(_REDUCERS))
+@pytest.mark.parametrize("ran", list(_REDUCERS))
+def test_an_implicit_reducer_and_disabled_reduction_do_not_match(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    binding: str,
+    ran: str,
+    given: str,
     write: str,
     backend: str,
 ) -> None:
-    import subprocess
+    def task(state: str) -> Task:
+        return _graded_task(Epochs(2, _REDUCERS[state]))
 
-    from inspect_ai.model import GenerateConfig, get_model
-
-    monkeypatch.chdir(tmp_path)
-    Path("custom_task.py").write_text(_MODEL_TASK)
-    # the task sets temperature 0.8: with role bindings the model sets its
-    # own 0.2, which a task run keeps apart from the task's
-    temperature = None if binding == "active" else 0.2
-    model = get_model(
-        "mockllm/model", config=GenerateConfig(temperature=temperature), memoize=False
+    merge = _merge_parts(
+        tmp_path,
+        monkeypatch,
+        backend,
+        write,
+        lambda shards, k, ids: _run(shards, k, task(ran), sample_id=ids),
+        task(given),
+        first=task(ran),
     )
-    kwargs: dict[str, Any] = {}
-    if binding != "active":
-        grader = ["mockllm/grader", "mockllm/other"]
-        kwargs = dict(
-            task_args={"role": True},
-            model_roles={"grader": grader if binding == "role-list" else grader[0]},
-        )
+    if ran != given:
+        before = _files(str(tmp_path))
+        with pytest.raises(ShardSetError, match="in its epoch reducers "):
+            merge()
+        assert _files(str(tmp_path)) == before
+        return
+    merged = read_eval_log(merge().log.location)
+    native = _fresh_native(tmp_path, task(ran))
+    assert merged.results is not None and native.results is not None
+    assert _metric_values(merged) == _metric_values(native)
+    assert [s.scored_samples for s in merged.results.scores] == [
+        s.scored_samples for s in native.results.scores
+    ]
+    assert merged.reductions == native.reductions
+    assert (merged.reductions == []) == (ran == "disabled")
+
+
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+@pytest.mark.parametrize("write", ["fresh", "incremental"])
+def test_an_unscored_run_merges_to_a_native_unscored_log(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, write: str, backend: str
+) -> None:
+    task = _graded_task(Epochs(2, at_least(1, value=0.5)))
+    merge = _merge_parts(
+        tmp_path,
+        monkeypatch,
+        backend,
+        write,
+        lambda shards, k, ids: _run(shards, k, task, sample_id=ids, score=False),
+        task,
+    )
+    result = merge()
+    assert result.log.status == "success"
+    merged = read_eval_log(result.log.location)
+    native = _fresh_native(tmp_path, task, score=False)
+    assert merged.results is not None and native.results is not None
+    assert merged.results.scores == native.results.scores == []
+    assert (merged.results.total_samples, merged.results.completed_samples) == (
+        native.results.total_samples,
+        native.results.completed_samples,
+    )
+    assert merged.reductions is None and native.reductions is None
+    # the declared scorers are kept, as a native unscored log keeps them
+    assert merged.eval.scorers == native.eval.scorers
+
+
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+@pytest.mark.parametrize("write", ["fresh", "incremental"])
+@pytest.mark.parametrize("first", ["scored", "unscored"])
+def test_shards_that_ran_with_and_without_scoring_are_refused(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    first: str,
+    write: str,
+    backend: str,
+) -> None:
+    def run(shards: str, k: str, ids: list[int]) -> EvalLog:
+        scored = (k == "0") == (first == "scored")
+        return _run(shards, k, sample_id=ids, score=scored)
+
+    merge = _merge_parts(tmp_path, monkeypatch, backend, write, run, _task())
+    before = _files(str(tmp_path))
+    with pytest.raises(ShardSetError, match="did not run with the same scoring"):
+        merge()
+    assert _files(str(tmp_path)) == before
+
+
+@contextlib.contextmanager
+def _fake_hf_loaders(monkeypatch: pytest.MonkeyPatch) -> Iterator[list[Any]]:
+    """The Hugging Face provider on `test_hf.py`'s fake dependencies.
+
+    Yields the keyword arguments of every `from_pretrained` call.
+    """
+    import importlib.util
+    from unittest.mock import MagicMock
+
+    spec = importlib.util.spec_from_file_location(
+        "shards_test_hf", Path(__file__).parents[1] / "model/providers/test_hf.py"
+    )
+    assert spec is not None and spec.loader is not None
+    test_hf = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(test_hf)
+    calls: list[Any] = []
+
+    class Loader:
+        @staticmethod
+        def from_pretrained(*args: Any, **kwargs: Any) -> Any:
+            calls.append(kwargs)
+            return MagicMock()
+
+    with test_hf._hf_provider_with_fake_deps(
+        monkeypatch, AutoModelForCausalLM=Loader, AutoTokenizer=Loader
+    ):
+        yield calls
+
+
+_TRUSTED = {"trust_remote_code": True}
+_HF = "hf/org/remote-code-model"
+# what the shard headers record in place of the mockllm model they ran
+_RECORDED: dict[str, dict[str, Any]] = {
+    "openai": {
+        "model": "openai/gpt-4o",
+        "model_roles": {
+            "grader": {"model": "openai/gpt-4o-mini"},
+            "panel": [{"model": "openai/gpt-4o"}, {"model": "openai/gpt-4o-mini"}],
+        },
+    },
+    "hf-model-args": {"model": _HF, "model_args": _TRUSTED},
+    "hf-role-args": {
+        "model_roles": {
+            "grader": {"model": _HF, "args": _TRUSTED},
+            "panel": [{"model": _HF, "args": _TRUSTED}],
+        }
+    },
+}
+
+
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+@pytest.mark.parametrize("write", ["fresh", "incremental"])
+@pytest.mark.parametrize("recorded", list(_RECORDED))
+def test_a_merge_builds_no_model_from_the_shard_logs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    recorded: str,
+    write: str,
+    backend: str,
+) -> None:
+    from inspect_ai.model import ModelAPI
+
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    merged, shards = _paths(tmp_path)
+    constructed: list[str] = []
+    construct = ModelAPI.__init__
+
+    def spy(self: ModelAPI, model_name: str, *args: Any, **kwargs: Any) -> None:
+        constructed.append(model_name)
+        construct(self, model_name, *args, **kwargs)
 
     def shard(k: str, ids: list[int]) -> None:
-        eval(
-            "custom_task.py",
-            model=model,
-            log_dir=f"{NAME}.shards/{k}",
-            display="none",
-            sample_id=ids,
-            **kwargs,
-        )
+        log = _run(shards, k, sample_id=ids)
+        _edit_header(log.location, lambda h: h["eval"].update(_RECORDED[recorded]))
 
-    env = {**os.environ, "INSPECT_ASYNC_BACKEND": backend}
+    def merge(**kwargs: Any) -> ShardMergeResult:
+        with monkeypatch.context() as watched, _fake_hf_loaders(watched) as loaded:
+            watched.setattr(ModelAPI, "__init__", spy)
+            # no memoized model from another test stands in for a construction
+            watched.setattr("inspect_ai.model._model._models", {})
+            result = _merge_on(backend, watched, merged, _task(), **kwargs)
+        assert constructed == [] and loaded == []
+        return result
 
-    def merge(incomplete: bool) -> None:
-        Path("merge.py").write_text(_MERGE_SCRIPT)
-        roles = json.dumps(kwargs.get("model_roles", {}))
-        args = [backend, "1" if incomplete else "0", roles]
-        args += [json.dumps(temperature)]
-        result = subprocess.run(
-            [sys.executable, "merge.py", *args], capture_output=True, text=True, env=env
-        )
-        assert result.returncode == 0, result.stderr
-        # the caller's own active model and roles are kept (the last line:
-        # startup can print enabled hooks first)
-        output = json.loads(result.stdout.splitlines()[-1])
-        assert (output["active"], output["grader"]) == ("ambient", "ambient")
-
-    shard("0", [1, 2])
+    shard("0", [1, 2, 3])
     if write == "incremental":
-        merge(incomplete=True)
-    shard("1", [3, 4])
-    merge(incomplete=False)
+        merge(allow_incomplete=True)
+    shard("1", [4, 5, 6])
+    result = merge()
+    assert result.written and result.log.status == "success"
+    native = _fresh_native(tmp_path, _task())
+    assert _metric_values(result.log) == _metric_values(native)
 
-    native = eval(
-        "custom_task.py",
-        model=model,
-        log_dir="native",
-        display="none",
-        **kwargs,
-    )[0]
-    assert native.reductions is not None
-    settings = (temperature or 0.0) + 10 * 0.8
-    assert _metric_values(native) == {
-        ("match", "built_with"): 1.0,
-        ("match", "run_with"): 1.0,
-        ("match", "built_config"): temperature or 0.0,
-        ("match", "run_config"): settings,
-    }
-    values = [s.value for s in native.reductions[0].samples]
-    assert values == pytest.approx([1.0 + settings] * 4)
-    merged = read_eval_log(f"{NAME}.eval")
-    assert _metric_values(merged) == _metric_values(native)
-    assert merged.reductions == native.reductions
+
+@metric
+def shard_caller_model() -> Metric:
+    def compute(scores: list[SampleScore]) -> float:
+        return 1.0 if get_model().name == "ambient" else 0.0
+
+    return compute
+
+
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+@pytest.mark.parametrize("write", ["fresh", "incremental"])
+def test_a_metric_that_needs_a_model_uses_the_callers(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, write: str, backend: str
+) -> None:
+    from contextvars import copy_context
+
+    from inspect_ai.model._model import active_model_context_var
+
+    task = Task(
+        dataset=_task().dataset,
+        solver=generate(),
+        scorer=match(),
+        metrics=[shard_caller_model()],
+        name=TASK,
+    )
+
+    def merge_without_a_model(merge: Callable[[], ShardMergeResult]) -> Any:
+        def run() -> ShardMergeResult:
+            active_model_context_var.set(None)
+            return merge()
+
+        return copy_context().run(run)
+
+    merged, shards = _paths(tmp_path)
+    monkeypatch.delenv("INSPECT_EVAL_MODEL", raising=False)
+    _run(shards, "0", task, sample_id=[1, 2, 3])
+    if write == "incremental":
+        # the metric runs with the caller's model, not the shards' mockllm/model
+        with monkeypatch.context() as caller:
+            caller.setenv("INSPECT_EVAL_MODEL", "mockllm/ambient")
+            result = merge_without_a_model(
+                lambda: _merge_on(
+                    backend, monkeypatch, merged, task, allow_incomplete=True
+                )
+            )
+        assert _metric_values(result.log) == {("match", "shard_caller_model"): 1.0}
+    _run(shards, "1", task, sample_id=[4, 5, 6])
+    before = _files(str(tmp_path))
+    with pytest.raises(ValueError, match="No model specified"):
+        merge_without_a_model(lambda: _merge_on(backend, monkeypatch, merged, task))
+    assert _files(str(tmp_path)) == before
 
 
 def test_score_names_from_the_log_never_load_files(tmp_path: Path) -> None:

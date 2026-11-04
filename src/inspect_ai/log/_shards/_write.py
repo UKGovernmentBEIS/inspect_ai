@@ -4,7 +4,6 @@ import functools
 import json
 import zipfile
 from collections.abc import Awaitable, Callable, Sequence
-from contextvars import Context
 from typing import TYPE_CHECKING, Any, BinaryIO, NamedTuple
 
 from inspect_ai._util.constants import get_deserializing_context
@@ -12,6 +11,7 @@ from inspect_ai._util.json import to_json_safe
 from inspect_ai._util.registry import registry_unqualified_name
 from inspect_ai._util.zipfile import zipfile_compress_kwargs
 from inspect_ai.event._sample_init import SampleInitEvent
+from inspect_ai.event._span import SpanBeginEvent
 from inspect_ai.log._log import (
     EvalLog,
     EvalMetricDefinition,
@@ -46,6 +46,9 @@ class _SampleInputs(NamedTuple):
     changed it; None without that event."""
     initialized: bool
     """Whether the sample has a `SampleInitEvent`."""
+    scoring_ran: bool
+    """Whether a declared scorer ran on the sample (it has a `scorer` span),
+    which a run with `score=False` never does."""
     error: bool
     invalidated: bool
 
@@ -63,7 +66,8 @@ def check_task_matches(task: "Task", header: EvalLog, source: str) -> None:
 
     Compares names only, not options: the task name, the scorer names, the
     metric names (each scorer's and the task's), the number of epochs and the
-    epoch reducer names. Passing the task the shards ran, with the same
+    epoch reducer names, where no reducer (the default mean) differs from an
+    empty list (no reduction). Passing the task the shards ran, with the same
     options, is the caller's responsibility.
 
     Raises:
@@ -99,8 +103,8 @@ def check_task_matches(task: "Task", header: EvalLog, source: str) -> None:
         ("epochs", task.epochs or 1, recorded.config.epochs or 1),
         (
             "epoch reducers",
-            reducer_log_names(task.epochs_reducer) or [],
-            recorded.config.epochs_reducer or [],
+            reducer_log_names(task.epochs_reducer),
+            recorded.config.epochs_reducer,
         ),
     ]:
         if given != ran:
@@ -131,7 +135,6 @@ async def write_merged_zip(
     read_member: Callable[[SampleRecordKey], Awaitable[bytes]],
     summaries: Sequence[EvalSampleSummary],
     task: "Task",
-    context: Context,
     total_samples: int,
     make_header: Callable[[MergedScoring], EvalLog],
 ) -> EvalLog:
@@ -142,12 +145,13 @@ async def write_merged_zip(
     Then the summaries, the reductions and the header (made by `make_header`
     from the results and the samples' invalidation) are written. No journal
     is written: the merged log is always written finished. The results are
-    computed in `context`, the model context the shards ran with
-    (`recorded_context` in `_api.py`).
+    computed in the caller's model context: the merge builds no model from
+    what the shards record.
 
     Raises:
         ShardSetError: A sample member's id or epoch does not match its name,
-            or a sample with a declared score has no `SampleInitEvent`.
+            a sample with a declared score has no `SampleInitEvent`, or some
+            samples were scored and others ran without scoring.
         pydantic.ValidationError: A sample member does not parse.
     """
     with zipfile.ZipFile(out, "w", **zipfile_compress_kwargs) as zf:
@@ -157,7 +161,7 @@ async def write_merged_zip(
             inputs.append(
                 await run_owned(functools.partial(_write_sample, zf, key, data))
             )
-        results, reductions = context.run(_results, task, inputs, total_samples)
+        results, reductions = _results(task, inputs, total_samples)
         header = make_header(
             MergedScoring(
                 results=results,
@@ -188,6 +192,10 @@ def _write_sample(
         scores=dict(sample.scores or {}),
         initial_metadata=init.sample.metadata if init is not None else None,
         initialized=init is not None,
+        scoring_ran=any(
+            isinstance(event, SpanBeginEvent) and event.type == "scorer"
+            for event in sample.events
+        ),
         error=sample.error is not None,
         invalidated=sample.invalidation is not None,
     )
@@ -219,9 +227,15 @@ def _results(
     and a retry give its metrics different inputs, and `eval_results` would
     load a scorer named after it (decision: Ransom, 2026-10-28).
 
+    Shards run with `score=False` hold samples that completed without
+    scoring. Their results have no scorer entries and no reductions, as a
+    native unscored run's do. Samples that were scored beside samples that
+    ran without scoring are refused, since the shards did not run alike.
+
     Raises:
         ShardSetError: A sample has a score with no declared scorer, or has
-            scores but no `SampleInitEvent`.
+            scores but no `SampleInitEvent`, or some samples were scored and
+            others ran without scoring.
     """
     from inspect_ai._eval.task.results import eval_results
     from inspect_ai.scorer._scorer import unique_scorer_name
@@ -233,6 +247,24 @@ def _results(
         name: registry_unqualified_name(scorer)
         for name, scorer in zip(scorer_names, task.scorer or [])
     }
+    unscored = next(
+        (
+            sample
+            for sample in inputs
+            if not (sample.scores or sample.scoring_ran or sample.error)
+        ),
+        None,
+    )
+    scored = next(
+        (sample for sample in inputs if sample.scores or sample.scoring_ran), None
+    )
+    if unscored is not None and scored is not None:
+        raise ShardSetError(
+            f"Sample {str(scored.id)!r} was scored but sample "
+            f"{str(unscored.id)!r} ran without scoring (score=False or "
+            "--no-score), so the shards did not run with the same scoring. Re-run "
+            "the shards so that all of them score, or none do."
+        )
     scores: list[dict[str, SampleScore]] = []
     for sample in inputs:
         if not sample.scores:
@@ -268,9 +300,9 @@ def _results(
         samples=total_samples,
         scores=scores,
         reducers=task.epochs_reducer,
-        scorers=task.scorer,
+        scorers=task.scorer if unscored is None else None,
         metrics=task.metrics,
-        scorer_names=scorer_names or None,
+        scorer_names=(scorer_names or None) if unscored is None else None,
         completed_samples=sum(1 for sample in inputs if not sample.error),
         headline_metric=task.headline_metric,
     )

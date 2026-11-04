@@ -1138,7 +1138,8 @@ or the merged header when no shard attempt is left:
 - the number of epochs (`Task.epochs`, default 1, against
   `config.epochs`);
 - the epoch reducer names (`reducer_log_names(Task.epochs_reducer)`
-  against `config.epochs_reducer`).
+  against `config.epochs_reducer`), where no reducer (`None`, the default
+  mean) and an empty list (no reduction) differ.
 
 A difference raises `ShardSetError` naming the field, both values and the
 shard log or merged log it was compared with, and nothing is written.
@@ -1168,21 +1169,30 @@ reductions it returns become the header's `results` and the merged log's
 `reductions.json`. An incomplete merge computes them over the samples it
 holds, as a cancelled native run computes partial results.
 
-The model context. `eval()` keeps the active model and the model roles
-installed while the task runs, so a metric or epoch reducer may call
-`get_model()` or `get_model(role=...)`. The merge builds one context from
-the template shard's header (`recorded_context`, `_api.py`): a copy of
-the caller's context with the model context a task run installs
-(`init_task_context`): the active model built from the recorded model with
-its own generate config (`eval.model_generate_config`), base URL and model
-arguments; the task's generate config (`plan.config`) as the active
-generate config, kept apart from the model's, as a task run keeps them;
-and the recorded model roles resolved as `eval()` resolves them
-(`resolve_model_roles`), each model a copy labelled with its role, list
-bindings included. It runs `eval_results` in that context; the caller's
-own context is never changed, whether the merge returns, raises or is
-cancelled. The merge never builds the task: the caller does
+The model context (decision: Ransom, 2026-11-04). The merge runs
+`eval_results` in the caller's own context and builds no model provider
+from values in the shard logs: not the recorded model, its base URL or
+`model_args`, nor the model roles. A metric or epoch reducer that calls
+`get_model()` gets the caller's active model or `INSPECT_EVAL_MODEL`, and
+fails as `get_model()` does when there is neither. No metric or reducer in
+inspect_ai or inspect_evals (146 checked) reads the model or generate
+config, and model-graded scores are already stored in the shards. This
+keeps the merge with the read operations of
+[`malicious-log-code-execution.md`](malicious-log-code-execution.md)
+("Security"). The merge never builds the task: the caller does
 ("Python API").
+
+Unscored runs. Shards run with `score=False` hold samples that completed
+without scoring: no scores and no `scorer` span, which only the task
+runner's scoring loop opens. When the merged samples include such a
+sample, the merge calls `eval_results` without scorers, as a native
+unscored run does, so the results have no scorer entries and the merged
+log has no reductions. No field records the choice; the samples show it.
+A set holding both such a sample and a scored one (a score, or a
+`scorer` span) is refused with `ShardSetError` before publishing: the
+shards did not run alike. Samples that errored are neither, so a set
+holding no samples or only errored ones still gets scorer entries with no
+scored samples. A `Score.unscored()` score is a score.
 
 The metric inputs are those of a fresh run (decision: Ransom,
 2026-10-27): each declared scorer's score gets the sample's dataset
@@ -2009,13 +2019,21 @@ today.
   selection) refuses a stray or
   hostile file rather than skipping it; a merge never overwrites a
   `<name>.eval` without the field.
-- **Code execution.** The merge runs only the `Task` object the caller
-  passes, and never loads code a log names: no
-  metric, reducer or scorer is rebuilt from the log, and a score key that
-  names a file is refused rather than loaded ("Results"). The merge runs only in
-  trusted steps (the API, called by a launcher or by hand, and
-  `eval_set()` startup). No reader path (viewer
-  server, `read_eval_log*`, dataframes, ctl log-dir mode) calls it.
+- **Code execution.** The merge is a read operation in the trust model of
+  [`malicious-log-code-execution.md`](malicious-log-code-execution.md)
+  (decision: Ransom, 2026-11-04). Like `eval_set()`, it takes its task from
+  the caller, and the logs supply only samples. It runs only the `Task`
+  object the caller passes and never loads code a log names: no metric,
+  reducer or scorer is rebuilt from the log, and a score key that names a
+  file is refused rather than loaded ("Results"). It builds no model
+  provider from log values (model, base URL, `model_args`, roles), so a
+  log cannot select an SDK, credentials or `trust_remote_code`; metrics
+  and reducers run in the caller's model context. It has no `trust_log`
+  parameter. If a metric that needs the shards' model turns up, opting in
+  with `trust_log=True` would be the consistent extension. The merge runs
+  only in trusted steps (the API, called by a launcher or by hand, and
+  `eval_set()` startup). No reader path (viewer server,
+  `read_eval_log*`, dataframes, ctl log-dir mode) calls it.
 - **Viewer.** No change to the viewer server; its delete endpoint still
   authorizes and deletes only the requested file, so the new companion
   layout widens nothing it can delete.
@@ -2122,16 +2140,20 @@ Per PR (numbers from "Implementation plan"):
    - matching the task: a task with another name, other scorers, other
      metrics, another number of epochs or another reducer is refused on a
      fresh, incremental, unchanged and shards-removed merge, on asyncio
-     and Trio, with every file byte-identical;
-   - the model context: in fresh processes, a task whose factory, metric
-     and epoch reducer call `get_model()`, or with a task argument
-     `get_model(role="grader", required=True)` under a single or a list
-     role binding (every member labelled `grader`), and read the model's
-     own temperature and the task's (the task sets 0.8; the model none, or
-     a conflicting 0.2), merges to the native results and reductions, fresh and
-     incremental, on asyncio and Trio: a `Task` the caller built as the
-     workers did, merged under an unrelated active model and role, which
-     the caller keeps;
+     and Trio, with every file byte-identical; so is an implicit reducer
+     (`None`, the default mean) against disabled reduction (`[]`) in either
+     direction, while each matching state equals its native run;
+   - the model context: shards recording a provider model and roles
+     (OpenAI with no key, or a Hugging Face model with
+     `trust_remote_code=True` in its or a role's arguments) merge, fresh
+     and incremental, on asyncio and Trio, and no model provider is
+     constructed; a metric that calls `get_model()` with no active model
+     and no `INSPECT_EVAL_MODEL` fails with `get_model()`'s error and every
+     file is byte-identical;
+   - unscored runs: shards run with `score=False` merge, fresh and
+     incremental, on asyncio and Trio, to the results and reductions of a
+     native unscored run; shards that ran with and without scoring are
+     refused with every file byte-identical;
    - metric inputs: raw scores keep their declared scorer; declared
      metrics take the dataset metadata from the `SampleInitEvent`; a
      sample with scores and no such event is refused; a solver-set score
@@ -2395,7 +2417,9 @@ by Ransom on 2026-10-21: a torn shard read fails the merge instead of
 restarting it. Resolved by Ransom on 2026-11-03: the merge takes its
 metrics from the caller's task and does not delete shards; deletion is
 PR 9. Resolved by Ransom on 2026-11-04: the merge takes only a built
-`Task`; the merge CLI is step 5b.
+`Task`; the merge CLI is step 5b. Resolved by Ransom on 2026-11-04: the
+merge builds no model provider from shard log values and runs metrics and
+reducers in the caller's model context ("Results", "Security").
 
 Stale local locks are report-only, as the parent's test list requires; a
 same-host dead-pid check can be added if crashed merges turn out to happen.

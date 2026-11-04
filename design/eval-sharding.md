@@ -523,7 +523,9 @@ from what a log records. The caller must pass the task the shards ran:
 the merge refuses a task whose name, scorer names, metric names, number of
 epochs or epoch reducer names differ from what the shards recorded, and
 does not compare options (decision: Ransom, 2026-11-03). The launcher and
-`eval_set()` already hold the task.
+`eval_set()` already hold the task. Metrics and reducers run in the
+caller's model context: the merge builds no model from the logs
+(decision: Ransom, 2026-11-04).
 
 **Membership validation, strict.** Membership is by location, so a stray `.eval`
 file in the directory is a candidate member. Before combining, every member
@@ -961,7 +963,13 @@ Pydantic models. New boundaries:
   imports a log-named `task_file` or rebuilds metrics from what a log
   records (decisions: Ransom, 2026-11-03 and 2026-11-04; see "Trust"). How
   the CLI gets its task is designed in the implementation plan's step 5b.
-  No reader path (viewer server, `read_eval_log`, `evals_df`) recomputes
+  The merge is a read operation in the trust model of
+  [`malicious-log-code-execution.md`](malicious-log-code-execution.md):
+  it imports nothing a log names and builds no model provider from log
+  values, and has no `trust_log` parameter; metrics and reducers run in
+  the caller's model context (decision: Ransom, 2026-11-04). If a metric
+  that needs the shards' model turns up, `trust_log=True` is the
+  consistent extension. No reader path (viewer server, `read_eval_log`, `evals_df`) recomputes
   or follows the `task_file` fallback.
 - **Listing shards beside the merged log** changes no authorization: every
   file, shard or merged, is authorized per file as today (`_validate_read`).
