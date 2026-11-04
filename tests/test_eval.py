@@ -469,6 +469,21 @@ def test_eval_display_change_matches_fresh_display(
     assert _display_state() == fresh
 
 
+def test_score_without_display_keeps_display_type(
+    fresh_display: None, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from inspect_ai import score
+    from inspect_ai.util._display import display_type
+
+    task = Task(dataset=[Sample(input="hi", target="hi")], scorer=match())
+    [log] = eval(task, model="mockllm/model", display="none", log_dir=str(tmp_path))
+    capsys.readouterr()
+
+    score(log, match(), action="append")
+    assert display_type() == "none"
+    assert capsys.readouterr().out == ""
+
+
 def test_display_type_change_during_eval_keeps_running_display(
     fresh_display: None,
     monkeypatch: pytest.MonkeyPatch,
