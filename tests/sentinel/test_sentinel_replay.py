@@ -1061,7 +1061,7 @@ def test_a_bridged_host_tool_calls_steps_are_not_replayed(
     assert f"({ran.id})" in warning
 
 
-def test_a_native_call_reusing_a_bridged_call_id_omits_its_result(
+def test_a_native_call_reusing_a_bridged_call_id_skips_its_tool_steps(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     seen: dict[str, Step] = {}
@@ -1098,20 +1098,17 @@ def test_a_native_call_reusing_a_bridged_call_id_omits_its_result(
         (("tool_call", "shared"), {"x": 5, "y": 5}),
         (("tool_result", "shared"), {"x": 5, "y": 5}),
     ]
-    # The shared id cannot attribute either result check to the native call.
-    native = [
+    kept = [
         (key, step)
         for key, step in live
         if not isinstance(step, BeforeToolCall | AfterToolCall)
-        or (
-            isinstance(step, BeforeToolCall) and step.call.arguments == {"x": 5, "y": 5}
-        )
     ]
     replay = replayed(log)
-    assert [(s.stage, s.id) for s in replay] == [key for key, _ in native]
-    for (key, step), rebuilt in zip(native, replay):
+    assert [(s.stage, s.id) for s in replay] == [key for key, _ in kept]
+    for (key, step), rebuilt in zip(kept, replay):
         assert_step_equals_live(key, rebuilt, step)
     assert "call id(s) shared" in caplog.text
+    assert sum("Replay skipped" in record.message for record in caplog.records) == 1
 
 
 def test_a_person_s_decision_at_a_skipped_bridge_step_reaches_later_turns(
@@ -3105,7 +3102,7 @@ def r7_defers_a_bridged_host_call(
 
 
 @pytest.mark.parametrize("native_first", [False, True])
-def test_a_native_call_run_while_a_bridged_call_waits_replays_its_own_checks(
+def test_a_native_call_run_while_a_bridged_call_waits_skips_shared_tool_steps(
     native_first: bool,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -3150,8 +3147,8 @@ def test_a_native_call_run_while_a_bridged_call_waits_replays_its_own_checks(
     assert (bridged[1] > native[1]) is native_first
     kept = [
         (key, step)
-        for n, (key, step) in enumerate(live)
-        if n not in bridged and n != native[1]
+        for key, step in live
+        if not isinstance(step, BeforeToolCall | AfterToolCall)
     ]
     replay = replayed(log)
     assert [(s.stage, s.id) for s in replay] == [key for key, _ in kept]
@@ -3215,7 +3212,9 @@ def r9_native_before_a_filtered_bridge_call() -> Agent:
     return execute
 
 
-def test_native_before_check_follows_interleaved_turn_after_bridge_filter() -> None:
+def test_shared_id_filter_proposal_skips_native_tool_steps(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     seen: dict[str, Step] = {}
     log = run_logged(
         as_solver(r9_native_before_a_filtered_bridge_call()),
@@ -3255,21 +3254,17 @@ def test_native_before_check_follows_interleaved_turn_after_bridge_filter() -> N
         if isinstance(event, ModelEvent) and event.output.message.text == "INTERLEAVED"
     )
     assert native_report > interleaved_event
+    assert any(message.text == "INTERLEAVED" for message in native.history)
 
     steps = replayed(log)
-    replay = [
-        step.step for step in steps if step.stage == "tool_call" and step.id == "shared"
-    ]
-    assert len(replay) == 1
-    assert isinstance(replay[0], BeforeToolCall)
-    assert replay[0].call.arguments == native.call.arguments == {"x": 5, "y": 5}
-    assert any(message.text == "INTERLEAVED" for message in native.history)
-    assert comparable(replay[0].history) == comparable(native.history)
-    native_at = next(i for i, step in enumerate(steps) if step.stage == "tool_call")
-    interleaved_at = max(
-        i for i, step in enumerate(steps) if step.stage == "model_output"
+    assert not any(step.stage in ("tool_call", "tool_result") for step in steps)
+    assert any(
+        isinstance(step.step, AfterGenerate)
+        and step.step.output.message.text == "INTERLEAVED"
+        for step in steps
     )
-    assert native_at > interleaved_at
+    assert "call id(s) shared" in caplog.text
+    assert sum("Replay skipped" in record.message for record in caplog.records) == 1
 
 
 @agent(name="r10_handoff", description="Handle the requested task.")
@@ -3330,8 +3325,8 @@ def r10_bridged_proposal_before_native_handoff() -> Agent:
 
 
 @pytest.mark.parametrize("case", ["modify", "human"])
-def test_shared_id_native_handoff_keeps_its_before_check(
-    case: str, monkeypatch: pytest.MonkeyPatch
+def test_shared_id_native_handoff_skips_its_tool_steps(
+    case: str, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     seen: dict[str, Step] = {}
     sentinel: list[Any] = [r7_probe(seen, copies=True)]
@@ -3371,24 +3366,34 @@ def test_shared_id_native_handoff_keeps_its_before_check(
     native = next(
         step for step in live if step.call.function == "transfer_to_r10_handoff"
     )
-    [rebuilt] = [
+    rebuilt = [
         step
         for step in replayed(log)
-        if step.stage == "tool_call" and step.id == "shared"
+        if step.stage in ("tool_call", "tool_result") and step.id == "shared"
     ]
-    assert isinstance(rebuilt.step, BeforeToolCall)
+    assert native.call.arguments == {"task": "original"}
     if case == "modify":
-        assert (
-            rebuilt.step.call.arguments == native.call.arguments == {"task": "original"}
+        assert any(
+            isinstance(event, SentinelEvent)
+            and event.action == "modify"
+            and event.modified is not None
+            and event.modified.arguments == {"task": "modified"}
+            for event in events
         )
     else:
-        assert dict(rebuilt.recorded_answers) == {
-            "human": HumanAnswer(decision="approve", reason="handoff approved")
-        }
+        assert any(
+            isinstance(event, SentinelEvent)
+            and event.factory == "inspect_sentinel/human"
+            and event.explanation == "handoff approved"
+            for event in events
+        )
+    assert rebuilt == []
+    assert "call id(s) shared" in caplog.text
+    assert sum("Replay skipped" in record.message for record in caplog.records) == 1
 
 
 @agent
-def r11_helper_handoff_after_bridge() -> Agent:
+def r11_helper_handoff_after_bridge(native_origin: str) -> Agent:
     async def execute(state: AgentState) -> AgentState:
         from inspect_ai.agent._bridge.completions import (
             inspect_completions_api_request,
@@ -3403,8 +3408,11 @@ def r11_helper_handoff_after_bridge() -> Agent:
         await inspect_completions_api_request(request, None, bridge)
         handoff_tool = handoff(r10_handoff())
         history: list[ChatMessage] = [ChatMessageUser(content="native helper")]
-        with model_origin("helper"):
+        if native_origin == "agent":
             output = await get_model().generate(history, tools=[handoff_tool])
+        else:
+            with model_origin("helper"):
+                output = await get_model().generate(history, tools=[handoff_tool])
         history.append(output.message)
 
         async def replace_response(
@@ -3427,9 +3435,13 @@ def r11_helper_handoff_after_bridge() -> Agent:
     return execute
 
 
+@pytest.mark.parametrize("native_origin", ["agent", "helper"])
 @pytest.mark.parametrize("human", [False, True])
 def test_helper_handoff_does_not_take_shared_bridge_check(
-    human: bool, monkeypatch: pytest.MonkeyPatch
+    human: bool,
+    native_origin: str,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     seen: dict[str, Step] = {}
     sentinel: list[Any] = [r7_probe(seen, copies=True)]
@@ -3437,7 +3449,7 @@ def test_helper_handoff_does_not_take_shared_bridge_check(
         Panel("approve", "bridge approved").install(monkeypatch)
         sentinel.append(h_ask("tool_call", ["approve", "reject"]))
     log = run_logged(
-        as_solver(r11_helper_handoff_after_bridge()),
+        as_solver(r11_helper_handoff_after_bridge(native_origin)),
         outputs(
             r7_tool_calls(
                 ToolCall(
@@ -3481,6 +3493,106 @@ def test_helper_handoff_does_not_take_shared_bridge_check(
         )
         assert not any(step.recorded_answers for step in native)
     assert native == []
+    assert "call id(s) shared" in caplog.text
+    assert sum("Replay skipped" in record.message for record in caplog.records) == 1
+
+
+@agent
+def r11_prefilled_after_filtered_bridge(native_id: str) -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        from inspect_ai.agent._bridge.completions import (
+            inspect_completions_api_request,
+        )
+
+        bridge, tools = await r7_host_bridge(state)
+
+        async def replace_response(
+            model: Any, output: ModelOutput, generate_input: Any
+        ) -> ModelOutput:
+            return r7_tool_calls(
+                ToolCall(
+                    id="shared",
+                    function="mcp__host__addition",
+                    arguments={"x": 1, "y": 1},
+                )
+            )
+
+        bridge.response_filter = replace_response
+        await inspect_completions_api_request(
+            {
+                "model": "inspect",
+                "messages": [{"role": "user", "content": "bridge"}],
+                "tools": tools,
+            },
+            None,
+            bridge,
+        )
+        state.messages.append(
+            ChatMessageAssistant(
+                content="prefilled",
+                tool_calls=[
+                    ToolCall(
+                        id=native_id, function="addition", arguments={"x": 5, "y": 5}
+                    )
+                ],
+            )
+        )
+        await execute_tools(state.messages, [addition()])
+        return state
+
+    return execute
+
+
+@pytest.mark.parametrize("human", [False, True])
+@pytest.mark.parametrize("native_id", ["shared", "native"])
+def test_prefilled_native_call_uses_collision_rule(
+    human: bool,
+    native_id: str,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    seen: dict[str, Step] = {}
+    sentinel: list[Any] = [r7_probe(seen, copies=True)]
+    if human:
+        Panel("approve", "approved").install(monkeypatch)
+        sentinel.append(h_ask("tool_call", ["approve", "reject"]))
+    log = run_logged(
+        as_solver(r11_prefilled_after_filtered_bridge(native_id)),
+        outputs(
+            r7_tool_calls(
+                ToolCall(
+                    id="raw",
+                    function="mcp__host__addition",
+                    arguments={"x": 1, "y": 1},
+                )
+            )
+        ),
+        sentinel=sentinel,
+    )
+    live = [
+        step
+        for step in seen.values()
+        if isinstance(step, BeforeToolCall)
+        and step.call.function == "addition"
+        and step.call.arguments == {"x": 5, "y": 5}
+    ]
+    assert len(live) == 1 and live[0].input is None
+    replay = replayed(log)
+    native_steps = [
+        step for step in replay if step.stage in ("tool_call", "tool_result")
+    ]
+    if native_id == "shared":
+        assert native_steps == []
+        assert "call id(s) shared" in caplog.text
+        assert sum("Replay skipped" in record.message for record in caplog.records) == 1
+    else:
+        assert [step.stage for step in native_steps] == ["tool_call", "tool_result"]
+        assert isinstance(native_steps[0].step, BeforeToolCall)
+        assert native_steps[0].step.call.arguments == live[0].call.arguments
+        if human:
+            assert dict(native_steps[0].recorded_answers) == {
+                "human": HumanAnswer(decision="approve", reason="approved")
+            }
 
 
 def test_a_native_result_check_inside_its_invocation_is_replayed() -> None:
@@ -3626,7 +3738,7 @@ def r7_bridge_result_failure() -> MonitorGroup:
 
 
 @pytest.mark.parametrize("bridge_outcome", ["normal", "terminate", "fail"])
-def test_a_shared_host_id_omits_native_result_check(
+def test_a_shared_host_id_omits_native_tool_steps(
     bridge_outcome: str, caplog: pytest.LogCaptureFixture
 ) -> None:
     seen: dict[str, Step] = {}
@@ -3668,7 +3780,7 @@ def test_a_shared_host_id_omits_native_result_check(
         (s.stage, s.step.call.arguments)
         for s in replayed(log)
         if isinstance(s.step, BeforeToolCall | AfterToolCall)
-    ] == [("tool_call", {"x": 5, "y": 5})]
+    ] == []
     assert "call id(s) shared" in caplog.text
 
 
@@ -3754,7 +3866,7 @@ def test_scaffold_result_does_not_become_failed_native_result(
             (step.stage, step.step.call.function)
             for step in replayed(log)
             if isinstance(step.step, BeforeToolCall | AfterToolCall)
-        ] == [("tool_call", "explodes")]
+        ] == []
     assert "call id(s) shared" in caplog.text
 
 
@@ -3783,7 +3895,7 @@ def test_result_only_sentinel_skips_shared_scaffold_result(
         (step.stage, step.step.call.function)
         for step in replay
         if isinstance(step.step, BeforeToolCall | AfterToolCall)
-    ] == [("tool_call", "explodes")]
+    ] == []
     assert "call id(s) shared" in caplog.text
 
 
@@ -3890,7 +4002,7 @@ def test_orphan_bridge_result_after_failed_native_call_stays_unclaimed(
         (step.stage, step.step.call.function)
         for step in replay
         if isinstance(step.step, BeforeToolCall | AfterToolCall)
-    ] == [("tool_call", "explodes")]
+    ] == []
     model_steps = [step.step for step in replay if step.stage.startswith("model")]
     assert [len(step.human_decisions or []) for step in model_steps] == [0, 0, 1, 1]
     assert "call id(s) shared" in caplog.text

@@ -85,7 +85,7 @@ def steps_from_events(
 
     Every step's `agent_messages` is None: the log does not record the agent's own messages, and model input can hold messages the agent kept out of them.
 
-    The tool steps of an agent bridge's calls are not rebuilt, recorded or not: a call the bridged scaffold ran itself leaves no `ToolEvent`, and for a call a sandbox bridge ran on the host (`ToolEvent.metadata["bridge"]`) the log records neither which model call produced it (the bridge can hand over a response filter's output, or one of several generations under one call id) nor its result as the bridge's service delivered it (the error text a scaffold received, for one). Replay skips these steps until the log records which message made each call, and logs a warning naming the calls. A `human()` decision at a skipped step, and a person's approval of a host call, still reach the later steps of the conversation, as live. When a native and bridge call share an id, replay omits the native result step because the recorded result checks cannot be attributed to it.
+    The tool steps of an agent bridge's calls are not rebuilt, recorded or not: a call the bridged scaffold ran itself leaves no `ToolEvent`, and for a call a sandbox bridge ran on the host (`ToolEvent.metadata["bridge"]`) the log records neither which model call produced it (the bridge can hand over a response filter's output, or one of several generations under one call id) nor its result as the bridge's service delivered it (the error text a scaffold received, for one). Replay skips these steps until the log records which message made each call, and logs a warning naming the calls. A `human()` decision at a skipped step, and a person's approval of a host call, still reach the later steps of the conversation, as live. Native tool calls sharing an id with a bridge call in the same transcript are also skipped with a warning until stable message ids establish ownership.
 
     Args:
         messages: The sample's messages (`EvalSample.messages`).
@@ -786,42 +786,24 @@ class _Driver:
             # result as its service delivered it, are not in the log
             self.skipped.append(event.id)
             return
+        if event.id in self.shared_bridge_ids:
+            self.skipped.append(event.id)
+            return
         tool_span = call.tool_span
         # live checks the call before its tool span opens, and its result once
         # the span has ended
         begin = self.begins[tool_span][0] if tool_span else call.index
         end = self.ends.get(tool_span) if tool_span is not None else None
-        if event.id in self.shared_bridge_ids:
-            # A neighboring bridge check is not evidence that this call was
-            # checked. Require a non-final native producer naming this tool;
-            # helper/environment calls and unmatched proposals give no basis
-            # for claiming the span.
-            if (
-                call.producer is None
-                or call.producer.origin not in _NON_FINAL
-                or call.proposal is None
-                or call.proposal.function != event.function
-                or not any(tool.name == event.function for tool in call.producer.tools)
-            ):
-                return
-            before_span = (
-                self._native_before_span(event.id, begin)
-                if tool_span is not None
-                else None
-            )
-        else:
-            before_span = self._tool_span_of(
-                ("tool_call", event.id), call.produced_at, begin
-            )
-        # An ID shared with the bridge cannot identify a native result check.
-        # For other IDs, retain the original replay span selection.
+        before_span = self._tool_span_of(
+            ("tool_call", event.id), call.produced_at, begin
+        )
         after_span = (
             self._tool_span_of(
                 ("tool_result", event.id),
                 end,
                 ending=event.failed is True,
             )
-            if end is not None and event.id not in self.shared_bridge_ids
+            if end is not None
             else None
         )
         proposal = call.proposal
@@ -860,13 +842,10 @@ class _Driver:
         )
         if not checked:
             return
-        ran = event.id not in self.shared_bridge_ids and (
-            after_span is not None
-            or (
-                (event.error is None or event.error.type not in ("parsing", "approval"))
-                and not event.failed
-                and not event.pending
-            )
+        ran = after_span is not None or (
+            (event.error is None or event.error.type not in ("parsing", "approval"))
+            and not event.failed
+            and not event.pending
         )
 
         modify = self._sentinel_modify(before_span, event)
@@ -959,37 +938,6 @@ class _Driver:
                 return spans.pop(at)
         return None
 
-    def _native_before_span(self, call_id: str, begin: int) -> str | None:
-        """Take a native before-check at the boundary of its tool invocation.
-
-        Native ``call_tool`` opens the tool span after its sentinel check, or
-        opens a handoff span and then the tool span for an agent handoff. These
-        spans normally open directly after the check returns. If another event
-        intervenes (for example while an async span-ID provider runs), the
-        boundary is absent and this lookup leaves the check unclaimed.
-        """
-        if begin == 0:
-            return None
-        tool_begin = self.events[begin]
-        previous = self.events[begin - 1]
-        if (
-            isinstance(previous, SpanBeginEvent)
-            and previous.type == "handoff"
-            and isinstance(tool_begin, SpanBeginEvent)
-            and tool_begin.parent_id == previous.id
-        ):
-            if begin < 2:
-                return None
-            previous = self.events[begin - 2]
-        if not isinstance(previous, SpanEndEvent):
-            return None
-        ended = previous.id
-        spans = self.tool_spans.get(("tool_call", call_id), [])
-        if ended in spans:
-            spans.remove(ended)
-            return ended
-        return None
-
     def _ended_call(self, span: str) -> bool:
         """Whether the result check failed or decided to terminate."""
         return span in self.failed or any(
@@ -1007,11 +955,12 @@ class _Driver:
                 self.skipped.append(call_id)
         if self.shared_bridge_ids:
             logger.warning(
-                "Replay skipped tool checks under call id(s) %s and omitted native tool "
-                "result steps under shared call id(s) %s; the log cannot assign "
-                "result checks under those ids to a native call.",
-                ", ".join(dict.fromkeys(self.skipped)),
+                "Replay skipped native tool steps under call id(s) shared with "
+                "an agent bridge (%s), and bridge tool checks under id(s) %s: "
+                "the log cannot assign those steps until stable message ids "
+                "establish ownership.",
                 ", ".join(sorted(self.shared_bridge_ids)),
+                ", ".join(dict.fromkeys(self.skipped)),
             )
         elif self.skipped:
             logger.warning(
