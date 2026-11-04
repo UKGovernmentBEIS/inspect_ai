@@ -373,6 +373,31 @@ the end of the queue; a `next_tasks()` batch goes ahead of any tasks
 enqueued while `next_tasks()` was running (`ahead=True`), matching the order
 `run_batches` produces today.
 
+**Task ids are unique in a run.** The queued registry, `RunQueue.find` and
+the control channel's grouping of `EvalState`s
+(`src/inspect_ai/_control/state.py:191`) each treat one `task_id` as one
+task, but resolution can repeat an id. A `Task` resolves to a new id for
+each model, while a `ResolvedTask` or `PreviousTask` keeps the id it
+carries (`src/inspect_ai/_eval/loader.py:135`, `:296`, `:362`), and
+`_resolve_enqueued_tasks` resolves its input once per model
+(`src/inspect_ai/_eval/eval.py:1313`). So adding one in a run with two
+models, adding it twice, or listing it twice in one call gives records that
+share an id; today they run as separate tasks that the control channel
+folds into one. `RunQueue.add` therefore checks the batch's ids before it
+changes anything: an id that any record of this run already holds (queued,
+running or ended), or that repeats within the batch, raises `ValueError`
+("task id '<id>' (task '<task>') is already in this run: a ResolvedTask or
+PreviousTask keeps its id, so it can be added once, in a run with one
+model; pass the Task to run it once per model"), and no task of the batch
+is ordered, named, configured or registered. For the seed it raises from
+`eval()`; the seed paths that pass resolved or previous tasks resolve each
+once (`eval_set()` rounds and selection workers pass `model=None`,
+`src/inspect_ai/_eval/evalset.py:554`; `eval_retry()` runs each log with
+its own model, `src/inspect_ai/_eval/eval.py:1973-1985`), so it does not
+fire for them. A retry is not an addition: an in-run retry keeps its record
+and id, and `eval_set(retry_immediate=False)` runs its retry rounds as
+separate `eval()` calls, each with its own `RunQueue`.
+
 **Sample selection waits for admission.** A `task:id` selector names a task
 only when that task's name is in the run's set
 (`resolve_task_sample_ids`, `src/inspect_ai/_eval/task/util.py:80-123`);
@@ -1064,6 +1089,10 @@ Failure reporting (the run's outcome changes only where today it fails):
 - Ctrl-C while `next_tasks()` blocks returns the logs so far instead of
   raising `KeyboardInterrupt` without them.
 - An added task whose admission fails ends alone; today the run fails.
+- Adding a task id that is already in the run (a `ResolvedTask` or
+  `PreviousTask` added twice, listed twice, or added in a run with several
+  models) raises `ValueError` and adds nothing; today the copies run under
+  one id, which the control channel shows as one task.
 - An eval set or selection-mode worker with a seed task cancelled while
   queued reports failure, does not re-run that task in the same
   invocation, and names it in its closing message.
@@ -1174,7 +1203,14 @@ does (a new list per call):
   directory.
 - `tests/test_enqueue_task.py`: an added task starts while its creator runs
   under `eval()` and `eval_set()` (the probe above, as a test bounded with
-  `fail_after`); under eval-set selection mode in-process; ordering at
+  `fail_after`); under eval-set selection mode in-process; task ids: a
+  `ResolvedTask` added in a run with two models, added twice, and listed
+  twice in one call, and a `PreviousTask` added the same ways, each raise
+  `ValueError` and leave nothing of the batch queued, configured or listed,
+  while the earlier record is still listed and cancellable; a `Task` in a
+  two-model run adds two records with distinct ids; a single `ResolvedTask`
+  in a one-model run still runs (`tests/test_enqueue_task.py:147`); an
+  in-run retry keeps its record's id; ordering at
   `max_tasks == 1` (sequence-major per addition, `next_tasks()` batch ahead of
   concurrent enqueues); configuration errors raise at the call; admission
   failure ends one task; sample selection under

@@ -532,8 +532,10 @@ async with task group tg:                  # owned by the feeder
   "Current behaviour") or samples sent through a handle. That is today's
   order exactly: the feeder awaits the pull inline, admits the returned
   batch, and drains the buffer on its next pass (`task/run.py:1854-1865`).
-  So `--limit`, `--sample-id` and assigned sample ids select exactly the
-  samples they select today. Verified on this branch's base: with an empty
+  So `--limit` and `--sample-id` select exactly the samples they select
+  today, and ids are assigned in today's producer order: explicit ids as
+  today, anonymous ones by the unique-id rule this design builds on (see
+  "Logs of tasks that can receive samples"). Verified on this branch's base: with an empty
   seed and `limit=1`, a `next_samples()` that enqueues A and returns `[B]`
   runs B; with one seed at `limit=2`, a rerun of the seed during a blocked
   pull whose `sample_complete` returns A, while the pull later returns B,
@@ -986,8 +988,9 @@ Behaviour changes:
   samples sent through a handle start while a pull blocks. What a pull
   enqueues, and the follow-ups of samples finishing during it (including
   control-channel reruns, which start during a pull today), are admitted
-  after the pull's batch in arrival order, as today, so `--limit`,
-  `--sample-id` and ids select the same samples.
+  after the pull's batch in arrival order, as today, so `--limit` and
+  `--sample-id` select the same samples, and ids are assigned in the same
+  order (anonymous ones by the unique-id rule this design builds on).
 - A run whose sandbox or `max_samples` limits leave no headroom for samples
   waiting through handles can hang (new API only); the warning names the
   provider.
@@ -1120,11 +1123,15 @@ test touched), with mockllm models:
     reused, with sample logging on and off and with checkpointing on (no
     checkpoint is copied into the retry); with a source that adds a sample
     with id `"x"` once per process, which completes before the failure, a
-    request P with id `"x"` sent after it is delivered into the retry and
-    returns P's own result, not the source sample's; the same with the port
-    closed, and with the caller of a pending request cancelled, after P is
-    sent and before the failure; a task added without `send_samples` that
-    fails the same way reuses A as today.
+    request P with id `"x"`, sent after the failed attempt has ended and
+    while a test hook holds the retry before it starts (while the attempt
+    ran, its reservation of `"x"` refused P at the call), is accepted,
+    delivered into the retry, and returns P's own result, not the source
+    sample's, with no checkpoint of the source sample restored; the same
+    with the port closed, and with P's caller cancelled, each after P is
+    accepted and before the retry is released (an accepted request is still
+    delivered); a task added without `send_samples` that fails the same way
+    reuses A as today.
 - `tests/test_enqueue_task.py` (existing callers and the new keyword):
   - a parent under a `TaskSource` at `max_tasks=2` enqueues a finite
     `SampleSource` child, ignores the return value and awaits the child's
@@ -1187,10 +1194,12 @@ test touched), with mockllm models:
     cancelled, when the run is cancelled and when the sample limit is
     exhausted, and a pull's exception still fails the task; with an empty
     seed and `limit=1`, a `next_samples()` that enqueues A and returns `[B]`
-    runs B, with the ids assigned today; with one seed and `limit=2`, a
-    control-channel rerun of the seed during a blocked pull whose
-    `sample_complete` returns A, while the pull later returns B, runs B and
-    drops A with today's ids (the existing
+    runs B and drops A; with one seed and `limit=2`, a control-channel
+    rerun of the seed during a blocked pull whose `sample_complete` returns
+    A, while the pull later returns B, runs B and drops A; in both, the
+    samples that run have unique anonymous ids that no other attempt gives a
+    sample, as the companion rule requires, rather than today's integers
+    (the existing
     `tests/_control/test_requeue.py` case extended); a port sample's
     follow-up during a blocked pull is held until the pull returns; a handle
     sample arriving while the pull blocks is admitted first and takes the
