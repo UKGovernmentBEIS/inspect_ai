@@ -1,5 +1,4 @@
 import contextlib
-import re
 import sys
 import time
 from contextvars import Token
@@ -12,7 +11,6 @@ from typing import (
     Any,
     Awaitable,
     Callable,
-    Iterable,
     Iterator,
     Literal,
     NamedTuple,
@@ -59,7 +57,7 @@ from inspect_ai._util.constants import (
     DEFAULT_MAX_CONNECTIONS,
     DEFAULT_MAX_CONNECTIONS_BATCH,
 )
-from inspect_ai._util.dateutil import iso_now
+from inspect_ai._util.dateutil import datetime_from_iso_format_safe, iso_now
 from inspect_ai._util.error import (
     exception_message,
     is_cancellation_message,
@@ -326,11 +324,15 @@ class EvalSampleSource(NamedTuple):
     `prior_checkpoints_dir` is the prior attempt's eval checkpoints dir
     (None when checkpointing was off or vetoed) — the source the startup
     copy replicates into this attempt's dir.
+    `prior_created` is the prior log's `eval.created` (None with no prior
+    log): the attempt's own `created` is made later than it, which keeps
+    generated sample ids from repeating (see `dynamic_id_token`).
     """
 
     lookup: SampleLookup
     seed: SeedSource | None = None
     prior_checkpoints_dir: str | None = None
+    prior_created: str | None = None
 
 
 # Bound on concurrent checkpoint-dir probes/deletes in `run_sample` (a retry
@@ -361,15 +363,6 @@ ScoresByScorer: TypeAlias = dict[str, SampleScore]
 
 # A generated id for a dynamic sample added without one:
 # dyn-<attempt token>-<admission counter> (see `dynamic_id_token`).
-DYNAMIC_ID_PATTERN = re.compile(r"dyn-([0-9a-z]+)-([0-9]+)")
-
-# Prior tokens the floor reads. A generated token is the clock, or a little
-# above it after retries within one second; a token more than a day ahead of
-# the clock is an explicit id that only looks generated, and is ignored so it
-# cannot push the token up to where a later attempt would ignore it too.
-# Wider tokens are not parsed at all, which keeps parsing bounded.
-DYNAMIC_TOKEN_MAX_WIDTH = 12
-DYNAMIC_TOKEN_MAX_AHEAD = 24 * 60 * 60
 
 
 def dynamic_sample_id(token: str, counter: int) -> str:
@@ -382,35 +375,20 @@ def dynamic_sample_id(token: str, counter: int) -> str:
     return f"dyn-{token}-{counter:04d}"
 
 
-def dynamic_id_token(prior_ids: Iterable[int | str], now: float) -> str:
-    """The attempt's token for generated sample ids, in base 36.
+def dynamic_id_token(created: str) -> str:
+    """The attempt's token for generated sample ids: its ``eval.created`` second in base 36.
 
-    It is ``now`` in whole Unix seconds, or one more than the largest token
-    among the prior attempt's generated-looking ids (``prior_ids``) when
-    that is not smaller. Tokens therefore increase across the attempts of a
-    task, even a retry within the same second: a generated id never repeats
-    in a later attempt, so retry reuse and checkpoint resume (keyed on
-    ``(id, epoch)``) never match it, and a retry's ids sort after the prior
-    attempt's while the token keeps its width (6 characters until 2039).
-    Only the prior log is read: a sample that committed a checkpoint but
-    has no record there is not seen.
-
-    Prior tokens more than a day ahead of ``now`` (or wider than
-    ``DYNAMIC_TOKEN_MAX_WIDTH``) are ignored: they are explicit ids that
-    only look generated, and ignoring them keeps the floor on the generated
-    tokens, which stay near the clock. One edge remains: an explicit token exactly a day
-    ahead, seen by retries within the same second, can lead a later such
-    retry to repeat an id whose record the prior log no longer holds.
+    ``created`` is the timestamp the log file name is built from, to the
+    second. A retry attempt's ``created`` is always later than its prior
+    log's (see ``TaskLogger``), and every generated id in the prior log or
+    its checkpoints, including those carried from earlier attempts, has a
+    token at or below the prior's ``created``. A generated id therefore
+    never repeats in a later attempt, so retry reuse and checkpoint resume
+    (keyed on ``(id, epoch)``) never match it, and a retry's ids sort after
+    the prior attempt's while the token keeps its width (6 characters until
+    2039).
     """
-    token = int(now)
-    ahead_limit = token + DYNAMIC_TOKEN_MAX_AHEAD
-    for id in prior_ids:
-        match = DYNAMIC_ID_PATTERN.fullmatch(id) if isinstance(id, str) else None
-        if match is None or len(match.group(1)) > DYNAMIC_TOKEN_MAX_WIDTH:
-            continue
-        prior = int(match.group(1), 36)
-        if prior <= ahead_limit:
-            token = max(token, prior + 1)
+    token = int(datetime_from_iso_format_safe(created).timestamp())
     digits = ""
     while True:
         token, digit = divmod(token, 36)
@@ -1120,14 +1098,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
         if task_retry_abandoned(logger.eval.task_id):
             raise TaskRetryAbandonedError()
 
-    dynamic_token = dynamic_id_token(
-        await logger.prior_sample_ids(sample_source.seed.source)
-        if sample_feed is not None
-        and sample_source is not None
-        and sample_source.seed is not None
-        else [],
-        time.time(),
-    )
+    dynamic_token = dynamic_id_token(logger.eval.created)
 
     # this attempt's own eval checkpoints dir (None when checkpointing is
     # off or vetoed): the startup copy's destination, and where a retried
@@ -4030,7 +4001,7 @@ def eval_log_sample_source(
             "Unable to re-use samples from retry log file because the dataset was shuffled "
             + "and some samples in the dataset do not have an 'id' field."
         )
-        return EvalSampleSource(no_sample_source)
+        return EvalSampleSource(no_sample_source, prior_created=eval_log.eval.created)
 
     if (
         eval_log.eval.dataset.samples != len(dataset)
@@ -4040,7 +4011,7 @@ def eval_log_sample_source(
             "Unable to re-use samples from retry log file because the dataset size changed "
             + f"(log samples {eval_log.eval.dataset.samples}, dataset samples {len(dataset)})"
         )
-        return EvalSampleSource(no_sample_source)
+        return EvalSampleSource(no_sample_source, prior_created=eval_log.eval.created)
 
     if dataset_grew_with_stable_ids:
         py_logger.info(
@@ -4076,6 +4047,7 @@ def eval_log_sample_source(
                 epochs=eval_log.eval.config.epochs or 1,
             ),
             prior_checkpoints_dir=eval_checkpoints_dir,
+            prior_created=eval_log.eval.created,
         )
     else:
 
@@ -4098,6 +4070,7 @@ def eval_log_sample_source(
                 epochs=eval_log.eval.config.epochs or 1,
             ),
             prior_checkpoints_dir=eval_checkpoints_dir,
+            prior_created=eval_log.eval.created,
         )
 
 

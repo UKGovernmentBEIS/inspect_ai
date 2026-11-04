@@ -447,6 +447,9 @@ async def eval_run(
                     recorder=recorder,
                     header_only=header_only,
                     dynamic_dataset=task.sample_source is not None,
+                    prior_created=resolved_task.sample_source.prior_created
+                    if resolved_task.sample_source is not None
+                    else None,
                 )
                 await logger.init()
 
