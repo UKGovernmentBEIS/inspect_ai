@@ -17,11 +17,13 @@ turn structure and tool name, and the think-body/thoughtSignature strings still 
 
 from __future__ import annotations
 
+import base64
 import json
 from pathlib import Path
 
 import pytest
 
+from inspect_ai._util.content import ContentReasoning
 from inspect_ai.agent._bridge._errors import BridgePolicyError
 from inspect_ai.agent._bridge.google_api_impl import (
     gemini_response_from_output,
@@ -150,3 +152,72 @@ def test_google_response_without_logprobs_is_unchanged(
     assert response == expected
     assert "logprobsResult" not in response["candidates"][0]
     assert "avgLogprobs" not in response["candidates"][0]
+
+
+def _assistant_from_parts(parts: list[dict[str, object]]) -> ChatMessageAssistant:
+    messages = messages_from_google_contents(
+        [
+            {"role": "user", "parts": [{"text": "Read a."}]},
+            {"role": "model", "parts": parts},
+        ],
+        None,
+    )
+    assert isinstance(messages[-1], ChatMessageAssistant)
+    return messages[-1]
+
+
+def _reasoning(message: ChatMessageAssistant) -> ContentReasoning:
+    assert isinstance(message.content, list)
+    reasoning = [c for c in message.content if isinstance(c, ContentReasoning)]
+    assert len(reasoning) == 1
+    return reasoning[0]
+
+
+@pytest.mark.parametrize(
+    "signature",
+    [
+        base64.b64encode(b"\xfb\xff\xfe\xfa").decode(),
+        "not a signature",
+        "pas de clé",
+    ],
+)
+def test_google_bridge_keeps_readable_reasoning_beside_signature(
+    signature: str,
+) -> None:
+    message = _assistant_from_parts(
+        [
+            {"text": "<think>I should read the file.</think>"},
+            {
+                "functionCall": {"name": "read_file", "args": {"path": "a"}},
+                "thoughtSignature": signature,
+            },
+        ]
+    )
+
+    assert message.tool_calls and message.tool_calls[0].function == "read_file"
+    reasoning = _reasoning(message)
+    assert reasoning.reasoning == signature
+    assert reasoning.redacted
+
+
+@pytest.mark.parametrize("keep_signature_field", [True, False])
+def test_google_bridge_round_trips_openai_reasoning_token(
+    keep_signature_field: bool,
+) -> None:
+    token = base64.urlsafe_b64encode(b"\x80\x00\xfb\xef\xbe\xff\xff\xff" * 3).decode()
+    assert "-" in token and "_" in token
+    output = ModelOutput.for_tool_call("mockllm/model", "read_file", {"path": "a"})
+    output.message.content = [
+        ContentReasoning(reasoning=token, signature="rs_1", redacted=True)
+    ]
+
+    content = gemini_response_from_output(output, "model")["candidates"][0]["content"]
+    if not keep_signature_field:
+        for part in content["parts"]:
+            part.pop("thoughtSignature", None)
+    message = _assistant_from_parts(content["parts"])
+
+    reasoning = _reasoning(message)
+    assert reasoning.reasoning == token
+    assert reasoning.signature == "rs_1"
+    assert reasoning.redacted

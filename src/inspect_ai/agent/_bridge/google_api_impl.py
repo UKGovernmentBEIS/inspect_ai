@@ -28,6 +28,7 @@ from inspect_ai.model._providers._google_computer_use import (
     gemini_action_from_tool_call,
 )
 from inspect_ai.model._reasoning import (
+    ReasoningCapsule,
     parse_content_with_reasoning,
     reasoning_to_think_tag,
 )
@@ -599,15 +600,33 @@ def _canonical_thought_signature(signature: str | bytes) -> str:
     """Return standard base64 for a Google thought signature.
 
     The SDK uses URL-safe base64 for bytes, while other Google clients send
-    standard base64. Either form may omit padding.
+    standard base64. Either form may omit padding. A string that doesn't
+    decode is not a signature and is returned unchanged.
     """
-    if isinstance(signature, str):
-        signature = base64.b64decode(
+    if isinstance(signature, bytes):
+        return base64.b64encode(signature).decode()
+    try:
+        decoded = base64.b64decode(
             signature + "=" * (-len(signature) % 4),
             altchars=b"-_",
             validate=True,
         )
-    return base64.b64encode(signature).decode()
+    except ValueError:
+        return signature
+    return base64.b64encode(decoded).decode()
+
+
+# Google signatures are redacted reasoning with no provider signature. Readable
+# reasoning and other providers' tokens (e.g. OpenAI's) match only verbatim.
+def _capsule_signature_reasoning(
+    signature: str | bytes, capsule: ReasoningCapsule
+) -> str | None:
+    if capsule.redacted and capsule.signature is None:
+        canonical = _canonical_thought_signature(signature)
+        if _canonical_thought_signature(capsule.reasoning) == canonical:
+            return canonical
+        return None
+    return capsule.reasoning if capsule.reasoning == signature else None
 
 
 def _extract_model_parts(
@@ -664,16 +683,15 @@ def _extract_model_parts(
                     thought_sig = embedded_capsule.reasoning
 
             if thought_sig and not first_fc_signature_captured:
-                sig_str = _canonical_thought_signature(thought_sig)
-
-                if (
-                    embedded_capsule
-                    and _canonical_thought_signature(embedded_capsule.reasoning)
-                    == sig_str
-                ):
+                capsule_reasoning = (
+                    _capsule_signature_reasoning(thought_sig, embedded_capsule)
+                    if embedded_capsule
+                    else None
+                )
+                if embedded_capsule and capsule_reasoning is not None:
                     content_parts.append(
                         ContentReasoning(
-                            reasoning=sig_str,
+                            reasoning=capsule_reasoning,
                             signature=embedded_capsule.signature,
                             redacted=embedded_capsule.redacted,
                             summary=embedded_capsule.summary,
@@ -682,7 +700,7 @@ def _extract_model_parts(
                 else:
                     content_parts.append(
                         ContentReasoning(
-                            reasoning=sig_str,
+                            reasoning=_canonical_thought_signature(thought_sig),
                             redacted=True,
                         )
                     )
