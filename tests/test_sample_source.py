@@ -39,12 +39,10 @@ from inspect_ai.scorer import (
 )
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
 from inspect_ai.util import (
-    CheckpointConfig,
     ExecResult,
     SandboxEnvironment,
     SandboxEnvironmentConfigType,
     SandboxEnvironmentSpec,
-    checkpointer,
     sandboxenv,
 )
 
@@ -1913,72 +1911,92 @@ def test_sample_source_eval_retry_gets_later_ids(
     assert _followup_id(first) == f"dyn-{DYNAMIC_TOKEN}-0001"
 
 
-def _sibling_retry_task(
-    runs: list[tuple[str, str]], checkpoints_root: str, use_checkpointer: bool = True
-) -> Task:
-    """A checkpointing task whose seed adds one anonymous follow-up per attempt.
+SIBLING_RETRY_TASK = """
+from pathlib import Path
 
-    Each attempt's follow-up has its own input (follow-0, follow-1, ...), and
-    the first attempt fails in the follow-up's completion callback. ``runs``
-    records each run's input and checkpointer attempt.
-    """
-    followups = {"n": 0}
+from inspect_ai import SampleSource, Task, task
+from inspect_ai.dataset import Sample
+from inspect_ai.log import EvalSample
+from inspect_ai.solver import Generate, Solver, TaskState, solver
+from inspect_ai.util import CheckpointConfig, checkpointer
+
+
+@task
+def sibling_retry_task(
+    state_dir: str, checkpoints_location: str, use_checkpointer: bool = True
+) -> Task:
+    state = Path(state_dir)
 
     @solver
     def checkpointed() -> Solver:
-        async def solve(state: TaskState, generate: Generate) -> TaskState:
+        async def solve(task_state: TaskState, generate: Generate) -> TaskState:
+            input = task_state.input_text
             if not use_checkpointer:
-                runs.append((state.input_text, "initial"))
-                return state
+                with open(state / "runs.txt", "a") as f:
+                    f.write(f"{input} initial\\n")
+                return task_state
             output = ""
             async with checkpointer() as cp:
                 output = cp.track("output", lambda: output, "")
-                runs.append((state.input_text, cp.attempt))
+                with open(state / "runs.txt", "a") as f:
+                    f.write(f"{input} {cp.attempt}\\n")
                 if cp.attempt != "resume_for_scoring":
-                    output = f"answer-{state.input_text}"
+                    output = f"answer-{input}"
                     await cp.checkpoint()
-            return state
+            return task_state
 
         return solve
 
-    class _Src(SampleSource):
+    class Src(SampleSource):
         def initial_samples(self) -> list[Sample]:
             return [Sample(id="seed", input="seed", target="ok")]
 
         async def sample_complete(self, sample: EvalSample) -> list[Sample] | None:
             if sample.input == "seed":
-                n = followups["n"]
-                followups["n"] += 1
+                counter = state / "followups"
+                n = int(counter.read_text()) if counter.exists() else 0
+                counter.write_text(str(n + 1))
                 return [Sample(input=f"follow-{n}", target="ok")]
             if sample.input == "follow-0":
                 raise RuntimeError("callback failure")
             return None
 
-    @task
-    def sibling_retry_task() -> Task:
-        return Task(
-            dataset=_Src(),
-            solver=[checkpointed()],
-            name="sibling_retry_task",
-            checkpoint=CheckpointConfig(
-                checkpoints_location=checkpoints_root, retention="retain"
-            ),
-        )
-
-    return sibling_retry_task()
+    return Task(
+        dataset=Src(),
+        solver=[checkpointed()],
+        checkpoint=CheckpointConfig(
+            checkpoints_location=checkpoints_location, retention="retain"
+        ),
+    )
+"""
 
 
-def test_sample_source_sibling_retries_get_their_own_checkpoints_dir(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    # the second of two same-second retries of one log, into different log
-    # dirs, finds the first's checkpoints dir under the shared root, so its
-    # log (and checkpoints dir and generated ids) take the next second
+def _sibling_retries(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    root: str,
+    use_checkpointer: bool = True,
+) -> tuple[list[EvalLog], list[tuple[str, str]]]:
+    """Run a failed eval, then two eval_retry() calls of it into dirs a and b.
+
+    The task is loaded from ``tasks/sibling.py``, so its run dir is not the
+    eval's working dir. Every attempt starts in the same second and keeps
+    checkpoints under one shared ``root`` (absolute, or relative to the
+    working dir). Returns the two retry logs and each run's (input,
+    checkpointer attempt).
+    """
     _freeze_dynamic_clock(monkeypatch)
-    runs: list[tuple[str, str]] = []
-    root = tmp_path / "checkpoints"
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "tasks").mkdir()
+    (tmp_path / "tasks" / "sibling.py").write_text(SIBLING_RETRY_TASK)
+    checkpoints = str(tmp_path / "checkpoints") if root == "absolute" else "checkpoints"
     original = eval(
-        _sibling_retry_task(runs, str(root), use_checkpointer=False),
+        "tasks/sibling.py",
+        task_args=dict(
+            state_dir=str(tmp_path),
+            checkpoints_location=checkpoints,
+            use_checkpointer=use_checkpointer,
+        ),
         model="mockllm/model",
         log_dir=str(tmp_path / "logs"),
         display="none",
@@ -1989,42 +2007,47 @@ def test_sample_source_sibling_retries_get_their_own_checkpoints_dir(
         for name in ("a", "b")
     ]
     assert [log.status for log in retries] == ["success", "success"]
-    assert [
+    runs = [
+        (input, attempt)
+        for input, attempt in (
+            line.split() for line in (tmp_path / "runs.txt").read_text().splitlines()
+        )
+    ]
+    return retries, runs
+
+
+def _sibling_followup_ids(retries: list[EvalLog]) -> list[int | str]:
+    return [
         _followup_id(read_eval_log(log.location), f"follow-{n}")
         for n, log in enumerate(retries, 1)
-    ] == ["dyn-tro8w1-0001", "dyn-tro8w2-0001"]
+    ]
+
+
+@pytest.mark.parametrize("root", ["absolute", "relative"])
+def test_sample_source_sibling_retries_get_their_own_checkpoints_dir(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, root: str
+) -> None:
+    # the second of two same-second retries of one log, into different log
+    # dirs, finds the first's checkpoints dir under the shared root, so its
+    # log (and checkpoints dir and generated ids) take the next second. A
+    # relative root is found from the eval's working dir, where checkpoints
+    # are written, not the task file's dir
+    retries, _ = _sibling_retries(monkeypatch, tmp_path, root, use_checkpointer=False)
+    assert _sibling_followup_ids(retries) == ["dyn-tro8w1-0001", "dyn-tro8w2-0001"]
     assert len({Path(log.location).name for log in retries}) == 2
 
 
 @pytest.mark.slow
+@pytest.mark.parametrize("root", ["absolute", "relative"])
 def test_sample_source_sibling_retries_never_share_checkpoints(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, root: str
 ) -> None:
-    # two eval_retry() calls of one failed log, into different log dirs, start
-    # in the same second and keep checkpoints under one shared root. The
-    # second retry's follow-up must run its own work, not restore the first
-    # retry's checkpoint under the same generated id
-    _freeze_dynamic_clock(monkeypatch)
-    runs: list[tuple[str, str]] = []
-    original = eval(
-        _sibling_retry_task(runs, str(tmp_path / "checkpoints")),
-        model="mockllm/model",
-        log_dir=str(tmp_path / "logs"),
-        display="none",
-    )[0]
-    assert original.status == "error"
-    retries = [
-        eval_retry(original, log_dir=str(tmp_path / name), display="none")[0]
-        for name in ("a", "b")
-    ]
-    assert [log.status for log in retries] == ["success", "success"]
-    followups = [
-        _followup_id(read_eval_log(log.location), f"follow-{n}")
-        for n, log in enumerate(retries, 1)
-    ]
+    # the second retry's follow-up must run its own work, not restore the
+    # first retry's checkpoint under the same generated id
+    retries, runs = _sibling_retries(monkeypatch, tmp_path, root)
     assert ("follow-2", "initial") in runs
     assert ("follow-2", "resume_for_scoring") not in runs
-    assert followups == ["dyn-tro8w1-0001", "dyn-tro8w2-0001"]
+    assert _sibling_followup_ids(retries) == ["dyn-tro8w1-0001", "dyn-tro8w2-0001"]
 
 
 @pytest.mark.parametrize(
