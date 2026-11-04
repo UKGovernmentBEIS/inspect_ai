@@ -703,6 +703,43 @@ def test_writable_connection_retries_when_parent_dir_removed_during_mkdir(
         conn.close()
 
 
+def test_create_retries_when_parent_dir_removed_during_mkdir(tmp_path, monkeypatch):
+    """Creating a buffer survives a sibling removing its directory mid-mkdir."""
+    import os
+
+    # an empty, pre-existing subdir so the create's mkdir gets EEXIST
+    first = SampleBufferDatabase(str(tmp_path / "first.eval"), db_dir=tmp_path)
+    subdir = first.db_path.parent
+    first._close_all_connections()
+    for suffix in ("", "-wal", "-shm"):
+        p = f"{first.db_path}{suffix}"
+        if os.path.exists(p):
+            os.unlink(p)
+
+    real_mkdir = os.mkdir
+    raced = False
+
+    def racing_mkdir(path, *args, **kwargs):
+        nonlocal raced
+        try:
+            real_mkdir(path, *args, **kwargs)
+        except FileExistsError:
+            if not raced and os.fspath(path) == os.fspath(subdir):
+                raced = True
+                os.rmdir(subdir)
+            raise
+
+    monkeypatch.setattr(os, "mkdir", racing_mkdir)
+
+    db = SampleBufferDatabase(str(tmp_path / "second.eval"), db_dir=tmp_path)
+    assert raced
+    assert db.db_path.parent == subdir
+    assert subdir.exists()
+    db.log_events([SampleEvent(id="sample", epoch=1, event=InfoEvent(data="hello"))])
+    with db.open_sample_history("sample", 1) as history:
+        assert [event["data"] for event in history.iter_events()] == ["hello"]
+
+
 def test_read_only_connection_does_not_recreate_missing_parent_dir(tmp_path):
     """Read-only connections must not resurrect a removed log directory.
 
