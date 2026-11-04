@@ -481,12 +481,24 @@ refused, before anything changes, in three cases:
 
 These per-target checks rely on a check of the whole log that comes first
 (step 8 of `zero_samples_async`): the task's scorers must be the ones the log
-records, with the same names and options. Then the scratch sample's keys are
-the keys the task's scorers write, and a key the sample holds under one of
-those names was written by that scorer. A log with appended scores fails
-that check, because append adds its scorers to `log.eval.scorers`: an
-appended scorer can hold the key an original scorer would use (see "Score
-names" above), and the key alone cannot tell them apart.
+records, with the same names and options, in the same order. A log with
+appended scores usually fails that check, because append adds its scorers
+to `log.eval.scorers` and the task does not have them. When the check
+passes, zero writes the task's verdicts under the keys the task's scorers
+write, and it does not try to attribute a held key to the scorer that wrote
+it.
+
+That includes one case where the held key came from another scorer, which
+zero accepts (decision: Ransom, 2026-11-04). A task ran `[probe(0)]`; a
+sample errored before scoring; `inspect score --action append` added
+`probe(1)`, which took that sample's vacant `probe` key while its neighbours
+got `probe1`; and the task was then updated to `[probe(0), probe(1)]`, so
+the headers match. Zeroing the errored sample writes `probe(0)`'s verdict
+under `probe`, replacing the appended `probe(1)` score, and adds
+`probe(1)`'s verdict under `probe1`. The sample then has the layout its
+neighbours and a fresh run of the updated task have (`probe` from
+`probe(0)`, `probe1` from `probe(1)`). The replaced appended score stays in
+the score's history as `history[0]`.
 
 A name that the sample does not hold, and that the empty attempt did not
 produce, stays absent, as the runner would leave it.
@@ -538,17 +550,35 @@ effect.
 
 The runner already supports this through the solver override, so zero uses
 it unchanged. It passes an internal registered solver as `solver=`, which
-makes `resolve_plan()` produce `Task.setup` followed by this no-op:
+makes `resolve_plan()` produce `Task.setup` followed by this solver:
 
 ```python
 # src/inspect_ai/_eval/zero.py
+class SetupWroteScores(Exception):
+    """`Task.setup` wrote `state.scores`, so the empty attempt has no verdict of the task's scorers alone."""
+
 @solver(name="inspect_ai/empty_attempt")
 def empty_attempt() -> Solver:
     """Leave the state as `Task.setup` left it, so the scorers see an attempt that did nothing."""
     async def solve(state: TaskState, generate: Generate) -> TaskState:
+        if state.scores:
+            raise SetupWroteScores(
+                f"Task.setup wrote scores ({', '.join(state.scores)}), which zero "
+                "cannot tell from the task scorers' verdicts; exclude the sample instead"
+            )
         return state
     return solve
 ```
+
+`Task.setup` is a solver, and a solver may write `state.scores`. The runner
+keeps those keys beside the task scorers' results (`run.py:3191`, `:3273`),
+so a score `Task.setup` wrote would reach the scratch sample under its own
+key and pass for a verdict even when every task scorer returned `None`. The
+solver refuses it at its entry, which is after `Task.setup` and before the
+task's scorers run: the exception errors the scratch sample, and step 8
+refuses that target with the error's message, leaving the log unchanged.
+The main solver is skipped, so `Task.setup` is the only solver that can
+have written a score at that point.
 
 ### Python API
 
@@ -703,6 +733,7 @@ the task may have changed since the log was written".
    if eval_async_running():
        raise RuntimeError("zero cannot run while an eval is running in this process")
    prepared, metrics = contextvars.copy_context().run(prepare)
+   prepared = replace(prepared, task=copy(prepared.task))
    prepared.task.early_stopping = None
    ```
 
@@ -719,14 +750,23 @@ the task may have changed since the log was written".
      as they were. `prepare` is synchronous, so nothing interleaves between
      the check and its end; the scratch eval then applies the native check
      again.
-   - **Early stopping.** The prepared `Task` is a scratch-only instance,
-     built by the task factory in `prepare`. Zero clears its
-     `early_stopping` (`Task.early_stopping`,
-     `src/inspect_ai/_eval/task/task.py:276`), because the runner may stop a
-     sample-epoch before setup and scoring (`run.py:2729`) and the scratch
-     log would still report success. Each target's empty attempt is a
-     separate verdict, so nothing in the scratch run should stop early. The
-     original task and log are untouched.
+   - **Early stopping.** Zero clears `early_stopping` (`Task.early_stopping`,
+     `src/inspect_ai/_eval/task/task.py:276`) on its own shallow copy of the
+     prepared `Task`, because the runner may stop a sample-epoch before
+     setup and scoring (`run.py:2729`) and the scratch log would still
+     report success. Each target's empty attempt is a separate verdict, so
+     nothing in the scratch run should stop early. The copy matters because
+     task resolution can return an instance the caller owns: a factory may
+     return a cached `Task`, and `resolve_tasks()` keeps the instance it
+     returns (`src/inspect_ai/_eval/loader.py:114`). Clearing the field on
+     that instance would disable early stopping for every later eval of the
+     task, even after zero refused. `ResolvedTask` is a frozen dataclass
+     (`src/inspect_ai/_eval/task/resolved.py:14`), so zero replaces it with
+     `dataclasses.replace(prepared, task=copy(prepared.task))`, as a normal
+     run shallow-copies the task before applying its overrides
+     (`src/inspect_ai/_eval/run.py:261`). `task_with()` is not used, because
+     it changes the task it is given. Zero only rebinds the attribute on the
+     copy, so the shared nested state is not changed.
 
    - **Model context.** `eval_resolve_tasks()` installs the model roles and
      the primary model in the active context before any task factory runs
@@ -874,10 +914,10 @@ the task may have changed since the log was written".
    log was written; zero the samples before appending scores". This catches
    an appended log, because append adds its scorers to `log.eval.scorers`
    (`src/inspect_ai/_eval/score.py:443`), and a task whose scorers were
-   added, removed, reordered or reconfigured. When the lists match, the
-   scratch eval's scorers are the log's, and a key that an empty attempt
-   writes is the key the same scorer wrote in the original run (see "Which
-   score names a disposition covers").
+   added, removed, reordered or reconfigured. When the lists match, zero
+   writes the task's verdicts under the task's keys; an appended log whose
+   headers match an updated task is accepted, with the limitation described
+   under "Which score names a disposition covers".
 
    Then, for every target, it requires a scratch sample with the same
    `(id, epoch)` and no `error`, and applies the zero refusals under "Which
@@ -1230,6 +1270,10 @@ backends; run the zero tests with `--runtrio` locally.
       scorer, which wrote under the target's vacant key;
     - a task file whose scorer's options changed since the log was written;
     - a task file that added a scorer, and one that reordered two.
+  - Appended log with matching headers (accepted): the same append, then the
+    task updated to `[probe(0), probe(1)]`. Zeroing the errored target
+    writes `probe(0)`'s verdict under `probe`, with the appended `probe(1)`
+    score as `history[0]`, and `probe(1)`'s verdict under `probe1`.
   - Running eval: zeroing a landed log while another eval in the process
     holds a live sample (asyncio and Trio) is refused before preparation,
     and the running eval's active samples and concurrency registries are
@@ -1238,6 +1282,11 @@ backends; run the zero tests with `--runtrio` locally.
     failure, whose original log holds both epochs: zeroing every epoch runs
     both empty attempts and zeroes both, and the task's own
     `early_stopping` object and the log are otherwise unchanged.
+  - Cached task: a registered factory that returns the same cached `Task`
+    with an early-stopping manager, zeroed on a log whose target the dataset
+    no longer holds, so zero refuses after preparation: the cached task's
+    manager is still installed, and a later eval of the task stops early as
+    before.
   - A task defined below its file's module-scope `eval_set()` call fails
     with the loader's "task not found" error, and the log is unchanged.
   - A metric whose options name a model resolves.
@@ -1262,6 +1311,10 @@ backends; run the zero tests with `--runtrio` locally.
     - a conditional scorer that scored the original and returns `None` on the
       empty attempt;
     - a solver-written score;
+    - a `Task.setup` that writes `state.scores` while the task's only scorer
+      returns `None` on the empty attempt: refused with the setup-scores
+      message, and the input log's samples, results and reductions are
+      unchanged;
     - a log with no task scorers;
     - a task edited to return a scalar under a name whose logged metrics
       expect a dict: the `TypeError` is re-raised and the samples, results
