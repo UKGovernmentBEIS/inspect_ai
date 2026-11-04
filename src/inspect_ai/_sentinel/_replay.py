@@ -382,6 +382,8 @@ class _Driver:
         # call id -> the indexes of the model events that proposed it
         self.proposed: dict[str, list[int]] = {}
         self.bridge_proposed: set[str] = set()
+        # whether a bridge generated in the sample (`ModelEvent.requested_model`)
+        self.bridge_generated = False
         # each model event's input view and producer, shared by its steps
         self._views: dict[int, PoolView] = {}
         self._producers: dict[int, Producer] = {}
@@ -423,6 +425,8 @@ class _Driver:
                         "agent turns; replaying such logs from their timeline is not "
                         "built yet."
                     )
+                if event.requested_model is not None:
+                    self.bridge_generated = True
                 message_id = producing_message_id(event)
                 if message_id is not None:
                     message = event.output.choices[0].message
@@ -510,13 +514,13 @@ class _Driver:
     def _shared_bridge_ids(self, calls: list[_Call]) -> set[str]:
         """Find native IDs also used by a host call or a checked scaffold call.
 
-        `call_tool` does not yield between a native call's checks and its tool
-        span, so a native call's tool_call check ends just before its tool span
-        (or handoff span) begins, and its tool_result check begins just after
-        that span ends, or just after the call's last result review. Any other
-        check under a native call's ID came from the bridge, whatever its
-        timing. A scaffold call with only a result check has no before check or
-        ToolEvent, but its proposing ModelEvent records a requested_model.
+        A bridge ran in the sample if it made a host call, generated
+        (`requested_model`), or checked under a native call's ID outside that
+        call's windows (`_windowed_checks`). Without a bridge no ID is shared,
+        and native calls take their checks by window; with one, by position
+        (`_adjacent_checks`). A scaffold call with only a result check has no
+        before check or ToolEvent, but its proposing ModelEvent records a
+        requested_model.
         """
         native = [call for call in calls if not _bridged(call.event)]
         native_ids = {call.event.id for call in native}
@@ -526,23 +530,44 @@ class _Driver:
             for call in calls
             if _bridged(call.event) and call.event.id in native_ids
         }
-        before_owner: dict[int, _Call] = {}
+        outer = {call.index: self._outer_span(call) for call in native}
+        anchors = self._result_anchors(native, outer, shared)
+        if (
+            self.bridge_generated
+            or len(native) < len(calls)
+            or shared
+            or not self._windowed_checks(native, outer, anchors)
+        ):
+            self.native_checks.clear()
+            shared |= self._adjacent_checks(native, native_ids, outer, anchors)
+
+        for call_id in native_ids:
+            if (
+                self.tool_spans.get(("tool_result", call_id))
+                and len(self.proposed.get(call_id, [])) > execution_counts[call_id]
+            ):
+                if call_id in self.bridge_proposed:
+                    shared.add(call_id)
+                elif call_id not in shared:
+                    self.uncertain_bridge_ids.add(call_id)
+        return shared
+
+    def _result_anchors(
+        self, native: list[_Call], outer: dict[int, str | None], shared: set[str]
+    ) -> dict[int, int]:
+        """Each native call's result check begins after this event: its tool span's end, or its last result review.
+
+        A review is of the last call under its id to end before it; when an
+        earlier one was still running, the id goes in `shared`. A terminating
+        review leaves its call no result check, and no anchor.
+        """
         ended: list[tuple[int, _Call]] = []
-        spanless: dict[str, list[_Call]] = {}
         for call in native:
-            outer = self._outer_span(call)
-            if outer is None:
-                spanless.setdefault(call.event.id, []).append(call)
-                continue
-            before_owner[self.begins[outer][0]] = call
-            end = self.ends.get(outer)
+            span = outer[call.index]
+            end = self.ends.get(span) if span is not None else None
             if end is not None:
                 ended.append((end, call))
         ended.sort(key=lambda entry: entry[0])
-
-        # a review is of the last call under its id to end before it, unless
-        # an earlier one was still running; a terminating review leaves its
-        # call no result check
         reviewed: dict[int, int | None] = {}
         latest: dict[str, tuple[_Call, _Call | None]] = {}
         at = 0
@@ -562,18 +587,122 @@ class _Driver:
             ):
                 shared.add(call.event.id)
             reviewed[call.index] = position if review.decision != "terminate" else None
-        anchors: dict[int, _Call] = {}
+        anchors: dict[int, int] = {}
         for end, call in ended:
             anchor = reviewed.get(call.index, end)
             if anchor is not None:
-                anchors[anchor] = call
+                anchors[call.index] = anchor
+        return anchors
+
+    def _windowed_checks(
+        self,
+        native: list[_Call],
+        outer: dict[int, str | None],
+        anchors: dict[int, int],
+    ) -> bool:
+        """Give each native call the first check of each stage in its window.
+
+        A tool_call check begins between the call's proposal and its tool
+        span, a tool_result check after its anchor and by the call's
+        completion, however a span-id provider interleaves the events. Returns
+        False when a check under a native ID fits no window, or a call takes a
+        later check while the sentinel span adjacent to its tool span recorded
+        nothing (its own check, abstaining): a bridge's check.
+        """
+        by_id: dict[str, list[_Call]] = {}
+        for call in native:
+            by_id.setdefault(call.event.id, []).append(call)
+        for call_id, natives in by_id.items():
+            spans = self.tool_spans.get(("tool_call", call_id), [])
+            at = 0
+            for call in natives:
+                span = outer[call.index]
+                before = self.begins[span][0] if span is not None else call.index
+                if at == len(spans):
+                    break
+                position = self.begins[spans[at]][0]
+                if position <= call.produced_at:
+                    return False
+                if position < before:
+                    if self.ends.get(spans[at]) != before - 1 and self._unrecorded(
+                        before - 1, SpanEndEvent
+                    ):
+                        return False
+                    self.native_checks[("tool_call", call.index)] = spans[at]
+                    at += 1
+            if at < len(spans):
+                return False
+
+            spans = self.tool_spans.get(("tool_result", call_id), [])
+            at = 0
+            for call in sorted(
+                (call for call in natives if call.index in anchors),
+                key=lambda call: anchors[call.index],
+            ):
+                if at == len(spans):
+                    break
+                anchor = anchors[call.index]
+                position = self.begins[spans[at]][0]
+                if position <= anchor:
+                    return False
+                if self._checks_result_of(call, spans[at]):
+                    if position != anchor + 1 and self._unrecorded(
+                        anchor + 1, SpanBeginEvent
+                    ):
+                        return False
+                    self.native_checks[("tool_result", call.index)] = spans[at]
+                    at += 1
+            if at < len(spans):
+                return False
+        return True
+
+    def _unrecorded(
+        self, index: int, kind: type[SpanBeginEvent] | type[SpanEndEvent]
+    ) -> bool:
+        """Whether the event at `index` begins or ends a sentinel span with no SentinelEvent."""
+        event = self.events[index] if 0 <= index < len(self.events) else None
+        return (
+            isinstance(event, kind)
+            and self.begins[event.id][1].type == "sentinel"
+            and event.id not in self.span_events
+        )
+
+    def _adjacent_checks(
+        self,
+        native: list[_Call],
+        native_ids: set[str],
+        outer: dict[int, str | None],
+        anchors: dict[int, int],
+    ) -> set[str]:
+        """Give each native call its adjacent checks, returning the IDs whose other checks came from a bridge.
+
+        `call_tool` does not yield between a native call's checks and its tool
+        span, so a native call's tool_call check ends just before its tool span
+        (or handoff span) begins, and its tool_result check begins just after
+        its anchor. Any other check under a native call's ID came from the
+        bridge, whatever its timing. A span-id provider that yields can break
+        this adjacency; the call's ID is then skipped rather than guessed.
+        """
+        shared: set[str] = set()
+        before_owner: dict[int, _Call] = {}
+        after_owner: dict[int, _Call] = {}
+        spanless: dict[str, list[_Call]] = {}
+        for call in native:
+            span = outer[call.index]
+            if span is None:
+                spanless.setdefault(call.event.id, []).append(call)
+                continue
+            before_owner[self.begins[span][0]] = call
+            anchor = anchors.get(call.index)
+            if anchor is not None:
+                after_owner[anchor] = call
 
         unowned: dict[str, list[str]] = {}
         for (stage, call_id), spans in self.tool_spans.items():
             if call_id not in native_ids:
                 continue
             for span in spans:
-                owner = self._native_owner(stage, span, before_owner, anchors)
+                owner = self._native_owner(stage, span, before_owner, after_owner)
                 if (
                     owner is not None
                     and owner.event.id == call_id
@@ -601,16 +730,6 @@ class _Driver:
                     pending = next(left, None)
             if pending is not None:
                 shared.add(call_id)
-
-        for call_id in native_ids:
-            if (
-                self.tool_spans.get(("tool_result", call_id))
-                and len(self.proposed.get(call_id, [])) > execution_counts[call_id]
-            ):
-                if call_id in self.bridge_proposed:
-                    shared.add(call_id)
-                elif call_id not in shared:
-                    self.uncertain_bridge_ids.add(call_id)
         return shared
 
     def _outer_span(self, call: _Call) -> str | None:
@@ -632,23 +751,24 @@ class _Driver:
         stage: SentinelStage,
         span: str,
         before_owner: dict[int, _Call],
-        anchors: dict[int, _Call],
+        after_owner: dict[int, _Call],
     ) -> _Call | None:
         """The native call whose own check this span is, if any."""
-        position, begin = self.begins[span]
         if stage == "tool_call":
             end = self.ends.get(span)
             return before_owner.get(end + 1) if end is not None else None
-        owner = anchors.get(position - 1)
-        if owner is None:
-            return None
-        completed = owner.event.completed
-        if completed is not None and begin.timestamp > completed:
-            return None
-        # a failed call's result was checked only if that check ended it
-        if owner.event.failed is True and not self._ended_call(span):
+        owner = after_owner.get(self.begins[span][0] - 1)
+        if owner is None or not self._checks_result_of(owner, span):
             return None
         return owner
+
+    def _checks_result_of(self, call: _Call, span: str) -> bool:
+        """Whether this result check began by the call's completion and, for a failed call, ended it."""
+        completed = call.event.completed
+        if completed is not None and self.begins[span][1].timestamp > completed:
+            return False
+        # a failed call's result was checked only if that check ended it
+        return call.event.failed is not True or self._ended_call(span)
 
     def _sentinel_event(
         self, event: SentinelEvent, candidates: dict[str, list[str]]

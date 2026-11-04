@@ -14,6 +14,7 @@ import anyio
 import pytest
 import tenacity
 from pydantic import BaseModel
+from shortuuid import uuid
 
 from inspect_ai import Task, eval
 from inspect_ai._sentinel._integration import (
@@ -81,7 +82,13 @@ from inspect_ai.tool import (
     tool,
 )
 from inspect_ai.tool._tool import ToolApprovalError, ToolParsingError
-from inspect_ai.util._span import current_agent_span_id, current_span_id, in_span, span
+from inspect_ai.util._span import (
+    current_agent_span_id,
+    current_span_id,
+    in_span,
+    span,
+    span_id_provider,
+)
 
 from .test_sentinel_dispatch import (
     _RetriedError,
@@ -4262,6 +4269,151 @@ def test_native_calls_reusing_one_id_keep_their_checks_in_linear_span_lookups(
     assert "inspect_ai._sentinel._replay" not in {
         record.name for record in caplog.records
     }
+
+
+@agent
+def r7_allocates_span_ids_with_a_yield(bridged: bool, orchestrated: bool) -> Agent:
+    """Three parallel native calls (`ordered_addition`) under a span-id provider that awaits, after a bridged host call with `bridged`.
+
+    With `orchestrated`, the provider holds each native tool span until all
+    three calls have been checked, and each result check until all three calls
+    have run, so other calls' events separate every check from its tool span.
+    """
+
+    async def execute(state: AgentState) -> AgentState:
+        checked, ran = anyio.Event(), anyio.Event()
+        arrived = {"tool": 0, "result": 0}
+
+        async def gather(stage: str, released: anyio.Event) -> None:
+            arrived[stage] += 1
+            if arrived[stage] == 3:
+                released.set()
+            await released.wait()
+
+        async def allocate(
+            name: str, parent_id: str | None, requested_id: str | None
+        ) -> str:
+            await anyio.lowlevel.checkpoint()
+            if not orchestrated:
+                pass
+            elif name == "ordered_addition":
+                await gather("tool", checked)
+            elif name == "sentinel" and checked.is_set():
+                await gather("result", ran)
+            return requested_id or uuid()
+
+        with span_id_provider(allocate):
+            if bridged:
+                state = await r7_runs_a_bridged_host_tool()(state)
+            tool = ordered_addition()
+            output = await get_model().generate(state.messages, tools=[tool])
+            state.messages.append(output.message)
+            result = await execute_tools(state.messages, [tool])
+            state.messages.extend(result.messages)
+        return state
+
+    return execute
+
+
+def native_checks_apart(sample: EvalSample) -> set[str]:
+    """The stages at which some native call's check is not adjacent to its tool span."""
+    events = sample.events
+    begins = {
+        event.id: index
+        for index, event in enumerate(events)
+        if isinstance(event, SpanBeginEvent)
+    }
+    ends = {
+        event.id: index
+        for index, event in enumerate(events)
+        if isinstance(event, SpanEndEvent)
+    }
+    checks = {
+        (event.stage, event.step_id): event.span_id
+        for event in events
+        if isinstance(event, SentinelEvent) and event.span_id is not None
+    }
+    apart: set[str] = set()
+    for index, event in enumerate(events):
+        if not isinstance(event, ToolEvent) or event.metadata:
+            continue
+        tool_span = cast(SpanBeginEvent, events[index - 1]).id
+        before = checks[("tool_call", event.id)]
+        after = checks[("tool_result", event.id)]
+        if ends[before] != begins[tool_span] - 1:
+            apart.add("tool_call")
+        if begins[after] != ends[tool_span] + 1:
+            apart.add("tool_result")
+    return apart
+
+
+PARALLEL_NATIVE_CALLS = calls(
+    *[("ordered_addition", {"x": n, "y": 10}) for n in (1, 2, 3)]
+)
+
+
+@pytest.mark.parametrize("orchestrated", [False, True])
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_native_checks_replay_under_a_span_id_provider_that_yields(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    backend: str,
+    orchestrated: bool,
+) -> None:
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    seen: dict[str, Step] = {}
+    log = run_logged(
+        as_solver(r7_allocates_span_ids_with_a_yield(False, orchestrated)),
+        outputs(PARALLEL_NATIVE_CALLS),
+        sentinel=[r7_probe(seen, copies=True)],
+    )
+    if orchestrated:
+        assert native_checks_apart(logged_sample(log)) == {
+            "tool_call",
+            "tool_result",
+        }
+    with caplog.at_level(logging.WARNING):
+        replay = assert_logged_replay_equals_live(log, seen)
+    assert len([step for step in replay if step.stage.startswith("tool")]) == 6
+    assert "inspect_ai._sentinel._replay" not in {
+        record.name for record in caplog.records
+    }
+
+
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_native_checks_under_a_span_id_provider_that_yields_beside_a_bridge_link_no_other_check(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    backend: str,
+) -> None:
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    seen: dict[str, Step] = {}
+    log = run_logged(
+        as_solver(r7_allocates_span_ids_with_a_yield(True, orchestrated=True)),
+        outputs(call("mcp__host__addition", x=1, y=1), PARALLEL_NATIVE_CALLS),
+        sentinel=[r7_probe(seen, copies=True)],
+    )
+    sample = logged_sample(log)
+    assert native_checks_apart(sample) == {"tool_call", "tool_result"}
+    live = live_steps(sample, seen)
+    with caplog.at_level(logging.WARNING):
+        replay = replayed(log)
+    rebuilt = {(step.stage, step.id): step for step in replay}
+    for key, step in rebuilt.items():
+        assert_step_equals_live(key, step, live[key])
+    # a bridge ran, so a call whose checks the yields moved from its tool span
+    # is skipped with a warning, not guessed; one left adjacent is rebuilt
+    skipped = {
+        f"t0c{n}"
+        for n in range(3)
+        if {("tool_call", f"t0c{n}"), ("tool_result", f"t0c{n}")} - set(rebuilt)
+    }
+    assert skipped
+    [warning] = [
+        r.getMessage() for r in caplog.records if "Replay skipped" in r.message
+    ]
+    shared = warning.split("an agent bridge (")[1].split(")")[0]
+    assert skipped <= set(shared.split(", "))
 
 
 @agent
