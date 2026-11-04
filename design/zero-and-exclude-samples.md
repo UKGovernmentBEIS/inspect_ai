@@ -1359,7 +1359,10 @@ additions later:
     against the result `name` (a dict metric key) rather than `scorer`
     (`src/inspect_ai/_eval/task/results.py:161`). Two dict-valued scorers of
     the same name can then both report the first one's data after a
-    recompute.
+    recompute. The same gap reaches scalar scorers: an original `probe`
+    that never scored and an appended `probe` written under `probe` report
+    counts `[0, 2]`, which a bare `recompute_metrics()` turns into `[2, 0]`
+    (`eval_results()` assigns positional names, `results.py:157`).
   - `scorers_from_metric_dict()` expands glob metric keys from a sample's
     current dict value and keeps the literal glob when none is left
     (`results.py:500`). After every score of such a scorer becomes `NaN`,
