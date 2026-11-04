@@ -82,6 +82,7 @@ from inspect_ai.model._model import (
 )
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool._tool import Tool
+from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolChoice, ToolFunction
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.tool._tool_util import tool_to_tool_info
@@ -528,15 +529,13 @@ async def _apply_response_filter(
         # text continued across requests is joined with no separator)
         filtered.completion = output.completion
     _check_provider_owned_content(output, filtered)
-    _settle_message_ids(output, filtered, on_filtered_output)
+    if on_filtered_output is not None:
+        on_filtered_output(filtered)
+    _settle_message_ids(output, filtered)
     return filtered
 
 
-def _settle_message_ids(
-    original: ModelOutput,
-    filtered: ModelOutput,
-    on_primary_owner: Callable[[ModelOutput], None] | None = None,
-) -> None:
+def _settle_message_ids(original: ModelOutput, filtered: ModelOutput) -> None:
     """Set the ids of returned messages so id-keyed replay state matches them.
 
     Dialects key some replay state by message id. Anthropic records server work
@@ -552,8 +551,7 @@ def _settle_message_ids(
     A changed or new message that keeps none replaces the original whose id it
     had, else the original choice at its index: it gets an id derived from that
     original's and its own content (`with_edited_id`), so the same edit is the
-    same message. The callback sees the primary message after a retained server
-    item restores its owner, but before an ordinary edit derives a new id.
+    same message.
     """
     owners = {
         content.id: choice.message.id
@@ -583,8 +581,6 @@ def _settle_message_ids(
             owner = next(iter(kept_owners))
             if owner is not None:
                 message.id = owner
-        if index == 0 and on_primary_owner is not None:
-            on_primary_owner(filtered)
         if not kept_owners and message not in original_messages:
             source = next(
                 (m for m in original_messages if m.id == message.id),
@@ -629,7 +625,7 @@ def _selected_generated_message_id(
 def _verified_generated_calls(
     generated: ModelOutput, filtered: ModelOutput
 ) -> list[bool]:
-    """Check each returned call before filter settlement rewrites message IDs."""
+    """Match each returned call to one recorded call before ID settlement."""
     calls = filtered.message.tool_calls or []
     source_id = _selected_generated_message_id(generated, filtered)
     if source_id is None:
@@ -639,17 +635,27 @@ def _verified_generated_calls(
     ]
     if len(sources) != 1:
         return [False] * len(calls)
-    remaining = Counter(
-        (call.id, call.function) for call in sources[0].tool_calls or []
+
+    def key(call: ToolCall) -> tuple[str, str, str]:
+        return (
+            call.id,
+            call.function,
+            canonical_tool_arguments(call.arguments),
+        )
+
+    generated_counts = Counter(
+        key(call)
+        for choice in generated.choices
+        for call in choice.message.tool_calls or []
     )
-    verified: list[bool] = []
-    for call in calls:
-        key = (call.id, call.function)
-        retained = remaining[key] > 0
-        verified.append(retained)
-        if retained:
-            remaining[key] -= 1
-    return verified
+    filtered_counts = Counter(key(call) for call in calls)
+    source_keys = {key(call) for call in sources[0].tool_calls or []}
+    return [
+        key(call) in source_keys
+        and generated_counts[key(call)] == 1
+        and filtered_counts[key(call)] == 1
+        for call in calls
+    ]
 
 
 def _check_provider_owned_content(original: ModelOutput, filtered: ModelOutput) -> None:
@@ -1170,6 +1176,10 @@ async def _bridge_generate_impl(
                     ),
                     on_filtered_output=check_proposal,
                 )
+        if verified_calls is None and generated is not None:
+            calls = output.message.tool_calls or []
+            if len({call.id for call in calls}) < len(calls):
+                verified_calls = _verified_generated_calls(generated, output)
 
         # Check for refusal and retry if needed
         if not output.empty and output.stop_reason == "content_filter":

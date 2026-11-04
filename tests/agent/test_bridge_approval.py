@@ -4050,6 +4050,24 @@ async def test_duplicate_call_ids_in_one_reply_keep_proposing_message() -> None:
     ] * 2
 
 
+async def test_identical_duplicate_calls_have_no_unique_producer() -> None:
+    """Identical duplicate calls cannot each name one generated call."""
+    bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)
+    calls = [
+        ToolCall(id="same", function="read_file", arguments={"path": "a"})
+        for _ in range(2)
+    ]
+    with recorded_transcript() as recorded:
+        await run_bridge(
+            [tool_calls_output(*calls)], bridge=bridge, tools=declare("read_file")
+        )
+        for _ in calls:
+            await call_host_tool(bridge)("host", "read_file", {"path": "a"})
+
+    assert len(recorded.tool_events) == 2
+    assert all(event.call_message_id is None for event in recorded.tool_events)
+
+
 async def test_recovered_refusal_keeps_host_call_provenance() -> None:
     """A response filter can recover a refusal without losing its producer."""
     bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)
@@ -4388,7 +4406,7 @@ async def test_response_filter_replacement_does_not_claim_initial_proposal(
     "edit", ["arguments", "append", "append-duplicate", "parallel-edit"]
 )
 async def test_response_filter_keeps_each_original_call_attribution(edit: str) -> None:
-    """Changing another call does not clear a retained call's link or span."""
+    """Only unchanged call signatures retain their link and span."""
     bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)
     bridge.model_event_sink = StartingStampingSink({"stamp", "open"})
 
@@ -4433,21 +4451,21 @@ async def test_response_filter_keeps_each_original_call_attribution(edit: str) -
 
     [generation] = [e for e in recorded.events if isinstance(e, ModelEvent)]
     first, *rest = recorded.tool_events
-    assert first.call_message_id == generation.output.message.id
-    assert first.span_id == "agent-sub"
+    assert first.call_message_id == (
+        None if edit == "arguments" else generation.output.message.id
+    )
+    assert first.span_id == (outer if edit == "arguments" else "agent-sub")
     if rest:
         [second] = rest
-        assert second.call_message_id == (
-            generation.output.message.id if edit == "parallel-edit" else None
-        )
-        assert second.span_id == ("agent-sub" if edit == "parallel-edit" else outer)
+        assert second.call_message_id is None
+        assert second.span_id == outer
 
 
 @pytest.mark.parametrize("edit", ["unchanged", "changed_id", "missing_id", "rebuilt"])
-async def test_response_filter_kept_server_item_restores_call_attribution(
+async def test_response_filter_kept_server_item_does_not_infer_call_attribution(
     edit: str,
 ) -> None:
-    """A retained server item identifies the original host-call producer."""
+    """Replay ownership does not by itself prove a host-call producer."""
     bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)
     bridge.model_event_sink = StartingStampingSink({"stamp", "open"})
 
@@ -4479,6 +4497,7 @@ async def test_response_filter_kept_server_item_restores_call_attribution(
     ]
     with recorded_transcript() as recorded:
         async with span("outer"):
+            outer = current_span_id()
             run = await run_bridge([initial], bridge=bridge, tools=declare("read_file"))
             await call_host_tool(bridge)("host", "read_file", {"path": "a"})
 
@@ -4486,8 +4505,107 @@ async def test_response_filter_kept_server_item_restores_call_attribution(
     [event] = recorded.tool_events
     assert run.output.message.id == generation.output.message.id
     assert run.output.message.tool_calls == generation.output.message.tool_calls
-    assert event.call_message_id == generation.output.message.id
-    assert event.span_id == generation.span_id == "agent-sub"
+    assert event.call_message_id == (
+        generation.output.message.id if edit == "unchanged" else None
+    )
+    assert event.span_id == ("agent-sub" if edit == "unchanged" else outer)
+
+
+async def test_filter_generated_replacement_with_server_item_stays_unlinked() -> None:
+    """Replay ownership cannot establish a replacement host call's producer."""
+    bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)
+    bridge.model_event_sink = StartingStampingSink({"stamp", "open"})
+
+    async def replace(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput:
+        generated = await model.generate(
+            input=generate_input.input,
+            tools=generate_input.tools,
+            tool_choice=generate_input.tool_choice,
+            config=generate_input.config,
+        )
+        replacement = generated.model_copy(deep=True)
+        replacement.message.content = output.message.content
+        return replacement
+
+    bridge.response_filter = replace
+    original = ToolCall(id="same", function="read_file", arguments={"path": "original"})
+    replacement = ToolCall(
+        id="same", function="read_file", arguments={"path": "replacement"}
+    )
+    first = tool_calls_output(original)
+    first.message.content = [
+        ContentText(text="Searched."),
+        ContentToolUse(
+            id="server-search",
+            tool_type="web_search",
+            name="web_search",
+            arguments='{"query":"test"}',
+            result="found",
+        ),
+    ]
+    with recorded_transcript() as recorded:
+        async with span("outer"):
+            outer = current_span_id()
+            run = await run_bridge(
+                [first, tool_calls_output(replacement)],
+                bridge=bridge,
+                tools=declare("read_file"),
+            )
+            await call_host_tool(bridge)("host", "read_file", {"path": "replacement"})
+
+    first_event, second_event = [
+        event for event in recorded.events if isinstance(event, ModelEvent)
+    ]
+    [event] = recorded.tool_events
+    assert run.output.message.id == first_event.output.message.id
+    assert second_event.output.message.id != first_event.output.message.id
+    assert event.call_message_id is None
+    assert event.span_id == outer
+
+
+async def test_filter_prepended_duplicate_id_does_not_claim_original() -> None:
+    """Duplicate IDs are matched by their arguments across reordered calls."""
+    bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)
+    bridge.model_event_sink = StartingStampingSink({"stamp", "open"})
+
+    async def prepend(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput:
+        calls = output.message.tool_calls
+        assert calls is not None
+        calls[:] = [
+            ToolCall(id="same", function="read_file", arguments={"path": "synthetic"}),
+            calls[1],
+            calls[0],
+        ]
+        return output
+
+    bridge.response_filter = prepend
+    original_calls = [
+        ToolCall(id="same", function="read_file", arguments={"path": path})
+        for path in ("a", "b")
+    ]
+    with recorded_transcript() as recorded:
+        async with span("outer"):
+            outer = current_span_id()
+            await run_bridge(
+                [tool_calls_output(*original_calls)],
+                bridge=bridge,
+                tools=declare("read_file"),
+            )
+            for path in ("synthetic", "b", "a"):
+                await call_host_tool(bridge)("host", "read_file", {"path": path})
+
+    [generation] = [event for event in recorded.events if isinstance(event, ModelEvent)]
+    synthetic, second, first = recorded.tool_events
+    assert synthetic.call_message_id is None
+    assert synthetic.span_id == outer
+    assert [second.call_message_id, first.call_message_id] == [
+        generation.output.message.id
+    ] * 2
+    assert second.span_id == first.span_id == "agent-sub"
 
 
 def sandbox_bridge_with_sink(tool: AsyncMock, sink: StampingSink) -> SandboxAgentBridge:
