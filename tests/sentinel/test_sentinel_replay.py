@@ -52,7 +52,13 @@ from inspect_ai.event import (
 )
 from inspect_ai.event._pool import condense_model_event_inputs
 from inspect_ai.event._sentinel import SentinelStage
-from inspect_ai.log import EvalLog, EvalSample, read_eval_log, write_eval_log
+from inspect_ai.log import (
+    EvalLog,
+    EvalSample,
+    condense_events,
+    read_eval_log,
+    write_eval_log,
+)
 from inspect_ai.log._transcript import transcript
 from inspect_ai.model import (
     ChatCompletionChoice,
@@ -2239,6 +2245,122 @@ def test_bridge_result_lookup_with_empty_results_stays_bounded(
             else ({f"task-{rounds - 1}": f"result {rounds - 1}"} if not empty else {})
         )
         assert work[-1] <= 4 * rounds, (rounds, work)
+    assert work[-1] <= 4.2 * work[0] + 10, work
+
+
+def test_bridge_result_lookup_for_agent_batch_over_fragmented_input_stays_bounded(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from inspect_ai.event import _timeline
+
+    original_results = _timeline._Inputs.tool_results
+    original_row = _timeline._Inputs.row
+    original_bisect = bisect.bisect_left
+    work: list[int] = []
+    final_results: list[tuple[str, str]] = []
+    active_lookup = False
+
+    def counted_results(
+        inputs: Any, event: ModelEvent, ids: Any
+    ) -> list[tuple[str, str]]:
+        nonlocal active_lookup
+        active_lookup = True
+        try:
+            results = original_results(inputs, event, ids)
+        finally:
+            active_lookup = False
+        if event.uuid == "final":
+            final_results.extend(results)
+        return results
+
+    def counted_row(inputs: Any, row: int) -> ChatMessage:
+        if active_lookup:
+            work[-1] += 1
+        return original_row(inputs, row)
+
+    def counted_bisect(*args: Any, **kwargs: Any) -> int:
+        if active_lookup:
+            work[-1] += 1
+        return original_bisect(*args, **kwargs)
+
+    def agent(call_id: str) -> list[Event]:
+        span = f"agent-{call_id}"
+        return [
+            SpanBeginEvent(id=span, name="task", type="agent", parent_id="main"),
+            linked_call(
+                f"sub-{call_id}", span, [ChatMessageUser(content=call_id)], "", None
+            ),
+            SpanEndEvent(id=span),
+        ]
+
+    monkeypatch.setattr(_timeline._Inputs, "tool_results", counted_results)
+    monkeypatch.setattr(_timeline._Inputs, "row", counted_row)
+    monkeypatch.setattr(_timeline, "bisect_left", counted_bisect)
+    for agents in (100, 200, 400):
+        final_results.clear()
+        # the parent keeps every other setup message, so its inputs are stored
+        # as many disjoint pool ranges
+        setup: list[ChatMessage] = [
+            ChatMessageUser(content=f"note {n}") for n in range(2 * agents)
+        ]
+        seed = ToolCall(id="seed", function="task", arguments={})
+        first = linked_call("first", "main", setup[::2], "", None, seed)
+        history = [*setup[::2], first.output.message]
+        tasks = [
+            ToolCall(id=f"task-{n}", function="task", arguments={})
+            for n in range(agents)
+        ]
+        fanout = linked_call("fanout", "main", history, "", None, *tasks)
+        history.append(fanout.output.message)
+        waiting = linked_call("waiting", "main", history, "", None)
+        results = [
+            ChatMessageTool(content=f"result {call.id}", tool_call_id=call.id)
+            for call in [seed, *tasks]
+        ]
+        final = linked_call(
+            "final", "main", [*history, waiting.output.message, *results], "", None
+        )
+        events: list[Event] = [
+            SpanBeginEvent(id="init", name="init", type="init"),
+            linked_call("setup", "init", setup, "", None),
+            SpanEndEvent(id="init"),
+            SpanBeginEvent(id="solvers", name="solvers", type="solvers"),
+            SpanBeginEvent(id="main", name="main", type="agent", parent_id="solvers"),
+            first,
+            *agent("seed"),
+            fanout,
+            *[event for call in tasks for event in agent(call.id)],
+            waiting,
+            final,
+            SpanEndEvent(id="main"),
+            SpanEndEvent(id="solvers"),
+        ]
+        events, data = condense_events(events)
+        event_adapter = TypeAdapter(list[Event])
+        message_adapter = TypeAdapter(list[ChatMessage])
+        events = event_adapter.validate_json(event_adapter.dump_json(events))
+        pool = message_adapter.validate_json(
+            message_adapter.dump_json(data["messages"])
+        )
+        [stored] = [
+            event
+            for event in events
+            if isinstance(event, ModelEvent) and event.uuid == "waiting"
+        ]
+        assert len(stored.input_refs or []) > agents
+        work.append(0)
+        replay = steps_from_events(
+            [],
+            events,
+            pool,
+            sample_uuid="sample",
+            eval_info=EvalInfo(inspect_ai_version="0.3.277", sentinel=False),
+        )
+        assert replay
+        assert dict(final_results) == {
+            call.id: f"result {call.id}" for call in [seed, *tasks]
+        }
+        assert work[-1] <= 4 * len(pool), (agents, work)
     assert work[-1] <= 4.2 * work[0] + 10, work
 
 

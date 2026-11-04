@@ -1079,10 +1079,11 @@ class _Fingerprint(NamedTuple):
 
 
 class _ToolResultProgress(NamedTuple):
-    """One bridge-result lookup's input position and newly pending ids."""
+    """One bridge-result lookup's input position, the indexed result rows in it, and newly pending ids."""
 
     waiting: dict[str, Any]
     refs: tuple[tuple[int, int], ...]
+    candidates: int
     new_ids: list[str]
 
 
@@ -1301,7 +1302,7 @@ class _Inputs:
         key = id(waiting)
         progress = self._tool_result_progress.get(key)
         if progress is None or progress.waiting is not waiting:
-            progress = _ToolResultProgress(waiting, (), [])
+            progress = _ToolResultProgress(waiting, (), 0, [])
             self._tool_result_progress[key] = progress
         progress.new_ids.append(tool_call_id)
 
@@ -1326,26 +1327,30 @@ class _Inputs:
                 else None
             )
             if progress is not None and new_ranges is not None:
-                for tool_call_id in progress.new_ids:
-                    rows = by_call.get(tool_call_id)
-                    if not rows:
-                        continue
-                    for begin, end in reversed(progress.refs):
-                        at = bisect_left(rows, end) - 1
-                        if at >= 0 and rows[at] >= begin:
-                            found[tool_call_id] = self.row(rows[at]).text
-                            break
-                for begin, end in new_ranges:
-                    first = bisect_left(self._tool_result_rows, begin)
-                    last = bisect_left(self._tool_result_rows, end)
-                    for position in range(first, last):
-                        message = self.row(self._tool_result_rows[position])
-                        if isinstance(message, ChatMessageTool):
-                            result_id = message.tool_call_id
-                            if result_id is not None and result_id in tool_call_ids:
-                                found[result_id] = message.text
+                new_ids = [
+                    tool_call_id
+                    for tool_call_id in progress.new_ids
+                    if by_call.get(tool_call_id)
+                ]
+                # the new ids' results in the ranges already read: probe each
+                # range per id, or read the ranges' result rows once
+                if len(new_ids) * len(progress.refs) <= (
+                    2 * len(progress.refs) + progress.candidates
+                ):
+                    for tool_call_id in new_ids:
+                        call_rows = by_call[tool_call_id]
+                        for begin, end in reversed(progress.refs):
+                            at = bisect_left(call_rows, end) - 1
+                            if at >= 0 and call_rows[at] >= begin:
+                                found[tool_call_id] = self.row(call_rows[at]).text
+                                break
+                else:
+                    self._scan_tool_results(progress.refs, set(new_ids), found)
+                candidates = progress.candidates + self._scan_tool_results(
+                    new_ranges, tool_call_ids, found
+                )
                 self._tool_result_progress[id(tool_call_ids)] = _ToolResultProgress(
-                    tool_call_ids, tuple(input.refs), []
+                    tool_call_ids, tuple(input.refs), candidates, []
                 )
                 return found
         ranges: list[tuple[int, int]] = []
@@ -1380,9 +1385,30 @@ class _Inputs:
                             found[result_id] = message.text
         if isinstance(tool_call_ids, dict) and progress is not None:
             self._tool_result_progress[id(tool_call_ids)] = _ToolResultProgress(
-                tool_call_ids, tuple(input.refs), []
+                tool_call_ids, tuple(input.refs), candidates, []
             )
         return found
+
+    def _scan_tool_results(
+        self,
+        refs: Sequence[tuple[int, int]],
+        wanted: AbstractSet[str] | dict[str, Any],
+        found: dict[str, str],
+    ) -> int:
+        """Record the results of `wanted` calls in the pool ranges, in order, returning the number of result rows read."""
+        assert self._tool_result_rows is not None
+        read = 0
+        for begin, end in refs:
+            first = bisect_left(self._tool_result_rows, begin)
+            last = bisect_left(self._tool_result_rows, end)
+            read += last - first
+            for position in range(first, last):
+                message = self.row(self._tool_result_rows[position])
+                if isinstance(message, ChatMessageTool):
+                    result_id = message.tool_call_id
+                    if result_id is not None and result_id in wanted:
+                        found[result_id] = message.text
+        return read
 
     def _pool_tool_rows(self) -> dict[str, list[int]]:
         if self._tool_rows is None:
