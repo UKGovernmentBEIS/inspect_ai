@@ -528,13 +528,15 @@ async def _apply_response_filter(
         # text continued across requests is joined with no separator)
         filtered.completion = output.completion
     _check_provider_owned_content(output, filtered)
-    if on_filtered_output is not None:
-        on_filtered_output(filtered)
-    _settle_message_ids(output, filtered)
+    _settle_message_ids(output, filtered, on_filtered_output)
     return filtered
 
 
-def _settle_message_ids(original: ModelOutput, filtered: ModelOutput) -> None:
+def _settle_message_ids(
+    original: ModelOutput,
+    filtered: ModelOutput,
+    on_primary_owner: Callable[[ModelOutput], None] | None = None,
+) -> None:
     """Set the ids of returned messages so id-keyed replay state matches them.
 
     Dialects key some replay state by message id. Anthropic records server work
@@ -550,7 +552,8 @@ def _settle_message_ids(original: ModelOutput, filtered: ModelOutput) -> None:
     A changed or new message that keeps none replaces the original whose id it
     had, else the original choice at its index: it gets an id derived from that
     original's and its own content (`with_edited_id`), so the same edit is the
-    same message.
+    same message. The callback sees the primary message after a retained server
+    item restores its owner, but before an ordinary edit derives a new id.
     """
     owners = {
         content.id: choice.message.id
@@ -580,7 +583,9 @@ def _settle_message_ids(original: ModelOutput, filtered: ModelOutput) -> None:
             owner = next(iter(kept_owners))
             if owner is not None:
                 message.id = owner
-        elif message not in original_messages:
+        if index == 0 and on_primary_owner is not None:
+            on_primary_owner(filtered)
+        if not kept_owners and message not in original_messages:
             source = next(
                 (m for m in original_messages if m.id == message.id),
                 original_messages[index] if index < len(original_messages) else None,

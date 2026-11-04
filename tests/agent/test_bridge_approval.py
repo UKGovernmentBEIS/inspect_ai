@@ -30,7 +30,7 @@ from test_helpers.service_dispatch import (
 import inspect_ai._util.logger as inspect_logger
 from inspect_ai import Task, eval
 from inspect_ai._util._async import tg_collect
-from inspect_ai._util.content import ContentImage, ContentText
+from inspect_ai._util.content import ContentImage, ContentText, ContentToolUse
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.agent._acp.event_mapping import _AcpEventRouter, replay_transcript
 from inspect_ai.agent._acp.transport import AcpUpdate
@@ -4441,6 +4441,53 @@ async def test_response_filter_keeps_each_original_call_attribution(edit: str) -
             generation.output.message.id if edit == "parallel-edit" else None
         )
         assert second.span_id == ("agent-sub" if edit == "parallel-edit" else outer)
+
+
+@pytest.mark.parametrize("edit", ["unchanged", "changed_id", "missing_id", "rebuilt"])
+async def test_response_filter_kept_server_item_restores_call_attribution(
+    edit: str,
+) -> None:
+    """A retained server item identifies the original host-call producer."""
+    bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)
+    bridge.model_event_sink = StartingStampingSink({"stamp", "open"})
+
+    async def change(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput:
+        if edit == "changed_id":
+            output.message.id = "filter-chosen-id"
+        elif edit == "missing_id":
+            output.message.id = None
+        elif edit == "rebuilt":
+            output.choices[0].message = ChatMessageAssistant.model_validate(
+                output.message.model_dump(exclude={"id"})
+            )
+        return output
+
+    bridge.response_filter = change
+    call = ToolCall(id="original", function="read_file", arguments={"path": "a"})
+    initial = tool_calls_output(call)
+    initial.message.content = [
+        ContentText(text="Searched; now reading."),
+        ContentToolUse(
+            id="server-search",
+            tool_type="web_search",
+            name="web_search",
+            arguments='{"query":"test"}',
+            result="found",
+        ),
+    ]
+    with recorded_transcript() as recorded:
+        async with span("outer"):
+            run = await run_bridge([initial], bridge=bridge, tools=declare("read_file"))
+            await call_host_tool(bridge)("host", "read_file", {"path": "a"})
+
+    [generation] = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    [event] = recorded.tool_events
+    assert run.output.message.id == generation.output.message.id
+    assert run.output.message.tool_calls == generation.output.message.tool_calls
+    assert event.call_message_id == generation.output.message.id
+    assert event.span_id == generation.span_id == "agent-sub"
 
 
 def sandbox_bridge_with_sink(tool: AsyncMock, sink: StampingSink) -> SandboxAgentBridge:
