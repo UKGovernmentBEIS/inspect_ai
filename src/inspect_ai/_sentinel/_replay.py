@@ -97,7 +97,7 @@ def steps_from_events(
 
     Inspect logs record origins on every model call or on none. If a transcript mixes calls with and without origins, recorded calls retain their recorded classification and calls without origins are inferred; continuity across that mixed sequence is not guaranteed.
 
-    In logs without origins, recorded sentinel checks and human decisions are used only when their step id pairs with a model call's exact id. Inferred turns may differ from those seen by a sentinel that ran before origins were recorded; reproducing that sentinel's live steps is outside this replay contract. Older logs without a solvers wrapper span can classify side calls in top-level solver spans as agent turns. For a run without a sentinel, human decisions are reconstructed from `ApprovalEvent`s only when the log records inspect_ai 0.3.277 or later. Older or unknown versions omit those decisions with one warning because older Inspect recorded modified approvals incorrectly; tool steps and turn inference remain available for supported logs. In those older or unknown logs, an `ApprovalEvent.modified` payload on either an approve or modify decision supplies the tool-stage arguments because `ToolEvent` can still hold the original proposal. From 0.3.277 onward, `ToolEvent.arguments` is authoritative.
+    In logs without origins, recorded sentinel checks and human decisions are used only when their step id pairs with a model call's exact id. Inferred turns may differ from those seen by a sentinel that ran before origins were recorded; reproducing that sentinel's live steps is outside this replay contract. Older logs without a solvers wrapper span can classify side calls in top-level solver spans as agent turns. For a run without a sentinel, human decisions are reconstructed from `ApprovalEvent`s only when the log records inspect_ai 0.3.277 or later. Older or unknown versions omit those decisions with one warning because older Inspect recorded modified approvals incorrectly; tool steps and turn inference remain available for supported logs. In those older or unknown logs, an `ApprovalEvent.modified` payload on either an approve or modify decision supplies the tool-stage arguments because `ToolEvent` can still hold the original proposal. When that payload changes the call, replay renders a default view because stored views can also describe the proposal. From 0.3.277 onward, `ToolEvent` arguments and view are authoritative.
 
     Replay requires a log written by Inspect 0.3.94 or later. Earlier logs lack native tool spans and cannot be replayed reliably. If the recorded version is unknown, completed native tool events without a matching tool span are refused as potentially older logs.
 
@@ -872,16 +872,25 @@ class _Driver:
             if historical_modified is not None
             else event.arguments
         )
+        historical_view_stale = historical_modified is not None and (
+            historical_modified.function != proposal.function
+            or historical_modified.arguments != proposal.arguments
+        )
+        event_view = event.view if not historical_view_stale else None
         if modify is not None:
             before_call = approved
         else:
             before_call = replace(approved, arguments=executed_arguments)
-        if approval is not None and approval.view is not None and not approver_modified:
+        if (
+            approval is not None
+            and approval.view is not None
+            and approver_modified is None
+            and not historical_view_stale
+        ):
             before_view = approval.view
-        elif modify is None or event.view is None:
-            # a ToolEvent without a view is a call to a tool without a viewer,
-            # whose view is the default rendering of the call
-            before_view = ToolCallView(call=event.view or _default_view(before_call))
+        elif modify is None or event_view is None:
+            # Older views may still describe the proposal rather than the call.
+            before_view = ToolCallView(call=event_view or _default_view(before_call))
         else:
             # a sentinel's modify replaced the view with the modified call's,
             # and the tool's viewer is not in the log
@@ -926,7 +935,7 @@ class _Driver:
                 message=assistant.text,
                 message_id=assistant_id,
                 call=after_call,
-                view=ToolCallView(call=event.view or _default_view(after_call)),
+                view=ToolCallView(call=event_view or _default_view(after_call)),
                 result=result,
                 output=None,
                 truncated=truncated,

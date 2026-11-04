@@ -3280,8 +3280,12 @@ def test_approval_tool_stages_use_arguments_that_ran(
 
 @pytest.mark.parametrize("inputs", ["expanded", "pooled"])
 @pytest.mark.parametrize("decision", ["approve", "modify"])
+@pytest.mark.parametrize("tool_view", [False, True])
 def test_a_real_0_3_99_modified_approval_replays_executed_arguments(
-    inputs: str, decision: str, caplog: pytest.LogCaptureFixture
+    inputs: str,
+    decision: str,
+    tool_view: bool,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """An archived 0.3.99 log keeps proposal arguments for both approval decisions."""
     from inspect_ai._sentinel import _replay
@@ -3295,12 +3299,20 @@ def test_a_real_0_3_99_modified_approval_replays_executed_arguments(
     assert approval.call.arguments == {"x": 1, "y": 1}
     assert approval.modified is not None
     assert approval.modified.arguments == {"x": 7, "y": 1}
+    assert approval.view is not None
+    assert approval.view.call is not None
+    assert "addition(x=1, y=1)" in approval.view.call.content
     assert tool.arguments == {"x": 1, "y": 1}
     assert tool.result == "8"
-    events = [
-        event.model_copy(update={"decision": decision}) if event is approval else event
-        for event in sample.events
-    ]
+    events = []
+    for event in sample.events:
+        if event is approval:
+            event = event.model_copy(update={"decision": decision})
+        elif event is tool and tool_view:
+            event = event.model_copy(update={"view": approval.view.call})
+        events.append(event)
+    adapter = TypeAdapter(list[Event])
+    events = adapter.validate_json(adapter.dump_json(events))
     pool: list[ChatMessage] = []
     if inputs == "pooled":
         events, pool = _replay._condensed(events, [])
@@ -3317,6 +3329,11 @@ def test_a_real_0_3_99_modified_approval_replays_executed_arguments(
         for step in replay
         if isinstance(step.step, BeforeToolCall | AfterToolCall)
     ] == [{"x": 7, "y": 1}, {"x": 7, "y": 1}]
+    assert [
+        step.step.view.call.content if step.step.view.call is not None else None
+        for step in replay
+        if isinstance(step.step, BeforeToolCall | AfterToolCall)
+    ] == ["```python\naddition(x=7, y=1)\n```\n"] * 2
     assert [
         step.step.result.text for step in replay if isinstance(step.step, AfterToolCall)
     ] == ["8"]
