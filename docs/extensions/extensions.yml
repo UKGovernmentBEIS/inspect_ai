@@ -266,3 +266,10 @@
     examples in fewer samples, accessing only the model's logits.
   author: "[Adrians Skapars](https://scholar.google.com/citations?user=9Vf0mWkAAAAJ&hl=en)"
   categories: ["Tooling"]
+
+- name: "[inspect-drex](https://github.com/nace-ai/inspect-drex)"
+  description: |
+    Scorer that asks Drex decision models whether a sample meets your criteria and
+    returns probabilities, so the pass threshold can be chosen after the run.
+  author: "[Nace](https://github.com/nace-ai)"
+  categories: ["Tooling"]

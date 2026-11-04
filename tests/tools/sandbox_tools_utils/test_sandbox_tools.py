@@ -36,8 +36,10 @@ from inspect_ai.tool import (
     ToolCall,
     ToolCallError,
     ToolError,
+    bash,
     bash_session,
     mcp_server_sandbox,
+    python,
     text_editor,
 )
 from inspect_ai.tool._sandbox_tools_utils.sandbox import (
@@ -854,6 +856,53 @@ def test_two_scoped_users_share_one_bash_session() -> None:
         dataset=[Sample(input="x")],
         solver=_two_scoped_users_share_one_bash_session(),
         sandbox=("docker", NONROOT_COMPOSE),
+    )
+    log = eval(task, model=get_model("mockllm/model"))[0]
+    assert log.status == "success", log.error
+
+
+@solver
+def _scoped_tools_report_the_user_home() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        sb = sandbox()
+        assert (await sb.exec(["useradd", "-m", "w1"], user="root")).success
+        # outside a scope, a tool's own user keeps the container's HOME (and
+        # its login shell fails to read root's profile)
+        out = str(await bash(user="w1")(command="echo home=$HOME"))
+        assert out.endswith("home=/root\n"), out
+        with sandbox_identity("w1"):
+            out = str(await bash()(command="echo home=$HOME"))
+            assert out == "home=/home/w1\n", out
+            code = "import os; print('home=' + os.environ['HOME'])"
+            out = str(await python()(code=code))
+            assert out == "home=/home/w1\n", out
+            out = str(
+                await bash_session()(
+                    action="type_submit", input='echo "h-$((1))=$HOME"'
+                )
+            )
+            assert "h-1=/home/w1" in out, out
+            result = await sb.exec_remote(["sh", "-c", "echo $HOME"], stream=False)
+            assert result.stdout == "/home/w1\n", result
+        return state
+
+    return solve
+
+
+# The container sets HOME for its default user (root); inside a scope for w1,
+# bash() and python() see w1's home, as bash_session() and exec_remote() do.
+@pytest.mark.slow
+def test_scoped_tools_get_the_user_home_over_a_preset_home(tmp_path: Path) -> None:
+    compose = tmp_path / "compose.yaml"
+    compose.write_text(
+        f"services:\n  default:\n    build: {_CONTEXT}\n"
+        "    command: tail -f /dev/null\n    environment:\n      HOME: /root\n"
+        "    init: true\n    network_mode: none\n    stop_grace_period: 1s\n"
+    )
+    task = Task(
+        dataset=[Sample(input="x")],
+        solver=_scoped_tools_report_the_user_home(),
+        sandbox=("docker", str(compose)),
     )
     log = eval(task, model=get_model("mockllm/model"))[0]
     assert log.status == "success", log.error
