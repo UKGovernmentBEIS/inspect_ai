@@ -1359,6 +1359,17 @@ class EvalLog(BaseModel):
     config_updates: list[ConfigUpdate] | None = Field(default=None)
     """Mid-run configuration changes applied via the control channel (`inspect ctl config`)."""
 
+    total_samples: int | None = Field(default=None)
+    """Running count of sample/epoch runs accepted for this eval attempt — the
+    selected seed plus every run a SampleSource injected before the attempt
+    ended, including runs that never started before a failure or
+    cancellation. Unlike ``results.total_samples`` it survives in logs whose
+    aggregate ``results`` is absent (an errored eval, or one cancelled before
+    any sample finished), giving readers a denominator; when ``results`` is
+    written the two agree. It counts accepted work so far and cannot predict
+    what a source will add later. ``None`` (logs written by older versions)
+    means unknown."""
+
     tags: list[str] = Field(default_factory=list)
     """Current tags (eval-time + edits). Do not set directly; use edit_eval_log()."""
 

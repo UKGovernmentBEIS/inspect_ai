@@ -222,6 +222,7 @@ class JSONRecorder(FileRecorder):
         invalidated: bool = False,
         log_updates: list[LogUpdate] | None = None,
         config_updates: list[ConfigUpdate] | None = None,
+        total_samples: int | None = None,
     ) -> EvalLog:
         await self.close_seed_source(eval)
         log = self.data[self._log_file_key(eval)]
@@ -233,6 +234,9 @@ class JSONRecorder(FileRecorder):
         # None means "not supplied" — keep the updates accumulated mid-run
         if config_updates is not None:
             log.data.config_updates = config_updates
+        # same "not supplied" convention as config_updates
+        if total_samples is not None:
+            log.data.total_samples = total_samples
         log.data.recompute_tags_and_metadata()
         if error:
             log.data.error = error

@@ -60,6 +60,15 @@ def test_evals_df():
     assert len(df) == 4
 
 
+def test_evals_df_total_samples_falls_back_to_header():
+    """total_samples survives a missing results block via the header count (#5814)."""
+    log = read_eval_log(str(SECURITY_GUIDE_LOG))
+    log.results = None
+    log.total_samples = 20
+    df = evals_df([log])
+    assert df.iloc[0]["total_samples"] == 20
+
+
 def test_evals_df_scores_with_reducers():
     """Ensure per-reducer score metrics get distinct columns.
 
