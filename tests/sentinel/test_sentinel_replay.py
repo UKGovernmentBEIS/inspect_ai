@@ -3387,6 +3387,102 @@ def test_shared_id_native_handoff_keeps_its_before_check(
         }
 
 
+@agent
+def r11_helper_handoff_after_bridge() -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        from inspect_ai.agent._bridge.completions import (
+            inspect_completions_api_request,
+        )
+
+        bridge, tools = await r7_host_bridge(state)
+        request = {
+            "model": "inspect",
+            "messages": [{"role": "user", "content": "bridge"}],
+            "tools": tools,
+        }
+        await inspect_completions_api_request(request, None, bridge)
+        handoff_tool = handoff(r10_handoff())
+        history: list[ChatMessage] = [ChatMessageUser(content="native helper")]
+        with model_origin("helper"):
+            output = await get_model().generate(history, tools=[handoff_tool])
+        history.append(output.message)
+
+        async def replace_response(
+            model: Any, output: ModelOutput, generate_input: Any
+        ) -> ModelOutput:
+            return r7_tool_calls(
+                ToolCall(
+                    id="shared",
+                    function="mcp__host__addition",
+                    arguments={"x": 2, "y": 2},
+                )
+            )
+
+        bridge.response_filter = replace_response
+        await inspect_completions_api_request(request, None, bridge)
+        with model_origin("helper"):
+            await execute_tools(history, [handoff_tool])
+        return state
+
+    return execute
+
+
+@pytest.mark.parametrize("human", [False, True])
+def test_helper_handoff_does_not_take_shared_bridge_check(
+    human: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen: dict[str, Step] = {}
+    sentinel: list[Any] = [r7_probe(seen, copies=True)]
+    if human:
+        Panel("approve", "bridge approved").install(monkeypatch)
+        sentinel.append(h_ask("tool_call", ["approve", "reject"]))
+    log = run_logged(
+        as_solver(r11_helper_handoff_after_bridge()),
+        outputs(
+            r7_tool_calls(
+                ToolCall(
+                    id="shared",
+                    function="mcp__host__addition",
+                    arguments={"x": 1, "y": 1},
+                )
+            ),
+            r7_tool_calls(
+                ToolCall(
+                    id="shared",
+                    function="transfer_to_r10_handoff",
+                    arguments={"task": "helper original"},
+                )
+            ),
+            r7_tool_calls(
+                ToolCall(
+                    id="raw",
+                    function="mcp__host__addition",
+                    arguments={"x": 2, "y": 2},
+                )
+            ),
+        ),
+        sentinel=sentinel,
+    )
+    live = [step for step in seen.values() if isinstance(step, BeforeToolCall)]
+    assert not any(step.call.function == "transfer_to_r10_handoff" for step in live)
+    all_replay = replayed(log)
+    replay = [step for step in all_replay if step.stage == "tool_call"]
+    native = [
+        step
+        for step in replay
+        if isinstance(step.step, BeforeToolCall)
+        and step.step.call.function == "transfer_to_r10_handoff"
+    ]
+    if human:
+        assert any(
+            decision.step_id == "shared"
+            for step in all_replay
+            for decision in step.step.human_decisions or []
+        )
+        assert not any(step.recorded_answers for step in native)
+    assert native == []
+
+
 def test_a_native_result_check_inside_its_invocation_is_replayed() -> None:
     log = run_logged(
         as_solver(r7_defers_a_bridged_host_call(native_first=True, native="both")),

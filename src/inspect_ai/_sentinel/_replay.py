@@ -792,6 +792,18 @@ class _Driver:
         begin = self.begins[tool_span][0] if tool_span else call.index
         end = self.ends.get(tool_span) if tool_span is not None else None
         if event.id in self.shared_bridge_ids:
+            # A neighboring bridge check is not evidence that this call was
+            # checked. Require a non-final native producer naming this tool;
+            # helper/environment calls and unmatched proposals give no basis
+            # for claiming the span.
+            if (
+                call.producer is None
+                or call.producer.origin not in _NON_FINAL
+                or call.proposal is None
+                or call.proposal.function != event.function
+                or not any(tool.name == event.function for tool in call.producer.tools)
+            ):
+                return
             before_span = (
                 self._native_before_span(event.id, begin)
                 if tool_span is not None
