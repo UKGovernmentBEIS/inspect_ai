@@ -1181,9 +1181,7 @@ async def _bridge_generate_impl(
                     on_filtered_output=check_proposal,
                 )
         if verified_calls is None and generated is not None:
-            calls = output.message.tool_calls or []
-            if len({call.id for call in calls}) < len(calls):
-                verified_calls = _verified_generated_calls(generated, output)
+            verified_calls = _verified_generated_calls(generated, output)
 
         # Check for refusal and retry if needed
         if not output.empty and output.stop_reason == "content_filter":

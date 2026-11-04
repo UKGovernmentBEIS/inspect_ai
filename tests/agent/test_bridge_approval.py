@@ -4155,6 +4155,41 @@ async def test_generating_request_filter_keeps_proposing_message() -> None:
     assert event.call_message_id == generation.output.message.id
 
 
+@pytest.mark.parametrize("path", ["a", "b"])
+async def test_generating_request_filter_rewritten_call_is_verified(path: str) -> None:
+    """A filter's copy of a generated call links only if its arguments are unchanged."""
+    bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)
+
+    async def generate_and_rewrite(
+        model: Model,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        output = await model.generate(
+            input=input, tools=tools, tool_choice=tool_choice, config=config
+        )
+        output = output.model_copy(deep=True)
+        assert output.message.tool_calls
+        output.message.tool_calls[0].arguments = {"path": path}
+        return output
+
+    bridge.filter = generate_and_rewrite
+    call = ToolCall(id="generated", function="read_file", arguments={"path": "a"})
+    with recorded_transcript() as recorded:
+        await run_bridge(
+            [tool_calls_output(call)], bridge=bridge, tools=declare("read_file")
+        )
+        await call_host_tool(bridge)("host", "read_file", {"path": path})
+
+    [event] = recorded.tool_events
+    [generation] = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    assert event.call_message_id == (
+        generation.output.message.id if path == "a" else None
+    )
+
+
 async def test_generating_request_filter_reordered_choice_keeps_provenance() -> None:
     """A filter's selected alternate links to its recorded generated choice."""
     bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)
