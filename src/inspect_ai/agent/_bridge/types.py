@@ -96,7 +96,7 @@ class _HandedCall(NamedTuple):
 
 
 _MAX_HANDED_IDS = 256
-"""Calls in a reply beyond which its handed ids aren't kept (and, while it is tracked, calls match only by kept id)."""
+"""Calls in a reply beyond which its handed ids aren't kept (its calls match only by kept id, and other replies' calls don't link while it is tracked)."""
 
 
 def _arguments_digest(arguments: dict[str, Any]) -> str:
@@ -149,9 +149,7 @@ def _is_handed(copy_call: ToolCall, handed: _HandedCall) -> bool:
 
 
 def _copy_calls(
-    handed: _HandedCall,
-    copy_calls: list[ToolCall],
-    tracked_ids: Collection[str] | None,
+    handed: _HandedCall, copy_calls: list[ToolCall], tracked_ids: Collection[str]
 ) -> list[ToolCall]:
     """The calls in a scaffold's copy of a reply that may be `handed`.
 
@@ -160,9 +158,8 @@ def _copy_calls(
     When no copy call has its id (Google re-derives call ids), the ones with
     its function and arguments and an id the bridge handed in no tracked reply
     (`tracked_ids`), but only if `handed` is the reply's only call with that
-    function and arguments and every tracked reply's handed ids are known
-    (`tracked_ids` is `None` otherwise). Identical calls can't be told apart,
-    so they are never paired.
+    function and arguments and its handed ids are known. Identical calls can't
+    be told apart, so they are never paired.
     """
     if handed.id_shared:
         return []
@@ -170,7 +167,7 @@ def _copy_calls(
         return [
             c for c in copy_calls if c.id == handed.call_id and _is_handed(c, handed)
         ]
-    if handed.identical != 1 or tracked_ids is None:
+    if handed.identical != 1 or handed.handed_ids is None:
         return []
     return [c for c in copy_calls if c.id not in tracked_ids and _is_handed(c, handed)]
 
@@ -531,6 +528,8 @@ class AgentBridge:
         than one settles it unlinked. A message already linked to a tracked call
         isn't linked again, and a kept id another tracked reply also handed
         doesn't link while that reply's call is unlinked (`_tracked_call_ids`).
+        No call links while another tracked reply keeps no handed ids: any id
+        in the copy could be one of that reply's unexecuted calls.
 
         Each call settles on its own. One the copy can't identify, or with no
         result yet, keeps waiting: results sent in separate requests, after
@@ -541,10 +540,11 @@ class AgentBridge:
         if not self._awaited_results:
             return
         tracked_ids: dict[str, list[tuple[str, str | None]]] | None = None
-        handed_ids_known = all(
-            next(iter(calls.values())).handed.handed_ids is not None
-            for calls in self._awaited_results.values()
-        )
+        ids_unknown = {
+            reply_id
+            for reply_id, calls in self._awaited_results.items()
+            if next(iter(calls.values())).handed.handed_ids is None
+        }
         linked_ids: set[str] = set()
 
         def linked_result(message_id: str | None) -> bool:
@@ -568,6 +568,8 @@ class AgentBridge:
                 awaited[first_call] = awaited[first_call]._replace(
                     reply_versions=(*versions, message.id)[-_MAX_REPLY_EDIT_VERSIONS:]
                 )
+            if ids_unknown - {reply_id}:
+                continue
             results: list[ChatMessageTool] = []
             for following in messages[index + 1 :]:
                 if isinstance(following, ChatMessageAssistant) and following.tool_calls:
@@ -585,9 +587,7 @@ class AgentBridge:
                 }
             tracked = tracked_ids
             candidates = {
-                call_index: _copy_calls(
-                    entry.handed, copy_calls, tracked_ids if handed_ids_known else None
-                )
+                call_index: _copy_calls(entry.handed, copy_calls, tracked_ids)
                 for call_index, entry in awaited.items()
                 if not entry.settled
             }
@@ -625,9 +625,9 @@ class AgentBridge:
         reply's call under it was linked to (`None` if it isn't linked). An id
         another tracked reply handed is ambiguous while that reply's call is
         unlinked. A reply that keeps no handed ids contributes its tracked
-        calls' ids, so while it is tracked no call matches by function and
-        arguments alone (`_copy_calls`). Ids from replies dropped by
-        `_MAX_AWAITED_RESULTS` aren't known, so a scaffold that copies an
+        calls' ids (`_link_result_messages` links no other reply's calls while
+        it is tracked). Ids from replies dropped by `_MAX_AWAITED_RESULTS`
+        aren't known, so a scaffold that copies an
         earlier call and its answer into a later reply can still be taken for
         that reply's call.
         """

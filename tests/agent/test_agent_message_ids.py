@@ -1666,19 +1666,24 @@ def test_re_derived_ids_match_only_while_handed_ids_are_kept(calls: int) -> None
 @pytest.mark.parametrize(
     "calls", [bridge_types._MAX_HANDED_IDS, bridge_types._MAX_HANDED_IDS + 1]
 )
-def test_re_derived_ids_do_not_match_while_a_tracked_replys_ids_are_unknown(
-    calls: int,
+@pytest.mark.parametrize("current_id", ["current", "call_5"])
+def test_host_result_is_not_claimed_through_an_unkept_handed_id(
+    calls: int, current_id: str
 ) -> None:
-    """A copy carrying an unexecuted call's id from a tracked reply that kept no handed ids isn't the current call."""
+    """A copy carrying an unexecuted call's id from a tracked reply that kept no handed ids isn't the current call.
+
+    With a distinct current id the copy matches by function and arguments; with
+    the same id it matches by id.
+    """
     bridge = AgentBridge(AgentState(messages=[]))
     earlier = [_read(f"call_{n}", str(n)) for n in range(calls)]
-    current = _read("current", "a")
+    current = _read(current_id, "5")
     events = []
     for reply_id, reply in (("earlier-reply", earlier), ("current-reply", [current])):
         event = ToolEvent(id=reply[0].id, function="read", arguments=reply[0].arguments)
         bridge._await_result_message(_handed_calls(reply_id, reply)[0], event)
         events.append(event)
-    copy = _read("call_5", "a")
+    copy = earlier[5]
     answer = ChatMessageTool(
         id="earlier-answer", content="5", tool_call_id=copy.id, function="read"
     )
@@ -1689,8 +1694,19 @@ def test_re_derived_ids_do_not_match_while_a_tracked_replys_ids_are_unknown(
         ],
         ["current-reply", None],
     )
-
     assert [event.message_id for event in events] == [None, None]
+
+    answer_0 = ChatMessageTool(
+        id="answer-0", content="0", tool_call_id="call_0", function="read"
+    )
+    bridge._link_result_messages(
+        [
+            ChatMessageAssistant(id="earlier-reply", content="", tool_calls=earlier),
+            answer_0,
+        ],
+        ["earlier-reply", None],
+    )
+    assert events[0].message_id == "answer-0"
 
 
 def test_host_results_under_an_id_handed_to_two_calls_stay_unlinked() -> None:
