@@ -22,6 +22,7 @@ import json
 from pathlib import Path
 
 import pytest
+from google.genai import types
 
 from inspect_ai._util.content import ContentReasoning
 from inspect_ai.agent._bridge._errors import BridgePolicyError
@@ -34,6 +35,10 @@ from inspect_ai.model._chat_message import (
     ChatMessageTool,
 )
 from inspect_ai.model._model_output import Logprob, Logprobs, ModelOutput, TopLogprob
+from inspect_ai.model._openrouter_reasoning import (
+    openrouter_reasoning_details_to_reasoning,
+    reasoning_to_openrouter_reasoning_details,
+)
 
 _FIXTURE = json.loads(
     (
@@ -221,3 +226,38 @@ def test_google_bridge_round_trips_openai_reasoning_token(
     assert reasoning.reasoning == token
     assert reasoning.signature == "rs_1"
     assert reasoning.redacted
+
+
+def test_google_bridge_keeps_openrouter_reasoning_after_sdk_serialization() -> None:
+    original = openrouter_reasoning_details_to_reasoning(
+        [
+            {
+                "type": "reasoning.text",
+                "text": "read file",
+                "format": "google-gemini-v1",
+            },
+            {
+                "type": "reasoning.encrypted",
+                "data": "+//++g==",
+                "format": "google-gemini-v1",
+            },
+        ]
+    )
+    assert isinstance(original, ContentReasoning) and original.signature
+    output = ModelOutput.for_tool_call("mockllm/model", "read_file", {"path": "a"})
+    output.message.content = [original]
+
+    content = gemini_response_from_output(output, "model")["candidates"][0]["content"]
+    sdk_parts = types.Content(role="model", parts=content["parts"]).model_dump(
+        mode="json", exclude_none=True
+    )["parts"]
+    assert any(p.get("thought_signature") == "-__--g==" for p in sdk_parts)
+    reasoning = _reasoning(_assistant_from_parts(sdk_parts))
+
+    assert reasoning.reasoning == original.reasoning
+    assert reasoning.signature == original.signature
+    assert reasoning.summary == original.summary
+    assert reasoning.redacted == original.redacted
+    assert reasoning_to_openrouter_reasoning_details(
+        reasoning
+    ) == reasoning_to_openrouter_reasoning_details(original)

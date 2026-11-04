@@ -596,6 +596,17 @@ def _extract_user_parts(
     return None, tool_messages
 
 
+def _decode_base64(value: str | bytes) -> bytes | None:
+    if isinstance(value, bytes):
+        return value
+    try:
+        return base64.b64decode(
+            value + "=" * (-len(value) % 4), altchars=b"-_", validate=True
+        )
+    except ValueError:
+        return None
+
+
 def _canonical_thought_signature(signature: str | bytes) -> str:
     """Return standard base64 for a Google thought signature.
 
@@ -605,19 +616,14 @@ def _canonical_thought_signature(signature: str | bytes) -> str:
     """
     if isinstance(signature, bytes):
         return base64.b64encode(signature).decode()
-    try:
-        decoded = base64.b64decode(
-            signature + "=" * (-len(signature) % 4),
-            altchars=b"-_",
-            validate=True,
-        )
-    except ValueError:
-        return signature
-    return base64.b64encode(decoded).decode()
+    decoded = _decode_base64(signature)
+    return signature if decoded is None else base64.b64encode(decoded).decode()
 
 
-# Google signatures are redacted reasoning with no provider signature. Readable
-# reasoning and other providers' tokens (e.g. OpenAI's) match only verbatim.
+# Google signatures are redacted reasoning with no provider signature and are
+# canonicalized. Other capsules (readable reasoning, other providers' tokens) keep
+# their own spelling and match verbatim or by decoded bytes, since the SDK
+# re-encodes thoughtSignature as URL-safe base64.
 def _capsule_signature_reasoning(
     signature: str | bytes, capsule: ReasoningCapsule
 ) -> str | None:
@@ -626,7 +632,12 @@ def _capsule_signature_reasoning(
         if _canonical_thought_signature(capsule.reasoning) == canonical:
             return canonical
         return None
-    return capsule.reasoning if capsule.reasoning == signature else None
+    if capsule.reasoning == signature:
+        return capsule.reasoning
+    decoded = _decode_base64(signature)
+    if decoded is not None and decoded == _decode_base64(capsule.reasoning):
+        return capsule.reasoning
+    return None
 
 
 def _extract_model_parts(
