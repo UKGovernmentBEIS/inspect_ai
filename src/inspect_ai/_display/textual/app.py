@@ -27,7 +27,9 @@ from typing_extensions import override
 
 from inspect_ai._display.core.textual import textual_enable_mouse_support
 from inspect_ai._util.html import as_html_id
+from inspect_ai.event._input import InputEvent
 from inspect_ai.log._samples import active_samples
+from inspect_ai.log._transcript import transcript
 
 from ...util._panel import InputPanel
 from ..core.config import task_config
@@ -42,7 +44,7 @@ from ..core.display import (
 )
 from ..core.footer import task_footer
 from ..core.panel import task_title, tasks_title
-from ..core.rich import record_console_interaction, rich_initialise, rich_theme
+from ..core.rich import record_console_input, rich_initialise, rich_theme
 from .theme import inspect_dark, inspect_light
 from .widgets.console import ConsoleView
 from .widgets.footer import AppFooter
@@ -523,18 +525,28 @@ class TextualTaskScreen(TaskScreen, Generic[TR]):
                 old_width = console.width
                 console.width = min(old_width, width)
 
-            try:
-                with record_console_interaction(console, record_event):
-                    # print header if requested
-                    if header:
-                        style = f"{rich_theme().meta} bold"
-                        console.rule(f"[{style}]{header}[/{style}]", style="black")
-                        console.print("")
+            # record console activity for event
+            console.record = True
 
-                    # yield the console
+            try:
+                # print header if requested
+                if header:
+                    style = f"{rich_theme().meta} bold"
+                    console.rule(f"[{style}]{header}[/{style}]", style="black")
+                    console.print("")
+
+                # yield the console
+                with record_console_input():
                     yield console
 
             finally:
+                # capture recording then yield input event
+                input = console.export_text(clear=False, styles=False)
+                input_ansi = console.export_text(clear=True, styles=True)
+                console.record = False
+                if record_event:
+                    transcript()._event(InputEvent(input=input, input_ansi=input_ansi))
+
                 # print one blank line
                 console.print("")
 

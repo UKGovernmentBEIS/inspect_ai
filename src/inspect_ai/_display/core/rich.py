@@ -11,8 +11,6 @@ from typing_extensions import override
 
 from inspect_ai._util.platform import is_running_in_jupyterlab, is_running_in_vscode
 from inspect_ai._util.transcript import transcript_code_theme
-from inspect_ai.event._input import InputEvent
-from inspect_ai.log._transcript import transcript
 from inspect_ai.util._display import DisplayType, display_type, display_type_plain
 
 
@@ -68,26 +66,26 @@ def rich_initialise(
     # undo an earlier call first (textual calls this for each eval), so the
     # snapshot holds the user's settings rather than ours
     rich_restore_defaults()
-    console = rich.get_console()
-    before = _display_settings(console)
+    before = _display_settings(rich.get_console())
 
-    # set attributes rather than rich.reconfigure(), which would replace the
-    # user's other console options and any active capture or live display
     # reflect ansi prefs
     if plain:
-        console.no_color = True
-        console._force_terminal = False
-        console._color_system = console._detect_color_system()
-        console.is_interactive = False
+        rich.reconfigure(
+            no_color=True,
+            force_terminal=False,
+            force_interactive=False,
+            **size_kwargs,
+        )
     elif rich_no_color(plain):
-        console.no_color = True
-    if size_kwargs:
-        console.size = (size_kwargs["width"], size_kwargs["height"])
+        rich.reconfigure(no_color=True, **size_kwargs)
+    elif size_kwargs:
+        rich.reconfigure(**size_kwargs)
 
     # reflect display == none
     if display == "none":
-        console.quiet = True
+        rich.reconfigure(quiet=True)
 
+    console = rich.get_console()
     _console_settings = _ConsoleSettings(
         console.__dict__, before, _display_settings(console)
     )
@@ -177,22 +175,7 @@ _theme: RichTheme | None = None
 
 
 @contextmanager
-def record_console_interaction(console: Console, record_event: bool) -> Iterator[None]:
-    """Record console output and input during an input screen as an `InputEvent`.
-
-    Records to a separate buffer, so the event holds only this interaction. The
-    caller's own recording (if any) is kept, with the interaction added to it.
-    Output held by a caller's `console.capture()` is set aside, so the
-    interaction reaches the terminal and the event, and restored afterwards.
-    """
-    with console._record_buffer_lock:
-        record, buffer = console.record, console._record_buffer
-        console._record_buffer = []
-    console.record = True
-    thread_locals = console._thread_locals
-    pending, pending_index = thread_locals.buffer, thread_locals.buffer_index
-    thread_locals.buffer, thread_locals.buffer_index = [], 0
-
+def record_console_input() -> Iterator[None]:
     # monkey patch .input method to record inputs
     input_original = Console.input
 
@@ -209,13 +192,3 @@ def record_console_interaction(console: Console, record_event: bool) -> Iterator
         yield
     finally:
         Console.input = input_original  # type: ignore
-        thread_locals.buffer, thread_locals.buffer_index = pending, pending_index
-        with console._record_buffer_lock:
-            if record:
-                buffer.extend(console._record_buffer)
-            input = console.export_text(clear=False, styles=False)
-            input_ansi = console.export_text(clear=True, styles=True)
-            console._record_buffer = buffer
-        console.record = record
-        if record_event:
-            transcript()._event(InputEvent(input=input, input_ansi=input_ansi))

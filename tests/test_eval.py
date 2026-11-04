@@ -31,6 +31,7 @@ from inspect_ai.dataset import Sample
 from inspect_ai.hooks._hooks import Hooks
 from inspect_ai.scorer import match
 from inspect_ai.solver import Generate, Solver, TaskState, solver
+from inspect_ai.util import DisplayType
 
 
 def test_eval_epochs_sample_count():
@@ -370,33 +371,6 @@ def test_eval_display_change_keeps_console_contexts(
     assert "before the change" in capture.get()
 
 
-def test_eval_display_change_keeps_console_options(
-    fresh_display: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    import io
-
-    import rich
-
-    import inspect_ai._display.core.rich as display_rich
-    from inspect_ai.util import DisplayType
-
-    # a VS Code terminal, where rich_initialise leaves a rich display's
-    # console as the user configured it
-    monkeypatch.setattr(display_rich, "is_running_in_vscode", lambda: True)
-    monkeypatch.delenv("TERM", raising=False)
-    output = io.StringIO()
-    rich.reconfigure(record=True, width=50, file=output)
-    console = rich.get_console()
-    task = Task(dataset=[Sample(input="hi", target="hi")], scorer=match())
-
-    displays: list[DisplayType] = ["rich", "plain", "none", "rich"]
-    for display in displays:
-        eval(task, model="mockllm/model", display=display, log_dir=str(tmp_path))
-        assert console.record, display
-        assert console.width == 50, display
-        assert console.file is output, display
-
-
 def test_eval_display_change_keeps_console_settings_made_between_evals(
     fresh_display: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -425,7 +399,9 @@ def test_eval_display_change_keeps_console_replaced_between_evals(
 
     import inspect_ai._display.core.rich as display_rich
 
-    monkeypatch.setattr(display_rich, "is_running_in_vscode", lambda: False)
+    # a VS Code terminal, where the rich display keeps the user's console
+    monkeypatch.setattr(display_rich, "is_running_in_vscode", lambda: True)
+    monkeypatch.delenv("TERM", raising=False)
     monkeypatch.delenv("TTY_COMPATIBLE", raising=False)
     monkeypatch.delenv("TTY_INTERACTIVE", raising=False)
     rich.reconfigure(force_terminal=True, force_interactive=True)
@@ -439,6 +415,58 @@ def test_eval_display_change_keeps_console_replaced_between_evals(
     console = rich.get_console()
     assert not console.is_terminal
     assert not console.is_interactive
+
+
+def _display_state() -> dict[str, Any]:
+    import rich
+
+    import inspect_ai._display.core.rich as display_rich
+    from inspect_ai._display.core.active import active_display
+
+    console = rich.get_console()
+    return {name: getattr(console, name) for name in display_rich._DISPLAY_SETTINGS} | {
+        "display": type(active_display()).__name__
+    }
+
+
+_DISPLAY_TYPES: list[DisplayType] = ["plain", "rich", "none", "log"]
+
+
+@pytest.mark.parametrize("vscode", [False, True])
+@pytest.mark.parametrize(
+    "first,second",
+    [(a, b) for a in _DISPLAY_TYPES for b in _DISPLAY_TYPES if a != b],
+)
+def test_eval_display_change_matches_fresh_display(
+    fresh_display: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    vscode: bool,
+    first: DisplayType,
+    second: DisplayType,
+) -> None:
+    import rich
+    from rich.console import Console
+
+    import inspect_ai._display.core.rich as display_rich
+    from inspect_ai._display.core import active
+    from inspect_ai.util import _display
+
+    monkeypatch.setattr(display_rich, "is_running_in_vscode", lambda: vscode)
+    task = Task(dataset=[Sample(input="hi", target="hi")], scorer=match())
+
+    eval(task, model="mockllm/model", display=second, log_dir=str(tmp_path))
+    fresh = _display_state()
+
+    # start again as a new process, then change from the first display
+    monkeypatch.setattr(active, "_active_display", None)
+    monkeypatch.setattr(_display, "_display_type", None)
+    monkeypatch.setattr(display_rich, "_console_settings", None)
+    monkeypatch.setattr(rich.get_console(), "__dict__", Console().__dict__)
+    eval(task, model="mockllm/model", display=first, log_dir=str(tmp_path))
+    eval(task, model="mockllm/model", display=second, log_dir=str(tmp_path))
+
+    assert _display_state() == fresh
 
 
 def test_display_type_change_during_eval_keeps_running_display(
