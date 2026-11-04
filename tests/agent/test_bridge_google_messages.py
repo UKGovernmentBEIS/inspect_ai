@@ -22,6 +22,7 @@ from pathlib import Path
 
 import pytest
 
+from inspect_ai._util.content import ContentReasoning, ContentText
 from inspect_ai.agent._bridge._errors import BridgePolicyError
 from inspect_ai.agent._bridge.google_api_impl import (
     gemini_response_from_output,
@@ -150,3 +151,20 @@ def test_google_response_without_logprobs_is_unchanged(
     assert response == expected
     assert "logprobsResult" not in response["candidates"][0]
     assert "avgLogprobs" not in response["candidates"][0]
+
+
+def test_google_bridge_preserves_reasoning_without_function_call() -> None:
+    reasoning = ContentReasoning(
+        reasoning="encrypted reasoning",
+        summary="Reasoning summary",
+        signature="provider-signature",
+        redacted=True,
+    )
+    output = ModelOutput.from_content("mockllm/model", "done")
+    output.message.content = [reasoning, ContentText(text="done")]
+
+    candidate = gemini_response_from_output(output, "model")["candidates"][0]
+    messages = messages_from_google_contents([candidate["content"]], None)
+
+    assert isinstance(messages[-1], ChatMessageAssistant)
+    assert messages[-1].content == [reasoning, ContentText(text="done")]
