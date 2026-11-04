@@ -628,14 +628,38 @@ does not list, which would be a bug in Inspect.
 | `starting_cancelled` | the attempt calls `register_eval` | `running`, and the attempt is cancelled at once | `task_run`, through `on_registered` |
 | `running` | the attempt ends and a retry is queued | `retry_waiting` | `run_one`, in its final synchronous step |
 | `running` | the attempt ends with no retry | `ended`, the attempt's log | `run_one`, in its final synchronous step |
-| `starting`, `retry_starting` | the attempt returns a log without registering (a startup error log, or `run_samples=False`'s `started` log), and `run_one` decides a retry (an error log, budget left, retry not abandoned) | `retry_waiting`, the returned log stored | `run_one`, in its final synchronous step |
-| `starting`, `retry_starting` | the attempt returns a log without registering, and no retry follows (`started` log, budget spent, or retry abandoned) | `ended`, the returned log | `run_one`, in its final synchronous step |
+| `retry_starting` | the attempt returns a log without registering, and the retry-abandon stamp is set | `ended`, the stored log; the returned log is dropped | `run_one`, which checks the stamp before it uses the returned log, then removes what the retry wrote (below) |
+| `starting`, `retry_starting` | the attempt returns a log without registering (a startup error log, or `run_samples=False`'s `started` log), not abandoned, and `run_one` decides a retry (an error log, budget left) | `retry_waiting`, the returned log stored | `run_one`, in its final synchronous step |
+| `starting`, `retry_starting` | the attempt returns a log without registering, not abandoned, and no retry follows (`started` log, or budget spent) | `ended`, the returned log | `run_one`, in its final synchronous step |
 | `starting_cancelled` | the attempt returns a log without registering | `ended`, the returned log; never a retry | `run_one`, in its final synchronous step |
 | `retry_waiting` | the dispatcher starts the retry (an ordinary pick or a loan) | `retry_starting` | dispatcher |
 | `retry_waiting` | the retry is abandoned (cancel or drain, from the control channel or a handle), or the run ends | `ended`, the stored log | dispatcher, after discarding the retry's unstarted logger |
 | `retry_starting` | the retry attempt calls `register_eval` | `running` | `task_run`, through `on_registered` |
 | `retry_starting` | the retry was abandoned before `register_eval` (`run.abandoned`) | `ended`, the stored log | `run_one`, after discarding the retry's logger |
 | `starting`, `starting_cancelled`, `retry_starting` | the attempt raises out of `_run_task` before `register_eval` (`debug_errors`, or a cancellation) | `ended`: the stored log of an earlier attempt, or no log if there is none | `run_one`, after the logger discard it does today |
+
+**An abandoned retry outranks the log it returns.** A cancel or drain of a
+record in `retry_starting` writes the abandon stamp, but the retry may
+already be inside a startup await: if that write then raises, `_run_task`
+returns a fresh fallback error log with `abandoned` unset, and with
+`run_samples=False` it can return a `started` log before reaching the
+abandon check before `register_eval`. Today `run_one` would suppress the
+next retry and then store that log over the one kept before the retry was
+queued (`src/inspect_ai/_eval/run.py:932-937`, `:1036-1037`). So when an
+attempt returns a log while the record is still in `retry_starting` (it
+never registered), `run_one` checks `task_retry_abandoned(task_id)` first.
+If the stamp is set, the attempt is treated as the `run.abandoned` case:
+`run_one` calls `logger.discard()` without `keep_destination`, which drops
+the recorder entry and removes a header the retry flushed, and when the
+returned log is a finished `started` log (whose recorder entry
+`log_finish` already released), it also deletes the file at that log's
+`location`, the retry's own destination after `reinit()`, which is never
+the stored log's file. A failed removal is logged as a warning, as
+`discard()` does. The record then ends with the stored log, and its handles
+settle with that log. The check applies only to an unregistered retry: a
+first attempt has no stored log (a cancel in `starting` is
+`starting_cancelled`, which keeps the returned log), and a registered
+attempt's result is handled by today's retry decision.
 
 `on_registered` is a new `TaskRunOptions` field, a callback the dispatcher
 sets when it starts a record. `task_run` calls it immediately after
@@ -1409,7 +1433,15 @@ does (a new list per call):
   injected while a cancel is pending in `starting` (ends with that error
   log and no retry); a cancel and a drain of such a record in
   `retry_waiting` and in `retry_starting` (ends with the stored error log,
-  no further attempt); `run_samples=False` with and without a pending
+  no further attempt); a cancel and a drain landing while an unregistered
+  retry's startup await is held on an event, each then released two ways:
+  the await raises (a `log_start()` failure, and once each a prior-log seed,
+  checkpoint copy and inherited-config failure), and, with
+  `run_samples=False`, it returns so the retry writes its `started` log (in
+  each, the record ends with the log stored before the retry was queued,
+  `result()` and pending requests carry that log, no further attempt runs,
+  and the log directory holds no file the retry wrote);
+  `run_samples=False` with and without a pending
   `starting` cancel (ends with the `started` log, never retried, no
   `EvalState`, `started()` raises `TaskEndedError(log=<that log>)`); an
   exception propagated under `debug_errors`; an added task starts while its creator runs
