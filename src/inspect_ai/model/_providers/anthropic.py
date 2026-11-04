@@ -3791,9 +3791,18 @@ async def assistant_message_block_params(
     segments: list[list[MessageBlockParam]] = []
     pending_span_params: list[MessageBlockParam] = []
     if isinstance(message.content, str):
-        segments.append(
-            [TextBlockParam(type="text", text=message.content or NO_CONTENT)]
-        )
+        if message.content or not message.tool_calls:
+            segments.append(
+                [TextBlockParam(type="text", text=message.content or NO_CONTENT)]
+            )
+        else:
+            # same artifact as the empty text sibling handled below: a
+            # tool-call-only turn replayed with str content (no reasoning to
+            # trigger list normalization) would otherwise materialize a
+            # "(no content)" placeholder, which can land after the tool_use
+            # block at its recorded position and reads as a prefill attempt.
+            # assistant messages with tool calls are fine with no content.
+            segments.append([])
     else:
         # server tool spans recorded for this message at generate time. server
         # tool blocks are opaque server artifacts (encrypted content, caller
@@ -3894,7 +3903,7 @@ async def assistant_message_block_params(
     # a message whose every content item was dropped above (e.g. a single
     # empty text item) has no blocks left, and claude rejects an empty
     # assistant message — replay one placeholder, matching the empty-content
-    # handling in `message_to_anthropic_message`.
+    # handling in `message_param`.
     if not block_params:
         block_params.append(TextBlockParam(type="text", text=NO_CONTENT))
 

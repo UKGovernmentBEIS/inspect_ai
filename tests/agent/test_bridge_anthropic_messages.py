@@ -31,7 +31,7 @@ from inspect_ai.model._providers.anthropic import (
     init_sample_anthropic_assistant_internal,
     message_block_params,
 )
-from inspect_ai.tool import WebSearchProviders
+from inspect_ai.tool import ToolCall, WebSearchProviders
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.tool._tool_util import tool_to_tool_info
 
@@ -530,3 +530,47 @@ async def test_assistant_empty_text_only_content_replays_placeholder() -> None:
     blocks = await assistant_message_block_params(turn)
     assert [block["type"] for block in blocks] == ["text"]
     assert blocks[0]["text"] == NO_CONTENT
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("recorded_position", [0, None], ids=["leading", "default"])
+async def test_bridge_tool_first_turn_no_trailing_text(
+    recorded_position: int | None,
+) -> None:
+    """A tool-first turn replayed with empty str content has no trailing text.
+
+    Without reasoning to trigger list normalization, the bridged replay of a
+    tool-call-only turn keeps ``content=""`` as a str; the placeholder must
+    not materialize after the ``tool_use`` block whether its position was
+    recorded (wire order: tool first) or defaults to last (#5970).
+    """
+    init_sample_anthropic_assistant_internal()
+    turn = ChatMessageAssistant(
+        content="",
+        tool_calls=[ToolCall(id="toolu_1", function="list_items", arguments={})],
+    )
+    if recorded_position is not None:
+        assistant_internal().client_tool_call_positions["toolu_1"] = recorded_position
+    blocks = await assistant_message_block_params(turn)
+    assert [block["type"] for block in blocks] == ["tool_use"]
+
+
+@pytest.mark.anyio
+async def test_empty_text_sibling_keeps_tool_position_arithmetic() -> None:
+    """Dropping an empty text item must not shift recorded tool positions.
+
+    A skipped item still occupies a slot in the segment list, so a tool call
+    recorded after two content items splices after the surviving item, not
+    before it.
+    """
+    init_sample_anthropic_assistant_internal()
+    turn = ChatMessageAssistant(
+        content=[ContentText(text=""), ContentText(text="after the call")],
+        tool_calls=[ToolCall(id="toolu_1", function="list_items", arguments={})],
+    )
+    assistant_internal().client_tool_call_positions["toolu_1"] = 1
+    blocks = await assistant_message_block_params(turn)
+    assert [(block["type"], block.get("text")) for block in blocks] == [
+        ("tool_use", None),
+        ("text", "after the call"),
+    ]
