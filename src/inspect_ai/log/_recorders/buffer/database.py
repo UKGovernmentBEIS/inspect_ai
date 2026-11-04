@@ -1313,9 +1313,9 @@ class SampleBufferDatabase(SampleBuffer):
                 raise
             except FileExistsError:
                 # mkdir(exist_ok=True) raises this when a sibling rmdir's the
-                # directory between mkdir's EEXIST and its is_dir() check
+                # directory between mkdir's EEXIST and its is_dir() check;
+                # the next mkdir re-creates it, so retry without backoff
                 if attempt < max_retries - 1:
-                    time.sleep(retry_delay * (2**attempt))
                     continue
                 raise
             except BaseException:

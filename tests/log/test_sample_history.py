@@ -1,5 +1,6 @@
 import sqlite3
 from collections.abc import Iterator
+from pathlib import Path
 
 import pytest
 
@@ -659,8 +660,8 @@ def test_writable_connection_recreates_missing_parent_dir(tmp_path):
 
 
 def test_writable_connection_retries_when_parent_dir_removed_during_mkdir(
-    tmp_path, monkeypatch
-):
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """A writable connect retries when a sibling removes its directory mid-mkdir.
 
     Path.mkdir(exist_ok=True) gets EEXIST from os.mkdir and then checks
@@ -693,6 +694,10 @@ def test_writable_connection_retries_when_parent_dir_removed_during_mkdir(
             raise
 
     monkeypatch.setattr(os, "mkdir", racing_mkdir)
+    sleeps: list[float] = []
+    monkeypatch.setattr(
+        "inspect_ai.log._recorders.buffer.database.time.sleep", sleeps.append
+    )
 
     conn = db._open_connection()
     try:
@@ -701,6 +706,53 @@ def test_writable_connection_retries_when_parent_dir_removed_during_mkdir(
         conn.execute("SELECT 1")
     finally:
         conn.close()
+    # the retry after FileExistsError does not back off
+    assert sleeps == []
+
+
+def test_writable_connection_fails_fast_when_parent_dir_is_a_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A regular file at the buffer subdirectory path fails after the attempt cap.
+
+    The FileExistsError retry has no backoff, so this fails at once rather
+    than after the backoff delays.
+    """
+    import os
+
+    db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
+    db_path = db.db_path
+    subdir = db_path.parent
+
+    db._close_all_connections()
+    for suffix in ("", "-wal", "-shm"):
+        p = f"{db_path}{suffix}"
+        if os.path.exists(p):
+            os.unlink(p)
+    os.rmdir(subdir)
+    subdir.write_text("not a directory")
+
+    real_mkdir = os.mkdir
+    subdir_mkdirs = 0
+
+    def counting_mkdir(path, *args, **kwargs):
+        nonlocal subdir_mkdirs
+        if os.fspath(path) == os.fspath(subdir):
+            subdir_mkdirs += 1
+        real_mkdir(path, *args, **kwargs)
+
+    monkeypatch.setattr(os, "mkdir", counting_mkdir)
+    sleeps: list[float] = []
+    monkeypatch.setattr(
+        "inspect_ai.log._recorders.buffer.database.time.sleep", sleeps.append
+    )
+
+    with pytest.raises(FileExistsError):
+        db._open_connection()
+    # bounded by the attempt cap, with no backoff between attempts
+    assert subdir_mkdirs == 5
+    assert sleeps == []
+    assert subdir.is_file()
 
 
 def test_create_retries_when_parent_dir_removed_during_mkdir(tmp_path, monkeypatch):
