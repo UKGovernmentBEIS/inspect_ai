@@ -450,6 +450,11 @@ async def eval_run(
                     prior_created=resolved_task.sample_source.prior_created
                     if resolved_task.sample_source is not None
                     else None,
+                    checkpoints_dir=functools.partial(
+                        eval_checkpoints_dir_from_config,
+                        task=resolved_task.checkpoint,
+                        eval_=eval_checkpoint,
+                    ),
                 )
                 await logger.init()
 

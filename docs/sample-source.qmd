@@ -81,7 +81,7 @@ Note that with `epochs > 1`, `sample_complete` fires once per *epoch*, and each 
 
 A sample the operator cancels while it is running (`inspect ctl sample cancel`) is still logged, and `sample_complete` fires for it with `sample.error` set to the cancellation and no scores. A sample cancelled before anything was logged — cancelled while still waiting in the queue, or cancelled in the moment between an attempt erroring and its `retry_on_error` re-run — has no `EvalSample` to deliver, so the source is told via `sample_abandoned(sample, epoch)` instead, with the `Sample` as it was added to the task. Like `sample_complete`, it may return follow-up samples. A queued sample abandoned by a graceful task cancel (`inspect ctl task cancel --action drain|score|error`) is reported the same way. Neither hook fires when the whole task is cancelled (`--action cancel`, or Ctrl+C): no follow-up could run.
 
-A source that awaits a sample's outcome — for example a sample that enqueues a rollout and waits for its result — should therefore treat `sample_abandoned` as that outcome, or it will wait forever when the rollout is cancelled before it starts.
+A source that awaits a sample's outcome — for example a sample that enqueues a rollout and waits for its result — should therefore treat `sample_abandoned` as that outcome, or it will wait forever when the rollout is cancelled before it starts. To match an enqueued sample to these callbacks by id, give it an explicit `id`; a generated id is not written back to the submitted `Sample`.
 
 ## Sources from callbacks
 

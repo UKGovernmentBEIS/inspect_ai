@@ -17,3 +17,4 @@ class TaskLoggerShim(TaskLogger):
         self._prior_seeded = False
         self._prior_read_limit = anyio.Semaphore(4)
         self._seeded_pending = set()
+        self._checkpoints_dir = None
