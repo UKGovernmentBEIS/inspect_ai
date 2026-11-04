@@ -3,12 +3,18 @@ from __future__ import annotations
 from logging import getLogger
 from typing import Any, Iterator, Mapping, Type
 
+import jsonpath_ng
 import jsonref  # type: ignore
 from jsonpath_ng import Fields, Index, JSONPath, Slice, Where  # type: ignore
 from jsonpath_ng.ext.filter import Filter  # type: ignore
 from pydantic import BaseModel
 
 logger = getLogger(__name__)
+
+# jsonpath-ng >= 1.16.0 parses '*' and '[*]' to Wildcard(); earlier versions
+# parse them to Fields('*') or Slice() and have no Wildcard class.
+_wildcard = getattr(jsonpath_ng, "Wildcard", None)
+WILDCARD: tuple[type[JSONPath], ...] = () if _wildcard is None else (_wildcard,)
 
 Schema = Mapping[str, Any]
 
@@ -117,6 +123,8 @@ def iter_tokens(node: JSONPath) -> Iterator[str | int | None]:
     if hasattr(node, "left") and hasattr(node, "right"):  # Child, Descendants, etc.
         yield from iter_tokens(node.left)
         yield from iter_tokens(node.right)
+    elif isinstance(node, WILDCARD):
+        yield None
     elif isinstance(node, Fields):
         yield from node.fields  # e.g. ["foo"]
     elif isinstance(node, Index):
@@ -143,7 +151,7 @@ def _expand_union(sch: Schema) -> list[Schema]:
 UNSUPPORTED: tuple[type[JSONPath], ...] = (
     Filter,  # [?foo > 0]
     Where,  # .foo[(@.bar < 42)]
-    Slice,  # [1:5]  (wildcard "[*]" is Index/None, not Slice)
+    Slice,  # [1:5]; before jsonpath-ng 1.16.0 "[*]" is also Slice()
 )
 
 

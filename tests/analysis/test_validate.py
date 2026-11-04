@@ -1,8 +1,10 @@
 from typing import Any
 
 import pytest
+from jsonpath_ng import Child, Fields, JSONPath
 from jsonpath_ng.ext import parse  # type: ignore
 
+from inspect_ai.analysis._dataframe import validate
 from inspect_ai.analysis._dataframe.validate import (
     Schema,
     jsonpath_in_schema,
@@ -72,6 +74,41 @@ def test_wildcard_object_properties(expanded_schema: dict[str, Any]) -> None:
 def test_extra_key_in_closed_leaf(expanded_schema: dict[str, Any]) -> None:
     """'solver' is a plain string → adding a child key must fail."""
     assert_invalid("eval.solver.foo", expanded_schema)
+
+
+def test_wildcard_on_closed_leaf(expanded_schema: dict[str, Any]) -> None:
+    """'solver' is a plain string → a wildcard child must fail."""
+    assert_invalid("eval.solver.*", expanded_schema)
+
+
+class _StandInWildcard(JSONPath):
+    """Stand-in for jsonpath-ng >= 1.16.0's `Wildcard` node."""
+
+
+@pytest.mark.parametrize(
+    "prefix,suffix,valid",
+    [
+        (["results", "scores"], ["scorer"], True),  # results.scores[*].scorer
+        (["eval", "packages"], [], True),  # eval.packages.*
+        (["eval", "solver"], [], False),  # eval.solver.*
+    ],
+)
+def test_wildcard_node(
+    monkeypatch: pytest.MonkeyPatch,
+    expanded_schema: dict[str, Any],
+    prefix: list[str],
+    suffix: list[str],
+    valid: bool,
+) -> None:
+    """A Wildcard node matches every child, as `[*]` and `*` do."""
+    monkeypatch.setattr(validate, "WILDCARD", (_StandInWildcard,))
+    expr: JSONPath = Fields(prefix[0])
+    for name in prefix[1:]:
+        expr = Child(expr, Fields(name))
+    expr = Child(expr, _StandInWildcard())
+    for name in suffix:
+        expr = Child(expr, Fields(name))
+    assert validate.jsonpath_in_schema(expr, expanded_schema) is valid
 
 
 def test_skip_filter_expression(expanded_schema: dict[str, Any]) -> None:
