@@ -44,6 +44,9 @@ def model_graded_fact(
 ) -> Scorer:
     """Score a question/answer task with a fact response using a model.
 
+    A blank completion without attached media returns NOANSWER immediately
+    and never reaches the grader.
+
     Args:
       template: Template for grading prompt. This template uses
         four variables: `question`, `criterion`, `answer`, and
@@ -124,7 +127,8 @@ def model_graded_qa(
 ) -> Scorer:
     """Score a question/answer task using a model.
 
-    A blank completion returns NOANSWER immediately and never reaches the grader.
+    A blank completion without attached media returns NOANSWER immediately
+    and never reaches the grader.
 
     Args:
       template: Template for grading prompt. This template has
@@ -244,6 +248,16 @@ def model_graded_qa(
     return score
 
 
+def _output_media(output: ModelOutput) -> list[Content]:
+    if len(output.choices) > 0 and isinstance(output.message.content, list):
+        return [
+            content
+            for content in output.message.content
+            if content.type in ["image", "audio", "video"]
+        ]
+    return []
+
+
 @scorer(metrics=[accuracy(), stderr()])
 def _model_graded_qa_single(
     grading_template: str,
@@ -284,7 +298,7 @@ def _model_graded_qa_single(
 
     async def score(state: TaskState, target: Target) -> Score:
         completion = state.output.completion or ""
-        if not completion.strip():
+        if not completion.strip() and not _output_media(state.output):
             return Score(
                 value=NOANSWER,
                 answer="",
@@ -566,15 +580,7 @@ def model_scoring_prompt(
     }
 
     # we need to remove media objects from output and reference them as attachements in the answer
-    media: list[Content] = (
-        [
-            content
-            for content in output.message.content
-            if content.type in ["image", "audio", "video"]
-        ]
-        if len(output.choices) > 0 and isinstance(output.message.content, list)
-        else []
-    )
+    media: list[Content] = _output_media(output)
     if len(media) > 0:
         if len(answer) > 0:
             answer = f"{answer} (see also attached media)"
