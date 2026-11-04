@@ -97,13 +97,16 @@ class ToolEvent(BaseEvent):
     call.
 
     It stays `None` until then, and for good if the scaffold never sends the
-    result, the sample resumes from a checkpoint first, the reply the scaffold
-    sends back doesn't identify the call (exactly one call with its id,
-    function and arguments, an id handed to no other call of the reply, or in
-    Google its function and arguments, shared by no other call of the reply, in
-    a reply of at most 256 calls), the call executed more than once, more than
-    one tool message answers it, the only answer is already linked to another
-    call, or 256 later host calls are tracked before its result arrives.
+    result, the sample resumes from a checkpoint first, the bridge doesn't
+    recognize the reply the scaffold sends back as the one handed to it (its
+    calls reordered, or an edited version older than the last 16 edited copies
+    the scaffold sent), the reply doesn't identify the call (exactly one call
+    with its id, function and arguments, an id handed to no other call of the
+    reply, or in Google its function and arguments, shared by no other call of
+    the reply, in a reply of at most 256 calls), the call executed more than
+    once, more than one tool message answers it, the only answer is already
+    linked to another call, or 256 later host calls are tracked before its
+    result arrives.
     """
 
     call_message_id: str | None = Field(default=None)
@@ -112,7 +115,9 @@ class ToolEvent(BaseEvent):
     The output of the `ModelEvent` that generated the call. In the agent bridge
     this is the generated output even when a response filter or approval
     changed the message handed to the scaffold; `None` for a call the model
-    did not propose.
+    did not propose or one the bridge can't verify against the generation
+    (arguments a filter changed, a reply whose text a request filter edited,
+    identical calls repeated in one reply).
     It identifies the proposing message, not necessarily one model call: a
     cached output reused by several model calls (even within one sample and
     epoch) has one id, so a join that matches more than one `ModelEvent` is
