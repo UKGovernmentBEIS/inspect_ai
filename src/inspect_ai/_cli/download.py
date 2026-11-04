@@ -115,6 +115,9 @@ async def _download_all_sandbox_tools() -> None:
         table.add_row(name, str(_binaries_dir() / name), state)
     console.print(table)
 
+    if missing := [name for name, state in states if state == "not on S3"]:
+        raise click.ClickException(f"Not on S3: {', '.join(missing)}")
+
 
 async def _resolve_sandbox_tool(console: Console, name: str) -> str:
     if (_binaries_dir() / name).exists():

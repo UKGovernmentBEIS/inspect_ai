@@ -33,7 +33,7 @@ def _setup(
 
     monkeypatch.setattr(download_cli, "_binaries_dir", lambda: tmp_path)
     monkeypatch.setattr(download_cli, "_download_from_s3", fake_download_from_s3)
-    monkeypatch.setattr(download_cli, "_get_install_state", lambda: install_state)
+    monkeypatch.setenv("INSPECT_SANDBOX_TOOLS_INSTALL_STATE", install_state)
     return requested
 
 
@@ -63,10 +63,12 @@ def test_reports_binary_not_on_s3(
 
     result = CliRunner().invoke(download_cli.download_command, ["sandbox-tools"])
 
-    assert result.exit_code == 0, result.output
+    assert result.exit_code == 1, result.output
     assert requested == _NAMES
     assert not (tmp_path / missing).exists()
+    assert "Sandbox tools" in result.output
     assert "not on S3" in result.output
+    assert f"Not on S3: {missing}" in result.output
 
 
 def test_edited_install_does_not_download(
