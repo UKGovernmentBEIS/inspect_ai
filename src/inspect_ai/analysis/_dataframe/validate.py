@@ -5,15 +5,11 @@ from typing import Any, Iterator, Mapping, Type
 
 import jsonpath_ng
 import jsonref  # type: ignore
-from jsonpath_ng import Child, Fields, Index, JSONPath, Root, Slice, This  # type: ignore
+from jsonpath_ng import Fields, Index, JSONPath, Slice, Where  # type: ignore
+from jsonpath_ng.ext.filter import Filter  # type: ignore
 from pydantic import BaseModel
 
 logger = getLogger(__name__)
-
-# jsonpath-ng >= 1.16.0 parses '*' and '[*]' to Wildcard(); earlier versions
-# parse them to Fields('*') or Slice() and have no Wildcard class.
-_wildcard = getattr(jsonpath_ng, "Wildcard", None)
-WILDCARD: tuple[type[JSONPath], ...] = () if _wildcard is None else (_wildcard,)
 
 Schema = Mapping[str, Any]
 
@@ -73,8 +69,6 @@ def jsonpath_in_schema(expr: JSONPath, schema: Schema) -> bool:
                 open_dict(sch)
             if "array" in _types(sch) and "items" in sch:
                 outs.extend(_normalize_items(sch["items"]))
-            if "array" in _types(sch) and "prefixItems" in sch:  # tuple
-                outs.extend(sch["prefixItems"])
             return outs
 
         # Property access ----------------------------------------------------
@@ -124,8 +118,6 @@ def iter_tokens(node: JSONPath) -> Iterator[str | int | None]:
     if hasattr(node, "left") and hasattr(node, "right"):  # Child, Descendants, etc.
         yield from iter_tokens(node.left)
         yield from iter_tokens(node.right)
-    elif isinstance(node, WILDCARD):
-        yield None
     elif isinstance(node, Fields):
         yield from node.fields  # e.g. ["foo"]
     elif isinstance(node, Index):
@@ -149,16 +141,15 @@ def _expand_union(sch: Schema) -> list[Schema]:
     return [sch]
 
 
-# Node types the linear walker can validate. A path with any other node is
-# not validated: filters, slices (before jsonpath-ng 1.16.0 "[*]" is Slice()),
-# `..`, `parent`, unions, and the ext functions.
-VALIDATED: tuple[type[JSONPath], ...] = (Child, Index, Root, This)
+# "[*]" is not validated. Before jsonpath-ng 1.16.0 it parses to Slice(); from
+# 1.16.0 it and "*" parse to Wildcard(), which older versions do not define.
+_wildcard = getattr(jsonpath_ng, "Wildcard", None)
 
-
-def _is_validated(node: JSONPath) -> bool:
-    if isinstance(node, Fields):
-        return len(node.fields) == 1  # not [foo,bar]
-    return type(node) in VALIDATED or isinstance(node, WILDCARD)
+UNSUPPORTED: tuple[type[JSONPath], ...] = (
+    Filter,  # [?foo > 0]
+    Where,  # .foo[(@.bar < 42)]
+    Slice,  # [1:5], and "[*]" before jsonpath-ng 1.16.0
+) + (() if _wildcard is None else (_wildcard,))
 
 
 def find_unsupported(node: JSONPath) -> list[type[JSONPath]]:
@@ -167,7 +158,7 @@ def find_unsupported(node: JSONPath) -> list[type[JSONPath]]:
     stack: list[JSONPath] = [node]
     while stack:
         n = stack.pop()
-        if not _is_validated(n):
+        if isinstance(n, UNSUPPORTED):
             bad.append(type(n))
         # Drill into children (jsonpath-ng uses .left / .right / .child attributes)
         for attr in ("left", "right", "child", "expression"):
