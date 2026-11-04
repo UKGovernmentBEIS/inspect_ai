@@ -238,22 +238,24 @@ class TaskHandle:
     async def started(self) -> None:
         """Wait until the task's first attempt starts.
 
-        Returns once an attempt has started, including one that then fails
-        (a setup failure starts an attempt that writes an error log).
-        Raises TaskEndedError(log=None) if the task ends before its first
-        attempt starts.
+        Returns once an attempt has started (registered with the control
+        channel), including one that then fails (a setup failure starts an
+        attempt that writes an error log). Raises TaskEndedError if the task
+        ends before any attempt starts: its log is None, or the latest log
+        of attempts that ended before starting (a failed log_start() flush,
+        or run_samples=False).
         """
     async def result(self) -> EvalLog | None:
         """Wait until the task ends.
 
-        Returns its latest attempt's log, or None if it ended before its first
-        attempt started (cancelled while queued, admission failed, or the run
-        ended first). Never raises TaskEndedError.
+        Returns its latest attempt's log, or None if no attempt returned one
+        (cancelled while queued, admission failed, or the run ended first).
+        Never raises TaskEndedError.
         """
     def cancel(self) -> None:
         """Abort it, like `inspect ctl task cancel`.
 
-        A task whose first attempt has not started ends with no log; a task
+        A task none of whose attempts has run ends with no log; a task
         waiting for a retry keeps its latest attempt's log.
         """
     def close(self) -> None:
@@ -267,7 +269,7 @@ class TaskHandle:
         """
 
 class TaskEndedError(RuntimeError):
-    log: EvalLog | None             # the task's final log, None if it never started
+    log: EvalLog | None             # the task's final log, None if no attempt returned one
     error: BaseException | None     # the admission failure, if that is why it never started
 
 class SampleAbandonedError(RuntimeError):
@@ -287,7 +289,8 @@ target. What each wait does when the target ends:
 | how the target ended | `started()` | `result()` | an `enqueue_sample()` request still unresolved |
 | --- | --- | --- | --- |
 | one or more attempts ran (success, error, setup failure, abort, run-level cancellation of a running task), including a task cancelled, drained or left queued at run end while waiting for a retry | returned when the first attempt started | the latest attempt's log | `TaskEndedError(log=<latest log>)` |
-| cancelled or drained, or the run ended, before its first attempt started | `TaskEndedError(log=None, error=None)` | `None` | `TaskEndedError(log=None, error=None)` |
+| every attempt returned a log without starting (a startup error converted to an error log, with the retry budget spent, the retry abandoned, or a cancel pending; `run_samples=False`'s `started` log); see "Task phases" in [task-dispatch.md](task-dispatch.md#task-phases) | `TaskEndedError(log=<latest log>, error=None)` | the latest attempt's log | `TaskEndedError(log=<latest log>)` |
+| cancelled or drained, or the run ended, before any attempt ran | `TaskEndedError(log=None, error=None)` | `None` | `TaskEndedError(log=None, error=None)` |
 | admission failed (`ensure_model_controller` or `logger.init()` raised) | `TaskEndedError(log=None, error=exc)`, with `__cause__` set | `None` | `TaskEndedError(log=None, error=exc)` |
 
 A retry waiting in the queue is not a never-started task: cancelling it

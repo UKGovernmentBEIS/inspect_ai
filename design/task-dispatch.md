@@ -478,12 +478,18 @@ never returns (the source contract allows one,
   yet called `register_eval`): it moves the record to `starting_cancelled`,
   and the attempt applies the cancel when it registers (see "Control
   channel");
-- `running`, `retry_waiting`, `retry_starting`: the task has an attempt's
-  `EvalState`, so a handle's cancel runs the control channel's existing task
-  cancel (`cancel_task(task_id)`, `src/inspect_ai/_control/cancel.py:183`)
-  in process, which aborts a running attempt or abandons a pending retry
-  exactly as `inspect ctl task cancel` does today; the control channel
-  itself reaches these phases through that path, not through the queue;
+- `running`: the attempt has registered its `EvalState`, so a handle's
+  cancel runs the control channel's existing task cancel
+  (`cancel_task(task_id)`, `src/inspect_ai/_control/cancel.py:183`) in
+  process, which aborts the attempt, or abandons the retry it has decided
+  on, exactly as `inspect ctl task cancel` does today; the control channel
+  itself reaches this phase through that path, not through the queue;
+- `retry_waiting`, `retry_starting`: it writes the retry-abandon stamp
+  (`abandon_task_retry(task_id)`, below) and rings `wake`, and the retry
+  ends as an abandoned retry does today, with the stored log. The control
+  channel reaches a record here through the queue when no attempt of it has
+  registered (see "Task phases"), and through its existing between-attempts
+  path, which writes the same stamp, when one has;
 - `admitting_cancelled`, `starting_cancelled`, `finalizing`, `ended`: a
   cancel is already in hand or the record has ended, so it does nothing.
 
@@ -547,27 +553,56 @@ phases, in order:
 - `starting`: the dispatcher has started its first attempt, which has not
   yet called `register_eval`.
 - `starting_cancelled`: cancelled in `starting`; the attempt applies the
-  cancel when it registers.
+  cancel when it registers, and no retry follows if it ends without
+  registering.
 - `running`: an attempt (the first or a retry) has registered and has not
   yet ended.
-- `retry_waiting`: in the queue for a retry, after an attempt that errored.
+- `retry_waiting`: in the queue for a retry, after an attempt that errored,
+  whether or not that attempt registered.
 - `retry_starting`: the dispatcher has started the retry, which has not yet
   called `register_eval`.
 - `ended`: `RunQueue.end` has run; `ended` is set.
 
-What the public surfaces show is a function of the phase:
+**An attempt can end without registering.** `register_eval` is not the
+first thing an attempt does, and three outcomes end an attempt before it:
+
+- *A startup error returned as a log.* Prior-log seeding
+  (`src/inspect_ai/_eval/task/run.py:958`), a retry's checkpoint startup
+  copy (`:995`), the `log_start()` header flush (`:1127`) and recording
+  inherited configuration updates (`:1162`) can raise before registration.
+  `_run_task`'s fallback converts each into an error `EvalLog`
+  (`src/inspect_ai/_eval/run.py:662-687`), and `run_one` stores it and
+  retries it when budget remains, as it does any error log
+  (`test_failed_log_start_is_retried`, `tests/test_eval.py:1126`).
+- *A normal log with no samples run.* With `run_samples=False`, `task_run`
+  returns the `started` log from `log_finish` (`task/run.py:1131-1132`)
+  before registering, and `run_one` stores it without retrying
+  (`tests/test_eval_no_samples.py`).
+- *An exception that propagates* (with `debug_errors`, or a cancellation):
+  `run_one` discards the logger and re-raises, as today.
+
+Such an attempt has no `EvalState`, so `mark_eval_retry_pending` has
+nothing to flag and `cancel_task(task_id)` finds nothing. The record
+therefore stays in the queued registry until an attempt of it first
+registers, whatever its phase: a retry of a task whose attempts never
+registered is listed `queued` and cancelled through the queue.
+
+What the public surfaces show is a function of the phase, and for the two
+retry phases of whether an attempt has registered (`started`):
 
 | phase | `TaskHandle.state` | control channel |
 | --- | --- | --- |
 | `waiting`, `admitting`, `admitting_cancelled` | `queued` | queued registry row, `setup: "admitting"` |
 | `admitted`, `finalizing`, `starting`, `starting_cancelled` | `queued` | queued registry row, `setup` from the record's setups |
 | `running` | `running` | the attempt's `EvalState`, as today |
-| `retry_waiting`, `retry_starting` | `queued` | the errored attempt's `EvalState`, flagged `retry_pending`, as today |
-| `ended` | `ended` | the last attempt's `EvalState`, if any attempt ran |
+| `retry_waiting`, `retry_starting`, after an attempt registered | `queued` | the errored attempt's `EvalState`, flagged `retry_pending`, as today |
+| `retry_waiting`, `retry_starting`, no attempt registered | `queued` | queued registry row, `setup` from the record's setups |
+| `ended` | `ended` | the last registered attempt's `EvalState`, if one registered |
 
-So the queued registry holds exactly the phases before a first attempt
-registers, and `TaskHandle.started()` returns when `started` is set, at
-the first move into `running`. A control-channel pause (the existing
+`TaskHandle.started()` returns when `started` is set, at the first move
+into `running`; a record that ends first raises `TaskEndedError` with its
+final log, which is `None` only when no attempt returned one (see
+[task-handles.md](task-handles.md#the-handle-api)). A control-channel pause (the existing
 `task_dispatch_paused` latch, `src/inspect_ai/_eval/run.py:796`) is not a
 phase: it holds an `admitted` or `retry_waiting` record from being picked
 without changing what it is.
@@ -593,17 +628,21 @@ does not list, which would be a bug in Inspect.
 | `starting_cancelled` | the attempt calls `register_eval` | `running`, and the attempt is cancelled at once | `task_run`, through `on_registered` |
 | `running` | the attempt ends and a retry is queued | `retry_waiting` | `run_one`, in its final synchronous step |
 | `running` | the attempt ends with no retry | `ended`, the attempt's log | `run_one`, in its final synchronous step |
+| `starting`, `retry_starting` | the attempt returns a log without registering (a startup error log, or `run_samples=False`'s `started` log), and `run_one` decides a retry (an error log, budget left, retry not abandoned) | `retry_waiting`, the returned log stored | `run_one`, in its final synchronous step |
+| `starting`, `retry_starting` | the attempt returns a log without registering, and no retry follows (`started` log, budget spent, or retry abandoned) | `ended`, the returned log | `run_one`, in its final synchronous step |
+| `starting_cancelled` | the attempt returns a log without registering | `ended`, the returned log; never a retry | `run_one`, in its final synchronous step |
 | `retry_waiting` | the dispatcher starts the retry (an ordinary pick or a loan) | `retry_starting` | dispatcher |
-| `retry_waiting` | the retry is abandoned (cancel or drain), or the run ends | `ended`, the stored log | dispatcher, after discarding the retry's unstarted logger |
+| `retry_waiting` | the retry is abandoned (cancel or drain, from the control channel or a handle), or the run ends | `ended`, the stored log | dispatcher, after discarding the retry's unstarted logger |
 | `retry_starting` | the retry attempt calls `register_eval` | `running` | `task_run`, through `on_registered` |
 | `retry_starting` | the retry was abandoned before `register_eval` (`run.abandoned`) | `ended`, the stored log | `run_one`, after discarding the retry's logger |
-| `starting`, `starting_cancelled`, `retry_starting` | the attempt raises before `register_eval`, including a run-level cancellation | `ended`: no log after a first attempt, the stored log after a retry | `run_one`, after the logger discard it does today |
+| `starting`, `starting_cancelled`, `retry_starting` | the attempt raises out of `_run_task` before `register_eval` (`debug_errors`, or a cancellation) | `ended`: the stored log of an earlier attempt, or no log if there is none | `run_one`, after the logger discard it does today |
 
 `on_registered` is a new `TaskRunOptions` field, a callback the dispatcher
 sets when it starts a record. `task_run` calls it immediately after
 `register_eval` (`src/inspect_ai/_eval/task/run.py:1185`), with no `await`
-between, and it makes the move into `running`, removes a first attempt's
-record from the queued registry and sets `started`; it returns `True` when
+between, and it makes the move into `running`, removes the record from the
+queued registry if no earlier attempt registered, and sets `started`; it
+returns `True` when
 it moved the record from `starting_cancelled`, and `task_run` then fires the
 attempt's `TaskCancel` with `"abort"`, as if the cancel had arrived just
 after registration.
@@ -616,7 +655,8 @@ then must abandon the coming retry rather than abort the attempt. Only that
 `EvalState` knows a retry is coming until `run_one` returns, so this pending
 cancel stays where it is today: the per-task stamp
 `abandon_task_retry(task_id)` (`src/inspect_ai/_control/eval_state.py:897`),
-written by the control channel's directive and read where it is read today
+written by the control channel's directive for a registered attempt and by
+`RunQueue.cancel` in the two retry phases, and read where it is read today
 (the retry decision in `run_one`, the dispatcher's drop step, and
 `_run_task` before `register_eval`). It is meaningful only in `running`
 after a retry has been decided, `retry_waiting` and `retry_starting`, and
@@ -661,10 +701,12 @@ loop:
   today. A retry's setups are requested again under the retry rule in
   "Sandbox setup". A record waiting for a retry is queued, but it is not a
   never-started record: it already has the error log the dispatcher stored
-  before queuing the retry (`src/inspect_ai/_eval/run.py:1036`), its
-  attempt's `EvalState` is registered, so the control channel reaches it
-  through today's between-attempts path rather than the queued registry,
-  and a cancel or drain of it, from the control channel or a handle,
+  before queuing the retry (`src/inspect_ai/_eval/run.py:1036`). When that
+  attempt registered, its `EvalState` is registered, so the control channel
+  reaches it through today's between-attempts path rather than the queued
+  registry; when no attempt has registered (a startup error returned as a
+  log), it is still in the queued registry and reached through it. A
+  cancel or drain of it, from the control channel or a handle, either way
   abandons the retry as today (`run.py:871`, `:1064`): only the retry's
   unstarted logger is discarded and the stored log stays the record's
   log. Its phase is `retry_waiting`, then `retry_starting` once the
@@ -707,15 +749,19 @@ listing reads) and a `cancel()` callback into `RunQueue.cancel`.
 Registration is synchronous and comes before admission, so a record whose
 `logger.init()` is slow, and every record behind it, is listed and
 cancellable at once. The record leaves the registry in the same
-synchronous step in which its first attempt calls `register_eval`
+synchronous step in which an attempt of it first calls `register_eval`
 (`task/run.py:1185`): `on_registered` (see "Task phases") does both, with
 no `await` between, so a directive always finds it in one of the two. A
 cancel that arrives after the dispatcher has started the record but before
 `register_eval` moves it from `starting` to `starting_cancelled`, and the
 attempt applies it as a task cancel as soon as it registers, as if it had
-arrived just after registration. A record that ends before its first
-attempt starts leaves the registry when it ends. A retry never enters this
-registry (see "Retries" under "The dispatcher").
+arrived just after registration; if the attempt instead returns a log
+without registering, the record ends with that log and is not retried. A
+record that ends before any attempt registers leaves the registry when it
+ends. A record whose earlier attempts all ended before registering (a
+startup error returned as a log) stays in the registry while it waits for
+and starts its retry; a retry after a registered attempt is not in it (see
+"Retries" under "The dispatcher").
 
 A queued record's `task_id` can already have `EvalState`s from earlier
 `eval()` calls in the same process: `eval_set(retry_immediate=False)` runs
@@ -744,7 +790,10 @@ takes precedence over that history wherever both have the task:
   finished" (`src/inspect_ai/_control/cancel.py:332`) while the queued
   attempt goes on to run. A plain cancel or a drain of a queued record ends it with no
   log (`changed: true`, `queued: true` in the result; `dry_run` reports
-  without acting). `action=score|error` on a queued record answers 409:
+  without acting), except a queued record waiting for or starting a retry
+  after an unregistered attempt, which abandons the retry and ends with
+  that attempt's error log (`changed: true`, `queued: true`,
+  `retry_abandoned: true`). `action=score|error` on a queued record answers 409:
   "task … has not started, so there are no samples for a resolution to apply
   to; use cancel or drain", the same rule the between-attempts case uses.
 - Cancelling a queued record follows "Cancelling a queued record" above; a
@@ -1187,7 +1236,10 @@ Public API (additive):
 
 Control channel: `GET /tasks` gains queued rows (`status: "queued"`, a new
 `setup` field), task cancel/drain accept queued tasks, and
-`CONTROL_API_VERSION` increases. Older CLIs see the new rows as unknown
+`CONTROL_API_VERSION` increases. A task whose only attempts failed before
+registering (for example a failed `log_start()` flush) and that waits for a
+retry is listed as queued and can be cancelled; today it has no row and a
+cancel answers 404. Older CLIs see the new rows as unknown
 status values. No eval log schema, viewer type or config file changes.
 
 Behaviour changes, sorted by whether they can change what an eval computes
@@ -1345,7 +1397,22 @@ does (a new list per call):
   "Task phases" transition table and raises on every other pair, and a
   run's records pass only through listed moves (a spy on `_move`, over a
   run with an admission failure, a queued cancel, a cancel in `starting`, a
-  retry and an abandoned retry); an added task starts while its creator runs
+  retry and an abandoned retry); attempts that end before registering, each
+  bounded with `fail_after` and checked for its final log, its slot and
+  registry entry released, no recorder entry or temporary file left, and its
+  handle's `started()`, `result()` and pending requests: a `log_start()`
+  failure, a prior-log seed failure, a checkpoint startup copy failure and
+  an inherited-config recording failure, each injected once (the record
+  goes `starting` → `retry_waiting`, is listed queued and cancellable
+  through the queue, and the retry runs and succeeds), injected on every
+  attempt until the budget is spent (ends with the latest error log), and
+  injected while a cancel is pending in `starting` (ends with that error
+  log and no retry); a cancel and a drain of such a record in
+  `retry_waiting` and in `retry_starting` (ends with the stored error log,
+  no further attempt); `run_samples=False` with and without a pending
+  `starting` cancel (ends with the `started` log, never retried, no
+  `EvalState`, `started()` raises `TaskEndedError(log=<that log>)`); an
+  exception propagated under `debug_errors`; an added task starts while its creator runs
   under `eval()` and `eval_set()` (the probe above, as a test bounded with
   `fail_after`); under eval-set selection mode in-process; task ids: a
   `ResolvedTask` added in a run with two models, added twice, and listed
