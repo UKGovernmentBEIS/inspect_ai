@@ -131,11 +131,16 @@ def merge_eval_log_shards(
         ShardSetIncomplete: The set is incomplete and `allow_incomplete` is
             not set. Nothing is written.
         WriteConflictError: Another merge holds the lock or published first.
-            Run the merge again later.
+            Run the merge again once it has finished. A lock file left by
+            a merge that crashed stays until you delete it.
         FileNotFoundError: Neither the merged log nor any shard exists.
         TypeError: `task` is not a `Task`.
-        ValueError: Invalid arguments: `log` is not a local path, `file://`
-            URI or `s3://` URL.
+        ValueError: Invalid arguments: both `sample_ids` and
+            `sample_count`, an empty or string `sample_ids`, or a
+            `sample_count` below 1; or `log` is not a local path, `file://`
+            URI or `s3://` URL, is not named `<name>.eval` or
+            `<name>.shards`, names a recovered log, or is an S3 location
+            that S3 would read as another key.
     """
     return run_coroutine(
         merge_eval_log_shards_async(
