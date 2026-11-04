@@ -25,6 +25,7 @@ from inspect_ai._util.file import (
 )
 from inspect_ai._util.log_layout import log_basename
 
+from ._errors import ShardSetError
 from ._owned import OwnedReads, run_owned
 from ._walk import _name
 
@@ -100,13 +101,24 @@ def merge_lock_path(merged: str) -> str:
 def merge_guard(merged: str) -> Iterator[None]:
     """Hold the merge lock of a local merged log; nothing for S3.
 
+    The lock sits beside the path the merge names, while publication
+    replaces the file a symbolic link points to, so a merge through a
+    linked name would hold another lock than a merge of its target. A
+    merged log that is a symbolic link, dangling or not, is refused.
+
     Raises:
+        ShardSetError: The merged log is a symbolic link.
         WriteConflictError: Another merge holds the lock, or one crashed
             holding it.
     """
     if not is_local(merged):
         yield
         return
+    if os.path.islink(local_path(merged)):
+        raise ShardSetError(
+            f"{merged} is a symbolic link, which the merge does not write "
+            "through. Merge into the file it points to."
+        )
     info = {"pid": os.getpid(), "host": socket.gethostname(), "started": iso_now()}
     with acquire_exclusive_lock(merge_lock_path(merged), info):
         yield

@@ -147,8 +147,8 @@ def merge_eval_log_shards(
 
     Raises:
         ShardSetError: The shards cannot be merged (`ShardSelectionError`
-            when they hold samples outside the selection), or `task` is not
-            the task they ran.
+            when they hold samples outside the selection), `task` is not
+            the task they ran, or a local merged log is a symbolic link.
         ShardSetIncomplete: The set is incomplete and `allow_incomplete` is
             not set. Nothing is written.
         WriteConflictError: Another merge holds the lock or published first.

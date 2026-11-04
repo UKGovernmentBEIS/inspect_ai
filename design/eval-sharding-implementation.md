@@ -1358,7 +1358,11 @@ overridden (the parent's test list). The lock sits beside the merged log
 rather than in the companion so that the companion holds only shard files
 (parent: nothing else is written into `<name>.shards/`); its extension
 keeps it out of every log listing (`_filter_log_files` keys on extensions,
-`_file.py:1118`). The lock does not cover a viewer edit of the merged log
+`_file.py:1118`). A local merged log that is a symbolic link, dangling or
+not, is refused with `ShardSetError` before the lock is taken: the lock
+sits beside the name the merge was given while publication replaces the
+link's target, so two names for one file would hold two locks. The lock
+does not cover a viewer edit of the merged log
 made during a merge; the merge's `os.replace` wins. S3's `IfMatch` does
 catch that case.
 

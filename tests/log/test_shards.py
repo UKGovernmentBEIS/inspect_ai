@@ -2628,6 +2628,49 @@ async def test_a_local_merge_overlapping_another_is_refused(
     assert not os.path.exists(merged.replace(".eval", ".merge.lock"))
 
 
+@pytest.mark.parametrize("form", ["path", "file-uri", "shards-dir"])
+async def test_a_merged_log_that_is_a_symbolic_link_is_refused(
+    two_shards: tuple[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    form: str,
+) -> None:
+    from inspect_ai._util.file import to_uri
+    from inspect_ai.log import merge_eval_log_shards_async
+
+    merged, shards = two_shards
+    # another name for the run: its lock would not be the target's
+    alias, alias_shards = _paths(tmp_path / "alias")
+    os.mkdir(tmp_path / "alias")
+    os.symlink(merged, alias)
+    os.symlink(shards, alias_shards)
+    location = {"path": alias, "file-uri": to_uri(alias), "shards-dir": alias_shards}[
+        form
+    ]
+    reached, release = _pause_publish(monkeypatch)
+    results: list[Any] = []
+
+    async def first() -> None:
+        results.append(await merge_eval_log_shards_async(merged, _task()))
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(first)
+        with anyio.fail_after(30):
+            await reached.wait()
+        # the target is not written yet: the link dangles
+        before = _files(str(tmp_path))
+        with pytest.raises(ShardSetError, match="symbolic link"):
+            await merge_eval_log_shards_async(location, _task())
+        assert _files(str(tmp_path)) == before
+        release.set()
+    assert results[0].written
+    before = _files(str(tmp_path))
+    with pytest.raises(ShardSetError, match="symbolic link"):
+        await merge_eval_log_shards_async(location, _task())
+    assert _files(str(tmp_path)) == before
+    assert os.path.islink(alias) and _keys(merged) == {(str(i), 1) for i in range(1, 7)}
+
+
 async def test_a_cancelled_merge_leaves_no_lock_or_temp_files(
     two_shards: tuple[str, str], monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
