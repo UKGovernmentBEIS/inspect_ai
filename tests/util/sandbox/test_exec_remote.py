@@ -792,9 +792,7 @@ class _GuestWithoutStartReply:
     cancelled (`lose="hang"`) or raises the sandbox's timeout
     (`lose="timeout"`). exec_remote_kill_key marks the keyed job killed, after
     `kill_answer` is set when one is given (as the real server answers only
-    once the job has terminated). With `cli_limit`, requests that ask for
-    sandbox concurrency limits queue for one of `cli_limit` slots first, as
-    the Docker CLI limit does.
+    once the job has terminated).
     """
 
     def __init__(
@@ -802,15 +800,10 @@ class _GuestWithoutStartReply:
         lose: Literal["hang", "timeout"],
         kill_hangs: bool = False,
         kill_answer: anyio.Event | None = None,
-        cli_limit: int | None = None,
     ) -> None:
         self.lose = lose
         self.kill_hangs = kill_hangs
         self.kill_answer = kill_answer
-        self.cli_slots = anyio.Semaphore(cli_limit) if cli_limit else None
-        self.starts_dispatched = 0
-        self.kills_running = 0
-        self.kills_running_max = 0
         self.kill_received = anyio.Event()
         self.jobs: dict[str, str] = {}
         self.kill_key_kwargs: list[dict[str, Any]] = []
@@ -821,16 +814,9 @@ class _GuestWithoutStartReply:
         self.sandbox.exec = AsyncMock(side_effect=self._exec)
 
     async def _exec(self, *args: Any, **kwargs: Any) -> ExecResult[str]:
-        if self.cli_slots is not None and kwargs["concurrency"]:
-            async with self.cli_slots:
-                return await self._dispatch(**kwargs)
-        return await self._dispatch(**kwargs)
-
-    async def _dispatch(self, **kwargs: Any) -> ExecResult[str]:
         request = json.loads(kwargs["input"])
         job_key = request["params"]["job_key"]
         if request["method"] == "exec_remote_start":
-            self.starts_dispatched += 1
             self.jobs[job_key] = "running"
             self.started.set()
             if self.lose == "timeout":
@@ -842,10 +828,7 @@ class _GuestWithoutStartReply:
         if self.kill_hangs:
             await anyio.sleep_forever()
         if self.kill_answer is not None:
-            self.kills_running += 1
-            self.kills_running_max = max(self.kills_running_max, self.kills_running)
             await self.kill_answer.wait()
-            self.kills_running -= 1
         killed = self.jobs.get(job_key) == "running"
         self.jobs[job_key] = "killed"
         return ExecResult(
@@ -945,44 +928,37 @@ class TestStartWithoutReply:
             await task
         assert list(guest.jobs.values()) == ["killed"]
 
-    async def test_cancelled_queued_starts_limit_their_cleanups(
-        self, monkeypatch: pytest.MonkeyPatch
+    async def test_cancelled_starts_send_every_kill_without_waiting_for_replies(
+        self,
     ) -> None:
-        """Starts queued behind the sandbox's limit do not all clean up at once."""
-        monkeypatch.setattr(exec_remote_module, "KILL_KEY_CONCURRENCY", 2)
+        """Slow kill replies for some starts do not hold back the kills of others."""
         kill_answer = anyio.Event()
-        guest = _GuestWithoutStartReply(
-            lose="hang", kill_answer=kill_answer, cli_limit=1
-        )
+        guest = _GuestWithoutStartReply(lose="hang", kill_answer=kill_answer)
         starts = anyio.CancelScope()
         finished = anyio.Event()
 
-        async def start_six() -> None:
+        async def start_twelve() -> None:
             with starts:
                 async with anyio.create_task_group() as tg:
-                    for _ in range(6):
+                    for _ in range(12):
                         tg.start_soon(
                             exec_remote_streaming, guest.sandbox, ["sleep", "999"], 5
                         )
             finished.set()
 
         async with anyio.create_task_group() as tg:
-            tg.start_soon(start_six)
-            await guest.started.wait()
+            tg.start_soon(start_twelve)
             await anyio.wait_all_tasks_blocked()
-            assert guest.starts_dispatched == 1
+            assert list(guest.jobs.values()) == ["running"] * 12
 
             starts.cancel()
             await anyio.wait_all_tasks_blocked()
-            assert guest.kills_running == 2
+            assert len(guest.kill_key_kwargs) == 12
 
             kill_answer.set()
             await finished.wait()
 
-        assert guest.kills_running_max == 2
-        assert len(guest.kill_key_kwargs) == 6
-        assert all(kwargs["concurrency"] is False for kwargs in guest.kill_key_kwargs)
-        assert list(guest.jobs.values()).count("running") == 0
+        assert list(guest.jobs.values()) == ["killed"] * 12
 
     async def test_kill_by_key_is_bounded(
         self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture

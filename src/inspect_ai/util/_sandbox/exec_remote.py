@@ -29,7 +29,6 @@ from inspect_ai._util._async import current_async_backend
 from inspect_ai._util._json_rpc import GenericJSONRPCErrorMapper, exec_model_request
 from inspect_ai._util.retry import backoff_multiplier
 
-from .._concurrency import concurrency
 from ._cli import tools_user_param
 from ._json_rpc_transport import SandboxJSONRPCTransport
 
@@ -244,9 +243,6 @@ POLL_TIMEOUT_RECOVERY_WAIT_SECONDS: float = 5.0
 KILL_KEY_TIMEOUT = 30
 """Bound in seconds on killing a job whose start got no reply."""
 
-KILL_KEY_CONCURRENCY = 8
-"""Most kills of jobs whose start got no reply that run at once."""
-
 T = TypeVar("T", bound=BaseModel)
 
 
@@ -434,10 +430,8 @@ class ExecRemoteProcess:
 
         Runs to completion even if the caller is cancelled, bounded by
         `KILL_KEY_TIMEOUT`, and outside sandbox concurrency limits so it
-        cannot wait behind other commands. Its own limit,
-        `KILL_KEY_CONCURRENCY`, keeps many cancelled starts from launching
-        their cleanups all at once. A failure is logged, as the job may then
-        still be running.
+        cannot wait behind other commands. A failure is logged, as the job
+        may then still be running.
         """
         await _complete_before_cancelling(self._kill_key_bounded)
 
@@ -445,17 +439,14 @@ class ExecRemoteProcess:
         error: BaseException | None = None
         with anyio.move_on_after(KILL_KEY_TIMEOUT, shield=True):
             try:
-                async with concurrency(
-                    "exec-remote-kill-key", KILL_KEY_CONCURRENCY, visible=False
-                ):
-                    await self._rpc(
-                        "exec_remote_kill_key",
-                        {"job_key": self._job_key},
-                        _KillKeyResult,
-                        timeout=KILL_KEY_TIMEOUT,
-                        timeout_retry=False,
-                        concurrency=False,
-                    )
+                await self._rpc(
+                    "exec_remote_kill_key",
+                    {"job_key": self._job_key},
+                    _KillKeyResult,
+                    timeout=KILL_KEY_TIMEOUT,
+                    timeout_retry=False,
+                    concurrency=False,
+                )
                 return
             except Exception as ex:
                 error = ex
