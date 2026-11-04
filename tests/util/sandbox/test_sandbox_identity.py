@@ -5,24 +5,30 @@ import subprocess
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from pathlib import Path
-from typing import TypeVar, overload
+from typing import Literal, TypeVar, cast, overload
 
 import anyio
 import pytest
 from test_helpers.sandbox import CannedSandbox
 
+from inspect_ai.event._sandbox import SandboxEvent
+from inspect_ai.log._transcript import Transcript, init_transcript
 from inspect_ai.util import (
     SandboxEnvironment,
+    SandboxUserUnsupportedError,
     sandbox,
     sandbox_default,
 )
+from inspect_ai.util._sandbox._framework_operation import framework_sandbox_operation
 from inspect_ai.util._sandbox._privileged import pinned_shell_command
 from inspect_ai.util._sandbox.context import (
     SandboxInjectable,
     sandbox_default_context_var,
     sandbox_environments_context_var,
+    sandbox_file_detector,
     sandbox_with_injection,
 )
+from inspect_ai.util._sandbox.events import SandboxEnvironmentProxy
 from inspect_ai.util._sandbox.identity import (
     SandboxIdentityError,
     sandbox_identity,
@@ -205,11 +211,240 @@ async def test_tasks_started_inside_inherit_the_scope(
     assert users == ["w-1", None]
 
 
-async def test_exec_is_unchanged_inside_a_scope(default: CannedSandbox) -> None:
-    # scorers and other trusted code calling exec() keep the default user
-    with _environments(default=default), sandbox_identity("w-1"):
-        await sandbox().exec(["true"])
-    assert default.exec_calls == [(["true"], None)]
+class _FileSandbox(CannedSandbox):
+    """Records `(operation, user)` for every exec, read and write."""
+
+    def __init__(self) -> None:
+        super().__init__(lambda _cmd, _user: OK)
+        self.calls: list[tuple[str, str | None]] = []
+
+    async def exec(
+        self,
+        cmd: list[str],
+        input: str | bytes | None = None,
+        cwd: str | None = None,
+        env: dict[str, str] | None = None,
+        user: str | None = None,
+        timeout: int | None = None,
+        timeout_retry: bool = True,
+        concurrency: bool = True,
+    ) -> ExecResult[str]:
+        self.calls.append(("exec", user))
+        return await super().exec(
+            cmd, input, cwd, env, user, timeout, timeout_retry, concurrency
+        )
+
+    async def write_file(
+        self, file: str, contents: str | bytes, *, user: str | None = None
+    ) -> None:
+        self.calls.append(("write_file", user))
+
+    @overload
+    async def read_file(
+        self, file: str, text: Literal[True] = True, *, user: str | None = None
+    ) -> str: ...
+
+    @overload
+    async def read_file(
+        self, file: str, text: Literal[False], *, user: str | None = None
+    ) -> bytes: ...
+
+    async def read_file(
+        self, file: str, text: bool = True, *, user: str | None = None
+    ) -> str | bytes:
+        self.calls.append(("read_file", user))
+        return "" if text else b""
+
+
+def _without_file_users(
+    provider: _FileSandbox, monkeypatch: pytest.MonkeyPatch
+) -> _FileSandbox:
+    """Give `provider` a `read_file()` and `write_file()` that declare no `user`."""
+
+    async def write_file(file: str, contents: str | bytes) -> None:
+        provider.calls.append(("write_file", None))
+
+    async def read_file(file: str, text: bool = True) -> str | bytes:
+        provider.calls.append(("read_file", None))
+        return "" if text else b""
+
+    monkeypatch.setattr(provider, "write_file", write_file)
+    monkeypatch.setattr(provider, "read_file", read_file)
+    return provider
+
+
+async def _operations(env: SandboxEnvironment, user: str | None = None) -> None:
+    await env.exec(["true"], user=user)
+    await env.read_file("f", user=user)
+    await env.write_file("f", "x", user=user)
+
+
+def _sandbox_events(transcript: Transcript) -> list[tuple[str, str | None]]:
+    events = [e for e in transcript.events if isinstance(e, SandboxEvent)]
+    return [(e.action, cast(str | None, (e.options or {}).get("user"))) for e in events]
+
+
+OPERATIONS = ["exec", "read_file", "write_file"]
+
+
+async def test_operations_take_the_scope_user() -> None:
+    provider = _FileSandbox()
+    transcript = Transcript()
+    init_transcript(transcript)
+    with _environments(default=SandboxEnvironmentProxy(provider)):
+        with sandbox_identity("w-1"):
+            await _operations(sandbox())
+    assert provider.calls == [(op, "w-1") for op in OPERATIONS]
+    assert _sandbox_events(transcript) == [(op, "w-1") for op in OPERATIONS]
+
+
+async def test_explicit_user_is_kept_in_a_scope() -> None:
+    provider = _FileSandbox()
+    with _environments(default=SandboxEnvironmentProxy(provider)):
+        with sandbox_identity("w-1"):
+            await _operations(sandbox(), user="root")
+    assert provider.calls == [(op, "root") for op in OPERATIONS]
+
+
+async def test_other_sandbox_and_outside_scope_unchanged() -> None:
+    default, workspace = _FileSandbox(), _FileSandbox()
+    proxy = SandboxEnvironmentProxy(default)
+    with _environments(default=proxy, workspace=SandboxEnvironmentProxy(workspace)):
+        await _operations(proxy)
+        with sandbox_identity("w-1", sandbox="workspace"):
+            await _operations(proxy)
+    assert default.calls == [(op, None) for op in OPERATIONS] * 2
+    assert workspace.calls == []
+
+
+async def test_as_type_view_skips_the_default() -> None:
+    provider = _FileSandbox()
+    with _environments(default=SandboxEnvironmentProxy(provider)):
+        with sandbox_identity("w-1"):
+            await _operations(sandbox().as_type(_FileSandbox))
+    assert provider.calls == [(op, None) for op in OPERATIONS]
+
+
+async def test_framework_operation_keeps_the_default_user() -> None:
+    provider = _FileSandbox()
+    proxy = SandboxEnvironmentProxy(provider)
+    started_inside = anyio.Event()
+
+    async def exec_later(started: anyio.Event) -> None:
+        await started.wait()
+        await proxy.exec(["true"])
+
+    with _environments(default=proxy), sandbox_identity("w-1"):
+        with framework_sandbox_operation():
+            await _operations(proxy)
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(exec_later, started_inside)
+                started_inside.set()
+        await _operations(proxy)
+        started_after = anyio.Event()
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(exec_later, started_after)
+            started_after.set()
+    assert provider.calls == [
+        *[(op, None) for op in OPERATIONS],
+        ("exec", None),
+        *[(op, "w-1") for op in OPERATIONS],
+        ("exec", "w-1"),
+    ]
+
+
+_UNSUPPORTED = (
+    r"_FileSandbox\.%s_file does not support a user, so it cannot run as 'w-1' "
+    "inside the sandbox identity scope for sandbox 'default'"
+)
+
+
+async def test_provider_without_file_user_raises_in_a_scope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    provider = _without_file_users(_FileSandbox(), monkeypatch)
+    proxy = SandboxEnvironmentProxy(provider)
+    with _environments(default=proxy):
+        await _operations(proxy)
+        with sandbox_identity("w-1"):
+            with pytest.raises(
+                SandboxUserUnsupportedError, match=_UNSUPPORTED % "read"
+            ):
+                await proxy.read_file("f")
+            with pytest.raises(
+                SandboxUserUnsupportedError, match=_UNSUPPORTED % "write"
+            ):
+                await proxy.write_file("f", "x")
+            with framework_sandbox_operation():
+                await _operations(proxy)
+            # exec() takes a user on every provider
+            await proxy.exec(["true"])
+    assert provider.calls == [
+        *[(op, None) for op in OPERATIONS] * 2,
+        ("exec", "w-1"),
+    ]
+
+
+async def test_scope_cannot_open_inside_a_framework_operation() -> None:
+    # in practice a scorer opening a scope during in-loop scoring
+    with _environments(default=SandboxEnvironmentProxy(_FileSandbox())):
+        with framework_sandbox_operation():
+            with pytest.raises(SandboxIdentityError, match="cannot be opened inside"):
+                with sandbox_identity("judge"):
+                    pass
+        assert not sandbox_identity_active()
+        with sandbox_identity("judge"):
+            assert sandbox_identity_active()
+
+
+async def test_file_detection_reads_as_the_default_user_in_a_scope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # `test -r` fails, so detection falls back to reading the file, on a
+    # provider whose read_file() cannot take a user
+    provider = _without_file_users(_FileSandbox(), monkeypatch)
+    provider.policy = lambda _cmd, _user: ExecResult(False, 1, "", "")
+    proxy = SandboxEnvironmentProxy(provider)
+    with _environments(default=proxy), sandbox_identity("w-1"):
+        assert await sandbox_file_detector("/opt/tool")(proxy)
+    assert provider.calls == [("exec", None), ("read_file", None)]
+
+
+async def test_path_detection_runs_as_the_default_user_in_a_scope() -> None:
+    provider = _FileSandbox()
+    proxy = SandboxEnvironmentProxy(provider)
+    with _environments(default=proxy), sandbox_identity("w-1"):
+        assert await sandbox_file_detector("python3", on_path=True)(proxy)
+    assert provider.calls == [("exec", None)]
+
+
+def test_framework_operation_marker_sites() -> None:
+    """Tripwire: sandbox operations keep the default user only at these sites.
+
+    Inside a `sandbox_identity()` scope, the marker makes an omitted user mean
+    the sandbox's default user, so it must never wrap model-chosen work. If this
+    fails, route the new code through a marked helper or extend the allowlist
+    deliberately (and the list in design/sandbox-trust-model.md).
+    """
+    src = Path(__file__).parent.parent.parent.parent / "src" / "inspect_ai"
+    allowed = {
+        src / "util" / "_sandbox" / "_framework_operation.py",  # the marker
+        src / "util" / "_sandbox" / "identity.py",  # reads it
+        src / "util" / "_sandbox" / "_privileged.py",
+        src / "util" / "_sandbox" / "_framework_directory.py",
+        src / "util" / "_sandbox" / "_json_rpc_transport.py",
+        src / "util" / "_sandbox" / "context.py",
+        src / "util" / "_checkpoint" / "_copy.py",
+        src / "tool" / "_sandbox_tools_utils" / "sandbox.py",
+        src / "scorer" / "_score.py",
+        src / "tool" / "_tools" / "_skill" / "install.py",
+    }
+    users = {
+        f
+        for f in src.rglob("*.py")
+        if "_framework_operation" in f.read_text(encoding="utf-8")
+    }
+    assert users == allowed
 
 
 async def test_vars_have_no_home_without_a_passwd_entry(

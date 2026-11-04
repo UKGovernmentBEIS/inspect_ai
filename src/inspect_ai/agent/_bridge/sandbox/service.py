@@ -6,7 +6,7 @@ from pydantic import JsonValue
 
 from inspect_ai._sentinel._scope import solving
 from inspect_ai.model._call_tools import get_tools_info
-from inspect_ai.model._model import ModelRefusalError
+from inspect_ai.model._model import ModelRefusalError, _check_limits_before_dispatch
 from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
 from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
 from inspect_ai.util._limit import (
@@ -82,6 +82,11 @@ def _forward_provider_errors(
 
     A turn limit is checked after a generation, so a request that arrives
     once one is exceeded gets its error reply without another generation.
+    Once a limit is recorded the agent is ending, so a later request (a
+    scaffold retrying after its error reply) gets the recorded limit's error
+    reply without compaction, filter or generation. A token or cost limit
+    already reached is checked first, so one enclosing the recorded limit
+    still replaces it.
     """
 
     async def generate_forwarding_errors(
@@ -90,6 +95,13 @@ def _forward_provider_errors(
     ) -> dict[str, JsonValue]:
         try:
             check_turn_limit()
+            if bridge.generation_limit is not None:
+                _check_limits_before_dispatch()
+                return {
+                    PROVIDER_ERROR_KEY: cast(
+                        JsonValue, provider_error_payload(bridge.generation_limit)
+                    )
+                }
             return await generate(json_data, headers)
         except Exception as ex:
             if find_control_flow(ex) is not None:
