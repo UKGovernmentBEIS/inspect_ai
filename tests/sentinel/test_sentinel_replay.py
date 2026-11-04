@@ -8,7 +8,7 @@ import random
 from collections.abc import Callable, Sequence
 from dataclasses import replace
 from functools import partial
-from typing import TYPE_CHECKING, Any, NamedTuple, cast
+from typing import TYPE_CHECKING, Any, Literal, NamedTuple, cast
 
 import anyio
 import pytest
@@ -103,7 +103,7 @@ from .test_sentinel_dispatch import (
     d3_reject,
     returns,
 )
-from .test_sentinel_human import Panel, h_ask
+from .test_sentinel_human import Panel, answered, h_ask
 
 if TYPE_CHECKING:
     from inspect_sentinel import (
@@ -3900,7 +3900,11 @@ def test_result_only_sentinel_skips_shared_scaffold_result(
 
 
 @reviewer
-def r7_holds_result_review(reviewing: anyio.Event, released: anyio.Event) -> Reviewer:
+def r7_holds_result_review(
+    reviewing: anyio.Event,
+    released: anyio.Event,
+    decision: Literal["continue", "terminate"] = "continue",
+) -> Reviewer:
     async def review_result(
         message: str,
         call: ToolCall,
@@ -3911,21 +3915,39 @@ def r7_holds_result_review(reviewing: anyio.Event, released: anyio.Event) -> Rev
     ) -> Review:
         reviewing.set()
         await released.wait()
-        return Review(decision="continue")
+        return Review(decision=decision)
 
     return review_result
 
 
+@monitor
+def r7_holds_native_result(gate: dict[str, anyio.Event]) -> MonitorGroup:
+    """Hold the check of the native result `2` until the gate is released, then abstain."""
+
+    async def after_call(context: Context, step: AfterToolCall) -> Observation | None:
+        if step.result.text == "2":
+            gate["reviewing"].set()
+            await gate["released"].wait()
+        return None
+
+    return MonitorGroup(after_call)
+
+
+OrphanHold = Literal["review", "terminating review", "check"]
+
+
 @agent
-def r7_reports_orphan_result_after_native_call(held: bool) -> Agent:
-    """A bridge reporting an orphan result under a native call's id: after the native call failed, or while its successful result is held in review."""
+def r7_reports_orphan_result_after_native_call(
+    held: OrphanHold | None, gate: dict[str, anyio.Event] | None = None
+) -> Agent:
+    """A bridge reporting an orphan result under a native call's id: after the native call failed, or while its successful result is held in a review (that continues or terminates) or in its sentinel check (`r7_holds_native_result` with `gate`)."""
 
     async def execute(state: AgentState) -> AgentState:
         from inspect_ai.agent._bridge.completions import inspect_completions_api_request
 
         bridge, tools = await r7_host_bridge(state)
         history: list[ChatMessage] = [ChatMessageUser(content="native")]
-        native_tool = addition() if held else explodes()
+        native_tool = addition() if held is not None else explodes()
         output = await get_model().generate(history, tools=[native_tool])
         history.append(output.message)
 
@@ -3946,14 +3968,26 @@ def r7_reports_orphan_result_after_native_call(held: bool) -> Agent:
                     bridge,
                 )
 
-        if held:
+        if held is not None:
             reviewing, released = anyio.Event(), anyio.Event()
+            if gate is not None:
+                gate.update(reviewing=reviewing, released=released)
+            decision: Literal["continue", "terminate"] = (
+                "terminate" if held == "terminating review" else "continue"
+            )
+            review = (
+                []
+                if held == "check"
+                else [
+                    ReviewPolicy(
+                        r7_holds_result_review(reviewing, released, decision),
+                        "addition",
+                    )
+                ]
+            )
 
             async def native() -> None:
-                review = ReviewPolicy(
-                    r7_holds_result_review(reviewing, released), "addition"
-                )
-                await execute_tools(history, [native_tool], review=[review])
+                await execute_tools(history, [native_tool], review=review)
 
             async def orphan() -> None:
                 await reviewing.wait()
@@ -3987,9 +4021,11 @@ def r7_terminate_orphan_result() -> Protocol:
     return after
 
 
-@pytest.mark.parametrize("held", [False, True])
+@pytest.mark.parametrize("held", [None, "review"])
 def test_orphan_bridge_result_under_a_native_call_id_stays_unclaimed(
-    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture, held: bool
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    held: OrphanHold | None,
 ) -> None:
     Panel("approve", "allowed").install(monkeypatch)
     seen: dict[str, Step] = {}
@@ -4073,6 +4109,159 @@ def test_orphan_bridge_result_under_a_native_call_id_stays_unclaimed(
         sum(record.name == "inspect_ai._sentinel._replay" for record in caplog.records)
         == 1
     )
+
+
+@protocol(name="inspect_sentinel/human")
+def r7_asks_about_orphan_result() -> Protocol:
+    async def after(
+        context: Context, step: AfterToolCall, escalations: Escalations
+    ) -> Decision | None:
+        if step.result.text == "orphan result":
+            return answered(
+                await context.host.ask_human(step, (), ["approve", "reject"])
+            )
+        return None
+
+    return after
+
+
+@pytest.mark.parametrize("held", ["review", "terminating review", "check"])
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_orphan_bridge_result_stays_unclaimed_when_the_native_call_records_no_result_check(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    held: OrphanHold,
+    backend: str,
+) -> None:
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    Panel("approve", "orphan approval").install(monkeypatch)
+    gate: dict[str, anyio.Event] = {}
+    log = run_logged(
+        as_solver(r7_reports_orphan_result_after_native_call(held, gate)),
+        outputs(
+            r7_tool_calls(
+                ToolCall(id="shared", function="addition", arguments={"x": 1, "y": 1})
+            ),
+            done(),
+        ),
+        sentinel=[
+            r7_holds_native_result(gate),
+            r7_asks_about_orphan_result(),
+            r7_terminate_orphan_result(),
+        ],
+    )
+    sample = logged_sample(log)
+    results = [
+        (event.span_id, event.path)
+        for event in sample.events
+        if isinstance(event, SentinelEvent) and event.stage == "tool_result"
+    ]
+    # the orphan's check alone: the native call's abstained, or its reviewer
+    # terminated before it
+    assert [path for _, path in results] == ["human", "r7_terminate_orphan_result"]
+    assert len({span for span, _ in results}) == 1
+    native = next(
+        event
+        for event in sample.events
+        if isinstance(event, ToolEvent) and event.id == "shared"
+    )
+    assert native.failed is (True if held == "terminating review" else None)
+
+    replay = replayed(log)
+    assert [
+        (step.stage, step.step.call.function)
+        for step in replay
+        if isinstance(step.step, BeforeToolCall | AfterToolCall)
+    ] == []
+    assert "call id(s) shared" in caplog.text
+
+
+@agent
+def r7_reuses_one_native_call_id(turns: int) -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        for turn in range(turns):
+            output = await get_model().generate(state.messages, tools=[addition()])
+            state.messages.append(output.message)
+            result = await execute_tools(state.messages, [addition()])
+            state.messages.extend(result.messages)
+        return state
+
+    return execute
+
+
+def reused_id_replay_work(
+    turns: int, monkeypatch: pytest.MonkeyPatch
+) -> tuple[int, list[tuple[str, int, str | None]]]:
+    """Span lookups while replaying serial native calls under one id, and the tool steps built.
+
+    Replay rejects a second step under one id (`_built`), so the steps are
+    collected in its place.
+    """
+    from inspect_ai._sentinel import _replay
+
+    seen: dict[str, Step] = {}
+    log = run_logged(
+        as_solver(r7_reuses_one_native_call_id(turns)),
+        outputs(
+            *[
+                r7_tool_calls(
+                    ToolCall(
+                        id="shared", function="addition", arguments={"x": n, "y": 1}
+                    )
+                )
+                for n in range(turns)
+            ]
+        ),
+        sentinel=[r7_probe(seen)],
+    )
+
+    class Counted(dict[Any, Any]):
+        reads = 0
+
+        def __getitem__(self, key: Any) -> Any:
+            Counted.reads += 1
+            return super().__getitem__(key)
+
+        def get(self, key: Any, default: Any = None) -> Any:
+            Counted.reads += 1
+            return super().get(key, default)
+
+    original = _replay._Driver.__init__
+
+    def counting_init(driver: Any, *args: Any, **kwargs: Any) -> None:
+        original(driver, *args, **kwargs)
+        driver.begins = Counted()
+        driver.ends = Counted()
+
+    built: list[tuple[str, int, str | None]] = []
+
+    def collect(
+        driver: Any, step_id: str, stage: str, step: Step, span: str | None
+    ) -> None:
+        if stage.startswith("tool"):
+            built.append((stage, step.call.arguments["x"], span))
+
+    with monkeypatch.context() as patch:
+        patch.setattr(_replay._Driver, "__init__", counting_init)
+        patch.setattr(_replay._Driver, "_built", collect)
+        replayed(log)
+    return Counted.reads, built
+
+
+def test_native_calls_reusing_one_id_keep_their_checks_in_linear_span_lookups(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    small, _ = reused_id_replay_work(12, monkeypatch)
+    large, built = reused_id_replay_work(24, monkeypatch)
+    assert large <= 2.2 * small, (small, large)
+    assert [(stage, n) for stage, n, _ in built] == [
+        (stage, n) for n in range(24) for stage in ("tool_call", "tool_result")
+    ]
+    spans = [span for _, _, span in built]
+    assert None not in spans and len(set(spans)) == len(spans)
+    assert "inspect_ai._sentinel._replay" not in {
+        record.name for record in caplog.records
+    }
 
 
 @agent
