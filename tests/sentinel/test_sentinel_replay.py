@@ -950,18 +950,39 @@ def memory_call(path: str) -> ModelOutput:
     return call("memory", command="create", path=path, file_text="x")
 
 
-def test_an_approvers_modified_memory_path_replays_canonical() -> None:
+def test_an_approvers_non_canonical_memory_path_is_refused() -> None:
+    """The log cannot show that the built-in memory tool, not a custom tool of its name, resolved the path."""
     from inspect_ai.tool import memory
 
-    replay = assert_replay_equals_live(
-        tool_loop(memory()),
-        outputs(memory_call("/memories/public/note.txt"), done()),
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=tool_loop(memory()),
         sentinel=[d3_public_memory_only()],
         approval=[
             ApprovalPolicy(
                 d3_memory_path_approver("/memories/public/../secret.txt"), "*"
             )
         ],
+    )
+    log = eval(task, model=outputs(memory_call("/memories/public/note.txt"), done()))[0]
+    assert log.status == "success", log.error
+    tool_event = next(e for e in logged_sample(log).events if isinstance(e, ToolEvent))
+    assert tool_event.arguments["path"] == "/memories/secret.txt"
+    with pytest.raises(
+        ValueError,
+        match=r"modified approvals.*Replay this transcript from its messages instead",
+    ):
+        replayed(log)
+
+
+def test_an_approvers_canonical_memory_path_replays() -> None:
+    from inspect_ai.tool import memory
+
+    replay = assert_replay_equals_live(
+        tool_loop(memory()),
+        outputs(memory_call("/memories/public/note.txt"), done()),
+        sentinel=[d3_public_memory_only()],
+        approval=[ApprovalPolicy(d3_memory_path_approver("/memories/secret.txt"), "*")],
     )
     [before] = [step for step in replay if step.stage == "tool_call"]
     assert isinstance(before.step, BeforeToolCall)
@@ -1049,6 +1070,54 @@ def test_a_custom_memory_tool_replays_its_path_as_given() -> None:
         for step in replay
         if isinstance(step.step, BeforeToolCall | AfterToolCall)
     ] == [path, path]
+
+
+def test_an_approvers_path_for_a_custom_memory_tool_replays_as_given() -> None:
+    path = "/memories/x/../public/note.txt"
+    replay = assert_replay_equals_live(
+        tool_loop(r7_own_memory()),
+        outputs(memory_call("/memories/public/note.txt"), done()),
+        approval=[ApprovalPolicy(d3_memory_path_approver(path), "*")],
+    )
+    assert [
+        step.step.call.arguments["path"]
+        for step in replay
+        if isinstance(step.step, BeforeToolCall | AfterToolCall)
+    ] == [path, path]
+
+
+@pytest.mark.parametrize("inputs", ["expanded", "pooled"])
+@pytest.mark.parametrize("version", ["0.3.100", "0.3.300", None])
+def test_an_older_custom_memory_tools_modified_path_is_refused(
+    inputs: str, version: str | None
+) -> None:
+    """Inspect 0.3.276 recorded the proposed path while the custom tool ran the approver's, which canonicalizes to the proposal."""
+    from inspect_ai._sentinel import _replay
+
+    path = Path(__file__).parent / "fixtures" / "custom_memory_modified_0.3.276.json"
+    log = read_eval_log(str(path), resolve_attachments="full")
+    [sample] = log.samples or []
+    approval = next(e for e in sample.events if isinstance(e, ApprovalEvent))
+    tool_event = next(e for e in sample.events if isinstance(e, ToolEvent))
+    assert approval.modified is not None
+    assert approval.modified.arguments == {"path": "/memories/x/../note.txt"}
+    assert tool_event.arguments == {"path": "/memories/note.txt"}
+    assert tool_event.result == "/memories/x/../note.txt"
+    events: list[Event] = list(sample.events)
+    pool: list[ChatMessage] = []
+    if inputs == "pooled":
+        events, pool = _replay._condensed(events, [])
+    with pytest.raises(
+        ValueError,
+        match=r"modified approvals.*0\.3\.277.*Replay this transcript from its messages instead",
+    ):
+        steps_from_events(
+            sample.messages,
+            events,
+            pool,
+            sample_uuid=sample.uuid or "sample",
+            eval_info=EvalInfo(version, False),
+        )
 
 
 @agent
