@@ -32,7 +32,6 @@ from inspect_ai.model._chat_message import (
 )
 from inspect_ai.tool._tool_call import (
     ToolCall,
-    ToolCallError,
     ToolCallView,
     default_tool_call_viewer,
 )
@@ -65,7 +64,7 @@ class EvalInfo(NamedTuple):
     """What the log driver reads from the log's header."""
 
     inspect_ai_version: str | None
-    """The inspect_ai that wrote the log (`eval.packages["inspect_ai"]`): logs from before 0.3.31 do not record whether a tool's output was cut."""
+    """The inspect_ai that wrote the log (`eval.packages["inspect_ai"]`); a log without one does not say whether a tool's output was cut."""
 
     sentinel: bool
     """Whether the eval ran a sentinel (`eval.config.sentinel`): if it did, earlier `human()` decisions come from its `SentinelEvent`s; otherwise, logs from inspect_ai 0.3.277 or later can use the `ApprovalEvent`s of human approvers."""
@@ -94,13 +93,13 @@ def steps_from_events(
 
     Every step's `agent_messages` is None: the log does not record the agent's own messages, and model input can hold messages the agent kept out of them.
 
-    A log that does not record where a model call was made (`ModelEvent.origin`, written since inspect_ai PR #5990), as an older Inspect log does not, has its turns inferred from its span tree: a call made in the scorers' span (in a log from before spans, between a scorer's `StepEvent`s) is a scorer's, whatever tool or agent span holds it (live, the scorers' scope is final); one in a tool's span (or nested in its `ToolEvent`) a tool's, and one in the init span setup's; of the rest, those the inferred timeline shows as utility (`timeline_build`'s prompt and continuity rules, the calls above and a sentinel's taking no part in either) are not turns, and the others are. A final scope no span records reads as the region holding it: a `model_origin()` region, `score()` called by a solver or a tool, an approver's model call; where the timeline does not show such a call as utility, its call is a turn (or, in a tool, its calls are checked), as live it was not.
+    A log that does not record where a model call was made (`ModelEvent.origin`, written since inspect_ai PR #5990), as an older Inspect log does not, has its turns inferred from its span tree: a call made in the scorers' span is a scorer's, whatever tool or agent span holds it (live, the scorers' scope is final); one in a tool's span a tool's, and one in the init span setup's; of the rest, those the inferred timeline shows as utility (`timeline_build`'s prompt and continuity rules, the calls above and a sentinel's taking no part in either) are not turns, and the others are. A final scope no span records reads as the region holding it: a `model_origin()` region, `score()` called by a solver or a tool, an approver's model call; where the timeline does not show such a call as utility, its call is a turn (or, in a tool, its calls are checked), as live it was not.
 
     Inspect logs record origins on every model call or on none. If a transcript mixes calls with and without origins, recorded calls retain their recorded classification and calls without origins are inferred; continuity across that mixed sequence is not guaranteed.
 
-    In logs without origins, recorded sentinel checks and human decisions are used only when their step id pairs with a model call's exact id. Inferred turns may differ from those seen by a sentinel that ran before origins were recorded; reproducing that sentinel's live steps is outside this replay contract. Older logs without a solvers wrapper span can classify side calls in top-level solver spans as agent turns. For a run without a sentinel, human decisions are reconstructed from `ApprovalEvent`s only when the log records inspect_ai 0.3.277 or later; older or unknown versions omit them and warn once when a selected human approver appears. A `tool_call` step whose call an approver changed has no `view.context`: the `ApprovalEvent` view describes the call the approver was shown, and live renders the changed call's context again, which the log does not record. An older or unknown-version log containing any modified approval is refused because Inspect recorded those calls inconsistently; replay that transcript from its messages instead.
+    In logs without origins, recorded sentinel checks and human decisions are used only when their step id pairs with a model call's exact id. Inferred turns may differ from those seen by a sentinel that ran before origins were recorded; reproducing that sentinel's live steps is outside this replay contract. For a run without a sentinel, human decisions are reconstructed from `ApprovalEvent`s only when the log records inspect_ai 0.3.277 or later; older or unknown versions omit them and warn once when a selected human approver appears. A `tool_call` step whose call an approver changed has no `view.context`: the `ApprovalEvent` view describes the call the approver was shown, and live renders the changed call's context again, which the log does not record. An older or unknown-version log containing any modified approval is refused because Inspect recorded those calls inconsistently; replay that transcript from its messages instead.
 
-    Replay requires a log written by Inspect 0.3.94 or later. Earlier logs lack native tool spans and cannot be replayed reliably. If the recorded version is unknown, completed native tool events without a matching tool span, including execution failures, are refused as potentially older logs. Pre-execution halts remain allowed.
+    Replay requires a log written by Inspect 0.3.100 or later. Earlier logs lack the `solvers` and `scorers` spans (and, before 0.3.94, native tool spans) and cannot be replayed reliably. A log whose samples have an earlier layout is refused whatever its header says, since a retried eval keeps its completed samples under a newer header: a `ToolEvent` that nests other events, a solver or scorer `StepEvent`, or a top-level solver or scorer span (outside the `solvers` and `scorers` spans). If the recorded version is unknown, completed native tool events without a matching tool span, including execution failures, are also refused as potentially older logs. Pre-execution halts remain allowed.
 
     Args:
         messages: The sample's messages (`EvalSample.messages`).
@@ -115,7 +114,7 @@ def steps_from_events(
         The steps, in the order they ran live.
 
     Raises:
-        ValueError: `eval_info` is `None`, the log predates Inspect 0.3.94 (or has an unknown version and completed spanless native tool events), or an older or unknown-version log contains a modified approval. Replay such transcripts from their messages instead.
+        ValueError: `eval_info` is `None`, the log predates Inspect 0.3.100 or its samples have an earlier layout (or it has an unknown version and completed spanless native tool events), or an older or unknown-version log contains a modified approval. Replay such transcripts from their messages instead.
         MalformedLogError: Two steps of one stage have one step id, the span tree has a `parent_id` cycle, or a model input names rows outside the message pool.
         Unmatched recorded model_input checks are skipped with one warning per transcript.
     """
@@ -125,30 +124,33 @@ def steps_from_events(
             "(EvalInfo.from_eval). Replay this transcript from its messages instead."
         )
     version = eval_info.inspect_ai_version
-    if not _records_approval_decisions(version) and _has_modified_approval(events):
+    if (
+        _before_phase_spans(version)
+        or _has_earlier_layout(events)
+        or (
+            (version is None or _VERSION.fullmatch(version.strip()) is None)
+            and _has_spanless_native_tool(events)
+        )
+    ):
+        raise ValueError(
+            "steps_from_events requires an Inspect log written by inspect_ai "
+            "0.3.100 or later. Replay this transcript from its messages instead."
+        )
+    if not _records_approval_decisions(version) and any(
+        isinstance(e, ApprovalEvent) and e.modified is not None for e in events
+    ):
         raise ValueError(
             "steps_from_events cannot replay modified approvals from Inspect "
             "logs before inspect_ai 0.3.277 or with an unknown version; "
             "those logs recorded them inconsistently. Replay this transcript "
             "from its messages instead."
         )
-    if _before_tool_spans(version) or (
-        (version is None or _VERSION.fullmatch(version.strip()) is None)
-        and _has_spanless_native_tool(events)
-    ):
-        raise ValueError(
-            "steps_from_events requires an Inspect log written by inspect_ai "
-            "0.3.94 or later. Replay this transcript from its messages instead."
-        )
-    flat, nested = _flatten(events)
     pool: list[ChatMessage] | Sequence[ChatMessage] = message_pool
-    if any(isinstance(e, ModelEvent) and e.input_refs is None for e in flat):
+    if any(isinstance(e, ModelEvent) and e.input_refs is None for e in events):
         events, pool = _condensed(events, message_pool)
-        flat, nested = _flatten(events)
     return _Driver(
         messages,
-        flat,
-        nested,
+        list(events),
         pool,
         sample_uuid,
         eval_info,
@@ -157,97 +159,40 @@ def steps_from_events(
     ).steps()
 
 
-def _flatten(events: Sequence[Event]) -> tuple[list[Event], list[bool]]:
-    """The events with those older logs nest inside a tool call's `ToolEvent` after it, and whether each was nested."""
-    flat: list[Event] = []
-    nested: list[bool] = []
-
-    def walk(events: Sequence[Event], inside: bool) -> None:
-        for event in events:
-            flat.append(event)
-            nested.append(inside)
-            if isinstance(event, ToolEvent) and event.events:
-                walk(event.events, True)
-
-    walk(events, False)
-    return flat, nested
-
-
-def _has_modified_approval(events: Sequence[Any]) -> bool:
-    """Find modified approval payloads, including those nested in old tool events."""
-    for event in events:
-        if isinstance(event, ApprovalEvent):
-            if event.modified is not None:
-                return True
-        elif isinstance(event, dict) and event.get("event") == "approval":
-            if event.get("modified") is not None:
-                return True
-        children = (
-            event.events
-            if isinstance(event, ToolEvent)
-            else event.get("events")
-            if isinstance(event, dict) and event.get("event") == "tool"
-            else None
+def _has_earlier_layout(events: Sequence[Event]) -> bool:
+    """Whether the samples have a layout of Inspect before 0.3.100, which a retried eval keeps under a newer header: a `ToolEvent` that nests events, a solver or scorer `StepEvent`, or a top-level solver or scorer span."""
+    return any(
+        (isinstance(event, ToolEvent) and event.events)
+        or (isinstance(event, StepEvent) and event.type in ("solver", "scorer"))
+        or (
+            isinstance(event, SpanBeginEvent)
+            and event.parent_id is None
+            and event.type in ("solver", "scorer")
         )
-        if isinstance(children, list) and _has_modified_approval(children):
-            return True
-    return False
+        for event in events
+    )
 
 
-def _has_spanless_native_tool(events: Sequence[Any]) -> bool:
-    """Find completed native tool events without matching spans, including nested events."""
-    previous: Any = None
+def _has_spanless_native_tool(events: Sequence[Event]) -> bool:
+    """Whether a completed native tool event has no matching tool span, as in logs before 0.3.94."""
+    previous: Event | None = None
     for event in events:
-        if isinstance(event, ToolEvent) or (
-            isinstance(event, dict) and event.get("event") == "tool"
-        ):
-            function = (
-                event.function
-                if isinstance(event, ToolEvent)
-                else event.get("function")
-            )
-            metadata = (
-                event.metadata
-                if isinstance(event, ToolEvent)
-                else event.get("metadata")
-            )
-            error = event.error if isinstance(event, ToolEvent) else event.get("error")
-            error_type = (
-                error.type
-                if isinstance(error, ToolCallError)
-                else (error.get("type") if isinstance(error, dict) else None)
-            )
-            pending = (
-                event.pending if isinstance(event, ToolEvent) else event.get("pending")
-            )
-            completed = (
-                event.completed
-                if isinstance(event, ToolEvent)
-                else event.get("completed")
-            )
-            matched_span = (
+        if (
+            isinstance(event, ToolEvent)
+            and not (
                 isinstance(previous, SpanBeginEvent)
                 and previous.type == "tool"
-                and previous.name == function
-            ) or (
-                isinstance(previous, dict)
-                and previous.get("event") == "span_begin"
-                and previous.get("type") == "tool"
-                and previous.get("name") == function
+                and previous.name == event.function
             )
-            if (
-                not matched_span
-                and completed is not None
-                and not (isinstance(metadata, dict) and "bridge" in metadata)
-                and not pending
-                and error_type not in ("parsing", "approval", "cancelled")
-            ):
-                return True
-            children = (
-                event.events if isinstance(event, ToolEvent) else event.get("events")
+            and event.completed is not None
+            and not (event.metadata is not None and "bridge" in event.metadata)
+            and not event.pending
+            and (
+                event.error is None
+                or event.error.type not in ("parsing", "approval", "cancelled")
             )
-            if isinstance(children, list) and _has_spanless_native_tool(children):
-                return True
+        ):
+            return True
         previous = event
     return False
 
@@ -255,26 +200,12 @@ def _has_spanless_native_tool(events: Sequence[Any]) -> bool:
 def _condensed(
     events: Sequence[Event], pool: Sequence[ChatMessage]
 ) -> tuple[list[Event], list[ChatMessage]]:
-    """`events` with their model inputs condensed, those a `ToolEvent` nests too, so the tree and its flattening hold the same events; and the pool."""
-    flat, _ = _flatten(events)
+    """`events` with their model inputs condensed, and the pool."""
     rows = list(pool)
     condensed, _, entries = condense_model_event_inputs(
-        flat, len(rows), _build_msg_index(rows)
+        events, len(rows), _build_msg_index(rows)
     )
-    copies = {id(old): new for old, new in zip(flat, condensed) if new is not old}
-
-    def rebuild(events: Sequence[Event]) -> list[Event]:
-        rebuilt: list[Event] = []
-        for event in events:
-            event = copies.get(id(event), event)
-            if isinstance(event, ToolEvent) and event.events:
-                inner = rebuild(event.events)
-                if any(new is not old for new, old in zip(inner, event.events)):
-                    event = event.model_copy(update={"events": inner})
-            rebuilt.append(event)
-        return rebuilt
-
-    return rebuild(events), [*rows, *(message for _, message in entries)]
+    return condensed, [*rows, *(message for _, message in entries)]
 
 
 class _PoolKeys:
@@ -486,7 +417,6 @@ class _Driver:
         self,
         messages: Sequence[ChatMessage],
         events: list[Event],
-        nested: list[bool],
         pool: Sequence[ChatMessage],
         sample_uuid: str,
         eval_info: EvalInfo,
@@ -495,7 +425,6 @@ class _Driver:
     ) -> None:
         self.messages = messages
         self.events = events
-        self.nested = nested
         self.pool = pool
         self.keys = _PoolKeys(pool)
         self.eval_info = eval_info
@@ -535,8 +464,6 @@ class _Driver:
         # span id -> the region holding it
         self._regions: dict[str | None, _Region] = {}
         self._span_begins: dict[str, SpanBeginEvent] | None = None
-        # id() of the events in a scorer's StepEvents (logs from before spans)
-        self._scored: set[int] | None = None
 
     # ---- the first pass: read the events in log order
 
@@ -1011,7 +938,7 @@ class _Driver:
         # the prompt its turns are classified by
         known: dict[int, str] = {}
         outside: set[int] = set()
-        for event, nested in zip(self.events, self.nested):
+        for event in self.events:
             if not isinstance(event, ModelEvent | CompactionEvent):
                 continue
             region = self._region(event.span_id)
@@ -1019,7 +946,7 @@ class _Driver:
                 # live, the scorers' scope is final: nothing inside it, a tool
                 # or an agent, changes it
                 origin: str | None = "scorer"
-            elif nested or region.kind == "tool":
+            elif region.kind == "tool":
                 origin = "tool"
             elif region.phase == "init":
                 origin = "setup"
@@ -1029,9 +956,8 @@ class _Driver:
                 outside.add(id(event))
             if origin is not None:
                 known[id(event)] = origin
-        top = [e for e, nested in zip(self.events, self.nested) if not nested]
         timeline = _timeline_build(
-            top,
+            self.events,
             message_pool=self.pool,
             continuity=True,
             outside=outside,
@@ -1059,19 +985,8 @@ class _Driver:
         return inferred
 
     def _scoring(self, event: Event) -> bool:
-        """Whether `event` was recorded in the scorers' phase: under the top-level `scorers` span, or, in a log from before spans, between a scorer's `StepEvent`s."""
-        if self._scored is None:
-            scored: set[int] = set()
-            steps = 0
-            for each in self.events:
-                if isinstance(each, StepEvent) and each.type == "scorer":
-                    steps = steps + 1 if each.action == "begin" else max(steps - 1, 0)
-                elif steps > 0:
-                    scored.add(id(each))
-            self._scored = scored
-        return (
-            id(event) in self._scored or self._region(event.span_id).phase == "scorers"
-        )
+        """Whether `event` was recorded in the scorers' phase, under the top-level `scorers` span."""
+        return self._region(event.span_id).phase == "scorers"
 
     def _region(self, span_id: str | None) -> _Region:
         found = self._regions.get(span_id)
@@ -1188,7 +1103,7 @@ class _Driver:
 
         if event.truncated is not None:
             return Truncation(*event.truncated)
-        return False if _records_truncation(self.eval_info.inspect_ai_version) else None
+        return False if self.eval_info.inspect_ai_version is not None else None
 
     def _result(self, event: ToolEvent) -> ChatMessageTool:
         if event.message_id is not None:
@@ -1353,29 +1268,8 @@ _VERSION = re.compile(
 )
 
 
-def _records_truncation(version: str | None) -> bool:
-    # ToolEvent.truncated exists since inspect_ai 0.3.31 (max_tool_output);
-    # PEP 440 orders 0.3.31's dev and pre-releases before it, and a version
-    # that does not parse is taken as recording it
-    if version is None:
-        return False
-    parsed = _VERSION.fullmatch(version.strip())
-    if parsed is None:
-        return True
-    if int(parsed["epoch"] or 0) > 0:
-        return True
-    release = [int(part) for part in parsed["release"].split(".")]
-    while len(release) > 1 and release[-1] == 0:
-        release.pop()
-    if release != [0, 3, 31]:
-        return release > [0, 3, 31]
-    if parsed["pre"]:
-        return False
-    return bool(parsed["post"]) or not parsed["dev"]
-
-
-def _before_tool_spans(version: str | None) -> bool:
-    """Whether this Inspect version predates native tool spans (0.3.94)."""
+def _before_phase_spans(version: str | None) -> bool:
+    """Whether this Inspect version predates the `solvers` and `scorers` spans (0.3.100)."""
     if version is None:
         return False
     parsed = _VERSION.fullmatch(version.strip())
@@ -1384,8 +1278,8 @@ def _before_tool_spans(version: str | None) -> bool:
     release = [int(part) for part in parsed["release"].split(".")]
     while len(release) > 1 and release[-1] == 0:
         release.pop()
-    if release != [0, 3, 94]:
-        return release < [0, 3, 94]
+    if release != [0, 3, 100]:
+        return release < [0, 3, 100]
     return bool(parsed["pre"] or parsed["dev"]) and not parsed["post"]
 
 

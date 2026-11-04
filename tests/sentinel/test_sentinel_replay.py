@@ -3050,7 +3050,7 @@ def test_a_call_a_fail_fast_tool_halted_has_no_tool_steps() -> None:
     ]
 
 
-@pytest.mark.parametrize("version", ["0.3.94", "0.3.200"])
+@pytest.mark.parametrize("version", ["0.3.100", "0.3.200"])
 def test_an_inspect_log_s_calls_without_a_tool_span_keep_no_tool_steps(
     version: str | None,
 ) -> None:
@@ -3073,8 +3073,10 @@ def test_an_inspect_log_s_calls_without_a_tool_span_keep_no_tool_steps(
 @pytest.mark.parametrize("inputs", ["expanded", "pooled"])
 @pytest.mark.parametrize("message_ids", [False, True])
 @pytest.mark.parametrize("uuids", [False, True])
-@pytest.mark.parametrize("version", ["0.3.43", "0.3.93"])
-def test_pre_tool_span_log_is_refused(
+@pytest.mark.parametrize(
+    "version", ["0.3.43", "0.3.93", "0.3.94", "0.3.99", "0.3.100.dev1", "0.3.100rc1"]
+)
+def test_a_log_before_0_3_100_is_refused(
     inputs: str, message_ids: bool, uuids: bool, version: str
 ) -> None:
     from inspect_ai._sentinel import _replay
@@ -3114,7 +3116,7 @@ def test_pre_tool_span_log_is_refused(
         events, pool = _replay._condensed(events, [])
     with pytest.raises(
         ValueError,
-        match="0.3.94 or later.*Replay this transcript from its messages instead",
+        match="0.3.100 or later.*Replay this transcript from its messages instead",
     ):
         steps_from_events(
             [user, first.output.message, result, second.output.message],
@@ -3125,10 +3127,10 @@ def test_pre_tool_span_log_is_refused(
         )
 
 
-@pytest.mark.parametrize("version", ["0.3.43", "0.3.93"])
+@pytest.mark.parametrize("version", ["0.3.43", "0.3.93", "0.3.200"])
 @pytest.mark.parametrize("depth", [1, 2])
 @pytest.mark.parametrize("execution_error", [False, True])
-def test_nested_pre_tool_span_log_is_refused_after_json_read(
+def test_nested_tool_events_are_refused_after_json_read(
     version: str, depth: int, execution_error: bool, tmp_path: Path
 ) -> None:
     log = run_logged(tool_loop(addition()), agent_model())
@@ -3173,7 +3175,7 @@ def test_nested_pre_tool_span_log_is_refused_after_json_read(
     assert isinstance(parent.events[0], dict)
     with pytest.raises(
         ValueError,
-        match="0.3.94 or later.*Replay this transcript from its messages instead",
+        match="0.3.100 or later.*Replay this transcript from its messages instead",
     ):
         steps_from_events(
             persisted.messages,
@@ -3211,7 +3213,7 @@ def test_unknown_version_refuses_nested_spanless_native_tool(
     ]
     with pytest.raises(
         ValueError,
-        match="0.3.94 or later.*Replay this transcript from its messages instead",
+        match="0.3.100 or later.*Replay this transcript from its messages instead",
     ):
         steps_from_events(
             [], events, [], sample_uuid="sample", eval_info=EvalInfo(version, False)
@@ -3242,7 +3244,7 @@ def test_unknown_version_keeps_failed_tool_with_matching_span(
     ]
 
 
-@pytest.mark.parametrize("version", [None, "unknown", "0.3.94", "0.3.200"])
+@pytest.mark.parametrize("version", [None, "unknown", "0.3.100", "0.3.200"])
 @pytest.mark.parametrize("finalized", [False, True])
 @pytest.mark.parametrize("serialized", [False, True])
 def test_spanless_halted_tool_is_allowed(
@@ -3485,7 +3487,7 @@ def test_modern_approval_uses_executed_tool_view_at_both_stages(
 ) -> None:
     from inspect_ai._sentinel import _replay
 
-    path = Path(__file__).parent / "fixtures" / "approval_modified_0.3.99.json"
+    path = Path(__file__).parent / "fixtures" / "approval_modified_0.3.100.json"
     log = read_eval_log(str(path), resolve_attachments="full")
     [sample] = log.samples or []
     events: list[Event] = []
@@ -3536,10 +3538,10 @@ def test_modern_approval_uses_executed_tool_view_at_both_stages(
 def test_older_modified_approval_log_is_refused(
     inputs: str, decision: str, renamed: bool
 ) -> None:
-    """The archived 0.3.99 log cannot reliably identify the executed call."""
+    """The archived 0.3.100 log cannot reliably identify the executed call."""
     from inspect_ai._sentinel import _replay
 
-    path = Path(__file__).parent / "fixtures" / "approval_modified_0.3.99.json"
+    path = Path(__file__).parent / "fixtures" / "approval_modified_0.3.100.json"
     log = read_eval_log(str(path), resolve_attachments="full")
     [sample] = log.samples or []
     approval = next(e for e in sample.events if isinstance(e, ApprovalEvent))
@@ -3577,6 +3579,25 @@ def test_older_modified_approval_log_is_refused(
 
 
 @pytest.mark.parametrize("inputs", ["expanded", "pooled"])
+@pytest.mark.parametrize("version", [None, "unknown"])
+def test_unknown_version_modified_approval_is_refused(
+    inputs: str, version: str | None
+) -> None:
+    messages, events, pool = _historical_approval_events(inputs, "modify", True)
+    with pytest.raises(
+        ValueError,
+        match=r"modified approvals.*0\.3\.277.*Replay this transcript from its messages instead",
+    ):
+        steps_from_events(
+            messages,
+            events,
+            pool,
+            sample_uuid="sample",
+            eval_info=EvalInfo(version, False),
+        )
+
+
+@pytest.mark.parametrize("inputs", ["expanded", "pooled"])
 def test_older_unmodified_approval_still_replays(inputs: str) -> None:
     messages, events, pool = _historical_approval_events(inputs, "approve", True)
     replay = steps_from_events(
@@ -3584,7 +3605,7 @@ def test_older_unmodified_approval_still_replays(inputs: str) -> None:
         events,
         pool,
         sample_uuid="sample",
-        eval_info=EvalInfo("0.3.99", False),
+        eval_info=EvalInfo("0.3.100", False),
     )
     tool_steps = [
         step.step
@@ -3601,7 +3622,7 @@ def test_older_unmodified_approval_still_replays(inputs: str) -> None:
 
 @pytest.mark.parametrize("version", [None, "unknown"])
 @pytest.mark.parametrize("serialized", [False, True])
-def test_unknown_version_nested_modified_approval_is_refused(
+def test_unknown_version_nested_modified_approval_is_refused_as_an_earlier_log(
     version: str | None, serialized: bool
 ) -> None:
     _, events, _ = _historical_approval_events("expanded", "modify", True)
@@ -3611,7 +3632,7 @@ def test_unknown_version_nested_modified_approval_is_refused(
         outer = ToolEvent.model_validate_json(outer.model_dump_json())
     with pytest.raises(
         ValueError,
-        match=r"modified approvals.*0\.3\.277.*Replay this transcript from its messages instead",
+        match="0.3.100 or later.*Replay this transcript from its messages instead",
     ):
         steps_from_events(
             [], [outer], [], sample_uuid="sample", eval_info=EvalInfo(version, False)
@@ -3623,7 +3644,7 @@ def test_unknown_version_nested_modified_approval_is_refused(
 @pytest.mark.parametrize(
     "version,reconstruct",
     [
-        ("0.3.99", False),
+        ("0.3.100", False),
         ("0.3.276", False),
         ("0.3.277rc1", False),
         (None, False),
@@ -3677,7 +3698,7 @@ def test_old_log_warns_only_for_selected_human_approvals(
         events,
         pool,
         sample_uuid="sample",
-        eval_info=EvalInfo("0.3.99", False),
+        eval_info=EvalInfo("0.3.100", False),
         human_approvers=human_approvers,
     )
     assert not [
@@ -4137,7 +4158,7 @@ def test_a_log_from_before_tool_spans_is_refused() -> None:
     [sample] = log.samples or []
     with pytest.raises(
         ValueError,
-        match="0.3.94 or later.*Replay this transcript from its messages instead",
+        match="0.3.100 or later.*Replay this transcript from its messages instead",
     ):
         steps_from_events(
             sample.messages,
@@ -4146,6 +4167,133 @@ def test_a_log_from_before_tool_spans_is_refused() -> None:
             sample_uuid=sample.uuid or "sample",
             eval_info=EvalInfo.from_eval(log.eval),
         )
+
+
+@pytest.mark.parametrize("inputs", ["expanded", "pooled"])
+@pytest.mark.parametrize("versioned", [True, False])
+def test_the_archived_0_3_99_log_is_refused(inputs: str, versioned: bool) -> None:
+    # Inspect 0.3.99 ran each solver in a top-level span, with no solvers span;
+    # without its version the layout alone refuses it
+    from inspect_ai._sentinel import _replay
+
+    path = Path(__file__).parent / "fixtures" / "approval_modified_0.3.99.json"
+    log = read_eval_log(str(path), resolve_attachments="full")
+    [sample] = log.samples or []
+    events: list[Event] = list(sample.events)
+    pool: list[ChatMessage] = []
+    if inputs == "pooled":
+        events, pool = _replay._condensed(events, [])
+    with pytest.raises(
+        ValueError,
+        match="0.3.100 or later.*Replay this transcript from its messages instead",
+    ):
+        steps_from_events(
+            sample.messages,
+            events,
+            pool,
+            sample_uuid=sample.uuid or "sample",
+            eval_info=EvalInfo.from_eval(log.eval)
+            if versioned
+            else EvalInfo(None, False),
+        )
+
+
+@pytest.mark.parametrize("inputs", ["expanded", "pooled"])
+@pytest.mark.parametrize("versioned", [True, False])
+def test_an_archived_0_3_100_log_replays(inputs: str, versioned: bool) -> None:
+    # Inspect 0.3.100's solvers and scorers spans keep the scorer's model call
+    # out of the agent's turns in a log without origins
+    from inspect_ai._sentinel import _replay
+
+    path = Path(__file__).parent / "fixtures" / "scored_0.3.100.json"
+    log = read_eval_log(str(path), resolve_attachments="full")
+    [sample] = log.samples or []
+    assert log.eval.packages["inspect_ai"] == "0.3.100"
+    events: list[Event] = list(sample.events)
+    pool: list[ChatMessage] = []
+    if inputs == "pooled":
+        events, pool = _replay._condensed(events, [])
+    replay = steps_from_events(
+        sample.messages,
+        events,
+        pool,
+        sample_uuid=sample.uuid or "sample",
+        eval_info=EvalInfo.from_eval(log.eval) if versioned else EvalInfo(None, False),
+    )
+    assert [s.stage for s in replay] == [
+        "model_input",
+        "model_output",
+        "tool_call",
+        "tool_result",
+        "model_input",
+        "model_output",
+    ]
+
+
+def earlier_layout(layout: str, wrapped: bool) -> tuple[list[ChatMessage], list[Event]]:
+    """A model call in a solver span, a scorer span, or between a scorer's steps; `wrapped` puts the span in the `solvers` or `scorers` span, as Inspect 0.3.100 does."""
+    user = ChatMessageUser(content="Solve it.")
+    if layout == "scorer_step":
+        call = linked_call("m1", None, [user], "Solved.", None)
+        return [user, call.output.message], [
+            StepEvent(action="begin", type="scorer", name="match"),
+            call,
+            StepEvent(action="end", type="scorer", name="match"),
+        ]
+    call = linked_call("m1", "work", [user], "Solved.", None)
+    kind = "solver" if layout == "solver_span" else "scorer"
+    phase = f"{kind}s"
+    events: list[Event] = [
+        SpanBeginEvent(
+            id="work", name="work", type=kind, parent_id=phase if wrapped else None
+        ),
+        call,
+        SpanEndEvent(id="work"),
+    ]
+    if wrapped:
+        events = [
+            SpanBeginEvent(id=phase, name=phase, type=phase),
+            *events,
+            SpanEndEvent(id=phase),
+        ]
+    return [user, call.output.message], events
+
+
+@pytest.mark.parametrize("layout", ["solver_span", "scorer_span", "scorer_step"])
+@pytest.mark.parametrize("version", [None, "unknown", "0.3.99", "0.3.100", "0.3.200"])
+def test_a_log_in_a_layout_before_0_3_100_is_refused(
+    layout: str, version: str | None
+) -> None:
+    # Ransom's review 21 B1 and B2: an agent or scorer outside the solvers or
+    # scorers span cannot be told apart, so the log is refused; a retried
+    # eval keeps such samples under a newer header
+    messages, events = earlier_layout(layout, wrapped=False)
+    with pytest.raises(
+        ValueError,
+        match="0.3.100 or later.*Replay this transcript from its messages instead",
+    ):
+        steps_from_events(
+            messages,
+            events,
+            [],
+            sample_uuid="sample",
+            eval_info=EvalInfo(version, False),
+        )
+
+
+@pytest.mark.parametrize(
+    "layout,stages",
+    [("solver_span", ["model_input", "model_output"]), ("scorer_span", [])],
+)
+@pytest.mark.parametrize("version", [None, "unknown", "0.3.100"])
+def test_a_log_in_the_0_3_100_layout_replays(
+    layout: str, stages: list[str], version: str | None
+) -> None:
+    messages, events = earlier_layout(layout, wrapped=True)
+    replay = steps_from_events(
+        messages, events, [], sample_uuid="sample", eval_info=EvalInfo(version, False)
+    )
+    assert [s.stage for s in replay] == stages
 
 
 def linked_call(
@@ -4316,13 +4464,17 @@ def region_with_side_calls(
     m1 = linked_call("m1", "agent", opening, "Solved.", agent)
     messages: list[ChatMessage] = [*opening, m1.output.message]
     if region == "scorer":
-        graders = side_calls(count, None, "scorer" if recorded else None, tooled)
+        graders = side_calls(count, "match", "scorer" if recorded else None, tooled)
         m1.span_id = None
         return messages, [
             m1,
-            StepEvent(action="begin", type="scorer", name="match"),
+            SpanBeginEvent(id="scorers", name="scorers", type="scorers"),
+            SpanBeginEvent(
+                id="match", name="match", type="scorer", parent_id="scorers"
+            ),
             *graders,
-            StepEvent(action="end", type="scorer", name="match"),
+            SpanEndEvent(id="match"),
+            SpanEndEvent(id="scorers"),
         ]
     monitors = side_calls(count, "check", "helper" if recorded else None, tooled)
     return (
@@ -4370,78 +4522,6 @@ def test_linked_calls_outside_the_agent_s_turns_leave_its_turns(
     assert inferred == steps(recorded=True)
     assert ("model_input", "m1") in inferred
     assert not any(id.startswith("s") for _, id in inferred)
-
-
-def handoff_with_side_calls(
-    count: int, recorded: bool, inputs: str
-) -> tuple[list[ChatMessage], list[Event], list[ChatMessage]]:
-    """An agent's turns around a handoff whose `ToolEvent` nests `count` linked calls. `inputs`: "expanded", "pooled", or "adapter"."""
-    agent = "agent" if recorded else None
-    user = ChatMessageUser(content="Solve it.")
-    call = ToolCall(id="c1", function="transfer_to_checker", arguments={})
-    m1 = linked_call("m1", "agent", [user], "Handing off.", agent, call)
-    result = ChatMessageTool(
-        content="ok", tool_call_id="c1", function="transfer_to_checker"
-    )
-    m2 = linked_call("m2", "agent", [user, m1.output.message, result], "Done.", agent)
-    helpers: list[Event] = list(
-        side_calls(count, "agent", "tool" if recorded else None, False)
-    )
-    pool: list[ChatMessage] = []
-    if inputs == "pooled":
-        condensed, _, entries = condense_model_event_inputs([m1, *helpers, m2], 0, {})
-        calls = cast(list[ModelEvent], condensed)
-        m1, m2, helpers = calls[0], calls[-1], [*calls[1:-1]]
-        pool = [message for _, message in entries]
-    handoff = ToolEvent(
-        id="c1",
-        function="transfer_to_checker",
-        arguments={},
-        result="ok",
-        agent="checker",
-        events=helpers,
-        span_id="agent",
-    )
-    events: list[Event] = [
-        SpanBeginEvent(id="agent", name="agent", type="agent"),
-        m1,
-        handoff,
-        m2,
-        SpanEndEvent(id="agent"),
-    ]
-    if inputs == "adapter":
-        events, _, entries = condense_model_event_inputs(events, 0, {})
-        pool = [message for _, message in entries]
-    messages: list[ChatMessage] = [user, m1.output.message, result, m2.output.message]
-    return messages, events, pool
-
-
-@pytest.mark.parametrize("count", [1, 2])
-@pytest.mark.parametrize("inputs", ["expanded", "pooled", "adapter"])
-def test_calls_nested_in_a_handoff_leave_the_agent_s_turns(
-    inputs: str, count: int
-) -> None:
-    # Ransom's seventh review B2: inputs condensed for replay are condensed in
-    # the handoff's ToolEvent too, so the calls it nests are left out of
-    # continuity whether the log's inputs are expanded, pooled, or pooled at
-    # the top level only
-    def steps(recorded: bool) -> list[tuple[str, str]]:
-        messages, events, pool = handoff_with_side_calls(count, recorded, inputs)
-        return [
-            (s.stage, s.id)
-            for s in steps_from_events(
-                messages,
-                events,
-                pool,
-                sample_uuid="sample",
-                eval_info=EvalInfo(inspect_ai_version="0.3.200", sentinel=False),
-            )
-        ]
-
-    inferred = steps(recorded=False)
-
-    assert inferred == steps(recorded=True)
-    assert [id for stage, id in inferred if stage == "model_input"] == ["m1", "m2"]
 
 
 @solver
@@ -4508,32 +4588,18 @@ def test_a_superseded_human_decision_is_withdrawn(
 @pytest.mark.parametrize(
     "version,truncated",
     [
-        ("0.3.30", None),
-        ("0.3.31.dev1", None),
-        ("0.3.31rc1", None),
-        ("0.3.31a1.post1", None),
-        ("0.3.31", False),
-        ("0.3.31.0", False),
-        ("0.3.31+g5ea5c5ce1", False),
-        ("0.3.31.post1.dev1", False),
-        ("0.3.4", None),
+        (None, None),
+        ("0.3.100", False),
+        ("0.3.262.dev32+g5ea5c5ce1", False),
         ("0.4", False),
         ("1!0.1", False),
-        ("0.3.262.dev32+g5ea5c5ce1", False),
-        # a version that does not parse is taken as current, as packaging's
-        # InvalidVersion was
+        # a version that does not parse is taken as current
         ("unknown", False),
-        ("0.3.30garbage", False),
     ],
 )
-def test_a_log_from_before_the_record_of_cuts_says_it_cannot_tell(
-    version: str, truncated: bool | None
+def test_a_log_without_a_version_cannot_tell_whether_output_was_cut(
+    version: str | None, truncated: bool | None
 ) -> None:
-    from inspect_ai._sentinel._replay import _before_tool_spans, _records_truncation
-
-    assert (False if _records_truncation(version) else None) is truncated
-    if _before_tool_spans(version):
-        return
     log = run_logged(tool_loop(addition()), agent_model())
     sample = logged_sample(log)
     replay = steps_from_events(
@@ -4710,7 +4776,7 @@ def test_a_result_is_the_message_the_tool_event_names() -> None:
     logged = ChatMessageTool(
         id="m1", content="as the model saw it", tool_call_id="c1", function="f"
     )
-    driver = _Driver([], [], [], [logged], "sample", EvalInfo(None, True), None, ())
+    driver = _Driver([], [], [logged], "sample", EvalInfo(None, True), None, ())
     event = ToolEvent(id="c1", function="f", arguments={}, result="", message_id="m1")
     assert driver._result(event) is logged
     unknown = event.model_copy(update={"message_id": "m2", "result": "rebuilt"})
