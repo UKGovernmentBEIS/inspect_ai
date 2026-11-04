@@ -3,6 +3,7 @@
 A sidecar judges a whole turn before Inspect is handed it. A call it rejected is put back into the model's turn and answered with an approval error when Inspect would run it; a call it changed runs with its new arguments, while the model's turn keeps the call the model made; a `terminate` ends the sample where an in-process sentinel's would, at the model call or before the turn's calls run.
 """
 
+from collections.abc import Callable
 from typing import Any, Literal, NamedTuple
 from weakref import WeakKeyDictionary
 
@@ -59,7 +60,7 @@ def take_call_decision(call_id: str) -> CallDecision | None:
 
 
 async def refused_output(
-    model: str, retryable: bool, bridged: bool
+    model: str, retryable: Callable[[], bool], bridged: Callable[[], bool]
 ) -> ModelOutput | None:
     """A refusal of the current agent call, as the model output Inspect acts on, or None if the call wasn't refused by a sidecar's decision.
 
@@ -67,17 +68,18 @@ async def refused_output(
 
     Args:
         model: The model's name, for the output.
-        retryable: Whether Inspect retries the call's error, as it does an ordinary provider or network failure.
+        retryable: Whether Inspect retries the call's error, as it does an ordinary provider or network failure. Asked only of a call that went through a sidecar, since a provider's `should_retry` can log or raise.
         bridged: Whether the call is a bridged agent's, which runs its own tools.
     """
+    # nothing else is asked of a call that didn't go through a sidecar
     received = current_receiving()
     if received is None:
         return None
-    if received.field is None and not retryable:
+    if received.field is None and not retryable():
         received.looked = await request_result(received, replied=False)
         if received.looked.state == "decided":
             received.field = received.looked.field
-    return _refusal(received_field(), model, bridged)
+    return _refusal(received_field(), model, bridged())
 
 
 async def refusal_after_error(

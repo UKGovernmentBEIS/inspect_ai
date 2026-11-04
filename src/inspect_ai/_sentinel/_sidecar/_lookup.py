@@ -36,11 +36,11 @@ class Looked(NamedTuple):
 async def request_result(received: ReceivedField, replied: bool) -> Looked:
     """Ask the sidecar what it decided of the call's latest attempt, waiting while it is still judging.
 
-    While Inspect waits, the sample's token, turn and working limits are paused, as they are while an in-process sentinel runs; its time limit still applies.
+    While Inspect waits, the sample's token, turn and working limits are paused, as they are while an in-process sentinel runs; its time limit still applies. A state other than judging, including one this version doesn't know, is an answer, so only judging is waited on.
 
     Args:
         received: What was collected of the call.
-        replied: Whether the call came back with a reply. A call that came back as an error and that the sidecar is still awaiting the reply of never reached it: its error is the provider's.
+        replied: Whether the call came back with a reply. The sidecar never received the reply of a call it is still awaiting the reply of, whether the call came back with a reply or as an error.
     """
     sidecar = received.sidecar
     if sidecar is None or received.request_id is None:
@@ -65,8 +65,20 @@ async def request_result(received: ReceivedField, replied: bool) -> Looked:
                 return Looked("decided", field=field)
             if state == "not_judged":
                 return Looked("not_judged", str(result.get("reason")))
-            if state == "awaiting_reply" and not replied:
-                return Looked("unavailable", "the sidecar never saw a reply")
+            # the proxy hands a reply to the sidecar before passing it on, and
+            # the sidecar is judging it from then: a call that came back with
+            # a reply the sidecar still awaits got past the sidecar
+            if state == "awaiting_reply":
+                return Looked(
+                    "unavailable",
+                    "the reply was passed on without the sidecar"
+                    if replied
+                    else "the sidecar never saw a reply",
+                )
+            # waiting has no deadline of its own, as for a sentinel inside
+            # Inspect; the sidecar's time limit bounds its judging
+            if state != "judging":
+                return Looked("unavailable", f"the sidecar's state is {state!r}")
             await anyio.sleep(wait)
             wait = min(wait * 2, LONGEST_WAIT)
 

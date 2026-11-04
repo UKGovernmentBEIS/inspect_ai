@@ -1,17 +1,22 @@
 """An agent call that goes through a sentinel sidecar."""
 
 import json
+from logging import getLogger
 from typing import TYPE_CHECKING, NamedTuple
 
+from inspect_ai._util.logger import warn_once
 from inspect_ai.model._generate_config import GenerateConfig
 
 from .._config import SentinelProxy
 from .._scope import current_origin, is_agent_turn
 from ._endpoint import Sidecar
-from ._task import SampleFacts, attempt_number, task_sidecars
+from ._task import SampleFacts, TaskSidecars, attempt_number, task_sidecars
 
 if TYPE_CHECKING:
+    from inspect_ai.log._samples import ActiveSample
     from inspect_ai.model._model import Model
+
+logger = getLogger(__name__)
 
 INSPECT_CONTEXT = "x-inspect-context"
 """The header that names the sample an agent call is for."""
@@ -51,6 +56,8 @@ async def sidecar_call(model: "Model") -> SidecarCall | None:
         return None
     sidecar = await sidecars.sidecar(model.api)
     if sidecar is None:
+        if sidecars.mode == "required":
+            _unjudged(sidecars, active, str(model))
         return None
 
     sidecars.called_through(active.sample_uuid, attempt_number(active), sidecar)
@@ -84,6 +91,27 @@ async def sidecar_call(model: "Model") -> SidecarCall | None:
         }
     )
     return SidecarCall(sidecar, header, sidecars.mode)
+
+
+def _unjudged(sidecars: TaskSidecars, active: "ActiveSample", model: str) -> None:
+    # `required` covers the task's assigned model, whose endpoint was probed at
+    # task start; an agent call through another model with no sidecar behind
+    # it goes out unjudged, and says so
+    from inspect_ai.log._transcript import transcript
+
+    warn_once(
+        logger,
+        f"Agent calls through {model} aren't judged: no sentinel sidecar answered behind its endpoint, and --sentinel-proxy required covers only the task's assigned model.",
+    )
+    if sidecars.note_unjudged(active.sample_uuid, attempt_number(active), model):
+        transcript().info(
+            {
+                "model": model,
+                "judgment": "not judged",
+                "reason": "no sidecar answered behind the model's endpoint, and required covers only the task's assigned model",
+            },
+            source="sentinel sidecar",
+        )
 
 
 async def end_sidecar_sample(sample_uuid: str, cancelled: bool = False) -> None:

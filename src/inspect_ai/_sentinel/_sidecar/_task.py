@@ -79,6 +79,9 @@ class TaskSidecars:
         # the sidecars each sample's calls went through, by the sample's uuid,
         # with the attempt that last called each
         self._through: dict[str, dict[str, tuple[Sidecar, int]]] = {}
+        # the models each attempt at a sample called with no sidecar behind
+        # them, by the sample's uuid, so each is noted in its transcript once
+        self._unjudged: dict[str, set[tuple[int, str]]] = {}
 
     async def start(self, model: Model) -> None:
         """Probe the endpoint of the task's assigned model, and register the task with a sidecar found there, before any sample runs.
@@ -137,6 +140,14 @@ class TaskSidecars:
 
         await self._completed.run((sidecar.origin, sample_uuid, attempt), complete)
 
+    def note_unjudged(self, sample_uuid: str, attempt_number: int, model: str) -> bool:
+        """Note that an attempt at a sample called a model with no sidecar behind it; whether this is the attempt's first such call to the model."""
+        noted = self._unjudged.setdefault(sample_uuid, set())
+        if (attempt_number, model) in noted:
+            return False
+        noted.add((attempt_number, model))
+        return True
+
     def called_through(
         self, sample_uuid: str, attempt_number: int, sidecar: Sidecar
     ) -> None:
@@ -156,6 +167,7 @@ class TaskSidecars:
             tell: Whether to tell the sidecars. A cancelled sample's teardown can't be interrupted, so it doesn't wait on a sidecar that may not answer, and the sidecars drop the sample at its run expiry.
         """
         through = self._through.pop(sample_uuid, {}).values()
+        self._unjudged.pop(sample_uuid, None)
         if not tell:
             return
         for sidecar, _ in through:
