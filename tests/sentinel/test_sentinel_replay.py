@@ -1162,6 +1162,60 @@ def test_an_older_approval_that_changed_the_call_in_place_is_refused(
         )
 
 
+UNVERIFIED_CALL_WARNING = (
+    "Skipped the tool steps of call(s) {}: each ended in a parsing or approval "
+    "error, and its approved call differs from its ToolEvent, so the log cannot "
+    "show whether or with which arguments it ran."
+)
+
+
+@pytest.mark.parametrize("inputs", ["expanded", "pooled"])
+@pytest.mark.parametrize("version", ["0.3.276", "0.3.300", None])
+@pytest.mark.parametrize("decision", ["approve", "modify"])
+@pytest.mark.parametrize("error", ["parsing", "approval"])
+def test_an_older_approved_call_that_raised_a_parsing_or_approval_error_is_skipped_with_warning(
+    inputs: str,
+    version: str | None,
+    decision: str,
+    error: str,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Inspect 0.3.276 ran the approved call, whose tool body raised the error, and its ToolEvent records the proposal."""
+    from inspect_ai._sentinel import _replay
+
+    path = (
+        Path(__file__).parent
+        / "fixtures"
+        / f"approval_error_{error}_{decision}_0.3.276.json"
+    )
+    log = read_eval_log(str(path), resolve_attachments="full")
+    [sample] = log.samples or []
+    approval = next(e for e in sample.events if isinstance(e, ApprovalEvent))
+    tool_event = next(e for e in sample.events if isinstance(e, ToolEvent))
+    assert approval.decision == decision
+    approved = approval.modified or approval.call
+    assert approved.arguments == {"path": "changed"}
+    assert tool_event.arguments == {"path": "proposed"}
+    assert tool_event.error is not None
+    assert tool_event.error.type == error
+    assert tool_event.error.message == "body ran with changed"
+    events: list[Event] = list(sample.events)
+    pool: list[ChatMessage] = []
+    if inputs == "pooled":
+        events, pool = _replay._condensed(events, [])
+    replay = steps_from_events(
+        sample.messages,
+        events,
+        pool,
+        sample_uuid=sample.uuid or "sample",
+        eval_info=EvalInfo(version, False),
+    )
+    assert not [step for step in replay if step.stage.startswith("tool")]
+    assert [r.message for r in caplog.records if "Skipped the tool" in r.message] == [
+        UNVERIFIED_CALL_WARNING.format("'c1'")
+    ]
+
+
 @approver
 def r7_changes_the_call_and_escalates() -> Approver:
     async def approve(
@@ -1175,9 +1229,9 @@ def r7_changes_the_call_and_escalates() -> Approver:
 
 @pytest.mark.parametrize("inputs", ["expanded", "pooled"])
 def test_an_approval_of_a_call_changed_in_place_that_did_not_run_replays(
-    inputs: str,
+    inputs: str, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """Current Inspect refuses to run a call an earlier approver changed in place, so the approval's call need not match its ToolEvent."""
+    """Current Inspect refuses to run a call an earlier approver changed in place; the log reads the same as a tool body that raised, so the call's steps are skipped with a warning."""
     from inspect_ai._sentinel import _replay
     from inspect_ai.approval import auto_approver
 
@@ -1200,6 +1254,7 @@ def test_an_approval_of_a_call_changed_in_place_that_did_not_run_replays(
     pool: list[ChatMessage] = []
     if inputs == "pooled":
         events, pool = _replay._condensed(events, [])
+    caplog.clear()
     replay = steps_from_events(
         sample.messages,
         events,
@@ -1208,6 +1263,9 @@ def test_an_approval_of_a_call_changed_in_place_that_did_not_run_replays(
         eval_info=EvalInfo.from_eval(log.eval),
     )
     assert not [step for step in replay if step.stage.startswith("tool")]
+    assert [r.message for r in caplog.records if "Skipped the tool" in r.message] == [
+        UNVERIFIED_CALL_WARNING.format(repr(tool_event.id))
+    ]
 
 
 def test_an_approvers_approve_replays_as_it_ran() -> None:
