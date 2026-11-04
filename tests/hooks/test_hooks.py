@@ -128,6 +128,33 @@ class MockMinimalHooks(Hooks):
         self.run_start_events.append(data)
 
 
+class CacheUsageAbortHooks(Hooks):
+    """Cache-usage hook that can raise a limit or wait to be cancelled."""
+
+    def __init__(self) -> None:
+        self.sample_event_events: list[SampleEvent] = []
+        self.limit_message: str | None = None
+        self.cache_usage_suspended: anyio.Event | None = None
+
+    def enabled(self) -> bool:
+        return True
+
+    async def on_sample_event(self, data: SampleEvent) -> None:
+        self.sample_event_events.append(data)
+
+    async def on_model_cache_usage(self, data: object) -> None:
+        del data
+        if self.limit_message is not None:
+            from inspect_ai.util._limit import LimitExceededError
+
+            raise LimitExceededError(
+                "custom", value=1, limit=1, message=self.limit_message
+            )
+        if self.cache_usage_suspended is not None:
+            self.cache_usage_suspended.set()
+            await anyio.sleep_forever()
+
+
 class AwaitingRunHooks(Hooks):
     """Run hooks that await, so cancellation can reach them."""
 
@@ -171,6 +198,11 @@ def hooks_minimal() -> Generator[MockMinimalHooks, None, None]:
 @pytest.fixture
 def awaiting_run_hooks() -> Generator[AwaitingRunHooks, None, None]:
     yield from _create_mock_hooks("test_awaiting_run_hooks", AwaitingRunHooks)
+
+
+@pytest.fixture
+def cache_usage_hooks() -> Generator[CacheUsageAbortHooks, None, None]:
+    yield from _create_mock_hooks("test_cache_usage_hooks", CacheUsageAbortHooks)
 
 
 def test_can_run_eval_with_no_hooks() -> None:
@@ -917,6 +949,99 @@ def test_cached_model_event_is_delivered_once(
         event.uuid for event in hit_logged
     ]
     assert hit_delivered[0].completed is not None
+
+
+def _cached_generate_task(timestamp: str) -> Task:
+    return Task(
+        dataset=[Sample(input=f"What is the timestamp: {timestamp}")],
+        solver=[generate(cache=True)],
+    )
+
+
+def _delivered_model_events(hook: CacheUsageAbortHooks) -> list:
+    from inspect_ai.event._model import ModelEvent
+
+    return [
+        data.event
+        for data in hook.sample_event_events
+        if isinstance(data.event, ModelEvent)
+    ]
+
+
+def test_cached_model_event_is_delivered_when_cache_usage_hook_raises_a_limit(
+    cache_usage_hooks: CacheUsageAbortHooks,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """A cache hit whose usage hook raises a limit is still delivered once."""
+    from inspect_ai.event._model import ModelEvent
+
+    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path))
+    task = _cached_generate_task(str(datetime.now(timezone.utc)))
+
+    miss = eval(task, model="mockllm/model", display="none")[0]
+    assert miss.samples is not None
+    assert miss.samples[0].limit is None
+
+    cache_usage_hooks.sample_event_events.clear()
+    cache_usage_hooks.limit_message = "cache usage limit"
+    hit = eval(task, model="mockllm/model", display="none")[0]
+
+    assert hit.samples is not None
+    assert hit.samples[0].limit is not None
+    assert hit.samples[0].limit.type == "custom"
+    assert hit.samples[0].limit.reason == "cache usage limit"
+    logged = [
+        event for event in hit.samples[0].events if isinstance(event, ModelEvent)
+    ]
+    delivered = _delivered_model_events(cache_usage_hooks)
+    assert len(logged) == 1
+    assert logged[0].cache == "read"
+    assert logged[0].error is None
+    assert [event.uuid for event in delivered] == [event.uuid for event in logged]
+
+
+async def test_cached_model_event_is_delivered_when_cache_usage_hook_is_cancelled(
+    cache_usage_hooks: CacheUsageAbortHooks,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Cancelling the cache-usage hook still delivers the cached event once."""
+    from inspect_ai.event._model import ModelEvent
+
+    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path))
+    cache_dir = tmp_path / "logs"
+    task = _cached_generate_task(str(datetime.now(timezone.utc)))
+
+    miss = await eval_async(task, model="mockllm/model")
+    assert miss[0].samples is not None
+    assert miss[0].status == "success"
+
+    cache_usage_hooks.sample_event_events.clear()
+    cache_usage_hooks.cache_usage_suspended = anyio.Event()
+
+    async def run_hit() -> None:
+        await eval_async(
+            task,
+            model="mockllm/model",
+            log_dir=str(cache_dir),
+            ctl_server=False,
+        )
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(run_hit)
+        await cache_usage_hooks.cache_usage_suspended.wait()
+        tg.cancel_scope.cancel()
+
+    (log_info,) = await list_eval_logs_async(str(cache_dir))
+    log = await read_eval_log_async(log_info.name)
+    assert log.status == "cancelled"
+    assert log.samples is not None
+    logged = [event for event in log.samples[0].events if isinstance(event, ModelEvent)]
+    delivered = _delivered_model_events(cache_usage_hooks)
+    assert len(logged) == 1
+    assert logged[0].cache == "read"
+    assert [event.uuid for event in delivered] == [event.uuid for event in logged]
 
 
 def test_failed_model_events_are_still_delivered(mock_hooks: MockHooks) -> None:

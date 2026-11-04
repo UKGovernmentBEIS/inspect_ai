@@ -1544,18 +1544,26 @@ class Model:
                     # call cached between attempts) must still deliver the
                     # boundary that invalidates the failed attempt's deltas
                     assert isinstance(event, ModelEvent)
-                    await stream_observer.begin_attempt(event)
-                    # mark this request as a cache hit so the post-call
-                    # adaptive-controller success notification is suppressed —
-                    # cache hits don't exercise the rate limit
-                    from inspect_ai.util._concurrency import _request_was_cache_hit
+                    try:
+                        await stream_observer.begin_attempt(event)
+                        # mark this request as a cache hit so the post-call
+                        # adaptive-controller success notification is suppressed —
+                        # cache hits don't exercise the rate limit
+                        from inspect_ai.util._concurrency import _request_was_cache_hit
 
-                    _request_was_cache_hit.set(True)
-                    if existing.usage:
-                        await emit_model_cache_usage(
-                            model_name=str(self), usage=existing.usage
-                        )
-                    return existing, event
+                        _request_was_cache_hit.set(True)
+                        if existing.usage:
+                            await emit_model_cache_usage(
+                                model_name=str(self), usage=existing.usage
+                            )
+                        return existing, event
+                    except BaseException:
+                        # generate() stamps timing and clears the defer flag.
+                        # A limit or cancellation from the cache-usage hook
+                        # aborts before that, so deliver this snapshot once
+                        # and keep the original error.
+                        _emit_deferred_model_hook(event)
+                        raise
             else:
                 cache_entry = None
 
