@@ -3284,6 +3284,148 @@ def test_a_0_3_99_decision_without_tool_event_reaches_later_step(
     assert decisions[0].decided.report.action == decision
 
 
+@pytest.mark.parametrize("inputs", ["expanded", "pooled"])
+@pytest.mark.parametrize(
+    "approval,sentinel_x,event_x,before_x,after_x",
+    [
+        (False, None, 1, 1, 1),
+        (True, None, 1, 7, 7),
+        (False, 9, 9, 1, 9),
+        (True, 9, 9, 7, 9),
+        (True, 1, 1, 7, 1),
+    ],
+)
+def test_recorded_sentinel_change_controls_executed_arguments(
+    inputs: str,
+    approval: bool,
+    sentinel_x: int | None,
+    event_x: int,
+    before_x: int,
+    after_x: int,
+) -> None:
+    messages, events, pool = _historical_approval_events(inputs, "modify", True)
+    if not approval:
+        events = [event for event in events if not isinstance(event, ApprovalEvent)]
+    tool = next(event for event in events if isinstance(event, ToolEvent))
+    tool.arguments = {"x": event_x, "y": 1}
+    if sentinel_x is not None:
+        proposal = ToolCall(id="c1", function="addition", arguments={"x": 1, "y": 1})
+        check: list[Event] = [
+            SpanBeginEvent(
+                id="check", name="probe", type="sentinel", parent_id="agent"
+            ),
+            SentinelEvent(
+                factory="probe",
+                path="probe",
+                function="check",
+                step_id="c1",
+                conversation="agent",
+                stage="tool_call",
+                kind="decision",
+                status="reported",
+                action="modify",
+                modified=replace(proposal, arguments={"x": sentinel_x, "y": 1}),
+                span_id="check",
+            ),
+            SpanEndEvent(id="check"),
+        ]
+        begin = next(
+            index
+            for index, event in enumerate(events)
+            if isinstance(event, SpanBeginEvent) and event.id == "tool"
+        )
+        events[begin:begin] = check
+    adapter = TypeAdapter(list[Event])
+    events = adapter.validate_json(adapter.dump_json(events))
+    replay = steps_from_events(
+        messages,
+        events,
+        pool,
+        sample_uuid="sample",
+        eval_info=EvalInfo("0.3.99", sentinel_x is not None),
+        human_approvers=("human",),
+    )
+    assert [
+        step.step.call.arguments["x"]
+        for step in replay
+        if isinstance(step.step, BeforeToolCall | AfterToolCall)
+    ] == [before_x, after_x]
+
+
+@pytest.mark.parametrize("inputs", ["expanded", "pooled"])
+@pytest.mark.parametrize("decision", ["reject", "terminate"])
+@pytest.mark.parametrize("reused_id", [True, False])
+@pytest.mark.parametrize("later_approval", [True, False])
+def test_a_prior_decision_survives_a_later_execution_with_reused_id(
+    inputs: str, decision: str, reused_id: bool, later_approval: bool
+) -> None:
+    from inspect_ai._sentinel import _replay
+
+    messages, events, _ = _historical_approval_events("expanded", decision, True)
+    events.pop()
+    later_id = "c1" if reused_id else "c2"
+    proposal = ToolCall(id=later_id, function="addition", arguments={"x": 2, "y": 1})
+    later = linked_call("m3", "agent", messages, "Try again", None, proposal)
+    later.tools = [ToolInfo(name="addition", description="Add numbers")]
+    result = ChatMessageTool(content="3", tool_call_id=later_id, function="addition")
+    final = linked_call(
+        "m4", "agent", [*messages, later.output.message, result], "Done", None
+    )
+    events.append(later)
+    if later_approval:
+        events.append(
+            ApprovalEvent(
+                message="Try again",
+                call=proposal,
+                approver="human",
+                decision="approve",
+                span_id="agent",
+            )
+        )
+    events.extend(
+        [
+            SpanBeginEvent(
+                id="later-tool", name="addition", type="tool", parent_id="agent"
+            ),
+            ToolEvent(
+                id=later_id,
+                function="addition",
+                arguments=proposal.arguments,
+                result="3",
+                message_id=result.id,
+                span_id="later-tool",
+            ),
+            SpanEndEvent(id="later-tool"),
+            final,
+            SpanEndEvent(id="agent"),
+        ]
+    )
+    pool: list[ChatMessage] = []
+    if inputs == "pooled":
+        events, pool = _replay._condensed(events, [])
+    adapter = TypeAdapter(list[Event])
+    events = adapter.validate_json(adapter.dump_json(events))
+    replay = steps_from_events(
+        [*messages, later.output.message, result, final.output.message],
+        events,
+        pool,
+        sample_uuid="sample",
+        eval_info=EvalInfo("0.3.99", False),
+        human_approvers=("human",),
+    )
+    intervening = next(
+        step for step in replay if step.stage == "model_input" and step.id == "m2"
+    )
+    assert [
+        recorded.decided.report.action
+        for recorded in intervening.step.human_decisions or []
+    ] == [decision]
+    assert [step.stage for step in replay if step.stage.startswith("tool")] == [
+        "tool_call",
+        "tool_result",
+    ]
+
+
 @tool
 def times_out() -> Tool:
     async def execute() -> str:

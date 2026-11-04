@@ -519,9 +519,9 @@ class _Driver:
         ] = {}
         calls_made: set[str | None] = set()
         produced: dict[str, tuple[ChatMessageAssistant, ModelEvent, ToolCall]] = {}
-        approvals: dict[str, ApprovalEvent] = {}
+        approvals: dict[str, tuple[int, ApprovalEvent]] = {}
         approval_entries: list[tuple[int, ApprovalEvent, str]] = []
-        tool_call_ids: set[str] = set()
+        consumed_approvals: set[int] = set()
         calls: list[_Call] = []
 
         # Every span first so origin inference sees later span declarations.
@@ -543,6 +543,8 @@ class _Driver:
                 if message_id is not None:
                     message = event.output.choices[0].message
                     for tool_call in message.tool_calls or []:
+                        # A new proposal cannot consume the prior attempt's approval.
+                        approvals.pop(tool_call.id, None)
                         produced[tool_call.id] = (message, event, tool_call)
                 if not is_agent_turn(self._origin(event)):
                     continue
@@ -565,7 +567,7 @@ class _Driver:
                 if event.error is not None:
                     open_generates[attempt_key] = group
             elif isinstance(event, ApprovalEvent):
-                approvals[event.call.id] = event
+                approvals[event.call.id] = (index, event)
                 found = produced.get(event.call.id)
                 conversation = (
                     self._conversation(found[1])
@@ -579,7 +581,6 @@ class _Driver:
             elif isinstance(event, ToolEvent):
                 if self._in_sentinel_span(event.span_id):
                     continue
-                tool_call_ids.add(event.id)
                 found = produced.get(event.id)
                 producer: ModelEvent | None = None
                 assistant: ChatMessageAssistant | None
@@ -593,6 +594,9 @@ class _Driver:
                     if producer is not None
                     else self._conversation(event)
                 )
+                recorded_approval = approvals.pop(event.id, None)
+                if recorded_approval is not None:
+                    consumed_approvals.add(recorded_approval[0])
                 entry = _Call(
                     index,
                     event,
@@ -600,7 +604,7 @@ class _Driver:
                     assistant,
                     proposal,
                     producer,
-                    approvals.pop(event.id, None),
+                    recorded_approval[1] if recorded_approval is not None else None,
                     self._next_seq(3),
                     self._tool_span(index, event),
                 )
@@ -610,7 +614,7 @@ class _Driver:
         self._warn_unmatched_checks()
         if not self.eval_info.sentinel:
             for index, approval, conversation in approval_entries:
-                if approval.call.id not in tool_call_ids:
+                if index not in consumed_approvals:
                     self._approval_decision(
                         approval,
                         conversation,
@@ -841,9 +845,14 @@ class _Driver:
         modify = self._sentinel_modify(before_span, event)
         approved = approver_modified or proposal
         executed_arguments = (
-            approver_modified.arguments
-            if approver_modified is not None and event.arguments == proposal.arguments
-            else event.arguments
+            modify.arguments
+            if modify is not None
+            else (
+                approver_modified.arguments
+                if approver_modified is not None
+                and event.arguments == proposal.arguments
+                else event.arguments
+            )
         )
         if modify is not None:
             before_call = approved
