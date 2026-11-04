@@ -743,7 +743,7 @@ async def test_local_sandbox_installs_its_version_beside_older_trees(
         (tree / "inspect-sandbox-tools").write_text(_launcher_script("old", log))
         (tree / "inspect-sandbox-tools").chmod(0o700)
         (tree / ".server").mkdir(mode=0o700)
-    tools_dir = tmp_path / f".da7be258e003d428-v{VERSION}"
+    tools_dir = tmp_path / Path(SANDBOX_TOOLS_DIR).name
     cli = tools_dir / "inspect-sandbox-tools"
     monkeypatch.setattr(sandbox_tools, "SANDBOX_TOOLS_DIR", str(tools_dir))
     monkeypatch.setattr(sandbox_tools, "SANDBOX_CLI", str(cli))
