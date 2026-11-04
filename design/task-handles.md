@@ -233,7 +233,8 @@ class TaskHandle:
     task: str                       # task name
     model: str
     @property
-    def state(self) -> Literal["queued", "running", "ended"]: ...
+    def state(self) -> Literal["queued", "running", "ended"]:
+        """The record's phase, mapped as in task-dispatch.md "Task phases"."""
     async def started(self) -> None:
         """Wait until the task's first attempt starts.
 
@@ -354,6 +355,7 @@ ordinary count excluding records running on a loan:
     while not cancelled and ordinary_in_flight < effective_max_tasks(parallel):
         ... ordinary picks, unchanged ...
     for record in startable records holding a loan, in queue order:
+        move record to starting or retry_starting, as an ordinary pick does
         start run_one(record, on_loan=True)
 ```
 
@@ -793,7 +795,9 @@ class Loan:
   more slots.
 - **What it starts.** The dispatcher starts a record above the ordinary
   limit only if the record holds a loan, after the ordinary picks, and only
-  when it is startable (admitted, setups settled, not paused). An earlier,
+  when it is startable (the start rule in
+  [task-dispatch.md](task-dispatch.md#the-dispatcher): phase `admitted` or
+  `retry_waiting`, setups settled, not paused). An earlier,
   unrelated queued task never starts on another task's loan: at
   `max_tasks=1`, with running parent P, an earlier queued task U and P's
   child C, P's wait starts C, and U waits for an ordinary slot. If an
