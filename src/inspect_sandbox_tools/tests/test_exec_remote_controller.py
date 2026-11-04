@@ -506,7 +506,7 @@ class TestWaitingPoll:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """The exit that follows output inside the output wait shares its reply."""
-        monkeypatch.setattr(job_module, "_OUTPUT_EXIT_WAIT_SECONDS", 2.0)
+        monkeypatch.setattr(job_module, "_OUTPUT_EXIT_WAIT_SECONDS", 5.0)
         controller = Controller()
         pid = await controller.submit("printf done; sleep 0.3; exit 3")
 

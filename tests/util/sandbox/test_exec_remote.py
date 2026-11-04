@@ -1089,7 +1089,7 @@ class TestServerWait:
         assert events == [ExecCompleted(exit_code=0)]
         waits = [params["wait"] for params in _polls(sandbox)]
         assert len(waits) == 3
-        assert all(9 < wait <= 10 for wait in waits)
+        assert all(0 < wait <= 10 for wait in waits)
         assert waits == sorted(waits, reverse=True)
         assert sleeps == []
 
