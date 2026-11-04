@@ -28,6 +28,7 @@ from inspect_ai.util._sandbox._cli import (
     SANDBOX_CLI,
     SANDBOX_TOOLS_BASE_NAME,
     SANDBOX_TOOLS_DIR,
+    SANDBOX_TOOLS_VERSION,
 )
 from inspect_ai.util._sandbox._framework_directory import (
     FrameworkDirectoryError,
@@ -652,9 +653,7 @@ async def _open_executable_for_arch(
 
 def _get_sandbox_tools_version() -> str:
     """Get the container tools version from sandbox_tools_version.txt file."""
-    # Look in the same directory as this module
-    version_file = Path(__file__).parent / "sandbox_tools_version.txt"
-    return version_file.read_text().strip()
+    return SANDBOX_TOOLS_VERSION
 
 
 def _get_executable_name(arch: Architecture, dev: bool, musl: bool) -> str:

@@ -2,11 +2,12 @@
 
 import os
 import sys
+import tarfile
 import warnings
 from contextlib import asynccontextmanager
 from io import BytesIO
 from pathlib import Path
-from typing import AsyncIterator, BinaryIO, Iterator
+from typing import Any, AsyncIterator, BinaryIO, Iterator
 
 import anyio
 import pytest
@@ -30,6 +31,7 @@ from inspect_ai.event._sandbox import SandboxEvent
 from inspect_ai.log._transcript import Transcript, init_transcript
 from inspect_ai.solver import generate
 from inspect_ai.tool._sandbox_tools_utils import sandbox as sandbox_tools
+from inspect_ai.util._sandbox import local as local_sandbox
 from inspect_ai.util._sandbox._cli import SANDBOX_CLI, SANDBOX_TOOLS_DIR
 from inspect_ai.util._sandbox._framework_directory import (
     _MISSING_MARKER,
@@ -60,6 +62,9 @@ from inspect_ai.util._subprocess import ExecResult
 
 OK = ExecResult(success=True, returncode=0, stdout="", stderr="")
 """Result of an ordinary (non-helper) command."""
+
+VERSION = sandbox_tools._get_sandbox_tools_version()
+"""The sandbox tools version this release installs."""
 
 VERIFIED = ExecResult(
     success=True, returncode=0, stdout="", stderr=f"{_VERIFIED_MARKER}\n"
@@ -664,6 +669,129 @@ async def test_extract_reports_failure_of_both_tar_attempts(
     with pytest.raises(RuntimeError, match="Failed to extract sandbox tools"):
         await sandbox_tools._extract_tools_tree(sandbox, "name", b"gz", "root")
     assert len(sandbox.exec_calls) == 2
+
+
+def test_tools_dir_is_per_version() -> None:
+    """Each tools version installs into, and adopts, only its own tree."""
+    assert SANDBOX_TOOLS_DIR == f"/var/tmp/.da7be258e003d428-v{VERSION}"
+    assert SANDBOX_CLI == f"{SANDBOX_TOOLS_DIR}/inspect-sandbox-tools"
+
+
+def test_tools_version_is_read_once(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An upgrade under a running process cannot split directory and artifact.
+
+    The directory is fixed at import; the artifact must name the same version even
+    if ``sandbox_tools_version.txt`` changes afterwards.
+    """
+    read_text = Path.read_text
+
+    def upgraded(self: Path, *args: Any, **kwargs: Any) -> str:
+        if self.name == "sandbox_tools_version.txt":
+            return f"{int(VERSION) + 1}\n"
+        return read_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", upgraded)
+    assert sandbox_tools._get_sandbox_tools_version() == VERSION
+    variants: list[tuple[Architecture, bool, bool]] = [
+        ("amd64", False, False),
+        ("arm64", True, True),
+    ]
+    for arch, dev, musl in variants:
+        name = sandbox_tools._get_executable_name(arch, dev, musl)
+        assert f"-v{VERSION}" in name, name
+    assert SANDBOX_TOOLS_DIR.endswith(f"-v{VERSION}")
+
+
+def _launcher_script(tag: str, log: Path) -> str:
+    """A launcher that appends its tag, command and server directory to ``log``."""
+    return f'#!/bin/sh\necho "{tag} $1 ${{INSPECT_SANDBOX_TOOLS_DIR:-tree}}" >> {log}\n'
+
+
+def _tools_archive(launcher: str) -> bytes:
+    buffer = BytesIO()
+    with tarfile.open(fileobj=buffer, mode="w:gz") as tar:
+        for name, data, mode in [
+            ("inspect-sandbox-tools", launcher.encode(), 0o755),
+            ("_internal/lib", b"new", 0o644),
+        ]:
+            info = tarfile.TarInfo(name)
+            info.size, info.mode = len(data), mode
+            tar.addfile(info, BytesIO(data))
+    return buffer.getvalue()
+
+
+@pytest.mark.skipif(
+    sys.platform != "linux",
+    reason="the framework-directory helper needs GNU/BusyBox stat",
+)
+async def test_local_sandbox_installs_its_version_beside_older_trees(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Trees older releases left on the host are neither adopted nor modified.
+
+    On the ``local`` sandbox every sample on the host shares the tree for its
+    version. The trees here stand in for one from a release before per-version
+    directories and one from an older version; both keep their files and their
+    launchers never run, while this version's tree is installed once and then
+    adopted by a later sample.
+    """
+    log = tmp_path / "launcher.log"
+    old_trees = [tmp_path / ".da7be258e003d428", tmp_path / ".da7be258e003d428-v38"]
+    for tree in old_trees:
+        tree.mkdir(mode=0o700)
+        (tree / "inspect-sandbox-tools").write_text(_launcher_script("old", log))
+        (tree / "inspect-sandbox-tools").chmod(0o700)
+        (tree / ".server").mkdir(mode=0o700)
+    tools_dir = tmp_path / Path(SANDBOX_TOOLS_DIR).name
+    cli = tools_dir / "inspect-sandbox-tools"
+    monkeypatch.setattr(sandbox_tools, "SANDBOX_TOOLS_DIR", str(tools_dir))
+    monkeypatch.setattr(sandbox_tools, "SANDBOX_CLI", str(cli))
+    monkeypatch.setattr(local_sandbox, "SANDBOX_CLI", str(cli))
+    monkeypatch.delenv("INSPECT_SANDBOX_TOOLS_DIR", raising=False)
+
+    async def fake_detect_sandbox_os(
+        _sandbox: SandboxEnvironment,
+    ) -> SupportedContainerOSInfo:
+        return {"architecture": "amd64", "libc": "glibc"}
+
+    @asynccontextmanager
+    async def fake_open_executable_for_arch(
+        _arch: Architecture, _musl: bool
+    ) -> AsyncIterator[tuple[str, BinaryIO]]:
+        yield (
+            "inspect-sandbox-tools-test",
+            BytesIO(_tools_archive(_launcher_script("new", log))),
+        )
+
+    monkeypatch.setattr(sandbox_tools, "detect_sandbox_os", fake_detect_sandbox_os)
+    monkeypatch.setattr(
+        sandbox_tools, "_open_executable_for_arch", fake_open_executable_for_arch
+    )
+
+    first, second = LocalSandboxEnvironment(), LocalSandboxEnvironment()
+    try:
+        await sandbox_tools.sandbox_with_injected_tools(sandbox=first)
+        assert cli.read_text() == _launcher_script("new", log)
+        assert log.read_text().splitlines() == [
+            f"new start-server {first._sandbox_tools_dir}"
+        ]
+
+        await sandbox_tools.sandbox_with_injected_tools(sandbox=second)
+        assert len(log.read_text().splitlines()) == 1
+        assert second._tools_user_resolved
+    finally:
+        first.directory.cleanup()
+        second.directory.cleanup()
+
+    for tree in old_trees:
+        assert sorted(p.name for p in tree.iterdir()) == [
+            ".server",
+            "inspect-sandbox-tools",
+        ]
+        assert (tree / "inspect-sandbox-tools").read_text() == _launcher_script(
+            "old", log
+        )
 
 
 async def test_detector_checks_as_known_tools_user() -> None:

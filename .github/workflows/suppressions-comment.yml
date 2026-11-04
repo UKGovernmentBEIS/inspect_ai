@@ -66,7 +66,7 @@ jobs:
           filter: "blob:none"
 
       - name: Install uv
-        uses: meridianlabs-ai/actions/setup-uv@2e29d39eac45f500a64f443ec31aa6fb874f9ddc # main, 2026-11-02
+        uses: meridianlabs-ai/actions/setup-uv@62bc8360498822ef3eab7c9584d1bd523de3febf # main, 2026-11-02
         with:
           python-version: "3.11"
           actions-cache: none
