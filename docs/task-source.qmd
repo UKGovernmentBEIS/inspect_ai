@@ -84,7 +84,7 @@ class Curriculum(TaskSource):
         return None
 ```
 
-A source that returns follow-ups from these callbacks needs no `next_tasks()`: the run ends when the callbacks return nothing and `next_tasks()` returns `None`. Use `next_tasks()` for the blocking case a per-result callback can't express. An exception raised by `task_complete` is logged as an error: the finished task's log is kept as written, the task is not retried, and the run continues without the follow-up tasks. With `debug_errors`, the exception ends the run.
+A source that returns follow-ups from these callbacks needs no `next_tasks()`: the run ends when the callbacks return nothing and `next_tasks()` returns `None`. Use `next_tasks()` for the blocking case a per-result callback can't express. An exception raised by `task_complete` is logged as an error: the finished task's log is kept as written, the exception does not cause a retry, and the run continues without the follow-up tasks. A task whose log is an error is still retried as usual, and `task_complete` is called again for the new attempt. With `debug_errors`, the exception ends the run.
 
 ## Cancelled samples
 
