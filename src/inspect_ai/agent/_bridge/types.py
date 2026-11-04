@@ -166,6 +166,10 @@ class AgentBridge:
         self._operator_keys: set[str] = set()
         self._warned_request_settings: set[str] = set()
         self._sentinel_results: "_ResultChecks | None" = None
+        # deferred: `_sentinel` imports this module
+        from ._sentinel import inherited_result_keys
+
+        self._inherited_results = inherited_result_keys(self._compaction_prefix)
 
     state: AgentState
     """State updated from messages traveling over the bridge."""

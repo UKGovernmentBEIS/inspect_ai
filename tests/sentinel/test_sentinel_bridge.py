@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, patch
 
 import anyio
 import pytest
+from test_helpers.checkpoint import RecordingCheckpointer
 
 from inspect_ai import Task, eval
 from inspect_ai._sentinel._config import resolve_sentinel_root, resolve_sentinel_spec
@@ -2471,6 +2472,110 @@ async def test_a_result_the_bridge_started_with_is_checked_only_if_changed(
         for step in seen
         if isinstance(step, AfterToolCall)
     ] == ([(READ, received)] if changed or dialect == "google" else [])
+
+
+def started_with(
+    sandbox: bool,
+    model: Model,
+    state: AgentState,
+    checkpointer: RecordingCheckpointer | None = None,
+) -> AgentBridge:
+    return (
+        SandboxAgentBridge(
+            state=state,
+            filter=None,
+            retry_refusals=None,
+            compaction=None,
+            port=13131,
+            model=None,
+            model_aliases={"inspect": model},
+            checkpointer=checkpointer,
+        )
+        if sandbox
+        else AgentBridge(
+            state, model_aliases={"inspect": model}, checkpointer=checkpointer
+        )
+    )
+
+
+def as_handed(dialect: str, text: str) -> str:
+    """A result's content as the dialect's bridge parses it (Google's `response` JSON)."""
+    return json.dumps({"output": text}) if dialect == "google" else text
+
+
+@pytest.mark.parametrize("change", ["content", "part"])
+@pytest.mark.parametrize("sandbox", [False, True])
+@pytest.mark.parametrize("dialect", DIALECTS)
+async def test_a_result_the_bridge_started_with_changed_in_place_is_checked(
+    dialect: str, sandbox: bool, change: str
+) -> None:
+    seen: Steps = []
+    model = Scripted(calls_output(), calls_output())
+    part = ContentText(text=as_handed(dialect, "safe"))
+    result = ChatMessageTool(
+        content=as_handed(dialect, "safe") if change == "content" else [part],
+        tool_call_id=READ.id,
+        function=READ.function,
+    )
+    state = AgentState(
+        messages=[
+            ChatMessageUser(content=TASK),
+            ChatMessageAssistant(content="Reading.", tool_calls=[READ]),
+            result,
+        ]
+    )
+    bridge = started_with(sandbox, model.model, state)
+
+    # changed before the bridge's first request
+    if change == "content":
+        result.content = as_handed(dialect, "secret")
+    else:
+        part.text = as_handed(dialect, "secret")
+
+    with active([bridge_recording(seen)]):
+        await dialect_history_request(dialect, bridge, READ, "secret")
+        await dialect_history_request(dialect, bridge, READ, "safe")
+
+    assert [
+        (step.call, step.result.text)
+        for step in seen
+        if isinstance(step, AfterToolCall)
+    ] == [(READ, as_handed(dialect, "secret"))]
+
+
+@pytest.mark.parametrize("sandbox", [False, True])
+async def test_a_resumed_bridge_inherits_the_results_it_first_started_with(
+    sandbox: bool,
+) -> None:
+    def conversation(result: str) -> list[ChatMessage]:
+        return [
+            ChatMessageUser(content=TASK),
+            ChatMessageAssistant(content="Reading.", tool_calls=[READ]),
+            ChatMessageTool(
+                content=result, tool_call_id=READ.id, function=READ.function
+            ),
+        ]
+
+    seen: Steps = []
+    model = Scripted(calls_output(), calls_output())
+    restored = conversation("safe")
+    checkpointer = RecordingCheckpointer(
+        restored={"bridge_compaction_prefix": restored}
+    )
+    bridge = started_with(
+        sandbox, model.model, AgentState(messages=conversation("secret")), checkpointer
+    )
+    restored[2].content = "changed after resume"
+
+    with active([bridge_recording(seen)]):
+        await dialect_history_request("completions", bridge, READ, "safe")
+        await dialect_history_request("completions", bridge, READ, "secret")
+
+    assert [
+        (step.call, step.result.text)
+        for step in seen
+        if isinstance(step, AfterToolCall)
+    ] == [(READ, "secret")]
 
 
 @pytest.mark.parametrize("dialect", DIALECTS)

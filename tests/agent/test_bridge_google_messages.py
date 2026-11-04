@@ -276,7 +276,7 @@ def test_google_computer_action_ids_round_trip_in_both_issuance_orders(
         )
         for call in calls
     ]
-    issued = _ResultChecks().issue(checks)
+    issued = _ResultChecks(frozenset()).issue(checks)
     output = ModelOutput.for_tool_call("mockllm/model", "computer", calls[0].arguments)
     output.message.tool_calls = [
         replace(call, id=check.token or call.id) for call, check in zip(calls, issued)

@@ -182,18 +182,19 @@ class _ResultChecks:
     The results in the state the bridge starts with were in the agent's
     conversation before the bridge ran, and are not checked again, as a native
     agent handed a conversation does not check its results again
-    (`inherit`). Each is recorded under its conservative key, so a scaffold
-    that reports one changed reports a different result, which is checked.
+    (`inherited_result_keys`). Each is recorded under its conservative key,
+    taken when the bridge is constructed, so a result reported with other
+    content (including one changed in place since) is checked.
 
     Held by its bridge, since a failure's traceback references the bridge.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, inherited: frozenset[str]) -> None:
         self.identities: dict[str, _Identity] = {}
         self.prefixed_tokens: set[str] = set()
         self.reserved_ids: set[str] = set()
         self.proposals: OrderedDict[str, SentinelCheck] = OrderedDict()
-        self.checked: set[str] = set()
+        self.checked: set[str] = set(inherited)
         self.running: dict[str, anyio.Event] = {}
         self.failed: dict[str, Exception] = {}
 
@@ -281,10 +282,6 @@ class _ResultChecks:
             if token in self.reserved_ids:
                 return True
         return False
-
-    def inherit(self, input: Sequence[ChatMessage]) -> None:
-        for _, message, found in _answers(input):
-            self.checked.add(_unissued(message, found)[1])
 
     def claim(self, input: list[ChatMessage]) -> _Claimed:
         claimed = _Claimed([], [])
@@ -499,11 +496,20 @@ def _content_key(result: ChatMessageTool) -> str:
     )
 
 
+def inherited_result_keys(input: Sequence[ChatMessage]) -> frozenset[str]:
+    """The keys of the results a bridge starts with, which it does not check.
+
+    Taken when the bridge is constructed, from the messages as they are then:
+    a result later changed in place has a different key and is checked.
+    """
+    return frozenset(
+        _unissued(message, found)[1] for _, message, found in _answers(input)
+    )
+
+
 def _result_checks(bridge: AgentBridge) -> _ResultChecks:
     if bridge._sentinel_results is None:
-        bridge._sentinel_results = _ResultChecks()
-        # the state the bridge started with
-        bridge._sentinel_results.inherit(bridge._compaction_prefix)
+        bridge._sentinel_results = _ResultChecks(bridge._inherited_results)
     return bridge._sentinel_results
 
 
