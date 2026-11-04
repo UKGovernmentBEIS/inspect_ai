@@ -503,7 +503,9 @@ class _Driver:
         A native call has a ToolEvent even when it fails. Match its preceding
         tool_call check, if any; an unmatched check under that ID came from the
         bridge. A scaffold call with only a result check has no before check or
-        ToolEvent, but its proposing ModelEvent records a requested_model.
+        ToolEvent, but its proposing ModelEvent records a requested_model. A
+        result check under a native ID is the bridge's when it began after the
+        native call completed, or ambiguous when another began alongside it.
         """
         native = [call for call in calls if not _bridged(call.event)]
         native_ids = {call.event.id for call in native}
@@ -534,7 +536,9 @@ class _Driver:
                 for span in self.tool_spans.get(("tool_call", call_id), [])
             ):
                 shared.add(call_id)
-            if self._bridge_result_span(call_id, native_by_id[call_id]):
+            if self._bridge_result_span(
+                call_id, native_by_id[call_id]
+            ) or self._overlapping_result_spans(call_id, native_by_id[call_id]):
                 shared.add(call_id)
             if (
                 self.tool_spans.get(("tool_result", call_id))
@@ -571,6 +575,30 @@ class _Driver:
                 and latest_completion is not None
                 and begin.timestamp > latest_completion
             ):
+                return True
+        return False
+
+    def _overlapping_result_spans(self, call_id: str, native: list[_Call]) -> bool:
+        """Find two result checks that began while one native call awaited its review.
+
+        Either could be the native call's, and the other a bridge request's
+        check of a result under the same id.
+        """
+        spans = self.tool_spans.get(("tool_result", call_id), [])
+        for at, call in enumerate(native):
+            end = self.ends.get(call.tool_span) if call.tool_span is not None else None
+            completed = call.event.completed
+            if end is None or completed is None:
+                continue
+            following = native[at + 1].index if at + 1 < len(native) else None
+            overlapping = [
+                span
+                for span in spans
+                if end < self.begins[span][0]
+                and (following is None or self.begins[span][0] < following)
+                and self.begins[span][1].timestamp <= completed
+            ]
+            if len(overlapping) > 1:
                 return True
         return False
 

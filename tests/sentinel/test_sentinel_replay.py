@@ -3899,33 +3899,76 @@ def test_result_only_sentinel_skips_shared_scaffold_result(
     assert "call id(s) shared" in caplog.text
 
 
+@reviewer
+def r7_holds_result_review(reviewing: anyio.Event, released: anyio.Event) -> Reviewer:
+    async def review_result(
+        message: str,
+        call: ToolCall,
+        result: ChatMessageTool,
+        output: ToolResult,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Review:
+        reviewing.set()
+        await released.wait()
+        return Review(decision="continue")
+
+    return review_result
+
+
 @agent
-def r7_reports_orphan_result_after_failed_native_call() -> Agent:
+def r7_reports_orphan_result_after_native_call(held: bool) -> Agent:
+    """A bridge reporting an orphan result under a native call's id: after the native call failed, or while its successful result is held in review."""
+
     async def execute(state: AgentState) -> AgentState:
         from inspect_ai.agent._bridge.completions import inspect_completions_api_request
 
         bridge, tools = await r7_host_bridge(state)
         history: list[ChatMessage] = [ChatMessageUser(content="native")]
-        native_tool = explodes()
+        native_tool = addition() if held else explodes()
         output = await get_model().generate(history, tools=[native_tool])
         history.append(output.message)
-        with pytest.raises(RuntimeError, match="boom"):
-            await execute_tools(history, [native_tool])
-        messages: list[dict[str, Any]] = [
-            {"role": "user", "content": "orphan"},
-            {
-                "role": "tool",
-                "tool_call_id": "shared",
-                "name": "echo",
-                "content": "orphan result",
-            },
-        ]
-        with pytest.raises(TerminateSampleError, match="stop orphan"):
-            await inspect_completions_api_request(
-                {"model": "inspect", "messages": messages, "tools": tools},
-                None,
-                bridge,
-            )
+
+        async def report_orphan() -> None:
+            messages: list[dict[str, Any]] = [
+                {"role": "user", "content": "orphan"},
+                {
+                    "role": "tool",
+                    "tool_call_id": "shared",
+                    "name": "echo",
+                    "content": "orphan result",
+                },
+            ]
+            with pytest.raises(TerminateSampleError, match="stop orphan"):
+                await inspect_completions_api_request(
+                    {"model": "inspect", "messages": messages, "tools": tools},
+                    None,
+                    bridge,
+                )
+
+        if held:
+            reviewing, released = anyio.Event(), anyio.Event()
+
+            async def native() -> None:
+                review = ReviewPolicy(
+                    r7_holds_result_review(reviewing, released), "addition"
+                )
+                await execute_tools(history, [native_tool], review=[review])
+
+            async def orphan() -> None:
+                await reviewing.wait()
+                try:
+                    await report_orphan()
+                finally:
+                    released.set()
+
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(native)
+                tg.start_soon(orphan)
+        else:
+            with pytest.raises(RuntimeError, match="boom"):
+                await execute_tools(history, [native_tool])
+            await report_orphan()
         state.output = await get_model().generate(state.messages)
         return state
 
@@ -3937,22 +3980,27 @@ def r7_terminate_orphan_result() -> Protocol:
     async def after(
         context: Context, step: AfterToolCall, escalations: Escalations
     ) -> Decision | None:
-        return Decision.terminate("stop orphan")
+        if step.result.text == "orphan result":
+            return Decision.terminate("stop orphan")
+        return None
 
     return after
 
 
-def test_orphan_bridge_result_after_failed_native_call_stays_unclaimed(
-    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+@pytest.mark.parametrize("held", [False, True])
+def test_orphan_bridge_result_under_a_native_call_id_stays_unclaimed(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture, held: bool
 ) -> None:
     Panel("approve", "allowed").install(monkeypatch)
     seen: dict[str, Step] = {}
+    native_call = (
+        ToolCall(id="shared", function="addition", arguments={"x": 1, "y": 1})
+        if held
+        else ToolCall(id="shared", function="explodes", arguments={})
+    )
     log = run_logged(
-        as_solver(r7_reports_orphan_result_after_failed_native_call()),
-        outputs(
-            r7_tool_calls(ToolCall(id="shared", function="explodes", arguments={})),
-            done(),
-        ),
+        as_solver(r7_reports_orphan_result_after_native_call(held)),
+        outputs(r7_tool_calls(native_call), done()),
         sentinel=[
             r7_probe(seen, copies=True),
             h_ask("tool_result", ["approve", "reject"]),
@@ -3967,26 +4015,39 @@ def test_orphan_bridge_result_after_failed_native_call_stays_unclaimed(
         and event.path == "r7_probe"
         and event.stage.startswith("tool")
     ]
-    assert live == [("tool_call", "explodes"), ("tool_result", "")]
     native = next(
         event
         for event in sample.events
         if isinstance(event, ToolEvent) and event.id == "shared"
     )
-    result_span = next(
-        event.span_id
+    result_begins = [
+        next(
+            begin
+            for begin in sample.events
+            if isinstance(begin, SpanBeginEvent) and begin.id == event.span_id
+        )
         for event in sample.events
         if isinstance(event, SentinelEvent)
+        and event.path == "r7_probe"
         and event.stage == "tool_result"
         and event.step_id == "shared"
-    )
-    begin = next(
-        event
-        for event in sample.events
-        if isinstance(event, SpanBeginEvent) and event.id == result_span
-    )
-    assert native.failed is True and native.completed is not None
-    assert begin.timestamp > native.completed
+    ]
+    assert native.completed is not None
+    if held:
+        # the orphan's check, then the native call's, both while the native
+        # call awaited its result review
+        assert live == [
+            ("tool_call", "addition"),
+            ("tool_result", ""),
+            ("tool_result", "addition"),
+        ]
+        assert native.failed is not True
+        assert all(begin.timestamp < native.completed for begin in result_begins)
+    else:
+        assert live == [("tool_call", "explodes"), ("tool_result", "")]
+        assert native.failed is True
+        [begin] = result_begins
+        assert begin.timestamp > native.completed
     assert (
         sum(
             call.id == "shared"
@@ -4004,7 +4065,9 @@ def test_orphan_bridge_result_after_failed_native_call_stays_unclaimed(
         if isinstance(step.step, BeforeToolCall | AfterToolCall)
     ] == []
     model_steps = [step.step for step in replay if step.stage.startswith("model")]
-    assert [len(step.human_decisions or []) for step in model_steps] == [0, 0, 1, 1]
+    assert [len(step.human_decisions or []) for step in model_steps] == (
+        [0, 0, 2, 2] if held else [0, 0, 1, 1]
+    )
     assert "call id(s) shared" in caplog.text
     assert (
         sum(record.name == "inspect_ai._sentinel._replay" for record in caplog.records)
