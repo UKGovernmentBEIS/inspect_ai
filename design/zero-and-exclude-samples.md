@@ -350,10 +350,19 @@ def score_value_is_counted(value: Value) -> bool:
     """No float NaN at the root, among a dict's values, or among a list's elements."""
 ```
 
-`score_value_is_counted` is the rule for a value that every metric over it
-counts. It is stricter than the metrics, which count a dict's finite keys
-even when another key is `NaN`. A zero requires the stricter rule, so that a
-zeroed sample is in the denominator of every metric of its scorer.
+`score_value_is_counted` is the rule for an epoch score that every metric
+over it counts. It is stricter than the metrics, which count a dict's finite
+keys even when another key is `NaN`. A zero requires the stricter rule, so
+that each zeroed epoch score is counted, under every key, by the metrics
+that read epoch scores. It is a check on raw values only:
+
+- Whether the verdict fits the log's metrics (a scalar where a dict metric
+  expects a dict, after the task changed) is checked by computing the
+  metrics on staged edits before they are committed (see Python API).
+- A reduced sample score is whatever the configured epoch reducer makes of
+  its epochs, as for any run. `majority` over finite `[I, C]` is unscored,
+  because neither value has a majority. Zero does not change reducer
+  semantics, and it does not promise that the reduced score is counted.
 
 Every disposition is a `ScoreEdit` carrying a `ProvenanceData` (author and a
 non-empty reason), applied with `edit_score(..., recompute_metrics=False,
@@ -450,15 +459,25 @@ only its reason:
 
 - **Exclude:** every covered name is present and `score_is_excluded()` holds
   for it.
-- **Zero:** the sample holds at least one score, and every score it holds has
-  reason `"zeroed"` and a value for which `score_value_is_counted()` holds.
-  Zero spends no empty attempt on such a target.
+- **Zero:** the sample holds at least one score, and for every score it
+  holds, the last entry of `Score.history` is an edit with reason
+  `"zeroed"` and provenance, and `score_value_is_counted()` holds for the
+  value. `edit_score()` appends every edit to the history, so the last entry
+  is the most recent edit. A later `ScoreEdit(value=1)` keeps
+  `reason="zeroed"` on the score (an `UNCHANGED` field keeps its value), but
+  it is the last history entry, and its reason is `UNCHANGED`. Zero spends no
+  empty attempt on a target that passes this check.
 
-A target whose reason and value disagree is not unchanged, and it is
-disposed again like any other target. Examples are an excluded score given a
-counted value by a later `edit_score(..., ScoreEdit(value=1))`, which keeps
-the reason, or a Steward zero that copied a `NaN` verdict. The new edit is
-appended to the score's history, and a zero applies its refusals as usual.
+A target that fails its check is not unchanged, and it is disposed again
+like any other target. Examples:
+
+- an excluded score given a counted value by a later
+  `edit_score(..., ScoreEdit(value=1))`, which keeps the reason;
+- a zeroed score given another value by such an edit;
+- a Steward zero that copied a `NaN` verdict.
+
+The new edit is appended to the score's history, and a zero applies its
+refusals as usual.
 
 Otherwise dispositions stack. Excluding a zeroed sample, or zeroing an
 excluded one, adds an edit to the history.
@@ -552,8 +571,31 @@ caller. These rules are checked before anything changes:
   Unmatched selectors are a `ValueError` naming them.
 - Metrics are resolved before the first edit (`resolve_log_metrics()`). A log
   whose metrics cannot be rebuilt is therefore left unchanged, with the
-  existing `LookupError` or `DisallowedRegistryArg` and its advice. After the
-  edits, `compute_log_metrics()` runs once.
+  existing `LookupError` or `DisallowedRegistryArg` and its advice.
+
+**Staged commit.** Both functions apply their edits to a staged log and
+compute its metrics before the input log changes:
+
+1. `staged = log.model_copy(update={"samples": samples})`, where `samples`
+   is a new list holding a deep copy of each target sample and the other
+   samples unchanged. This is a shallow copy of the log: only the targets
+   are copied.
+2. The edits are applied to `staged` with `edit_score(staged, ...,
+   recompute_metrics=False, epoch=...)`, which changes only the copied
+   samples' scores and events.
+3. `compute_log_metrics(staged, resolved)` runs once. It assigns
+   `staged.results` and `staged.reductions` and leaves the input log's.
+4. Only when that returns are `log.samples`, `log.results` and
+   `log.reductions` replaced by the staged ones. Nothing in this step awaits
+   or raises.
+
+An edit or metric computation that raises therefore leaves the input log
+exactly as it was. For zero this is how a verdict that does not fit the
+log's metrics is refused: for example, a task edited since the log was
+written now returns a scalar where the logged dict metrics expect a dict,
+and `eval_results()` raises `TypeError` (`results.py:543`). Zero re-raises
+it as "the empty-attempt verdicts do not fit the log's metrics (<error>);
+the task may have changed since the log was written".
 
 `exclude_samples`:
 
@@ -561,7 +603,7 @@ caller. These rules are checked before anything changes:
    does. A log with no task scorers is accepted; it is refused only for a
    target with no covered name.
 2. Builds the exclusion edits for the covered names of every target that is
-   not already excluded, applies them, and recomputes.
+   not already excluded, and commits them as above.
 
 `zero_samples_async`:
 
@@ -613,10 +655,32 @@ caller. These rules are checked before anything changes:
      with its role as `model_roles_config_to_model_roles()` does.
 
    A recorded model whose provider is unavailable (no credentials, no SDK) is
-   therefore never constructed when the caller overrides it. Eval-retry calls
-   `log_task_models(spec)` with no overrides and constructs exactly what it
-   constructs today. A task that is neither in a task file nor registered
-   raises the same `FileNotFoundError` that eval-retry raises.
+   therefore not constructed by this helper when the caller overrides it.
+   Eval-retry calls `log_task_models(spec)` with no overrides and constructs
+   exactly what it constructs today. A task that is neither in a task file
+   nor registered raises the same `FileNotFoundError` that eval-retry raises.
+
+   **Models the task constructs itself.** The overrides replace the models
+   the eval supplied, not models the task's own code constructs:
+   - `Task(model=...)` and `Task(model_roles=...)` are constructed when the
+     task factory runs (`Task.__init__`, `src/inspect_ai/_eval/task/task.py:254`),
+     inside the scratch eval, before any override applies. Their providers
+     must be available, as for `inspect eval-retry` of the same log. Zero
+     cannot avoid that construction, and a provider error there fails the
+     scratch eval before any edit.
+   - A task-pinned primary model takes precedence over the eval's model
+     (`model=task.model or model`, `src/inspect_ai/_eval/loader.py:119`).
+     When the caller passes `model` and the scratch log's `eval.model` is not
+     that model, zero refuses before any edit: "the task pins its model
+     (<m>), so the model override does not apply; zero without it, or change
+     the task". Eval-level roles take precedence over task roles
+     (`_merge_model_roles`, `loader.py:66`), so a role override applies, even
+     though the task's own role model is still constructed.
+   - A task that takes its model as a task argument (inspect_evals' `b3`
+     `model` parameter, `b3/b3.py:98`) receives the recorded argument. Zero
+     has no task-argument override.
+
+   The docstring and CLI help say this.
 5. Runs one scratch eval in a temporary local directory:
 
    ```python
@@ -629,7 +693,7 @@ caller. These rules are checked before anything changes:
        sample_id=_requalify_sample_ids(
            log.eval.task, [literal_sample_id(id) for id in target_ids]
        ),
-       epochs=<highest targeted epoch>,
+       epochs=<Epochs(config.epochs, config.epochs_reducer), or None when unrecorded, as eval-retry>,
        time_limit=..., working_limit=..., retry_on_error=...,
        max_samples=..., max_sandboxes=...,   # from log.eval.config
        sandbox_cleanup=True,
@@ -647,23 +711,41 @@ caller. These rules are checked before anything changes:
      candidates `case[1]`, `case1`, `case*`, `caseX`, `case?`, `t1:a:b` and
      `a:b`: each escaped and re-qualified target selected only itself.
    - **Normalised ids.** Because selection normalises ids, a dataset holding
-     both `"12"` and `12` runs both. Step 6 matches by value and ignores the
+     both `"12"` and `12` runs both. Step 7 matches by value and ignores the
      extra one.
-   - **Epochs.** `epochs` is global, so every targeted id runs every epoch up
-     to the highest targeted one. Targets `a/1` and `b/2` also run `a/2` and
-     `b/1`. Those extra empty attempts provision their sandboxes and run
-     `Task.setup` and the scorers like any other. Their results are ignored,
-     and they are not edited. A caller who zeroes widely spread epochs of
-     different ids can split the call to avoid the cost.
+   - **Epochs.** The scratch eval runs the log's recorded epoch count and
+     reducers, as eval-retry passes them (`eval.py:1844-1846`). A smaller
+     count would keep the task's reducers, and the runner refuses
+     `pass_at_k`, `pass_k_k` and `at_least_k` reducers with fewer than `k`
+     epochs (`validate_reducer`,
+     `src/inspect_ai/scorer/_reducer/registry.py:176`), so zeroing epoch 1
+     of an `Epochs(5, "pass_at_5")` task would fail before any empty attempt
+     ran. The recorded configuration is one the task already ran with.
+     `epochs` is global, so every targeted id runs every recorded epoch.
+     Zeroing a sample by bare id (every epoch, the CLI default) costs
+     nothing extra; zeroing one epoch of a five-epoch log runs five empty
+     attempts. The extra ones provision their sandboxes and run `Task.setup`
+     and the scorers like any other. Only the targeted epoch scores are
+     copied; the scratch log's other samples, results and reductions are
+     ignored.
    - **Scratch log.** It is read back whole and the directory removed.
-6. For every target, requires a scratch sample with the same `(id, epoch)`
+6. Checks that the scratch eval completed. Its log must have `status ==
+   "success"`. A cancelled or errored scratch log raises with its status and
+   error, without editing anything. `eval_async` can return a cancelled log
+   whose targets are already scored and error-free (verified by the
+   reviewer under Trio with unfinished extra epochs), so valid target records
+   alone do not show that the zero completed.
+7. For every target, requires a scratch sample with the same `(id, epoch)`
    and no `error`, then applies the zero refusals under "Which score names a
    disposition covers". Any failure raises, naming every failing target and
    its cause, without editing anything. A missing scratch sample reads "the
    empty attempt of sample <id> (epoch <n>) did not run: the task's dataset no
    longer holds it". An errored one reads "...did not score: <error>". This is
    atomic where Steward's was not required to be: nothing is half-applied.
-7. Applies the zero edits and recomputes metrics once.
+8. Stages the zero edits and computes metrics (see "Staged commit"), then
+   calls `await anyio.lowlevel.checkpoint()`, which raises if the caller was
+   cancelled meanwhile. Only then does it commit the staged samples and
+   results, with no further await.
 
 `zero_samples` is the synchronous wrapper. It initializes the display type
 from `display` and runs the coroutine, as `score()` does: `anyio.run` with
@@ -702,18 +784,24 @@ inspect log zero    LOG_FILE --sample ID [--sample ID ...] [--epoch N]
   that selection is literal.
 - **Changed dataset.** Suppose a task's dataset changed so that a targeted
   sample no longer exists, or its samples come from a `SampleSource` feed
-  that no longer yields it. Zero then fails step 6 with that said, and
+  that no longer yields it. Zero then fails step 7 with that said, and
   nothing is edited.
 - **Edited task file.** A task file edited since the log was written runs as
   edited, as eval-retry does. The scratch log is not kept, but the zero edits
-  record the scorer's answer and explanation for the empty attempt.
+  record the scorer's answer and explanation for the empty attempt. A
+  verdict whose shape no longer fits the log's metrics is refused by the
+  staged metric computation, and the log is left unchanged.
 - **Concurrency.** The functions are synchronous over an in-memory log,
   except zero's scratch eval, which runs before any edit. The CLI's write is
   a conditional write on S3 and last-writer-wins locally, as `edit_score()`
   plus `write_eval_log()` is today.
 - **Cancellation.** Cancelling `zero_samples_async` cancels the scratch eval
   and leaves the log unchanged. Sandbox cleanup runs as for any cancelled
-  eval, and edits start only after the scratch eval returns.
+  eval. If the scratch eval absorbs the cancellation and returns a cancelled
+  log, step 6 refuses it. If the cancellation arrives after the scratch eval
+  returns, the checkpoint before the commit raises it. The commit itself has
+  no await, so a cancellation lands either before it (log unchanged) or after
+  it (edits complete).
 
 ## Alternatives considered
 
@@ -853,6 +941,8 @@ backends; run the zero tests with `--runtrio` locally.
     one. A repeat reports the target `unchanged`.
   - Idempotence holds only with the invariant: an excluded score later given
     `ScoreEdit(value=1)` is excluded again, not reported unchanged.
+  - Staged commit: a metric computation that raises (a stub) leaves the
+    input log's samples, events, results and reductions unchanged.
   - Refusals that raise and leave the log unchanged: unknown selectors, a
     `started` log, an empty reason, and an unresolvable metric.
 - `tests/log/test_zero_samples.py` (new: no existing file covers running an
@@ -866,14 +956,24 @@ backends; run the zero tests with `--runtrio` locally.
   - Ids `case[1]`, `case*`, `case?` and `t1:a:b`, in a dataset that also
     holds `case1`, `caseX` and `a:b`: the scratch log holds only the
     targets.
-  - A multi-epoch log with targets `a/1` and `b/2`: `a/2` runs in the scratch
-    eval, and the sample is left unedited.
+  - A multi-epoch log with targets `a/1` and `b/2`: `a/2` and `b/1` run in
+    the scratch eval, and those samples are left unedited.
+  - Epoch reducers: zeroing epoch 1 of a log recorded with `Epochs(5, r)`
+    succeeds for each of `pass_at_5`, `pass_k_5` and `at_least_5`.
   - Models: a log whose recorded model is `openai/gpt-4o`, zeroed with
     `OPENAI_API_KEY` unset and `model="mockllm/model"`, succeeds; so does a
     log with a recorded `openai` role overridden by a `mockllm` role.
+  - A task that pins `Task(model="mockllm/other")`, zeroed with
+    `model="mockllm/model"`, is refused with the pinned-model message.
   - A metric whose options name a model resolves.
   - A sample whose `zeroed` score holds `NaN` (a Steward zero) is zeroed
     again rather than reported unchanged.
+  - A zeroed score later edited with `ScoreEdit(value=1)` is zeroed again
+    rather than reported unchanged.
+  - Cancellation: with the targets scored and an extra epoch blocked on an
+    `anyio.Event`, cancelling `zero_samples_async` (asyncio and Trio) leaves
+    the log unchanged. So does a stubbed `eval_async` that returns a
+    `cancelled` log with valid target records.
   - Refusals that leave the log unchanged:
     - a target missing from the dataset;
     - an empty attempt that errors;
@@ -889,6 +989,9 @@ backends; run the zero tests with `--runtrio` locally.
     - a solver-written score;
     - an appended scorer;
     - a log with no task scorers;
+    - a task edited to return a scalar under a name whose logged metrics
+      expect a dict: the `TypeError` is re-raised and the samples, results
+      and reductions are those of the input log;
     - an ephemeral task.
   - A scorer that needs a sandbox, using the `local` sandbox, sees files from
     `Sample.files` and nothing the original attempt wrote.
@@ -991,3 +1094,17 @@ additions later:
 - Showing dispositions distinctly in the viewer: a badge for `excluded` /
   `zeroed`, and the provenance author and reason on the sample header.
 - An `inspect log invalidate`-style CLI for the existing re-run path.
+- A task-argument override for zero, for tasks that take their model as an
+  argument.
+- Two recomputation defects that affect any score edit today, with or
+  without these functions:
+  - `compute_log_metrics()` passes no scorer identities to `eval_results()`
+    (`src/inspect_ai/log/_metric.py:113`), and the fallback deduplicates
+    against the result `name` (a dict metric key) rather than `scorer`
+    (`src/inspect_ai/_eval/task/results.py:161`). Two dict-valued scorers of
+    the same name can then both report the first one's data after a
+    recompute.
+  - `scorers_from_metric_dict()` expands glob metric keys from a sample's
+    current dict value and keeps the literal glob when none is left
+    (`results.py:500`). After every score of such a scorer becomes `NaN`,
+    the concrete `x`, `y` rows are replaced by a `*` row.
