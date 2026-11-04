@@ -549,17 +549,19 @@ inspect, and its documented contract is that it runs whatever solver is in
 effect.
 
 The runner already supports this through the solver override, so zero uses
-it unchanged. It passes an internal registered solver as `solver=`, which
-makes `resolve_plan()` produce `Task.setup` followed by this solver:
+it unchanged. It passes an internal plan as `solver=`. `resolve_plan()` takes
+a `Plan` as it is, on a shallow copy, and prepends `Task.setup` to its steps
+(`src/inspect_ai/_eval/task/run.py:674-692`), so the scratch run executes
+`Task.setup` and then this plan's finish solver:
 
 ```python
 # src/inspect_ai/_eval/zero.py
 class SetupWroteScores(Exception):
     """`Task.setup` wrote `state.scores`, so the empty attempt has no verdict of the task's scorers alone."""
 
-@solver(name="inspect_ai/empty_attempt")
-def empty_attempt() -> Solver:
-    """Leave the state as `Task.setup` left it, so the scorers see an attempt that did nothing."""
+@solver(name="inspect_ai/empty_attempt_check")
+def empty_attempt_check() -> Solver:
+    """Refuse an empty attempt in which `Task.setup` wrote scores; otherwise leave the state as it is."""
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         if state.scores:
             raise SetupWroteScores(
@@ -568,17 +570,31 @@ def empty_attempt() -> Solver:
             )
         return state
     return solve
+
+def empty_attempt() -> Plan:
+    """No steps of its own (`Task.setup` is prepended), and the check as the finish solver."""
+    return Plan([], finish=empty_attempt_check(), name="inspect_ai/empty_attempt", internal=True)
 ```
 
 `Task.setup` is a solver, and a solver may write `state.scores`. The runner
 keeps those keys beside the task scorers' results (`run.py:3191`, `:3273`),
 so a score `Task.setup` wrote would reach the scratch sample under its own
-key and pass for a verdict even when every task scorer returned `None`. The
-solver refuses it at its entry, which is after `Task.setup` and before the
-task's scorers run: the exception errors the scratch sample, and step 8
-refuses that target with the error's message, leaving the log unchanged.
-The main solver is skipped, so `Task.setup` is the only solver that can
-have written a score at that point.
+key and pass for a verdict even when every task scorer returned `None`.
+
+The check is the plan's `finish` solver, not a step, because a step can be
+skipped: `Plan.__call__()` leaves its step loop as soon as
+`state.completed` is true (`src/inspect_ai/solver/_plan.py:115`), so a
+`Task.setup` that writes a score and completes the state would skip a check
+placed after it. The finish solver runs after the steps whether or not they
+exited early (`_plan.py:120`), and before the task's scorers. The exception
+errors the scratch sample, and step 8 refuses that target with the error's
+message, leaving the log unchanged. The main solver is skipped, so
+`Task.setup` is the only solver that can have written a score by then.
+
+The finish solver does not run when a step raises (`_plan.py:46`). A
+`Task.setup` that raises errors the scratch sample, and one that exceeds a
+sample limit records `limit` on it; step 8 refuses a scratch sample with
+either, so no verdict from an attempt that did not pass the check is copied.
 
 ### Python API
 
@@ -636,39 +652,44 @@ caller. These rules are checked before anything changes:
   whose metrics cannot be rebuilt is therefore left unchanged, with the
   existing `LookupError` or `DisallowedRegistryArg` and its advice.
 
-**Staged commit.** Both functions apply their edits to a staged log and
-compute its metrics before the input log changes:
+**Staged commit.** Both functions apply their edits to copies of the target
+samples, and compute metrics on a second, disposable view of the log, before
+the input log changes:
 
-1. `staged = log.model_copy(update={"samples": samples, "results":
-   deepcopy(log.results)})`, where `samples` is a new list with one entry per
-   sample:
-   - a target: `deepcopy(sample)`, since the edits change its scores and
-     events;
-   - any other sample: `sample.model_copy(update={"scores":
-     deepcopy(sample.scores), "metadata": deepcopy(sample.metadata)})`, a
-     shallow copy whose scores and metadata are its own.
+1. `edited` maps each target to `deepcopy(sample)`. The edits are applied to
+   these copies with `edit_score(...)` on a log holding them
+   (`log.model_copy(update={"samples": <the list with targets replaced by
+   their copies>})`, with `recompute_metrics=False, epoch=...`), which
+   changes only the copies' scores and events.
+2. `view = log.model_copy(update={"samples": [...], "results":
+   deepcopy(log.results)})`, with one entry per sample: `s.model_copy(update=
+   {"scores": deepcopy(s.scores), "metadata": deepcopy(s.metadata)})`, where
+   `s` is the edited copy for a target and the original sample otherwise.
+   Every sample in the view is a shallow copy whose scores and metadata are
+   its own.
 
    `compute_log_metrics()` reads only each sample's `id`, `error`, `scores`
    and `metadata` (`src/inspect_ai/log/_metric.py:98-128`). It wraps the
    score and metadata objects in `SampleScore`s that reach reducers
-   (`reduce_scores()`, `results.py:715`) and metrics, which may mutate them.
-   With these copies, nothing a reducer or metric receives belongs to the
-   input log. Events, messages and outputs of untargeted samples are shared,
-   because no computation reads them. The log header is small, so `results`
-   is copied whole.
-2. The edits are applied to `staged` with `edit_score(staged, ...,
-   recompute_metrics=False, epoch=...)`, which changes only the copied
-   target samples' scores and events.
-3. `compute_log_metrics(staged, resolved)` runs once. It assigns
-   `staged.results` and `staged.reductions`.
+   (`reduce_scores()` passes them on, `results.py:715`) and metrics,
+   which may mutate them, whether or not they then raise. With the view,
+   nothing a reducer or metric receives belongs to the input log or to the
+   edited targets. Events, messages and outputs are shared, because no
+   computation reads them. The log header is small, so `results` is copied
+   whole.
+3. `compute_log_metrics(view, resolved)` runs once. It assigns
+   `view.results` and `view.reductions`.
 4. Only when that returns are the target entries of `log.samples` replaced
-   by their staged copies, and `log.results` and `log.reductions` by the
-   staged ones. Untargeted samples keep their original objects; their staged
-   copies are discarded, with whatever a callback did to them. Nothing in
-   this step awaits or raises.
+   by their edited copies from step 1, and `log.results` and
+   `log.reductions` by the view's. The view's samples are discarded, with
+   whatever a callback did to them, so a reducer that stores a value in a
+   score it was given (a mean written into the first epoch's score) changes
+   neither the committed zeroed or excluded scores nor any other sample.
+   Nothing in this step awaits or raises.
 
-An edit, reducer or metric that raises, or mutates its inputs before
-raising, therefore leaves the input log exactly as it was. For zero this is how a verdict that does not fit the
+An edit, reducer or metric that raises, or mutates its inputs, therefore
+leaves the input log as it was until the commit, and the committed targets
+are exactly the edits. For zero this is how a verdict that does not fit the
 log's metrics is refused: for example, a task edited since the log was
 written now returns a scalar where the logged dict metrics expect a dict,
 and `eval_results()` raises `TypeError` (`results.py:543`). Zero re-raises
@@ -920,11 +941,12 @@ the task may have changed since the log was written".
    under "Which score names a disposition covers".
 
    Then, for every target, it requires a scratch sample with the same
-   `(id, epoch)` and no `error`, and applies the zero refusals under "Which
+   `(id, epoch)`, no `error` and no `limit`, and applies the zero refusals under "Which
    score names a disposition covers". Any failure raises, naming every
    failing target and its cause, without editing anything. A missing scratch
    sample reads "the empty attempt of sample <id> (epoch <n>) did not run".
-   An errored one reads "...did not score: <error>". This is atomic where
+   An errored one reads "...did not score: <error>", and one that hit a
+   limit reads "...hit its <type> limit". This is atomic where
    Steward's was not required to be: nothing is half-applied.
 9. Stages the zero edits and computes metrics (see "Staged commit"), then
    calls `await anyio.lowlevel.checkpoint()`, which raises if the caller was
@@ -1218,6 +1240,12 @@ backends; run the zero tests with `--runtrio` locally.
       nested metadata, then raises;
     - a metric (taking `list[SampleScore]`) that mutates an untargeted
       sample's metadata, then raises.
+  - Staged commit with callbacks that mutate and succeed: a zero over two
+    epochs with values 0 and 1, under a reducer that writes the mean into
+    the first epoch's score and a metric that changes a target's sample
+    metadata. The committed zeroed scores equal the empty attempt's verdicts
+    and their last history entries, the committed metadata is the target's,
+    and untargeted samples are unchanged.
   - Inline `eval_set()`: a task file that defines a task and then calls
     `eval_set(..., log_dir=<tmp>/inline)` at module scope.
     `exclude_samples(..., trust_log=True)` and `zero_samples` both succeed,
@@ -1312,9 +1340,11 @@ backends; run the zero tests with `--runtrio` locally.
       empty attempt;
     - a solver-written score;
     - a `Task.setup` that writes `state.scores` while the task's only scorer
-      returns `None` on the empty attempt: refused with the setup-scores
-      message, and the input log's samples, results and reductions are
-      unchanged;
+      returns `None` on the empty attempt, both with and without setting
+      `state.completed`: refused with the setup-scores message, and the
+      input log's samples, results and reductions are unchanged;
+    - a `Task.setup` that exceeds a message limit: refused as having hit a
+      limit;
     - a log with no task scorers;
     - a task edited to return a scalar under a name whose logged metrics
       expect a dict: the `TypeError` is re-raised and the samples, results
@@ -1369,7 +1399,8 @@ path.
    - `log_task_spec` and `LogTaskSpec`, extracted in
      `src/inspect_ai/_eval/eval.py` and used by `eval_retry_async`.
    - `literal_sample_id` in `src/inspect_ai/_eval/task/util.py`.
-   - `src/inspect_ai/_eval/zero.py`: `empty_attempt` and the scratch eval.
+   - `src/inspect_ai/_eval/zero.py`: `empty_attempt`, `empty_attempt_check`,
+     `SetupWroteScores` and the scratch eval.
    - `zero_samples` / `zero_samples_async` in `_disposition.py`, with a
      function-local import of `_eval.zero`.
    - `inspect log zero`, and the docs section extended.
