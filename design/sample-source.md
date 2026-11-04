@@ -113,9 +113,11 @@ A `SampleSource` is passed as the **`dataset` argument to `Task`** (just as a
   list indexed after the (possibly disk-paged) seed store; `get_sample(index)`
   dispatches between the two. Each injected sample runs for the task's
   configured `epochs`, like the seed.
-- **Ids** — injected samples without ids get a unique string id
-  (`shortuuid`), not the next integer, so an id from one attempt never turns
-  up in another and retry reuse and checkpoint resume (both keyed on
+- **Ids** — injected samples without ids run as an attempt-owned copy with a
+  unique string id (`shortuuid`), not the next integer; the source's own
+  `Sample` keeps `id=None`, so returning the same object on a retry adds it
+  anonymously again. An id from one attempt therefore never turns up in
+  another and retry reuse and checkpoint resume (both keyed on
   `(id, epoch)`) cannot hand one sample another's prior result. Seed samples
   keep their position-based integer ids. A duplicate explicit id is a hard
   error. Ids are compared by their `str()` form, matching `ensure_unique_ids`

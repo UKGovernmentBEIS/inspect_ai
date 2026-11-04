@@ -174,7 +174,7 @@ A *fractional* `fail_on_error` threshold (e.g. `0.5`) is evaluated at the end of
 
 On a task retry (`eval_set` / task retry attempts), completed samples from the prior attempt are reused, and the source's `sample_complete` is called for each reused sample — so a source that derives its follow-ups from `sample_complete` (the patterns above) regenerates them naturally.
 
-A generated sample is reused on retry only when it has an explicit `id` (and explicit epoch, if any) that matches the prior attempt. A generated sample without an `id` gets a new unique id in each attempt, so it always runs again: give follow-ups stable ids if their results should be reused.
+A generated sample is reused on retry only when it has an explicit `id` (and explicit epoch, if any) that matches the prior attempt. A generated sample without an `id` gets a new unique id in each attempt, even when the source returns the same `Sample` object, so it always runs again: give follow-ups stable ids if their results should be reused.
 
 Note that the retry re-drives the *same source instance*: a source that instead holds internal `next_samples()` state resumes where it left off, so such sources should be written to be resumable if used with retries.
 

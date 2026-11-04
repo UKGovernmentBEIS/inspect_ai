@@ -272,9 +272,9 @@ def enqueue_sample(
 
     The samples run in the current task as soon as there is free capacity
     (bounded by ``max_samples``), each for the task's configured number of
-    epochs. A sample without an ``id`` is given a unique string id, so on a
-    task retry it runs again; only samples with explicit ids are reused from
-    the prior attempt.
+    epochs. A sample without an ``id`` runs under a unique string id (the
+    ``Sample`` you pass is not changed), so on a task retry it runs again;
+    only samples with explicit ids are reused from the prior attempt.
 
     Pass ``epoch`` to run each sample once, as that epoch, instead, so the
     same id can be run repeatedly. Each ``(id, epoch)`` may be added once (a

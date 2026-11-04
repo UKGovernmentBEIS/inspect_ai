@@ -1796,18 +1796,26 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         all_epoch_ids: list[int | str]
                         explicit_epoch_runs: list[SampleIdEpoch]
 
-                    def reserve_runs(sample: Sample, epoch: int | None) -> list[int]:
+                    class ReservedRuns(NamedTuple):
+                        sample: Sample
+                        epochs: list[int]
+
+                    def reserve_runs(sample: Sample, epoch: int | None) -> ReservedRuns:
                         """Assign an id if needed and reserve the epochs to run.
 
-                        A sample added without an id gets a unique string id,
-                        not the next integer: an id from one attempt then never
-                        turns up in another, so a task retry or checkpoint
-                        resume (both keyed on ``(id, epoch)``) cannot reuse
-                        another sample's prior result. Only samples with
-                        explicit ids are reused across attempts.
+                        A sample added without an id runs as a copy with a
+                        unique string id, not the next integer. The id stays
+                        local to this attempt: it is never written to the
+                        source's own object, so a source that returns the same
+                        object on a retry adds it without an id again. An id
+                        from one attempt then never turns up in another, so a
+                        task retry or checkpoint resume (both keyed on
+                        ``(id, epoch)``) cannot reuse another sample's prior
+                        result. Only samples with explicit ids are reused
+                        across attempts.
                         """
                         if sample.id is None:
-                            sample.id = uuid()
+                            sample = sample.model_copy(update={"id": uuid()})
                         key = str(sample.id)
                         planned = (
                             list(range(1, epochs + 1)) if epoch is None else [epoch]
@@ -1821,7 +1829,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                                 "sample id is added once per epoch."
                             )
                         reserved_runs.update(runs)
-                        return planned
+                        return ReservedRuns(sample, planned)
 
                     def within_limit(sample: Sample) -> bool:
                         nonlocal remaining
@@ -1837,8 +1845,8 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                     def add_samples(samples: list[EnqueuedSample]) -> AddedSamples:
                         added = AddedSamples([], [], [], [], [])
                         over_limit = 0
-                        for sample, epoch in samples:
-                            planned_epochs = reserve_runs(sample, epoch)
+                        for source_sample, epoch in samples:
+                            sample, planned_epochs = reserve_runs(source_sample, epoch)
                             assert sample.id is not None
                             if include_id is not None and not include_id(sample.id):
                                 continue

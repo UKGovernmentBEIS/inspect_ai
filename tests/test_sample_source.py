@@ -1641,6 +1641,120 @@ def test_sample_source_task_retry_never_reuses_anonymous_followups() -> None:
     )
 
 
+def test_sample_source_task_retry_runs_retained_anonymous_sample_fresh() -> None:
+    # the generated id is local to the attempt: a source that keeps its
+    # anonymous Sample and returns the same object on retry adds it without
+    # an id again, so it runs fresh under a new id (and so a new checkpoint
+    # key) rather than reusing the prior attempt's record
+    runs: list[str] = []
+    followup_logged = anyio.Event()
+    retained = Sample(input="first", target="ok")
+
+    @solver
+    def fail_flaky_once() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            runs.append(state.input_text)
+            if state.input_text == "flaky" and runs.count("flaky") == 1:
+                with anyio.fail_after(30):
+                    await followup_logged.wait()
+                raise RuntimeError("transient failure")
+            return state
+
+        return solve
+
+    class _Src(SampleSource):
+        def initial_samples(self) -> list[Sample]:
+            return [
+                Sample(id=1, input="seed", target="ok"),
+                Sample(id=2, input="flaky", target="ok"),
+            ]
+
+        async def sample_complete(self, sample: EvalSample) -> list[Sample] | None:
+            if sample.id == 1:
+                return [retained]
+            if sample.input == "first":
+                # the source edits its own object after it was logged
+                retained.input = "second"
+                followup_logged.set()
+            return None
+
+    @task
+    def retained_sample_task() -> Task:
+        return Task(
+            dataset=_Src(),
+            solver=[fail_flaky_once()],
+            name="retained_sample_task",
+        )
+
+    with tempfile.TemporaryDirectory() as d:
+        log_dir = str(Path(d) / "logs")
+        Path(log_dir).mkdir()
+        ok, logs = eval_set(
+            tasks=[retained_sample_task()],
+            log_dir=log_dir,
+            model="mockllm/model",
+            retry_attempts=2,
+            retry_on_error=0,  # no sample-level retry -> task-level retry
+            retry_cleanup=False,
+            max_samples=3,  # flaky blocks while the follow-up runs
+        )
+        assert ok, "eval-set did not succeed after task retry"
+        final = read_eval_log(logs[0].location)
+        first = next(
+            log
+            for log in (
+                read_eval_log(str(path)) for path in Path(log_dir).glob("*.eval")
+            )
+            if log.status == "error"
+        )
+
+    assert runs.count("first") == 1 and runs.count("second") == 1
+    assert _sample_inputs(final) == ["flaky", "second", "seed"]
+    assert retained.id is None
+    first_id = next(s.id for s in (first.samples or []) if s.input == "first")
+    second_id = next(s.id for s in (final.samples or []) if s.input == "second")
+    assert isinstance(first_id, str) and isinstance(second_id, str)
+    assert first_id != second_id
+
+
+@pytest.mark.parametrize("route", ["next_samples", "sample_complete", "enqueue_sample"])
+def test_sample_source_generated_id_not_written_to_source_sample(route: str) -> None:
+    # every admission path runs an anonymous sample under a copy carrying
+    # the generated id; the source's own object keeps id=None
+    added = Sample(input="added", target="ok")
+
+    class _Src(SampleSource):
+        def __init__(self) -> None:
+            self._produced = False
+
+        def initial_samples(self) -> list[Sample]:
+            return [Sample(id="seed", input="seed", target="ok")]
+
+        async def next_samples(self) -> list[Sample] | None:
+            if self._produced or route == "sample_complete":
+                return None
+            self._produced = True
+            if route == "next_samples":
+                return [added]
+            enqueue_sample(added)
+            return []
+
+        async def sample_complete(self, sample: EvalSample) -> list[Sample] | None:
+            if route == "sample_complete" and sample.id == "seed":
+                return [added]
+            return None
+
+    logs = eval(
+        Task(dataset=_Src(), solver=[generate()]),
+        model="mockllm/model",
+        display="none",
+    )
+    assert logs[0].status == "success"
+    ids = {str(sample.input): sample.id for sample in (logs[0].samples or [])}
+    assert isinstance(ids["added"], str)
+    assert added.id is None
+
+
 def test_sample_source_task_retry_drops_prior_records_outside_the_realized_plan() -> (
     None
 ):
