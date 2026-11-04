@@ -354,7 +354,10 @@ omitted user stays the default user; the scope, injection targeting, the
 sandbox-tools request user and the model-facing tools' strict resolution are
 unchanged. The marker is never placed around model-chosen work; in-loop
 scoring, which runs trusted task code, is the one marked block that runs code
-Inspect does not fix. A tripwire test lists the marked modules
+Inspect does not fix. A scope cannot be opened inside a marked block:
+`sandbox_identity()` raises `SandboxIdentityError` there, so a scorer that
+opens one during in-loop scoring fails instead of silently running its
+userless calls as the default user. A tripwire test lists the marked modules
 (`tests/util/sandbox/test_sandbox_identity.py`,
 `test_framework_operation_marker_sites`), so a new marked site is a reviewed
 change.

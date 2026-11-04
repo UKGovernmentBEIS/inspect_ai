@@ -72,6 +72,12 @@ def sandbox_identity(
     The scope is held in a context variable, so tasks started inside the block
     inherit it.
 
+    A scope cannot be opened inside Inspect's own sandbox operations, which
+    include in-loop scoring: a scorer called through `score()` (for example by
+    `react(attempts=...)`) that opens a scope raises `SandboxIdentityError`.
+    Inside those operations an omitted user means the sandbox's default user,
+    so the scope would not apply.
+
     Args:
        user: User to run as: a username or a numeric uid. A `user:group`
           selector is not supported.
@@ -80,7 +86,9 @@ def sandbox_identity(
        sandbox: Name of the sandbox environment the identity applies to.
 
     Raises:
-       SandboxIdentityError: If a scope is already active.
+       SandboxIdentityError: If a scope is already active, or the block is
+          opened inside one of Inspect's own sandbox operations (such as
+          in-loop scoring).
        ValueError: If `user` is empty or contains `:`, `cwd` is not absolute, or
           `sandbox` is not one of the sample's environments.
        ProcessLookupError: If there are no sandboxes available.
@@ -97,6 +105,12 @@ def sandbox_identity(
         raise SandboxIdentityError(
             f"A sandbox identity scope for user '{outer.user}' is already active; "
             "sandbox identity scopes cannot be nested."
+        )
+    if in_framework_sandbox_operation():
+        raise SandboxIdentityError(
+            f"A sandbox identity scope for user '{user}' cannot be opened inside "
+            "an Inspect framework sandbox operation such as in-loop scoring, where "
+            "sandbox operations run as the sandbox's default user."
         )
     environments = sandbox_environments_context_var.get(None)
     if not environments:

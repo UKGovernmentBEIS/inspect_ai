@@ -25,6 +25,7 @@ from inspect_ai.util._sandbox.context import (
     SandboxInjectable,
     sandbox_default_context_var,
     sandbox_environments_context_var,
+    sandbox_file_detector,
     sandbox_with_injection,
 )
 from inspect_ai.util._sandbox.events import SandboxEnvironmentProxy
@@ -382,6 +383,39 @@ async def test_provider_without_file_user_raises_in_a_scope(
         *[(op, None) for op in OPERATIONS] * 2,
         ("exec", "w-1"),
     ]
+
+
+async def test_scope_cannot_open_inside_a_framework_operation() -> None:
+    # in practice a scorer opening a scope during in-loop scoring
+    with _environments(default=SandboxEnvironmentProxy(_FileSandbox())):
+        with framework_sandbox_operation():
+            with pytest.raises(SandboxIdentityError, match="cannot be opened inside"):
+                with sandbox_identity("judge"):
+                    pass
+        assert not sandbox_identity_active()
+        with sandbox_identity("judge"):
+            assert sandbox_identity_active()
+
+
+async def test_file_detection_reads_as_the_default_user_in_a_scope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # `test -r` fails, so detection falls back to reading the file, on a
+    # provider whose read_file() cannot take a user
+    provider = _without_file_users(_FileSandbox(), monkeypatch)
+    provider.policy = lambda _cmd, _user: ExecResult(False, 1, "", "")
+    proxy = SandboxEnvironmentProxy(provider)
+    with _environments(default=proxy), sandbox_identity("w-1"):
+        assert await sandbox_file_detector("/opt/tool")(proxy)
+    assert provider.calls == [("exec", None), ("read_file", None)]
+
+
+async def test_path_detection_runs_as_the_default_user_in_a_scope() -> None:
+    provider = _FileSandbox()
+    proxy = SandboxEnvironmentProxy(provider)
+    with _environments(default=proxy), sandbox_identity("w-1"):
+        assert await sandbox_file_detector("python3", on_path=True)(proxy)
+    assert provider.calls == [("exec", None)]
 
 
 def test_framework_operation_marker_sites() -> None:

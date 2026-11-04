@@ -2423,3 +2423,39 @@ def test_react_in_loop_scorer_keeps_the_default_user_in_a_scope() -> None:
         ("scorer", None, True),  # in-loop
         ("scorer", None, False),  # final
     ]
+
+
+@scorer(metrics=[accuracy()])
+def _scope_opening_scorer() -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
+        with sandbox_identity("judge"):
+            await sandbox().exec(["scorer"])
+        return Score(value=CORRECT)
+
+    return score
+
+
+def test_react_in_loop_scorer_cannot_open_a_scope() -> None:
+    """A scorer opening its own scope fails during in-loop scoring."""
+    _scope_execs.clear()
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                model="mockllm/model",
+                tool_name="submit",
+                tool_arguments={"answer": "2"},
+            ),
+        ],
+    )
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=react(attempts=2),
+        scorer=_scope_opening_scorer(),
+        sandbox="react_scope_recorder",
+    )
+    [log] = eval(task, model=model)
+    assert log.status == "error"
+    assert log.error is not None
+    assert "cannot be opened inside" in log.error.message
+    assert _scope_execs == []

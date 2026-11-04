@@ -25,7 +25,8 @@ def framework_sandbox_operation() -> Iterator[None]:
     submitted code as the default user.
 
     The mark is held in a context variable, so tasks started inside the block
-    inherit it.
+    inherit it. Opening a `sandbox_identity()` scope inside the block raises
+    `SandboxIdentityError`, so a scorer cannot open one during in-loop scoring.
     """
     token = _framework_operation.set(True)
     try:
