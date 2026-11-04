@@ -11,6 +11,7 @@ from shortuuid import uuid as shortuuid
 
 from inspect_ai._util.content import ContentReasoning, ContentText
 from inspect_ai._util.hash import mm3_hash
+from inspect_ai._util.json import jsonable_python
 from inspect_ai.model._assistant_internal import copy_assistant_internal
 
 from ._chat_message import (
@@ -45,7 +46,7 @@ def stable_message_ids() -> Callable[[Sequence[ChatMessage] | ModelEvent], None]
     def hash_message(message: ChatMessage) -> str:
         """Hash message content using mmh3 (fast 128-bit hash)."""
         msg_dict = message.model_dump(exclude={"id"}, exclude_none=True)
-        json_str = json.dumps(msg_dict, sort_keys=True)
+        json_str = json.dumps(jsonable_python(msg_dict), sort_keys=True)
         hash_bytes = mmh3.hash_bytes(json_str.encode())
         return hash_bytes.hex()
 
@@ -135,6 +136,11 @@ def edit_id(source_id: str, content: str) -> str:
     return shortuuid(name=f"inspect-edit:{json.dumps([source_id, content])}")
 
 
+def canonical_tool_arguments(arguments: dict[str, Any]) -> str:
+    """Serialize tool arguments consistently after JSON-safe key normalization."""
+    return json.dumps(jsonable_python(arguments), sort_keys=True, default=str)
+
+
 def content_hash(message: ChatMessage) -> str:
     """Hash of what a message shows: versions that differ here are different messages.
 
@@ -164,7 +170,7 @@ def content_hash(message: ChatMessage) -> str:
                     [
                         call.id,
                         call.function,
-                        json.dumps(call.arguments, sort_keys=True, default=str),
+                        canonical_tool_arguments(call.arguments),
                     ]
                     for call in message.tool_calls or []
                 ]

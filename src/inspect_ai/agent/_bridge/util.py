@@ -50,13 +50,22 @@ from inspect_ai.event._model import ModelEvent
 from inspect_ai.log._transcript import transcript
 from inspect_ai.model._agent_message import validate_agent_message
 from inspect_ai.model._call_tools import get_tools_info
-from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
+from inspect_ai.model._chat_message import (
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageUser,
+)
 from inspect_ai.model._generate_config import (
     GenerateConfig,
     ResponseSchema,
     active_generate_config,
 )
-from inspect_ai.model._message_ids import content_hash, edit_id, with_edited_id
+from inspect_ai.model._message_ids import (
+    canonical_tool_arguments,
+    content_hash,
+    edit_id,
+    with_edited_id,
+)
 from inspect_ai.model._model import (
     GenerateFilter,
     GenerateInput,
@@ -463,6 +472,8 @@ async def _apply_response_filter(
     are not the filter's to answer for.
     """
     candidate = output.model_copy(deep=True)
+    history = transcript().history
+    events_before_filter = history.event_count
     try:
         filtered = await response_filter(model, candidate, generate_input)
     except Exception as ex:
@@ -521,11 +532,22 @@ async def _apply_response_filter(
         # text continued across requests is joined with no separator)
         filtered.completion = output.completion
     _check_provider_owned_content(output, filtered)
-    _settle_message_ids(output, filtered)
+    generated_messages = {
+        choice.message.id: choice.message
+        for event in history.recent_events(history.event_count - events_before_filter)
+        if isinstance(event, ModelEvent)
+        for choice in event.output.choices
+        if choice.message.id is not None
+    }
+    _settle_message_ids(output, filtered, generated_messages)
     return filtered
 
 
-def _settle_message_ids(original: ModelOutput, filtered: ModelOutput) -> None:
+def _settle_message_ids(
+    original: ModelOutput,
+    filtered: ModelOutput,
+    generated_messages: Mapping[str, ChatMessageAssistant] | None = None,
+) -> None:
     """Set the ids of returned messages so id-keyed replay state matches them.
 
     Dialects key some replay state by message id. Anthropic records server work
@@ -541,7 +563,8 @@ def _settle_message_ids(original: ModelOutput, filtered: ModelOutput) -> None:
     A changed or new message that keeps none replaces the original whose id it
     had, else the original choice at its index: it gets an id derived from that
     original's and its own content (`with_edited_id`), so the same edit is the
-    same message.
+    same message. A message returned from a generation made by the filter uses
+    that generation as its source instead.
     """
     owners = {
         content.id: choice.message.id
@@ -576,6 +599,8 @@ def _settle_message_ids(original: ModelOutput, filtered: ModelOutput) -> None:
                 (m for m in original_messages if m.id == message.id),
                 original_messages[index] if index < len(original_messages) else None,
             )
+            if generated_messages is not None and message.id is not None:
+                source = generated_messages.get(message.id, source)
             if source is not None:
                 with_edited_id(source, message, keep_provider_state=False)
 
@@ -1110,6 +1135,8 @@ async def _bridge_generate_impl(
 
         # Inside the refusal-retry loop so a content_filter replacement is retried.
         if bridge.response_filter is not None:
+            history = transcript().history
+            events_before_response_filter = history.event_count
             # under the bridge's approval policies, as a filter may generate
             with bridge_approval_scope(bridge.approval):
                 output = await _apply_response_filter(
@@ -1120,6 +1147,21 @@ async def _bridge_generate_impl(
                         input_messages, get_tools_info(tools), tool_choice, config
                     ),
                 )
+            response_generation = next(
+                (
+                    event.output
+                    for event in reversed(
+                        history.recent_events(
+                            history.event_count - events_before_response_filter
+                        )
+                    )
+                    if isinstance(event, ModelEvent)
+                    and _selected_generated_message_id(event.output, output) is not None
+                ),
+                None,
+            )
+            if response_generation is not None:
+                generated = response_generation
 
         # Check for refusal and retry if needed
         if not output.empty and output.stop_reason == "content_filter":
@@ -1172,14 +1214,13 @@ async def _bridge_generate_impl(
                     ]
                     if selected:
                         selected_args = {
-                            json.dumps(call.arguments, sort_keys=True, default=str)
+                            canonical_tool_arguments(call.arguments)
                             for _, call in selected
                         }
                         matching_sources = {
                             source_id
                             for source_id, call in proposals
-                            if json.dumps(call.arguments, sort_keys=True, default=str)
-                            in selected_args
+                            if canonical_tool_arguments(call.arguments) in selected_args
                         }
                         if selected_generated_id is not None and matching_sources == {
                             selected_generated_id

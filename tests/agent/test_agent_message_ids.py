@@ -31,7 +31,12 @@ from inspect_ai._util.content import (
 )
 from inspect_ai.agent import Agent, AgentState, agent, agent_bridge, handoff, react
 from inspect_ai.agent._bridge import types as bridge_types
-from inspect_ai.agent._bridge.types import AgentBridge, _handed_calls
+from inspect_ai.agent._bridge.types import (
+    AgentBridge,
+    _arguments_digest,
+    _handed_calls,
+    _loose_message_key,
+)
 from inspect_ai.agent._bridge.util import apply_message_ids
 from inspect_ai.dataset import Sample
 from inspect_ai.event import ModelEvent, ToolEvent
@@ -50,10 +55,23 @@ from inspect_ai.model import (
     ModelOutput,
     get_model,
 )
-from inspect_ai.model._message_ids import content_hash, edited_message
+from inspect_ai.model._call_tools import parse_tool_call
+from inspect_ai.model._message_ids import (
+    content_hash,
+    edited_message,
+    stable_message_ids,
+)
 from inspect_ai.model._model_output import ChatCompletionChoice
 from inspect_ai.solver import generate, user_message
-from inspect_ai.tool import Tool, ToolCall, ToolResult, tool
+from inspect_ai.tool import (
+    Tool,
+    ToolCall,
+    ToolInfo,
+    ToolParam,
+    ToolParams,
+    ToolResult,
+    tool,
+)
 from inspect_ai.util import store
 
 Dialect = Literal["completions", "responses", "anthropic", "google"]
@@ -748,8 +766,10 @@ async def test_edited_parallel_reply_links_results_from_separate_requests(
         if second_edit
         else edited
     )
-    await scaffold.request([task, later, result_a, result_b])
-    assert second.message_id == scaffold.sent[3].id
+    await scaffold.request(
+        [task, later, result_a, ChatMessageAssistant(content="wait"), result_b]
+    )
+    assert second.message_id == scaffold.sent[4].id
 
 
 class _Scaffold:
@@ -778,6 +798,39 @@ def _call(call_id: str) -> ChatMessageAssistant:
 
 def _result(call_id: str, content: str = "a.txt") -> ChatMessageTool:
     return ChatMessageTool(content=content, tool_call_id=call_id, function="bash")
+
+
+@pytest.mark.parametrize(
+    "operation",
+    ["content_hash", "edited_message", "arguments_digest", "loose_key", "stable_ids"],
+)
+def test_yaml_mixed_keys_are_accepted_by_message_identity(operation: str) -> None:
+    """A parsed YAML object with integer and string keys has stable identity."""
+    info = ToolInfo(
+        name="read",
+        description="Read data.",
+        parameters=ToolParams(properties={"data": ToolParam(type="object")}),
+    )
+    call = parse_tool_call("call", "read", "1: one\nname: value", [info])
+    assert call.parse_error is None
+    assert call.arguments == {"data": {1: "one", "name": "value"}}
+    reply = ChatMessageAssistant(id=uuid(), content="", tool_calls=[call])
+
+    if operation == "content_hash":
+        assert content_hash(reply) == content_hash(reply.model_copy(deep=True))
+    elif operation == "edited_message":
+        assert edited_message(reply, content="edited").id != reply.id
+    elif operation == "arguments_digest":
+        assert _arguments_digest(call.arguments) == _arguments_digest(
+            {"data": {"name": "value", 1: "one"}}
+        )
+    elif operation == "loose_key":
+        assert _loose_message_key(reply, reply.text) == _loose_message_key(
+            reply.model_copy(deep=True), reply.text
+        )
+    else:
+        stable_message_ids()([reply])
+        assert reply.id is not None
 
 
 @pytest.mark.parametrize("call_ids", [("unique-1", "unique-2"), ("call_1", "call_1")])
@@ -902,6 +955,48 @@ async def test_fresh_compacted_result_is_not_an_edit_of_earlier_answer(
     summary = ChatMessageUser(content="Summary: listed once.")
 
     ids = await scaffold.request([summary, second_back, _result(returned_id, "NEW")])
+
+    assert ids[2] != first_ids[2]
+    assert second_event.message_id == ids[2]
+
+
+@pytest.mark.parametrize("regenerated", [False, True])
+async def test_edited_reply_gets_fresh_result_after_compaction(
+    regenerated: bool,
+) -> None:
+    """An edited pending reply still owns a fresh result with a repeated call ID."""
+    task = ChatMessageUser(content="List twice.")
+    first_id, second_id, returned_id = (
+        ("toolu_1", "toolu_2", "call_bash_1")
+        if regenerated
+        else ("reused", "reused", "reused")
+    )
+    first, second = _call(first_id), _call(second_id)
+    first_back = _transported(first, returned_id) if regenerated else first
+    second_back = _transported(second, returned_id) if regenerated else second
+    bridge = AgentBridge(AgentState(messages=[task]))
+    scaffold = _Scaffold(bridge)
+    await scaffold.request([task], first)
+    if regenerated:
+        bridge._record_transported_reply(first, [first_back])
+    [first_event] = _awaiting(bridge, first)
+    old = _result(returned_id, "OLD")
+    first_ids = await scaffold.request([task, first_back, old], second)
+    assert first_event.message_id == first_ids[2]
+    if regenerated:
+        bridge._record_transported_reply(second, [second_back])
+    [second_event] = _awaiting(bridge, second)
+    edited = second_back.model_copy(update={"content": " "})
+    observed = await scaffold.request([task, first_back, old, edited])
+    assert observed[3] == edited_id(second.id, scaffold.sent[3])
+
+    ids = await scaffold.request(
+        [
+            ChatMessageUser(content="Summary: listed once."),
+            edited,
+            _result(returned_id, "NEW"),
+        ]
+    )
 
     assert ids[2] != first_ids[2]
     assert second_event.message_id == ids[2]

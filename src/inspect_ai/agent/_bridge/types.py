@@ -32,7 +32,11 @@ from inspect_ai.model._compaction import (
 from inspect_ai.model._compaction import (
     compaction as create_compaction,
 )
-from inspect_ai.model._message_ids import content_hash, edit_id
+from inspect_ai.model._message_ids import (
+    canonical_tool_arguments,
+    content_hash,
+    edit_id,
+)
 from inspect_ai.model._model import (
     GenerateFilter,
     Model,
@@ -96,7 +100,7 @@ _MAX_HANDED_IDS = 256
 
 
 def _arguments_digest(arguments: dict[str, Any]) -> str:
-    return mm3_hash(json.dumps(arguments, sort_keys=True, default=str))
+    return mm3_hash(canonical_tool_arguments(arguments))
 
 
 def _handed_calls(reply_id: str, calls: Sequence[ToolCall]) -> list[_HandedCall]:
@@ -490,6 +494,22 @@ class AgentBridge:
             oldest = next(iter(self._awaited_results))
             tracked_calls -= len(self._awaited_results.pop(oldest))
 
+    def _awaited_reply_id(
+        self, reply_id: str, message: ChatMessageAssistant
+    ) -> str | None:
+        """Find the handed reply represented by a recognized or edited copy."""
+        if reply_id in self._awaited_results:
+            return reply_id
+        return next(
+            (
+                original
+                for original, calls in self._awaited_results.items()
+                if any(reply_id in entry.reply_versions for entry in calls.values())
+                or edit_id(original, content_hash(message)) == reply_id
+            ),
+            None,
+        )
+
     def _link_result_messages(
         self, messages: list[ChatMessage], recognized: list[str | None]
     ) -> None:
@@ -527,24 +547,11 @@ class AgentBridge:
         for index, (message, reply_id) in enumerate(zip(messages, recognized)):
             if reply_id is None or not isinstance(message, ChatMessageAssistant):
                 continue
-            awaited = self._awaited_results.get(reply_id)
-            if awaited is None:
-                original = next(
-                    (
-                        original
-                        for original, calls in self._awaited_results.items()
-                        if any(
-                            reply_id in entry.reply_versions for entry in calls.values()
-                        )
-                        or edit_id(original, content_hash(message)) == reply_id
-                    ),
-                    None,
-                )
-                if original is not None:
-                    reply_id = original
-                    awaited = self._awaited_results[original]
-            if awaited is None:
+            original = self._awaited_reply_id(reply_id, message)
+            if original is None:
                 continue
+            reply_id = original
+            awaited = self._awaited_results[reply_id]
             first_call = next(iter(awaited))
             versions = awaited[first_call].reply_versions
             if message.id is not None and message.id != reply_id:
@@ -553,7 +560,7 @@ class AgentBridge:
                 )
             results: list[ChatMessageTool] = []
             for following in messages[index + 1 :]:
-                if isinstance(following, ChatMessageAssistant):
+                if isinstance(following, ChatMessageAssistant) and following.tool_calls:
                     break
                 if isinstance(following, ChatMessageTool):
                     results.append(following)
@@ -762,7 +769,6 @@ class AgentBridge:
                 if (
                     owner is not None
                     and preceding_reply_id is not None
-                    and preceding_reply_id in self._awaited_results
                     and preceding_reply_id != owner
                     and not any(
                         key.startswith(("content:", "loose:"))
@@ -781,7 +787,11 @@ class AgentBridge:
             used.add(message.id)
             self._record_message_id(message_keys, message.id)
             if isinstance(message, ChatMessageAssistant):
-                preceding_reply_id = message_id
+                preceding_reply_id = (
+                    self._awaited_reply_id(message_id, message)
+                    if message_id is not None
+                    else None
+                )
         self._link_result_messages(messages, recognized)
 
     def _version_id(self, message_id: str, message: ChatMessage) -> str:
@@ -1163,7 +1173,7 @@ def _loose_message_key(message: ChatMessage, text: str) -> str:
                 [
                     [
                         call.function,
-                        json.dumps(call.arguments, sort_keys=True, default=str),
+                        canonical_tool_arguments(call.arguments),
                     ]
                     for call in message.tool_calls or []
                 ]

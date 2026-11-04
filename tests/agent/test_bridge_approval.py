@@ -4137,6 +4137,39 @@ async def test_generating_request_filter_keeps_proposing_message() -> None:
     assert event.call_message_id == generation.output.message.id
 
 
+async def test_generating_response_filter_keeps_proposing_message() -> None:
+    """A host call returned by a generating response filter names that generation."""
+    bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)
+
+    async def generate_in_response_filter(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput:
+        return await model.generate(
+            input=generate_input.input,
+            tools=generate_input.tools,
+            tool_choice=generate_input.tool_choice,
+            config=generate_input.config,
+        )
+
+    bridge.response_filter = generate_in_response_filter
+    call = ToolCall(id="filtered", function="read_file", arguments={"path": "a"})
+    with recorded_transcript() as recorded:
+        await run_bridge(
+            [
+                ModelOutput.from_content("mockllm/model", "First response."),
+                tool_calls_output(call),
+            ],
+            bridge=bridge,
+            tools=declare("read_file"),
+        )
+        await call_host_tool(bridge)("host", "read_file", {"path": "a"})
+
+    generations = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    assert len(generations) == 2
+    [event] = recorded.tool_events
+    assert event.call_message_id == generations[1].output.message.id
+
+
 async def test_generating_request_filter_reordered_choice_keeps_provenance() -> None:
     """A filter's selected alternate links to its recorded generated choice."""
     bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)
