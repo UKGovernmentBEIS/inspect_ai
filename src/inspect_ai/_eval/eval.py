@@ -1185,8 +1185,8 @@ async def _eval_async_inner(
                             break
 
                         # (a TaskSource observes results via sample_complete /
-                        # task_complete, fired from task_run as each sample/task
-                        # finishes — so its next_tasks() decision can use them)
+                        # task_complete, fired as each sample/task finishes —
+                        # so its next_tasks() decision can use them)
 
                         # next batch under this run_id: imperative additions
                         # (enqueue_task) first, else the TaskSource's next_tasks()

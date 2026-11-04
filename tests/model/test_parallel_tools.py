@@ -7,18 +7,21 @@ that acts as a barrier preserving the model's declared call ordering.
 """
 
 import traceback
-from typing import NoReturn
+from typing import Any, Callable, NoReturn
 
 import anyio
 import pytest
 from test_helpers.utils import fail_in_a_group_with_handled_context
 
+from inspect_ai.agent import AgentChannel, AgentInterrupted
+from inspect_ai.agent._channel import Cancel
+from inspect_ai.event._event import Event
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log._transcript import Transcript, init_transcript
 from inspect_ai.model._call_tools import TOOL_CALLS_FAIL_FAST, execute_tools
 from inspect_ai.model._chat_message import ChatMessageAssistant, ChatMessageTool
 from inspect_ai.tool import ToolError, tool
-from inspect_ai.tool._tool_call import ToolCall
+from inspect_ai.tool._tool_call import ToolCall, ToolCallError
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.util import collect
 
@@ -841,6 +844,171 @@ async def test_sibling_cancel_during_approval_records_event_in_transcript():
     assert target_ev.error is not None
     assert target_ev.error.type == "cancelled"
     assert target_ev.failed is True
+
+
+async def _interrupt_during_slow_calls(
+    on_started: Callable[[], None] = lambda: None,
+) -> dict[str, ToolEvent]:
+    """Interrupt a turn while two parallel calls run, after a serial call ended.
+
+    ``on_started`` runs once both slow calls are in flight, before the
+    interrupt. Returns the transcript's tool events by call id.
+    """
+    from inspect_ai.log._transcript import transcript
+
+    channel = AgentChannel()
+    both_started = anyio.Event()
+    started = [0]
+
+    @tool(parallel=True)
+    def slow():
+        async def slow(label: str) -> str:
+            """Wait far longer than the test runs.
+
+            Args:
+                label: The label.
+            """
+            started[0] += 1
+            if started[0] == 2:
+                both_started.set()
+            await anyio.sleep(30)
+            return label
+
+        return slow
+
+    async def interrupt() -> None:
+        await both_started.wait()
+        on_started()
+        channel._ref().interrupt(Cancel(reason="user_cancel"))
+
+    calls = [
+        call("serial_echo", "done", label="done"),
+        call("slow", "slow-1", label="a"),
+        call("slow", "slow-2", label="b"),
+    ]
+    with anyio.fail_after(5):
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(interrupt)
+            with pytest.raises(AgentInterrupted):
+                with channel.turn_scope():
+                    await execute_tools(
+                        [assistant(*calls)], [ToolDef(serial_echo()), ToolDef(slow())]
+                    )
+
+    return {e.id: e for e in transcript().events if isinstance(e, ToolEvent)}
+
+
+async def test_interrupt_finalises_the_calls_it_cancels() -> None:
+    """A turn interrupt finalises the tool events it cancels as `cancelled`."""
+    from inspect_ai.log._transcript import transcript
+
+    delivered: dict[str, dict[str, Any]] = {}
+
+    def record(event: Event) -> None:
+        if isinstance(event, ToolEvent):
+            delivered[event.id] = event.model_dump(mode="json")
+
+    transcript()._subscribe(record)
+    events = await _interrupt_during_slow_calls()
+
+    # no tool event is still tracked as pending, and subscribers (log
+    # writers) saw each cancellation
+    assert not [e for e in transcript().pending_events if isinstance(e, ToolEvent)]
+    for call_id in ("slow-1", "slow-2"):
+        assert delivered[call_id]["pending"] is None
+        assert delivered[call_id]["error"]["type"] == "cancelled"
+
+    done = events["done"]
+    assert done.result == "done"
+    assert done.error is None
+
+    for call_id in ("slow-1", "slow-2"):
+        event = events[call_id]
+        assert not event.pending
+        assert event.completed is not None
+        assert event.working_time is not None
+        assert event.error is not None
+        assert event.error.type == "cancelled"
+        assert event.failed is True
+
+
+async def test_interrupt_keeps_tool_events_already_finalised() -> None:
+    """Events an interrupt producer finalised first (as ACP does) are kept."""
+    from inspect_ai.log._transcript import transcript
+
+    acp_error = ToolCallError("cancelled", "Tool call cancelled by user.")
+
+    def finalise_like_acp() -> None:
+        event = next(
+            e
+            for e in transcript().events
+            if isinstance(e, ToolEvent) and e.id == "slow-1"
+        )
+        event.pending = None
+        event.error = acp_error
+        event.failed = True
+
+    events = await _interrupt_during_slow_calls(finalise_like_acp)
+
+    assert events["slow-1"].error == acp_error
+    assert events["slow-1"].completed is None
+    assert events["slow-2"].error is not None
+    assert events["slow-2"].error.message == "Tool call was cancelled."
+
+
+async def test_interrupt_times_each_call_by_its_own_cleanup() -> None:
+    """A sibling's slow cancellation cleanup does not delay another call's end."""
+    from inspect_ai.log._transcript import transcript
+
+    channel = AgentChannel()
+    both_started = anyio.Event()
+    started = [0]
+
+    @tool(parallel=True)
+    def cleanup():
+        async def cleanup(seconds: float) -> str:
+            """Wait, then clean up for some seconds when cancelled.
+
+            Args:
+                seconds: Shielded cleanup time.
+            """
+            started[0] += 1
+            if started[0] == 2:
+                both_started.set()
+            try:
+                await anyio.sleep(30)
+            finally:
+                with anyio.CancelScope(shield=True):
+                    await anyio.sleep(seconds)
+            return "unreachable"
+
+        return cleanup
+
+    async def interrupt() -> None:
+        await both_started.wait()
+        channel._ref().interrupt(Cancel(reason="user_cancel"))
+
+    calls = [
+        call("cleanup", "quick", seconds=0),
+        call("cleanup", "slow", seconds=0.3),
+    ]
+    with anyio.fail_after(5):
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(interrupt)
+            with pytest.raises(AgentInterrupted):
+                with channel.turn_scope():
+                    await execute_tools([assistant(*calls)], [ToolDef(cleanup())])
+
+    events = {e.id: e for e in transcript().events if isinstance(e, ToolEvent)}
+    quick, slow = events["quick"], events["slow"]
+    for event in (quick, slow):
+        assert not event.pending
+        assert event.error is not None
+        assert event.error.type == "cancelled"
+    assert quick.completed is not None and slow.completed is not None
+    assert (slow.completed - quick.completed).total_seconds() > 0.2
+    assert quick.working_time is not None and slow.working_time is not None
+    assert slow.working_time - quick.working_time > 0.2
 
 
 async def test_parallel_pending_events_coexist_with_distinct_uuids() -> None:
