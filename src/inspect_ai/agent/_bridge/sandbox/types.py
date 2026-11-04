@@ -189,6 +189,8 @@ class SandboxAgentBridge(AgentBridge):
             else None
         )
         for index, call in enumerate(calls):
+            verified = self._proposing_call_verified
+            retained = verified is None or verified[index]
             targets, arguments, _ = _proposed_call(
                 self.bridged_tools, self.served_tools, call, declared
             )
@@ -202,8 +204,8 @@ class SandboxAgentBridge(AgentBridge):
                 )
             proposal = _Proposal(
                 call,
-                span_id,
-                self._proposing_message_ids.get(call.id),
+                span_id if retained else None,
+                self._proposing_message_ids.get(call.id) if retained else None,
                 handed[index] if handed is not None else None,
             )
             for target in targets:

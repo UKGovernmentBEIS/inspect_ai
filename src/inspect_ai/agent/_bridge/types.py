@@ -473,6 +473,9 @@ class AgentBridge:
     _proposing_reply_id: str | None = None
     """Id of the reply handed to the scaffold, while `register_tool_execution_grants` registers its calls."""
 
+    _proposing_call_verified: list[bool] | None = None
+    """Per-call filter verification, aligned with the calls being registered."""
+
     def _await_result_message(self, handed: _HandedCall, event: "ToolEvent") -> None:
         """Set `event.message_id` when the scaffold first sends the result of `handed`.
 

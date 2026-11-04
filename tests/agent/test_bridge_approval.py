@@ -4384,6 +4384,65 @@ async def test_response_filter_replacement_does_not_claim_initial_proposal(
     assert event.span_id == outer
 
 
+@pytest.mark.parametrize(
+    "edit", ["arguments", "append", "append-duplicate", "parallel-edit"]
+)
+async def test_response_filter_keeps_each_original_call_attribution(edit: str) -> None:
+    """Changing another call does not clear a retained call's link or span."""
+    bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)
+    bridge.model_event_sink = StartingStampingSink({"stamp", "open"})
+
+    async def change(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput:
+        tool_calls = output.message.tool_calls
+        assert tool_calls is not None
+        if edit == "arguments":
+            tool_calls[0].arguments = {"path": "b"}
+        elif edit.startswith("append"):
+            tool_calls.append(
+                ToolCall(
+                    id="original" if edit == "append-duplicate" else "added",
+                    function="read_file",
+                    arguments={"path": "b"},
+                )
+            )
+        else:
+            tool_calls[1].arguments = {"path": "c"}
+        return output
+
+    bridge.response_filter = change
+    calls = [ToolCall(id="original", function="read_file", arguments={"path": "a"})]
+    if edit == "parallel-edit":
+        calls.append(
+            ToolCall(id="second", function="read_file", arguments={"path": "b"})
+        )
+    with recorded_transcript() as recorded:
+        async with span("outer"):
+            outer = current_span_id()
+            await run_bridge(
+                [tool_calls_output(*calls)], bridge=bridge, tools=declare("read_file")
+            )
+            await call_host_tool(bridge)(
+                "host", "read_file", {"path": "b" if edit == "arguments" else "a"}
+            )
+            if edit.startswith("append"):
+                await call_host_tool(bridge)("host", "read_file", {"path": "b"})
+            elif edit == "parallel-edit":
+                await call_host_tool(bridge)("host", "read_file", {"path": "c"})
+
+    [generation] = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    first, *rest = recorded.tool_events
+    assert first.call_message_id == generation.output.message.id
+    assert first.span_id == "agent-sub"
+    if rest:
+        [second] = rest
+        assert second.call_message_id == (
+            generation.output.message.id if edit == "parallel-edit" else None
+        )
+        assert second.span_id == ("agent-sub" if edit == "parallel-edit" else outer)
+
+
 def sandbox_bridge_with_sink(tool: AsyncMock, sink: StampingSink) -> SandboxAgentBridge:
     bridge = sandbox_bridge_with_tool(tool, None)
     bridge.model_event_sink = sink

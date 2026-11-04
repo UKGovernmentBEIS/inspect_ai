@@ -1,6 +1,7 @@
 import inspect
 import json
 import warnings
+from collections import Counter
 from contextlib import AbstractContextManager, contextmanager, nullcontext
 from contextvars import ContextVar
 from logging import getLogger
@@ -620,25 +621,30 @@ def _selected_generated_message_id(
     return matches[0] if len(matches) == 1 else None
 
 
-def _retains_generated_proposal(generated: ModelOutput, filtered: ModelOutput) -> bool:
-    """Check the returned proposal before filter settlement rewrites its ID."""
+def _verified_generated_calls(
+    generated: ModelOutput, filtered: ModelOutput
+) -> list[bool]:
+    """Check each returned call before filter settlement rewrites message IDs."""
+    calls = filtered.message.tool_calls or []
     source_id = _selected_generated_message_id(generated, filtered)
     if source_id is None:
-        return False
+        return [False] * len(calls)
     sources = [
         choice.message for choice in generated.choices if choice.message.id == source_id
     ]
     if len(sources) != 1:
-        return False
-    source_calls = {
-        (call.id, call.function, canonical_tool_arguments(call.arguments))
-        for call in sources[0].tool_calls or []
-    }
-    return all(
-        (call.id, call.function, canonical_tool_arguments(call.arguments))
-        in source_calls
-        for call in filtered.message.tool_calls or []
+        return [False] * len(calls)
+    remaining = Counter(
+        (call.id, call.function) for call in sources[0].tool_calls or []
     )
+    verified: list[bool] = []
+    for call in calls:
+        key = (call.id, call.function)
+        retained = remaining[key] > 0
+        verified.append(retained)
+        if retained:
+            remaining[key] -= 1
+    return verified
 
 
 def _check_provider_owned_content(original: ModelOutput, filtered: ModelOutput) -> None:
@@ -1138,17 +1144,15 @@ async def _bridge_generate_impl(
             await compact.record_output(input_messages, output)
 
         # Inside the refusal-retry loop so a content_filter replacement is retried.
-        replaced_proposal = False
+        verified_calls: list[bool] | None = None
         if bridge.response_filter is not None:
 
             def check_proposal(
                 filtered: ModelOutput, source: ModelOutput | None = generated
             ) -> None:
-                nonlocal replaced_proposal
+                nonlocal verified_calls
                 if source is not None and filtered.message.tool_calls:
-                    replaced_proposal = not _retains_generated_proposal(
-                        source, filtered
-                    )
+                    verified_calls = _verified_generated_calls(source, filtered)
 
             # under the bridge's approval policies, as a filter may generate
             with bridge_approval_scope(bridge.approval):
@@ -1161,8 +1165,6 @@ async def _bridge_generate_impl(
                     ),
                     on_filtered_output=check_proposal,
                 )
-            if replaced_proposal:
-                generated = None
 
         # Check for refusal and retry if needed
         if not output.empty and output.stop_reason == "content_filter":
@@ -1235,21 +1237,17 @@ async def _bridge_generate_impl(
                                 proposing[selected_call.id] = source_id
             bridge._proposing_message_ids = proposing
             bridge._proposing_reply_id = reviewed.output.message.id
+            bridge._proposing_call_verified = verified_calls
             try:
                 bridge.register_tool_execution_grants(
                     reviewed.output.message.tool_calls or [],
                     declarations,
-                    span_id=(
-                        None
-                        if replaced_proposal
-                        else sink.span_id
-                        if sink is not None
-                        else None
-                    ),
+                    span_id=sink.span_id if sink is not None else None,
                 )
             finally:
                 bridge._proposing_message_ids = {}
                 bridge._proposing_reply_id = None
+                bridge._proposing_call_verified = None
             return reviewed.output, c_message
 
         rejections += 1
