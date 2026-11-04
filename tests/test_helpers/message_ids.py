@@ -43,7 +43,7 @@ def shown(message: ChatMessage) -> str:
     view: dict[str, Any] = {"role": message.role, "content": content}
     if isinstance(message, ChatMessageAssistant):
         view["calls"] = [
-            [call.id, call.function, call.arguments]
+            [call.id, call.type, call.function, call.arguments]
             for call in message.tool_calls or []
         ]
     if isinstance(message, ChatMessageTool):

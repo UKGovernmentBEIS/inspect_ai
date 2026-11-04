@@ -169,6 +169,7 @@ def content_hash(message: ChatMessage) -> str:
                 [
                     [
                         call.id,
+                        call.type,
                         call.function,
                         canonical_tool_arguments(call.arguments),
                     ]

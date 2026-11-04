@@ -52,6 +52,8 @@ from inspect_ai.model import (
     ChatMessageAssistant,
     ChatMessageTool,
     ChatMessageUser,
+    GenerateInput,
+    Model,
     ModelOutput,
     get_model,
 )
@@ -1283,6 +1285,70 @@ def test_configured_system_message_keeps_one_id(tmp_path: Path) -> None:
     sample = _assert_contract(log)
     model_events = [e for e in sample.events if isinstance(e, ModelEvent)]
     assert len({e.input[0].id for e in model_events}) == 1
+
+
+def test_response_filter_change_of_call_type_gets_a_new_id(tmp_path: Path) -> None:
+    """A filter that only turns a function call into a custom call edits the reply."""
+
+    async def to_custom(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput:
+        for call in output.message.tool_calls or []:
+            call.type = "custom"
+        return output
+
+    item_types: list[str] = []
+
+    @agent
+    def custom_scaffold() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            async with agent_bridge(state, response_filter=to_custom) as bridge:
+                async with AsyncOpenAI(api_key="inspect") as client:
+                    input: list[dict[str, Any]] = [{"role": "user", "content": PROMPT}]
+                    for _ in range(2):
+                        response = await client.responses.create(
+                            model="inspect",
+                            input=cast(Any, input),
+                            tools=[{"type": "custom", "name": "patch"}],
+                        )
+                        for item in response.output:
+                            item_types.append(item.type)
+                            input.append(item.model_dump(exclude_none=True))
+                            if item.type == "custom_tool_call":
+                                input.append(
+                                    {
+                                        "type": "custom_tool_call_output",
+                                        "call_id": item.call_id,
+                                        "output": "patched",
+                                    }
+                                )
+                return bridge.state
+
+        return execute
+
+    log = eval(
+        Task(dataset=[Sample(input=PROMPT)], solver=custom_scaffold()),
+        model=get_model(
+            "mockllm/model",
+            custom_outputs=[
+                ModelOutput.for_tool_call("mockllm/model", "patch", {"input": "x"}),
+                ModelOutput.from_content("mockllm/model", "Patched."),
+            ],
+        ),
+        log_dir=str(tmp_path),
+    )[0]
+
+    sample = _assert_contract(log)
+    assert "custom_tool_call" in item_types and "function_call" not in item_types
+    generated = [e for e in sample.events if isinstance(e, ModelEvent)][0]
+    handed = next(m for m in sample.messages if isinstance(m, ChatMessageAssistant))
+    assert generated.output.message.tool_calls
+    assert generated.output.message.tool_calls[0].type == "function"
+    assert handed.tool_calls and handed.tool_calls[0].type == "custom"
+    assert handed.id == edited_id(generated.output.message.id, handed)
+    assert handed.id != generated.output.message.id
+    native = edited_message(generated.output.message, tool_calls=handed.tool_calls)
+    assert native.id == handed.id
 
 
 async def test_native_and_bridge_edits_of_a_message_agree() -> None:
