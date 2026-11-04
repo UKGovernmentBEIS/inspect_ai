@@ -7,7 +7,16 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from logging import getLogger
 from pathlib import PurePath
-from typing import Any, Awaitable, Callable, Literal, NamedTuple, Protocol, TypeAlias
+from typing import (
+    Any,
+    Awaitable,
+    Callable,
+    Iterator,
+    Literal,
+    NamedTuple,
+    Protocol,
+    TypeAlias,
+)
 
 import anyio
 from anyio.abc import TaskGroup
@@ -718,6 +727,78 @@ def _enqueue_source_tasks(tasks: list[Task] | None) -> None:
             enqueuer.enqueue(tasks)
 
 
+async def notify_task_source(options: TaskRunOptions, eval_log: EvalLog) -> None:
+    """Report a finished attempt's log to the run's TaskSource (if it has one).
+
+    Adds the follow-up tasks ``TaskSource.task_complete`` returns to the run.
+    Called after the attempt's cancel scope has exited: the task's abort or
+    retry request cancels that scope, so the callback runs (and can await)
+    whether or not the task was cancelled. A preview (``run_samples=False``)
+    ran no samples, so it is not reported.
+    """
+    if options.task_source is not None and options.run_samples:
+        _enqueue_source_tasks(await options.task_source.task_complete(eval_log))
+
+
+ABORTED_LOG_WRITE_TIMEOUT = 10.0
+"""Seconds the error-log write may run after the task's abort or retry request."""
+
+
+def bound_log_write(task_cancel: TaskCancel) -> bool:
+    """Give the task's error-log write in progress (if any) a deadline.
+
+    Called when the task's abort or retry request is made, so the write gets
+    ``ABORTED_LOG_WRITE_TIMEOUT`` more seconds (see :func:`abort_bounded_write`).
+    Returns whether a write is in progress: the request then takes effect
+    when the write ends, instead of interrupting it.
+    """
+    scope = task_cancel.log_write_scope
+    if scope is None:
+        return False
+    scope.deadline = min(
+        scope.deadline, anyio.current_time() + ABORTED_LOG_WRITE_TIMEOUT
+    )
+    return True
+
+
+@contextlib.contextmanager
+def abort_bounded_write(task_cancel: TaskCancel | None) -> Iterator[None]:
+    """Keep the task's own abort or retry request from interrupting its error-log write, for a bounded time.
+
+    The write completes, so the task returns the log it wrote and the
+    dispatcher ends (or retries) only this task. A request made during the
+    write takes effect when the write ends. A request made before the write
+    has already cancelled the task, so the write is shielded. Either way,
+    once the request is made the write has ``ABORTED_LOG_WRITE_TIMEOUT``
+    seconds to finish; past that it raises ``TimeoutError``, which the
+    dispatcher handles as a failed log write. The deadline reaches only a
+    write that can be cancelled: one waiting on a worker thread runs to its
+    end, as it does without the request.
+
+    Without a request the write is neither shielded nor bounded, so a
+    run-level cancellation (e.g. ctrl+c) still interrupts it at once.
+    """
+    if task_cancel is None:
+        yield
+        return
+    pending = task_cancel.cancel_type in ("abort", "retry")
+    with anyio.CancelScope(shield=pending) as scope:
+        task_cancel.log_write_scope = scope
+        if pending:
+            bound_log_write(task_cancel)
+        try:
+            yield
+        finally:
+            task_cancel.log_write_scope = None
+    if scope.cancelled_caught:
+        raise TimeoutError(
+            f"Log write did not finish within {ABORTED_LOG_WRITE_TIMEOUT:g} "
+            "seconds of the task's cancel request"
+        )
+    if not pending and task_cancel.cancel_type in ("abort", "retry"):
+        task_cancel.cancel_task(task_cancel.cancel_type)
+
+
 def _enqueue_source_samples(samples: list[Sample] | None) -> None:
     """Add samples a SampleSource callback returned to the running task's queue.
 
@@ -1124,7 +1205,17 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
         # start the log (do this outside fo the try b/c the try/except assumes
         # that the log is initialized)
         eval_plan = plan_to_eval_plan(plan, generate_config)
-        await logger.log_start(eval_plan)
+        try:
+            await logger.log_start(eval_plan)
+        except anyio.get_cancelled_exc_class():
+            # the dispatcher reports the task's own abort/retry here as an
+            # errored attempt and moves on, so show the task as finished
+            if task_cancel and task_cancel.cancel_type in ("abort", "retry"):
+                cancel_ex = TerminateTaskError(
+                    f"Task cancelled by user ({task_cancel.cancel_type})"
+                )
+                td.complete(TaskError(0, TerminateTaskError, cancel_ex, None))
+            raise
 
         try:
             # return immediately if we are not running samples
@@ -2005,6 +2096,20 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
 
         except anyio.get_cancelled_exc_class():
             with anyio.CancelScope(shield=True):
+                if logger.finished:
+                    # the cancellation landed after the log was written (e.g.
+                    # in an on_task_end hook): show the task as it ended and
+                    # keep that log (the caller returns it for the task's own
+                    # abort/retry)
+                    td.complete(
+                        TaskSuccess(
+                            samples_completed=logger.samples_completed,
+                            stats=stats,
+                            results=results or EvalResults(),
+                        )
+                    )
+                    raise
+
                 # collect eval data
                 collect_eval_data(stats)
 
@@ -2085,13 +2190,22 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                 collect_eval_data(stats)
 
                 # finish with error status
-                eval_log = await finish_task_log(
-                    status="error",
-                    stats=stats,
-                    results=results,
-                    reductions=reductions,
-                    error=error,
-                )
+                try:
+                    with abort_bounded_write(task_cancel):
+                        eval_log = await finish_task_log(
+                            status="error",
+                            stats=stats,
+                            results=results,
+                            reductions=reductions,
+                            error=error,
+                        )
+                except TimeoutError:
+                    # the dispatcher reports the attempt as a failed write and
+                    # moves on, so the display must still show it finished
+                    td.complete(
+                        TaskError(logger.samples_completed, type, value, traceback)
+                    )
+                    raise
 
                 # display it
                 td.complete(TaskError(logger.samples_completed, type, value, traceback))
@@ -2131,12 +2245,8 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
     # restore sandbox limits
     reset_sandbox_limits(limit_tokens)
 
-    # notify a TaskSource (if the run has one) that this task is complete
-    # (it may return follow-up tasks to add to the run)
-    if options.task_source is not None:
-        _enqueue_source_tasks(await options.task_source.task_complete(eval_log))
-
-    # return eval log
+    # return eval log (the caller reports it to the run's TaskSource, see
+    # notify_task_source)
     return eval_log
 
 
