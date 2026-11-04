@@ -1403,8 +1403,7 @@ async def test_anthropic_bridge_prepares_sdk_request(
     anthropic >= 1.8.0 prepares the body inside `request()`, below the
     bridge's interception point: unspecified params arrive as sentinels, and
     iterators, pydantic models, mappings and file inputs arrive unconverted.
-    Driven through the public `messages.create()` so it covers whichever SDK
-    is installed.
+    Driven through the public `messages.create()`.
     """
     from collections import UserDict
 

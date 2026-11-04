@@ -29,6 +29,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import IO, Any, Callable
 from unittest.mock import patch
@@ -626,7 +627,9 @@ class _FreshSandbox:
         (self.sandbox_dir / "restic").symlink_to(repos.restic)
         self.env = _CountingSandbox()
 
-    async def ingress(self, snapshot_id: str, *roots: Path) -> None:
+    async def ingress(
+        self, snapshot_id: str, *roots: Path, chunk_size: int = CHUNK
+    ) -> None:
         await ingress_sandbox(
             self.env,
             str(self.host_repo),
@@ -636,16 +639,18 @@ class _FreshSandbox:
                 [str(r) for r in (roots or (self.repos.src,))], label="test"
             ),
             host_restic=self.repos.restic,
+            chunk_size=chunk_size,
             sandbox_dir=str(self.sandbox_dir),
         )
 
 
 class _CountingSandbox(LocalShellSandbox):
-    """Counts ``exec`` calls: a refused ingress must run none."""
+    """Counts ``exec`` calls and records input sizes: a refused ingress must run none."""
 
     def __init__(self) -> None:
         super().__init__()
         self.execs = 0
+        self.input_sizes: list[int] = []
 
     async def exec(
         self,
@@ -659,6 +664,8 @@ class _CountingSandbox(LocalShellSandbox):
         concurrency: bool = True,
     ) -> ExecResult[str]:
         self.execs += 1
+        if input is not None:
+            self.input_sizes.append(len(input))
         return await super().exec(
             cmd, input, cwd, env, user, timeout, timeout_retry, concurrency
         )
@@ -683,6 +690,95 @@ async def test_ingress_restores_recorded_snapshot_not_latest(
         for p in fresh.host_repo.rglob("*")
         if p.is_file() and p.relative_to(fresh.host_repo).parts[0] != "locks"
     }
+
+
+async def test_ingress_copies_repo_in_chunks(repos: _Repos, tmp_path: Path) -> None:
+    (repos.src / "blob.bin").write_bytes(os.urandom(3 * CHUNK))
+    id1 = repos.backup("ckpt-00001")
+    (repos.src / "notes.txt").write_text("v2\n")
+    fresh = _FreshSandbox(repos, tmp_path)
+
+    await fresh.ingress(id1)
+
+    assert (repos.src / "notes.txt").read_text() == "v1\n"
+    assert len(fresh.env.input_sizes) > 3
+    assert max(fresh.env.input_sizes) <= CHUNK
+    assert not (fresh.sandbox_dir / "staging" / "ingress.tar").exists()
+
+
+@pytest.fixture
+def host_tmp(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """The host temp dir, where ingress writes its tarball."""
+    host_tmp = tmp_path / "host-tmp"
+    host_tmp.mkdir()
+    monkeypatch.setattr(tempfile, "tempdir", str(host_tmp))
+    return host_tmp
+
+
+class _SecondChunkSandbox(_CountingSandbox):
+    """Fails, or stalls until cancelled, on the second ``copy_in`` chunk."""
+
+    def __init__(self, host_tmp: Path, *, stall: bool) -> None:
+        super().__init__()
+        self.host_tmp = host_tmp
+        self.stall = stall
+        self.reached = anyio.Event()
+        self.tarball_present = False
+
+    async def exec(
+        self,
+        cmd: list[str],
+        input: str | bytes | None = None,
+        cwd: str | None = None,
+        env: dict[str, str] | None = None,
+        user: str | None = None,
+        timeout: int | None = None,
+        timeout_retry: bool = True,
+        concurrency: bool = True,
+    ) -> ExecResult[str]:
+        if input is not None and len(self.input_sizes) == 1:
+            self.tarball_present = any(self.host_tmp.rglob("ingress.tar"))
+            self.reached.set()
+            if self.stall:
+                await anyio.sleep_forever()
+            return ExecResult(
+                success=False, returncode=1, stdout="", stderr="disk full"
+            )
+        return await super().exec(
+            cmd, input, cwd, env, user, timeout, timeout_retry, concurrency
+        )
+
+
+async def test_ingress_failed_copy_in_removes_host_tarball(
+    repos: _Repos, tmp_path: Path, host_tmp: Path
+) -> None:
+    (repos.src / "blob.bin").write_bytes(os.urandom(3 * CHUNK))
+    id1 = repos.backup("ckpt-00001")
+    fresh = _FreshSandbox(repos, tmp_path)
+    env = fresh.env = _SecondChunkSandbox(host_tmp, stall=False)
+
+    with pytest.raises(RuntimeError, match="copy-in failed: disk full"):
+        await fresh.ingress(id1)
+
+    assert env.tarball_present
+    assert not any(host_tmp.rglob("ingress.tar"))
+
+
+async def test_ingress_cancelled_mid_copy_in_removes_host_tarball(
+    repos: _Repos, tmp_path: Path, host_tmp: Path
+) -> None:
+    (repos.src / "blob.bin").write_bytes(os.urandom(3 * CHUNK))
+    id1 = repos.backup("ckpt-00001")
+    fresh = _FreshSandbox(repos, tmp_path)
+    env = fresh.env = _SecondChunkSandbox(host_tmp, stall=True)
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(fresh.ingress, id1)
+        await env.reached.wait()
+        tg.cancel_scope.cancel()
+
+    assert env.tarball_present
+    assert not any(host_tmp.rglob("ingress.tar"))
 
 
 async def test_ingress_rejects_malformed_recorded_id(

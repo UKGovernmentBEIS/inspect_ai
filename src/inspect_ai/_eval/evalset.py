@@ -3,7 +3,7 @@ import hashlib
 import logging
 import os
 import threading
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Sequence
 from collections.abc import Set as AbstractSet
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal, NamedTuple, Set, TypeVar, cast
@@ -97,7 +97,7 @@ from inspect_ai.model._model_config import (
 from inspect_ai.model._model_data.model_data import ModelCost
 from inspect_ai.review._policy import ReviewPolicy, ReviewPolicyConfig
 from inspect_ai.scorer._reducer import reducer_log_name
-from inspect_ai.solver._chain import chain
+from inspect_ai.solver._chain import chain, is_solver_sequence
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util import DisplayType, SandboxEnvironmentType
 from inspect_ai.util._checkpoint import CheckpointConfig
@@ -166,7 +166,7 @@ class Log(NamedTuple):
 @dataclass
 class EvalSetArgsInTaskIdentifier:
     config: GenerateConfig
-    solver: Solver | SolverSpec | Agent | list[Solver] | None = None
+    solver: Solver | SolverSpec | Agent | Sequence[Solver] | None = None
     message_limit: int | None = None
     token_limit: int | TokenLimit | None = None
     turn_limit: int | None = None
@@ -257,7 +257,7 @@ def eval_set(
     checkpoint: CheckpointConfig | bool | None = None,
     acp_server: bool | int | str | None = None,
     ctl_server: bool | str | None = None,
-    solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
+    solver: Solver | SolverSpec | Agent | Sequence[Solver] | None = None,
     scanner: "Scanners | None" = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
@@ -432,9 +432,10 @@ def eval_set(
         time_limit: Limit on clock time (in seconds) for samples.
         working_limit: Limit on working time (in seconds) for sample. Working
             time includes model generation, tool calls, etc. but does not include
-            time spent waiting on retries or shared resources. Work done while
-            any wait is open is not charged, so working time can undercount;
-            set `time_limit` as well to bound wall clock time.
+            time spent waiting on retries or shared resources. While a wait is
+            open, only model calls, sandbox commands and tool calls are charged,
+            so working time can undercount; set `time_limit` as well to bound
+            wall clock time.
         cost_limit: Limit on total cost (in dollars) for each sample.
             Requires model cost data via set_model_cost() or --model-cost-config.
         model_cost_config: YAML or JSON file with model prices for cost tracking.
@@ -755,9 +756,13 @@ def eval_set(
                 GenerateConfigArgs,
                 {
                     **kwargs,
-                    **overrides.generate_config.model_dump(
-                        exclude_unset=True, exclude_none=True
-                    ),
+                    # values rather than a dump, which would drop a nested
+                    # null such as a cache `expiry` of None (never expire)
+                    **{
+                        name: value
+                        for name, value in overrides.generate_config
+                        if value is not None
+                    },
                 },
             )
 
@@ -1528,6 +1533,7 @@ def as_previous_tasks(
                 task_args=resolve_task_args(task.task),
                 model=task.model,
                 model_roles=task.model_roles,
+                sandbox=task.sandbox,
                 log=eval_log,
                 log_info=log_info,
             )
@@ -1571,19 +1577,24 @@ def _recover_crashed_log(
         try:
             try:
                 # the buffer stays as a safety net while resolved samples
-                # re-run; a finalized recovery is the final log, so sweep it
+                # re-run; a finalized recovery is the final log, so sweep it.
+                # Metrics the log can't rebuild untrusted leave it without
+                # results (its samples re-run) rather than failing the set
                 recovered = recover_eval_log(
                     eval_log.location,
                     cleanup="finalized",
                     incomplete_action=incomplete_action,
                     incomplete_max=incomplete_max,
+                    _untrusted_metrics="warn",
                 )
             except RecoveryThresholdExceeded as ex:
                 logger.warning(
                     f"Recovery for {eval_log.location} exceeded incomplete_max; "
                     f"falling back to recover-and-retry: {ex}"
                 )
-                recovered = recover_eval_log(eval_log.location, cleanup=False)
+                recovered = recover_eval_log(
+                    eval_log.location, cleanup=False, _untrusted_metrics="warn"
+                )
             if recovered.location:
                 log_info = log_info.model_copy(update={"name": recovered.location})
             eval_log = recovered
@@ -1755,6 +1766,7 @@ def _resumed_task(task: ResolvedTask, identifier: str, resume: str) -> PreviousT
         task_args=resolve_task_args(task.task),
         model=task.model,
         model_roles=task.model_roles,
+        sandbox=task.sandbox,
         log=eval_log,
         log_info=log_info,
     )
@@ -2102,13 +2114,13 @@ GENERATE_CONFIG_FIELDS_TO_EXCLUDE = {
 
 
 def resolve_solver(
-    solver: Solver | SolverSpec | Agent | list[Solver] | None,
+    solver: Solver | SolverSpec | Agent | Sequence[Solver] | None,
 ) -> Solver | None:
     # resolve solver
-    if isinstance(solver, list):
-        return chain(solver)
-    elif is_agent(solver):
+    if is_agent(solver):
         return as_solver(solver)
+    elif is_solver_sequence(solver):
+        return chain(solver)
     elif isinstance(solver, SolverSpec):
         return solver_from_spec(solver)
     else:

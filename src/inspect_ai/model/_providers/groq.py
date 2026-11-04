@@ -759,7 +759,9 @@ async def groq_chat_message(message: ChatMessage) -> ChatCompletionMessageParam:
     elif isinstance(message, ChatMessageTool):
         return ChatCompletionToolMessageParam(
             role="tool",
-            content=message.text,
+            content=(
+                f"Error: {message.error.message}" if message.error else message.text
+            ),
             tool_call_id=str(message.tool_call_id),
         )
 

@@ -526,6 +526,38 @@ def _event_summary(e: dict[str, Any]) -> str:
             _sanitize_control(str(e.get("data") or "")),
         ]
         return _truncate(" · ".join(b for b in bits if b), 80)
+    if t == "communication":
+        agent = _sanitize_control(str(e.get("agent") or "?"))
+        if e.get("kind") == "waited":
+            channels = ", ".join(
+                _sanitize_control(str(c)) for c in e.get("channels") or []
+            )
+            head = f"{agent} waited"
+            duration = e.get("duration")
+            if isinstance(duration, int | float):
+                head += f" {duration:.1f}s"
+            head += f" on {channels}: {_sanitize_control(str(e.get('outcome') or ''))}"
+        else:
+            record_ids = ", ".join(
+                _sanitize_control(str(r)) for r in e.get("record_ids") or []
+            )
+            head = (
+                f"{agent} → {_sanitize_control(str(e.get('channel') or ''))}: "
+                f"{_sanitize_control(str(e.get('kind') or ''))} {record_ids}"
+            ).rstrip()
+        bits = [head]
+        if e.get("rejected") is not None:
+            bits.append(f"refused ({_sanitize_control(str(e['rejected']))})")
+        bits.append(_sanitize_control(str(e.get("reason") or "")))
+        bits.append(_sanitize_control(str(e.get("content") or "")))
+        return _truncate(" · ".join(b for b in bits if b), 80)
+    if t == "swarm":
+        bits = [
+            _sanitize_control(str(e.get("kind") or "")),
+            _sanitize_control(str(e.get("member") or "")),
+            _sanitize_control(str(e.get("data") or "")),
+        ]
+        return _truncate(" · ".join(b for b in bits if b), 80)
     return ""
 
 
@@ -800,6 +832,8 @@ def _print_human_table(summaries: list[dict[str, Any]]) -> None:
     # (drain/score/error) — the marker that says a static-looking row is a
     # draining tail (or a stalled scorer), not a stall
     any_resolving = any(s.get("resolving") for s in summaries)
+    # `--log-dir` rows only: a sharded task's shard counts
+    any_shards = any(s.get("shards") for s in summaries)
 
     rows = []
     for s in summaries:
@@ -834,6 +868,8 @@ def _print_human_table(summaries: list[dict[str, Any]]) -> None:
         cells.append(_format_started(s.get("started_at", 0)))
         if any_retries:
             cells.append(str(int(s.get("attempts", 1) or 1)))
+        if any_shards:
+            cells.append(_format_shards(s))
         rows.append(tuple(cells))
 
     headers_list = ["task_id", "task", "model"]
@@ -859,8 +895,26 @@ def _print_human_table(summaries: list[dict[str, Any]]) -> None:
     headers_list.append("started")
     if any_retries:
         headers_list.append("attempts")
+    if any_shards:
+        headers_list.append("shards")
 
     _render_table(tuple(headers_list), rows)
+
+
+def _format_shards(summary: dict[str, Any]) -> str:
+    """A ``--log-dir`` row's shards cell (blank for an unsharded task).
+
+    The task's shard count, with the running, overlapping and mismatched ones.
+    """
+    shards = summary.get("shards")
+    if not shards:
+        return ""
+    notes = [
+        f"{shards[key]} {key}"
+        for key in ("running", "overlapping", "mismatched")
+        if shards.get(key)
+    ]
+    return f"{shards['total']} ({', '.join(notes)})" if notes else str(shards["total"])
 
 
 def _format_count(value: Any) -> str:

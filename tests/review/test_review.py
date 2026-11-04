@@ -1,4 +1,7 @@
+import fnmatch
+import ntpath
 from pathlib import Path
+from types import SimpleNamespace
 from typing import NamedTuple
 
 import anyio
@@ -21,7 +24,7 @@ from inspect_ai.model import (
     ModelOutput,
     get_model,
 )
-from inspect_ai.model._call_tools import execute_tools
+from inspect_ai.model._call_tools import execute_tools, parse_tool_call
 from inspect_ai.review import (
     Review,
     ReviewDecision,
@@ -34,6 +37,8 @@ from inspect_ai.review import (
 from inspect_ai.review._policy import (
     ReviewerPolicyConfig,
     ReviewPolicyConfig,
+    config_from_review_policies,
+    policy_reviewer,
     review_policies_from_config,
 )
 from inspect_ai.scorer import match
@@ -47,6 +52,8 @@ from inspect_ai.tool._tool import (
 )
 from inspect_ai.tool._tool_call import ToolCall, ToolCallView
 from inspect_ai.tool._tool_def import ToolDef
+from inspect_ai.tool._tool_info import ToolInfo
+from inspect_ai.tool._tool_params import ToolParam, ToolParams
 
 
 @tool
@@ -342,6 +349,89 @@ async def test_a_result_no_policy_covers_continues_without_review() -> None:
 
     assert tool_message(messages).content == [ContentText(text="2")]
     assert review_events() == []
+
+
+async def reviewed(call: ToolCall, tools: str, **arguments: str) -> bool:
+    """Whether a policy for `tools` and `arguments` reviews `call`."""
+    init_transcript(Transcript())
+    result = ChatMessageTool(content="", tool_call_id=call.id, function=call.function)
+    review_policy = (
+        ReviewPolicy(fixed_reviewer("terminate"), tools, arguments=arguments)
+        if arguments
+        else ReviewPolicy(fixed_reviewer("terminate"), tools)
+    )
+    review_ = policy_reviewer([review_policy])
+    decision = await review_("", call, result, "", ToolCallView(), [])
+    return decision.decision == "terminate"
+
+
+async def test_review_policy_tools_and_arguments_match_as_for_approval() -> None:
+    def call(function: str, **arguments: object) -> ToolCall:
+        return ToolCall(id="1", function=function, arguments=arguments)
+
+    assert await reviewed(call("left_click"), "*_click")
+    assert not await reviewed(call("type", text="left_click"), "*_click")
+
+    injected = call("computer", action="type', mode='safe")
+    assert not await reviewed(injected, "computer(action='type'")
+    key = call("computer", text="Return", action="key")
+    assert await reviewed(key, "computer(action='key'")
+
+    assert not await reviewed(injected, "computer", action="type", mode="safe")
+    assert await reviewed(key, "computer", action="key")
+    assert await reviewed(key, "bash, computer", action="key")
+
+    # quoted values matched strings only
+    assert not await reviewed(call("computer", action=10), "computer(action='*'")
+
+    # JSON values Pydantic rejects (a lone surrogate in an object key)
+    assert await reviewed(call("f", value={"\ud800": "x"}), "f", value="*")
+
+    # parsed keys that convert to another key raise rather than lose an entry
+    tools = [
+        ToolInfo(
+            name="f",
+            description="f",
+            parameters=ToolParams(properties={"value": ToolParam(type="object")}),
+        )
+    ]
+    collision = parse_tool_call("1", "f", '2024-01-01: a\n"2024-01-01": b', tools)
+    with pytest.raises(ValueError, match="two object keys"):
+        await reviewed(collision, "f", value="*")
+
+    with pytest.raises(ValueError, match="'arguments'"):
+        ReviewPolicy(fixed_reviewer(), "bash(cmd='ls', timeout=10)")
+
+
+async def test_review_policy_case_rules_on_windows(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # fnmatch ignores case through the platform's normcase; use Windows' here
+    monkeypatch.setattr(fnmatch, "os", SimpleNamespace(path=ntpath))
+
+    def call(function: str) -> ToolCall:
+        return ToolCall(id="1", function=function, arguments={"action": "key"})
+
+    assert await reviewed(call("computer"), "Computer")
+    assert not await reviewed(call("computer"), "Computer(action='key'")
+    assert not await reviewed(call("Computer"), "computer(action='key')")
+    assert await reviewed(call("computer"), "computer(action='key')")
+
+
+@pytest.mark.parametrize(
+    "tools",
+    [
+        "computer*(action='key'",
+        "computer*(action='key')",
+        "comput?r(action='key'",
+        "comput?r(action='key')",
+        "[c]omputer(action='key'",
+        "computer[s](action='key')",
+    ],
+)
+def test_review_policy_refuses_glob_names_in_the_legacy_form(tools: str) -> None:
+    with pytest.raises(ValueError, match="'arguments'"):
+        ReviewPolicy(fixed_reviewer(), tools)
 
 
 # --- what the reviewer sees ----------------------------------------------------
@@ -694,3 +784,30 @@ def test_review_policies_from_config_object() -> None:
 
     assert only.tools == "*"
     assert callable(only.reviewer)
+
+
+def test_saved_review_config_with_refused_pattern_raises() -> None:
+    # a log's saved config still parses, but eval_retry() rebuilds the policies
+    config = ReviewPolicyConfig.model_validate(
+        {"reviewers": [{"name": "fixed", "tools": "bash(cmd='rm"}]}
+    )
+
+    with pytest.raises(ValueError, match="'arguments'"):
+        review_policies_from_config(config)
+
+
+def test_review_policy_arguments_from_config() -> None:
+    config = ReviewPolicyConfig.model_validate(
+        {
+            "reviewers": [
+                {"name": "fixed", "tools": "computer", "arguments": {"action": "key"}}
+            ]
+        }
+    )
+
+    [only] = review_policies_from_config(config)
+
+    assert only.arguments == {"action": "key"}
+    [round_trip] = config_from_review_policies([only]).reviewers
+    assert round_trip.arguments == {"action": "key"}
+    assert round_trip.params == {}

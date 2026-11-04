@@ -193,10 +193,11 @@ def _decodable_content_codings() -> frozenset[str]:
 
     httpx and httpx2 (used by the OpenAI and Anthropic SDKs) each skip a content
     coding they have no decoder for and pass the body on still encoded, so a
-    client may only advertise codings both decode on this host. httpx2 decodes
-    `zstd` only on Python 3.14+ or with `backports.zstd` installed. If httpx's
-    private decoder table cannot be imported, no coding is treated as decodable
-    and the client's `Accept-Encoding` is dropped.
+    client may only advertise codings both decode on this host. Both decode `br`
+    only with `brotli` installed, which Inspect does not require, and httpx2
+    decodes `zstd` only on Python 3.14+ or with `backports.zstd` installed. If
+    httpx's private decoder table cannot be imported, no coding is treated as
+    decodable and the client's `Accept-Encoding` is dropped.
     """
     try:
         from httpx._decoders import SUPPORTED_DECODERS as httpx_decoders
@@ -411,8 +412,10 @@ async def agent_bridge(
           may name any server URL and the model provider will connect to it.
        model_event_sink: Optional sink that takes ownership of `ModelEvent`
           emission for calls routed through the bridge. When set, the bridge
-          installs it around `model.generate()` so the sink decides when and
-          under which span each event is emitted to the transcript.
+          installs it around `model.generate()`. The sink decides under which
+          span each generation runs (its optional `on_start`) and when each
+          event is emitted to the transcript (`on_pending`/`on_complete`); see
+          `ModelEventSink`.
        forward_generation_config: Forward client generation parameters (e.g.
           `max_tokens`, `temperature`, reasoning effort) to the model. Defaults
           to `False`, in which case those parameters are dropped and the resolved
@@ -662,7 +665,8 @@ def init_anthropic_request_patch() -> None:
     from anthropic._base_client import AsyncAPIClient, _AsyncStreamT
     from anthropic._constants import RAW_RESPONSE_HEADER
     from anthropic._models import FinalRequestOptions
-    from anthropic._types import NotGiven, Omit, ResponseT
+    from anthropic._types import Omit, ResponseT
+    from anthropic.types.beta import BetaMessage
 
     # extract headers
     def request_headers(options: FinalRequestOptions) -> dict[str, str] | None:
@@ -715,32 +719,6 @@ def init_anthropic_request_patch() -> None:
             stream_cls=stream_cls,
         )
 
-    async def prepare_request_options(
-        client: AsyncAPIClient, options: FinalRequestOptions
-    ) -> FinalRequestOptions:
-        """Prepare the request body the way the SDK would before sending it.
-
-        anthropic >= 1.8.0 prepares the body inside `request()`, below the
-        bridge's interception point, so run its `_copy_and_prepare()`. Older
-        SDKs prepare at the resource layer but defer `extra_body` to
-        `_build_request()`, so merge and clean it here and clear `extra_json`
-        so it isn't merged again.
-        """
-        copy_and_prepare = getattr(client, "_copy_and_prepare", None)
-        if copy_and_prepare is not None:
-            prepared: FinalRequestOptions = await copy_and_prepare(options)
-            return prepared
-
-        json_data = cast(dict[str, Any], options.json_data)
-        if options.extra_json:
-            json_data = json_data | dict(options.extra_json)
-        return options.model_copy(
-            update={
-                "json_data": strip_omitted_params(json_data, (Omit, NotGiven)),
-                "extra_json": None,
-            }
-        )
-
     # get reference to original method
     original_request = getattr(AsyncAPIClient, "request")
     if original_request is None:
@@ -772,9 +750,11 @@ def init_anthropic_request_patch() -> None:
                 if stream:
                     raise_stream_error()
 
-                options = await prepare_request_options(self, options)
+                # the SDK prepares the body inside request(), below this patch
+                options = await self._copy_and_prepare(options)
                 json_data = cast(dict[str, Any], options.json_data)
-                is_beta = "beta" in options.url
+                # anthropic >= 2.3 no longer puts ?beta=true on the url
+                is_beta = isinstance(cast_to, type) and issubclass(cast_to, BetaMessage)
                 result = await inspect_anthropic_api_request(
                     json_data,
                     filter_bridge_headers(request_headers(options)),

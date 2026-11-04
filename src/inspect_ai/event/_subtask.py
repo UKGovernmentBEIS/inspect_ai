@@ -46,9 +46,11 @@ class SubtaskEvent(BaseEvent):
     """Time that subtask completed (see `timestamp` for started)"""
 
     working_time: float | None = Field(default=None)
-    """Working time for subtask (clock time minus time when any wait was open in the sample).
+    """Working time for subtask (clock time minus the sample's waiting time).
 
-    Work done during a wait, such as concurrent tool calls or sub-agents, is not
+    The sample is waiting while a wait is open and no model call, sandbox
+    command or tool call is running (not counting commands run with
+    `exec_remote()` or inside `sandbox_agent_bridge()`). Other work done during a wait is not
     counted, so set `time_limit` alongside `working_limit` to bound clock time.
     """
 

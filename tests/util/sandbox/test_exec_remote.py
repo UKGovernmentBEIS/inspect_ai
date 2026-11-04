@@ -7,6 +7,7 @@ Docker container to verify the full host-to-container path.
 
 import contextlib
 import json
+import warnings
 from collections.abc import Iterator
 from typing import Any
 from unittest.mock import AsyncMock, patch
@@ -21,6 +22,10 @@ import inspect_ai.util._sandbox.exec_remote as exec_remote_module
 from inspect_ai.tool._sandbox_tools_utils.sandbox import (
     SandboxInjectionError,
     _inject_container_tools_code,
+)
+from inspect_ai.util._sandbox.context import (
+    sandbox_default_context_var,
+    sandbox_environments_context_var,
 )
 from inspect_ai.util._sandbox.docker.docker import DockerSandboxEnvironment
 from inspect_ai.util._sandbox.environment import SandboxDefaultUser
@@ -39,6 +44,7 @@ from inspect_ai.util._sandbox.exec_remote import (
     exec_remote_awaitable,
     exec_remote_streaming,
 )
+from inspect_ai.util._sandbox.identity import sandbox_identity
 from inspect_ai.util._subprocess import ExecResult
 
 # ============================================================================
@@ -234,6 +240,20 @@ class TestPollRetryExhaustion:
         # stop_after_attempt(5) pins the attempt count; keep the assertion
         # exact so a stop-config regression is caught
         assert sandbox.exec.call_count == 5
+
+
+class TestPollRetryWait:
+    async def test_poll_retry_wait_builds_without_warning(self) -> None:
+        """Each poll builds its retry wait without tenacity's `initial` warning."""
+        sandbox = _make_sandbox_mock([_start_response(), _poll_response()])
+
+        with warnings.catch_warnings():
+            warnings.filterwarnings("error", message="The 'initial' parameter")
+            result = await exec_remote_awaitable(
+                sandbox, ["cmd"], 5, ExecRemoteCommonOptions(poll_interval=0)
+            )
+
+        assert result.success is True
 
 
 # ============================================================================
@@ -784,11 +804,27 @@ class TestUserParam:
     _DEFAULT_USER = SandboxDefaultUser(uid=1111, gid=1111, groups=[1111], home="/h")
 
     async def _start_params(
-        self, options: ExecRemoteStreamingOptions
+        self,
+        options: ExecRemoteStreamingOptions,
+        identity: tuple[str, str | None] | None = None,
+        identity_sandbox: str = "default",
     ) -> dict[str, Any]:
         sandbox = _make_sandbox_mock([_start_response()])
         sandbox._tools_default_user = self._DEFAULT_USER
-        await exec_remote_streaming(sandbox, ["cmd"], 5, options)
+        envs_token = sandbox_environments_context_var.set(
+            {"default": sandbox, "other": _mock_sandbox()}
+        )
+        default_token = sandbox_default_context_var.set("default")
+        try:
+            with (
+                sandbox_identity(identity[0], cwd=identity[1], sandbox=identity_sandbox)
+                if identity is not None
+                else contextlib.nullcontext()
+            ):
+                await exec_remote_streaming(sandbox, ["cmd"], 5, options)
+        finally:
+            sandbox_default_context_var.reset(default_token)
+            sandbox_environments_context_var.reset(envs_token)
         params: dict[str, Any] = json.loads(sandbox.exec.call_args.kwargs["input"])[
             "params"
         ]
@@ -801,6 +837,97 @@ class TestUserParam:
     async def test_explicit_user_wins(self) -> None:
         params = await self._start_params(ExecRemoteStreamingOptions(user="nobody"))
         assert params["user"] == "nobody"
+
+    async def test_identity_scope_user_and_cwd_sent_when_omitted(self) -> None:
+        params = await self._start_params(
+            ExecRemoteStreamingOptions(), identity=("w-1", "/home/w-1")
+        )
+        assert params["user"] == "w-1"
+        assert params["cwd"] == "/home/w-1"
+
+    async def test_identity_scope_keeps_explicit_user_and_cwd(self) -> None:
+        params = await self._start_params(
+            ExecRemoteStreamingOptions(user="root", cwd="/srv"),
+            identity=("w-1", "/home/w-1"),
+        )
+        assert params["user"] == "root"
+        assert params["cwd"] == "/srv"
+
+    async def test_identity_scope_for_another_sandbox_is_ignored(self) -> None:
+        params = await self._start_params(
+            ExecRemoteStreamingOptions(),
+            identity=("w-1", "/home/w-1"),
+            identity_sandbox="other",
+        )
+        assert params["user"] == self._DEFAULT_USER._asdict()
+        assert "cwd" not in params
+
+    @pytest.mark.parametrize("scoped", ["default", "other"])
+    async def test_identity_scope_reaches_the_provider_behind_the_sample_proxy(
+        self, scoped: str
+    ) -> None:
+        from test_helpers.sandbox import CannedSandbox
+
+        from inspect_ai.util import sandbox
+
+        provider = CannedSandbox.returning(ExecResult(True, 0, _start_response(), ""))
+        provider._tools_injected = True
+        provider._tools_default_user = self._DEFAULT_USER
+        proxy = SandboxEnvironmentProxy(provider)
+        envs_token = sandbox_environments_context_var.set(
+            {
+                "default": proxy,
+                "other": SandboxEnvironmentProxy(
+                    CannedSandbox.returning(ExecResult(True, 0, "", ""))
+                ),
+            }
+        )
+        default_token = sandbox_default_context_var.set("default")
+        try:
+            with sandbox_identity("w-1", cwd="/home/w-1", sandbox=scoped):
+                # in a scope on `other`, sandbox() is `other`
+                view = (sandbox() if scoped == "default" else proxy).as_type(
+                    CannedSandbox
+                )
+                assert view is provider
+                await view.exec_remote(["id"], ExecRemoteStreamingOptions())
+        finally:
+            sandbox_default_context_var.reset(default_token)
+            sandbox_environments_context_var.reset(envs_token)
+        [request] = provider.inputs
+        assert isinstance(request, str)
+        params = json.loads(request)["params"]
+        if scoped == "default":
+            assert (params["user"], params["cwd"]) == ("w-1", "/home/w-1")
+        else:
+            assert params["user"] == self._DEFAULT_USER._asdict()
+            assert "cwd" not in params
+
+    @pytest.mark.parametrize("tools_user", ["root", None], ids=["root", "rootless"])
+    async def test_transport_runs_as_the_tools_user_in_a_scope(
+        self, tools_user: str | None
+    ) -> None:
+        from test_helpers.sandbox import CannedSandbox
+
+        provider = CannedSandbox.returning(ExecResult(True, 0, _start_response(), ""))
+        proxy = SandboxEnvironmentProxy(provider)
+        proxy._tools_injected = True
+        proxy._tools_user = tools_user
+        proxy._tools_default_user = self._DEFAULT_USER
+        envs_token = sandbox_environments_context_var.set({"default": proxy})
+        default_token = sandbox_default_context_var.set("default")
+        try:
+            with sandbox_identity("w-1"):
+                await proxy.exec_remote(["id"], ExecRemoteStreamingOptions())
+        finally:
+            sandbox_default_context_var.reset(default_token)
+            sandbox_environments_context_var.reset(envs_token)
+        # the member's identity travels as the request's user, not the exec's
+        [(_, exec_user)] = provider.exec_calls
+        assert exec_user == tools_user
+        [request] = provider.inputs
+        assert isinstance(request, str)
+        assert json.loads(request)["params"]["user"] == "w-1"
 
 
 # ============================================================================

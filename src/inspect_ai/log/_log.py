@@ -183,8 +183,9 @@ class EvalConfig(BaseModel):
     working_limit: int | None = Field(default=None)
     """Maximum working time per sample.
 
-    Work done while any wait is open is not charged, so working time can
-    undercount; set `time_limit` as well to bound clock time.
+    While a wait is open, only model calls, sandbox commands and tool calls
+    are charged, so working time can undercount; set `time_limit` as well to
+    bound clock time.
     """
 
     cost_limit: float | None = Field(default=None)
@@ -345,10 +346,12 @@ class EvalSampleSummary(BaseModel):
     working_time: float | None = Field(default=None)
     """Time spent working (model generation, sandbox calls, etc.)
 
-    Clock time minus the time when any wait (retries, rate limits, shared
-    resources, approval, human input) was open in the sample. Other work done
-    during a wait, such as concurrent tool calls or sub-agents, is not counted,
-    so set `time_limit` alongside `working_limit` to bound clock time.
+    Clock time minus the time when a wait (retries, rate limits, shared
+    resources, approval, human input) was open in the sample and no model
+    call, sandbox command or tool call was running (not counting commands run
+    with `exec_remote()` or inside `sandbox_agent_bridge()`). Other work done
+    during a wait is not counted, so set `time_limit` alongside `working_limit` to
+    bound clock time.
     """
 
     uuid: str | None = Field(default=None)
@@ -556,10 +559,12 @@ class EvalSample(BaseModel):
     working_time: float | None = Field(default=None)
     """Time spent working (model generation, sandbox calls, etc.)
 
-    Clock time minus the time when any wait (retries, rate limits, shared
-    resources, approval, human input) was open in the sample. Other work done
-    during a wait, such as concurrent tool calls or sub-agents, is not counted,
-    so set `time_limit` alongside `working_limit` to bound clock time.
+    Clock time minus the time when a wait (retries, rate limits, shared
+    resources, approval, human input) was open in the sample and no model
+    call, sandbox command or tool call was running (not counting commands run
+    with `exec_remote()` or inside `sandbox_agent_bridge()`). Other work done
+    during a wait is not counted, so set `time_limit` alongside `working_limit` to
+    bound clock time.
     """
 
     uuid: str | None = Field(default=None)
@@ -689,10 +694,11 @@ class EvalSample(BaseModel):
             del values["score"]
 
         if "transcript" in values:
-            # promote 'transcript' up to 'events' and 'attachments'
-            eval_events = EvalEvents(**values["transcript"])
-            values["events"] = eval_events.events
-            values["attachments"] = eval_events.content
+            # promote 'transcript' up to 'events' and 'attachments' (left
+            # unvalidated so they are validated with this read's context)
+            transcript = values["transcript"]
+            values["events"] = transcript.get("events", [])
+            values["attachments"] = transcript.get("content", {})
 
             # get rid of transcript (property accessor w/ deprecation
             # warning will handle this)

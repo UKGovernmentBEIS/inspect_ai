@@ -15,6 +15,14 @@ REPO = "meridianlabs-ai/inspect_ai"
 TRACKING_TITLE = "CI performance trend summaries"
 TRACKING_MARKER = "<!-- ci-perf-trends-v1 -->"
 
+# Comment authors whose trend summaries read_history trusts. The tracking issue
+# is public and anyone can comment, so a forged summary could otherwise crash
+# the collector or poison its previous-window end. These are the two accounts
+# the publish job posts as: meridian-marvin[bot] (the GitHub App) and
+# i-am-marvin (the fallback PAT account). Matched by id, not login, because a
+# login can be renamed.
+PUBLISHER_IDS = frozenset({330132053, 294938113})
+
 
 def gh(*args: str) -> Any:
     """Run a fixed gh command and decode its JSON response."""
@@ -80,12 +88,20 @@ def tracking_issue(known: list[dict[str, Any]] | None = None) -> dict[str, Any] 
 
 
 def read_history() -> list[dict[str, Any]]:
-    """Read compact summaries from the tracking issue, without creating it."""
+    """Read compact summaries from the tracking issue, without creating it.
+
+    The tracking issue is public, so only comments from the publisher accounts
+    (PUBLISHER_IDS) are read; any other author's comment is ignored before it is
+    parsed. A malformed summary from a publisher account still raises, because
+    that is a real publisher bug rather than an outsider's forgery.
+    """
     issue = tracking_issue()
     if issue is None:
         return []
     summaries = []
     for comment in comments(issue["number"]):
+        if (comment.get("user") or {}).get("id") not in PUBLISHER_IDS:
+            continue
         body = comment["body"]
         if not body.startswith("<!-- ci-perf-summary:"):
             continue

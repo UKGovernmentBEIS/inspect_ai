@@ -1,18 +1,21 @@
+import json
 import logging
+import math
 import os
 import pickle
 import re
 from contextvars import ContextVar
 from datetime import datetime, timezone
-from hashlib import md5
+from hashlib import md5, sha256
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from shutil import rmtree
 from typing import Any, Optional
 
 from dateutil.relativedelta import relativedelta
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationInfo, model_validator
 
 from inspect_ai._util.appdirs import inspect_cache_dir
+from inspect_ai._util.constants import DESERIALIZING
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.trace import trace_message
 from inspect_ai.tool import ToolChoice, ToolInfo
@@ -119,6 +122,23 @@ class CachePolicy(BaseModel):
     be included in the cache key. This allows for more fine-grained
     control over the cache key generation."""
 
+    @model_validator(mode="before")
+    @classmethod
+    def _missing_expiry_is_none(cls, data: Any, info: ValidationInfo) -> Any:
+        """Read an ``expiry`` missing from a persisted policy as None, not "1W".
+
+        Logs are written with ``exclude_none``, which drops a None ``expiry``,
+        while the "1W" default is always written out. So when deserializing a
+        log, a missing ``expiry`` can only have been None (never expire).
+        """
+        if (
+            isinstance(data, dict)
+            and isinstance(info.context, dict)
+            and info.context.get(DESERIALIZING, False)
+        ):
+            return {"expiry": None} | data
+        return data
+
     @staticmethod
     def from_string(expiry: str) -> Optional["CachePolicy"]:
         try:
@@ -154,6 +174,7 @@ class CacheEntry:
           affect all individual cached entries.
         tool_choice(ToolChoice | None): The tool choice, if any.
         tools(list[ToolInfo]): The tools provided to the model.
+        model_args_key(str | None): Fingerprint of the model constructor arguments.
     """
 
     def __init__(
@@ -165,6 +186,7 @@ class CacheEntry:
         policy: CachePolicy,
         tool_choice: ToolChoice | None,
         tools: list[ToolInfo],
+        model_args_key: str | None = None,
     ):
         self.base_url = base_url
         self.config = config
@@ -173,7 +195,80 @@ class CacheEntry:
         self.tool_choice = tool_choice
         self.tools = tools
         self.policy = policy
+        self.model_args_key = model_args_key
         self.key = _cache_key(self)
+
+
+def cache_model_args_key(
+    model_args: dict[str, Any], *, instance_key: str | None = None
+) -> str | None:
+    """Fingerprint model args, scoping opaque values to an optional instance key.
+
+    Opaque objects (including clients, callables, and redacted secrets) cannot
+    be given a reliable persistent identity. With an instance key, they can
+    still share responses within that model's lifetime, while the JSON portions
+    of the arguments continue to distinguish request defaults.
+
+    Dictionary order is kept: providers can resolve keys that overlap (header
+    names that differ in case, Google harm-category aliases) by order.
+    """
+    if not model_args:
+        return ""
+    try:
+        if not _is_json_value(model_args):
+            raise ValueError("Opaque model args")
+        serialized = json.dumps(model_args, allow_nan=False)
+    except (ValueError, RecursionError):
+        if instance_key is None:
+            return None
+        return cache_instance_model_args_key(model_args, instance_key)
+    return sha256(serialized.encode("utf-8")).hexdigest()
+
+
+def cache_instance_model_args_key(model_args: dict[str, Any], instance_key: str) -> str:
+    """Fingerprint model args for one model instance.
+
+    The JSON portions of the arguments still distinguish request defaults, and
+    the encoding cannot match an instance-independent fingerprint.
+    """
+    serialized = json.dumps([instance_key, _model_args_tree(model_args, set())])
+    return sha256(serialized.encode("utf-8")).hexdigest()
+
+
+def _model_args_tree(value: Any, ancestors: set[int]) -> Any:
+    """Tag each node so an opaque placeholder cannot collide with user JSON."""
+    if type(value) in (str, int, bool, type(None)) or (
+        type(value) is float and math.isfinite(value)
+    ):
+        return ["value", value]
+    if id(value) in ancestors:
+        return ["opaque"]
+    if type(value) is list or (
+        type(value) is dict and all(type(key) is str for key in value)
+    ):
+        ancestors.add(id(value))
+        try:
+            if isinstance(value, list):
+                return ["list", [_model_args_tree(item, ancestors) for item in value]]
+            return [
+                "dict",
+                {key: _model_args_tree(item, ancestors) for key, item in value.items()},
+            ]
+        finally:
+            ancestors.remove(id(value))
+    return ["opaque"]
+
+
+def _is_json_value(value: Any) -> bool:
+    if type(value) in (str, int, float, bool, type(None)):
+        return True
+    if type(value) is list:
+        return all(_is_json_value(item) for item in value)
+    if type(value) is dict:
+        return all(
+            type(key) is str and _is_json_value(item) for key, item in value.items()
+        )
+    return False
 
 
 # Runtime/transport GenerateConfig knobs that cannot change what the provider
@@ -247,6 +342,10 @@ def _cache_key(entry: CacheEntry) -> str:
 
     if entry.policy.per_epoch:
         components.append(epoch.get(None))
+
+    # Preserve existing keys for models with no constructor arguments.
+    if entry.model_args_key:
+        components.append(f"model_args:{entry.model_args_key}")
 
     base_string = "|".join([str(component) for component in components])
 

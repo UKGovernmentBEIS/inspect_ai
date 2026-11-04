@@ -301,7 +301,7 @@ def parse_model_spec_cli_args(
         ):
             raise PrerequisiteError(
                 f"Invalid {label}: expected a YAML or JSON mapping with text "
-                "field names, e.g. '{model: openai/gpt-4o, temperature: 0}'."
+                "field names, e.g. '{model: openai/gpt-6-luna, reasoning_effort: low}'."
             )
 
         model_name = params.pop("model", None)

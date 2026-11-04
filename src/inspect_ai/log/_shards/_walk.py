@@ -79,6 +79,13 @@ class ShardSetListing(NamedTuple):
     stray: list[StrayFile]
     """Log files that are not attempts, sorted by path."""
 
+    unlisted_dirs: list[str]
+    """Directories seen and not listed, sorted: every directory in a ``<k>/``
+    other than ``.buffer/``, and every directory in a directory whose name
+    starts with ``.`` other than a ``.buffer/``. Logs nested in them are not
+    shard paths (see :func:`is_shard_path`); a caller that reports every log
+    lists them as ordinary logs."""
+
 
 class AttemptSortKey(NamedTuple):
     """Sort key for a shard's attempt files (see :func:`attempt_sort_key`)."""
@@ -89,14 +96,21 @@ class AttemptSortKey(NamedTuple):
     mtime: float
 
 
-async def list_shard_set(fs: AsyncFilesystem, shards_dir: str) -> ShardSetListing:
+async def list_shard_set(
+    fs: AsyncFilesystem,
+    shards_dir: str,
+    *,
+    limiter: anyio.CapacityLimiter | None = None,
+) -> ShardSetListing:
     """List a shards directory and each directory directly under it.
 
     ``shards_dir`` is listed once, then each of its directories, at most 32
-    at a time; nothing deeper is listed. In a ``<k>/`` shard directory,
-    ``.eval`` files are attempts, a ``.buffer/`` directory sets
-    ``has_buffer``, and every other entry is ancillary. A directory whose
-    name starts with ``.`` is not a shard.
+    at a time (or as many as ``limiter`` allows); nothing deeper is listed.
+    In a ``<k>/`` shard directory, ``.eval`` files are attempts, a
+    ``.buffer/`` directory sets ``has_buffer``, and every other entry is
+    ancillary. A directory whose name starts with ``.`` is not a shard.
+    Directories below these that are not listed are returned in
+    ``unlisted_dirs``.
 
     Every log file :func:`is_shard_path` places in the shard set is reported,
     as an attempt or as stray. Stray files are a log directly in
@@ -112,18 +126,23 @@ async def list_shard_set(fs: AsyncFilesystem, shards_dir: str) -> ShardSetListin
         fs: Filesystem to list with.
         shards_dir: The ``<name>.shards`` directory: a path, ``file://`` URI
             or ``s3://`` URL. Returned paths keep this form.
+        limiter: Bounds every listing, the first included, so a caller
+            walking several companions can keep one cap across them.
     """
+    if limiter is None:
+        limiter = anyio.CapacityLimiter(_MAX_CONCURRENT_LISTINGS)
     try:
-        listing = await fs.list_dir(shards_dir)
+        async with limiter:
+            listing = await fs.list_dir(shards_dir)
     except FileNotFoundError:
-        return ShardSetListing(shards=[], stray=[])
+        return ShardSetListing(shards=[], stray=[], unlisted_dirs=[])
 
     stray = [
         StrayFile(path=info.name, reason=_ROOT_LOG)
         for info in listing.files
         if _is_log(_name(info.name))
     ]
-    limiter = anyio.CapacityLimiter(_MAX_CONCURRENT_LISTINGS)
+    unlisted_dirs: list[str] = []
 
     async def list_child(directory: str) -> ShardDir | None:
         try:
@@ -137,6 +156,8 @@ async def list_shard_set(fs: AsyncFilesystem, shards_dir: str) -> ShardSetListin
                 for info in child.files
                 if _is_log(_name(info.name))
             )
+            if _name(directory) != _BUFFER_DIR:
+                unlisted_dirs.extend(d for d in child.dirs if _name(d) != _BUFFER_DIR)
             return None
         if not child.files and not child.dirs:
             return None
@@ -156,6 +177,7 @@ async def list_shard_set(fs: AsyncFilesystem, shards_dir: str) -> ShardSetListin
                 has_buffer = True
             else:
                 ancillary.append(subdir)
+                unlisted_dirs.append(subdir)
         attempts.sort(key=attempt_sort_key)
         return ShardDir(
             name=_name(directory),
@@ -168,7 +190,9 @@ async def list_shard_set(fs: AsyncFilesystem, shards_dir: str) -> ShardSetListin
     listed = await tg_collect([functools.partial(list_child, d) for d in listing.dirs])
     shards = sorted((s for s in listed if s is not None), key=_shard_sort_key)
     stray.sort(key=lambda s: s.path)
-    return ShardSetListing(shards=shards, stray=stray)
+    return ShardSetListing(
+        shards=shards, stray=stray, unlisted_dirs=sorted(unlisted_dirs)
+    )
 
 
 def attempt_sort_key(info: FileInfo) -> AttemptSortKey:

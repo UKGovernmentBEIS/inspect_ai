@@ -96,7 +96,10 @@ class _SampleRows(NamedTuple):
     ``active_since`` delta poll, where only the delta's rows exist to count;
     ``truncated`` whether any eval's rows hit the cap. ``extra`` holds the
     envelope keys only ``--log-dir`` reads add (``conflicted``,
-    ``incomplete``, ``unreadable``).
+    ``incomplete``, ``unreadable``). ``row_counts``, when set, is the status
+    histogram of every row the uncapped listing returns, for the truncation
+    footer and the empty ``--status`` message: under ``--log-dir`` a conflicted key has a row per shard holding
+    it and no place in ``counts``.
     """
 
     as_of: float
@@ -106,6 +109,7 @@ class _SampleRows(NamedTuple):
     counts: dict[str, int]
     truncated: bool
     extra: dict[str, Any] | None = None
+    row_counts: dict[str, int] | None = None
 
 
 def _list_sample_rows(
@@ -281,10 +285,14 @@ def _list_log_dir_sample_rows(
         content=content,
     )
     counts = dict.fromkeys(SAMPLE_STATUSES, 0)
+    row_counts = dict.fromkeys(SAMPLE_STATUSES, 0)
     rows: list[dict[str, Any]] = []
     for read in listing.reads:
         for key, value in read.counts.items():
             counts[key] = counts.get(key, 0) + value
+            row_counts[key] = row_counts.get(key, 0) + value
+        for key, value in read.conflict_counts.items():
+            row_counts[key] = row_counts.get(key, 0) + value
         for sample in read.samples:
             rows.append(
                 {
@@ -300,6 +308,7 @@ def _list_log_dir_sample_rows(
         read=full_rows,
         rows=rows,
         counts=counts,
+        row_counts=row_counts,
         truncated=any(read.truncated for read in listing.reads),
         extra={
             "conflicted": sum(read.conflicted for read in listing.reads),
@@ -519,7 +528,8 @@ def _run_sample_listing(
     if not listing.read:
         empty = "(samples unavailable)"
     elif statuses is not None:
-        empty = f"(no matching samples: 0 of {sum(listing.counts.values())})"
+        counts = listing.counts if listing.row_counts is None else listing.row_counts
+        empty = f"(no matching samples: 0 of {sum(counts.values())})"
     elif active_since is not None:
         empty = "(no samples active since the given timestamp)"
     else:
@@ -544,7 +554,7 @@ def _run_sample_listing(
     if listing.truncated:
         _echo_truncation_footer(
             len(rows),
-            listing.counts,
+            listing.counts if listing.row_counts is None else listing.row_counts,
             statuses=statuses,
             delta=active_since is not None,
         )
