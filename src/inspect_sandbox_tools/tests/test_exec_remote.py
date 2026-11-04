@@ -264,7 +264,12 @@ class TestExecRemotePoll:
     def test_waiting_poll_replies_with_output_and_exit(
         self, rpc_client: RpcClient
     ) -> None:
-        """One waiting poll returns a short command's output and exit status."""
+        """A waiting poll returns a short command's output without a fixed wait.
+
+        The exit status usually shares that reply. On a loaded machine the exit
+        can come after the 0.1 s output wait, so a follow-up poll may carry it.
+        The output arrives once in total.
+        """
         response = rpc_client(
             {
                 "jsonrpc": "2.0",
@@ -289,12 +294,16 @@ class TestExecRemotePoll:
         elapsed = time.monotonic() - start
 
         result = poll_response["result"]
+        assert result["stdout"] == "done"
+        assert elapsed < 5
+        if result["state"] == "running":
+            result = poll_until_complete(rpc_client, pid, ack_seq=result["seq"])
+            result["stdout"] = "done" + result["stdout"]
         assert (result["state"], result["exit_code"], result["stdout"]) == (
             "completed",
             3,
             "done",
         )
-        assert elapsed < 5
 
     @pytest.mark.parametrize("wait", [-1, 61])
     def test_poll_rejects_wait_out_of_range(
