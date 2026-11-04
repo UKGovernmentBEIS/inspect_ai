@@ -30,7 +30,14 @@ from inspect_ai.log import (
     write_eval_log,
 )
 from inspect_ai.log._file import is_log_file
-from inspect_ai.log._shards._plan import parse_sample_member, selection_digest
+from inspect_ai.log._log import EvalShardEntry
+from inspect_ai.log._recorders.recorder import SampleRecordKey
+from inspect_ai.log._shards._plan import (
+    Selection,
+    parse_sample_member,
+    plan_status,
+    selection_digest,
+)
 from inspect_ai.log._shards._walk import (
     ShardDir,
     ShardSetListing,
@@ -1922,6 +1929,47 @@ def test_selection_digest_ignores_order_and_id_type() -> None:
     assert len(selection_digest([])) == 64
 
 
+class _ScannedKeys(list[SampleRecordKey]):
+    """Planned records that count the elements read and refuse a list scan."""
+
+    reads = 0
+
+    def __iter__(self) -> Iterator[SampleRecordKey]:
+        for key in super().__iter__():
+            self.reads += 1
+            yield key
+
+    def __contains__(self, key: object) -> bool:
+        raise AssertionError("a membership test scanned the planned records")
+
+
+@pytest.mark.parametrize("missing", [False, True], ids=["complete", "one-missing"])
+def test_status_planning_reads_the_records_a_bounded_number_of_times(
+    missing: bool,
+) -> None:
+    ids, epochs = 2000, 5
+    keys = _ScannedKeys(
+        SampleRecordKey(str(id), epoch)
+        for id in range(1, ids + 1)
+        for epoch in range(1, epochs + 1)
+        if not (missing and id == 1000 and epoch == 3)
+    )
+    entry = EvalShardEntry(
+        shard="0",
+        log="worker.eval",
+        status="success",
+        samples=len(keys),
+        selected=ids,
+        selection_digest=selection_digest(list(range(1, ids + 1))),
+        size=1,
+    )
+    selection = Selection("ids", ids=list(range(1, ids + 1)))
+    status = plan_status([entry], keys, selection, epochs, ids)
+    assert status.status == ("started" if missing else "success")
+    assert status.missing == ([1000] if missing else [])
+    assert keys.reads <= 2 * len(keys)
+
+
 @pytest.mark.parametrize(
     "name,expected",
     [
@@ -3486,6 +3534,55 @@ def test_an_implicit_reducer_and_disabled_reduction_do_not_match(
     ]
     assert merged.reductions == native.reductions
     assert (merged.reductions == []) == (ran == "disabled")
+
+
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+@pytest.mark.parametrize("write", ["fresh", "incremental"])
+@pytest.mark.parametrize("recipe", ["kept", "bare"])
+@pytest.mark.parametrize("reducer", ["max", "at_least", "disabled"])
+def test_an_epochs_override_merges_with_the_task_s_reducer_kept(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    reducer: str,
+    recipe: str,
+    write: str,
+    backend: str,
+) -> None:
+    reducers: dict[str, Any] = {
+        "max": "max",
+        "at_least": at_least(1, value=0.5),
+        "disabled": [],
+    }
+    task = _graded_task(Epochs(2, reducers[reducer]))
+    # the workers ran with eval(epochs=3), which keeps the task's reducer
+    merging = task_with(
+        _graded_task(Epochs(2, reducers[reducer])),
+        epochs=Epochs(3, task.epochs_reducer) if recipe == "kept" else 3,
+    )
+    merge = _merge_parts(
+        tmp_path,
+        monkeypatch,
+        backend,
+        write,
+        lambda shards, k, ids: _run(shards, k, task, sample_id=ids, epochs=3),
+        merging,
+        first=task_with(
+            _graded_task(Epochs(2, reducers[reducer])),
+            epochs=Epochs(3, task.epochs_reducer),
+        ),
+    )
+    if recipe == "bare":
+        # task_with(task, epochs=3) resets the reducer to the default
+        before = _files(str(tmp_path))
+        with pytest.raises(ShardSetError, match="in its epoch reducers "):
+            merge()
+        assert _files(str(tmp_path)) == before
+        return
+    merged = read_eval_log(merge().log.location)
+    native = _fresh_native(tmp_path, task, epochs=3)
+    assert merged.eval.config.epochs == native.eval.config.epochs == 3
+    assert _metric_values(merged) == _metric_values(native)
+    assert merged.reductions == native.reductions
 
 
 @pytest.mark.parametrize("backend", ["asyncio", "trio"])

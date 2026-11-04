@@ -13,8 +13,8 @@ user removes the shards directory once the merged log is checked.
 `eval_set()` runs the same merge at startup and then resumes the task from
 the merged log like any other. A merge command, `inspect log
 merge-shards`, follows as its own step (5b), designed and then built
-after PR 5. The work is split into nine PRs plus that step, two of the
-PRs already landed, and shares its layout and directory-walk helpers with
+after PR 5. The work is split into nine PRs plus that step, the first
+four of them landed, and shares its layout and directory-walk helpers with
 the read-only `inspect ctl --log-dir` mode.
 
 Status: proposed, 2026-09-24; current as of 2026-11-04, when the merge
@@ -396,7 +396,9 @@ Parameters:
   named a different output file.
 - `task`: the `Task` the shards ran, built as the caller passed it to
   `eval()`; for shards run with `--epochs N`, `task_with(task,
-  epochs=N)`. Anything else, a task spec string included, raises
+  epochs=Epochs(N, task.epochs_reducer))`, since a bare `epochs=N` in
+  `task_with` resets the reducer that an `eval()` count override keeps.
+  Anything else, a task spec string included, raises
   `TypeError` before any storage is accessed (decision: Ransom,
   2026-11-04). `eval()` calls a task factory before it applies the task's
   own `model`, `config` and `model_roles`, and the logs record only the
@@ -2280,17 +2282,17 @@ enforce) is recommended and reported in the PR's "Slow tests" section.
 
 ## Implementation plan
 
-Step 1 in nine PRs, of which PRs 1 and 3 have landed, and step 5b, the
+Step 1 in nine PRs, of which PRs 1 to 4 have landed, and step 5b, the
 merge CLI, designed and then built. There is no viewer PR (decision:
 Ransom, 2026-09-24).
 
 | PR | Depends on | Can run in parallel with |
 |---|---|---|
 | 1 layout helpers (#530) | landed (#5541) | — |
-| 2 field + `ts-mono` | none | 4 |
+| 2 field + `ts-mono` | landed (#5543, ts-mono#697) | — |
 | 3 shared walk | landed (UKGovernmentBEIS/inspect_ai#5622) | — |
-| 4 guard primitives | none | 2 |
-| 5 merge core, API | 2, 4 (3 landed) | none |
+| 4 guard primitives | landed (#5775) | — |
+| 5 merge core, API | 1–4 (landed) | none |
 | 5b merge CLI: design, then implementation | 5 | 7, 8 |
 | 6 eval-set integration | 5, 5b | 7 |
 | 7 streaming recomputation | 5 | 6 |
@@ -2302,7 +2304,8 @@ Ransom, 2026-09-24).
    holds `log_basename`, `eval_checkpoints_dir`, `eval_shards_dir`,
    `eval_log_for_shards_dir` and `eval_log_name` ("Layout helpers"), with
    no behaviour change. The later PRs keep their numbers.
-2. **The `EvalSpec.shards` field and its `ts-mono` landing.** Models,
+2. **The `EvalSpec.shards` field and its `ts-mono` landing**: landed as
+   UKGovernmentBEIS/inspect_ai#5543 with ts-mono#697. Models,
    field, exports, `inspect-openapi.json`, the `ts-mono` PR regenerating
    `generated.ts`, gitlink bump per `land-ts-mono`. No behaviour change
    (nothing writes the field yet). Independent of 1. Files:
@@ -2317,7 +2320,8 @@ Ransom, 2026-09-24).
    log-dir mode". Nothing of it remains for this plan. ctl log-dir mode's
    step 4 can land on it and adds `unlisted_dirs` to `_walk.py`; PR 5
    adds the merge's modules beside it in `log/_shards/`.
-4. **Guard primitives.** `AsyncFilesystem.write_file_conditional` (asyncio
+4. **Guard primitives**: landed as UKGovernmentBEIS/inspect_ai#5775.
+   `AsyncFilesystem.write_file_conditional` (asyncio
    and Trio routes, pre-checks, abort, cooperative cancellation on Trio, a
    non-retrying client for the final call), `get_file_if_match`, the
    optional `condition` and `final_client` on `_s3_upload_fileobj_async` and
@@ -2344,7 +2348,7 @@ Ransom, 2026-09-24).
    change while a companion exists, and a viewer delete of a merged log
    leaves its companion,
    whose shards the viewer lists again until the next eval set re-merges
-   them). Depends on 2 and 4 (3 landed). Files as listed
+   them). Depends on 1–4, all landed. Files as listed
    plus `log/__init__.py`, `_eval/eval.py`,
    `_util/log_layout.py`, `tests/log/test_log_filename.py`,
    `_control/log_dir/snapshot.py` (ctl keys a shard set with no readable

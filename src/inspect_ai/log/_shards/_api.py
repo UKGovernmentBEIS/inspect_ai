@@ -133,7 +133,9 @@ def merge_eval_log_shards(
             path. A local path does not expand `~`.
         task: The task the shards ran, built as it was passed to `eval()`.
             For shards run with `epochs=N` or `--epochs N`, pass
-            `task_with(task, epochs=N)`.
+            `task_with(task, epochs=Epochs(N, task.epochs_reducer))`,
+            which keeps the task's reducer as the workers did, or the
+            reducer the workers were given.
         sample_ids: Intended selection as sample ids. Replaces the selection
             recorded in the merged log; once the shards are deleted, it must
             equal the recorded one.

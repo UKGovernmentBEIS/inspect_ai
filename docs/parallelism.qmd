@@ -125,7 +125,16 @@ merge_eval_log_shards(
 
 A shell launcher runs this as a short Python step once its workers exit. You can also pass the `.shards` directory. The log can be a local path, a `file://` URI or an `s3://` URL; other storage is refused. A local path does not expand `~`. A relative path whose first part holds a colon (`run:1.eval`) is refused too, as are `file:/...` and `local:/...`; write `./run:1.eval` or a `file://` URI instead.
 
-Build the task as the workers built it: the same task arguments, and the same model and model roles if the task reads them when it is built. The merge computes the merged log's results and epoch reductions with that task's scorers, metrics and epoch reducer, over all the merged samples, as an unsharded run computes them. The metrics and epoch reducer run with your own active model and model roles: the merge builds no model from the shard logs, so code in them that calls `get_model()` needs an active model or `INSPECT_EVAL_MODEL`. The merge refuses a task whose name, scorer names, metric names, number of epochs or epoch reducer names differ from what the shards recorded, but it does not compare their options. For shards run with `--epochs N`, pass `task_with(task, epochs=N)`.
+Build the task as the workers built it: the same task arguments, and the same model and model roles if the task reads them when it is built. The merge computes the merged log's results and epoch reductions with that task's scorers, metrics and epoch reducer, over all the merged samples, as an unsharded run computes them. The metrics and epoch reducer run with your own active model and model roles: the merge builds no model from the shard logs, so code in them that calls `get_model()` needs an active model or `INSPECT_EVAL_MODEL`. The merge refuses a task whose name, scorer names, metric names, number of epochs or epoch reducer names differ from what the shards recorded, but it does not compare their options. For shards run with `--epochs N`, keep the task's epoch reducer as the workers did:
+
+``` python
+from inspect_ai import Epochs, task_with
+
+task = mytask()
+merge_eval_log_shards(log, task_with(task, epochs=Epochs(N, task.epochs_reducer)))
+```
+
+`task_with(task, epochs=N)` resets the reducer to the default, so the merge refuses it when the task sets one. If the workers also ran with `--epochs-reducer`, pass that reducer in place of `task.epochs_reducer`, or `[]` for `--no-epochs-reducer`.
 
 The merge checks that the shards belong to one run and records which shard logs it merged. Running it again reads only the shards that changed and writes nothing if none did. If the set is not complete (a shard is still running or failed, or samples are missing) the merge raises an error and writes nothing; pass `allow_incomplete=True` to write a `started` or `error` log instead. Without a selection the set is complete when the shards hold the whole dataset; pass `sample_ids` or `sample_count` when they cover only part of it. Later merges reuse that selection.
 

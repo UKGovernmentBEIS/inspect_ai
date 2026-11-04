@@ -508,18 +508,20 @@ def plan_status(
 
     ``error`` when any current attempt failed; else ``success`` when every
     attempt succeeded and the records are exactly the selection's ids times
-    every epoch; else ``started``.
+    every epoch; else ``started``. ``keys`` is read once, into a set, so
+    the checks stay linear in the number of records.
     """
     running = [e.shard for e in ledger if e.status == "started"]
     failed = [e.shard for e in ledger if e.status in ("error", "cancelled")]
-    held = {key.sample_id for key in keys}
+    planned = set(keys)
+    held = {key.sample_id for key in planned}
     if selection.form == "ids":
         expected_ids: set[str] | None = set(selection.id_set() or ())
     elif selection.form == "count":
         expected_ids = held if len(held) == selection.sample_count else None
     else:
         expected_ids = held if len(held) == dataset_samples else None
-    complete = expected_ids is not None and set(keys) == {
+    complete = expected_ids is not None and planned == {
         SampleRecordKey(id, epoch)
         for id in expected_ids
         for epoch in range(1, epochs + 1)
@@ -530,7 +532,7 @@ def plan_status(
             id
             for id in dict.fromkeys(selection.ids or [])
             if any(
-                SampleRecordKey(str(id), epoch) not in keys
+                SampleRecordKey(str(id), epoch) not in planned
                 for epoch in range(1, epochs + 1)
             )
         ]
