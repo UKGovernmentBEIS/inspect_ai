@@ -1440,6 +1440,12 @@ def _eval_command_impl(
     help="Do not fail if the log-dir contains files that are not part of the eval set.",
 )
 @click.option(
+    "--log-dir-multi-writer",
+    type=bool,
+    is_flag=True,
+    help="Run as one of several eval-set processes writing disjoint tasks of the same eval set (same --id) into the log-dir at once. Logs of the eval set's other tasks are left alone, and eval-set.json and logs.json are not written (write logs.json with write_log_dir_manifest() once every writer has finished).",
+)
+@click.option(
     "--id",
     "eval_set_id",
     type=str,
@@ -1573,6 +1579,7 @@ def eval_set_command(
     bundle_overwrite: bool | None,
     embed_viewer: bool | None,
     log_dir_allow_dirty: bool | None,
+    log_dir_multi_writer: bool | None,
     log_format: Literal["eval", "json"] | None,
     log_level_transcript: str,
     eval_set_id: str | None,
@@ -1700,6 +1707,7 @@ def eval_set_command(
             bundle_overwrite=True if bundle_overwrite else False,
             embed_viewer=True if embed_viewer else False,
             log_dir_allow_dirty=log_dir_allow_dirty,
+            log_dir_multi_writer=True if log_dir_multi_writer else False,
             eval_set_id=eval_set_id,
             json_output=json_output,
             **config,
@@ -2040,6 +2048,7 @@ def eval_exec(
     bundle_overwrite: bool = False,
     embed_viewer: bool = False,
     log_dir_allow_dirty: bool | None = None,
+    log_dir_multi_writer: bool = False,
     eval_set_id: str | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> bool:
@@ -2233,6 +2242,7 @@ def eval_exec(
         params["bundle_overwrite"] = bundle_overwrite
         params["embed_viewer"] = embed_viewer
         params["log_dir_allow_dirty"] = log_dir_allow_dirty
+        params["log_dir_multi_writer"] = log_dir_multi_writer
         params["eval_set_id"] = eval_set_id
         if json_output:
             return _eval_exec_json(lambda: eval_set(**params), is_eval_set=True)

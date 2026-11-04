@@ -302,6 +302,7 @@ def eval_set(
     bundle_dir: str | None = None,
     bundle_overwrite: bool = False,
     log_dir_allow_dirty: bool | None = None,
+    log_dir_multi_writer: bool = False,
     eval_set_id: str | None = None,
     embed_viewer: bool = False,
     sentinel: SentinelSpec | None = None,
@@ -469,6 +470,16 @@ def eval_set(
         log_dir_allow_dirty: If True, allow the log directory to contain
             unrelated logs. If False, ensure that the log directory only contains logs
             for tasks in this eval set (defaults to False).
+        log_dir_multi_writer: If True, this call is one of several `eval_set()`
+            calls running disjoint subsets of one eval set into `log_dir` at the
+            same time. Requires an explicit `eval_set_id` shared by every writer.
+            Logs of the same eval set that match none of this call's tasks belong
+            to other writers and are never planned, retried or cleaned up here;
+            logs with a different or no `eval_set_id` are judged by task
+            identifier, as without the flag. `eval-set.json` and `logs.json` are
+            not written: once every writer has finished, write `logs.json` with
+            `write_log_dir_manifest()`. Can't be combined with `bundle_dir`,
+            `embed_viewer` or `scanner` (defaults to False).
         eval_set_id: ID for the eval set. If not specified, a unique ID will be generated.
         embed_viewer: If True, embed a log viewer into the log directory.
         sentinel: Monitors and protocols that watch the agent's steps (requires the `inspect_sentinel` package). Experimental: not yet a stable API; may change without notice.
@@ -962,6 +973,24 @@ def eval_set(
         finally:
             reset_run_registries()
 
+    if log_dir_multi_writer:
+        if not eval_set_id:
+            raise PrerequisiteError(
+                "[bold]ERROR[/bold]: log_dir_multi_writer requires an explicit "
+                "eval_set_id, shared by every writer."
+            )
+        for option, value in (
+            ("bundle_dir", bundle_dir),
+            ("embed_viewer", embed_viewer),
+            ("scanner", scanner is not None),
+        ):
+            if value:
+                raise PrerequisiteError(
+                    f"[bold]ERROR[/bold]: {option} can't be used with "
+                    "log_dir_multi_writer: it writes output for the whole eval "
+                    "set, which only one process may do."
+                )
+
     # get eval set id (set display name from user-provided value before resolution)
     set_eval_set_id_display(eval_set_id)
     eval_set_id = eval_set_id_for_log_dir(log_dir, eval_set_id=eval_set_id)
@@ -1072,7 +1101,7 @@ def eval_set(
 
         # list all logs currently in the log directory (update manifest if there are some)
         all_logs = list_all_eval_logs(log_dir)
-        if len(all_logs) > 0:
+        if len(all_logs) > 0 and not log_dir_multi_writer:
             write_log_dir_manifest(log_dir)
 
         eval_set_args = EvalSetArgsInTaskIdentifier(
@@ -1089,16 +1118,21 @@ def eval_set(
         #  (1) All tasks have a unique identifier
         #  (2) All logs have identifiers that map to tasks
         all_logs = validate_eval_set_prerequisites(
-            resolved_tasks, all_logs, log_dir_allow_dirty, eval_set_args
+            resolved_tasks,
+            all_logs,
+            log_dir_allow_dirty,
+            eval_set_args,
+            sibling_eval_set_id=eval_set_id if log_dir_multi_writer else None,
         )
 
         # write eval-set info containing data about
         # all the tasks that are a part of this eval set
         # (include all tasks, not just tasks that need to be
         # run in this pass)
-        write_eval_set_info(
-            eval_set_id, log_dir, resolved_tasks, all_logs, eval_set_args
-        )
+        if not log_dir_multi_writer:
+            write_eval_set_info(
+                eval_set_id, log_dir, resolved_tasks, all_logs, eval_set_args
+            )
 
         # see which tasks are yet to run (to complete successfully we need
         # a successful eval for every [task_file/]task_name/model combination)
@@ -1243,7 +1277,8 @@ def eval_set(
             print_scan_status(log_dir, scanner)
 
         # update manifest
-        write_log_dir_manifest(log_dir)
+        if not log_dir_multi_writer:
+            write_log_dir_manifest(log_dir)
 
         # emit end event
         run_coroutine(emit_eval_set_end(eval_set_id, log_dir))
@@ -1797,8 +1832,7 @@ def return_last_value(retry_state: RetryCallState) -> list[EvalLog]:
 def list_all_eval_logs(
     log_dir: str, recursive: bool = True, progress: ReadEvalLogsProgress | None = None
 ) -> list[Log]:
-    log_files = list_eval_logs(log_dir, recursive=recursive)
-    log_headers = read_eval_log_headers(log_files, progress)
+    log_files, log_headers = _list_and_read_headers(log_dir, recursive, progress)
     task_identifiers = [task_identifier(log_header, None) for log_header in log_headers]
     return [
         Log(info=info, header=header, task_identifier=task_identifier)
@@ -1806,6 +1840,24 @@ def list_all_eval_logs(
             log_files, log_headers, task_identifiers
         )
     ]
+
+
+LIST_ATTEMPTS = 3
+
+
+def _list_and_read_headers(
+    log_dir: str, recursive: bool, progress: ReadEvalLogsProgress | None
+) -> tuple[list[EvalLogInfo], list[EvalLog]]:
+    # another writer of this log_dir (log_dir_multi_writer) may remove one of its
+    # own logs between the listing and the header reads: list again
+    for _ in range(LIST_ATTEMPTS - 1):
+        log_files = list_eval_logs(log_dir, recursive=recursive)
+        try:
+            return log_files, read_eval_log_headers(log_files, progress)
+        except FileNotFoundError:
+            pass
+    log_files = list_eval_logs(log_dir, recursive=recursive)
+    return log_files, read_eval_log_headers(log_files, progress)
 
 
 # get the latest logs (cleaning if requested). returns tuple of successful/unsuccessful
@@ -2070,6 +2122,8 @@ def validate_eval_set_prerequisites(
     all_logs: list[Log],
     log_dir_allow_dirty: bool,
     eval_set_args: EvalSetArgsInTaskIdentifier,
+    *,
+    sibling_eval_set_id: str | None = None,
 ) -> list[Log]:
     # do all resolved tasks have unique identfiers?
     task_identifiers: Set[str] = set()
@@ -2081,6 +2135,16 @@ def validate_eval_set_prerequisites(
             )
         else:
             task_identifiers.add(identifier)
+
+    # under log_dir_multi_writer, a log of this eval set that matches none of
+    # our tasks is another writer's: drop it rather than refuse it
+    if sibling_eval_set_id is not None:
+        all_logs = [
+            log
+            for log in all_logs
+            if log.task_identifier in task_identifiers
+            or log.header.eval.eval_set_id != sibling_eval_set_id
+        ]
 
     # do all logs in the log directory correspond to task identifiers?
     if log_dir_allow_dirty:

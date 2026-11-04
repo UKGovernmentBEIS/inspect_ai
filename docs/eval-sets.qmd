@@ -152,6 +152,19 @@ You can bundle a standalone version of the log viewer for an eval set using the 
 
 The bundle directory can then be deployed to any static web server ([GitHub Pages](https://docs.github.com/en/pages), [S3 buckets](https://docs.aws.amazon.com/AmazonS3/latest/userguide/WebsiteHosting.html), or [Netlify](https://docs.netlify.com/get-started/), for example) to provide a standalone version of the log viewer for the eval set. See the section on [Log Viewer Publishing](log-viewer.qmd#sec-publishing) for additional details.
 
+### Multiple Writers
+
+To split one eval set across several processes or machines writing into the same log directory at once, give each process a disjoint subset of the tasks, the same `--id`, and `--log-dir-multi-writer`. For example, one process per model:
+
+``` bash
+$ inspect eval-set mmlu.py --model openai/gpt-6-luna \
+   --id run-42 --log-dir s3://my-bucket/run-42 --log-dir-multi-writer
+$ inspect eval-set mmlu.py --model anthropic/claude-3-5-sonnet-20240620 \
+   --id run-42 --log-dir s3://my-bucket/run-42 --log-dir-multi-writer
+```
+
+Each process plans, retries and cleans up only its own tasks, and leaves the logs of the eval set's other tasks alone. Logs from a different eval set, or from no eval set, are handled as without `--log-dir-multi-writer`: a log of one of the process's own tasks is reused, and any other is refused unless you also pass `--log-dir-allow-dirty`. No single process knows the whole eval set, so none of them writes `eval-set.json` or `logs.json`. Once every process has finished, write `logs.json` with `write_log_dir_manifest()`, or run the whole eval set once more without `--log-dir-multi-writer`: it reruns only the tasks that have no successful log, and writes both files. `--bundle-dir`, `--embed-viewer` and scanners can't be used with `--log-dir-multi-writer`.
+
 ## Inspect Flow
 
 Eval sets handle running, retrying, and tracking a set of tasks. As that work grows (many tasks across many models with varying parameters, then reviewing and promoting the results), you may want more structure than ad-hoc scripts provide. [Inspect Flow](https://meridianlabs-ai.github.io/inspect_flow/) is a companion package for running and managing evaluations at scale, built on top of eval sets. It provides:
