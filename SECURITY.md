@@ -31,7 +31,7 @@ Inspect runs evaluations that execute model-generated code, and tasks, solvers, 
 
 ### In scope
 
-- Code execution or file access triggered by opening or reading an eval log, transcript, or dataset
+- Code execution or file access triggered by opening or reading an eval log or transcript
 - Escape from a Docker sandbox to the host, or from one sandbox to another
 - API keys, tokens, or other secrets written to logs, transcripts, or error messages
 - Path traversal, unauthenticated access, or other flaws in the log viewer or its server
