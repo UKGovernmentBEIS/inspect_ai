@@ -9,6 +9,7 @@ from functools import partial
 from typing import TYPE_CHECKING, Any, NamedTuple, cast
 
 from inspect_ai._util.content import Content
+from inspect_ai._util.json import json_equal
 from inspect_ai.event._approval import ApprovalEvent
 from inspect_ai.event._compaction import CompactionEvent
 from inspect_ai.event._event import Event
@@ -874,7 +875,7 @@ class _Driver:
         )
         historical_view_stale = historical_modified is not None and (
             historical_modified.function != proposal.function
-            or historical_modified.arguments != proposal.arguments
+            or not json_equal(historical_modified.arguments, proposal.arguments)
         )
         event_view = event.view if not historical_view_stale else None
         if modify is not None:
@@ -1207,7 +1208,7 @@ class _Driver:
                 and recorded.kind == "decision"
                 and recorded.action == "modify"
                 and recorded.modified is not None
-                and recorded.modified.arguments == event.arguments
+                and json_equal(recorded.modified.arguments, event.arguments)
             ):
                 return recorded.modified
         return None

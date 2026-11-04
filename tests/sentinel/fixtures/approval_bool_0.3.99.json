@@ -1,0 +1,603 @@
+{
+  "version": 2,
+  "status": "success",
+  "eval": {
+    "eval_id": "BvXbfLVte7q6sAcab9zowq",
+    "run_id": "MFWqczN2RsAwdKJ7isPd78",
+    "created": "2026-11-03T23:24:31-05:00",
+    "task": "task",
+    "task_id": "aKCb6TY5Qw8WX5VL9ozwM5",
+    "task_version": 0,
+    "task_attribs": {},
+    "task_args": {},
+    "dataset": {
+      "samples": 1,
+      "sample_ids": [
+        1
+      ],
+      "shuffled": false
+    },
+    "model": "mockllm/model",
+    "model_generate_config": {},
+    "model_args": {
+      "custom_outputs": [
+        {
+          "model": "mockllm/model",
+          "choices": [
+            {
+              "message": {
+                "id": "DEMTvNmuSNK8zsamVaevwp",
+                "content": "tool call for tool value_type",
+                "source": "generate",
+                "role": "assistant",
+                "tool_calls": [
+                  {
+                    "id": "for_tool_call_619bbfd8-7dd0-4597-8d08-56e4bd2fa99d",
+                    "function": "value_type",
+                    "arguments": {
+                      "value": 1
+                    }
+                  }
+                ],
+                "model": "mockllm/model"
+              },
+              "stop_reason": "tool_calls"
+            }
+          ],
+          "time": 6.417278200387955e-6
+        },
+        {
+          "model": "mockllm/model",
+          "choices": [
+            {
+              "message": {
+                "id": "gKbdsh7aBQmBEjQqn4FagV",
+                "content": "Done",
+                "source": "generate",
+                "role": "assistant",
+                "model": "mockllm/model"
+              },
+              "stop_reason": "stop"
+            }
+          ],
+          "time": 5.334150046110153e-6
+        }
+      ]
+    },
+    "config": {
+      "epochs": 1,
+      "epochs_reducer": [
+        "mean"
+      ],
+      "approval": {
+        "approvers": [
+          {
+            "name": "change",
+            "tools": "*",
+            "params": {
+              "decision": "approve"
+            }
+          }
+        ]
+      },
+      "fail_on_error": true,
+      "sandbox_cleanup": true,
+      "log_samples": true,
+      "log_realtime": true,
+      "log_images": true,
+      "score_display": true
+    },
+    "packages": {
+      "inspect_ai": "0.3.99"
+    }
+  },
+  "plan": {
+    "name": "plan",
+    "steps": [
+      {
+        "solver": "use_tools",
+        "params": {
+          "tools": [
+            {
+              "type": "tool",
+              "name": "value_type",
+              "params": {}
+            }
+          ]
+        }
+      },
+      {
+        "solver": "generate",
+        "params": {}
+      }
+    ],
+    "config": {}
+  },
+  "results": {
+    "total_samples": 1,
+    "completed_samples": 1,
+    "scores": []
+  },
+  "stats": {
+    "started_at": "2026-11-03T23:24:31-05:00",
+    "completed_at": "2026-11-03T23:24:31-05:00",
+    "model_usage": {}
+  },
+  "samples": [
+    {
+      "id": 1,
+      "epoch": 1,
+      "input": "Check the value",
+      "target": "",
+      "messages": [
+        {
+          "id": "MJvVrf2uVdY2WEhu59pQ6Y",
+          "content": "Check the value",
+          "source": "input",
+          "role": "user"
+        },
+        {
+          "id": "DEMTvNmuSNK8zsamVaevwp",
+          "content": "tool call for tool value_type",
+          "source": "generate",
+          "role": "assistant",
+          "tool_calls": [
+            {
+              "id": "for_tool_call_619bbfd8-7dd0-4597-8d08-56e4bd2fa99d",
+              "function": "value_type",
+              "arguments": {
+                "value": 1
+              }
+            }
+          ],
+          "model": "mockllm/model"
+        },
+        {
+          "id": "HmD7LpvwEyuRYGzAKFmc9p",
+          "content": "bool",
+          "role": "tool",
+          "tool_call_id": "for_tool_call_619bbfd8-7dd0-4597-8d08-56e4bd2fa99d",
+          "function": "value_type"
+        },
+        {
+          "id": "gKbdsh7aBQmBEjQqn4FagV",
+          "content": "Done",
+          "source": "generate",
+          "role": "assistant",
+          "model": "mockllm/model"
+        }
+      ],
+      "output": {
+        "model": "mockllm/model",
+        "choices": [
+          {
+            "message": {
+              "id": "gKbdsh7aBQmBEjQqn4FagV",
+              "content": "Done",
+              "source": "generate",
+              "role": "assistant",
+              "model": "mockllm/model"
+            },
+            "stop_reason": "stop"
+          }
+        ],
+        "time": 5.334150046110153e-6
+      },
+      "scores": {},
+      "metadata": {},
+      "store": {},
+      "events": [
+        {
+          "span_id": "f04f819feac84a1982667bf5e9f23464",
+          "timestamp": "2026-11-03T23:24:31.425281-05:00",
+          "working_start": 2274330.585091833,
+          "event": "span_begin",
+          "id": "f04f819feac84a1982667bf5e9f23464",
+          "type": "init",
+          "name": "init"
+        },
+        {
+          "span_id": "f04f819feac84a1982667bf5e9f23464",
+          "timestamp": "2026-11-03T23:24:31.426384-05:00",
+          "working_start": 2274330.58621725,
+          "event": "sample_init",
+          "sample": {
+            "input": "Check the value",
+            "target": "",
+            "id": 1
+          },
+          "state": {
+            "messages": [
+              {
+                "id": "MJvVrf2uVdY2WEhu59pQ6Y",
+                "content": "Check the value",
+                "source": "input",
+                "role": "user"
+              }
+            ],
+            "tools": [],
+            "tool_choice": null,
+            "store": {},
+            "output": {
+              "model": "mockllm/model",
+              "choices": []
+            },
+            "completed": false,
+            "metadata": {}
+          }
+        },
+        {
+          "span_id": "f04f819feac84a1982667bf5e9f23464",
+          "timestamp": "2026-11-03T23:24:31.427283-05:00",
+          "working_start": 2274330.58709025,
+          "event": "span_end",
+          "id": "f04f819feac84a1982667bf5e9f23464"
+        },
+        {
+          "span_id": "d70a1f5672db486ea484135f64bd28a4",
+          "timestamp": "2026-11-03T23:24:31.429022-05:00",
+          "working_start": 0.0010908334515988827,
+          "event": "span_begin",
+          "id": "d70a1f5672db486ea484135f64bd28a4",
+          "type": "solver",
+          "name": "use_tools"
+        },
+        {
+          "span_id": "d70a1f5672db486ea484135f64bd28a4",
+          "timestamp": "2026-11-03T23:24:31.431476-05:00",
+          "working_start": 0.0035444162786006927,
+          "event": "state",
+          "changes": [
+            {
+              "op": "add",
+              "path": "/tools/0",
+              "value": {
+                "name": "value_type",
+                "description": "Report the value's type.",
+                "parameters": {
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "description": "Value to inspect.",
+                      "anyOf": [
+                        {
+                          "type": "integer"
+                        },
+                        {
+                          "type": "boolean"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "value"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            {
+              "op": "replace",
+              "path": "/tool_choice",
+              "value": "auto"
+            }
+          ]
+        },
+        {
+          "span_id": "d70a1f5672db486ea484135f64bd28a4",
+          "timestamp": "2026-11-03T23:24:31.432297-05:00",
+          "working_start": 0.004359041340649128,
+          "event": "span_end",
+          "id": "d70a1f5672db486ea484135f64bd28a4"
+        },
+        {
+          "span_id": "ca242f5bc4234a159127d2b69ae176bc",
+          "timestamp": "2026-11-03T23:24:31.433087-05:00",
+          "working_start": 0.005156125407665968,
+          "event": "span_begin",
+          "id": "ca242f5bc4234a159127d2b69ae176bc",
+          "type": "solver",
+          "name": "generate"
+        },
+        {
+          "span_id": "ca242f5bc4234a159127d2b69ae176bc",
+          "timestamp": "2026-11-03T23:24:31.434129-05:00",
+          "working_start": 0.0062111252918839455,
+          "event": "model",
+          "model": "mockllm/model",
+          "input": [
+            {
+              "id": "MJvVrf2uVdY2WEhu59pQ6Y",
+              "content": "Check the value",
+              "source": "input",
+              "role": "user"
+            }
+          ],
+          "tools": [
+            {
+              "name": "value_type",
+              "description": "Report the value's type.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "value": {
+                    "description": "Value to inspect.",
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "boolean"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "value"
+                ],
+                "additionalProperties": false
+              }
+            }
+          ],
+          "tool_choice": "auto",
+          "config": {},
+          "output": {
+            "model": "mockllm/model",
+            "choices": [
+              {
+                "message": {
+                  "id": "DEMTvNmuSNK8zsamVaevwp",
+                  "content": "tool call for tool value_type",
+                  "source": "generate",
+                  "role": "assistant",
+                  "tool_calls": [
+                    {
+                      "id": "for_tool_call_619bbfd8-7dd0-4597-8d08-56e4bd2fa99d",
+                      "function": "value_type",
+                      "arguments": {
+                        "value": 1
+                      }
+                    }
+                  ],
+                  "model": "mockllm/model"
+                },
+                "stop_reason": "tool_calls"
+              }
+            ],
+            "time": 6.417278200387955e-6
+          },
+          "completed": "2026-11-03T23:24:31.436988-05:00",
+          "working_time": 6.417278200387955e-6
+        },
+        {
+          "span_id": "ca242f5bc4234a159127d2b69ae176bc",
+          "timestamp": "2026-11-03T23:24:31.440568-05:00",
+          "working_start": 0.010202541947364807,
+          "event": "approval",
+          "message": "tool call for tool value_type",
+          "call": {
+            "id": "for_tool_call_619bbfd8-7dd0-4597-8d08-56e4bd2fa99d",
+            "function": "value_type",
+            "arguments": {
+              "value": 1
+            }
+          },
+          "view": {
+            "call": {
+              "format": "markdown",
+              "content": "```python\nvalue_type(value=1)\n```\n"
+            }
+          },
+          "approver": "change",
+          "decision": "approve",
+          "modified": {
+            "id": "for_tool_call_619bbfd8-7dd0-4597-8d08-56e4bd2fa99d",
+            "function": "value_type",
+            "arguments": {
+              "value": true
+            }
+          }
+        },
+        {
+          "span_id": "982ca46cdd8f4355a6924edec54b5b16",
+          "timestamp": "2026-11-03T23:24:31.441839-05:00",
+          "working_start": 0.011486167088150978,
+          "event": "span_begin",
+          "id": "982ca46cdd8f4355a6924edec54b5b16",
+          "parent_id": "ca242f5bc4234a159127d2b69ae176bc",
+          "type": "tool",
+          "name": "value_type"
+        },
+        {
+          "span_id": "ca242f5bc4234a159127d2b69ae176bc",
+          "timestamp": "2026-11-03T23:24:31.440240-05:00",
+          "working_start": 0.009898666758090258,
+          "event": "tool",
+          "type": "function",
+          "id": "for_tool_call_619bbfd8-7dd0-4597-8d08-56e4bd2fa99d",
+          "function": "value_type",
+          "arguments": {
+            "value": 1
+          },
+          "result": "bool",
+          "events": [],
+          "completed": "2026-11-03T23:24:31.444563-05:00",
+          "working_time": 0.004323
+        },
+        {
+          "span_id": "982ca46cdd8f4355a6924edec54b5b16",
+          "timestamp": "2026-11-03T23:24:31.443367-05:00",
+          "working_start": 0.012995708733797073,
+          "event": "span_end",
+          "id": "982ca46cdd8f4355a6924edec54b5b16"
+        },
+        {
+          "span_id": "ca242f5bc4234a159127d2b69ae176bc",
+          "timestamp": "2026-11-03T23:24:31.446066-05:00",
+          "working_start": 0.015698041766881943,
+          "event": "model",
+          "model": "mockllm/model",
+          "input": [
+            {
+              "id": "MJvVrf2uVdY2WEhu59pQ6Y",
+              "content": "Check the value",
+              "source": "input",
+              "role": "user"
+            },
+            {
+              "id": "DEMTvNmuSNK8zsamVaevwp",
+              "content": "tool call for tool value_type",
+              "source": "generate",
+              "role": "assistant",
+              "tool_calls": [
+                {
+                  "id": "for_tool_call_619bbfd8-7dd0-4597-8d08-56e4bd2fa99d",
+                  "function": "value_type",
+                  "arguments": {
+                    "value": 1
+                  }
+                }
+              ],
+              "model": "mockllm/model"
+            },
+            {
+              "id": "HmD7LpvwEyuRYGzAKFmc9p",
+              "content": "bool",
+              "role": "tool",
+              "tool_call_id": "for_tool_call_619bbfd8-7dd0-4597-8d08-56e4bd2fa99d",
+              "function": "value_type"
+            }
+          ],
+          "tools": [
+            {
+              "name": "value_type",
+              "description": "Report the value's type.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "value": {
+                    "description": "Value to inspect.",
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "boolean"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "value"
+                ],
+                "additionalProperties": false
+              }
+            }
+          ],
+          "tool_choice": "auto",
+          "config": {},
+          "output": {
+            "model": "mockllm/model",
+            "choices": [
+              {
+                "message": {
+                  "id": "gKbdsh7aBQmBEjQqn4FagV",
+                  "content": "Done",
+                  "source": "generate",
+                  "role": "assistant",
+                  "model": "mockllm/model"
+                },
+                "stop_reason": "stop"
+              }
+            ],
+            "time": 5.334150046110153e-6
+          },
+          "completed": "2026-11-03T23:24:31.448460-05:00",
+          "working_time": 5.334150046110153e-6
+        },
+        {
+          "span_id": "ca242f5bc4234a159127d2b69ae176bc",
+          "timestamp": "2026-11-03T23:24:31.448795-05:00",
+          "working_start": 0.016370876226574183,
+          "event": "state",
+          "changes": [
+            {
+              "op": "add",
+              "path": "/output/time",
+              "value": 5.334150046110153e-6
+            },
+            {
+              "op": "add",
+              "path": "/output/choices/0",
+              "value": {
+                "message": {
+                  "id": "gKbdsh7aBQmBEjQqn4FagV",
+                  "content": "Done",
+                  "source": "generate",
+                  "role": "assistant",
+                  "model": "mockllm/model"
+                },
+                "stop_reason": "stop"
+              }
+            },
+            {
+              "op": "add",
+              "path": "/messages/1",
+              "value": {
+                "id": "DEMTvNmuSNK8zsamVaevwp",
+                "content": "tool call for tool value_type",
+                "source": "generate",
+                "role": "assistant",
+                "tool_calls": [
+                  {
+                    "id": "for_tool_call_619bbfd8-7dd0-4597-8d08-56e4bd2fa99d",
+                    "function": "value_type",
+                    "arguments": {
+                      "value": 1
+                    }
+                  }
+                ],
+                "model": "mockllm/model"
+              }
+            },
+            {
+              "op": "add",
+              "path": "/messages/2",
+              "value": {
+                "id": "HmD7LpvwEyuRYGzAKFmc9p",
+                "content": "bool",
+                "role": "tool",
+                "tool_call_id": "for_tool_call_619bbfd8-7dd0-4597-8d08-56e4bd2fa99d",
+                "function": "value_type"
+              }
+            },
+            {
+              "op": "add",
+              "path": "/messages/3",
+              "value": {
+                "id": "gKbdsh7aBQmBEjQqn4FagV",
+                "content": "Done",
+                "source": "generate",
+                "role": "assistant",
+                "model": "mockllm/model"
+              }
+            }
+          ]
+        },
+        {
+          "span_id": "ca242f5bc4234a159127d2b69ae176bc",
+          "timestamp": "2026-11-03T23:24:31.449586-05:00",
+          "working_start": 0.017159333918243647,
+          "event": "span_end",
+          "id": "ca242f5bc4234a159127d2b69ae176bc"
+        }
+      ],
+      "model_usage": {},
+      "total_time": 0.022,
+      "working_time": 0.018,
+      "uuid": "SUjjbSMzNnhFs8vGZoHA6Q",
+      "error_retries": [],
+      "attachments": {}
+    }
+  ]
+}

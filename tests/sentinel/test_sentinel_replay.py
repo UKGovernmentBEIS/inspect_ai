@@ -3347,6 +3347,52 @@ def test_a_real_0_3_99_modified_approval_replays_executed_arguments(
 
 
 @pytest.mark.parametrize("inputs", ["expanded", "pooled"])
+def test_a_real_0_3_99_approve_bool_replays_the_executed_view(inputs: str) -> None:
+    """The 0.3.99 writer kept the proposed integer view after running a boolean."""
+    from inspect_ai._sentinel import _replay
+
+    path = Path(__file__).parent / "fixtures" / "approval_bool_0.3.99.json"
+    log = read_eval_log(str(path), resolve_attachments="full")
+    assert log.eval.packages["inspect_ai"] == "0.3.99"
+    [sample] = log.samples or []
+    approval = next(e for e in sample.events if isinstance(e, ApprovalEvent))
+    tool = next(e for e in sample.events if isinstance(e, ToolEvent))
+    assert approval.decision == "approve"
+    assert approval.call.arguments["value"] == 1
+    assert type(approval.call.arguments["value"]) is int
+    assert approval.modified is not None
+    assert approval.modified.arguments["value"] is True
+    assert tool.arguments["value"] == 1
+    assert type(tool.arguments["value"]) is int
+    assert tool.result == "bool"
+    adapter = TypeAdapter(list[Event])
+    events = adapter.validate_json(adapter.dump_json(sample.events))
+    pool: list[ChatMessage] = []
+    if inputs == "pooled":
+        events, pool = _replay._condensed(events, [])
+    replay = steps_from_events(
+        sample.messages,
+        events,
+        pool,
+        sample_uuid=sample.uuid or "sample",
+        eval_info=EvalInfo.from_eval(log.eval),
+    )
+    tool_steps = [
+        step.step
+        for step in replay
+        if isinstance(step.step, BeforeToolCall | AfterToolCall)
+    ]
+    assert len(tool_steps) == 2
+    assert all(step.call.arguments["value"] is True for step in tool_steps)
+    assert [
+        step.view.call.content if step.view.call is not None else None
+        for step in tool_steps
+    ] == ["```python\nvalue_type(value=True)\n```\n"] * 2
+    assert isinstance(tool_steps[1], AfterToolCall)
+    assert tool_steps[1].result.text == "bool"
+
+
+@pytest.mark.parametrize("inputs", ["expanded", "pooled"])
 @pytest.mark.parametrize("decision", ["reject", "terminate"])
 @pytest.mark.parametrize(
     "version,reconstruct",
@@ -3461,6 +3507,53 @@ def test_recorded_sentinel_change_controls_executed_arguments(
         for step in replay
         if isinstance(step.step, BeforeToolCall | AfterToolCall)
     ] == [before_x, after_x]
+
+
+@pytest.mark.parametrize("inputs", ["expanded", "pooled"])
+def test_sentinel_modify_does_not_match_a_different_json_argument_type(
+    inputs: str,
+) -> None:
+    messages, events, pool = _historical_approval_events(inputs, "modify", True)
+    proposal = ToolCall(id="c1", function="addition", arguments={"x": 1, "y": 1})
+    check: list[Event] = [
+        SpanBeginEvent(id="check", name="probe", type="sentinel", parent_id="agent"),
+        SentinelEvent(
+            factory="probe",
+            path="probe",
+            function="check",
+            step_id="c1",
+            conversation="agent",
+            stage="tool_call",
+            kind="decision",
+            status="reported",
+            action="modify",
+            modified=replace(proposal, arguments={"x": True, "y": 1}),
+            span_id="check",
+        ),
+        SpanEndEvent(id="check"),
+    ]
+    begin = next(
+        index
+        for index, event in enumerate(events)
+        if isinstance(event, SpanBeginEvent) and event.id == "tool"
+    )
+    events[begin:begin] = check
+    adapter = TypeAdapter(list[Event])
+    events = adapter.validate_json(adapter.dump_json(events))
+    replay = steps_from_events(
+        messages,
+        events,
+        pool,
+        sample_uuid="sample",
+        eval_info=EvalInfo("0.3.277", True),
+    )
+    tool_steps = [
+        step.step
+        for step in replay
+        if isinstance(step.step, BeforeToolCall | AfterToolCall)
+    ]
+    assert [step.call.arguments["x"] for step in tool_steps] == [1, 1]
+    assert all(type(step.call.arguments["x"]) is int for step in tool_steps)
 
 
 @pytest.mark.parametrize("inputs", ["expanded", "pooled"])
