@@ -520,7 +520,8 @@ exactly the shards with an attempt, in shard order, so the last merge's
 template is `ledger[0].shard`; a `<k>/` with no attempt is not a shard
 and has no entry, "The merge" step 5, and a companion with vanished
 entries is refused, "Validation"), no merge time, no metric source (the
-merge resolves metrics from the registry only), and per shard no attempt
+caller's `Task` supplies the scorers, metrics and epoch reducer, "Matching
+the task"), and per shard no attempt
 count (a reader that shows it counts the `.eval` files in `<k>/`) and no
 `eval_id` or `task_id` (`log` names the attempt).
 
