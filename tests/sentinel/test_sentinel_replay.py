@@ -3239,11 +3239,11 @@ def _historical_approval_events(
 @pytest.mark.parametrize("inputs", ["expanded", "pooled"])
 @pytest.mark.parametrize(
     "version,legacy_arguments,expected_x",
-    [("0.3.99", True, 1), ("0.3.277", False, 7)],
+    [("0.3.99", True, 7), (None, True, 7), ("0.3.277", False, 7)],
 )
-def test_approval_tool_stages_use_recorded_arguments(
+def test_approval_tool_stages_use_arguments_that_ran(
     inputs: str,
-    version: str,
+    version: str | None,
     legacy_arguments: bool,
     expected_x: int,
     caplog: pytest.LogCaptureFixture,
@@ -3276,6 +3276,53 @@ def test_approval_tool_stages_use_recorded_arguments(
         if "Skipped human decisions from ApprovalEvents" in record.message
     ]
     assert len(warnings) == (0 if version == "0.3.277" else 1)
+
+
+@pytest.mark.parametrize("inputs", ["expanded", "pooled"])
+def test_a_real_0_3_99_modified_approval_replays_executed_arguments(
+    inputs: str, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An archived 0.3.99 log, with its package header corrected, keeps proposal arguments in ToolEvent."""
+    from inspect_ai._sentinel import _replay
+
+    path = Path(__file__).parent / "fixtures" / "approval_modified_0.3.99.json"
+    log = read_eval_log(str(path), resolve_attachments="full")
+    assert log.eval.packages["inspect_ai"] == "0.3.99"
+    [sample] = log.samples or []
+    approval = next(e for e in sample.events if isinstance(e, ApprovalEvent))
+    tool = next(e for e in sample.events if isinstance(e, ToolEvent))
+    assert approval.call.arguments == {"x": 1, "y": 1}
+    assert approval.modified is not None
+    assert approval.modified.arguments == {"x": 7, "y": 1}
+    assert tool.arguments == {"x": 1, "y": 1}
+    assert tool.result == "8"
+    events = sample.events
+    pool: list[ChatMessage] = []
+    if inputs == "pooled":
+        events, pool = _replay._condensed(events, [])
+    replay = steps_from_events(
+        sample.messages,
+        events,
+        pool,
+        sample_uuid=sample.uuid or "sample",
+        eval_info=EvalInfo.from_eval(log.eval),
+        human_approvers=("change",),
+    )
+    assert [
+        step.step.call.arguments
+        for step in replay
+        if isinstance(step.step, BeforeToolCall | AfterToolCall)
+    ] == [{"x": 7, "y": 1}, {"x": 7, "y": 1}]
+    assert [
+        step.step.result.text for step in replay if isinstance(step.step, AfterToolCall)
+    ] == ["8"]
+    assert (
+        sum(
+            "Skipped human decisions from ApprovalEvents" in record.message
+            for record in caplog.records
+        )
+        == 1
+    )
 
 
 @pytest.mark.parametrize("inputs", ["expanded", "pooled"])
