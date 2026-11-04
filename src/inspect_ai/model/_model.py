@@ -1810,8 +1810,13 @@ class Model:
                     # a sidecar's refusal of an agent call is acted on as the
                     # model's turn, as an in-process sentinel's decision is
                     raised = ex
-                    refused = await refused_output(
-                        str(self), lambda: _would_retry(self.api, raised), _bridged
+                    refused = await _refused_or_complete(
+                        refused_output(
+                            str(self), lambda: _would_retry(self.api, raised), _bridged
+                        ),
+                        stream_observer,
+                        event,
+                        lambda: complete(raised, None),
                     )
                     if refused is None:
                         # Mark event as failed for uncaught provider exceptions
@@ -1857,8 +1862,14 @@ class Model:
 
             if isinstance(output, Exception):
                 failed = output
-                refused = await refused_output(
-                    str(self), lambda: _would_retry(self.api, failed), _bridged
+                failed_call = call
+                refused = await _refused_or_complete(
+                    refused_output(
+                        str(self), lambda: _would_retry(self.api, failed), _bridged
+                    ),
+                    stream_observer,
+                    event,
+                    lambda: complete(failed, failed_call),
                 )
                 if refused is not None:
                     stream_observer.discard_partial_output()
@@ -2469,6 +2480,28 @@ def _model_refusal_message(
     if len(completion) > max_completion:
         completion = completion[:max_completion].rstrip() + "..."
     return f"Model refusal ({', '.join(details)}): {completion}"
+
+
+async def _refused_or_complete(
+    lookup: Awaitable[ModelOutput | None],
+    stream_observer: ModelStreamObserver,
+    event: BaseModel,
+    complete_with_error: Callable[[], None],
+) -> ModelOutput | None:
+    """A sidecar's refusal of a failed attempt, completing the attempt's event with its error if the lookup is cancelled or fails.
+
+    The lookup can wait on a sidecar still judging, so the sample's time limit or an interim-scoring deadline can cancel it, and a malformed `sentinel` field raises: either way the event must not stay pending in the live transcript and the log. It records the attempt's own error; what interrupted the lookup propagates as the sample's. An event an intervention producer (ACP operator-cancel) already completed is left alone.
+    """
+    from inspect_ai.event._model import ModelEvent
+
+    try:
+        return await lookup
+    except BaseException:
+        # the partial streamed output belongs to the failed attempt
+        stream_observer.discard_partial_output()
+        if isinstance(event, ModelEvent) and event.pending:
+            complete_with_error()
+        raise
 
 
 def _bridged() -> bool:
