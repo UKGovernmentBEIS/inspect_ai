@@ -271,7 +271,7 @@ Before presenting the examples we'll take a more in-depth look at the `TaskState
 | Member        | Type                | Description                                                                                                                                                                               |
 |-------------------|-------------------|----------------------------------|
 | `messages`    | list\[ChatMessage\] | Chat conversation history for sample. It is automatically appended to by the `generate()` solver, and is often manipulated by other solvers (e.g. for prompt engineering or elicitation). |
-| `user_prompt` | ChatMessageUser     | Convenience property for accessing the first user message in the message history (commonly used for prompt engineering).                                                                  |
+| `user_prompt` | ChatMessageUser     | Convenience property for accessing the last user message in the message history (commonly used for prompt engineering).                                                                   |
 | `output`      | ModelOutput         | The 'final' model output once we've completed all solving. This field is automatically updated with the last "assistant" message by the `generate()` solver.                              |
 
 ::: {.callout-note appearance="simple"}
@@ -332,7 +332,7 @@ A few things to note about this implementation:
 
 3.  The `resource()` function is used to read the specified `template`. This function accepts a string, file, or URL as its argument, and then returns a string with the contents of the resource.
 
-4.  We make use of the `user_prompt` property on the `TaskState`. This is a convenience property for locating the first `role="user"` message (otherwise you might need to skip over system messages, etc). Since this is a string templating solver, we use the `state.user_prompt.text` property to get a plain string. This is necessary because the `content` field of a `ChatMessageUser` can be either a string or a list of multimodal `Content` objects, and `.text` handles either case.
+4.  We make use of the `user_prompt` property on the `TaskState`. This is a convenience property for locating the last `role="user"` message (otherwise you might need to skip over assistant and tool messages, etc). Since this is a string templating solver, we use the `state.user_prompt.text` property to get a plain string. This is necessary because the `content` field of a `ChatMessageUser` can be either a string or a list of multimodal `Content` objects, and `.text` handles either case.
 
 5.  We make sample `metadata` available to the template as well as any `params` passed to the function.
 
