@@ -14,7 +14,16 @@ from typing import (
     runtime_checkable,
 )
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    SerializationInfo,
+    SerializerFunctionWrapHandler,
+    ValidationInfo,
+    model_serializer,
+    model_validator,
+)
 
 from inspect_ai._util.constants import DESERIALIZING
 from inspect_ai._util.error import PrerequisiteError
@@ -126,6 +135,33 @@ class ScoreEdit(BaseModel):
             and info.context.get(DESERIALIZING, False)
         ):
             return {"answer": None, "explanation": None} | data
+        return data
+
+    @model_serializer(mode="wrap")
+    def _serialize_score_edit(
+        self,
+        handler: SerializerFunctionWrapHandler,
+        info: SerializationInfo,
+    ) -> dict[str, Any]:
+        """Preserve explicitly cleared fields through normal serialization.
+
+        A nullable field set to ``None`` means clear the value, while a missing
+        field in a legacy edit can mean ``UNCHANGED``. Log writers use
+        ``exclude_none=True``, so restore explicitly supplied ``None`` values
+        after the normal serializer has removed them unless the caller excluded
+        or omitted the field.
+        """
+        data = cast(dict[str, Any], handler(self))
+
+        for field_name in ("answer", "explanation", "reason"):
+            if (
+                field_name in self.model_fields_set
+                and getattr(self, field_name) is None
+                and (info.include is None or field_name in info.include)
+                and (info.exclude is None or field_name not in info.exclude)
+            ):
+                data[field_name] = None
+
         return data
 
 
