@@ -5842,6 +5842,28 @@ async def _suffix_filter(
 
 
 HostDialect = Literal["completions", "responses", "anthropic", "google"]
+HostMode = Literal["plain", "filter", "approval", "request_copy", "request_edit"]
+
+
+def _generating_request_filter(edit: bool) -> Callable[..., Awaitable[ModelOutput]]:
+    """A request filter returning a copy of its own generation, with `edit` its text changed."""
+
+    async def generate(
+        model: Model,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        output = await model.generate(
+            input=input, tools=tools, tool_choice=tool_choice, config=config
+        )
+        output = output.model_copy(deep=True)
+        if edit:
+            output.message.content = output.message.text + " EDITED"
+        return output
+
+    return generate
 
 
 class _HostConversation:
@@ -6019,16 +6041,15 @@ def _numbered_results() -> AsyncMock:
 
 
 @agent
-def host_scaffold(
-    mode: Literal["plain", "filter", "approval"],
-    dialect: HostDialect = "completions",
-) -> Agent:
+def host_scaffold(mode: HostMode, dialect: HostDialect = "completions") -> Agent:
     """A scaffold running every call it gets as a bridged host tool, in parallel."""
 
     async def execute(state: AgentState) -> AgentState:
         bridge = SandboxAgentBridge(
             state=state,
-            filter=None,
+            filter=_generating_request_filter(mode == "request_edit")
+            if mode in ("request_copy", "request_edit")
+            else None,
             retry_refusals=None,
             compaction=None,
             port=13131,
@@ -6070,7 +6091,7 @@ def _host_outputs() -> list[ModelOutput]:
 
 
 def _run_host_scaffold(
-    mode: Literal["plain", "filter", "approval"], dialect: HostDialect, tmp_path: Path
+    mode: HostMode, dialect: HostDialect, tmp_path: Path
 ) -> EvalSample:
     log = eval(
         Task(
@@ -6116,10 +6137,38 @@ def test_host_tool_events_name_the_generated_output(
         } == {"safe"}
 
 
+@pytest.mark.parametrize("edit", [False, True])
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+def test_generating_request_filter_text_edit_is_unverified(
+    dialect: HostDialect, edit: bool, tmp_path: Path
+) -> None:
+    """A request filter's copy of its generation keeps the generated id only if unchanged."""
+    sample = _run_host_scaffold(
+        "request_edit" if edit else "request_copy", dialect, tmp_path
+    )
+
+    generated = {
+        e.output.message.id for e in sample.events if isinstance(e, ModelEvent)
+    }
+    replies = [
+        m
+        for m in sample.messages
+        if isinstance(m, ChatMessageAssistant) and m.tool_calls
+    ]
+    events = [e for e in sample.events if isinstance(e, ToolEvent)]
+    assert len(replies) == 2 and len(events) == 4
+    if edit:
+        assert all(r.text.endswith(" EDITED") for r in replies)
+        assert not any(r.id in generated for r in replies)
+        assert all(e.call_message_id is None for e in events)
+    else:
+        assert tool_event_producers(sample) == [1, 1, 1, 1]
+
+
 @pytest.mark.parametrize("mode", ["plain", "filter", "approval"])
 @pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
 def test_host_tool_events_name_their_result_message(
-    dialect: HostDialect, mode: Literal["plain", "filter", "approval"], tmp_path: Path
+    dialect: HostDialect, mode: HostMode, tmp_path: Path
 ) -> None:
     """Each host tool event's `message_id` is the tool message the scaffold sent its result in."""
     sample = _run_host_scaffold(mode, dialect, tmp_path)

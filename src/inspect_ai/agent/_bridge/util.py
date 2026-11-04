@@ -51,7 +51,11 @@ from inspect_ai.event._model import ModelEvent
 from inspect_ai.log._transcript import transcript
 from inspect_ai.model._agent_message import validate_agent_message
 from inspect_ai.model._call_tools import get_tools_info
-from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
+from inspect_ai.model._chat_message import (
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageUser,
+)
 from inspect_ai.model._generate_config import (
     GenerateConfig,
     ResponseSchema,
@@ -590,6 +594,29 @@ def _settle_message_ids(original: ModelOutput, filtered: ModelOutput) -> None:
                 with_edited_id(source, message, keep_provider_state=False)
 
 
+def _request_filter_edits(generated: ModelOutput, output: ModelOutput) -> ModelOutput:
+    """Give a returned reply sharing a generated reply's id but not its content an edit id."""
+    sources: dict[str | None, ChatMessageAssistant] = {
+        choice.message.id: choice.message
+        for choice in generated.choices
+        if choice.message.id is not None
+    }
+    choices = [
+        choice.model_copy(
+            update={
+                "message": with_edited_id(
+                    source, choice.message.model_copy(), keep_provider_state=False
+                )
+            }
+        )
+        if (source := sources.get(choice.message.id)) is not None
+        and content_hash(source) != content_hash(choice.message)
+        else choice
+        for choice in output.choices
+    ]
+    return output.model_copy(update={"choices": choices})
+
+
 def _selected_generated_message_id(
     generated: ModelOutput | None, output: ModelOutput
 ) -> str | None:
@@ -1086,7 +1113,6 @@ async def _bridge_generate_impl(
                             raise
                         result = ex.output
                 if isinstance(result, ModelOutput):
-                    output = result
                     generated_output = next(
                         (
                             event.output
@@ -1103,6 +1129,15 @@ async def _bridge_generate_impl(
                         ),
                         None,
                     )
+                    output = (
+                        _request_filter_edits(generated_output, result)
+                        if generated_output is not None
+                        else result
+                    )
+                    # the calls of a reply whose text the filter edited are
+                    # not verified against the generation
+                    if output.message.id != result.message.id:
+                        generated_output = None
                 elif isinstance(result, GenerateInput):
                     # Update the inputs that will be used for generation
                     input_messages, tools, tool_choice, config = result
