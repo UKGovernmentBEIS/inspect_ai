@@ -24,26 +24,16 @@ exclude-newer = "0001-01-01T00:00:00Z" # This has no effect and is included for 
 exclude-newer-span = "P7D"
 
 [options.exclude-newer-package]
-aiobotocore = { timestamp = "0001-01-01T00:00:00Z", span = "PT6H" }
 anthropic = { timestamp = "0001-01-01T00:00:00Z", span = "PT6H" }
-aws-bedrock-token-generator = { timestamp = "0001-01-01T00:00:00Z", span = "PT6H" }
 azure-ai-inference = { timestamp = "0001-01-01T00:00:00Z", span = "PT6H" }
-boto3 = { timestamp = "0001-01-01T00:00:00Z", span = "PT6H" }
-botocore = { timestamp = "0001-01-01T00:00:00Z", span = "PT6H" }
-certifi = { timestamp = "0001-01-01T00:00:00Z", span = "PT6H" }
 google-genai = { timestamp = "0001-01-01T00:00:00Z", span = "PT6H" }
 groq = { timestamp = "0001-01-01T00:00:00Z", span = "PT6H" }
 huggingface-hub = { timestamp = "0001-01-01T00:00:00Z", span = "PT6H" }
 inspect-scout = { timestamp = "0001-01-01T00:00:00Z", span = "PT6H" }
 inspect-sentinel = { timestamp = "0001-01-01T00:00:00Z", span = "PT6H" }
 mistralai = { timestamp = "0001-01-01T00:00:00Z", span = "PT6H" }
-nnterp = { timestamp = "0001-01-01T00:00:00Z", span = "PT6H" }
 openai = { timestamp = "0001-01-01T00:00:00Z", span = "PT6H" }
-sglang = { timestamp = "0001-01-01T00:00:00Z", span = "PT6H" }
 together = { timestamp = "0001-01-01T00:00:00Z", span = "PT6H" }
-transformer-lens = { timestamp = "0001-01-01T00:00:00Z", span = "PT6H" }
-transformers = { timestamp = "0001-01-01T00:00:00Z", span = "PT6H" }
-vllm = { timestamp = "0001-01-01T00:00:00Z", span = "PT6H" }
 xai-sdk = { timestamp = "0001-01-01T00:00:00Z", span = "PT6H" }
 
 [[package]]
@@ -273,7 +263,7 @@ wheels = [
 
 [[package]]
 name = "anthropic"
-version = "2.3.0"
+version = "2.4.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
@@ -285,9 +275,9 @@ dependencies = [
     { name = "sniffio" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/3e/ba/4c91947e0d0062d66d371db371597287153f7685fbed512d3294d0cde3c7/anthropic-2.3.0.tar.gz", hash = "sha256:edfdea1e3fa7b3ce25df1511953408b2f03bfa61eb6f6268f766101a9e18ad53", size = 1869656, upload-time = "2026-10-23T23:18:47.649Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c8/5b/6c13b126554cfec789ce14a74f2ccfd46382a0eb296ec78ea6b80eeac3b5/anthropic-2.4.0.tar.gz", hash = "sha256:c59cab76049cf581e90e2ee3a20472291029b7a6a1ee2ef32bff2b2a7010fd47", size = 1915809, upload-time = "2026-11-02T19:08:06.047Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/3f/29/eb3558ab6bf252a07ac41c76ac5b0ea24a0aa0c23f87a40aaf31a5f8dba4/anthropic-2.3.0-py3-none-any.whl", hash = "sha256:aa6a3984f9276f307933d42dc6f58b6efc821a5ecafbc8d1bb5993a066767622", size = 2216980, upload-time = "2026-10-23T23:18:45.779Z" },
+    { url = "https://files.pythonhosted.org/packages/8b/5d/e399d9028411ce404d7ddbe6b8060d878b2549ed8cd671a7bb496ae20ffc/anthropic-2.4.0-py3-none-any.whl", hash = "sha256:db2e691364ae2e04083ed9b8deb49f1a6967e9f184f8cbb5afcb3bcda8ab0532", size = 2340848, upload-time = "2026-11-02T19:08:03.822Z" },
 ]
 
 [[package]]
@@ -562,7 +552,7 @@ aio = [
 
 [[package]]
 name = "azure-identity"
-version = "1.26.0"
+version = "1.27.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "azure-core" },
@@ -571,9 +561,9 @@ dependencies = [
     { name = "msal-extensions" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e6/87/e88098a024d74b7434de5b110c261da024fe5d6c139f1847f6f8a2b76678/azure_identity-1.26.0.tar.gz", hash = "sha256:61b4538b87df10d2d6d44b77cd5ea28a8929fd4929d58b45bf3f230f7daba02e", size = 310151, upload-time = "2026-10-01T14:17:47.825Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/cf/33/0b881d0093d64c965bb20fcf71b806c7097881b544a2a55d519cdcf3bab9/azure_identity-1.27.0.tar.gz", hash = "sha256:6a4c50e25e8e9a47b324a95ad024897e56cb3c6241e0094e93b126a2bf71edc5", size = 331360, upload-time = "2026-10-26T21:17:39.095Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/b2/d5/ae45ce8009d0d015304b206c7c4a6cbab02c03f8f07eedefb32b099ccee3/azure_identity-1.26.0-py3-none-any.whl", hash = "sha256:3c60d9682b3ac01507388d474cb5a5ffbe54152a96b6cdcaa7013da9315cf186", size = 195958, upload-time = "2026-10-01T14:17:49.705Z" },
+    { url = "https://files.pythonhosted.org/packages/29/1e/6a2fe486576f41884a120ef7b2c3774f334f9143402fb73650c67db94ddd/azure_identity-1.27.0-py3-none-any.whl", hash = "sha256:92fd2a93c0d2f777dac6c04e5fd7d5734f6643582b983544ef66b4575844e46d", size = 203474, upload-time = "2026-10-26T21:17:40.92Z" },
 ]
 
 [[package]]
@@ -4615,11 +4605,11 @@ wheels = [
 
 [[package]]
 name = "platformdirs"
-version = "4.13.5"
+version = "4.13.6"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/58/e6/d0abbb256b44e6a05748c6942511ff67db8dbb068de0c35b24bf1b395b09/platformdirs-4.13.5.tar.gz", hash = "sha256:05831adf87d392760f4b5c3a0a95579ab5a10b18b9b9bd43680dcb47544788a0", size = 62362, upload-time = "2026-10-19T01:02:11.778Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/1a/43/8c4b5fe23f0e119cf4e1b16c2d16240ab9057cdbb138568c91d5a48abf81/platformdirs-4.13.6.tar.gz", hash = "sha256:211d176e24674b5895dedf9021c262bcf9fad008a70610bfb147d4a8d6d8fe1b", size = 62750, upload-time = "2026-10-27T08:19:11.538Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/6c/8a/1d8cb3842909dc193a73835adedf412e32e18f8ffd59f43983949622fe6f/platformdirs-4.13.5-py3-none-any.whl", hash = "sha256:53d3ec4280b815c1e0b02edad7f9ee8fda1ba9c0865dd9c2e6e63849ce82fc1e", size = 32779, upload-time = "2026-10-19T01:02:10.17Z" },
+    { url = "https://files.pythonhosted.org/packages/a8/24/b312a9466839b1f708eed42790b47e927dc7f774a528bb49b1cdf8b734b9/platformdirs-4.13.6-py3-none-any.whl", hash = "sha256:21fc198fb09f3e78cadcdfd8a6ae4fd65cadc64a3cba78b694321c2996114a3e", size = 32767, upload-time = "2026-10-27T08:19:10.405Z" },
 ]
 
 [[package]]
@@ -6471,16 +6461,16 @@ wheels = [
 
 [[package]]
 name = "types-boto3"
-version = "1.43.118"
+version = "1.43.119"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "botocore-stubs" },
     { name = "types-s3transfer" },
     { name = "typing-extensions", marker = "python_full_version < '3.12'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/6e/de/af647cc466efb7f7fdf99a7f85d9e6b11a8d9eec6351603e277364ec6ff8/types_boto3-1.43.118.tar.gz", hash = "sha256:14c6090d3515d9e2e87276a8f21631a1faf31e5389d4dbdc16e574e948ef922c", size = 105849, upload-time = "2026-10-22T19:26:39.864Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f3/9a/76ad30292095db6dd5e2690995d5faeb2c8e71437d5422e622bdf3631f58/types_boto3-1.43.119.tar.gz", hash = "sha256:302cad12d82657570f40e021900a18678cd3af95cb6490369e451f13a29fef60", size = 105828, upload-time = "2026-10-26T20:31:18.055Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/56/87/b1f3e6695cf591442714033b32b00924f680281ec0d29e1c485a23cd77ac/types_boto3-1.43.118-py3-none-any.whl", hash = "sha256:7973ec7a8d54c56761958419e70ad82c81c68f78779719ebfcb3b51dd999e307", size = 71911, upload-time = "2026-10-22T19:26:35.261Z" },
+    { url = "https://files.pythonhosted.org/packages/37/40/475bca1486a22849698e866bf42fe6162573481cad0ba60e1a262f3d0cf2/types_boto3-1.43.119-py3-none-any.whl", hash = "sha256:8acf3c47a5fe59c6834bd4825b2923e32506d9c4887a2c2c0a07c16434321cf7", size = 71910, upload-time = "2026-10-26T20:31:10.694Z" },
 ]
 
 [[package]]
