@@ -600,7 +600,17 @@ def _settle_message_ids(
                 original_messages[index] if index < len(original_messages) else None,
             )
             if generated_messages is not None and message.id is not None:
-                source = generated_messages.get(message.id, source)
+                matching = [
+                    generated
+                    for generated in generated_messages.values()
+                    if generated.id is not None
+                    and (
+                        generated.id == message.id
+                        or edit_id(generated.id, content_hash(message)) == message.id
+                    )
+                ]
+                if len(matching) == 1:
+                    source = matching[0]
             if source is not None:
                 with_edited_id(source, message, keep_provider_state=False)
 
@@ -635,6 +645,11 @@ def _selected_generated_message_id(
         )
     ]
     return matches[0] if len(matches) == 1 else None
+
+
+def _recorded_generation_span_id(event: ModelEvent) -> str | None:
+    """Keep a generation's distinct span; follow the current checkpoint otherwise."""
+    return event.span_id if event.span_id != current_span_id() else None
 
 
 def _check_provider_owned_content(original: ModelOutput, filtered: ModelOutput) -> None:
@@ -1035,6 +1050,7 @@ async def _bridge_generate_impl(
             # Apply filter if we have it (can either return output or alternate inputs)
             output: ModelOutput | None = None
             generated_output: ModelOutput | None = None
+            generated_event: ModelEvent | None = None
             if bridge.filter:
                 history = transcript().history
                 events_before_filter = history.event_count
@@ -1066,21 +1082,22 @@ async def _bridge_generate_impl(
                         result = ex.output
                 if isinstance(result, ModelOutput):
                     output = result
-                    generated_output = next(
+                    generated_event = next(
                         (
-                            event.output
+                            event
                             for event in reversed(
                                 history.recent_events(
                                     history.event_count - events_before_filter
                                 )
                             )
                             if isinstance(event, ModelEvent)
-                            and any(
-                                choice.message.id == result.message.id
-                                for choice in event.output.choices
-                            )
+                            and _selected_generated_message_id(event.output, result)
+                            is not None
                         ),
                         None,
+                    )
+                    generated_output = (
+                        generated_event.output if generated_event is not None else None
                     )
                 elif isinstance(result, GenerateInput):
                     # Update the inputs that will be used for generation
@@ -1125,6 +1142,10 @@ async def _bridge_generate_impl(
                             raise
 
         generated = generated_output
+        if generated_event is not None:
+            proposing_span_id = _recorded_generation_span_id(generated_event)
+        else:
+            proposing_span_id = sink.span_id if sink is not None else None
 
         # Update the compaction baseline with the actual input token count
         # from the generate call (most accurate source of truth). Record it
@@ -1147,9 +1168,9 @@ async def _bridge_generate_impl(
                         input_messages, get_tools_info(tools), tool_choice, config
                     ),
                 )
-            response_generation = next(
+            response_event = next(
                 (
-                    event.output
+                    event
                     for event in reversed(
                         history.recent_events(
                             history.event_count - events_before_response_filter
@@ -1160,8 +1181,9 @@ async def _bridge_generate_impl(
                 ),
                 None,
             )
-            if response_generation is not None:
-                generated = response_generation
+            if response_event is not None:
+                generated = response_event.output
+                proposing_span_id = _recorded_generation_span_id(response_event)
 
         # Check for refusal and retry if needed
         if not output.empty and output.stop_reason == "content_filter":
@@ -1238,7 +1260,7 @@ async def _bridge_generate_impl(
                 bridge.register_tool_execution_grants(
                     reviewed.output.message.tool_calls or [],
                     declarations,
-                    span_id=sink.span_id if sink is not None else None,
+                    span_id=proposing_span_id,
                 )
             finally:
                 bridge._proposing_message_ids = {}

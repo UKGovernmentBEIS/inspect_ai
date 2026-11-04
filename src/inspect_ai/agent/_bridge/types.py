@@ -521,7 +521,7 @@ class AgentBridge:
         a call is the one with its id,
         function and arguments (`_copy_calls`), picked by no other awaited call
         and with an id unique in the copy. Its result is a tool message before
-        the next assistant message answering that id: exactly one links it, more
+        the next assistant message with tool calls: exactly one links it, more
         than one settles it unlinked. A message already linked to a tracked call
         isn't linked again, and a kept id another tracked reply also handed
         doesn't link while that reply's call is unlinked (`_tracked_call_ids`).
@@ -786,7 +786,7 @@ class AgentBridge:
                 message.id = self._version_id(message_id, message)
             used.add(message.id)
             self._record_message_id(message_keys, message.id)
-            if isinstance(message, ChatMessageAssistant):
+            if isinstance(message, ChatMessageAssistant) and message.tool_calls:
                 preceding_reply_id = (
                     self._awaited_reply_id(message_id, message)
                     if message_id is not None

@@ -994,12 +994,14 @@ async def test_edited_reply_gets_fresh_result_after_compaction(
         [
             ChatMessageUser(content="Summary: listed once."),
             edited,
+            ChatMessageAssistant(content="Working."),
             _result(returned_id, "NEW"),
         ]
     )
 
-    assert ids[2] != first_ids[2]
-    assert second_event.message_id == ids[2]
+    assert ids[3] != first_ids[2]
+    assert second_event.message_id == ids[3]
+    assert ids[3] not in bridge._result_edit_parent
 
 
 async def _google_compacting() -> None:
