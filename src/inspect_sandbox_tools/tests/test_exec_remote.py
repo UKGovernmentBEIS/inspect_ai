@@ -248,6 +248,70 @@ class TestExecRemotePoll:
             DEFAULT_RPC_TIMEOUT,
         )
 
+    def test_submit_advertises_poll_wait(self, rpc_client: RpcClient) -> None:
+        response = rpc_client(
+            {
+                "jsonrpc": "2.0",
+                "method": "exec_remote_start",
+                "params": {"command": "true"},
+                "id": 1,
+            },
+            DEFAULT_RPC_TIMEOUT,
+        )
+
+        assert response["result"]["poll_wait"] is True
+
+    def test_waiting_poll_replies_with_output_and_exit(
+        self, rpc_client: RpcClient
+    ) -> None:
+        """One waiting poll returns a short command's output and exit status."""
+        response = rpc_client(
+            {
+                "jsonrpc": "2.0",
+                "method": "exec_remote_start",
+                "params": {"command": "sleep 0.5; printf done; exit 3"},
+                "id": 1,
+            },
+            DEFAULT_RPC_TIMEOUT,
+        )
+        pid = response["result"]["pid"]
+
+        start = time.monotonic()
+        poll_response = rpc_client(
+            {
+                "jsonrpc": "2.0",
+                "method": "exec_remote_poll",
+                "params": {"pid": pid, "ack_seq": 0, "wait": 10},
+                "id": 2,
+            },
+            DEFAULT_RPC_TIMEOUT,
+        )
+        elapsed = time.monotonic() - start
+
+        result = poll_response["result"]
+        assert (result["state"], result["exit_code"], result["stdout"]) == (
+            "completed",
+            3,
+            "done",
+        )
+        assert elapsed < 5
+
+    @pytest.mark.parametrize("wait", [-1, 61])
+    def test_poll_rejects_wait_out_of_range(
+        self, rpc_client: RpcClient, wait: float
+    ) -> None:
+        response = rpc_client(
+            {
+                "jsonrpc": "2.0",
+                "method": "exec_remote_poll",
+                "params": {"pid": NONEXISTENT_PID, "ack_seq": 0, "wait": wait},
+                "id": 1,
+            },
+            DEFAULT_RPC_TIMEOUT,
+        )
+
+        assert "error" in response
+
 
 class TestExecRemoteKill:
     """Tests for exec_remote_kill."""
