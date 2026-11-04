@@ -70,8 +70,11 @@ Goals:
   terminal outcome per method for every way the task can end; no wait
   hangs.
 - Samples sent through a handle never change which of the receiving task's
-  own samples run (`--limit`, `--sample-id`, ids), and a bad request fails
-  only its sender. No later run reuses one sample's result for another: the
+  own samples run (`--limit`, `--sample-id`, ids), and a request the port
+  refuses fails only its sender. An accepted explicit id reserves its runs
+  as a source sample's does, so a later duplicate from the source fails the
+  task and its unresolved requests, as a source duplicate does today. No
+  later run reuses one sample's result for another: the
   log of a task that can receive samples through a handle says so, and
   nothing is reused from it.
 - The search example works at the default `max_tasks=1`. `max_sandboxes`
@@ -1032,9 +1035,15 @@ Eval logs:
   `SampleEnqueuer` path as `enqueue_sample()`: ids are checked for
   duplicates by `(str(id), epoch)` against the seed, earlier requests and
   the running attempt before they reach the task, and again at delivery,
-  so a crafted id can neither reclaim a seed id (excluded ones included)
-  nor fail the receiving task; ids become log member names through the
-  existing path; content is sample input, which the task treats as it
+  so a crafted id cannot reclaim a seed id (excluded ones included), and a
+  request refused by those checks fails only its sender. An accepted
+  explicit id reserves its runs as a source sample's does: if the source
+  later adds the same `(str(id), epoch)`, `reserve_runs` raises
+  (`src/inspect_ai/_eval/task/run.py:1720-1726`) and the task fails, with
+  its unresolved requests ending in `TaskEndedError`, as a duplicate within
+  a source fails its task today. A creator that sends model-proposed ids
+  can avoid this by sending samples without ids, which get unique ids. Ids
+  become log member names through the existing path; content is sample input, which the task treats as it
   treats any dataset sample.
 - A handle is an in-process object; nothing new is exposed on the control
   channel.
@@ -1185,7 +1194,10 @@ test touched), with mockllm models:
     never sees them; a seed id at an explicit epoch above `epochs` is
     accepted; a duplicate of an earlier request is refused; a request that
     the source's own addition reserved first is refused at delivery, keeps
-    no reservation, and the target task completes;
+    no reservation, and the target task completes; an accepted request
+    with explicit id `"y"` that the source then adds itself fails the task
+    with the duplicate-id `ValueError`, and another request still pending
+    ends with `TaskEndedError` carrying the task's error log;
   - abandoned and limit-dropped requests raise `SampleAbandonedError`;
   - a rollout task whose first attempt fails in setup before any request
     arrives is retried and receives its pending requests in the retry;
