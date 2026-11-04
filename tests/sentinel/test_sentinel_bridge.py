@@ -924,6 +924,28 @@ async def test_a_result_for_a_call_never_handed_over_is_still_checked() -> None:
     assert bash.input is None
 
 
+async def test_a_result_first_reported_after_the_bridge_started_is_checked() -> None:
+    # the bridge starts with a call whose result it has not seen
+    seen: Steps = []
+    model = Scripted(calls_output())
+    handed: list[ChatMessage] = [
+        ChatMessageUser(content=TASK),
+        ChatMessageAssistant(content="Reading.", tool_calls=[READ]),
+    ]
+    bridge = in_process_bridge(handed)
+
+    with active([bridge_recording(seen)]):
+        await generate(
+            bridge,
+            model,
+            [*handed, ChatMessageTool(content="x", tool_call_id=READ.id)],
+        )
+
+    [after] = seen
+    assert isinstance(after, AfterToolCall)
+    assert (after.call, after.result.text) == (READ, "x")
+
+
 async def test_tool_result_terminate_ends_the_sample_before_the_model_sees_it() -> None:
     model = Scripted(calls_output(READ), calls_output())
     bridge = in_process_bridge([ChatMessageUser(content=TASK)])
@@ -2286,6 +2308,171 @@ async def dialect_round_trip(
 DIALECTS = ["completions", "anthropic", "responses", "google"]
 
 
+async def dialect_history_request(
+    dialect: str, bridge: AgentBridge, call: ToolCall, result: str
+) -> None:
+    """A scaffold sending the conversation it was handed (a task, a call, its result) in `dialect`."""
+    arguments = json.dumps(call.arguments)
+    if dialect == "completions":
+        from inspect_ai.agent._bridge.completions import (
+            inspect_completions_api_request,
+        )
+
+        messages: list[Any] = [
+            {"role": "user", "content": TASK},
+            {
+                "role": "assistant",
+                "content": "Reading.",
+                "tool_calls": [
+                    {
+                        "id": call.id,
+                        "type": "function",
+                        "function": {"name": call.function, "arguments": arguments},
+                    }
+                ],
+            },
+            {"role": "tool", "tool_call_id": call.id, "content": result},
+        ]
+        await inspect_completions_api_request(
+            {"model": "inspect", "messages": messages}, None, bridge
+        )
+    elif dialect == "anthropic":
+        from inspect_ai.agent._bridge.anthropic_api import (
+            inspect_anthropic_api_request,
+        )
+
+        turns: list[Any] = [
+            {"role": "user", "content": TASK},
+            {
+                "role": "assistant",
+                "content": [
+                    {"type": "text", "text": "Reading."},
+                    {
+                        "type": "tool_use",
+                        "id": call.id,
+                        "name": call.function,
+                        "input": call.arguments,
+                    },
+                ],
+            },
+            {
+                "role": "user",
+                "content": [
+                    {"type": "tool_result", "tool_use_id": call.id, "content": result}
+                ],
+            },
+        ]
+        await inspect_anthropic_api_request(
+            {"model": "inspect", "max_tokens": 100, "messages": turns},
+            None,
+            None,
+            None,
+            bridge,
+        )
+    elif dialect == "google":
+        from inspect_ai.agent._bridge.google_api import inspect_google_api_request
+
+        contents: list[Any] = [
+            {"role": "user", "parts": [{"text": TASK}]},
+            {
+                "role": "model",
+                "parts": [
+                    {"text": "Reading."},
+                    {
+                        "functionCall": {
+                            "id": call.id,
+                            "name": call.function,
+                            "args": call.arguments,
+                        }
+                    },
+                ],
+            },
+            {
+                "role": "user",
+                "parts": [
+                    {
+                        "functionResponse": {
+                            "id": call.id,
+                            "name": call.function,
+                            "response": {"output": result},
+                        }
+                    }
+                ],
+            },
+        ]
+        await inspect_google_api_request(
+            {"model": "inspect", "contents": contents}, None, None, bridge
+        )
+    else:
+        from inspect_ai.agent._bridge.responses import inspect_responses_api_request
+
+        items: list[Any] = [
+            {"role": "user", "content": TASK},
+            {
+                "type": "function_call",
+                "call_id": call.id,
+                "name": call.function,
+                "arguments": arguments,
+            },
+            {"type": "function_call_output", "call_id": call.id, "output": result},
+        ]
+        await inspect_responses_api_request(
+            {"model": "inspect", "input": items}, None, None, None, bridge
+        )
+
+
+@pytest.mark.parametrize("changed", [False, True])
+@pytest.mark.parametrize("sandbox", [False, True])
+@pytest.mark.parametrize("dialect", DIALECTS)
+async def test_a_result_the_bridge_started_with_is_checked_only_if_changed(
+    dialect: str, sandbox: bool, changed: bool
+) -> None:
+    seen: Steps = []
+    model = Scripted(calls_output())
+    state = AgentState(
+        messages=[
+            ChatMessageUser(content=TASK),
+            ChatMessageAssistant(content="Reading.", tool_calls=[READ]),
+            ChatMessageTool(
+                content="file contents", tool_call_id=READ.id, function=READ.function
+            ),
+        ]
+    )
+    bridge = (
+        SandboxAgentBridge(
+            state=state,
+            filter=None,
+            retry_refusals=None,
+            compaction=None,
+            port=13131,
+            model=None,
+            model_aliases={"inspect": model.model},
+        )
+        if sandbox
+        else AgentBridge(state, model_aliases={"inspect": model.model})
+    )
+
+    with active([bridge_recording(seen)]):
+        await dialect_history_request(
+            dialect,
+            bridge,
+            READ,
+            "file contents, edited" if changed else "file contents",
+        )
+
+    sent = "file contents, edited" if changed else "file contents"
+    # the Google bridge reads a functionResponse's `response` as its JSON, so
+    # a result handed over in Google's form is never the one the bridge
+    # started with, and is checked
+    received = json.dumps({"output": sent}) if dialect == "google" else sent
+    assert len(model.inputs) == 1
+    assert [
+        (step.call, step.result.text)
+        for step in seen
+        if isinstance(step, AfterToolCall)
+    ] == ([(READ, received)] if changed or dialect == "google" else [])
+
+
 @pytest.mark.parametrize("dialect", DIALECTS)
 async def test_a_result_takes_its_proposal_through_each_dialect(dialect: str) -> None:
     seen: Steps = []
@@ -2688,10 +2875,11 @@ async def test_initial_history_id_cannot_be_reissued_for_a_new_call(
         [handed] = proposed.message.tool_calls or []
 
         await generate(bridge, model, [*history, proposed.message], tools)
+        # the in-process bridge started with the old result, so it is not
+        # checked again
+        checked = [] if not sandbox else [(old.arguments, old_output)]
         afters = [step for step in seen if isinstance(step, AfterToolCall)]
-        assert [(step.call.arguments, step.output) for step in afters] == [
-            (old.arguments, old_output)
-        ]
+        assert [(step.call.arguments, step.output) for step in afters] == checked
         assert handed.id != old.id
 
         await generate(
@@ -2709,7 +2897,7 @@ async def test_initial_history_id_cannot_be_reissued_for_a_new_call(
 
     afters = [step for step in seen if isinstance(step, AfterToolCall)]
     assert [(step.call.arguments, step.output) for step in afters] == [
-        (old.arguments, old_output),
+        *checked,
         (new.arguments, new_output),
     ]
 

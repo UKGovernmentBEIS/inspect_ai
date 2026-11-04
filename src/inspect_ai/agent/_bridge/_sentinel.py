@@ -10,6 +10,7 @@ from typing import (
     Any,
     Awaitable,
     Callable,
+    Iterator,
     Literal,
     NamedTuple,
     Sequence,
@@ -178,6 +179,12 @@ class _ResultChecks:
     as delivered, is recorded as checked under the call's token; other content
     the scaffold reports for the call is checked like a scaffold-run call's.
 
+    The results in the state the bridge starts with were in the agent's
+    conversation before the bridge ran, and are not checked again, as a native
+    agent handed a conversation does not check its results again
+    (`inherit`). Each is recorded under its conservative key, so a scaffold
+    that reports one changed reports a different result, which is checked.
+
     Held by its bridge, since a failure's traceback references the bridge.
     """
 
@@ -275,35 +282,25 @@ class _ResultChecks:
                 return True
         return False
 
+    def inherit(self, input: Sequence[ChatMessage]) -> None:
+        for _, message, found in _answers(input):
+            self.checked.add(_unissued(message, found)[1])
+
     def claim(self, input: list[ChatMessage]) -> _Claimed:
         claimed = _Claimed([], [])
         keys: set[str] = set()
-        calls: dict[str, _Call] = {}
-        unanswered: dict[str, list[_Call]] = {}
-        for index, message in enumerate(input):
-            if isinstance(message, ChatMessageAssistant):
-                unanswered = {}
-                for call in message.tool_calls or []:
-                    calls[call.id] = _Call(call, message.text, index)
-                    unanswered.setdefault(call.id, []).append(calls[call.id])
-            elif isinstance(message, ChatMessageTool):
-                result_id = message.tool_call_id or ""
-                found = (
-                    unanswered[result_id].pop(0)
-                    if unanswered.get(result_id)
-                    else calls.get(result_id)
-                )
-                result = self._result(input, index, message, found)
-                key = result.keys[0]
-                if key in keys or key in self.checked:
-                    continue
-                if key in self.failed:
-                    raise self.failed[key]
-                if key in self.running:
-                    claimed.waiting.append(self.running[key])
-                    continue
-                keys.add(key)
-                claimed.owned.append(result)
+        for index, message, found in _answers(input):
+            result = self._result(input, index, message, found)
+            key = result.keys[0]
+            if key in keys or key in self.checked:
+                continue
+            if key in self.failed:
+                raise self.failed[key]
+            if key in self.running:
+                claimed.waiting.append(self.running[key])
+                continue
+            keys.add(key)
+            claimed.owned.append(result)
         for result in claimed.owned:
             event = anyio.Event()
             for key in result.keys:
@@ -318,8 +315,8 @@ class _ResultChecks:
         found: _Call | None,
     ) -> _Result:
         identity = self.identities.get(message.tool_call_id or "")
-        content = _content_key(message)
         if identity is not None:
+            content = _content_key(message)
             token = message.tool_call_id or ""
             keys = [
                 mm3_hash(f"token:{token}:{content}"),
@@ -336,17 +333,8 @@ class _ResultChecks:
                 )
             )
         else:
-            call = (
-                found.call
-                if found is not None
-                else ToolCall(
-                    id=message.tool_call_id or "",
-                    function=message.function or "",
-                    arguments={},
-                )
-            )
-            orphan = None if found is not None else message.function or ""
-            keys = [mm3_hash(f"call:{_call_key(call, orphan)}:{content}")]
+            call, key = _unissued(message, found)
+            keys = [key]
         # the history ends with the call's assistant message, as on the native
         # path; a result answering no call in the request has none
         history = input[: found.position + 1 if found is not None else index]
@@ -413,6 +401,43 @@ class _ResultChecks:
             event.set()
 
 
+def _answers(
+    input: Sequence[ChatMessage],
+) -> Iterator[tuple[int, ChatMessageTool, _Call | None]]:
+    """Each result in a request, with its position and the call it answers in the request, if any."""
+    calls: dict[str, _Call] = {}
+    unanswered: dict[str, list[_Call]] = {}
+    for index, message in enumerate(input):
+        if isinstance(message, ChatMessageAssistant):
+            unanswered = {}
+            for call in message.tool_calls or []:
+                calls[call.id] = _Call(call, message.text, index)
+                unanswered.setdefault(call.id, []).append(calls[call.id])
+        elif isinstance(message, ChatMessageTool):
+            result_id = message.tool_call_id or ""
+            found = (
+                unanswered[result_id].pop(0)
+                if unanswered.get(result_id)
+                else calls.get(result_id)
+            )
+            yield index, message, found
+
+
+def _unissued(message: ChatMessageTool, found: _Call | None) -> tuple[ToolCall, str]:
+    """A result under an id the bridge never handed out: the call it answers, and its conservative key."""
+    call = (
+        found.call
+        if found is not None
+        else ToolCall(
+            id=message.tool_call_id or "",
+            function=message.function or "",
+            arguments={},
+        )
+    )
+    orphan = None if found is not None else message.function or ""
+    return call, mm3_hash(f"call:{_call_key(call, orphan)}:{_content_key(message)}")
+
+
 def _call_key(call: ToolCall, orphan: str | None = None) -> str:
     """A call's conservative identity: its function and arguments.
 
@@ -477,6 +502,8 @@ def _content_key(result: ChatMessageTool) -> str:
 def _result_checks(bridge: AgentBridge) -> _ResultChecks:
     if bridge._sentinel_results is None:
         bridge._sentinel_results = _ResultChecks()
+        # the state the bridge started with
+        bridge._sentinel_results.inherit(bridge._compaction_prefix)
     return bridge._sentinel_results
 
 

@@ -4976,15 +4976,10 @@ def test_native_calls_handed_to_a_bridge_keep_their_own_checks(
     sample = logged_sample(log)
     begins = {e.id: e for e in sample.events if isinstance(e, SpanBeginEvent)}
     native_ids = set(handed.native_answers)
-    # the bridge re-checked the results it was handed under their native ids
-    rechecked = {
-        flow: ["native_add"],
-        "handoff": ["native_add", "native_transfer"],
-        "two_bridges": ["native_add", "native_add", "bridge_echo"],
-    }.get(flow, ["native_add"])
-    assert sorted(person.asked) == sorted(
-        [*native_ids, *handed.bridge_calls, *rechecked]
-    )
+    # the person is asked once about each result: a bridge does not check the
+    # results it was handed (the handoff's transfer, before the native call's
+    # own check; an earlier bridge's) again
+    assert sorted(person.asked) == sorted([*native_ids, *handed.bridge_calls])
     # each scaffold call is checked in a bridge check's span
     assert {
         begins[e.span_id].name
@@ -4994,12 +4989,8 @@ def test_native_calls_handed_to_a_bridge_keep_their_own_checks(
         and e.step_id in handed.bridge_calls
     } == {"sentinel_bridge"}
 
-    # a native step is one with the model call that made it; the bridge's
-    # check of a result it was handed has none
     replay = assert_replay_skips_bridge_steps(
-        log,
-        seen,
-        lambda step: step.call.id in native_ids and step.input is not None,
+        log, seen, lambda step: step.call.id in native_ids
     )
     rebuilt = [
         (step.stage, step.id)
@@ -5019,4 +5010,4 @@ def test_native_calls_handed_to_a_bridge_keep_their_own_checks(
                     reason=person.answer(step.id, handed.native_answers[step.id]),
                 )
             }
-    assert set(bridge_warning_ids(caplog)) == {*handed.bridge_calls, *rechecked}
+    assert bridge_warning_ids(caplog) == handed.bridge_calls
