@@ -4509,6 +4509,79 @@ async def test_request_filter_generation_uses_its_own_span() -> None:
     assert event.span_id == generation.span_id
 
 
+@pytest.mark.parametrize("where", ["request", "response"])
+async def test_filter_generation_follows_checkpoint_rotated_before_return(
+    where: str,
+) -> None:
+    """An ambient proposal follows a checkpoint rotated while its filter waits."""
+    bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)
+    checkpoints = SpanRotationScope(type="checkpoint")
+    generated, resumed = anyio.Event(), anyio.Event()
+
+    async def pause_after_generation() -> None:
+        generated.set()
+        await resumed.wait()
+
+    async def request_filter(
+        model: Model,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        result = await model.generate(
+            input=input, tools=tools, tool_choice=tool_choice, config=config
+        )
+        await pause_after_generation()
+        return result
+
+    async def response_filter(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput:
+        result = await model.generate(
+            input=generate_input.input,
+            tools=generate_input.tools,
+            tool_choice=generate_input.tool_choice,
+            config=generate_input.config,
+        )
+        await pause_after_generation()
+        return result
+
+    async def rotate() -> None:
+        await generated.wait()
+        await checkpoints.end_span()
+        await checkpoints.begin_span("checkpoint 2")
+        resumed.set()
+
+    if where == "request":
+        bridge.filter = request_filter
+    else:
+        bridge.response_filter = response_filter
+    call = ToolCall(id="filtered", function="read_file", arguments={"path": "a"})
+    outputs = [tool_calls_output(call)]
+    if where == "response":
+        outputs.insert(0, ModelOutput.from_content("mockllm/model", "First."))
+
+    with recorded_transcript() as recorded:
+        await checkpoints.open("checkpoint 1")
+        first = current_span_id()
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(rotate)
+            await run_bridge(outputs, bridge=bridge, tools=declare("read_file"))
+        second = current_span_id()
+        proposal = bridge._tool_execution_grants[0].proposal
+        await call_host_tool(bridge)("host", "read_file", {"path": "a"})
+        await checkpoints.close()
+
+    generations = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    [event] = recorded.tool_events
+    assert first != second
+    assert generations[-1].span_id == first
+    assert event.call_message_id == generations[-1].output.message.id
+    assert proposal.span_id is None
+    assert event.span_id == second
+
+
 def sandbox_bridge_with_sink(tool: AsyncMock, sink: StampingSink) -> SandboxAgentBridge:
     bridge = sandbox_bridge_with_tool(tool, None)
     bridge.model_event_sink = sink

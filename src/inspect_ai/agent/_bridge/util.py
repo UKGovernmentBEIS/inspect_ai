@@ -46,6 +46,7 @@ from inspect_ai.agent._bridge._approval import (
 )
 from inspect_ai.agent._bridge._errors import BridgePolicyError, ResponseFilterError
 from inspect_ai.agent._bridge.types import AgentBridge, message_json_hash
+from inspect_ai.event._event import Event
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.log._transcript import transcript
 from inspect_ai.model._agent_message import validate_agent_message
@@ -95,7 +96,7 @@ from inspect_ai.tool._tools._web_search._web_search import (
 )
 from inspect_ai.util._json import JSONSchema
 from inspect_ai.util._limit import LimitExceededError
-from inspect_ai.util._span import current_span_id
+from inspect_ai.util._span import current_span_follows_rotation, current_span_id
 
 if TYPE_CHECKING:
     from inspect_ai.event._model import ModelEvent
@@ -647,9 +648,32 @@ def _selected_generated_message_id(
     return matches[0] if len(matches) == 1 else None
 
 
-def _recorded_generation_span_id(event: ModelEvent) -> str | None:
-    """Keep a generation's distinct span; follow the current checkpoint otherwise."""
-    return event.span_id if event.span_id != current_span_id() else None
+@contextmanager
+def _capture_filter_generation_spans() -> Iterator[dict[str, str | None]]:
+    """Capture filter generations' span placement when their events are emitted."""
+    start_span_id = current_span_id()
+    spans: dict[str, str | None] = {}
+
+    def observe(event: Event) -> None:
+        if not isinstance(event, ModelEvent) or event.uuid is None:
+            return
+        if event.uuid in spans:
+            return
+        current = current_span_id()
+        if event.span_id != current:
+            spans[event.uuid] = event.span_id
+        elif current_span_follows_rotation():
+            spans[event.uuid] = None
+        elif event.span_id != start_span_id:
+            spans[event.uuid] = event.span_id
+        else:
+            spans[event.uuid] = None
+
+    unsubscribe = transcript()._subscribe(observe)
+    try:
+        yield spans
+    finally:
+        unsubscribe()
 
 
 def _check_provider_owned_content(original: ModelOutput, filtered: ModelOutput) -> None:
@@ -1051,6 +1075,7 @@ async def _bridge_generate_impl(
             output: ModelOutput | None = None
             generated_output: ModelOutput | None = None
             generated_event: ModelEvent | None = None
+            filter_spans: dict[str, str | None] = {}
             if bridge.filter:
                 history = transcript().history
                 events_before_filter = history.event_count
@@ -1060,7 +1085,10 @@ async def _bridge_generate_impl(
                 # function signature and drops options.
                 tool_info = get_tools_info(tools)
                 # under the bridge's approval policies, as a filter may generate
-                with bridge_approval_scope(bridge.approval):
+                with (
+                    _capture_filter_generation_spans() as filter_spans,
+                    bridge_approval_scope(bridge.approval),
+                ):
                     try:
                         if _is_model_filter(bridge.filter):
                             result = await bridge.filter(
@@ -1143,7 +1171,7 @@ async def _bridge_generate_impl(
 
         generated = generated_output
         if generated_event is not None:
-            proposing_span_id = _recorded_generation_span_id(generated_event)
+            proposing_span_id = filter_spans.get(generated_event.uuid or "")
         else:
             proposing_span_id = sink.span_id if sink is not None else None
 
@@ -1159,7 +1187,10 @@ async def _bridge_generate_impl(
             history = transcript().history
             events_before_response_filter = history.event_count
             # under the bridge's approval policies, as a filter may generate
-            with bridge_approval_scope(bridge.approval):
+            with (
+                _capture_filter_generation_spans() as response_spans,
+                bridge_approval_scope(bridge.approval),
+            ):
                 output = await _apply_response_filter(
                     bridge.response_filter,
                     model,
@@ -1183,7 +1214,7 @@ async def _bridge_generate_impl(
             )
             if response_event is not None:
                 generated = response_event.output
-                proposing_span_id = _recorded_generation_span_id(response_event)
+                proposing_span_id = response_spans.get(response_event.uuid or "")
 
         # Check for refusal and retry if needed
         if not output.empty and output.stop_reason == "content_filter":
