@@ -5,7 +5,7 @@ from typing import Any, Iterator, Mapping, Type
 
 import jsonpath_ng
 import jsonref  # type: ignore
-from jsonpath_ng import Fields, Index, JSONPath, Slice, Where  # type: ignore
+from jsonpath_ng import Descendants, Fields, Index, JSONPath, Slice, Where  # type: ignore
 from jsonpath_ng.ext.filter import Filter  # type: ignore
 from pydantic import BaseModel
 
@@ -152,6 +152,7 @@ UNSUPPORTED: tuple[type[JSONPath], ...] = (
     Filter,  # [?foo > 0]
     Where,  # .foo[(@.bar < 42)]
     Slice,  # [1:5]; before jsonpath-ng 1.16.0 "[*]" is also Slice()
+    Descendants,  # foo..bar
 )
 
 
@@ -163,6 +164,8 @@ def find_unsupported(node: JSONPath) -> list[type[JSONPath]]:
         n = stack.pop()
         if isinstance(n, UNSUPPORTED):
             bad.append(type(n))
+        elif isinstance(n, Fields) and len(n.fields) > 1:  # [foo,bar]
+            bad.append(Fields)
         # Drill into children (jsonpath-ng uses .left / .right / .child attributes)
         for attr in ("left", "right", "child", "expression"):
             stack.extend(

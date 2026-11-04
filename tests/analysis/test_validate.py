@@ -1,7 +1,7 @@
 from typing import Any
 
 import pytest
-from jsonpath_ng import Child, Fields, JSONPath
+from jsonpath_ng import Child, Descendants, Fields, JSONPath
 from jsonpath_ng.ext import parse  # type: ignore
 
 from inspect_ai.analysis._dataframe import validate
@@ -85,29 +85,37 @@ class _StandInWildcard(JSONPath):
     """Stand-in for jsonpath-ng >= 1.16.0's `Wildcard` node."""
 
 
+_SCORES = Child(Fields("results"), Fields("scores"))
+
+
 @pytest.mark.parametrize(
-    "prefix,suffix,valid",
+    "expr,valid",
     [
-        (["results", "scores"], ["scorer"], True),  # results.scores[*].scorer
-        (["eval", "packages"], [], True),  # eval.packages.*
-        (["eval", "solver"], [], False),  # eval.solver.*
+        (Child(Child(_SCORES, _StandInWildcard()), Fields("scorer")), True),
+        (Child(Child(Fields("eval"), Fields("packages")), _StandInWildcard()), True),
+        (Child(Child(Fields("eval"), Fields("solver")), _StandInWildcard()), False),
+        (Child(Descendants(_SCORES, _StandInWildcard()), Fields("value")), True),
+        (Child(Child(_SCORES, _StandInWildcard()), Fields("scorer", "name")), True),
+    ],
+    ids=[
+        "results.scores[*].scorer",
+        "eval.packages.*",
+        "eval.solver.*",
+        "results.scores..[*].value",
+        "results.scores[*][scorer,name]",
     ],
 )
 def test_wildcard_node(
     monkeypatch: pytest.MonkeyPatch,
     expanded_schema: dict[str, Any],
-    prefix: list[str],
-    suffix: list[str],
+    expr: JSONPath,
     valid: bool,
 ) -> None:
-    """A Wildcard node matches every child, as `[*]` and `*` do."""
+    """A Wildcard node matches every child, as `[*]` and `*` do.
+
+    Paths with `..` or `[foo,bar]` are not validated, as before the node existed.
+    """
     monkeypatch.setattr(validate, "WILDCARD", (_StandInWildcard,))
-    expr: JSONPath = Fields(prefix[0])
-    for name in prefix[1:]:
-        expr = Child(expr, Fields(name))
-    expr = Child(expr, _StandInWildcard())
-    for name in suffix:
-        expr = Child(expr, Fields(name))
     assert validate.jsonpath_in_schema(expr, expanded_schema) is valid
 
 
