@@ -1789,7 +1789,7 @@ def test_a_person_s_approval_is_a_human_decision_without_a_sentinel(
         sample.events,
         [],
         sample_uuid=sample.uuid or "",
-        eval_info=EvalInfo(inspect_ai_version=None, sentinel=False),
+        eval_info=EvalInfo.from_eval(log.eval),
         human_approvers=("human",),
     )
     first, second = [s for s in replay if s.stage == "tool_call"]
@@ -2655,7 +2655,7 @@ def test_a_person_s_approval_decision_reaches_later_steps(
         sample.events,
         [],
         sample_uuid=sample.uuid or "",
-        eval_info=EvalInfo(inspect_ai_version=None, sentinel=False),
+        eval_info=EvalInfo.from_eval(log.eval),
         human_approvers=(approver_name,),
     )
     last = [s for s in replay if s.stage == "model_input"][-1]
@@ -3237,9 +3237,16 @@ def _historical_approval_events(
 
 
 @pytest.mark.parametrize("inputs", ["expanded", "pooled"])
-@pytest.mark.parametrize("legacy_arguments", [True, False])
-def test_a_0_3_99_approved_change_keeps_executed_arguments(
-    inputs: str, legacy_arguments: bool
+@pytest.mark.parametrize(
+    "version,legacy_arguments,expected_x",
+    [("0.3.99", True, 1), ("0.3.277", False, 7)],
+)
+def test_approval_tool_stages_use_recorded_arguments(
+    inputs: str,
+    version: str,
+    legacy_arguments: bool,
+    expected_x: int,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     messages, events, pool = _historical_approval_events(
         inputs, "modify", legacy_arguments
@@ -3249,20 +3256,48 @@ def test_a_0_3_99_approved_change_keeps_executed_arguments(
         events,
         pool,
         sample_uuid="sample",
-        eval_info=EvalInfo("0.3.99" if legacy_arguments else "0.3.200", False),
+        eval_info=EvalInfo(version, False),
         human_approvers=("human",),
     )
     assert [
         step.step.call.arguments
         for step in replay
         if isinstance(step.step, BeforeToolCall | AfterToolCall)
-    ] == [{"x": 7, "y": 1}, {"x": 7, "y": 1}]
+    ] == [{"x": expected_x, "y": 1}, {"x": expected_x, "y": 1}]
+    later = next(
+        step for step in replay if step.stage == "model_input" and step.id == "m2"
+    )
+    assert [
+        decision.decided.report.action for decision in later.step.human_decisions or []
+    ] == (["modify"] if version == "0.3.277" else [])
+    warnings = [
+        record.message
+        for record in caplog.records
+        if "Skipped human decisions from ApprovalEvents" in record.message
+    ]
+    assert len(warnings) == (0 if version == "0.3.277" else 1)
 
 
 @pytest.mark.parametrize("inputs", ["expanded", "pooled"])
 @pytest.mark.parametrize("decision", ["reject", "terminate"])
-def test_a_0_3_99_decision_without_tool_event_reaches_later_step(
-    inputs: str, decision: str
+@pytest.mark.parametrize(
+    "version,reconstruct",
+    [
+        ("0.3.99", False),
+        ("0.3.276", False),
+        ("0.3.277rc1", False),
+        (None, False),
+        ("unknown", False),
+        ("0.3.277", True),
+        ("0.3.300", True),
+    ],
+)
+def test_approval_decision_without_tool_event_respects_log_version(
+    inputs: str,
+    decision: str,
+    version: str | None,
+    reconstruct: bool,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     messages, events, pool = _historical_approval_events(inputs, decision, True)
     assert not any(isinstance(event, ToolEvent) for event in events)
@@ -3271,7 +3306,7 @@ def test_a_0_3_99_decision_without_tool_event_reaches_later_step(
         events,
         pool,
         sample_uuid="sample",
-        eval_info=EvalInfo("0.3.99", False),
+        eval_info=EvalInfo(version, False),
         human_approvers=("human",),
     )
     assert not [step for step in replay if step.stage.startswith("tool")]
@@ -3279,9 +3314,17 @@ def test_a_0_3_99_decision_without_tool_event_reaches_later_step(
         step for step in replay if step.stage == "model_input" and step.id == "m2"
     )
     decisions = list(later.step.human_decisions or [])
-    assert len(decisions) == 1
-    assert decisions[0].step_id == "c1"
-    assert decisions[0].decided.report.action == decision
+    assert [recorded.decided.report.action for recorded in decisions] == (
+        [decision] if reconstruct else []
+    )
+    if reconstruct:
+        assert decisions[0].step_id == "c1"
+    warnings = [
+        record.message
+        for record in caplog.records
+        if "Skipped human decisions from ApprovalEvents" in record.message
+    ]
+    assert len(warnings) == (0 if reconstruct else 1)
 
 
 @pytest.mark.parametrize("inputs", ["expanded", "pooled"])
@@ -3289,7 +3332,7 @@ def test_a_0_3_99_decision_without_tool_event_reaches_later_step(
     "approval,sentinel_x,event_x,before_x,after_x",
     [
         (False, None, 1, 1, 1),
-        (True, None, 1, 7, 7),
+        (True, None, 7, 7, 7),
         (False, 9, 9, 1, 9),
         (True, 9, 9, 7, 9),
         (True, 1, 1, 7, 1),
@@ -3342,7 +3385,7 @@ def test_recorded_sentinel_change_controls_executed_arguments(
         events,
         pool,
         sample_uuid="sample",
-        eval_info=EvalInfo("0.3.99", sentinel_x is not None),
+        eval_info=EvalInfo("0.3.277", sentinel_x is not None),
         human_approvers=("human",),
     )
     assert [
@@ -3410,7 +3453,7 @@ def test_a_prior_decision_survives_a_later_execution_with_reused_id(
         events,
         pool,
         sample_uuid="sample",
-        eval_info=EvalInfo("0.3.99", False),
+        eval_info=EvalInfo("0.3.277", False),
         human_approvers=("human",),
     )
     intervening = next(

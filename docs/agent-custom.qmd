@@ -430,6 +430,8 @@ Each `ModelEvent` records where the call was made in its `origin` field. During 
 
 When replaying an older log without `origin`, Inspect infers turns from the event span tree. A stored timeline passed to sentinel replay can group the resulting steps into conversations, but its branches and spans do not change which calls are inferred as turns. Recorded sentinel checks and human decisions are used only where the step id pairs with a model call's exact id. Checks without a matching call are skipped with a warning. Inference may differ from the turns observed by a sentinel that ran before origins were recorded; reproducing that sentinel's live steps is outside the replay contract.
 
+For a run without a sentinel, replay reconstructs human decisions from approval events only when the log records Inspect 0.3.277 or later. Older logs and logs with no recorded version omit those decisions and emit one warning because earlier Inspect versions logged modified approvals incorrectly. Turn inference and tool steps remain available from supported logs.
+
 Inspect logs have `origin` on every model call or on none. For a mixed-origin transcript, replay uses recorded classifications where present and infers calls without origins. It does not promise continuity across the mixed sequence.
 
 If two calls continue the same turn and no later call resolves the fork, replay leaves both calls to the existing prompt rules. The sample's final messages do not select a fork head.
