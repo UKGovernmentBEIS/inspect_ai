@@ -445,9 +445,10 @@ def _content_key(result: ChatMessageTool) -> str:
     Whitespace and the order of text and other parts are meaningful (in code,
     paths and instructions), so any difference is a different result, checked
     again; so is the function it is reported under, which a provider can send
-    the model (Google's `FunctionResponse.name`). Fields that never reach a
-    model (`internal`) are left out; a string and a single text part are the
-    same content.
+    the model (Google's `FunctionResponse.name`); so is a text part's
+    `internal`, which a provider can send in its text (Anthropic). Other parts'
+    `internal` never reaches a model and is left out; a string and a single
+    text part are the same content.
     """
     content = (
         [ContentText(text=result.content)]
@@ -455,7 +456,11 @@ def _content_key(result: ChatMessageTool) -> str:
         else result.content
     )
     parts = [
-        part.model_dump(exclude={"internal"}, exclude_none=True) for part in content
+        part.model_dump(
+            exclude=None if isinstance(part, ContentText) else {"internal"},
+            exclude_none=True,
+        )
+        for part in content
     ]
     error = (
         [result.error.type, result.error.message] if result.error is not None else None

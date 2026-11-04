@@ -2064,7 +2064,7 @@ PATH_SCHEMA: dict[str, Any] = {
 
 
 async def dialect_round_trip(
-    dialect: str, bridge: AgentBridge, results: Sequence[str] = ("x",)
+    dialect: str, bridge: AgentBridge, results: Sequence[Any] = ("x",)
 ) -> None:
     """A scaffold sending one request, then its response and the call's result.
 
@@ -2347,6 +2347,46 @@ async def test_a_result_changed_only_in_whitespace_is_checked_again(
             await dialect_round_trip(dialect, bridge, results=["s e c r e t", "secret"])
 
     # the first result went on to the model, the second did not
+    assert len(model.inputs) == 2
+
+
+@protocol
+def terminate_on_secret_internal() -> Protocol:
+    async def after(
+        context: Context, step: AfterToolCall, escalations: Escalations
+    ) -> Decision | None:
+        content = step.result.content
+        if not isinstance(content, str) and any(
+            isinstance(part, ContentText) and part.internal == "secret"
+            for part in content
+        ):
+            return Decision.terminate("blocked internal")
+        return None
+
+    return after
+
+
+@pytest.mark.parametrize("dialect", ["anthropic", "completions"])
+async def test_a_result_changed_only_in_its_text_internal_is_checked_again(
+    dialect: str,
+) -> None:
+    # the scaffold's tagged text is parsed into a text part's `internal`, which
+    # the Anthropic provider sends back to the model in the text
+    from inspect_ai.model._internal import content_internal_tag
+
+    model = Scripted(calls_output(READ), calls_output(), calls_output())
+    bridge = AgentBridge(
+        AgentState(messages=[]), model_aliases={"inspect": model.model}
+    )
+    results = [
+        [{"type": "text", "text": f"x\n{content_internal_tag(internal)}"}]
+        for internal in ("safe", "secret")
+    ]
+
+    with active(terminate_on_secret_internal()):
+        with pytest.raises(TerminateSampleError, match="blocked internal"):
+            await dialect_round_trip(dialect, bridge, results=results)
+
     assert len(model.inputs) == 2
 
 
