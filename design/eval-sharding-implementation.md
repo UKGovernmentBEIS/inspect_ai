@@ -2348,9 +2348,9 @@ Ransom, 2026-09-24).
    `_write.py` matches the task and computes the results with it), the
    `eval_retry` refusal for id- and count-selected merged logs (`_eval/eval.py`), exports and
    the reference section, `merged_log_task_id` in `_util/log_layout.py`
-   (unless ctl's step 4 added it first), docs (a "Sharding" section in
-   `docs/parallelism.qmd`
-   covering the layout, the launcher's job (disjoint `--sample-id` or
+   (unless ctl's step 4 added it first), docs (a "Sharding" page,
+   `docs/sharding.qmd`, listed under Running after Parallelism, with a
+   pointer from `docs/parallelism.qmd`, covering the layout, the launcher's job (disjoint `--sample-id` or
    `limit` selections, fixed per `<k>/`; no `SampleSource` tasks) and the harness notes from the
    parent, merging from Python with the `Task` the shards ran (a shell
    launcher runs a short Python step), removing shards by hand, and the
@@ -2364,7 +2364,8 @@ Ransom, 2026-09-24).
    `_util/log_layout.py`, `tests/log/test_log_filename.py`,
    `_control/log_dir/snapshot.py` (ctl keys a shard set with no readable
    merged log by `merged_log_task_id`), `tests/_control/test_log_dir.py`,
-   `docs/reference/inspect_ai.log.qmd`, `docs/parallelism.qmd`,
+   `docs/reference/inspect_ai.log.qmd`, `docs/sharding.qmd`,
+   `docs/parallelism.qmd`, `docs/running.qmd`, `docs/_quarto.yml`,
    `tests/log/test_shards.py`.
    Uses the landed `ZipEntry` CRC and `verify_crc=True` reads
    ("Consistent reads").

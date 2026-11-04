@@ -90,65 +90,34 @@ def merge_eval_log_shards(
 ) -> ShardMergeResult:
     """Merge the shard logs of a sharded run into one eval log.
 
-    The shards of the log `<dir>/<name>.eval` are the `.eval` files in
-    `<dir>/<name>.shards/<k>/`, one directory per worker. The current attempt
-    of each shard is the newest file in its directory. The merged log holds
-    exactly the samples each current attempt holds, and records which
-    attempts it holds (`eval.shards`), so a later call reads only the shards
-    that changed and writes nothing when none did.
+    Writes `<dir>/<name>.eval` from the newest `.eval` log in each
+    `<dir>/<name>.shards/<k>/`, with results and epoch reductions computed
+    over all the merged samples. A later call reads only the shards that
+    changed and writes nothing when none did.
 
-    Shards must be one task run: the same task, arguments, model, scorers,
-    metrics, dataset size, epochs and log format, each started with its own
-    `sample_id` or `limit` selection. Shard selections must not overlap and
-    must not change between attempts in one shard directory.
+    Pass the task the shards ran: its scorers, metrics and epoch reducer
+    compute the results, in the caller's model context. The merge refuses a
+    task whose name, scorer names, metric names, epochs or epoch reducer
+    names differ from what the shards recorded, but does not compare their
+    options.
 
-    The merged log's results and epoch reductions are computed over all its
-    samples with `task`: its scorers, metrics and epoch reducer, as a native
-    run computes them. Pass the task the shards ran. The merge refuses a task
-    whose name, scorer names, metric names, epochs or epoch reducer names
-    differ from what the shards recorded, but does not compare options.
-    Metrics and epoch reducers run in the caller's model context: the merge
-    builds no model from what the shards record. Shards run with
-    `score=False` merge to a log with no metrics.
-
-    The merge does not delete the shards. Once you have checked the merged
-    log, delete `<dir>/<name>.shards/` yourself. Deleting one shard directory
-    by hand makes later merges refuse until the rest of the shards directory
-    is deleted or the files are restored; deleting the whole shards directory
-    leaves the merged log as it is. Header edits to the merged log (tags,
-    metadata) are kept by later merges.
-
-    The merged log and its shards must be local or on S3. A local merged log
-    is guarded by a lock file beside it and an S3 one by a conditional
-    upload, so a merge that overlaps another is refused.
-
-    A merge that runs while a worker is writing its shard can fail with a
-    read error (for example a CRC or JSON error). Nothing is written; run
-    the merge again, or merge after the workers have exited.
-
-    Workers whose task has early stopping can finish with `success` but
-    leave out the samples or epochs they stopped. The merge needs a record
-    for every selected sample and epoch, so such a set is incomplete, and
-    the merged log has no `early_stopping` summary. Re-run those shards with
-    early stopping turned off to merge the full selection.
+    See [Sharding](https://inspect.aisi.org.uk/sharding.html) for the shard
+    layout, when a set is complete, selections, scoring, merging shards run
+    with `--epochs`, removing shards and limitations.
 
     Args:
         log: The merged log `<dir>/<name>.eval`, or its shards directory
             `<dir>/<name>.shards`, as a local path, `file://` URI or `s3://`
             URL. Other storage is refused, as is a `<name>-recovered.eval`
             path. A local path does not expand `~`.
-        task: The task the shards ran, built as it was passed to `eval()`.
-            For shards run with `epochs=N` or `--epochs N`, pass
-            `task_with(task, epochs=Epochs(N, task.epochs_reducer))`,
-            which keeps the task's reducer as the workers did, or the
-            reducer the workers were given.
+        task: The task the shards ran, built as it was passed to `eval()`,
+            with any `epochs` override the workers were given.
         sample_ids: Intended selection as sample ids. Replaces the selection
             recorded in the merged log; once the shards are deleted, it must
             equal the recorded one.
         sample_count: Intended selection as a number of samples (exclusive
             with `sample_ids`). Without either, the recorded selection is
-            used, and on a first merge the set is complete when the shards
-            hold the whole dataset.
+            used, or on a first merge the whole dataset.
         allow_incomplete: Write a `started` or `error` merged log when the
             set is incomplete, rather than raise `ShardSetIncomplete`.
 
