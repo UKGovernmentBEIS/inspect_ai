@@ -2580,6 +2580,94 @@ async def test_equal_calls_in_equal_looking_conversations_are_separate_execution
     ]
 
 
+@pytest.mark.parametrize("sandbox", [False, True])
+@pytest.mark.parametrize("same_output", [False, True])
+async def test_initial_history_id_cannot_be_reissued_for_a_new_call(
+    sandbox: bool, same_output: bool
+) -> None:
+    seen: Steps = []
+    function = "mcp__host__read_file" if sandbox else "read_file"
+    old = ToolCall(id="read_1", function=function, arguments={"path": "old.txt"})
+    new = replace(old, arguments={"path": "new.txt"})
+    old_output = "contents" if same_output else "old contents"
+    new_output = "contents" if same_output else "new contents"
+    history: list[ChatMessage] = [
+        ChatMessageUser(content=TASK),
+        ChatMessageAssistant(content="Reading old file.", tool_calls=[old]),
+        ChatMessageTool(content=old_output, tool_call_id=old.id, function=function),
+    ]
+    model = Scripted(calls_output(new), calls_output())
+    bridge = sandbox_bridge() if sandbox else in_process_bridge(history)
+    tools = declare_read_file() if sandbox else []
+
+    with active([bridge_recording(seen)]):
+        proposed = await generate(bridge, model, history, tools)
+        [handed] = proposed.message.tool_calls or []
+
+        await generate(bridge, model, [*history, proposed.message], tools)
+        afters = [step for step in seen if isinstance(step, AfterToolCall)]
+        assert [(step.call.arguments, step.output) for step in afters] == [
+            (old.arguments, old_output)
+        ]
+        assert handed.id != old.id
+
+        await generate(
+            bridge,
+            model,
+            [
+                *history,
+                proposed.message,
+                ChatMessageTool(
+                    content=new_output, tool_call_id=handed.id, function=function
+                ),
+            ],
+            tools,
+        )
+
+    afters = [step for step in seen if isinstance(step, AfterToolCall)]
+    assert [(step.call.arguments, step.output) for step in afters] == [
+        (old.arguments, old_output),
+        (new.arguments, new_output),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("old_id", "new_id"),
+    [("123", "read_file__123"), ("read_file__123", "123")],
+)
+async def test_initial_history_prefix_pair_cannot_be_issued(
+    old_id: str, new_id: str
+) -> None:
+    old = replace(READ, id=old_id)
+    new = replace(READ, id=new_id, arguments={"path": "new.txt"})
+    history: list[ChatMessage] = [
+        ChatMessageUser(content=TASK),
+        ChatMessageAssistant(content="Old call.", tool_calls=[old]),
+        ChatMessageTool(content="old", tool_call_id=old_id, function="read_file"),
+    ]
+    bridge = in_process_bridge(history)
+
+    with active([bridge_recording([])]):
+        output = await generate(bridge, Scripted(calls_output(new)), history)
+
+    [handed] = output.message.tool_calls or []
+    assert handed.id not in {old_id, new_id}
+
+
+async def test_result_only_id_in_initial_history_cannot_be_issued() -> None:
+    history: list[ChatMessage] = [
+        ChatMessageUser(content=TASK),
+        ChatMessageTool(content="old", tool_call_id=READ.id, function="read_file"),
+    ]
+    bridge = in_process_bridge(history)
+
+    with active([bridge_recording([])]):
+        output = await generate(bridge, Scripted(calls_output(READ)), history)
+
+    [handed] = output.message.tool_calls or []
+    assert handed.id != READ.id
+
+
 async def test_calls_sharing_a_model_id_are_handed_over_under_their_own_tokens() -> (
     None
 ):

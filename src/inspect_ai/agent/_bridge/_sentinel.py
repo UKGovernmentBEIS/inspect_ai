@@ -150,11 +150,12 @@ class _ResultChecks:
     """The `tool_result` checks for the results the scaffold reports.
 
     Each call handed to the scaffold gets a token, unique for the bridge, as
-    its id (`sentinel_tokens`): the model's own id when the bridge has not
-    handed that id out before, and a new one otherwise. A result reported
-    under a token is the result of that execution, however the scaffold has
-    rewritten, compacted or reformatted the rest of its conversation. Tokens
-    are kept for the life of the bridge, apart from the proposals (bounded), so
+    its id (`sentinel_tokens`): the model's own id when it is absent from the
+    incoming history and the bridge has not handed it out before; otherwise a
+    fresh token. A result reported under a token is the result of that execution,
+    however the scaffold has rewritten, compacted or reformatted the rest of
+    its conversation. Tokens and observed history ids are kept for the life of
+    the bridge, apart from the proposals (bounded), so
     an evicted proposal can never make an older execution match a newer one.
 
     Each execution's result is checked once: a result is identified by its
@@ -183,10 +184,21 @@ class _ResultChecks:
     def __init__(self) -> None:
         self.identities: dict[str, _Identity] = {}
         self.prefixed_tokens: set[str] = set()
+        self.reserved_ids: set[str] = set()
         self.proposals: OrderedDict[str, SentinelCheck] = OrderedDict()
         self.checked: set[str] = set()
         self.running: dict[str, anyio.Event] = {}
         self.failed: dict[str, Exception] = {}
+
+    def reserve(self, input: Sequence[ChatMessage]) -> None:
+        """Keep IDs already in the scaffold's history out of future tokens."""
+        for message in input:
+            if isinstance(message, ChatMessageAssistant):
+                self.reserved_ids.update(
+                    call.id for call in message.tool_calls or [] if call.id
+                )
+            elif isinstance(message, ChatMessageTool) and message.tool_call_id:
+                self.reserved_ids.add(message.tool_call_id)
 
     def issue(self, checks: Sequence[SentinelCheck]) -> list[SentinelCheck]:
         issued: list[SentinelCheck] = []
@@ -221,7 +233,7 @@ class _ResultChecks:
         return names
 
     def _ambiguous_token(self, token: str, names: set[str]) -> bool:
-        """Whether this token could be a CLI-prefixed echo of another issued token.
+        """Whether this token could echo another issued or historical call.
 
         The Google bridge receives both unchanged and function-prefixed echoes.
         Issuing either side of a prefix pair would make one wire id denote two
@@ -230,8 +242,19 @@ class _ResultChecks:
         return (
             token in self.identities
             or token in self.prefixed_tokens
+            or token in self.reserved_ids
             or any(f"{name}__{token}" in self.identities for name in names)
+            or any(f"{name}__{token}" in self.reserved_ids for name in names)
+            or self._echoes_reserved_id(token)
         )
+
+    def _echoes_reserved_id(self, token: str) -> bool:
+        """Whether stripping one or more wire prefixes reveals a history ID."""
+        while "__" in token:
+            token = token.partition("__")[2]
+            if token in self.reserved_ids:
+                return True
+        return False
 
     def claim(self, input: list[ChatMessage]) -> _Claimed:
         claimed = _Claimed([], [])
@@ -546,6 +569,7 @@ async def sentinel_tool_results(bridge: AgentBridge, input: list[ChatMessage]) -
     if not checks_tool_calls():
         return
     result_checks = _result_checks(bridge)
+    result_checks.reserve(input)
     while True:
         claimed = result_checks.claim(input)
         if claimed.owned:
