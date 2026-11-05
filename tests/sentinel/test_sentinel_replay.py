@@ -9,7 +9,7 @@ from dataclasses import replace
 from datetime import datetime, timezone
 from functools import partial
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, NamedTuple, cast
+from typing import TYPE_CHECKING, Any, Literal, NamedTuple, cast
 
 import anyio
 import pytest
@@ -5349,6 +5349,61 @@ def test_the_archived_0_3_99_log_is_refused(inputs: str, versioned: bool) -> Non
             eval_info=EvalInfo.from_eval(log.eval)
             if versioned
             else EvalInfo(None, False),
+        )
+
+
+@pytest.mark.parametrize("inputs", ["expanded", "pooled"])
+@pytest.mark.parametrize("action", ["append", "overwrite"])
+@pytest.mark.parametrize("approval", ["unchanged", "none"])
+def test_a_rescored_then_retried_0_3_99_sample_is_refused(
+    inputs: str, action: Literal["append", "overwrite"], approval: str
+) -> None:
+    # Ransom's review 37 B1: rescoring adds a top-level scorers span to an
+    # older sample, which a retried eval keeps under a newer header; the
+    # approval is left unchanged so only the layout refuses it
+    from inspect_ai import score
+    from inspect_ai._sentinel import _replay
+
+    @scorer(metrics=[])
+    def constant() -> Scorer:
+        async def apply(state: TaskState, target: Target) -> Score:
+            return Score(value=1)
+
+        return apply
+
+    path = Path(__file__).parent / "fixtures" / "approval_modified_0.3.99.json"
+    log = score(
+        read_eval_log(str(path), resolve_attachments="full"),
+        constant(),
+        action=action,
+        display="none",
+    )
+    [sample] = log.samples or []
+    sample = EvalSample.model_validate_json(sample.model_dump_json())
+    assert any(
+        isinstance(e, SpanBeginEvent) and e.parent_id is None and e.name == "scorers"
+        for e in sample.events
+    )
+    events: list[Event] = [
+        e.model_copy(update={"decision": "approve", "modified": None})
+        if isinstance(e, ApprovalEvent)
+        else e
+        for e in sample.events
+        if approval == "unchanged" or not isinstance(e, ApprovalEvent)
+    ]
+    pool: list[ChatMessage] = []
+    if inputs == "pooled":
+        events, pool = _replay._condensed(events, [])
+    with pytest.raises(
+        ValueError,
+        match="0.3.100 or later.*Replay this transcript from its messages instead",
+    ):
+        steps_from_events(
+            sample.messages,
+            events,
+            pool,
+            sample_uuid=sample.uuid or "sample",
+            eval_info=EvalInfo("0.3.200", False),
         )
 
 
