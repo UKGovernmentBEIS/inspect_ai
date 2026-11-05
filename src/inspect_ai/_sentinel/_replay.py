@@ -382,7 +382,8 @@ class _Proposal(NamedTuple):
 class _Proposals:
     # Concurrent agents can propose the same call id. An approval or ToolEvent
     # is owned by the latest proposal of the only conversation proposing its
-    # id, else by the latest in its own span or conversation, else by none.
+    # id, else by the latest in its own conversation, else by the latest in
+    # its own span (a stored timeline can split a span), else by none.
 
     def __init__(self) -> None:
         self._latest: dict[str, _Proposal] = {}
@@ -409,15 +410,8 @@ class _Proposals:
     ) -> _Proposal | None:
         if self._conversation.get(id) is not None:
             return self._latest[id]
-        found = [
-            proposal
-            for proposal in (
-                self._by_span.get((id, span_id)),
-                self._by_conversation.get((id, conversation)),
-            )
-            if proposal is not None
-        ]
-        return max(found, key=lambda proposal: proposal.position) if found else None
+        found = self._by_conversation.get((id, conversation))
+        return found if found is not None else self._by_span.get((id, span_id))
 
     def approval_key(
         self, id: str, owner: _Proposal | None, conversation: str

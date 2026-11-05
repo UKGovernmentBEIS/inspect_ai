@@ -1943,6 +1943,147 @@ def test_approvals_of_a_reused_call_id_replay_in_linear_work(
     assert work[-1] <= 4.2 * work[0], work
 
 
+@pytest.mark.parametrize("tool_events", ["none", "bridge", "native"])
+@pytest.mark.parametrize("case", ["shared", "distinct_ids", "separate_spans"])
+def test_a_stored_timeline_s_conversation_owns_its_approval(
+    case: str, tool_events: str
+) -> None:
+    # after Ransom's 36th review: an approval and a ToolEvent took the latest
+    # proposal of their span, though a stored timeline put it in another
+    # conversation
+    from inspect_ai._sentinel import _replay
+
+    spans = {"a": "agent", "b": "other" if case == "separate_spans" else "agent"}
+    ids = {"a": "call_0", "b": "call_1" if case == "distinct_ids" else "call_0"}
+    calls = {c: ToolCall(id=ids[c], function="lookup", arguments={}) for c in "ab"}
+    tasks = {c: ChatMessageUser(content=f"Task {c}.") for c in "ab"}
+    first = {
+        c: linked_call(
+            f"{c}1", spans[c], [tasks[c]], f"Look up {c}.", "agent", calls[c]
+        )
+        for c in "ab"
+    }
+    for c in "ab":
+        first[c].tools = [ToolInfo(name="lookup", description="Find it")]
+    approval = ApprovalEvent(
+        uuid="a-approval",
+        message="",
+        call=calls["a"],
+        approver="human",
+        decision="approve",
+        span_id=spans["a"],
+    )
+    ran = {
+        c: ToolEvent(
+            uuid=f"{c}-tool",
+            id=ids[c],
+            function="lookup",
+            arguments={},
+            result="found",
+            # B's call runs on the host: two native calls of one id are refused
+            metadata=None
+            if tool_events == "native" and c == "a"
+            else {"bridge": "host"},
+            span_id=spans[c],
+        )
+        for c in "ab"
+    }
+    second = {
+        c: linked_call(
+            f"{c}2",
+            spans[c],
+            [
+                tasks[c],
+                first[c].output.message,
+                ChatMessageTool(content="found", tool_call_id=ids[c]),
+            ],
+            "Done.",
+            "agent",
+        )
+        for c in "ab"
+    }
+    running: list[Event] = []
+    if tool_events != "none":
+        for c in "ab":
+            running += [
+                SpanBeginEvent(
+                    id=f"{c}-tool-span",
+                    name="lookup",
+                    type="tool",
+                    parent_id=spans[c],
+                ),
+                ran[c],
+                SpanEndEvent(id=f"{c}-tool-span"),
+            ]
+    agent_spans = sorted(set(spans.values()))
+    events = solving(
+        [
+            *[SpanBeginEvent(id=s, name=s, type="agent") for s in agent_spans],
+            first["a"],
+            first["b"],
+            approval,
+            *running,
+            second["a"],
+            second["b"],
+            *[SpanEndEvent(id=s) for s in agent_spans],
+        ]
+    )
+    in_a: list[Event] = [first["a"], approval, ran["a"], second["a"]]
+    in_b: list[Event] = [first["b"], ran["b"], second["b"]]
+    stored = Timeline(
+        name="target",
+        description="",
+        root=TimelineSpan(
+            id="a",
+            name="a",
+            content=[TimelineEvent(event=e) for e in in_a],
+            branches=[
+                TimelineSpan(
+                    id="b",
+                    name="b",
+                    content=[TimelineEvent(event=e) for e in in_b],
+                )
+            ],
+        ),
+    )
+    tool_ids = {c: ran[c].id for c in "ab"}
+    for inputs in ["expanded", "pooled"]:
+        for recorded in [events, without_origins(events)]:
+            pool: list[ChatMessage] = []
+            if inputs == "pooled":
+                recorded, pool = _replay._condensed(recorded, [])
+            replay = steps_from_events(
+                [],
+                recorded,
+                pool,
+                sample_uuid="sample",
+                eval_info=EvalInfo(inspect_ai_version="0.3.300", sentinel=False),
+                timeline=stored,
+                human_approvers=("human",),
+            )
+            assert {"a2", "b2"} <= {s.id for s in replay}, (inputs, case)
+            tool_steps = [s for s in replay if s.stage.startswith("tool")]
+            assert len(tool_steps) == (2 if tool_events == "native" else 0)
+            for step in replay:
+                conversation = step.step.conversation
+                decisions = [
+                    (d.step_id, d.decided.report.action)
+                    for d in step.step.human_decisions or []
+                ]
+                if step.stage.startswith("tool"):
+                    assert isinstance(step.step, BeforeToolCall | AfterToolCall)
+                    assert step.step.message_id == (
+                        first[conversation].output.message.id
+                    )
+                    assert step.id == tool_ids[conversation]
+                after_approval = step.id != "a1" and step.stage != "tool_call"
+                assert decisions == (
+                    [("call_0", "proceed")]
+                    if conversation == "a" and after_approval
+                    else []
+                ), (inputs, case, step.stage, step.id)
+
+
 def run_logged(
     solver: Solver | list[Solver],
     model: Any,
