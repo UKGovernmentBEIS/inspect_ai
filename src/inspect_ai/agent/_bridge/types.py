@@ -167,16 +167,23 @@ class AgentBridge:
         self._warned_request_settings: set[str] = set()
         self._sentinel_results: "_ResultChecks | None" = None
         # deferred: `_sentinel` imports this module
-        from ._sentinel import inherited_result_keys
+        from ._sentinel import history_ids, inherited_result_keys
 
-        # a checkpoint written without the keys exempts nothing
+        # a checkpoint written without these exempts and reserves nothing
+        initial = self._cp.attempt == "initial"
         self._inherited_results = frozenset(
             self._cp.track(
                 "bridge_inherited_results",
                 lambda: sorted(self._inherited_results),
-                sorted(inherited_result_keys(state.messages))
-                if self._cp.attempt == "initial"
-                else [],
+                sorted(inherited_result_keys(state.messages)) if initial else [],
+                value_type=list[str],
+            )
+        )
+        self._reserved_ids = frozenset(
+            self._cp.track(
+                "bridge_reserved_ids",
+                lambda: sorted(self._reserved_ids),
+                sorted(history_ids(state.messages)) if initial else [],
                 value_type=list[str],
             )
         )

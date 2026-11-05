@@ -2556,6 +2556,90 @@ async def test_a_result_the_bridge_started_with_changed_in_place_is_checked(
     ] == [(READ, as_handed(dialect, "secret"))]
 
 
+@protocol
+def terminate_on_old_secret() -> Protocol:
+    async def after(
+        context: Context, step: AfterToolCall, escalations: Escalations
+    ) -> Decision | None:
+        if step.call.arguments == OLD.arguments and "secret" in step.result.text:
+            return Decision.terminate("blocked old secret")
+        return None
+
+    return after
+
+
+OLD = replace(READ, arguments={"path": "old.txt"})
+SUMMARY = ChatMessageUser(content="Summary: notes were read.")
+
+
+async def reintroduce_after_a_summary(bridge: AgentBridge, model: Scripted) -> None:
+    """A first request without the starting history, then the old call reported changed."""
+    with active(terminate_on_old_secret()):
+        proposed = await generate(bridge, model, [SUMMARY])
+        [handed] = proposed.message.tool_calls or []
+        await generate(
+            bridge,
+            model,
+            [
+                SUMMARY,
+                proposed.message,
+                ChatMessageTool(
+                    content="secret", tool_call_id=handed.id, function=READ.function
+                ),
+            ],
+        )
+        with pytest.raises(TerminateSampleError, match="blocked old secret"):
+            await generate(bridge, model, old_conversation("secret"))
+
+    assert len(model.inputs) == 2
+
+
+def old_conversation(result: str) -> list[ChatMessage]:
+    return [
+        ChatMessageUser(content=TASK),
+        ChatMessageAssistant(content="Reading.", tool_calls=[OLD]),
+        ChatMessageTool(content=result, tool_call_id=OLD.id, function=OLD.function),
+    ]
+
+
+@pytest.mark.parametrize("sandbox", [False, True])
+async def test_a_starting_call_id_is_not_reissued_when_a_request_omits_it(
+    sandbox: bool,
+) -> None:
+    new = replace(READ, arguments={"path": "new.txt"})
+    model = Scripted(calls_output(new), calls_output())
+    bridge = started_with(
+        sandbox, model.model, AgentState(messages=old_conversation("safe"))
+    )
+
+    await reintroduce_after_a_summary(bridge, model)
+
+
+@pytest.mark.parametrize("sandbox", [False, True])
+async def test_a_resumed_bridge_keeps_its_starting_call_ids_reserved(
+    sandbox: bool,
+) -> None:
+    new = replace(READ, arguments={"path": "new.txt"})
+    model = Scripted(calls_output(new), calls_output())
+    first = RecordingCheckpointer()
+    started_with(
+        sandbox, model.model, AgentState(messages=old_conversation("safe")), first
+    )
+    checkpointer = RecordingCheckpointer(
+        restored=saved(
+            first,
+            "bridge_compaction_prefix",
+            "bridge_inherited_results",
+            "bridge_reserved_ids",
+        )
+    )
+    bridge = started_with(
+        sandbox, model.model, AgentState(messages=[SUMMARY]), checkpointer
+    )
+
+    await reintroduce_after_a_summary(bridge, model)
+
+
 def conversation(result: str) -> list[ChatMessage]:
     return [
         ChatMessageUser(content=TASK),
@@ -2569,6 +2653,7 @@ def saved(checkpointer: RecordingCheckpointer, *keys: str) -> dict[str, object]:
     types: dict[str, Any] = {
         "bridge_compaction_prefix": list[ChatMessage],
         "bridge_inherited_results": list[str],
+        "bridge_reserved_ids": list[str],
     }
     return {
         key: TypeAdapter(types[key]).validate_json(

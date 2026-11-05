@@ -185,54 +185,29 @@ class _ResultChecks:
     (`inherited_result_keys`). Each is recorded under its conservative key,
     taken when the bridge is first constructed and kept in its checkpoint, so
     a result reported with other content (including one changed in place
-    since, before or after a resume) is checked.
+    since, before or after a resume) is checked. Their call IDs are reserved
+    (`history_ids`) at the same point, so no token can match a starting call.
 
     Held by its bridge, since a failure's traceback references the bridge.
     """
 
-    def __init__(self, inherited: frozenset[str]) -> None:
+    def __init__(self, inherited: frozenset[str], reserved: frozenset[str]) -> None:
         self.identities: dict[str, _Identity] = {}
         self.prefixed_tokens: set[str] = set()
-        self.reserved_ids: set[str] = set()
+        self.reserved_ids: set[str] = set(reserved)
         self.proposals: OrderedDict[str, SentinelCheck] = OrderedDict()
         self.checked: set[str] = set(inherited)
         self.running: dict[str, anyio.Event] = {}
         self.failed: dict[str, Exception] = {}
 
     def reserve(self, input: Sequence[ChatMessage]) -> None:
-        """Keep historical IDs and their wire aliases out of future tokens."""
-        for message in input:
-            if isinstance(message, ChatMessageAssistant):
-                for call in message.tool_calls or []:
-                    self._reserve_id(call.id, self._wire_names(call))
-            elif isinstance(message, ChatMessageTool) and message.tool_call_id:
-                self._reserve_id(
-                    message.tool_call_id,
-                    {message.function.strip() or "generic_tool"}
-                    if message.function
-                    else set(),
-                )
-
-    def _reserve_id(self, call_id: str, names: set[str]) -> None:
-        """Reserve the raw ID and any alias Google could strip from it later."""
-        if not call_id:
-            return
-        self.reserved_ids.add(call_id)
-        for name in names:
-            stripped = call_id.removeprefix(f"{name}__")
-            if stripped and stripped != call_id:
-                self.reserved_ids.add(stripped)
-        if not names:
-            while "__" in call_id:
-                call_id = call_id.partition("__")[2]
-                if call_id:
-                    self.reserved_ids.add(call_id)
+        self.reserved_ids.update(history_ids(input))
 
     def issue(self, checks: Sequence[SentinelCheck]) -> list[SentinelCheck]:
         issued: list[SentinelCheck] = []
         for check in checks:
             token = check.handed.id
-            names = self._wire_names(check.handed)
+            names = _wire_names(check.handed)
             while not token or self._ambiguous_token(token, names):
                 token = f"call_{uuid()}"
             self.identities[token] = _Identity(
@@ -252,13 +227,6 @@ class _ResultChecks:
                     "that carries its result, and no model input.",
                 )
         return issued
-
-    def _wire_names(self, call: ToolCall) -> set[str]:
-        """Names a scaffold can use to echo this call's id."""
-        names = {call.function.strip() or "generic_tool"}
-        if call.function == "computer":
-            names.add(gemini_computer_action_name(call.arguments))
-        return names
 
     def _ambiguous_token(self, token: str, names: set[str]) -> bool:
         """Whether this token could echo another issued or historical call.
@@ -509,9 +477,58 @@ def inherited_result_keys(input: Sequence[ChatMessage]) -> frozenset[str]:
     )
 
 
+def history_ids(input: Sequence[ChatMessage]) -> frozenset[str]:
+    """The call IDs in a conversation, and their wire aliases, never issued as tokens.
+
+    Those of the conversation a bridge starts with are taken when it is first
+    constructed and restored from its checkpoint on resume, so a request that
+    omits that history can't have one of its IDs reissued to a new call.
+    """
+    reserved: set[str] = set()
+    for message in input:
+        if isinstance(message, ChatMessageAssistant):
+            for call in message.tool_calls or []:
+                _reserve_id(reserved, call.id, _wire_names(call))
+        elif isinstance(message, ChatMessageTool) and message.tool_call_id:
+            _reserve_id(
+                reserved,
+                message.tool_call_id,
+                {message.function.strip() or "generic_tool"}
+                if message.function
+                else set(),
+            )
+    return frozenset(reserved)
+
+
+def _reserve_id(reserved: set[str], call_id: str, names: set[str]) -> None:
+    """Reserve the raw ID and any alias Google could strip from it later."""
+    if not call_id:
+        return
+    reserved.add(call_id)
+    for name in names:
+        stripped = call_id.removeprefix(f"{name}__")
+        if stripped and stripped != call_id:
+            reserved.add(stripped)
+    if not names:
+        while "__" in call_id:
+            call_id = call_id.partition("__")[2]
+            if call_id:
+                reserved.add(call_id)
+
+
+def _wire_names(call: ToolCall) -> set[str]:
+    """Names a scaffold can use to echo this call's id."""
+    names = {call.function.strip() or "generic_tool"}
+    if call.function == "computer":
+        names.add(gemini_computer_action_name(call.arguments))
+    return names
+
+
 def _result_checks(bridge: AgentBridge) -> _ResultChecks:
     if bridge._sentinel_results is None:
-        bridge._sentinel_results = _ResultChecks(bridge._inherited_results)
+        bridge._sentinel_results = _ResultChecks(
+            bridge._inherited_results, bridge._reserved_ids
+        )
     return bridge._sentinel_results
 
 
