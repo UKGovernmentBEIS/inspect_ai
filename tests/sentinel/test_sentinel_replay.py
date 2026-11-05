@@ -1800,6 +1800,32 @@ def test_a_model_call_before_solving_stops_early_is_not_a_turn(
             assert not [s for s in replay if s.stage in ("model_input", "model_output")]
 
 
+@pytest.mark.parametrize("phase", [None, "init", "solvers", "scorers"])
+def test_a_call_outside_the_phases_is_setup_only_in_a_log_that_records_them(
+    phase: str | None,
+) -> None:
+    task: list[ChatMessage] = [ChatMessageUser(content="Solve it.")]
+    m1 = linked_call("m1", None, task, "Solved.", None)
+    events: list[Event] = [m1]
+    if phase is not None:
+        events.extend(
+            [
+                SpanBeginEvent(id=phase, name=phase, type=phase),
+                SpanEndEvent(id=phase),
+            ]
+        )
+    replay = steps_from_events(
+        [*task, m1.output.message],
+        events,
+        [],
+        sample_uuid="sample",
+        eval_info=EvalInfo(inspect_ai_version=None, sentinel=False),
+    )
+    assert [(s.stage, s.id) for s in replay] == (
+        [("model_input", "m1"), ("model_output", "m1")] if phase is None else []
+    )
+
+
 @protocol
 def r7_generate_fails() -> Protocol:
     async def check(
@@ -2181,7 +2207,10 @@ def test_replay_infers_the_turns_of_the_continuity_fixtures(fixture: str) -> Non
     assert steps(events) == steps(recorded)
 
 
-def test_a_solver_s_call_after_the_only_agent_is_not_judged_by_its_prompt() -> None:
+@pytest.mark.parametrize("phases", [True, False])
+def test_a_solver_s_call_after_the_only_agent_is_not_judged_by_its_prompt(
+    phases: bool,
+) -> None:
     # self-review after Ransom's ninth review: the timeline merges a solver's
     # calls beside the only agent span into that span, and the prompt rule
     # took the agent's tool-calling prompt as theirs, so a final generate()
@@ -2197,16 +2226,22 @@ def test_a_solver_s_call_after_the_only_agent_is_not_judged_by_its_prompt() -> N
         ChatMessageSystem(content="You are the main solver."),
         ChatMessageUser(content="Solve it."),
     ]
-    m1 = linked_call("M1", "solvers", final, "Solved.", None)
+    m1 = linked_call("M1", "solvers" if phases else None, final, "Solved.", None)
     events: list[Event] = [
-        SpanBeginEvent(id="solvers", name="solvers", type="solvers"),
         SpanBeginEvent(id="B", name="checker", type="agent", parent_id="solvers"),
         b1,
         b2,
         SpanEndEvent(id="B"),
         m1,
-        SpanEndEvent(id="solvers"),
     ]
+    if phases:
+        events = [
+            SpanBeginEvent(id="solvers", name="solvers", type="solvers"),
+            *events,
+            SpanEndEvent(id="solvers"),
+        ]
+    else:
+        events[0] = SpanBeginEvent(id="B", name="checker", type="agent")
 
     def steps(events: list[Event]) -> list[tuple[str, str]]:
         return sorted(
