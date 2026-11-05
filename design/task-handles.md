@@ -354,15 +354,16 @@ Everything else is refused with a clear error:
 ```
 
 and to the dispatch loop one step after the ordinary picks, with the
-ordinary count excluding records running on a loan:
+ordinary count excluding attempts running on a loan:
 
 ```
     while not cancelled and ordinary_in_flight < effective_max_tasks(parallel):
         ... ordinary picks, unchanged ...
-    for record holding a loan, in queue order, whose next entry is startable
-            (the record itself in admitted, or its pending retry):
+    for record whose loan is not running an attempt, in queue order,
+            whose next entry is startable (the record itself in admitted,
+            or its pending retry):
         if that entry is the record: move it to starting, as an ordinary pick does
-        start run_one(entry, on_loan=True)
+        set loan.started; start run_one(entry, on_loan=True)
 ```
 
 The creator is the attempt whose context `enqueue_task()` was called in (a
@@ -783,42 +784,56 @@ batch size: the creator holds the only slot while it waits for its rollout.
 @dataclass(eq=False)
 class Loan:
     target: TaskRecord              # the only record this loan can start
-    waiters: int = 0                # waits on the target that are blocked now
-    started: bool = False           # the target is running on this loan
+    waiters: int = 0                # lending waits on the target that are blocked now
+    started: bool = False           # an attempt of the target is running on this loan
 ```
 
 - **Who lends.** A wait lends when it is made from inside a running task
   attempt (a sample, scorer, tool or callback of a task the dispatcher
   started, including one that is itself running on a loan) on a target
-  record that has no attempt in flight and is waiting to start one (in
-  `admitted`, or with a retry pending): `started()`, `result()`, or an `enqueue_sample()`
-  whose sample cannot run until the target starts. A wait from outside any
-  running attempt lends nothing, because nothing is holding a slot while it
-  waits.
-- **One loan per target.** The first such wait creates `target.loan` and
-  rings the queue; later waits on the same waiting target add to `waiters`
-  and share it. A wait on a target with an attempt in flight lends nothing,
-  so repeated `enqueue_sample()` calls to a running rollout task cost no
-  more slots.
-- **What it starts.** The dispatcher starts a record above the ordinary
-  limit only if the record holds a loan, after the ordinary picks, and only
-  when it is startable (the start rule in
-  [task-dispatch.md](task-dispatch.md#the-dispatcher): a record in
-  `admitted` or a pending retry, setups settled, not paused). An earlier,
+  record that has not ended, whatever its phase: `started()`, `result()` or
+  `enqueue_sample()`. It counts in the target's loan from the moment it
+  blocks until it returns or is cancelled. A wait from outside any running
+  attempt lends nothing, because nothing is holding a slot while it waits.
+  Lending is held from the moment of the wait, not from admission:
+  `RunQueue.add` returns the record in `waiting`, and its admission cannot
+  run until the creator next awaits ("Sample selection waits for admission"
+  in [task-dispatch.md](task-dispatch.md#the-run-queue)), so the usual
+  `enqueue_task()` followed by an immediate `await handle.result()` begins
+  its wait in `waiting` or `admitting`.
+- **One loan per target.** The first such wait creates `target.loan`;
+  later waits on the same target add to `waiters` and share it. A loan
+  costs a slot only while an attempt of the target runs on it, so waits on
+  a target whose attempt runs on an ordinary slot, such as repeated
+  `enqueue_sample()` calls to a running rollout task, cost no more slots.
+- **What it starts.** After the ordinary picks, the dispatcher starts a
+  loan's target above the ordinary limit when the loan is not already
+  running an attempt and the target's next entry is startable under the
+  start rule in [task-dispatch.md](task-dispatch.md#the-dispatcher): the
+  record itself in `admitted`, or its pending retry, with setups settled
+  and no pause holding it. A loan held on a target still in `waiting` or
+  `admitting` therefore starts nothing until admission moves the record to
+  `admitted` (which rings the queue) and its setups settle. An earlier,
   unrelated queued task never starts on another task's loan: at
   `max_tasks=1`, with running parent P, an earlier queued task U and P's
   child C, P's wait starts C, and U waits for an ordinary slot. If an
   ordinary slot is free when the target becomes startable, the target takes
-  it and the loan is dropped unused.
-- **Lifetime.** While the target waits to start, the loan lives while
-  `waiters > 0`; if every waiter stops waiting (cancelled, or its attempt
-  ended), the loan is dropped. Once the target has started on the loan, it
-  keeps its extra slot until that attempt ends, whatever its waiters do; the
-  loan is returned then. A retry of the target goes back to the queue
-  without a loan and borrows again only if someone is still waiting on it.
-  Loans nest: a target running on a loan that waits on its own child lends
-  to that child. The number of running loans is bounded by the number of
-  distinct tasks that running tasks are waiting on.
+  it and the loan stays unused.
+- **Lifetime.** The loan lives while `waiters > 0` or an attempt is
+  running on it. When every waiter stops waiting (it returned, it was
+  cancelled, or the attempt it ran in ended) and no attempt runs on the
+  loan, the loan is dropped, in whatever phase the target is; a later wait
+  creates a new one. An attempt that started on the loan keeps its extra
+  slot until it ends, whatever its waiters do; `started` is cleared then,
+  and the loan is dropped if no waiter remains. A retry of the target is
+  an ordinary pending entry: if waiters remain (for example a `result()`
+  that began while the first attempt ran), the same loan can start it.
+  `RunQueue.end` clears the loan when the target ends, including by an
+  admission failure or a cancel before admission finished, and every wait
+  then settles as the table under "The handle API" says. Loans nest: a
+  target running on a loan that waits on its own child lends to that
+  child. The number of running loans is bounded by the number of distinct
+  tasks that running tasks are waiting on.
 - **Loans never lend sandboxes.** A loan lends a task slot only:
   `max_sandboxes` and `max_samples` are never exceeded; see "Sandbox and
   sample limits need headroom".
@@ -1090,8 +1105,19 @@ test touched), with mockllm models:
   - slot lending: an earlier unrelated queued task U ahead of the awaited
     child C at `max_tasks=1`, where C starts on the loan and U waits for an
     ordinary slot; several samples waiting on one queued task share one
-    loan; repeated `enqueue_sample()` calls on a running task lend nothing;
-    the loan is returned when C ends; a nested loan;
+    loan; repeated `enqueue_sample()` calls on a running task take no extra
+    slot; the loan is returned when C ends; a nested loan; at `max_tasks=1`,
+    each of `started()`, `result()` and `enqueue_sample()` begun right after
+    `enqueue_task()` (C in `waiting`) and while C's `logger.init()` is held
+    on an event (C in `admitting`): C starts on the loan once admission
+    finishes and its setups settle, and the wait completes (each bounded
+    with `fail_after`); two waiters begun before admission share one loan
+    and C starts once; every waiter cancelled before admission finishes
+    drops the loan, and C then waits for an ordinary slot; C's admission
+    failing, and C cancelled during admission, settle the waits with
+    `TaskEndedError` and leave no loan; a `result()` begun while C's first
+    attempt runs on an ordinary slot that then errors with a retry queued
+    starts the retry on the loan;
   - headroom: with `max_sandboxes=1` (stub sandbox provider), a parent
     sample holding the only sandbox awaits its child's `started()`, then
     finishes, and the child's sample then gets the sandbox and runs; a
