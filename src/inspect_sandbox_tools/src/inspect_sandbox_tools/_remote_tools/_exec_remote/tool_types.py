@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from ..._util.user_switch import RunAs
 
@@ -29,6 +29,8 @@ class PollParams(BaseModel):
 
     pid: int
     ack_seq: int
+    wait: float = Field(default=0, ge=0, le=60)
+    """Seconds to wait for the job to exit or buffer output before replying."""
     model_config = {"extra": "forbid"}
 
 
@@ -44,6 +46,8 @@ class SubmitResult(BaseModel):
     """Result from exec_remote_start."""
 
     pid: int
+    poll_wait: bool = True
+    """The server supports PollParams.wait."""
 
 
 class PollResult(BaseModel):

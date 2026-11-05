@@ -1061,6 +1061,175 @@ class TestPollTimeoutOptions:
 
 
 # ============================================================================
+# Server wait window
+# ============================================================================
+
+
+def _poll_wait_start_response(pid: int = 42) -> str:
+    """A start response from sandbox tools that support the poll `wait` param."""
+    return _rpc({"pid": pid, "poll_wait": True})
+
+
+@pytest.fixture
+def sleeps(monkeypatch: pytest.MonkeyPatch) -> list[float]:
+    """Record the duration of each `anyio.sleep` call and return at once."""
+    recorded: list[float] = []
+    real_sleep = anyio.sleep
+
+    async def record_sleep(delay: float) -> None:
+        recorded.append(delay)
+        await real_sleep(0)
+
+    monkeypatch.setattr(anyio, "sleep", record_sleep)
+    return recorded
+
+
+_RUNNING = _poll_response(state="running", exit_code=None)
+
+
+class TestServerWait:
+    async def test_old_server_gets_no_wait_and_idle_sleeps(
+        self, sleeps: list[float]
+    ) -> None:
+        sandbox = _make_scripted_sandbox(
+            [_start_response(42), _RUNNING, _RUNNING, _poll_response()]
+        )
+        proc = await exec_remote_streaming(sandbox, ["cmd"], 5)
+
+        events = [event async for event in proc]
+
+        assert events == [ExecCompleted(exit_code=0)]
+        assert all("wait" not in params for params in _polls(sandbox))
+        assert sleeps == [5, 5]
+
+    async def test_polls_wait_for_the_remaining_window_without_sleeps(
+        self, sleeps: list[float]
+    ) -> None:
+        sandbox = _make_scripted_sandbox(
+            [_poll_wait_start_response(42), _RUNNING, _RUNNING, _poll_response()]
+        )
+        proc = await exec_remote_streaming(sandbox, ["cmd"], 5)
+
+        events = [event async for event in proc]
+
+        assert events == [ExecCompleted(exit_code=0)]
+        waits = [params["wait"] for params in _polls(sandbox)]
+        assert len(waits) == 3
+        assert waits[0] > 5
+        assert all(0 < wait <= 10 for wait in waits)
+        assert waits == sorted(waits, reverse=True)
+        assert sleeps == []
+
+    async def test_wait_is_capped_at_half_the_poll_timeout(self) -> None:
+        sandbox = _make_scripted_sandbox(
+            [_poll_wait_start_response(42), _RUNNING, _poll_response()]
+        )
+        proc = await exec_remote_streaming(
+            sandbox, ["cmd"], 5, ExecRemoteCommonOptions(poll_timeout=4)
+        )
+
+        _ = [event async for event in proc]
+
+        assert [params["wait"] for params in _polls(sandbox)] == [2, 2]
+
+    async def test_polls_sleep_without_wait_after_the_window(
+        self, sleeps: list[float]
+    ) -> None:
+        sandbox = _make_scripted_sandbox(
+            [_poll_wait_start_response(42), _RUNNING, _RUNNING, _poll_response()]
+        )
+        scripted_exec = sandbox.exec.side_effect
+        proc: ExecRemoteProcess | None = None
+
+        async def end_window_after_first_poll(
+            *args: Any, **kwargs: Any
+        ) -> ExecResult[str]:
+            result = await scripted_exec(*args, **kwargs)
+            if len(_polls(sandbox)) == 1:
+                assert proc is not None
+                proc._server_wait_end = 0
+            return result
+
+        sandbox.exec.side_effect = end_window_after_first_poll
+        proc = await exec_remote_streaming(sandbox, ["cmd"], 5)
+
+        _ = [event async for event in proc]
+
+        assert ["wait" in params for params in _polls(sandbox)] == [
+            True,
+            False,
+            False,
+        ]
+        assert sleeps == [5, 5]
+
+    async def test_stdin_open_process_gets_no_wait(self, sleeps: list[float]) -> None:
+        sandbox = _make_scripted_sandbox(
+            [_poll_wait_start_response(42), _RUNNING, _poll_response()]
+        )
+        proc = await exec_remote_streaming(
+            sandbox, ["cmd"], 5, ExecRemoteStreamingOptions(stdin_open=True)
+        )
+
+        _ = [event async for event in proc]
+
+        assert all("wait" not in params for params in _polls(sandbox))
+        assert sleeps == [5]
+
+    @staticmethod
+    def _sandbox_with_blocking_poll() -> tuple[AsyncMock, list[str], anyio.Event]:
+        """A sandbox that supports poll waits and never answers a poll."""
+        methods: list[str] = []
+        poll_started = anyio.Event()
+        answers = {
+            "exec_remote_start": _poll_wait_start_response(42),
+            "exec_remote_kill": _kill_response(),
+        }
+
+        async def fake_exec(*args: Any, **kwargs: Any) -> ExecResult[str]:
+            request = json.loads(kwargs["input"])
+            methods.append(request["method"])
+            if request["method"] == "exec_remote_poll":
+                assert "wait" in request["params"]
+                poll_started.set()
+                await anyio.sleep_forever()
+            return ExecResult(
+                success=True, returncode=0, stdout=answers[request["method"]], stderr=""
+            )
+
+        sandbox = _mock_sandbox()
+        sandbox.no_events = _no_events_context
+        sandbox.exec = AsyncMock(side_effect=fake_exec)
+        return sandbox, methods, poll_started
+
+    async def test_cancellation_during_a_waiting_poll_kills_the_process(
+        self,
+    ) -> None:
+        sandbox, methods, poll_started = self._sandbox_with_blocking_poll()
+        proc = await exec_remote_streaming(sandbox, ["cmd"], 5)
+
+        async def iterate() -> None:
+            async for _ in proc:
+                pass
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(iterate)
+            await poll_started.wait()
+            tg.cancel_scope.cancel()
+
+        assert methods == ["exec_remote_start", "exec_remote_poll", "exec_remote_kill"]
+
+    async def test_timeout_during_a_waiting_poll_kills_the_process(self) -> None:
+        sandbox, methods, _ = self._sandbox_with_blocking_poll()
+
+        with pytest.raises(TimeoutError):
+            await exec_remote_awaitable(
+                sandbox, ["cmd"], 5, ExecRemoteAwaitableOptions(timeout=0.5)
+            )
+
+        assert methods == ["exec_remote_start", "exec_remote_poll", "exec_remote_kill"]
+
+
+# ============================================================================
 # Options positional order
 # ============================================================================
 
