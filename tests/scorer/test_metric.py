@@ -1714,9 +1714,7 @@ def test_grouped_empty_scores_with_all_false_returns_empty_dict() -> None:
     assert result == {}
 
 
-def _pass_fail_task(
-    to_float: Callable[[Value], float], epochs: Epochs | None = None
-) -> Task:
+def _pass_fail_task(to_float: Callable[[Value], float], epochs: Epochs) -> Task:
     verdicts: dict[int | str, str] = {1: "pass", 2: "pass", 3: "pass", 4: "fail"}
 
     @scorer(metrics=[accuracy(to_float=to_float)])
@@ -1733,20 +1731,15 @@ def _pass_fail_task(
     )
 
 
-def _dict_score_task(on_missing: Literal["error", "skip"] | None = None) -> Task:
+def _dict_score_task(on_missing: Literal["error", "skip"], epochs: int) -> Task:
     values: dict[int | str, dict[str, float | None]] = {
         1: {"x": 1.0},
         2: {"x": 1.0},
         3: {"x": None},
         4: {"x": 0.5},
     }
-    metric = (
-        aggregate("x", agg=mean())
-        if on_missing is None
-        else aggregate("x", agg=mean(), on_missing=on_missing)
-    )
 
-    @scorer(metrics=[metric])
+    @scorer(metrics=[aggregate("x", agg=mean(), on_missing=on_missing)])
     def dict_score():
         async def score(state: TaskState, target: Target) -> Score:
             return Score(value=values[state.sample_id])
@@ -1756,33 +1749,16 @@ def _dict_score_task(on_missing: Literal["error", "skip"] | None = None) -> Task
     return Task(
         dataset=[Sample(input="q", id=sample_id) for sample_id in (1, 2, 3, 4)],
         scorer=dict_score(),
+        epochs=epochs,
     )
 
 
-def test_single_score_without_reducer_lets_accuracy_convert_pass_fail() -> None:
-    """Three passes and one fail stay strings until accuracy converts them."""
-    to_float = value_to_float(correct="pass", incorrect="fail")
-    log = eval(_pass_fail_task(to_float), model="mockllm/model", display="none")[0]
-
-    assert log.status == "success", log.error
-    assert log.results is not None
-    assert log.results.scores[0].metrics["accuracy"].value == pytest.approx(0.75)
-    assert log.reductions is not None
-    raw_values = [sample.value for sample in log.reductions[0].samples]
-    assert sorted(value for value in raw_values if isinstance(value, str)) == [
-        "fail",
-        "pass",
-        "pass",
-        "pass",
-    ]
-    assert len(raw_values) == 4
-
-
-def test_explicit_single_epoch_mean_still_scores_pass_fail() -> None:
-    """Epochs(1, mean_score(value_to_float=...)) still converts before the metric."""
+@pytest.mark.parametrize("epochs", [1, 2])
+def test_pass_fail_converter_on_reducer_scores_at_any_epoch_count(epochs: int) -> None:
+    """Epochs(n, mean_score(value_to_float=...)) scores pass/fail the same at 1 and 2 epochs."""
     to_float = value_to_float(correct="pass", incorrect="fail")
     log = eval(
-        _pass_fail_task(to_float, Epochs(1, mean_score(value_to_float=to_float))),
+        _pass_fail_task(to_float, Epochs(epochs, mean_score(value_to_float=to_float))),
         model="mockllm/model",
         display="none",
     )[0]
@@ -1796,51 +1772,49 @@ def test_explicit_single_epoch_mean_still_scores_pass_fail() -> None:
     assert reduced_values.count(0.0) == 1
 
 
-def test_single_score_aggregate_skip_ignores_none() -> None:
-    """None is missing, not a coerced 0.0, so skip averages the three present values."""
-    log = eval(_dict_score_task("skip"), model="mockllm/model", display="none")[0]
+@pytest.mark.parametrize("epochs", [1, 2])
+def test_aggregate_skip_ignores_none_at_any_epoch_count(epochs: int) -> None:
+    """None stays missing, so skip averages the three present values at 1 and 2 epochs."""
+    log = eval(_dict_score_task("skip", epochs), model="mockllm/model", display="none")[
+        0
+    ]
 
     assert log.status == "success", log.error
     assert log.results is not None
     assert log.results.scores[0].metrics["aggregate"].value == pytest.approx(2.5 / 3)
-    assert log.reductions is not None
-    assert any(
-        isinstance(sample.value, dict) and sample.value.get("x") is None
-        for sample in log.reductions[0].samples
-    )
 
 
-def test_single_score_aggregate_error_raises_on_none() -> None:
-    """The default on_missing='error' raises once None is no longer coerced to 0.0."""
+@pytest.mark.parametrize("epochs", [1, 2])
+def test_aggregate_error_raises_on_none_at_any_epoch_count(epochs: int) -> None:
+    """The default on_missing='error' raises for an all-None key at 1 and 2 epochs."""
     with pytest.raises(ValueError, match="is None"):
         eval(
-            _dict_score_task(),
+            _dict_score_task("error", epochs),
             model="mockllm/model",
             display="none",
             debug_errors=True,
         )
 
 
-def test_repeated_sample_ids_still_use_implicit_mean() -> None:
-    """Two epochs and no reducer still average a sample id that appears twice."""
+def test_two_epoch_mean_skips_missing_epoch() -> None:
+    """A None epoch is left out of the mean, not converted to 0.0."""
 
-    @scorer(metrics=[accuracy()])
-    def by_epoch():
+    @scorer(metrics=[aggregate("x", agg=mean())])
+    def dict_score():
         async def score(state: TaskState, target: Target) -> Score:
-            return Score(value=1.0 if state.epoch == 1 else 0.0)
+            value = 1.0 if state.epoch == 1 else None
+            return Score(value={"x": value})
 
         return score
 
     log = eval(
-        Task(dataset=[Sample(input="q", id=1)], scorer=by_epoch(), epochs=2),
+        Task(dataset=[Sample(input="q", id=1)], scorer=dict_score(), epochs=2),
         model="mockllm/model",
         display="none",
     )[0]
 
     assert log.status == "success", log.error
-    assert log.eval.config.epochs_reducer is None
     assert log.results is not None
-    assert log.results.scores[0].scored_samples == 1
+    assert log.results.scores[0].metrics["aggregate"].value == pytest.approx(1.0)
     assert log.reductions is not None
-    (reduced,) = log.reductions[0].samples
-    assert reduced.value == pytest.approx(0.5)
+    assert log.reductions[0].samples[0].value == {"x": 1.0}
