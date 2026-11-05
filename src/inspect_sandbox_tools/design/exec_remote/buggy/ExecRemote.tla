@@ -1,7 +1,7 @@
 ---------------------------- MODULE ExecRemote ----------------------------
 (***************************************************************************)
 (* exec_remote, ONE job, as the code behaves at                             *)
-(* ec29c121852f14b276bba03fcc04ede546e60719 ("buggy" model).                *)
+(* 94ef6eaccd77af736bbbf573c2f99baa4b4dc01e ("buggy" model).                *)
 (*                                                                         *)
 (* Host  : ExecRemoteProcess  (src/inspect_ai/util/_sandbox/exec_remote.py) *)
 (* Guest : Controller + Job + AckedChunkBuffer                              *)
@@ -284,7 +284,7 @@ KillW(ack) == [kind |-> "kill", phase |-> "term", ack |-> ack, tag |-> 0, drain 
 KKW(phase, tag, drain) ==
     [kind |-> "killkey", phase |-> phase, ack |-> 0, tag |-> tag, drain |-> drain]
 
-GuestKillKeyRecv ==   \* Controller.kill_key (post-ec29c12)
+GuestKillKeyRecv ==   \* Controller.kill_key (post-94ef6ea)
     \E m \in net :
       /\ IsReq(m, "killkey")
       /\ CASE gReg = "none" ->
@@ -445,7 +445,7 @@ HostKillKeyDone ==
 
 (* A second keyed cleanup for the same key, issued after a successful     *)
 (* start and after kill() was called (no such host path exists at         *)
-(* ec29c12; this reaches the retired-job join in Controller.kill_key).    *)
+(* 94ef6ea; this reaches the retired-job join in Controller.kill_key).    *)
 (* Unless KeyedKillAnyTime, it reaches the guest only after the host's    *)
 (* kill started termination (see ../INVARIANTS.md, finding F1).           *)
 XKillKeySend ==
@@ -689,7 +689,8 @@ Waiter == [kind : {"kill", "killkey"}, phase : {"spawn", "term"},
            ack : Nat, tag : {0, 1}, drain : BOOLEAN]
 TypeOK ==
     /\ hStart \in {"waiting", "started", "killingKey", "aborted"}
-    /\ hIter \in {"unstarted", "idle", "polling", "sleep", "retryWait", "done", "failed"}
+    /\ hIter \in {"unstarted", "idle", "polling", "sleep", "retryWait", "stopWait",
+                  "done", "failed"}
     /\ hRetries \in 0..MaxRetry
     /\ hStopReq \in BOOLEAN /\ hRemoteStopped \in BOOLEAN /\ hCompleted \in BOOLEAN
     /\ hStopRpc \in {"none", "queued", "sent", "finished", "abandoned"}
@@ -716,7 +717,9 @@ TypeOK ==
 \* (1) No poll and no poll retry after the host's local stop.
 NoPollAfterLocalStop == ~pollAfterStop
 NoMissingJobRetryAfterStop == ~retryAfterStop
-IteratorNeverFails == hIter # "failed"
+\* The iterator raises a poll error only after a stop whose kill failed.
+IteratorFailsOnlyAfterFailedKill ==
+    hIter = "failed" => (hStopRpc = "finished" /\ ~hRemoteStopped)
 \* (1)+(2) The iterator ends only after the stop finished and its output was yielded.
 IteratorEndsDrained == hIter = "done" => hPending = << >>
 IteratorStoppedAfterRpc == (hIter = "done" /\ hStopRpc # "none") => hStopRpc = "finished"

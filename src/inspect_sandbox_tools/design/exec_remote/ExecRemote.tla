@@ -2,7 +2,7 @@
 (***************************************************************************)
 (* exec_remote, ONE job, as implemented ("fixed" model).  buggy/ models   *)
 (* the code before the stop and output fixes, at                           *)
-(* ec29c121852f14b276bba03fcc04ede546e60719.  Changes vs buggy/ are marked *)
+(* 94ef6eaccd77af736bbbf573c2f99baa4b4dc01e.  Changes vs buggy/ are marked *)
 (* FIXED.  Everything else is the same text as buggy/.                     *)
 (*                                                                         *)
 (* Host  : ExecRemoteProcess  (src/inspect_ai/util/_sandbox/exec_remote.py) *)
@@ -50,7 +50,7 @@ VARIABLES
     \* ---- host: start ----
     hStart,         \* "waiting" | "started" | "killingKey" | "aborted"
     \* ---- host: iterator (__anext__ loop) ----
-    hIter,          \* "unstarted" | "idle" | "polling" | "sleep" | "retryWait" | "done" | "failed"
+    hIter,          \* "unstarted" | "idle" | "polling" | "sleep" | "retryWait" | "stopWait" | "done" | "failed"
     hRetries,       \* RuntimeError retries used by the current poll() call
     \* ---- host: stop ----
     hStopReq,       \* buggy: ExecRemoteProcess._killed
@@ -286,7 +286,7 @@ KillW(ack) == [kind |-> "kill", phase |-> "term", ack |-> ack, tag |-> 0, drain 
 KKW(phase, tag, drain) ==
     [kind |-> "killkey", phase |-> phase, ack |-> 0, tag |-> tag, drain |-> drain]
 
-GuestKillKeyRecv ==   \* Controller.kill_key (post-ec29c12)
+GuestKillKeyRecv ==   \* Controller.kill_key (post-94ef6ea)
     \E m \in net :
       /\ IsReq(m, "killkey")
       /\ CASE gReg = "none" ->
@@ -450,7 +450,7 @@ HostKillKeyDone ==
 
 (* A second keyed cleanup for the same key, issued after a successful     *)
 (* start and after kill() was called (no such host path exists at         *)
-(* ec29c12; this reaches the retired-job join in Controller.kill_key).    *)
+(* 94ef6ea; this reaches the retired-job join in Controller.kill_key).    *)
 (* Unless KeyedKillAnyTime, it reaches the guest only after the host's    *)
 (* kill started termination (see INVARIANTS.md, finding F1).           *)
 XKillKeySend ==
@@ -537,17 +537,27 @@ IterPollReply ==
                      kkEarly, gKeyStep>>
 
 (* FIXED: a poll error (missing job or transient) after a local stop is   *)
-(* not retried; the iterator goes back to IterNext, which joins the stop.  *)
+(* not retried; the iterator waits for the stop (IterPollErrorJoin).       *)
 (* Without a local stop the normal bounded retry with backoff is kept.     *)
 IterPollError ==
     \E m \in net :
       /\ IsRep(m, "poll") /\ ~m.ok /\ hIter = "polling"
       /\ net' = net \ {m}
-      /\ hIter' = IF hStopReq THEN "idle"
+      /\ hIter' = IF hStopReq THEN "stopWait"
                   ELSE IF hRetries < MaxRetry THEN "retryWait" ELSE "failed"
       /\ UNCHANGED <<hStart, hRetries, hStopReq, hStopRpc, hStopOwner,
                      hRemoteStopped, hCaller, hXKK, hCompleted, hLastSeq, hPending,
                      hDelivered, hGot, hStdinSent, hStdinBusy, guestVars, histVars>>
+
+(* FIXED: once the stop finished, a poll error after it ends iteration    *)
+(* through IterNext if the job is known stopped (_killed), and is raised  *)
+(* if the kill request failed.                                             *)
+IterPollErrorJoin ==
+    /\ hIter = "stopWait" /\ hStopRpc = "finished"
+    /\ hIter' = IF hRemoteStopped THEN "idle" ELSE "failed"
+    /\ UNCHANGED <<net, hStart, hRetries, hStopReq, hStopRpc, hStopOwner,
+                   hRemoteStopped, hCaller, hXKK, hCompleted, hLastSeq, hPending,
+                   hDelivered, hGot, hStdinSent, hStdinBusy, guestVars, histVars>>
 
 (* FIXED: kill() may run during the backoff: check the local stop         *)
 (* immediately before sending the retry; if set, join the stop instead.   *)
@@ -679,7 +689,8 @@ SystemNext ==
     \/ GuestKillKeyRecv \/ GuestKillKeyResume \/ GuestKillRecv \/ GuestKillFinish
     \/ GuestPollRecv \/ GuestPollResume \/ GuestStdin
     \/ HostStartOk \/ HostKillKeyDone \/ XKillKeyDone \/ HostDropStale
-    \/ IterNext \/ IterPollReply \/ IterPollError \/ IterRetrySend \/ IterWake
+    \/ IterNext \/ IterPollReply \/ IterPollError \/ IterPollErrorJoin
+    \/ IterRetrySend \/ IterWake
     \/ StopSend \/ StopReply \/ StdinReply
 
 EnvNext ==
@@ -698,7 +709,8 @@ Fairness ==
     /\ WF_vars(GuestPollRecv) /\ WF_vars(GuestPollResume) /\ WF_vars(GuestStdin)
     /\ WF_vars(HostStartOk) /\ WF_vars(HostKillKeyDone) /\ WF_vars(XKillKeyDone)
     /\ WF_vars(HostDropStale) /\ WF_vars(IterNext) /\ WF_vars(IterPollReply)
-    /\ WF_vars(IterPollError) /\ WF_vars(IterRetrySend) /\ WF_vars(IterWake)
+    /\ WF_vars(IterPollError) /\ WF_vars(IterPollErrorJoin)
+    /\ WF_vars(IterRetrySend) /\ WF_vars(IterWake)
     /\ WF_vars(StopSend) /\ WF_vars(StopReply) /\ WF_vars(StdinReply)
     /\ \A k \in Killers : WF_vars(KillReturn(k))
 
@@ -712,7 +724,8 @@ Waiter == [kind : {"kill", "killkey"}, phase : {"spawn", "term"},
            ack : Nat, tag : {0, 1}, drain : BOOLEAN]
 TypeOK ==
     /\ hStart \in {"waiting", "started", "killingKey", "aborted"}
-    /\ hIter \in {"unstarted", "idle", "polling", "sleep", "retryWait", "done", "failed"}
+    /\ hIter \in {"unstarted", "idle", "polling", "sleep", "retryWait", "stopWait",
+                  "done", "failed"}
     /\ hRetries \in 0..MaxRetry
     /\ hStopReq \in BOOLEAN /\ hRemoteStopped \in BOOLEAN /\ hCompleted \in BOOLEAN
     /\ hStopRpc \in {"none", "queued", "sent", "finished", "abandoned"}
@@ -739,7 +752,9 @@ TypeOK ==
 \* (1) No poll and no poll retry after the host's local stop.
 NoPollAfterLocalStop == ~pollAfterStop
 NoMissingJobRetryAfterStop == ~retryAfterStop
-IteratorNeverFails == hIter # "failed"
+\* The iterator raises a poll error only after a stop whose kill failed.
+IteratorFailsOnlyAfterFailedKill ==
+    hIter = "failed" => (hStopRpc = "finished" /\ ~hRemoteStopped)
 \* (1)+(2) The iterator ends only after the stop finished and its output was yielded.
 IteratorEndsDrained == hIter = "done" => hPending = << >>
 IteratorStoppedAfterRpc == (hIter = "done" /\ hStopRpc # "none") => hStopRpc = "finished"

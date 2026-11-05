@@ -17,7 +17,7 @@ is lost (F2).
 
 | # | Race | Rules that break in `buggy/` | Fix (actions marked `FIXED`) |
 |---|---|---|---|
-| 1 | Poll or poll retry after a local kill; the iterator ends before the kill's output | `NoPollAfterLocalStop`, `NoMissingJobRetryAfterStop`, `IteratorNeverFails`, `IteratorEndsDrained`, `IteratorStoppedAfterRpc` | The iterator checks the stop and queued output before every poll and before each retry send. A poll error after a stop ends iteration through the stop. The iterator waits for the stop before it ends. |
+| 1 | Poll or poll retry after a local kill; the iterator ends before the kill's output | `NoPollAfterLocalStop`, `NoMissingJobRetryAfterStop`, `IteratorFailsOnlyAfterFailedKill`, `IteratorEndsDrained`, `IteratorStoppedAfterRpc` | The iterator checks the stop and queued output before every poll and before each retry send. A poll error after a stop waits for the stop, then ends iteration through it, or is raised if the kill request failed. The iterator waits for the stop before it ends. |
 | 2 | A second `kill()` returns while the first one's request runs; cancelling the first abandons it | `KillReturnJoinsStop`, `StopNeverAbandoned`, `IteratorStoppedAfterRpc` | One stop operation per process. The first `kill()` starts it, later calls wait for it, and a caller's cancellation does not abandon it. |
 | 3 | The guest reports `killed` and retires the job while termination runs | `TerminalPollAfterTermination`, `RetireOnlyAfterTermination`, `ReadersCutOnlyAfterExit`, `NoGuestOutputLoss` | `Job.poll` waits for a termination in progress before its terminal drain. The handler answers from the Job it took. |
 | 4 | Overlapping poll, stdin and kill replies duplicate output or lower `_last_seq` | `SeqMonotonic`, `NoDuplicateEvent`, `OutputSequenceMonotone` | Replies carry each held chunk with its seq. The host takes only chunks above `_last_seq` and never lowers it. |
@@ -30,7 +30,7 @@ is lost (F2).
 | `TypeOK` | Variable domains. |
 | `NoPollAfterLocalStop` | No poll (new or retry) is sent after the host requested a stop. |
 | `NoMissingJobRetryAfterStop` | No poll retry is sent after a stop, including a stop requested during the retry backoff. |
-| `IteratorNeverFails` | The iterator never raises a poll error (in the model a poll fails only after a stop, a terminal reply, or fewer transient errors than the retry limit). |
+| `IteratorFailsOnlyAfterFailedKill` | The iterator raises a poll error only after a stop whose kill request failed (in the model a poll fails only after a stop, a terminal reply, or fewer transient errors than the retry limit). |
 | `IteratorEndsDrained` | The iterator ends only with nothing queued. |
 | `IteratorStoppedAfterRpc` | If a stop request was started, the iterator ends only after it finished. |
 | `KillReturnJoinsStop` | `kill()` returns normally only after the shared stop request finished, or once the process is known completed. |
@@ -77,9 +77,12 @@ kill is confirmed.
   end (`_complete_before_cancelling`), so its cancellation is raised once the
   request finishes. The model also lets the first caller stop waiting at once;
   the code has fewer behaviors, so the rules still hold.
-- A poll `TimeoutError` after `kill()` (not modeled) waits for the stop, then
-  ends iteration if the kill reached the sandbox, and is raised otherwise, as
-  `poll_timeout_recovery` documents.
+- Any poll error after `kill()` waits for the stop, then ends iteration if the
+  kill reached the sandbox, and is raised otherwise, as
+  `poll_timeout_recovery` documents. The model covers the `RuntimeError` case;
+  poll timeouts are not modeled.
+- The kill request is bounded by `KILL_TIMEOUT`. A timed-out kill is a failed
+  kill; the model's only kill failure is "job not live".
 
 ## Known limits
 

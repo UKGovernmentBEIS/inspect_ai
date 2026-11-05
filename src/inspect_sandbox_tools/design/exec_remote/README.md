@@ -14,7 +14,7 @@ callers, retries and output arriving at any time.
 | `ExecRemote.tla` | The code as implemented. Actions changed from `buggy/` are marked `FIXED`. |
 | `ExecRemote.cfg` | Main config: all safety invariants. |
 | `ExecRemote-liveness.cfg` | Main config plus the temporal properties. |
-| `buggy/ExecRemote.tla`, `buggy/ExecRemote.cfg` | The code before the stop and output fixes, at `ec29c121852f`, with the same invariants. Kept to show what each invariant catches. Defect sites are marked `BUGGY`. |
+| `buggy/ExecRemote.tla`, `buggy/ExecRemote.cfg` | The code before the stop and output fixes, at `94ef6eacc` (main, #6275), with the same invariants. Kept to show what each invariant catches. Defect sites are marked `BUGGY`. |
 
 ## Changing exec_remote
 
@@ -44,6 +44,9 @@ MaxFail = 1, BufCap = 2, KeyedKillAnyTime = FALSE`.
 
 | Date | Model, config | Result |
 |---|---|---|
-| 2026-11-05 | `ExecRemote.tla`, `ExecRemote.cfg` | All 21 invariants hold, no deadlock. 970,311 distinct states, depth 40. |
-| 2026-11-05 | `ExecRemote.tla`, `ExecRemote-liveness.cfg` | All 21 invariants and the five temporal properties hold. 970,311 distinct states. |
+| 2026-11-05 | `ExecRemote.tla`, `ExecRemote.cfg` | All 21 invariants hold, no deadlock. 1,039,393 distinct states, depth 41. |
+| 2026-11-05 | `ExecRemote.tla`, `ExecRemote-liveness.cfg` | All 21 invariants and the five temporal properties hold. 1,039,393 distinct states. |
 | 2026-11-05 | `buggy/ExecRemote.tla`, `buggy/ExecRemote.cfg` | Breaks at once (`IteratorStoppedAfterRpc`: the iterator ends before the kill request finished). Earlier per-invariant runs also broke `KillReturnJoinsStop`, `StopNeverAbandoned`, `NoPollAfterLocalStop`, `NoMissingJobRetryAfterStop`, `IteratorNeverFails`, `IteratorEndsDrained`, `TerminalPollAfterTermination`, `RetireOnlyAfterTermination`, `ReadersCutOnlyAfterExit`, `NoGuestOutputLoss`, `SeqMonotonic`, `NoDuplicateEvent`, `OutputSequenceMonotone`, `NoEventLoss` and `CompletedDeliversAll`. |
+
+The `buggy/` row lists invariant names from before the rename of
+`IteratorNeverFails` to `IteratorFailsOnlyAfterFailedKill`.

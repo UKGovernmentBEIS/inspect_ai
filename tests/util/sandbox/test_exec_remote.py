@@ -9,6 +9,7 @@ import asyncio
 import contextlib
 import itertools
 import json
+import logging
 import warnings
 from collections.abc import Iterator
 from typing import Any, Literal
@@ -455,9 +456,10 @@ class TestPollTimeoutRecovery:
             # the server's own error after the kill ends iteration
             ("repoll", True, None, ""),
             ("repoll", False, SandboxTimeoutError, "not answering"),
-            # a RuntimeError after the kill ends iteration, and is not retried
+            # a RuntimeError after the kill is not retried; it ends iteration
+            # through a kill that reached the sandbox, and is raised otherwise
             ("backoff", True, None, ""),
-            ("backoff", False, None, ""),
+            ("backoff", False, RuntimeError, "exit code 137"),
         ],
         ids=[
             "pause-kill_answered",
@@ -482,7 +484,7 @@ class TestPollTimeoutRecovery:
         flight, or during the backoff after a re-poll failed with a `RuntimeError`.
         An in-flight re-poll then gets the server's `No job found` (the kill reached
         the sandbox) or times out (it did not), and is not retried. Iteration ends
-        through the kill, except that a poll timeout is raised when the kill
+        through the kill, except that the poll's error is raised when the kill
         request failed.
         """
         monkeypatch.setattr(
@@ -663,6 +665,79 @@ class TestKill:
         # The stop finished, so the process no longer accepts stdin or polls
         assert proc._stop is not None and proc._stop.is_set()
         assert proc._terminated
+
+    async def test_kill_request_is_bounded(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """A kill request that gets no reply is given up after `KILL_TIMEOUT`.
+
+        It is sent outside sandbox concurrency limits and without transport
+        retries, and the timeout is logged like a failed kill.
+        """
+        monkeypatch.setattr(exec_remote_module, "KILL_TIMEOUT", 0.2)
+        caplog.set_level(logging.DEBUG)
+
+        async def kill_hangs(params: dict[str, Any]) -> str:
+            await anyio.sleep_forever()
+            raise AssertionError("unreachable")
+
+        guest = _RaceGuest({"exec_remote_kill": kill_hangs})
+        proc = await exec_remote_streaming(guest.sandbox, ["cmd"], 5)
+
+        with anyio.fail_after(5):
+            await proc.kill()
+
+        assert proc._stop is not None and proc._stop.is_set()
+        assert not proc._killed
+        kill_kwargs = guest.sandbox.exec.call_args_list[-1].kwargs
+        assert kill_kwargs["timeout"] == 0.2
+        assert kill_kwargs["timeout_retry"] is False
+        assert kill_kwargs["concurrency"] is False
+        assert "timed out after 0.2s" in caplog.text
+
+    @pytest.mark.parametrize(
+        "poll_error",
+        [
+            SandboxTimeoutError("the pod is not answering."),
+            RuntimeError("command terminated with exit code 137"),
+        ],
+        ids=["timeout", "runtime_error"],
+    )
+    async def test_poll_error_after_kill_is_raised_when_the_kill_fails(
+        self, poll_error: Exception
+    ) -> None:
+        """A poll that fails after kill() ends iteration only if the kill succeeded."""
+        poll_started = anyio.Event()
+        kill_requested = anyio.Event()
+
+        async def poll(params: dict[str, Any]) -> str:
+            poll_started.set()
+            await kill_requested.wait()
+            raise poll_error
+
+        async def kill(params: dict[str, Any]) -> str:
+            kill_requested.set()
+            raise ConnectionError("sandbox connection lost")
+
+        guest = _RaceGuest({"exec_remote_poll": poll, "exec_remote_kill": kill})
+        proc = await exec_remote_streaming(guest.sandbox, ["cmd"], 5)
+
+        async def kill_during_poll() -> None:
+            await poll_started.wait()
+            await proc.kill()
+
+        with anyio.fail_after(5):
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(kill_during_poll)
+                with pytest.raises(type(poll_error), match=str(poll_error)):
+                    _ = [event async for event in proc]
+
+        assert not proc._killed
+        assert guest.methods == [
+            "exec_remote_start",
+            "exec_remote_poll",
+            "exec_remote_kill",
+        ]
 
 
 # ============================================================================

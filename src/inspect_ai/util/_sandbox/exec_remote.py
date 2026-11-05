@@ -126,7 +126,7 @@ class ExecRemoteCommonOptions:
     set."""
 
     poll_timeout_retry: bool | None = None
-    """Retry individual RPC requests (start, poll, stdin, kill) when they time out.
+    """Retry individual RPC requests (start, poll, stdin) when they time out.
     Requests will be retried up to twice, with a timeout of no greater
     than 60 seconds for the first retry and 30 for the second. `False` cannot be
     combined with `poll_timeout_recovery`."""
@@ -149,8 +149,8 @@ class ExecRemoteCommonOptions:
     ended during the stall, its exit status is lost and `RuntimeError` is raised.
     Only polls are re-issued, and none once `kill()` has been called: iteration
     then ends with the kill's output once the kill request finishes, or, if the
-    kill request failed (for example, it also timed out), the poll's
-    `TimeoutError` is raised.
+    kill request failed (for example, it also timed out), the poll's error is
+    raised.
     A caller's `timeout` (awaitable mode) or cancellation still ends the wait at
     once. Raises `ValueError` with `poll_timeout_retry=False`, which asks for
     timed-out requests not to be retried.
@@ -237,6 +237,9 @@ POLL_TIMEOUT_RECOVERY_WAIT_SECONDS: float = 5.0
 
 KILL_KEY_TIMEOUT = 30
 """Bound in seconds on killing a job whose start got no reply."""
+
+KILL_TIMEOUT = 30
+"""Bound in seconds on the kill request sent by `kill()`."""
 
 SERVER_WAIT_WINDOW_SECONDS: float = 10.0
 """Time after the start reply during which polls wait on the server."""
@@ -533,14 +536,13 @@ class ExecRemoteProcess:
 
                 try:
                     result = await self._poll()
-                except (RuntimeError, TimeoutError) as ex:
+                except Exception:
                     if self._stop is None:
                         raise
                     # kill() was called while this poll was in flight: the job
-                    # may be gone, so end through the kill instead. A timeout
-                    # is still raised unless the kill reached the sandbox.
+                    # may be gone, so end through the kill if it succeeded.
                     await self._stop.wait()
-                    if isinstance(ex, TimeoutError) and not self._killed:
+                    if not self._killed:
                         raise
                     continue
 
@@ -749,8 +751,10 @@ class ExecRemoteProcess:
 
         The first call sends the kill request; later calls wait for it. The
         request runs to completion even if the calling task is cancelled (the
-        first caller's cancellation is raised once it finishes), and a failed
-        request is logged, not raised. A no-op once the process has completed.
+        first caller's cancellation is raised once it finishes), bounded by
+        `KILL_TIMEOUT`, and outside sandbox concurrency limits. A failed or
+        timed-out request is logged, not raised. A no-op once the process has
+        completed.
         """
         if self._pid is None:
             return
@@ -764,18 +768,28 @@ class ExecRemoteProcess:
 
     async def _send_kill(self) -> None:
         assert self._stop is not None
+        error: BaseException | None = None
         try:
-            with anyio.CancelScope(shield=True):
-                result = await self._rpc(
-                    "exec_remote_kill",
-                    {"pid": self._pid, "ack_seq": self._last_seq},
-                    _OutputResult,
-                )
-            self._killed = True
-            self._merge_output(result.chunks)
-        except Exception:
+            with anyio.move_on_after(KILL_TIMEOUT, shield=True):
+                try:
+                    result = await self._rpc(
+                        "exec_remote_kill",
+                        {"pid": self._pid, "ack_seq": self._last_seq},
+                        _OutputResult,
+                        timeout=KILL_TIMEOUT,
+                        timeout_retry=False,
+                        concurrency=False,
+                    )
+                    self._killed = True
+                    self._merge_output(result.chunks)
+                    return
+                except Exception as ex:
+                    error = ex
             logging.debug(
-                f"exec_remote kill RPC failed for pid {self._pid}", exc_info=True
+                "exec_remote kill RPC failed for pid %s (%s)",
+                self._pid,
+                error or f"timed out after {KILL_TIMEOUT}s",
+                exc_info=error,
             )
         finally:
             self._stop.set()
