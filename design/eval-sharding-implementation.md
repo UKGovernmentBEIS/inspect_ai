@@ -1852,7 +1852,8 @@ PR 2. Neither depends on the merge.
   factory's construction context, the model, generate config and roles
   before the task's own overrides, is not in the logs, so a reloaded spec
   can build different metrics or reducers under the same names. Step 5b
-  designs how the CLI gets that context.
+  ([`eval-sharding-merge-cli.md`](eval-sharding-merge-cli.md)) designs
+  how the CLI gets that context.
 - **Mint the merged log's `task_id` whenever `<name>` gives no usable id.**
   A random id breaks the rebuild of a merged log deleted by retry
   cleanup from a leftover companion: the rebuilt log would get a new
@@ -2376,9 +2377,10 @@ and has `--json` (decisions: Ransom, 2026-10-21). Its design must solve
 the task input. A task factory's construction context (the incoming
 model, generate config and model roles, before the task's own `model`,
 `config` and `model_roles` apply) is not in the logs, so the CLI must
-get it from the user or the run, not rebuild it from recorded state. A
-candidate, not a decision: the CLI takes `inspect eval`'s task options
-and resolves the task through eval's own task resolution.
+get it from the user or the run, not rebuild it from recorded state.
+Designed in [`eval-sharding-merge-cli.md`](eval-sharding-merge-cli.md):
+the command takes `inspect eval`'s task options and resolves the task
+through eval's own task resolution.
 
 6. **Eval-set integration.** Startup merge, `selected_sample_ids`,
    `skip_shards`, completeness branch, no recovery of merged logs, cleanup
