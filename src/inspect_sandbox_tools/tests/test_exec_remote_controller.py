@@ -161,7 +161,6 @@ async def _stop_job(job: Job) -> None:
     await job.cleanup()
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "error",
     [BrokenPipeError(32, "Broken pipe"), ConnectionResetError("Connection lost")],
@@ -169,7 +168,7 @@ async def _stop_job(job: Job) -> None:
 async def test_initialize_stdin_reports_a_closed_stdin_as_connection_lost(
     monkeypatch: pytest.MonkeyPatch, error: OSError
 ) -> None:
-    """asyncio's error for a closed stdin depends on timing; the job's does not."""
+    """Both low-level stdin errors report Connection lost and keep their cause."""
     job = await Job.spawn("exec sleep 30", stdin=True)
     try:
         assert job._process.stdin is not None
