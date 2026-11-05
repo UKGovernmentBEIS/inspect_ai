@@ -2,7 +2,7 @@ import logging
 from datetime import datetime, timezone
 from importlib import metadata as importlib_metadata
 from importlib.metadata import Distribution
-from typing import TYPE_CHECKING, Any, Callable, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import anyio
 from shortuuid import uuid
@@ -226,7 +226,6 @@ class TaskLogger:
         header_only: bool,
         dynamic_dataset: bool = False,
         prior_created: str | None = None,
-        checkpoints_dir: Callable[[str], str | None] | None = None,
     ) -> None:
         packages = {
             PKG_NAME: importlib_metadata.version(PKG_NAME),
@@ -330,7 +329,6 @@ class TaskLogger:
         self.recorder = recorder
         # the prior log's `eval.created`, which this attempt's must follow
         self._prior_created = prior_created
-        self._checkpoints_dir = checkpoints_dir
         self.header_only = header_only
 
         # number of samples logged without error / distinct samples logged
@@ -481,12 +479,6 @@ class TaskLogger:
         to a second), `task`, `task_id`, and `model`. Two logs that share
         all of those collide on the filesystem; we walk `created` forward
         until the computed path doesn't already exist.
-
-        The eval checkpoints dir is named after the log, but a shared
-        `checkpoints_location` can hold it for logs in other directories
-        (two retries of one log into different log dirs). The walk also
-        steps past an existing checkpoints dir, so an attempt never adopts
-        another attempt's checkpoints for the same generated sample ids.
         """
         log_file_path = getattr(self.recorder, "_log_file_path", None)
         if log_file_path is None:
@@ -498,12 +490,7 @@ class TaskLogger:
         max_attempts = 60
         for _ in range(max_attempts):
             path = log_file_path(self.eval)
-            checkpoints_dir = (
-                self._checkpoints_dir(path) if self._checkpoints_dir else None
-            )
-            if not filesystem(path).exists(path) and not (
-                checkpoints_dir and filesystem(checkpoints_dir).exists(checkpoints_dir)
-            ):
+            if not filesystem(path).exists(path):
                 return
             dt = datetime.fromisoformat(self.eval.created) + timedelta(seconds=1)
             bumped = dt.astimezone(timezone.utc).isoformat(timespec="seconds")

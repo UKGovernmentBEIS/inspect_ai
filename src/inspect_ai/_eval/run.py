@@ -14,7 +14,6 @@ from typing import (
     Set,
     cast,
 )
-from urllib.parse import urlparse
 
 import anyio
 from typing_extensions import Unpack
@@ -451,12 +450,6 @@ async def eval_run(
                     prior_created=resolved_task.sample_source.prior_created
                     if resolved_task.sample_source is not None
                     else None,
-                    checkpoints_dir=functools.partial(
-                        _eval_checkpoints_dir_in,
-                        eval_wd=eval_wd,
-                        task=resolved_task.checkpoint,
-                        eval_=eval_checkpoint,
-                    ),
                 )
                 await logger.init()
 
@@ -566,29 +559,6 @@ async def eval_run(
             await cleanup_s3_sessions()
         except Exception as ex:
             log.warning(f"Error cleaning up S3 sessions: {exception_message(ex)}")
-
-
-def _eval_checkpoints_dir_in(
-    log_location: str,
-    *,
-    eval_wd: str,
-    task: CheckpointConfig | None,
-    eval_: CheckpointConfig | None,
-) -> str | None:
-    """The eval checkpoints dir, with a relative local path taken from `eval_wd`.
-
-    `TaskLogger` probes this dir from the task's run dir (in `init()`) and
-    from wherever `reinit()` runs, but `task_run` copies, writes and resumes
-    checkpoints from `eval_wd`.
-    """
-    checkpoints_dir = eval_checkpoints_dir_from_config(log_location, task, eval_)
-    if (
-        checkpoints_dir is None
-        or urlparse(checkpoints_dir).scheme
-        or os.path.isabs(checkpoints_dir)
-    ):
-        return checkpoints_dir
-    return os.path.join(eval_wd, checkpoints_dir)
 
 
 def _empty_feed() -> PreparedFeed:

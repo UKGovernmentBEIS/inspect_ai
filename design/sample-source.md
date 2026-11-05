@@ -124,14 +124,11 @@ A `SampleSource` is passed as the **`dataset` argument to `Task`** (just as a
   logging, and when the clock went back. Every generated id in the prior
   log or its checkpoints, including those carried from earlier attempts,
   has a token at or below the prior's `created`, so a new attempt's ids
-  never repeat one. Two retries of the same log (`eval_retry` into two log
-  directories) can start in the same second; with a shared
-  `checkpoints_location` their checkpoints dirs, named after the log,
-  would then be one dir holding the same generated ids. The walk past
-  existing log files also steps past an existing checkpoints dir (a
-  relative `checkpoints_location` taken from the eval's working dir, where
-  checkpoints are written), so the second takes the next second. Retries started at the same moment can
-  still race, as two logs at one path can. The counter is the attempt's admission count,
+  never repeat one. Two retries of the same log into different log
+  directories that start in the same second (or with the clock running
+  backward) and share a `checkpoints_location` share a checkpoints dir and
+  generated ids, so one can resume the other's checkpoints (accepted:
+  Ransom, 2026-11-05). The counter is the attempt's admission count,
   zero-padded to 4 digits, and skips any id an explicit sample already
   holds in any epoch (the seed set, earlier explicit admissions). An
   explicit sample added under an id this attempt generated is a duplicate,

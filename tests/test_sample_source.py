@@ -1911,145 +1911,6 @@ def test_sample_source_eval_retry_gets_later_ids(
     assert _followup_id(first) == f"dyn-{DYNAMIC_TOKEN}-0001"
 
 
-SIBLING_RETRY_TASK = """
-from pathlib import Path
-
-from inspect_ai import SampleSource, Task, task
-from inspect_ai.dataset import Sample
-from inspect_ai.log import EvalSample
-from inspect_ai.solver import Generate, Solver, TaskState, solver
-from inspect_ai.util import CheckpointConfig, checkpointer
-
-
-@task
-def sibling_retry_task(
-    state_dir: str, checkpoints_location: str, use_checkpointer: bool = True
-) -> Task:
-    state = Path(state_dir)
-
-    @solver
-    def checkpointed() -> Solver:
-        async def solve(task_state: TaskState, generate: Generate) -> TaskState:
-            input = task_state.input_text
-            if not use_checkpointer:
-                with open(state / "runs.txt", "a") as f:
-                    f.write(f"{input} initial\\n")
-                return task_state
-            output = ""
-            async with checkpointer() as cp:
-                output = cp.track("output", lambda: output, "")
-                with open(state / "runs.txt", "a") as f:
-                    f.write(f"{input} {cp.attempt}\\n")
-                if cp.attempt != "resume_for_scoring":
-                    output = f"answer-{input}"
-                    await cp.checkpoint()
-            return task_state
-
-        return solve
-
-    class Src(SampleSource):
-        def initial_samples(self) -> list[Sample]:
-            return [Sample(id="seed", input="seed", target="ok")]
-
-        async def sample_complete(self, sample: EvalSample) -> list[Sample] | None:
-            if sample.input == "seed":
-                counter = state / "followups"
-                n = int(counter.read_text()) if counter.exists() else 0
-                counter.write_text(str(n + 1))
-                return [Sample(input=f"follow-{n}", target="ok")]
-            if sample.input == "follow-0":
-                raise RuntimeError("callback failure")
-            return None
-
-    return Task(
-        dataset=Src(),
-        solver=[checkpointed()],
-        checkpoint=CheckpointConfig(
-            checkpoints_location=checkpoints_location, retention="retain"
-        ),
-    )
-"""
-
-
-def _sibling_retries(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-    root: str,
-    use_checkpointer: bool = True,
-) -> tuple[list[EvalLog], list[tuple[str, str]]]:
-    """Run a failed eval, then two eval_retry() calls of it into dirs a and b.
-
-    The task is loaded from ``tasks/sibling.py``, so its run dir is not the
-    eval's working dir. Every attempt starts in the same second and keeps
-    checkpoints under one shared ``root`` (absolute, or relative to the
-    working dir). Returns the two retry logs and each run's (input,
-    checkpointer attempt).
-    """
-    _freeze_dynamic_clock(monkeypatch)
-    monkeypatch.chdir(tmp_path)
-    (tmp_path / "tasks").mkdir()
-    (tmp_path / "tasks" / "sibling.py").write_text(SIBLING_RETRY_TASK)
-    checkpoints = str(tmp_path / "checkpoints") if root == "absolute" else "checkpoints"
-    original = eval(
-        "tasks/sibling.py",
-        task_args=dict(
-            state_dir=str(tmp_path),
-            checkpoints_location=checkpoints,
-            use_checkpointer=use_checkpointer,
-        ),
-        model="mockllm/model",
-        log_dir=str(tmp_path / "logs"),
-        display="none",
-    )[0]
-    assert original.status == "error"
-    retries = [
-        eval_retry(original, log_dir=str(tmp_path / name), display="none")[0]
-        for name in ("a", "b")
-    ]
-    assert [log.status for log in retries] == ["success", "success"]
-    runs = [
-        (input, attempt)
-        for input, attempt in (
-            line.split() for line in (tmp_path / "runs.txt").read_text().splitlines()
-        )
-    ]
-    return retries, runs
-
-
-def _sibling_followup_ids(retries: list[EvalLog]) -> list[int | str]:
-    return [
-        _followup_id(read_eval_log(log.location), f"follow-{n}")
-        for n, log in enumerate(retries, 1)
-    ]
-
-
-@pytest.mark.parametrize("root", ["absolute", "relative"])
-def test_sample_source_sibling_retries_get_their_own_checkpoints_dir(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, root: str
-) -> None:
-    # the second of two same-second retries of one log, into different log
-    # dirs, finds the first's checkpoints dir under the shared root, so its
-    # log (and checkpoints dir and generated ids) take the next second. A
-    # relative root is found from the eval's working dir, where checkpoints
-    # are written, not the task file's dir
-    retries, _ = _sibling_retries(monkeypatch, tmp_path, root, use_checkpointer=False)
-    assert _sibling_followup_ids(retries) == ["dyn-tro8w1-0001", "dyn-tro8w2-0001"]
-    assert len({Path(log.location).name for log in retries}) == 2
-
-
-@pytest.mark.slow
-@pytest.mark.parametrize("root", ["absolute", "relative"])
-def test_sample_source_sibling_retries_never_share_checkpoints(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, root: str
-) -> None:
-    # the second retry's follow-up must run its own work, not restore the
-    # first retry's checkpoint under the same generated id
-    retries, runs = _sibling_retries(monkeypatch, tmp_path, root)
-    assert ("follow-2", "initial") in runs
-    assert ("follow-2", "resume_for_scoring") not in runs
-    assert _sibling_followup_ids(retries) == ["dyn-tro8w1-0001", "dyn-tro8w2-0001"]
-
-
 @pytest.mark.parametrize(
     "seed_id, limit",
     [
@@ -2240,6 +2101,43 @@ def test_sample_source_generated_id_not_written_to_source_sample(route: str) -> 
     assert logs[0].status == "success"
     ids = {str(sample.input): sample.id for sample in (logs[0].samples or [])}
     assert isinstance(ids["added"], str)
+    assert added.id is None
+
+
+@pytest.mark.parametrize("route", ["next_samples", "enqueue_sample"])
+def test_sample_source_same_anonymous_sample_added_twice_gets_two_ids(
+    route: str,
+) -> None:
+    # one anonymous object added twice runs as two samples with distinct
+    # generated ids, and the caller's object keeps id=None
+    added = Sample(input="added", target="ok")
+
+    class _Src(SampleSource):
+        def __init__(self) -> None:
+            self._calls = 0
+
+        def initial_samples(self) -> list[Sample]:
+            return []
+
+        async def next_samples(self) -> list[Sample] | None:
+            self._calls += 1
+            if self._calls > 2:
+                return None
+            if route == "next_samples":
+                return [added]
+            enqueue_sample(added)
+            return []
+
+    logs = eval(
+        Task(dataset=_Src(), solver=[generate()]),
+        model="mockllm/model",
+        display="none",
+    )
+    assert logs[0].status == "success"
+    ids = [sample.id for sample in (logs[0].samples or [])]
+    assert len(ids) == 2
+    assert all(isinstance(id, str) for id in ids)
+    assert len(set(ids)) == 2
     assert added.id is None
 
 
