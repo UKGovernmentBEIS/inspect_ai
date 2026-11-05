@@ -59,11 +59,6 @@ Non-goals:
 
 ## Current behaviour
 
-Verified by reading the code at `d5fac2c683` and by a throwaway spike (two
-`inspect eval` workers on a two-task file with `mockllm/model`, then
-`eval_init`, `eval_resolve_tasks`, `resolve_task_epochs` and
-`merge_eval_log_shards` from a script, as the Design below calls them).
-
 **The merge API** (`src/inspect_ai/log/_shards/_api.py`).
 `merge_eval_log_shards_async` (`_api.py:156`) raises `TypeError` unless
 `task` is a `Task`, then validates its arguments before any I/O:
@@ -79,7 +74,13 @@ or a count below 1) and `check_s3_location` on both paths (`_walk.py:44`,
 `ShardSetError`) carries `outside` (`_errors.py`). A task whose names
 differ from the shards' raises plain `ShardSetError` (`check_task_matches`,
 `_write.py:64`). The incomplete message ends "Pass allow_incomplete to
-write an incomplete merged log." (`_api.py:507`).
+write an incomplete merged log." (`_api.py:507`). The merge raises
+`FileNotFoundError` in two cases: neither the merged log nor any shard
+attempt exists (`_api.py:325`), or an attempt the merge listed is removed
+before it is read (`_read_attempts` and `_read_attempt`, `_api.py:527-545`,
+propagate it), which happens when a worker's retry cleanup removes a
+superseded attempt (`_eval/evalset.py:2035-2053`) while the newer attempt
+remains.
 
 **How `inspect eval` builds a task.** `eval_exec` (`_cli/eval.py:1952`)
 parses `-T`/`--task-config` and `-M`/`--model-config` with
@@ -95,8 +96,8 @@ from `INSPECT_EVAL_MODEL_ARGS`, `resolve_models`) and `eval_resolve_tasks`
 config)`) and calls `resolve_tasks` (`_eval/loader.py:77`) to load the spec
 and call the factory with the task args. `resolve_models` turns no model
 into the `none` model (`model/_model.py:2626`); a provider model is
-constructed then and needs its credentials (a spike: `openai/gpt-4o` with
-no key raises `PrerequisiteError`; `mockllm/model` and `none` do not). The
+constructed then and needs its credentials (`openai/gpt-4o` with no key
+raises `PrerequisiteError`; `mockllm/model` and `none` need none). The
 run later applies an eval-level epochs override to the task
 (`_eval/run.py:311-325`): the count replaces the task's, and a bare count
 keeps the task's reducer. `resolve_task_epochs(task, epochs)`
@@ -104,21 +105,48 @@ keeps the task's reducer. `resolve_task_epochs(task, epochs)`
 run, and `task_with(task, epochs=...)` applies it, which is the recipe the
 Sharding docs give for the API.
 
-Spike results: `eval_resolve_tasks` resolves `two.py` to both tasks,
-`two.py@alpha` to one, a missing file to `FileNotFoundError` and an unknown
+`eval_resolve_tasks` resolves a file holding two tasks to both of them,
+`file.py@name` to one, a missing file to `FileNotFoundError` and an unknown
 name to `PrerequisiteError`; the factory sees the active model and the
-task args. The script's merge wrote a `success` log, a second run wrote
-nothing, and a run without the workers' `--epochs-reducer max` was refused
-(`ShardSetError`, epoch reducers). Outside `eval()`, a factory that calls
-`get_model()` with no active model and no `INSPECT_EVAL_MODEL` raises
-`ValueError` ("No model specified"); after `eval_init(model=None)` it gets
-the `none` model.
+task args. Outside `eval()`, a factory that calls `get_model()` with no
+active model and no `INSPECT_EVAL_MODEL` raises `ValueError` ("No model
+specified"); after `eval_init(model=None)` it gets the `none` model. A
+merge of shards run with `--epochs-reducer max`, given a task without
+that reducer, is refused (`ShardSetError`, epoch reducers).
 
-**The construction context in real tasks.** An AST survey of the 252
-`@task` functions in inspect_evals (`~/git/inspect_evals/src`) for calls to
-`get_model`, `active_model` or `active_generate_config` in the factory body
-finds six that read the active model when built and none that read the
-generate config: `browse_comp` (the default grader is the evaluated model),
+**Model specs and run configs.** `inspect eval` also takes the model as
+`--model-spec` (`INSPECT_EVAL_MODEL_SPEC`; model, base URL, model args and
+generate config in one value, `docs/models.qmd`) and a whole run as
+`--run-config` (`INSPECT_EVAL_RUN_CONFIG`; task, task args, model, model
+args, roles, generate config, solver and eval config, `docs/tasks.qmd`,
+"Run Config"). `eval_exec` resolves both before any task is built
+(`parse_run_config`, `merge_run_config_params` and `resolve_model_spec`,
+`_cli/eval.py:1842-1948`, called at `_cli/eval.py:2046-2061`). A spec from
+the environment yields to a single-model option typed on the command line
+(`--model`, `--model-base-url`, `--model-config`, `-M`) and otherwise
+replaces the model; a run config supplies the fields it holds.
+
+**Environment bindings.** The `inspect` group runs with
+`auto_envvar_prefix="INSPECT"` (`_cli/main.py:62`), so an option without
+an explicit `envvar` also reads `INSPECT_<COMMAND>_<OPTION>`: for
+`inspect eval` that is `INSPECT_EVAL_...`, for `inspect eval-set`
+`INSPECT_EVAL_SET_...`, and for a `log` subcommand
+`INSPECT_LOG_<SUBCOMMAND>_...`. Of the options this design shares, all but
+`--model-base-url` (`_cli/eval.py:290`) name their `INSPECT_EVAL_*`
+variable explicitly; `--model-base-url` reads `INSPECT_EVAL_MODEL_BASE_URL`
+under `inspect eval` and `INSPECT_EVAL_SET_MODEL_BASE_URL` under
+`inspect eval-set` through the prefix alone. Providers fall back to
+`INSPECT_EVAL_MODEL_BASE_URL` only after their own variables such as
+`OPENAI_BASE_URL` (`model_base_url`,
+`model/_providers/util/util.py:38-50`), so an unbound option does not keep
+eval's precedence. Options that must not read the environment set
+`allow_from_autoenv=False` (`--notification`, `_cli/eval.py:416`; ctl's
+`--log-dir`, `_cli/ctl/_group.py:240`). The common options all name their
+variables (`INSPECT_LOG_DIR`, `INSPECT_LOG_LEVEL`, `INSPECT_DISPLAY`, ...).
+
+**The construction context in real tasks.** Of the 252 `@task` functions
+in inspect_evals, six call `get_model` or `active_model` in the factory
+body and none calls `active_generate_config`: `browse_comp` (the default grader is the evaluated model),
 `niah` (the tokenizer follows the model name), `instrumentaleval` and three
 `gdm_stealth` tasks (graders built by name). None changes a scorer name or
 a metric with the model. The merge reads no dataset, so a dataset that
@@ -166,8 +194,9 @@ inside the command function, as in `recover`.
   `--task-config`, `--model`, `--model-base-url`, `-M`, `--model-config`,
   `--model-role`, `--epochs`, `--epochs-reducer`, `--no-epochs-reducer`.
   They mean what they mean to `inspect eval`, read the same
-  `INSPECT_EVAL_*` environment variables, and a launcher passes the values
-  it gave its workers. Pass `--model`, `--model-role` and `-M` when the
+  `INSPECT_EVAL_*` environment variables as under `inspect eval`
+  ("Environment bindings" below), and a launcher passes the values it gave
+  its workers. Pass `--model`, `--model-role` and `-M` when the
   task reads them while it is built; they also set the model context the
   merge's metrics and reducers run in. A model given here is constructed,
   as `inspect eval` constructs it, and needs its provider's credentials.
@@ -180,9 +209,9 @@ inside the command function, as in `recover`.
   it (the shards hold ids outside the selection, or the selection's id is
   missing). An empty id (`1,,2`, or an empty value) is refused before the
   task is built. `--sample-count N`: the intended selection as a number of
-  samples. Neither reads an environment variable: `INSPECT_EVAL_SAMPLE_ID`
-  is a worker's own selection, not the run's. Both given, or a count below
-  1, is refused by the API's own check (below).
+  samples. Neither reads an environment variable (below):
+  `INSPECT_EVAL_SAMPLE_ID` is a worker's own selection, not the run's. Both
+  given, or a count below 1, is refused by the API's own check (below).
 - `--allow-incomplete`: the API's `allow_incomplete`.
 - `--json`: one JSON object on stdout ("Output").
 - `@common_options`, as `recover` takes them: `--log-level`, `--env`,
@@ -193,8 +222,50 @@ inside the command function, as in `recover`.
   ignores it when given a log.
 
 Options `inspect eval` has and this command does not (solver, sandbox,
-limits, approval, generate config, `--limit`, `--sample-shuffle`, ...) are
-not accepted, so passing one is click's "no such option" error.
+limits, approval, `--limit`, `--sample-shuffle`, ...) are not accepted, so
+passing one is click's "no such option" error. That includes the generate
+config options (`--generate-config` and the individual generation flags):
+the task is built with a fresh `GenerateConfig()` (decision: Ransom,
+2026-11-05). No surveyed task factory reads the active generate config
+when built; `--generate-config FILE` can be added, and passed to
+`eval_init` and `eval_resolve_tasks`, if one turns up. Generate config
+environment variables (`INSPECT_EVAL_GENERATE_CONFIG`, `INSPECT_EVAL_MAX_TOKENS`,
+...) are not read.
+
+**Model specs and run configs** are not accepted either: `--model-spec`
+and `--run-config` are "no such option". A run launched with them merges
+with the equivalent flags: a spec's `model`, `base_url` and model args as
+`--model`, `--model-base-url` and `-M` (its generate config is not
+needed, above); a run config's `task` and its arguments, `model` with
+its arguments and base URL, `model_roles`, and the `epochs` and
+`epochs_reducer` of its `eval_config` as `--task`, `-T`, `--model`, `-M`,
+`--model-base-url`, `--model-role`, `--epochs` and `--epochs-reducer`
+(`inspect log export-config` of a worker's shard log shows these values;
+the command does not read them from the log itself). Their environment
+variables would change the task `inspect eval` builds, so the command
+refuses them rather than ignore them (`invalid_arguments`, before the task
+is built, naming the variable and the flags to use instead):
+`INSPECT_EVAL_RUN_CONFIG` whenever it is set and non-empty, and
+`INSPECT_EVAL_MODEL_SPEC` when it is set and non-empty and no single-model
+option (`--model`, `--model-base-url`, `--model-config`, `-M`) is typed on
+the command line, the case where `inspect eval` would let the spec replace
+the model.
+
+**Environment bindings.** Every option of the command either names its
+variable explicitly or sets `allow_from_autoenv=False`, so nothing reads
+an automatic `INSPECT_LOG_MERGE_SHARDS_*` variable:
+
+- The shared task options read exactly the variable `inspect eval` reads.
+  For `--model-base-url`, the shared decorator takes the envvar as a
+  parameter: `eval_options` passes none, keeping the prefix bindings
+  `INSPECT_EVAL_MODEL_BASE_URL` (eval) and
+  `INSPECT_EVAL_SET_MODEL_BASE_URL` (eval-set) unchanged, and the merge
+  command passes `INSPECT_EVAL_MODEL_BASE_URL`, so the option, not the
+  provider's fallback, supplies it and it wins over `OPENAI_BASE_URL` as
+  under `inspect eval`.
+- `--task`, `--sample-id`, `--sample-count`, `--allow-incomplete` and
+  `--json` set `allow_from_autoenv=False`: they are command-line only.
+- The common options keep their named variables.
 
 ### Sharing the options with `inspect eval`
 
@@ -203,9 +274,12 @@ The shared options are defined once. `_cli/eval.py` gains four decorators,
 `model_role_option` (`--model-role`), `task_args_options` (`-T`,
 `--task-config`) and `epochs_options` (`--epochs`, `--epochs-reducer`,
 `--no-epochs-reducer`), each holding the existing `click.option` calls
-unchanged. `eval_options` applies them where those options stand today, so
-`inspect eval`, `inspect eval-set` and every other user of `eval_options`
-keep the same options, help text, order and environment variables.
+unchanged except that `model_options` takes
+`model_base_url_envvar: str | None = None` for `--model-base-url`
+("Environment bindings" above). `eval_options` applies them, with no
+envvar, where those options stand today, so `inspect eval`,
+`inspect eval-set` and every other user of `eval_options` keep the same
+options, help text, order and environment variables.
 
 The epochs block of `eval_exec` moves into
 `parse_epochs_options(epochs, epochs_reducer, no_epochs_reducer) ->
@@ -224,9 +298,11 @@ in `recover`; it loads hooks, such as one that supplies API keys):
    `check_merge_arguments(log, sample_ids, sample_count) ->
    MergeArguments` in `_api.py` (a `NamedTuple` of the `MergePaths` and
    the given `Selection`), which the API calls in their place and uses the
-   result of, and the command calls before building the task. A bad `LOG` or selection is then refused
-   before any task code is imported or any model constructed, by the same
-   code that would refuse it later.
+   result of, and the command calls before building the task. A bad `LOG`
+   or selection is then refused before any task code is imported or any
+   model constructed, by the same code that would refuse it later. The
+   environment refusals for `INSPECT_EVAL_RUN_CONFIG` and
+   `INSPECT_EVAL_MODEL_SPEC` ("The command") run here too.
 2. **Parse the task options** as `eval_exec` does: `parse_cli_config(t,
    task_config)`, `parse_cli_config(m, model_config)`,
    `parse_model_role_cli_args(model_role)`, `parse_epochs_options(...)`.
@@ -252,9 +328,9 @@ in `recover`; it loads hooks, such as one that supplies API keys):
 6. **Merge**: `merge_eval_log_shards(LOG, task, sample_ids=...,
    sample_count=..., allow_incomplete=...)`. The model and roles made
    active in step 3 are the caller's model context the merge runs metrics
-   and reducers in; `run_coroutine` copies the context into its event loop
-   (verified on asyncio and Trio: a coroutine run through it sees the
-   model `init_active_model` set).
+   and reducers in; `run_coroutine` copies the context into its event
+   loop, so a coroutine run through it sees the model `init_active_model`
+   set, on asyncio and on Trio.
 
 The task's own `model`, `config` and `model_roles` are not made active for
 the merge, as they are for a native run's scoring: no surveyed metric or
@@ -318,9 +394,9 @@ so an error from the task's own code never reads as a merge refusal:
 
 | `kind` | Raised by | Extra field |
 |---|---|---|
-| `invalid_arguments` | `check_merge_arguments` (`ValueError`), an empty `--sample-id` entry, `--log-dir` on the command line | |
+| `invalid_arguments` | `check_merge_arguments` (`ValueError`), an empty `--sample-id` entry, `--log-dir` on the command line, `INSPECT_EVAL_RUN_CONFIG` or `INSPECT_EVAL_MODEL_SPEC` in the environment | |
 | `task` | steps 2 to 5: an unreadable `--task-config` or `--model-config`, a task spec not found, a factory that raises, a model or role that cannot be constructed (a missing API key's `PrerequisiteError`), no task, several tasks, several models, a `TaskSource` | |
-| `not_found` | the merge's `FileNotFoundError`: neither the merged log nor any shard exists | |
+| `not_found` | the merge's `FileNotFoundError`: a file the merge needed was missing. Either neither the merged log nor any shard attempt exists, or an attempt the merge listed was removed before it was read (a worker's retry cleanup removing a superseded attempt); the message says which. In the second case running the merge again, once the workers have exited, reads the attempt that replaced it | |
 | `incomplete` | `ShardSetIncomplete` | `incomplete`: `status`, `missing` (`null` for a count or no selection), `running`, `failed` |
 | `outside_selection` | `ShardSelectionError` | `outside` (`null` for a count) |
 | `refused` | any other `ShardSetError`, including a task that does not match the shards | |
@@ -352,8 +428,12 @@ its workers, minus each worker's `--sample-id` or `--limit` and
 `--log-dir`. The page says which options are accepted and that they mean
 what they mean to `inspect eval`; that `--sample-id` takes exact ids, not
 patterns; that `--model` and `--model-role` are needed only if the task
-reads them when built, and need credentials; the exit codes; and the
-`--json` object and envelope with its kinds. The sentence "A shell
+reads them when built, and need credentials; how to translate a run
+launched with `--model-spec` or `--run-config` into flags, and that the
+command refuses their environment variables; that generate config options
+are not taken; the exit codes; and the `--json` object and envelope with
+its kinds, including that `not_found` can mean an attempt vanished
+mid-merge and is worth a re-run. The sentence "A shell
 launcher runs this as a short Python step" is replaced by the command. The
 `--help` text of the command carries the option descriptions; the CLI
 reference page picks the command up from click.
@@ -378,6 +458,15 @@ reference page picks the command up from click.
   would accept dozens of options with no effect, and the check goes beyond
   the API's names-only contract. Rejected for the subset that builds the
   task.
+- **Accept `--model-spec` and `--run-config`** and resolve them with
+  `resolve_model_spec`, `parse_run_config` and `merge_run_config_params`
+  as `eval_exec` does. A run launched with them would merge with the same
+  arguments, but a run config carries far more than the task (solver,
+  generate config, eval config) and its merge with the command line is
+  defined against eval's whole option set, and a model spec's main content
+  beside the model is generate config, which the command does not take.
+  The flags cover what builds the task; refusing the environment variables
+  keeps an ambient one from changing it silently.
 - **Copy the option definitions** into the new module instead of sharing
   decorators. No change to `_cli/eval.py`, but two definitions of each
   option drift (help, environment variables, parsing); sharing is the
@@ -433,8 +522,10 @@ No migration required.
   under `--json`. Control characters in a local shard file name reach the
   terminal unchanged, as they do from `inspect log list` ("Not this
   design").
-- **Environment.** The shared options read `INSPECT_EVAL_*` variables,
-  which the user controls, as for `inspect eval`.
+- **Environment.** The shared options read the `INSPECT_EVAL_*` variables
+  `inspect eval` reads, which the user controls; no option reads an
+  automatic `INSPECT_LOG_MERGE_SHARDS_*` variable, and the run-config and
+  model-spec variables are refused rather than ignored.
 
 ## Testing
 
@@ -456,10 +547,24 @@ network, Docker or provider keys. Each test writes a task file to
   merges with it and is refused without it. A factory that calls
   `get_model()` with no `--model` and no `INSPECT_EVAL_MODEL` gets the
   `none` model.
-- **Environment variables.** `INSPECT_EVAL_TASK_ARGS` and
-  `INSPECT_EVAL_EPOCHS` set in the environment build the same task as the
-  flags; `INSPECT_EVAL_SAMPLE_ID` set in the environment does not become
-  the selection.
+- **Environment variables**, invoked with the production prefix
+  (`CliRunner.invoke(inspect, ..., auto_envvar_prefix="INSPECT")`):
+  `INSPECT_EVAL_TASK_ARGS` and `INSPECT_EVAL_EPOCHS` build the same task
+  as the flags; `INSPECT_EVAL_SAMPLE_ID` does not become the selection;
+  `INSPECT_LOG_MERGE_SHARDS_TASK`, `..._SAMPLE_ID`, `..._SAMPLE_COUNT`,
+  `..._ALLOW_INCOMPLETE` and `..._JSON` are not read. With both
+  `INSPECT_EVAL_MODEL_BASE_URL` and `OPENAI_BASE_URL` set, the model the
+  command builds for `--model openai/<name>` (a dummy key; nothing is
+  called) has the base URL `inspect eval` gives it, the former; the same
+  test pins `inspect eval`'s and `inspect eval-set`'s `--model-base-url`
+  bindings (`INSPECT_EVAL_MODEL_BASE_URL`,
+  `INSPECT_EVAL_SET_MODEL_BASE_URL`).
+- **Model specs and run configs.** `INSPECT_EVAL_RUN_CONFIG` set is
+  `invalid_arguments`; `INSPECT_EVAL_MODEL_SPEC` set is
+  `invalid_arguments` without `--model` and ignored with it; in each
+  refusal the task file's import marker is absent. `--model-spec` and
+  `--run-config` on the command line are click's "no such option", as is
+  `--generate-config`.
 - **Epochs.** Workers run with `--epochs 2`, `--epochs 2 --epochs-reducer
   max` and `--epochs 2 --no-epochs-reducer` over a task with its own
   reducer merge with the same flags to the native results, and each is
@@ -476,7 +581,9 @@ network, Docker or provider keys. Each test writes a task file to
   with no `OPENAI_API_KEY` are each `task`, with every file in the log
   directory byte-identical.
 - **Merge errors.** A held lock file is `conflict`; no merged log and no
-  shards is `not_found`; a recovered-log `LOG` is `invalid_arguments`
+  shards is `not_found`, and so is an attempt removed between the merge's
+  listing and its read (a patched read that deletes it first), with a
+  re-run then merging its replacement; a recovered-log `LOG` is `invalid_arguments`
   before the task file is imported; `--log-dir` on the command line is
   `invalid_arguments`; a metric that raises is `internal` with its
   traceback on stderr.
@@ -517,15 +624,8 @@ in three commits:
 
 ## Open questions
 
-- **Should the command take `inspect eval`'s generate config options?**
-  Recommendation: no. Step 5b names the generate config as part of the
-  construction context, but no surveyed task factory reads it (the six
-  that read the active model use its name, its API or none of it), and
-  the generate options are about forty flags plus `--generate-config`. Not
-  taking them keeps the command small, and passing one is a loud "no such
-  option". If a task that reads them turns up, `--generate-config FILE`
-  can be added and passed to `eval_init` and `eval_resolve_tasks`.
-  Confidence: high
+None. Resolved by Ransom on 2026-11-05: the command takes no generate
+config options ("The command").
 
 ## Not this design
 
@@ -536,5 +636,6 @@ in three commits:
   share that helper later.
 - A directory-wide merge (`inspect log merge-shards --log-dir`).
 - A `--delete-shards` option: shard deletion is PR 9.
+- Accepting `--model-spec` and `--run-config` in the merge command.
 - Sanitizing control characters in log-derived names that `inspect log`
   commands print.
