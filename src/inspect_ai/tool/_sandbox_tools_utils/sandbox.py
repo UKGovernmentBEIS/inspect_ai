@@ -30,6 +30,7 @@ from inspect_ai.util._sandbox._cli import (
     SANDBOX_CLI,
     SANDBOX_TOOLS_BASE_NAME,
     SANDBOX_TOOLS_DIR,
+    SANDBOX_TOOLS_VERSION,
 )
 from inspect_ai.util._sandbox._framework_directory import (
     FrameworkDirectoryError,
@@ -40,6 +41,7 @@ from inspect_ai.util._sandbox._framework_directory import (
     stat_in_framework_directory,
     verify_framework_directory,
 )
+from inspect_ai.util._sandbox._framework_operation import framework_sandbox_operation
 from inspect_ai.util._sandbox._privileged import privileged_shell
 from inspect_ai.util._sandbox.context import (
     SandboxInjectable,
@@ -298,7 +300,8 @@ async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
 
         # As root the server can setuid to any user for exec_remote; as the
         # default user, user-switching is disabled (auto-detected by the server).
-        result = await sandbox.exec([SANDBOX_CLI, "start-server"], user=user)
+        with framework_sandbox_operation():
+            result = await sandbox.exec([SANDBOX_CLI, "start-server"], user=user)
         if not result.success:
             raise RuntimeError(f"Failed to start sandbox tools server: {result.stderr}")
     except SandboxInjectionError:
@@ -660,9 +663,7 @@ async def _open_executable_for_arch(
 
 def _get_sandbox_tools_version() -> str:
     """Get the container tools version from sandbox_tools_version.txt file."""
-    # Look in the same directory as this module
-    version_file = Path(__file__).parent / "sandbox_tools_version.txt"
-    return version_file.read_text().strip()
+    return SANDBOX_TOOLS_VERSION
 
 
 def _get_executable_name(arch: Architecture, dev: bool, musl: bool) -> str:
