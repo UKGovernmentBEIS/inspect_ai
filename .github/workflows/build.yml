@@ -237,14 +237,19 @@ jobs:
         run: uv cache prune --ci
 
   test:
+    # Keep the required asyncio check names unchanged.
+    name: test (${{ matrix.python-version }}${{ matrix.backend == 'trio' && ', trio' || '' }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
       contents: read
       pull-requests: read
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.11", "3.14"]
+        # --runtrio runs only trio variants in a separate pytest invocation.
+        backend: [asyncio, trio]
 
     steps:
       # Docs-only detection runs as a step rather than a `needs: changes`
@@ -328,13 +333,13 @@ jobs:
         # -n logical, not auto: auto means physical cores when psutil is
         # importable (it always is — a runtime dependency), using only 2 of
         # the runner's 4 vCPUs. Measured: 449s → 334s of pytest wall.
-        run: uv run --no-sync pytest -ra --doctest-modules --color=yes -n logical --timeout=900 --timeout-method=thread --durations=50 --durations-min=1 --report-log=test-report-log.jsonl --report-log-exclude-logs-on-passed-tests
+        run: uv run --no-sync pytest ${{ matrix.backend == 'trio' && '--runtrio' || '' }} -ra --doctest-modules --color=yes -n logical --timeout=900 --timeout-method=thread --durations=50 --durations-min=1 --report-log=test-report-log.jsonl --report-log-exclude-logs-on-passed-tests
 
       - name: Upload test order log
         if: ${{ !cancelled() && env.RUN_TESTS == 'true' }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: test-report-log-${{ matrix.python-version }}
+          name: test-report-log-${{ matrix.python-version }}${{ matrix.backend == 'trio' && '-trio' || '' }}
           path: test-report-log.jsonl
           if-no-files-found: ignore
           retention-days: 14
@@ -552,6 +557,10 @@ jobs:
     # a malicious package could attempt with the Actions cache token.
     cache-mode: read
     timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        backend: [asyncio, trio]
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -591,7 +600,7 @@ jobs:
           # runner has Compose >= 2.39, together with the same setting in
           # meridianlabs-ai/actions inspect-ai-scheduled-tests.yml (actions#156).
           COMPOSE_BAKE: "false"
-        run: uv run --locked pytest --runslow -m slow tests/tools/ -x -v --durations=0 -n logical
+        run: uv run --locked pytest --runslow -m slow tests/tools/ -x -v --durations=0 -n logical ${{ matrix.backend == 'trio' && '--runtrio' || '' }}
 
       - name: Minimize uv cache
         if: ${{ !cancelled() }}
@@ -608,6 +617,10 @@ jobs:
     if: needs.detect-slow.outputs.tools_changed == 'true' && needs.check-version-bump.outputs.version_correctly_bumped == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        backend: [asyncio, trio]
     # attestations/actions: read the build provenance and its run's title.
     permissions:
       contents: read
@@ -766,7 +779,7 @@ jobs:
           INSPECT_SANDBOX_TOOLS_INSTALL_STATE: clean
           # Shared image IDs under Compose 2.38; see "Run slow tool tests".
           COMPOSE_BAKE: "false"
-        run: uv run --locked pytest --runslow -m slow tests/tools/ -x -v --durations=0 -n logical
+        run: uv run --locked pytest --runslow -m slow tests/tools/ -x -v --durations=0 -n logical ${{ matrix.backend == 'trio' && '--runtrio' || '' }}
 
       - name: Minimize uv cache
         if: ${{ !cancelled() }}
@@ -786,6 +799,7 @@ jobs:
       fail-fast: false
       matrix:
         area: ${{ fromJSON(needs.detect-slow.outputs.areas) }}
+        backend: [asyncio, trio]
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -805,7 +819,7 @@ jobs:
         env:
           # Shared image IDs under Compose 2.38; see "Run slow tool tests".
           COMPOSE_BAKE: "false"
-        run: uv run --locked pytest --runslow -m slow tests/${{ matrix.area }}/ -n logical --durations=0
+        run: uv run --locked pytest --runslow -m slow tests/${{ matrix.area }}/ -n logical --durations=0 ${{ matrix.backend == 'trio' && '--runtrio' || '' }}
 
       - name: Minimize uv cache
         if: ${{ !cancelled() }}
