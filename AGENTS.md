@@ -77,18 +77,18 @@ section in the PR description. What to disclose, and how it's read:
   review that didn't happen — a fabricated or content-free review claim
   ("reviewed, looks good") is worse than disclosing none.
 
-Keep the disclosure focused on outcomes. For multiple passes, use a short
-bullet per round with its focus, findings, and disposition; give a one-line
-reason for each dismissed finding. Link detailed review notes if needed, and
-do not repeat validation results or re-explain earlier findings in each round.
-
 Example:
 
 ```
 ### Agent review
-- Reviewer: Claude Opus 5 via /code-review (fresh context), 2 passes
-- Findings: 3 — 2 fixed, 1 dismissed (flagged a missing None check that is
-  guarded upstream)
+#### Pass 1
+- Revision: `0abcd71`
+- Reviewer: Claude Opus 5 via /code-review (fresh context)
+- Findings (1 fixed, 1 dismissed):
+    - Fixed: e2e tests leaving dirs under the real cache dir
+    - Dismissed: flagged a missing None check that is guarded upstream
+#### Pass 2
+...
 ```
 
 ## Build/Lint/Test Commands
