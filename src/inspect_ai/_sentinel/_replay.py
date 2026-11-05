@@ -628,6 +628,8 @@ class _Driver:
                 if event.error is not None:
                     open_generates[attempt_key] = group
             elif isinstance(event, ApprovalEvent):
+                if self._in_sentinel_span(event.span_id):
+                    continue
                 own = self._conversation(event)
                 owner = proposals.owner(event.call.id, event.span_id, own)
                 approvals[proposals.approval_key(event.call.id, owner, own)] = (

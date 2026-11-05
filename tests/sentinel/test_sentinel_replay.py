@@ -1347,6 +1347,59 @@ def test_an_approvers_approve_replays_as_it_ran() -> None:
     ]
 
 
+@monitor
+def r7_runs_an_approved_helper_call(call_id: str) -> MonitorGroup:
+    async def before_call(context: Context, step: BeforeToolCall) -> Observation | None:
+        helper = ToolCall(id=call_id, function="addition", arguments={"x": 9, "y": 1})
+        await execute_tools(
+            [ChatMessageAssistant(content="", tool_calls=[helper])], [addition()]
+        )
+        return None
+
+    return MonitorGroup(before_call)
+
+
+@pytest.mark.parametrize("helper_id", ["shared", "helper"])
+def test_a_monitor_s_approved_call_under_the_agent_s_id_replays(
+    helper_id: str,
+) -> None:
+    # after Ransom's 41st review: an approval inside a sentinel span took the
+    # agent's call's place
+    log = run_logged(
+        tool_loop(addition()),
+        outputs(
+            ModelOutput.for_tool_call(
+                "mockllm/model", "addition", {"x": 1, "y": 1}, tool_call_id="shared"
+            ),
+            done(),
+        ),
+        approval=[ApprovalPolicy(d3_approver([], "approve"), "*")],
+        sentinel=[r7_runs_an_approved_helper_call(helper_id)],
+    )
+    events = logged_sample(log).events
+    approvals = [e for e in events if isinstance(e, ApprovalEvent)]
+    ran = [e for e in events if isinstance(e, ToolEvent)]
+    assert [(a.call.id, a.call.arguments, a.decision) for a in approvals] == [
+        ("shared", {"x": 1, "y": 1}, "approve"),
+        (helper_id, {"x": 9, "y": 1}, "approve"),
+    ]
+    assert [(e.id, e.arguments, e.error) for e in ran] == [
+        (helper_id, {"x": 9, "y": 1}, None),
+        ("shared", {"x": 1, "y": 1}, None),
+    ]
+    for inputs in ["expanded", "pooled"]:
+        for recorded in [events, without_origins(events)]:
+            replay = replay_inputs(log, recorded, inputs)
+            assert [
+                (s.stage, s.id, s.step.call.arguments)
+                for s in replay
+                if isinstance(s.step, BeforeToolCall | AfterToolCall)
+            ] == [
+                ("tool_call", "shared", {"x": 1, "y": 1}),
+                ("tool_result", "shared", {"x": 1, "y": 1}),
+            ], (inputs, recorded is events)
+
+
 @agent
 def r7_runs_a_bridged_host_tool(
     name: str = "mcp__host__addition",
