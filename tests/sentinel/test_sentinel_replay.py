@@ -1706,21 +1706,45 @@ def test_a_log_from_before_recorded_origins_replays_with_the_timeline_s_turns() 
     assert max(s.segment[1] for s in inferred) == 2
 
 
-def test_a_task_cleanup_s_model_call_is_not_a_turn() -> None:
-    async def cleanup(state: TaskState) -> None:
-        await get_model().generate("clean up")
+@pytest.mark.parametrize(
+    "where",
+    [
+        "sample_init",
+        "sample_start",
+        "sample_attempt_start",
+        "sample_scoring",
+        "cleanup",
+    ],
+)
+def test_a_model_call_outside_the_phases_is_not_a_turn(where: str) -> None:
+    from inspect_ai._util.registry import _registry
+    from inspect_ai.hooks import Hooks, hooks
 
+    async def call_the_model(*args: Any) -> None:
+        await get_model().generate(where)
+
+    @hooks(name="r7_calls_the_model", description="calls the model from a hook")
+    class CallsTheModel(Hooks):
+        pass
+
+    if where != "cleanup":
+        setattr(CallsTheModel, f"on_{where}", call_the_model)
     task = Task(
         dataset=[Sample(input="What is 1 + 1?", target="2")],
         solver=generate(),
-        cleanup=cleanup,
+        cleanup=call_the_model if where == "cleanup" else None,
     )
-    log = eval(task, model=outputs(done(), done()))[0]
+    try:
+        log = eval(task, model=outputs(done(), done()))[0]
+    finally:
+        _registry.pop("hooks:r7_calls_the_model", None)
     assert log.status == "success", log.error
     events = logged_sample(log).events
-    solve, clean = [e for e in events if isinstance(e, ModelEvent)]
-    assert solve.origin == "agent" and clean.origin == "setup"
-    assert clean.span_id is None
+    models = [e for e in events if isinstance(e, ModelEvent)]
+    [solve] = [e for e in models if e.origin == "agent"]
+    [outside] = [e for e in models if e is not solve]
+    assert outside.origin == "setup"
+    assert (outside.span_id is None) == (where != "sample_init")
     for inputs in ["expanded", "pooled"]:
         for recorded in [events, without_origins(events)]:
             replay = replay_inputs(log, recorded, inputs)
