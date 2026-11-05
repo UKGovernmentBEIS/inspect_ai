@@ -1666,6 +1666,30 @@ def test_a_log_from_before_recorded_origins_replays_with_the_timeline_s_turns() 
     assert max(s.segment[1] for s in inferred) == 2
 
 
+def test_a_task_cleanup_s_model_call_is_not_a_turn() -> None:
+    async def cleanup(state: TaskState) -> None:
+        await get_model().generate("clean up")
+
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=generate(),
+        cleanup=cleanup,
+    )
+    log = eval(task, model=outputs(done(), done()))[0]
+    assert log.status == "success", log.error
+    events = logged_sample(log).events
+    solve, clean = [e for e in events if isinstance(e, ModelEvent)]
+    assert solve.origin == "agent" and clean.origin == "setup"
+    assert clean.span_id is None
+    for inputs in ["expanded", "pooled"]:
+        for recorded in [events, without_origins(events)]:
+            replay = replay_inputs(log, recorded, inputs)
+            assert [(s.stage, s.id) for s in replay] == [
+                ("model_input", solve.uuid),
+                ("model_output", solve.uuid),
+            ]
+
+
 @protocol
 def r7_generate_fails() -> Protocol:
     async def check(
