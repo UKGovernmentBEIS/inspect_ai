@@ -2,7 +2,16 @@ import json
 import re
 import traceback
 from pathlib import Path
-from typing import Any, Callable, Literal, NamedTuple, NoReturn, cast, get_args
+from typing import (
+    Any,
+    Callable,
+    Literal,
+    NamedTuple,
+    NoReturn,
+    Sequence,
+    cast,
+    get_args,
+)
 from unittest.mock import AsyncMock
 
 import anyio
@@ -80,6 +89,7 @@ from inspect_ai.model._providers.anthropic import (
     init_sample_anthropic_assistant_internal,
 )
 from inspect_ai.model._providers.mockllm import MockLLM
+from inspect_ai.tool._tool import Tool
 from inspect_ai.tool._tool_call import ToolCall, ToolCallView
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
@@ -2265,6 +2275,95 @@ async def test_edits_of_a_pending_turn_keep_its_work(edit: str) -> None:
     blocks = await _render_anthropic(edited)
     assert [b["type"] for b in blocks] == [b["type"] for b in original_blocks]
     assert _pending_container_for_input([edited]) == CONTAINER_ID
+
+
+class _GrantRecordingBridge(AgentBridge):
+    """Records the proposing ids and call verification of each grant registration."""
+
+    registered: list[tuple[dict[str, str], list[bool] | None]]
+
+    def register_tool_execution_grants(
+        self,
+        calls: Sequence[ToolCall],
+        tools: Sequence[ToolInfo | Tool],
+        *,
+        span_id: str | None = None,
+    ) -> None:
+        self.registered.append(
+            (dict(self._proposing_message_ids), self._proposing_call_verified)
+        )
+
+
+@pytest.mark.parametrize("edit", ["text", "text_and_call"])
+@pytest.mark.parametrize("turn", ["pending", "nested"])
+async def test_request_filter_text_edit_keeps_pending_work(
+    turn: str, edit: str
+) -> None:
+    """A request filter's edit of its generation keeps the turn's pending work.
+
+    The edit gets its own id and its calls are not verified against the
+    generation. A text edit, or an edit keeping the turn's server items, still
+    replays the pending code execution in the turn's container; an edit of the
+    calls of a turn with no server items drops it, as a response filter's does.
+    """
+    from inspect_ai.model._providers.anthropic import _pending_container_for_input
+
+    init_sample_anthropic_assistant_internal()
+    provider_output = await (
+        _pending_container_output() if turn == "pending" else _nested_pending_output()
+    )
+    original_blocks = await _render_anthropic(provider_output.message)
+
+    async def generate(
+        model: Model,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        output = await model.generate(
+            input=input, tools=tools, tool_choice=tool_choice, config=config
+        )
+        output = output.model_copy(deep=True)
+        await _text_edit_filter(
+            model, output, GenerateInput(input, tools, tool_choice, config)
+        )
+        if edit == "text_and_call":
+            assert output.message.tool_calls
+            output.message.tool_calls[0].arguments = {"q": "y"}
+        return output
+
+    bridge = _GrantRecordingBridge(AgentState(messages=[]), filter=generate)
+    bridge.registered = []
+    output, _ = await bridge_generate(
+        bridge,
+        get_model("mockllm/model", custom_outputs=[provider_output]),
+        [ChatMessageUser(content="hi")],
+        [],
+        None,
+        GenerateConfig(),
+        requested_model=None,
+    )
+
+    handed = output.message
+    assert REPLACED_SENTINEL in handed.text
+    assert handed.id == edited_id(provider_output.message.id, handed)
+    # the calls are not verified against the generation
+    assert bridge.registered == [({}, None)]
+    blocks = await _render_anthropic(handed)
+    if edit == "text" or turn == "nested":
+        assert [b["type"] for b in blocks] == [b["type"] for b in original_blocks]
+        assert _pending_container_for_input([handed]) == CONTAINER_ID
+    else:
+        assert PENDING_CODE not in json.dumps(blocks)
+        assert _pending_container_for_input([handed]) is None
+    if edit == "text":
+        assert [b for b in blocks if b["type"] != "text"] == [
+            b for b in original_blocks if b["type"] != "text"
+        ]
+    # the model's output keeps its own record
+    assert await _render_anthropic(provider_output.message) == original_blocks
+    assert _pending_container_for_input([provider_output.message]) == CONTAINER_ID
 
 
 async def test_response_filter_rejects_merging_server_items_across_choices() -> None:

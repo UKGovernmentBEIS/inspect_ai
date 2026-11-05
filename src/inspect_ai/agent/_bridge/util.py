@@ -595,7 +595,13 @@ def _settle_message_ids(original: ModelOutput, filtered: ModelOutput) -> None:
 
 
 def _request_filter_edits(generated: ModelOutput, output: ModelOutput) -> ModelOutput:
-    """Give a returned reply sharing a generated reply's id but not its content an edit id."""
+    """Give a returned reply sharing a generated reply's id but not its content an edit id.
+
+    The edit keeps the generated reply's provider state (Anthropic's pending
+    server work and its container) when only its text changed, since its calls
+    and server items are still the turn's, or when it keeps server tool items of
+    the generated reply, as a response filter's reply does (`_settle_message_ids`).
+    """
     sources: dict[str | None, ChatMessageAssistant] = {
         choice.message.id: choice.message
         for choice in generated.choices
@@ -605,7 +611,9 @@ def _request_filter_edits(generated: ModelOutput, output: ModelOutput) -> ModelO
         choice.model_copy(
             update={
                 "message": with_edited_id(
-                    source, choice.message.model_copy(), keep_provider_state=False
+                    source,
+                    choice.message.model_copy(),
+                    keep_provider_state=_keeps_provider_state(source, choice.message),
                 )
             }
         )
@@ -615,6 +623,25 @@ def _request_filter_edits(generated: ModelOutput, output: ModelOutput) -> ModelO
         for choice in output.choices
     ]
     return output.model_copy(update={"choices": choices})
+
+
+def _keeps_provider_state(source: ChatMessageAssistant, edited: ChatMessage) -> bool:
+    def items(message: ChatMessage) -> list[Content]:
+        return [] if isinstance(message.content, str) else message.content
+
+    non_text = [item for item in items(source) if not isinstance(item, ContentText)]
+    server_ids = {item.id for item in non_text if isinstance(item, ContentToolUse)}
+    return isinstance(edited, ChatMessageAssistant) and (
+        (
+            non_text
+            == [item for item in items(edited) if not isinstance(item, ContentText)]
+            and source.tool_calls == edited.tool_calls
+        )
+        or any(
+            isinstance(item, ContentToolUse) and item.id in server_ids
+            for item in items(edited)
+        )
+    )
 
 
 def _selected_generated_message_id(
