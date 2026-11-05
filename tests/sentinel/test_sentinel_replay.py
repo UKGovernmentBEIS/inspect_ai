@@ -34,6 +34,7 @@ from inspect_ai.agent import (
     handoff,
     react,
 )
+from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.approval import Approval, ApprovalPolicy, Approver, approver
 from inspect_ai.approval._approval import ApprovalDecision
 from inspect_ai.dataset import Sample
@@ -1491,14 +1492,13 @@ def replay_inputs(
     )
 
 
-@pytest.mark.parametrize("decision", ["approve", "modify"])
-@pytest.mark.parametrize("scaffold", list(BRIDGED_NAMES))
-def test_an_approved_bridged_host_tool_call_replays(
-    scaffold: str, decision: str
-) -> None:
-    """The approval records the call under the scaffold's name, and the host tool's `ToolEvent` under the tool's."""
-    name = BRIDGED_NAMES[scaffold]
-    log = bridged_approval_log(name, decision)
+# since #6192 the bridge reviews a call under the host tool's name; before it,
+# under the scaffold's (`test_an_older_bridged_approval_under_the_scaffold_s_name_replays`)
+REVIEWS_AS_HOST_TOOL = hasattr(AgentBridge, "reviewed_calls")
+
+
+def assert_bridged_approval_replays(log: EvalLog, decision: str) -> ToolCall:
+    """Assert the host tool ran the approved call, and replay gives live's steps; return the approved call."""
     events = logged_sample(log).events
     [approval] = [e for e in events if isinstance(e, ApprovalEvent)]
     [ran] = [e for e in events if isinstance(e, ToolEvent)]
@@ -1508,7 +1508,6 @@ def test_an_approved_bridged_host_tool_call_replays(
     assert ran.error is None
     assert ran.arguments == approved.arguments
     assert ran.function == "addition"
-    assert approved.function == ("addition" if name == "call_mcp_tool" else name)
     live = [e.stage for e in events if isinstance(e, SentinelEvent)]
     assert live == ["model_input", "model_output"]
     expected = [(step.stage, step.id) for step in replayed(log)]
@@ -1517,6 +1516,35 @@ def test_an_approved_bridged_host_tool_call_replays(
         for recorded in [events, without_origins(events)]:
             replay = replay_inputs(log, recorded, inputs)
             assert [(step.stage, step.id) for step in replay] == expected
+    return approved
+
+
+@pytest.mark.parametrize("decision", ["approve", "modify"])
+@pytest.mark.parametrize("scaffold", list(BRIDGED_NAMES))
+def test_an_approved_bridged_host_tool_call_replays(
+    scaffold: str, decision: str
+) -> None:
+    name = BRIDGED_NAMES[scaffold]
+    approved = assert_bridged_approval_replays(
+        bridged_approval_log(name, decision), decision
+    )
+    host_name = name == "call_mcp_tool" or REVIEWS_AS_HOST_TOOL
+    assert approved.function == ("addition" if host_name else name)
+
+
+@pytest.mark.parametrize("decision", ["approve", "modify"])
+def test_an_older_bridged_approval_under_the_scaffold_s_name_replays(
+    decision: str,
+) -> None:
+    """Inspect through 0.3.286 recorded a bridged call's approval under the scaffold's name, and the host tool's `ToolEvent` under the tool's."""
+    path = (
+        Path(__file__).parent
+        / "fixtures"
+        / f"bridged_approval_scaffold_name_{decision}.json"
+    )
+    log = read_eval_log(str(path))
+    approved = assert_bridged_approval_replays(log, decision)
+    assert approved.function == "mcp__host__addition"
 
 
 @pytest.mark.parametrize("inputs", ["expanded", "pooled"])
@@ -1525,10 +1553,22 @@ def test_a_native_tool_event_with_a_bridged_approvals_name_is_refused(
 ) -> None:
     """Without `metadata["bridge"]`, the scaffold's name in the approval is a call the `ToolEvent` does not record."""
     log = bridged_approval_log("mcp__host__addition", "modify")
-    events = [
-        e.model_copy(update={"metadata": None}) if isinstance(e, ToolEvent) else e
-        for e in logged_sample(log).events
-    ]
+
+    def native(event: Event) -> Event:
+        if isinstance(event, ToolEvent):
+            return event.model_copy(update={"metadata": None})
+        if isinstance(event, ApprovalEvent):
+            assert event.modified is not None
+            name = "mcp__host__addition"
+            return event.model_copy(
+                update={
+                    "call": replace(event.call, function=name),
+                    "modified": replace(event.modified, function=name),
+                }
+            )
+        return event
+
+    events = [native(e) for e in logged_sample(log).events]
     with pytest.raises(
         ValueError, match=r"approved call does not match the ToolEvent that ran"
     ):
