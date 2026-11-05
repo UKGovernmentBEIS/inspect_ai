@@ -51,7 +51,7 @@ class TestControllerConcurrentPollAndKill:
         job.pid = pid
         job.cleanup = AsyncMock()
 
-        async def mock_poll(ack_seq: int) -> PollResult:
+        async def mock_poll(ack_seq: int, wait: float) -> PollResult:
             await asyncio.sleep(0)
             return completed_result
 
@@ -780,3 +780,150 @@ class TestKillByJobKey:
         await controller.kill(pid, ack_seq=0)
 
         assert (await controller.kill_key(_JOB_KEY)).killed is False
+
+
+async def _poll_timed(
+    controller: Controller, pid: int, wait: float
+) -> tuple[PollResult, float]:
+    start = time.monotonic()
+    result = await controller.poll(pid, ack_seq=0, wait=wait)
+    return result, time.monotonic() - start
+
+
+async def _exited_with_output_read(job: Job) -> None:
+    await _wait_for_exit(job)
+    # Process exit does not guarantee the readers have buffered its output.
+    await job._stdout_task
+    await job._stderr_task
+
+
+class TestWaitingPoll:
+    """A poll with `wait` replies at the first of exit, output, expiry or kill."""
+
+    @pytest.mark.asyncio
+    async def test_returns_on_exit(self) -> None:
+        controller = Controller()
+        pid = await controller.submit("sleep 0.3; exit 3")
+
+        result, elapsed = await _poll_timed(controller, pid, wait=10)
+
+        assert (result.state, result.exit_code) == ("completed", 3)
+        assert elapsed < 2
+
+    @pytest.mark.asyncio
+    async def test_returns_on_output_while_the_job_runs(self) -> None:
+        controller = Controller()
+        pid = await controller.submit("sleep 0.2; printf early; sleep 30")
+        try:
+            result, elapsed = await _poll_timed(controller, pid, wait=10)
+        finally:
+            _kill_group(pid)
+            await _stop_job(controller._jobs[pid])
+
+        assert (result.state, result.exit_code, result.stdout) == (
+            "running",
+            None,
+            "early",
+        )
+        assert elapsed < 2
+
+    @pytest.mark.asyncio
+    async def test_output_waits_briefly_for_the_exit(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The exit that follows output inside the output wait shares its reply."""
+        monkeypatch.setattr(job_module, "_OUTPUT_EXIT_WAIT_SECONDS", 5.0)
+        controller = Controller()
+        pid = await controller.submit("printf done; sleep 0.3; exit 3")
+
+        result, _ = await _poll_timed(controller, pid, wait=10)
+
+        assert (result.state, result.exit_code, result.stdout) == (
+            "completed",
+            3,
+            "done",
+        )
+
+    @pytest.mark.asyncio
+    async def test_returns_when_wait_expires(self) -> None:
+        controller = Controller()
+        pid = await controller.submit("sleep 30")
+        try:
+            result, elapsed = await _poll_timed(controller, pid, wait=0.3)
+        finally:
+            await controller.kill(pid, ack_seq=0)
+
+        assert (result.state, result.stdout, result.stderr) == ("running", "", "")
+        assert 0.3 <= elapsed < 2
+
+    @pytest.mark.asyncio
+    async def test_returns_on_kill(self) -> None:
+        controller = Controller()
+        pid = await controller.submit("sleep 30")
+        job = controller._jobs[pid]
+        poll = asyncio.create_task(_poll_timed(controller, pid, wait=10))
+        await anyio.sleep(0.1)
+        assert not poll.done()
+
+        await controller.kill(pid, ack_seq=0)
+        result, elapsed = await poll
+        await _stop_job(job)
+
+        assert result.state == "killed"
+        assert elapsed < 5
+
+    @pytest.mark.asyncio
+    async def test_zero_wait_replies_without_waiting(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        controller = Controller()
+        pid = await controller.submit("sleep 30")
+        sleep = AsyncMock(side_effect=AssertionError("waited with wait=0"))
+        try:
+            monkeypatch.setattr(asyncio, "sleep", sleep)
+            result = await controller.poll(pid, ack_seq=0, wait=0)
+        finally:
+            monkeypatch.undo()
+            await controller.kill(pid, ack_seq=0)
+
+        assert (result.state, result.exit_code, result.stdout) == ("running", None, "")
+        sleep.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_poll_reports_exit_with_the_output_it_drains() -> None:
+    controller = Controller()
+    pid = await controller.submit("printf out; printf err 1>&2; exit 3")
+    await _exited_with_output_read(controller._jobs[pid])
+
+    result = await controller.poll(pid, ack_seq=0)
+
+    assert (result.state, result.exit_code, result.stdout, result.stderr) == (
+        "completed",
+        3,
+        "out",
+        "err",
+    )
+
+
+@pytest.mark.asyncio
+async def test_poll_reports_running_until_output_past_the_cap_is_drained(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(job_module, "_MAX_POLL_OUTPUT_BYTES", 4)
+    controller = Controller()
+    pid = await controller.submit("printf 0123456789")
+    await _exited_with_output_read(controller._jobs[pid])
+
+    replies = []
+    ack_seq = 0
+    for _ in range(3):
+        result = await controller.poll(pid, ack_seq)
+        ack_seq = result.seq
+        replies.append((result.state, result.exit_code, result.stdout))
+
+    assert replies == [
+        ("running", None, "0123"),
+        ("running", None, "4567"),
+        ("completed", 0, "89"),
+    ]

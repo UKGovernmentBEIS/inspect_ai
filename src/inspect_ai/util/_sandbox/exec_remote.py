@@ -113,7 +113,11 @@ class ExecRemoteCommonOptions:
     """User to run the command as"""
 
     poll_interval: float | None = None
-    """Interval between poll requests in seconds"""
+    """Interval between poll requests in seconds. The minimum is 5 seconds; 0 or
+    `None` uses the sandbox default (also at least 5 seconds). For the first 10
+    seconds after the start, sandbox tools that support it hold each poll on the
+    server until the command exits or produces output, instead of sleeping
+    between polls (not when `stdin_open` is set)."""
 
     poll_timeout: float | None = None
     """Timeout for individual RPC poll requests in seconds. Defaults to 120 seconds.
@@ -186,6 +190,8 @@ class _StartResult(BaseModel):
     """Result from exec_remote_start."""
 
     pid: int
+    poll_wait: bool = False
+    """The server supports the poll `wait` param. Older servers omit it."""
 
 
 class _PollResult(BaseModel):
@@ -242,6 +248,9 @@ POLL_TIMEOUT_RECOVERY_WAIT_SECONDS: float = 5.0
 
 KILL_KEY_TIMEOUT = 30
 """Bound in seconds on killing a job whose start got no reply."""
+
+SERVER_WAIT_WINDOW_SECONDS: float = 10.0
+"""Time after the start reply during which polls wait on the server."""
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -334,6 +343,7 @@ class ExecRemoteProcess:
         )
         self._pid: int | None = None
         self._job_key = uuid.uuid4().hex
+        self._server_wait_end: float | None = None
         self._last_seq: int = 0
         self._killed = False
         self._completed = False
@@ -352,6 +362,26 @@ class ExecRemoteProcess:
     # RPC helpers
     # -------------------------------------------------------------------------
 
+    @property
+    def _rpc_timeout(self) -> float:
+        return (
+            RPC_TIMEOUT
+            if self._options.poll_timeout is None
+            else self._options.poll_timeout
+        )
+
+    def _server_wait(self) -> float:
+        """Seconds the next poll asks the server to wait for exit or output.
+
+        Nonzero only within `SERVER_WAIT_WINDOW_SECONDS` of the start reply of a
+        server that supports it. Capped at half the RPC timeout so that the poll
+        replies well before it times out.
+        """
+        if self._server_wait_end is None:
+            return 0
+        remaining = self._server_wait_end - time.monotonic()
+        return max(0, min(remaining, self._rpc_timeout / 2))
+
     async def _rpc(
         self,
         method: str,
@@ -365,9 +395,7 @@ class ExecRemoteProcess:
         (timeout, timeout_retry, user, concurrency).
         """
         extra_args: dict[str, object] = dict(
-            timeout=RPC_TIMEOUT
-            if self._options.poll_timeout is None
-            else self._options.poll_timeout,
+            timeout=self._rpc_timeout,
             # Run the CLI wrapper as the same user that started the server.
             # When root is available, this is "root" (needed to access the
             # server's private state directory inside the 0700 tools tree).
@@ -404,10 +432,11 @@ class ExecRemoteProcess:
                 params["input"] = self._options.input.decode("utf-8")
             else:
                 params["input"] = self._options.input
-        if (
+        stdin_open = (
             isinstance(self._options, ExecRemoteStreamingOptions)
             and self._options.stdin_open
-        ):
+        )
+        if stdin_open:
             params["stdin_open"] = True
         if self._options.env:
             params["env"] = self._options.env
@@ -424,6 +453,10 @@ class ExecRemoteProcess:
             await self._kill_key()
             raise
         self._pid = result.pid
+        # A waiting poll that overlaps a stdin write (same ack_seq) can return
+        # output twice, so stdin_open processes do not wait on the server.
+        if result.poll_wait and not stdin_open:
+            self._server_wait_end = time.monotonic() + SERVER_WAIT_WINDOW_SECONDS
 
     async def _kill_key(self) -> None:
         """Kill the job by key, or make the sandbox refuse its start.
@@ -532,8 +565,10 @@ class ExecRemoteProcess:
                 if self._killed:
                     raise StopAsyncIteration
 
-                # Still running with no output, wait before polling again
-                await anyio.sleep(self._poll_interval)
+                # Still running with no output. Inside the server wait window
+                # the next poll waits on the server, so poll again at once.
+                if self._server_wait() == 0:
+                    await anyio.sleep(self._poll_interval)
 
         except anyio.get_cancelled_exc_class():
             # Kill the process on cancellation to avoid leaving orphaned processes.
@@ -573,13 +608,12 @@ class ExecRemoteProcess:
             if retried_repoll_error is not None and self._killed:
                 raise retried_repoll_error
 
+            params: dict[str, object] = {"pid": self._pid, "ack_seq": self._last_seq}
+            if wait := self._server_wait():
+                params["wait"] = wait
             sandbox_proxy = cast(SandboxEnvironmentProxy, self._transport.sandbox)
             with sandbox_proxy.no_events():
-                result = await self._rpc(
-                    "exec_remote_poll",
-                    {"pid": self._pid, "ack_seq": self._last_seq},
-                    _PollResult,
-                )
+                result = await self._rpc("exec_remote_poll", params, _PollResult)
             self._last_seq = result.seq
             return result
 
