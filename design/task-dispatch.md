@@ -306,7 +306,7 @@ control channel. Everything else is refused with a clear error:
 - `TaskSource` passed to `eval_set()`, `eval_retry()` or `score()`: rejected
   as today.
 - Handle misuse (for example awaiting a handle inside
-  `TaskSource.next_tasks()`): see
+  `TaskSource.next_tasks()` or `TaskSource.task_complete`): see
   [task-handles.md](task-handles.md#run-shapes-and-what-is-refused).
 - `enqueue_task()` outside a running eval or with a mismatched `run_id`:
   `RuntimeError`, as today.
@@ -495,7 +495,11 @@ never returns (the source contract allows one,
   process, which aborts the running attempt, or abandons the retry the task
   is waiting for, exactly as `inspect ctl task cancel` does today; the
   control channel itself reaches this phase through that path, not through
-  the queue;
+  the queue. While the attempt awaits `TaskSource.task_complete` its
+  `EvalState` is already finalized and that cancel answers "task already
+  finished", as today; no handle work runs there to be cancelled, because
+  [task-handles.md](task-handles.md#run-shapes-and-what-is-refused) refuses
+  handle waits and sample ports in a finished attempt;
 - `admitting_cancelled`, `starting_cancelled`, `finalizing`, `ended`: a
   cancel is already in hand or the record has ended, so it does nothing.
 
