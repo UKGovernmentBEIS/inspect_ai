@@ -50,7 +50,7 @@ from inspect_ai.log._log import (
     EvalSpec,
     EvalStats,
 )
-from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
+from inspect_ai.log._recorders.buffer.database import DbPhase, SampleBufferDatabase
 from inspect_ai.log._recorders.eval import ComposePrefixInvariantError, EvalRecorder
 from inspect_ai.log._recorders.json import JSONRecorder
 from inspect_ai.log._recorders.recorder import Recorder, SampleRecordKey
@@ -991,14 +991,12 @@ async def test_task_logger_stale_flush_compose_prefix_violation_fails_the_finish
     async with AsyncFilesystem() as fs:
         written = await fs.read_file(location)
 
-    # no flush records a prefix yet, so install the one an own-key flush
-    # would: the object was just written from these bytes
+    # the flush recorded the log's own object as the next flush's prefix
     zip_log = recorder.data[recorder._log_file_key(logger.eval)]
     assert zip_log._zip is not None and zip_log._etag is not None
-    async with zip_log._lock:
-        await zip_log._record_compose_prefix(
-            ComposeSource(location, zip_log._etag, zip_log._zip.start_dir)
-        )
+    assert zip_log._compose_prefix == ComposeSource(
+        location, zip_log._etag, zip_log._zip.start_dir
+    )
     temp = zip_log._temp_file
     position = temp.tell()
     offset = zip_log._zip.start_dir // 2
@@ -2892,7 +2890,7 @@ async def test_buffer_teardown_does_not_block_the_event_loop(
             await logger.cleanup(keep_buffer=True)
 
     assert heartbeats >= 5
-    assert buffer_db._closed and buffer_db.db_path.exists()
+    assert buffer_db._db_phase is DbPhase.CLOSED and buffer_db.db_path.exists()
     assert logger.buffer_db is None
     buffer_db.cleanup()
 
@@ -2915,7 +2913,7 @@ async def test_buffer_teardown_survives_cancellation(tmp_path: Path) -> None:
         await logger._release_buffer_db(keep=True)
 
     assert logger.buffer_db is None
-    assert buffer_db._closed and not buffer_db._connections
+    assert buffer_db._db_phase is DbPhase.CLOSED and not buffer_db._connections
     assert buffer_db.db_path.exists()
     buffer_db.cleanup()
 
@@ -2989,7 +2987,7 @@ def test_buffer_reader_admission_is_refused_once_teardown_proceeds(
         buffer_db.cleanup()
 
     assert outcomes == ["SampleBufferDatabase used after cleanup"]
-    assert buffer_db._closed
+    assert buffer_db._db_phase is DbPhase.CLOSED
     with pytest.raises(RuntimeError, match="used after cleanup"):
         buffer_db.sample_event_count(1, 1)
     if keep:

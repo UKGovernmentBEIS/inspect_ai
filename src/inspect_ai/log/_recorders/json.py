@@ -1,3 +1,4 @@
+from decimal import Decimal
 from functools import partial
 from logging import getLogger
 from typing import IO, Any, get_args
@@ -17,7 +18,11 @@ from inspect_ai._util.constants import (
 )
 from inspect_ai._util.error import EvalError
 from inspect_ai._util.file import absolute_file_path, file, filesystem, local_path
-from inspect_ai._util.json import is_ijson_nan_inf_error
+from inspect_ai._util.json import (
+    is_ijson_float_overflow_error,
+    is_ijson_int_overflow_error,
+    is_ijson_nan_inf_error,
+)
 from inspect_ai._util.trace import trace_action
 
 from .._config_update import ConfigUpdate
@@ -527,6 +532,28 @@ def _scan_header_keys(f: IO[bytes]) -> tuple[int | None, str]:
     return version, last_header_field
 
 
+def _read_header_values(
+    f: IO[bytes], last_header_field: str, use_float: bool
+) -> dict[str, Any]:
+    """Parse top-level fields up to ``last_header_field``, stopping before samples."""
+    values: dict[str, Any] = {}
+    for k, v in ijson.kvitems(f, "", use_float=use_float):
+        values[k] = v
+        if k == last_header_field:
+            break
+    return values
+
+
+def _decimals_to_float(value: Any) -> Any:
+    if isinstance(value, Decimal):
+        return float(value)
+    if isinstance(value, dict):
+        return {k: _decimals_to_float(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_decimals_to_float(v) for v in value]
+    return value
+
+
 def _read_header_streaming(log_file: str) -> EvalLog:
     with file(log_file, "rb") as f:
         # Do low-level parsing to get the version number and also
@@ -541,8 +568,21 @@ def _read_header_streaming(log_file: str) -> EvalLog:
 
         # Rewind the file to the beginning to re-parse the contents of fields
         f.seek(0)
+        try:
+            values = _read_header_values(f, last_header_field, use_float=True)
+        except (ValueError, IncompleteJSONError) as ex:
+            # ijson's C backend rejects numbers beyond int64 or a double when
+            # use_float=True. Without it, integers of any size parse exactly
+            # and other numbers parse as Decimal.
+            if not (
+                is_ijson_int_overflow_error(ex) or is_ijson_float_overflow_error(ex)
+            ):
+                raise
+            f.seek(0)
+            values = _decimals_to_float(
+                _read_header_values(f, last_header_field, use_float=False)
+            )
 
-        # Parse all header fields, stopping before samples
         invalidated = False
         status: EvalStatus | None = None
         eval: EvalSpec | None = None
@@ -552,7 +592,7 @@ def _read_header_streaming(log_file: str) -> EvalLog:
         error: EvalError | None = None
         log_updates: list[LogUpdate] | None = None
         config_updates: list[ConfigUpdate] | None = None
-        for k, v in ijson.kvitems(f, ""):
+        for k, v in values.items():
             if k == "status":
                 assert v in get_args(EvalStatus)
                 status = v
@@ -572,8 +612,6 @@ def _read_header_streaming(log_file: str) -> EvalLog:
                 log_updates = [LogUpdate.model_validate(u) for u in v]
             elif k == "config_updates":
                 config_updates = [ConfigUpdate.model_validate(u) for u in v]
-            if k == last_header_field:
-                break
 
     assert status, "Must encounter a 'status'"
     assert eval, "Must encounter a 'eval'"

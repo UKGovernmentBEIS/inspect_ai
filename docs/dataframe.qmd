@@ -75,7 +75,7 @@ RangeIndex: 408 entries, 0 to 407
 Columns: 19 entries, sample_id to fallbacks
 ```
 
-By default, `sample_df()` reads all of the columns in the `EvalSampleSummary` data structure (18 columns), along with the `eval_id` for linking back to the parent eval log file.
+By default, `samples_df()` reads all of the columns in the `EvalSampleSummary` data structure (18 columns), along with the `eval_id` for linking back to the parent eval log file.
 
 ### Column Groups
 

@@ -104,7 +104,7 @@ reviewers:
 inspect eval task.py --review review.yaml
 ```
 
-Reviewers defined in your own Python modules are referenced by their registry name; use the `@reviewer(name=...)` decorator to control it. The `tools` field uses the same glob syntax as approval policies, matching either the tool name or the tool name and its arguments.
+Reviewers defined in your own Python modules are referenced by their registry name; use the `@reviewer(name=...)` decorator to control it. The `tools` and `arguments` fields work as in [approval policies](approval.qmd#auto-approver): `tools` matches tool names and `arguments` matches argument values.
 
 In Python, pass a list of `ReviewPolicy` objects:
 

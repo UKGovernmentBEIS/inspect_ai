@@ -7,6 +7,7 @@ Docker container to verify the full host-to-container path.
 
 import contextlib
 import json
+import warnings
 from collections.abc import Iterator
 from typing import Any
 from unittest.mock import AsyncMock, patch
@@ -21,6 +22,10 @@ import inspect_ai.util._sandbox.exec_remote as exec_remote_module
 from inspect_ai.tool._sandbox_tools_utils.sandbox import (
     SandboxInjectionError,
     _inject_container_tools_code,
+)
+from inspect_ai.util._sandbox.context import (
+    sandbox_default_context_var,
+    sandbox_environments_context_var,
 )
 from inspect_ai.util._sandbox.docker.docker import DockerSandboxEnvironment
 from inspect_ai.util._sandbox.environment import SandboxDefaultUser
@@ -39,6 +44,7 @@ from inspect_ai.util._sandbox.exec_remote import (
     exec_remote_awaitable,
     exec_remote_streaming,
 )
+from inspect_ai.util._sandbox.identity import sandbox_identity
 from inspect_ai.util._subprocess import ExecResult
 
 # ============================================================================
@@ -234,6 +240,20 @@ class TestPollRetryExhaustion:
         # stop_after_attempt(5) pins the attempt count; keep the assertion
         # exact so a stop-config regression is caught
         assert sandbox.exec.call_count == 5
+
+
+class TestPollRetryWait:
+    async def test_poll_retry_wait_builds_without_warning(self) -> None:
+        """Each poll builds its retry wait without tenacity's `initial` warning."""
+        sandbox = _make_sandbox_mock([_start_response(), _poll_response()])
+
+        with warnings.catch_warnings():
+            warnings.filterwarnings("error", message="The 'initial' parameter")
+            result = await exec_remote_awaitable(
+                sandbox, ["cmd"], 5, ExecRemoteCommonOptions(poll_interval=0)
+            )
+
+        assert result.success is True
 
 
 # ============================================================================
@@ -784,11 +804,27 @@ class TestUserParam:
     _DEFAULT_USER = SandboxDefaultUser(uid=1111, gid=1111, groups=[1111], home="/h")
 
     async def _start_params(
-        self, options: ExecRemoteStreamingOptions
+        self,
+        options: ExecRemoteStreamingOptions,
+        identity: tuple[str, str | None] | None = None,
+        identity_sandbox: str = "default",
     ) -> dict[str, Any]:
         sandbox = _make_sandbox_mock([_start_response()])
         sandbox._tools_default_user = self._DEFAULT_USER
-        await exec_remote_streaming(sandbox, ["cmd"], 5, options)
+        envs_token = sandbox_environments_context_var.set(
+            {"default": sandbox, "other": _mock_sandbox()}
+        )
+        default_token = sandbox_default_context_var.set("default")
+        try:
+            with (
+                sandbox_identity(identity[0], cwd=identity[1], sandbox=identity_sandbox)
+                if identity is not None
+                else contextlib.nullcontext()
+            ):
+                await exec_remote_streaming(sandbox, ["cmd"], 5, options)
+        finally:
+            sandbox_default_context_var.reset(default_token)
+            sandbox_environments_context_var.reset(envs_token)
         params: dict[str, Any] = json.loads(sandbox.exec.call_args.kwargs["input"])[
             "params"
         ]
@@ -801,6 +837,97 @@ class TestUserParam:
     async def test_explicit_user_wins(self) -> None:
         params = await self._start_params(ExecRemoteStreamingOptions(user="nobody"))
         assert params["user"] == "nobody"
+
+    async def test_identity_scope_user_and_cwd_sent_when_omitted(self) -> None:
+        params = await self._start_params(
+            ExecRemoteStreamingOptions(), identity=("w-1", "/home/w-1")
+        )
+        assert params["user"] == "w-1"
+        assert params["cwd"] == "/home/w-1"
+
+    async def test_identity_scope_keeps_explicit_user_and_cwd(self) -> None:
+        params = await self._start_params(
+            ExecRemoteStreamingOptions(user="root", cwd="/srv"),
+            identity=("w-1", "/home/w-1"),
+        )
+        assert params["user"] == "root"
+        assert params["cwd"] == "/srv"
+
+    async def test_identity_scope_for_another_sandbox_is_ignored(self) -> None:
+        params = await self._start_params(
+            ExecRemoteStreamingOptions(),
+            identity=("w-1", "/home/w-1"),
+            identity_sandbox="other",
+        )
+        assert params["user"] == self._DEFAULT_USER._asdict()
+        assert "cwd" not in params
+
+    @pytest.mark.parametrize("scoped", ["default", "other"])
+    async def test_identity_scope_reaches_the_provider_behind_the_sample_proxy(
+        self, scoped: str
+    ) -> None:
+        from test_helpers.sandbox import CannedSandbox
+
+        from inspect_ai.util import sandbox
+
+        provider = CannedSandbox.returning(ExecResult(True, 0, _start_response(), ""))
+        provider._tools_injected = True
+        provider._tools_default_user = self._DEFAULT_USER
+        proxy = SandboxEnvironmentProxy(provider)
+        envs_token = sandbox_environments_context_var.set(
+            {
+                "default": proxy,
+                "other": SandboxEnvironmentProxy(
+                    CannedSandbox.returning(ExecResult(True, 0, "", ""))
+                ),
+            }
+        )
+        default_token = sandbox_default_context_var.set("default")
+        try:
+            with sandbox_identity("w-1", cwd="/home/w-1", sandbox=scoped):
+                # in a scope on `other`, sandbox() is `other`
+                view = (sandbox() if scoped == "default" else proxy).as_type(
+                    CannedSandbox
+                )
+                assert view is provider
+                await view.exec_remote(["id"], ExecRemoteStreamingOptions())
+        finally:
+            sandbox_default_context_var.reset(default_token)
+            sandbox_environments_context_var.reset(envs_token)
+        [request] = provider.inputs
+        assert isinstance(request, str)
+        params = json.loads(request)["params"]
+        if scoped == "default":
+            assert (params["user"], params["cwd"]) == ("w-1", "/home/w-1")
+        else:
+            assert params["user"] == self._DEFAULT_USER._asdict()
+            assert "cwd" not in params
+
+    @pytest.mark.parametrize("tools_user", ["root", None], ids=["root", "rootless"])
+    async def test_transport_runs_as_the_tools_user_in_a_scope(
+        self, tools_user: str | None
+    ) -> None:
+        from test_helpers.sandbox import CannedSandbox
+
+        provider = CannedSandbox.returning(ExecResult(True, 0, _start_response(), ""))
+        proxy = SandboxEnvironmentProxy(provider)
+        proxy._tools_injected = True
+        proxy._tools_user = tools_user
+        proxy._tools_default_user = self._DEFAULT_USER
+        envs_token = sandbox_environments_context_var.set({"default": proxy})
+        default_token = sandbox_default_context_var.set("default")
+        try:
+            with sandbox_identity("w-1"):
+                await proxy.exec_remote(["id"], ExecRemoteStreamingOptions())
+        finally:
+            sandbox_default_context_var.reset(default_token)
+            sandbox_environments_context_var.reset(envs_token)
+        # the member's identity travels as the request's user, not the exec's
+        [(_, exec_user)] = provider.exec_calls
+        assert exec_user == tools_user
+        [request] = provider.inputs
+        assert isinstance(request, str)
+        assert json.loads(request)["params"]["user"] == "w-1"
 
 
 # ============================================================================
@@ -931,6 +1058,175 @@ class TestPollTimeoutOptions:
 
         kwargs = sandbox.exec.call_args_list[0].kwargs
         assert kwargs["timeout_retry"] is True
+
+
+# ============================================================================
+# Server wait window
+# ============================================================================
+
+
+def _poll_wait_start_response(pid: int = 42) -> str:
+    """A start response from sandbox tools that support the poll `wait` param."""
+    return _rpc({"pid": pid, "poll_wait": True})
+
+
+@pytest.fixture
+def sleeps(monkeypatch: pytest.MonkeyPatch) -> list[float]:
+    """Record the duration of each `anyio.sleep` call and return at once."""
+    recorded: list[float] = []
+    real_sleep = anyio.sleep
+
+    async def record_sleep(delay: float) -> None:
+        recorded.append(delay)
+        await real_sleep(0)
+
+    monkeypatch.setattr(anyio, "sleep", record_sleep)
+    return recorded
+
+
+_RUNNING = _poll_response(state="running", exit_code=None)
+
+
+class TestServerWait:
+    async def test_old_server_gets_no_wait_and_idle_sleeps(
+        self, sleeps: list[float]
+    ) -> None:
+        sandbox = _make_scripted_sandbox(
+            [_start_response(42), _RUNNING, _RUNNING, _poll_response()]
+        )
+        proc = await exec_remote_streaming(sandbox, ["cmd"], 5)
+
+        events = [event async for event in proc]
+
+        assert events == [ExecCompleted(exit_code=0)]
+        assert all("wait" not in params for params in _polls(sandbox))
+        assert sleeps == [5, 5]
+
+    async def test_polls_wait_for_the_remaining_window_without_sleeps(
+        self, sleeps: list[float]
+    ) -> None:
+        sandbox = _make_scripted_sandbox(
+            [_poll_wait_start_response(42), _RUNNING, _RUNNING, _poll_response()]
+        )
+        proc = await exec_remote_streaming(sandbox, ["cmd"], 5)
+
+        events = [event async for event in proc]
+
+        assert events == [ExecCompleted(exit_code=0)]
+        waits = [params["wait"] for params in _polls(sandbox)]
+        assert len(waits) == 3
+        assert waits[0] > 5
+        assert all(0 < wait <= 10 for wait in waits)
+        assert waits == sorted(waits, reverse=True)
+        assert sleeps == []
+
+    async def test_wait_is_capped_at_half_the_poll_timeout(self) -> None:
+        sandbox = _make_scripted_sandbox(
+            [_poll_wait_start_response(42), _RUNNING, _poll_response()]
+        )
+        proc = await exec_remote_streaming(
+            sandbox, ["cmd"], 5, ExecRemoteCommonOptions(poll_timeout=4)
+        )
+
+        _ = [event async for event in proc]
+
+        assert [params["wait"] for params in _polls(sandbox)] == [2, 2]
+
+    async def test_polls_sleep_without_wait_after_the_window(
+        self, sleeps: list[float]
+    ) -> None:
+        sandbox = _make_scripted_sandbox(
+            [_poll_wait_start_response(42), _RUNNING, _RUNNING, _poll_response()]
+        )
+        scripted_exec = sandbox.exec.side_effect
+        proc: ExecRemoteProcess | None = None
+
+        async def end_window_after_first_poll(
+            *args: Any, **kwargs: Any
+        ) -> ExecResult[str]:
+            result = await scripted_exec(*args, **kwargs)
+            if len(_polls(sandbox)) == 1:
+                assert proc is not None
+                proc._server_wait_end = 0
+            return result
+
+        sandbox.exec.side_effect = end_window_after_first_poll
+        proc = await exec_remote_streaming(sandbox, ["cmd"], 5)
+
+        _ = [event async for event in proc]
+
+        assert ["wait" in params for params in _polls(sandbox)] == [
+            True,
+            False,
+            False,
+        ]
+        assert sleeps == [5, 5]
+
+    async def test_stdin_open_process_gets_no_wait(self, sleeps: list[float]) -> None:
+        sandbox = _make_scripted_sandbox(
+            [_poll_wait_start_response(42), _RUNNING, _poll_response()]
+        )
+        proc = await exec_remote_streaming(
+            sandbox, ["cmd"], 5, ExecRemoteStreamingOptions(stdin_open=True)
+        )
+
+        _ = [event async for event in proc]
+
+        assert all("wait" not in params for params in _polls(sandbox))
+        assert sleeps == [5]
+
+    @staticmethod
+    def _sandbox_with_blocking_poll() -> tuple[AsyncMock, list[str], anyio.Event]:
+        """A sandbox that supports poll waits and never answers a poll."""
+        methods: list[str] = []
+        poll_started = anyio.Event()
+        answers = {
+            "exec_remote_start": _poll_wait_start_response(42),
+            "exec_remote_kill": _kill_response(),
+        }
+
+        async def fake_exec(*args: Any, **kwargs: Any) -> ExecResult[str]:
+            request = json.loads(kwargs["input"])
+            methods.append(request["method"])
+            if request["method"] == "exec_remote_poll":
+                assert "wait" in request["params"]
+                poll_started.set()
+                await anyio.sleep_forever()
+            return ExecResult(
+                success=True, returncode=0, stdout=answers[request["method"]], stderr=""
+            )
+
+        sandbox = _mock_sandbox()
+        sandbox.no_events = _no_events_context
+        sandbox.exec = AsyncMock(side_effect=fake_exec)
+        return sandbox, methods, poll_started
+
+    async def test_cancellation_during_a_waiting_poll_kills_the_process(
+        self,
+    ) -> None:
+        sandbox, methods, poll_started = self._sandbox_with_blocking_poll()
+        proc = await exec_remote_streaming(sandbox, ["cmd"], 5)
+
+        async def iterate() -> None:
+            async for _ in proc:
+                pass
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(iterate)
+            await poll_started.wait()
+            tg.cancel_scope.cancel()
+
+        assert methods == ["exec_remote_start", "exec_remote_poll", "exec_remote_kill"]
+
+    async def test_timeout_during_a_waiting_poll_kills_the_process(self) -> None:
+        sandbox, methods, _ = self._sandbox_with_blocking_poll()
+
+        with pytest.raises(TimeoutError):
+            await exec_remote_awaitable(
+                sandbox, ["cmd"], 5, ExecRemoteAwaitableOptions(timeout=0.5)
+            )
+
+        assert methods == ["exec_remote_start", "exec_remote_poll", "exec_remote_kill"]
 
 
 # ============================================================================

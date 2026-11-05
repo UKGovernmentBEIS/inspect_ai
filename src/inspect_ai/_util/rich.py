@@ -56,6 +56,20 @@ def clean_control_characters(text: str) -> str:
     )
 
 
+def escape_control_characters(text: str) -> str:
+    r"""Escape control characters, newlines and tabs included (`\x1b`, `\n`).
+
+    For values from an untrusted source shown on one line, where removing the
+    characters would change what the value appears to be.
+    """
+    return "".join(
+        c.encode("unicode_escape").decode("ascii")
+        if unicodedata.category(c) in ("Cc", "Cf")
+        else c
+        for c in text
+    )
+
+
 class _PlainCodeTraceback(Traceback):
     """Rich traceback whose frame source snippets are not syntax highlighted.
 

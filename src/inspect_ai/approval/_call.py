@@ -1,4 +1,5 @@
 import inspect
+from copy import deepcopy
 from logging import getLogger
 
 from inspect_ai._util.logger import warn_once
@@ -20,6 +21,9 @@ async def call_approver(
     view: ToolCallView,
     history: list[ChatMessage],
 ) -> Approval:
+    # the event records the call as presented, which the approver may change
+    presented, presented_view = deepcopy(call), deepcopy(view)
+
     # run approver (if the approval is still using state then
     # provide that but issue a warning)
     signature = inspect.signature(approver)
@@ -34,7 +38,9 @@ async def call_approver(
         approval = await approver(message, call, view, history)
 
     # record
-    record_approval(registry_log_name(approver), message, call, view, approval)
+    record_approval(
+        registry_log_name(approver), message, presented, presented_view, approval
+    )
 
     # return approval
     return approval
@@ -47,16 +53,21 @@ def record_approval(
     view: ToolCallView | None,
     approval: Approval,
 ) -> None:
+    """Record an approval decision as an `ApprovalEvent`.
+
+    The event holds copies of the call, view and modified call, since the
+    event stores objects by reference and later code can change them.
+    """
     from inspect_ai.log._transcript import transcript
 
     transcript()._event(
         ApprovalEvent(
             message=message,
-            call=call,
-            view=view,
+            call=deepcopy(call),
+            view=deepcopy(view),
             approver=approver_name,
             decision=approval.decision,
-            modified=approval.modified,
+            modified=deepcopy(approval.modified),
             explanation=approval.explanation,
             metadata=approval.metadata,
         )

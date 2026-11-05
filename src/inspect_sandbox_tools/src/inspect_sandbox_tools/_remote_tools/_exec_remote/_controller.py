@@ -51,10 +51,10 @@ class Controller:
         self._jobs[job.pid] = job
         return job.pid
 
-    async def poll(self, pid: int, ack_seq: int) -> PollResult:
+    async def poll(self, pid: int, ack_seq: int, wait: float = 0) -> PollResult:
         """Get job state and incremental output. Auto-cleanup on terminal state."""
         job = self._get_job(pid)
-        result = await job.poll(ack_seq)
+        result = await job.poll(ack_seq, wait)
 
         # Auto-cleanup after terminal state. Use pop to avoid KeyError if a
         # concurrent kill() already removed the job between our await and here.

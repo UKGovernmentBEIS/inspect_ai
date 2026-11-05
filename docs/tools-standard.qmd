@@ -1,6 +1,6 @@
 ---
 title: Standard Tools
-llms-description: Inspect's built-in tools for code execution, text editing, computer use, web search, and web browsing.
+llms-description: Inspect's built-in tools for code execution, text editing, computer use, and web search.
 tbl-colwidths: [40,60]
 ---
 
@@ -56,7 +56,7 @@ web_search({
 
 ### OpenAI Options
 
-The `web_search()` tool can use OpenAI's built-in search capability when running on a limited number of OpenAI models (currently "gpt-4o", "gpt-4o-mini", "gpt-4.1", "o3", "o4-mini", and GPT-5 and later, including GPT-6). This provider does not require any API keys beyond what's needed for the model itself.
+The `web_search()` tool can use OpenAI's built-in search capability when running on a limited number of OpenAI models (currently "gpt-4o", "gpt-4o-mini", "gpt-4.1", "o3", and GPT-5 and later, including GPT-6). This provider does not require any API keys beyond what's needed for the model itself.
 
 For more details on OpenAI's web search parameters, see [OpenAI Web Search Documentation](https://platform.openai.com/docs/guides/tools-web-search?api-mode=responses).
 
@@ -435,17 +435,18 @@ Here is an approval policy that requires approval for key combos (e.g. `Enter` o
 ``` {.yaml filename="approval.yaml"}
 approvers:
   - name: human
-    tools:
-      - computer(action='key'
-      - computer(action='left_click'
-      - computer(action='middle_click'
-      - computer(action='double_click'
+    tools: computer
+    arguments: {action: key}
+
+  - name: human
+    tools: computer
+    arguments: {action: "*_click"}
 
   - name: auto
     tools: "*"
 ```
 
-Note that since this is a prefix match and there could be other arguments, we don't end the tool match pattern with a parentheses.
+See [Auto Approver](approval.qmd#auto-approver) for how `arguments` are matched.
 
 You can apply this policy using the `--approval` command line option:
 
@@ -519,104 +520,6 @@ code_execution(
 ```
 
 When falling back to the `python()` provider you should ensure that your `Task` has a `sandbox` with access to Python enabled.
-
-## Web Browser {#sec-web-browser}
-
-The web browser tools provides models with the ability to browse the web using a headless Chromium browser. Navigation, history, and mouse/keyboard interactions are all supported.
-
-::: callout-warning
-The `web_browser()` tool is deprecated and its implementation will be removed around November 2026. Calling `web_browser()` now logs a deprecation warning; after removal it will raise an error. Most websites now block headless browsers, so for web information retrieval use the [web_search()](#sec-web-search) tool. For interacting with web applications (local web apps, forms, multi-step flows) use the [computer()](#sec-computer) tool, or run a browser MCP server such as [Playwright MCP](https://github.com/microsoft/playwright-mcp) inside your sandbox with [`mcp_server_sandbox()`](tools-mcp.qmd#sandboxes). See [issue #5497](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5497) for details, and comment there if you rely on `web_browser()` in a way these paths do not cover.
-:::
-
-### Configuration
-
-Under the hood, the web browser is an instance of [Chromium](https://www.chromium.org/chromium-projects/) orchestrated by [Playwright](https://playwright.dev/), and runs in a [Sandbox Environment](sandboxing.qmd). In addition, you'll need some dependencies installed in the sandbox container. Please see **Sandbox Dependencies** below for additional instructions.
-
-Note that Playwright (used for the `web_browser()` tool) does not support some versions of Linux (e.g. Kali Linux).
-
-::: {.callout-note appearance="simple" collapse="true"}
-### Sandbox Dependencies
-
-You should add the following to your sandbox `Dockerfile` in order to use the web browser tool:
-
-``` dockerfile
-RUN apt-get update && apt-get install -y pipx && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
-ENV PATH="$PATH:/opt/inspect/bin"
-RUN PIPX_HOME=/opt/inspect/pipx PIPX_BIN_DIR=/opt/inspect/bin PIPX_VENV_DIR=/opt/inspect/pipx/venvs \
-    pipx install inspect-tool-support && \
-    chmod -R 755 /opt/inspect && \
-    inspect-tool-support post-install
-```
-
-If you don't have a custom Dockerfile, you can alternatively use the pre-built `aisiuk/inspect-tool-support` image. This configuration intentionally permits outbound Internet access so the browser can visit external sites:
-
-``` {.yaml filename="compose.yaml"}
-services:
-  default:
-    image: aisiuk/inspect-tool-support
-    init: true
-    # network_mode is omitted because the browser visits external sites.
-```
-
-The pre-built image runs as root by default and also provides a `nonroot` account (UID/GID 65532) for evaluations that should not run the agent as root; add `user: nonroot` to the service to use it. The web browser tool works under either user.
-:::
-
-### Task Setup
-
-A task configured to use the web browser tools might look like this:
-
-``` python
-from inspect_ai import Task, task
-from inspect_ai.scorer import match
-from inspect_ai.solver import generate, use_tools
-from inspect_ai.tool import bash, python, web_browser
-
-@task
-def browser_task():
-    return Task(
-        dataset=read_dataset(),
-        solver=[
-            use_tools([bash(), python()] + web_browser()),
-            generate(),
-        ],
-        scorer=match(),
-        sandbox=("docker", "compose.yaml"),
-    )
-```
-
-Unlike some other tool functions like `bash()`, the `web_browser()` function returns a list of tools. Therefore, we concatenate it with a list of the other tools we are using in the call to `use_tools()`.
-
-Note that a separate web browser process is created within the sandbox for each instance of the web browser tool. See the `web_browser()` reference docs for details on customizing this behavior.
-
-### Browsing
-
-If you review the transcripts of a sample with access to the web browser tool, you'll notice that there are several distinct tools made available for control of the web browser. These tools include:
-
-| Tool | Description |
-|------------------------------------|------------------------------------|
-| `web_browser_go(url)` | Navigate the web browser to a URL. |
-| `web_browser_click(element_id)` | Click an element on the page currently displayed by the web browser. |
-| `web_browser_type(element_id)` | Type text into an input on a web browser page. |
-| `web_browser_type_submit(element_id, text)` | Type text into a form input on a web browser page and press ENTER to submit the form. |
-| `web_browser_scroll(direction)` | Scroll the web browser up or down by one page. |
-| `web_browser_forward()` | Navigate the web browser forward in the browser history. |
-| `web_browser_back()` | Navigate the web browser back in the browser history. |
-| `web_browser_refresh()` | Refresh the current page of the web browser. |
-
-: {tbl-colwidths=\[35,65\]}
-
-The return value of each of these tools is a [web accessibility tree](https://web.dev/articles/the-accessibility-tree) for the page, which provides a clean view of the content, links, and form fields available on the page (you can look at the accessibility tree for any web page using [Chrome Developer Tools](https://developer.chrome.com/blog/full-accessibility-tree)).
-
-### Disabling Interactions
-
-You can use the web browser tools with page interactions disabled by specifying `interactive=False`, for example:
-
-``` python
-use_tools(web_browser(interactive=False))
-```
-
-In this mode, the interactive tools (`web_browser_click()`, `web_browser_type()`, and `web_browser_type_submit()`) are not made available to the model.
 
 ## Skill {#sec-skill}
 

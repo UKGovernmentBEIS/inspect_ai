@@ -25,7 +25,7 @@ async def check_num_choices(model_name):
 @pytest.mark.anyio
 @skip_if_no_openai
 async def test_openai_num_choices() -> None:
-    await check_num_choices("openai/gpt-3.5-turbo")
+    await check_num_choices("openai/gpt-4o-mini")
 
 
 @pytest.mark.anyio

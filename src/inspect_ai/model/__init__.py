@@ -43,6 +43,7 @@ from ._compaction import (
     CompactionAuto,
     CompactionEdit,
     CompactionNative,
+    CompactionResult,
     CompactionStrategy,
     CompactionSummary,
     CompactionTrim,
@@ -100,6 +101,7 @@ from ._openai_convert import (
     model_output_from_openai,
     model_output_from_openai_responses,
 )
+from ._origin import model_origin
 from ._prompt import user_prompt
 from ._providers.providers import *
 from ._registry import modelapi
@@ -162,6 +164,7 @@ __all__ = [
     "compaction",
     "Compact",
     "CompactionStrategy",
+    "CompactionResult",
     "CompactionAuto",
     "CompactionEdit",
     "CompactionSummary",
@@ -207,6 +210,7 @@ __all__ = [
     "set_model_cost",
     "set_model_info",
     "model_roles",
+    "model_origin",
     "ModelInfo",
     "modelapi",
     "Citation",

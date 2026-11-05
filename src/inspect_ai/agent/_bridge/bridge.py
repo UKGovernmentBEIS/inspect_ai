@@ -412,8 +412,10 @@ async def agent_bridge(
           may name any server URL and the model provider will connect to it.
        model_event_sink: Optional sink that takes ownership of `ModelEvent`
           emission for calls routed through the bridge. When set, the bridge
-          installs it around `model.generate()` so the sink decides when and
-          under which span each event is emitted to the transcript.
+          installs it around `model.generate()`. The sink decides under which
+          span each generation runs (its optional `on_start`) and when each
+          event is emitted to the transcript (`on_pending`/`on_complete`); see
+          `ModelEventSink`.
        forward_generation_config: Forward client generation parameters (e.g.
           `max_tokens`, `temperature`, reasoning effort) to the model. Defaults
           to `False`, in which case those parameters are dropped and the resolved
@@ -664,6 +666,7 @@ def init_anthropic_request_patch() -> None:
     from anthropic._constants import RAW_RESPONSE_HEADER
     from anthropic._models import FinalRequestOptions
     from anthropic._types import Omit, ResponseT
+    from anthropic.types.beta import BetaMessage
 
     # extract headers
     def request_headers(options: FinalRequestOptions) -> dict[str, str] | None:
@@ -750,7 +753,8 @@ def init_anthropic_request_patch() -> None:
                 # the SDK prepares the body inside request(), below this patch
                 options = await self._copy_and_prepare(options)
                 json_data = cast(dict[str, Any], options.json_data)
-                is_beta = "beta" in options.url
+                # anthropic >= 2.3 no longer puts ?beta=true on the url
+                is_beta = isinstance(cast_to, type) and issubclass(cast_to, BetaMessage)
                 result = await inspect_anthropic_api_request(
                     json_data,
                     filter_bridge_headers(request_headers(options)),
