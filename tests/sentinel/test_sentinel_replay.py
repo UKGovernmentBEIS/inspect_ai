@@ -2706,6 +2706,64 @@ def test_a_stored_timeline_does_not_change_turn_inference_without_origins() -> N
     ]
 
 
+@pytest.mark.parametrize("inputs", ["expanded", "pooled"])
+def test_a_solver_wrapping_a_subagent_keeps_its_agent_s_continuity(
+    inputs: str,
+) -> None:
+    # Ransom's 39th review: the timeline keeps a solver that holds a subagent
+    # as a span of its own, but the solver's own calls are still its agent's
+    from inspect_ai._sentinel import _replay
+
+    task = ChatMessageUser(content="Solve it.")
+    m1 = linked_call("m1", "agent", [task], "First.", None)
+    asked: list[ChatMessage] = [
+        task,
+        m1.output.message,
+        ChatMessageUser(content="Next?"),
+    ]
+    m2 = linked_call("m2", "agent", asked, "Alternative A.", None)
+    m3 = linked_call("m3", "agent", asked, "Alternative B.", None)
+    s1 = linked_call("s1", "sub", [ChatMessageUser(content="Help.")], "Helped.", None)
+    m4 = linked_call(
+        "m4",
+        "wrap",
+        [*asked, m3.output.message, ChatMessageUser(content="Continue.")],
+        "Done.",
+        None,
+    )
+    events = solving(
+        [
+            SpanBeginEvent(id="agent", name="agent", type="agent"),
+            m1,
+            m2,
+            m3,
+            SpanBeginEvent(id="wrap", name="wrap", type="solver", parent_id="agent"),
+            SpanBeginEvent(id="sub", name="sub", type="agent", parent_id="wrap"),
+            s1,
+            SpanEndEvent(id="sub"),
+            m4,
+            SpanEndEvent(id="wrap"),
+            SpanEndEvent(id="agent"),
+        ]
+    )
+    pool: list[ChatMessage] = []
+    if inputs == "pooled":
+        events, pool = _replay._condensed(events, [])
+    replay = steps_from_events(
+        [],
+        events,
+        pool,
+        sample_uuid="sample",
+        eval_info=EvalInfo(inspect_ai_version=None, sentinel=False),
+    )
+
+    assert [
+        s.id
+        for s in replay
+        if s.stage == "model_input" and s.step.conversation == "agent"
+    ] == ["m1", "m3", "m4"]
+
+
 # the shared continuity fixtures, whose "expected_continuity" (else
 # "expected") gives the turns replay's log driver infers
 CONTINUITY_FIXTURES = Path(__file__).parent.parent / "timeline" / "fixtures" / "events"
@@ -4416,6 +4474,32 @@ def test_spanless_halted_tool_is_allowed(
     )
 
 
+@pytest.mark.parametrize("version", [None, "unknown", "0.3.100", "0.3.200"])
+def test_spanless_timeout_is_refused_only_without_a_known_version(
+    version: str | None,
+) -> None:
+    # Ransom's 39th review O1: cancelling a call awaiting approval records it
+    # as an execution timeout of an older log does
+    halted = ToolEvent(
+        id="halted",
+        function="addition",
+        arguments={},
+        completed=datetime.now(timezone.utc),
+        error=ToolCallError(type="timeout", message="cancelled by operator"),
+    )
+
+    def replay() -> list["ReplayStep"]:
+        return steps_from_events(
+            [], [halted], [], sample_uuid="sample", eval_info=EvalInfo(version, False)
+        )
+
+    if version in (None, "unknown"):
+        with pytest.raises(ValueError, match="0.3.100 or later"):
+            replay()
+    else:
+        assert replay() == []
+
+
 def answers_as_a_person(decision: str, monkeypatch: pytest.MonkeyPatch) -> None:
     """Have the built-in `human` approver's panel decide `decision`; a modify sets x to 7."""
     from inspect_ai.approval._human import acp as acp_module
@@ -5533,6 +5617,46 @@ def test_an_archived_0_3_100_log_replays(
         "tool_result",
         "model_input",
         "model_output",
+    ]
+
+
+@pytest.mark.parametrize("grouping", ["target", "rollback"])
+@pytest.mark.parametrize("inputs", ["expanded", "pooled"])
+def test_a_stored_timeline_groups_uuid_less_events(inputs: str, grouping: str) -> None:
+    # Ransom's 39th review B2: condensing expanded inputs replaces the model
+    # events a stored timeline holds, which are keyed by identity without a uuid
+    from inspect_ai._sentinel import _replay
+
+    path = Path(__file__).parent / "fixtures" / "scored_0.3.100.json"
+    [sample] = read_eval_log(str(path), resolve_attachments="full").samples or []
+    events = list(sample.events)
+    pool: list[ChatMessage] = []
+    if inputs == "pooled":
+        events, pool = _replay._condensed(events, [])
+    first, second = [
+        TimelineEvent(event=e)
+        for e in events
+        if isinstance(e, ModelEvent) and e.span_id is not None and e.uuid is None
+    ][:2]
+    root = TimelineSpan(id="target", name="target", content=[first])
+    if grouping == "target":
+        root.content.append(second)
+    else:
+        root.branches.append(
+            TimelineSpan(id="rollback", name="rollback", content=[second])
+        )
+    replay = steps_from_events(
+        sample.messages,
+        events,
+        pool,
+        sample_uuid=sample.uuid or "sample",
+        eval_info=EvalInfo("0.3.100", False),
+        timeline=Timeline(name="target", description="", root=root),
+    )
+
+    assert [s.step.conversation for s in replay if s.stage == "model_input"] == [
+        "target",
+        "target" if grouping == "target" else "rollback",
     ]
 
 

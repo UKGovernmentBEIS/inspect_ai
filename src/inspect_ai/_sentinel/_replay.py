@@ -100,7 +100,7 @@ def steps_from_events(
 
     In logs without origins, recorded sentinel checks and human decisions are used only when their step id pairs with a model call's exact id. Inferred turns may differ from those seen by a sentinel that ran before origins were recorded; reproducing that sentinel's live steps is outside this replay contract. For a run without a sentinel, human decisions are reconstructed from `ApprovalEvent`s only when the log records inspect_ai 0.3.277 or later; older or unknown versions omit them and warn once when a selected human approver appears. A `tool_call` step whose call an approver changed has no `view.context`: the `ApprovalEvent` view describes the call the approver was shown, and live renders the changed call's context again, which the log does not record. A log is refused where the call an approval approved (its modified call, else the call it records) is not the call its `ToolEvent` records, unless a recorded sentinel modify changed the call again to the one the `ToolEvent` records. Inspect before 0.3.277 wrote such logs, including for a call an approver changed in place and approved without a modified call, and they are refused whatever version the header records, since a retried eval keeps its completed samples under a newer header. This includes an approved call whose tool records other arguments than it was given, such as `memory()` resolving a path: the log does not show which implementation ran. Replay such a transcript from its messages instead. Where such a call has no recorded step and its `ToolEvent` has a parsing or approval error, it may have been refused before it ran or raised the error after running, so replay skips its tool steps with a warning naming the call instead of refusing the log.
 
-    Replay requires a log written by Inspect 0.3.100 or later. Earlier logs lack the `solvers` and `scorers` spans (and, before 0.3.94, native tool spans) and cannot be replayed reliably. A log whose samples have an earlier layout is refused whatever its header says, since a retried eval keeps its completed samples under a newer header: a `ToolEvent` that nests other events, a solver or scorer `StepEvent`, a top-level scorer span, or a top-level solver span in a sample that records no `solvers` span (where one is recorded, a top-level solver span is a chain `Task.cleanup` or a hook awaited, and its calls are setup's; a `scorers` span alone does not count, since rescoring adds one to an older sample). If the recorded version is unknown, completed native tool events without a matching tool span, including execution failures, are also refused as potentially older logs. Pre-execution halts remain allowed.
+    Replay requires a log written by Inspect 0.3.100 or later. Earlier logs lack the `solvers` and `scorers` spans (and, before 0.3.94, native tool spans) and cannot be replayed reliably. A log whose samples have an earlier layout is refused whatever its header says, since a retried eval keeps its completed samples under a newer header: a `ToolEvent` that nests other events, a solver or scorer `StepEvent`, a top-level scorer span, or a top-level solver span in a sample that records no `solvers` span (where one is recorded, a top-level solver span is a chain `Task.cleanup` or a hook awaited, and its calls are setup's; a `scorers` span alone does not count, since rescoring adds one to an older sample). If the recorded version is unknown, completed native tool events without a matching tool span, including execution failures, are also refused as potentially older logs. Pending calls and spanless parsing, approval, or cancelled errors remain allowed. A completed spanless timeout is refused when the version is unknown.
 
     Args:
         messages: The sample's messages (`EvalSample.messages`).
@@ -137,16 +137,20 @@ def steps_from_events(
             "steps_from_events requires an Inspect log written by inspect_ai "
             "0.3.100 or later. Replay this transcript from its messages instead."
         )
+    conversations = _timeline_conversations(timeline) if timeline else None
     pool: list[ChatMessage] | Sequence[ChatMessage] = message_pool
     if any(isinstance(e, ModelEvent) and e.input_refs is None for e in events):
-        events, pool = _condensed(events, message_pool)
+        condensed, pool = _condensed(events, message_pool)
+        if conversations is not None:
+            _rekey(conversations, events, condensed)
+        events = condensed
     return _Driver(
         messages,
         list(events),
         pool,
         sample_uuid,
         eval_info,
-        timeline,
+        conversations,
         human_approvers,
     ).steps()
 
@@ -508,7 +512,7 @@ class _Driver:
         pool: Sequence[ChatMessage],
         sample_uuid: str,
         eval_info: EvalInfo,
-        timeline: Timeline | None,
+        conversations: dict[object, str] | None,
         human_approvers: Sequence[str],
     ) -> None:
         self.messages = messages
@@ -524,7 +528,7 @@ class _Driver:
             not eval_info.sentinel and self.approval_log_reliable
         )
         self.spans = SpanConversations(sample_uuid)
-        self.timeline = _timeline_conversations(timeline) if timeline else None
+        self.timeline = conversations
         self.begins: dict[str, tuple[int, SpanBeginEvent]] = {}
         self.ends: dict[str, int] = {}
         self.sentinel_span_of: dict[str, str | None] = {}
@@ -1507,6 +1511,19 @@ def _timeline_conversations(timeline: Timeline) -> dict[object, str]:
 
     walk(timeline.root, timeline.root.id)
     return conversations
+
+
+def _rekey(
+    conversations: dict[object, str],
+    events: Sequence[Event],
+    condensed: Sequence[Event],
+) -> None:
+    """Move the conversation of each uuid-less event that condensing replaced to its replacement."""
+    for event, replacement in zip(events, condensed, strict=True):
+        if event is not replacement and event.uuid is None:
+            found = conversations.pop(id(event), None)
+            if found is not None:
+                conversations[id(replacement)] = found
 
 
 def _check_span_tree(events: Sequence[Event]) -> None:

@@ -1767,7 +1767,7 @@ def _continuity(
 ) -> dict[int, bool]:
     """Whether each call with no recorded origin under `root` is a turn by continuity, by `id()` of its event.
 
-    The rule runs over each conversation's calls in log order within each span of the tree. A span can hold more than one conversation where the timeline unrolls a solver beside an agent; a tool's sub-agent and a branch are spans of their own. A conversation in which no call continues another has no answers but its summarizers', so the existing rules decide its other calls. A fork that no later call resolves gets no answer, and the existing prompt rules decide its calls. Calls in `inputs.outside` are left out.
+    The rule runs over each conversation's calls in log order within each span of the tree. A span can hold more than one conversation where the timeline unrolls a solver beside an agent; a tool's sub-agent and a branch are spans of their own, while a solver span kept for the subagent it holds is its enclosing span's. A conversation in which no call continues another has no answers but its summarizers', so the existing rules decide its other calls. A fork that no later call resolves gets no answer, and the existing prompt rules decide its calls. Calls in `inputs.outside` are left out.
     """
     order = {id(event): index for index, event in enumerate(inputs.events)}
     # (position in the log, position in the tree, conversation, event): a call
@@ -1776,11 +1776,17 @@ def _continuity(
     found: list[tuple[int, int, object, Event]] = []
     at = -1
 
-    def walk(span: TimelineSpan) -> None:
+    solvers = {
+        event.id
+        for event in inputs.events
+        if isinstance(event, SpanBeginEvent) and event.type == "solver"
+    }
+
+    def walk(span: TimelineSpan, owner: TimelineSpan) -> None:
         nonlocal at
         for item in span.content:
             if isinstance(item, TimelineSpan):
-                walk(item)
+                walk(item, owner if item.id in solvers else item)
                 continue
             at = order.get(id(item.event), at)
             if id(item.event) in inputs.outside:
@@ -1790,12 +1796,12 @@ def _continuity(
                     continue
             elif not isinstance(item.event, CompactionEvent):
                 continue
-            conversation = (id(span), inputs.conversation(item.event))
+            conversation = (id(owner), inputs.conversation(item.event))
             found.append((at, len(found), conversation, item.event))
         for branch in span.branches:
-            walk(branch)
+            walk(branch, branch)
 
-    walk(root)
+    walk(root, root)
     found.sort(key=lambda entry: entry[:2])
 
     threads: dict[object, _Continuity] = {}
