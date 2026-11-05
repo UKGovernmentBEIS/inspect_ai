@@ -903,6 +903,32 @@ class TestUserParam:
             assert params["user"] == self._DEFAULT_USER._asdict()
             assert "cwd" not in params
 
+    @pytest.mark.parametrize("tools_user", ["root", None], ids=["root", "rootless"])
+    async def test_transport_runs_as_the_tools_user_in_a_scope(
+        self, tools_user: str | None
+    ) -> None:
+        from test_helpers.sandbox import CannedSandbox
+
+        provider = CannedSandbox.returning(ExecResult(True, 0, _start_response(), ""))
+        proxy = SandboxEnvironmentProxy(provider)
+        proxy._tools_injected = True
+        proxy._tools_user = tools_user
+        proxy._tools_default_user = self._DEFAULT_USER
+        envs_token = sandbox_environments_context_var.set({"default": proxy})
+        default_token = sandbox_default_context_var.set("default")
+        try:
+            with sandbox_identity("w-1"):
+                await proxy.exec_remote(["id"], ExecRemoteStreamingOptions())
+        finally:
+            sandbox_default_context_var.reset(default_token)
+            sandbox_environments_context_var.reset(envs_token)
+        # the member's identity travels as the request's user, not the exec's
+        [(_, exec_user)] = provider.exec_calls
+        assert exec_user == tools_user
+        [request] = provider.inputs
+        assert isinstance(request, str)
+        assert json.loads(request)["params"]["user"] == "w-1"
+
 
 # ============================================================================
 # write_stdin / close_stdin error guards
