@@ -486,8 +486,10 @@ async def _wait_for_token_file(
 
     The proxy process exists before it serves, and it publishes the token only
     once its listener is bound. The check runs as the tools user and reads only
-    the file's size, so the token never leaves the sandbox. A proxy that exits
-    first is reported by `_monitor_proxy`, which cancels this wait.
+    the file's size, so the token never leaves the sandbox. It runs outside the
+    sandbox's concurrency limits, as the proxy launch does: waiting there for
+    capacity could time out a proxy that has already published. A proxy that
+    exits first is reported by `_monitor_proxy`, which cancels this wait.
 
     Raises:
         RuntimeError: The token file did not appear within `BRIDGE_TOKEN_TIMEOUT`.
@@ -502,6 +504,7 @@ async def _wait_for_token_file(
                     token_file,
                     user=sandbox_env._tools_user,
                     timeout=_TOKEN_EXEC_TIMEOUT,
+                    concurrency=False,
                 )
                 if result.success and result.stdout.strip() == str(BRIDGE_TOKEN_LENGTH):
                     return

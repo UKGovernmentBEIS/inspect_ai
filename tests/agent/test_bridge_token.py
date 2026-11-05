@@ -285,6 +285,30 @@ async def test_token_removal_does_not_wait_for_sandbox_capacity(
     assert len(sandbox.removed) == 1
 
 
+async def test_token_wait_does_not_wait_for_sandbox_capacity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A published token is found while other commands hold the capacity."""
+    sandbox = _BridgeSandbox(publish_after=0)
+    launch = sandbox.fake_exec_remote
+
+    async def launch_then_saturate(
+        cmd: list[str], options: ExecRemoteStreamingOptions
+    ) -> _FakeProxy:
+        proxy = await launch(cmd, options)
+        sandbox.saturated = True
+        return proxy
+
+    with _sandbox(monkeypatch, sandbox), sandbox_identity("w-1"):
+        monkeypatch.setattr(sandbox, "exec_remote", launch_then_saturate)
+        with anyio.fail_after(10):
+            async with sandbox_agent_bridge():
+                assert sandbox.checks == 1
+
+    assert sandbox.proxy.killed.is_set()
+    assert len(sandbox.removed) == 1
+
+
 class _DelayedKillSandbox(_BridgeSandbox):
     """A sandbox with a real proxy process handle whose kill RPC takes a while.
 
