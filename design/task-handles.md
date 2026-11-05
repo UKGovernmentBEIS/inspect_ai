@@ -255,8 +255,10 @@ class TaskHandle:
     def cancel(self) -> None:
         """Abort it, like `inspect ctl task cancel`.
 
-        A task none of whose attempts has run ends with no log; a task
-        waiting for a retry keeps its latest attempt's log.
+        A task cancelled before any attempt has registered ends with the
+        log an earlier attempt stored, or none (see task-dispatch.md
+        "Task phases"); a task waiting for a retry keeps its latest
+        attempt's log.
         """
     def close(self) -> None:
         """Send no more samples; the task ends once its source is done and its samples have run."""
@@ -357,9 +359,10 @@ ordinary count excluding records running on a loan:
 ```
     while not cancelled and ordinary_in_flight < effective_max_tasks(parallel):
         ... ordinary picks, unchanged ...
-    for record in startable records holding a loan, in queue order:
-        move record to starting or retry_starting, as an ordinary pick does
-        start run_one(record, on_loan=True)
+    for record holding a loan, in queue order, whose next entry is startable
+            (the record itself in admitted, or its pending retry):
+        if that entry is the record: move it to starting, as an ordinary pick does
+        start run_one(entry, on_loan=True)
 ```
 
 The creator is the attempt whose context `enqueue_task()` was called in (a
@@ -787,26 +790,27 @@ class Loan:
 - **Who lends.** A wait lends when it is made from inside a running task
   attempt (a sample, scorer, tool or callback of a task the dispatcher
   started, including one that is itself running on a loan) on a target
-  record that is queued: `started()`, `result()`, or an `enqueue_sample()`
+  record that has no attempt in flight and is waiting to start one (in
+  `admitted`, or with a retry pending): `started()`, `result()`, or an `enqueue_sample()`
   whose sample cannot run until the target starts. A wait from outside any
   running attempt lends nothing, because nothing is holding a slot while it
   waits.
 - **One loan per target.** The first such wait creates `target.loan` and
-  rings the queue; later waits on the same queued target add to `waiters`
-  and share it. A wait on a target that is already running lends nothing,
+  rings the queue; later waits on the same waiting target add to `waiters`
+  and share it. A wait on a target with an attempt in flight lends nothing,
   so repeated `enqueue_sample()` calls to a running rollout task cost no
   more slots.
 - **What it starts.** The dispatcher starts a record above the ordinary
   limit only if the record holds a loan, after the ordinary picks, and only
   when it is startable (the start rule in
-  [task-dispatch.md](task-dispatch.md#the-dispatcher): phase `admitted` or
-  `retry_waiting`, setups settled, not paused). An earlier,
+  [task-dispatch.md](task-dispatch.md#the-dispatcher): a record in
+  `admitted` or a pending retry, setups settled, not paused). An earlier,
   unrelated queued task never starts on another task's loan: at
   `max_tasks=1`, with running parent P, an earlier queued task U and P's
   child C, P's wait starts C, and U waits for an ordinary slot. If an
   ordinary slot is free when the target becomes startable, the target takes
   it and the loan is dropped unused.
-- **Lifetime.** While the target is queued, the loan lives while
+- **Lifetime.** While the target waits to start, the loan lives while
   `waiters > 0`; if every waiter stops waiting (cancelled, or its attempt
   ended), the loan is dropped. Once the target has started on the loan, it
   keeps its extra slot until that attempt ends, whatever its waiters do; the
