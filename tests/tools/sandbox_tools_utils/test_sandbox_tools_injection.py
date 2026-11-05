@@ -654,7 +654,7 @@ async def test_inject_names_a_message_less_exception(
 
 async def test_extract_streams_archive_to_tar_inside_verified_directory() -> None:
     sandbox = CannedSandbox(helper_ok)
-    await sandbox_tools._extract_tools_tree(sandbox, b"gz", "root")
+    await sandbox_tools._extract_tools_tree(sandbox, "name", b"gz", "root")
 
     [(tar_cmd, user)] = sandbox.exec_calls
     assert user == "root"
@@ -677,7 +677,7 @@ def _gzip_unsupported(cmd: list[str], user: str | None) -> ExecResult[str]:
 async def test_extract_falls_back_to_plain_tar_inside_verified_directory() -> None:
     gz = gzip.compress(b"tar")
     sandbox = CannedSandbox(_gzip_unsupported)
-    await sandbox_tools._extract_tools_tree(sandbox, gz, None)
+    await sandbox_tools._extract_tools_tree(sandbox, "name", gz, None)
 
     assert [wrapped_command(cmd) for cmd, _ in sandbox.exec_calls] == [
         ["sh", "-c", TAR_XZF_STDIN],
@@ -695,7 +695,9 @@ async def test_extract_fallback_ignores_stale_uncompressed_tar(
     (tmp_path / "inspect-sandbox-tools-amd64-v1.tar").write_bytes(b"tampered")
 
     sandbox = CannedSandbox(_gzip_unsupported)
-    await sandbox_tools._extract_tools_tree(sandbox, gzip.compress(b"verified"), None)
+    await sandbox_tools._extract_tools_tree(
+        sandbox, "name", gzip.compress(b"verified"), None
+    )
 
     assert sandbox.inputs[-1] == b"verified"
     assert b"tampered" not in sandbox.inputs
@@ -706,7 +708,7 @@ async def test_extract_propagates_helper_verdict() -> None:
         lambda cmd, user: violation(f"{SANDBOX_TOOLS_DIR} is a symbolic link")
     )
     with pytest.raises(FrameworkDirectoryError, match="is a symbolic link"):
-        await sandbox_tools._extract_tools_tree(sandbox, b"gz", "root")
+        await sandbox_tools._extract_tools_tree(sandbox, "name", b"gz", "root")
     assert len(sandbox.exec_calls) == 1
     assert sandbox.written == []
 
@@ -721,7 +723,9 @@ async def test_extract_reports_failure_of_both_tar_attempts() -> None:
         )
     )
     with pytest.raises(RuntimeError, match="Failed to extract sandbox tools"):
-        await sandbox_tools._extract_tools_tree(sandbox, gzip.compress(b"tar"), "root")
+        await sandbox_tools._extract_tools_tree(
+            sandbox, "name", gzip.compress(b"tar"), "root"
+        )
     assert len(sandbox.exec_calls) == 2
 
 

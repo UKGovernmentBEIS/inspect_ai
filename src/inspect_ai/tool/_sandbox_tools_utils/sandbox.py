@@ -286,7 +286,7 @@ async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
             )
         await _set_tools_user(sandbox, user)
 
-        await _extract_tools_tree(sandbox, gz_bytes, user)
+        await _extract_tools_tree(sandbox, name, gz_bytes, user)
 
         # Re-verify immediately before the launcher runs with the tools user's
         # authority. Extraction targets the verified directory object, so this
@@ -471,9 +471,12 @@ carried the transfer before); a timeout also arms compose's retry of a hung exec
 
 
 async def _extract_tools_tree(
-    sandbox: SandboxEnvironment, gz_bytes: bytes, user: str | None
+    sandbox: SandboxEnvironment, name: str, gz_bytes: bytes, user: str | None
 ) -> None:
     """Extract the gzipped onedir tar into SANDBOX_TOOLS_DIR.
+
+    ``name`` (the artifact name) is unused; it is kept so existing callers and
+    test doubles that pass it keep working.
 
     The archive travels to `tar` on stdin, so no copy of it exists at a path another
     principal could write to before the tools user reads it. `write_file` cannot do
