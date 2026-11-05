@@ -266,6 +266,16 @@ async def _open(musl: bool = False) -> tuple[str, bytes]:
 
 
 @pytest.mark.parametrize("state", ["pypi", "clean"])
+async def test_open_executable_accepts_matching_local_binary(
+    binaries: Path, monkeypatch: pytest.MonkeyPatch, state: str
+) -> None:
+    _install_state(monkeypatch, state)
+    (binaries / _GLIBC).write_bytes(b"good")
+
+    assert await _open() == (_GLIBC, b"good")
+
+
+@pytest.mark.parametrize("state", ["pypi", "clean"])
 async def test_open_executable_rejects_tampered_local_binary(
     binaries: Path, monkeypatch: pytest.MonkeyPatch, state: str
 ) -> None:

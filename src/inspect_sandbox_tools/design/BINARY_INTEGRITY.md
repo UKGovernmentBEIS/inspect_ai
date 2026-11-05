@@ -217,16 +217,16 @@ Every path through `_open_executable_for_arch` (install state × libc × tier):
 | `pypi` | musl, not yet downloaded (deliberately not bundled) | S3 download, the normal musl path | **yes**; at download, and again when opened |
 | `clean` (editable, no sandbox-tools edits) | any, already in `binaries/` | local `binaries/` | **yes** |
 | `clean` | any, not in `binaries/` | S3 download | **yes**; repo checkout vendors `SHA256SUMS` consistent with `version.txt` |
-| `clean`, artifact not yet on S3 (404) | any | falls through to prompted local Docker build; the build writes the `-dev` name, so opening the non-dev name then fails | **no**, by design; see below |
+| `clean`, artifact not yet on S3 (404) | any | falls through to prompted local Docker build; the build writes the `-dev` name, so opening the non-dev name then fails | n/a; a non-dev file found there would be verified |
 | `edited` (editable, sandbox-tools changed) | any (`-dev` name) | local `binaries/` or prompted local build; never downloads | **no**, by design; see below |
 | `INSPECT_SANDBOX_TOOLS_INSTALL_STATE` override (CI release gate forces `clean`) | glibc + musl | pre-fetched into `binaries/` by the workflow | **yes**; at fetch by the workflow (consumer 3), and at use |
 | `pypi` misdetected for an editable checkout (`UV_NO_INSTALLER_METADATA=1`, noted in code) | musl | same download path | **yes**; same lookup, from checkout's sums |
 | `pypi` misdetected for an editable checkout | glibc, not in `binaries/` | none: raises the missing-from-PyPI-package error | n/a |
 
-Derived artifact: the uncompressed-`tar` cache written by
-`_uncompressed_tar_bytes` (fallback for gzip-less containers) is decompressed
-in-process from bytes that were already verified when opened, and its
-existing atomic write stays; it needs no digest entry.
+Derived artifact: the uncompressed `tar` used by the fallback for gzip-less
+containers is decompressed in memory from the verified bytes on each use. It
+is not cached on disk, so a stale or tampered `<name>.tar` left in
+`binaries/` by an earlier release is never read; it needs no digest entry.
 
 #### Runtime verification at use
 
@@ -238,14 +238,15 @@ the check and injection. A digest mismatch or a missing or unreadable sums
 entry raises `PrerequisiteError` with the same wording as the S3 download
 failures. A missing local file still falls through to the next tier.
 
-Two cases skip verification, each with a comment at the call site:
+One case skips verification, with a comment where it is decided: `edited`
+installs resolve `-dev` names, and `SHA256SUMS` has no `-dev` entries (see
+"No `-dev` entries"). This covers the artifact opened after `_build_it`,
+which always writes the `-dev` name; local builds are not reproducible, so
+they could not match the committed digests. The open after `_build_it` uses
+the same verify decision as the other tiers, so a published (non-dev) name is
+never opened unverified.
 
-- `edited` installs resolve `-dev` names. `SHA256SUMS` has no `-dev` entries
-  (see "No `-dev` entries").
-- The artifact opened after `_build_it`. Local builds are not reproducible,
-  so they cannot match the committed digests.
-
-Re-hashing ~40 MB per injection is cheap next to a container exec. Its limit
+Re-hashing ~15 MB per injection is cheap next to a container exec. Its limit
 is the residual risk above: an attacker who can write to `site-packages` can
 also edit `SHA256SUMS` or the check itself.
 
@@ -470,7 +471,7 @@ exercises, differently per PR type:
 |---|---|
 | `src/inspect_ai/tool/_sandbox_tools_utils/SHA256SUMS` | new, seeded via TOFU (four entries, current version) |
 | `src/inspect_ai/tool/_sandbox_tools_utils/_digests.py` | new, stdlib-only read/write/lookup (dual import style like `_build_config.py`) |
-| `src/inspect_ai/tool/_sandbox_tools_utils/sandbox.py` | rewrite `_download_from_s3`: lookup, then `download()` via `to_thread`, then chmod; integrity failures fatal; 404 unchanged; verify every non-dev artifact `_open_executable_for_arch` yields (not after `_build_it`); missing bundled glibc in a `pypi` install fatal; `_check_main_divergence` deliberately untouched (see Install-state detection) |
+| `src/inspect_ai/tool/_sandbox_tools_utils/sandbox.py` | rewrite `_download_from_s3`: lookup, then `download()` via `to_thread`, then chmod; integrity failures fatal; 404 unchanged; verify every non-dev artifact `_open_executable_for_arch` yields, including after `_build_it`; uncompressed-tar fallback decompresses verified bytes instead of reading a disk cache; missing bundled glibc in a `pypi` install fatal; `_check_main_divergence` deliberately untouched (see Install-state detection) |
 | `src/inspect_ai/tool/_sandbox_tools_utils/upload_to_s3.py` | version guard, immutability guard, write sums, round-trip verify, commit reminder |
 | `scripts/pypi-release.py` | digest-verified downloads, digest-based existence check, unconditional pre-build bundle gate, post-build wheel-contents check |
 | `.github/workflows/build.yml` | release-gate lockstep check + `sha256sum -c` over all four artifacts; `check-version-bump` unbumped-direction sums check; `slow-tool-tests-dev` untouched (see "The dev gate") |
@@ -492,11 +493,15 @@ Unit tests (existing sandbox-tools test area; httpx mocked by patching
   mismatch raises and leaves neither `dest` nor any tempfile in
   `binaries/`; 404 returns `False`; missing sums entry raises without any
   network call.
-- `_open_executable_for_arch`: a tampered local artifact (`pypi` and
-  `clean`) and a local artifact with no sums entry raise; a `pypi` install
+- `_open_executable_for_arch`: a matching local artifact (`pypi` and
+  `clean`) opens; a tampered local artifact and a local artifact with no
+  sums entry raise; a `pypi` install
   missing its bundled glibc artifact raises; the `pypi` musl S3 path still
   works and a tampered download raises when opened; `edited` `-dev`
-  artifacts and the artifact opened after `_build_it` are not verified.
+  artifacts, including the one opened after `_build_it`, are not verified.
+- `_extract_tools_tree` fallback: a stale or tampered `.tar` in `binaries/`
+  is not injected; the plain-tar input is decompressed from the verified
+  gzip bytes.
 - Sums format: a test asserting every `SHA256SUMS` entry filename parses via
   `filename_to_config`, has no `-dev` suffix, all entries share one version,
   and the four arch×libc combinations are each present exactly once. This

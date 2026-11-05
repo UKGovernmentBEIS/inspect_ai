@@ -286,7 +286,7 @@ async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
             )
         await _set_tools_user(sandbox, user)
 
-        await _extract_tools_tree(sandbox, name, gz_bytes, user)
+        await _extract_tools_tree(sandbox, gz_bytes, user)
 
         # Re-verify immediately before the launcher runs with the tools user's
         # authority. Extraction targets the verified directory object, so this
@@ -471,7 +471,7 @@ carried the transfer before); a timeout also arms compose's retry of a hung exec
 
 
 async def _extract_tools_tree(
-    sandbox: SandboxEnvironment, name: str, gz_bytes: bytes, user: str | None
+    sandbox: SandboxEnvironment, gz_bytes: bytes, user: str | None
 ) -> None:
     """Extract the gzipped onedir tar into SANDBOX_TOOLS_DIR.
 
@@ -488,7 +488,8 @@ async def _extract_tools_tree(
     Optimistic path: ship the compressed artifact and extract with `tar xzf`. If the
     container's `tar` lacks gzip support, fall back to injecting an uncompressed tar,
     which only needs plain `tar xf` (the broadest assumption). The uncompressed tar is
-    cached in the binaries dir so we decompress at most once per artifact.
+    decompressed from `gz_bytes` on each fallback, never read from disk, so it holds
+    exactly the bytes that were verified.
 
     A failing `tar` exits before reading stdin, and providers then raise on the broken
     stdin write instead of returning tar's status, so on failure the wrapper drains
@@ -518,39 +519,11 @@ async def _extract_tools_tree(
         ["sh", "-c", "tar xf - || { cat >/dev/null; exit 1; }"],
         user=user,
         expected_uid=expected_uid_for(user),
-        input=_uncompressed_tar_bytes(name, gz_bytes),
+        input=gzip.decompress(gz_bytes),
         timeout=_EXTRACT_TIMEOUT,
     )
     if not result.success:
         raise RuntimeError(f"Failed to extract sandbox tools: {result.stderr}")
-
-
-def _uncompressed_tar_bytes(name: str, gz_bytes: bytes) -> bytes:
-    """Return the uncompressed tar for an artifact, caching it in the binaries dir.
-
-    Used only by the fallback extraction path. Decompresses once and caches the result
-    next to the gzipped artifact (as `<name>.tar`) so repeated injections into
-    gzip-less sandboxes reuse it rather than re-decompressing each time. The write is
-    atomic so concurrent injections can't observe a partial file. Caching is
-    best-effort: if the binaries dir isn't writable (e.g. a locked-down install) we
-    just return the decompressed bytes rather than failing injection.
-    """
-    binaries_path = _binaries_dir()
-    cache_path = binaries_path / f"{name}.tar"
-    if cache_path.exists():
-        return cache_path.read_bytes()
-
-    tar_bytes = gzip.decompress(gz_bytes)
-    try:
-        binaries_path.mkdir(exist_ok=True)
-        tmp_path = cache_path.with_suffix(".tar.tmp")
-        tmp_path.write_bytes(tar_bytes)
-        os.replace(tmp_path, cache_path)
-    except OSError as ex:
-        trace_message(
-            logger, TRACE_SANDBOX_TOOLS, f"could not cache uncompressed tar: {ex}"
-        )
-    return tar_bytes
 
 
 @asynccontextmanager
@@ -685,8 +658,7 @@ async def _open_executable_for_arch(
         # Build it locally
         await _build_it(arch, musl, executable_name)
 
-        # Local builds are not reproducible, so they cannot match SHA256SUMS.
-        async with _open_executable(executable_name, verify=False) as f:
+        async with _open_executable(executable_name, verify=verify) as f:
             yield executable_name, f
 
 
