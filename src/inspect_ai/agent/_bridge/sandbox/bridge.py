@@ -341,10 +341,10 @@ async def sandbox_agent_bridge(
             # cancellation ends the bridge, or it could publish after the token
             # is removed, so its launch is shielded, for a bounded time. A launch
             # that times out first kills the proxy by its job key (exec_remote).
-            with anyio.fail_after(
+            with anyio.move_on_after(
                 BRIDGE_TOKEN_TIMEOUT if token_file is not None else None,
                 shield=token_file is not None,
-            ):
+            ) as launch:
                 proxy = await sandbox_env.exec_remote(
                     cmd=[SANDBOX_CLI, "model_proxy"],
                     options=ExecRemoteStreamingOptions(
@@ -354,6 +354,13 @@ async def sandbox_agent_bridge(
                         poll_timeout=600,
                         poll_timeout_recovery=poll_timeout_recovery,
                     ),
+                )
+            if launch.cancelled_caught:
+                # a limit or cancellation that arrived meanwhile takes precedence
+                await _deliver_enclosing_cancellation()
+                raise RuntimeError(
+                    "The sandbox agent bridge's model proxy did not start within "
+                    f"{BRIDGE_TOKEN_TIMEOUT} seconds."
                 )
 
             # monitor proxy for unexpected death

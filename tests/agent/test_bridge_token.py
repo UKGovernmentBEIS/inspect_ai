@@ -1,11 +1,13 @@
 """The sandbox agent bridge's token inside a sandbox identity scope."""
 
 import json
+import posixpath
 import re
 from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import AbstractContextManager, contextmanager, nullcontext
 from pathlib import Path
-from typing import Any
+from types import SimpleNamespace
+from typing import Any, cast
 
 import anyio
 import pytest
@@ -13,17 +15,19 @@ from test_helpers.sandbox import CannedSandbox
 from test_helpers.utils import skip_if_no_docker
 
 import inspect_ai.agent._bridge.sandbox.bridge as bridge_module
+import inspect_ai.agent._bridge.sandbox.service as service_module
 from inspect_ai import Task, eval
 from inspect_ai.agent._bridge.sandbox.bridge import (
     BRIDGE_TOKEN_DIR,
     sandbox_agent_bridge,
 )
+from inspect_ai.agent._bridge.sandbox.service import MODEL_SERVICE
 from inspect_ai.dataset import Sample
 from inspect_ai.model import get_model
 from inspect_ai.solver import Generate, Solver, TaskState, solver
 from inspect_ai.tool._mcp._tools_bridge import BridgedToolsSpec
 from inspect_ai.tool._tool import Tool, tool
-from inspect_ai.util import sandbox
+from inspect_ai.util import LimitExceededError, sandbox, time_limit
 from inspect_ai.util._sandbox.context import (
     sandbox_default_context_var,
     sandbox_environments_context_var,
@@ -37,6 +41,7 @@ from inspect_ai.util._sandbox.exec_remote import (
     exec_remote_streaming,
 )
 from inspect_ai.util._sandbox.identity import SandboxIdentityError, sandbox_identity
+from inspect_ai.util._sandbox.service import REQUESTS_DIR, SERVICES_DIR
 from inspect_ai.util._subprocess import ExecResult
 
 TOKEN_FILE_ENV = "BRIDGE_MODEL_SERVICE_TOKEN_FILE"
@@ -400,6 +405,15 @@ async def test_cancellation_while_the_proxy_starts_still_kills_it_before_removal
     assert sandbox.events == ["submitted", "kill_started", "kill_finished", "remove"]
 
 
+def _assert_killed_by_key_before_removal(sandbox: _DelayedKillSandbox) -> None:
+    sandbox.publish_late()
+    assert sandbox.events == ["submitted", "kill_key", "remove"]
+    assert sandbox.kill_key_args == dict(
+        job_key=sandbox.job_key, timeout=KILL_KEY_TIMEOUT, concurrency=False
+    )
+    assert sandbox.late_tokens == []
+
+
 async def test_a_proxy_start_that_times_out_is_killed_by_key_before_removal(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -409,24 +423,67 @@ async def test_a_proxy_start_that_times_out_is_killed_by_key_before_removal(
     sandbox.start_delay = 60
     with _sandbox(monkeypatch, sandbox), sandbox_identity("w-1"):
         with anyio.fail_after(10):
-            with pytest.raises((TimeoutError, ExceptionGroup)) as excinfo:
-                with anyio.CancelScope() as scope:
-                    sandbox.on_submitted = scope.cancel
+            with pytest.raises(RuntimeError, match="did not start within 0.5 seconds"):
+                async with sandbox_agent_bridge():
+                    raise AssertionError("bridge yielded")
+
+    _assert_killed_by_key_before_removal(sandbox)
+
+
+async def test_a_cancellation_while_the_proxy_start_times_out_passes_through(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(bridge_module, "BRIDGE_TOKEN_TIMEOUT", 0.5)
+    sandbox = _DelayedKillSandbox()
+    sandbox.start_delay = 60
+    with _sandbox(monkeypatch, sandbox), sandbox_identity("w-1"):
+        with anyio.fail_after(10):
+            with anyio.CancelScope() as scope:
+                sandbox.on_submitted = scope.cancel
+                async with sandbox_agent_bridge():
+                    raise AssertionError("bridge yielded")
+
+    assert scope.cancel_called
+    _assert_killed_by_key_before_removal(sandbox)
+
+
+async def test_a_time_limit_while_the_proxy_start_times_out_is_reported(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(bridge_module, "BRIDGE_TOKEN_TIMEOUT", 1)
+    sandbox = _DelayedKillSandbox()
+    sandbox.start_delay = 60
+    with _sandbox(monkeypatch, sandbox), sandbox_identity("w-1"):
+        with anyio.fail_after(10):
+            with pytest.raises(LimitExceededError) as excinfo:
+                with time_limit(0.3):
                     async with sandbox_agent_bridge():
                         raise AssertionError("bridge yielded")
-    sandbox.publish_late()
 
-    # under trio the cancelled scope strips its own cancellation from the
-    # bridge's task group, leaving the timeout in a group
-    error = excinfo.value
-    if isinstance(error, ExceptionGroup):
-        [error] = error.exceptions
-    assert isinstance(error, TimeoutError)
-    assert sandbox.events == ["submitted", "kill_key", "remove"]
-    assert sandbox.kill_key_args == dict(
-        job_key=sandbox.job_key, timeout=KILL_KEY_TIMEOUT, concurrency=False
+    assert excinfo.value.type == "time"
+    _assert_killed_by_key_before_removal(sandbox)
+
+
+@pytest.mark.parametrize(
+    "token_file,user", [(None, None), (f"{BRIDGE_TOKEN_DIR}/proxy_x", "root")]
+)
+async def test_a_bridge_requiring_a_token_keeps_its_service_queue_to_the_tools_user(
+    monkeypatch: pytest.MonkeyPatch, token_file: str | None, user: str | None
+) -> None:
+    """Otherwise the default user could submit requests to it without the token."""
+    calls: list[dict[str, Any]] = []
+
+    async def sandbox_service(**kwargs: Any) -> None:
+        calls.append(kwargs)
+
+    monkeypatch.setattr(service_module, "sandbox_service", sandbox_service)
+    bridge = SimpleNamespace(token_file=token_file)
+    await service_module.run_model_service(
+        _BridgeSandbox(), None, None, cast(Any, bridge), "proxy_x", anyio.Event()
     )
-    assert sandbox.late_tokens == []
+
+    [call] = calls
+    assert call["user"] == user
 
 
 async def test_bridge_in_a_scope_refuses_tools_that_cannot_mint_tokens(
@@ -514,6 +571,29 @@ def _scoped_bridge_in_docker() -> Solver:
                     user="root",
                 )
                 assert modes.stdout.split("\n")[:2] == ["root 711", "w1 400"]
+                # the service queue the proxy forwards to takes no token, so
+                # neither the default user nor the member may write to it
+                queue = posixpath.join(
+                    SERVICES_DIR,
+                    MODEL_SERVICE,
+                    posixpath.basename(token_file),
+                    REQUESTS_DIR,
+                )
+                request = json.dumps(
+                    {"id": "attack", "method": "generate_completions", "params": {}}
+                )
+                for attacker in ("nonroot", "w1"):
+                    attack = await sb.exec(
+                        ["sh", "-c", 'printf %s "$2" > "$1/attack.json"', "sh"]
+                        + [queue, request],
+                        user=attacker,
+                    )
+                    assert not attack.success, attacker
+                owner = await sb.exec(
+                    ["stat", "-c", "%U %a", posixpath.dirname(queue), queue],
+                    user="root",
+                )
+                assert owner.stdout.split("\n")[:2] == ["root 700", "root 700"]
         gone = await sb.exec(["test", "-e", token_file], user="root")
         assert not gone.success
         return state
