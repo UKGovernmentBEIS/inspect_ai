@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from logging import getLogger
-from typing import Any
+from typing import Any, Literal, cast, get_args
 
 from pydantic import JsonValue, TypeAdapter
 from shortuuid import uuid as _shortuuid
 
 from inspect_ai._util.constants import get_deserializing_context
 from inspect_ai._util.error import EvalError
+from inspect_ai.dataset._dataset import Sample
 from inspect_ai.event._compaction import CompactionEvent
 from inspect_ai.event._event import Event
 from inspect_ai.event._model import ModelEvent
@@ -19,8 +21,21 @@ from inspect_ai.event._pool import (
     resolve_model_event_inputs,
 )
 from inspect_ai.event._sample_init import SampleInitEvent
+from inspect_ai.event._sample_limit import SampleLimitEvent
+from inspect_ai.event._score import ScoreEvent
 from inspect_ai.event._validate import validate_events
-from inspect_ai.log._log import EvalSample, EvalSampleSummary
+from inspect_ai.log._condense import (
+    WalkContext,
+    resolve_attachment_fn,
+    resolve_events_attachments,
+    walk_model_output,
+)
+from inspect_ai.log._log import (
+    EvalSample,
+    EvalSampleLimit,
+    EvalSampleLimitType,
+    EvalSampleSummary,
+)
 from inspect_ai.log._recorders.buffer.types import (
     CallPoolData,
     EventData,
@@ -29,10 +44,44 @@ from inspect_ai.log._recorders.buffer.types import (
 )
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.scorer._metric import Score
 
 logger = getLogger(__name__)
 
 _CHAT_MESSAGES_ADAPTER: TypeAdapter[list[ChatMessage]] = TypeAdapter(list[ChatMessage])
+
+IncompleteAction = Literal["retry", "error"]
+"""Disposition for samples that were in progress when the eval crashed.
+
+`"retry"` marks them as cancelled errors that a later retry re-runs (the
+historical behavior); `"error"` records that the operator terminated them
+during recovery, allowing the recovered log to finalize as `"success"` when
+every expected sample is final (see `write_recovered_eval_log`).
+"""
+
+
+def in_progress_sample_error(incomplete_action: IncompleteAction) -> EvalError:
+    """The error recorded on an in-progress sample, per the recovery disposition.
+
+    Shared by both recovery paths (streaming filestore and buffer DB) so a
+    recovered sample's error doesn't depend on which one ran.
+    """
+    if incomplete_action == "error":
+        message = (
+            "Sample terminated by operator during recovery "
+            "(in progress when the eval process was terminated)"
+        )
+        traceback = (
+            "Sample was in progress when the eval process was terminated; "
+            "resolved as an error by recovery (incomplete_action='error').\n"
+        )
+        return EvalError(message=message, traceback=traceback, traceback_ansi=traceback)
+    else:
+        return EvalError(
+            message="CancelledError()",
+            traceback="CancelledError: recovered from crashed eval\n",
+            traceback_ansi="CancelledError: recovered from crashed eval\n",
+        )
 
 
 def _summary_with_uuid_fallback(summary: EvalSampleSummary) -> EvalSampleSummary:
@@ -54,12 +103,133 @@ def _summary_with_uuid_fallback(summary: EvalSampleSummary) -> EvalSampleSummary
     return summary.model_copy(update={"uuid": fallback})
 
 
+def select_limit_event(
+    summary: EvalSampleSummary, events: list[Event]
+) -> SampleLimitEvent | None:
+    """The limit event that best explains how the sample ended.
+
+    The last event isn't necessarily the one that halted the sample: an operator
+    interrupt during the scoring phase appends a second event after whatever
+    ended the run phase. Where the terminal summary names a limit type, it
+    decides; otherwise fall back to the last event seen.
+    """
+    # limits fire at the end of a sample, so search backwards and stop as soon
+    # as the answer can't change
+    fallback: SampleLimitEvent | None = None
+    for event in reversed(events):
+        if not isinstance(event, SampleLimitEvent):
+            continue
+        if summary.limit is None:
+            return event  # nothing to match on; the last event is the answer
+        if event.type == summary.limit:
+            return event
+        if fallback is None:
+            fallback = event  # the last event overall, should nothing match
+    return fallback
+
+
+def recovered_sample_limit(
+    summary: EvalSampleSummary, limit_event: SampleLimitEvent | None
+) -> EvalSampleLimit | None:
+    """Rebuild a sample's `EvalSampleLimit` during recovery.
+
+    Shared by both recovery paths (streaming filestore and buffer DB) so a
+    recovered log's limit doesn't depend on which one ran. The event supplies
+    the numeric value; a terminal summary that names a limit no event recorded
+    (a user-raised `LimitExceededError` emits none) still round-trips, with the
+    same `-1` sentinel the live path writes for an unknown value.
+    """
+    if limit_event is None:
+        return _limit_from_summary(summary)
+    if limit_event.limit is not None:
+        return EvalSampleLimit(
+            type=limit_event.type,
+            limit=limit_event.limit,
+            reason=limit_event.message,
+        )
+    if limit_event.type == "operator" and summary.limit == "operator":
+        # the operator interrupt event carries no numeric limit, so the branch
+        # above can't rebuild it. Only `interrupt_action == "score"` records an
+        # operator limit -- "error"/"cancel" and a scoring-phase interrupt emit
+        # the same event but record an error instead -- so trust the terminal
+        # summary rather than the event, and use the sentinel the live path
+        # writes. The summary's own reason wins for the same reason: a later
+        # scoring-phase interrupt leaves a second operator event whose message
+        # describes the scoring failure, not what halted the sample.
+        return EvalSampleLimit(
+            type="operator",
+            limit=1,
+            reason=(
+                summary.limit_reason
+                if summary.limit_reason is not None
+                else limit_event.message
+            ),
+        )
+    return _limit_from_summary(summary)
+
+
+def _limit_from_summary(summary: EvalSampleSummary) -> EvalSampleLimit | None:
+    """The summary's own limit, with no numeric value to recover."""
+    if summary.limit is None or summary.limit not in get_args(EvalSampleLimitType):
+        return None
+    return EvalSampleLimit(
+        type=cast(EvalSampleLimitType, summary.limit),
+        limit=-1,
+        reason=summary.limit_reason,
+    )
+
+
+def dataset_sample_or_summary(
+    summary: EvalSampleSummary,
+    sample_init: SampleInitEvent | None,
+    attachments: Mapping[str, str],
+) -> Sample | EvalSampleSummary:
+    """Where a recovered sample's input, target and choices come from.
+
+    Shared by both recovery paths. The buffered summary is thinned
+    (`EvalSampleSummary.thin_data` truncates long text and drops images), so
+    prefer the dataset sample its `SampleInitEvent` recorded. The buffer stores
+    that event condensed; its `attachment://` refs are resolved here so the
+    write path condenses the input as a normal run does.
+    """
+    if sample_init is None:
+        return summary
+    [resolved] = resolve_events_attachments([sample_init], attachments)
+    return cast(SampleInitEvent, resolved).sample
+
+
+def recovered_sample_scores(
+    summary: EvalSampleSummary, events: list[Event]
+) -> dict[str, Score] | None:
+    """A recovered sample's scores, taken from its final `ScoreEvent`s.
+
+    Shared by both recovery paths. The buffered summary's scores are thinned
+    (answer, explanation and metadata shortened), so each comes from the last
+    final `ScoreEvent` its scorer recorded. The summary still decides which
+    scores the sample has, and a score with no matching event keeps the
+    summary's copy.
+    """
+    if summary.scores is None:
+        return None
+    final_scores = {
+        event.scorer: event.score
+        for event in events
+        if isinstance(event, ScoreEvent)
+        and not event.intermediate
+        and event.scorer is not None
+    }
+    return {
+        name: final_scores.get(name, score) for name, score in summary.scores.items()
+    }
+
+
 def reconstruct_eval_sample(
     summary: EvalSampleSummary,
     sample_data: SampleData,
     *,
     sample_metadata: dict[str, Any] | None = None,
     cancelled: bool = False,
+    incomplete_action: IncompleteAction = "retry",
     include_events: bool = True,
 ) -> EvalSample:
     """Reconstruct an EvalSample from buffer DB data.
@@ -68,54 +238,44 @@ def reconstruct_eval_sample(
         summary: Sample summary from the buffer DB samples table.
         sample_data: Events and attachments from buffer.get_sample_data().
         sample_metadata: Full metadata stored separately from the thinned summary.
-        cancelled: If True, synthesize a cancellation EvalError
+        cancelled: If True, synthesize an EvalError per `incomplete_action`
             (for in-progress samples interrupted by a crash).
+        incomplete_action: Disposition for in-progress samples (see
+            `in_progress_sample_error`). Only used when `cancelled` is True.
         include_events: If False, return an empty events list and no
             timelines. Events are still deserialized internally to
             extract messages and output.
 
     Returns:
-        A fully resolved EvalSample (not condensed — condensing happens
-        at write time in Step 4).
+        An EvalSample with message and call pools and its output resolved.
+        Events and messages keep the buffer's attachment refs until
+        `condense_sample` runs at write time.
     """
     summary = _summary_with_uuid_fallback(summary)
 
-    deduped_event_data = collapse_event_versions(sample_data.events)
+    events = reconstruct_events(sample_data)
 
-    events = validate_events([event_data.event for event_data in deduped_event_data])
-
-    if sample_metadata is None:
-        sample_init = next(
-            (event for event in events if isinstance(event, SampleInitEvent)), None
-        )
-        if sample_init is not None:
-            sample_metadata = sample_init.sample.metadata
-
-    # Buffer-DB rows store events condensed; without resolving here,
-    # _extract_messages_from_events sees empty ModelEvent.input and drops
-    # every user/tool message from the recovered sample.
-    events = resolve_model_event_inputs(
-        events, _deserialize_message_pool(sample_data.message_pool)
+    sample_init = next(
+        (event for event in events if isinstance(event, SampleInitEvent)), None
     )
-    events = resolve_model_event_calls(
-        events, _deserialize_call_pool(sample_data.call_pool)
-    )
-
-    messages, output = _extract_messages_from_events(events)
+    if sample_metadata is None and sample_init is not None:
+        sample_metadata = sample_init.sample.metadata
 
     attachments = {
         attachment.hash: attachment.content for attachment in sample_data.attachments
     }
+    dataset_sample = dataset_sample_or_summary(summary, sample_init, attachments)
 
-    # Set error: synthesize cancellation for in-progress samples,
-    # or preserve existing error from completed-but-errored samples
+    # condense_sample resolves the refs in messages at write time
+    messages, output = _extract_messages_from_events(events)
+    output = resolve_output_attachments(output, attachments)
+
+    # Set error: synthesize an error for in-progress samples (per the
+    # recovery disposition), or preserve existing error from
+    # completed-but-errored samples
     error: EvalError | None = None
     if cancelled:
-        error = EvalError(
-            message="CancelledError()",
-            traceback="CancelledError: recovered from crashed eval\n",
-            traceback_ansi="CancelledError: recovered from crashed eval\n",
-        )
+        error = in_progress_sample_error(incomplete_action)
     elif summary.error is not None:
         error = EvalError(
             message=summary.error,
@@ -126,13 +286,14 @@ def reconstruct_eval_sample(
     return EvalSample(
         id=summary.id,
         epoch=summary.epoch,
-        input=summary.input,
-        choices=summary.choices,
-        target=summary.target,
+        input=dataset_sample.input,
+        choices=dataset_sample.choices,
+        target=dataset_sample.target,
+        description=summary.description,
         metadata=sample_metadata if sample_metadata is not None else summary.metadata,
         messages=messages,
         output=output,
-        scores=summary.scores,
+        scores=recovered_sample_scores(summary, events),
         events=events if include_events else [],
         timelines=None,
         attachments=attachments,
@@ -143,12 +304,45 @@ def reconstruct_eval_sample(
         token_limit=summary.token_limit,
         token_limit_type=summary.token_limit_type,
         token_limit_usage=summary.token_limit_usage,
+        message_limit=summary.message_limit,
+        time_limit=summary.time_limit,
         started_at=summary.started_at,
         completed_at=summary.completed_at,
         total_time=summary.total_time,
         working_time=summary.working_time,
         uuid=summary.uuid,
         error=error,
+        # the write path recomputes the summary from this sample
+        # (`buffer_sample` -> `sample.summary()`), so omitting the limit here
+        # doesn't merely leave it incomplete -- it erases the limit and reason
+        # the buffered summary already knew
+        limit=recovered_sample_limit(summary, select_limit_event(summary, events)),
+    )
+
+
+def reconstruct_events(sample_data: SampleData) -> list[Event]:
+    """A buffered sample's events: versions collapsed, validated, pools resolved.
+
+    Duplicate ``event_id`` rows collapse to their latest version (see
+    :func:`collapse_event_versions`). Buffer rows store events condensed, so
+    pooled model inputs and calls are resolved from the sample's message and
+    call pools; without that a ModelEvent's input is empty and message
+    extraction drops every user and tool message. Attachments stay as
+    ``attachment://`` references.
+
+    Raises:
+        pydantic.ValidationError: an event or a pooled message does not
+            validate.
+        ValueError: a pool entry is not JSON.
+    """
+    events = validate_events(
+        [event_data.event for event_data in collapse_event_versions(sample_data.events)]
+    )
+    events = resolve_model_event_inputs(
+        events, _deserialize_message_pool(sample_data.message_pool)
+    )
+    return resolve_model_event_calls(
+        events, _deserialize_call_pool(sample_data.call_pool)
     )
 
 
@@ -294,6 +488,22 @@ def _extract_messages_from_events(
     acc = MessageAccumulator()
     acc.process_events(events)
     return acc.result()
+
+
+def resolve_output_attachments(
+    output: ModelOutput, attachments: Mapping[str, str]
+) -> ModelOutput:
+    """Resolve the `attachment://` refs in an output taken from a model event.
+
+    The buffer stores events condensed, so the output's long text and images
+    are refs. A normal run's log keeps the output inline (condensing a sample
+    leaves `output` alone), so recovery resolves it before writing.
+    """
+    return walk_model_output(
+        output,
+        resolve_attachment_fn(attachments),
+        WalkContext(message_cache={}, only_core=False),
+    )
 
 
 def _segment_messages(model_event: ModelEvent) -> list[ChatMessage]:

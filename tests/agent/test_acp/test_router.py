@@ -1452,7 +1452,7 @@ def test_operator_cancel_keeps_cancel_marker_through_tool_natural_completion() -
             result="plan was updated with 5 entries",
             truncated=None,
             error=None,
-            waiting_time=0.0,
+            working_time=0.0,
             agent=None,
             failed=None,
             message_id=None,
@@ -1510,7 +1510,7 @@ def test_operator_cancel_keeps_cancel_marker_through_tool_error() -> None:
             result="",
             truncated=None,
             error=ToolCallError(type="unknown", message="boom"),
-            waiting_time=0.0,
+            working_time=0.0,
             agent=None,
             failed=True,
             message_id=None,
@@ -1749,11 +1749,18 @@ def _state(text: str = "go") -> AgentState:
 async def _drain_until_submit(
     stream: Any, timeout: float = 5.0
 ) -> list[SessionNotification]:
-    """Drain notifications from a subscriber stream until the stream closes."""
+    """Drain notifications from a subscriber stream until the stream closes.
+
+    The update bus is heterogeneous: ``turn_scope`` transitions ride it as
+    ``TurnStateUpdate`` alongside the router's ``SessionNotification``
+    items. Narrow to the latter here — as the live forwarder does — so
+    callers can read ``.update`` off every element.
+    """
     items: list[SessionNotification] = []
     with anyio.move_on_after(timeout):
         async for item in stream:
-            items.append(item)
+            if isinstance(item, SessionNotification):
+                items.append(item)
     return items
 
 

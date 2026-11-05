@@ -15,6 +15,7 @@ from pydantic import (
 from shortuuid import uuid
 from typing_extensions import TypedDict
 
+from inspect_ai._sentinel._config import SentinelConfig
 from inspect_ai._util.constants import DESERIALIZING
 from inspect_ai._util.dateutil import UtcDatetimeStr
 from inspect_ai._util.error import EvalError, exception_message
@@ -22,6 +23,7 @@ from inspect_ai._util.hash import base57_id_hash
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.metadata import MT, metadata_as
+from inspect_ai._util.model_validator import model_wrap_validator
 from inspect_ai._util.rich import format_traceback
 from inspect_ai.approval._policy import ApprovalPolicyConfig
 from inspect_ai.event._timeline import Timeline
@@ -35,6 +37,7 @@ from inspect_ai.model import (
     ModelUsage,
 )
 from inspect_ai.model._model_config import ModelConfig
+from inspect_ai.review._policy import ReviewPolicyConfig
 from inspect_ai.scorer import Score
 from inspect_ai.util._concurrency import LimitChangeReason
 from inspect_ai.util._early_stopping import EarlyStoppingSummary
@@ -68,6 +71,7 @@ class EvalConfigDefaults(TypedDict):
     continue_on_fail: bool
     score_on_error: bool
     sandbox_cleanup: bool
+    sandbox_prebuilt: bool
     log_samples: bool
     log_realtime: bool
     log_images: bool
@@ -81,6 +85,7 @@ def eval_config_defaults() -> EvalConfigDefaults:
         "continue_on_fail": False,
         "score_on_error": False,
         "sandbox_cleanup": True,
+        "sandbox_prebuilt": False,
         "log_samples": True,
         "log_realtime": True,
         "log_images": True,
@@ -110,6 +115,17 @@ class EvalConfig(BaseModel):
 
     approval: ApprovalPolicyConfig | None = Field(default=None)
     """Approval policy for tool use."""
+
+    review: ReviewPolicyConfig | None = Field(default=None)
+    """Review policy for tool results."""
+
+    sentinel: SentinelConfig | None = Field(default=None)
+    """Sentinel monitors and protocols, as the configuration that rebuilds them.
+
+    One entry (a lone monitor or protocol, which is the root itself), a list of entries, or a mapping of instance names to entries. Logs load without `inspect_sentinel` installed.
+
+    Experimental: not yet a stable API; may change without notice.
+    """
 
     notification: bool | str | None = Field(default=None)
     """Notification routing for human-in-the-loop interactions.
@@ -165,7 +181,12 @@ class EvalConfig(BaseModel):
     """Maximum clock time per sample."""
 
     working_limit: int | None = Field(default=None)
-    """Meximum working time per sample."""
+    """Maximum working time per sample.
+
+    While a wait is open, only model calls, sandbox commands and tool calls
+    are charged, so working time can undercount; set `time_limit` as well to
+    bound clock time.
+    """
 
     cost_limit: float | None = Field(default=None)
     """Maximum cost (in dollars) per sample."""
@@ -188,6 +209,9 @@ class EvalConfig(BaseModel):
 
     sandbox_cleanup: bool | None = Field(default=None)
     """Cleanup sandbox environments after task completes."""
+
+    sandbox_prebuilt: bool | None = Field(default=None)
+    """Treat sandbox images as prebuilt (skip builds and fail if an image is missing)."""
 
     log_samples: bool | None = Field(default=None)
     """Log detailed information on each sample."""
@@ -218,7 +242,7 @@ class EvalConfig(BaseModel):
     """Expose this eval over an Agent Client Protocol server.
 
     `True` enables a default AF_UNIX socket at
-    `<inspect_data_dir>/acp/<eval_id>.sock`; an integer binds a TCP
+    `<inspect_data_dir>/acp/<pid>.sock`; an integer binds a TCP
     loopback port (127.0.0.1:<int>); a string of the form `host:port`
     (e.g. `0.0.0.0:4444`) binds TCP on a specific interface; any other
     string is taken as a custom AF_UNIX socket path; `None` (default)
@@ -266,6 +290,13 @@ class EvalSampleLimit(BaseModel):
     limit: float
     """The limit value"""
 
+    reason: str | None = Field(default=None)
+    """Human-readable reason the limit fired.
+
+    The same text the corresponding `SampleLimitEvent` carries as its `message`
+    (e.g. "Tool call approver requested termination.").
+    """
+
 
 class EvalSampleSummary(BaseModel):
     """Summary information (including scoring) for a sample."""
@@ -284,6 +315,9 @@ class EvalSampleSummary(BaseModel):
 
     target: str | list[str]
     """Sample target value(s)"""
+
+    description: str | None = Field(default=None)
+    """Short statement of what the sample asks of the agent."""
 
     metadata: dict[str, Any] = Field(default_factory=dict)
     """Sample metadata (only fields < 1k; strings truncated to 1k)."""
@@ -310,7 +344,15 @@ class EvalSampleSummary(BaseModel):
     """Total time that the sample was running."""
 
     working_time: float | None = Field(default=None)
-    """Time spent working (model generation, sandbox calls, etc.)"""
+    """Time spent working (model generation, sandbox calls, etc.)
+
+    Clock time minus the time when a wait (retries, rate limits, shared
+    resources, approval, human input) was open in the sample and no model
+    call, sandbox command or tool call was running (not counting commands run
+    with `exec_remote()` or inside `sandbox_agent_bridge()`). Other work done
+    during a wait is not counted, so set `time_limit` alongside `working_limit` to
+    bound clock time.
+    """
 
     uuid: str | None = Field(default=None)
     """Globally unique identifier for sample run (exists for samples created in Inspect >= 0.3.70)"""
@@ -320,6 +362,9 @@ class EvalSampleSummary(BaseModel):
 
     limit: str | None = Field(default=None)
     """Limit that halted the sample"""
+
+    limit_reason: str | None = Field(default=None)
+    """Human-readable reason the limit fired (see `EvalSampleLimit.reason`)."""
 
     retries: int | None = Field(default=None)
     """Number of retries for the sample."""
@@ -334,13 +379,19 @@ class EvalSampleSummary(BaseModel):
     """Number of turns (top-level model generations) in the sample."""
 
     token_limit: int | None = Field(default=None)
-    """Configured token limit ceiling for the sample (None when no limit)."""
+    """Token limit ceiling the sample ran under (None when no limit); reflects mid-run (`inspect ctl config`) retunes."""
 
     token_limit_type: str | None = Field(default=None)
     """Which tokens `token_limit` meters ("all", "output", or a formula); None when no limit."""
 
     token_limit_usage: int | None = Field(default=None)
     """Metered usage for the sample's token limit (respects the limit's type)."""
+
+    message_limit: int | None = Field(default=None)
+    """Message limit ceiling the sample ran under (None when no limit); reflects mid-run (`inspect ctl config`) retunes."""
+
+    time_limit: int | None = Field(default=None)
+    """Time limit ceiling in seconds the sample ran under (None when no limit); reflects mid-run (`inspect ctl config`) retunes."""
 
     @model_validator(mode="after")
     def thin_data(self) -> "EvalSampleSummary":
@@ -364,6 +415,9 @@ class EvalSampleSummary(BaseModel):
                     explanation=thin_text(score.explanation)
                     if score.explanation is not None
                     else None,
+                    reason=thin_text(score.reason)
+                    if isinstance(score.reason, str)
+                    else score.reason,
                     metadata=thin_metadata(score.metadata)
                     if score.metadata is not None
                     else None,
@@ -373,7 +427,7 @@ class EvalSampleSummary(BaseModel):
         return self
 
     # allow field model_usage
-    model_config = ConfigDict(protected_namespaces=())
+    model_config = ConfigDict(protected_namespaces=(), ser_json_inf_nan="constants")
 
 
 class EvalRetryError(BaseModel):
@@ -409,6 +463,9 @@ class EvalSample(BaseModel):
 
     target: str | list[str]
     """Sample target value(s)"""
+
+    description: str | None = Field(default=None)
+    """Short statement of what the sample asks of the agent."""
 
     sandbox: SandboxEnvironmentSpec | None = Field(default=None)
     """Sandbox environment type and optional config file."""
@@ -500,7 +557,15 @@ class EvalSample(BaseModel):
     """Total time that the sample was running."""
 
     working_time: float | None = Field(default=None)
-    """Time spent working (model generation, sandbox calls, etc.)"""
+    """Time spent working (model generation, sandbox calls, etc.)
+
+    Clock time minus the time when a wait (retries, rate limits, shared
+    resources, approval, human input) was open in the sample and no model
+    call, sandbox command or tool call was running (not counting commands run
+    with `exec_remote()` or inside `sandbox_agent_bridge()`). Other work done
+    during a wait is not counted, so set `time_limit` alongside `working_limit` to
+    bound clock time.
+    """
 
     uuid: str | None = Field(default=None)
     """Globally unique identifier for sample run (exists for samples created in Inspect >= 0.3.70)"""
@@ -531,13 +596,19 @@ class EvalSample(BaseModel):
     """Number of turns (top-level model generations) in the sample."""
 
     token_limit: int | None = Field(default=None)
-    """Configured token limit ceiling for the sample (None when no limit)."""
+    """Token limit ceiling the sample ran under (None when no limit); reflects mid-run (`inspect ctl config`) retunes."""
 
     token_limit_type: str | None = Field(default=None)
     """Which tokens `token_limit` meters ("all", "output", or a formula); None when no limit."""
 
     token_limit_usage: int | None = Field(default=None)
     """Metered usage for the sample's token limit (respects the limit's type)."""
+
+    message_limit: int | None = Field(default=None)
+    """Message limit ceiling the sample ran under (None when no limit); reflects mid-run (`inspect ctl config`) retunes."""
+
+    time_limit: int | None = Field(default=None)
+    """Time limit ceiling in seconds the sample ran under (None when no limit); reflects mid-run (`inspect ctl config`) retunes."""
 
     def summary(self) -> EvalSampleSummary:
         """Summary of sample.
@@ -557,6 +628,7 @@ class EvalSample(BaseModel):
             input=self.input,
             choices=self.choices,
             target=self.target,
+            description=self.description,
             metadata=self.metadata,
             scores=self.scores,
             model_usage=self.model_usage,
@@ -569,6 +641,7 @@ class EvalSample(BaseModel):
             uuid=self.uuid,
             error=self.error.message if self.error is not None else None,
             limit=f"{self.limit.type}" if self.limit is not None else None,
+            limit_reason=self.limit.reason if self.limit is not None else None,
             retries=len(self.error_retries) if self.error_retries is not None else None,
             completed=True,
             message_count=len(self.messages),
@@ -576,6 +649,8 @@ class EvalSample(BaseModel):
             token_limit=self.token_limit,
             token_limit_type=self.token_limit_type,
             token_limit_usage=self.token_limit_usage,
+            message_limit=self.message_limit,
+            time_limit=self.time_limit,
         )
 
     # deprecated properties
@@ -619,10 +694,11 @@ class EvalSample(BaseModel):
             del values["score"]
 
         if "transcript" in values:
-            # promote 'transcript' up to 'events' and 'attachments'
-            eval_events = EvalEvents(**values["transcript"])
-            values["events"] = eval_events.events
-            values["attachments"] = eval_events.content
+            # promote 'transcript' up to 'events' and 'attachments' (left
+            # unvalidated so they are validated with this read's context)
+            transcript = values["transcript"]
+            values["events"] = transcript.get("events", [])
+            values["attachments"] = transcript.get("content", {})
 
             # get rid of transcript (property accessor w/ deprecation
             # warning will handle this)
@@ -630,7 +706,7 @@ class EvalSample(BaseModel):
 
         return migrate_values(values)
 
-    @model_validator(mode="wrap")
+    @model_wrap_validator
     @classmethod
     def _resolve_timelines(
         cls, data: Any, handler: Any, info: ValidationInfo
@@ -653,7 +729,7 @@ class EvalSample(BaseModel):
         return sample
 
     # allow field model_usage
-    model_config = ConfigDict(protected_namespaces=())
+    model_config = ConfigDict(protected_namespaces=(), ser_json_inf_nan="constants")
 
 
 class EvalEvents(BaseModel):
@@ -701,6 +777,39 @@ class EvalPlan(BaseModel):
 
     config: GenerateConfig = Field(default=GenerateConfig())
     """Generation config."""
+
+
+class HeadlineMetric(BaseModel):
+    """Reference to the headline metric of an eval.
+
+    The headline metric is the single number that best summarises an eval (e.g.
+    for a leaderboard or log listing). Set fields narrow ``EvalResults.scores``
+    in turn; unset ones resolve by convention. A ``metric`` on its own selects
+    the first score *carrying* that metric, so ``HeadlineMetric(metric="accuracy")``
+    skips scores that don't report one. With no ``metric``, the first metric of
+    the first remaining score is used — the default when nothing is declared.
+
+    Fields are matched literally. ``Task(headline_metric=...)`` additionally
+    accepts a ``"<scorer>.<score>"`` shorthand string, which is split into these
+    fields before it reaches the model — scorer names may themselves contain a
+    dot (``@scorer(name="judge.v2")``), so the shorthand is only applied where
+    it is unambiguously requested.
+    """
+
+    scorer: str | None = Field(default=None)
+    """Scorer to read, matched against `EvalScore.scorer`."""
+
+    score: str | None = Field(default=None)
+    """Score to read, matched against `EvalScore.name`. Only meaningful for
+    scorers returning a dict of scores, where one scorer yields several scores
+    named for its value keys."""
+
+    metric: str | None = Field(default=None)
+    """Metric to read (a key of `EvalScore.metrics`)."""
+
+    reducer: str | None = Field(default=None)
+    """Reducer view to select, in its logged form (e.g. "pass_at_5"). Only
+    required when epochs declare more than one reducer."""
 
 
 class EvalMetric(BaseModel):
@@ -772,6 +881,8 @@ class EvalSampleReductions(BaseModel):
     samples: list[EvalSampleScore]
     """List of reduced scores"""
 
+    model_config = ConfigDict(ser_json_inf_nan="constants")
+
 
 class EvalResults(BaseModel):
     """Scoring results from evaluation."""
@@ -784,6 +895,18 @@ class EvalResults(BaseModel):
 
     Will be equal to total_samples except when --fail-on-error is enabled
     or when there is early stopping.
+    """
+
+    logged_samples: int | None = Field(default=None)
+    """Samples this log actually resolved (present in the log and not
+    cancelled), when a graceful task cancel or drain abandoned queued samples.
+
+    `total_samples` records the *planned* count, so a log finished by
+    `inspect ctl task drain` or `inspect ctl task cancel --action score|error`
+    would otherwise read complete to an eval set; the eval set's run-vs-reuse
+    check prefers this count when present so the abandoned remainder is
+    re-run by a later invocation. None on ordinary logs (and logs written by
+    older versions), which classify by `total_samples` as before.
     """
 
     early_stopping: EarlyStoppingSummary | None = Field(default=None)
@@ -809,6 +932,12 @@ class EvalResults(BaseModel):
 
     scores: list[EvalScore] = Field(default=[])
     """Scorers used to compute results"""
+
+    headline: HeadlineMetric | None = Field(default=None)
+    """Resolved headline metric — which entry of `scores` and which of its
+    `metrics` best summarises this eval. Resolved from the task's declared
+    `EvalSpec.headline_metric`, falling back to the first metric of the first
+    score."""
 
     metadata: dict[str, Any] | None = Field(default=None)
     """Additional results metadata."""
@@ -920,6 +1049,68 @@ class EvalRevision(BaseModel):
     """Working tree has uncommitted changes or untracked files."""
 
 
+class EvalShardEntry(BaseModel):
+    """Ledger entry for one shard, as of the merge that last read it."""
+
+    shard: str
+    """Name of the shard's directory (`<k>`) in the companion."""
+
+    log: str
+    """File name of the shard's current attempt (the newest `.eval` in `<k>/`)."""
+
+    eval_set_id: str | None = Field(default=None)
+    """`eval_set_id` of the current attempt."""
+
+    status: EvalStatus
+    """Status of the current attempt when it was read."""
+
+    error: EvalError | None = Field(default=None)
+    """Error of the current attempt when its status is `error` or `cancelled`."""
+
+    samples: int
+    """Number of `(id, epoch)` records the current attempt held when read (all merged)."""
+
+    selected: int
+    """Number of distinct ids in the current attempt's selection (its `eval.dataset.sample_ids`)."""
+
+    selection_digest: str
+    """SHA-256 (hex) of the current attempt's selection."""
+
+    started_at: UtcDatetimeStr | Literal[""] = Field(default_factory=str)
+    """`stats.started_at` of the current attempt."""
+
+    completed_at: UtcDatetimeStr | Literal[""] = Field(default_factory=str)
+    """`stats.completed_at` of the current attempt (empty while it runs)."""
+
+    model_usage: dict[str, ModelUsage] = Field(default_factory=dict)
+    """`stats.model_usage` of the current attempt."""
+
+    role_usage: dict[str, ModelUsage] = Field(default_factory=dict)
+    """`stats.role_usage` of the current attempt."""
+
+    size: int
+    """Size in bytes of the current attempt when it was read."""
+
+    etag: str | None = Field(default=None)
+    """ETag of the bytes read (object stores that report one)."""
+
+    mtime: float | None = Field(default=None)
+    """Modification time of the current attempt when it was read."""
+
+
+class EvalShards(BaseModel):
+    """Provenance of a merged log: its shards and the ledger of the last merge."""
+
+    selection: Literal["ids", "count", "none"]
+    """Form of the intended selection the last merge had; the ids are `eval.dataset.sample_ids`."""
+
+    sample_count: int | None = Field(default=None)
+    """Intended selection as a count, when `selection` is `"count"`."""
+
+    ledger: list[EvalShardEntry]
+    """One entry per shard with a current attempt, in shard order."""
+
+
 class EvalSpec(BaseModel):
     """Eval target and configuration."""
 
@@ -949,6 +1140,9 @@ class EvalSpec(BaseModel):
 
     task_display_name: str | None = Field(default=None)
     """Task display name."""
+
+    task_description: str | None = Field(default=None)
+    """Short statement of what the task asks of the agent."""
 
     task_registry_name: str | None = Field(default=None)
     """Task registry name."""
@@ -992,8 +1186,8 @@ class EvalSpec(BaseModel):
     model_args: dict[str, Any] = Field(default_factory=dict)
     """Model specific arguments."""
 
-    model_roles: dict[str, ModelConfig] | None = Field(default=None)
-    """Model roles."""
+    model_roles: dict[str, ModelConfig | list[ModelConfig]] | None = Field(default=None)
+    """Model roles (a role bound to a list of models holds a list of configs)."""
 
     config: EvalConfig
     """Configuration values for eval."""
@@ -1020,6 +1214,14 @@ class EvalSpec(BaseModel):
         | None
     ) = Field(default=None)
     """metrics and args for this eval"""
+
+    headline_metric: HeadlineMetric | None = Field(default=None)
+    """Headline metric declared by the task — which score/metric best summarises
+    this eval. Authored via `Task(headline_metric=...)`. When unset, readers fall
+    back to the first metric of the first score."""
+
+    shards: EvalShards | None = Field(default=None)
+    """Shards merged into this log (merged logs only)."""
 
     # allow field model_args
     model_config = ConfigDict(protected_namespaces=())
@@ -1174,6 +1376,8 @@ class EvalLog(BaseModel):
 
     etag: str | None = Field(default=None, exclude=True)
     """ETag from S3 for conditional writes."""
+
+    model_config = ConfigDict(ser_json_inf_nan="constants")
 
     @model_validator(mode="after")
     def _validate_tags_and_metadata(self) -> "EvalLog":

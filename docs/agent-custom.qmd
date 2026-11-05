@@ -39,7 +39,7 @@ def web_surfer() -> Agent:
         state.messages.append(
             ChatMessageSystem(
                 content="You are a tenacious web researcher that is "
-                + "expert at using a web browser to answer questions."
+                + "expert at using web search to answer questions."
             )
         )
 
@@ -194,6 +194,12 @@ def my_agent(tools: Sequence[Tool | ToolDef | ToolSource]):
 
 3. Call `record_output()` after `model.generate()` to calibrate token estimation using the model's actual reported usage. This improves the accuracy of compaction threshold detection.
 
+To recover from a context window overflow (`stop_reason == "model_length"`), call `compact_input()` with `force=True`, which compacts regardless of the threshold, and generate again. The handler does not check that a forced compaction reduced the input. If the retry also overflows, truncate the messages or stop rather than forcing compaction again.
+
+The handler adds only messages it has not seen before. If your agent changes, removes or reorders messages already in the history, call `reset()` with the new prefix before the next `compact_input()`, so that the next input is built from the changed history.
+
+`reset()` clears the handler's state but does not remove summaries from your messages. A summary compaction (including `CompactionAuto`'s summary fallback) starts from the latest summary in the conversation, so before resetting, remove any summaries that the changed history invalidated.
+
 ::: {.callout-note}
 The returned `compact` handler maintains internal state for a single growing conversation history. Concurrent calls within the same conversation are safe, but do not share one handler across divergent message histories — the compacted result mixes them.
 :::
@@ -206,7 +212,7 @@ In some cases agents will want to retain state across multiple invocations, or e
 
 ### Typed Store
 
-When developing agents, you should use the [typed-interface](agent-custom.qmd#store-typing) to the per-sample store, which provides both type-checking and namespacing for store access.
+When developing agents, you should use the [typed interface](agent-custom.qmd#typed-store) to the per-sample store, which provides both type-checking and namespacing for store access.
 
 For example, here we define a typed accessor to the store by deriving from the `StoreModel` class (which in turn derives from Pydantic `BaseModel`):
 
@@ -280,9 +286,25 @@ red_team_activity = store_as(Activity, instance="red_team")
 blue_team_activity = store_as(Activity, instance="blue_team")
 ```
 
+### Tool State Scopes
+
+Agents that run concurrently in one sample share the state of tools left at their default `instance`. For example, two agents given `memory()` read and write the same files. To give each agent its own state, run it inside a `tool_state_scope()`:
+
+``` python
+from inspect_ai.util import tool_state_scope
+
+async def run_worker(name: str, worker: Agent, state: AgentState) -> AgentState:
+    with tool_state_scope(name):
+        return await worker(state)
+```
+
+Inside the scope, `memory()`, `bash_session()` and `skill()` use the scope as their default instance (`"@<name>"`), so each agent gets its own memory, shell and skills. A tool given an explicit instance, such as `memory(instance="team")`, is still shared between agents. Nested scopes join their names with "/" (`"@outer/inner"`). Instances that start with "@" are reserved for scopes, so an explicit instance never shares state with a scope by accident. Tasks started inside the scope inherit it. Outside any scope, tools behave as before. Skill files are the exception: they live in the sandbox, so `skill()` tools that install into the same directory share them. A skill file that already exists with the same contents is not written again, and one that exists with different contents raises an error.
+
+Custom tools and agents can follow the scope by passing `tool_state_instance(instance)` to `store_as()`. Library code that picks an instance name itself and wants it kept private to the scope can use `private_tool_instance(name)`, which returns `"<scope>#<name>"` inside a scope (for example `"@w-1#general"`) and `name` outside one.
+
 ## Agent Limits
 
-The Inspect [limits system](setting-limits.qmd#scoped-limits) enables you to set a variety of limits on execution including tokens consumed, messages used in converations, clock time, and working time (clock time minus time taken retrying in response to rate limits or waiting on other shared resources).
+The Inspect [limits system](setting-limits.qmd#scoped-limits) enables you to set a variety of limits on execution including tokens consumed, messages used in conversations, clock time, and working time (clock time minus time taken retrying in response to rate limits or waiting on other shared resources; see [Working Limit](setting-limits.qmd#working-limit) for its limitations).
 
 Limits are often applied at the sample level or using a context manager. It is also possible to specify limits when executing an agent using any of the techniques described above.
 
@@ -332,7 +354,7 @@ supervisor = react(
     tools=[
         addition(), 
         handoff(web_surfer()), 
-        handoff(critic(model="openai/gpt-5-mini"))
+        handoff(critic(model="openai/gpt-6-luna"))
     ]
 )
 ```
@@ -406,6 +428,21 @@ There are two reasons that you might want to create spans:
 
 Spans are automatically created for sample initialisation, solvers, scorers, subtasks, tool calls, and agent execution.
 
+### Model Call Origins
+
+Each `ModelEvent` records where the call was made in its `origin` field. During the solve a call is `"agent"`, one of its conversation's agent turns, unless it is made by a tool, a compaction, an approver, a reviewer, MCP sampling, a sentinel or a scorer, which Inspect marks itself (`"tool"`, `"compaction"`, `"approval"`, `"review"`, `"sampling"`, `"sentinel"`, `"scorer"`). A scorer's calls are `"scorer"`, including those of an agent run inside it, and a sentinel does not check a scorer's tool calls. Any other call outside the solve, such as one made at sample init, is `"setup"`. A sentinel checks only agent turns at its generate stages, and the transcript timeline shows other calls as utility.
+
+If your agent makes model calls that are part of the solve but are not the evaluated agent's turns, mark them with `model_origin()`. Use `"environment"` for the setup being evaluated against, such as an auditor model or a simulated user, and `"helper"` for a scaffold's own helper calls, such as its own summarizer:
+
+``` python
+from inspect_ai.model import get_model, model_origin
+
+with model_origin("environment"):
+    reply = await get_model(role="user").generate(messages)
+```
+
+An agent run inside the block keeps the block's kind, and a sentinel does not check the tool calls made within it. The marker is a context variable, so it reaches the calls made in the task that entered the block and in tasks that task starts while inside it, and no others. If the evaluated agent's calls are made from inside an environment block (for example, by an auditor's tool that generates the target's turn), they are marked as environment too, so make them outside the block.
+
 ## Parallelism
 
 You can execute subtasks in parallel using the `collect()` function. For example, to run 3 `web_search()` coroutines in parallel:
@@ -447,7 +484,7 @@ background(worker)
 
 The above code demonstrates a couple of important characteristics of a sample background worker:
 
-1.  Background workers typically operate in a loop, often polling a a sandbox or other endpoint for activity. In a loop like this it's important to sleep at regular intervals so your background work doesn't monopolise CPU resources.
+1.  Background workers typically operate in a loop, often polling a sandbox or other endpoint for activity. In a loop like this it's important to sleep at regular intervals so your background work doesn't monopolise CPU resources.
 
 2.  When the sample ends, background workers are cancelled (which results in a cancelled error being raised in the worker). Therefore, if you need to do cleanup in your worker it should occur in a `finally` block.
 
@@ -457,7 +494,7 @@ The above code demonstrates a couple of important characteristics of a sample ba
 Sandbox services make available a set of methods to a sandbox for calling back into the main Inspect process. For example, the [Human Agent](human-agent.qmd) uses a sandbox service to enable the human agent to start, stop, score, and submit tasks.
 
 ::: {.callout-note appearance="simple"}
-Sandbox services use a filesystem queue and are intended for callers with the same sandbox-user authority as the service. They are not an authentication or privilege-separation boundary between sandbox users. Service names must be ASCII Python identifiers; instance names must begin with a letter or number and may then contain letters, numbers, `.`, `_`, or `-`.
+Sandbox services use a filesystem queue and are intended for callers with the same sandbox-user authority as the service. The service directory is private (mode `0700`) to the user the service runs as, so callers must run as that user (or as root). They are not an authentication or privilege-separation boundary between sandbox users. Service names must be ASCII Python identifiers; instance names must begin with a letter or number and may then contain letters, numbers, `.`, `_`, or `-`.
 :::
 
 Sandbox service are often run using the `background()` function to make them available for the lifetime of a sample.

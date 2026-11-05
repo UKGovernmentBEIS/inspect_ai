@@ -1,0 +1,623 @@
+"""Tests for Bedrock Claude adaptive thinking + output_config emission.
+
+Regression / behaviour tests for
+https://github.com/UKGovernmentBEIS/inspect_ai/issues/3765
+
+The Bedrock provider previously emitted
+``additionalModelRequestFields={"reasoning_config": {"type": "enabled",
+"budget_tokens": N}}`` for Claude. AWS Bedrock and Anthropic native both
+expect the wrapper key to be ``"thinking"``; the prior form was silently
+ignored. These tests pin the corrected shape and the adaptive-thinking /
+4.7-auto-promotion paths.
+"""
+
+from __future__ import annotations
+
+import pytest
+from test_helpers.utils import skip_if_trio
+
+pytest.importorskip("aiobotocore")
+pytest.importorskip("botocore")
+
+from inspect_ai.model._generate_config import GenerateConfig  # noqa: E402
+from inspect_ai.model._providers.bedrock import BedrockAPI  # noqa: E402
+
+
+def _make_api(model_name: str) -> BedrockAPI:
+    """Build a BedrockAPI bound to ``model_name`` without instantiating a session.
+
+    Follows the pattern from ``test_bedrock_nova_max_tokens.py``.
+    """
+    api = BedrockAPI.__new__(BedrockAPI)
+    api.model_name = model_name
+    return api
+
+
+# Concrete Bedrock model ids.
+CLAUDE_47 = "anthropic.claude-opus-4-7-20260101-v1:0"
+CLAUDE_46 = "anthropic.claude-sonnet-4-6-20260101-v1:0"
+CLAUDE_45 = "anthropic.claude-sonnet-4-5-20250929-v1:0"
+CLAUDE_37 = "anthropic.claude-3-7-sonnet-20250219-v1:0"
+CLAUDE_3_SONNET = "anthropic.claude-3-sonnet-20240229-v1:0"
+NOVA_2_LITE = "amazon.nova-2-lite-v1:0"
+GPT_OSS = "openai.gpt-oss-120b-1:0"
+
+
+# --- adaptive thinking on frontier Claude ---------------------------------
+
+
+def test_claude_47_reasoning_effort_emits_adaptive_output_config():
+    api = _make_api(CLAUDE_47)
+    config = GenerateConfig(reasoning_effort="high")
+    fields = api.reasoning_config(config)
+    assert fields == {
+        "thinking": {"type": "adaptive"},
+        "output_config": {"effort": "high"},
+    }
+
+
+def test_claude_46_reasoning_effort_emits_adaptive():
+    api = _make_api(CLAUDE_46)
+    config = GenerateConfig(reasoning_effort="medium")
+    fields = api.reasoning_config(config)
+    assert fields == {
+        "thinking": {"type": "adaptive"},
+        "output_config": {"effort": "medium"},
+    }
+
+
+# --- budgeted thinking on pre-4.6 Claude ---------------------------------
+
+
+def test_claude_45_reasoning_tokens_emits_budget_tokens():
+    api = _make_api(CLAUDE_45)
+    config = GenerateConfig(reasoning_tokens=4096)
+    fields = api.reasoning_config(config)
+    assert fields == {
+        "thinking": {"type": "enabled", "budget_tokens": 4096},
+    }
+
+
+def test_claude_37_reasoning_tokens_emits_budget_tokens():
+    api = _make_api(CLAUDE_37)
+    config = GenerateConfig(reasoning_tokens=2048)
+    fields = api.reasoning_config(config)
+    assert fields == {
+        "thinking": {"type": "enabled", "budget_tokens": 2048},
+    }
+
+
+# --- claude 4.7 auto-promotes reasoning_tokens to adaptive ----------------
+
+
+def test_claude_47_reasoning_tokens_auto_promoted_to_adaptive():
+    """4.7+ deprecates manual budget_tokens thinking; promote to adaptive."""
+    api = _make_api(CLAUDE_47)
+    config = GenerateConfig(reasoning_tokens=4096)
+    fields = api.reasoning_config(config)
+    assert fields == {
+        "thinking": {"type": "adaptive"},
+        "output_config": {"effort": "high"},
+    }
+
+
+# --- effort emission (independent of thinking) ----------------------------
+
+
+def test_claude_effort_emits_output_config_on_frontier():
+    api = _make_api(CLAUDE_47)
+    config = GenerateConfig(effort="high")
+    fields = api.reasoning_config(config)
+    assert fields == {"output_config": {"effort": "high"}}
+
+
+def test_claude_effort_max_demoted_pre_46():
+    api = _make_api(CLAUDE_45)
+    config = GenerateConfig(effort="max")
+    fields = api.reasoning_config(config)
+    assert fields == {"output_config": {"effort": "high"}}
+
+
+def test_claude_effort_xhigh_demoted_pre_47():
+    api = _make_api(CLAUDE_46)
+    config = GenerateConfig(effort="xhigh")
+    fields = api.reasoning_config(config)
+    assert fields == {"output_config": {"effort": "high"}}
+
+
+def test_claude_effort_xhigh_preserved_on_47():
+    api = _make_api(CLAUDE_47)
+    config = GenerateConfig(effort="xhigh")
+    fields = api.reasoning_config(config)
+    assert fields == {"output_config": {"effort": "xhigh"}}
+
+
+# --- empty / no-config paths ---------------------------------------------
+
+
+def test_claude_no_config_returns_empty_fields():
+    api = _make_api(CLAUDE_47)
+    config = GenerateConfig()
+    fields = api.reasoning_config(config)
+    assert fields == {}
+
+
+def test_claude_3_sonnet_no_thinking_for_non_thinking_model():
+    """Claude 3 is not a thinking model — must not emit a thinking block."""
+    api = _make_api(CLAUDE_3_SONNET)
+    config = GenerateConfig(reasoning_effort="high")
+    fields = api.reasoning_config(config)
+    assert "thinking" not in fields
+
+
+# --- regressions on other branches ---------------------------------------
+
+
+def test_nova_unaffected():
+    api = _make_api(NOVA_2_LITE)
+    config = GenerateConfig(reasoning_effort="medium")
+    fields = api.reasoning_config(config)
+    assert fields == {
+        "reasoningConfig": {"type": "enabled", "maxReasoningEffort": "medium"},
+    }
+
+
+def test_gpt_oss_unaffected():
+    api = _make_api(GPT_OSS)
+    config = GenerateConfig(reasoning_effort="low")
+    fields = api.reasoning_config(config)
+    assert fields == {"reasoning_effort": "low"}
+
+
+# --- reasoning_effort + reasoning_tokens precedence -----------------------
+
+
+def test_claude_46_reasoning_effort_wins_over_reasoning_tokens():
+    """When both are set on a frontier model, adaptive wins (matches anthropic.py)."""
+    api = _make_api(CLAUDE_46)
+    config = GenerateConfig(reasoning_effort="high", reasoning_tokens=8192)
+    fields = api.reasoning_config(config)
+    assert fields == {
+        "thinking": {"type": "adaptive"},
+        "output_config": {"effort": "high"},
+    }
+
+
+# --- helper methods ------------------------------------------------------
+
+
+def test_is_using_thinking_false_on_claude_3():
+    api = _make_api(CLAUDE_3_SONNET)
+    assert (
+        api.is_using_thinking(
+            GenerateConfig(reasoning_effort="high", reasoning_tokens=4096)
+        )
+        is False
+    )
+
+
+def test_is_using_thinking_true_on_4_5_with_reasoning_tokens():
+    api = _make_api(CLAUDE_45)
+    assert api.is_using_thinking(GenerateConfig(reasoning_tokens=4096)) is True
+
+
+def test_is_claude_4_6_or_later():
+    assert _make_api(CLAUDE_47).is_claude_4_6_or_later() is True
+    assert _make_api(CLAUDE_46).is_claude_4_6_or_later() is True
+    assert _make_api(CLAUDE_45).is_claude_4_6_or_later() is False
+    assert _make_api(CLAUDE_3_SONNET).is_claude_4_6_or_later() is False
+    assert _make_api(NOVA_2_LITE).is_claude_4_6_or_later() is False
+
+
+# --- review-finding regressions (both fixed) -------------------------------
+#
+# Bug 1: generate() merges `_additional_model_request_fields()` (which carries
+# `output_config.format` for response_schema) with `reasoning_config()` via a
+# shallow dict union, so a reasoning-produced `output_config` silently dropped
+# the structured-output format. Fixed by emitting the format entry from both
+# producers (`_output_config_format`).
+#
+# Bug 2: Claude 4.0 Bedrock ids have no minor version (e.g.
+# `anthropic.claude-opus-4-20250514-v1:0`), so the "unrecognised future minor"
+# fallback in `is_claude_4_6_or_later` / `is_claude_4_7_or_later` misclassified
+# them as 4.6+/4.7+, emitting adaptive thinking on models that are
+# budget_tokens-only per the AWS extended-thinking docs (a 400 from Bedrock).
+# Fixed by including the `is_claude_4_0` date form in the recognised-minor
+# checks.
+
+from pydantic import BaseModel  # noqa: E402
+
+from inspect_ai.model import ResponseSchema  # noqa: E402
+from inspect_ai.util import json_schema  # noqa: E402
+
+CLAUDE_40_OPUS = "anthropic.claude-opus-4-20250514-v1:0"
+CLAUDE_40_SONNET = "anthropic.claude-sonnet-4-20250514-v1:0"
+
+
+class _Person(BaseModel):
+    name: str
+    age: int
+
+
+def _merged_request_fields(api: BedrockAPI, config: GenerateConfig) -> dict:
+    """Reproduce the additionalModelRequestFields merge in BedrockAPI.generate()."""
+    return api._additional_model_request_fields(config, False) | api.reasoning_config(
+        config
+    )
+
+
+def test_response_schema_preserved_with_reasoning_effort():
+    api = _make_api(CLAUDE_46)
+    config = GenerateConfig(
+        reasoning_effort="high",
+        response_schema=ResponseSchema(name="person", json_schema=json_schema(_Person)),
+    )
+    fields = _merged_request_fields(api, config)
+    assert fields["output_config"]["effort"] == "high"
+    assert "format" in fields["output_config"], (
+        "structured-output format clobbered by reasoning output_config"
+    )
+
+
+def test_response_schema_preserved_with_effort():
+    api = _make_api(CLAUDE_47)
+    config = GenerateConfig(
+        effort="medium",
+        response_schema=ResponseSchema(name="person", json_schema=json_schema(_Person)),
+    )
+    fields = _merged_request_fields(api, config)
+    assert fields["output_config"]["effort"] == "medium"
+    assert "format" in fields["output_config"], (
+        "structured-output format clobbered by reasoning output_config"
+    )
+
+
+def test_claude_40_dated_ids_not_classified_as_4_6_or_later():
+    assert _make_api(CLAUDE_40_OPUS).is_claude_4_6_or_later() is False
+    assert _make_api(CLAUDE_40_SONNET).is_claude_4_6_or_later() is False
+
+
+def test_claude_40_dated_ids_not_classified_as_4_7_or_later():
+    assert _make_api(CLAUDE_40_OPUS).is_claude_4_7_or_later() is False
+    assert _make_api(CLAUDE_40_SONNET).is_claude_4_7_or_later() is False
+
+
+def test_claude_40_reasoning_effort_does_not_emit_adaptive():
+    """Claude 4.0 is budget_tokens-only; adaptive thinking 400s on Bedrock."""
+    fields = _make_api(CLAUDE_40_OPUS).reasoning_config(
+        GenerateConfig(reasoning_effort="high")
+    )
+    assert fields.get("thinking", {}).get("type") != "adaptive"
+
+
+def test_claude_40_reasoning_tokens_not_promoted_to_adaptive():
+    """Claude 4.0 is budget_tokens-only; must not be auto-promoted like 4.7+."""
+    fields = _make_api(CLAUDE_40_OPUS).reasoning_config(
+        GenerateConfig(reasoning_tokens=4096)
+    )
+    assert fields == {"thinking": {"type": "enabled", "budget_tokens": 4096}}
+
+
+# --- claude 5 (regression for #5931) ---------------------------------------
+
+CLAUDE_5_IDS = [
+    "anthropic.claude-opus-5-v1:0",
+    "us.anthropic.claude-opus-5-v1:0",
+    "anthropic.claude-sonnet-5-v1:0",
+    "eu.anthropic.claude-sonnet-5-v1:0",
+    "anthropic.claude-fable-5-1-v1:0",
+    "global.anthropic.claude-fable-5-1-v1:0",
+]
+
+
+@pytest.mark.parametrize("model", CLAUDE_5_IDS)
+def test_claude_5_is_claude_4_6_or_later(model: str):
+    assert _make_api(model).is_claude_4_6_or_later() is True
+
+
+@pytest.mark.parametrize("model", CLAUDE_5_IDS)
+def test_claude_5_reasoning_effort_emits_adaptive(model: str):
+    fields = _make_api(model).reasoning_config(GenerateConfig(reasoning_effort="high"))
+    assert fields == {
+        "thinking": {"type": "adaptive"},
+        "output_config": {"effort": "high"},
+    }
+
+
+@pytest.mark.parametrize("model", CLAUDE_5_IDS)
+def test_claude_5_reasoning_effort_max_preserved(model: str):
+    fields = _make_api(model).reasoning_config(GenerateConfig(reasoning_effort="max"))
+    assert fields == {
+        "thinking": {"type": "adaptive"},
+        "output_config": {"effort": "max"},
+    }
+
+
+@pytest.mark.parametrize("model", CLAUDE_5_IDS)
+def test_claude_5_effort_max_preserved(model: str):
+    fields = _make_api(model).reasoning_config(GenerateConfig(effort="max"))
+    assert fields == {"output_config": {"effort": "max"}}
+
+
+def test_claude_haiku_4_5_not_classified_as_4_6_or_later():
+    api = _make_api("anthropic.claude-haiku-4-5-20251001-v1:0")
+    assert api.is_claude_4_6_or_later() is False
+    assert api.reasoning_config(GenerateConfig(effort="max")) == {
+        "output_config": {"effort": "high"}
+    }
+
+
+# --- Fable/Mythos 5.1 forced tool choice ----------------------------------
+
+
+def test_fable_5_1_degrades_forced_tool_choice():
+    """Fable/Mythos 5.1 reject forced tool choice with a 400; degrade to auto."""
+    from inspect_ai.tool._tool_choice import ToolFunction
+
+    api = _make_api("anthropic.claude-fable-5-1")
+    assert api.is_claude_fable_5_1_or_later() is True
+    assert api.resolved_tool_choice("any") == "auto"
+    assert api.resolved_tool_choice(ToolFunction(name="get_weather")) == "auto"
+    assert api.resolved_tool_choice("auto") == "auto"
+    assert api.resolved_tool_choice("none") == "none"
+
+
+def test_fable_5_base_keeps_forced_tool_choice():
+    """The base Fable 5 model keeps forced tool choice as requested."""
+    from inspect_ai.tool._tool_choice import ToolFunction
+
+    api = _make_api("anthropic.claude-fable-5")
+    assert api.is_claude_fable_5_1_or_later() is False
+    assert api.resolved_tool_choice("any") == "any"
+    tool_function = ToolFunction(name="get_weather")
+    assert api.resolved_tool_choice(tool_function) is tool_function
+
+
+def test_opus_5_5_degrades_forced_tool_choice():
+    """Opus 5.5 rejects forced tool choice with a 400; degrade to auto."""
+    from inspect_ai.tool._tool_choice import ToolFunction
+
+    api = _make_api("anthropic.claude-opus-5-5")
+    assert api.is_claude_opus_5_5_or_later() is True
+    # 4.7+ capability set: adaptive thinking only, sampling params stripped
+    assert api.is_claude_4_7_or_later() is True
+    # cross-region inference profile id form
+    regional = _make_api("us.anthropic.claude-opus-5-5-20260922-v1:0")
+    assert regional.is_claude_opus_5_5_or_later() is True
+    assert regional.is_claude_4_7_or_later() is True
+    assert api.resolved_tool_choice("any") == "auto"
+    assert api.resolved_tool_choice(ToolFunction(name="get_weather")) == "auto"
+    assert api.resolved_tool_choice("auto") == "auto"
+    assert api.resolved_tool_choice("none") == "none"
+
+
+def test_sonnet_5_5_degrades_forced_tool_choice():
+    """Sonnet 5.5 rejects forced tool choice with a 400; degrade to auto."""
+    from inspect_ai.tool._tool_choice import ToolFunction
+
+    for model_name in (
+        "anthropic.claude-sonnet-5-5",
+        "us.anthropic.claude-sonnet-5-5-20260928-v1:0",
+    ):
+        api = _make_api(model_name)
+        assert api.is_claude_4_7_or_later() is True
+        assert api.resolved_tool_choice("any") == "auto"
+        assert api.resolved_tool_choice(ToolFunction(name="get_weather")) == "auto"
+        assert api.resolved_tool_choice("auto") == "auto"
+        assert api.resolved_tool_choice("none") == "none"
+
+    # the base Sonnet 5 keeps forced tool choice as requested
+    base = _make_api("anthropic.claude-sonnet-5")
+    assert base.resolved_tool_choice("any") == "any"
+
+
+def test_opus_5_base_keeps_forced_tool_choice():
+    """The base Opus 5 model keeps forced tool choice as requested."""
+    from inspect_ai.tool._tool_choice import ToolFunction
+
+    api = _make_api("anthropic.claude-opus-5")
+    assert api.is_claude_opus_5_5_or_later() is False
+    assert api.resolved_tool_choice("any") == "any"
+    tool_function = ToolFunction(name="get_weather")
+    assert api.resolved_tool_choice(tool_function) is tool_function
+
+
+@pytest.mark.anyio
+@skip_if_trio
+@pytest.mark.parametrize(
+    "model_name,expected_choice,expect_degraded",
+    [
+        ("anthropic.claude-fable-5-1", {"auto": {}}, True),
+        ("anthropic.claude-fable-5", {"tool": {"name": "addition"}}, False),
+        ("anthropic.claude-opus-5-5", {"auto": {}}, True),
+        ("anthropic.claude-opus-5", {"tool": {"name": "addition"}}, False),
+        ("anthropic.claude-sonnet-5-5", {"auto": {}}, True),
+        ("anthropic.claude-haiku-5-5", {"tool": {"name": "addition"}}, False),
+    ],
+)
+async def test_bedrock_fable_5_1_forced_tool_choice_wiring(
+    model_name: str, expected_choice: dict, expect_degraded: bool
+):
+    """The degraded tool choice lands in the Converse request and output metadata."""
+    from typing import Any
+    from unittest.mock import patch
+
+    from inspect_ai.model import ChatMessageUser
+    from inspect_ai.model._model_output import ModelOutput
+    from inspect_ai.tool import ToolInfo
+    from inspect_ai.tool._tool_choice import ToolFunction
+    from inspect_ai.tool._tool_params import ToolParam, ToolParams
+
+    api = BedrockAPI(model_name=model_name, base_url=None)
+    captured: dict[str, Any] = {}
+
+    class _FakeClient:
+        async def converse(self, **kwargs: Any) -> dict[str, Any]:
+            captured.update(kwargs)
+            return {
+                "output": {
+                    "message": {"role": "assistant", "content": [{"text": "ok"}]}
+                },
+                "stopReason": "end_turn",
+                "usage": {"inputTokens": 1, "outputTokens": 1, "totalTokens": 2},
+                "metrics": {"latencyMs": 1},
+            }
+
+    class _FakeClientContext:
+        async def __aenter__(self) -> Any:
+            return _FakeClient()
+
+        async def __aexit__(self, *exc: Any) -> bool:
+            return False
+
+    with patch.object(
+        api.session, "create_client", lambda *args, **kwargs: _FakeClientContext()
+    ):
+        result = await api.generate(
+            input=[ChatMessageUser(content="What is 1 + 1?")],
+            tools=[
+                ToolInfo(
+                    name="addition",
+                    description="Add two numbers.",
+                    parameters=ToolParams(
+                        properties={"x": ToolParam(type="integer")}, required=["x"]
+                    ),
+                )
+            ],
+            tool_choice=ToolFunction(name="addition"),
+            config=GenerateConfig(max_tokens=64),
+        )
+
+    assert isinstance(result, tuple)
+    output = result[0]
+    assert isinstance(output, ModelOutput)
+    assert captured["toolConfig"]["toolChoice"] == expected_choice
+    if expect_degraded:
+        assert output.metadata is not None
+        assert output.metadata["tool_choice_degraded"] == {
+            "requested": {"type": "tool", "name": "addition"},
+            "used": {"type": "auto"},
+        }
+    else:
+        assert not (output.metadata or {}).get("tool_choice_degraded")
+
+
+# --- thinking + tool use round trip (live) ---------------------------------
+#
+# AWS docs require the last assistant message's thinking block (with
+# signature) to be passed back during tool use, else "an error occurs".
+# The Bedrock provider replays Claude reasoning as `<think>` text
+# (`emulate_reasoning=True`) and `ConverseReasoningText` has no signature
+# field, so one might expect the second request of a tool loop to fail with
+# thinking actually enabled. Live runs show it works; these tests pin that.
+
+from test_helpers.utils import skip_if_no_bedrock  # noqa: E402
+
+from inspect_ai.model import ChatMessageTool, ChatMessageUser, get_model  # noqa: E402
+from inspect_ai.tool import ToolChoice, ToolInfo  # noqa: E402
+from inspect_ai.tool._tool_params import ToolParam, ToolParams  # noqa: E402
+
+
+def _weather_tool() -> ToolInfo:
+    return ToolInfo(
+        name="get_weather",
+        description="Get current weather for a location",
+        parameters=ToolParams(
+            properties={"location": ToolParam(type="string", description="City name")},
+            required=["location"],
+        ),
+    )
+
+
+async def _tool_round_trip(
+    model_name: str, config: GenerateConfig, tool_choice: ToolChoice | None = None
+) -> str:
+    model = get_model(model_name, config=config)
+    tool = _weather_tool()
+    user = ChatMessageUser(
+        content="What's the weather in Paris? Use the get_weather tool."
+    )
+    first = await model.generate(input=[user], tools=[tool], tool_choice=tool_choice)
+    assistant = first.message
+    assert assistant.tool_calls, "model did not call the tool"
+    call = assistant.tool_calls[0]
+    tool_result = ChatMessageTool(
+        content="Current temperature: 88°F",
+        tool_call_id=call.id,
+        function=call.function,
+    )
+    second = await model.generate(input=[user, assistant, tool_result], tools=[tool])
+    return second.completion
+
+
+@pytest.mark.anyio
+@skip_if_no_bedrock
+async def test_bedrock_budget_thinking_tool_round_trip():
+    """Claude 4.5: enabled+budget_tokens thinking across a tool call."""
+    completion = await _tool_round_trip(
+        "bedrock/us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+        GenerateConfig(reasoning_tokens=1024, max_tokens=4096),
+    )
+    assert completion
+
+
+@pytest.mark.anyio
+@skip_if_no_bedrock
+async def test_bedrock_adaptive_thinking_tool_round_trip():
+    """Claude 4.6: adaptive thinking + output_config.effort across a tool call."""
+    completion = await _tool_round_trip(
+        "bedrock/us.anthropic.claude-sonnet-4-6",
+        GenerateConfig(reasoning_effort="high", max_tokens=4096),
+    )
+    assert completion
+
+
+@pytest.mark.anyio
+@skip_if_no_bedrock
+async def test_bedrock_sonnet_5_5_forced_tool_choice_tool_round_trip():
+    """Sonnet 5.5: forced tool choice degrades to auto across a tool call."""
+    completion = await _tool_round_trip(
+        "bedrock/global.anthropic.claude-sonnet-5-5",
+        GenerateConfig(reasoning_effort="high", max_tokens=4096),
+        tool_choice="any",
+    )
+    assert completion
+
+
+# --- structured output + reasoning: live confirmation -----------------------
+
+from pydantic import ValidationError  # noqa: E402
+
+from inspect_ai.model import ResponseSchema as _ResponseSchema  # noqa: E402
+
+
+@pytest.mark.anyio
+@skip_if_no_bedrock
+async def test_bedrock_response_schema_honoured_with_reasoning_effort():
+    """Reasoning output_config must not clobber structured output (bug 1).
+
+    Before the fix, reasoning_effort alongside response_schema made the
+    shallow additionalModelRequestFields merge drop output_config.format,
+    so the model returned prose instead of schema-conforming JSON.
+    """
+    model = get_model(
+        "bedrock/us.anthropic.claude-sonnet-4-6",
+        config=GenerateConfig(
+            reasoning_effort="high",
+            max_tokens=4096,
+            response_schema=_ResponseSchema(
+                name="person", json_schema=json_schema(_Person)
+            ),
+        ),
+    )
+    output = await model.generate(
+        input=[ChatMessageUser(content="Invent a person and give their name and age.")]
+    )
+    try:
+        _Person.model_validate_json(output.completion)
+    except ValidationError as ex:
+        pytest.fail(
+            f"completion did not conform to response_schema "
+            f"(structured output clobbered by reasoning output_config): "
+            f"{output.completion!r} ({ex})"
+        )

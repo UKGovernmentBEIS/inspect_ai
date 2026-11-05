@@ -1,25 +1,37 @@
 import datetime
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, time, timezone
 from enum import Enum
-from typing import Any, Dict, List, Literal, Optional, Set, Tuple, Union
+from typing import Any, Callable, Dict, List, Literal, Optional, Set, Tuple, Union
 
+import anyio
+import pytest
 from pydantic import BaseModel
 from typing_extensions import TypedDict
 
 from inspect_ai._util.content import ContentDocument, ContentText
+from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log._transcript import Transcript, init_transcript
-from inspect_ai.model._call_tools import execute_tools
+from inspect_ai.model._call_tools import MAX_TOOL_CALL_ARGUMENTS_DEPTH, execute_tools
 from inspect_ai.model._chat_message import (
     ChatMessageAssistant,
     ChatMessageTool,
 )
-from inspect_ai.tool import tool
+from inspect_ai.tool import (
+    Tool,
+    ToolError,
+    ToolParam,
+    ToolParams,
+    todo_write,
+    tool,
+    update_plan,
+)
 from inspect_ai.tool._tool import tool_result_content
-from inspect_ai.tool._tool_call import ToolCall
+from inspect_ai.tool._tool_call import ToolCall, ToolCallError
 from inspect_ai.tool._tool_def import ToolDef
-from inspect_ai.util._sandbox import SandboxTimeoutError
+from inspect_ai.util._limit import LimitExceededError
+from inspect_ai.util._sandbox import SandboxTimeoutError, SandboxUnavailableError
 
 # --- Helpers ---------------------------------------------------------------
 
@@ -62,6 +74,47 @@ class MyTypedDict(TypedDict):
 class MyDataClass:
     value: float
     flag: bool
+
+
+@dataclass
+class NonInitDataClass:
+    value: int
+    constant: int = field(default=7, init=False)
+    items: list[int] = field(default_factory=list, init=False)
+    doubled: int = field(default=0, init=False)
+
+    def __post_init__(self):
+        self.items.append(self.value)
+        self.doubled = self.value * 2
+
+
+@tool
+def non_init_tool():
+    async def execute(data: list[NonInitDataClass]) -> str:
+        """Read dataclass values.
+
+        Args:
+            data: Values with constructor-managed fields.
+        """
+        return str([(d.value, d.constant, d.items, d.doubled) for d in data])
+
+    return execute
+
+
+@dataclass
+class MyStringAnnotatedDataClass:
+    # string annotations are what `from __future__ import annotations`
+    # (PEP 563) leaves in `field.type`
+    value: "float"
+    flag: "bool"
+    items: "list[int]" = field(default_factory=list)
+    computed: "float" = field(default=0.0, init=False)
+
+
+@dataclass
+class MyTree:
+    label: str
+    children: "list[MyTree]" = field(default_factory=list)
 
 
 class MyPydanticModel(BaseModel):
@@ -150,6 +203,32 @@ def complex_tool():
 
 
 @tool
+def string_annotated_tool():
+    async def string_annotated_tool(dc: MyStringAnnotatedDataClass) -> dict:
+        """Echo a dataclass whose fields use string annotations.
+
+        Args:
+            dc (MyStringAnnotatedDataClass): A dataclass with 'value', 'flag' and 'items'.
+        """
+        return {"value": dc.value, "flag": dc.flag, "items": dc.items}
+
+    return string_annotated_tool
+
+
+@tool
+def tree_tool():
+    async def tree_tool(tree: MyTree) -> str:
+        """Describe a recursive dataclass.
+
+        Args:
+            tree (MyTree): A tree with a 'label' and 'children'.
+        """
+        return f"{tree.label}:{len(tree.children)}:{type(tree.children[0]).__name__ if tree.children else ''}"
+
+    return tree_tool
+
+
+@tool
 def document_tool():
     async def document_tool() -> ContentDocument:
         """Return a document tool result."""
@@ -182,6 +261,186 @@ async def test_incr_simple_positive():
 
     assert isinstance(messages[-1], ChatMessageTool)
     assert messages[-1].content == "1"
+
+
+def test_dataclass_non_init_schema():
+    schema = ToolDef(non_init_tool()).parameters.properties["data"].items
+    assert schema is not None
+    assert schema.properties is not None
+    assert list(schema.properties) == ["value"]
+    assert schema.required == ["value"]
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        {},
+        {"constant": 99},
+        {"items": []},
+        {"doubled": 0},
+        {"constant": 99, "items": [], "doubled": 0},
+    ],
+)
+@pytest.mark.parametrize("schema_kind", ["inferred", "permissive", "explicit"])
+async def test_dataclass_non_init_fields(extra, schema_kind):
+    transcript = Transcript()
+    init_transcript(transcript)
+    tool_def = ToolDef(non_init_tool())
+    if schema_kind != "inferred":
+        schema = tool_def.parameters.properties["data"].items
+        assert schema is not None
+        if schema_kind == "permissive":
+            schema.additionalProperties = True
+        else:
+            assert schema.properties is not None
+            schema.properties.update(
+                constant=ToolParam(type="integer"),
+                items=ToolParam(type="array", items=ToolParam(type="integer")),
+                doubled=ToolParam(type="integer"),
+            )
+    call = make_call("non_init_tool", {"data": [{"value": 5, **extra}]})
+    messages, _ = await execute_tools(
+        [ChatMessageAssistant(content=[], tool_calls=[call])],
+        [tool_def],
+    )
+
+    assert isinstance(messages[-1], ChatMessageTool)
+    if extra:
+        assert messages[-1].error is not None
+        assert messages[-1].error.type == "parsing"
+        if schema_kind == "inferred":
+            assert "Additional properties are not allowed" in messages[-1].error.message
+        else:
+            assert "non-init dataclass fields" in messages[-1].error.message
+        for name in extra:
+            assert name in messages[-1].error.message
+    else:
+        assert messages[-1].error is None
+        assert messages[-1].content == "[(5, 7, [5], 10)]"
+
+    (event,) = [e for e in transcript.events if isinstance(e, ToolEvent)]
+    assert event.error == messages[-1].error
+    assert event.message_id == messages[-1].id
+    assert event.completed is not None
+
+
+async def test_dataclass_non_init_fields_fail_before_approval():
+    from inspect_ai.approval import Approval, ApprovalPolicy, Approver, approver
+
+    approved: list[ToolCall] = []
+    executed: list[NonInitDataClass] = []
+
+    @tool
+    def overseen_non_init_tool():
+        async def execute(data: list[NonInitDataClass]) -> str:
+            """Read dataclass values.
+
+            Args:
+                data: Values with constructor-managed fields.
+            """
+            executed.extend(data)
+            return "ran"
+
+        return execute
+
+    @approver(name="test_non_init_recorder")
+    def recorder() -> Approver:
+        async def approve(
+            message: str, call: ToolCall, view: Any, history: Any
+        ) -> Approval:
+            approved.append(call)
+            return Approval(decision="approve")
+
+        return approve
+
+    transcript = Transcript()
+    init_transcript(transcript)
+    tool_def = ToolDef(overseen_non_init_tool())
+    call = make_call(tool_def.name, {"data": [{"value": 5}]})
+    messages, _ = await execute_tools(
+        [ChatMessageAssistant(content=[], tool_calls=[call])],
+        [tool_def],
+        approval=[ApprovalPolicy(recorder(), "*")],
+    )
+
+    assert not approved
+    assert not executed
+    assert isinstance(messages[-1], ChatMessageTool)
+    assert messages[-1].error is not None
+    assert messages[-1].error.type == "parsing"
+    assert "do not convert back" in messages[-1].error.message
+    assert "non-init dataclass fields" in messages[-1].error.message
+    (event,) = [e for e in transcript.events if isinstance(e, ToolEvent)]
+    assert event.error == messages[-1].error
+    assert event.message_id == messages[-1].id
+    assert event.completed is not None
+
+
+def test_string_annotated_dataclass_schema():
+    schema = ToolDef(string_annotated_tool()).parameters.properties["dc"]
+    assert schema.properties is not None
+    assert "computed" not in schema.properties
+    assert schema.properties["value"].type == "number"
+    assert schema.properties["flag"].type == "boolean"
+    assert schema.properties["items"].type == "array"
+    assert schema.properties["items"].items is not None
+    assert schema.properties["items"].items.type == "integer"
+
+
+async def test_string_annotated_dataclass_arguments():
+    call = make_call(
+        "string_annotated_tool", {"dc": {"value": 2, "flag": True, "items": [1, 2]}}
+    )
+
+    messages, _ = await execute_tools(
+        [ChatMessageAssistant(content=[], tool_calls=[call])],
+        [ToolDef(string_annotated_tool())],
+    )
+
+    assert isinstance(messages[-1], ChatMessageTool)
+    assert messages[-1].error is None
+    result = eval(messages[-1].content)
+    assert result == {"value": 2.0, "flag": True, "items": [1, 2]}
+    assert isinstance(result["value"], float)
+
+
+@pytest.mark.parametrize(
+    "children,expected",
+    [([], "root:0:"), ([{"label": "leaf", "children": []}], "root:1:MyTree")],
+)
+async def test_recursive_dataclass_arguments(children, expected):
+    schema = ToolDef(tree_tool()).parameters.properties["tree"]
+    assert schema.properties is not None
+    assert schema.properties["children"].type == "array"
+
+    call = make_call("tree_tool", {"tree": {"label": "root", "children": children}})
+    messages, _ = await execute_tools(
+        [ChatMessageAssistant(content=[], tool_calls=[call])],
+        [ToolDef(tree_tool())],
+    )
+
+    assert isinstance(messages[-1], ChatMessageTool)
+    assert messages[-1].error is None
+    assert messages[-1].content == expected
+
+
+async def test_deeply_nested_dict_arguments_rejected_as_parse_error():
+    # providers that construct ToolCall from an already-parsed dict never go
+    # through parse_tool_call, so the argument nesting bound must also be
+    # enforced at execution time, surfacing as the same parsing error
+    deep: dict[str, Any] = {"a": 1}
+    for _ in range(MAX_TOOL_CALL_ARGUMENTS_DEPTH + 50):
+        deep = {"a": deep}
+    call = make_call("incr", {"x": deep})
+
+    messages, _ = await execute_tools(
+        [ChatMessageAssistant(content=[], tool_calls=[call])], [ToolDef(incr())]
+    )
+
+    assert isinstance(messages[-1], ChatMessageTool)
+    assert messages[-1].error is not None
+    assert messages[-1].error.type == "parsing"
+    assert "nesting depth" in messages[-1].error.message
 
 
 async def test_complex_tool_all_params():
@@ -398,6 +657,32 @@ async def test_sandbox_timeout_partial_output_returned_as_tool_result():
 
 
 @tool
+def sandbox_unavailable_tool():
+    async def execute() -> str:
+        """Raise SandboxUnavailableError as a dead sandbox provider would."""
+        raise SandboxUnavailableError(
+            'The sandbox is not running and cannot execute: service "default" is not running'
+        )
+
+    return execute
+
+
+async def test_sandbox_unavailable_surfaces_as_typed_tool_error():
+    """A dead sandbox is recorded with its own error type, filterable in logs."""
+    tool_def = ToolDef(sandbox_unavailable_tool())
+    call = make_call("sandbox_unavailable_tool", {})
+
+    messages, _ = await execute_tools(
+        [ChatMessageAssistant(content=[], tool_calls=[call])], [tool_def]
+    )
+
+    assert isinstance(messages[-1], ChatMessageTool)
+    assert messages[-1].error is not None
+    assert messages[-1].error.type == "sandbox_unavailable"
+    assert "is not running" in messages[-1].error.message
+
+
+@tool
 def mixed_content_and_str_tool():
     async def execute() -> list:
         """Return a list mixing Content and a raw str."""
@@ -429,6 +714,39 @@ async def test_mixed_content_and_str_list_does_not_crash():
     assert "RAW STRING" in messages[-1].content
 
 
+@tool
+def value_error_tool():
+    async def execute() -> str:
+        """Raise a ValueError unrelated to null bytes."""
+        raise ValueError("ordinary value error")
+
+    return execute
+
+
+async def test_other_value_error_escapes_the_tool_call_handler():
+    """A `ValueError` other than the null-byte case is not captured as a tool failure.
+
+    Pins the pre-existing shape so the shared `tool_call_error` mapping stays
+    behaviour-neutral: the exception escapes the per-call handler (the sample
+    fails) and the event is finalised by the stage's cancellation handling
+    rather than recorded as a captured failure with no error.
+    """
+    transcript = Transcript()
+    init_transcript(transcript)
+
+    tool_def = ToolDef(value_error_tool())
+    call = make_call("value_error_tool", {})
+    with pytest.raises(ValueError, match="ordinary value error"):
+        await execute_tools(
+            [ChatMessageAssistant(content=[], tool_calls=[call])], [tool_def]
+        )
+
+    (event,) = [e for e in transcript.events if isinstance(e, ToolEvent)]
+    assert event.failed is True
+    assert event.error is not None
+    assert event.error.type == "cancelled"
+
+
 async def test_tool_event_message_id_for_multiple_calls():
     """Each ToolEvent.message_id references its own ChatMessageTool."""
     transcript = Transcript()
@@ -457,3 +775,436 @@ async def test_tool_event_message_id_for_multiple_calls():
     # ensure each event has a distinct message_id (regression: previously
     # every event pointed at the first ChatMessageTool)
     assert len({e.message_id for e in tool_events}) == 3
+
+
+@pytest.mark.parametrize(
+    "tool_factory,name,item",
+    [
+        (todo_write, "todos", {"content": "write tests", "status": "pending"}),
+        (update_plan, "plan", {"step": "write tests", "status": "pending"}),
+    ],
+    ids=["todo_write", "update_plan"],
+)
+async def test_plan_tools_run_as_approved(
+    tool_factory: Any, name: str, item: dict[str, str]
+) -> None:
+    """The built-in tools that take `list[BaseModel]` run under approval."""
+    from inspect_ai.approval import Approval, ApprovalPolicy, Approver, approver
+
+    approved: list[ToolCall] = []
+
+    @approver(name="test_plan_recorder")
+    def recorder() -> Approver:
+        async def approve(
+            message: str, call: ToolCall, view: Any, history: Any
+        ) -> Approval:
+            approved.append(call)
+            return Approval(decision="approve")
+
+        return approve
+
+    tool_def = ToolDef(tool_factory())
+    messages, _ = await execute_tools(
+        [
+            ChatMessageAssistant(
+                content=[], tool_calls=[make_call(tool_def.name, {name: [item]})]
+            )
+        ],
+        [tool_def],
+        approval=[ApprovalPolicy(recorder(), "*")],
+    )
+
+    assert isinstance(messages[-1], ChatMessageTool)
+    assert messages[-1].error is None
+    assert [c.arguments for c in approved] == [{name: [item]}]
+
+
+async def test_tool_with_varargs_and_kwargs():
+    # control: **kwargs: Any still passes tool arguments straight through
+    from inspect_ai.tool._tool_info import parse_tool_info
+
+    @tool
+    def varargs_tool():
+        async def execute(x: int, y: str = "default", *args: Any, **kwargs: Any) -> str:
+            """Tool with varargs and kwargs.
+
+            Args:
+                x (int): An integer.
+                y (str): A string.
+                *args (Any): Variable arguments.
+                **kwargs (Any): Variable keyword arguments.
+            """
+            return f"{x}_{y}"
+
+        return execute
+
+    tool_fn = varargs_tool()
+    info = parse_tool_info(tool_fn)
+    assert "args" not in info.parameters.properties
+    assert "kwargs" not in info.parameters.properties
+    assert info.parameters.required == ["x"]
+    assert "x" in info.parameters.properties
+    assert "y" in info.parameters.properties
+
+    tool_def = ToolDef(tool_fn)
+    call = make_call("varargs_tool", {"x": 42})
+    messages, _ = await execute_tools(
+        [ChatMessageAssistant(content=[], tool_calls=[call])], [tool_def]
+    )
+    assert isinstance(messages[-1], ChatMessageTool)
+    assert messages[-1].error is None
+    assert messages[-1].content == "42_default"
+
+
+async def test_tool_with_varargs_only():
+    @tool
+    def varargs_only_tool():
+        async def execute(x: int, *args: int) -> str:
+            """Tool with varargs.
+
+            Args:
+                x (int): An integer.
+                *args (int): Variable arguments.
+            """
+            return f"{x}_{args}"
+
+        return execute
+
+    call = make_call("varargs_only_tool", {"x": 42})
+    messages, _ = await execute_tools(
+        [ChatMessageAssistant(content=[], tool_calls=[call])],
+        [ToolDef(varargs_only_tool())],
+    )
+    assert isinstance(messages[-1], ChatMessageTool)
+    assert messages[-1].error is None
+    assert messages[-1].content == "42_()"
+
+
+async def _execute_with_schema(
+    execute: Any,
+    properties: list[str],
+    arguments: dict[str, Any],
+    types: dict[str, Any] | None = None,
+) -> ChatMessageTool:
+    # explicit schema: string properties except `x`, which is an integer
+    # (unless overridden by `types`)
+    types = types or {}
+    tool_def = ToolDef(
+        execute,
+        name="schema_tool",
+        description="Tool with an explicit schema.",
+        parameters=ToolParams(
+            properties={
+                name: ToolParam(
+                    type=types.get(name, "integer" if name == "x" else "string")
+                )
+                for name in properties
+            },
+            required=properties,
+        ),
+    )
+    call = make_call("schema_tool", arguments)
+    messages, _ = await execute_tools(
+        [ChatMessageAssistant(content=[], tool_calls=[call])], [tool_def]
+    )
+    assert isinstance(messages[-1], ChatMessageTool)
+    assert messages[-1].error is None
+    return messages[-1]
+
+
+async def test_tool_explicit_schema_kwargs():
+    async def execute(**kwargs: str) -> str:
+        return repr(kwargs)
+
+    message = await _execute_with_schema(execute, ["kwargs"], {"kwargs": "hello"})
+    assert message.content == repr({"kwargs": "hello"})
+
+
+async def test_tool_explicit_schema_named_kwargs():
+    async def execute(**options: str) -> str:
+        return repr(options)
+
+    message = await _execute_with_schema(execute, ["options"], {"options": "hello"})
+    assert message.content == repr({"options": "hello"})
+
+
+async def test_tool_explicit_schema_kwargs_with_named_params():
+    async def execute(x: int, *args: int, **options: str) -> str:
+        return f"{x}_{args}_{options!r}"
+
+    message = await _execute_with_schema(
+        execute,
+        ["x", "label", "mode"],
+        {"x": 1, "label": "first", "mode": "fast"},
+    )
+    assert message.content == f"1_()_{ {'label': 'first', 'mode': 'fast'}!r}"
+
+
+async def test_tool_explicit_schema_kwargs_docstring_float():
+    # **options documented (not annotated) as float converts its values
+    async def execute(**options) -> str:
+        """Return the hexadecimal representation of a number.
+
+        Args:
+            options (float): Number to format.
+        """
+        return str(options["options"].hex())
+
+    message = await _execute_with_schema(
+        execute, ["options"], {"options": 2}, types={"options": "number"}
+    )
+    assert message.content == (2.0).hex()
+
+
+async def test_tool_explicit_schema_kwargs_docstring_int():
+    # **options documented (not annotated) as int converts its values
+    async def execute(**options) -> str:
+        """Increment a number.
+
+        Args:
+            options (int): Number to increment.
+        """
+        return str(options["options"] + 1)
+
+    message = await _execute_with_schema(execute, ["options"], {"options": "2"})
+    assert message.content == "3"
+
+
+async def test_tool_explicit_schema_kwargs_untyped():
+    # **options with no annotation or docstring type passes values through
+    async def execute(**options) -> str:
+        return repr(options)
+
+    message = await _execute_with_schema(execute, ["options"], {"options": "hello"})
+    assert message.content == repr({"options": "hello"})
+
+
+async def test_tool_explicit_schema_kwargs_unresolved_docstring_type():
+    # **options documented with a type that can't be resolved is an error
+    # (rather than silently passing values through as Any)
+    called = False
+
+    async def execute(**options) -> str:
+        """Accept values.
+
+        Args:
+            options (list[str]): Values.
+        """
+        nonlocal called
+        called = True
+        return repr(options)
+
+    tool_def = ToolDef(
+        execute,
+        name="schema_tool",
+        description="Tool with an explicit schema.",
+        parameters=ToolParams(
+            properties={
+                "options": ToolParam(type="array", items=ToolParam(type="string"))
+            },
+            required=["options"],
+        ),
+    )
+    call = make_call("schema_tool", {"options": ["a"]})
+    with pytest.raises(
+        ValueError, match="No type annotation available for parameter options"
+    ):
+        await execute_tools(
+            [ChatMessageAssistant(content=[], tool_calls=[call])], [tool_def]
+        )
+    assert not called
+
+
+# --- Exception groups ----------------------------------------------------
+
+
+_GROUP_REPEATS = 50
+"""Order-sensitive group cases repeat with fresh exceptions: a group's leaves
+were once ordered by a set (object addresses), so one order could pass by
+chance."""
+
+
+def _token_limit() -> LimitExceededError:
+    return LimitExceededError("token", value=1001, limit=1000)
+
+
+def _ordered(leaves: list[Exception], reverse: bool) -> list[Exception]:
+    return leaves[::-1] if reverse else leaves
+
+
+def _grouped_tool(leaves: Callable[[], list[Exception]] | Exception) -> Tool:
+    """A tool raising a fresh group of `leaves()` (or one bare exception)."""
+
+    async def execute() -> str:
+        """Raise.
+
+        Returns:
+            Never returns.
+        """
+        if isinstance(leaves, Exception):
+            raise leaves
+        raise ExceptionGroup("tool errors", leaves())
+
+    return ToolDef(
+        execute, name="grouped", description="Raise.", parameters={}
+    ).as_tool()
+
+
+async def _execute_grouped(tool: Tool) -> tuple[ChatMessageTool, ToolEvent]:
+    transcript = Transcript()
+    init_transcript(transcript)
+    call = ToolCall(id="call-1", function="grouped", arguments={})
+    messages, _ = await execute_tools(
+        [ChatMessageAssistant(content=[], tool_calls=[call])], [tool]
+    )
+    message = messages[-1]
+    assert isinstance(message, ChatMessageTool)
+    (event,) = [e for e in transcript.events if isinstance(e, ToolEvent)]
+    return message, event
+
+
+async def _execute_grouped_raising(tool: Tool) -> tuple[BaseException, ToolEvent]:
+    transcript = Transcript()
+    init_transcript(transcript)
+    call = ToolCall(id="call-1", function="grouped", arguments={})
+    with pytest.raises(BaseException) as excinfo:
+        await execute_tools(
+            [ChatMessageAssistant(content=[], tool_calls=[call])], [tool]
+        )
+    (event,) = [e for e in transcript.events if isinstance(e, ToolEvent)]
+    return excinfo.value, event
+
+
+@pytest.mark.parametrize("fatal_first", [False, True])
+async def test_native_group_with_fatal_leaf_fails_the_sample(fatal_first: bool) -> None:
+    def leaves() -> list[Exception]:
+        return _ordered([ToolError("retry"), RuntimeError("fatal defect")], fatal_first)
+
+    for _ in range(_GROUP_REPEATS):
+        raised, event = await _execute_grouped_raising(_grouped_tool(leaves))
+        assert isinstance(raised, RuntimeError)
+        assert str(raised) == "fatal defect"
+        assert event.failed is True
+
+
+@pytest.mark.parametrize("limit_first", [False, True])
+async def test_native_group_with_limit_leaf_is_reported_as_the_limit(
+    limit_first: bool,
+) -> None:
+    """The group is reported as its limit, exactly as the bare limit would be."""
+    bare_message, bare_event = await _execute_grouped(_grouped_tool(_token_limit()))
+    assert bare_message.error is not None and bare_message.error.type == "limit"
+
+    def leaves() -> list[Exception]:
+        return _ordered([ToolError("retry"), _token_limit()], limit_first)
+
+    for _ in range(_GROUP_REPEATS):
+        message, event = await _execute_grouped(_grouped_tool(leaves))
+        assert message.error == bare_message.error
+        assert message.content == bare_message.content
+        assert event.error == bare_event.error
+
+
+async def test_native_group_of_expected_errors_replies_as_today() -> None:
+    """Identical expected leaves (the only case today's choice was stable) are unchanged."""
+    bare_message, bare_event = await _execute_grouped(_grouped_tool(ToolError("retry")))
+    assert bare_message.error == ToolCallError("unknown", "retry")
+
+    for _ in range(_GROUP_REPEATS):
+        message, event = await _execute_grouped(
+            _grouped_tool(lambda: [ToolError("retry"), ToolError("retry")])
+        )
+        assert message.error == bare_message.error
+        assert message.content == bare_message.content
+        assert event.error == bare_event.error
+        assert event.failed is None
+
+
+async def test_native_group_of_expected_errors_replies_with_the_first() -> None:
+    for _ in range(_GROUP_REPEATS):
+        message, _ = await _execute_grouped(
+            _grouped_tool(lambda: [ToolError("first"), ToolError("second")])
+        )
+        assert message.error == ToolCallError("unknown", "first")
+
+
+async def test_native_nested_group_with_fatal_leaf_fails_the_sample() -> None:
+    def leaves() -> list[Exception]:
+        return [
+            ExceptionGroup("a", [ToolError("retry")]),
+            ExceptionGroup("b", [_token_limit(), RuntimeError("fatal defect")]),
+        ]
+
+    for _ in range(_GROUP_REPEATS):
+        raised, _ = await _execute_grouped_raising(_grouped_tool(leaves))
+        assert isinstance(raised, RuntimeError)
+
+
+@pytest.mark.parametrize("terminate_first", [False, True])
+async def test_native_group_with_termination_terminates(terminate_first: bool) -> None:
+    def leaves() -> list[Exception]:
+        return _ordered(
+            [ToolError("retry"), RuntimeError("defect"), TerminateSampleError("stop")],
+            terminate_first,
+        )
+
+    for _ in range(_GROUP_REPEATS):
+        raised, _ = await _execute_grouped_raising(_grouped_tool(leaves))
+        assert isinstance(raised, TerminateSampleError)
+
+
+def _parallel_raiser() -> Tool:
+    """Raises once both of its parallel calls are running, so both fail together.
+
+    The wait is shielded: the first call to fail cancels its sibling, which
+    must still raise rather than be cancelled.
+    """
+    arrived: list[str] = []
+    both = anyio.Event()
+
+    async def execute(error: str) -> str:
+        """Raise an unexpected exception or a termination.
+
+        Args:
+            error: "terminate" or "defect".
+
+        Returns:
+            Never returns.
+        """
+        arrived.append(error)
+        if len(arrived) == 2:
+            both.set()
+        with anyio.CancelScope(shield=True):
+            await both.wait()
+        if error == "terminate":
+            raise TerminateSampleError("stop")
+        raise RuntimeError("defect")
+
+    return ToolDef(
+        execute,
+        name="parallel_raiser",
+        description="Raise.",
+        parallel=True,
+        parameters=ToolParams(
+            properties={"error": ToolParam(type="string", description="Kind.")},
+            required=["error"],
+        ),
+    ).as_tool()
+
+
+@pytest.mark.parametrize("terminate_first", [False, True])
+async def test_native_parallel_calls_keep_a_termination(terminate_first: bool) -> None:
+    """Parallel calls failing together form a group; a termination still wins."""
+    errors = ["terminate", "defect"] if terminate_first else ["defect", "terminate"]
+    for _ in range(_GROUP_REPEATS):
+        init_transcript(Transcript())
+        tool_def = _parallel_raiser()
+        calls = [
+            ToolCall(id=f"call-{i}", function="parallel_raiser", arguments={"error": e})
+            for i, e in enumerate(errors)
+        ]
+        with anyio.fail_after(10), pytest.raises(BaseException) as excinfo:
+            await execute_tools(
+                [ChatMessageAssistant(content=[], tool_calls=calls)], [tool_def]
+            )
+        assert isinstance(excinfo.value, TerminateSampleError)

@@ -2,16 +2,27 @@ import base64
 import os
 import tempfile
 from contextvars import Token
+from pathlib import Path
+from typing import Any
+from unittest.mock import AsyncMock, patch
 
 import anyio
+import httpx
 import pytest
+from test_helpers.utils import no_network
 
 from inspect_ai._util.images import (
+    MediaKind,
+    UnresolvedMediaError,
     _get_resolver,
     _media_resolvers,
     file_as_data,
     file_as_data_uri,
+    inline_media_data,
+    inline_media_data_uri,
+    materialize_media,
     media_resolver,
+    provider_image_data_uri,
 )
 
 
@@ -229,6 +240,25 @@ class TestFileAsDataUri:
         uri = "data:text/plain;base64,aGVsbG8="
         assert await file_as_data_uri(uri) == uri
 
+    @pytest.mark.parametrize(
+        "uri",
+        [
+            "data:;base64,AAAA",
+            "data:application/octet-stream;base64,AAAA",
+            "data:binary/octet-stream;base64,AAAA",
+        ],
+    )
+    async def test_materialize_media_applies_hint_to_untyped_inline_data(
+        self, uri: str
+    ) -> None:
+        assert await materialize_media(uri, "application/pdf") == (
+            "data:application/pdf;base64,AAAA"
+        )
+
+    async def test_materialize_media_preserves_specific_inline_type(self) -> None:
+        uri = "data:text/plain;base64,AAAA"
+        assert await materialize_media(uri, "application/pdf") == uri
+
     async def test_data_scheme_not_matched(self) -> None:
         called = False
 
@@ -242,6 +272,257 @@ class TestFileAsDataUri:
             result = await file_as_data_uri(uri)
         assert not called
         assert result == uri
+
+    async def test_mime_type_hint_for_extensionless_file(self, tmp_path: Path) -> None:
+        path = tmp_path / "audio"
+        path.write_bytes(b"audio")
+
+        uri = await file_as_data_uri(str(path), mime_type="audio/mpeg")
+
+        assert uri.startswith("data:audio/mpeg;base64,")
+
+
+class TestFileAsDataHttp:
+    async def test_response_content_type_is_used(self) -> None:
+        request = httpx.Request("GET", "https://example.com/download")
+        response = httpx.Response(
+            200,
+            content=b"audio",
+            headers={"content-type": "audio/mpeg; charset=binary"},
+            request=request,
+        )
+
+        with patch.object(
+            httpx.AsyncClient,
+            "get",
+            new=AsyncMock(return_value=response),
+        ):
+            data, mime_type = await file_as_data(str(request.url))
+
+        assert data == b"audio"
+        assert mime_type == "audio/mpeg"
+
+    async def test_generic_content_type_falls_back_to_url(self) -> None:
+        request = httpx.Request("GET", "https://example.com/audio.mp3")
+        response = httpx.Response(
+            200,
+            content=b"audio",
+            headers={"content-type": "application/octet-stream"},
+            request=request,
+        )
+
+        with patch.object(
+            httpx.AsyncClient,
+            "get",
+            new=AsyncMock(return_value=response),
+        ):
+            _, mime_type = await file_as_data(str(request.url))
+
+        assert mime_type == "audio/mpeg"
+
+    async def test_generic_content_type_falls_back_to_hint(self) -> None:
+        request = httpx.Request("GET", "https://example.com/audio.bin")
+        response = httpx.Response(
+            200,
+            content=b"audio",
+            headers={"content-type": "application/octet-stream"},
+            request=request,
+        )
+
+        with patch.object(
+            httpx.AsyncClient,
+            "get",
+            new=AsyncMock(return_value=response),
+        ):
+            _, mime_type = await file_as_data(str(request.url), mime_type="audio/mpeg")
+
+        assert mime_type == "audio/mpeg"
+
+    async def test_redirect_is_followed(self) -> None:
+        requests: list[str] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            requests.append(str(request.url))
+            if request.url.path == "/media":
+                return httpx.Response(302, headers={"location": "/secret"})
+            return httpx.Response(200, content=b"secret")
+
+        client_type = httpx.AsyncClient
+
+        def client_factory(**kwargs: Any) -> httpx.AsyncClient:
+            # the fetch builds its client from the shared HTTP defaults, so
+            # take those kwargs as given and own only the transport
+            kwargs.pop("transport", None)
+            kwargs.pop("mounts", None)
+            return client_type(transport=httpx.MockTransport(handler), **kwargs)
+
+        with patch(
+            "inspect_ai._util.images.httpx.AsyncClient",
+            side_effect=client_factory,
+        ):
+            data, _ = await file_as_data("https://example.com/media")
+
+        assert data == b"secret"
+        assert requests == [
+            "https://example.com/media",
+            "https://example.com/secret",
+        ]
+
+    @pytest.mark.parametrize("status_code", [404, 500])
+    async def test_non_success_status_rejected(self, status_code: int) -> None:
+        request = httpx.Request("GET", "https://example.com/media")
+        response = httpx.Response(status_code, request=request)
+
+        with (
+            patch.object(
+                httpx.AsyncClient,
+                "get",
+                new=AsyncMock(return_value=response),
+            ),
+            pytest.raises(httpx.HTTPStatusError),
+        ):
+            await file_as_data(str(request.url))
+
+
+class TestFileAsDataSniffing:
+    @pytest.mark.parametrize(
+        ("data", "expected_mime_type"),
+        [
+            pytest.param(b"\x89PNG\r\n\x1a\n", "image/png", id="png"),
+            pytest.param(b"\xff\xd8\xff\xe0", "image/jpeg", id="jpeg"),
+            pytest.param(b"GIF87a", "image/gif", id="gif87a"),
+            pytest.param(b"GIF89a", "image/gif", id="gif89a"),
+            pytest.param(b"RIFF\x00\x00\x00\x00WEBP", "image/webp", id="webp"),
+            pytest.param(b"BM\x00\x00", "image/bmp", id="bmp"),
+            pytest.param(
+                b"unknown",
+                "application/octet-stream",
+                id="unknown",
+            ),
+        ],
+    )
+    async def test_extensionless_file(
+        self,
+        tmp_path: Path,
+        data: bytes,
+        expected_mime_type: str,
+    ) -> None:
+        path = tmp_path / "media"
+        path.write_bytes(data)
+
+        _, mime_type = await file_as_data(str(path))
+
+        assert mime_type == expected_mime_type
+
+
+class TestProviderImageDataUri:
+    def test_inline_image_is_returned_without_network_access(self) -> None:
+        image = "data:image/png;base64,iVBORw0KGgo="
+        with no_network() as (getaddrinfo, connect):
+            assert provider_image_data_uri(image) == image
+        getaddrinfo.assert_not_called()
+        connect.assert_not_called()
+
+    def test_mime_less_inline_image_is_sniffed(self) -> None:
+        image = "data:;base64,iVBORw0KGgo="
+
+        assert provider_image_data_uri(image) == "data:image/png;base64,iVBORw0KGgo="
+
+    @pytest.mark.parametrize(
+        ("image", "message"),
+        [
+            ("data:image/png;base64,not-valid!", "invalid base64"),
+            ("data:image/png;base64,bm90cG5n", "recognized raster image"),
+        ],
+    )
+    def test_invalid_inline_image_is_rejected(self, image: str, message: str) -> None:
+        with pytest.raises(ValueError, match=message):
+            provider_image_data_uri(image)
+
+    def test_oversized_inline_image_is_rejected(self) -> None:
+        image = "data:image/png;base64,iVBORw0KGgpY"
+        with (
+            patch("inspect_ai._util.images._PROVIDER_IMAGE_MAX_BYTES", 8),
+            pytest.raises(ValueError, match="20 MiB"),
+        ):
+            provider_image_data_uri(image)
+
+    @pytest.mark.parametrize(
+        "image",
+        [
+            "https://example.com/image.png",
+            "http://example.com/image.png",
+            "https://169.254.169.254/latest/meta-data",
+            "file:///etc/passwd",
+            "/tmp/image.png",
+        ],
+    )
+    def test_non_data_uri_is_rejected_without_network_access(self, image: str) -> None:
+        with (
+            no_network() as (getaddrinfo, connect),
+            pytest.raises(ValueError, match="image URLs are not downloaded"),
+        ):
+            provider_image_data_uri(image)
+        getaddrinfo.assert_not_called()
+        connect.assert_not_called()
+
+
+class TestInlineMedia:
+    def test_inline_media_data(self) -> None:
+        data, mime_type = inline_media_data("data:image/png;base64,aGVsbG8=", "image")
+        assert data == b"hello"
+        assert mime_type == "image/png"
+
+    def test_inline_media_data_uri(self) -> None:
+        uri = "data:application/pdf;base64,aGVsbG8="
+        assert inline_media_data_uri(uri, "document") == uri
+
+    def test_inline_media_data_uri_does_not_decode(self) -> None:
+        uri = "data:image/png;base64,aGVsbG8="
+        with patch("inspect_ai._util.images.base64.b64decode") as decode:
+            assert inline_media_data_uri(uri, "image") == uri
+        decode.assert_not_called()
+
+    def test_mime_less_image_is_sniffed(self) -> None:
+        uri = "data:;base64,iVBORw0KGgo="
+        assert inline_media_data_uri(uri, "image") == (
+            "data:image/png;base64,iVBORw0KGgo="
+        )
+
+    def test_mime_less_image_uses_compatibility_default(self) -> None:
+        assert inline_media_data_uri("data:;base64,PHN2Zy8+", "image") == (
+            "data:image/png;base64,PHN2Zy8+"
+        )
+
+    @pytest.mark.parametrize(
+        ("kind", "mime_type"),
+        [
+            pytest.param("audio", "audio/mpeg", id="audio"),
+            pytest.param("video", "video/quicktime", id="video"),
+            pytest.param("document", "application/pdf", id="document"),
+        ],
+    )
+    def test_mime_less_media_uses_hint(self, kind: MediaKind, mime_type: str) -> None:
+        assert (
+            inline_media_data_uri("data:;base64,AAAA", kind, mime_type_hint=mime_type)
+            == f"data:{mime_type};base64,AAAA"
+        )
+
+    def test_mime_less_non_image_without_hint_is_rejected(self) -> None:
+        with pytest.raises(ValueError, match="could not be inferred"):
+            inline_media_data_uri("data:;base64,AAAA", "audio")
+
+    def test_non_inline_media_rejected(self) -> None:
+        with pytest.raises(UnresolvedMediaError, match="materialized"):
+            inline_media_data_uri("/tmp/image.png", "image")
+
+    def test_mismatched_media_type_rejected(self) -> None:
+        with pytest.raises(ValueError, match="incompatible MIME type"):
+            inline_media_data_uri("data:text/plain;base64,aGVsbG8=", "image")
+
+    def test_invalid_base64_rejected(self) -> None:
+        with pytest.raises(ValueError, match="invalid base64"):
+            inline_media_data("data:image/png;base64,not-valid!", "image")
 
 
 class TestGetResolverWithoutContext:

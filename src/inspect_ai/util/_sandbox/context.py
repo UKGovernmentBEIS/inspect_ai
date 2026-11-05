@@ -10,12 +10,20 @@ from shortuuid import uuid
 from inspect_ai._util.constants import SANDBOX_SETUP_TIMEOUT
 from inspect_ai.util._sandbox.events import SandboxEnvironmentProxy
 
+from ._framework_operation import framework_sandbox_operation
+from ._privileged import (
+    IMAGE_PATH_VARIABLE,
+    image_path_lookup,
+    pinned_shell_command,
+    privileged_exec,
+)
 from .environment import (
     SampleCleanup,
     SampleInit,
     SandboxConnection,
     SandboxEnvironment,
     SandboxEnvironmentConfigType,
+    SandboxUnavailableError,
 )
 from .registry import registry_find_sandboxenv
 
@@ -42,7 +50,8 @@ def sandbox(name: str | None = None) -> SandboxEnvironment:
     """Get the SandboxEnvironment for the current sample.
 
     Args:
-      name (str | None): Optional sandbox environment name.
+      name (str | None): Optional sandbox environment name. None or "default"
+        selects the current default; any other name must match an environment.
 
     Return:
       SandboxEnvironment instance.
@@ -56,14 +65,14 @@ def sandbox(name: str | None = None) -> SandboxEnvironment:
     if not environments:
         raise raise_no_sandbox()
 
-    # For None, 'default', or a single environment only take the first environment
-    if name is None or name == "default" or len(environments) == 1:
+    if name is None or name == "default":
         return default_sandbox_environment(environments)
     else:
         environment = environments.get(name, None)
         if not environment:
             raise ValueError(
                 f"SandboxEnvironment '{name}' is not a recognized environment name."
+                f" Available environments: {', '.join(environments)}."
             )
         return environment
 
@@ -121,7 +130,7 @@ async def sandbox_with(
 async def _is_file_readable(environment: SandboxEnvironment, file: str) -> bool:
     # Lightweight check — avoids transferring file contents (Linux/macOS).
     try:
-        result = await environment.exec(["test", "-r", file])
+        result = await privileged_exec(environment, ["test", "-r", file], user=None)
         if result.success:
             return True
     except Exception:
@@ -131,7 +140,8 @@ async def _is_file_readable(environment: SandboxEnvironment, file: str) -> bool:
 
     # Fallback: read the file. Cross-platform but transfers full contents.
     try:
-        await environment.read_file(file, False)
+        with framework_sandbox_operation():
+            await environment.read_file(file, False)
         return True
     # allow exception types known to be raised from read_file
     except (
@@ -157,7 +167,14 @@ def sandbox_file_detector(file: str, on_path: bool = False) -> Detector:
     """
 
     async def detect_on_path(sandbox: SandboxEnvironment) -> bool:
-        return (await sandbox.exec(["which", file])).success
+        try:
+            result = await image_path_lookup(sandbox, file, user=None)
+            return result.success
+        except SandboxUnavailableError:
+            # Treat an unavailable sandbox as no match so discovery can continue
+            # with the remaining sandboxes. Suppress only SandboxUnavailableError;
+            # other exceptions retain their previous behavior.
+            return False
 
     async def detect_file(sandbox: SandboxEnvironment) -> bool:
         return await _is_file_readable(sandbox, file)
@@ -177,6 +194,9 @@ async def sandbox_with_injection(
             Each injectable is a (detector, injector) tuple.
         name: Optional sandbox environment name.
         target: Optional sandbox instance to inject into directly.
+            Without `name` or `target`, the sandbox of an active
+            `sandbox_identity()` scope, else the sandbox needing the fewest
+            injections.
 
     Returns:
         SandboxEnvironment instance that satisfies all injection requirements.
@@ -185,15 +205,22 @@ async def sandbox_with_injection(
         ProcessLookupError: If there are no sandboxes available.
         ValueError: If an invalid sandbox name is specified.
         RuntimeError: If injection fails.
+        SandboxIdentityError: If, without `name` or `target`, the current
+            sandbox context no longer lists the scope's sandbox.
     """
     if isinstance(injectables, tuple):
         injectables = [injectables]
+
+    from .identity import sandbox_identity_environment
 
     if target is not None:
         target_sandbox = target
     elif name:
         # Named sandbox: inject directly into the specified sandbox
         target_sandbox = sandbox(name)
+    elif (identity_sandbox := sandbox_identity_environment()) is not None:
+        # model-facing tools inside a sandbox_identity() scope use its sandbox
+        target_sandbox = identity_sandbox
     else:
         # Unnamed sandbox: find best candidate (fewest injections needed)
         target_sandbox, _ = await _get_injection_target(injectables)
@@ -217,8 +244,11 @@ async def sandbox_with_injection(
     return target_sandbox
 
 
-async def sandbox_connections() -> dict[str, SandboxConnection]:
-    environments = sandbox_environments_context_var.get(None)
+async def sandbox_connections(
+    environments: dict[str, SandboxEnvironment] | None = None,
+) -> dict[str, SandboxConnection]:
+    if environments is None:
+        environments = sandbox_environments_context_var.get(None)
     if environments:
         connections: dict[str, SandboxConnection] = {}
         for name, environment in environments.items():
@@ -273,12 +303,26 @@ async def init_sandbox_environments_sample(
         if setup:
             await setup_sandbox_environment(setup, environments)
 
+        from inspect_ai.tool._sandbox_tools_utils.sandbox import resolve_root_access
+
+        # after the trusted files and setup, before solver/agent execution begins
+        for environment in environments.values():
+            await resolve_root_access(environment)
+
         # return environments
         return environments
 
     except Exception as ex:
         environments = unproxy_environments(environments)
         await sample_cleanup(task_name, config, environments, True)
+        raise ex
+
+    except anyio.get_cancelled_exc_class() as ex:
+        # cancellation is not an Exception, and the caller only cleans up
+        # environments it was handed, which init never returns when cancelled
+        environments = unproxy_environments(environments)
+        with anyio.CancelScope(shield=True):
+            await sample_cleanup(task_name, config, environments, True)
         raise ex
 
 
@@ -339,18 +383,27 @@ async def setup_sandbox_environment(
     # execute and then remove setup script (don't retry it on timeout
     # in case it is not idempotent)
     try:
-        await env.exec(["chmod", "+x", setup_file], timeout=120)
+        await privileged_exec(env, ["chmod", "+x", setup_file], user=None, timeout=120)
         timeout = int(
             os.environ.get("INSPECT_SANDBOX_SETUP_TIMEOUT", SANDBOX_SETUP_TIMEOUT)
         )
+        # The launcher (`env`, whose execvp falls back to `sh` for a script with
+        # no shebang) resolves through the pinned PATH, but the setup script is the
+        # task author's and runs with the image's own PATH, as it always has. No
+        # `pinned_env` here: that would replace the inherited PATH before the
+        # shell could save it.
         result = await env.exec(
-            ["env", setup_file], timeout=timeout, timeout_retry=False
+            pinned_shell_command(
+                f'exec env "PATH=${IMAGE_PATH_VARIABLE}" "$1"', setup_file
+            ),
+            timeout=timeout,
+            timeout_retry=False,
         )
         if not result.success:
             raise RuntimeError(
                 f"Failed to execute setup script for sample: {result.stderr}"
             )
-        await env.exec(["rm", setup_file], timeout=120)
+        await privileged_exec(env, ["rm", setup_file], user=None, timeout=120)
     except TimeoutError:
         raise RuntimeError("Timed out executing setup command in sandbox")
 

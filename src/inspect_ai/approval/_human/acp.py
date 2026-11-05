@@ -43,7 +43,7 @@ even though the orchestration is asyncio.
 from __future__ import annotations
 
 from logging import getLogger
-from typing import TYPE_CHECKING, Any, Callable, Protocol, cast
+from typing import TYPE_CHECKING, Any, Callable, Literal, Protocol, cast
 
 import anyio
 from acp.schema import (
@@ -51,6 +51,7 @@ from acp.schema import (
     PermissionOptionKind,
     RequestPermissionRequest,
     RequestPermissionResponse,
+    ToolCallStatus,
     ToolCallUpdate,
 )
 
@@ -96,11 +97,10 @@ class _ApprovalRoutingSession(Protocol):
 # allow/reject color treatment); the actual decision routes via
 # ``optionId``. Mappings here are best-effort semantic neighbors —
 # ACP's kinds are binary allow/deny variants and Inspect's
-# ``terminate`` / ``escalate`` / ``modify`` don't have perfect ACP
-# counterparts.
+# ``terminate`` / ``escalate`` don't have perfect ACP counterparts.
+# ``modify`` has no entry: ``human_approver`` never offers it.
 _KIND_BY_DECISION: dict[ApprovalDecision, PermissionOptionKind] = {
     "approve": "allow_once",
-    "modify": "allow_once",  # "approve with modification"
     "reject": "reject_once",
     "terminate": "reject_always",  # strongest reject — also stops the eval
     "escalate": "reject_once",  # no real ACP equivalent
@@ -110,7 +110,6 @@ _KIND_BY_DECISION: dict[ApprovalDecision, PermissionOptionKind] = {
 # button text on the permission card.
 _LABEL_BY_DECISION: dict[ApprovalDecision, str] = {
     "approve": "Approve",
-    "modify": "Modify",
     "reject": "Reject",
     "terminate": "Terminate",
     "escalate": "Escalate",
@@ -269,7 +268,21 @@ def _build_request(
 ) -> RequestPermissionRequest:
     """Construct the ACP request body from Inspect's approval inputs.
 
-    The ``tool_call`` field carries the same rich-content shape we
+    The ``tool_call`` field is :func:`_tool_call_update`'s pending card.
+    """
+    return RequestPermissionRequest(
+        session_id=session_id,
+        tool_call=_tool_call_update(call, view, "pending"),
+        options=_options_from_choices(choices),
+    )
+
+
+def _tool_call_update(
+    call: ToolCall, view: ToolCallView, status: ToolCallStatus
+) -> ToolCallUpdate:
+    """The tool-call card an approval request shows, with ``status``.
+
+    The card carries the same rich-content shape we
     already send for live tools: a descriptive title (``bash ls -la``
     rather than just ``bash``), the tool's ``ToolCallView`` content
     as inline markdown, ``raw_input`` for the debug view. Reuses
@@ -359,10 +372,10 @@ def _build_request(
     if call_blocks:
         content_blocks.extend(call_blocks)
 
-    tool_call = ToolCallUpdate(
+    return ToolCallUpdate(
         tool_call_id=call.id,
         title=title,
-        status="pending",
+        status=status,
         raw_input=call.arguments,
         # ToolCallUpdate.content is typed as a union including
         # FileEditToolCallContent / TerminalToolCallContent; we
@@ -370,11 +383,6 @@ def _build_request(
         # wrapping the view's markdown). Cast widens for the schema
         # without changing runtime shape.
         content=cast(Any, content_blocks or None),
-    )
-    return RequestPermissionRequest(
-        session_id=session_id,
-        tool_call=tool_call,
-        options=_options_from_choices(choices),
     )
 
 
@@ -585,17 +593,56 @@ async def request_human_approval_via_acp(
             view=view,
             choices=choices,
         )
-        # Mark the sample as parked on a human approval so the ACP
-        # picker can surface a "pending" column. Ref-counted (not a
-        # single-slot save/restore) because `parallel=True` tool calls
-        # run concurrently within one sample, so two approvals can be
-        # in-flight at once; a single-slot restore on the first one to
-        # finish would clear the indicator while the second is still
-        # waiting. Decremented in `finally` so cancellation and
-        # exception paths can't leak a stuck counter.
-        sample._pending_approvals += 1
-        try:
-            return await _request_from_driver_with_fallback(session, request, choices)
-        finally:
-            sample._pending_approvals -= 1
+        # The sample is already marked as waiting on a person by
+        # `human_approver`, which wraps this dispatch and the panel / console
+        # fallbacks alike — the wait is a fact about the sample, not about
+        # which surface happens to serve it.
+        return await _request_from_driver_with_fallback(session, request, choices)
     return None
+
+
+def finish_approval_card(
+    call: ToolCall, view: ToolCallView, status: Literal["completed", "failed"]
+) -> None:
+    """Finish the card an approval request opened for a call that never runs.
+
+    A permission request opens a pending tool-call card on the client,
+    which the call's own tool events later complete. An approval about
+    something other than one tool call (a sentinel asking about a whole
+    assistant turn) has no such events, so without this the card stays
+    pending: cancellable, counted as work in flight, and marked failed
+    when the session ends.
+
+    The update goes to every attached client, and only the driver saw the
+    request, so it carries the card's title and content as the request did:
+    a client that never saw the card gets a complete one, not an empty one.
+
+    Gated as :func:`request_human_approval_via_acp` is, so it publishes
+    only when that function routed the request through ACP. Best-effort
+    like the rest of this shim: a failure is logged, never raised.
+    """
+    with acp_guard("ACP approval card completion raised; the card stays pending"):
+        from acp.helpers import session_notification, update_tool_call
+
+        from inspect_ai.agent._acp.server import acp_server_accepting_clients
+        from inspect_ai.log._samples import sample_active
+
+        if not acp_server_accepting_clients():
+            return
+        sample = sample_active()
+        if sample is None or sample.acp_transport is None:
+            return
+        session = sample.acp_transport
+        card = _tool_call_update(call, view, status)
+        session.publish(
+            session_notification(
+                session.session_id,
+                update_tool_call(
+                    tool_call_id=card.tool_call_id,
+                    title=card.title,
+                    status=card.status,
+                    raw_input=card.raw_input,
+                    content=card.content,
+                ),
+            )
+        )

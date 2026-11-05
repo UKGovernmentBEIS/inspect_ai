@@ -1,5 +1,5 @@
 from collections.abc import Iterator
-from typing import cast
+from typing import Any, cast
 
 import pytest
 
@@ -181,8 +181,21 @@ def test_bedrock_alias_uses_family_for_capabilities() -> None:
 
     assert api.is_claude()
     assert api.is_claude_4_7_or_later()
+    assert api.is_claude_4_6_or_later()
+    assert api.is_thinking_model()
     assert not api.is_nova()
     assert api.model_name == "custom-alias"
+
+
+def test_bedrock_alias_uses_family_for_thinking_detection() -> None:
+    set_model_info("custom-alias", ModelInfo(family="claude-3-5-sonnet-20241022"))
+    api = BedrockAPI.__new__(BedrockAPI)
+    api.model_name = "custom-alias"
+
+    assert api.is_claude()
+    assert api.is_claude_3_5()
+    assert not api.is_thinking_model()
+    assert not api.is_claude_4_6_or_later()
 
 
 def test_bedrock_alias_uses_family_for_default_max_tokens() -> None:
@@ -281,6 +294,11 @@ def test_openrouter_alias_uses_family_for_cache_capability() -> None:
 
 @pytest.mark.anyio
 async def test_openrouter_alias_uses_family_for_reasoning_replay() -> None:
+    """Reasoning replay keys off the resolved family, not the raw alias.
+
+    DeepSeek v4 is the family that requires `reasoning_content` on replay; the
+    behavior must fire for an alias that resolves to that family.
+    """
     from inspect_ai._util.content import ContentReasoning
     from inspect_ai.model._chat_message import ChatMessageAssistant
     from inspect_ai.model._providers.openrouter import (
@@ -288,18 +306,19 @@ async def test_openrouter_alias_uses_family_for_reasoning_replay() -> None:
     )
 
     signature = OPENROUTER_REASONING_DETAILS_SIGNATURE + (
-        '[{"type": "reasoning.encrypted", "data": "encrypted", "id": "tool_1"}]'
+        '[{"type": "reasoning.text", "text": "thinking", "format": "deepseek-v1"}]'
     )
     message = ChatMessageAssistant(
         content=[ContentReasoning(reasoning="thinking", signature=signature)]
     )
-    set_model_info("custom-alias", ModelInfo(family="google/gemini-3-pro-preview"))
+    set_model_info("custom-alias", ModelInfo(family="deepseek/deepseek-v4-pro"))
     api = OpenRouterAPI.__new__(OpenRouterAPI)
     api.model_name = "custom-alias"
     api.service = "OpenRouter"
 
     converted = await api.messages_to_openai([message])
-    assert "reasoning_details" not in converted[0]
+    payload: dict[str, Any] = dict(converted[0])
+    assert payload["reasoning_content"] == "thinking"
 
 
 def test_hf_handler_uses_family_for_parsing_and_alias_for_output(

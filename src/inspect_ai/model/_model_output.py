@@ -1,6 +1,6 @@
 import uuid
 from logging import Logger
-from typing import Any, Callable, Literal, Type, TypeVar
+from typing import Any, Callable, Literal, NamedTuple, Type, TypeVar
 
 from pydantic import BaseModel, Field, JsonValue, model_validator
 
@@ -9,6 +9,7 @@ from inspect_ai._util.logger import warn_once
 from inspect_ai.tool._tool_call import ToolCall
 
 from ._chat_message import ChatMessage, ChatMessageAssistant
+from ._model_data.model_data import ModelCost
 
 _T = TypeVar("_T", int, float)
 
@@ -69,6 +70,19 @@ class ModelUsage(BaseModel):
         )
 
 
+class ServedModelUsage(NamedTuple):
+    """Part of a call's usage and the model that served it, for pricing."""
+
+    model: str
+    """Model info name of the serving model (e.g. `"anthropic/claude-opus-4-8"`)."""
+
+    usage: ModelUsage
+    """Usage served by `model`."""
+
+    cost: ModelCost | None = None
+    """Cost data for `model`, when the provider has it (otherwise looked up by `model`)."""
+
+
 class ModelFallback(BaseModel):
     """A model fallback (request served by a different model than requested)."""
 
@@ -79,10 +93,11 @@ class ModelFallback(BaseModel):
     """Model that served the request after fallback."""
 
     count: int = Field(default=1)
-    """Number of generate calls served via this fallback.
+    """Number of requests served via this fallback.
 
-    Always 1 on a single `ModelOutput`; aggregated in the sample-level
-    `model_fallbacks` rollup.
+    Usually 1 on a single `ModelOutput`. An Anthropic generate call that
+    continues a `pause_turn` sends several requests and reports how many of
+    them fell back. Summed in the sample-level `model_fallbacks` rollup.
     """
 
     metadata: dict[str, Any] | None = Field(default=None)
@@ -269,7 +284,16 @@ class ModelOutput(BaseModel):
     """Model completion."""
 
     usage: ModelUsage | None = Field(default=None)
-    """Model token usage"""
+    """Token usage billed for this generate call, summed over every request it made."""
+
+    input_context_tokens: int | None = Field(default=None)
+    """Tokens the input occupied in the model's context window.
+
+    Counts the system prompt, tools and input messages, cached tokens included.
+    For a call that made several requests, this is the size of the request built
+    from the input, not a sum. None when not known (e.g. logs written before
+    this field existed); readers then use the input side of `usage`.
+    """
 
     fallback: ModelFallback | None = Field(default=None)
     """Model fallback that served this output (None if served by the requested model)."""
@@ -282,6 +306,9 @@ class ModelOutput(BaseModel):
 
     error: str | None = Field(default=None)
     """Error message in the case of content moderation refusals."""
+
+    response_id: str | None = Field(default=None)
+    """Provider id for the response (e.g. `resp_...`, `chatcmpl-...`, `msg_...`)."""
 
     @property
     def empty(self) -> bool:
@@ -304,6 +331,12 @@ class ModelOutput(BaseModel):
                 self.choices[0].message.text if len(self.choices) > 0 else ""
             )
         return self
+
+    def __setstate__(self, state: dict[Any, Any]) -> None:
+        super().__setstate__(state)
+        # pickles from before input_context_tokens existed (model cache
+        # entries) restore without the attribute, which would raise on access
+        self.__dict__.setdefault("input_context_tokens", None)
 
     @staticmethod
     def from_message(
@@ -436,3 +469,35 @@ def as_stop_reason(reason: str | None) -> StopReason:
             return reason
         case _:
             return "unknown"
+
+
+def usage_input_tokens(usage: ModelUsage | None) -> int | None:
+    """All input tokens of one request's usage: full rate, cache read and cache write."""
+    if usage is None:
+        return None
+    return (
+        usage.input_tokens
+        + (usage.input_tokens_cache_read or 0)
+        + (usage.input_tokens_cache_write or 0)
+    )
+
+
+def sum_usage(*usages: ModelUsage | None) -> ModelUsage | None:
+    """Sum the usage of several billed requests, skipping any without usage.
+
+    Returns `None` when no request reported usage.
+    """
+    reported = [usage for usage in usages if usage is not None]
+    if not reported:
+        return None
+    total = reported[0]
+    for usage in reported[1:]:
+        total = total + usage
+    return total
+
+
+def output_input_context_tokens(output: ModelOutput) -> int | None:
+    """The input's context size: `input_context_tokens`, else the input side of usage."""
+    if output.input_context_tokens is not None:
+        return output.input_context_tokens
+    return usage_input_tokens(output.usage)

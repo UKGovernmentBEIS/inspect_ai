@@ -41,7 +41,7 @@ attached, ``drain`` returns ``[]`` and ``scope`` never cancels.
 from __future__ import annotations
 
 import contextlib
-from typing import TYPE_CHECKING, Callable, Iterator, Sequence
+from typing import TYPE_CHECKING, Callable, Iterator, Literal, Sequence
 
 import anyio
 
@@ -51,13 +51,19 @@ from inspect_ai.model._chat_message import (
     ChatMessageTool,
     ChatMessageUser,
 )
-from inspect_ai.tool._tool_call import ToolCallError
+from inspect_ai.tool._tool_call import ToolCall, ToolCallError
 
 from .exceptions import AgentInterrupted
 from .items import Cancel, CancelReason, ChannelItem, UserMessage, coalesce
 
 if TYPE_CHECKING:
+    from inspect_ai.agent._agent import AgentState
+
+    from .gate import TurnGate
     from .ref import AgentRef
+
+
+TurnState = Literal["started", "ended", "cancelled"]
 
 
 _REPAIR_MESSAGE_FOR_REASON: dict[CancelReason, str] = {
@@ -128,6 +134,13 @@ class AgentChannel:
         # transport clears its ``interrupt_pending`` flag when a
         # pre-queued operator message is drained).
         self._on_drained: list[Callable[[list[ChannelItem]], None]] = []
+        # Producer-side observers fired when :meth:`turn_scope` enters
+        # ("started"), exits normally ("ended"), or exits via
+        # :exc:`AgentInterrupted` ("cancelled"). Producers register via
+        # :meth:`subscribe_turn_state` to learn the agent's working /
+        # idle boundary without inferring it from drains or scope
+        # presence.
+        self._on_turn_state: list[Callable[[TurnState], None]] = []
         # External-reach marker count. Producers that represent a
         # reachable external surface (e.g. an ACP socket server actually
         # accepting client connections) call ``mark_live`` to flip
@@ -137,6 +150,11 @@ class AgentChannel:
         # "an externally-reachable producer attached" — only the
         # latter motivates a consumer to enable interactive plumbing.
         self._live_count: int = 0
+        # Turn gate kept from the block that opened this channel (see
+        # ``gate.py``), and whether it rewrote the conversation at the last
+        # boundary (read and cleared by ``_take_rewritten``).
+        self._gate: TurnGate | None = None
+        self._rewritten: bool = False
 
     # ------------------------------------------------------------------
     # Producer-facing API (also exposed via AgentRef)
@@ -205,13 +223,26 @@ class AgentChannel:
         self._pending_interrupt = False
         with anyio.CancelScope() as cs:
             self._scope = cs
+            self._fire_turn_state("started")
             try:
                 yield
             finally:
                 self._scope = None
         if cs.cancelled_caught and self._pending_interrupt:
             self._pending_interrupt = False
+            self._fire_turn_state("cancelled")
             raise AgentInterrupted()
+        self._fire_turn_state("ended")
+
+    @property
+    def turn_active(self) -> bool:
+        """Whether the agent is currently inside :meth:`turn_scope`.
+
+        Consumers subscribe before reading this snapshot so a transition
+        cannot be missed between observing the current value and attaching
+        the transition callback.
+        """
+        return self._scope is not None
 
     def _drain(self) -> list[ChannelItem]:
         """Pop and return all currently-queued items (non-blocking).
@@ -266,6 +297,48 @@ class AgentChannel:
                 pass
 
         return _unsubscribe
+
+    def subscribe_turn_state(
+        self, callback: Callable[[TurnState], None]
+    ) -> Callable[[], None]:
+        """Register a callback fired on :meth:`turn_scope` transitions.
+
+        The callback receives ``"started"`` immediately after the
+        scope binds, ``"ended"`` on normal exit, and ``"cancelled"``
+        when the scope exits via :exc:`AgentInterrupted`. A
+        sample-level cancel (or any other exception) propagating out
+        of the scope fires nothing — the consumer's loop is unwinding
+        and the session-end signal is the producer's cue.
+
+        Same resilience contract as :meth:`subscribe_drained`:
+        callbacks run synchronously in the consumer's task and
+        exceptions are swallowed so a broken observer cannot stall
+        the agent loop. Returns an idempotent unsubscribe callable.
+
+        Producer use case: the ACP transport relays these transitions
+        as ``inspect/turn_state`` notifications so a client knows
+        exactly when the agent is working — ACP's ``session/prompt``
+        cannot carry that signal here because it returns immediately
+        (the channel decouples prompt delivery from turn execution).
+        """
+        self._on_turn_state.append(callback)
+
+        def _unsubscribe() -> None:
+            try:
+                self._on_turn_state.remove(callback)
+            except ValueError:
+                pass
+
+        return _unsubscribe
+
+    def _fire_turn_state(self, state: TurnState) -> None:
+        # Snapshot to tolerate unsubscribes that fire during iteration.
+        for cb in list(self._on_turn_state):
+            try:
+                cb(state)
+            except Exception:
+                # Same resilience contract as the drain observer fan-out.
+                pass
 
     def mark_live(self) -> Callable[[], None]:
         """Producer marker — call iff this producer has external reach.
@@ -346,18 +419,23 @@ class AgentChannel:
         ``reason`` selects the per-call error sentinel stamped on
         synthesized :class:`ToolCallError` instances. Defaults to
         ``"user_cancel"``.
+
+        Each repair's ``function`` is the name of the call it answers:
+        Bedrock refuses a tool result without one, and Google needs it
+        to match the call.
         """
-        repair_ids = _unanswered_tool_call_ids(messages)
-        if not repair_ids:
+        unanswered = _unanswered_tool_calls(messages)
+        if not unanswered:
             return []
         message_text = _REPAIR_MESSAGE_FOR_REASON[reason]
         return [
             ChatMessageTool(
-                tool_call_id=tool_call_id,
+                tool_call_id=call.id,
+                function=call.function,
                 content=message_text,
                 error=ToolCallError(type="cancelled", message=message_text),
             )
-            for tool_call_id in repair_ids
+            for call in unanswered
         ]
 
     # ------------------------------------------------------------------
@@ -365,7 +443,9 @@ class AgentChannel:
     # ------------------------------------------------------------------
 
     async def before_turn(
-        self, messages: Sequence[ChatMessage]
+        self,
+        messages: Sequence[ChatMessage],
+        state: AgentState | None = None,
     ) -> list[ChatMessageUser]:
         """Pending operator-supplied user messages for the start of a turn.
 
@@ -379,13 +459,33 @@ class AgentChannel:
         initial user message" gate — on every subsequent turn
         ``messages`` already has the prior user input so the call
         returns immediately.
+
+        Args:
+            messages: The loop's conversation.
+            state: The loop's own state, whose messages are ``messages``.
+                Optional; a runtime that runs the agent may read it at
+                the boundary.
         """
+        if self._gate is not None and await self._gate.before_turn(
+            self, messages, state
+        ):
+            self._rewritten = True
         items = self._drain()
         if not any(isinstance(it, UserMessage) for it in items) and not any(
             isinstance(m, ChatMessageUser) for m in messages
         ):
             items += await self._recv()
         return coalesce(items)
+
+    def _take_rewritten(self) -> bool:
+        """Whether the gate rewrote the conversation since the last call.
+
+        Clears the mark. A loop that keeps its own view of the conversation
+        (such as a compaction handler) rebuilds it when this is ``True``.
+        """
+        rewritten = self._rewritten
+        self._rewritten = False
+        return rewritten
 
     async def after_cancel(self, messages: Sequence[ChatMessage]) -> list[ChatMessage]:
         """Recovery messages after :exc:`AgentInterrupted` was caught.
@@ -414,11 +514,11 @@ class AgentChannel:
         return [*repair_msgs, *coalesce(items)]
 
 
-def _unanswered_tool_call_ids(messages: Sequence[ChatMessage]) -> list[str]:
-    """Return tool_call ids from the last assistant message that lack a result.
+def _unanswered_tool_calls(messages: Sequence[ChatMessage]) -> list[ToolCall]:
+    """Return tool calls from the last assistant message that lack a result.
 
     Scans ``messages`` backwards to find the last
-    :class:`ChatMessageAssistant`; collects every tool_call id from
+    :class:`ChatMessageAssistant`; collects every tool call from
     that message that does not have a matching
     :class:`ChatMessageTool` (by ``tool_call_id``) appearing later in
     the list.
@@ -438,4 +538,4 @@ def _unanswered_tool_call_ids(messages: Sequence[ChatMessage]) -> list[str]:
     for m in messages[last_assistant_idx + 1 :]:
         if isinstance(m, ChatMessageTool) and m.tool_call_id:
             answered.add(m.tool_call_id)
-    return [tc.id for tc in last_assistant.tool_calls if tc.id not in answered]
+    return [tc for tc in last_assistant.tool_calls if tc.id not in answered]

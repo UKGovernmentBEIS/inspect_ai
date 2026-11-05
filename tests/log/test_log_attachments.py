@@ -1,16 +1,282 @@
+import dataclasses
 import os
+from collections.abc import Callable
+from datetime import datetime, timezone
 
+import pytest
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_serializer
+
+from inspect_ai._util.constants import BASE_64_DATA_REMOVED
+from inspect_ai._util.content import (
+    Content,
+    ContentAudio,
+    ContentDocument,
+    ContentImage,
+    ContentText,
+    ContentVideo,
+)
+from inspect_ai._util.hash import mm3_hash
+from inspect_ai._util.json import JsonChange
+from inspect_ai.dataset._dataset import Sample
+from inspect_ai.event._event import Event
+from inspect_ai.event._info import InfoEvent
 from inspect_ai.event._model import ModelEvent
+from inspect_ai.event._sample_init import SampleInitEvent
+from inspect_ai.event._store import StoreEvent
+from inspect_ai.event._subtask import SubtaskEvent
+from inspect_ai.event._timeline import Timeline, TimelineEvent, TimelineSpan
+from inspect_ai.event._tool import ToolEvent
+from inspect_ai.log import EvalRetryError, EvalSample
+from inspect_ai.log import _condense as condense_module
 from inspect_ai.log._condense import (
     ATTACHMENT_PROTOCOL,
+    attachment_refs_from_object,
+    attachment_refs_from_value,
     condense_event,
     condense_sample,
     resolve_sample_attachments,
 )
-from inspect_ai.log._file import read_eval_log
-from inspect_ai.model._chat_message import ChatMessageUser
+from inspect_ai.log._file import read_eval_log, write_eval_log
+from inspect_ai.log._log import EvalConfig, EvalDataset, EvalLog, EvalSpec
+from inspect_ai.log._resolve import resolve_sample_events_data
+from inspect_ai.model._chat_message import (
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageTool,
+    ChatMessageUser,
+)
 from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.tool._tool import ToolResult
+from inspect_ai.tool._tool_call import ToolCall
+from inspect_ai.tool._tool_info import ToolInfo
+from inspect_ai.tool._tool_params import ToolParams
+
+
+def _refs_via_dump(event: Event) -> set[str]:
+    """Independent oracle: collect refs by recursing over the event's dump.
+
+    Deliberately not ``attachment_refs_from_value`` — that delegates to
+    ``attachment_refs_from_object``, so the parity assertions would compare
+    the object walker against itself. Kept naive on purpose (tuple/set are
+    defensive: ``mode="python"`` output is not strictly JSON).
+    """
+    refs: set[str] = set()
+
+    def collect(value: object) -> None:
+        if isinstance(value, str):
+            if value.startswith(ATTACHMENT_PROTOCOL):
+                refs.add(value.removeprefix(ATTACHMENT_PROTOCOL))
+        elif isinstance(value, dict):
+            for item in value.values():
+                collect(item)
+        elif isinstance(value, (list, tuple, set)):
+            for item in value:
+                collect(item)
+
+    collect(event.model_dump(mode="python"))
+    return refs
+
+
+def _model_event_with_refs_everywhere() -> ModelEvent:
+    return ModelEvent(
+        model="m",
+        input=[
+            ChatMessageUser(content="attachment://in-msg"),
+            ChatMessageAssistant(
+                content="plain text",
+                tool_calls=[
+                    ToolCall(
+                        id="tc1",
+                        function="fn",
+                        # ToolCall is a pydantic *dataclass*, not a BaseModel —
+                        # a BaseModel-only walker would miss this ref
+                        arguments={"arg": "attachment://tool-arg"},
+                    )
+                ],
+            ),
+        ],
+        tools=[
+            ToolInfo(
+                name="t",
+                description="attachment://tool-desc",
+                parameters=ToolParams(),
+            )
+        ],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        output=ModelOutput.from_content("m", "attachment://out-msg"),
+        call=ModelCall.create(
+            {"messages": [{"role": "user", "content": "attachment://call-req"}]},
+            {"content": "attachment://call-resp"},
+        ),
+    )
+
+
+def _extras_model_event() -> Event:
+    # extra="allow" models store extras in __pydantic_extra__, outside
+    # __dict__, and dumps include them (e.g. CheckpointEvent round-trips
+    # checkpoint-file extras)
+    class ExtraModel(BaseModel):
+        model_config = ConfigDict(extra="allow")
+
+        name: str
+
+    event = InfoEvent(data="ok")
+    event.metadata = {
+        "extra": ExtraModel.model_validate(
+            {"name": "n", "x_extra": "attachment://extra-ref"}
+        )
+    }
+    return event
+
+
+def _any_slot_live_message_event() -> Event:
+    # SubtaskEvent.result is Any and receives raw (un-jsonable-ized) values
+    event = SubtaskEvent(name="sub", input={})
+    event.result = {"m": ChatMessageUser(content="attachment://sub-msg")}
+    return event
+
+
+def _slots_dataclass_event() -> Event:
+    # @dataclass(slots=True) has no __dict__; vars() would raise TypeError.
+    # Reachable via SubtaskEvent.result (raw return values) and metadata.
+    @dataclasses.dataclass(slots=True)
+    class SlottedResult:
+        note: str
+
+    event = SubtaskEvent(name="sub", input={})
+    event.result = SlottedResult(note="attachment://slot-ref")
+    return event
+
+
+@pytest.mark.parametrize(
+    ("event_factory", "expected_refs"),
+    [
+        (
+            _model_event_with_refs_everywhere,
+            {
+                "in-msg",
+                "tool-arg",
+                "tool-desc",
+                "out-msg",
+                "call-req",
+                "call-resp",
+            },
+        ),
+        (
+            lambda: InfoEvent(data={"k": "attachment://info-ref"}),
+            {"info-ref"},
+        ),
+        (
+            lambda: StoreEvent(
+                changes=[
+                    JsonChange(op="replace", path="/k", value="attachment://store-ref")
+                ]
+            ),
+            {"store-ref"},
+        ),
+        (
+            lambda: SampleInitEvent(
+                sample=Sample(
+                    input=[ChatMessageUser(content="attachment://sample-msg")]
+                ),
+                state={"s": "attachment://state-ref"},
+            ),
+            {"sample-msg", "state-ref"},
+        ),
+        (_extras_model_event, {"extra-ref"}),
+        (_any_slot_live_message_event, {"sub-msg"}),
+        (_slots_dataclass_event, {"slot-ref"}),
+    ],
+    ids=[
+        "model-event-refs-everywhere",
+        "info-event",
+        "store-event",
+        "sample-init-event",
+        "extras-model",
+        "any-slot-live-message",
+        "slots-dataclass",
+    ],
+)
+def test_attachment_refs_from_object_parity(
+    event_factory: Callable[[], Event], expected_refs: set[str]
+) -> None:
+    event = event_factory()
+    refs = attachment_refs_from_object(event)
+    assert refs == expected_refs
+    assert refs == _refs_via_dump(event)
+
+
+def test_attachment_refs_from_object_terminates_on_cycle() -> None:
+    # the recursive scan this walker replaced raised RecursionError on a
+    # cyclic metadata value (pydantic embeds the original cyclic object in
+    # the dump); the object scanner must terminate and collect the ref
+    cyc: dict[str, object] = {"ref": "attachment://cyc-ref"}
+    cyc["self"] = cyc
+    event = InfoEvent(data="ok")
+    event.metadata = {"cyc": cyc}
+    assert attachment_refs_from_object(event) == {"cyc-ref"}
+
+
+def test_attachment_refs_from_object_terminates_on_list_cycle() -> None:
+    # a self-referencing list would loop forever (not RecursionError) if the
+    # list branch lost its visited-set guard
+    cyc: list[object] = ["attachment://list-cyc"]
+    cyc.append(cyc)
+    event = InfoEvent(data="ok")
+    event.metadata = {"cyc": cyc}
+    assert attachment_refs_from_object(event) == {"list-cyc"}
+
+
+@dataclasses.dataclass
+class _RefDataclass:
+    ref: str
+
+
+class _RefModel(BaseModel):
+    ref: str
+
+
+@pytest.mark.parametrize(
+    "make_container",
+    [
+        lambda ref: {"ref": ref},
+        lambda ref: [ref],
+        lambda ref: _RefModel(ref=ref),
+        lambda ref: _RefDataclass(ref=ref),
+    ],
+    ids=["dict", "list", "basemodel", "dataclass"],
+)
+def test_attachment_refs_from_object_shared_subtree(
+    make_container: Callable[[str], object],
+) -> None:
+    shared = make_container("attachment://shared-ref")
+    event = InfoEvent(data="ok")
+    event.metadata = {"a": shared, "b": shared}
+    assert attachment_refs_from_object(event) == {"shared-ref"}
+
+
+def test_attachment_refs_from_object_dict_keys_not_scanned() -> None:
+    # parity: attachment_refs_from_value scans dict values only
+    event = InfoEvent(data="ok")
+    event.metadata = {"attachment://key-ref": "plain"}
+    assert attachment_refs_from_object(event) == set()
+    assert attachment_refs_from_object(event) == _refs_via_dump(event)
+
+
+def test_attachment_refs_from_object_plain_object_stays_opaque() -> None:
+    """Arbitrary non-model objects are left opaque, exactly as the dump leaves them."""
+
+    class PlainObject:
+        def __init__(self) -> None:
+            self.ref = "attachment://opaque-ref"
+
+    event = InfoEvent(data="ok")
+    event.metadata = {"o": PlainObject()}
+    assert attachment_refs_from_object(event) == set()
+    assert attachment_refs_from_object(event) == _refs_via_dump(event)
 
 
 def test_log_attachments_condense():
@@ -43,6 +309,151 @@ def test_log_attachments_migration():
 
     # also confirm that we've preserved (now deprecated) transcript
     assert len(log.samples[0].transcript.events) > 0
+
+
+def test_retry_event_attachments_round_trip() -> None:
+    image_data_uri = "data:image/png;base64," + ("A" * 120)
+    event = ModelEvent(
+        model="test-model",
+        input=[
+            ChatMessageUser(content=[ContentImage(image=image_data_uri)]),
+        ],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        output=ModelOutput.from_content("test-model", "response"),
+    )
+    sample = EvalSample(
+        id="sample",
+        epoch=1,
+        input="input",
+        target="target",
+        error_retries=[
+            EvalRetryError(
+                message="retry",
+                traceback="",
+                traceback_ansi="",
+                events=[event],
+            )
+        ],
+    )
+
+    condensed = condense_sample(sample, log_images=True)
+    assert condensed.error_retries is not None
+    condensed_events = condensed.error_retries[0].events
+    assert condensed_events is not None
+    condensed_event = condensed_events[0]
+    assert isinstance(condensed_event, ModelEvent)
+    condensed_content = condensed_event.input[0].content
+    assert isinstance(condensed_content, list)
+    condensed_image = condensed_content[0]
+    assert isinstance(condensed_image, ContentImage)
+    assert condensed_image.image.startswith(ATTACHMENT_PROTOCOL)
+
+    resolved = resolve_sample_attachments(condensed, "full")
+    assert resolved.error_retries is not None
+    resolved_events = resolved.error_retries[0].events
+    assert resolved_events is not None
+    resolved_event = resolved_events[0]
+    assert isinstance(resolved_event, ModelEvent)
+    resolved_content = resolved_event.input[0].content
+    assert isinstance(resolved_content, list)
+    resolved_image = resolved_content[0]
+    assert isinstance(resolved_image, ContentImage)
+    assert resolved_image.image == image_data_uri
+
+
+def test_recondense_without_images_removes_existing_media_attachments() -> None:
+    image_data_uri = "data:image/png;base64," + ("A" * 120)
+    message = ChatMessageUser(content=[ContentImage(image=image_data_uri)])
+    event = ModelEvent(
+        model="test-model",
+        input=[message],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        output=ModelOutput.from_content("test-model", "response"),
+    )
+    sample = EvalSample(
+        id="sample",
+        epoch=1,
+        input=[message],
+        target="target",
+        messages=[message],
+        events=[event],
+        error_retries=[
+            EvalRetryError(
+                message="retry",
+                traceback="",
+                traceback_ansi="",
+                events=[event],
+            )
+        ],
+    )
+
+    with_images = condense_sample(sample, log_images=True)
+    assert image_data_uri in with_images.attachments.values()
+
+    without_images = condense_sample(with_images, log_images=False)
+    serialized = without_images.model_dump_json()
+    assert image_data_uri not in serialized
+    assert image_data_uri not in without_images.attachments.values()
+    assert BASE_64_DATA_REMOVED in serialized
+
+
+def test_recondense_preserves_attachment_shared_by_messages_and_events() -> None:
+    long_text = "shared attachment content " * 8
+    attachment_hash = mm3_hash(long_text)
+    attachment_ref = f"{ATTACHMENT_PROTOCOL}{attachment_hash}"
+    message = ChatMessageUser(content=attachment_ref)
+    event = ModelEvent(
+        model="test-model",
+        input=[message],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        output=ModelOutput.from_content("test-model", "response"),
+    )
+    sample = EvalSample(
+        id="sample",
+        epoch=1,
+        input="input",
+        target="target",
+        messages=[message],
+        events=[event],
+        attachments={attachment_hash: long_text},
+    )
+
+    condensed = condense_sample(sample)
+    referenced = attachment_refs_from_value(
+        condensed.model_dump(mode="python", exclude={"attachments"})
+    )
+
+    assert condensed.messages[0].content == long_text
+    assert attachment_hash in referenced
+    assert referenced <= set(condensed.attachments)
+
+    resolved = resolve_sample_attachments(condensed, "full")
+    assert resolved.events is not None
+    resolved_event = next(
+        event for event in resolved.events if isinstance(event, ModelEvent)
+    )
+    assert resolved_event.input[0].content == long_text
+
+
+def test_recondense_preserves_unreferenced_existing_attachment() -> None:
+    orphan_hash = mm3_hash("legacy attachment")
+    sample = EvalSample(
+        id="sample",
+        epoch=1,
+        input="input",
+        target="target",
+        attachments={orphan_hash: "legacy attachment"},
+    )
+
+    condensed = condense_sample(sample)
+
+    assert condensed.attachments == {orphan_hash: "legacy attachment"}
 
 
 # def test_transcript_incremental_condense():
@@ -232,6 +643,600 @@ def test_condense_event_function() -> None:
     attachment_hash = condensed_content.replace(ATTACHMENT_PROTOCOL, "")
     assert attachment_hash in attachments
     assert attachments[attachment_hash] == long_text
+
+
+_TOOL_RESULT_IMAGE = "data:image/png;base64," + ("B" * 120)
+_TOOL_RESULT_TEXT = "tool text"
+
+
+def _sample_with_tool_result(result: ToolResult) -> EvalSample:
+    """A sample whose only tool call returned ``result``.
+
+    The tool message and the tool event carry the same result, as they do
+    in a recorded eval, so a test can check that both copies follow the
+    image logging policy.
+    """
+    content: str | list[Content]
+    if isinstance(result, list):
+        content = list(result)
+    elif isinstance(result, str | int | float | bool):
+        content = str(result)
+    else:
+        content = [result]
+    tool_message = ChatMessageTool(content=content, tool_call_id="call", function="fn")
+    event = ToolEvent(
+        id="call",
+        function="fn",
+        arguments={},
+        result=result,
+        timestamp=datetime.now(timezone.utc),
+        message_id=tool_message.id,
+    )
+    return EvalSample(
+        id="sample",
+        epoch=1,
+        input="input",
+        target="target",
+        messages=[ChatMessageUser(content="hello"), tool_message],
+        events=[event],
+    )
+
+
+def _tool_event(sample: EvalSample) -> ToolEvent:
+    tool_events = [event for event in sample.events if isinstance(event, ToolEvent)]
+    assert len(tool_events) == 1
+    return tool_events[0]
+
+
+def _tool_message_image(sample: EvalSample) -> str:
+    message = sample.messages[1]
+    assert isinstance(message, ChatMessageTool)
+    assert isinstance(message.content, list)
+    image = message.content[1]
+    assert isinstance(image, ContentImage)
+    return image.image
+
+
+def test_tool_event_result_image_becomes_attachment() -> None:
+    sample = _sample_with_tool_result(
+        [ContentText(text=_TOOL_RESULT_TEXT), ContentImage(image=_TOOL_RESULT_IMAGE)]
+    )
+
+    condensed = condense_sample(sample, log_images=True)
+    result = _tool_event(condensed).result
+    assert isinstance(result, list)
+    text, image = result
+    assert isinstance(text, ContentText)
+    assert text.text == _TOOL_RESULT_TEXT
+    assert isinstance(image, ContentImage)
+    assert image.image.startswith(ATTACHMENT_PROTOCOL)
+    # the event and the tool message share one attachment
+    assert image.image == _tool_message_image(condensed)
+    assert condensed.attachments[image.image.removeprefix(ATTACHMENT_PROTOCOL)] == (
+        _TOOL_RESULT_IMAGE
+    )
+
+    resolved = resolve_sample_attachments(condensed, "full")
+    result = _tool_event(resolved).result
+    assert isinstance(result, list)
+    text, image = result
+    assert isinstance(text, ContentText)
+    assert text.text == _TOOL_RESULT_TEXT
+    assert isinstance(image, ContentImage)
+    assert image.image == _TOOL_RESULT_IMAGE
+    assert _tool_message_image(resolved) == _TOOL_RESULT_IMAGE
+
+
+def test_tool_event_result_image_removed_without_log_images() -> None:
+    sample = _sample_with_tool_result(
+        [ContentText(text=_TOOL_RESULT_TEXT), ContentImage(image=_TOOL_RESULT_IMAGE)]
+    )
+
+    condensed = condense_sample(sample, log_images=False)
+    result = _tool_event(condensed).result
+    assert isinstance(result, list)
+    text, image = result
+    assert isinstance(text, ContentText)
+    assert text.text == _TOOL_RESULT_TEXT
+    assert isinstance(image, ContentImage)
+    assert image.image == BASE_64_DATA_REMOVED
+    assert _tool_message_image(condensed) == BASE_64_DATA_REMOVED
+    assert _TOOL_RESULT_IMAGE not in condensed.attachments.values()
+
+
+@pytest.mark.parametrize("log_images", [True, False])
+def test_tool_event_single_content_result_follows_log_images(
+    log_images: bool,
+) -> None:
+    sample = _sample_with_tool_result(ContentImage(image=_TOOL_RESULT_IMAGE))
+
+    condensed = condense_sample(sample, log_images=log_images)
+    image = _tool_event(condensed).result
+    assert isinstance(image, ContentImage)
+    if log_images:
+        assert image.image.startswith(ATTACHMENT_PROTOCOL)
+        resolved = _tool_event(resolve_sample_attachments(condensed, "full")).result
+        assert isinstance(resolved, ContentImage)
+        assert resolved.image == _TOOL_RESULT_IMAGE
+    else:
+        assert image.image == BASE_64_DATA_REMOVED
+
+
+@pytest.mark.parametrize("log_images", [True, False])
+def test_tool_event_long_text_result_stays_inline(log_images: bool) -> None:
+    long_text = "tool output " * 20
+    assert len(long_text) > 100
+    sample = _sample_with_tool_result(long_text)
+
+    condensed = condense_sample(sample, log_images=log_images)
+    assert _tool_event(condensed).result == long_text
+    assert long_text not in condensed.attachments.values()
+
+
+def _eval_log(sample: EvalSample) -> EvalLog:
+    return EvalLog(
+        eval=EvalSpec(
+            created=datetime.now(timezone.utc).isoformat(),
+            task="test_task",
+            model="mockllm/model",
+            dataset=EvalDataset(name="test", samples=1),
+            config=EvalConfig(),
+        ),
+        samples=[sample],
+    )
+
+
+def test_tool_event_result_image_round_trips_through_eval_log(tmp_path: str) -> None:
+    sample = _sample_with_tool_result(
+        [ContentText(text=_TOOL_RESULT_TEXT), ContentImage(image=_TOOL_RESULT_IMAGE)]
+    )
+    log_file = os.path.join(tmp_path, "tool_result.eval")
+    write_eval_log(_eval_log(sample), log_file)
+
+    # the persisted form holds the image once, as an attachment
+    stored = read_eval_log(log_file, resolve_attachments=False)
+    assert stored.samples
+    result = _tool_event(stored.samples[0]).result
+    assert isinstance(result, list)
+    image = result[1]
+    assert isinstance(image, ContentImage)
+    assert image.image.startswith(ATTACHMENT_PROTOCOL)
+    assert image.image == _tool_message_image(stored.samples[0])
+    assert list(stored.samples[0].attachments.values()) == [_TOOL_RESULT_IMAGE]
+
+    # and reading with attachments resolved restores it byte-identically
+    resolved = read_eval_log(log_file, resolve_attachments="full")
+    assert resolved.samples
+    result = _tool_event(resolved.samples[0]).result
+    assert isinstance(result, list)
+    text, image = result
+    assert isinstance(text, ContentText)
+    assert text.text == _TOOL_RESULT_TEXT
+    assert isinstance(image, ContentImage)
+    assert image.image == _TOOL_RESULT_IMAGE
+
+
+# a 1x1 GIF: a valid data URI shorter than the event text-pooling threshold
+_MEDIA_KINDS = ["image", "audio", "video", "document"]
+
+
+def _media(kind: str, source: str) -> Content:
+    if kind == "image":
+        return ContentImage(image=source)
+    elif kind == "audio":
+        return ContentAudio(audio=source, format="mp3")
+    elif kind == "video":
+        return ContentVideo(video=source, format="mp4")
+    else:
+        return ContentDocument(document=source, filename="report.pdf")
+
+
+def _media_source(content: object) -> str:
+    if isinstance(content, ContentImage):
+        return content.image
+    elif isinstance(content, ContentAudio):
+        return content.audio
+    elif isinstance(content, ContentVideo):
+        return content.video
+    assert isinstance(content, ContentDocument)
+    return content.document
+
+
+_SHORT_IMAGE = (
+    "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
+)
+_URL_IMAGE = "https://example.org/" + ("x" * 120) + ".png"
+
+
+def _media_result(kind: str, source: str, as_list: bool) -> ToolResult:
+    media = _media(kind, source)
+    assert isinstance(
+        media, ContentImage | ContentAudio | ContentVideo | ContentDocument
+    )
+    return [ContentText(text=_TOOL_RESULT_TEXT), media] if as_list else media
+
+
+def _result_media(result: ToolResult) -> str:
+    return _media_source(result[-1] if isinstance(result, list) else result)
+
+
+@pytest.mark.parametrize("log_images", [True, False])
+@pytest.mark.parametrize("as_list", [True, False])
+@pytest.mark.parametrize("kind", _MEDIA_KINDS)
+def test_tool_event_short_data_uri_result_follows_message_policy(
+    kind: str, log_images: bool, as_list: bool
+) -> None:
+    # message media policy: every data URI is pooled or removed, whatever its
+    # length; the event text policy would leave this one inline
+    assert len(_SHORT_IMAGE) <= 100
+    sample = _sample_with_tool_result(_media_result(kind, _SHORT_IMAGE, as_list))
+
+    condensed = condense_sample(sample, log_images=log_images)
+    source = _result_media(_tool_event(condensed).result)
+    message = condensed.messages[1]
+    assert isinstance(message, ChatMessageTool)
+    assert isinstance(message.content, list)
+    assert source == _media_source(message.content[-1])
+    if log_images:
+        assert source.startswith(ATTACHMENT_PROTOCOL)
+        resolved = resolve_sample_attachments(condensed, "full")
+        assert _result_media(_tool_event(resolved).result) == _SHORT_IMAGE
+    else:
+        assert source == BASE_64_DATA_REMOVED
+
+
+@pytest.mark.parametrize("log_images", [True, False])
+@pytest.mark.parametrize("as_list", [True, False])
+@pytest.mark.parametrize("kind", _MEDIA_KINDS)
+def test_tool_event_url_result_stays_inline(
+    kind: str, log_images: bool, as_list: bool
+) -> None:
+    # message media policy: a URL is not a data URI, so it stays inline
+    # whatever its length; the event text policy would pool it
+    assert len(_URL_IMAGE) > 100
+    sample = _sample_with_tool_result(_media_result(kind, _URL_IMAGE, as_list))
+
+    condensed = condense_sample(sample, log_images=log_images)
+    assert _result_media(_tool_event(condensed).result) == _URL_IMAGE
+    assert _URL_IMAGE not in condensed.attachments.values()
+
+
+def test_condense_event_tool_result_follows_message_policy() -> None:
+    # condense_event (transcript store, log recovery) pools the event's text
+    # under the event policy and its result media under the message policy
+    attachments: dict[str, str] = {}
+    long_argument = "z" * 200
+    event = ToolEvent(
+        id="call",
+        function="fn",
+        arguments={"path": long_argument},
+        result=[ContentText(text=_TOOL_RESULT_TEXT), ContentImage(image=_SHORT_IMAGE)],
+        timestamp=datetime.now(timezone.utc),
+    )
+
+    condensed = condense_event(event, attachments, log_images=True)
+    assert isinstance(condensed, ToolEvent)
+    argument = condensed.arguments["path"]
+    assert isinstance(argument, str)
+    assert argument.startswith(ATTACHMENT_PROTOCOL)
+    image = _result_media(condensed.result)
+    assert image.startswith(ATTACHMENT_PROTOCOL)
+    assert attachments[image.removeprefix(ATTACHMENT_PROTOCOL)] == _SHORT_IMAGE
+    assert set(attachments.values()) == {long_argument, _SHORT_IMAGE}
+
+    removed = condense_event(event, {}, log_images=False)
+    assert isinstance(removed, ToolEvent)
+    assert _result_media(removed.result) == BASE_64_DATA_REMOVED
+
+
+@pytest.mark.parametrize("container", ["tool", "subtask"])
+def test_nested_tool_event_result_stays_inline_through_eval_log(
+    container: str, tmp_path: str
+) -> None:
+    # deprecated nested events reload as dicts that the attachment walk skips,
+    # so a nested result image must stay inline or it could not be resolved
+    nested = ToolEvent(
+        id="nested",
+        function="nested_fn",
+        arguments={},
+        result=[
+            ContentText(text=_TOOL_RESULT_TEXT),
+            ContentImage(image=_TOOL_RESULT_IMAGE),
+        ],
+        timestamp=datetime.now(timezone.utc),
+    )
+    parent: Event
+    if container == "tool":
+        parent = ToolEvent(
+            id="parent",
+            function="fn",
+            arguments={},
+            events=[nested],
+            timestamp=datetime.now(timezone.utc),
+        )
+    else:
+        parent = SubtaskEvent(
+            name="sub", input={}, events=[nested], timestamp=datetime.now(timezone.utc)
+        )
+    sample = EvalSample(
+        id="sample",
+        epoch=1,
+        input="input",
+        target="target",
+        messages=[ChatMessageUser(content="hello")],
+        events=[parent],
+    )
+
+    condensed = condense_sample(sample, log_images=True)
+    parent_condensed = condensed.events[0]
+    assert isinstance(parent_condensed, ToolEvent | SubtaskEvent)
+    nested_condensed = parent_condensed.events[0]
+    assert isinstance(nested_condensed, ToolEvent)
+    assert _result_media(nested_condensed.result) == _TOOL_RESULT_IMAGE
+    assert _TOOL_RESULT_IMAGE not in condensed.attachments.values()
+
+    log_file = os.path.join(tmp_path, "nested.eval")
+    write_eval_log(_eval_log(sample), log_file)
+    resolved = read_eval_log(log_file, resolve_attachments="full")
+    assert resolved.samples
+    parent_read = resolved.samples[0].events[0]
+    assert isinstance(parent_read, ToolEvent | SubtaskEvent)
+    nested_read = parent_read.events[0]
+    assert isinstance(nested_read, dict)
+    assert nested_read["result"][1]["image"] == _TOOL_RESULT_IMAGE
+    assert resolved.samples[0].attachments == {}
+    assert ATTACHMENT_PROTOCOL not in resolved.model_dump_json()
+
+
+def _sample_with_model_call_payload(payload: str) -> EvalSample:
+    event = ModelEvent(
+        model="test-model",
+        input=[ChatMessageUser(content="hello")],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        output=ModelOutput.from_content("test-model", "response"),
+        call=ModelCall(request={"system": payload}, response={"ok": True}),
+    )
+    return EvalSample(
+        id="sample",
+        epoch=1,
+        input="input",
+        target="target",
+        messages=[ChatMessageUser(content="hello")],
+        events=[event],
+    )
+
+
+def test_resolve_core_retains_attachments_still_referenced_by_model_call() -> None:
+    payload = "model-call-payload-" + ("q" * 200)
+    condensed = condense_sample(_sample_with_model_call_payload(payload))
+    assert payload in condensed.attachments.values()
+
+    resolved = resolve_sample_attachments(condensed, "core")
+
+    # "core" leaves ModelEvent.call condensed, so its refs survive. Every
+    # surviving ref must still resolve against the retained attachments.
+    refs = attachment_refs_from_value(
+        resolved.model_dump(mode="python", exclude={"attachments"})
+    )
+    assert refs
+    assert refs <= set(resolved.attachments)
+    assert payload in resolved.attachments.values()
+
+
+def test_resolve_full_clears_attachments() -> None:
+    payload = "model-call-payload-" + ("q" * 200)
+    condensed = condense_sample(_sample_with_model_call_payload(payload))
+
+    resolved = resolve_sample_attachments(condensed, "full")
+
+    # "full" resolves every reference inline, so nothing points at the map.
+    assert len(resolved.attachments) == 0
+    assert ATTACHMENT_PROTOCOL not in resolved.model_dump_json()
+
+
+def test_resolve_core_ignores_refs_held_by_timeline_events() -> None:
+    call_payload = "model-call-payload-" + ("q" * 200)
+    output_text = "model-output-" + ("o" * 200)
+    sample = _sample_with_model_call_payload(call_payload)
+    event = sample.events[0]
+    assert isinstance(event, ModelEvent)
+    event.output = ModelOutput.from_content("test-model", output_text)
+    condensed = condense_sample(sample)
+    assert output_text in condensed.attachments.values()
+    # timelines are rebound only after resolution, so while resolving they
+    # still hold the condensed events (whose output is an attachment ref)
+    condensed.timelines = [
+        Timeline(
+            name="t",
+            description="",
+            root=TimelineSpan(
+                id="root",
+                name="root",
+                span_type="agent",
+                content=[TimelineEvent(event=e) for e in condensed.events],
+            ),
+        )
+    ]
+
+    resolved = resolve_sample_attachments(condensed, "core")
+
+    assert list(resolved.attachments.values()) == [call_payload]
+
+
+def test_resolve_full_expanded_shared_call_messages() -> None:
+    long_text = "shared-call-message-" + ("m" * 200)
+    shared: dict[str, JsonValue] = {"role": "user", "content": long_text}
+    reply: dict[str, JsonValue] = {"role": "assistant", "content": "hi"}
+    requests: list[list[JsonValue]] = [[shared], [shared, reply]]
+    events: list[Event] = [
+        ModelEvent(
+            model="test-model",
+            input=[],
+            tools=[],
+            tool_choice="auto",
+            config=GenerateConfig(),
+            output=ModelOutput(),
+            call=ModelCall(request={"messages": msgs}, response={"ok": True}),
+        )
+        for msgs in requests
+    ]
+    sample = EvalSample(
+        id="sample", epoch=1, input="input", target="target", events=events
+    )
+    # pool refs expanded before resolving, as recorder read_log does
+    expanded = resolve_sample_events_data(condense_sample(sample))
+
+    resolved = resolve_sample_attachments(expanded, "full")
+
+    msgs = [
+        e.call.request["messages"]
+        for e in resolved.events
+        if isinstance(e, ModelEvent) and e.call
+    ]
+    assert msgs == requests
+    assert ATTACHMENT_PROTOCOL not in resolved.model_dump_json()
+
+
+class _SerializesToRef(BaseModel):
+    key: str
+
+    @field_serializer("key")
+    def _ref(self, key: str) -> str:
+        return f"{ATTACHMENT_PROTOCOL}{key}"
+
+
+class _ExcludedRef(BaseModel):
+    ref: str = Field(exclude=True)
+
+
+def _sample_with_live_metadata(
+    sample_metadata: object, message_metadata: object
+) -> EvalSample:
+    sample = _sample_with_model_call_payload("payload")
+    event = sample.events[0]
+    assert isinstance(event, ModelEvent)
+    event.input = [
+        ChatMessageUser(content="hello", metadata={"live": message_metadata})
+    ]
+    sample.metadata = {"live": sample_metadata}
+    sample.attachments = {"payload": "content"}
+    return sample
+
+
+@pytest.mark.parametrize("where", ["sample", "message"])
+def test_resolve_core_retains_attachments_referenced_by_serializers(
+    where: str,
+) -> None:
+    live = _SerializesToRef(key="payload")
+    sample = _sample_with_live_metadata(
+        live if where == "sample" else None, live if where == "message" else None
+    )
+
+    resolved = resolve_sample_attachments(sample, "core")
+
+    assert f"{ATTACHMENT_PROTOCOL}payload" in resolved.model_dump_json()
+    assert resolved.attachments == {"payload": "content"}
+
+
+@pytest.mark.parametrize("where", ["sample", "message"])
+def test_resolve_core_ignores_refs_in_excluded_fields(where: str) -> None:
+    live = _ExcludedRef(ref=f"{ATTACHMENT_PROTOCOL}payload")
+    sample = _sample_with_live_metadata(
+        live if where == "sample" else None, live if where == "message" else None
+    )
+
+    resolved = resolve_sample_attachments(sample, "core")
+
+    assert resolved.attachments == {}
+
+
+class _RedactingUser(ChatMessageUser):
+    @field_serializer("metadata")
+    def _redact(self, metadata: object) -> None:
+        return None
+
+
+def test_resolve_core_scans_messages_as_declared_type() -> None:
+    # logs serialize messages through the declared ChatMessage type, which
+    # ignores a subclass's own serializers
+    sample = _sample_with_model_call_payload("payload")
+    event = sample.events[0]
+    assert isinstance(event, ModelEvent)
+    event.input = [
+        _RedactingUser(
+            content="hello", metadata={"ref": f"{ATTACHMENT_PROTOCOL}payload"}
+        )
+    ]
+    sample.attachments = {"payload": "content"}
+
+    resolved = resolve_sample_attachments(sample, "core")
+
+    assert resolved.attachments == {"payload": "content"}
+
+
+def _count_strings(value: object) -> int:
+    if isinstance(value, str):
+        return 1
+    if isinstance(value, dict):
+        return sum(_count_strings(v) for v in value.values())
+    if isinstance(value, (list, tuple, set, frozenset)):
+        return sum(_count_strings(v) for v in value)
+    return 0
+
+
+def _strings_scanned_resolving(turns: int, monkeypatch: pytest.MonkeyPatch) -> int:
+    payload = "model-call-payload-" + ("q" * 200)
+    messages: list[ChatMessage] = [
+        ChatMessageUser(content=f"message {i}") for i in range(turns)
+    ]
+    call_messages: list[JsonValue] = [
+        {"role": "user", "content": f"message {i}"} for i in range(turns)
+    ]
+    events: list[Event] = [
+        ModelEvent(
+            model="test-model",
+            input=messages[: i + 1],
+            tools=[],
+            tool_choice="auto",
+            config=GenerateConfig(),
+            output=ModelOutput.from_content("test-model", "response"),
+            call=ModelCall(
+                request={"system": payload, "messages": call_messages[: i + 1]},
+                response={"ok": True},
+            ),
+        )
+        for i in range(turns)
+    ]
+    sample = EvalSample(
+        id="sample", epoch=1, input="input", target="target", events=events
+    )
+    condensed = condense_sample(sample)
+
+    scanned = 0
+    scan = condense_module.attachment_refs_from_value
+
+    def counting_scan(value: JsonValue) -> set[str]:
+        nonlocal scanned
+        scanned += _count_strings(value)
+        return scan(value)
+
+    monkeypatch.setattr(condense_module, "attachment_refs_from_value", counting_scan)
+    resolved = resolve_sample_attachments(condensed, "core")
+    monkeypatch.undo()
+    assert resolved.attachments == {mm3_hash(payload): payload}
+    return scanned
+
+
+def test_resolve_core_scan_is_linear_in_conversation_length(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # each event's input and call messages extend a shared conversation, so
+    # scanning them per event would grow quadratically with its length
+    short = _strings_scanned_resolving(50, monkeypatch)
+    long = _strings_scanned_resolving(100, monkeypatch)
+    assert long < 2.5 * short
 
 
 def log_path(log: str) -> str:

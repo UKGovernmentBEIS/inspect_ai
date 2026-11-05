@@ -1,13 +1,15 @@
 import json
 import tempfile
 from pathlib import Path
-from typing import Generator
+from sqlite3 import Connection
+from typing import Generator, Iterator
 
 import pytest
 
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.log._log import EvalSampleSummary
 from inspect_ai.log._recorders.buffer import SampleBufferDatabase
+from inspect_ai.log._recorders.buffer.types import MessagePoolData
 from inspect_ai.log._recorders.types import SampleEvent
 from inspect_ai.model._chat_message import ChatMessageAssistant, ChatMessageUser
 from inspect_ai.model._generate_config import GenerateConfig
@@ -392,48 +394,6 @@ def _call_pool_contents(db: SampleBufferDatabase) -> list[str]:
     return [json.loads(entry.data)["content"] for entry in data.call_pool]
 
 
-def test_call_prefix_survives_in_place_mutation_of_logged_request(
-    db: SampleBufferDatabase,
-) -> None:
-    """A logged wire request mutated in place must not corrupt later call dedup.
-
-    The call-pool prefix index retains the previous event's wire messages to
-    match the next event's shared prefix. If it retained the caller's own dict
-    objects, an eval that mutates an already-logged ``call.request`` in place
-    (e.g. playback shaping with ``log_model_api=True``) would make the next
-    event's prefix match against content that was never pooled at that
-    position, so the new content would silently never be hashed/stored — the
-    persisted pool would keep only the stale value.
-    """
-    _start_sample(db)
-
-    event1 = _make_model_event(
-        [ChatMessageUser(content="a")],
-        call_messages=[{"role": "user", "content": "a"}],
-    )
-    db.log_events([SampleEvent(id="s1", epoch=1, event=event1)])
-
-    # Mutate the *same* request dict that was just logged (the object the call
-    # index retained for prefix matching), then log a second event whose wire
-    # content matches the mutated value.
-    assert event1.call is not None
-    messages = event1.call.request["messages"]
-    assert isinstance(messages, list)
-    first = messages[0]
-    assert isinstance(first, dict)
-    first["content"] = "b"
-
-    event2 = _make_model_event(
-        [ChatMessageUser(content="b")],
-        call_messages=[{"role": "user", "content": "b"}],
-    )
-    db.log_events([SampleEvent(id="s1", epoch=1, event=event2)])
-
-    # Both "a" (event 1) and "b" (event 2) must be pooled; event 2 must not
-    # alias the stale "a" row.
-    assert sorted(_call_pool_contents(db)) == ["a", "b"]
-
-
 def test_rollback_restores_pool_indices(
     db: SampleBufferDatabase, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -521,3 +481,53 @@ def test_buffer_pool_dedup_uses_content_hash_not_msg_id(
     last = data.events[-1].event
     assert isinstance(last, dict)
     assert last["input_refs"] == [[0, 1], [0, 1]]
+
+
+def test_get_sample_data_is_consistent_with_concurrent_removal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A reader in another process keeps one snapshot while the eval removes the sample.
+
+    Failure injection: the eval removes the sample (as it does once the sample is
+    flushed) after the reader has read the events but before it reads the pool.
+    """
+    writer = SampleBufferDatabase(location="test_location", db_dir=tmp_path)
+    writer.start_sample(
+        EvalSampleSummary(id="s1", epoch=1, input="test", target="target")
+    )
+    writer.log_events(
+        [
+            SampleEvent(
+                id="s1",
+                epoch=1,
+                event=_make_model_event([ChatMessageUser(content="Hello")]),
+            )
+        ]
+    )
+    reader = SampleBufferDatabase(
+        location="test_location", create=False, db_dir=tmp_path
+    )
+    get_message_pool = SampleBufferDatabase._get_message_pool
+
+    def remove_sample_then_get_message_pool(
+        self: SampleBufferDatabase,
+        conn: Connection,
+        id: str | int,
+        epoch: int,
+        after_id: int | None = None,
+    ) -> Iterator[MessagePoolData]:
+        writer.remove_samples([(id, epoch)])
+        return get_message_pool(self, conn, id, epoch, after_id)
+
+    monkeypatch.setattr(
+        SampleBufferDatabase, "_get_message_pool", remove_sample_then_get_message_pool
+    )
+    data = reader.get_sample_data("s1", 1)
+    monkeypatch.undo()
+    reader.close()
+    writer.cleanup()
+
+    assert data is not None
+    (event,) = data.events
+    assert event.event["input_refs"] == [[0, 1]]
+    assert len(data.message_pool) == 1

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import sys
 from pathlib import Path
 from typing import Iterator
@@ -115,7 +116,7 @@ def test_successful_download_writes_bytes_and_verifies(tmp_path: Path) -> None:
 
     assert result == dest
     assert dest.read_bytes() == content
-    assert not (tmp_path / "out.bin.partial").exists()
+    assert list(tmp_path.iterdir()) == [dest]
 
 
 def test_checksum_mismatch_raises_and_cleans_up(tmp_path: Path) -> None:
@@ -127,8 +128,7 @@ def test_checksum_mismatch_raises_and_cleans_up(tmp_path: Path) -> None:
         with pytest.raises(ValueError, match="Checksum mismatch"):
             download("http://example.com/x", "0" * 64, dest)
 
-    assert not dest.exists()
-    assert not (tmp_path / "f.bin.partial").exists()
+    assert list(tmp_path.iterdir()) == []
 
 
 def test_atomic_write_cleans_partial_on_mid_stream_failure(tmp_path: Path) -> None:
@@ -147,8 +147,7 @@ def test_atomic_write_cleans_partial_on_mid_stream_failure(tmp_path: Path) -> No
         with pytest.raises(RetryError):
             download("http://example.com/x", _sha256(b""), dest)
 
-    assert not dest.exists()
-    assert not (tmp_path / "f.bin.partial").exists()
+    assert list(tmp_path.iterdir()) == []
 
 
 def test_5xx_retried_then_succeeds(tmp_path: Path) -> None:
@@ -292,5 +291,73 @@ def test_gdrive_download_checksum_mismatch_cleans_up(tmp_path: Path) -> None:
         with pytest.raises(ValueError, match="Checksum mismatch"):
             gdrive_download("file-id", "0" * 64, dest)
 
-    assert not dest.exists()
-    assert not (tmp_path / "g.bin.partial").exists()
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_overlapping_downloads_of_same_dest_both_succeed(tmp_path: Path) -> None:
+    content = b"shared artefact" * 100
+    dest = tmp_path / "f.bin"
+    sha = _sha256(content)
+
+    class _OverlappingStream(_FakeStream):
+        """Runs a second, complete download of `dest` partway through this one."""
+
+        def iter_bytes(self, chunk_size: int | None = None) -> Iterator[bytes]:
+            chunks = super().iter_bytes(chunk_size)
+            yield next(chunks)
+            download("http://example.com/x", sha, dest)
+            yield from chunks
+
+    stream_mock = _stream_factory(
+        _OverlappingStream(200, content), _FakeStream(200, content)
+    )
+    with patch("inspect_ai._util.download.httpx.stream", stream_mock):
+        download("http://example.com/x", sha, dest)
+
+    assert dest.read_bytes() == content
+    assert list(tmp_path.iterdir()) == [dest]
+
+
+def test_overlapping_gdrive_downloads_of_same_dest_both_succeed(
+    tmp_path: Path,
+) -> None:
+    content = b"google drive bytes"
+    dest = tmp_path / "g.bin"
+    sha = _sha256(content)
+    calls = 0
+
+    def fake_download(*, id: str, output: str, quiet: bool) -> None:
+        nonlocal calls
+        calls += 1
+        Path(output).write_bytes(content)
+        if calls == 1:
+            # Second, complete download of `dest` before the first renames.
+            gdrive_download("file-id", sha, dest)
+
+    fake_gdown = MagicMock()
+    fake_gdown.download = fake_download
+
+    with patch.dict(sys.modules, {"gdown": fake_gdown}):
+        gdrive_download("file-id", sha, dest)
+
+    assert dest.read_bytes() == content
+    assert list(tmp_path.iterdir()) == [dest]
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX permission bits")
+@pytest.mark.parametrize(
+    "umask,expected", [(0o022, 0o644), (0o002, 0o664)], ids=["umask022", "umask002"]
+)
+def test_download_respects_umask(tmp_path: Path, umask: int, expected: int) -> None:
+    content = b"shared cache"
+    dest = tmp_path / "f.bin"
+
+    stream_mock = _stream_factory(_FakeStream(200, content))
+    previous = os.umask(umask)
+    try:
+        with patch("inspect_ai._util.download.httpx.stream", stream_mock):
+            download("http://example.com/x", _sha256(content), dest)
+    finally:
+        os.umask(previous)
+
+    assert dest.stat().st_mode & 0o777 == expected

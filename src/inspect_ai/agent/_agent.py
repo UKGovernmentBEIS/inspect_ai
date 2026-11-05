@@ -1,6 +1,6 @@
 from copy import copy, deepcopy
 from functools import wraps
-from inspect import signature
+from inspect import isfunction, signature
 from typing import (
     Any,
     Callable,
@@ -22,6 +22,7 @@ from inspect_ai._util.registry import (
     registry_name,
     registry_tag,
     registry_unqualified_name,
+    set_annotations,
     set_registry_info,
 )
 from inspect_ai.model._chat_message import (
@@ -160,6 +161,7 @@ def agent(
     """
 
     def create_agent_wrapper(agent_type: Callable[P, Agent]) -> Callable[P, Agent]:
+        from inspect_ai._sentinel._agent_state import running
         from inspect_ai.solver._constants import SOLVER_ALL_PARAMS_ATTR
 
         # determine the name (explicit or implicit from object)
@@ -172,6 +174,8 @@ def agent(
         def agent_wrapper(*args: P.args, **kwargs: P.kwargs) -> Agent:
             # create agent
             agent = agent_type(*args, **kwargs)
+            if isfunction(agent):
+                agent = running(agent)
 
             # capture any display name and description the agent may carry
             # (e.g. set via agent_with() inside the factory body)
@@ -216,10 +220,10 @@ def agent(
         # The following two lines resolve these string annotations using the original function's globals,
         # ensuring that any forward references (e.g., "Agent") are evaluated to their actual types,
         # and then reassign the original function's signature to the wrapper.
-        agent_wrapper.__annotations__ = get_type_hints(
-            agent_wrapper, agent_type.__globals__
+        set_annotations(
+            agent_wrapper,
+            {**get_type_hints(agent_wrapper, agent_type.__globals__), "return": Agent},
         )
-        agent_wrapper.__annotations__["return"] = Agent
         agent_wrapper.__signature__ = signature(agent_type)  # type: ignore[attr-defined]
 
         # register

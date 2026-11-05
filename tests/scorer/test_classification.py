@@ -99,3 +99,161 @@ def test_max_score_empty_target_no_index_error():
     assert max_f1_score("hello", [""]) == 0.0
     assert max_exact_score("hello", [""]) == 0.0
     assert max_f1_score("hello", ["", "hello"]) == 1.0
+
+
+def test_max_score_blank_after_normalization_target():
+    # Targets made only of articles or punctuation normalize to the empty
+    # string and are skipped like empty targets: an answer that also
+    # normalizes to nothing must not score as a perfect match.
+    for target in ["a", "an", "the", "-"]:
+        assert max_exact_score("", [target]) == 0.0
+        assert max_f1_score("", [target]) == 0.0
+        assert max_exact_score("   ", [target]) == 0.0
+        assert max_f1_score("\n\t ", [target]) == 0.0
+        # A blank-normalizing target alongside a real one does not
+        # affect the real target's score.
+        assert max_exact_score("hello", [target, "hello"]) == 1.0
+        assert max_f1_score("hello", [target, "hello"]) == 1.0
+    # The controls named on the issue, verbatim.
+    assert max_exact_score("", ["a", "blue"]) == 0.0
+    assert max_f1_score("", ["a", "blue"]) == 0.0
+    assert max_f1_score("blue", ["a", "blue"]) == 1.0
+
+
+def test_max_f1_score_stop_words_only_target():
+    # A target whose every word is a configured stop word has no scorable
+    # content left after stop-word removal and is skipped like an empty
+    # target, even though it is non-empty before normalization.
+    assert max_f1_score("", ["Paris"], stop_words=["PARIS"]) == 0.0
+    # Targets with remaining content still score as before.
+    assert max_f1_score("", ["Paris", "Berlin"], stop_words=["PARIS"]) == 0.0
+    assert max_f1_score("Berlin", ["Paris", "Berlin"], stop_words=["PARIS"]) == 1.0
+
+
+@pytest.mark.anyio
+async def test_exact_blank_normalized_target_scores_incorrect():
+    scorer = exact()
+    state = simple_task_state(model_output="")
+    result = await scorer(state, Target(["a"]))
+
+    assert result.text == INCORRECT
+
+
+@pytest.mark.anyio
+async def test_f1_blank_normalized_target_scores_zero():
+    scorer = f1()
+    state = simple_task_state(model_output="")
+    result = await scorer(state, Target(["the"]))
+
+    assert result.text == "0.0"
+
+
+def test_f1_duplicate_tokens_pay_precision_cost():
+    # SQuAD F1 is count-sensitive: repeating a target word must not score 1.0.
+    assert max_f1_score("hello hello", ["hello"]) == 0.67
+    assert max_f1_score("Paris Paris Paris Paris Paris", ["Paris"]) == 0.33
+    assert max_f1_score("the answer is 42 42", ["the answer is 42"]) == 0.86
+
+
+def test_f1_multiset_overlap_counts_multiplicity_on_both_sides():
+    assert max_f1_score("cat cat dog", ["cat dog dog"]) == 0.67
+    # Order-insensitivity is deliberate and stays: same counts, any order.
+    assert max_f1_score("dog cat", ["cat dog"]) == 1.0
+    assert max_f1_score("dog dog cat", ["cat dog dog"]) == 1.0
+
+
+@pytest.mark.anyio
+async def test_f1_decimal_number_with_punctuation():
+    scorer = f1()
+    state1 = simple_task_state(model_output="(3.14)")
+    result1 = await scorer(state1, Target(["3.14"]))
+    assert result1.text == "1.0"
+
+    state2 = simple_task_state(model_output="The answer is 3.14.")
+    result2 = await scorer(state2, Target(["3.14"]))
+    assert result2.text == "0.5"
+
+
+@pytest.mark.anyio
+async def test_exact_decimal_number_with_punctuation():
+    scorer = exact()
+    state = simple_task_state(model_output="(3.14)")
+    result = await scorer(state, Target(["3.14"]))
+
+    assert result.text == CORRECT
+
+
+def test_remove_punc_preserves_existing_normalization():
+    # Boundary stripping applies only when it rescues a number — all other
+    # tokens keep the remove-all-punctuation semantics.
+    assert max_exact_score("3,000", ["3000"]) == 1.0
+    assert max_exact_score("$1,000.", ["1000"]) == 1.0
+    assert max_exact_score("don't", ["dont"]) == 1.0
+    assert max_exact_score("U.S.", ["US"]) == 1.0
+
+
+def test_max_exact_score_word_order_and_duplicates():
+    # max_exact_score must preserve word order and count (not compare word sets)
+    assert max_exact_score("world hello", ["hello world"]) == 0.0
+    assert max_exact_score("hello hello", ["hello"]) == 0.0
+
+
+@pytest.mark.anyio
+async def test_exact_and_f1_keep_the_sign_of_a_negative_answer():
+    exact_result = await exact()(simple_task_state(model_output="-5"), Target(["5"]))
+    assert exact_result.text == INCORRECT
+    f1_result = await f1()(simple_task_state(model_output="-5"), Target(["5"]))
+    assert f1_result.text == "0.0"
+
+
+def test_negative_numbers_keep_their_sign():
+    assert max_exact_score("-5", ["5"]) == 0.0
+    assert max_exact_score("-5", ["-5"]) == 1.0
+    assert max_exact_score("-3.5", ["3.5"]) == 0.0
+    assert max_exact_score("The answer is -40", ["The answer is 40"]) == 0.0
+    assert max_exact_score("The answer is -40", ["the answer is -40"]) == 1.0
+    # boundary punctuation is still stripped, but not the sign
+    assert max_exact_score("(-40)", ["40"]) == 0.0
+    assert max_exact_score("(-40)", ["-40"]) == 1.0
+    assert max_exact_score("-40,", ["-40"]) == 1.0
+    assert max_f1_score("-5", ["5"]) == 0.0
+    assert max_f1_score("x is -5", ["x is 5"]) == 0.67
+    assert max_f1_score("x is -5", ["x is -5"]) == 1.0
+
+
+def test_hyphens_as_punctuation_and_in_ranges_score_as_before():
+    assert max_exact_score("well-known", ["well known"]) == 1.0
+    assert max_exact_score("e-mail", ["e mail"]) == 1.0
+    assert max_exact_score("x-5", ["x 5"]) == 1.0
+    assert max_exact_score("x - 5", ["x 5"]) == 1.0
+    assert max_exact_score("3-5", ["3 5"]) == 1.0
+    assert max_exact_score("pages 3-5", ["pages 3 5"]) == 1.0
+    assert max_exact_score("5%-10%", ["5 10"]) == 1.0
+    assert max_exact_score("2024-05-01", ["2024 05 01"]) == 1.0
+    assert max_f1_score("3-5 apples", ["3 5 apples"]) == 1.0
+    assert max_f1_score("f(-1)", ["f 1"]) == 1.0
+    assert max_f1_score("\\frac{-1}{2}", ["frac 12"]) == 1.0
+
+
+@pytest.mark.anyio
+async def test_exact_and_f1_split_a_minus_after_a_word_and_nested_brackets():
+    exact_result = await exact()(
+        simple_task_state(model_output="f([-1])"), Target(["f1"])
+    )
+    assert exact_result.text == INCORRECT
+    f1_result = await f1()(simple_task_state(model_output="f([-1])"), Target(["f1"]))
+    assert f1_result.text == "0.0"
+
+
+def test_minus_after_a_word_and_nested_brackets_splits_as_before():
+    assert max_exact_score("f([-1])", ["f1"]) == 0.0
+    assert max_exact_score("f((-1))", ["f1"]) == 0.0
+    assert max_exact_score("\\frac{{-1}}{2}", ["frac12"]) == 0.0
+    assert max_f1_score("f([-1])", ["f1"]) == 0.0
+    assert max_f1_score("f([-1])", ["f 1"]) == 1.0
+    assert max_f1_score("f((-1))", ["f 1"]) == 1.0
+    assert max_f1_score("\\frac{{-1}}{2}", ["frac 12"]) == 1.0
+    # a minus behind a run of brackets that opens the token is still a sign
+    assert max_exact_score("((-40))", ["-40"]) == 1.0
+    assert max_exact_score("((-40))", ["40"]) == 0.0
+    assert max_exact_score("x is ([-40])", ["x is -40"]) == 1.0

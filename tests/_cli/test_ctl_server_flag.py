@@ -12,6 +12,20 @@ import pytest
 from click.testing import CliRunner
 
 from inspect_ai._cli.util import ctl_server_flag_callback
+from inspect_ai._control.server import CTL_SERVER_ENV_VAR
+
+
+@pytest.fixture(autouse=True)
+def _unset_ctl_server_env(
+    monkeypatch: pytest.MonkeyPatch, disable_ctl_server: None
+) -> None:
+    """Start from an unset env var: these tests parse the flag's own grammar.
+
+    Depends on the suite-wide ``disable_ctl_server`` fixture so this runs
+    after it and undoes its ``INSPECT_EVAL_CTL_SERVER=false``, which click
+    would otherwise read as the option's value.
+    """
+    monkeypatch.delenv(CTL_SERVER_ENV_VAR, raising=False)
 
 
 def _build_cmd() -> click.Command:

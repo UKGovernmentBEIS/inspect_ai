@@ -1,6 +1,9 @@
 import { i as __toESM } from "./rolldown-runtime.js";
-import { n as require_react, t as require_jsx_runtime } from "./jsx-runtime.js";
+import { n as require_react, r as require_jsx_runtime, t as require_compiler_runtime } from "./compiler-runtime.js";
+import { t as useLatestRef } from "./useLatestRef.js";
 //#region ../../node_modules/.pnpm/asciinema-player@3.17.0/node_modules/asciinema-player/dist/logging-DeB0koVt.js
+var import_jsx_runtime = require_jsx_runtime();
+var import_compiler_runtime = require_compiler_runtime();
 function parseNpt(time) {
 	if (typeof time === "number") return time;
 	else if (typeof time === "string") return time.split(":").reverse().map(parseFloat).reduce((sum, n, i) => sum + n * Math.pow(60, i));
@@ -1834,7 +1837,7 @@ function benchmark({ url, iterations = 10 }, { dispatch }) {
 			}
 			const duration = (performance.now() - startTime) / 1e3;
 			const throughput = byteCount * iterations / duration;
-			const throughputMbs = byteCount / (1024 * 1024) * iterations / duration;
+			const throughputMbs = byteCount / 1048576 * iterations / duration;
 			console.info("benchmark: result", {
 				byteCount,
 				iterations,
@@ -2961,25 +2964,29 @@ var PARSERS = /* @__PURE__ */ new Map([
 ]);
 function getDriver(src) {
 	if (typeof src === "function") return src;
-	if (typeof src === "string") if (src.substring(0, 5) == "ws://" || src.substring(0, 6) == "wss://") src = {
-		driver: "websocket",
-		url: src
-	};
-	else if (src.substring(0, 6) == "clock:") src = { driver: "clock" };
-	else if (src.substring(0, 7) == "random:") src = { driver: "random" };
-	else if (src.substring(0, 10) == "benchmark:") src = {
-		driver: "benchmark",
-		url: src.substring(10)
-	};
-	else src = {
-		driver: "recording",
-		url: src
-	};
+	if (typeof src === "string") {
+		if (src.substring(0, 5) == "ws://" || src.substring(0, 6) == "wss://") src = {
+			driver: "websocket",
+			url: src
+		};
+		else if (src.substring(0, 6) == "clock:") src = { driver: "clock" };
+		else if (src.substring(0, 7) == "random:") src = { driver: "random" };
+		else if (src.substring(0, 10) == "benchmark:") src = {
+			driver: "benchmark",
+			url: src.substring(10)
+		};
+		else src = {
+			driver: "recording",
+			url: src
+		};
+	}
 	if (src.driver === void 0) src.driver = "recording";
 	if (src.driver == "recording") {
 		if (src.format !== "segmented" && src.parser === void 0) src.parser = "asciicast";
-		if (typeof src.parser === "string") if (PARSERS.has(src.parser)) src.parser = PARSERS.get(src.parser);
-		else throw new Error(`unknown parser: ${src.parser}`);
+		if (typeof src.parser === "string") {
+			if (PARSERS.has(src.parser)) src.parser = PARSERS.get(src.parser);
+			else throw new Error(`unknown parser: ${src.parser}`);
+		}
 	}
 	if (DRIVERS.has(src.driver)) {
 		const driver = DRIVERS.get(src.driver);
@@ -3102,12 +3109,14 @@ function children(fn) {
 	return memo;
 }
 function readSignal() {
-	if (this.sources && this.state) if (this.state === STALE) updateComputation(this);
-	else {
-		const updates = Updates;
-		Updates = null;
-		runUpdates(() => lookUpstream(this), false);
-		Updates = updates;
+	if (this.sources && this.state) {
+		if (this.state === STALE) updateComputation(this);
+		else {
+			const updates = Updates;
+			Updates = null;
+			runUpdates(() => lookUpstream(this), false);
+			Updates = updates;
+		}
 	}
 	if (Listener) {
 		const sSlot = this.observers ? this.observers.length : 0;
@@ -3195,8 +3204,10 @@ function createComputation(fn, init, pure, state = STALE, options) {
 		pure
 	};
 	if (Owner === null);
-	else if (Owner !== UNOWNED) if (!Owner.owned) Owner.owned = [c];
-	else Owner.owned.push(c);
+	else if (Owner !== UNOWNED) {
+		if (!Owner.owned) Owner.owned = [c];
+		else Owner.owned.push(c);
+	}
 	return c;
 }
 function runTop(node) {
@@ -3502,18 +3513,19 @@ function reconcileArrays(parentNode, a, b) {
 				while (i < bEnd) map.set(b[i], i++);
 			}
 			const index = map.get(a[aStart]);
-			if (index != null) if (bStart < index && index < bEnd) {
-				let i = aStart, sequence = 1, t;
-				while (++i < aEnd && i < bEnd) {
-					if ((t = map.get(a[i])) == null || t !== index + sequence) break;
-					sequence++;
-				}
-				if (sequence > index - bStart) {
-					const node = a[aStart];
-					while (bStart < index) parentNode.insertBefore(b[bStart++], node);
-				} else parentNode.replaceChild(b[bStart++], a[aStart++]);
-			} else aStart++;
-			else a[aStart++].remove();
+			if (index != null) {
+				if (bStart < index && index < bEnd) {
+					let i = aStart, sequence = 1, t;
+					while (++i < aEnd && i < bEnd) {
+						if ((t = map.get(a[i])) == null || t !== index + sequence) break;
+						sequence++;
+					}
+					if (sequence > index - bStart) {
+						const node = a[aStart];
+						while (bStart < index) parentNode.insertBefore(b[bStart++], node);
+					} else parentNode.replaceChild(b[bStart++], a[aStart++]);
+				} else aStart++;
+			} else a[aStart++].remove();
 		}
 	}
 }
@@ -3672,9 +3684,10 @@ function insertExpression(parent, value, current, marker, unwrapArray) {
 		if (array.length === 0) {
 			current = cleanChildren(parent, current, marker);
 			if (multi) return current;
-		} else if (currentArray) if (current.length === 0) appendNodes(parent, array, marker);
-		else reconcileArrays(parent, current, array);
-		else {
+		} else if (currentArray) {
+			if (current.length === 0) appendNodes(parent, array, marker);
+			else reconcileArrays(parent, current, array);
+		} else {
 			current && cleanChildren(parent);
 			appendNodes(parent, array);
 		}
@@ -3696,14 +3709,15 @@ function normalizeIncomingArray(normalized, array, current, unwrap) {
 		if (item == null || item === true || item === false);
 		else if ((t = typeof item) === "object" && item.nodeType) normalized.push(item);
 		else if (Array.isArray(item)) dynamic = normalizeIncomingArray(normalized, item, prev) || dynamic;
-		else if (t === "function") if (unwrap) {
-			while (typeof item === "function") item = item();
-			dynamic = normalizeIncomingArray(normalized, Array.isArray(item) ? item : [item], Array.isArray(prev) ? prev : [prev]) || dynamic;
+		else if (t === "function") {
+			if (unwrap) {
+				while (typeof item === "function") item = item();
+				dynamic = normalizeIncomingArray(normalized, Array.isArray(item) ? item : [item], Array.isArray(prev) ? prev : [prev]) || dynamic;
+			} else {
+				normalized.push(item);
+				dynamic = true;
+			}
 		} else {
-			normalized.push(item);
-			dynamic = true;
-		}
-		else {
 			const value = String(item);
 			if (prev && prev.nodeType === 3 && prev.data === value) normalized.push(prev);
 			else normalized.push(document.createTextNode(value));
@@ -4217,16 +4231,20 @@ function __wbg_finalize_init(instance, module) {
 }
 function initSync(module) {
 	if (wasm !== void 0) return wasm;
-	if (typeof module !== "undefined") if (Object.getPrototypeOf(module) === Object.prototype) ({module} = module);
-	else console.warn("using deprecated parameters for `initSync()`; pass a single object instead");
+	if (typeof module !== "undefined") {
+		if (Object.getPrototypeOf(module) === Object.prototype) ({module} = module);
+		else console.warn("using deprecated parameters for `initSync()`; pass a single object instead");
+	}
 	const imports = __wbg_get_imports();
 	if (!(module instanceof WebAssembly.Module)) module = new WebAssembly.Module(module);
 	return __wbg_finalize_init(new WebAssembly.Instance(module, imports), module);
 }
 async function __wbg_init(module_or_path) {
 	if (wasm !== void 0) return wasm;
-	if (typeof module_or_path !== "undefined") if (Object.getPrototypeOf(module_or_path) === Object.prototype) ({module_or_path} = module_or_path);
-	else console.warn("using deprecated parameters for the initialization function; pass a single object instead");
+	if (typeof module_or_path !== "undefined") {
+		if (Object.getPrototypeOf(module_or_path) === Object.prototype) ({module_or_path} = module_or_path);
+		else console.warn("using deprecated parameters for the initialization function; pass a single object instead");
+	}
 	const imports = __wbg_get_imports();
 	if (typeof module_or_path === "string" || typeof Request === "function" && module_or_path instanceof Request || typeof URL === "function" && module_or_path instanceof URL) module_or_path = fetch(module_or_path);
 	const { instance, module } = await __wbg_load(await module_or_path, imports);
@@ -4933,49 +4951,49 @@ function drawBlockGlyph(ctx, codepoint, x, y) {
 			ctx.fillRect(x, y, BLOCK_H_RES, halfY);
 			break;
 		case 9601:
-			ctx.fillRect(x, y + unitY * 7, BLOCK_H_RES, unitY);
+			ctx.fillRect(x, y + 21, BLOCK_H_RES, unitY);
 			break;
 		case 9602:
-			ctx.fillRect(x, y + unitY * 6, BLOCK_H_RES, unitY * 2);
+			ctx.fillRect(x, y + 18, BLOCK_H_RES, 6);
 			break;
 		case 9603:
-			ctx.fillRect(x, y + unitY * 5, BLOCK_H_RES, unitY * 3);
+			ctx.fillRect(x, y + 15, BLOCK_H_RES, 9);
 			break;
 		case 9604:
 			ctx.fillRect(x, y + halfY, BLOCK_H_RES, halfY);
 			break;
 		case 9605:
-			ctx.fillRect(x, y + unitY * 3, BLOCK_H_RES, unitY * 5);
+			ctx.fillRect(x, y + 9, BLOCK_H_RES, 15);
 			break;
 		case 9606:
-			ctx.fillRect(x, y + unitY * 2, BLOCK_H_RES, unitY * 6);
+			ctx.fillRect(x, y + 6, BLOCK_H_RES, 18);
 			break;
 		case 9607:
-			ctx.fillRect(x, y + unitY, BLOCK_H_RES, unitY * 7);
+			ctx.fillRect(x, y + unitY, BLOCK_H_RES, 21);
 			break;
 		case 9608:
 			ctx.fillRect(x, y, BLOCK_H_RES, BLOCK_V_RES);
 			break;
 		case 9632:
-			ctx.fillRect(x, y + unitY * 2, BLOCK_H_RES, unitY * 4);
+			ctx.fillRect(x, y + 6, BLOCK_H_RES, 12);
 			break;
 		case 9609:
-			ctx.fillRect(x, y, unitX * 7, BLOCK_V_RES);
+			ctx.fillRect(x, y, 7, BLOCK_V_RES);
 			break;
 		case 9610:
-			ctx.fillRect(x, y, unitX * 6, BLOCK_V_RES);
+			ctx.fillRect(x, y, 6, BLOCK_V_RES);
 			break;
 		case 9611:
-			ctx.fillRect(x, y, unitX * 5, BLOCK_V_RES);
+			ctx.fillRect(x, y, 5, BLOCK_V_RES);
 			break;
 		case 9612:
 			ctx.fillRect(x, y, halfX, BLOCK_V_RES);
 			break;
 		case 9613:
-			ctx.fillRect(x, y, unitX * 3, BLOCK_V_RES);
+			ctx.fillRect(x, y, 3, BLOCK_V_RES);
 			break;
 		case 9614:
-			ctx.fillRect(x, y, unitX * 2, BLOCK_V_RES);
+			ctx.fillRect(x, y, 2, BLOCK_V_RES);
 			break;
 		case 9615:
 			ctx.fillRect(x, y, unitX, BLOCK_V_RES);
@@ -5005,7 +5023,7 @@ function drawBlockGlyph(ctx, codepoint, x, y) {
 			ctx.fillRect(x, y, BLOCK_H_RES, unitY);
 			break;
 		case 9621:
-			ctx.fillRect(x + unitX * 7, y, unitX, BLOCK_V_RES);
+			ctx.fillRect(x + 7, y, unitX, BLOCK_V_RES);
 			break;
 		case 9622:
 			ctx.fillRect(x, y + halfY, halfX, halfY);
@@ -5050,7 +5068,7 @@ function drawBlockGlyph(ctx, codepoint, x, y) {
 			ctx.fillRect(x + sextantX, y, sextantX, sextantY);
 			break;
 		case 129794:
-			ctx.fillRect(x, y, sextantX * 2, sextantY);
+			ctx.fillRect(x, y, 8, sextantY);
 			break;
 		case 129795:
 			ctx.fillRect(x, y + sextantY, sextantX, sextantY);
@@ -5064,7 +5082,7 @@ function drawBlockGlyph(ctx, codepoint, x, y) {
 			ctx.fillRect(x, y + sextantY, sextantX, sextantY);
 			break;
 		case 129798:
-			ctx.fillRect(x, y, sextantX * 2, sextantY);
+			ctx.fillRect(x, y, 8, sextantY);
 			ctx.fillRect(x, y + sextantY, sextantX, sextantY);
 			break;
 		case 129799:
@@ -5079,209 +5097,208 @@ function drawBlockGlyph(ctx, codepoint, x, y) {
 			ctx.fillRect(x + sextantX, y + sextantY, sextantX, sextantY);
 			break;
 		case 129802:
-			ctx.fillRect(x, y, sextantX * 2, sextantY);
+			ctx.fillRect(x, y, 8, sextantY);
 			ctx.fillRect(x + sextantX, y + sextantY, sextantX, sextantY);
 			break;
 		case 129803:
-			ctx.fillRect(x, y + sextantY, sextantX * 2, sextantY);
+			ctx.fillRect(x, y + sextantY, 8, sextantY);
 			break;
 		case 129804:
 			ctx.fillRect(x, y, sextantX, sextantY);
-			ctx.fillRect(x, y + sextantY, sextantX * 2, sextantY);
+			ctx.fillRect(x, y + sextantY, 8, sextantY);
 			break;
 		case 129805:
 			ctx.fillRect(x + sextantX, y, sextantX, sextantY);
-			ctx.fillRect(x, y + sextantY, sextantX * 2, sextantY);
+			ctx.fillRect(x, y + sextantY, 8, sextantY);
 			break;
 		case 129806:
-			ctx.fillRect(x, y, sextantX * 2, sextantY);
-			ctx.fillRect(x, y + sextantY, sextantX * 2, sextantY);
+			ctx.fillRect(x, y, 8, sextantY);
+			ctx.fillRect(x, y + sextantY, 8, sextantY);
 			break;
 		case 129807:
-			ctx.fillRect(x, y + sextantY * 2, sextantX, sextantY);
+			ctx.fillRect(x, y + 16, sextantX, sextantY);
 			break;
 		case 129808:
 			ctx.fillRect(x, y, sextantX, sextantY);
-			ctx.fillRect(x, y + sextantY * 2, sextantX, sextantY);
+			ctx.fillRect(x, y + 16, sextantX, sextantY);
 			break;
 		case 129809:
 			ctx.fillRect(x + sextantX, y, sextantX, sextantY);
-			ctx.fillRect(x, y + sextantY * 2, sextantX, sextantY);
+			ctx.fillRect(x, y + 16, sextantX, sextantY);
 			break;
 		case 129810:
-			ctx.fillRect(x, y, sextantX * 2, sextantY);
-			ctx.fillRect(x, y + sextantY * 2, sextantX, sextantY);
+			ctx.fillRect(x, y, 8, sextantY);
+			ctx.fillRect(x, y + 16, sextantX, sextantY);
 			break;
 		case 129811:
-			ctx.fillRect(x, y + sextantY, sextantX, sextantY * 2);
+			ctx.fillRect(x, y + sextantY, sextantX, 16);
 			break;
 		case 129812:
 			ctx.fillRect(x + sextantX, y, sextantX, sextantY);
-			ctx.fillRect(x, y + sextantY, sextantX, sextantY * 2);
+			ctx.fillRect(x, y + sextantY, sextantX, 16);
 			break;
 		case 129813:
-			ctx.fillRect(x, y, sextantX * 2, sextantY);
-			ctx.fillRect(x, y + sextantY, sextantX, sextantY * 2);
+			ctx.fillRect(x, y, 8, sextantY);
+			ctx.fillRect(x, y + sextantY, sextantX, 16);
 			break;
 		case 129814:
 			ctx.fillRect(x + sextantX, y + sextantY, sextantX, sextantY);
-			ctx.fillRect(x, y + sextantY * 2, sextantX, sextantY);
+			ctx.fillRect(x, y + 16, sextantX, sextantY);
 			break;
 		case 129815:
 			ctx.fillRect(x, y, sextantX, sextantY);
 			ctx.fillRect(x + sextantX, y + sextantY, sextantX, sextantY);
-			ctx.fillRect(x, y + sextantY * 2, sextantX, sextantY);
+			ctx.fillRect(x, y + 16, sextantX, sextantY);
 			break;
 		case 129816:
-			ctx.fillRect(x + sextantX, y, sextantX, sextantY * 2);
-			ctx.fillRect(x, y + sextantY * 2, sextantX, sextantY);
+			ctx.fillRect(x + sextantX, y, sextantX, 16);
+			ctx.fillRect(x, y + 16, sextantX, sextantY);
 			break;
 		case 129817:
-			ctx.fillRect(x, y, sextantX * 2, sextantY);
+			ctx.fillRect(x, y, 8, sextantY);
 			ctx.fillRect(x + sextantX, y + sextantY, sextantX, sextantY);
-			ctx.fillRect(x, y + sextantY * 2, sextantX, sextantY);
+			ctx.fillRect(x, y + 16, sextantX, sextantY);
 			break;
 		case 129818:
-			ctx.fillRect(x, y + sextantY, sextantX * 2, sextantY);
-			ctx.fillRect(x, y + sextantY * 2, sextantX, sextantY);
+			ctx.fillRect(x, y + sextantY, 8, sextantY);
+			ctx.fillRect(x, y + 16, sextantX, sextantY);
 			break;
 		case 129819:
-			ctx.fillRect(x, y, sextantX, sextantY * 3);
+			ctx.fillRect(x, y, sextantX, 24);
 			ctx.fillRect(x + sextantX, y + sextantY, sextantX, sextantY);
 			break;
 		case 129820:
 			ctx.fillRect(x + sextantX, y, sextantX, sextantY);
-			ctx.fillRect(x, y + sextantY, sextantX * 2, sextantY);
-			ctx.fillRect(x, y + sextantY * 2, sextantX, sextantY);
+			ctx.fillRect(x, y + sextantY, 8, sextantY);
+			ctx.fillRect(x, y + 16, sextantX, sextantY);
 			break;
 		case 129821:
-			ctx.fillRect(x, y, sextantX * 2, sextantY * 2);
-			ctx.fillRect(x, y + sextantY * 2, sextantX, sextantY);
+			ctx.fillRect(x, y, 8, 16);
+			ctx.fillRect(x, y + 16, sextantX, sextantY);
 			break;
 		case 129822:
-			ctx.fillRect(x + sextantX, y + sextantY * 2, sextantX, sextantY);
+			ctx.fillRect(x + sextantX, y + 16, sextantX, sextantY);
 			break;
 		case 129823:
 			ctx.fillRect(x, y, sextantX, sextantY);
-			ctx.fillRect(x + sextantX, y + sextantY * 2, sextantX, sextantY);
+			ctx.fillRect(x + sextantX, y + 16, sextantX, sextantY);
 			break;
 		case 129824:
 			ctx.fillRect(x + sextantX, y, sextantX, sextantY);
-			ctx.fillRect(x + sextantX, y + sextantY * 2, sextantX, sextantY);
+			ctx.fillRect(x + sextantX, y + 16, sextantX, sextantY);
 			break;
 		case 129825:
-			ctx.fillRect(x, y, sextantX * 2, sextantY);
-			ctx.fillRect(x + sextantX, y + sextantY * 2, sextantX, sextantY);
+			ctx.fillRect(x, y, 8, sextantY);
+			ctx.fillRect(x + sextantX, y + 16, sextantX, sextantY);
 			break;
 		case 129826:
 			ctx.fillRect(x, y + sextantY, sextantX, sextantY);
-			ctx.fillRect(x + sextantX, y + sextantY * 2, sextantX, sextantY);
+			ctx.fillRect(x + sextantX, y + 16, sextantX, sextantY);
 			break;
 		case 129827:
-			ctx.fillRect(x, y, sextantX, sextantY * 2);
-			ctx.fillRect(x + sextantX, y + sextantY * 2, sextantX, sextantY);
+			ctx.fillRect(x, y, sextantX, 16);
+			ctx.fillRect(x + sextantX, y + 16, sextantX, sextantY);
 			break;
 		case 129828:
 			ctx.fillRect(x + sextantX, y, sextantX, sextantY);
 			ctx.fillRect(x, y + sextantY, sextantX, sextantY);
-			ctx.fillRect(x + sextantX, y + sextantY * 2, sextantX, sextantY);
+			ctx.fillRect(x + sextantX, y + 16, sextantX, sextantY);
 			break;
 		case 129829:
-			ctx.fillRect(x, y, sextantX * 2, sextantY);
+			ctx.fillRect(x, y, 8, sextantY);
 			ctx.fillRect(x, y + sextantY, sextantX, sextantY);
-			ctx.fillRect(x + sextantX, y + sextantY * 2, sextantX, sextantY);
+			ctx.fillRect(x + sextantX, y + 16, sextantX, sextantY);
 			break;
 		case 129830:
-			ctx.fillRect(x + sextantX, y + sextantY, sextantX, sextantY * 2);
+			ctx.fillRect(x + sextantX, y + sextantY, sextantX, 16);
 			break;
 		case 129831:
 			ctx.fillRect(x, y, sextantX, sextantY);
-			ctx.fillRect(x + sextantX, y + sextantY, sextantX, sextantY * 2);
+			ctx.fillRect(x + sextantX, y + sextantY, sextantX, 16);
 			break;
 		case 129832:
-			ctx.fillRect(x, y, sextantX * 2, sextantY);
-			ctx.fillRect(x + sextantX, y + sextantY, sextantX, sextantY * 2);
+			ctx.fillRect(x, y, 8, sextantY);
+			ctx.fillRect(x + sextantX, y + sextantY, sextantX, 16);
 			break;
 		case 129833:
-			ctx.fillRect(x, y + sextantY, sextantX * 2, sextantY);
-			ctx.fillRect(x + sextantX, y + sextantY * 2, sextantX, sextantY);
+			ctx.fillRect(x, y + sextantY, 8, sextantY);
+			ctx.fillRect(x + sextantX, y + 16, sextantX, sextantY);
 			break;
 		case 129834:
-			ctx.fillRect(x, y, sextantX, sextantY * 2);
-			ctx.fillRect(x + sextantX, y + sextantY, sextantX, sextantY * 2);
+			ctx.fillRect(x, y, sextantX, 16);
+			ctx.fillRect(x + sextantX, y + sextantY, sextantX, 16);
 			break;
 		case 129835:
 			ctx.fillRect(x + sextantX, y, sextantX, sextantY);
-			ctx.fillRect(x, y + sextantY, sextantX * 2, sextantY);
-			ctx.fillRect(x + sextantX, y + sextantY * 2, sextantX, sextantY);
+			ctx.fillRect(x, y + sextantY, 8, sextantY);
+			ctx.fillRect(x + sextantX, y + 16, sextantX, sextantY);
 			break;
 		case 129836:
-			ctx.fillRect(x, y, sextantX * 2, sextantY * 2);
-			ctx.fillRect(x + sextantX, y + sextantY * 2, sextantX, sextantY);
+			ctx.fillRect(x, y, 8, 16);
+			ctx.fillRect(x + sextantX, y + 16, sextantX, sextantY);
 			break;
 		case 129837:
-			ctx.fillRect(x, y + sextantY * 2, sextantX * 2, sextantY);
+			ctx.fillRect(x, y + 16, 8, sextantY);
 			break;
 		case 129838:
 			ctx.fillRect(x, y, sextantX, sextantY);
-			ctx.fillRect(x, y + sextantY * 2, sextantX * 2, sextantY);
+			ctx.fillRect(x, y + 16, 8, sextantY);
 			break;
 		case 129839:
 			ctx.fillRect(x + sextantX, y, sextantX, sextantY);
-			ctx.fillRect(x, y + sextantY * 2, sextantX * 2, sextantY);
+			ctx.fillRect(x, y + 16, 8, sextantY);
 			break;
 		case 129840:
-			ctx.fillRect(x, y, sextantX * 2, sextantY);
-			ctx.fillRect(x, y + sextantY * 2, sextantX * 2, sextantY);
+			ctx.fillRect(x, y, 8, sextantY);
+			ctx.fillRect(x, y + 16, 8, sextantY);
 			break;
 		case 129841:
 			ctx.fillRect(x, y + sextantY, sextantX, sextantY);
-			ctx.fillRect(x, y + sextantY * 2, sextantX * 2, sextantY);
+			ctx.fillRect(x, y + 16, 8, sextantY);
 			break;
 		case 129842:
-			ctx.fillRect(x, y, sextantX, sextantY * 2);
-			ctx.fillRect(x, y + sextantY * 2, sextantX * 2, sextantY);
+			ctx.fillRect(x, y, sextantX, 16);
+			ctx.fillRect(x, y + 16, 8, sextantY);
 			break;
 		case 129843:
 			ctx.fillRect(x + sextantX, y, sextantX, sextantY);
 			ctx.fillRect(x, y + sextantY, sextantX, sextantY);
-			ctx.fillRect(x, y + sextantY * 2, sextantX * 2, sextantY);
+			ctx.fillRect(x, y + 16, 8, sextantY);
 			break;
 		case 129844:
-			ctx.fillRect(x, y, sextantX * 2, sextantY);
+			ctx.fillRect(x, y, 8, sextantY);
 			ctx.fillRect(x, y + sextantY, sextantX, sextantY);
-			ctx.fillRect(x, y + sextantY * 2, sextantX * 2, sextantY);
+			ctx.fillRect(x, y + 16, 8, sextantY);
 			break;
 		case 129845:
 			ctx.fillRect(x + sextantX, y + sextantY, sextantX, sextantY);
-			ctx.fillRect(x, y + sextantY * 2, sextantX * 2, sextantY);
+			ctx.fillRect(x, y + 16, 8, sextantY);
 			break;
 		case 129846:
 			ctx.fillRect(x, y, sextantX, sextantY);
 			ctx.fillRect(x + sextantX, y + sextantY, sextantX, sextantY);
-			ctx.fillRect(x, y + sextantY * 2, sextantX * 2, sextantY);
+			ctx.fillRect(x, y + 16, 8, sextantY);
 			break;
 		case 129847:
-			ctx.fillRect(x + sextantX, y, sextantX, sextantY * 2);
-			ctx.fillRect(x, y + sextantY * 2, sextantX * 2, sextantY);
+			ctx.fillRect(x + sextantX, y, sextantX, 16);
+			ctx.fillRect(x, y + 16, 8, sextantY);
 			break;
 		case 129848:
-			ctx.fillRect(x, y, sextantX * 2, sextantY);
+			ctx.fillRect(x, y, 8, sextantY);
 			ctx.fillRect(x + sextantX, y + sextantY, sextantX, sextantY);
-			ctx.fillRect(x, y + sextantY * 2, sextantX * 2, sextantY);
+			ctx.fillRect(x, y + 16, 8, sextantY);
 			break;
 		case 129849:
-			ctx.fillRect(x, y + sextantY, sextantX * 2, sextantY * 2);
+			ctx.fillRect(x, y + sextantY, 8, 16);
 			break;
 		case 129850:
-			ctx.fillRect(x, y, sextantX, sextantY * 3);
+			ctx.fillRect(x, y, sextantX, 24);
 			ctx.fillRect(x + sextantX, y + sextantY, sextantX, sextantY);
-			ctx.fillRect(x + sextantX, y + sextantY * 2, sextantX, sextantY);
+			ctx.fillRect(x + sextantX, y + 16, sextantX, sextantY);
 			break;
 		case 129851:
 			ctx.fillRect(x + sextantX, y, sextantX, sextantY);
-			ctx.fillRect(x, y + sextantY, sextantX * 2, sextantY * 2);
-			break;
+			ctx.fillRect(x, y + sextantY, 8, 16);
 	}
 }
 var SYMBOL_STROKE = .05;
@@ -5298,16 +5315,12 @@ function getVectorSymbolDef(codepoint) {
 		case 9700: return "<path d=\"M0,0 L1,0 L0,1 Z\" fill=\"currentColor\"/>" + stroked("M0,0 L1,0 L0,1 Z");
 		case 9701: return "<path d=\"M1,0 L1,1 L0,0 Z\" fill=\"currentColor\"/>" + stroked("M1,0 L1,1 L0,0 Z");
 		case 9871: {
-			const horizontalGap = .15;
-			const verticalGap = .2;
-			const lineHeight = .17;
-			const halfHorizontalGap = horizontalGap / 2;
-			const halfVerticalGap = verticalGap / 2;
+			const halfVerticalGap = .2 / 2;
 			const toViewBoxY = (offset) => .5 + offset * CELL_RATIO;
-			const leftX1 = .5 - halfHorizontalGap;
+			const leftX1 = .425;
 			const rightX0 = .575;
 			const rightX1 = 1.02;
-			const topY0 = toViewBoxY(-.1 - lineHeight);
+			const topY0 = toViewBoxY(-.27);
 			const topY1 = toViewBoxY(-.1);
 			const bottomY0 = toViewBoxY(halfVerticalGap);
 			const bottomY1 = toViewBoxY(.27);
@@ -6129,8 +6142,10 @@ var Player = (props) => {
 		const terminalH = charH * terminalRows() + bordersH;
 		let fit = props.fit ?? "width";
 		const currentContainerSize = containerSize();
-		if (fit === "both" || isFullscreen()) if (currentContainerSize.width / (currentContainerSize.height - controlBarHeight()) > terminalW / terminalH) fit = "height";
-		else fit = "width";
+		if (fit === "both" || isFullscreen()) {
+			if (currentContainerSize.width / (currentContainerSize.height - controlBarHeight()) > terminalW / terminalH) fit = "height";
+			else fit = "width";
+		}
 		if (fit === false || fit === "none") return {};
 		else if (fit === "width") {
 			const scale = currentContainerSize.width / terminalW;
@@ -6183,11 +6198,13 @@ var Player = (props) => {
 			core.seek(`${pos * 100}%`);
 		} else if (e.key == "?") toggleHelp();
 		else if (e.key == "k") toggleKeystrokeOverlay();
-		else if (e.key == "ArrowLeft") if (e.shiftKey) core.seek("<<<");
-		else core.seek("<<");
-		else if (e.key == "ArrowRight") if (e.shiftKey) core.seek(">>>");
-		else core.seek(">>");
-		else if (e.key == "Escape") setIsHelpVisible(false);
+		else if (e.key == "ArrowLeft") {
+			if (e.shiftKey) core.seek("<<<");
+			else core.seek("<<");
+		} else if (e.key == "ArrowRight") {
+			if (e.shiftKey) core.seek(">>>");
+			else core.seek(">>");
+		} else if (e.key == "Escape") setIsHelpVisible(false);
 		else return;
 		e.stopPropagation();
 		e.preventDefault();
@@ -6223,10 +6240,12 @@ var Player = (props) => {
 	const embeddedTheme = createMemo(() => preferEmbeddedTheme ? originalTheme() : null);
 	const playerStyle = () => {
 		const style = {};
-		if ((props.fit === false || props.fit === "none") && props.terminalFontSize !== void 0) if (props.terminalFontSize === "small") style["font-size"] = "12px";
-		else if (props.terminalFontSize === "medium") style["font-size"] = "18px";
-		else if (props.terminalFontSize === "big") style["font-size"] = "24px";
-		else style["font-size"] = props.terminalFontSize;
+		if ((props.fit === false || props.fit === "none") && props.terminalFontSize !== void 0) {
+			if (props.terminalFontSize === "small") style["font-size"] = "12px";
+			else if (props.terminalFontSize === "medium") style["font-size"] = "18px";
+			else if (props.terminalFontSize === "big") style["font-size"] = "24px";
+			else style["font-size"] = props.terminalFontSize;
+		}
 		const size = terminalElementSize();
 		if (size.width !== void 0) {
 			style["width"] = `${size.width}px`;
@@ -6600,19 +6619,92 @@ function create(src, elem, opts = {}) {
 //#endregion
 //#region ../../packages/react/src/components/AsciinemaPlayerImpl.tsx
 var import_react = /* @__PURE__ */ __toESM(require_react(), 1);
-var import_jsx_runtime = require_jsx_runtime();
-var AsciinemaPlayerImpl = ({ id, rows, cols, inputUrl, outputUrl, timingUrl, fit, speed, autoPlay, loop, theme, idleTimeLimit = 2, style }) => {
+var AsciinemaPlayerImpl = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(26);
+	const { id, rows, cols, input, output, timing, cast, fit, speed, autoPlay, loop, theme, idleTimeLimit: t1, startAt, poster, controls, markers, autoFocus, clickToToggle, onPlayer, style } = t0;
+	const idleTimeLimit = t1 === void 0 ? 2 : t1;
 	const playerContainerRef = (0, import_react.useRef)(null);
-	(0, import_react.useEffect)(() => {
-		if (!playerContainerRef.current) return;
-		const player = create({
-			url: [
-				timingUrl,
-				outputUrl,
-				inputUrl
-			],
-			parser: "typescript"
-		}, playerContainerRef.current, {
+	const resumeRef = (0, import_react.useRef)(null);
+	const onPlayerRef = useLatestRef(onPlayer);
+	let t2;
+	let t3;
+	if ($[0] !== autoFocus || $[1] !== autoPlay || $[2] !== cast || $[3] !== clickToToggle || $[4] !== cols || $[5] !== controls || $[6] !== fit || $[7] !== idleTimeLimit || $[8] !== input || $[9] !== loop || $[10] !== markers || $[11] !== onPlayerRef || $[12] !== output || $[13] !== poster || $[14] !== rows || $[15] !== speed || $[16] !== startAt || $[17] !== theme || $[18] !== timing) {
+		t2 = () => {
+			const container = playerContainerRef.current;
+			if (!container) return;
+			const source = cast !== void 0 ? {
+				data: () => new Response(cast),
+				parser: "asciicast"
+			} : {
+				data: () => [
+					new Response(timing),
+					new Response(output),
+					new Response(input)
+				],
+				parser: "typescript"
+			};
+			const recording = {
+				cast,
+				input,
+				output,
+				timing
+			};
+			const resume = resumeRef.current && sameRecording(resumeRef.current.recording, recording) ? resumeRef.current : null;
+			const player = create(source, container, {
+				rows,
+				cols,
+				autoPlay: resume ? false : autoPlay,
+				loop,
+				theme,
+				speed,
+				idleTimeLimit: idleTimeLimit ?? Number.POSITIVE_INFINITY,
+				startAt,
+				fit,
+				poster,
+				controls,
+				markers
+			});
+			let playing = false;
+			player.addEventListener("playing", () => {
+				playing = true;
+			});
+			player.addEventListener("pause", () => {
+				playing = false;
+			});
+			player.addEventListener("ended", () => {
+				playing = false;
+			});
+			if (resume) runPlayback(player.seek(resume.time).then(() => resume.playing ? player.play() : void 0));
+			else if (autoPlay !== false) runPlayback(player.play());
+			if (autoFocus) player.el.focus();
+			const onPlayer_0 = onPlayerRef.current;
+			onPlayer_0?.({
+				seek: (seconds) => player.seek(seconds).then(_temp, _temp2),
+				element: player.el
+			});
+			const onClick = (e) => {
+				if (e.target instanceof Element && e.target.closest(".ap-control-bar, .ap-overlay")) return;
+				if (window.getSelection()?.toString()) return;
+				runPlayback(playing ? player.pause() : player.play());
+			};
+			if (clickToToggle) container.addEventListener("click", onClick);
+			return () => {
+				container.removeEventListener("click", onClick);
+				const time = player.getCurrentTime();
+				resumeRef.current = playing || time > 0 ? {
+					recording,
+					time,
+					playing
+				} : null;
+				onPlayer_0?.(null);
+				player.dispose();
+			};
+		};
+		t3 = [
+			timing,
+			output,
+			input,
+			cast,
 			rows,
 			cols,
 			autoPlay,
@@ -6620,31 +6712,67 @@ var AsciinemaPlayerImpl = ({ id, rows, cols, inputUrl, outputUrl, timingUrl, fit
 			theme,
 			speed,
 			idleTimeLimit,
-			fit
+			startAt,
+			fit,
+			poster,
+			controls,
+			markers,
+			autoFocus,
+			clickToToggle,
+			onPlayerRef
+		];
+		$[0] = autoFocus;
+		$[1] = autoPlay;
+		$[2] = cast;
+		$[3] = clickToToggle;
+		$[4] = cols;
+		$[5] = controls;
+		$[6] = fit;
+		$[7] = idleTimeLimit;
+		$[8] = input;
+		$[9] = loop;
+		$[10] = markers;
+		$[11] = onPlayerRef;
+		$[12] = output;
+		$[13] = poster;
+		$[14] = rows;
+		$[15] = speed;
+		$[16] = startAt;
+		$[17] = theme;
+		$[18] = timing;
+		$[19] = t2;
+		$[20] = t3;
+	} else {
+		t2 = $[19];
+		t3 = $[20];
+	}
+	(0, import_react.useEffect)(t2, t3);
+	const t4 = `asciinema-player-${id || "default"}`;
+	let t5;
+	if ($[21] !== style) {
+		t5 = { ...style };
+		$[21] = style;
+		$[22] = t5;
+	} else t5 = $[22];
+	let t6;
+	if ($[23] !== t4 || $[24] !== t5) {
+		t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			id: t4,
+			ref: playerContainerRef,
+			style: t5
 		});
-		player.play();
-		return () => {
-			player.dispose();
-		};
-	}, [
-		timingUrl,
-		outputUrl,
-		inputUrl,
-		rows,
-		cols,
-		autoPlay,
-		loop,
-		theme,
-		speed,
-		idleTimeLimit,
-		fit
-	]);
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-		id: `asciinema-player-${id || "default"}`,
-		ref: playerContainerRef,
-		style: { ...style }
-	});
+		$[23] = t4;
+		$[24] = t5;
+		$[25] = t6;
+	} else t6 = $[25];
+	return t6;
 };
+var sameRecording = (a, b) => a.cast === b.cast && a.input === b.input && a.output === b.output && a.timing === b.timing;
+var runPlayback = (command) => {
+	command.catch(() => void 0);
+};
+function _temp() {}
+function _temp2() {}
 //#endregion
 export { AsciinemaPlayerImpl as default };
 

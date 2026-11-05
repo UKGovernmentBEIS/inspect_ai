@@ -58,12 +58,14 @@ While many tasks can be defined with only a dataset, solver, and scorer, there a
 | `score_on_error` | Score samples that error rather than failing the run. | [Handling Errors](handling-errors.qmd) |
 | `message_limit`, `token_limit`, `time_limit`, `working_limit`, `cost_limit` | Limits to apply to sample execution. | [Sample Limits](setting-limits.qmd#sample-limits) |
 | `early_stopping` | Stop a task early based on previously scored samples. | [Early Stopping](early-stopping.qmd) |
-| `name`, `display_name`, `version`, `metadata`, `tags` | Identifying attributes recorded in the eval log. | [Eval Logs](eval-logs.qmd) |
+| `name`, `display_name`, `description`, `version`, `metadata`, `tags` | Identifying attributes recorded in the eval log. | [Eval Logs](eval-logs.qmd) |
 | `viewer` | Log viewer config (e.g. how scanner results render). | [Task Views](task-views.qmd) |
 
 : {tbl-colwidths=\[28,42,30\]}
 
 You by and large don't need to worry about these options until you want to use the features they are linked to.
+
+Use `description` for a short statement of what the task asks of the agent. It is recorded in the eval log header (`EvalSpec.task_description`) and appears as the `task_description` column of `evals_df()`. It does not affect task identity in [Eval Sets](eval-sets.qmd). Samples can carry their own `description` as well (see [Dataset Samples](datasets.qmd#dataset-samples)).
 
 ## Parameters {#parameters}
 
@@ -79,7 +81,7 @@ from inspect_ai.solver import generate, system_message
 def security_guide(
     system="devops.txt",
     grader="expert.txt",
-    grader_model="openai/gpt-4o"
+    grader_model="openai/gpt-6-luna"
 ):
    return Task(
       dataset=example_dataset("security_guide"),
@@ -446,6 +448,8 @@ The table below lists task and runtime parameters and the layers at which each c
 +---------------------------+---------------+------------------+----------------------+-----------------------------------------+
 | `sandbox_cleanup`         |               | yes              | yes                  | `--no-sandbox-cleanup`                  |
 +---------------------------+---------------+------------------+----------------------+-----------------------------------------+
+| `sandbox_prebuilt`        |               |                  | yes                  | `--sandbox-prebuilt`                    |
++---------------------------+---------------+------------------+----------------------+-----------------------------------------+
 | `approval`                | yes           | yes              | yes                  | `--approval`                            |
 +---------------------------+---------------+------------------+----------------------+-----------------------------------------+
 | **Task identity**         |               |                  |                      |                                         |
@@ -457,6 +461,10 @@ The table below lists task and runtime parameters and the layers at which each c
 | `metadata`                | yes           | yes (overwrites) | yes (merges)         | `--metadata`                            |
 +---------------------------+---------------+------------------+----------------------+-----------------------------------------+
 | `tags`                    | yes           | yes (overwrites) | yes (merges)         | `--tags`                                |
++---------------------------+---------------+------------------+----------------------+-----------------------------------------+
+| **Description**           |               |                  |                      |                                         |
++---------------------------+---------------+------------------+----------------------+-----------------------------------------+
+| `description`             | yes           | yes              |                      |                                         |
 +---------------------------+---------------+------------------+----------------------+-----------------------------------------+
 | **Sample selection**      |               |                  |                      |                                         |
 +---------------------------+---------------+------------------+----------------------+-----------------------------------------+
@@ -532,14 +540,14 @@ Individual CLI flags (e.g. `--temperature`) take precedence over values in the c
 Model roles assign models to named purposes within a task (for example, a "grader" model for scoring). They can be set on `Task`, with `task_with()`, with `eval()`, or on the CLI with `--model-role` (see the [override reference](#override-reference) for where each form fits). The most common pattern:
 
 ``` python
-Task(..., model_roles={"grader": "openai/gpt-4o"})
+Task(..., model_roles={"grader": "openai/gpt-6-luna"})
 eval(my_task(), model_roles={"grader": "google/gemini-2.0-flash"})
 ```
 
 Inside a solver or scorer, resolve the role with `get_model()`:
 
 ``` python
-model = get_model(role="grader", default="openai/gpt-4o")
+model = get_model(role="grader", default="openai/gpt-6-luna")
 ```
 
 For inline YAML/JSON examples and role-resolution details, see [Model Roles](models.qmd#model-roles).
@@ -567,8 +575,9 @@ model:
 
 model_roles:
   grader:
-    model: openai/gpt-4o
+    model: openai/gpt-6-luna
     config:
+      reasoning_effort: none
       temperature: 0.0
 
 generate_config:
@@ -668,7 +677,7 @@ Every component except `scorer`, `dataset`, and `metrics` can be overridden with
 
 A convenient way to distribute tasks is to include them in a Python package. This makes it very easy for others to run your task and ensure they have all of the required dependencies.
 
-Tasks in packages can be *registered* such that users can easily refer to them by name from the CLI. For example, the [Inspect Evals](https://github.com/UKGovernmentBEIS/inspect_ai) package includes a suite of tasks that can be run as follows:
+Tasks in packages can be *registered* such that users can easily refer to them by name from the CLI. For example, the [Inspect Evals](https://github.com/UKGovernmentBEIS/inspect_evals) package includes a suite of tasks that can be run as follows:
 
 ``` bash
 inspect eval inspect_evals/gaia
@@ -724,7 +733,7 @@ The same packaging mechanism works for solvers, scorers, and tools. See [Compone
 Datasets hosted on Hugging Face Hub can include an `eval.yaml` file that provides Inspect task definitions. For example, the [OpenEvals/aime_24](https://huggingface.co/datasets/OpenEvals/aime_24) dataset can be evaluated with:
 
 ``` bash
-inspect eval hf/OpenEvals/aime_24 --model openai/gpt-5
+inspect eval hf/OpenEvals/aime_24 --model openai/gpt-6-luna
 ```
 
 Here are the `eval.yaml` definitions for several Hugging Face datasets:
@@ -769,16 +778,16 @@ Datasets can define multiple named tasks. For example, the [OpenEvals/MuSR](http
 
 ```bash
 # run all 3 tasks defined by OpenEvals/MuSR
-inspect eval hf/OpenEvals/MuSR --model openai/gpt-5
+inspect eval hf/OpenEvals/MuSR --model openai/gpt-6-luna
 
 # run only the musr:murder_mysteries task
-inspect eval hf/OpenEvals/MuSR/musr:murder_mysteries --model openai/gpt-5
+inspect eval hf/OpenEvals/MuSR/musr:murder_mysteries --model openai/gpt-6-luna
 ```
 
 Note that when running multiple tasks, you may want to increase `--max-tasks` for more concurrency:
 
 ```bash
-inspect eval hf/OpenEvals/MuSR --model openai/gpt-5 --max-tasks 3
+inspect eval hf/OpenEvals/MuSR --model openai/gpt-6-luna --max-tasks 3
 ```
 
 ### Revisions
@@ -786,7 +795,7 @@ inspect eval hf/OpenEvals/MuSR --model openai/gpt-5 --max-tasks 3
 All of the examples above execute evals from the `main` branch. You can alternatively execute from a branch, tag, or revision hash by appending an `@` qualifier. For example:
 
 ```bash
-inspect eval hf/OpenEvals/MuSR@df154a5 --model openai/gpt-5
+inspect eval hf/OpenEvals/MuSR@df154a5 --model openai/gpt-6-luna
 ```
 
 ## Exploratory {#exploratory}
@@ -802,7 +811,7 @@ from itertools import product
 params = {
     "system": ["devops.txt", "researcher.txt"],
     "grader": ["hacker.txt", "expert.txt"],
-    "grader_model": ["openai/gpt-4o", "google/gemini-2.5-pro"],
+    "grader_model": ["openai/gpt-6-luna", "google/gemini-2.5-pro"],
 }
 grid = list(product(*(params[name] for name in params)))
 

@@ -53,6 +53,22 @@ async def test_perplexity_scorer_basic() -> None:
 
 
 @pytest.mark.anyio
+async def test_perplexity_scorer_overflowing_nll_records_infinite_perplexity() -> None:
+    """An NLL beyond exp()'s range scores with infinite perplexity instead of raising."""
+    prompt_lps = [Logprob(token="x", logprob=-10000.0)]
+    state = _task_state_with_prompt_logprobs(prompt_lps)
+    scorer = perplexity()
+
+    result = await scorer(state, Target(["unused"]))
+
+    assert result is not None
+    assert result.as_float() == pytest.approx(10000.0)
+    assert result.metadata is not None
+    assert result.metadata["perplexity"] == float("inf")
+    assert "perplexity: inf" in (result.explanation or "")
+
+
+@pytest.mark.anyio
 async def test_perplexity_scorer_no_logprobs() -> None:
     """Scorer returns NaN when no prompt logprobs are available."""
     state = simple_task_state(model_output="test")
@@ -95,6 +111,28 @@ async def test_perplexity_scorer_no_choices() -> None:
     result = await scorer(state, Target(["unused"]))
     assert result is not None
     assert math.isnan(result.as_float())
+
+
+@pytest.mark.anyio
+async def test_perplexity_scorer_unscorable_states_carry_reason() -> None:
+    """Unscorable states return Score.unscored with a machine-readable reason."""
+    scorer = perplexity()
+
+    state = simple_task_state(model_output="")
+    state.output.choices = []
+    result = await scorer(state, Target(["unused"]))
+    assert result is not None
+    assert result.reason == "scoring_failed"
+
+    state = _task_state_with_prompt_logprobs(None)
+    result = await scorer(state, Target(["unused"]))
+    assert result is not None
+    assert result.reason == "scoring_failed"
+
+    state = _task_state_with_prompt_logprobs([])
+    result = await scorer(state, Target(["unused"]))
+    assert result is not None
+    assert result.reason == "scoring_failed"
 
 
 # -- Metric helpers --
@@ -199,3 +237,17 @@ def test_per_seq_zero_tokens_skipped() -> None:
     ]
     result = perplexity_per_seq()(scores)  # type: ignore[arg-type]
     assert result == pytest.approx(math.exp(2.0))
+
+
+def test_per_token_overflow_returns_inf() -> None:
+    """Very large negative log-likelihood returns inf without OverflowError."""
+    scores = [_make_sample_score(num_tokens=10, sum_log_probs=-10000.0)]
+    result = perplexity_per_token()(scores)  # type: ignore[arg-type]
+    assert float(result) == math.inf  # type: ignore[arg-type]
+
+
+def test_per_seq_overflow_returns_inf() -> None:
+    """Very large negative log-likelihood returns inf without OverflowError."""
+    scores = [_make_sample_score(num_tokens=10, sum_log_probs=-10000.0)]
+    result = perplexity_per_seq()(scores)  # type: ignore[arg-type]
+    assert float(result) == math.inf  # type: ignore[arg-type]

@@ -1,6 +1,22 @@
+import math
+from typing import Iterator, cast
 from unittest import mock
 
-from inspect_ai.agent._human.state import HumanAgentState
+import pytest
+
+from inspect_ai.agent._human.state import HumanAgentState, IntermediateScoring
+from inspect_ai.scorer._metric import Score
+from inspect_ai.util._store import Store, init_subtask_store, store_jsonable
+
+
+@pytest.fixture(autouse=True)
+def _isolate_store() -> Iterator[None]:
+    # HumanAgentState writes to the current store() even when given its own
+    # (field validation builds a throwaway model there). Leave a fresh store
+    # behind so a NaN score cannot make later store diffs emit StoreEvents.
+    init_subtask_store(Store())
+    yield
+    init_subtask_store(Store())
 
 
 @mock.patch("time.time", autospec=True)
@@ -21,3 +37,26 @@ def test_human_agent_state_time_accumulation(mock_time):
         state.running = False
         mock_time.return_value += period
         assert state.time == expected_time, "Time should not accumulate while stopped"
+
+
+def test_intermediate_scoring_nan_survives_store_round_trip():
+    """NaN scores in HumanAgentState.scorings survive store serialization.
+
+    store_jsonable() dumps each IntermediateScoring directly (its own dump
+    root, before EvalSample ever sees the store), so without the constants
+    config a NaN list element becomes None and reload leaves a raw dict in
+    scorings (list[IntermediateScoring] validation fails).
+    """
+    state = HumanAgentState(instructions="test")
+    state.scorings = [
+        IntermediateScoring(time=1.0, scores=[Score(value=[float("nan"), 1.0])])
+    ]
+
+    jsonable = store_jsonable(state.store)
+    restored = HumanAgentState(store=Store(jsonable), instructions="test")
+
+    assert isinstance(restored.scorings[0], IntermediateScoring)
+    value = restored.scorings[0].scores[0].value
+    assert isinstance(value, list)
+    assert math.isnan(cast(float, value[0]))
+    assert value[1] == 1.0

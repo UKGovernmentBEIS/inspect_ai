@@ -37,6 +37,9 @@ def task_info(
         return cast(str, row.get(task_display_name_column, default=task_name))
 
     def transform(df: pd.DataFrame) -> pd.DataFrame:
+        if df.empty:
+            return df
+
         df[task_display_name_column] = df.apply(task_display_name, axis=1)
         return df
 

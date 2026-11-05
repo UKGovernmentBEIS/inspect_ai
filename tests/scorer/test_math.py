@@ -1,231 +1,978 @@
-"""Tests for math scorer with Math-Verify integration."""
+import importlib.metadata
+import json
+import math as stdlib_math
+import re
+import subprocess
+import sys
+import textwrap
+from pathlib import Path
+from typing import Any
 
+import anyio
 import pytest
-from test_helpers.utils import simple_task_state
+from test_helpers.utils import simple_task_state, skip_if_no_package
 
+import inspect_ai.scorer._math as math_module
+from inspect_ai import Task, eval
+from inspect_ai._util.error import PrerequisiteError
+from inspect_ai.dataset import Sample
+from inspect_ai.model import ModelOutput, get_model
 from inspect_ai.scorer import CORRECT, INCORRECT, Target, math
 from inspect_ai.scorer._math import (
-    extract_last_integer,
-    find_last_boxed_content,
-    normalize_string,
-    remove_inner_boxed,
-    remove_invalid_characters,
-    remove_outer_brackets,
-    strip,
+    _answer_candidates,
+    _MathLimitError,
+    _MathParseError,
+    _parse_candidate,
 )
+from inspect_ai.solver import generate
+
+CASES = json.loads(
+    (Path(__file__).parent / "math_cases.json").read_text(encoding="utf-8")
+)
+
+
+def _score_answer(
+    completion: str, targets: tuple[str, ...]
+) -> "math_module._WorkerScore":
+    # Test convenience: parse the target strings, then score like production
+    # (which parses targets once in _parse_targets_worker and passes the
+    # values to _score_answer_worker).
+    parsed, _error = math_module._parse_targets_worker(targets)
+    return math_module._score_answer_worker(completion, parsed)
 
 
 @pytest.mark.parametrize(
-    "output,target,expected",
-    [
-        ("The answer is \\boxed{42}", "42", CORRECT),
-        ("\\boxed{\\frac{1}{2}}", "0.5", CORRECT),
-        ("\\boxed{\\sqrt{2}}", "3", INCORRECT),
-    ],
+    "case",
+    CASES,
+    ids=[f"{index}-{case['source']}" for index, case in enumerate(CASES)],
 )
-async def test_boxed(output, target, expected):
+async def test_math_scorer_compatibility_cases(case: dict[str, str]) -> None:
     scorer = math()
-    state = simple_task_state(model_output=output)
-    result = await scorer(state, Target([target]))
+    state = simple_task_state(model_output=case["output"])
+    result = await scorer(state, Target([case["target"]]))
+    assert result is not None
+    assert result.value == case["expected"], case
 
-    assert result.value == expected
 
-
-@pytest.mark.parametrize(
-    "output,target,expected",
-    [
-        ("\\boxed{\\sqrt{2}}", "$\\sqrt{2}$", CORRECT),  # sqrt with braces
-        ("\\boxed{\\sqrt2}", "$\\sqrt{2}$", CORRECT),  # sqrt without braces
-        ("\\boxed{sqrt(2)}", "$\\sqrt{2}$", CORRECT),  # sqrt with parentheses
-    ],
-)
-async def test_sqrt(output, target, expected):
+async def test_math_scorer_uses_last_boxed_answer() -> None:
     scorer = math()
-    state = simple_task_state(model_output=output)
-    result = await scorer(state, Target([target]))
+    state = simple_task_state(model_output=r"\boxed{10} and then \boxed{42}")
 
-    assert result.value == expected
+    result = await scorer(state, Target(["42"]))
+    assert result is not None
+    assert result.value == CORRECT
 
-
-@pytest.mark.parametrize(
-    "output,target,expected",
-    [
-        ("The answer is 42", "42", CORRECT),  # simple number
-        ("$\\sqrt{2}$", "$\\sqrt{2}$", CORRECT),  # LaTeX expression
-        ("1 + 0.5 = 1.5", "1.5", CORRECT),  # algebraic expression
-        ("2*sqrt(2)", "2.8284271247461903", CORRECT),  # symbolic expression
-        ("0.", "0", CORRECT),  # decimal
-        ("1/5", "0.2", CORRECT),  # fraction
-        ("33.5%", "0.335", CORRECT),  # percentage
-        ("1.5 * 10^3", "1500", CORRECT),  # scientific notation
-        ("2*(1 + 2) * 3", "18", CORRECT),  # multiple operations
-        ("x^2 - x^2", "0", CORRECT),  # algebraic simplification
-        ("not a number", "None", INCORRECT),  # invalid expression
-        ("sqrt(2) + sqrt(2)", "2.8284271247461903", CORRECT),  # symbolic expression
-        ("2(1 + 2) * 3", "18", CORRECT),  # multiple operations
-        (
-            r"\boxed{\frac{6\sqrt{1789-240\sqrt{21}}+8\sqrt{1236-240\sqrt{21}}}{5}}.",
-            r"96-10\sqrt{21}",
-            CORRECT,
-        ),
-        (
-            "For 73/4, m = 73 and n = 4 so that m + n = 73 + 4 = 77.\n\nThus, the final answer is: boxed {77}.",
-            "77",
-            CORRECT,
-        ),
-        (
-            "The final answer is therefore □{610}.",
-            "610",
-            CORRECT,
-        ),
-        (
-            "Thus, the final answer is: boxed {19}.",
-            "19",
-            CORRECT,
-        ),
-        (
-            "\boxed{6\\sqrt{3} + 5\\pi}",
-            r"5\pi + 6\sqrt{3}",
-            CORRECT,
-        ),
-    ],
-)
-async def test_no_boxed(output, target, expected):
-    scorer = math()
-    state = simple_task_state(model_output=output)
-
-    result = await scorer(state, Target([target]))
-    assert result.value == expected
-
-
-@pytest.mark.parametrize(
-    "output,target,expected",
-    [
-        ("{1, 2}", "{1, 2}", CORRECT),
-        ("{2, 1}", "{1, 2}", CORRECT),  # order-insensitive
-        ("{1, 2, 3}", "{1, 2}", INCORRECT),  # different cardinality
-        ("{1, 3}", "{1, 2}", INCORRECT),  # different element
-    ],
-)
-async def test_list_valued_answers(output, target, expected):
-    # Brace-delimited sets parse to Python lists; identical sets must score
-    # CORRECT rather than being unconditionally rejected.
-    scorer = math()
-    state = simple_task_state(model_output=output)
-    result = await scorer(state, Target([target]))
-    assert result.value == expected
-
-
-@pytest.mark.parametrize("output", [r"\boxed{inf}", r"\boxed{Infinity}", "-inf"])
-async def test_infinite_float_does_not_crash(output):
-    # float("inf") must not crash the scorer with OverflowError from int(inf).
-    scorer = math()
-    state = simple_task_state(model_output=output)
-    result = await scorer(state, Target(["0"]))
+    result = await scorer(state, Target([r"\{10,42\}"]))
+    assert result is not None
     assert result.value == INCORRECT
 
 
-# ============================================================================
-# EXTRACTION FUNCTION TESTS
-# ============================================================================
+async def test_final_boxed_answer_survives_a_flood_of_earlier_boxes() -> None:
+    # The most recent \boxed{...} must win even after more boxes than any fixed
+    # scan cap, so a genuine final answer can't be buried (also a gaming vector).
+    scorer = math()
+    flood = " ".join(r"\boxed{9}" for _ in range(400))
+    state = simple_task_state(model_output=f"{flood} \\boxed{{42}}")
+    result = await scorer(state, Target(["42"]))
+    assert result is not None
+    assert result.value == CORRECT
 
 
-def test_find_last_boxed_content():
-    """Test extraction of boxed content from text."""
-    # Basic boxed content
-    assert find_last_boxed_content(r"The answer is \boxed{42}") == "42"
-
-    # Multiple boxed - should return last one
-    assert find_last_boxed_content(r"\boxed{10} and \boxed{42}") == "42"
-
-    # No boxed content
-    assert find_last_boxed_content("No boxed content here") is None
-
-    # Empty string
-    assert find_last_boxed_content("") is None
+@pytest.mark.parametrize("target", ["x=2", "2=x", "2 = y", "z = 2"])
+def test_assignment_target_matches_either_orientation(target: str) -> None:
+    # Unwrapping an assignment-form target to its value side must work whether
+    # the value is on the left or the right of the equality.
+    assert _score_answer("2", (target,)).status == "correct"
 
 
-def test_remove_inner_boxed():
-    """Test removal of nested boxed expressions."""
-    # Nested boxed
-    assert remove_inner_boxed(r"\boxed{42}") == "42"
-
-    # No boxed content
-    assert remove_inner_boxed("plain text") == "plain text"
-
-
-def test_extract_last_integer():
-    """Test extraction of last integer from text."""
-    # Single integer
-    assert extract_last_integer("The answer is 42") == 42
-
-    # Multiple integers - should return last one
-    assert extract_last_integer("Results: 10, 20, 30") == 30
-
-    # No integers
-    assert extract_last_integer("No numbers here") is None
-
-    # Empty string
-    assert extract_last_integer("") is None
+async def test_math_scorer_uses_valid_target_alternative() -> None:
+    scorer = math()
+    state = simple_task_state(model_output=r"\boxed{42}")
+    result = await scorer(
+        state,
+        Target([r"__import__('os').system('false')", "42"]),
+    )
+    assert result is not None
+    assert result.value == CORRECT
 
 
-# ============================================================================
-# NORMALIZATION FUNCTION TESTS
-# ============================================================================
+@pytest.mark.parametrize(
+    "targets",
+    [
+        pytest.param([], id="no_targets"),
+        pytest.param([""], id="empty_target"),
+        pytest.param(["   "], id="blank_target"),
+        pytest.param(["__import__('os').system('false')"], id="rejected_target"),
+        pytest.param(["", "__import__('os').system('false')"], id="all_unusable"),
+    ],
+)
+async def test_unusable_targets_raise(targets: list[str]) -> None:
+    scorer = math()
+    state = simple_task_state(model_output=r"\boxed{42}")
+
+    with pytest.raises(ValueError, match="Could not parse any mathematical target:"):
+        await scorer(state, Target(targets))
 
 
-def test_strip():
-    """Test stripping whitespace and LaTeX newlines."""
-    # Basic whitespace
-    assert strip("  42  ") == "42"
+async def test_model_complexity_rejection_is_incorrect() -> None:
+    scorer = math()
+    state = simple_task_state(model_output=r"\boxed{2^{2^{2^{49}}}}")
+    result = await scorer(state, Target(["1"]))
 
-    # LaTeX newlines
-    assert strip(r"\n42\n") == "42"
-
-    # LaTeX spaces (string starts with \\ followed by space)
-    assert strip("\\ 42") == "42"
-
-    # Empty string
-    assert strip("") == ""
+    assert result is not None
+    assert result.value == INCORRECT
+    assert result.reason == "invalid_response_format"
+    assert result.metadata == {"math_scorer_status": "answer_limit"}
 
 
-def test_normalize_string():
-    """Test LaTeX string normalization."""
-    # Remove sizing commands and convert brackets (brackets become parens)
-    assert normalize_string(r"\left[42\right]") == "(42)"
+@pytest.mark.parametrize(
+    "output",
+    [
+        pytest.param("", id="empty_completion"),
+        pytest.param(
+            "().__class__.__base__.__subclasses__()",
+            id="rejected_security_payload",
+        ),
+    ],
+)
+async def test_parse_failure_records_invalid_response_format(output: str) -> None:
+    """Record answer-extraction failures in the machine-readable `reason`.
 
-    # Extract value after equals
-    assert normalize_string("x = 42") == "42"
+    Prose answers compare as text and score plain incorrect, so
+    `answer_parse_error` is reserved for output yielding no readable
+    candidate at all (empty completions, rejected payloads). That is a
+    format violation by the model under test: it stays INCORRECT (it must
+    not inflate accuracy by leaving the metric denominator), with `reason`
+    recording the failure mode so analysis can separate "wrong answer" from
+    "couldn't parse an answer". The full completion is surfaced as the
+    answer when no candidate was extracted, per the custom-scorers guidance
+    for extraction scorers.
+    """
+    scorer = math()
+    state = simple_task_state(model_output=output)
+    result = await scorer(state, Target(["42"]))
 
-    # Remove text environments
-    assert normalize_string(r"\text{answer: }42") == "42"
-
-    # Remove dollar signs
-    assert normalize_string("$42$") == "42"
-
-
-def test_remove_outer_brackets():
-    """Test removal of outer parentheses."""
-    # Single layer
-    assert remove_outer_brackets("(42)") == "42"
-
-    # Multiple layers
-    assert remove_outer_brackets("((1+2))") == "1+2"
-
-    # Non-matching (should not remove)
-    assert remove_outer_brackets("(1)+(2)") == "(1)+(2)"
-
-    # No brackets
-    assert remove_outer_brackets("42") == "42"
+    assert result is not None
+    assert result.value == INCORRECT
+    assert result.reason == "invalid_response_format"
+    assert result.metadata == {"math_scorer_status": "answer_parse_error"}
+    assert result.answer == output
 
 
-def test_remove_invalid_characters():
-    """Test removal of LaTeX spacing commands."""
-    # Thin space
-    assert remove_invalid_characters(r"1\,234") == "1234"
+async def test_parse_success_with_wrong_value_has_no_reason() -> None:
+    """A parseable but wrong answer is plain INCORRECT with no reason tag."""
+    scorer = math()
+    state = simple_task_state(model_output=r"The answer is \boxed{5}")
+    result = await scorer(state, Target(["42"]))
 
-    # Medium space
-    assert remove_invalid_characters(r"x\;=\;42") == "x=42"
+    assert result is not None
+    assert result.value == INCORRECT
+    assert result.reason is None
+    assert result.metadata == {"math_scorer_status": "incorrect"}
+    assert result.answer == "5"
 
-    # Multiple spacing commands
-    assert remove_invalid_characters(r"a\:b\!c") == "abc"
+
+def test_plain_and_latex_parsers_do_not_call_parse_expr(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import latex2sympy2_extended.latex2sympy2 as parser  # type: ignore[import-untyped]
+    import sympy.parsing.sympy_parser as sympy_parser  # type: ignore[import-untyped]
+
+    def fail_parse_expr(*_args: Any, **_kwargs: Any) -> None:
+        raise AssertionError("unsafe parse_expr() called")
+
+    monkeypatch.setattr(parser, "parse_expr", fail_parse_expr)
+    monkeypatch.setattr(sympy_parser, "parse_expr", fail_parse_expr)
+    for expression in (
+        r"\frac{1}{2}",
+        r"\frac{1E2}{5}",
+        r"\sqrt{2}",
+        r"\left(1,2\right)",
+        r"\begin{pmatrix}1&2\\3&4\end{pmatrix}",
+        "1,234.5",
+        "sqrt(2) + sqrt(2)",
+    ):
+        assert _parse_candidate(expression)
+
+
+def test_parsers_never_call_string_sympify(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Beyond parse_expr, the PR also promises answer/target text never reaches a
+    # string sympify() — the other eval-capable entry point, which the
+    # latex2sympy2-extended set/logic internals could hide. Fail on any sympify
+    # call with a str argument (a non-str sympify of an already-parsed object is
+    # fine).
+    import latex2sympy2_extended.logic as parser_logic  # type: ignore[import-untyped]
+    import latex2sympy2_extended.sets as parser_sets  # type: ignore[import-untyped]
+    import sympy
+
+    def guard(original: Any) -> Any:
+        def wrapped(value: Any, *args: Any, **kwargs: Any) -> Any:
+            if isinstance(value, str):
+                raise AssertionError(f"unsafe string sympify() called: {value!r}")
+            return original(value, *args, **kwargs)
+
+        return wrapped
+
+    for module in (sympy, parser_sets, parser_logic):
+        monkeypatch.setattr(module, "sympify", guard(module.sympify))
+
+    # Exercise the parser forms most likely to route through set/logic sympify.
+    for expression in (
+        r"\frac{1}{2}",
+        r"\sqrt[3]{8}",
+        r"\{1,2,3\}",
+        r"x \in \{1,2,3\}",
+        r"x<y<z",
+        r"(-\infty,-8)\cup(8,\infty)",
+        r"\begin{pmatrix}1&2\\3&4\end{pmatrix}",
+        r"\binom{100}{50}",
+        "1,234.5",
+        "().__class__.__base__.__subclasses__()",
+    ):
+        try:
+            _parse_candidate(expression)
+        except _MathParseError:
+            pass  # rejection is fine; reaching a string sympify() is not
+
+
+@pytest.mark.slow
+@skip_if_no_package("huggingface_hub")
+def test_math_scorer_matches_real_answer_corpus() -> None:
+    """Scale check on the full 5,000-row MATH test split (see PR #4361).
+
+    This is the split `inspect_evals/math` uses. It exercises answer
+    extraction/representation across every real gold answer plus the
+    grouped-thousands, assignment-target, and multiline-final fixes, which the
+    handful of unit cases cannot cover at scale. Prose-wrapped extraction has a
+    small legitimate tail (negative-number edge cases) and is left to the unit
+    tests above.
+
+    Reads the parquet with huggingface_hub + pyarrow (both dev dependencies)
+    rather than the `datasets` package, which is not installed in CI.
+    """
+    import pyarrow.parquet as pq
+    from huggingface_hub import hf_hub_download
+
+    from inspect_ai.scorer._math import _boxed_candidates
+
+    parquet_path = hf_hub_download(
+        repo_id="DigitalLearningGmbH/MATH-lighteval",
+        filename="data/test-00000-of-00001.parquet",
+        repo_type="dataset",
+    )
+    solutions = pq.read_table(parquet_path, columns=["solution"]).to_pylist()
+    answers = [
+        boxes[-1].strip()
+        for row in solutions
+        if (boxes := _boxed_candidates(row["solution"]))
+    ]
+    assert len(answers) >= 4900
+
+    # Every gold answer self-matches (extraction + representation coverage).
+    self_fail = [a for a in answers if _score_answer(a, (a,)).status != "correct"]
+    assert not self_fail, f"self-match failures: {self_fail[:10]}"
+
+    integers = [a for a in answers if re.fullmatch(r"[+-]?\d+", a)]
+    # A grouped-thousands rendering of an integer answer matches the plain target.
+    thousands_fail = [
+        a
+        for a in integers
+        if abs(int(a)) >= 1000
+        and _score_answer(f"{int(a):,}", (a,)).status != "correct"
+    ]
+    assert not thousands_fail, f"thousands failures: {thousands_fail[:10]}"
+    # A bare integer answer matches an assignment-form target ("x = N").
+    assignment_fail = [
+        a for a in integers if _score_answer(a, (f"x={a}",)).status != "correct"
+    ]
+    assert not assignment_fail, f"assignment failures: {assignment_fail[:10]}"
+    # An integer answer on the final line of a reasoning trace is extracted.
+    multiline_fail = [
+        a
+        for a in integers
+        if _score_answer(f"First compute the answer.\n{a}", (a,)).status != "correct"
+    ]
+    assert not multiline_fail, f"multiline-final failures: {multiline_fail[:10]}"
+
+
+def test_reported_subclasses_escape_never_reaches_parse_expr(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The reported RCE: on the pre-fix scorer `().__class__.__base__.__subclasses__()`
+    # flowed into sympy's parse_expr and evaluated to live Python classes. Pin that
+    # this exact payload is rejected without ever reaching an evaluating parser.
+    import latex2sympy2_extended.latex2sympy2 as parser
+    import sympy.parsing.sympy_parser as sympy_parser
+
+    def fail_parse_expr(*_args: Any, **_kwargs: Any) -> None:
+        raise AssertionError("unsafe parse_expr() called")
+
+    monkeypatch.setattr(parser, "parse_expr", fail_parse_expr)
+    monkeypatch.setattr(sympy_parser, "parse_expr", fail_parse_expr)
+
+    payload = "().__class__.__base__.__subclasses__()"
+    with pytest.raises(_MathParseError):
+        _parse_candidate(payload)
+    assert _score_answer(payload, ("0",)).status == "answer_parse_error"
+
+
+@pytest.mark.parametrize(
+    ("answer", "target"),
+    [
+        ("33.5%", "0.335"),
+        (r"33.5\%", "0.335"),
+        ("33.5 percent", "0.335"),
+        ("33.5 percentage", "0.335"),
+        ("33.5 pct", "0.335"),
+        (r"\frac{1}{2}\%", "0.005"),
+        (r"\frac{1}{2}\text{ percent}", "0.005"),
+    ],
+)
+def test_percentage_suffixes_are_normalized(answer: str, target: str) -> None:
+    result = _score_answer(answer, (target,))
+    assert result.status == "correct"
+
+
+def test_percentage_is_removed_before_latex_parser(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    parse_latex = math_module._parse_latex_expression
+    parsed_candidates: list[str] = []
+
+    def recording_parser(
+        candidate: str, sympy: Any, policy: "math_module._SymbolPolicy | None" = None
+    ) -> Any:
+        parsed_candidates.append(candidate)
+        return parse_latex(candidate, sympy, policy)
+
+    monkeypatch.setattr(math_module, "_parse_latex_expression", recording_parser)
+
+    parsed = _parse_candidate(r"\frac{1}{2}\%")
+
+    assert parsed.expression is not None
+    assert parsed_candidates == [r"\frac{1}{2}"]
+
+
+@pytest.mark.parametrize(
+    "expression",
+    [
+        r"\operatorname{SVD}(\begin{pmatrix}1&2\\3&4\end{pmatrix})",
+        r"\|\begin{pmatrix}1&2\\3&4\end{pmatrix}\|",
+        r"1\xRightarrow{n}2",
+    ],
+)
+def test_eager_latex_operations_are_rejected_before_parsing(
+    expression: str,
+) -> None:
+    with pytest.raises(
+        _MathLimitError, match="expression requests an eager mathematical operation"
+    ):
+        _parse_candidate(expression)
+
+
+@pytest.mark.timeout(5)
+@pytest.mark.parametrize(
+    ("expression", "function_name"),
+    [
+        (r"\binom{1000000}{500000}", "binomial"),
+        (r"\Gamma(1000000)", "gamma"),
+    ],
+)
+def test_eager_latex_constructors_remain_unevaluated(
+    expression: str, function_name: str
+) -> None:
+    parsed = _parse_candidate(expression)
+
+    assert parsed.expression is not None
+    assert parsed.expression.func.__name__ == function_name
+
+
+@pytest.mark.parametrize(
+    "answer",
+    ["[]", "[0]", "(0,)", "(0, 1)"],
+)
+def test_constant_tuple_mismatch_is_incorrect(answer: str) -> None:
+    result = _score_answer(answer, ("2",))
+    assert result.status == "incorrect"
+
+
+def test_constant_tuple_self_match_is_correct() -> None:
+    result = _score_answer("(0, 1)", ("(0, 1)",))
+    assert result.status == "correct"
+
+
+@pytest.mark.parametrize(
+    "answer,target",
+    [
+        ("1,234", "1234"),
+        ("12,345,678", "12345678"),
+        ("1,234.5", "1234.5"),
+        ("-8,192", "-8192"),
+        ("1,000,000", "1000000"),
+    ],
+)
+def test_grouped_thousands_are_treated_as_numbers(answer: str, target: str) -> None:
+    result = _score_answer(answer, (target,))
+    assert result.status == "correct"
+
+
+@pytest.mark.parametrize(
+    "answer",
+    ["(1,2)", "(1, 2)", "{1,2,3}", "[1,2]", "1,23", "1,2345"],
+)
+def test_grouped_thousands_normalization_leaves_structures_intact(answer: str) -> None:
+    # The thousands rule must not collapse tuples/sets or ill-formed groupings
+    # into a single number; each of these self-matches rather than becoming an int.
+    assert _score_answer(answer, (answer,)).status == "correct"
+    assert _score_answer(answer, ("12",)).status == "incorrect"
+
+
+@pytest.mark.parametrize(
+    "answer,target",
+    [(r"1\,234", "1234"), (r"12\,345\,678", "12345678"), (r"1\,234.5", "1234.5")],
+)
+def test_latex_thin_space_thousands_are_numbers(answer: str, target: str) -> None:
+    assert _score_answer(answer, (target,)).status == "correct"
+
+
+@pytest.mark.parametrize(
+    "answer,target",
+    [
+        ("99999999999", "100000000000"),
+        ("100000000000000000000", "100000000001000000000"),
+        ("12345678901", "12345678902"),
+    ],
+)
+def test_exact_large_integers_are_not_approximated(answer: str, target: str) -> None:
+    # Exact integers must compare exactly; float tolerance previously accepted
+    # off-by-one values above ~1e11.
+    assert _score_answer(answer, (target,)).status == "incorrect"
+
+
+@pytest.mark.parametrize(
+    "answer,target",
+    [("0.5", "1/2"), ("1.4142135623730951", r"\sqrt{2}"), ("0.335", r"33.5\%")],
+)
+def test_approximate_values_still_match(answer: str, target: str) -> None:
+    # The exact-comparison guard must not disturb genuinely approximate matches.
+    assert _score_answer(answer, (target,)).status == "correct"
+
+
+@pytest.mark.parametrize(
+    "answer,target",
+    [("2", "x=2"), ("x=2", "2"), ("x=2", "2=x"), ("2", "y = 2")],
+)
+def test_assignment_targets_accept_their_value(answer: str, target: str) -> None:
+    # An assignment-form value like "x = 2" matches the bare answer "2"
+    # regardless of which side carries the equality.
+    assert _score_answer(answer, (target,)).status == "correct"
+
+
+@pytest.mark.parametrize(
+    "answer,target",
+    [
+        ("The answer is 42 because geometry proves it", "42"),
+        ("42 because geometry proves it", "42"),
+        ("First compute 6*7.\n42", "42"),
+        ("Final answer: 42", "42"),
+    ],
+)
+def test_prose_wrapped_numeric_answers_are_extracted(answer: str, target: str) -> None:
+    assert _score_answer(answer, (target,)).status == "correct"
+
+
+@pytest.mark.parametrize(
+    "answer,target",
+    [
+        (r"\boxed{\frac{x}{2}}", "x/2"),
+        (r"\boxed{x/2}", r"\frac{x}{2}"),
+        (r"\boxed{2\pi r}", "2*pi*r"),
+        (r"\boxed{\sqrt{x}}", "sqrt(x)"),
+        (r"\boxed{\frac{n(n+1)}{2}}", "n*(n+1)/2"),
+        (r"\boxed{\text{yes}}", "yes"),
+        (r"\boxed{\frac{X}{2}}", "X/2"),
+        # Plain symbols are matched case-insensitively, as LaTeX ones always were.
+        ("N/2", "n/2"),
+        (r"\boxed{\frac{N}{2}}", "n/2"),
+        (r"\boxed{N \cdot k}", "n*K"),
+        # Real-valued symbols let real-only identities hold in either notation.
+        # The first two cross the parsers; the third is plain on both sides.
+        (r"\boxed{\sqrt{x^2}}", "abs(x)"),
+        (r"\boxed{sqrt(x**2)}", r"|x|"),
+        ("sqrt(x**2)", "abs(x)"),
+        # Plain notation's imaginary spellings must agree with each other: a
+        # boxed answer without a backslash is parsed by the plain parser, so
+        # these pin `i`/`I`/`2j` equivalence rather than a cross-parser match.
+        (r"\boxed{z = 1+i}", "z = 1+I"),
+        (r"\boxed{x+i}", "x+I"),
+        (r"\boxed{1+2j}", "1+2*i"),
+        (r"\boxed{2j}", "2*i"),
+        (r"\boxed{z = 1+2j}", "z = 1+2*i"),
+        # Cross-parser agreement on the imaginary unit itself. These carry no
+        # free symbols, so they pin only that LaTeX `\sqrt{-1}` and plain `i`
+        # denote the same constant, not the symbol policy's two axes.
+        (r"\boxed{\sqrt{-1}}", "i"),
+        (r"\boxed{i}", r"\sqrt{-1}"),
+    ],
+)
+def test_symbolic_answers_match_across_notations(answer: str, target: str) -> None:
+    # A symbolic answer must get the same verdict whether the target is written
+    # in LaTeX or plain notation; the two parsers must build identical symbols.
+    assert _score_answer(answer, (target,)).status == "correct"
+
+
+@pytest.mark.parametrize(
+    "answer,target",
+    [
+        (r"\boxed{\frac{x}{2}}", "x/3"),
+        (r"\boxed{\frac{x}{2}}", "y/2"),
+        (r"\boxed{\sqrt{x}}", "sqrt(y)"),
+        (r"\boxed{2\pi r}", "2*pi*r**2"),
+        # Case-insensitive matching must not collapse distinct letters.
+        ("N/2", "m/2"),
+        (r"\boxed{\frac{N}{2}}", "m/2"),
+        # Complex answers stay distinguishable from one another.
+        (r"\boxed{x+i}", "x+2*i"),
+        (r"\boxed{1+2j}", "1+3*i"),
+        (r"\boxed{z = 1+i}", "z = 1-i"),
+    ],
+)
+def test_symbolic_mismatches_stay_incorrect_across_notations(
+    answer: str, target: str
+) -> None:
+    assert _score_answer(answer, (target,)).status == "incorrect"
+
+
+@pytest.mark.parametrize(
+    "answer,target",
+    [
+        # Plain on both sides, in each spelling of the imaginary unit.
+        ("x+i-i", "x"),
+        ("x+I-I", "x"),
+        ("x+1j-1j", "x"),
+        ("x*i*i", "-x"),
+        ("x", "x + i - i"),
+        # LaTeX on both sides.
+        (r"\boxed{x + i - i}", "x"),
+        (r"\boxed{\frac{x + i - i}{1}}", r"\frac{x}{1}"),
+        # Mixed notation, with the imaginary unit on either side.
+        (r"\boxed{\frac{x+i-i}{1}}", "x"),
+        (r"\boxed{x + i - i}", r"\frac{x}{1}"),
+        (r"\boxed{\frac{x}{1}}", "x+i-i"),
+        (r"\boxed{x}", "x + i - i"),
+        # A real-only identity still holds when the answer mentions `i`.
+        ("sqrt(x**2) + i - i", "abs(x)"),
+    ],
+)
+def test_cancelling_imaginary_terms_match_real_targets(
+    answer: str, target: str
+) -> None:
+    # The answer is parsed under the target's symbol policy, so a candidate
+    # whose imaginary parts cancel builds the same real `x` as its target
+    # instead of a non-real `x` that could never compare equal.
+    assert _score_answer(answer, (target,)).status == "correct"
+
+
+@pytest.mark.parametrize(
+    "answer,target",
+    [
+        ("x+i", "x"),
+        ("i*x", "x"),
+        ("x+i", "x+2*i"),
+        ("z = 1+i", "z = 1-i"),
+        (r"\boxed{x+i}", "x"),
+        (r"\boxed{i x}", "x"),
+    ],
+)
+def test_unequal_complex_expressions_stay_incorrect(answer: str, target: str) -> None:
+    # Sharing the target's policy only aligns assumptions; it does not make a
+    # genuinely different complex value equal to a real one.
+    assert _score_answer(answer, (target,)).status == "incorrect"
+
+
+def test_answer_is_parsed_under_the_target_policy() -> None:
+    import sympy
+
+    parsed, error = math_module._parse_targets_worker(("x",))
+    assert error is None
+    (target,) = parsed
+    assert target.policy is not None and target.policy.is_real is True
+    answer = _parse_candidate("x+i-i", target.policy).expression
+    assert answer is not None
+    assert answer.free_symbols == {sympy.Symbol("x", real=True)}
+    # Standalone parsing keeps detecting the policy from the candidate itself.
+    assert _parse_candidate("x+i-i").policy == math_module._SymbolPolicy(
+        lowercase=True, is_real=False
+    )
+
+
+def test_each_target_governs_its_own_comparison() -> None:
+    # With targets of differing policies, the answer is compared against each
+    # under that target's assumptions; a match against any one is enough.
+    assert _score_answer("x", ("x+i-i", "x")).status == "correct"
+    assert _score_answer("x", ("x", "x+i-i")).status == "correct"
+    assert _score_answer("x+i", ("x", "x+i-i")).status == "incorrect"
+
+
+def test_text_targets_carry_no_policy() -> None:
+    parsed, error = math_module._parse_targets_worker(("no solution",))
+    assert error is None
+    assert parsed[0].text == "no solution" and parsed[0].policy is None
+    assert _score_answer("no solution", ("no solution",)).status == "correct"
+    assert _score_answer("x+i", ("no solution", "x+I")).status == "correct"
+
+
+def test_plain_and_latex_parsers_build_identical_symbols() -> None:
+    plain = _parse_candidate("x/2").expression
+    latex = _parse_candidate(r"\frac{x}{2}").expression
+    assert plain is not None and latex is not None
+    assert plain.free_symbols == latex.free_symbols
+    assert plain.equals(latex)
+
+
+def _symbol_assumptions(candidate: str) -> dict[str, bool | None]:
+    """Map each parsed symbol's name to its `real` assumption."""
+    parsed = _parse_candidate(candidate).expression
+    assert parsed is not None, f"expected an expression for {candidate!r}"
+    return {symbol.name: symbol.is_real for symbol in parsed.free_symbols}
+
+
+def _takes_latex_path(candidate: str) -> bool:
+    """Whether the plain parser declines, leaving the LaTeX converter to run."""
+    import sympy
+
+    from inspect_ai.scorer._math import _parse_plain_expression
+
+    try:
+        return _parse_plain_expression(candidate, sympy) is None
+    except _MathParseError:
+        return True
+
+
+@pytest.mark.parametrize(
+    "plain,latex,expected",
+    [
+        ("x/2", r"\frac{x}{2}", {"x": True}),
+        # Case normalization: an uppercase symbol lowercases in both notations.
+        ("X/2", r"\frac{X}{2}", {"x": True}),
+        ("n*K", r"n \cdot K", {"n": True, "k": True}),
+        ("sqrt(x**2)", r"\sqrt{x^2}", {"x": True}),
+        ("abs(x)", r"|x|", {"x": True}),
+    ],
+)
+def test_symbol_policy_holds_in_both_notations(
+    plain: str, latex: str, expected: dict[str, bool]
+) -> None:
+    # Both parsers apply one shared policy, so the same source text yields the
+    # same symbol names and the same `real` assumption whichever notation it is
+    # written in. Pinning the assumption (not just the name) catches drift on
+    # the real/complex axis; pinning the name catches drift on the case axis.
+    assert not _takes_latex_path(plain), f"{plain!r} should use the plain parser"
+    assert _takes_latex_path(latex), f"{latex!r} should use the LaTeX parser"
+    assert _symbol_assumptions(plain) == expected
+    assert _symbol_assumptions(latex) == expected
+
+
+@pytest.mark.parametrize(
+    "candidate,latex_path",
+    [
+        ("x+i", False),
+        # Plain notation additionally spells the imaginary unit `I` and accepts
+        # Python complex literals; LaTeX does not, hence per-notation detection.
+        ("x+I", False),
+        ("x+2j", False),
+        # An equation propagates the whole candidate's policy to both halves.
+        ("z = 1+i", False),
+        ("z = 1+I", False),
+        ("z = 1+2j", False),
+        # The LaTeX converter must reach the same assumption on its own path.
+        (r"\frac{x+i}{2}", True),
+        (r"\frac{z}{1} = 1+i", True),
+    ],
+)
+def test_complex_candidates_build_non_real_symbols(
+    candidate: str, latex_path: bool
+) -> None:
+    # Assert the notation actually routes where the case intends, so a LaTeX
+    # case cannot silently degrade into plain-parser coverage.
+    assert _takes_latex_path(candidate) is latex_path
+    assumptions = _symbol_assumptions(candidate)
+    assert assumptions, f"expected at least one symbol in {candidate!r}"
+    # Pin the literal assumption `real=False`, not merely "not real=True":
+    # Symbol("x") (is_real None) is a third, distinct SymPy variable, so
+    # accepting it here would let the cross-notation mismatch back in.
+    assert all(is_real is False for is_real in assumptions.values()), assumptions
+
+
+def test_imaginary_unit_notation_semantics_are_unchanged() -> None:
+    # Notation-specific, and deliberately left alone by the symbol policy: the
+    # plain parser maps a bare `i` to SymPy's imaginary unit, while the LaTeX
+    # converter reads it as an ordinary symbol named `i`. Both are non-real, so
+    # the policy agrees, but the two spellings are not interchangeable and a
+    # LaTeX-only complex expression does not match its plain counterpart.
+    import sympy
+
+    plain = _parse_candidate("x+i").expression
+    latex = _parse_candidate(r"\frac{x+i}{2}").expression
+    assert plain is not None and latex is not None
+    assert sympy.I in plain.atoms(type(sympy.I))
+    assert not plain.free_symbols - {sympy.Symbol("x", real=False)}
+    assert {str(symbol) for symbol in latex.free_symbols} == {"i", "x"}
+    assert _score_answer(r"\boxed{\frac{x+i}{2}}", ("(x+i)/2",)).status == "incorrect"
+
+
+def test_symbol_policy_decides_case_and_assumption_once() -> None:
+    import sympy
+
+    from inspect_ai.scorer._math import (
+        _looks_complex,
+        _plain_looks_complex,
+        _SymbolPolicy,
+    )
+
+    real = _SymbolPolicy.for_candidate("x/2", _plain_looks_complex)
+    assert (real.lowercase, real.is_real) == (True, True)
+    assert real.symbol(sympy, "X") == sympy.Symbol("x", real=True)
+
+    complex_ = _SymbolPolicy.for_candidate("x+i", _plain_looks_complex)
+    assert complex_.is_real is False
+    assert complex_.symbol(sympy, "X") == sympy.Symbol("x", real=False)
+    assert complex_.symbol(sympy, "X") != sympy.Symbol("x")
+
+    # The detector is a per-notation input precisely because the spellings
+    # differ: only the plain parser treats a bare `I` as the imaginary unit.
+    assert _SymbolPolicy.for_candidate("x+I", _plain_looks_complex).is_real is False
+    assert _SymbolPolicy.for_candidate("x+I", _looks_complex).is_real is True
+
+
+def test_prose_fallback_does_not_manufacture_false_matches() -> None:
+    # The fallback only fires for a target that genuinely equals an extracted
+    # candidate; an incidental number in prose must not count as correct.
+    assert _score_answer("The perimeter is 7", ("42",)).status == "incorrect"
+
+
+def test_text_answer_is_not_overridden_by_subexpression() -> None:
+    # A legitimate text answer ("odd $n$") must self-match and not be replaced
+    # by a stray sub-expression like "n".
+    assert _score_answer(r"odd $n$", (r"odd $n$",)).status == "correct"
+
+
+@pytest.mark.parametrize(
+    "version",
+    ["4.9.3", "4.11.0", "4.11.1", "4.13.2"],
+)
+def test_supported_antlr_versions(version: str) -> None:
+    assert math_module._supported_antlr_version(version)
+
+
+def test_unsupported_antlr_version_has_clear_prerequisite_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    package_version = importlib.metadata.version
+
+    def fake_version(package: str) -> str:
+        if package == math_module._ANTLR_PACKAGE:
+            return "4.12.0"
+        return package_version(package)
+
+    monkeypatch.setattr(importlib.metadata, "version", fake_version)
+
+    with pytest.raises(PrerequisiteError) as exc_info:
+        math()
+
+    assert "4.9.3, 4.11.x, or 4.13.2" in str(exc_info.value.message)
+    assert "you have 4.12.0" in str(exc_info.value.message)
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        "__import__('os').system('touch marker')",
+        "open('marker', 'w').write('x')",
+        "getattr(__import__('pathlib').Path('marker'), 'touch')()",
+        "(1).__class__.__mro__[1].__subclasses__()",
+        "(lambda: open('marker', 'w'))()",
+        "[open('marker', 'w') for _ in [0]]",
+        "globals()['__builtins__']['open']('marker', 'w')",
+    ],
+)
+def test_security_payload_is_rejected_without_fallback(payload: str) -> None:
+    result = _score_answer(f"{payload} or 0", ("0",))
+    assert result.status == "answer_parse_error"
+
+
+def test_security_payloads_do_not_execute_in_eval(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("INSPECT_TELEMETRY", raising=False)
+    monkeypatch.delenv("INSPECT_API_KEY_OVERRIDE", raising=False)
+    monkeypatch.delenv("INSPECT_REQUIRED_HOOKS", raising=False)
+    marker = tmp_path / "math-scorer-marker"
+    payloads = [
+        f"__import__('pathlib').Path({str(marker)!r}).write_text('import')",
+        f"open({str(marker)!r}, 'w').write('open')",
+        f"getattr(__import__('pathlib').Path({str(marker)!r}), 'touch')()",
+        f"(lambda: open({str(marker)!r}, 'w'))()",
+        f"[open({str(marker)!r}, 'w') for _ in [0]]",
+        f"(1).__class__.__mro__[1].__subclasses__() and open({str(marker)!r}, 'w')",
+    ]
+    outputs = [
+        ModelOutput.from_content("mockllm/model", payload) for payload in payloads
+    ]
+    model = get_model("mockllm/model", custom_outputs=outputs)
+    task = Task(
+        dataset=[
+            Sample(input=f"payload {index}", target="0")
+            for index in range(len(payloads))
+        ],
+        solver=generate(),
+        scorer=math(),
+    )
+
+    log = eval(
+        task,
+        model=model,
+        display="none",
+        log_dir=str(tmp_path / "logs"),
+    )[0]
+
+    assert not marker.exists()
+    assert log.samples
+    assert all(sample.error is None for sample in log.samples)
+    assert all(
+        sample.score and sample.score.value == INCORRECT for sample in log.samples
+    )
+
+
+def test_long_output_extraction_is_bounded() -> None:
+    completion = f"{'reasoning ' * 50_000}\\boxed{{42}}"
+    assert _answer_candidates(completion)[0] == "42"
+
+    with pytest.raises(_MathLimitError, match="model output is too long"):
+        _answer_candidates("x" * (math_module._MAX_COMPLETION_CHARS + 1))
+
+
+async def test_target_timeout_is_unscored(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def slow_run_sync(*_args: Any, **_kwargs: Any) -> None:
+        await anyio.sleep(1)
+
+    monkeypatch.setattr(math_module, "run_sync", slow_run_sync)
+    monkeypatch.setattr(math_module, "_MIN_COLD_TIMEOUT_SECONDS", 0.01)
+
+    result = await math(timeout=0.01)(
+        simple_task_state(model_output="42"),
+        Target(["42"]),
+    )
+
+    assert result is not None
+    assert isinstance(result.value, float)
+    assert stdlib_math.isnan(result.value)
+    assert result.metadata == {"math_scorer_status": "target_timeout"}
+
+
+async def test_answer_timeout_is_incorrect(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = 0
+
+    async def staged_run_sync(*_args: Any, **_kwargs: Any) -> Any:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return ([math_module._ParsedValue(None, "42", "42")], None)
+        await anyio.sleep(1)
+
+    monkeypatch.setattr(math_module, "run_sync", staged_run_sync)
+
+    result = await math(timeout=0.01)(
+        simple_task_state(model_output="42"),
+        Target(["42"]),
+    )
+
+    assert result is not None
+    assert result.value == INCORRECT
+    assert result.metadata == {"math_scorer_status": "answer_timeout"}
+
+
+def test_scorer_runs_under_unguarded_top_level_entry() -> None:
+    # Regression: the scorer must not run its work in a way that re-executes the
+    # caller's __main__ (as anyio.to_process did), which crashed the worker when
+    # the entry point was an unguarded console script or a top-level
+    # anyio.run(...). Run exactly that shape in a fresh interpreter.
+    script = textwrap.dedent(
+        r"""
+        import anyio
+        from test_helpers.utils import simple_task_state
+        from inspect_ai.scorer import Target, math
+
+        async def _main():
+            score = await math()(
+                simple_task_state(model_output=r"\boxed{42}"), Target(["42"])
+            )
+            print("RESULT", score.value)
+
+        anyio.run(_main)
+        """
+    )
+    tests_dir = Path(__file__).parents[1]
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        capture_output=True,
+        text=True,
+        timeout=180,
+        cwd=str(tests_dir),
+    )
+    assert result.returncode == 0, result.stderr
+    assert "RESULT C" in result.stdout, (
+        f"stdout={result.stdout!r} stderr={result.stderr!r}"
+    )
+
+
+async def test_worker_queue_time_is_not_expression_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def short_worker_call(function: Any, *_args: Any, **_kwargs: Any) -> Any:
+        await anyio.sleep(0.02)
+        if function is math_module._parse_targets_worker:
+            return ([math_module._ParsedValue(None, "42", "42")], None)
+        return math_module._WorkerScore("correct", "42")
+
+    monkeypatch.setattr(math_module, "run_sync", short_worker_call)
+
+    scorer = math(timeout=0.05)
+    results = []
+
+    async def run_score() -> None:
+        result = await scorer(
+            simple_task_state(model_output="42"),
+            Target(["42"]),
+        )
+        results.append(result)
+
+    async with anyio.create_task_group() as task_group:
+        for _ in range(8):
+            task_group.start_soon(run_score)
+
+    assert all(result is not None and result.value == CORRECT for result in results)
+
+
+def test_worker_context_resets_across_event_loops(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def cold_worker_call(function: Any, *_args: Any, **_kwargs: Any) -> Any:
+        await anyio.sleep(0.02)
+        if function is math_module._parse_targets_worker:
+            return ([math_module._ParsedValue(None, "42", "42")], None)
+        return math_module._WorkerScore("correct", "42")
+
+    monkeypatch.setattr(math_module, "run_sync", cold_worker_call)
+    scorer = math(timeout=0.05)
+
+    async def run_once() -> None:
+        result = await scorer(
+            simple_task_state(model_output="42"),
+            Target(["42"]),
+        )
+        assert result is not None
+        assert result.value == CORRECT
+
+    anyio.run(run_once)
+    anyio.run(run_once)

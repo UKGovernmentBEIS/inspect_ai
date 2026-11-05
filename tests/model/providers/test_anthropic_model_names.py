@@ -399,6 +399,8 @@ def test_claude_3_7(model_name: str) -> None:
         "anthropic.claude-sonnet-4-20250514-v1:0",
         # Vertex
         "claude-sonnet-4@20250514",
+        # Model database base name (e.g. a registered ModelInfo.family)
+        "claude-sonnet-4",
     ],
 )
 def test_claude_4_0_sonnet(model_name: str) -> None:
@@ -419,6 +421,8 @@ def test_claude_4_0_sonnet(model_name: str) -> None:
         "anthropic.claude-opus-4-20250514-v1:0",
         # Vertex
         "claude-opus-4@20250514",
+        # Model database base name (e.g. a registered ModelInfo.family)
+        "claude-opus-4",
     ],
 )
 def test_claude_4_0_opus(model_name: str) -> None:
@@ -552,11 +556,18 @@ def test_claude_4_6_opus(model_name: str) -> None:
     [
         # GA + limited-release names
         "claude-opus-5",
+        "claude-opus-5-5",
+        "claude-sonnet-5-5",
+        "claude-haiku-5-5",
         "claude-fable-5",
         "claude-mythos-5",
         # Bedrock
         "anthropic.claude-opus-5",
+        "anthropic.claude-opus-5-5",
+        "anthropic.claude-sonnet-5-5",
+        "anthropic.claude-haiku-5-5",
         "anthropic.claude-fable-5",
+        "anthropic.claude-fable-5-1",
         # Point releases (hyphen + dot forms)
         "claude-fable-5-1",
         "claude-mythos-5-1",

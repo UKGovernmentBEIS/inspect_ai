@@ -3,6 +3,7 @@ from typing import Any, Literal, cast
 import pytest
 from test_helpers.utils import (
     skip_if_no_cloudflare,
+    skip_if_no_deepseek,
     skip_if_no_groq,
     skip_if_no_moonshot,
     skip_if_no_openai,
@@ -40,7 +41,7 @@ async def test_reasoning_content_openai():
 @skip_if_no_openai
 @skip_if_no_openrouter
 async def test_reasoning_content_openrouter_openai():
-    await check_reasoning_content("openrouter/openai/o4-mini")
+    await check_reasoning_content("openrouter/openai/gpt-5-mini")
 
 
 def check_reasoning_round_trip(model: str) -> None:
@@ -105,6 +106,12 @@ def test_reasoning_content_cloudflare(model: str):
 @skip_if_no_moonshot
 def test_reasoning_content_moonshot():
     check_reasoning_round_trip("moonshot/kimi-k3")
+
+
+@pytest.mark.slow
+@skip_if_no_deepseek
+def test_reasoning_content_deepseek():
+    check_reasoning_round_trip("deepseek/deepseek-flash")
 
 
 @pytest.mark.slow

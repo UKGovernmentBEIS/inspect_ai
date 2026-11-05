@@ -58,7 +58,7 @@ task = Task(
     scorer=includes()
 )
 
-eval(task, model="openai/gpt-4o")
+eval(task, model="openai/gpt-6-luna")
 ```
 
 ## Prompt
@@ -163,6 +163,8 @@ react(
 ```
 
 Retries will be triggered when `ModelOutput` has a `stop_reason` of "content_filter".
+
+Once retries are exhausted the agent stops and the sample proceeds to scoring. If you would rather have a refusal fail the sample (so it shows up as a sample error instead of a low score), set the `fail_on_refusal` generation option; see [Failing on Refusals](fallbacks.qmd#failing-on-refusals).
 
 ## Continuation
 

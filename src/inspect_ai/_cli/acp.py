@@ -22,7 +22,6 @@ import asyncio
 import sys
 
 import click
-from acp.stdio import stdio_streams
 
 from inspect_ai.agent._acp.discovery import (
     DiscoveredEval,
@@ -30,7 +29,6 @@ from inspect_ai.agent._acp.discovery import (
     TargetResolutionError,
     resolve_target,
 )
-from inspect_ai.agent._acp.stdio import TripleResolutionError, bridge_stdio
 
 
 @click.group(name="acp", invoke_without_command=True)
@@ -177,6 +175,16 @@ async def _run_stdio_bridge(
     handshake transparently produces a direct bind without going
     through the in-channel picker.
     """
+    # Deferred: this module is imported by every `inspect` invocation, and the
+    # `acp` package loads its full pydantic schema on import.
+    from acp.stdio import stdio_streams
+
+    from inspect_ai.agent._acp.stdio import (
+        TripleResolutionError,
+        bridge_stdio,
+        preflight_resolve_triple,
+    )
+
     try:
         target, picked_from = resolve_target(eval_id=eval_id, server=server)
     except TargetResolutionError as exc:
@@ -190,8 +198,6 @@ async def _run_stdio_bridge(
     if task_id is not None and sample_id is not None and epoch is not None:
         triple = f"{task_id}/{sample_id}/{epoch}"
         try:
-            from inspect_ai.agent._acp.stdio import preflight_resolve_triple
-
             await preflight_resolve_triple(target, triple)
         except TripleResolutionError as exc:
             print(str(exc), file=sys.stderr, flush=True)

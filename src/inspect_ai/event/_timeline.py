@@ -21,6 +21,7 @@ from pydantic import (
     model_validator,
 )
 
+from inspect_ai._sentinel._scope import is_agent_turn
 from inspect_ai.model import (
     ChatMessageSystem,
     ChatMessageTool,
@@ -1170,6 +1171,11 @@ def _wrap_utility_events(agent: TimelineSpan) -> None:
     foreign-prompt wrapping is skipped entirely (warmup calls are still
     wrapped; they are identified independently of prompts).
 
+    A call whose recorded ``origin`` is not ``"agent"`` is utility and never
+    sets the primary prompt. A call recorded as ``"agent"`` goes through the
+    rules above, as a call with no ``origin`` does, since a bridged agent's
+    warm-ups and helper calls are recorded as ``"agent"``.
+
     Operates recursively on the entire span tree.
 
     Args:
@@ -1180,7 +1186,7 @@ def _wrap_utility_events(agent: TimelineSpan) -> None:
     primary_prompt: str | None = None
     for item in agent.content:
         if isinstance(item, TimelineEvent) and isinstance(item.event, ModelEvent):
-            if _has_tool_calls(item.event):
+            if _has_tool_calls(item.event) and _may_be_turn(item.event):
                 primary_prompt = _get_system_prompt_for_event(item.event)
                 break
 
@@ -1201,6 +1207,10 @@ def _wrap_utility_events(agent: TimelineSpan) -> None:
     new_content: list[TimelineEvent | TimelineSpan] = []
     for index, item in enumerate(agent.content):
         if isinstance(item, TimelineEvent) and isinstance(item.event, ModelEvent):
+            if not _may_be_turn(item.event):
+                new_content.append(utility_wrapper(item, index))
+                continue
+
             # Warmup/cache-priming call (max_tokens=1)
             if _is_warmup_call(item.event):
                 new_content.append(utility_wrapper(item, index))
@@ -1224,6 +1234,11 @@ def _wrap_utility_events(agent: TimelineSpan) -> None:
         _wrap_utility_events(item)
     for branch in agent.branches:
         _wrap_utility_events(branch)
+
+
+def _may_be_turn(event: ModelEvent) -> bool:
+    """An agent turn by its recorded origin, or a call that records none."""
+    return event.origin is None or is_agent_turn(event.origin)
 
 
 def _is_warmup_call(event: ModelEvent) -> bool:
@@ -1369,10 +1384,10 @@ def timeline_filter(
 ) -> Timeline:
     """Return a new timeline with only spans matching the predicate.
 
-    Recursively walks the span tree, keeping ``TimelineSpan`` items
-    where ``predicate(span)`` returns ``True``. Non-matching spans and
-    their entire subtrees are pruned. ``TimelineEvent`` items are always
-    kept (they belong to the parent span).
+    Recursively walks span content and branches, keeping ``TimelineSpan``
+    items where ``predicate(span)`` returns ``True``. Non-matching spans and
+    their entire subtrees are pruned. ``TimelineEvent`` items are always kept
+    because they belong to the parent span.
 
     Use this to pre-filter a timeline before passing it to
     ``timeline_messages()``.
@@ -1396,7 +1411,7 @@ def _filter_span_by_predicate(
     span: TimelineSpan,
     predicate: Callable[[TimelineSpan], bool],
 ) -> TimelineSpan:
-    """Recursively filter a span's content, pruning non-matching child spans."""
+    """Recursively filter a span's content and branches."""
     filtered_content: list[TimelineEvent | TimelineSpan] = []
     for item in span.content:
         if isinstance(item, TimelineSpan):
@@ -1404,4 +1419,12 @@ def _filter_span_by_predicate(
                 filtered_content.append(_filter_span_by_predicate(item, predicate))
         else:
             filtered_content.append(item)
-    return span.model_copy(update={"content": filtered_content})
+
+    filtered_branches: list[TimelineSpan] = []
+    for branch in span.branches:
+        if predicate(branch):
+            filtered_branches.append(_filter_span_by_predicate(branch, predicate))
+
+    return span.model_copy(
+        update={"content": filtered_content, "branches": filtered_branches}
+    )

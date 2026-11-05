@@ -17,7 +17,7 @@ Human baselining terminal sessions are [recorded](#recording) by default so that
 
 ## Example
 
-Here, we run a human baseline on an [Intercode CTF](https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/intercode_ctf/) sample. We use the `--solver` option to use the `human_cli` agent rather than the task's default solver:
+Here, we run a human baseline on an [Intercode CTF](https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/gdm_intercode_ctf/) sample. We use the `--solver` option to use the `human_cli` agent rather than the task's default solver:
 
 ``` bash
 inspect eval inspect_evals/gdm_intercode_ctf \
@@ -153,6 +153,8 @@ Or from the CLI, use the `-S` option:
 --solver human_cli -S user=myuser
 ```
 
+The `task` command's shell hook is appended to that user's `~/.bashrc` running as that user, so if the image ships a `.bashrc` it must be a regular file the user can write (for example, a Dockerfile `COPY` of a `.bashrc` needs `--chown` for the login user, otherwise installation fails with a permission error).
+
 ## Recording {#recording}
 
 By default, human agent terminal sessions are recorded using the LInux [script command](https://www.redhat.com/en/blog/linux-script-command). Recorded sessions are saved in the sample store and available for playback within the Inspect View:
@@ -164,6 +166,11 @@ You can disable session recording with the `record_session` option:
 ``` bash
 --solver human_cli -S record_session=false
 ```
+
+When you specify `user`, collecting recordings requires the sandbox provider to
+support `read_file(user=...)`. Providers without this support warn and omit the
+recordings from the sample log. Disable recording until the provider adds support,
+or use the sandbox's default user if that is the intended human identity.
 
 ## Headless {#headless}
 

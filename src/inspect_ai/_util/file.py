@@ -1,12 +1,14 @@
 import datetime
 import importlib
 import io
+import json
 import logging
 import os
 import re
 import string
 import tempfile
 import unicodedata
+import weakref
 from contextlib import contextmanager
 from copy import deepcopy
 from importlib.metadata import PackageNotFoundError
@@ -14,9 +16,10 @@ from importlib.metadata import version as package_version
 from pathlib import Path
 from typing import Any, BinaryIO, Callable, Iterator, Literal, TextIO, cast, overload
 from urllib.parse import quote_from_bytes, urlparse
+from urllib.request import url2pathname
 
-import fsspec  # type: ignore  # type: ignore
-from fsspec.core import split_protocol  # type: ignore  # type: ignore
+import fsspec  # type: ignore
+from fsspec.core import split_protocol  # type: ignore
 from fsspec.implementations.local import make_path_posix  # type: ignore
 from pydantic import BaseModel, Field
 from shortuuid import uuid
@@ -28,7 +31,11 @@ from inspect_ai._util.azure import (
     is_azure_delete_permission_error,
     is_azure_path,
 )
-from inspect_ai._util.error import PrerequisiteError, pip_dependency_error
+from inspect_ai._util.error import (
+    PrerequisiteError,
+    WriteConflictError,
+    pip_dependency_error,
+)
 from inspect_ai._util.trace import trace_message
 
 # https://filesystem-spec.readthedocs.io/en/latest/_modules/fsspec/spec.html#AbstractFileSystem
@@ -160,6 +167,73 @@ def write_atomic_text(path: str | Path, write: Callable[[TextIO], object]) -> No
         raise
 
 
+@contextmanager
+def acquire_exclusive_lock(path: str, info: dict[str, Any]) -> Iterator[None]:
+    """Hold a lock file at a local `path` for the duration of the block.
+
+    The file is created with ``O_CREAT | O_EXCL``, so at most one holder
+    exists, and `info` is written into it as JSON to identify the holder. The
+    file is removed when the block exits, including on an exception or
+    cancellation. A lock left by a process that crashed is never overridden:
+    the holder named in it must be checked and the file removed by hand.
+
+    Args:
+        path: Local path or ``file://`` URI of the lock file.
+        info: JSON-serializable description of the holder (for example its
+            pid, host and start time). Informational only; never read back
+            to decide anything.
+
+    Raises:
+        WriteConflictError: The lock file already exists. The message names
+            the file and its contents.
+    """
+    lock = local_path(path)
+    try:
+        fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o666)
+    except FileExistsError:
+        raise WriteConflictError(
+            f"Lock file {lock} is held by another process: "
+            f"{_lock_holder(lock)}. If that process is no longer running, "
+            "delete the lock file and try again."
+        ) from None
+    try:
+        os.write(fd, json.dumps(info).encode("utf-8"))
+        yield
+    finally:
+        _release_exclusive_lock(lock, fd)
+
+
+def _lock_holder(lock: str) -> str:
+    try:
+        with open(lock, encoding="utf-8", errors="replace") as f:
+            return f.read(1000) or "(empty)"
+    except OSError as ex:
+        return f"(unreadable: {ex})"
+
+
+def _release_exclusive_lock(lock: str, fd: int) -> None:
+    """Close `fd` and remove `lock` only if it is still the file `fd` created.
+
+    The descriptor stays open until this check: once a file is closed and
+    unlinked, Linux can give its inode number to the next file created, so a
+    replacement would look like the original.
+    """
+    created = os.fstat(fd)
+    try:
+        current = os.stat(lock)
+    except FileNotFoundError:
+        logger.warning(f"Lock file {lock} was removed while it was held.")
+        return
+    finally:
+        os.close(fd)
+    if (current.st_dev, current.st_ino) != (created.st_dev, created.st_ino):
+        logger.warning(
+            f"Lock file {lock} was replaced while it was held; leaving it in place."
+        )
+        return
+    os.remove(lock)
+
+
 def basename(file: str) -> str:
     """Get the base name of the file.
 
@@ -178,6 +252,16 @@ def basename(file: str) -> str:
     _, path_without_protocol = split_protocol(normalized_path)
     name: str = path_without_protocol.rstrip("/").split("/")[-1]
     return name
+
+
+def url_protocol(url: str) -> str | None:
+    """The protocol fsspec reads in `url`, or None for a local path.
+
+    fsspec reads ``data:`` as a protocol without slashes, and a one-letter
+    scheme (``C://``) as a Windows drive. A chained URL is not split.
+    """
+    protocol: str | None = split_protocol(url)[0]
+    return protocol
 
 
 def dirname(file: str) -> str:
@@ -252,6 +336,31 @@ class FileSystem:
 
     def path_as_uri(self, path: str) -> str:
         return str(self.fs.unstrip_protocol(path))
+
+    def dir_location(self, path: str) -> str:
+        """Return the location to address files in a directory, from the path alone.
+
+        Makes no filesystem request, so it works with credentials scoped to a
+        prefix. Trailing separators are removed (a root is kept). A local path
+        becomes an absolute `file://` URI. A remote URL otherwise keeps the form
+        given, since it can carry connection settings (e.g. the account in
+        `abfss://container@account.dfs.core.windows.net/logs`).
+        """
+        if self.is_local():
+            return self.path_as_uri(
+                _strip_trailing_sep(self.fs._strip_protocol(path), self.sep)
+            )
+        head, delim, rest = path.rpartition("://")
+        trimmed = rest.rstrip(self.sep)
+        return f"{head}{delim}{trimmed}" if trimmed else path
+
+    def dir_as_uri(self, path: str) -> str:
+        """Return a directory's URI in the form of the names `ls()` returns.
+
+        Makes no filesystem request. Use it to make listed names relative to
+        the directory; use `dir_location()` to address files in it.
+        """
+        return self.path_as_uri(self.fs._strip_protocol(self.dir_location(path)))
 
     def ls(
         self, path: str, recursive: bool = False, **kwargs: dict[str, Any]
@@ -441,10 +550,28 @@ def to_uri(path_or_uri: str) -> str:
     return "file://" + quote_from_bytes(bytes(path_obj), safe="/:@")
 
 
+_WINDOWS_DRIVE_AUTHORITY = re.compile(r"[A-Za-z]:")
+
+
 def local_path(filename: str) -> str:
-    """Convert a file:// URL to a local path, or return as-is."""
+    """Convert a file:// URL to a local path, or return as-is.
+
+    Percent-encoded characters are decoded (the inverse of `to_uri`, which
+    encodes them), so paths with spaces or literal percent sequences round
+    trip. A Windows drive in the authority (`file://D:/logs/...`, the form
+    the local filesystem reports on Windows) is kept so the path does not
+    resolve against the current drive (#5322). Known limitation (unchanged):
+    a UNC-style `file://server/share` URL drops its host component — only
+    the path part is returned.
+    """
     if filename.startswith("file://"):
-        return urlparse(filename).path
+        parsed = urlparse(filename)
+        # urlparse puts a Windows drive ("D:") in netloc and leaves only
+        # "/logs/..." in path; converting the path alone gives "\logs\...",
+        # which resolves against the current drive (#5322).
+        if _WINDOWS_DRIVE_AUTHORITY.fullmatch(parsed.netloc):
+            return url2pathname(parsed.netloc + parsed.path)
+        return url2pathname(parsed.path)
     return filename
 
 
@@ -619,14 +746,17 @@ def strip_trailing_sep(path: str) -> str:
     Matches pathlib behavior: exactly ``//`` is preserved per POSIX,
     any other all-separator path collapses to a single separator.
     """
-    fs = filesystem(path)
-    stripped = path.rstrip(fs.sep)
+    return _strip_trailing_sep(path, filesystem(path).sep)
+
+
+def _strip_trailing_sep(path: str, sep: str) -> str:
+    stripped = path.rstrip(sep)
     if stripped:
         return stripped
     # All separators — preserve exactly "//" per POSIX, otherwise collapse
-    if path == fs.sep * 2:
+    if path == sep * 2:
         return path
-    return fs.sep
+    return sep
 
 
 logger = logging.getLogger(__name__)
@@ -642,8 +772,14 @@ async def cleanup_s3_sessions() -> None:
     aiohttp.ClientSession.__del__ to emit 'Unclosed client session' / 'Unclosed
     connector' warnings. See https://github.com/fsspec/s3fs/issues/943
 
-    This function explicitly closes the sessions via the proper async cleanup path
-    and clears the instance cache so the weakref finalizer has nothing to do.
+    This function explicitly closes the sessions via the proper async cleanup path,
+    disarms s3fs's finalizer for each creator it closed, and clears the instance
+    cache. Disarming matters: the finalizer would otherwise exit the same creator a
+    second time when the instance is garbage collected, as a bare task on whatever
+    event loop happens to be running, and that second exit fails with
+    ``AssertionError: Session was never entered`` in an unrelated context. The
+    finalizer is detached only once the close has succeeded, so a failed or
+    cancelled close still leaves s3fs's own fallback in place.
     """
     import sys
 
@@ -665,6 +801,8 @@ async def cleanup_s3_sessions() -> None:
                     await s3creator.__aexit__(None, None, None)
                 except Exception:
                     pass
+                else:
+                    _detach_s3fs_finalizer(instance, s3creator)
     finally:
         try:
             S3FileSystem.clear_instance_cache()
@@ -677,6 +815,27 @@ async def cleanup_s3_sessions() -> None:
                 "Cleaned up %d cached S3FileSystem instance(s)",
                 len(instances),
             )
+
+
+def _detach_s3fs_finalizer(instance: Any, s3creator: Any) -> None:
+    """Disarm the ``close_session`` finalizer s3fs registered for ``s3creator``.
+
+    s3fs registers ``weakref.finalize(self, self.close_session, self.loop,
+    self._s3creator)`` each time it creates a client, so an instance whose session
+    was refreshed carries one finalizer per creator. Only the finalizer holding the
+    creator we have just exited is detached; the others still own their clients.
+    """
+    close_session = getattr(type(instance), "close_session", None)
+    for ref in weakref.getweakrefs(instance):
+        finalizer = getattr(ref, "__callback__", None)
+        if not isinstance(finalizer, weakref.finalize):
+            continue
+        info = finalizer.peek()
+        if info is None:
+            continue
+        _obj, func, args, _kwargs = info
+        if func is close_session and len(args) == 2 and args[1] is s3creator:
+            finalizer.detach()
 
 
 DEFAULT_FS_OPTIONS: dict[str, dict[str, Any]] = dict(

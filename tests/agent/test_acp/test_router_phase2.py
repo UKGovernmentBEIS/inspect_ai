@@ -19,6 +19,7 @@ things that Phase 6 left optional/absent:
 from typing import Any
 from uuid import UUID
 
+import pytest
 from acp.schema import (
     AgentMessageChunk,
     AgentThoughtChunk,
@@ -58,10 +59,16 @@ from inspect_ai.tool._tool_call import ToolCall
 _TEST_MODEL = "phase2-router-test/synthetic"
 _TEST_CONTEXT_LENGTH = 100_000
 
-set_model_info(
-    _TEST_MODEL,
-    ModelInfo(context_length=_TEST_CONTEXT_LENGTH, output_tokens=4096),
-)
+
+@pytest.fixture(autouse=True)
+def register_test_model() -> None:
+    # per-test (not module import time): other test modules call
+    # clear_model_info_cache(), which wipes custom registrations, and under
+    # xdist they can run on this worker between collection and these tests.
+    set_model_info(
+        _TEST_MODEL,
+        ModelInfo(context_length=_TEST_CONTEXT_LENGTH, output_tokens=4096),
+    )
 
 
 def _new_session() -> LiveAcpTransport:
@@ -87,6 +94,7 @@ def _model_event(
     tool_calls: list[ToolCall] | None = None,
     model: str = _TEST_MODEL,
     usage: ModelUsage | None = None,
+    input_context_tokens: int | None = None,
 ) -> ModelEvent:
     blocks: list[Any] = []
     if reasoning is not None:
@@ -102,6 +110,8 @@ def _model_event(
         choices=[ChatCompletionChoice(message=message)],
         usage=usage,
     )
+    if input_context_tokens is not None:
+        output.input_context_tokens = input_context_tokens
     return ModelEvent(
         model=model,
         input=[],
@@ -326,6 +336,33 @@ def test_usage_update_includes_cached_tokens() -> None:
         assert len(usages) == 1
         # 500 (uncached input) + 100 (output) + 300 (cache read) + 200 (cache write)
         assert usages[0].used == 1100
+    finally:
+        _transcript.reset(token)
+
+
+def test_usage_update_uses_input_context_tokens() -> None:
+    """A multi-request call's chip shows the input's context size, not billed input."""
+    tr = Transcript()
+    token = _transcript.set(tr)
+    try:
+        session = _new_session()
+        _, published = _attach_router(session)
+        tr._event(
+            _model_event(
+                text="hi",
+                usage=ModelUsage(
+                    input_tokens=1500,
+                    output_tokens=100,
+                    total_tokens=2100,
+                    input_tokens_cache_read=500,
+                ),
+                input_context_tokens=700,
+            )
+        )
+        usages = [n.update for n in published if isinstance(n.update, UsageUpdate)]
+        assert len(usages) == 1
+        # 700 (input context) + 100 (output)
+        assert usages[0].used == 800
     finally:
         _transcript.reset(token)
 

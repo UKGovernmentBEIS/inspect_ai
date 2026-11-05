@@ -8,6 +8,7 @@ register custom model information for models not in the database.
 from __future__ import annotations
 
 import re
+from logging import getLogger
 from typing import TYPE_CHECKING
 
 from inspect_ai.model._model_data.model_data import (
@@ -17,7 +18,16 @@ from inspect_ai.model._model_data.model_data import (
 )
 
 if TYPE_CHECKING:
+    from inspect_ai.model._generate_config import GenerateConfig
     from inspect_ai.model._model import Model  # noqa: F401
+
+logger = getLogger(__name__)
+
+# Placeholder api key passed when a provider is instantiated purely to
+# canonicalize a model name (see _get_model_info). It exists so that providers
+# which require a key can still be constructed, and is not a credential:
+# providers must not send it to their underlying SDK.
+MODEL_INFO_LOOKUP_API_KEY = "__model_info_lookup__"
 
 # Custom model registry (populated by set_model_info)
 _custom_models: dict[str, ModelInfo] = {}
@@ -77,6 +87,15 @@ SERVICE_PREFIXES = {"azure", "bedrock", "vertex"}
 # For these providers, we need to detect the organization from the model name.
 HOSTING_PROVIDERS = {"azureai", "bedrock", "vertex"}
 
+# Organizations whose database keys name a hosting deployment rather than a
+# model creator. Such an entry is authoritative for its own exact key
+# ("fireworks/deepseek-r1-0528" is what Fireworks actually serves) but must
+# never be a fuzzy candidate for another provider's bare model name: match
+# scores fall off with the length of the org prefix, so "fireworks" would
+# outscore "moonshotai" for a bare `kimi-k3` query and shadow the curated
+# entry. Exact and case-insensitive lookup still reach these keys.
+PROVIDER_SCOPED_ORGS = {"fireworks"}
+
 
 def _detect_org_from_model_name(model_name: str) -> str | None:
     """Detect the organization from a model name pattern.
@@ -113,6 +132,10 @@ def _detect_org_from_model_name(model_name: str) -> str | None:
     # Moonshot AI models: kimi-*
     if name.startswith("kimi"):
         return "moonshotai"
+
+    # DeepSeek models: deepseek-*
+    if name.startswith("deepseek"):
+        return "deepseek"
 
     return None
 
@@ -210,6 +233,9 @@ def _fuzzy_match(name: str, db: dict[str, ModelInfo]) -> ModelInfo | None:
     best_match: tuple[int, str, ModelInfo] | None = None  # (score, key, info)
 
     for key, info in db.items():
+        if key.split("/", 1)[0].lower() in PROVIDER_SCOPED_ORGS:
+            continue
+
         key_model = _extract_model_name(key)
         key_normalized = _normalize_for_fuzzy(key_model)
 
@@ -251,6 +277,18 @@ def _lookup_in_db(name: str, db: dict[str, ModelInfo]) -> ModelInfo | None:
     return _fuzzy_match(name, db)
 
 
+def _strict_db_key(name: str) -> str | None:
+    """The database key for `name` by exact or case-insensitive match.
+
+    Unlike `_lookup_in_db`, there is no fuzzy stage, for callers that try
+    several candidate spellings and must not settle on a different model.
+    """
+    db = _get_model_info_db()
+    if name in db:
+        return name
+    return _get_lookup_index().get(_normalize_for_lookup(name))
+
+
 def get_model_info(model: str | Model) -> ModelInfo | None:
     """Get model information including context window, output tokens, etc.
 
@@ -285,6 +323,11 @@ def get_model_info(model: str | Model) -> ModelInfo | None:
 def _get_model_info_direct(model: str | Model) -> ModelInfo | None:
     """Look up model info without instantiating a provider."""
     return _get_model_info(model, resolve_provider=False)
+
+
+def _get_custom_model_info(model: str) -> ModelInfo | None:
+    """Look up model info registered with set_model_info(), if any."""
+    return _custom_models.get(model)
 
 
 def _get_model_info(
@@ -349,7 +392,7 @@ def _resolve_model_info(
     # Fall back to full provider instantiation (requires SDK)
     # This handles cases where the model name needs provider-specific canonicalization
     try:
-        resolved = get_model(model, api_key="__model_info_lookup__")
+        resolved = get_model(model, api_key=MODEL_INFO_LOOKUP_API_KEY)
         name = resolved.canonical_name()
 
         if name in _custom_models:
@@ -386,6 +429,33 @@ def get_model_input_tokens(model: Model) -> int | None:
         return DEFAULT_CONTEXT_WINDOW
     else:
         return None
+
+
+def get_model_input_budget(model: Model, config: GenerateConfig | None = None) -> int:
+    """Input tokens a generate can use after inspect_ai's output reserve.
+
+    The model's context window (`get_model_input_tokens`) minus the output
+    headroom inspect_ai reserves for a `generate` with this `config`. The
+    reserve follows the `max_tokens` that `Model.generate` would use, so the
+    config is resolved with `model._resolve_config(config)` (which merges the
+    active generate config when the model is the active model). When the window
+    is unknown, falls back to `DEFAULT_CONTEXT_WINDOW` and warns once for the
+    model.
+    """
+    from inspect_ai._util.logger import warn_once
+    from inspect_ai.model._compaction._compaction import DEFAULT_CONTEXT_WINDOW
+    from inspect_ai.model._compaction.summary import _output_reserve
+
+    context_window = get_model_input_tokens(model)
+    if context_window is None:
+        warn_once(
+            logger,
+            f"Unable to determine context window for {model} (falling back to default of {DEFAULT_CONTEXT_WINDOW})",
+        )
+        context_window = DEFAULT_CONTEXT_WINDOW
+    return context_window - _output_reserve(
+        model, context_window, model._resolve_config(config)
+    )
 
 
 def set_model_info(model: str, info: ModelInfo) -> None:
@@ -434,13 +504,16 @@ def set_model_cost(model: str, cost: ModelCost) -> None:
 
 
 def clear_model_info_cache() -> None:
-    """Clear the model info cache.
+    """Clear registered model info and memoized lookups.
 
-    This is primarily useful for testing. After calling this function,
-    the next call to model_info() will reload the database from disk.
+    This is primarily useful for testing: after calling this function, models
+    registered with set_model_info() / set_model_cost() are gone and lookups
+    are recomputed.
+
+    The built-in database read from disk is deliberately kept. Nothing mutates
+    it (set_model_info and set_model_cost both write to the custom registry,
+    the latter via model_copy), so re-reading it yields the same data at a cost
+    of ~0.2s per call — which an autouse fixture pays once per test.
     """
-    global _model_info_cache, _lookup_index
-    _model_info_cache = None
-    _lookup_index = None
     _custom_models.clear()
     _result_cache.clear()

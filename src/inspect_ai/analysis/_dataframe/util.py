@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import re
 from functools import partial
 from itertools import chain
@@ -51,19 +52,28 @@ def verify_prerequisites() -> None:
 def resolve_logs(
     logs: LogPaths | EvalLog | Sequence[EvalLog] | None = None,
 ) -> list[str] | list[EvalLog]:
+    """Resolve log inputs into a list of log file paths or EvalLog objects.
+
+    Args:
+        logs: Log path(s), directory, EvalLog, or sequence of logs/paths.
+            If `None`, defaults to listing logs in the log directory via `list_eval_logs()`.
+            If an empty sequence (e.g. `[]`), returns an empty list `[]`.
+            If a string path (including `""`), resolves as a path rather than falling back to `list_eval_logs()`.
+
+    Returns:
+        List of log file paths or EvalLog objects.
+    """
     # Handle EvalLog inputs (pass through as list)
     if isinstance(logs, EvalLog):
         return [logs]
-    if (
-        isinstance(logs, Sequence)
-        and not isinstance(logs, str)
-        and len(logs) > 0
-        and isinstance(logs[0], EvalLog)
-    ):
-        return cast(list[EvalLog], list(logs))
+    if isinstance(logs, Sequence) and not isinstance(logs, str):
+        if len(logs) == 0:
+            return []
+        if isinstance(logs[0], EvalLog):
+            return cast(list[EvalLog], list(logs))
 
-    # Handle path-based inputs (including falsy for default)
-    path_logs: LogPaths = list_eval_logs() if not logs else cast(LogPaths, logs)
+    # Handle path-based inputs (default to list_eval_logs() when None)
+    path_logs: LogPaths = list_eval_logs() if logs is None else cast(LogPaths, logs)
 
     # normalize to list of str
     path_logs = (
@@ -171,6 +181,23 @@ def records_to_pandas(records: list[dict[str, ColumnType]]) -> "pd.DataFrame":
     import pandas as pd
     import pyarrow as pa
 
+    # Depending on row order, pandas reads ints beyond int64 as lossy float64
+    # or as objects that PyArrow can't convert, so keep those columns as strings.
+    big_int_columns = {
+        k
+        for record in records
+        for k, v in record.items()
+        if type(v) is int and not -(2**63) <= v < 2**63
+    }
+    if big_int_columns:
+        records = [
+            {
+                k: str(v) if k in big_int_columns and not _is_missing(v) else v
+                for k, v in record.items()
+            }
+            for record in records
+        ]
+
     # arrow backed df w/ our types mapper
     df = pd.DataFrame(records)
 
@@ -185,12 +212,19 @@ def records_to_pandas(records: list[dict[str, ColumnType]]) -> "pd.DataFrame":
                 if len(types) > 1 and not types.issubset({"str", "bytes"}):
                     df[col] = df[col].apply(
                         lambda x: (
-                            str(x) if x is not None and not isinstance(x, str) else x
+                            str(x)
+                            if not _is_missing(x) and not isinstance(x, str)
+                            else x
                         )
                     )
 
     table = pa.Table.from_pandas(df)
     return table.to_pandas(types_mapper=arrow_types_mapper)
+
+
+def _is_missing(value: ColumnType) -> bool:
+    """None, or NaN (e.g. the value of an unscored sample)."""
+    return value is None or (isinstance(value, float) and math.isnan(value))
 
 
 def arrow_types_mapper(arrow_type: pa.DataType) -> pd.ArrowDtype:

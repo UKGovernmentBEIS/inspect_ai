@@ -50,17 +50,23 @@ limit:
   `max(1, round(limit * scale_up_percent))` (default 5%), rounded up to a
   "nice" number (multiples of 5 above 10), capped at `max`.
 - **Cut**: a rate-limit retry multiplies by `decrease_factor` (default 0.8),
-  rounded down to a nice number, floored at `min`. Cuts are debounced by a
-  cooldown (default 15s, extended by the server's `Retry-After` /
-  `x-ratelimit-reset-*` when larger) — one rate-limit *episode* produces many
-  retries but at most one cut.
+  rounded down to a nice number, floored at `min`. Cuts are debounced by
+  `cooldown_seconds` (default 15s) — however many retries an episode produces,
+  at most one cut lands per `cooldown_seconds`, so a sustained episode keeps
+  walking the limit down. The debounce is deliberately paced by our own
+  constant and not by the server's `Retry-After`: the horizon gates our
+  decrease, success accounting and saturation sampling, never request
+  scheduling, so a larger hint would mean cutting *less* often, unbounded in a
+  value we don't control.
 - **Saturation gate**: a round only counts toward growth if peak in-flight
   reached `SATURATION_THRESHOLD=0.8` of the current limit (tracked by
   `_SaturationTrackingLimiter` on each acquire). Without this, a trickle of
   successes would grow a limit the workload never actually exercised, banking
   untested headroom that blows up when work surges.
 - Successes arriving *during* a cooldown are discarded entirely — they were
-  in flight before the cut and say nothing about the new lower limit.
+  in flight before the cut and say nothing about the new lower limit. That
+  reasoning only holds for calls shorter than `cooldown_seconds`; for slower
+  providers some discarded successes did start after the cut.
 
 Every change is appended to a bounded history (`HISTORY_LIMIT=200`) as
 `LimitChangeRecord = (timestamp, name, old, new, reason)` with reason
@@ -76,7 +82,10 @@ generate (`_model.py`):
 - `report_http_retry(kind, retry_after)` (`_util/retry.py`) — called by the
   retry machinery and provider SDK hooks. `kind="rate_limit"` (429s and
   provider equivalents, classified per-provider via `ModelAPI.should_retry`'s
-  `RetryDecision`) calls `notify_retry` → possible cut. `kind="transient"`
+  `RetryDecision`) calls `notify_retry` → possible cut; `retry_after` is
+  accepted but ignored — the controller's own `cooldown_seconds` sets the
+  debounce interval regardless of any server-suggested wait (`decrease_factor`
+  sets the cut's magnitude). `kind="transient"`
   (5xx, timeouts) only sets `_request_had_retry` — pausing scale-up (the
   eventual success won't count) without shrinking.
 - On a completed generate (`_model.py` ~1300), `notify_success()` fires only if
@@ -121,6 +130,11 @@ samples than the model can serve:
   (subscribing to the matching controller whether it already exists or is
   created later, via the module-level controller-created hook — the controller
   usually appears on the model's first generate, after the limiter is built).
+  A mid-run `ctl config --max-samples N` **pins** the limiter at exactly `N`
+  (it stops following the controller — scale events are ignored while
+  pinned — mirroring the launch rule "explicit `max_samples` wins silently
+  over adaptive"); `--max-samples clear` unpins and catches back up to the
+  controller's current limit. See `design/ctl/max-samples-adaptive.md`.
 - otherwise → static `ResizableLimiter` sized from `max_connections` /
   provider default.
 
@@ -155,7 +169,9 @@ the max concurrency of *this task's* controllers when its primary-key
 controller stays idle — restoring pre-scoping throughput for roles/bridge
 tasks without re-admitting the cross-task inflation the key scoping fixed.
 Deferred until the configuration shows up in practice; revisit alongside the
-pin/freeze controller mode.
+pin/freeze controller mode. In the meantime the operator remedy is the
+`max_samples` pin above: `ctl config <task> --max-samples N` unparks sample
+concurrency immediately, in every variant of this case.
 
 Sample semaphores (all three paths) are **task-scoped, not attempt-scoped**:
 `create_sample_semaphore` keeps a task_id-keyed registry

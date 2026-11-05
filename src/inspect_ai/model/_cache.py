@@ -1,17 +1,22 @@
+import json
 import logging
+import math
 import os
 import pickle
+import re
 from contextvars import ContextVar
 from datetime import datetime, timezone
-from hashlib import md5
-from pathlib import Path
+from hashlib import md5, sha256
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from shutil import rmtree
 from typing import Any, Optional
 
 from dateutil.relativedelta import relativedelta
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationInfo, model_validator
 
 from inspect_ai._util.appdirs import inspect_cache_dir
+from inspect_ai._util.constants import DESERIALIZING
+from inspect_ai._util.logger import warn_once
 from inspect_ai._util.trace import trace_message
 from inspect_ai.tool import ToolChoice, ToolInfo
 
@@ -25,12 +30,50 @@ def trace(msg: str, *args: Any) -> None:
     trace_message(logger, "Cache", msg, *args)
 
 
-def _path_is_in_cache(path: Path | str) -> bool:
-    """This ensures the path is in our cache directory, just in case the `model` is ../../../home/ubuntu/maliciousness"""
-    if isinstance(path, str):
-        path = Path(path)
+def _path_is_in_cache(path: Path | str, root: Path | None = None) -> bool:
+    """Whether `path` is strictly inside the cache directory.
 
-    return cache_path() in Path(os.path.normpath(path)).parents
+    Both paths are resolved first, so a symlink that leads out of the cache
+    directory fails the check.
+    """
+    try:
+        resolved_root = (root or _cache_root()).resolve()
+        return resolved_root in Path(path).resolve().parents
+    except (OSError, RuntimeError, ValueError):
+        # unresolvable (e.g. a symlink loop or an embedded NUL): not provably
+        # in the cache
+        return False
+
+
+def _is_safe_model_name(model: str) -> bool:
+    """Whether `model` is a relative path with no `.` or `..` segments.
+
+    Both `/` and backslash count as separators, and a segment of only dots and
+    spaces is refused (Windows trims trailing dots and spaces), so a name is
+    judged the same way on every platform.
+    """
+    if "\0" in model or PurePosixPath(model).anchor or PureWindowsPath(model).anchor:
+        return False
+    return all(
+        segment == "" or segment.strip(". ") != ""
+        for segment in re.split(r"[/\\]", model)
+    )
+
+
+def _cache_entry_path(entry: "CacheEntry") -> Path | None:
+    """Path of the cache file for `entry`, or None (with a warning) if it is outside the cache directory."""
+    try:
+        filename = cache_path(model=entry.model) / entry.key
+        if _path_is_in_cache(filename):
+            return filename
+    except ValueError:
+        pass
+    warn_once(
+        logger,
+        f"Model output caching is disabled for model {entry.model!r}: "
+        "its cache entries would be outside the cache directory.",
+    )
+    return None
 
 
 def _parse_expiry(period: str) -> int:
@@ -79,6 +122,23 @@ class CachePolicy(BaseModel):
     be included in the cache key. This allows for more fine-grained
     control over the cache key generation."""
 
+    @model_validator(mode="before")
+    @classmethod
+    def _missing_expiry_is_none(cls, data: Any, info: ValidationInfo) -> Any:
+        """Read an ``expiry`` missing from a persisted policy as None, not "1W".
+
+        Logs are written with ``exclude_none``, which drops a None ``expiry``,
+        while the "1W" default is always written out. So when deserializing a
+        log, a missing ``expiry`` can only have been None (never expire).
+        """
+        if (
+            isinstance(data, dict)
+            and isinstance(info.context, dict)
+            and info.context.get(DESERIALIZING, False)
+        ):
+            return {"expiry": None} | data
+        return data
+
     @staticmethod
     def from_string(expiry: str) -> Optional["CachePolicy"]:
         try:
@@ -114,6 +174,7 @@ class CacheEntry:
           affect all individual cached entries.
         tool_choice(ToolChoice | None): The tool choice, if any.
         tools(list[ToolInfo]): The tools provided to the model.
+        model_args_key(str | None): Fingerprint of the model constructor arguments.
     """
 
     def __init__(
@@ -125,6 +186,7 @@ class CacheEntry:
         policy: CachePolicy,
         tool_choice: ToolChoice | None,
         tools: list[ToolInfo],
+        model_args_key: str | None = None,
     ):
         self.base_url = base_url
         self.config = config
@@ -133,26 +195,143 @@ class CacheEntry:
         self.tool_choice = tool_choice
         self.tools = tools
         self.policy = policy
+        self.model_args_key = model_args_key
         self.key = _cache_key(self)
+
+
+def cache_model_args_key(
+    model_args: dict[str, Any], *, instance_key: str | None = None
+) -> str | None:
+    """Fingerprint model args, scoping opaque values to an optional instance key.
+
+    Opaque objects (including clients, callables, and redacted secrets) cannot
+    be given a reliable persistent identity. With an instance key, they can
+    still share responses within that model's lifetime, while the JSON portions
+    of the arguments continue to distinguish request defaults.
+
+    Dictionary order is kept: providers can resolve keys that overlap (header
+    names that differ in case, Google harm-category aliases) by order.
+    """
+    if not model_args:
+        return ""
+    try:
+        if not _is_json_value(model_args):
+            raise ValueError("Opaque model args")
+        serialized = json.dumps(model_args, allow_nan=False)
+    except (ValueError, RecursionError):
+        if instance_key is None:
+            return None
+        return cache_instance_model_args_key(model_args, instance_key)
+    return sha256(serialized.encode("utf-8")).hexdigest()
+
+
+def cache_instance_model_args_key(model_args: dict[str, Any], instance_key: str) -> str:
+    """Fingerprint model args for one model instance.
+
+    The JSON portions of the arguments still distinguish request defaults, and
+    the encoding cannot match an instance-independent fingerprint.
+    """
+    serialized = json.dumps([instance_key, _model_args_tree(model_args, set())])
+    return sha256(serialized.encode("utf-8")).hexdigest()
+
+
+def _model_args_tree(value: Any, ancestors: set[int]) -> Any:
+    """Tag each node so an opaque placeholder cannot collide with user JSON."""
+    if type(value) in (str, int, bool, type(None)) or (
+        type(value) is float and math.isfinite(value)
+    ):
+        return ["value", value]
+    if id(value) in ancestors:
+        return ["opaque"]
+    if type(value) is list or (
+        type(value) is dict and all(type(key) is str for key in value)
+    ):
+        ancestors.add(id(value))
+        try:
+            if isinstance(value, list):
+                return ["list", [_model_args_tree(item, ancestors) for item in value]]
+            return [
+                "dict",
+                {key: _model_args_tree(item, ancestors) for key, item in value.items()},
+            ]
+        finally:
+            ancestors.remove(id(value))
+    return ["opaque"]
+
+
+def _is_json_value(value: Any) -> bool:
+    if type(value) in (str, int, float, bool, type(None)):
+        return True
+    if type(value) is list:
+        return all(_is_json_value(item) for item in value)
+    if type(value) is dict:
+        return all(
+            type(key) is str and _is_json_value(item) for key, item in value.items()
+        )
+    return False
+
+
+# Runtime/transport GenerateConfig knobs that cannot change what the provider
+# returns, and so must not affect the cache key. Their union must equal
+# GENERATE_CONFIG_FIELDS_TO_EXCLUDE (the task-identity partition in
+# inspect_ai._eval.evalset) — both answer the same question, and
+# test_cache_key_neutral_fields_match_task_identity fails when they diverge.
+#
+# Which bucket a field goes in decides whether existing caches survive
+# classifying it:
+#
+#  - Dropped fields are absent from the serialized config. Right for a field
+#    classified when it is added to GenerateConfig: keys written before the
+#    field existed were already computed without it, so they still match.
+#  - Neutralized fields are serialized as their default instead. Right for a
+#    field that has been part of the key already — dropping one rewrites every
+#    key in every existing cache, whereas a config that leaves it unset
+#    serializes exactly as it did before.
+_CACHE_KEY_DROPPED_FIELDS = {
+    "max_connections",
+    "adaptive_connections",
+    "max_retries",
+    "timeout",
+    "stream_idle_timeout",
+    "cache",
+    "batch",
+    # never reaches the provider request (it decides what generate() does with
+    # a refusal, and refusals are never cached), so a cache hit can't depend on
+    # it. Unlike the fields above it *does* change sample outcomes, so it stays
+    # in eval-set task identity (GENERATE_CONFIG_FIELDS_TO_EXCLUDE).
+    "fail_on_refusal",
+}
+
+_CACHE_KEY_NEUTRALIZED_FIELDS = {
+    "attempt_timeout",
+    "cache_prompt",
+}
+
+
+def _cache_key_config(config: BaseModel) -> dict[str, Any]:
+    """The generate config as the cache key sees it, with runtime knobs made inert."""
+    values = config.model_dump(exclude=_CACHE_KEY_DROPPED_FIELDS)
+    fields = type(config).model_fields
+    for field in _CACHE_KEY_NEUTRALIZED_FIELDS & values.keys():
+        values[field] = fields[field].get_default()
+    return values
 
 
 def _cache_key(entry: CacheEntry) -> str:
     components = [
-        entry.config.model_dump(
-            # Exclude fields that don't affect the model output
-            exclude=set(
-                [
-                    "max_connections",
-                    "adaptive_connections",
-                    "max_retries",
-                    "timeout",
-                    "cache",
-                    "batch",
-                ]
-            )
-        ),
+        _cache_key_config(entry.config),
         ",".join(
-            [str(message.model_dump(exclude=set(["id"]))) for message in entry.input]
+            [
+                str(
+                    message.model_dump(
+                        exclude={
+                            "id": True,
+                            "content": {"__all__": {"cache_breakpoint"}},
+                        }
+                    )
+                )
+                for message in entry.input
+            ]
         ),
         entry.base_url,
         entry.tool_choice,
@@ -164,16 +343,13 @@ def _cache_key(entry: CacheEntry) -> str:
     if entry.policy.per_epoch:
         components.append(epoch.get(None))
 
+    # Preserve existing keys for models with no constructor arguments.
+    if entry.model_args_key:
+        components.append(f"model_args:{entry.model_args_key}")
+
     base_string = "|".join([str(component) for component in components])
 
-    trace(_cache_key_debug_string([str(component) for component in components]))
-
     return md5(base_string.encode("utf-8")).hexdigest()
-
-
-def _cache_key_debug_string(components: list[str]) -> str:
-    components_str = "\n".join(f"  - {component}" for component in components)
-    return f"Computed cache key from components:\n{components_str}"
 
 
 def _cache_expiry(policy: CachePolicy) -> datetime | None:
@@ -197,8 +373,20 @@ def cache_store(
     entry: CacheEntry,
     output: ModelOutput,
 ) -> bool:
-    """Cache a value in the cache directory."""
-    filename = cache_path(model=entry.model) / entry.key
+    """Cache a value in the cache directory.
+
+    Outputs stopped by a provider content filter are never cached: refusal
+    retry loops (e.g. `react()`'s `retry_refusals`) re-call generate with
+    identical inputs, so a cached refusal would be replayed on every retry
+    instead of giving the model a fresh attempt.
+    """
+    if any(choice.stop_reason == "content_filter" for choice in output.choices):
+        trace("Not caching content_filter output: %s", entry.key)
+        return False
+
+    filename = _cache_entry_path(entry)
+    if filename is None:
+        return False
 
     try:
         filename.parent.mkdir(parents=True, exist_ok=True)
@@ -215,7 +403,9 @@ def cache_store(
 
 def cache_fetch(entry: CacheEntry) -> ModelOutput | None:
     """Fetch a value from the cache directory."""
-    filename = cache_path(model=entry.model) / entry.key
+    filename = _cache_entry_path(entry)
+    if filename is None:
+        return None
     try:
         trace("Fetching from cache: %s", filename)
 
@@ -251,7 +441,7 @@ def cache_clear(model: str = "") -> bool:
     try:
         path = cache_path(model)
 
-        if (model == "" or _path_is_in_cache(path)) and path.exists():
+        if path.exists():
             trace("Clearing cache: %s", path)
             rmtree(path)
             return True
@@ -267,17 +457,31 @@ def cache_path(model: str = "") -> Path:
 
     Args:
        model: Path to cache directory for specific model.
+
+    Raises:
+       ValueError: If the directory for `model` would not be inside the
+          cache directory (e.g. the name has `..` segments). Nothing is
+          created in that case.
     """
+    generate_cache = _cache_root()
+    path = generate_cache / model if model else generate_cache
+    if model and (
+        not _is_safe_model_name(model) or not _path_is_in_cache(path, generate_cache)
+    ):
+        raise ValueError(
+            f"The cache directory for model {model!r} would be outside {generate_cache}."
+        )
+    generate_cache.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _cache_root() -> Path:
+    """The cache directory, without creating it."""
     env_cache_dir = os.environ.get("INSPECT_CACHE_DIR", None)
     if env_cache_dir:
-        generate_cache = Path(env_cache_dir) / "generate"
-        generate_cache.mkdir(parents=True, exist_ok=True)
+        return Path(env_cache_dir) / "generate"
     else:
-        generate_cache = inspect_cache_dir("generate")
-    if model:
-        return generate_cache / model
-    else:
-        return generate_cache
+        return inspect_cache_dir("generate", create=False)
 
 
 def _cache_size_directories_only(filter_by: list[str]) -> list[tuple[str, int]]:
@@ -364,9 +568,12 @@ def cache_list_expired(filter_by: list[str] = []) -> list[Path]:
             an empty list, this will search the entire cache.
     """
     expired_cache_entries = []
-    filter_by_paths = [
-        cache_path(model) for model in filter_by if _path_is_in_cache(cache_path(model))
-    ]
+    filter_by_paths = []
+    for model in filter_by:
+        try:
+            filter_by_paths.append(cache_path(model))
+        except ValueError as ex:
+            warn_once(logger, str(ex))
 
     if filter_by and not filter_by_paths:
         # An edge case where all the paths we get are invalid ones (e.g.
@@ -374,7 +581,8 @@ def cache_list_expired(filter_by: list[str] = []) -> list[Path]:
         return []
 
     trace("Filtering by paths: %s", filter_by_paths)
-    for dirpath, _dirnames, filenames in os.walk(cache_path()):
+    root = cache_path()
+    for dirpath, _dirnames, filenames in os.walk(root):
         if filter_by_paths and Path(dirpath) not in filter_by_paths:
             trace("Skipping path %s", dirpath)
             continue
@@ -383,6 +591,9 @@ def cache_list_expired(filter_by: list[str] = []) -> list[Path]:
         for filename in filenames:
             path = Path(dirpath) / filename
             trace("Checking path %s", path)
+            if not _path_is_in_cache(path, root):
+                trace("Skipping path outside the cache: %s", path)
+                continue
             try:
                 with open(path, "rb") as f:
                     expiry, _cache_entry = pickle.load(f)
@@ -401,12 +612,17 @@ def cache_prune(files: list[Path] = []) -> None:
 
     Args:
         files: List of files to prune. If empty, this
-            will search the entire cache.
+            will search the entire cache. Files outside the
+            cache directory are skipped.
     """
     if not files:
         files = cache_list_expired()
 
+    root = _cache_root()
     for file in files:
+        if not _path_is_in_cache(file, root):
+            logger.warning(f"Not pruning {file}: it is outside the cache directory.")
+            continue
         try:
             with open(file, "rb") as f:
                 expiry, _cache_entry = pickle.load(f)

@@ -1,6 +1,9 @@
 openai:
   display_name: OpenAI
   models:
+    # Retired from the OpenAI API on 2026-10-23 (requests return 404
+    # model_not_found). Entry retained for historical log analysis.
+    # https://platform.openai.com/docs/deprecations
     gpt-3.5-turbo:
       display_name: GPT-3.5 Turbo
       release_date: 2023-03-01
@@ -22,6 +25,9 @@ openai:
           release_date: 2023-11-06
         gpt-3.5-turbo-latest:
           snapshot: latest
+    # Retired from the OpenAI API on 2026-10-23 (requests return 404
+    # model_not_found). Entry retained for historical log analysis.
+    # https://platform.openai.com/docs/deprecations
     gpt-4:
       display_name: GPT-4
       release_date: 2023-03-14
@@ -37,6 +43,9 @@ openai:
           release_date: 2023-06-13
         gpt-4-latest:
           snapshot: latest
+    # Retired from the OpenAI API on 2026-10-23 (requests return 404
+    # model_not_found). Entry retained for historical log analysis.
+    # https://platform.openai.com/docs/deprecations
     gpt-4-turbo:
       display_name: GPT-4 Turbo
       release_date: 2024-04-09
@@ -61,6 +70,7 @@ openai:
         gpt-4o-2024-08-06:
           snapshot: "2024-08-06"
           release_date: 2024-08-06
+        # Snapshot retired from the OpenAI API on 2026-10-23.
         gpt-4o-2024-05-13:
           snapshot: "2024-05-13"
           release_date: 2024-05-13
@@ -99,6 +109,9 @@ openai:
           snapshot: "2025-04-14"
         latest:
           snapshot: latest
+    # Retired from the OpenAI API on 2026-10-23 (requests return 404
+    # model_not_found). Entry retained for historical log analysis.
+    # https://platform.openai.com/docs/deprecations
     gpt-4.1-nano:
       display_name: GPT-4.1 Nano
       release_date: 2025-04-14
@@ -121,6 +134,9 @@ openai:
           snapshot: "2025-02-27"
         latest:
           snapshot: latest
+    # Retired from the OpenAI API on 2026-10-23 (requests return 404
+    # model_not_found). Entry retained for historical log analysis.
+    # https://platform.openai.com/docs/deprecations
     o1:
       display_name: o1
       release_date: 2024-12-17
@@ -157,6 +173,9 @@ openai:
           snapshot: "2024-09-12"
         latest:
           snapshot: latest
+    # Retired from the OpenAI API on 2026-10-23 (requests return 404
+    # model_not_found). Entry retained for historical log analysis.
+    # https://platform.openai.com/docs/deprecations
     o1-pro:
       display_name: o1 Pro
       release_date: 2025-03-19
@@ -181,6 +200,9 @@ openai:
           snapshot: "2025-04-16"
         latest:
           snapshot: latest
+    # Retired from the OpenAI API on 2026-10-23 (requests return 404
+    # model_not_found). Entry retained for historical log analysis.
+    # https://platform.openai.com/docs/deprecations
     o3-mini:
       display_name: o3-mini
       release_date: 2025-01-31
@@ -205,6 +227,9 @@ openai:
           snapshot: "2025-06-10"
         latest:
           snapshot: latest
+    # Retired from the OpenAI API on 2026-10-23 (requests return 404
+    # model_not_found). Entry retained for historical log analysis.
+    # https://platform.openai.com/docs/deprecations
     o4-mini:
       display_name: o4 Mini
       release_date: 2025-04-16
@@ -435,6 +460,8 @@ openai:
       output_tokens: 128000
       input_tokens: 922000
       reasoning: True
+      # https://developers.openai.com/api/docs/guides/reasoning ("GPT-5.6 defaults to medium in both modes")
+      reasoning_effort_default: medium
     gpt-5.6-sol:
       display_name: GPT-5.6 Sol
       release_date: 2026-07-09
@@ -443,6 +470,8 @@ openai:
       output_tokens: 128000
       input_tokens: 922000
       reasoning: True
+      # https://developers.openai.com/api/docs/guides/reasoning ("GPT-5.6 defaults to medium in both modes")
+      reasoning_effort_default: medium
     gpt-5.6-terra:
       display_name: GPT-5.6 Terra
       release_date: 2026-07-09
@@ -451,6 +480,8 @@ openai:
       output_tokens: 128000
       input_tokens: 922000
       reasoning: True
+      # https://developers.openai.com/api/docs/guides/reasoning ("GPT-5.6 defaults to medium in both modes")
+      reasoning_effort_default: medium
     gpt-5.6-luna:
       display_name: GPT-5.6 Luna
       release_date: 2026-07-09
@@ -459,4 +490,65 @@ openai:
       output_tokens: 128000
       input_tokens: 922000
       reasoning: True
+      # https://developers.openai.com/api/docs/guides/reasoning ("GPT-5.6 defaults to medium in both modes")
+      reasoning_effort_default: medium
+    # https://developers.openai.com/api/docs/models/gpt-6-astra
+    gpt-6-astra:
+      display_name: GPT-6 Astra
+      release_date: 2026-09-03
+      knowledge_cutoff_date: 2026-04-30
+      context_length: 1050000
+      output_tokens: 128000
+      input_tokens: 922000
+      reasoning: True
+      # not in OpenAI's docs; the API echoes reasoning.effort=medium when none is requested
+      reasoning_effort_default: medium
+    # https://developers.openai.com/api/docs/models/gpt-6-sol
+    gpt-6-sol:
+      display_name: GPT-6 Sol
+      # https://developers.openai.com/api/docs/changelog (2026-09-22 entry)
+      release_date: 2026-09-22
+      knowledge_cutoff_date: 2026-04-20
+      context_length: 1050000
+      output_tokens: 128000
+      input_tokens: 922000
+      reasoning: True
+      # https://developers.openai.com/api/docs/models/gpt-6-sol ("none, low, medium (default), high, xhigh, and max")
+      reasoning_effort_default: medium
+    # https://developers.openai.com/api/docs/models/gpt-6-luna
+    gpt-6-luna:
+      display_name: GPT-6 Luna
+      # https://developers.openai.com/api/docs/changelog (2026-09-22 entry)
+      release_date: 2026-09-22
+      knowledge_cutoff_date: 2026-05-18
+      context_length: 1050000
+      output_tokens: 128000
+      input_tokens: 922000
+      reasoning: True
+      # https://developers.openai.com/api/docs/models/gpt-6-luna ("none, low, medium (default), high, xhigh, and max")
+      reasoning_effort_default: medium
+    # https://developers.openai.com/api/docs/models/gpt-6.1-sol
+    gpt-6.1-sol:
+      display_name: GPT-6.1 Sol
+      # https://openai.com/index/introducing-gpt-6-1-sol/
+      release_date: 2026-09-29
+      knowledge_cutoff_date: 2026-04-30
+      context_length: 1050000
+      output_tokens: 128000
+      input_tokens: 922000
+      reasoning: True
+      # https://developers.openai.com/api/docs/models/gpt-6.1-sol ("low, medium (default), high, xhigh, and max")
+      reasoning_effort_default: medium
+    # https://developers.openai.com/api/docs/models/gpt-6.1-terra
+    gpt-6.1-terra:
+      display_name: GPT-6.1 Terra
+      # https://developers.openai.com/api/docs/changelog (2026-10-26 entry)
+      release_date: 2026-10-26
+      knowledge_cutoff_date: 2026-06-01
+      context_length: 1050000
+      output_tokens: 128000
+      input_tokens: 922000
+      reasoning: True
+      # https://developers.openai.com/api/docs/models/gpt-6.1-terra ("none, low, medium (default), high, xhigh, and max")
+      reasoning_effort_default: medium
 

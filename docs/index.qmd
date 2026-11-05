@@ -19,7 +19,7 @@ Inspect is a framework for frontier AI evaluations developed by the [UK AI Secur
 -   Composable building blocks—datasets, agents, tools, and scorers—that make evaluations easy to write and reuse.
 -   A collection of over 200 pre-built evaluations ready to run on any model.
 -   Extensive tooling, including a web-based Inspect View tool for monitoring and visualizing evaluations and a VS Code Extension that assists with authoring and debugging.
--   Flexible support for tool calling---custom and MCP tools, as well as built-in bash, python, text editing, web search, web browsing, and computer tools.
+-   Flexible support for tool calling---custom and MCP tools, as well as built-in bash, python, text editing, web search, and computer tools.
 -   Support for agent evaluations, including flexible built-in agents, multi-agent primitives, and the ability to run arbitrary external agents like Claude Code, Codex CLI, and Gemini CLI.
 -   A sandboxing system that supports running untrusted model code in Docker, Kubernetes, Modal, Proxmox, Vagrant, and other systems via an extension API.
 :::
@@ -48,7 +48,7 @@ To develop and run evaluations, you'll also need access to a model, which typica
 ``` bash
 pip install openai
 export OPENAI_API_KEY=your-openai-api-key
-inspect eval simpleqa.py --model openai/gpt-4o
+inspect eval simpleqa.py --model openai/gpt-6-luna
 ```
 
 #### Anthropic
@@ -56,7 +56,7 @@ inspect eval simpleqa.py --model openai/gpt-4o
 ``` bash
 pip install anthropic
 export ANTHROPIC_API_KEY=your-anthropic-api-key
-inspect eval simpleqa.py --model anthropic/claude-sonnet-4-0
+inspect eval simpleqa.py --model anthropic/claude-sonnet-4-6
 ```
 
 #### Google
@@ -64,7 +64,7 @@ inspect eval simpleqa.py --model anthropic/claude-sonnet-4-0
 ``` bash
 pip install google-genai
 export GOOGLE_API_KEY=your-google-api-key
-inspect eval simpleqa.py --model google/gemini-2.5-pro
+inspect eval simpleqa.py --model google/gemini-3.5-flash-lite
 ```
 
 #### HF
@@ -77,6 +77,10 @@ inspect eval simpleqa.py --model hf/meta-llama/Llama-2-7b-chat-hf
 :::
 
 Inspect has built-in support for over 20 model providers as well as support for local inference with HuggingFace, vLLM, and SGLang. See the documentation on [Model Providers](providers.qmd) for details on all supported providers.
+
+::: {.callout-note appearance="simple"}
+If you use a coding agent alongside Inspect, the [inspect-skills](https://github.com/meridianlabs-ai/inspect-skills#install) plugin provides skills that teach it to monitor running evals, read logs efficiently, and analyze results.
+:::
 
 ## Hello, Inspect {#sec-hello-inspect}
 
@@ -129,7 +133,7 @@ def simpleqa():
 Run it from the command line with `inspect eval`, choosing a model with `--model`:
 
 ``` bash
-inspect eval simpleqa.py --model openai/gpt-5
+inspect eval simpleqa.py --model openai/gpt-6-luna
 ```
 
 Use `inspect view` to view the results:
@@ -172,7 +176,7 @@ def ctf():
 
 2.  The `includes()` scorer passes if the target flag appears in the agent's submitted answer.
 
-3.  `sandbox="docker"` runs all tool calls inside an isolated Docker container (configured by a `Dockerfile` or `compose.yaml` alongside the task).
+3.  `sandbox="docker"` provides the isolated Docker container used by `bash()` (configured by a `Dockerfile` or `compose.yaml` alongside the task).
 
 Use `inspect view` to view the results and look more carefully at individual transcripts:
 
@@ -189,7 +193,7 @@ Above we demonstrated using `inspect eval` from CLI to run evaluations—you can
 from inspect_ai import eval
 from simpleqa import simpleqa
 
-eval(simpleqa(), model="openai/gpt-5")
+eval(simpleqa(), model="openai/gpt-6-luna")
 ```
 
 ## LLM Assistance
@@ -223,4 +227,3 @@ To learn more about using Inspect see the following documentation sections:
 -   [Extensions](extensions.qmd) shows how to extend Inspect with new model APIs, components, sandboxes, approvers, hooks, and filesystems.
 
 You may also want to explore the [Evals](evals/index.qmd) listing of ready-to-run benchmark implementations, the [Extensions](extensions/index.qmd) gallery of community packages, and the [Reference](reference/index.qmd) for the complete Python and CLI API.
-

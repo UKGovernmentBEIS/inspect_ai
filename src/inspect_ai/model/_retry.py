@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING, Awaitable, Callable
 
+import anyio
 from tenacity import (
     RetryCallState,
     retry_if_exception,
@@ -8,8 +9,15 @@ from tenacity import (
 from tenacity.retry import RetryBaseT
 from tenacity.stop import StopBaseT
 from tenacity.wait import WaitBaseT
-from typing_extensions import TypedDict
+from typing_extensions import NotRequired, TypedDict
 
+from inspect_ai._util.retry import backoff_multiplier
+from inspect_ai._util.working import (
+    ModelAttempts,
+    add_sample_wait,
+    sample_clock,
+    sample_wait,
+)
 from inspect_ai.model._generate_overrides import generate_config_override
 
 if TYPE_CHECKING:
@@ -22,6 +30,19 @@ class ModelRetryConfig(TypedDict):
     retry: RetryBaseT
     before_sleep: Callable[[RetryCallState], (Awaitable[None] | None)]
     stop: StopBaseT
+    before: NotRequired[Callable[[RetryCallState], None]]
+    after: NotRequired[Callable[[RetryCallState], None]]
+    sleep: NotRequired[Callable[[float], Awaitable[None]]]
+
+
+async def _sleep(seconds: float) -> None:
+    await anyio.sleep(seconds)
+
+
+async def _sample_wait_sleep(seconds: float) -> None:
+    """Retry backoff sleep, open as a known wait of the sample."""
+    with sample_wait():
+        await _sleep(seconds)
 
 
 def model_retry_config(
@@ -31,10 +52,20 @@ def model_retry_config(
     should_retry: "Callable[[BaseException], bool | RetryDecision]",
     before_retry: Callable[[BaseException], (Awaitable[None] | None)],
     log_model_retry: Callable[[str, RetryCallState], Awaitable[None] | None],
-    report_waiting_time: Callable[[float], None] | None = None,
+    sample_waits: bool = False,
     wait: WaitBaseT | None = None,
     live_overrides: bool = True,
+    report_retry_wait: bool = True,
+    qualified_model_name: str | None = None,
+    attempts: ModelAttempts | None = None,
 ) -> ModelRetryConfig:
+    # `model_name` is the bare provider model name and is display-oriented
+    # (trace retry lines, the ctl retry_wait activity view keep showing it);
+    # `qualified_model_name` is the full `provider/model` string that keys
+    # the throughput registry (see design/model-throughput.md "Key
+    # discipline"). When None (e.g. a bare ModelAPI used outside get_model),
+    # retries/backoff simply go unattributed in the registry.
+    #
     # retry for transient http errors:
     # - use config.max_retries and config.timeout if specified, otherwise retry forever
     # - exponential backoff starting at 3 seconds (will wait 25 minutes
@@ -50,12 +81,40 @@ def model_retry_config(
     # convert one transient poll error into a whole-batch failure. The
     # incident lever still reaches batch-mode generates: each request's
     # retries run in `Model._generate`'s own (live) retry loop.
+    #
+    # `sample_waits` records the backoff sleep and each retried attempt as
+    # known waits of the active sample (see design/working-time-concurrency.md).
+    # Batchers leave it off: their admin-op loops run on a worker task that
+    # inherits an arbitrary sample's context. A config with it on serves a
+    # single retry loop, since the attempt start is kept here. `attempts`
+    # holds the loop's attempts in flight as known work; a retried attempt
+    # stops being work when it becomes a wait.
 
     async def on_before_sleep(rs: RetryCallState) -> None:
-        # report the upcoming sleep as waiting time (that way the working time can't
-        # expire while we are waiting b/c we've already offset it)
-        if report_waiting_time is not None:
-            report_waiting_time(rs.upcoming_sleep)
+        # `report_retry_wait` gates the per-sample record rather than relying
+        # on sample_active() alone: a batcher's admin-op retry loop runs on a
+        # worker task that inherits the context of whichever sample first
+        # triggered it (run_in_background → start_soon copies the spawning
+        # context), so without the gate an admin-op backoff would stamp — and
+        # never clear — a retry wait on an unrelated sample.
+        if report_retry_wait:
+            from inspect_ai.log._samples import report_active_sample_retry_wait
+
+            report_active_sample_retry_wait(
+                model_name,
+                rs.attempt_number,
+                rs.upcoming_sleep,
+                qualified_model=qualified_model_name,
+            )
+
+        # scheduled backoff feeds the per-model throughput registry whenever
+        # the model is known — including admin-op loops that opt out of the
+        # per-sample record above (backoff is the model's regardless of
+        # which sample, if any, it belongs to)
+        if qualified_model_name is not None:
+            from inspect_ai.model._throughput import record_retry_wait
+
+            record_retry_wait(qualified_model_name, rs.upcoming_sleep)
 
         res = log_model_retry(model_name, rs)
         if res is not None:
@@ -73,7 +132,7 @@ def model_retry_config(
     wait = (
         wait
         if wait is not None
-        else wait_exponential_jitter(initial=3, max=(30 * 60), jitter=3)
+        else wait_exponential_jitter(**backoff_multiplier(3), max=(30 * 60), jitter=3)
     )
 
     # tenacity's retry_if_exception expects a bool predicate; coerce
@@ -97,7 +156,11 @@ def model_retry_config(
         result = should_retry(ex)
         if isinstance(result, RetryDecision):
             if result.retry:
-                report_http_retry(kind=result.kind, retry_after=result.retry_after)
+                report_http_retry(
+                    kind=result.kind,
+                    retry_after=result.retry_after,
+                    model=qualified_model_name,
+                )
             return result.retry
         return bool(result)
 
@@ -127,18 +190,41 @@ def model_retry_config(
             return True
         return False
 
-    return {
+    config: ModelRetryConfig = {
         "wait": wait,
         "retry": retry_if_exception(_retry_predicate),
         "before_sleep": on_before_sleep,
         "stop": stop,
     }
 
+    if sample_waits:
+        attempt_start = sample_clock()
+
+        def before_attempt(rs: RetryCallState) -> None:
+            nonlocal attempt_start
+            attempt_start = sample_clock()
+
+        # tenacity calls `after` only for an outcome the retry policy
+        # classified as retryable (before the stop check), so this credits
+        # every retried attempt, including the last one of a call that runs
+        # out of retries
+        def after_retryable_attempt(rs: RetryCallState) -> None:
+            add_sample_wait(attempt_start, sample_clock(), completed=False)
+            if attempts is not None:
+                attempts.retried()
+
+        config["before"] = before_attempt
+        config["after"] = after_retryable_attempt
+        config["sleep"] = _sample_wait_sleep
+
+    return config
+
 
 def batch_admin_retry_config(
     model_name: str,
     config: "GenerateConfig",
     should_retry: "Callable[[BaseException], bool | RetryDecision]",
+    qualified_model_name: str | None = None,
 ) -> ModelRetryConfig:
     """Retry config for a batcher's admin operations (batch create/poll).
 
@@ -150,8 +236,15 @@ def batch_admin_retry_config(
     ``Model._generate``'s own retry loop. Batching providers must build their
     admin-op retry config through this helper rather than calling
     :func:`model_retry_config` directly, so a new batcher can't drop the
-    opt-out by copying a generate-path call site.
+    opt-outs by copying a generate-path call site.
+
+    Also opts out of the per-sample retry-wait record
+    (``report_retry_wait=False``): the batch worker inherits an arbitrary
+    sample's context, and an admin-op backoff is not that sample's wait
+    (see the gate comment in :func:`model_retry_config`).
     """
+    from functools import partial
+
     from inspect_ai.model._model import log_model_retry
 
     return model_retry_config(
@@ -160,6 +253,8 @@ def batch_admin_retry_config(
         config.timeout,
         should_retry,
         lambda ex: None,
-        log_model_retry,
+        partial(log_model_retry, qualified_model_name=qualified_model_name),
         live_overrides=False,
+        report_retry_wait=False,
+        qualified_model_name=qualified_model_name,
     )

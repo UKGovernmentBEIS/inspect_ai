@@ -8,6 +8,7 @@ import json
 import logging
 import os
 import subprocess
+import sys
 import time
 from collections.abc import Callable, Generator
 from typing import Any
@@ -91,7 +92,7 @@ def _exec_rpc_request_impl(
     request_json = json.dumps(request)
 
     result = subprocess.run(
-        ["python", "-m", "inspect_sandbox_tools._cli.main", "exec"],
+        [sys.executable, "-m", "inspect_sandbox_tools._cli.main", "exec"],
         input=request_json,
         text=True,
         capture_output=True,

@@ -64,7 +64,7 @@
       "hannagabor",
       "shaheenahmedc"
     ],
-    "samples": 26,
+    "samples": 119,
     "featured": false,
     "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/agent_bench/",
     "model_cards": []
@@ -89,6 +89,32 @@
     "samples": 225,
     "featured": false,
     "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/aider_polyglot.html",
+    "model_cards": [
+      "chatgpt",
+      "claude"
+    ]
+  },
+  {
+    "id": "ale_rsi_post_training",
+    "name": "ALE RSI Post-Training",
+    "source": "harbor",
+    "categories": [
+      "Coding",
+      "Science"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "ALE RSI post-training benchmark tasks for evaluating agent capabilities in research-level post-training workflows.",
+    "paper": null,
+    "code": "inspect_harbor/ale_rsi_post_training",
+    "contributors": [],
+    "samples": 6,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/ale_rsi_post_training.html",
     "model_cards": []
   },
   {
@@ -114,6 +140,28 @@
     "model_cards": []
   },
   {
+    "id": "android_bench",
+    "name": "Android Bench",
+    "source": "harbor",
+    "categories": [
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "A dataset of 100 Android software engineering tasks derived from real-world repositories.",
+    "paper": "https://github.com/android-bench/android-bench",
+    "code": "inspect_harbor/android_bench",
+    "contributors": [],
+    "samples": 100,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/android_bench.html",
+    "model_cards": []
+  },
+  {
     "id": "apps",
     "name": "APPS",
     "source": "evals",
@@ -131,7 +179,7 @@
     "contributors": [
       "camtice"
     ],
-    "samples": 5000,
+    "samples": 3000,
     "featured": false,
     "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/apps/",
     "model_cards": []
@@ -156,6 +204,29 @@
     "samples": 200,
     "featured": false,
     "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/tencent_autocodebench.html",
+    "model_cards": []
+  },
+  {
+    "id": "bespokelabs_autoresearch_exam",
+    "name": "AutoResearchExam",
+    "source": "harbor",
+    "categories": [
+      "Coding",
+      "Science"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "AutoResearchExam measures an agent's ability to improve and generalize on open ended machine learning research tasks. The dataset contains 29 tasks across machine learning research.",
+    "paper": "https://github.com/bespokelabsai/AutoResearchExam",
+    "code": "inspect_harbor/bespokelabs_autoresearch_exam",
+    "contributors": [],
+    "samples": 29,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/bespokelabs_autoresearch_exam.html",
     "model_cards": []
   },
   {
@@ -204,6 +275,29 @@
     "model_cards": []
   },
   {
+    "id": "refresh_blenderbench_20",
+    "name": "BlenderBench (Refresh)",
+    "source": "harbor",
+    "categories": [
+      "Coding",
+      "Multimodal"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "Refresh's Blender Bench: 20 realistic 3D production workflows in Blender (modeling, rigging, animation, cloth, surfacing) — the agent edits a supplied .blend scene to recreate reference renders and performances.",
+    "paper": null,
+    "code": "inspect_harbor/refresh_blenderbench_20",
+    "contributors": [],
+    "samples": 20,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/refresh_blenderbench_20.html",
+    "model_cards": []
+  },
+  {
     "id": "tinycomputerai_bun_server_bench",
     "name": "bun-server-bench",
     "source": "harbor",
@@ -239,7 +333,7 @@
       "agent",
       "sandbox"
     ],
-    "desc": "gNucleus AI CAD-generation benchmark — 100 parametric FreeCAD tasks.",
+    "desc": "gNucleus AI CAD-generation benchmark v3 -- 100 parametric FreeCAD tasks: 30 text-to-CAD create, 30 create-and-edit, 40 image-to-CAD (Harbor schema 1.3; requires harbor >= 0.20.0).",
     "paper": "https://www.gnucleus.ai/cad-bench",
     "code": "inspect_harbor/gnucleus_ai_cad_bench",
     "contributors": [],
@@ -361,6 +455,28 @@
     "model_cards": []
   },
   {
+    "id": "snowflake_labs_data_eng_bench",
+    "name": "data-eng-bench",
+    "source": "harbor",
+    "categories": [
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "Agentic dbt data-engineering benchmark: 103 real-world dbt tasks (analytics, dimensional modeling, incremental models, bug-fixes, snapshots) runnable hermetically on DuckDB or against Snowflake via DB_TYPE. A 30-task balanced fast subset for cost-bounded / CI runs is listed in configs/fast-30.txt.",
+    "paper": "https://github.com/Snowflake-Labs/data-eng-bench",
+    "code": "inspect_harbor/snowflake_labs_data_eng_bench",
+    "contributors": [],
+    "samples": 103,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/snowflake_labs_data_eng_bench.html",
+    "model_cards": []
+  },
+  {
     "id": "datacurve_deep_swe",
     "name": "DeepSWE",
     "source": "harbor",
@@ -381,6 +497,30 @@
     "featured": false,
     "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/datacurve_deep_swe.html",
     "model_cards": []
+  },
+  {
+    "id": "datacurve_deep_swe_1_1",
+    "name": "DeepSWE 1.1",
+    "source": "harbor",
+    "categories": [
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "DeepSWE 1.1 (point release with isolated verifier environments): measuring frontier coding agents on original, long-horizon engineering tasks.",
+    "paper": "https://github.com/datacurve-ai/deep-swe",
+    "code": "inspect_harbor/datacurve_deep_swe_1_1",
+    "contributors": [],
+    "samples": 113,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/datacurve_deep_swe_1_1.html",
+    "model_cards": [
+      "chatgpt"
+    ]
   },
   {
     "id": "deveval",
@@ -425,6 +565,29 @@
     "samples": 728,
     "featured": false,
     "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/michaely310_devopsgym.html",
+    "model_cards": []
+  },
+  {
+    "id": "blobfishai_devopsbench_100",
+    "name": "DevOpsBench-100",
+    "source": "harbor",
+    "categories": [
+      "Coding",
+      "Professional"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "100 deterministic long-horizon DevOps/SRE agent tasks over an executable NovaCart world with 32-67 call reference trajectories and state-diff vcode verifiers.",
+    "paper": "https://github.com/blobfishai/software-devops",
+    "code": "inspect_harbor/blobfishai_devopsbench_100",
+    "contributors": [],
+    "samples": 100,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/blobfishai_devopsbench_100.html",
     "model_cards": []
   },
   {
@@ -632,6 +795,51 @@
     "model_cards": []
   },
   {
+    "id": "frontier_harness_eval",
+    "name": "FrontierHarness Eval",
+    "source": "harbor",
+    "categories": [
+      "Coding",
+      "Assistants"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "FrontierHarness Eval v1.1.0: 17 Terminal Bench 4 tasks and 45 Terminal-Bench 2.1 tasks. TB4 quarter-size selection derived from proposal Appendix C; TB2.1 selection from Appendix E. Original tasks and verifiers pinned by SHA256. Report benchmark subsets separately; these are not official full-benchmark scores. TB4 favors shorter historical runtimes. TB2.1 preserves all 16 categories, with 29 medium, 14 hard and 2 easy tasks; source commit 7131e4375048a0e408a8fb404b5f499d726b695b. Selection and provenance: This selection reduces TB4 from 33 to 17 tasks using proportional domain quotas and the fastest known historical runtimes within each domain. Tasks with unknown historical runtimes are excluded. This version replaces protein-assembly with dna-insert, retaining the scientific-computing category and 1800-second timeout. It also replaces crack-7z-hash with vulnerable-secret, retaining medium security coverage and reducing the agent timeout from 1800 to 900 seconds.",
+    "paper": "https://github.com/frontier-harness-eval/eval",
+    "code": "inspect_harbor/frontier_harness_eval",
+    "contributors": [],
+    "samples": 62,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/frontier_harness_eval.html",
+    "model_cards": []
+  },
+  {
+    "id": "red_hat_ai_haiku_hard",
+    "name": "Haiku-Hard",
+    "source": "harbor",
+    "categories": [
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "Hard subset of SWE-style Go bug-fixing tasks drawn from Red Hat-ecosystem repos (openshift, operator-framework, coreos), filtered to instances Claude Haiku failed to solve.",
+    "paper": null,
+    "code": "inspect_harbor/red_hat_ai_haiku_hard",
+    "contributors": [],
+    "samples": 138,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/red_hat_ai_haiku_hard.html",
+    "model_cards": []
+  },
+  {
     "id": "ai_forever_harness_bench_fast",
     "name": "Harness-Bench (Fast)",
     "source": "harbor",
@@ -674,6 +882,52 @@
     "samples": 600,
     "featured": false,
     "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/scale_ai_hil_bench.html",
+    "model_cards": []
+  },
+  {
+    "id": "scale_ai_hil_bench_sql_ask_human",
+    "name": "HiL-Bench (SQL, ask-human)",
+    "source": "harbor",
+    "categories": [
+      "Coding",
+      "Behavior"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "HiL-Bench SQL split (ask-human): text-to-SQL tasks drawn from BIRD with critical details removed, testing whether an agent recognizes the gap and asks a human for help instead of guessing.",
+    "paper": "https://arxiv.org/abs/2604.09408",
+    "code": "inspect_harbor/scale_ai_hil_bench_sql_ask_human",
+    "contributors": [],
+    "samples": 100,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/scale_ai_hil_bench_sql_ask_human.html",
+    "model_cards": []
+  },
+  {
+    "id": "scale_ai_hil_bench_swe_ask_human",
+    "name": "HiL-Bench (SWE, ask-human)",
+    "source": "harbor",
+    "categories": [
+      "Coding",
+      "Behavior"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "HiL-Bench SWE split (ask-human): software-engineering tasks drawn from SWE-Bench Pro with critical details removed, testing whether an agent recognizes the gap and asks a human for help instead of guessing.",
+    "paper": "https://arxiv.org/abs/2604.09408",
+    "code": "inspect_harbor/scale_ai_hil_bench_swe_ask_human",
+    "contributors": [],
+    "samples": 100,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/scale_ai_hil_bench_swe_ask_human.html",
     "model_cards": []
   },
   {
@@ -742,6 +996,29 @@
     "samples": 810,
     "featured": false,
     "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/ifevalcode/",
+    "model_cards": []
+  },
+  {
+    "id": "infra_bench_v1",
+    "name": "InfraBench v1",
+    "source": "harbor",
+    "categories": [
+      "Coding",
+      "Professional"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "20 AI-infra engineering tasks on AMD MI35X (5 categories: model deployment, profiling, kernel implementation, kernel tuning, debug triage).",
+    "paper": "https://github.com/sammysun0711/InfraBench",
+    "code": "inspect_harbor/infra_bench_v1",
+    "contributors": [],
+    "samples": 20,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/infra_bench_v1.html",
     "model_cards": []
   },
   {
@@ -832,7 +1109,9 @@
     "samples": 100,
     "featured": false,
     "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/livecodebench.html",
-    "model_cards": []
+    "model_cards": [
+      "gemini"
+    ]
   },
   {
     "id": "livecodebench_pro",
@@ -852,9 +1131,55 @@
     "contributors": [
       "gjoshi2424"
     ],
-    "samples": 1404,
+    "samples": 706,
     "featured": false,
     "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/livecodebench_pro/",
+    "model_cards": []
+  },
+  {
+    "id": "long_horizon_terminal_bench",
+    "name": "Long-Horizon Terminal-Bench",
+    "source": "harbor",
+    "categories": [
+      "Coding",
+      "Assistants"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "Long-Horizon Terminal-Bench: 46-task benchmark measuring how well LLM agents sustain useful work in a containerized terminal over hundreds of steps. Hidden rebuild-from-artifact verifiers; self-reported progress does not count.",
+    "paper": "https://arxiv.org/abs/2607.08964",
+    "code": "inspect_harbor/long_horizon_terminal_bench",
+    "contributors": [],
+    "samples": 46,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/long_horizon_terminal_bench.html",
+    "model_cards": []
+  },
+  {
+    "id": "long_horizon_terminal_bench_2_0",
+    "name": "Long-Horizon Terminal-Bench 2.0",
+    "source": "harbor",
+    "categories": [
+      "Coding",
+      "Assistants"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "Long-Horizon Terminal-Bench 2.0: 77-task benchmark measuring how well LLM agents sustain useful work in a containerized terminal over hundreds of steps. The 46 original tasks plus 31 new ones, 30 of them reconstruction tasks. Hidden rebuild-from-artifact verifiers; self-reported progress does not count.",
+    "paper": "https://arxiv.org/abs/2607.08964",
+    "code": "inspect_harbor/long_horizon_terminal_bench_2_0",
+    "contributors": [],
+    "samples": 77,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/long_horizon_terminal_bench_2_0.html",
     "model_cards": []
   },
   {
@@ -877,6 +1202,29 @@
     "samples": 3,
     "featured": false,
     "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/lcb_longswebench_32k.html",
+    "model_cards": []
+  },
+  {
+    "id": "last_secure_code_benchmark",
+    "name": "LSCBench",
+    "source": "harbor",
+    "categories": [
+      "Coding",
+      "Cybersecurity"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "Last Secure Code Benchmark (LSCBench): 450 secure code generation tasks from 150 vulnerability scenarios, each at function, file, and repository granularity, in seven languages.",
+    "paper": "https://github.com/alibaba/last-secure-code-benchmark",
+    "code": "inspect_harbor/last_secure_code_benchmark",
+    "contributors": [],
+    "samples": 450,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/last_secure_code_benchmark.html",
     "model_cards": []
   },
   {
@@ -903,6 +1251,28 @@
     "model_cards": []
   },
   {
+    "id": "elfsong_mercury_eval",
+    "name": "Mercury",
+    "source": "harbor",
+    "categories": [
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "Mercury eval: 256 Python code-efficiency tasks; CC-BY-NC-4.0.",
+    "paper": "https://arxiv.org/abs/2402.07844",
+    "code": "inspect_harbor/elfsong_mercury_eval",
+    "contributors": [],
+    "samples": 256,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/elfsong_mercury_eval.html",
+    "model_cards": []
+  },
+  {
     "id": "mle_bench",
     "name": "MLE-bench",
     "source": "evals",
@@ -926,7 +1296,9 @@
     "samples": 1,
     "featured": false,
     "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/mle_bench/",
-    "model_cards": []
+    "model_cards": [
+      "chatgpt"
+    ]
   },
   {
     "id": "meta_mlgym_bench",
@@ -1001,6 +1373,28 @@
     "model_cards": []
   },
   {
+    "id": "nl2repobench",
+    "name": "NL2Repo-Bench",
+    "source": "harbor",
+    "categories": [
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "Agent generates a complete, installable Python library from a single natural-language requirements document, starting from an empty workspace.",
+    "paper": "https://arxiv.org/abs/2512.12730",
+    "code": "inspect_harbor/nl2repobench",
+    "contributors": [],
+    "samples": 104,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/nl2repobench.html",
+    "model_cards": []
+  },
+  {
     "id": "grafana_o11y_bench",
     "name": "o11y-bench",
     "source": "harbor",
@@ -1021,6 +1415,52 @@
     "samples": 63,
     "featured": false,
     "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/grafana_o11y_bench.html",
+    "model_cards": []
+  },
+  {
+    "id": "orca_bench",
+    "name": "ORCA-bench",
+    "source": "harbor",
+    "categories": [
+      "Coding",
+      "Professional"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "ORCA-bench: root-cause analysis of oncall incidents — agents investigate telemetry from an instrumented microservices system to diagnose each incident; public split of 755 tasks across 77 incidents (245 easy, 264 medium, 246 hard).",
+    "paper": "https://arxiv.org/abs/2607.28545",
+    "code": "inspect_harbor/orca_bench",
+    "contributors": [],
+    "samples": 755,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/orca_bench.html",
+    "model_cards": []
+  },
+  {
+    "id": "orca_bench_verified",
+    "name": "ORCA-bench Verified",
+    "source": "harbor",
+    "categories": [
+      "Coding",
+      "Professional"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "ORCA-bench Verified: root-cause analysis of oncall incidents — agents investigate telemetry from an instrumented microservices system to diagnose each incident; verified split of 40 tasks across 40 incidents (10 easy, 15 medium, 15 hard).",
+    "paper": "https://arxiv.org/abs/2607.28545",
+    "code": "inspect_harbor/orca_bench_verified",
+    "contributors": [],
+    "samples": 40,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/orca_bench_verified.html",
     "model_cards": []
   },
   {
@@ -1073,6 +1513,30 @@
     "model_cards": []
   },
   {
+    "id": "bencalvert04_programbench",
+    "name": "ProgramBench",
+    "source": "harbor",
+    "categories": [
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "ProgramBench cleanroom reconstruction tasks: reimplementing real-world CLI tools from popular open-source repos.",
+    "paper": "https://arxiv.org/abs/2605.03546",
+    "code": "inspect_harbor/bencalvert04_programbench",
+    "contributors": [],
+    "samples": 200,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/bencalvert04_programbench.html",
+    "model_cards": [
+      "claude"
+    ]
+  },
+  {
     "id": "quixbugs",
     "name": "QuixBugs",
     "source": "harbor",
@@ -1092,6 +1556,50 @@
     "samples": 80,
     "featured": false,
     "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/quixbugs.html",
+    "model_cards": []
+  },
+  {
+    "id": "reactbench",
+    "name": "ReactBench",
+    "source": "harbor",
+    "categories": [
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "ReactBench: coding agents on realistic React work.",
+    "paper": "https://github.com/millionco/reactbench",
+    "code": "inspect_harbor/reactbench",
+    "contributors": [],
+    "samples": 39,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/reactbench.html",
+    "model_cards": []
+  },
+  {
+    "id": "reviewbench_public",
+    "name": "ReviewBench",
+    "source": "harbor",
+    "categories": [
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "ReviewBench: 219 frozen PRs; harness-neutral reviewer; separate Claude Opus 5 judge.",
+    "paper": "https://github.com/review-bench/ReviewBench",
+    "code": "inspect_harbor/reviewbench_public",
+    "contributors": [],
+    "samples": 219,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/reviewbench_public.html",
     "model_cards": []
   },
   {
@@ -1117,6 +1625,50 @@
     "model_cards": []
   },
   {
+    "id": "rounakbende10_rh_swe_bench",
+    "name": "RH SWE-bench",
+    "source": "harbor",
+    "categories": [
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "Red Hat SWE-bench - 337 tasks from 24 RH ecosystem repos.",
+    "paper": "https://github.com/rounakbende10/rh-swe-bench",
+    "code": "inspect_harbor/rounakbende10_rh_swe_bench",
+    "contributors": [],
+    "samples": 337,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/rounakbende10_rh_swe_bench.html",
+    "model_cards": []
+  },
+  {
+    "id": "snorkel_ai_senior_swe_bench_v2026_06",
+    "name": "Senior SWE-Bench (v2026.06)",
+    "source": "harbor",
+    "categories": [
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "Senior SWE-Bench: senior-engineer coding tasks drawn from real pull requests in production repositories — building features from PM-style instructions and investigating bugs from runtime evidence, judged for correctness and code taste (50-task public split).",
+    "paper": "https://github.com/snorkel-ai/senior-swe-bench-v2026.06",
+    "code": "inspect_harbor/snorkel_ai_senior_swe_bench_v2026_06",
+    "contributors": [],
+    "samples": 50,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/snorkel_ai_senior_swe_bench_v2026_06.html",
+    "model_cards": []
+  },
+  {
     "id": "camel_ai_seta_env",
     "name": "SETA-Env",
     "source": "harbor",
@@ -1133,9 +1685,31 @@
     "paper": "https://github.com/camel-ai/seta-env",
     "code": "inspect_harbor/camel_ai_seta_env",
     "contributors": [],
-    "samples": 1000,
+    "samples": 1376,
     "featured": false,
     "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/camel_ai_seta_env.html",
+    "model_cards": []
+  },
+  {
+    "id": "skill2env",
+    "name": "Skill2Env",
+    "source": "harbor",
+    "categories": [
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "Skill2Env (NVIDIA): 7,496 terminal tasks auto-converted from open-source Agent Skills — the agent finishes, repairs, or extends a software project in /workspace to satisfy a written contract, graded by hidden tests plus rubrics.",
+    "paper": null,
+    "code": "inspect_harbor/skill2env",
+    "contributors": [],
+    "samples": 7496,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/skill2env.html",
     "model_cards": []
   },
   {
@@ -1268,7 +1842,11 @@
     "samples": 731,
     "featured": false,
     "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/scale_ai_swe_bench_pro.html",
-    "model_cards": []
+    "model_cards": [
+      "chatgpt",
+      "claude",
+      "gemini"
+    ]
   },
   {
     "id": "swe_bench",
@@ -1320,6 +1898,28 @@
     "samples": 500,
     "featured": false,
     "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/swe_bench_verified.html",
+    "model_cards": []
+  },
+  {
+    "id": "red_hat_ai_swe_benchify_hard",
+    "name": "SWE-benchify (hard)",
+    "source": "harbor",
+    "categories": [
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "Hard subset of SWE-bench-style Go issue-resolution tasks generated by Red Hat's SWE-benchify pipeline from cloud-native repos (openshift, operator-framework, grpc-go, opentelemetry-go).",
+    "paper": "https://github.com/Red-Hat-AI-Innovation-Team/SWE-benchify",
+    "code": "inspect_harbor/red_hat_ai_swe_benchify_hard",
+    "contributors": [],
+    "samples": 284,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/red_hat_ai_swe_benchify_hard.html",
     "model_cards": []
   },
   {
@@ -1433,6 +2033,28 @@
     "model_cards": []
   },
   {
+    "id": "luosuu_swe_kokkos_bench",
+    "name": "SWE-kokkos-bench",
+    "source": "harbor",
+    "categories": [
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "100 Kokkos ecosystem regression repair tasks (250-request budget).",
+    "paper": "https://github.com/Luosuu/tinker-cookbook/tree/science-rl",
+    "code": "inspect_harbor/luosuu_swe_kokkos_bench",
+    "contributors": [],
+    "samples": 100,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/luosuu_swe_kokkos_bench.html",
+    "model_cards": []
+  },
+  {
     "id": "swe_lancer",
     "name": "SWE-Lancer",
     "source": "evals",
@@ -1501,7 +2123,9 @@
     "samples": 198,
     "featured": false,
     "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/openai_swe_lancer_diamond_ic.html",
-    "model_cards": []
+    "model_cards": [
+      "chatgpt"
+    ]
   },
   {
     "id": "openai_swe_lancer_diamond_manager",
@@ -1527,8 +2151,8 @@
     "model_cards": []
   },
   {
-    "id": "pgcodellm_rebench_v2_test",
-    "name": "SWE-rebench V2",
+    "id": "abundant_swe_marathon",
+    "name": "SWE-Marathon",
     "source": "harbor",
     "categories": [
       "Coding"
@@ -1539,13 +2163,79 @@
       "agent",
       "sandbox"
     ],
-    "desc": "SWE-rebench V2: language-agnostic dataset of executable SWE tasks across 20 languages, with pre-built images for reproducible execution.",
-    "paper": "https://arxiv.org/abs/2602.23866",
-    "code": "inspect_harbor/pgcodellm_rebench_v2_test",
+    "desc": "Ultra long-horizon software engineering tasks from SWE-Marathon.",
+    "paper": "https://arxiv.org/abs/2606.07682",
+    "code": "inspect_harbor/abundant_swe_marathon",
     "contributors": [],
     "samples": 20,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/pgcodellm_rebench_v2_test.html",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/abundant_swe_marathon.html",
+    "model_cards": []
+  },
+  {
+    "id": "evaligo_swe_race",
+    "name": "swe-race",
+    "source": "harbor",
+    "categories": [
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "SWE-Race v0.1 public split: 94 real concurrency bugs from open-source Python projects, graded by each project's own hidden tests. Leaderboard:.",
+    "paper": null,
+    "code": "inspect_harbor/evaligo_swe_race",
+    "contributors": [],
+    "samples": 94,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/evaligo_swe_race.html",
+    "model_cards": []
+  },
+  {
+    "id": "swe_rebench_07_2026",
+    "name": "SWE-rebench (July 2026)",
+    "source": "harbor",
+    "categories": [
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "111 hard SWE-rebench leaderboard tasks from the July 2026 snapshot across Go, Java, Python, Rust, and TypeScript.",
+    "paper": "https://arxiv.org/abs/2505.20411",
+    "code": "inspect_harbor/swe_rebench_07_2026",
+    "contributors": [],
+    "samples": 111,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/swe_rebench_07_2026.html",
+    "model_cards": []
+  },
+  {
+    "id": "swe_rebench_leaderboard",
+    "name": "SWE-rebench Leaderboard",
+    "source": "harbor",
+    "categories": [
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "SWE-rebench leaderboard: 860 curated Python SWE tasks from Nebius AI R&D. All instances have pre-built Docker images. Continuously updated monthly splits.",
+    "paper": "https://arxiv.org/abs/2505.20411",
+    "code": "inspect_harbor/swe_rebench_leaderboard",
+    "contributors": [],
+    "samples": 860,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/swe_rebench_leaderboard.html",
     "model_cards": []
   },
   {
@@ -1609,9 +2299,78 @@
     "paper": "https://arxiv.org/abs/2602.07274",
     "code": "inspect_harbor/termigen_environments",
     "contributors": [],
-    "samples": 1000,
+    "samples": 3566,
     "featured": false,
     "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/termigen_environments.html",
+    "model_cards": []
+  },
+  {
+    "id": "terminal_bench_cpu_only",
+    "name": "Terminal-Bench (CPU-only)",
+    "source": "harbor",
+    "categories": [
+      "Coding",
+      "Assistants"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "Terminal-Bench (CPU-only): the current Terminal-Bench task set minus the 3 tasks that require an H100 GPU, so the full suite runs on CPU-only sandboxes.",
+    "paper": "https://arxiv.org/abs/2601.11868",
+    "code": "inspect_harbor/terminal_bench_cpu_only",
+    "contributors": [],
+    "samples": 63,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/terminal_bench_cpu_only.html",
+    "model_cards": []
+  },
+  {
+    "id": "terminal_bench",
+    "name": "Terminal-Bench (latest)",
+    "source": "harbor",
+    "categories": [
+      "Coding",
+      "Assistants"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "Terminal-Bench is a benchmark for measuring agents' abilities to complete tasks using a terminal.",
+    "paper": "https://arxiv.org/abs/2601.11868",
+    "code": "inspect_harbor/terminal_bench",
+    "contributors": [],
+    "samples": 66,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/terminal_bench.html",
+    "model_cards": []
+  },
+  {
+    "id": "cohere_terminal_bench_aai",
+    "name": "Terminal-Bench Hard",
+    "source": "harbor",
+    "categories": [
+      "Coding",
+      "Assistants"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "AAII Terminal-Bench Hard: 44 hard tasks from terminal-bench v1 (terminal-bench-core==0.1.1), used with the Terminus-2 agent.",
+    "paper": "https://arxiv.org/abs/2601.11868",
+    "code": "inspect_harbor/cohere_terminal_bench_aai",
+    "contributors": [],
+    "samples": 44,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/cohere_terminal_bench_aai.html",
     "model_cards": []
   },
   {
@@ -1657,7 +2416,11 @@
     "samples": 89,
     "featured": false,
     "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/terminal_bench_2.html",
-    "model_cards": []
+    "model_cards": [
+      "chatgpt",
+      "claude",
+      "gemini"
+    ]
   },
   {
     "id": "terminal_bench_2_1",
@@ -1680,6 +2443,32 @@
     "samples": 89,
     "featured": false,
     "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/terminal_bench_2_1.html",
+    "model_cards": [
+      "chatgpt",
+      "claude"
+    ]
+  },
+  {
+    "id": "ykhli_tetrisbench",
+    "name": "TetrisBench",
+    "source": "harbor",
+    "categories": [
+      "Coding",
+      "Reasoning"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "TetrisBench strategy track: submit one JS placement-scoring function; mean raw game score over 20 fixed public seeds x 500 pieces, separately verified.",
+    "paper": null,
+    "code": "inspect_harbor/ykhli_tetrisbench",
+    "contributors": [],
+    "samples": 1,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/ykhli_tetrisbench.html",
     "model_cards": []
   },
   {
@@ -1789,7 +2578,7 @@
     "paper": null,
     "code": "inspect_harbor/vmax_tasks",
     "contributors": [],
-    "samples": 1000,
+    "samples": 1043,
     "featured": false,
     "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/vmax_tasks.html",
     "model_cards": []
@@ -1814,6 +2603,28 @@
     "samples": 101,
     "featured": false,
     "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/webgen_bench.html",
+    "model_cards": []
+  },
+  {
+    "id": "zenml_bench",
+    "name": "ZenML Bench",
+    "source": "harbor",
+    "categories": [
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "ZenML Bench v0.1: 18 Harbor tasks where coding agents build, fix, configure and research with real ZenML 0.96.4; graded on the state ZenML recorded.",
+    "paper": "https://github.com/zenml-io/zenml-bench",
+    "code": "inspect_harbor/zenml_bench",
+    "contributors": [],
+    "samples": 18,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/zenml_bench.html",
     "model_cards": []
   },
   {
@@ -1844,22 +2655,48 @@
     "model_cards": []
   },
   {
+    "id": "atm_bench_hard_sgm",
+    "name": "ATM-Bench-Hard (SGM)",
+    "source": "harbor",
+    "categories": [
+      "Assistants",
+      "Reasoning"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "ATM-Bench-Hard (SGM): 31 hard long-term personalized memory questions answered from schema-guided memory (SGM) files distilled from ~4 years of a user's images, videos, and emails.",
+    "paper": "https://arxiv.org/abs/2603.01990",
+    "code": "inspect_harbor/atm_bench_hard_sgm",
+    "contributors": [],
+    "samples": 31,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/atm_bench_hard_sgm.html",
+    "model_cards": []
+  },
+  {
     "id": "bfcl",
     "name": "BFCL",
     "source": "evals",
     "categories": [
       "Assistants"
     ],
-    "tags": [],
-    "kind": "generation",
+    "tags": [
+      "Agent"
+    ],
+    "kind": "agent",
     "modalities": [
-      "text"
+      "agent"
     ],
     "desc": "Evaluates LLM function/tool-calling ability on a simplified split of the Berkeley Function-Calling Leaderboard (BFCL).",
-    "paper": null,
+    "paper": "https://openreview.net/pdf?id=2GmDdhBdDk",
     "code": "inspect_evals/bfcl",
     "contributors": [
-      "alex-remedios-aisi"
+      "alex-remedios-aisi",
+      "rutvi02"
     ],
     "samples": 4981,
     "featured": false,
@@ -1883,7 +2720,7 @@
     "paper": "https://github.com/ShishirPatil/gorilla",
     "code": "inspect_harbor/gorilla_bfcl",
     "contributors": [],
-    "samples": 1000,
+    "samples": 3641,
     "featured": false,
     "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/gorilla_bfcl.html",
     "model_cards": []
@@ -1908,6 +2745,52 @@
     "samples": 123,
     "featured": false,
     "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/gorilla_bfcl_parity.html",
+    "model_cards": []
+  },
+  {
+    "id": "blobfishai_arc_crm_6",
+    "name": "Blobfish Arc CRM-6",
+    "source": "harbor",
+    "categories": [
+      "Assistants",
+      "Professional"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "Six independently authored synthetic CRM workflows on one mocked CLI/web/REST/MCP world per episode. Partial Arc-inspired coverage, not source-row reproduction.",
+    "paper": "https://github.com/blobfishai/arc-crm-agent-simulation",
+    "code": "inspect_harbor/blobfishai_arc_crm_6",
+    "contributors": [],
+    "samples": 6,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/blobfishai_arc_crm_6.html",
+    "model_cards": []
+  },
+  {
+    "id": "blobfishai_webbench",
+    "name": "Blobfish WebBench",
+    "source": "harbor",
+    "categories": [
+      "Assistants",
+      "Professional"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "WebBench: browser-only correlated SaaS work over deterministic populated Blobfish worlds — 159 tasks graded executably against the applications backends (WebScore, no LLM judge).",
+    "paper": "https://blobfish.ai/benchmarks/webbench",
+    "code": "inspect_harbor/blobfishai_webbench",
+    "contributors": [],
+    "samples": 159,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/blobfishai_webbench.html",
     "model_cards": []
   },
   {
@@ -1939,6 +2822,75 @@
       "claude",
       "gemini"
     ]
+  },
+  {
+    "id": "blobfishai_domainbench_24",
+    "name": "DomainBench-24",
+    "source": "harbor",
+    "categories": [
+      "Assistants",
+      "Professional"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "24 deeply realistic stateful MCP tasks across six enterprise domains.",
+    "paper": null,
+    "code": "inspect_harbor/blobfishai_domainbench_24",
+    "contributors": [],
+    "samples": 24,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/blobfishai_domainbench_24.html",
+    "model_cards": []
+  },
+  {
+    "id": "enterprise_bench_l1_l2_bench",
+    "name": "Enterprise-Bench (L1-L2)",
+    "source": "harbor",
+    "categories": [
+      "Assistants",
+      "Professional"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "Enterprise-Bench (L1-L2): DevRev's enterprise agent benchmark — answering L1/L2 support-tier questions (ticket SLAs, triage, customer-account data) over fragmented enterprise systems.",
+    "paper": null,
+    "code": "inspect_harbor/enterprise_bench_l1_l2_bench",
+    "contributors": [],
+    "samples": 14,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/enterprise_bench_l1_l2_bench.html",
+    "model_cards": []
+  },
+  {
+    "id": "blobfishai_factorybench_100",
+    "name": "FactoryBench-100",
+    "source": "harbor",
+    "categories": [
+      "Assistants",
+      "Professional"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "100 executable manufacturing ERP workflow tasks with deterministic FactoryScore grading.",
+    "paper": "https://github.com/blobfishai/factory-agent-simulation",
+    "code": "inspect_harbor/blobfishai_factorybench_100",
+    "contributors": [],
+    "samples": 100,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/blobfishai_factorybench_100.html",
+    "model_cards": []
   },
   {
     "id": "gaia",
@@ -1990,6 +2942,52 @@
     "model_cards": []
   },
   {
+    "id": "harbor_index",
+    "name": "Harbor Index",
+    "source": "harbor",
+    "categories": [
+      "Assistants",
+      "Reasoning"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "Harbor Index: 80 agentic evaluation tasks spanning SWE, security, science, math, and optimization (revision 1.4).",
+    "paper": null,
+    "code": "inspect_harbor/harbor_index",
+    "contributors": [],
+    "samples": 80,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/harbor_index.html",
+    "model_cards": []
+  },
+  {
+    "id": "harbor_index_1_0",
+    "name": "Harbor Index 1.0",
+    "source": "harbor",
+    "categories": [
+      "Assistants",
+      "Reasoning"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "Harbor Index is an 82-task benchmark for agentic evaluation. It was distilled from more than 6,000 candidate tasks through repeated model runs, automated broken-task identification, human audits, and reward hacking supervision.",
+    "paper": null,
+    "code": "inspect_harbor/harbor_index_1_0",
+    "contributors": [],
+    "samples": 82,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/harbor_index_1_0.html",
+    "model_cards": []
+  },
+  {
     "id": "orinlabs_horizon_public",
     "name": "Horizon",
     "source": "harbor",
@@ -2009,6 +3007,52 @@
     "samples": 3,
     "featured": false,
     "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/orinlabs_horizon_public.html",
+    "model_cards": []
+  },
+  {
+    "id": "blobfishai_hubbench",
+    "name": "HubBench",
+    "source": "harbor",
+    "categories": [
+      "Assistants",
+      "Professional"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "HubBench: one oracle-proven, deterministically graded Blobfish benchmark family per Harbor Hub professional-domain cluster — 104 stateful multi-system employee-decision tasks over isolated SQLite worlds (HubScore, no LLM judge).",
+    "paper": "https://github.com/blobfishai/hub-agent-simulation",
+    "code": "inspect_harbor/blobfishai_hubbench",
+    "contributors": [],
+    "samples": 104,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/blobfishai_hubbench.html",
+    "model_cards": []
+  },
+  {
+    "id": "vibrantlabsai_itsm_bench",
+    "name": "ITSMBench (Enterprise-Worlds)",
+    "source": "harbor",
+    "categories": [
+      "Assistants",
+      "Professional"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "ITSMBench: enterprise ITSM agent tasks graded on database state.",
+    "paper": "https://github.com/vibrantlabsai/Enterprise-Worlds",
+    "code": "inspect_harbor/vibrantlabsai_itsm_bench",
+    "contributors": [],
+    "samples": 53,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/vibrantlabsai_itsm_bench.html",
     "model_cards": []
   },
   {
@@ -2089,6 +3133,29 @@
     ]
   },
   {
+    "id": "xlang_ai_osworld_verified",
+    "name": "OSWorld-Verified",
+    "source": "harbor",
+    "categories": [
+      "Assistants",
+      "Multimodal"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "OSWorld-Verified Harbor adaptation: 361 Ubuntu desktop-control tasks from OSWorld, excluding the 8 Google Drive/login credential-backed tasks.",
+    "paper": "https://arxiv.org/abs/2404.07972",
+    "code": "inspect_harbor/xlang_ai_osworld_verified",
+    "contributors": [],
+    "samples": 361,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/xlang_ai_osworld_verified.html",
+    "model_cards": []
+  },
+  {
     "id": "agentscope_ai_pawbench",
     "name": "PawBench",
     "source": "harbor",
@@ -2109,6 +3176,52 @@
     "samples": 150,
     "featured": false,
     "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/agentscope_ai_pawbench.html",
+    "model_cards": []
+  },
+  {
+    "id": "blobfishai_salesbench_100",
+    "name": "SalesBench-100",
+    "source": "harbor",
+    "categories": [
+      "Assistants",
+      "Professional"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "100 high-level sales operations requests with evidence-determined multi-system trajectories.",
+    "paper": null,
+    "code": "inspect_harbor/blobfishai_salesbench_100",
+    "contributors": [],
+    "samples": 100,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/blobfishai_salesbench_100.html",
+    "model_cards": []
+  },
+  {
+    "id": "blobfishai_semikongbench_100",
+    "name": "SemiKongBench-100",
+    "source": "harbor",
+    "categories": [
+      "Assistants",
+      "Professional"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "100 executable semiconductor exception workflows with deterministic SemiOpsScore grading.",
+    "paper": "https://github.com/blobfishai/semiconductor-agent-simulation",
+    "code": "inspect_harbor/blobfishai_semikongbench_100",
+    "contributors": [],
+    "samples": 100,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/blobfishai_semikongbench_100.html",
     "model_cards": []
   },
   {
@@ -2151,7 +3264,7 @@
     "contributors": [
       "alexdzm"
     ],
-    "samples": 4888,
+    "samples": 4882,
     "featured": false,
     "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/sycophancy/",
     "model_cards": []
@@ -2208,9 +3321,55 @@
     "contributors": [
       "bndxn"
     ],
-    "samples": 34,
+    "samples": 39,
     "featured": false,
     "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/theagentcompany/",
+    "model_cards": []
+  },
+  {
+    "id": "userbench",
+    "name": "UserBench (SWE user simulation)",
+    "source": "harbor",
+    "categories": [
+      "Assistants",
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "UserBench eval: 620 next-message tasks across 62 developers. Composer 2.5 classifies gold and predicted messages into multi-label acts; reward is set Jaccard/IoU.",
+    "paper": null,
+    "code": "inspect_harbor/userbench",
+    "contributors": [],
+    "samples": 620,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/userbench.html",
+    "model_cards": []
+  },
+  {
+    "id": "userbench_train400",
+    "name": "UserBench (SWE user simulation, train400)",
+    "source": "harbor",
+    "categories": [
+      "Assistants",
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "UserBench train400 twin: the same 620 held tasks plus 400 leak-safe prior turns per developer. Composer 2.5 multi-label acts score by set Jaccard/IoU.",
+    "paper": null,
+    "code": "inspect_harbor/userbench_train400",
+    "contributors": [],
+    "samples": 620,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/userbench_train400.html",
     "model_cards": []
   },
   {
@@ -2255,7 +3414,7 @@
     "paper": "https://arxiv.org/abs/2604.10261",
     "code": "inspect_harbor/minnesotanlp_aar",
     "contributors": [],
-    "samples": 1000,
+    "samples": 1400,
     "featured": false,
     "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/minnesotanlp_aar.html",
     "model_cards": []
@@ -2281,7 +3440,11 @@
     "samples": 167,
     "featured": true,
     "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/arcprize_arc_agi_2.html",
-    "model_cards": []
+    "model_cards": [
+      "chatgpt",
+      "claude",
+      "gemini"
+    ]
   },
   {
     "id": "bbh",
@@ -2301,7 +3464,7 @@
     "contributors": [
       "JoschkaCBraun"
     ],
-    "samples": 250,
+    "samples": 6509,
     "featured": false,
     "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/bbh/",
     "model_cards": []
@@ -2324,7 +3487,7 @@
     "contributors": [
       "jeqcho"
     ],
-    "samples": 4520,
+    "samples": 4519,
     "featured": false,
     "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/bbeh/",
     "model_cards": []
@@ -2438,7 +3601,7 @@
     "paper": "https://arxiv.org/abs/2504.02810",
     "code": "inspect_harbor/kumo_easy",
     "contributors": [],
-    "samples": 1000,
+    "samples": 5050,
     "featured": false,
     "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/kumo_easy.html",
     "model_cards": []
@@ -2482,7 +3645,7 @@
     "paper": "https://arxiv.org/abs/2504.02810",
     "code": "inspect_harbor/kumo_1",
     "contributors": [],
-    "samples": 1000,
+    "samples": 5300,
     "featured": false,
     "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/kumo_1.html",
     "model_cards": []
@@ -2700,6 +3863,50 @@
     "model_cards": []
   },
   {
+    "id": "rachittshah_railhead",
+    "name": "Railhead",
+    "source": "harbor",
+    "categories": [
+      "Reasoning"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "Railhead eval set (dev + ood): models play OpenTTD directly; replay-verified rewards, run-off valuation, priced forks, promise-keeping contracts.",
+    "paper": "https://github.com/rachittshah/railhead",
+    "code": "inspect_harbor/rachittshah_railhead",
+    "contributors": [],
+    "samples": 533,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/rachittshah_railhead.html",
+    "model_cards": []
+  },
+  {
+    "id": "rachittshah_railhead_train",
+    "name": "Railhead (train)",
+    "source": "harbor",
+    "categories": [
+      "Reasoning"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "Railhead train set: models play OpenTTD directly; replay-verified rewards, run-off valuation, priced forks, promise-keeping contracts.",
+    "paper": "https://github.com/rachittshah/railhead",
+    "code": "inspect_harbor/rachittshah_railhead_train",
+    "contributors": [],
+    "samples": 1006,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/rachittshah_railhead_train.html",
+    "model_cards": []
+  },
+  {
     "id": "reasoning_gym_easy",
     "name": "Reasoning Gym (easy)",
     "source": "harbor",
@@ -2783,7 +3990,7 @@
     "paper": "https://arxiv.org/abs/2505.14615",
     "code": "inspect_harbor/satbench",
     "contributors": [],
-    "samples": 1000,
+    "samples": 2100,
     "featured": false,
     "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/satbench.html",
     "model_cards": []
@@ -3048,7 +4255,9 @@
     "samples": 900,
     "featured": false,
     "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/kgmon_deepsearchqa.html",
-    "model_cards": []
+    "model_cards": [
+      "claude"
+    ]
   },
   {
     "id": "hle",
@@ -3062,13 +4271,13 @@
     "modalities": [
       "text"
     ],
-    "desc": "Humanity's Last Exam (HLE) is a multi-modal benchmark at the frontier of human knowledge, designed to be the final closed-ended academic benchmark of its kind with broad subject coverage.",
+    "desc": "Humanity's Last Exam is a QA benchmark containing 2,500 questions across 100+ subjects, including mathematics, sciences, and humanities.",
     "paper": "https://arxiv.org/abs/2501.14249",
     "code": "inspect_evals/hle",
     "contributors": [
       "SasankYadati"
     ],
-    "samples": 3000,
+    "samples": 668,
     "featured": false,
     "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/hle/",
     "model_cards": [
@@ -3142,7 +4351,7 @@
       "jjallaire",
       "domdomegg"
     ],
-    "samples": 14042,
+    "samples": 13937,
     "featured": false,
     "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/mmlu/",
     "model_cards": []
@@ -3191,7 +4400,11 @@
     "samples": 150,
     "featured": false,
     "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/openai_mmmlu.html",
-    "model_cards": []
+    "model_cards": [
+      "chatgpt",
+      "claude",
+      "gemini"
+    ]
   },
   {
     "id": "onet",
@@ -3256,7 +4469,7 @@
     "paper": "https://arxiv.org/abs/2411.04368",
     "code": "inspect_harbor/openai_simpleqa",
     "contributors": [],
-    "samples": 1000,
+    "samples": 4326,
     "featured": false,
     "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/openai_simpleqa.html",
     "model_cards": []
@@ -3332,6 +4545,28 @@
     "model_cards": []
   },
   {
+    "id": "alibaba_aaig_alibaba_ctf",
+    "name": "AlibabaCTF",
+    "source": "harbor",
+    "categories": [
+      "Cybersecurity"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "A dataset of 87 Capture-The-Flag tasks curated from the AlibabaCTF competition series (2023-2026) for evaluating agents on offensive security work.",
+    "paper": null,
+    "code": "inspect_harbor/alibaba_aaig_alibaba_ctf",
+    "contributors": [],
+    "samples": 87,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/alibaba_aaig_alibaba_ctf.html",
+    "model_cards": []
+  },
+  {
     "id": "binary_audit",
     "name": "BinaryAudit",
     "source": "harbor",
@@ -3376,7 +4611,7 @@
       "ralphptorres",
       "Scott-Simmons"
     ],
-    "samples": 13,
+    "samples": 35,
     "featured": false,
     "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/threecb/",
     "model_cards": []
@@ -3448,7 +4683,9 @@
     "samples": 40,
     "featured": false,
     "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cve_bench/",
-    "model_cards": []
+    "model_cards": [
+      "chatgpt"
+    ]
   },
   {
     "id": "cybench",
@@ -3509,6 +4746,7 @@
     "featured": false,
     "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cybergym/",
     "model_cards": [
+      "chatgpt",
       "claude"
     ]
   },
@@ -3599,7 +4837,7 @@
     "contributors": [
       "its-emile"
     ],
-    "samples": 500,
+    "samples": 489,
     "featured": false,
     "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cyberseceval_2/",
     "model_cards": []
@@ -3720,7 +4958,7 @@
     "contributors": [
       "jeqcho"
     ],
-    "samples": 39558,
+    "samples": 39277,
     "featured": false,
     "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/abstention_bench/",
     "model_cards": []
@@ -3824,7 +5062,7 @@
       "darkness8i8",
       "jm355"
     ],
-    "samples": 26,
+    "samples": 115,
     "featured": false,
     "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/anima/",
     "model_cards": []
@@ -3932,6 +5170,29 @@
     "samples": 500,
     "featured": false,
     "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/fortress/",
+    "model_cards": []
+  },
+  {
+    "id": "hack_verifiable_environments_hv_terminal_bench_2_1",
+    "name": "Hack-Verifiable Terminal Bench 2.1",
+    "source": "harbor",
+    "categories": [
+      "Safeguards",
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "Hack-verifiable version of terminal-bench-2-1. Each task includes hidden solution and test files; inotifywait detects whether agents access them instead of solving legitimately.",
+    "paper": "https://arxiv.org/abs/2605.20744",
+    "code": "inspect_harbor/hack_verifiable_environments_hv_terminal_bench_2_1",
+    "contributors": [],
+    "samples": 89,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/hack_verifiable_environments_hv_terminal_bench_2_1.html",
     "model_cards": []
   },
   {
@@ -4138,7 +5399,7 @@
     "contributors": [
       "Xodarap"
     ],
-    "samples": 4299,
+    "samples": 2123,
     "featured": false,
     "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/stereoset/",
     "model_cards": []
@@ -4203,7 +5464,7 @@
       "agent"
     ],
     "desc": "Tests whether AI agents show implicit animal welfare awareness when purchasing tickets and experiences on behalf of users.",
-    "paper": null,
+    "paper": "https://arxiv.org/abs/2606.18142",
     "code": "inspect_evals/tac",
     "contributors": [
       "darkness8i8",
@@ -4522,6 +5783,29 @@
     "model_cards": []
   },
   {
+    "id": "hwe_bench",
+    "name": "HWE-bench",
+    "source": "harbor",
+    "categories": [
+      "Science",
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "HWE-bench evaluates LLM agents on engineering-simulation tasks: the agent drives a real solver and is scored on whether the number it reports lands inside a defensible tolerance band, by a deterministic verifier rather than an LLM judge. This CAE edition covers combustion, battery, CFD and 2.5D packaging.",
+    "paper": "https://github.com/svd-ai-lab/hwe-bench",
+    "code": "inspect_harbor/hwe_bench",
+    "contributors": [],
+    "samples": 77,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/hwe_bench.html",
+    "model_cards": []
+  },
+  {
     "id": "lab_bench",
     "name": "LAB-Bench",
     "source": "evals",
@@ -4691,7 +5975,8 @@
     "paper": "https://arxiv.org/abs/2407.13168",
     "code": "inspect_evals/scicode",
     "contributors": [
-      "xantheocracy"
+      "xantheocracy",
+      "tuandin-subq"
     ],
     "samples": 65,
     "featured": false,
@@ -4725,6 +6010,28 @@
     "model_cards": []
   },
   {
+    "id": "itmo_autods_scientific_cases",
+    "name": "scientific-cases",
+    "source": "harbor",
+    "categories": [
+      "Science"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "AutoDS scientific ML cases: maize yield (G3 2023), polymer Tg (OpenPoly 2025), Fugaku HPC exit-state (F-DATA 2025) — train/test split + author baseline in each task.",
+    "paper": null,
+    "code": "inspect_harbor/itmo_autods_scientific_cases",
+    "contributors": [],
+    "samples": 3,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/itmo_autods_scientific_cases.html",
+    "model_cards": []
+  },
+  {
     "id": "sciknoweval",
     "name": "SciKnowEval",
     "source": "evals",
@@ -4743,7 +6050,7 @@
     "contributors": [
       "Esther-Guo"
     ],
-    "samples": 70196,
+    "samples": 69736,
     "featured": false,
     "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/sciknoweval/",
     "model_cards": []
@@ -4796,6 +6103,29 @@
     "samples": 3000,
     "featured": false,
     "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/sosbench/",
+    "model_cards": []
+  },
+  {
+    "id": "terminal_bench_science",
+    "name": "Terminal-Bench-Science",
+    "source": "harbor",
+    "categories": [
+      "Science",
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "A benchmark for evaluating AI agents on research workflows across the life, physical, earth, mathematical, and engineering sciences.",
+    "paper": "https://github.com/harbor-framework/terminal-bench-science",
+    "code": "inspect_harbor/terminal_bench_science",
+    "contributors": [],
+    "samples": 70,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/terminal_bench_science.html",
     "model_cards": []
   },
   {
@@ -5010,6 +6340,52 @@
     "model_cards": []
   },
   {
+    "id": "drugtargetbench",
+    "name": "DrugTargetBench",
+    "source": "harbor",
+    "categories": [
+      "Biology",
+      "Medicine"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "Agentic causal target discovery across 20 semi-synthetic biobank worlds. Derive a cardiac phenotype from raw cine-MRI, then identify the proteins that causally drive disease under ten planted trap mechanisms and a real laboratory budget.",
+    "paper": "https://github.com/sammargolis/DrugTargetBench",
+    "code": "inspect_harbor/drugtargetbench",
+    "contributors": [],
+    "samples": 60,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/drugtargetbench.html",
+    "model_cards": []
+  },
+  {
+    "id": "looni_lab_smdd_bench",
+    "name": "SMDD-Bench",
+    "source": "harbor",
+    "categories": [
+      "Chemistry",
+      "Biology"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "SMDD-Bench: five small-molecule design task families with an agent harness, GPU oracle and setup guide.",
+    "paper": "https://arxiv.org/abs/2605.21740",
+    "code": "inspect_harbor/looni_lab_smdd_bench",
+    "contributors": [],
+    "samples": 502,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/looni_lab_smdd_bench.html",
+    "model_cards": []
+  },
+  {
     "id": "air_bench",
     "name": "AIR Bench",
     "source": "evals",
@@ -5032,6 +6408,52 @@
     "samples": 5694,
     "featured": false,
     "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/air_bench/",
+    "model_cards": []
+  },
+  {
+    "id": "mercor_apex_agents_1_1",
+    "name": "APEX-Agents 1.1",
+    "source": "harbor",
+    "categories": [
+      "Professional",
+      "Assistants"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "Long-horizon professional-services benchmark in investment banking, law, and management consulting, written by practicing analysts, consultants, and corporate lawyers. For evaluation only.",
+    "paper": "https://arxiv.org/abs/2601.14242",
+    "code": "inspect_harbor/mercor_apex_agents_1_1",
+    "contributors": [],
+    "samples": 240,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/mercor_apex_agents_1_1.html",
+    "model_cards": []
+  },
+  {
+    "id": "biopharma_bench",
+    "name": "Biopharma Bench",
+    "source": "harbor",
+    "categories": [
+      "Professional",
+      "Medicine"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "Ten assignments at Havenor Therapeutics, a fictional company that makes sterile injectable drugs. The company date is 27 September 2026. An agent takes an employee's seat and writes the document that seat is responsible for.",
+    "paper": "https://huggingface.co/datasets/raycasterai/biopharma-bench",
+    "code": "inspect_harbor/biopharma_bench",
+    "contributors": [],
+    "samples": 10,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/biopharma_bench.html",
     "model_cards": []
   },
   {
@@ -5140,7 +6562,8 @@
     "featured": false,
     "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/healthbench/",
     "model_cards": [
-      "chatgpt"
+      "chatgpt",
+      "claude"
     ]
   },
   {
@@ -5232,7 +6655,7 @@
       "text"
     ],
     "desc": "Tests model understanding of aviation regulations including ICAO annexes, flight dispatch rules, pilot procedures, and airport ground operations safety protocols.",
-    "paper": null,
+    "paper": "https://arxiv.org/abs/2607.01829",
     "code": "inspect_evals/pre_flight",
     "contributors": [
       "alexbrooker"
@@ -5313,6 +6736,147 @@
     "samples": 50,
     "featured": false,
     "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/vals_financeagent.html",
+    "model_cards": [
+      "chatgpt",
+      "claude"
+    ]
+  },
+  {
+    "id": "handshake_ai_atlas_finance",
+    "name": "ATLAS-Finance",
+    "source": "harbor",
+    "categories": [
+      "Finance",
+      "Professional"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "100 expert-level finance tasks in 13 realistic firm environments, served over MCP (Outlook, Slack, Drive, Calendar, OneNote) and graded by an agent-as-judge against weighted, section-gated rubrics.",
+    "paper": "https://github.com/Handshake-AI-Research/ATLAS-Finance",
+    "code": "inspect_harbor/handshake_ai_atlas_finance",
+    "contributors": [],
+    "samples": 100,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/handshake_ai_atlas_finance.html",
+    "model_cards": []
+  },
+  {
+    "id": "blobfishai_dealbench_100_suite",
+    "name": "DealBench-100 Suite",
+    "source": "harbor",
+    "categories": [
+      "Finance",
+      "Professional"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "100 executable investment-banking workflows with deterministic DealScore grading.",
+    "paper": "https://github.com/blobfishai/deal-agent-simulation",
+    "code": "inspect_harbor/blobfishai_dealbench_100_suite",
+    "contributors": [],
+    "samples": 100,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/blobfishai_dealbench_100_suite.html",
+    "model_cards": []
+  },
+  {
+    "id": "blobfishai_erpbench_100_suite",
+    "name": "ERPBench-100 Suite",
+    "source": "harbor",
+    "categories": [
+      "Finance",
+      "Professional"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "100 executable Oracle-Fusion-shaped ERP workflows with deterministic ERPScore grading.",
+    "paper": "https://github.com/blobfishai/erp-agent-simulation",
+    "code": "inspect_harbor/blobfishai_erpbench_100_suite",
+    "contributors": [],
+    "samples": 100,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/blobfishai_erpbench_100_suite.html",
+    "model_cards": []
+  },
+  {
+    "id": "blobfishai_ledgerbench_100",
+    "name": "LedgerBench-100",
+    "source": "harbor",
+    "categories": [
+      "Finance",
+      "Professional"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "100 causal corporate-finance workflows over a closed ERP sandbox: provider-shaped MCP tools, distributed evidence, exact state transitions, and no LLM judge.",
+    "paper": "https://github.com/blobfishai/finance-world",
+    "code": "inspect_harbor/blobfishai_ledgerbench_100",
+    "contributors": [],
+    "samples": 100,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/blobfishai_ledgerbench_100.html",
+    "model_cards": []
+  },
+  {
+    "id": "klinikebench",
+    "name": "KlinikeBench",
+    "source": "harbor",
+    "categories": [
+      "Medicine",
+      "Professional"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "KlinikeBench: 333 long-horizon clinical consultations with an LLM-simulated patient, a 140-tool clinical action surface and four-gate scoring (diagnosis, required tools, parameterised actions, LLM-judged must-ask coverage).",
+    "paper": "https://github.com/Zehui127/klinikebench",
+    "code": "inspect_harbor/klinikebench",
+    "contributors": [],
+    "samples": 333,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/klinikebench.html",
+    "model_cards": []
+  },
+  {
+    "id": "josancamon19_physician_bench",
+    "name": "PhysicianBench",
+    "source": "harbor",
+    "categories": [
+      "Medicine",
+      "Professional"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "Harbor packaging of the 100 Apache-2.0 HealthRex PhysicianBench tasks. Runtime requires separately authorized access to the fhir-full:v1 EHR image from Stanford Redivis.",
+    "paper": "https://arxiv.org/abs/2605.02240",
+    "code": "inspect_harbor/josancamon19_physician_bench",
+    "contributors": [],
+    "samples": 100,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/josancamon19_physician_bench.html",
     "model_cards": []
   },
   {
@@ -5339,6 +6903,29 @@
     "model_cards": []
   },
   {
+    "id": "blobfishai_counselbench_100",
+    "name": "CounselBench-100",
+    "source": "harbor",
+    "categories": [
+      "Law",
+      "Professional"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "100 high-level legal-agent tasks with 97-asset multi-provider evidence rooms, distinct deep trajectories, and native causal state verification.",
+    "paper": null,
+    "code": "inspect_harbor/blobfishai_counselbench_100",
+    "contributors": [],
+    "samples": 100,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/blobfishai_counselbench_100.html",
+    "model_cards": []
+  },
+  {
     "id": "harveyai_lab",
     "name": "Harvey LAB",
     "source": "harbor",
@@ -5356,9 +6943,57 @@
     "paper": "https://github.com/harveyai/harvey-labs",
     "code": "inspect_harbor/harveyai_lab",
     "contributors": [],
-    "samples": 1000,
+    "samples": 1251,
     "featured": false,
     "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/harveyai_lab.html",
+    "model_cards": [
+      "claude"
+    ]
+  },
+  {
+    "id": "doe_legal_consent_sweep",
+    "name": "legal-consent-sweep",
+    "source": "harbor",
+    "categories": [
+      "Law",
+      "Professional"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "A complete acquisition consent workstream with a populated legal data room, simulated correspondence, reference solution and separate verifier.",
+    "paper": null,
+    "code": "inspect_harbor/doe_legal_consent_sweep",
+    "contributors": [],
+    "samples": 1,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/doe_legal_consent_sweep.html",
+    "model_cards": []
+  },
+  {
+    "id": "blobfishai_litigation",
+    "name": "Litigation",
+    "source": "harbor",
+    "categories": [
+      "Law",
+      "Professional"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "Executable litigation environments for agent training and evaluation. 100 long-horizon tasks, a median of 108 verified tool-calling steps each, worked across eight systems of record (Clio Manage, iManage Work, CM/ECF, Google Calendar, Docusign, Relativity, CourtListener and nine litigation sub-systems). Graded by deterministic state-diff and trace assertions — no LLM judge on the reward path.",
+    "paper": null,
+    "code": "inspect_harbor/blobfishai_litigation",
+    "contributors": [],
+    "samples": 100,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/blobfishai_litigation.html",
     "model_cards": []
   },
   {
@@ -5400,11 +7035,11 @@
       "agent",
       "sandbox"
     ],
-    "desc": "GraphicDesignBench (GDB): evaluating AI on graphic design tasks across layout, typography, infographics, template design, and animation.",
-    "paper": "https://arxiv.org/abs/2604.04192",
+    "desc": "Full GraphicDesignBench (GDB) benchmark converted to Harbor tasks.",
+    "paper": "https://github.com/lica-world/GDB",
     "code": "inspect_harbor/lica_world_gdb",
     "contributors": [],
-    "samples": 1000,
+    "samples": 33786,
     "featured": false,
     "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/lica_world_gdb.html",
     "model_cards": []
@@ -5450,7 +7085,7 @@
     "paper": "https://arxiv.org/abs/2505.20981",
     "code": "inspect_harbor/cmu_refav",
     "contributors": [],
-    "samples": 1000,
+    "samples": 1500,
     "featured": false,
     "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/cmu_refav.html",
     "model_cards": []

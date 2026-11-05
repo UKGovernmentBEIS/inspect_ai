@@ -1,11 +1,13 @@
 """Score editing functionality."""
 
+from typing import Any
+
 from inspect_ai.event._score_edit import ScoreEditEvent
 from inspect_ai.event._tree import EventTree, EventTreeSpan, event_tree, walk_node_spans
 from inspect_ai.scorer._metric import Score, ScoreEdit
 
 from ._log import EvalLog
-from ._metric import recompute_metrics as _recompute_metrics
+from ._metric import compute_log_metrics, resolve_log_metrics
 
 
 def edit_score(
@@ -15,6 +17,8 @@ def edit_score(
     edit: ScoreEdit,
     recompute_metrics: bool = True,
     epoch: int | None = None,
+    *,
+    trust_log: bool = False,
 ) -> None:
     """Edit or add a score in-place.
 
@@ -27,14 +31,26 @@ def edit_score(
             the 'value' field must be provided (cannot be UNCHANGED). A metadata
             dict on the edit replaces `Score.metadata` rather than merging into
             it -- carry over any scorer-recorded keys you want to keep (the
-            pre-edit dict remains available via `Score.history`).
+            pre-edit dict remains available via `Score.history`). When the edit
+            sets `reason` explicitly, the legacy `unscored_reason` key is
+            dropped from the supplied metadata so a log round-trip cannot
+            resurrect the superseded reason.
         recompute_metrics: Whether to recompute aggregate metrics after editing
         epoch: Epoch number of the sample to edit (required when there are multiple epochs)
+        trust_log: When recomputing, import the log's task file for metrics
+            that are not registered, and rebuild metric options that hold
+            models or other registry objects. This runs the task file's code,
+            so pass it only for logs you trust.
 
     Raises:
         ValueError: If the sample cannot be found, if epoch is not specified
             and there are multiple matching samples for an ID, or if creating
             a new score without providing a value.
+        LookupError: When recomputing, a metric or epoch reducer is not
+            registered. The log is left unchanged.
+        DisallowedRegistryArg: When recomputing without `trust_log`, metric
+            options name a model or a non-metric registry object (a
+            `ValueError`). The log is left unchanged.
     """
     if log.samples is None:
         raise ValueError("Log contains no samples")
@@ -63,6 +79,12 @@ def edit_score(
 
         sample = samples[0]
 
+    # resolve metrics before changing anything, so a failure leaves the log
+    # unchanged and the edit can be repeated with trust_log=True
+    resolved = (
+        resolve_log_metrics(log, trust_log=trust_log) if recompute_metrics else None
+    )
+
     if sample.scores is None:
         sample.scores = {}
 
@@ -75,11 +97,16 @@ def edit_score(
                 "The 'value' field is required when creating a new score."
             )
 
+        new_metadata = edit.metadata if edit.metadata != "UNCHANGED" else None
+        if edit.reason != "UNCHANGED":
+            new_metadata = _drop_legacy_unscored_reason(new_metadata)
+
         new_score = Score(
             value=edit.value,
             answer=edit.answer if edit.answer != "UNCHANGED" else None,
             explanation=edit.explanation if edit.explanation != "UNCHANGED" else None,
-            metadata=edit.metadata if edit.metadata != "UNCHANGED" else None,
+            reason=edit.reason if edit.reason != "UNCHANGED" else None,
+            metadata=new_metadata,
             history=[edit],
         )
         sample.scores[score_name] = new_score
@@ -91,6 +118,7 @@ def edit_score(
                 value=score.value,
                 answer=score.answer,
                 explanation=score.explanation,
+                reason=score.reason,
                 metadata=score.metadata or {},
             )
             score.history.append(original)
@@ -101,8 +129,18 @@ def edit_score(
             score.answer = edit.answer
         if edit.explanation != "UNCHANGED":
             score.explanation = edit.explanation
+        if edit.reason != "UNCHANGED":
+            score.reason = edit.reason
         if edit.metadata != "UNCHANGED":
             score.metadata = edit.metadata
+
+        if edit.reason != "UNCHANGED":
+            # An explicit edit to `reason` (including clearing it to None)
+            # supersedes any legacy `metadata["unscored_reason"]` left over
+            # from pre-#4567 logs - otherwise a future re-read of the
+            # persisted log would resurrect the old reason via the
+            # `_lift_unscored_reason` shim.
+            score.metadata = _drop_legacy_unscored_reason(score.metadata)
 
         score.history.append(edit)
 
@@ -122,8 +160,8 @@ def edit_score(
 
     sample.events.insert(end_index, score_edit_event)
 
-    if recompute_metrics:
-        _recompute_metrics(log)
+    if resolved is not None:
+        compute_log_metrics(log, resolved)
 
 
 def _find_scorers_span(tree: EventTree) -> EventTreeSpan | None:
@@ -132,3 +170,17 @@ def _find_scorers_span(tree: EventTree) -> EventTreeSpan | None:
         if node.type == "scorers" and node.name == "scorers":
             last_scorers_node = node
     return last_scorers_node
+
+
+def _drop_legacy_unscored_reason(
+    metadata: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    """Return metadata with the legacy `unscored_reason` key removed.
+
+    Returns a new dict rather than mutating in place, since the passed-in
+    metadata may be aliased elsewhere (e.g. by `ScoreEdit.metadata` retained
+    in `Score.history` or in the emitted `ScoreEditEvent`).
+    """
+    if not isinstance(metadata, dict) or "unscored_reason" not in metadata:
+        return metadata
+    return {k: v for k, v in metadata.items() if k != "unscored_reason"}

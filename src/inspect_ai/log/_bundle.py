@@ -1,15 +1,19 @@
+import html
 import logging
 import math
 import os
+import re
 import shutil
 import tempfile
 from contextlib import contextmanager
+from pathlib import Path
 from typing import Any, Callable, Iterator
 
 from inspect_ai._util.error import PrerequisiteError, pip_dependency_error
 from inspect_ai._util.file import absolute_file_path, filesystem
+from inspect_ai._view._csp import read_content_security_policy
 
-from ._file import log_files_from_ls, write_log_listing
+from ._file import log_files_from_ls, without_merged_shards, write_log_listing
 
 # INSPECT_VIEW_BUNDLE_OUT_DIR
 
@@ -37,7 +41,7 @@ def _push_bundle_to_hf(
         ) from None
 
     api = HfApi()
-    repo_id = repo_id.replace("hf/", "")
+    repo_id = hf_repo_id(repo_id)
 
     api.create_repo(
         repo_id=repo_id,
@@ -53,6 +57,16 @@ def _push_bundle_to_hf(
         repo_type="space",
     )
     display().print(f"View at: https://huggingface.co/spaces/{repo_id}")
+
+
+def is_hf_target(output_dir: str) -> bool:
+    """An 'hf/<user>/<space>' target uploads to a Hugging Face space rather than writing to a filesystem path."""
+    return output_dir.startswith("hf/")
+
+
+def hf_repo_id(output_dir: str) -> str:
+    """Extract the Hugging Face repo id from an 'hf/' output target."""
+    return output_dir.removeprefix("hf/")
 
 
 def _check_hf_space_exists(repo_id: str) -> bool:
@@ -94,20 +108,26 @@ def bundle_log_dir(
     if output_dir == "":
         raise PrerequisiteError("You must provide an 'output_dir'")
 
-    # ensure output_dir is not a subdirectory of log_dir
-    log_fs = filesystem(log_dir, fs_options)
-    log_dir_abs = absolute_file_path(log_dir).rstrip(log_fs.sep) + log_fs.sep
-    output_dir_abs = absolute_file_path(output_dir).rstrip(log_fs.sep) + log_fs.sep
-    if output_dir_abs.startswith(log_dir_abs):
-        raise PrerequisiteError(
-            f"The output directory '{output_dir}' cannot be a subdirectory of the log directory '{log_dir}'"
-        )
+    # Bundling copies log_dir into output_dir, so an output_dir inside
+    # log_dir would make the bundle part of its own input on the next run.
+    # Skip the check for Hugging Face targets: they are assembled in a temp
+    # dir and uploaded, so there is no local output path to contain — and
+    # resolving 'hf/...' as a relative local path here is what produced the
+    # spurious subdirectory error in #4743.
+    if not is_hf_target(output_dir):
+        log_fs = filesystem(log_dir, fs_options)
+        log_dir_abs = absolute_file_path(log_dir).rstrip(log_fs.sep) + log_fs.sep
+        output_dir_abs = absolute_file_path(output_dir).rstrip(log_fs.sep) + log_fs.sep
+        if output_dir_abs.startswith(log_dir_abs):
+            raise PrerequisiteError(
+                f"The output directory '{output_dir}' cannot be a subdirectory of the log directory '{log_dir}'"
+            )
 
     # ensure output_dir doesn't exist
-    if output_dir.startswith("hf/"):
-        if _check_hf_space_exists(output_dir.replace("hf/", "")) and not overwrite:
+    if is_hf_target(output_dir):
+        if _check_hf_space_exists(hf_repo_id(output_dir)) and not overwrite:
             raise PrerequisiteError(
-                f"The HuggingFace space '{output_dir.replace('hf/', '')}' already exists. Choose another output directory or use 'overwrite' to overwrite the directory and contents"
+                f"The HuggingFace space '{hf_repo_id(output_dir)}' already exists. Choose another output directory or use 'overwrite' to overwrite the directory and contents"
             )
     else:
         if filesystem(output_dir, fs_options).exists(output_dir) and not overwrite:
@@ -135,10 +155,12 @@ def bundle_log_dir(
             copy_log_files(log_dir, view_logs_dir, p.update, fs_options)
             p.update(25)
 
-            write_log_listing(view_logs_dir)
+            # the copies' mtimes no longer order shards against their merged
+            # log, so covered shards were left out when copying instead
+            write_log_listing(view_logs_dir, hide_merged_shards=False)
             p.update(25)
 
-            if output_dir.startswith("hf/"):
+            if is_hf_target(output_dir):
                 _push_bundle_to_hf(working_dir, output_dir, fs_options)
             else:
                 move_output(working_dir, output_dir, p.update, fs_options)
@@ -163,12 +185,45 @@ def copy_dir_contents(source_dir: str, dest_dir: str) -> None:
             shutil.copy2(src_file_path, dest_file_path)
 
 
+_HEAD_OPEN_TAG = re.compile(r"<head(?:\s[^>]*)?>", re.IGNORECASE)
+
+
+def _insert_content_security_policy(index_contents: str, policy: str) -> str:
+    """Insert a CSP `<meta>` as the first child of `<head>`.
+
+    It must come first so it governs the inline scripts that follow (the
+    theme bootstrap). `frame-ancestors` is not added: a `<meta>` policy
+    ignores it.
+    """
+    head = _HEAD_OPEN_TAG.search(index_contents)
+    if head is None:
+        raise RuntimeError(
+            "Unable to apply the viewer Content-Security-Policy: the viewer "
+            "index.html has no <head> element."
+        )
+    # Escape only what a double-quoted attribute needs: leaving the policy's
+    # many `'` literal keeps `<meta charset>` well inside the first 1024
+    # bytes, where browsers look for it.
+    content = html.escape(policy, quote=False).replace('"', "&quot;")
+    meta = f'<meta http-equiv="Content-Security-Policy" content="{content}" />'
+
+    return f"{index_contents[: head.end()]}\n    {meta}{index_contents[head.end() :]}"
+
+
 def inject_configuration(
-    html_file: str, log_dir: str, abs_log_dir: str | None = None
+    html_file: str,
+    log_dir: str,
+    abs_log_dir: str | None = None,
+    content_security_policy: str | None = None,
 ) -> None:
     # update the index html to embed the log_dir
     with open(html_file, "r") as file:
         index_contents = file.read()
+
+    if content_security_policy is not None:
+        index_contents = _insert_content_security_policy(
+            index_contents, content_security_policy
+        )
 
     # inject the log dir information into the viewer html
     # so it will load directly
@@ -211,6 +266,7 @@ def _prepare_viewer(
         os.path.join(working_dir, "index.html"),
         log_dir=log_dir,
         abs_log_dir=abs_log_dir,
+        content_security_policy=read_content_security_policy(Path(working_dir)),
     )
     write_robots_txt(working_dir)
 
@@ -244,6 +300,8 @@ def copy_log_files(
             raise PrerequisiteError(
                 f"The log directory {log_dir} doesn't contain any log files."
             )
+
+        eval_logs = without_merged_shards(eval_logs, fs_options)
 
         # find any eval-set files and move those as well
         eval_set_files = set()

@@ -1,8 +1,10 @@
 import json
 import math
-from typing import Any, Iterable, cast
+import numbers
+import sys
+from typing import Any, Iterable, NamedTuple, cast
 
-from pydantic import ValidationError
+from pydantic import TypeAdapter, ValidationError
 
 from inspect_ai.model import (
     ChatMessage,
@@ -11,6 +13,8 @@ from inspect_ai.model import (
     ChatMessageTool,
     ChatMessageUser,
 )
+from inspect_ai.util._checkpoint._triggers import CheckpointTrigger
+from inspect_ai.util._checkpoint.config import CheckpointSampleConfig
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 
 from ._dataset import (
@@ -26,6 +30,10 @@ def normalise_sample_id(id: str | int | None) -> str:
     if isinstance(id, str) and id.isdigit():
         id = int(id)
     return id if isinstance(id, str) else str(id).zfill(20)
+
+
+SampleIdEpoch = tuple[str | int, int]
+"""A sample's dataset-typed ``(id, epoch)``."""
 
 
 # determine how we will go from file records to samples. if there is
@@ -74,7 +82,9 @@ def record_to_sample_fn(
                         )
             elif "metadata" in record:
                 metadata_field = record.get("metadata")
-                if isinstance(metadata_field, str):
+                if is_none_or_nan(metadata_field):
+                    metadata = None
+                elif isinstance(metadata_field, str):
                     metadata = json.loads(metadata_field)
                 elif isinstance(metadata_field, dict):
                     metadata = metadata_field
@@ -83,16 +93,30 @@ def record_to_sample_fn(
                         f"Unexpected type for 'metadata' field: {type(metadata_field)}"
                     )
 
+            sample_id = record.get(sample_fields.id, None)
+            try:
+                choices = read_choices(record.get(sample_fields.choices))
+            except ValueError as ex:
+                if sample_id is None:
+                    raise
+                raise ValueError(f"Sample {sample_id!r}: {ex}") from ex
+
             # return sample
             return Sample(
                 input=read_input(record.get(sample_fields.input)),
                 target=read_target(record.get(sample_fields.target)),
-                choices=read_choices(record.get(sample_fields.choices)),
-                id=record.get(sample_fields.id, None),
+                choices=choices,
+                id=sample_id,
+                description=read_description(record.get(sample_fields.description))
+                if sample_fields.description is not None
+                else None,
                 metadata=metadata,
                 sandbox=read_sandbox(record.get(sample_fields.sandbox)),
                 files=read_files(record.get(sample_fields.files)),
                 setup=read_setup(record.get(sample_fields.setup)),
+                checkpoint=read_checkpoint(record.get(sample_fields.checkpoint))
+                if sample_fields.checkpoint is not None
+                else None,
             )
 
         return record_to_sample
@@ -123,8 +147,12 @@ def as_sample_list(samples: Sample | list[Sample]) -> list[Sample]:
         return [samples]
 
 
+def is_none_or_nan(obj: Any) -> bool:
+    return obj is None or (isinstance(obj, float) and math.isnan(obj))
+
+
 def read_input(input: Any | None) -> str | list[ChatMessage]:
-    if not input:
+    if is_none_or_nan(input) or not input:
         raise ValueError("No input in dataset")
     if not isinstance(input, str):
         return read_messages(input)
@@ -173,35 +201,89 @@ def read_messages(messages: list[dict[str, Any]]) -> list[ChatMessage]:
 def read_target(obj: Any | None) -> str | list[str]:
     # treat float NaN (commonly produced by HuggingFace / pandas for missing
     # string values) the same as None rather than stringifying it to "nan"
-    if obj is None or (isinstance(obj, float) and math.isnan(obj)):
+    if is_none_or_nan(obj):
         return ""
     return [str(item) for item in obj] if isinstance(obj, list) else str(obj)
 
 
 def read_choices(obj: Any | None) -> list[str] | None:
-    if obj is not None:
-        if isinstance(obj, list):
-            return [str(choice) for choice in obj]
-        elif isinstance(obj, str):
-            choices = obj.split(",")
-            if len(choices) == 1:
-                choices = obj.split()
-            return [choice.strip() for choice in choices]
-        else:
-            return [str(obj)]
-    else:
+    """Read answer choices from a dataset field.
+
+    Trailing empty or whitespace-only choices are removed. A blank that
+    remains before a later option is rejected, because dropping it would
+    renumber the remaining answers while the target stays as written.
+    Text from a string field is stripped. A string with no comma is split
+    on whitespace.
+
+    Args:
+        obj: Choices as a list, a comma-separated string, or another value
+            stringified into a single choice. None and NaN mean the field
+            is absent.
+
+    Returns:
+        The choices, or None when the field is absent.
+
+    Raises:
+        ValueError: If a blank choice sits before a later option.
+    """
+    if is_none_or_nan(obj):
         return None
+    if isinstance(obj, list):
+        return _drop_trailing_blank_choices([str(choice) for choice in obj], obj)
+    if isinstance(obj, str):
+        choices = obj.split(",")
+        if len(choices) == 1:
+            choices = obj.split()
+        return [choice.strip() for choice in _drop_trailing_blank_choices(choices, obj)]
+    return [str(obj)]
+
+
+def _drop_trailing_blank_choices(choices: list[str], source: object) -> list[str]:
+    """Remove trailing blank choices without shifting later answer letters.
+
+    Args:
+        choices: Choice strings, not yet stripped.
+        source: The field value as read, quoted in the error.
+
+    Returns:
+        Choices with a trailing run of blanks removed.
+
+    Raises:
+        ValueError: If a blank choice sits before a later option.
+    """
+    end = len(choices)
+    while end > 0 and not choices[end - 1].strip():
+        end -= 1
+    kept = choices[:end]
+    if any(not choice.strip() for choice in kept):
+        raise ValueError(
+            f"Choices {source!r} contain a blank before a later option. "
+            "Removing it would change answer labels; correct the choices and target, "
+            "or use a custom sample_fields function to keep the blank."
+        )
+    return kept
+
+
+def read_description(description: Any | None) -> str | None:
+    if is_none_or_nan(description):
+        return None
+    if not isinstance(description, str):
+        raise ValueError(
+            f"Sample 'description' field must be a string (got {type(description).__name__})"
+        )
+    # empty CSV cells read as "" (no description)
+    return description or None
 
 
 def read_setup(setup: Any | None) -> str | None:
-    if setup is not None:
+    if not is_none_or_nan(setup):
         return str(setup)
     else:
         return None
 
 
 def read_sandbox(sandbox: Any | None) -> SandboxEnvironmentSpec | None:
-    if sandbox is not None:
+    if not is_none_or_nan(sandbox):
         if isinstance(sandbox, str):
             if sandbox.strip().startswith("["):
                 sandbox = json.loads(sandbox)
@@ -223,7 +305,7 @@ def read_sandbox(sandbox: Any | None) -> SandboxEnvironmentSpec | None:
 
 
 def read_files(files: Any | None) -> dict[str, str] | None:
-    if files is not None:
+    if not is_none_or_nan(files):
         if isinstance(files, str):
             files = json.loads(files)
         if isinstance(files, dict):
@@ -234,6 +316,66 @@ def read_files(files: Any | None) -> dict[str, str] | None:
         raise ValueError(f"Unexpected type for 'files' field: {type(files)}")
     else:
         return None
+
+
+_CHECKPOINT_ADAPTER: TypeAdapter[CheckpointSampleConfig | None] = TypeAdapter(
+    CheckpointSampleConfig | None
+)
+
+
+def read_checkpoint(checkpoint: Any | None) -> CheckpointSampleConfig | None:
+    """Parse a serialized sample ``checkpoint`` configuration.
+
+    Validates through the same pydantic contract as :class:`Sample`'s
+    ``checkpoint`` field, so explicit zero and empty overrides survive.
+    Missing values (``None``, NaN, a blank CSV cell, or the JSON ``null``
+    literal) map to ``None``; other strings are JSON-decoded first, so a CSV
+    or Hugging Face cell holding a JSON object works like an object in
+    JSON/JSONL.
+
+    A dataset record cannot set ``trigger`` (unless it is already a trigger
+    object): turn, token and cost interval triggers all serialize as
+    ``{"every": N}``, so a serialized trigger cannot be trusted, and a sample
+    trigger overrides the task's. A missing or null ``trigger`` inherits the
+    task or eval trigger (or the default).
+    """
+    if is_none_or_nan(checkpoint):
+        return None
+
+    if isinstance(checkpoint, str):
+        if not checkpoint.strip():
+            return None
+        try:
+            checkpoint = json.loads(checkpoint)
+        except ValueError as ex:
+            raise _checkpoint_parse_error(ex) from ex
+
+    trigger = checkpoint.get("trigger") if isinstance(checkpoint, dict) else None
+    if trigger is not None and not isinstance(trigger, CheckpointTrigger):
+        raise ValueError(
+            "A dataset record cannot set the checkpoint 'trigger'. Turn, token and "
+            'cost interval triggers all serialize as {"every": N}, so a trigger '
+            "read from a dataset cannot be trusted to keep its kind. Remove "
+            "'trigger' to inherit the task or eval trigger (or the default). To "
+            "choose a trigger, set it with Task(checkpoint=CheckpointConfig("
+            "trigger=...)) or eval(checkpoint=...), or construct it in a custom "
+            "sample_fields "
+            f"converter. Got: {trigger!r}"
+        )
+
+    try:
+        return _CHECKPOINT_ADAPTER.validate_python(checkpoint)
+    except ValueError as ex:
+        raise _checkpoint_parse_error(ex) from ex
+
+
+def _checkpoint_parse_error(ex: ValueError) -> ValueError:
+    return ValueError(
+        "Could not parse 'checkpoint' field as a sample checkpoint configuration. "
+        "If this column contains other data, use FieldSpec(checkpoint=None) to "
+        'ignore it, FieldSpec(checkpoint="<column>") to read another column, or a '
+        f"custom sample_fields converter. Details: {ex}"
+    )
 
 
 def shuffle_choices_if_requested(
@@ -256,3 +398,51 @@ def shuffle_choices_if_requested(
         pass
     elif isinstance(shuffle_choices, int):
         dataset.shuffle_choices(seed=shuffle_choices)
+
+
+class ResolvedShuffle(NamedTuple):
+    """Shuffle settings for a dataset loader.
+
+    `seed` is None for an unseeded shuffle and is ignored when `enabled` is False.
+    """
+
+    enabled: bool
+    seed: int | None
+
+
+def resolve_shuffle(shuffle: bool | int | None, seed: int | None) -> ResolvedShuffle:
+    """Resolve the `shuffle` and `seed` arguments passed to a dataset loader.
+
+    A boolean `shuffle` uses `seed` as given, and None means no shuffle. An
+    integer `shuffle` (including 0) is itself the seed, so passing a non-None
+    `seed` with it is an error. `bool` is a subclass of `int`, so booleans are
+    checked first. numpy booleans and integers are accepted the same way.
+
+    Raises:
+        TypeError: If `shuffle` is not a bool, int or None.
+        ValueError: If `shuffle` is a negative integer, or an integer passed
+            with a non-None `seed`.
+    """
+    if shuffle is None:
+        return ResolvedShuffle(enabled=False, seed=seed)
+    if isinstance(shuffle, bool) or _is_numpy_bool(shuffle):
+        return ResolvedShuffle(enabled=bool(shuffle), seed=seed)
+    if not isinstance(shuffle, numbers.Integral):
+        raise TypeError(
+            f"shuffle must be a bool or an int seed, got {type(shuffle).__name__}."
+        )
+    shuffle_seed = int(shuffle)
+    if shuffle_seed < 0:
+        raise ValueError(f"shuffle seed must be non-negative, got {shuffle_seed}.")
+    if seed is not None:
+        raise ValueError(
+            f"Pass either an integer shuffle seed (shuffle={shuffle_seed}) or seed={seed}, not both."
+        )
+    return ResolvedShuffle(enabled=True, seed=shuffle_seed)
+
+
+def _is_numpy_bool(value: object) -> bool:
+    # a numpy bool can only exist if numpy is already imported, so check
+    # sys.modules rather than importing numpy here
+    numpy = sys.modules.get("numpy")
+    return numpy is not None and isinstance(value, numpy.bool_)

@@ -5,6 +5,7 @@ stored locally or remotely (e.g., S3) using async range requests.
 """
 
 import struct
+import zlib
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from typing import Any
@@ -24,6 +25,24 @@ DEFAULT_CHUNK_SIZE = 1024 * 1024
 # Maximum archive comment length and minimum EOCD record size per the ZIP format
 _MAX_ZIP_COMMENT_SIZE = (1 << 16) - 1
 _MIN_EOCD_SIZE = 22
+
+
+class ZipCrcError(ValueError):
+    """A member's decompressed bytes do not match its central-directory CRC-32.
+
+    Raised only by readers constructed with ``verify_crc=True``. Usually means
+    the archive was replaced between the central-directory read and the member
+    read (each is a separate range request), so the bytes came from two
+    versions of the object.
+    """
+
+
+def _check_crc(filename: str, entry: ZipEntry, crc: int) -> None:
+    if entry.crc32 is not None and crc != entry.crc32:
+        raise ZipCrcError(
+            f"CRC-32 mismatch for member {entry.filename} of {filename} "
+            f"(expected {entry.crc32:08x}, read {crc:08x})"
+        )
 
 
 @dataclass
@@ -61,11 +80,13 @@ class CentralDirectory:
 
 
 async def _find_central_directory(
-    filesystem: AsyncFilesystem, filename: str
+    filesystem: AsyncFilesystem, filename: str, pin_version: bool = False
 ) -> CentralDirectoryLocation:
     """Locate and parse the central directory metadata.
 
     Uses a suffix range request to avoid a separate HEAD for the file size.
+    With ``pin_version``, a further read (the ZIP64 end record) is pinned to
+    the suffix response's ETag.
 
     Returns:
         CentralDirectoryLocation with offset, size, tail data, and etag.
@@ -79,10 +100,16 @@ async def _find_central_directory(
     tail = suffix.data
     tail_start = suffix.file_size - len(tail)
 
-    # Search backward for EOCD signature
+    # Like stdlib zipfile, first check for a comment-less EOCD ending the file:
+    # its own fields can contain the signature (e.g. 0x4B50 entries followed by
+    # a central directory size ending 0x0605), so a search would find that
+    # instead. Otherwise take the last signature, and reject a truncated record
+    # rather than falling back to an earlier match.
     eocd_sig = b"PK\x05\x06"
-    idx = tail.rfind(eocd_sig)
-    if idx == -1:
+    idx = len(tail) - _MIN_EOCD_SIZE
+    if idx < 0 or tail[idx : idx + 4] != eocd_sig or tail[-2:] != b"\x00\x00":
+        idx = tail.rfind(eocd_sig)
+    if idx == -1 or idx + _MIN_EOCD_SIZE > len(tail):
         raise ValueError("EOCD not found")
 
     # Parse 32-bit EOCD fields
@@ -113,16 +140,11 @@ async def _find_central_directory(
 
     if needs_zip64:
         # The ZIP64 EOCD Locator is exactly 20 bytes and per the spec
-        # appears immediately before the standard EOCD record.
-        loc_sig = b"PK\x06\x07"
+        # appears immediately before the standard EOCD record. Without it the
+        # sentinels are real values (e.g. stdlib writes 65535 entries as a
+        # plain EOCD), so, like stdlib, look only there.
         loc_idx = idx - 20
-        if loc_idx >= 0 and tail[loc_idx : loc_idx + 4] == loc_sig:
-            pass  # found at expected position
-        else:
-            # Fall back to searching (handles non-standard writers)
-            loc_idx = tail.rfind(loc_sig, 0, idx)
-
-        if loc_idx >= 0 and tail[loc_idx : loc_idx + 4] == loc_sig:
+        if loc_idx >= 0 and tail[loc_idx : loc_idx + 4] == b"PK\x06\x07":
             # Parse ZIP64 EOCD locator to get EOCD64 offset
             fields = struct.unpack_from("<IQI", tail, loc_idx + 4)
             eocd64_offset = fields[1]
@@ -138,7 +160,10 @@ async def _find_central_directory(
                 eocd64_data = tail[rel : rel + 56]
             else:
                 eocd64_data = await filesystem.read_file_bytes_fully(
-                    filename, eocd64_offset, eocd64_offset + 56
+                    filename,
+                    eocd64_offset,
+                    eocd64_offset + 56,
+                    if_match=suffix.etag if pin_version else None,
                 )
 
             # Verify ZIP64 EOCD signature
@@ -153,14 +178,23 @@ async def _find_central_directory(
 
 
 async def _parse_central_directory(
-    filesystem: AsyncFilesystem, filename: str
+    filesystem: AsyncFilesystem, filename: str, pin_version: bool = False
 ) -> CentralDirectory:
     """Parse the central directory and return all entries.
 
+    With ``pin_version``, every read after the suffix read is pinned to the
+    suffix response's ETag (S3), so the returned etag describes all of the
+    central directory's bytes.
+
     Returns:
         CentralDirectory with entries and etag.
+
+    Raises:
+        ValueError: If the EOCD or central directory is missing or corrupt.
+        ObjectChangedError: with ``pin_version``, the object was replaced
+            between the suffix read and a later read.
     """
-    cd_loc = await _find_central_directory(filesystem, filename)
+    cd_loc = await _find_central_directory(filesystem, filename, pin_version)
 
     # Reuse the tail buffer if the central directory falls within it
     if cd_loc.offset >= cd_loc.tail_start:
@@ -168,16 +202,25 @@ async def _parse_central_directory(
         buf = cd_loc.tail[rel : rel + cd_loc.size]
     else:
         buf = await filesystem.read_file_bytes_fully(
-            filename, cd_loc.offset, cd_loc.offset + cd_loc.size
+            filename,
+            cd_loc.offset,
+            cd_loc.offset + cd_loc.size,
+            if_match=cd_loc.etag if pin_version else None,
         )
 
     entries = []
     pos = 0
     sig = b"PK\x01\x02"
 
-    while pos < len(buf):
-        if pos + 4 > len(buf) or not buf[pos : pos + 4] == sig:
-            break
+    # Like stdlib zipfile, a valid header must start wherever the declared size
+    # says one does. A mismatch usually means the EOCD found isn't this
+    # archive's (e.g. a truncated file whose last signature is inside an
+    # earlier member name or comment).
+    while pos < cd_loc.size:
+        if pos + 46 > len(buf):
+            raise ValueError("Truncated central directory")
+        if buf[pos : pos + 4] != sig:
+            raise ValueError("Bad signature in central directory")
 
         # Parse central directory file header (46 bytes)
         (
@@ -187,7 +230,7 @@ async def _parse_central_directory(
             method,
             _time,
             _date,
-            _crc,
+            crc,
             compressed_size,
             uncompressed_size,
             name_len,
@@ -241,6 +284,7 @@ async def _parse_central_directory(
                 compressed_size,
                 uncompressed_size,
                 local_header_off,
+                crc,
             )
         )
         pos += 46 + name_len + extra_len + comment_len
@@ -268,11 +312,15 @@ class _ZipMemberBytes:
         range_and_method: tuple[int, int, ZipCompressionMethod],
         *,
         raw: bool = False,
+        verify: ZipEntry | None = None,
     ):
         self._filesystem = filesystem
         self._filename = filename
         self._offset, self._end, self._method = range_and_method
         self._raw = raw
+        # entry whose CRC-32 the decompressed stream is checked against once
+        # fully consumed (never for raw reads, whose bytes are compressed)
+        self._verify = None if raw else verify
         self._active_streams: set[CompressedToUncompressedStream] = set()
 
     async def __aiter__(self) -> AsyncIterator[bytes]:
@@ -280,10 +328,13 @@ class _ZipMemberBytes:
             self._filename, self._offset, self._end
         )
 
+        crc = 0
         if self._raw or self._method == ZipCompressionMethod.STORED:
             # Pass through raw bytes directly - no decompression needed
             try:
                 async for chunk in byte_stream:
+                    if self._verify is not None:
+                        crc = zlib.crc32(chunk, crc)
                     yield chunk
             finally:
                 await byte_stream.aclose()
@@ -293,10 +344,16 @@ class _ZipMemberBytes:
             self._active_streams.add(stream)
             try:
                 async for chunk in stream:
+                    if self._verify is not None:
+                        crc = zlib.crc32(chunk, crc)
                     yield chunk
             finally:
                 self._active_streams.discard(stream)
                 await stream.aclose()
+        # reached only when the stream was consumed to its end: a stream
+        # closed early is never treated as verified
+        if self._verify is not None:
+            _check_crc(self._filename, self._verify, crc)
 
     async def __aenter__(self) -> Self:
         return self
@@ -328,6 +385,10 @@ class AsyncZipReader:
         filesystem: AsyncFilesystem,
         filename: str,
         chunk_size: int = DEFAULT_CHUNK_SIZE,
+        *,
+        verify_crc: bool = False,
+        pin_version: bool = False,
+        central_directory: CentralDirectory | None = None,
     ):
         """Initialize the async ZIP reader.
 
@@ -335,6 +396,16 @@ class AsyncZipReader:
             filesystem: AsyncFilesystem instance for reading files
             filename: Path or URL to ZIP file (local path or s3:// URL)
             chunk_size: Size of chunks for streaming compressed data
+            verify_crc: Check every decompressed member read (whole, or a
+                stream consumed to its end) against the central directory's
+                CRC-32, raising :class:`ZipCrcError` on a mismatch.
+            pin_version: Pin the central directory's reads after the suffix
+                read (a ZIP64 end record, or a central directory larger than
+                the suffix) to the suffix response's ETag (S3), so
+                :attr:`etag` describes every byte of the central directory;
+                a replacement in between raises ``ObjectChangedError``.
+            central_directory: A central directory already parsed from this
+                file, used instead of reading it again.
 
         Raises:
             ValueError: If filename is empty or None
@@ -344,7 +415,9 @@ class AsyncZipReader:
         self._filesystem = filesystem
         self._filename = filename
         self._chunk_size = chunk_size
-        self._central_directory: CentralDirectory | None = None
+        self._verify_crc = verify_crc
+        self._pin_version = pin_version
+        self._central_directory: CentralDirectory | None = central_directory
         self._lock = anyio.Lock()
 
     @property
@@ -359,7 +432,7 @@ class AsyncZipReader:
             async with self._lock:
                 if self._central_directory is None:
                     self._central_directory = await _parse_central_directory(
-                        self._filesystem, self._filename
+                        self._filesystem, self._filename, self._pin_version
                     )
         return self._central_directory
 
@@ -413,10 +486,16 @@ class AsyncZipReader:
                 async for chunk in stream:
                     process(chunk)
         """
+        entry = (
+            member
+            if isinstance(member, ZipEntry)
+            else await self.get_member_entry(member)
+        )
         return _ZipMemberBytes(
             self._filesystem,
             self._filename,
-            await self._get_member_range_and_method(member),
+            await self._get_member_range_and_method(entry),
+            verify=entry if self._verify_crc else None,
         )
 
     async def read_member_fully(self, member: str | ZipEntry) -> bytes:
@@ -467,7 +546,10 @@ class AsyncZipReader:
                 abs_data_start + entry.compressed_size,
             )
 
-        return decompress_bytes(compressed_data, entry.compression_method)
+        data = decompress_bytes(compressed_data, entry.compression_method)
+        if self._verify_crc:
+            _check_crc(self._filename, entry, zlib.crc32(data))
+        return data
 
     async def _get_member_range_and_method(
         self, member: str | ZipEntry

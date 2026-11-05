@@ -1,10 +1,15 @@
+from contextlib import nullcontext
+from copy import copy
 from logging import getLogger
 from typing import Literal, Sequence
 
+from typing_extensions import TypeIs
+
 from inspect_ai._util._async import is_callable_coroutine
 from inspect_ai._util.content import Content, ContentText
+from inspect_ai.approval._apply import approval as approval_context
 from inspect_ai.approval._policy import ApprovalPolicy
-from inspect_ai.model._call_tools import execute_tools
+from inspect_ai.model._call_tools import execute_tools, watch_handoffs
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -19,8 +24,9 @@ from inspect_ai.model._compaction import (
 from inspect_ai.model._compaction import (
     compaction as create_compaction,
 )
-from inspect_ai.model._model import Model, get_model
+from inspect_ai.model._model import Model, ModelRefusalError, get_model
 from inspect_ai.model._trim import partition_messages, trim_messages
+from inspect_ai.review._policy import ReviewPolicy
 from inspect_ai.scorer._score import score
 from inspect_ai.tool._mcp.connection import mcp_connection
 from inspect_ai.tool._tool import Tool, ToolResult, ToolSource, tool
@@ -28,11 +34,12 @@ from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tool_info import parse_tool_info
 from inspect_ai.util._checkpoint import Checkpointer, checkpointer
 
-from ._agent import Agent, AgentState, agent, agent_with, is_agent
+from ._agent import Agent, AgentState, agent, agent_with
 from ._channel import (
     AgentInterrupted,
     agent_channel,
 )
+from ._channel.gate import after_answer, mark_turn_loop
 from ._filter import MessageFilter
 from ._handoff import has_handoff
 from ._types import (
@@ -62,6 +69,7 @@ def react(
     compaction: CompactionStrategy | None = None,
     truncation: Literal["auto", "disabled"] | MessageFilter = "disabled",
     approval: list[ApprovalPolicy] | None = None,
+    review: list[ReviewPolicy] | None = None,
 ) -> Agent:
     """Extensible ReAct agent based on the paper [ReAct: Synergizing Reasoning and Acting in Language Models](https://arxiv.org/abs/2210.03629).
 
@@ -111,7 +119,10 @@ def react(
           `MessageFilter` function to do custom truncation.
        approval: Approval policies to use for tool calls within this agent.
           Temporarily replaces any active approval policies for the duration
-          of tool execution.
+          of model generation and tool execution.
+       review: Review policies to use for the results of tool calls within
+          this agent. Temporarily replaces any active review policies for the
+          duration of tool execution.
 
     Returns:
         ReAct agent.
@@ -137,6 +148,7 @@ def react(
             compaction=compaction,
             truncation=truncation,
             approval=approval,
+            review=review,
         )
 
     # if submit is True or None then use default AgentSubmit
@@ -167,8 +179,16 @@ def react(
             description=submit.description,
         )
         if not isinstance(submit.tool, ToolDef)
-        else submit.tool
+        else copy(submit.tool)
     )
+    # The submit result becomes the completion, so truncating it would score a
+    # truncation notice in place of the model's answer. Defaulted rather than
+    # forced: an explicit max_output on a caller's submit tool is their call.
+    # The copy above leaves their ToolDef alone, but note `as_tool()` writes
+    # tool attributes onto the shared underlying callable, so this (like the
+    # `name`/`description` above it) does reach a Tool they also use elsewhere.
+    if submit_tool.max_output is None:
+        submit_tool.max_output = 0
     tools.append(submit_tool)
 
     # resolve prompt / system message
@@ -222,6 +242,15 @@ def react(
                 # create compact function
                 compact = _agent_compact(compaction, state.messages, tools, model, cp)
 
+                # claiming recovery for a model that never sees the reduced
+                # input would hand it the same conversation and loop forever
+                overflow_compact = compact if _uses_compaction_handler(model) else None
+
+                # the handler does not check that a forced compaction shrank
+                # the input, so an overflow right after one means it did not:
+                # don't force it again, which could resend the same request
+                overflow_compacted = False
+
                 # track attempts (recovered from checkpoint state on resume)
                 attempt_count = cp.track("attempt_count", lambda: attempt_count, 0)
 
@@ -232,7 +261,14 @@ def react(
                 # or if a message or token limit is hit
                 while True:
                     # drain any operator-supplied messages for this turn
-                    state.messages.extend(await ch.before_turn(state.messages))
+                    state.messages.extend(
+                        await ch.before_turn(state.messages, state=state)
+                    )
+                    if ch._take_rewritten():
+                        await _reset_compaction(compact, state.messages)
+                        # the reduced input this flag describes is gone, so
+                        # the next overflow may force compaction again
+                        overflow_compacted = False
 
                     # checkpoint at turn boundary (no-op when policy says so)
                     await cp.tick()
@@ -240,19 +276,24 @@ def react(
                     try:
                         with ch.turn_scope():
                             # generate output and append assistant message
-                            state = await _agent_generate(
-                                model, state, tools, retry_refusals, compact
+                            generated = await _agent_generate(
+                                model, state, tools, retry_refusals, compact, approval
                             )
+                            _absorb(state, generated)
 
                             # check for context window overflow
                             if state.output.stop_reason == "model_length":
-                                state, handled = await _handle_overflow(
-                                    state, overflow, compact
+                                state, recovery = await _handle_overflow(
+                                    state,
+                                    overflow,
+                                    None if overflow_compacted else overflow_compact,
                                 )
-                                if handled:
-                                    continue
-                                else:
+                                if recovery is None:
                                     break
+                                if recovery == "compaction":
+                                    overflow_compacted = True
+                                continue
+                            overflow_compacted = False
 
                             # check for content filter (model refusal) -- allow a few
                             # chances to recover before breaking to avoid infinite loop
@@ -266,9 +307,16 @@ def react(
                             # resolve tool calls (if any)
                             if state.output.message.tool_calls:
                                 # call tool functions
-                                messages, output = await execute_tools(
-                                    state.messages, tools, approval=approval
-                                )
+                                with watch_handoffs() as handoffs:
+                                    messages, output = await execute_tools(
+                                        state.messages,
+                                        tools,
+                                        approval=approval,
+                                        review=review,
+                                    )
+                                # a turn that handed off is not asked about its
+                                # submission, which may not be its own
+                                handed_off = handoffs.called
                                 state.messages.extend(messages)
                                 if output:
                                     state.output = output
@@ -295,9 +343,15 @@ def react(
                                                 ContentText(text=answer)
                                             )
 
-                                    # exit if we are at max_attempts
+                                    # exit if we are at max_attempts (or continue
+                                    # with fresh attempts if the gate says so)
                                     attempt_count += 1
                                     if attempt_count >= attempts.attempts:
+                                        if not handed_off and await after_answer(
+                                            ch, state
+                                        ):
+                                            attempt_count = 0
+                                            continue
                                         break
 
                                     # exit if the submission is successful
@@ -306,6 +360,11 @@ def react(
                                         attempts.score_value(answer_scores[0].value)
                                         == 1.0
                                     ):
+                                        if not handed_off and await after_answer(
+                                            ch, state
+                                        ):
+                                            attempt_count = 0
+                                            continue
                                         break
 
                                     # otherwise notify the model that it was incorrect and continue
@@ -389,6 +448,7 @@ def react(
                     )
                 return state
 
+    mark_turn_loop(execute)
     return _resolve_agent(execute, name, description)
 
 
@@ -404,6 +464,7 @@ def react_no_submit(
     compaction: CompactionStrategy | None,
     truncation: Literal["auto", "disabled"] | MessageFilter,
     approval: list[ApprovalPolicy] | None,
+    review: list[ReviewPolicy] | None = None,
 ) -> Agent:
     # resolve tools
     tools = list(tools) if tools is not None else []
@@ -449,13 +510,29 @@ def react_no_submit(
                 # create compact function
                 compact = _agent_compact(compaction, state.messages, tools, model, cp)
 
+                # claiming recovery for a model that never sees the reduced
+                # input would hand it the same conversation and loop forever
+                overflow_compact = compact if _uses_compaction_handler(model) else None
+
+                # the handler does not check that a forced compaction shrank
+                # the input, so an overflow right after one means it did not:
+                # don't force it again, which could resend the same request
+                overflow_compacted = False
+
                 # track consecutive content_filter responses
                 consecutive_content_filter = 0
 
                 # main loop
                 while True:
                     # drain any operator-supplied messages for this turn
-                    state.messages.extend(await ch.before_turn(state.messages))
+                    state.messages.extend(
+                        await ch.before_turn(state.messages, state=state)
+                    )
+                    if ch._take_rewritten():
+                        await _reset_compaction(compact, state.messages)
+                        # the reduced input this flag describes is gone, so
+                        # the next overflow may force compaction again
+                        overflow_compacted = False
 
                     # checkpoint at turn boundary (no-op when policy says so)
                     await cp.tick()
@@ -463,19 +540,27 @@ def react_no_submit(
                     try:
                         with ch.turn_scope():
                             # generate output and append assistant message
-                            state = await _agent_generate(
-                                model, state, tools, retry_refusals, compact
+                            generated = await _agent_generate(
+                                model, state, tools, retry_refusals, compact, approval
                             )
+                            _absorb(state, generated)
+                            # a handoff can replace the output with the child's,
+                            # so whether the turn replied is read before tools run
+                            replied = not state.output.message.tool_calls
 
                             # check for context window overflow
                             if state.output.stop_reason == "model_length":
-                                state, handled = await _handle_overflow(
-                                    state, overflow, compact
+                                state, recovery = await _handle_overflow(
+                                    state,
+                                    overflow,
+                                    None if overflow_compacted else overflow_compact,
                                 )
-                                if handled:
-                                    continue
-                                else:
+                                if recovery is None:
                                     break
+                                if recovery == "compaction":
+                                    overflow_compacted = True
+                                continue
+                            overflow_compacted = False
 
                             # check for content filter (model refusal) -- allow a few
                             # chances to recover before breaking to avoid infinite loop
@@ -490,7 +575,10 @@ def react_no_submit(
                             if state.output.message.tool_calls:
                                 # call tool functions
                                 messages, output = await execute_tools(
-                                    state.messages, tools, approval=approval
+                                    state.messages,
+                                    tools,
+                                    approval=approval,
+                                    review=review,
                                 )
                                 state.messages.extend(messages)
                                 if output:
@@ -515,12 +603,17 @@ def react_no_submit(
                             state.messages = do_continue.messages
                             state.output = do_continue.output
                         else:
+                            if replied and await after_answer(ch, state):
+                                continue
                             break
                     elif not state.output.message.tool_calls:
+                        if replied and await after_answer(ch, state):
+                            continue
                         break
 
                 return state
 
+    mark_turn_loop(execute)
     return _resolve_agent(execute, name, description)
 
 
@@ -571,11 +664,22 @@ def _resolve_overflow(
     return overflow
 
 
+def _uses_compaction_handler(
+    model: str | Model | Agent | None,
+) -> TypeIs[str | Model | None]:
+    """Whether generation routes through `_model_generate`.
+
+    Anything else is invoked directly by `_agent_generate`, which never passes
+    it the compaction handler's reduced input.
+    """
+    return isinstance(model, str | Model) or model is None
+
+
 async def _handle_overflow(
     state: AgentState,
     overflow: MessageFilter | None,
     compact: Compact | None = None,
-) -> tuple[AgentState, bool]:
+) -> tuple[AgentState, Literal["compaction", "filter"] | None]:
     from inspect_ai.log._transcript import transcript
 
     # Drop the failed assistant turn appended by _model_generate; it has no
@@ -588,21 +692,21 @@ async def _handle_overflow(
     # via compact_fn — no extra transcript().info() needed here.
     if compact is not None:
         try:
-            compacted, c_message = await compact.compact_input(
-                previous_messages, force=True
-            )
-            # A successful return means _perform_compaction validated
-            # total_compacted <= threshold, so don't gate on length
-            # (CompactionEdit reduces content, not count).
-            state.messages = compacted
-            # CompactionSummary returns its summary as compacted[-1] AND
-            # as c_message (same object); Trim/Edit/Native return None.
-            # Append only for custom strategies that return a distinct one.
-            if c_message is not None and (
-                not compacted or compacted[-1] is not c_message
-            ):
+            # a successful return means the handler's count says its result
+            # fits, so unlike the filter below there is no length gate (the
+            # callers skip compaction if the retry overflows anyway)
+            _, c_message = await compact.compact_input(previous_messages, force=True)
+            # compaction shapes the model input, not the record: the handler
+            # keeps the compacted view internally, so assigning it here would
+            # only drop what the strategy withheld (see docs/compaction.qmd)
+            state.messages = previous_messages
+            if c_message is not None:
                 state.messages.append(c_message)
-            return state, True
+            return state, "compaction"
+        except ModelRefusalError:
+            # a refused summary generation under fail_on_refusal fails the
+            # sample like any other refusal rather than degrading to overflow
+            raise
         except Exception as ex:
             # Falling back from configured compaction to the lossy overflow
             # filter is a real degradation — surface to operator stderr.
@@ -617,11 +721,11 @@ async def _handle_overflow(
             transcript().info(
                 "Agent exceeded model context window, truncating messages and continuing."
             )
-            return state, True
+            return state, "filter"
 
     # no overflow policy or overflow didn't reduce conversation length
     transcript().info("Agent terminated: model context window exceeded")
-    return state, False
+    return state, None
 
 
 def _agent_compact(
@@ -633,15 +737,9 @@ def _agent_compact(
 ) -> Compact | None:
     # create compact function
     if compaction is not None:
-        # derive the always-preserve prefix (system messages + sample input)
-        # rather than using `messages` wholesale: on a checkpoint resume
-        # `messages` is the full restored conversation, and treating it all
-        # as prefix would make every subsequent compaction re-prepend the
-        # entire pre-crash history to its output.
-        partitioned = partition_messages(messages)
         return create_compaction(
             strategy=compaction,
-            prefix=partitioned.system + partitioned.input,
+            prefix=_compaction_prefix(messages),
             tools=tools,
             model=model if isinstance(model, str | Model | None) else None,
             checkpointer=checkpointer,
@@ -650,21 +748,55 @@ def _agent_compact(
         return None
 
 
+def _compaction_prefix(messages: list[ChatMessage]) -> list[ChatMessage]:
+    """The always-preserve prefix: system messages and sample input.
+
+    Not `messages` wholesale: on a checkpoint resume `messages` is the full
+    restored conversation, and treating it all as prefix would make every
+    subsequent compaction re-prepend the entire pre-crash history to its
+    output.
+    """
+    partitioned = partition_messages(messages)
+    return partitioned.system + partitioned.input
+
+
+async def _reset_compaction(
+    compact: Compact | None, messages: list[ChatMessage]
+) -> None:
+    """Rebuild the handler's view of a conversation the turn gate rewrote.
+
+    The handler adds only messages whose ids it has not seen, so without a
+    reset a changed or removed message would stay in the model input as it
+    was.
+    """
+    if compact is not None:
+        await compact.reset(_compaction_prefix(messages))
+
+
+def _absorb(state: AgentState, generated: AgentState) -> None:
+    # keep react's own object when its model agent returns another, since a
+    # sentinel's stages read the object react was called with
+    if generated is not state:
+        state._messages = generated._messages
+        state._output = generated._output
+
+
 async def _agent_generate(
     model: str | Model | Agent | None,
     state: AgentState,
     tools: Sequence[Tool | ToolDef | ToolSource],
     retry_refusals: int | None,
     compact: Compact | None,
+    approval: list[ApprovalPolicy] | None,
 ) -> AgentState:
     # warn if we try to combine compaction with a custom agent
-    if is_agent(model) and compact is not None:
+    if compact is not None and not _uses_compaction_handler(model):
         logger.warning(
             "react() agent: compaction has been enabled along with a custom agent as the model. Ignoring compaction strategy (the agent needs to handle compaction directly)."
         )
 
     # convert model to agent
-    if isinstance(model, str | Model) or model is None:
+    if _uses_compaction_handler(model):
         model = _model_generate(model, retry_refusals, compact)
 
     # resolve tools
@@ -684,8 +816,9 @@ async def _agent_generate(
             "Agent passed as model for react agent must have a tools parameter."
         )
 
-    # call the agent
-    return await model(state, resolved_tools)
+    # call the agent (under its approval policies, so remote MCP servers are refused)
+    with approval_context(approval) if approval else nullcontext():
+        return await model(state, resolved_tools)
 
 
 def _model_generate(
@@ -704,11 +837,18 @@ def _model_generate(
 
         attempts = 0
         while True:
-            # generate
-            output = await get_model(model).generate(input_messages, tools)
+            # generate (with fail_on_refusal set a refusal raises rather than
+            # returning; it still gets its retries, and the last one propagates)
+            try:
+                output = await get_model(model).generate(input_messages, tools)
+            except ModelRefusalError:
+                if retry_refusals is not None and attempts < retry_refusals:
+                    attempts += 1
+                    continue
+                raise
 
             # if it's a refusal see if we should retry
-            if output.stop_reason == "content_filter":
+            if not output.empty and output.stop_reason == "content_filter":
                 if retry_refusals is not None and attempts < retry_refusals:
                     attempts += 1
                     continue

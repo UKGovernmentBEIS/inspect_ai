@@ -10,9 +10,21 @@ which would pollute the thread-leak assertion below; an isolated
 import asyncio
 import contextlib
 import threading
+from pathlib import Path
 
 import httpx
 import pytest
+
+from inspect_ai.event import (
+    CommunicationDelivery,
+    CommunicationEvent,
+    CommunicationRecord,
+    CommunicationRejection,
+    CommunicationSend,
+    CommunicationWait,
+    Event,
+    SwarmEvent,
+)
 
 
 def _worker_threads() -> int:
@@ -173,9 +185,146 @@ def test_endpoint_error_becomes_structured_500(monkeypatch: pytest.MonkeyPatch) 
     assert "RuntimeError" in error and "kaboom" in error
 
 
+async def _asgi_get(
+    app: object, path: str, query: str, *, disconnected: bool, method: str = "GET"
+) -> tuple[int, bytes]:
+    """Drive one request through the ASGI app with a scripted receive channel.
+
+    ``httpx.ASGITransport`` can't model a client that hung up before the
+    handler ran (its receive channel only reports disconnect after the
+    response completes), so this speaks raw ASGI: ``disconnected=True``
+    makes the very first ``receive()`` return ``http.disconnect`` — what
+    uvicorn's channel yields for a request whose client is already gone.
+    Returns the response ``(status, body)``.
+    """
+    sent: list[dict] = []
+
+    async def receive() -> dict:
+        if disconnected:
+            return {"type": "http.disconnect"}
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    async def send(message: dict) -> None:
+        sent.append(message)
+
+    scope = {
+        "type": "http",
+        "asgi": {"version": "3.0", "spec_version": "2.3"},
+        "http_version": "1.1",
+        "method": method,
+        "scheme": "http",
+        "path": path,
+        "raw_path": path.encode(),
+        "query_string": query.encode(),
+        "headers": [(b"host", b"localhost")],
+        "client": None,
+        "server": ("localhost", 80),
+        "root_path": "",
+    }
+    await app(scope, receive, send)  # type: ignore[operator]
+    start = next((m for m in sent if m["type"] == "http.response.start"), None)
+    assert start is not None, f"no response started for {method} {path}"
+    body = b"".join(
+        m.get("body", b"") for m in sent if m["type"] == "http.response.body"
+    )
+    return start["status"], body
+
+
+def test_read_endpoints_skip_disconnected_client(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A hung-up client's read request is answered 499 without doing the work.
+
+    Each guarded read must return before touching its data source — the
+    rationale lives in ``_control/disconnect.py``'s module docstring.
+    """
+    import json
+
+    from inspect_ai._control import server as server_mod
+
+    async def _must_not_run(*args: object, **kwargs: object) -> None:
+        raise AssertionError("handler did work for a disconnected client")
+
+    for name in (
+        "current_eval_summaries",
+        "current_sample_listing",
+        "sample_error_detail",
+        "sample_events",
+        "sample_messages",
+    ):
+        monkeypatch.setattr(server_mod, name, _must_not_run)
+
+    endpoints = [
+        ("/tasks", ""),
+        ("/evals/e1/samples", ""),
+        ("/evals/e1/sample", "sample_id=s1"),
+        ("/evals/e1/sample/events", "sample_id=s1"),
+        ("/evals/e1/sample/messages", "sample_id=s1"),
+    ]
+
+    async def scenario() -> None:
+        app = server_mod.ControlServer(run_id="test")._build_app()
+        for path, query in endpoints:
+            status, body = await _asgi_get(app, path, query, disconnected=True)
+            assert status == 499, f"{path}: expected 499, got {status}"
+            assert json.loads(body) == {"error": "client disconnected"}
+
+    asyncio.run(scenario())
+
+
+def test_read_endpoints_serve_connected_client(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The disconnect guard must not false-positive on a live connection.
+
+    Companion to the skip test above, over the same raw-ASGI channel: with a
+    normal ``http.request`` message queued (what uvicorn's receive yields for
+    a connected GET), the guard passes and the handler serves.
+    """
+    from inspect_ai._control import server as server_mod
+
+    async def _no_summaries(*args: object, **kwargs: object) -> list:
+        return []
+
+    monkeypatch.setattr(server_mod, "current_eval_summaries", _no_summaries)
+
+    async def scenario() -> None:
+        app = server_mod.ControlServer(run_id="test")._build_app()
+        status, body = await _asgi_get(app, "/tasks", "", disconnected=False)
+        assert status == 200
+        assert body == b"[]"
+
+    asyncio.run(scenario())
+
+
+def test_mutations_apply_for_disconnected_client() -> None:
+    """Mutations from a hung-up client still apply — they are NOT guarded.
+
+    Pins that a future blanket guard doesn't swallow mutations (why they
+    must pass through: ``_control/disconnect.py``'s module docstring):
+    ``POST /keep`` from an already-disconnected client must still latch
+    keep-alive on.
+    """
+    from inspect_ai._control import server as server_mod
+    from inspect_ai._control.server import keep_alive_intent, reset_keep_alive
+
+    async def scenario() -> int:
+        app = server_mod.ControlServer(run_id="test")._build_app()
+        status, _ = await _asgi_get(app, "/keep", "", disconnected=True, method="POST")
+        return status
+
+    reset_keep_alive()
+    try:
+        status = asyncio.run(scenario())
+        assert status == 200
+        assert keep_alive_intent() is True
+    finally:
+        reset_keep_alive()
+
+
 def test_error_detail_prefers_server_body() -> None:
     """The CLI surfaces the server's ``{"error": ...}`` over the bare HTTP error."""
-    from inspect_ai._cli.ctl import _error_detail
+    from inspect_ai._cli.ctl._http import _error_detail
 
     request = httpx.Request("GET", "http://localhost/evals/x/samples")
     response = httpx.Response(
@@ -366,6 +515,42 @@ async def test_samples_endpoint_rejects_bad_params(
             assert "at least one status" in response.json()["error"]
 
 
+async def test_sample_score_status_distinguishes_superseded_from_missing() -> None:
+    """The sample-score GET splits its rejections by status code.
+
+    A superseded attempt's eval id is a 409 (matching the POST), so the CLI
+    surfaces the server's superseded-by-a-retry message via the error body;
+    a plain 404 only ever means "no pass for this sample", whose static CLI
+    text would mischaracterize a mid-poll task retry.
+    """
+    from inspect_ai._control import server as server_mod
+    from inspect_ai._control.eval_state import clear_all_eval_states, register_eval
+    from inspect_ai._control.scoring import reset_score_passes
+
+    clear_all_eval_states()
+    reset_score_passes()
+    try:
+        register_eval("e1", 1, task_id="t1")
+        register_eval("e2", 1, task_id="t1")  # supersedes e1
+
+        app = server_mod.ControlServer(run_id="test")._build_app()
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://localhost"
+        ) as client:
+            params: dict[str, str | int] = {"sample_id": "s1", "epoch": 1}
+            stale = await client.get("/evals/e1/sample/score", params=params)
+            assert stale.status_code == 409
+            assert "superseded" in stale.json()["error"]
+
+            missing = await client.get("/evals/e2/sample/score", params=params)
+            assert missing.status_code == 404
+            assert "no scoring pass" in missing.json()["error"]
+    finally:
+        clear_all_eval_states()
+        reset_score_passes()
+
+
 async def test_sample_endpoint_addresses_reserved_char_ids(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -375,7 +560,8 @@ async def test_sample_endpoint_addresses_reserved_char_ids(
     ``q?x#y`` (query / fragment delimiters). They ride in the ``sample_id``
     *query parameter* (not a path segment, which can't carry them); the client
     URL-encodes and the server decodes them end to end. A path-segment route
-    could never reach these. Pins that the handler receives the id intact.
+    could never reach these. Pins that the handler receives the id intact,
+    and that `content` forwards (metadata-only default, `content=true` opt-in).
 
     A normal ``async def`` test (no isolated ``asyncio.run``): unlike the
     thread-leak tests above, this asserts nothing about worker threads, so the
@@ -383,10 +569,12 @@ async def test_sample_endpoint_addresses_reserved_char_ids(
     """
     from inspect_ai._control import server as server_mod
 
-    received: list[tuple[str, str, int]] = []
+    received: list[tuple[str, str, int, bool]] = []
 
-    async def _echo(eval_id: str, sample_id: str, epoch: int) -> dict[str, object]:
-        received.append((eval_id, sample_id, epoch))
+    async def _echo(
+        eval_id: str, sample_id: str, epoch: int, content: bool = False
+    ) -> dict[str, object]:
+        received.append((eval_id, sample_id, epoch, content))
         return {"sample_id": sample_id, "epoch": epoch, "status": "completed"}
 
     monkeypatch.setattr(server_mod, "sample_error_detail", _echo)
@@ -406,7 +594,15 @@ async def test_sample_endpoint_addresses_reserved_char_ids(
             assert response.status_code == 200, (sid, response.text)
             assert response.json()["sample_id"] == sid, sid
 
-    assert received == [("ev1", sid, 1) for sid in tricky_ids], received
+        assert received == [("ev1", sid, 1, False) for sid in tricky_ids], received
+
+        # `content=true` (the free-text opt-in) rides down to the error detail
+        with_content = await client.get(
+            "/evals/ev1/sample",
+            params={"sample_id": "case/001", "epoch": 1, "content": "true"},
+        )
+        assert with_content.status_code == 200, with_content.text
+        assert received[-1] == ("ev1", "case/001", 1, True)
 
 
 def test_control_server_cleans_up_partial_startup_failure(
@@ -475,6 +671,108 @@ def test_control_server_cleans_up_partial_startup_failure(
         sock_dir.rmdir()
 
 
+def test_control_server_rejects_excess_connections_with_503(
+    monkeypatch: pytest.MonkeyPatch, short_data_dir: Path
+) -> None:
+    """Over the connection cap the server answers 503 instead of queueing.
+
+    The pile-up backstop (uvicorn ``limit_concurrency`` — see
+    ``_MAX_CONCURRENT_CONNECTIONS``): the server shares the eval's event
+    loop, so a runaway poller's excess connections must be rejected
+    immediately rather than queued as unbounded work. And the rejection must
+    clear once connections drop under the cap again — a transient pile-up
+    can't wedge the surface. The cap is monkeypatched down to 2 so one idle
+    connection saturates it (uvicorn counts the requesting connection itself
+    toward the limit).
+
+    This is the only test that sees uvicorn's real rejection response, so it
+    also pins the CLI's classification of it (``_rejection_503``) — the unit
+    tests over in test_ctl.py stub that body, and a future uvicorn switching
+    it to a JSON dict would otherwise regress the CLI to "unreachable"
+    without any test failing.
+
+    Isolated ``asyncio.run`` like the other full-start tests here (the idle
+    connection also uses an asyncio-only API).
+    """
+    from inspect_ai._cli.ctl._http import _rejection_503
+    from inspect_ai._control import server as server_mod
+
+    monkeypatch.setattr(server_mod, "_MAX_CONCURRENT_CONNECTIONS", 2)
+
+    async def read_tasks(uds: str) -> httpx.Response:
+        async with httpx.AsyncClient(
+            transport=httpx.AsyncHTTPTransport(uds=uds),
+            base_url="http://localhost",
+            timeout=5,
+        ) as client:
+            return await client.get("/tasks")
+
+    async def status_settles_to(uds: str, expected: int) -> httpx.Response:
+        # The accept/close we just triggered lands on this same loop, so one
+        # scheduling pass usually suffices — poll briefly rather than racing
+        # it with a fixed sleep; return the last response so a failed wait
+        # asserts with what the server actually said.
+        deadline = asyncio.get_running_loop().time() + 5
+        while True:
+            response = await read_tasks(uds)
+            if (
+                response.status_code == expected
+                or asyncio.get_running_loop().time() > deadline
+            ):
+                return response
+            await asyncio.sleep(0.05)
+
+    async def scenario() -> None:
+        server = server_mod.ControlServer(run_id="test")
+        await server.start()
+        writer: asyncio.StreamWriter | None = None
+        try:
+            assert server.socket_path is not None
+            uds = str(server.socket_path)
+            # one idle connection + the requesting one reaches the cap of 2
+            _, writer = await asyncio.open_unix_connection(uds)
+            rejected = await status_settles_to(uds, 503)
+            assert rejected.status_code == 503
+            assert _rejection_503(rejected), (
+                "real rejection body no longer classifies as a capacity "
+                f"rejection: {rejected.text!r}"
+            )
+            writer.close()
+            await writer.wait_closed()
+            writer = None
+            assert (await status_settles_to(uds, 200)).status_code == 200
+        finally:
+            if writer is not None:
+                writer.close()
+            await server.stop()
+
+    asyncio.run(scenario())
+
+
+def test_concurrency_warning_filter_rate_limits() -> None:
+    """Uvicorn's per-rejection warning is collapsed to one per window.
+
+    A runaway poller triggers one 'Exceeded concurrency limit.' WARNING per
+    rejected request; unfiltered, the eval log would grow at the poller's
+    request rate — the very pile-up the connection cap exists to stop.
+    Unrelated records must pass through untouched.
+    """
+    import logging
+
+    from inspect_ai._control.server import _ConcurrencyLimitWarningFilter
+
+    def record(msg: str) -> logging.LogRecord:
+        return logging.LogRecord(
+            "uvicorn.error", logging.WARNING, __file__, 0, msg, None, None
+        )
+
+    filter_ = _ConcurrencyLimitWarningFilter()
+    assert filter_.filter(record("Exceeded concurrency limit.")) is True
+    assert filter_.filter(record("Exceeded concurrency limit.")) is False
+    assert filter_.filter(record("Exceeded concurrency limit.")) is False
+    assert filter_.filter(record("something unrelated")) is True
+
+
 async def test_sample_events_endpoint_parses_type_and_404(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -496,6 +794,7 @@ async def test_sample_events_endpoint_parses_type_and_404(
         since: object,
         tail: object,
         types: object,
+        content: object,
         full: object,
         since_time: object,
         until: object,
@@ -503,6 +802,7 @@ async def test_sample_events_endpoint_parses_type_and_404(
     ) -> dict[str, object] | None:
         seen["sample_id"] = sample_id
         seen["types"] = types
+        seen["content"] = content
         seen["full"] = full
         seen["limit"] = limit
         if sample_id == "missing":
@@ -524,6 +824,15 @@ async def test_sample_events_endpoint_parses_type_and_404(
         assert seen["sample_id"] == "case/001"  # reserved-char id round-trips
         assert seen["types"] == frozenset({"model", "tool"})  # comma-split
         assert seen["full"] is True
+        assert seen["content"] is False  # metadata-only default
+
+        # `content=true` (the free-text opt-in) rides down
+        with_content = await client.get(
+            "/evals/e1/sample/events",
+            params={"sample_id": "case/001", "content": "true"},
+        )
+        assert with_content.status_code == 200, with_content.text
+        assert seen["content"] is True
 
         # whitespace around members is stripped — `--type "model, tool"`
         # must not silently filter everything out
@@ -558,6 +867,179 @@ async def test_sample_events_endpoint_parses_type_and_404(
         assert missing.status_code == 404
 
 
+_SURROGATE = "x\ud800y"
+_SURROGATE_ESCAPED = "x\\ud800y"
+
+
+def _sent_event(**fields: object) -> Event:
+    record_fields: dict[str, object] = {
+        "kind": "message",
+        "sender": "a",
+        "content": fields.pop("content", "hi"),
+    }
+    rejection = CommunicationRejection(
+        control=str(fields.pop("control", "admit")),
+        reason=str(fields.pop("reason", "no")),
+    )
+    event_fields: dict[str, object] = {
+        "kind": "sent",
+        "source": "inspect_swarm",
+        "agent": "a",
+        "channel": "bus",
+        "send": CommunicationSend(
+            record=CommunicationRecord.model_validate(record_fields),
+            rejected=rejection,
+        ),
+    }
+    return CommunicationEvent.model_validate(event_fields | fields)
+
+
+def _delivered_event(recipients: list[str]) -> Event:
+    return CommunicationEvent(
+        kind="delivered",
+        source="inspect_swarm",
+        agent="a",
+        channel="bus",
+        delivery=CommunicationDelivery(recipients=recipients),
+    )
+
+
+def _waited_event(**fields: object) -> Event:
+    wait_fields: dict[str, object] = {"outcome": "ready", "duration": 1.0} | fields
+    return CommunicationEvent(
+        kind="waited",
+        source="inspect_swarm",
+        agent="a",
+        wait=CommunicationWait.model_validate(wait_fields),
+    )
+
+
+def _swarm_event(**fields: object) -> Event:
+    return SwarmEvent.model_validate({"kind": "final", "data": {}} | fields)
+
+
+# (projected key, expected value, content tier only, event)
+_SURROGATE_FIELDS: dict[str, tuple[str, object, bool, Event]] = {
+    "communication.source": (
+        "source",
+        _SURROGATE_ESCAPED,
+        False,
+        _sent_event(source=_SURROGATE),
+    ),
+    "communication.agent": (
+        "agent",
+        _SURROGATE_ESCAPED,
+        False,
+        _sent_event(agent=_SURROGATE),
+    ),
+    "communication.channel": (
+        "channel",
+        _SURROGATE_ESCAPED,
+        False,
+        _sent_event(channel=_SURROGATE),
+    ),
+    "communication.record_ids": (
+        "record_ids",
+        [_SURROGATE_ESCAPED],
+        False,
+        _sent_event(record_ids=[_SURROGATE]),
+    ),
+    "communication.data": (
+        "data",
+        '{"k": "x\\ud800y"}',
+        True,
+        _sent_event(data={"k": _SURROGATE}),
+    ),
+    "send.record.content": (
+        "content",
+        _SURROGATE_ESCAPED,
+        True,
+        _sent_event(content=_SURROGATE),
+    ),
+    "send.rejected.control": (
+        "rejected",
+        _SURROGATE_ESCAPED,
+        False,
+        _sent_event(control=_SURROGATE),
+    ),
+    "send.rejected.reason": (
+        "reason",
+        _SURROGATE_ESCAPED,
+        True,
+        _sent_event(reason=_SURROGATE),
+    ),
+    "delivery.recipients": (
+        "recipients",
+        [_SURROGATE_ESCAPED],
+        False,
+        _delivered_event([_SURROGATE]),
+    ),
+    "wait.channels": (
+        "channels",
+        [_SURROGATE_ESCAPED],
+        False,
+        _waited_event(channels=[_SURROGATE]),
+    ),
+    "wait.outcome": (
+        "outcome",
+        _SURROGATE_ESCAPED,
+        False,
+        _waited_event(outcome=_SURROGATE),
+    ),
+    "swarm.kind": ("kind", _SURROGATE_ESCAPED, False, _swarm_event(kind=_SURROGATE)),
+    "swarm.member": (
+        "member",
+        _SURROGATE_ESCAPED,
+        False,
+        _swarm_event(member=_SURROGATE),
+    ),
+    "swarm.data": (
+        "data",
+        '{"k": "x\\ud800y"}',
+        True,
+        _swarm_event(data={"k": _SURROGATE}),
+    ),
+}
+
+
+@pytest.mark.parametrize("content", [False, True], ids=["metadata", "content"])
+@pytest.mark.parametrize("field", list(_SURROGATE_FIELDS))
+async def test_sample_events_endpoint_serializes_surrogates_in_swarm_events(
+    monkeypatch: pytest.MonkeyPatch, field: str, content: bool
+) -> None:
+    """A lone surrogate in any projected string of the swarm events is escaped.
+
+    Producers record these strings as given, so any of them can hold one; the
+    response escapes it rather than failing to encode, at both compact tiers.
+    """
+    from inspect_ai._control import server as server_mod
+    from inspect_ai._control.events import _project
+
+    key, expected, content_only, event = _SURROGATE_FIELDS[field]
+
+    async def _fake(
+        eval_id: str, sample_id: str, epoch: int, *, content: bool, **kwargs: object
+    ) -> dict[str, object]:
+        projected = _project(event, content=content, full=False)
+        return {"events": [projected], "next": "c", "done": True}
+
+    monkeypatch.setattr(server_mod, "sample_events", _fake)
+
+    params = {"sample_id": "1"} | ({"content": "true"} if content else {})
+    app = server_mod.ControlServer(run_id="test")._build_app()
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://localhost"
+    ) as client:
+        response = await client.get("/evals/e1/sample/events", params=params)
+    assert response.status_code == 200, response.text
+    [projected] = response.json()["events"]
+    if content or not content_only:
+        assert projected[key] == expected
+    else:
+        assert key not in projected
+
+
 async def test_sample_messages_endpoint_round_trips_and_404(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -578,10 +1060,12 @@ async def test_sample_messages_endpoint_round_trips_and_404(
         epoch: int,
         *,
         tail: object,
+        content: object,
         full: object,
     ) -> dict[str, object] | None:
         seen["sample_id"] = sample_id
         seen["tail"] = tail
+        seen["content"] = content
         seen["full"] = full
         if sample_id == "missing":
             return None
@@ -602,9 +1086,86 @@ async def test_sample_messages_endpoint_round_trips_and_404(
         assert seen["sample_id"] == "case/001"  # reserved-char id round-trips
         assert seen["tail"] == 5
         assert seen["full"] is True
+        assert seen["content"] is False  # metadata-only default
+
+        # `content=true` (the free-text opt-in) rides down
+        with_content = await client.get(
+            "/evals/e1/sample/messages",
+            params={"sample_id": "case/001", "content": "true"},
+        )
+        assert with_content.status_code == 200, with_content.text
+        assert seen["content"] is True
 
         missing = await client.get(
             "/evals/e1/sample/messages", params={"sample_id": "missing"}
+        )
+        assert missing.status_code == 404
+
+
+async def test_sample_store_endpoint_round_trips_and_404(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The sample-store route passes repeatable `key`/`full`, round-trips a reserved id, 404s.
+
+    `GET /evals/<id>/sample/store`: `sample_id` as a query param (so reserved
+    chars address), `key` repeatable on the wire, `content`/`full` forwarded,
+    and a missing sample → 404. The helper logic is unit-tested in
+    test_store.py; this pins the route wiring.
+    """
+    from inspect_ai._control import server as server_mod
+
+    seen: dict[str, object] = {}
+
+    async def _fake(
+        eval_id: str,
+        sample_id: str,
+        epoch: int,
+        *,
+        keys: object,
+        content: object,
+        full: object,
+    ) -> dict[str, object] | None:
+        seen["sample_id"] = sample_id
+        seen["keys"] = keys
+        seen["content"] = content
+        seen["full"] = full
+        if sample_id == "missing":
+            return None
+        return {"as_of": 1.0, "status": "running", "count": 0, "store": {}}
+
+    monkeypatch.setattr(server_mod, "sample_store", _fake)
+
+    app = server_mod.ControlServer(run_id="test")._build_app()
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://localhost"
+    ) as client:
+        ok = await client.get(
+            "/evals/e1/sample/store",
+            params=[
+                ("sample_id", "case/001"),
+                ("key", "phase"),
+                ("key", "AgentState:*"),
+                ("full", "true"),
+            ],
+        )
+        assert ok.status_code == 200, ok.text
+        assert seen["sample_id"] == "case/001"  # reserved-char id round-trips
+        assert seen["keys"] == ["phase", "AgentState:*"]  # `key` repeats
+        assert seen["full"] is True
+        assert seen["content"] is False  # metadata-only default
+
+        # an unfiltered read reaches the helper with no key selection
+        unfiltered = await client.get(
+            "/evals/e1/sample/store",
+            params={"sample_id": "case/001", "content": "true"},
+        )
+        assert unfiltered.status_code == 200, unfiltered.text
+        assert seen["keys"] is None
+        assert seen["content"] is True
+
+        missing = await client.get(
+            "/evals/e1/sample/store", params={"sample_id": "missing"}
         )
         assert missing.status_code == 404
 
@@ -616,9 +1177,10 @@ async def test_samples_endpoint_parses_filter(
 
     The state-layer filtering is unit-tested; this pins the route wiring —
     `filter=errors` reaches the state layer as "errors", an omitted param
-    keeps the full listing (None), and an unrecognized filter value is
+    keeps the full listing (None), an unrecognized filter value is
     rejected (422) rather than silently answered with the full listing,
-    since the CLI trusts the filter was applied and keeps no fallback.
+    since the CLI trusts the filter was applied and keeps no fallback, and
+    `content` forwards (metadata-only default, `content=true` opt-in).
     """
     from inspect_ai._control import server as server_mod
     from inspect_ai._control.state import SampleListing
@@ -631,9 +1193,11 @@ async def test_samples_endpoint_parses_filter(
         statuses: frozenset[str] | None = None,
         limit: int | None = None,
         sample_filter: str | None = None,
+        content: bool = False,
     ) -> SampleListing:
         seen["eval_id"] = eval_id
         seen["sample_filter"] = sample_filter
+        seen["content"] = content
         return SampleListing(counts={}, samples=[], truncated=False)
 
     monkeypatch.setattr(server_mod, "current_sample_listing", _fake)
@@ -650,6 +1214,12 @@ async def test_samples_endpoint_parses_filter(
         default = await client.get("/evals/e1/samples")
         assert default.status_code == 200, default.text
         assert seen["sample_filter"] is None
+        assert seen["content"] is False  # metadata-only default
+
+        # `content=true` (the free-text opt-in) rides down
+        with_content = await client.get("/evals/e1/samples", params={"content": "true"})
+        assert with_content.status_code == 200, with_content.text
+        assert seen["content"] is True
 
         seen.clear()
         unknown = await client.get("/evals/e1/samples", params={"filter": "bogus"})
@@ -667,7 +1237,7 @@ async def test_404_body_shape_distinguishes_missing_route(
     convention comment in ``_build_app``. A handler 404 that dropped the
     ``error`` key would misreport an entity-not-found as version skew.
     """
-    from inspect_ai._cli.ctl import _handler_404
+    from inspect_ai._cli.ctl._http import _handler_404
     from inspect_ai._control import server as server_mod
 
     monkeypatch.setattr(
@@ -690,7 +1260,7 @@ async def test_404_body_shape_distinguishes_missing_route(
         assert not _handler_404(router)
 
 
-def test_resolve_ctl_server_values() -> None:
+def test_resolve_ctl_server_values(monkeypatch: pytest.MonkeyPatch) -> None:
     """The ``ctl_server`` param resolves to ``(enabled, keep_alive)``.
 
     ``None`` and ``True`` are the default-on shape, ``False`` disables,
@@ -701,8 +1271,11 @@ def test_resolve_ctl_server_values() -> None:
     typo of ``keep``, and dropping the requested park would strand the
     user.
     """
-    from inspect_ai._control.server import resolve_ctl_server
+    from inspect_ai._control.server import CTL_SERVER_ENV_VAR, resolve_ctl_server
     from inspect_ai._util.error import PrerequisiteError
+
+    # the suite-wide fixture sets the env var; this test pins the bare default
+    monkeypatch.delenv(CTL_SERVER_ENV_VAR, raising=False)
 
     assert resolve_ctl_server(None) == (True, False)
     assert resolve_ctl_server(True) == (True, False)
@@ -724,6 +1297,316 @@ def test_resolve_ctl_server_values() -> None:
 
     with pytest.raises(PrerequisiteError, match="keepalive"):
         resolve_ctl_server("keepalive")
+
+
+def test_resolve_ctl_server_reads_env_when_unspecified(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``ctl_server=None`` falls back to ``INSPECT_EVAL_CTL_SERVER``.
+
+    The documented CI-wide switch has to reach in-process ``eval()`` calls,
+    not just the CLI (where click's ``envvar`` handles it) — a pytest run
+    setting ``INSPECT_EVAL_CTL_SERVER=false`` must skip the bind. Explicit
+    values win over the env var; an empty value counts as unset (as click
+    treats it); an unparseable value is rejected naming the env var.
+    """
+    from inspect_ai._control.server import CTL_SERVER_ENV_VAR, resolve_ctl_server
+    from inspect_ai._util.error import PrerequisiteError
+
+    monkeypatch.setenv(CTL_SERVER_ENV_VAR, "false")
+    assert resolve_ctl_server(None) == (False, False)
+    assert resolve_ctl_server(True) == (True, False)
+    assert resolve_ctl_server("keep") == (True, True)
+
+    monkeypatch.setenv(CTL_SERVER_ENV_VAR, "keep")
+    assert resolve_ctl_server(None) == (True, True)
+    assert resolve_ctl_server(False) == (False, False)
+
+    monkeypatch.setenv(CTL_SERVER_ENV_VAR, "")
+    assert resolve_ctl_server(None) == (True, False)
+
+    monkeypatch.setenv(CTL_SERVER_ENV_VAR, "keepalive")
+    with pytest.raises(PrerequisiteError, match=CTL_SERVER_ENV_VAR):
+        resolve_ctl_server(None)
+
+
+def test_eval_honours_ctl_server_env(
+    monkeypatch: pytest.MonkeyPatch, short_data_dir: Path
+) -> None:
+    """An in-process ``eval()`` skips the bind under ``INSPECT_EVAL_CTL_SERVER=false``.
+
+    Pins the end-to-end effect of the env fallback: no discovery file is
+    published (nothing for ``inspect ctl`` to find), where the explicit
+    ``ctl_server=True`` on the same task does publish one.
+    """
+    from inspect_ai import Task, eval
+    from inspect_ai._control.discovery import list_discovered_servers
+    from inspect_ai._control.server import CTL_SERVER_ENV_VAR
+    from inspect_ai.dataset import Sample
+    from inspect_ai.solver import Generate, Solver, TaskState, solver
+
+    published: list[int] = []
+
+    # observed from inside the sample: the server binds after run-start hooks
+    # fire and tears down before the eval returns
+    @solver
+    def probe() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            published.append(len(list_discovered_servers()))
+            return state
+
+        return solve
+
+    task = Task(dataset=[Sample(input="hi")], solver=probe())
+    monkeypatch.setenv(CTL_SERVER_ENV_VAR, "false")
+    eval(task, model="mockllm/model", display="none", log_dir=str(short_data_dir))
+    assert published == [0]
+
+    published.clear()
+    eval(
+        task,
+        model="mockllm/model",
+        display="none",
+        log_dir=str(short_data_dir),
+        ctl_server=True,
+    )
+    assert published == [1]
+
+
+def test_eval_set_honours_ctl_server_env_from_dotenv(
+    monkeypatch: pytest.MonkeyPatch, short_data_dir: Path, tmp_path: Path
+) -> None:
+    """The first ``eval_set()`` in a process honours ``INSPECT_EVAL_CTL_SERVER`` from ``.env``.
+
+    ``eval_set()`` resolves the setting up front and hands the inner
+    ``eval()`` an explicit value, so it has to load the project ``.env``
+    itself: before the fix the first call bound the server (nothing had
+    loaded ``.env`` yet) and only the second call, seeing the variable the
+    first call's ``eval()`` had loaded, skipped it. An explicit argument
+    still wins over the ``.env`` value.
+    """
+    from inspect_ai import Task, eval_set
+    from inspect_ai._control.discovery import list_discovered_servers
+    from inspect_ai._control.server import CTL_SERVER_ENV_VAR
+    from inspect_ai.dataset import Sample
+    from inspect_ai.solver import Generate, Solver, TaskState, solver
+
+    published: list[int] = []
+
+    @solver
+    def probe() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            published.append(len(list_discovered_servers()))
+            return state
+
+        return solve
+
+    # the variable must come from the .env file alone (the autouse fixture
+    # sets it in the process environment; load_dotenv doesn't override)
+    monkeypatch.delenv(CTL_SERVER_ENV_VAR, raising=False)
+    (tmp_path / ".env").write_text(f"{CTL_SERVER_ENV_VAR}=false\n")
+    monkeypatch.chdir(tmp_path)
+
+    task = Task(dataset=[Sample(input="hi")], solver=probe(), name="probe")
+    eval_set(
+        task,
+        model="mockllm/model",
+        display="none",
+        log_dir=str(tmp_path / "logs-env"),
+    )
+    assert published == [0]
+
+    published.clear()
+    eval_set(
+        task,
+        model="mockllm/model",
+        display="none",
+        log_dir=str(tmp_path / "logs-explicit"),
+        ctl_server=True,
+    )
+    assert published == [1]
+
+
+def test_stop_is_prompt_when_idle(short_data_dir: Path) -> None:
+    """Tearing down an idle server takes milliseconds, not uvicorn's polls.
+
+    Regression for meridianlabs-ai/inspect_ai#393: stock uvicorn notices
+    ``should_exit`` only on its 100ms main-loop tick and then sleeps another
+    unconditional 100ms in ``shutdown()``, so every ``eval()`` paid 100-200ms
+    at teardown. The server now wakes on the exit signal and skips the settle
+    sleep when no connection is open. The bound is deliberately below the
+    100ms floor the stock path can't get under; the minimum over a few cycles
+    keeps a loaded runner's one-off stall from failing the assertion.
+    """
+    import time
+
+    from inspect_ai._control.server import ControlServer
+
+    async def cycle() -> float:
+        server = ControlServer(run_id="run-1")
+        await server.start()
+        # let the serve task reach its main loop, so the stop below exercises
+        # the wake-up rather than racing the startup
+        while not server._uvicorn_server.started:
+            await asyncio.sleep(0.001)
+        started = time.perf_counter()
+        await server.stop()
+        return time.perf_counter() - started
+
+    async def run() -> float:
+        return min([await cycle() for _ in range(3)])
+
+    assert asyncio.run(run()) < 0.08
+
+
+def test_should_exit_wakes_a_blocked_loop(short_data_dir: Path) -> None:
+    """Setting ``should_exit`` from outside the loop ends the serve task promptly.
+
+    uvicorn's signal handler assigns ``should_exit`` from a signal context
+    while the loop sits in ``select()``; a plain ``Event.set()`` there only
+    queues a callback the blocked loop won't see until its next 1s tick. The
+    setter goes through the loop's self-pipe instead. Modelled here with a
+    thread (the same "loop is idle, setter runs outside a callback" shape),
+    bounded well under the 1s tick.
+    """
+    import threading
+    import time
+
+    from inspect_ai._control.server import ControlServer
+
+    async def run() -> float:
+        server = ControlServer(run_id="run-1")
+        await server.start()
+        try:
+            uvicorn_server = server._uvicorn_server
+            serve_task = server._serve_task
+            assert serve_task is not None
+            while not uvicorn_server.started:
+                await asyncio.sleep(0.001)
+
+            def _exit_from_thread() -> None:
+                uvicorn_server.should_exit = True
+
+            started = time.perf_counter()
+            threading.Timer(0.05, _exit_from_thread).start()
+            await asyncio.wait_for(serve_task, timeout=5)
+            return time.perf_counter() - started
+        finally:
+            await server.stop()
+
+    assert asyncio.run(run()) < 0.5
+
+
+def test_uvicorn_shutdown_mirror_is_current() -> None:
+    """The uvicorn sources our ``PromptExitServer`` mirrors haven't changed.
+
+    ``shutdown()`` reimplements ``uvicorn.Server.shutdown`` (to make its
+    settle sleep conditional) and ``main_loop()`` replaces the polling loop,
+    both relying on ``should_exit`` being a plain attribute the subclass can
+    shadow with a property. ``uvicorn`` is unpinned, so pin the mirrored
+    code here: when an upgrade changes it, re-check the subclass in
+    ``_prompt_exit_server_class`` against the new code and update the hashes.
+
+    The digest covers code tokens only — comments and blank lines are dropped
+    so a comment-only upstream edit doesn't trip it. (Token streams, unlike
+    ``ast.dump`` output, are stable across the Python versions CI runs.)
+    """
+    import hashlib
+    import inspect
+    import io
+    import textwrap
+    import tokenize
+
+    import uvicorn.server
+
+    structural = {tokenize.NEWLINE, tokenize.INDENT, tokenize.DEDENT}
+    significant = {tokenize.NAME, tokenize.NUMBER, tokenize.STRING, tokenize.OP}
+
+    def digest(name: str) -> str:
+        source = inspect.getsource(getattr(uvicorn.server.Server, name))
+        tokens = tokenize.generate_tokens(io.StringIO(textwrap.dedent(source)).readline)
+        parts = [
+            tokenize.tok_name[tok.type] if tok.type in structural else tok.string
+            for tok in tokens
+            if tok.type in structural or tok.type in significant
+        ]
+        return hashlib.sha256("\n".join(parts).encode()).hexdigest()[:16]
+
+    assert not isinstance(
+        inspect.getattr_static(uvicorn.server.Server, "should_exit", None), property
+    )
+    assert {name: digest(name) for name in ("shutdown", "main_loop")} == {
+        "shutdown": "248c7bf71a637115",
+        "main_loop": "c50e6ef76aa27676",
+    }, "uvicorn changed a method PromptExitServer mirrors — re-check it"
+
+
+def test_stop_drains_an_open_connection(short_data_dir: Path) -> None:
+    """An idle keep-alive connection is closed by ``stop()``, which still returns.
+
+    The prompt-shutdown path skips uvicorn's settle sleep only when no
+    connection is open; with one open it must still shut the connection
+    (the client sees EOF) and complete rather than hang on the drain.
+    """
+    import socket
+
+    from inspect_ai._control.server import ControlServer
+
+    async def run() -> bytes:
+        server = ControlServer(run_id="run-1")
+        await server.start()
+        assert server.socket_path is not None
+        loop = asyncio.get_running_loop()
+        client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        client.setblocking(False)
+        try:
+            await loop.sock_connect(client, str(server.socket_path))
+            # a served request leaves the connection open (keep-alive)
+            await loop.sock_sendall(client, b"GET /tasks HTTP/1.1\r\nHost: x\r\n\r\n")
+            response = await asyncio.wait_for(loop.sock_recv(client, 65536), 5)
+            assert response.startswith(b"HTTP/1.1 200")
+            await asyncio.wait_for(server.stop(), 5)
+            # the server closed its side: the client reads EOF
+            return await asyncio.wait_for(loop.sock_recv(client, 1), 5)
+        finally:
+            client.close()
+
+    assert asyncio.run(run()) == b""
+
+
+def test_build_app_is_shared_and_rebound(monkeypatch: pytest.MonkeyPatch) -> None:
+    """One FastAPI app per process, bound to whichever server built it last.
+
+    The route table is static and costs ~40ms to build, so it's cached; the
+    per-server state routes need rides ``app.state.server``. ``GET /tasks``
+    must report the *bound* server's ``started_at``.
+    """
+    from inspect_ai._control import server as server_mod
+    from inspect_ai._control.server import ControlServer
+
+    seen: list[float] = []
+
+    async def _record(started_at: float) -> list[dict]:
+        seen.append(started_at)
+        return []
+
+    monkeypatch.setattr(server_mod, "current_eval_summaries", _record)
+
+    async def scenario() -> None:
+        first = ControlServer(run_id="a")
+        second = ControlServer(run_id="b")
+        second._started_at = first.started_at + 100
+        app_a = first._build_app()
+        app_b = second._build_app()
+        assert app_a is app_b
+        transport = httpx.ASGITransport(app=app_b)
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://localhost"
+        ) as client:
+            assert (await client.get("/tasks")).status_code == 200
+        assert seen == [second.started_at]
+
+    asyncio.run(scenario())
 
 
 def test_control_server_disabled_binds_nothing(
@@ -1052,3 +1935,124 @@ def test_start_advertises_api_version_in_discovery(
         asyncio.run(run())
     finally:
         shutil.rmtree(dirpath, ignore_errors=True)
+
+
+# ---------------------------------------------------------------------------
+# Peer credential (SO_PEERCRED / LOCAL_PEERCRED) check
+# ---------------------------------------------------------------------------
+
+
+def test_peer_uid_reports_own_uid_over_socketpair() -> None:
+    """``peer_uid`` reads this process's euid off an AF_UNIX socketpair."""
+    import os
+    import socket
+
+    from inspect_ai._util.sockets import peer_uid
+
+    if not hasattr(socket, "AF_UNIX"):
+        pytest.skip("AF_UNIX not available on this platform")
+
+    a, b = socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        assert peer_uid(a) == os.geteuid()
+        assert peer_uid(b) == os.geteuid()
+    finally:
+        a.close()
+        b.close()
+
+
+def test_peer_uid_unpacks_high_uids_unsigned() -> None:
+    """``uid_t`` is unsigned: peer uids >= 2**31 must not unpack negative.
+
+    Regression: unpacking Linux ``struct ucred`` with a signed format mapped
+    nfsnobody-style uids (4294967294) to -2, so the same-user comparison
+    failed and the server dropped that user's own connection.
+    """
+    import socket
+    import struct
+    import sys
+    from typing import cast
+
+    from inspect_ai._util.sockets import peer_uid
+
+    if sys.platform != "linux":
+        pytest.skip("SO_PEERCRED struct ucred layout is Linux-specific")
+
+    high_uid = 4294967294  # nfsnobody on older RHEL
+
+    class FakeSocket:
+        family = socket.AF_UNIX
+
+        def getsockopt(self, level: int, optname: int, buflen: int = 0) -> bytes:
+            assert level == socket.SOL_SOCKET and optname == socket.SO_PEERCRED
+            return struct.pack("iII", 1234, high_uid, high_uid)
+
+    assert peer_uid(cast(socket.socket, FakeSocket())) == high_uid
+
+
+def test_control_server_rejects_mismatched_peer_uid(
+    monkeypatch: pytest.MonkeyPatch, short_data_dir
+) -> None:
+    """A connection whose peer UID differs from the server's is dropped.
+
+    The SO_PEERCRED / LOCAL_PEERCRED hardening: the connection must die at
+    the transport layer (no HTTP response at all), not merely 4xx — a
+    foreign-UID peer gets no protocol surface whatsoever. Forcing a real
+    mismatch needs a second user, so the credential reader is stubbed; the
+    genuine same-UID path is covered end-to-end by the acceptance test
+    below.
+    """
+    import os
+
+    import inspect_ai._control.server as server_mod
+    from inspect_ai._control.server import control_server
+
+    monkeypatch.setattr(server_mod, "peer_uid", lambda sock: os.geteuid() + 1)
+
+    async def run() -> None:
+        async with control_server(run_id="run-peercred-reject") as srv:
+            assert srv is not None and srv.socket_path is not None
+            transport = httpx.AsyncHTTPTransport(uds=str(srv.socket_path))
+            async with httpx.AsyncClient(
+                transport=transport, base_url="http://control"
+            ) as client:
+                with pytest.raises(httpx.TransportError):
+                    await client.get("/tasks")
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize(
+    "stub_uid",
+    [None, "own"],
+    ids=["credential-unavailable-fails-open", "same-uid"],
+)
+def test_control_server_accepts_peer(
+    monkeypatch: pytest.MonkeyPatch, short_data_dir, stub_uid
+) -> None:
+    """Same-UID peers are served; an unreadable credential fails open.
+
+    ``same-uid`` runs the real credential read end-to-end over the bound
+    socket. ``credential-unavailable`` stubs ``peer_uid`` to ``None``
+    (platform without the API / failed getsockopt) and must still serve —
+    the check is defence-in-depth on top of the filesystem permissions, so
+    an indeterminate credential allows rather than bricking the surface.
+    """
+    from inspect_ai._control.server import control_server
+
+    if stub_uid is None:
+        import inspect_ai._control.server as server_mod
+
+        monkeypatch.setattr(server_mod, "peer_uid", lambda sock: None)
+
+    async def run() -> None:
+        async with control_server(run_id="run-peercred-accept") as srv:
+            assert srv is not None and srv.socket_path is not None
+            transport = httpx.AsyncHTTPTransport(uds=str(srv.socket_path))
+            async with httpx.AsyncClient(
+                transport=transport, base_url="http://control"
+            ) as client:
+                response = await client.get("/tasks")
+            assert response.status_code == 200
+
+    asyncio.run(run())

@@ -1954,19 +1954,18 @@ def test_resolve_approval_notifies_subscribers() -> None:
     assert fired[0] == 1
 
 
-def test_decision_label_modify_maps_to_approved() -> None:
-    """``modify`` (approve-with-modification) is treated as the ``approved`` label.
+def test_decision_label_modify_maps_to_denied() -> None:
+    """``modify`` is not an allow: the human approver never offers it.
 
-    Pinned so the ``_APPROVE_OPTION_IDS`` set in state.py stays in
-    sync with the server's ``_KIND_BY_DECISION`` mapping in the
-    approval shim (both treat ``modify`` as the allow half).
+    A ``modify`` with no modified call is rejected server-side, so the
+    label must not read ``approved``.
     """
     state = SessionState()
     state.consume_approval_request(_pending(_permission_request("tc-1")))
     state.resolve_approval("tc-1", option_id="modify")
 
     tc = state._tool_calls_by_id["tc-1"]
-    assert tc.last_approval_decision == "approved"
+    assert tc.last_approval_decision == "denied"
 
 
 def test_decision_label_unknown_option_id_defaults_to_denied() -> None:
@@ -2282,6 +2281,47 @@ def test_bridged_tool_call_excluded_from_cancel_eligibility() -> None:
     # ...but it is excluded from the cancel affordance (only the react tool)
     assert "tc-bridge" not in state.cancel_tool_call_ids
     assert state.cancel_tool_call_ids == ["tc-react"]
+
+
+def test_update_marking_a_bridged_tool_cancelable_offers_it_for_cancel() -> None:
+    """A host tool the sandbox bridge runs for a proposed call becomes cancelable.
+
+    Its card starts as a non-cancelable synthesized bridged card; the update
+    from the real pending ``ToolEvent`` carries the marker set to True.
+    """
+    from inspect_ai.agent._acp.inspect_ext import TOOL_CALL_CANCELABLE_META_KEY
+
+    state = SessionState()
+    state.consume(
+        SessionNotification(
+            session_id="sid",
+            update=ToolCallStart(
+                session_update="tool_call",
+                tool_call_id="tc-host",
+                title="read_file notes.txt",
+                status="in_progress",
+                field_meta={TOOL_CALL_CANCELABLE_META_KEY: False},
+            ),
+        )
+    )
+    assert state.cancel_tool_call_ids == []
+
+    state.consume(
+        SessionNotification(
+            session_id="sid",
+            update=ToolCallProgress(
+                session_update="tool_call_update",
+                tool_call_id="tc-host",
+                status="in_progress",
+                field_meta={TOOL_CALL_CANCELABLE_META_KEY: True},
+            ),
+        )
+    )
+    assert state.cancel_tool_call_ids == ["tc-host"]
+
+    # an update without the marker leaves it as it is
+    state.consume(_tool_progress("tc-host", status="in_progress"))
+    assert state.cancel_tool_call_ids == ["tc-host"]
 
 
 def test_default_tool_call_is_cancelable() -> None:

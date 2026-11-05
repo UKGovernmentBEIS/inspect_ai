@@ -1,17 +1,20 @@
 import contextlib
 import functools
 import logging
+import math
 import os
-import sys
 from contextlib import nullcontext
 from contextvars import Token, copy_context
+from dataclasses import replace
 from pathlib import Path
-from typing import Any, Literal, cast
+from typing import Any, Literal, Sequence, cast
 
 import anyio
+import anyio.lowlevel
 from anyio.abc import TaskGroup
 
 from inspect_ai._control.eval_state import reset_run_registries
+from inspect_ai._control.pause import dispatch_model_name, note_dispatch_models
 from inspect_ai._control.server import (
     control_server,
     keep_alive_intent,
@@ -20,9 +23,12 @@ from inspect_ai._control.server import (
     resolve_ctl_server,
     wait_for_shutdown_async,
 )
-from inspect_ai._eval.handoff import LaunchHandoff, emit_launch_handoff
+from inspect_ai._eval.handoff import (
+    LaunchHandoff,
+    emit_launch_handoff,
+    print_ctl_pointer,
+)
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
-from inspect_ai.agent._acp.server import acp_server as _acp_server
 from inspect_ai.agent._agent import Agent, is_agent
 from inspect_ai.agent._as_solver import as_solver
 from inspect_ai.model._model_config import model_roles_config_to_model_roles
@@ -31,18 +37,26 @@ from inspect_ai.model._model_info import set_model_cost
 from inspect_ai.model._util import resolve_model_costs, resolve_model_roles
 from inspect_ai.util._anyio import inner_exception
 
-if sys.version_info < (3, 11):
-    from exceptiongroup import ExceptionGroup
-
+# The imports above must load before _display (circular import).
+# isort: split
 from shortuuid import uuid
 from typing_extensions import Unpack
 
-from inspect_ai._cli.util import parse_cli_args
 from inspect_ai._display.core.active import active_display as active_task_display
 from inspect_ai._display.core.active import display as task_display
 from inspect_ai._eval.task.scan import Scanners, scan_context
+from inspect_ai._sentinel._config import (
+    SentinelSpec,
+    resolve_sentinel_spec,
+    sentinel_config,
+)
+from inspect_ai._util._async import (
+    current_async_backend,
+    raise_unwrapped,
+    unwrap_exception_group,
+)
 from inspect_ai._util.asyncfiles import with_async_fs
-from inspect_ai._util.config import resolve_args
+from inspect_ai._util.config import parse_cli_args, resolve_args
 from inspect_ai._util.constants import (
     DEFAULT_EPOCHS,
     DEFAULT_LOG_FORMAT,
@@ -62,7 +76,7 @@ from inspect_ai.approval._policy import (
     approval_policies_from_config,
     config_from_approval_policies,
 )
-from inspect_ai.log import EvalConfig, EvalLog, EvalLogInfo
+from inspect_ai.log import EvalConfig, EvalLog, EvalLogInfo, IncompleteAction
 from inspect_ai.log._file import read_eval_log_async
 from inspect_ai.log._recorders import create_recorder_for_format
 from inspect_ai.log._recorders.buffer import cleanup_sample_buffers
@@ -70,6 +84,7 @@ from inspect_ai.model import (
     GenerateConfig,
     GenerateConfigArgs,
     Model,
+    ModelRoles,
 )
 from inspect_ai.model._model import (
     get_model,
@@ -77,8 +92,15 @@ from inspect_ai.model._model import (
     init_model_roles,
     resolve_models,
 )
+from inspect_ai.review._apply import init_tool_review
+from inspect_ai.review._policy import (
+    ReviewPolicy,
+    ReviewPolicyConfig,
+    config_from_review_policies,
+    review_policies_from_config,
+)
 from inspect_ai.scorer._reducer import reducer_log_names
-from inspect_ai.solver._chain import chain
+from inspect_ai.solver._chain import chain, is_solver_sequence
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util import SandboxEnvironmentType
 from inspect_ai.util._checkpoint import CheckpointConfig, normalize_checkpoint
@@ -93,7 +115,7 @@ from inspect_ai.util._limit import TokenLimit, token_limit_fields
 from inspect_ai.util._notify import build_apprise, init_apprise
 
 from .context import init_eval_context
-from .loader import resolve_task_source, resolve_tasks
+from .loader import resolve_task_file_sandbox, resolve_task_source, resolve_tasks
 from .run import TaskInjection, eval_run
 from .task import Epochs, PreviousTask, Task, TaskSource
 from .task.enqueue import (
@@ -102,7 +124,8 @@ from .task.enqueue import (
     create_task_enqueuer,
     register_task_enqueuer,
 )
-from .task.resolved import ResolvedTask, resolved_model_names
+from .task.images import InputMediaPolicy
+from .task.resolved import ResolvedTask, resolved_model_names, resolved_task_names
 from .task.tasks import Tasks
 
 log = logging.getLogger(__name__)
@@ -113,20 +136,22 @@ def eval(
     model: str | Model | list[str] | list[Model] | None | NotGiven = NOT_GIVEN,
     model_base_url: str | None = None,
     model_args: dict[str, Any] | str = dict(),
-    model_roles: dict[str, str | Model] | None = None,
+    model_roles: ModelRoles | None = None,
     task_args: dict[str, Any] | str = dict(),
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
+    sandbox_prebuilt: bool | None = None,
     checkpoint: CheckpointConfig | bool | None = None,
     acp_server: bool | int | str | None = None,
     ctl_server: bool | str | None = None,
-    solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
+    solver: Solver | SolverSpec | Agent | Sequence[Solver] | None = None,
     scanner: "Scanners | None" = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
     trace: bool | None = None,
     display: DisplayType | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
+    review: str | list[ReviewPolicy] | ReviewPolicyConfig | None = None,
     notification: bool | str | None = None,
     log_level: str | None = None,
     log_level_transcript: str | None = None,
@@ -165,8 +190,10 @@ def eval(
     score: bool = True,
     score_display: bool | None = None,
     eval_set_id: str | None = None,
+    eval_set_tasks: list[str] | None = None,
     scan_id: str | None = None,
     task_retry_attempts: int | None = None,
+    sentinel: SentinelSpec | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
     r"""Evaluate tasks using a Model.
@@ -181,13 +208,16 @@ def eval(
             with the model API.
         model_args: Model creation args
             (as a dictionary or as a path to a JSON or YAML config file)
-        model_roles: Named roles for use in `get_model()`.
+        model_roles: Named roles for use in `get_model()` (a role can also map to a list of models).
         task_args: Task creation arguments
             (as a dictionary or as a path to a JSON or YAML config file)
         sandbox: Sandbox environment type
             (or optionally a str or tuple with a shorthand spec)
         sandbox_cleanup: Cleanup sandbox environments after task completes
             (defaults to True)
+        sandbox_prebuilt: Treat sandbox images as prebuilt, skipping builds
+            and failing at task startup when an image is missing
+            (defaults to False)
         checkpoint: Checkpoint configuration for this eval, or `True` to
             enable checkpointing with the default trigger (every 500k
             tokens) — equivalent to the bare `--checkpoint` CLI flag.
@@ -196,7 +226,7 @@ def eval(
             `Task(checkpoint=False)`, which overrides this enable for that
             task only.
         acp_server: Expose this eval over an Agent Client Protocol server.
-            `True` enables a default AF_UNIX socket at `<inspect_data_dir>/acp/<run_id>.sock`;
+            `True` enables a default AF_UNIX socket at `<inspect_data_dir>/acp/<pid>.sock`;
             an integer binds a TCP loopback port; a string is taken as a custom
             UNIX socket path; `None` (default) does not start an ACP server.
         ctl_server: Control-channel server for this eval process.
@@ -216,6 +246,9 @@ def eval(
         approval: Tool use approval policies.
             Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies.
             Defaults to no approval policy.
+        review: Tool result review policies.
+            Either a path to a review policy config file, a ReviewPolicyConfig, or a list of review policies.
+            Defaults to no review policy.
         notification: Enable out-of-band notifications when a human-in-the-loop
             interaction (`ask_user`, human approval) is posted. Pass `True` to
             send via the URL(s) in the `INSPECT_EVAL_NOTIFICATION` environment
@@ -233,7 +266,7 @@ def eval(
             to "eval", the native high-performance format).
         limit: Limit evaluated samples
             (defaults to all samples).
-        sample_id: Evaluate specific sample(s) from the dataset. Use plain ids or preface with task names as required to disambiguate ids across tasks (e.g. `popularity:10`)..
+        sample_id: Evaluate specific sample(s) from the dataset. Use plain ids or preface with task names as required to disambiguate ids across tasks (e.g. `popularity:10`); a prefix that names no task in the run is part of the id, and an empty list selects no samples.
         sample_shuffle: Shuffle order of samples (pass a seed to make the order deterministic).
         epochs: Epochs to repeat samples for and optional score
             reducer function(s) used to combine sample scores (defaults to "mean")
@@ -260,7 +293,10 @@ def eval(
         time_limit: Limit on clock time (in seconds) for samples.
         working_limit: Limit on working time (in seconds) for sample. Working
             time includes model generation, tool calls, etc. but does not include
-            time spent waiting on retries or shared resources.
+            time spent waiting on retries or shared resources. While a wait is
+            open, only model calls, sandbox commands and tool calls are charged,
+            so working time can undercount; set `time_limit` as well to bound
+            wall clock time.
         cost_limit: Limit on total cost (in dollars) for each sample.
             Requires model cost data via set_model_cost() or --model-cost-config.
         model_cost_config: YAML or JSON file with model prices for cost tracking
@@ -273,7 +309,7 @@ def eval(
         max_tasks: Maximum number of tasks to run in parallel
             (defaults to number of models being evaluated)
         max_subprocesses: Maximum number of subprocesses to
-            run in parallel (default is os.cpu_count())
+            run in parallel (default is the number of processors available to the eval)
         max_sandboxes: Maximum number of sandboxes (per-provider)
             to run in parallel.
         log_samples: Log detailed samples and scores (defaults to True)
@@ -295,8 +331,12 @@ def eval(
         score: Score output (defaults to True)
         score_display: Show scoring metrics in realtime (defaults to True)
         eval_set_id: Unique id for eval set (this is passed from `eval_set()` and should not be specified directly).
+        eval_set_tasks: Names of every task in the eval set, so `task:id` sample selectors resolve the same way for a retried subset of tasks (this is passed from `eval_set()` and should not be specified directly).
         scan_id: Override the scan-dir identifier (defaults to `eval_set_id` or `run_id`). Set by `eval_retry` to reuse the original eval's scan dir.
         task_retry_attempts: Number of times to retry tasks (defaults to 0)
+        sentinel: Monitors and protocols that watch the agent's steps (requires the `inspect_sentinel` package). Experimental: not yet a stable API; may change without notice.
+            A protocol, a list or mapping of monitors and protocols with at least one protocol, a config file path or registered protocol name, or a parsed configuration. Monitors alone are an error: wrap them in `observe_only()` to record without acting.
+            Overrides the task's sentinel. Defaults to no sentinel.
         **kwargs: Model generation options.
 
     Returns:
@@ -311,7 +351,8 @@ def eval(
     )
 
     async def run_task_app() -> list[EvalLog]:
-        try:
+        # exceptions can escape when debug_errors is True and that's okay
+        with unwrap_exception_group("first" if debug_errors else None):
             return await eval_async(
                 tasks=tasks,
                 model=model,
@@ -321,12 +362,15 @@ def eval(
                 task_args=task_args,
                 sandbox=sandbox,
                 sandbox_cleanup=sandbox_cleanup,
+                sandbox_prebuilt=sandbox_prebuilt,
                 checkpoint=checkpoint,
                 solver=solver,
                 scanner=scanner,
                 tags=tags,
                 metadata=metadata,
                 approval=approval,
+                review=review,
+                sentinel=sentinel,
                 notification=notification,
                 log_level=log_level,
                 log_level_transcript=log_level_transcript,
@@ -367,16 +411,11 @@ def eval(
                 acp_server=acp_server,
                 ctl_server=ctl_server,
                 eval_set_id=eval_set_id,
+                eval_set_tasks=eval_set_tasks,
                 scan_id=scan_id,
                 task_retry_attempts=task_retry_attempts,
                 **kwargs,
             )
-        # exceptions can escape when debug_errors is True and that's okay
-        except ExceptionGroup as ex:
-            if debug_errors:
-                raise ex.exceptions[0] from None
-            else:
-                raise
 
     result = task_display().run_task_app(with_async_fs(run_task_app))
 
@@ -403,18 +442,20 @@ async def eval_async(
     model: str | Model | list[str] | list[Model] | None | NotGiven = NOT_GIVEN,
     model_base_url: str | None = None,
     model_args: dict[str, Any] | str = dict(),
-    model_roles: dict[str, str | Model] | None = None,
+    model_roles: ModelRoles | None = None,
     task_args: dict[str, Any] | str = dict(),
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
+    sandbox_prebuilt: bool | None = None,
     checkpoint: CheckpointConfig | bool | None = None,
     acp_server: bool | int | str | None = None,
     ctl_server: bool | str | None = None,
-    solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
+    solver: Solver | SolverSpec | Agent | Sequence[Solver] | None = None,
     scanner: "Scanners | None" = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
+    review: str | list[ReviewPolicy] | ReviewPolicyConfig | None = None,
     notification: bool | str | None = None,
     log_level: str | None = None,
     log_level_transcript: str | None = None,
@@ -453,8 +494,10 @@ async def eval_async(
     score: bool = True,
     score_display: bool | None = None,
     eval_set_id: str | None = None,
+    eval_set_tasks: list[str] | None = None,
     scan_id: str | None = None,
     task_retry_attempts: int | None = None,
+    sentinel: SentinelSpec | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
     r"""Evaluate tasks using a Model (async).
@@ -467,13 +510,14 @@ async def eval_async(
             leave model usage entirely up to tasks.
         model_base_url: Base URL for communicating with the model API.
         model_args: Model creation args (as a dictionary or as a path to a JSON or YAML config file
-        model_roles: Named roles for use in `get_model()`.
+        model_roles: Named roles for use in `get_model()` (a role can also map to a list of models).
         task_args: Task creation arguments (as a dictionary or as a path to a JSON or YAML config file)
         sandbox: Sandbox environment type (or optionally a str or tuple with a shorthand spec)
         sandbox_cleanup: Cleanup sandbox environments after task completes (defaults to True)
+        sandbox_prebuilt: Treat sandbox images as prebuilt, skipping builds and failing at task startup when an image is missing (defaults to False)
         checkpoint: Checkpoint configuration for this eval, or `True` to enable checkpointing with the default trigger (every 500k tokens), equivalent to the bare `--checkpoint` CLI flag. Overrides any task- or sample-level `checkpoint` when set.
         acp_server: Expose this eval over an Agent Client Protocol server.
-            `True` enables a default AF_UNIX socket at `<inspect_data_dir>/acp/<run_id>.sock`;
+            `True` enables a default AF_UNIX socket at `<inspect_data_dir>/acp/<pid>.sock`;
             an integer binds a TCP loopback port; a string is taken as a custom
             UNIX socket path; `None` (default) does not start an ACP server.
         ctl_server: Control-channel server for this eval process.
@@ -489,6 +533,9 @@ async def eval_async(
         approval: Tool use approval policies.
             Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies.
             Defaults to no approval policy.
+        review: Tool result review policies.
+            Either a path to a review policy config file, a ReviewPolicyConfig, or a list of review policies.
+            Defaults to no review policy.
         notification: Enable out-of-band notifications when a human-in-the-loop
             interaction (`ask_user`, human approval) is posted. Pass `True` to
             send via the URL(s) in the `INSPECT_EVAL_NOTIFICATION` environment
@@ -503,7 +550,7 @@ async def eval_async(
         log_dir: Output path for logging results (defaults to file log in ./logs directory).
         log_format: Format for writing log files (defaults to "eval", the native high-performance format).
         limit: Limit evaluated samples (defaults to all samples).
-        sample_id: Evaluate specific sample(s) from the dataset. Use plain ids or preface with task names as required to disambiguate ids across tasks (e.g. `popularity:10`).
+        sample_id: Evaluate specific sample(s) from the dataset. Use plain ids or preface with task names as required to disambiguate ids across tasks (e.g. `popularity:10`); a prefix that names no task in the run is part of the id, and an empty list selects no samples.
         sample_shuffle: Shuffle order of samples (pass a seed to make the order deterministic).
         epochs: Epochs to repeat samples for and optional score
             reducer function(s) used to combine sample scores (defaults to "mean")
@@ -528,7 +575,10 @@ async def eval_async(
         time_limit: Limit on clock time (in seconds) for samples.
         working_limit: Limit on working time (in seconds) for sample. Working
             time includes model generation, tool calls, etc. but does not include
-            time spent waiting on retries or shared resources.
+            time spent waiting on retries or shared resources. While a wait is
+            open, only model calls, sandbox commands and tool calls are charged,
+            so working time can undercount; set `time_limit` as well to bound
+            wall clock time.
         cost_limit: Limit on total cost (in dollars) for each sample.
             Requires model cost data via set_model_cost() or --model-cost-config.
         model_cost_config: YAML or JSON file with model prices for cost tracking
@@ -539,7 +589,7 @@ async def eval_async(
             file on disk (defaults to None, which keeps all samples in memory).
         max_tasks: Maximum number of tasks to run in parallel
             (defaults to number of models being evaluated)
-        max_subprocesses: Maximum number of subprocesses to run in parallel (default is os.cpu_count())
+        max_subprocesses: Maximum number of subprocesses to run in parallel (default is the number of processors available to the eval)
         max_sandboxes: Maximum number of sandboxes (per-provider) to run in parallel.
         log_samples: Log detailed samples and scores (defaults to True)
         log_realtime: Log events in realtime (enables live viewing of samples in inspect view). Defaults to True.
@@ -555,8 +605,12 @@ async def eval_async(
         score: Score output (defaults to True)
         score_display: Show scoring metrics in realtime (defaults to True)
         eval_set_id: Unique id for eval set (this is passed from `eval_set()` and should not be specified directly).
+        eval_set_tasks: Names of every task in the eval set, so `task:id` sample selectors resolve the same way for a retried subset of tasks (this is passed from `eval_set()` and should not be specified directly).
         scan_id: Override the scan-dir identifier (defaults to `eval_set_id` or `run_id`). Set by `eval_retry` to reuse the original eval's scan dir.
         task_retry_attempts: Number of times to retry tasks (defaults to 0)
+        sentinel: Monitors and protocols that watch the agent's steps (requires the `inspect_sentinel` package). Experimental: not yet a stable API; may change without notice.
+            A protocol, a list or mapping of monitors and protocols with at least one protocol, a config file path or registered protocol name, or a parsed configuration. Monitors alone are an error: wrap them in `observe_only()` to record without acting.
+            Overrides the task's sentinel. Defaults to no sentinel.
         **kwargs: Model generation options.
 
     Returns:
@@ -595,12 +649,15 @@ async def eval_async(
                 task_args=task_args,
                 sandbox=sandbox,
                 sandbox_cleanup=sandbox_cleanup,
+                sandbox_prebuilt=sandbox_prebuilt,
                 checkpoint=checkpoint,
                 solver=solver,
                 scanner=scanner,
                 tags=tags,
                 metadata=metadata,
                 approval=approval,
+                review=review,
+                sentinel=sentinel,
                 notification=notification,
                 log_level=log_level,
                 log_level_transcript=log_level_transcript,
@@ -641,6 +698,7 @@ async def eval_async(
                 acp_server=acp_server,
                 ctl_server=ctl_server,
                 eval_set_id=eval_set_id,
+                eval_set_tasks=eval_set_tasks,
                 scan_id=scan_id,
                 task_retry_attempts=task_retry_attempts,
                 **kwargs,
@@ -652,7 +710,7 @@ async def eval_async(
         async with anyio.create_task_group() as tg:
             tg.start_soon(run, tg)
     except Exception as ex:
-        raise inner_exception(ex)
+        raise_unwrapped(ex, inner_exception(ex))
     except anyio.get_cancelled_exc_class():
         # Cancelled exceptions are expected and handled by _eval_async_inner
         if result is None:
@@ -669,18 +727,21 @@ async def _eval_async_inner(
     model: str | Model | list[str] | list[Model] | None | NotGiven = NOT_GIVEN,
     model_base_url: str | None = None,
     model_args: dict[str, Any] | str = dict(),
-    model_roles: dict[str, str | Model] | None = None,
+    model_roles: ModelRoles | None = None,
     task_args: dict[str, Any] | str = dict(),
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
+    sandbox_prebuilt: bool | None = None,
     checkpoint: CheckpointConfig | None = None,
     acp_server: bool | int | str | None = None,
     ctl_server: bool | str | None = None,
-    solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
+    solver: Solver | SolverSpec | Agent | Sequence[Solver] | None = None,
     scanner: "Scanners | None" = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
+    review: str | list[ReviewPolicy] | ReviewPolicyConfig | None = None,
+    sentinel: SentinelSpec | None = None,
     notification: bool | str | None = None,
     log_level: str | None = None,
     log_level_transcript: str | None = None,
@@ -719,6 +780,7 @@ async def _eval_async_inner(
     score: bool = True,
     score_display: bool | None = None,
     eval_set_id: str | None = None,
+    eval_set_tasks: list[str] | None = None,
     scan_id: str | None = None,
     task_retry_attempts: int | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
@@ -756,6 +818,7 @@ async def _eval_async_inner(
     run_id = uuid()
 
     enqueuer_token: Token[TaskEnqueuer | None] | None = None
+    trio_cancelled = False
     try:
         # intialise eval
         model = eval_init(
@@ -780,7 +843,7 @@ async def _eval_async_inner(
 
         # resolve tasks (a TaskSource seeds the run from initial_tasks(),
         # resolved inside eval_resolve_tasks' initialized model/role context)
-        resolved_tasks, approval = eval_resolve_tasks(
+        resolved_tasks, approval, review = eval_resolve_tasks(
             tasks,
             task_args,
             model,
@@ -792,6 +855,11 @@ async def _eval_async_inner(
             checkpoint,
             notification,
             task_source=task_source,
+            input_media_policy="trusted_pre_run",
+            review=review,
+        )
+        eval_sentinel = (
+            resolve_sentinel_spec(sentinel) if sentinel is not None else None
         )
 
         # warn and return empty string if we resolved no tasks
@@ -801,6 +869,14 @@ async def _eval_async_inner(
             )
 
         resolve_model_costs(resolved_tasks, cost_limit)
+
+        # make every resolved task's model addressable by the model pause
+        # directives up-front, ahead of the dispatcher's own registration
+        # (which happens as each batch is prepared, so it lags for tasks fed
+        # to later batches). This is also the first dispatch_model_name call,
+        # so the latch's name snapshots are taken here — before any generate
+        # can rewrite a provider's model name
+        note_dispatch_models([dispatch_model_name(t.model) for t in resolved_tasks])
 
         # if there is no max tasks then base it on unique model names
         if max_tasks is None:
@@ -845,10 +921,10 @@ async def _eval_async_inner(
             )
 
         # resolve solver
-        if isinstance(solver, list):
-            solver = chain(solver)
-        elif is_agent(solver):
+        if is_agent(solver):
             solver = as_solver(solver)
+        elif is_solver_sequence(solver):
+            solver = chain(solver)
         else:
             solver = cast(Solver | SolverSpec | None, solver)
 
@@ -882,6 +958,10 @@ async def _eval_async_inner(
             if epochs_reducer is not None
             else None,
             approval=config_from_approval_policies(approval) if approval else None,
+            review=config_from_review_policies(review) if review else None,
+            sentinel=sentinel_config(eval_sentinel)
+            if eval_sentinel is not None
+            else None,
             notification=notification,
             fail_on_error=fail_on_error,
             continue_on_fail=continue_on_fail,
@@ -900,6 +980,7 @@ async def _eval_async_inner(
             max_subprocesses=max_subprocesses,
             max_sandboxes=max_sandboxes,
             sandbox_cleanup=sandbox_cleanup,
+            sandbox_prebuilt=sandbox_prebuilt,
             log_samples=log_samples,
             log_realtime=log_realtime,
             log_images=log_images,
@@ -990,6 +1071,11 @@ async def _eval_async_inner(
         enqueuer: TaskEnqueuer = create_task_enqueuer(run_id, resolve_added_tasks)
         enqueuer_token = register_task_enqueuer(enqueuer)
 
+        # Imported here rather than at module level: the ACP server pulls in
+        # `acp.schema`, whose pydantic models are the single largest cost of
+        # `import inspect_ai` / `inspect` CLI startup.
+        from inspect_ai.agent._acp.server import acp_server as _acp_server
+
         async with (
             control_server(run_id=run_id, enabled=ctl.enabled) as _ctl_server,
             _acp_server(eval_id=run_id, transport=acp_server),
@@ -997,17 +1083,21 @@ async def _eval_async_inner(
             # emitted here — after the control-server bind, before any task
             # work — so a listener that has seen the handoff can rely on the
             # control surface existing (or being definitively absent)
+            control_socket = (
+                str(_ctl_server.socket_path)
+                if _ctl_server is not None and _ctl_server.socket_path is not None
+                else None
+            )
             emit_launch_handoff(
                 LaunchHandoff(
                     run_id=run_id,
                     pid=os.getpid(),
                     log_dir=log_dir,
-                    control_socket=str(_ctl_server.socket_path)
-                    if _ctl_server is not None and _ctl_server.socket_path is not None
-                    else None,
+                    control_socket=control_socket,
                     eval_set_id=eval_set_id,
                 )
             )
+            print_ctl_pointer(control_socket)
             with scan_cm:
                 # The one place eval_run is invoked for a batch of tasks. The
                 # initial tasks run as the first loop iteration below; tasks
@@ -1015,13 +1105,25 @@ async def _eval_async_inner(
                 # feed later iterations, all under this run_id. `debug_errors`
                 # is passed only on the parallel==1 path (the multi-task path
                 # never set it — preserved asymmetry).
+                # every task name the run has seen, so `task:id` sample
+                # selectors resolve the same way in every batch: the enclosing
+                # eval set's tasks (a retry runs a subset), then each batch as
+                # it is prepared (an enqueued task sees the ones before it)
+                task_names = list(eval_set_tasks or [])
+
                 async def run_batch(
                     tasks: list[ResolvedTask],
                     debug: bool,
                     inject: TaskInjection | None = None,
                 ) -> list[EvalLog]:
+                    task_names.extend(
+                        name
+                        for name in resolved_task_names(tasks)
+                        if name not in task_names
+                    )
                     return await eval_run(
                         eval_set_id=eval_set_id,
+                        eval_set_tasks=task_names,
                         run_id=run_id,
                         tasks=tasks,
                         parallel=parallel,
@@ -1030,6 +1132,9 @@ async def _eval_async_inner(
                         recorder=recorder,
                         header_only=log_header_only,
                         epochs_reducer=epochs_reducer,
+                        approval=approval,
+                        review=review,
+                        sentinel=eval_sentinel,
                         solver=solver,
                         scanner=scanner,
                         scan_id=scan_id,
@@ -1055,17 +1160,21 @@ async def _eval_async_inner(
                     while pending is not None:
                         batch_logs: list[EvalLog] = []
                         if parallel == 1:
-                            # single task definition (could be multi-model): run
-                            # sequence groups in order, stopping on cancellation
-                            for sequence in sorted({t.sequence for t in pending}):
-                                batch_logs.extend(
-                                    await run_batch(
-                                        [t for t in pending if t.sequence == sequence],
-                                        debug_errors is True,
-                                    )
-                                )
-                                if any(r.status == "cancelled" for r in batch_logs):
-                                    break
+                            # one batch in sequence-major order: the dispatcher
+                            # dispatches in queue order (preserving sequence
+                            # grouping at a limit of 1) and, unlike per-group
+                            # sub-batches, sees the whole queue — so a live
+                            # `ctl config --max-tasks` raise starts queued
+                            # tasks immediately
+                            ordered = [
+                                t
+                                for sequence in sorted({t.sequence for t in pending})
+                                for t in pending
+                                if t.sequence == sequence
+                            ]
+                            batch_logs.extend(
+                                await run_batch(ordered, debug_errors is True)
+                            )
                         else:
                             # multiple task definitions, run together
                             batch_logs.extend(await run_batch(pending, False))
@@ -1076,8 +1185,8 @@ async def _eval_async_inner(
                             break
 
                         # (a TaskSource observes results via sample_complete /
-                        # task_complete, fired from task_run as each sample/task
-                        # finishes — so its next_tasks() decision can use them)
+                        # task_complete, fired as each sample/task finishes —
+                        # so its next_tasks() decision can use them)
 
                         # next batch under this run_id: imperative additions
                         # (enqueue_task) first, else the TaskSource's next_tasks()
@@ -1096,10 +1205,12 @@ async def _eval_async_inner(
                     # next_tasks(), its sample/task_complete return values, or
                     # enqueue_task — start on free capacity rather than waiting
                     # for a batch boundary. This only helps when there is spare
-                    # capacity to fill (parallel > 1); with parallel == 1 nothing
-                    # runs concurrently, so we fall through to run_batches, which
-                    # preserves the parallel==1 sequence grouping (and still drives
-                    # the source via enqueuer.drain() / next_tasks()).
+                    # capacity to fill (parallel > 1); with parallel == 1 we fall
+                    # through to run_batches, whose sequence-major batch order
+                    # preserves sequence grouping at the launch limit (injection
+                    # feeds tasks in resolved, model-major order, which would
+                    # interleave task fan-outs) — and still drives the source
+                    # via enqueuer.drain() / next_tasks().
                     async def inject_next() -> list[ResolvedTask] | None:
                         more = await task_source.next_tasks()
                         return resolve_added_tasks(more) if more else None
@@ -1137,21 +1248,31 @@ async def _eval_async_inner(
                 )
                 await wait_for_shutdown_async(_ctl_server)
 
-        # cleanup sample buffers if required
-        cleanup_sample_buffers(log_dir)
+        # under trio, a Ctrl-C leaves the run's scope cancelled: finish the
+        # run shielded (on asyncio, the cancellation ends it as before)
+        trio_cancelled = (
+            current_async_backend() == "trio"
+            and anyio.current_effective_deadline() == -math.inf
+        )
+        with anyio.CancelScope(shield=True) if trio_cancelled else nullcontext():
+            # cleanup sample buffers if required
+            await cleanup_sample_buffers(log_dir)
 
-        try:
-            await emit_run_end(eval_set_id, run_id, logs)
-        except UnboundLocalError:
-            await emit_run_end(eval_set_id, run_id, EvalLogs([]))
-        _eval_async_running = False
+            try:
+                await emit_run_end(eval_set_id, run_id, logs)
+            except UnboundLocalError:
+                await emit_run_end(eval_set_id, run_id, EvalLogs([]))
 
     except BaseException as e:
-        await emit_run_end(eval_set_id, run_id, EvalLogs([]), e)
-        _eval_async_running = False
+        # a second Ctrl-C while finishing a cancelled trio run does not start
+        # the hooks again
+        if not trio_cancelled:
+            with anyio.CancelScope(shield=True):
+                await emit_run_end(eval_set_id, run_id, EvalLogs([]), e)
         raise e
 
     finally:
+        _eval_async_running = False
         # Stop accepting task additions for this run.
         if enqueuer_token is not None:
             clear_task_enqueuer(enqueuer_token)
@@ -1171,7 +1292,7 @@ def _resolve_enqueued_tasks(
     tasks: Tasks,
     *,
     models: list[Model],
-    model_roles: dict[str, str | Model] | None,
+    model_roles: ModelRoles | None,
     config: GenerateConfig,
     sandbox: SandboxEnvironmentType | None,
     sample_shuffle: bool | int | None,
@@ -1193,7 +1314,14 @@ def _resolve_enqueued_tasks(
             init_active_model(m, config)
             resolved.extend(
                 resolve_tasks(
-                    tasks, {}, m, resolved_roles, sandbox, sample_shuffle, checkpoint
+                    tasks,
+                    {},
+                    m,
+                    resolved_roles,
+                    sandbox,
+                    sample_shuffle,
+                    checkpoint,
+                    input_media_policy="inline_only",
                 )
             )
         return resolved
@@ -1206,7 +1334,10 @@ def _resolve_enqueued_tasks(
     # generate-config ContextVars, so running it in the caller's context would
     # swap that sample's active model out from under it; the copy keeps those
     # mutations local to resolution.
-    resolved = copy_context().run(resolve)
+    resolved = [
+        replace(resolved_task, input_media_policy="inline_only")
+        for resolved_task in copy_context().run(resolve)
+    ]
     if not resolved:
         raise ValueError("No tasks to enqueue (resolution produced none).")
     resolve_model_costs(resolved, cost_limit)
@@ -1224,6 +1355,7 @@ def eval_retry(
     max_subprocesses: int | None = None,
     max_sandboxes: int | None = None,
     sandbox_cleanup: bool | None = None,
+    sandbox_prebuilt: bool | None = None,
     trace: bool | None = None,
     display: DisplayType | None = None,
     fail_on_error: bool | float | None = None,
@@ -1246,9 +1378,12 @@ def eval_retry(
     max_retries: int | None = None,
     timeout: int | None = None,
     attempt_timeout: int | None = None,
+    stream_idle_timeout: int | None = None,
     max_connections: int | None = None,
     adaptive_connections: bool | int | AdaptiveConcurrency | None = None,
     checkpoint: CheckpointConfig | bool | None = None,
+    incomplete_action: IncompleteAction = "retry",
+    incomplete_max: int | float | None = None,
 ) -> list[EvalLog]:
     """Retry a previously failed evaluation task.
 
@@ -1266,11 +1401,14 @@ def eval_retry(
         max_tasks: Maximum number of tasks to run in parallel
             (defaults to number of models being evaluated)
         max_subprocesses: Maximum number of subprocesses to
-            run in parallel (default is os.cpu_count())
+            run in parallel (default is the number of processors available to the eval)
         max_sandboxes: Maximum number of sandboxes (per-provider)
             to run in parallel.
         sandbox_cleanup: Cleanup sandbox environments after task completes
             (defaults to True)
+        sandbox_prebuilt: Treat sandbox images as prebuilt, skipping builds
+            and failing at task startup when an image is missing
+            (defaults to False)
         trace: Trace message interactions with evaluated model to terminal.
         display: Task display type (defaults to 'full').
         fail_on_error: `True` to fail on a sample error
@@ -1322,6 +1460,8 @@ def eval_retry(
             Request timeout (in seconds)
         attempt_timeout:
             Timeout (in seconds) for any given attempt (if exceeded, will abandon attempt and retry according to max_retries).
+        stream_idle_timeout:
+            Timeout (in seconds) on silence within a streaming response (if a streaming attempt delivers no chunk for this long, will abandon attempt and retry according to max_retries).
         max_connections:
             Maximum number of concurrent connections to Model API (default is per Model API)
         adaptive_connections:
@@ -1338,6 +1478,20 @@ def eval_retry(
             Must match the config used on the original eval for resume
             detection to find the checkpoint files (the original
             `--checkpoint` is not recorded in the log file).
+        incomplete_action: Disposition applied when recovering a crashed log
+            before retrying, for samples that were in progress at crash.
+            `"retry"` (default) re-runs them; `"error"` resolves them as
+            operator terminations — if that leaves every expected sample
+            final, the recovered log finalizes as `status="success"` and is
+            returned without retrying. A finalized log lives at
+            `<name>-recovered.eval` alongside the crashed log rather than in
+            `log_dir`, so read its location from `EvalLog.location`.
+        incomplete_max: Safety threshold for `incomplete_action="error"`
+            (count if >= 1, or proportion of expected samples if strictly
+            less than 1, so `1.0` means one sample, not 100%): when more
+            than this many samples are in progress, fall back to the default
+            recover-and-retry behavior. Has no effect (a warning is logged)
+            with `incomplete_action="retry"`.
 
     Returns:
         List of EvalLog (one for each task)
@@ -1360,6 +1514,7 @@ def eval_retry(
             max_subprocesses=max_subprocesses,
             max_sandboxes=max_sandboxes,
             sandbox_cleanup=sandbox_cleanup,
+            sandbox_prebuilt=sandbox_prebuilt,
             fail_on_error=fail_on_error,
             continue_on_fail=continue_on_fail,
             retry_on_error=retry_on_error,
@@ -1380,9 +1535,12 @@ def eval_retry(
             max_retries=max_retries,
             timeout=timeout,
             attempt_timeout=attempt_timeout,
+            stream_idle_timeout=stream_idle_timeout,
             max_connections=max_connections,
             adaptive_connections=adaptive_connections,
             checkpoint=checkpoint,
+            incomplete_action=incomplete_action,
+            incomplete_max=incomplete_max,
         )
 
     result = task_display().run_task_app(with_async_fs(run_task_app))
@@ -1401,6 +1559,41 @@ def eval_retry(
     return result
 
 
+def _requalify_sample_ids(
+    task: str, sample_id: str | int | list[str] | list[int] | list[str | int] | None
+) -> str | int | list[str] | list[int] | list[str | int] | None:
+    """Re-qualify a log's `sample_id` with its task name for a retry.
+
+    A log records the selection already resolved for its task (a `task:`
+    prefix stripped), and the retry resolves it again — so an id that itself
+    begins with `<task>:` would be stripped twice. Prefixing each string id
+    with the task name makes the second resolution return exactly what ran.
+    """
+    if isinstance(sample_id, list):
+        return [f"{task}:{id}" if isinstance(id, str) else id for id in sample_id]
+    elif isinstance(sample_id, str):
+        return f"{task}:{sample_id}"
+    else:
+        return sample_id
+
+
+def _check_merged_log_retry(eval_log: EvalLog) -> None:
+    """Refuse a retry of a merged shard log whose selection a retry cannot express.
+
+    A merged log leaves `config.sample_id` unset, so a retry runs the whole
+    dataset. That is right only for a merge with no selection; an id or count
+    selection would run samples outside it.
+    """
+    shards = eval_log.eval.shards
+    if shards is not None and shards.selection != "none":
+        form = "ids" if shards.selection == "ids" else "count"
+        raise ValueError(
+            f"Cannot retry {eval_log.location or 'the log'}: it was merged from "
+            f"shards with a selection by sample {form}, which a retry cannot "
+            "reproduce. Re-run the incomplete shards and merge them again."
+        )
+
+
 async def eval_retry_async(
     tasks: str | EvalLogInfo | EvalLog | list[str] | list[EvalLogInfo] | list[EvalLog],
     log_level: str | None = None,
@@ -1412,6 +1605,7 @@ async def eval_retry_async(
     max_subprocesses: int | None = None,
     max_sandboxes: int | None = None,
     sandbox_cleanup: bool | None = None,
+    sandbox_prebuilt: bool | None = None,
     fail_on_error: bool | float | None = None,
     continue_on_fail: bool | None = None,
     retry_on_error: int | None = None,
@@ -1432,9 +1626,12 @@ async def eval_retry_async(
     max_retries: int | None = None,
     timeout: int | None = None,
     attempt_timeout: int | None = None,
+    stream_idle_timeout: int | None = None,
     max_connections: int | None = None,
     adaptive_connections: bool | int | AdaptiveConcurrency | None = None,
     checkpoint: CheckpointConfig | bool | None = None,
+    incomplete_action: IncompleteAction = "retry",
+    incomplete_max: int | float | None = None,
 ) -> list[EvalLog]:
     """Retry a previously failed evaluation task.
 
@@ -1448,10 +1645,13 @@ async def eval_retry_async(
         max_samples: Maximum number of samples to run in parallel within each task
            (default is max_connections)
         max_tasks: Maximum number of tasks to run in parallel (default is 1)
-        max_subprocesses: Maximum number of subprocesses to run in parallel (default is os.cpu_count())
+        max_subprocesses: Maximum number of subprocesses to run in parallel (default is the number of processors available to the eval)
         max_sandboxes: Maximum number of sandboxes (per-provider) to run in parallel.
         sandbox_cleanup: Cleanup sandbox environments after task completes
            (defaults to True)
+        sandbox_prebuilt: Treat sandbox images as prebuilt, skipping builds
+           and failing at task startup when an image is missing
+           (defaults to False)
         fail_on_error: `True` to fail on first sample error
            (default); `False` to never fail on sample errors; Value between 0 and 1
            to fail if a proportion of total samples fails. Value greater than 1 to fail
@@ -1497,9 +1697,24 @@ async def eval_retry_async(
         max_retries: Maximum number of times to retry request.
         timeout: Request timeout (in seconds)
         attempt_timeout: Timeout (in seconds) for any given attempt (if exceeded, will abandon attempt and retry according to max_retries).
+        stream_idle_timeout: Timeout (in seconds) on silence within a streaming response (if a streaming attempt delivers no chunk for this long, will abandon attempt and retry according to max_retries).
         max_connections: Maximum number of concurrent connections to Model API (default is per Model API)
         adaptive_connections: Adaptive concurrency for Model API connections. Defaults to enabled (resolves to `AdaptiveConcurrency()` defaults: min=10, start=20, max=100). Pass `False` to opt out, an integer `N` as shorthand for `AdaptiveConcurrency(max=N)`, or an `AdaptiveConcurrency` to fully customize bounds and tuning (cooldown_seconds, decrease_factor, scale_up_percent). An explicit `max_connections` or `batch=True` takes precedence and uses static concurrency.
         checkpoint: Checkpoint configuration for this retry, or `True` to enable checkpointing with the default trigger (every 500k tokens). Must match the config used on the original eval for resume detection to find the checkpoint files (the original `--checkpoint` is not recorded in the log file).
+        incomplete_action: Disposition applied when recovering a crashed log
+            before retrying, for samples that were in progress at crash.
+            `"retry"` (default) re-runs them; `"error"` resolves them as
+            operator terminations — if that leaves every expected sample
+            final, the recovered log finalizes as `status="success"` and is
+            returned without retrying. A finalized log lives at
+            `<name>-recovered.eval` alongside the crashed log rather than in
+            `log_dir`, so read its location from `EvalLog.location`.
+        incomplete_max: Safety threshold for `incomplete_action="error"`
+            (count if >= 1, or proportion of expected samples if strictly
+            less than 1, so `1.0` means one sample, not 100%): when more
+            than this many samples are in progress, fall back to the default
+            recover-and-retry behavior. Has no effect (a warning is logged)
+            with `incomplete_action="retry"`.
 
     Returns:
         List of EvalLog (one for each task)
@@ -1523,33 +1738,63 @@ async def eval_retry_async(
         )
         for task in tasks
     ]
-
+    for eval_log in retry_eval_logs:
+        _check_merged_log_retry(eval_log)
     # opportunistically recover crashed logs before retrying
+    from inspect_ai.log._recover import (
+        RecoveryNotAvailable,
+        RecoveryThresholdExceeded,
+        recover_eval_log_async,
+        resolve_incomplete_max,
+    )
+
+    incomplete_max = resolve_incomplete_max(incomplete_action, incomplete_max)
     recovered_files: dict[int, str] = {}
+    finalized_indexes: set[int] = set()
     for i, eval_log in enumerate(retry_eval_logs):
         if eval_log.status == "started" and eval_log.location:
-            from inspect_ai.log._recover import (
-                RecoveryNotAvailable,
-                recover_eval_log_async,
-            )
-
             try:
-                recovered = await recover_eval_log_async(
-                    eval_log.location, cleanup=False
-                )
+                try:
+                    # the buffer stays as a safety net while resolved samples
+                    # re-run; a finalized recovery is the final log, so sweep it
+                    recovered = await recover_eval_log_async(
+                        eval_log.location,
+                        cleanup="finalized",
+                        incomplete_action=incomplete_action,
+                        incomplete_max=incomplete_max,
+                        # the retry imports the task file and runs it next
+                        trust_log=True,
+                    )
+                except RecoveryThresholdExceeded as ex:
+                    log.warning(
+                        f"Recovery for {eval_log.location} exceeded "
+                        f"incomplete_max; falling back to recover-and-retry: {ex}"
+                    )
+                    recovered = await recover_eval_log_async(
+                        eval_log.location, cleanup=False, trust_log=True
+                    )
                 retry_eval_logs[i] = recovered
-                if recovered.location:
+                if recovered.status == "success":
+                    # recovery resolved every in-progress sample and finalized
+                    # the log — there is nothing left to retry (and the
+                    # recovered file is the final log, so don't clean it up)
+                    finalized_indexes.add(i)
+                elif recovered.location:
                     recovered_files[i] = recovered.location
             except RecoveryNotAvailable:
                 pass  # no recovery data available — proceed with flushed samples
             except Exception as ex:
-                logging.getLogger(__name__).warning(
-                    f"Recovery failed for {eval_log.location}: {ex}"
-                )
+                log.warning(f"Recovery failed for {eval_log.location}: {ex}")
 
     # eval them in turn
     eval_logs: list[EvalLog] = []
-    for eval_log in retry_eval_logs:
+    for i, eval_log in enumerate(retry_eval_logs):
+        # don't start another retry once the caller is cancelled (under trio
+        # a Ctrl-C leaves the scope cancelled after the interrupted eval)
+        await anyio.lowlevel.checkpoint_if_cancelled()
+        if i in finalized_indexes:
+            eval_logs.append(eval_log)
+            continue
         # the task needs to be either filesystem or registry
         # based in order to do a retry (we don't have enough
         # context to reconstruct ephemeral Task instances)
@@ -1611,7 +1856,9 @@ async def eval_retry_async(
                     log_format = "eval"
                 case ".json":
                     log_format = "json"
-        sample_id = eval_log.eval.config.sample_id
+        sample_id = _requalify_sample_ids(
+            eval_log.eval.task, eval_log.eval.config.sample_id
+        )
         sample_shuffle = eval_log.eval.config.sample_shuffle
         epochs = (
             Epochs(eval_log.eval.config.epochs, eval_log.eval.config.epochs_reducer)
@@ -1619,6 +1866,8 @@ async def eval_retry_async(
             else None
         )
         approval = eval_log.eval.config.approval
+        review = eval_log.eval.config.review
+        sentinel = eval_log.eval.config.sentinel
         notification: bool | str | None = eval_log.eval.config.notification
         message_limit = eval_log.eval.config.message_limit
         config_token_limit = eval_log.eval.config.token_limit
@@ -1641,6 +1890,11 @@ async def eval_retry_async(
             sandbox_cleanup
             if sandbox_cleanup is not None
             else eval_log.eval.config.sandbox_cleanup
+        )
+        sandbox_prebuilt = (
+            sandbox_prebuilt
+            if sandbox_prebuilt is not None
+            else eval_log.eval.config.sandbox_prebuilt
         )
         fail_on_error = (
             fail_on_error
@@ -1711,6 +1965,7 @@ async def eval_retry_async(
         )
         config.timeout = timeout or config.timeout
         config.attempt_timeout = attempt_timeout or config.attempt_timeout
+        config.stream_idle_timeout = stream_idle_timeout or config.stream_idle_timeout
         config.max_connections = max_connections or config.max_connections
         if adaptive_connections is not None:
             config.adaptive_connections = adaptive_connections
@@ -1732,7 +1987,7 @@ async def eval_retry_async(
         )
 
         # run the eval
-        log = (
+        retried_log = (
             await eval_async(
                 tasks=PreviousTask(
                     id=task_id,
@@ -1740,20 +1995,26 @@ async def eval_retry_async(
                     task_args=task_args,
                     model=None,
                     model_roles=None,
+                    sandbox=resolve_task_file_sandbox(
+                        eval_log.eval.task_file, eval_log.eval.sandbox
+                    ),
                     log=eval_log,
                     log_info=None,
                 ),
                 model=model,
-                model_roles=cast(dict[str, str | Model], model_roles),
+                model_roles=model_roles,
                 task_args=task_args,
                 sandbox=eval_log.eval.sandbox,
                 sandbox_cleanup=sandbox_cleanup,
+                sandbox_prebuilt=sandbox_prebuilt,
                 solver=solver,
                 scanner=scanner,
                 scan_id=retry_scan_id,
                 tags=tags,
                 metadata=metadata,
                 approval=approval,
+                review=review,
+                sentinel=sentinel,
                 notification=notification,
                 log_level=log_level,
                 log_level_transcript=log_level_transcript,
@@ -1794,7 +2055,7 @@ async def eval_retry_async(
         )[0]
 
         # add it to our results
-        eval_logs.append(log)
+        eval_logs.append(retried_log)
 
     # Clean up recovered files only for retries that succeeded. On failure,
     # the recovered file serves as a safety net with samples that would
@@ -1845,7 +2106,7 @@ def eval_resolve_tasks(
     tasks: Tasks,
     task_args: dict[str, Any] | str,
     models: list[Model],
-    model_roles: dict[str, str | Model] | None,
+    model_roles: ModelRoles | None,
     config: GenerateConfig,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None,
     sandbox: SandboxEnvironmentType | None,
@@ -1853,7 +2114,9 @@ def eval_resolve_tasks(
     eval_checkpoint: CheckpointConfig | None = None,
     notification: bool | str | None = None,
     task_source: TaskSource | None = None,
-) -> tuple[list[ResolvedTask], list[ApprovalPolicy] | None]:
+    input_media_policy: InputMediaPolicy = "inline_only",
+    review: str | list[ReviewPolicy] | ReviewPolicyConfig | None = None,
+) -> tuple[list[ResolvedTask], list[ApprovalPolicy] | None, list[ReviewPolicy] | None]:
     # resolve model roles and initialize them in the eval context -- this
     # will enable tasks that reference model roles in their initialization
     # to pickup these mappings
@@ -1892,18 +2155,22 @@ def eval_resolve_tasks(
                     # TaskSource already consumed task_args to build its seed
                     # (resolve_task_source), so don't warn for that path.
                     warn_unconsumed_task_args=(i == 0 and task_source is None),
+                    input_media_policy=input_media_policy,
                 )
             )
 
     if isinstance(approval, str | ApprovalPolicyConfig):
         approval = approval_policies_from_config(approval)
     init_tool_approval(approval)
+    if isinstance(review, str | ReviewPolicyConfig):
+        review = review_policies_from_config(review)
+    init_tool_review(review)
 
     # install Apprise notification target for the eval scope
     init_apprise(build_apprise(notification))
 
-    # return tasks and approval
-    return resolved_tasks, approval
+    # return tasks, approval, and review
+    return resolved_tasks, approval, review
 
 
 def init_eval_display(

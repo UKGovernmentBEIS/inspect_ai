@@ -122,9 +122,22 @@ class AsyncDecodedStreamReader:
                read until EOF is reached.
 
         Returns:
-            Decoded string from the read bytes using the encoding specified during initialization.
+            Decoded string from the read bytes using the encoding specified
+            during initialization. An empty string is returned only at EOF:
+            when a read delivers only the leading bytes of an incomplete
+            multi-byte character (which the incremental decoder buffers,
+            decoding to nothing), reading continues rather than returning an
+            empty string a caller would mistake for EOF.
         """
-        return self._decoder.decode(await self._reader.read(n))
+        while True:
+            data = await self._reader.read(n)
+            if not data:
+                # true EOF: flush the decoder so any dangling partial
+                # character surfaces per the decoder's error policy
+                return self._decoder.decode(b"", final=True)
+            decoded = self._decoder.decode(data)
+            if decoded:
+                return decoded
 
     def close(self) -> None:
         """Release all resources.

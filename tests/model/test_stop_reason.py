@@ -3,6 +3,7 @@ from typing import Any
 import pytest
 from test_helpers.utils import (
     skip_if_no_anthropic,
+    skip_if_no_deepseek,
     skip_if_no_grok,
     skip_if_no_groq,
     skip_if_no_moonshot,
@@ -43,7 +44,7 @@ async def test_groq_stop_reason() -> None:
 @skip_if_no_openai
 @skip_if_trio
 async def test_openai_stop_reason() -> None:
-    await check_stop_reason("openai/gpt-3.5-turbo")
+    await check_stop_reason("openai/gpt-4o-mini")
 
 
 @skip_if_no_openai
@@ -77,3 +78,11 @@ async def test_moonshot_stop_reason() -> None:
     # K3 thinking is always on, so the max_tokens check exercises a
     # reasoning-only truncated response.
     await check_stop_reason("moonshot/kimi-k3")
+
+
+@skip_if_no_deepseek
+@skip_if_trio
+async def test_deepseek_stop_reason() -> None:
+    # V4 thinking is on by default, so the max_tokens check exercises a
+    # reasoning-only truncated response.
+    await check_stop_reason("deepseek/deepseek-flash")

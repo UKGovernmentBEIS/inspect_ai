@@ -1,18 +1,17 @@
 import asyncio
-import contextlib
-import inspect
 import os
 import urllib.parse
-from collections.abc import AsyncIterable
+from collections.abc import AsyncIterable, Awaitable, Callable
 from functools import partial
 from importlib.metadata import PackageNotFoundError, version
 from io import BytesIO
 from logging import getLogger
-from typing import Any, AsyncIterator, Literal, NamedTuple, Tuple, cast
+from typing import Any, Literal, NamedTuple, Tuple, cast
 
+import anyio
 import fsspec  # type: ignore
 from aiobotocore.response import StreamingBody
-from botocore.exceptions import ClientError
+from anyio import EndOfStream
 from fsspec.asyn import AsyncFileSystem  # type: ignore
 from fsspec.core import split_protocol  # type: ignore
 from pydantic import BaseModel
@@ -21,22 +20,18 @@ from s3fs.core import _error_wrapper, version_id_kw  # type: ignore
 
 from inspect_ai._eval.evalset import EvalSet
 from inspect_ai._util._async import tg_collect
-from inspect_ai._util.asyncfiles import AsyncFilesystem
+from inspect_ai._util.asyncfiles import _READ_FULLY_CHUNK_SIZE, AsyncFilesystem
 from inspect_ai._util.azure import is_azure_auth_error
 from inspect_ai._util.constants import PKG_NAME
 from inspect_ai._util.file import default_fs_options, dirname, filesystem, size_in_mb
-from inspect_ai._view.azure import (
-    azure_warning_hint,
-    normalize_azure_listing_name,
-    should_suppress_azure_error,
-)
+from inspect_ai._view.azure import normalize_azure_listing_name
 from inspect_ai.log._edit import LogUpdate, edit_eval_log
 from inspect_ai.log._file import (
     EvalLogInfo,
     eval_log_json,
     is_log_file,
+    list_eval_logs_async,
     log_file_info_async,
-    log_files_from_ls_async,
     read_eval_log_async,
     write_eval_log_async,
 )
@@ -44,7 +39,7 @@ from inspect_ai.log._log import EvalLog
 from inspect_ai.log._recorders.buffer.buffer import sample_buffer
 from inspect_ai.log._recorders.buffer.filestore import SampleBufferFilestore
 from inspect_ai.log._recorders.buffer.types import PendingSampleUrls, SegmentRef
-from inspect_ai.log._recorders.eval import s3_head_etag
+from inspect_ai.log._shard_listing import filter_merged_shards, merged_logs_to_check
 
 logger = getLogger(__name__)
 
@@ -64,7 +59,14 @@ def normalize_uri(uri: str) -> str:
         path = parsed.path
 
         # Detect and normalize Windows-style file URIs
-        if path.startswith("/") and len(path) > 3 and path[2] == ":":
+        if (
+            len(parsed.netloc) == 2
+            and parsed.netloc[0].isalpha()
+            and parsed.netloc[1] == ":"
+        ):
+            # Preserve the drive parsed as the authority in `file://C:/...`
+            path = f"{parsed.netloc}{path}"
+        elif path.startswith("/") and len(path) > 3 and path[2] == ":":
             # Strip leading `/` before drive letter
             path = path[1:]
 
@@ -76,9 +78,13 @@ class AppConfig(BaseModel):
 
     inspect_version: str
     scout_version: str | None = None
+    trust_content: bool | None = None
+    """Viewer-wide content trust (`inspect view --no-trust-content`). `False`
+    shows the content of every log as plain text; `None` or `True` defers to
+    each log's own `ViewerConfig(trust_content=...)`."""
 
 
-def get_app_config() -> AppConfig:
+def get_app_config(trust_content: bool | None = None) -> AppConfig:
     """Return app config, including installed inspect and scout versions.
 
     `inspect_scout` is an optional dependency, so `scout_version` is None when
@@ -91,6 +97,7 @@ def get_app_config() -> AppConfig:
     return AppConfig(
         inspect_version=version(PKG_NAME),
         scout_version=scout_version,
+        trust_content=trust_content,
     )
 
 
@@ -135,8 +142,8 @@ async def read_eval_set_info_async(
     Returns None when the manifest is absent, or (matching `read_eval_set_info`)
     when the check/read fails with an Azure auth error.
     """
-    sep = filesystem(eval_set_dir).sep
-    manifest = f"{eval_set_dir.rstrip('/').rstrip(sep)}{sep}eval-set.json"
+    fs = filesystem(eval_set_dir)
+    manifest = f"{fs.dir_location(eval_set_dir)}{fs.sep}eval-set.json"
     try:
         if not await afs.exists(manifest):
             return None
@@ -147,19 +154,108 @@ async def read_eval_set_info_async(
         raise
 
 
+class ShardListing(NamedTuple):
+    """A listing with merged shards hidden, and what the client must refresh."""
+
+    logs: list[EvalLogInfo]
+    """The logs to show."""
+
+    visible_shards: bool
+    """Whether any shard log was left visible."""
+
+    hiding_mtime: float | None
+    """Newest mtime of a merged log that hides shards (None if none do)."""
+
+
+# merged log name -> ((mtime, size), finished) for the file version whose
+# status was read; one entry per merged log seen, so it stays small
+_merged_log_finished: dict[str, tuple[tuple[float | None, int], bool]] = {}
+
+# (name, mtime) of merged logs whose status could not be read, so each
+# unreadable version is warned about once
+_merged_log_warned: set[tuple[str, float | None]] = set()
+
+
+async def hide_merged_shards(
+    logs: list[EvalLogInfo],
+    can_read: Callable[[str], Awaitable[bool]] | None = None,
+) -> ShardListing:
+    """Remove shard logs that their merged log already covers from a listing.
+
+    Reads the status of each merged log that could hide a shard, once per
+    file version (mtime and size). A merged log the caller may not read, or
+    whose status cannot be read, hides nothing; read failures are not cached,
+    so a transient error is retried on the next listing.
+
+    Args:
+        logs: The listing.
+        can_read: Whether the requester may read a log (by listing name).
+            Checked on every call, before the cache.
+    """
+    semaphore = anyio.Semaphore(8)
+
+    async def finished(log: EvalLogInfo) -> bool:
+        if can_read is not None and not await can_read(log.name):
+            return False
+        version = (log.mtime, log.size)
+        cached = _merged_log_finished.get(log.name)
+        if cached is not None and cached[0] == version:
+            return cached[1]
+        async with semaphore:
+            try:
+                header = await read_eval_log_async(log.name, header_only=True)
+            except Exception as ex:
+                if (log.name, log.mtime) not in _merged_log_warned:
+                    _merged_log_warned.add((log.name, log.mtime))
+                    logger.warning(
+                        f"Showing shards of {log.name}: unable to read its status ({ex})"
+                    )
+                return False
+        is_finished = header.status == "success"
+        _merged_log_finished[log.name] = (version, is_finished)
+        return is_finished
+
+    merged = merged_logs_to_check(logs)
+    results = await tg_collect([partial(finished, log) for log in merged])
+    finished_logs = [log for log, done in zip(merged, results) if done]
+    filtered = filter_merged_shards(logs, {log.name for log in finished_logs})
+    return ShardListing(
+        logs=filtered.logs,
+        visible_shards=filtered.visible_shards,
+        hiding_mtime=max(
+            (log.mtime for log in finished_logs if log.mtime is not None),
+            default=None,
+        ),
+    )
+
+
 async def get_log_files(
     request_log_dir: str,
     recursive: bool,
     fs_options: dict[str, Any],
     mtime: float,
     file_count: int,
+    show_shards: bool = False,
+    can_read: Callable[[str], Awaitable[bool]] | None = None,
 ) -> LogFilesResponse:
     # list logs
     logs = await list_eval_logs_async(
         log_dir=request_log_dir, recursive=recursive, fs_options=fs_options
     )
 
-    if len(logs) != file_count:
+    # hiding or un-hiding a shard can leave the file count unchanged and
+    # involve files older than the client's token (a merge landing, a merged
+    # log deleted), and only full responses remove rows from the client's
+    # listing; a finished run whose shards are all hidden stays incremental
+    refresh = False
+    if not show_shards:
+        listing = await hide_merged_shards(logs, can_read)
+        logs = listing.logs
+        refresh = listing.visible_shards or (
+            listing.hiding_mtime is not None and listing.hiding_mtime > mtime
+        )
+
+    if len(logs) != file_count or refresh:
         # Has the number of files changed? could be a delete
         # so send a complete list
         return log_files_response(
@@ -283,17 +379,10 @@ async def apply_log_edits(
             "Wait for the eval to finish (status != 'started'), then try again."
         )
     log = edit_eval_log(log, update.edits, update.provenance)
-    await write_eval_log_async(
+    write_result = await write_eval_log_async(
         log, location=file, if_match_etag=if_match_etag, header_only=True
     )
-    # Capture the post-write ETag on S3 via a HEAD — far cheaper than
-    # re-parsing the zip header, since we only need the ETag header on
-    # the response, not the body. Skipped on local filesystems where
-    # there's no ETag concept.
-    new_etag: str | None = None
-    if filesystem(file).is_s3():
-        new_etag = await s3_head_etag(file)
-    return LogPayload(contents=eval_log_json(log), etag=new_etag)
+    return LogPayload(contents=eval_log_json(log), etag=write_result.etag)
 
 
 async def get_log_size(log_file: str) -> int:
@@ -358,12 +447,17 @@ async def build_pending_sample_urls(
     after_call_pool_id: int | None,
     max_segments: int | None,
     tail: bool = False,
+    direct_urls: bool = True,
 ) -> PendingSampleUrls | None:
     """Build the `/pending-sample-data-urls` response, or None for 404.
 
     Returns None when the buffer is not filestore-backed (in-process database
     buffer for a running eval, not yet synced), the manifest is missing, or
     the requested sample is not in the manifest. Callers map None to 404.
+
+    When `direct_urls` is False, no segment is presigned and every
+    `direct_url` is None, so clients fetch segments through the server (e.g.
+    a viewer whose Content-Security-Policy can't reach S3).
     """
     buffer = sample_buffer(file)
     if not isinstance(buffer, SampleBufferFilestore):
@@ -382,12 +476,16 @@ async def build_pending_sample_urls(
     if pending is None:
         return None
 
-    direct_urls = await tg_collect(
-        [partial(get_direct_url, seg.path) for seg in pending.segments]
+    urls: list[str | None] = (
+        await tg_collect(
+            [partial(get_direct_url, seg.path) for seg in pending.segments]
+        )
+        if direct_urls
+        else [None] * len(pending.segments)
     )
     refs = [
         SegmentRef(id=seg.id, member_name=seg.member_name, direct_url=url)
-        for seg, url in zip(pending.segments, direct_urls)
+        for seg, url in zip(pending.segments, urls)
     ]
 
     return PendingSampleUrls(
@@ -428,6 +526,14 @@ async def get_log_bytes(
         res: bytes = await async_connection(log_file)._cat_file(
             log_file, start=start, end=adjusted_end
         )
+    elif fs.is_local():
+        # Read off the event loop via asyncfiles' anyio-backed reader so the
+        # read doesn't pin the loop. An open-ended read runs to EOF rather
+        # than to a stat'ed size, which would truncate files that grow
+        # between stat and read (in-progress evals are rewritten in place).
+        res = await AsyncFilesystem().read_file_bytes_fully(
+            log_file, start or 0, adjusted_end
+        )
     else:
         res = fs.read_bytes(log_file, start, adjusted_end)
 
@@ -443,6 +549,10 @@ async def stream_log_bytes(
 ) -> AsyncIterable[bytes] | BytesIO:
     """Download log bytes with optional streaming for large files.
 
+    The S3 return value is a live connection-backed body the caller must
+    `release()` (see `ReleasingStreamingResponse`); the local streaming
+    branch closes itself.
+
     Args:
         log_file: The log file to download.
         start: The start byte position to download from.
@@ -455,6 +565,45 @@ async def stream_log_bytes(
 
     # fetch bytes
     fs = filesystem(log_file)
+
+    if fs.is_local():
+        if start is not None and end is not None:
+            request_size = end - start + 1
+        elif log_file_size is not None:
+            request_size = log_file_size
+        else:
+            request_size = await get_log_size(log_file)
+
+        # request_size routes buffered-vs-streaming only — it may be a stale
+        # stat, so the reads below must run to EOF when open-ended rather
+        # than treating it as a byte bound (files grow between stat and
+        # read while an eval is in progress).
+        if request_size <= stream_threshold_bytes:
+            return BytesIO(await get_log_bytes(log_file, start, end))
+
+        # Stream large local files chunked off the event loop rather than
+        # buffering them. (Previously this fell through to the S3 path and
+        # raised "Expected S3FileSystem" for local files over the threshold.)
+        read_start = start or 0
+        read_end = end + 1 if end is not None else None
+
+        async def _stream_local() -> AsyncIterable[bytes]:
+            byte_stream = await AsyncFilesystem().read_file_bytes(
+                log_file, read_start, read_end
+            )
+            try:
+                # pull 1MB per receive: iterating the stream directly uses
+                # anyio's 64KB default, i.e. one thread hop per 64KB
+                while True:
+                    try:
+                        yield await byte_stream.receive(_READ_FULLY_CHUNK_SIZE)
+                    except EndOfStream:
+                        break
+            finally:
+                await byte_stream.aclose()
+
+        return _stream_local()
+
     if not fs.is_async() or not fs.is_s3():
         if start is not None and end is not None:
             request_size = end - start + 1
@@ -497,7 +646,11 @@ async def stream_log_bytes(
 
 
 async def get_logs(
-    request_log_dir: str, recursive: bool, fs_options: dict[str, Any]
+    request_log_dir: str,
+    recursive: bool,
+    fs_options: dict[str, Any],
+    show_shards: bool = False,
+    can_read: Callable[[str], Awaitable[bool]] | None = None,
 ) -> LogListingResponse | None:
     # if the log_dir contains the path to a specific file
     # then just return that file
@@ -512,6 +665,8 @@ async def get_logs(
     logs = await list_eval_logs_async(
         log_dir=request_log_dir, recursive=recursive, fs_options=fs_options
     )
+    if not show_shards:
+        logs = (await hide_merged_shards(logs, can_read)).logs
     return get_log_listing(logs, request_log_dir)
 
 
@@ -576,128 +731,6 @@ def async_connection(log_file: str) -> AsyncFileSystem:
     return _async_connections.get(protocol)
 
 
-@contextlib.asynccontextmanager
-async def async_filesystem(
-    location: str, fs_options: dict[str, Any] = {}
-) -> AsyncIterator[AsyncFileSystem]:
-    # determine protocol
-    protocol, _ = split_protocol(location)
-    protocol = protocol or "file"
-
-    # build options
-    options = default_fs_options(location)
-    options.update(fs_options)
-
-    if protocol == "s3":
-        options["skip_instance_cache"] = True
-        s3 = S3FileSystem(asynchronous=True, **options)
-        session = await s3.set_session()
-        try:
-            yield s3
-        finally:
-            await session.close()
-    else:
-        options.update({"asynchronous": True, "loop": asyncio.get_event_loop()})
-        yield fsspec.filesystem(protocol, **options)
-
-
-async def list_eval_logs_async(
-    log_dir: str = os.environ.get("INSPECT_LOG_DIR", "./logs"),
-    formats: list[Literal["eval", "json"]] | None = None,
-    recursive: bool = True,
-    descending: bool = True,
-    fs_options: dict[str, Any] = {},
-) -> list[EvalLogInfo]:
-    """List all eval logs in a directory.
-
-    Will be async for filesystem providers that support async (e.g. s3, gcs, etc.)
-    otherwise will fallback to sync implementation.
-
-    Args:
-      log_dir (str): Log directory (defaults to INSPECT_LOG_DIR)
-      formats (Literal["eval", "json"]): Formats to list (default
-        to listing all formats)
-      recursive (bool): List log files recursively (defaults to True).
-      descending (bool): List in descending order.
-      fs_options (dict[str, Any]): Optional. Additional arguments to pass through
-          to the filesystem provider (e.g. `S3FileSystem`).
-
-    Returns:
-       List of EvalLog Info.
-    """
-    # async filesystem if we can
-    fs = filesystem(log_dir, fs_options)
-    if fs.is_s3() and not fs_options:
-        # S3: list via the shared async filesystem (one warm aioboto3 client +
-        # connection pool, reused across requests when the view server binds it).
-        # iter_files(detail=True) is a single list_objects_v2 sweep that returns
-        # FileInfo (name/size/mtime) — no separate existence precheck or per-file
-        # stat — and a missing prefix simply yields nothing.
-        try:
-            async with AsyncFilesystem() as afs:
-                logs = [
-                    info
-                    async for info in afs.iter_files(
-                        log_dir, recursive=recursive, detail=True
-                    )
-                ]
-        except ClientError as ex:
-            # a missing bucket is an empty listing (as with the existence
-            # precheck the other branches perform), not an error
-            if ex.response.get("Error", {}).get("Code") in (
-                "NoSuchBucket",
-                "404",
-                "NotFound",
-            ):
-                return []
-            raise
-        # resolve to eval logs (async fan-out so header reads on
-        # non-conforming filenames don't block the event loop)
-        return await log_files_from_ls_async(logs, formats, descending)
-    elif fs.is_async():
-        async with async_filesystem(log_dir, fs_options=fs_options) as async_fs:
-            # Attempt existence check with robust handling for Azure-style auth issues.
-            try:
-                exists = await async_fs._exists(log_dir)
-            except Exception as ex:  # noqa: BLE001
-                if should_suppress_azure_error(log_dir, ex):
-                    logger.warning(azure_warning_hint(log_dir, ex))
-                    exists = True
-                else:
-                    # TODO: Add S3 login error catching, as well as any other remote file system of interest
-                    # Re-raise non-auth related issues
-                    raise
-
-            if exists:
-                # prevent caching of listings
-                async_fs.invalidate_cache(log_dir)
-                # list logs
-                if recursive:
-                    if _walk_supports_detail(async_fs):
-                        files = await _walk_with_detail(async_fs, log_dir)
-                    else:
-                        files = await _walk_without_detail(async_fs, log_dir)
-                else:
-                    files = cast(
-                        list[dict[str, Any]],
-                        await async_fs._ls(log_dir, detail=True),
-                    )
-                logs = [fs._file_info(file) for file in files]
-                # resolve to eval logs (async fan-out so header reads on
-                # non-conforming filenames don't block the event loop)
-                return await log_files_from_ls_async(logs, formats, descending)
-            else:
-                return []
-    else:
-        # sync filesystem (e.g. local) — list sync but resolve headers via
-        # the async fan-out so non-conforming filenames don't block the loop
-        # and so trio callers don't hit the sync-only read_eval_log path.
-        if not fs.exists(log_dir):
-            return []
-        logs = fs.ls(log_dir, recursive=recursive)
-        return await log_files_from_ls_async(logs, formats, descending)
-
-
 def resolve_header_only(path: str, header_only: int | None) -> bool:
     # if there is a max_size passed, respect that and switch to
     # header_only mode if the file is too large
@@ -736,51 +769,3 @@ def aliased_path(path: str) -> str:
         return path.replace(home_dir, "~", 1)
     else:
         return path
-
-
-def _walk_supports_detail(fs: AsyncFileSystem) -> bool:
-    walk = getattr(fs, "_walk", None)
-    if walk is None:
-        return False
-    try:
-        signature = inspect.signature(walk)
-    except (TypeError, ValueError):
-        return False
-    parameter = signature.parameters.get("detail")
-    if parameter is None:
-        return False
-    return parameter.kind in (
-        inspect.Parameter.POSITIONAL_OR_KEYWORD,
-        inspect.Parameter.KEYWORD_ONLY,
-    )
-
-
-async def _walk_with_detail(fs: AsyncFileSystem, log_dir: str) -> list[dict[str, Any]]:
-    files: list[dict[str, Any]] = []
-    async for _, _, filenames in fs._walk(log_dir, detail=True):
-        files.extend(filenames.values())
-    return files
-
-
-async def _walk_without_detail(
-    fs: AsyncFileSystem, log_dir: str
-) -> list[dict[str, Any]]:
-    files: list[dict[str, Any]] = []
-    stack: list[str] = [log_dir]
-    seen: set[str] = set()
-    while stack:
-        current = stack.pop()
-        try:
-            entries = await fs._ls(current, detail=True)
-        except Exception:
-            continue
-        for entry in entries:
-            name = entry.get("name") or entry.get("path")
-            if not name:
-                continue
-            files.append(entry)
-            entry_type = entry.get("type")
-            if (entry_type == "directory" or name.endswith("/")) and name not in seen:
-                seen.add(name)
-                stack.append(name)
-    return files

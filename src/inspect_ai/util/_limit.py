@@ -26,6 +26,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from typing_extensions import Self, override
 
 from inspect_ai._util.logger import warn_once
+from inspect_ai._util.working import SampleTiming, sample_timing, sample_wait
 
 if TYPE_CHECKING:
     # These imports are used as type hints only - prevent circular imports.
@@ -91,6 +92,14 @@ class Limit(abc.ABC):
 
     def __init__(self) -> None:
         self._entered = False
+        # live override source for a sample-root node (attached by
+        # inspect_ai.util._limit_overrides.sample_limit_override_scope and
+        # resolved by the node's `limit` property); None for ordinary nodes
+        self._limit_override: Callable[[], int | None] | None = None
+
+    def _limit_override_value(self) -> int | None:
+        """The live override for this node, or ``None`` when none applies."""
+        return self._limit_override() if self._limit_override is not None else None
 
     @abc.abstractmethod
     def __enter__(self) -> Limit:
@@ -616,7 +625,7 @@ def record_model_usage(usage: ModelUsage) -> None:
     node.record(usage)
 
 
-def check_token_limit() -> None:
+def check_token_limit(raise_for_equal: bool = False) -> None:
     """Check if the current token usage exceeds _any_ of the token limits.
 
     Within the current execution context (e.g. async task) and its parent contexts only.
@@ -624,13 +633,17 @@ def check_token_limit() -> None:
     Note that all active token limits are checked, not just the most recent one.
 
     No-op when token limits are suspended (see `suspend_token_limit()`).
+
+    Args:
+      raise_for_equal: If True, also raise when usage equals a limit (used before a
+        model call, which is guaranteed to exceed a limit that has been reached).
     """
     if token_limit_tree.is_suspended():
         return
     node = token_limit_tree.get()
     if node is None:
         return
-    node.check()
+    node.check(raise_for_equal)
 
 
 def suspend_token_limit() -> AbstractContextManager[None]:
@@ -691,17 +704,21 @@ def record_model_cost(cost: float) -> None:
     node.record(cost)
 
 
-def check_cost_limit() -> None:
+def check_cost_limit(raise_for_equal: bool = False) -> None:
     """Check if the current cost exceeds _any_ of the cost limits.
 
     Within the current execution context (e.g. async task) and its parent contexts only.
 
     Note that all active cost limits are checked, not just the most recent one.
+
+    Args:
+      raise_for_equal: If True, also raise when cost equals a limit (used before a
+        model call, which is guaranteed to exceed a limit that has been reached).
     """
     node = cost_limit_tree.get()
     if node is None:
         return
-    node.check()
+    node.check(raise_for_equal)
 
 
 def message_limit(limit: int | None) -> _MessageLimit:
@@ -858,7 +875,13 @@ def working_limit(limit: float | None) -> _WorkingLimit:
     """Limits the working time which can elapse.
 
     Working time is the wall clock time minus any waiting time e.g. waiting before
-    retrying in response to rate limits or waiting on a semaphore.
+    retrying in response to rate limits or waiting on a semaphore. The sample
+    counts as waiting while any known wait is open and no model call, sandbox
+    command or tool call is running (not counting commands run with
+    `exec_remote()` or inside `sandbox_agent_bridge()`), so other work done
+    during a wait (for example a sub-agent's own code or a background process)
+    is not charged and working time can undercount. Set a `time_limit()` as well to bound wall
+    clock time.
 
     The timer starts when the context manager is opened and stops when it is closed.
 
@@ -873,11 +896,32 @@ def working_limit(limit: float | None) -> _WorkingLimit:
     return _WorkingLimit(limit)
 
 
-def record_waiting_time(waiting_time: float) -> None:
-    node = working_limit_tree.get()
-    if node is None:
-        return
-    node.record_waiting_time(waiting_time)
+def suspend_working_limit() -> AbstractContextManager[None]:
+    """Count the time spent in a block of code as waiting time.
+
+    While this context manager is open, the sample counts as waiting, for
+    `working_limit()` and for the sample's logged working time, except while
+    another task in the sample runs a model call, a sandbox command or a tool
+    call (not counting commands run with `exec_remote()` or inside
+    `sandbox_agent_bridge()`). Model calls, sandbox commands and tool calls made inside the block
+    are not charged.
+
+    Useful for time the agent should not be charged for, such as waiting on a
+    person or running a monitor. Inspect already does this for tool approval
+    and review.
+
+    Only code in the eval process can call it (not agent code running in a
+    sandbox). Outside a running sample it has no effect.
+
+    Because work done during the block is not charged, a sample can run longer
+    than its working limit. Set a `time_limit()` as well to bound clock time.
+
+    Example:
+        with suspend_working_limit():
+            # time spent here is not charged as working time
+            await wait_for_operator()
+    """
+    return sample_wait()
 
 
 def check_working_limit() -> None:
@@ -894,7 +938,7 @@ def check_working_limit() -> None:
 
 
 def monitor_working_limit(interval: float = 1) -> None:
-    from inspect_ai.log._samples import has_active_model_event, sample_active
+    from inspect_ai.log._samples import sample_active
 
     # get the active sample
     sample = sample_active()
@@ -915,12 +959,6 @@ def monitor_working_limit(interval: float = 1) -> None:
             # don't continue after the sample is completed
             if sample.completed:
                 return
-
-            # don't check if there is an active model event
-            # (need to wait until it completes for the working time
-            # computation to be done)
-            if has_active_model_event():
-                continue
 
             error = working_limit_exceeded()
             if error is not None:
@@ -1043,8 +1081,9 @@ class _TokenLimit(Limit, _Node):
 
     @property
     def limit(self) -> int | None:
-        """Get the configured token limit value."""
-        return self._limit
+        """Get the configured token limit value (a live override when one is set)."""
+        override = self._limit_override_value()
+        return override if override is not None else self._limit
 
     @limit.setter
     def limit(self, value: int | None) -> None:
@@ -1062,7 +1101,7 @@ class _TokenLimit(Limit, _Node):
             self.parent.record(usage)
         self._usage += usage
 
-    def check(self) -> None:
+    def check(self, raise_for_equal: bool = False) -> None:
         """Check if this token limit or any ancestor limits have been exceeded.
 
         The checks occur from root to leaf. This is so that if multiple limits are
@@ -1070,8 +1109,8 @@ class _TokenLimit(Limit, _Node):
         preventing certain sub-agent architectures from ending up in an infinite loop.
         """
         if self.parent is not None:
-            self.parent.check()
-        self._check_self()
+            self.parent.check(raise_for_equal)
+        self._check_self(raise_for_equal)
 
     def _validate_token_limit(self, value: int | None) -> None:
         if value is not None and value < 0:
@@ -1079,22 +1118,23 @@ class _TokenLimit(Limit, _Node):
                 f"Token limit value must be a non-negative integer or None: {value}"
             )
 
-    def _check_self(self) -> None:
+    def _check_self(self, raise_for_equal: bool = False) -> None:
         from inspect_ai.event._sample_limit import SampleLimitEvent
         from inspect_ai.log._transcript import transcript
 
         if self.limit is None:
             return
         total = self._metering.value(self._usage)
-        if total > self.limit:
+        if total > self.limit or (raise_for_equal and total == self.limit):
+            status = "reached" if total == self.limit else "exceeded"
             if self._type == "all":
                 message = (
-                    f"Token limit exceeded. value: {total:,}; limit: {self.limit:,}"
+                    f"Token limit {status}. value: {total:,}; limit: {self.limit:,}"
                 )
             elif self._type == "output":
-                message = f"Output token limit exceeded. value: {total:,}; limit: {self.limit:,}"
+                message = f"Output token limit {status}. value: {total:,}; limit: {self.limit:,}"
             else:
-                message = f"Token limit exceeded ({self._type}). value: {total:,}; limit: {self.limit:,}"
+                message = f"Token limit {status} ({self._type}). value: {total:,}; limit: {self.limit:,}"
             transcript()._event(
                 SampleLimitEvent(type="token", limit=self.limit, message=message)
             )
@@ -1232,7 +1272,7 @@ class _CostLimit(Limit, _Node):
             self.parent.record(cost)
         self._cost += cost
 
-    def check(self) -> None:
+    def check(self, raise_for_equal: bool = False) -> None:
         """Check if this cost limit or any ancestor limits have been exceeded.
 
         The checks occur from root to leaf. This is so that if multiple limits are
@@ -1240,8 +1280,8 @@ class _CostLimit(Limit, _Node):
         preventing certain sub-agent architectures from ending up in an infinite loop.
         """
         if self.parent is not None:
-            self.parent.check()
-        self._check_self()
+            self.parent.check(raise_for_equal)
+        self._check_self(raise_for_equal)
 
     def _validate_cost_limit(self, value: float | None) -> None:
         if value is not None and value < 0:
@@ -1249,14 +1289,15 @@ class _CostLimit(Limit, _Node):
                 f"Cost limit value must be a non-negative float or None: {value}"
             )
 
-    def _check_self(self) -> None:
+    def _check_self(self, raise_for_equal: bool = False) -> None:
         from inspect_ai.event._sample_limit import SampleLimitEvent
         from inspect_ai.log._transcript import transcript
 
         if self.limit is None:
             return
-        if self._cost > self.limit:
-            message = f"Cost limit exceeded. value: ${self._cost:,.4f}; limit: ${self.limit:,.4f}"
+        if self._cost > self.limit or (raise_for_equal and self._cost == self.limit):
+            status = "reached" if self._cost == self.limit else "exceeded"
+            message = f"Cost limit {status}. value: ${self._cost:,.4f}; limit: ${self.limit:,.4f}"
             transcript()._event(
                 SampleLimitEvent(type="cost", limit=self.limit, message=message)
             )
@@ -1297,8 +1338,9 @@ class _MessageLimit(Limit, _Node):
 
     @property
     def limit(self) -> int | None:
-        """Get the configured message limit value."""
-        return self._limit
+        """Get the configured message limit value (a live override when one is set)."""
+        override = self._limit_override_value()
+        return override if override is not None else self._limit
 
     @limit.setter
     def limit(self, value: int | None) -> None:
@@ -1348,15 +1390,33 @@ class _TimeLimit(Limit, _Node):
         super().__init__()
         _validate_time_limit("Time", limit)
         self._limit = limit
+        # the limit the cancel-scope deadline was last derived from (the
+        # effective limit as of __enter__ / the last _refresh_deadline) — the
+        # honest value for the exceeded error even if the override changed
+        # between the deadline firing and __exit__ observing it
+        self._active_limit: float | None = None
         self._start_time: float | None = None
         self._end_time: float | None = None
+        # elapsed time carried from a prior attempt that counts toward
+        # reported usage but never the cancel-scope deadline — set by a
+        # scoring-only checkpoint resume (a normal resume backdates
+        # _start_time instead, so the deadline charges the prior attempt too)
+        self._prior_elapsed: float = 0.0
 
     def __enter__(self) -> Limit:
         super()._check_reuse()
         time_limit_tree.push(self)
-        self._cancel_scope = anyio.move_on_after(self._limit)
+        # `self.limit` (not `self._limit`) so a sample started after a live
+        # override was set opens its scope with the override already applied
+        self._active_limit = self.limit
+        self._cancel_scope = anyio.CancelScope()
         self._cancel_scope.__enter__()
+        # derive the deadline from _start_time (as _refresh_deadline does)
+        # rather than a separate clock read, so deadline, usage, and any
+        # later retune are all measured from the same instant
         self._start_time = anyio.current_time()
+        if self._active_limit is not None:
+            self._cancel_scope.deadline = self._start_time + self._active_limit
         return self
 
     def __exit__(
@@ -1371,38 +1431,73 @@ class _TimeLimit(Limit, _Node):
         self._cancel_scope.__exit__(exc_type, exc_val, exc_tb)
         self._end_time = anyio.current_time()
         self._pop_and_check_identity(time_limit_tree)
+        # the limit the cancel-scope deadline was last derived from (not a
+        # fresh `self.limit` read, which an override cleared after the
+        # deadline fired would turn None — silently swallowing the
+        # cancellation the deadline already delivered)
+        limit = self._active_limit
         # use cancelled_caught (not cancel_called): if the deadline fired but
         # the body raised a non-Cancelled exception (e.g. cleanup in `finally`
         # crashed), the cancel scope did not catch a Cancelled and we must let
         # the original exception propagate rather than masking it.
-        if self._cancel_scope.cancelled_caught and self._limit is not None:
-            message = f"Time limit exceeded. limit: {self._limit} seconds"
+        if self._cancel_scope.cancelled_caught and limit is not None:
+            message = f"Time limit exceeded. limit: {limit} seconds"
             assert self._start_time is not None
             # Note we've measured the elapsed time independently of anyio's cancel scope
             # so this is an approximation.
             time_elapsed = self._end_time - self._start_time
             transcript()._event(
-                SampleLimitEvent(type="time", message=message, limit=self._limit)
+                SampleLimitEvent(type="time", message=message, limit=limit)
             )
             raise LimitExceededError(
                 "time",
                 value=time_elapsed,
-                limit=self._limit,
+                limit=limit,
                 message=message,
                 source=self,
             ) from exc_val
 
     @property
     def limit(self) -> float | None:
-        return self._limit
+        """Get the configured time limit value (a live override when one is set)."""
+        override = self._limit_override_value()
+        return override if override is not None else self._limit
+
+    def _refresh_deadline(self) -> None:
+        """Re-derive the entered cancel scope's deadline from the effective limit.
+
+        Called when a live ``time_limit`` override is set or cleared — a
+        deadline is slept on, not consulted, so a retune must reschedule the
+        scope directly (anyio applies a deadline change to a running scope on
+        both backends). No-op before enter / after exit: a not-yet-entered
+        node reads the override at ``__enter__``, and lowering a deadline
+        below the elapsed time cancels the scope now (the incident case) —
+        though a scope whose deadline already fired stays cancelled even if
+        the override is raised or cleared.
+        """
+        if self._start_time is None or self._end_time is not None:
+            return
+        # a fired deadline is never rescinded (anyio ignores deadline changes
+        # once the scope has cancelled) — leave _active_limit at the value
+        # that actually governed the cancel, so __exit__ reports it honestly
+        # instead of a later override (or, on a clear back to an unlimited
+        # launch config, swallowing the delivered cancellation entirely)
+        if self._cancel_scope.cancel_called:
+            return
+        self._active_limit = self.limit
+        self._cancel_scope.deadline = (
+            self._start_time + self._active_limit
+            if self._active_limit is not None
+            else math.inf
+        )
 
     @property
     def usage(self) -> float:
         if self._start_time is None:
             return 0.0
         if self._end_time is None:
-            return anyio.current_time() - self._start_time
-        return self._end_time - self._start_time
+            return anyio.current_time() - self._start_time + self._prior_elapsed
+        return self._end_time - self._start_time + self._prior_elapsed
 
 
 class _WorkingLimit(Limit, _Node):
@@ -1413,11 +1508,16 @@ class _WorkingLimit(Limit, _Node):
         self.parent: _WorkingLimit | None = None
         self._start_time: float | None = None
         self._end_time: float | None = None
+        # the sample this node measures against (None outside a sample, where
+        # usage is wall clock time)
+        self._timing: SampleTiming | None = None
+        # working time of prior attempts, restored on a normal resume
+        self._prior_usage = 0.0
 
     def __enter__(self) -> Limit:
         super()._check_reuse()
-        self._start_time = anyio.current_time()
-        self._waiting_time = 0.0
+        self._timing = sample_timing()
+        self._start_time = self._now()
         working_limit_tree.push(self)
         return self
 
@@ -1427,7 +1527,7 @@ class _WorkingLimit(Limit, _Node):
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> None:
-        self._end_time = anyio.current_time()
+        self._end_time = self._now()
         self._pop_and_check_identity(working_limit_tree)
 
     @property
@@ -1436,17 +1536,20 @@ class _WorkingLimit(Limit, _Node):
 
     @property
     def usage(self) -> float:
+        # computed from the waits inside the node's own interval when read,
+        # so waits recorded after the fact (retried attempts) are included
         if self._start_time is None:
             return 0.0
-        if self._end_time is None:
-            return anyio.current_time() - self._start_time - self._waiting_time
-        return self._end_time - self._start_time - self._waiting_time
+        end = self._end_time if self._end_time is not None else self._now()
+        waiting = (
+            self._timing.waiting(self._start_time, end)
+            if self._timing is not None
+            else 0.0
+        )
+        return self._prior_usage + (end - self._start_time) - waiting
 
-    def record_waiting_time(self, waiting_time: float) -> None:
-        """Record waiting time for this node and its ancestor nodes."""
-        if self.parent is not None:
-            self.parent.record_waiting_time(waiting_time)
-        self._waiting_time += waiting_time
+    def _now(self) -> float:
+        return self._timing.now() if self._timing is not None else anyio.current_time()
 
     def check(self) -> LimitExceededError | None:
         """Check if this working time limit or any ancestor limits have been exceeded.

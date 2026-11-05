@@ -88,6 +88,7 @@ async def test_bridge_generate_flag_live_for_subscriber() -> None:
             [],
             None,
             GenerateConfig(),
+            requested_model=None,
         )
     finally:
         unsubscribe()

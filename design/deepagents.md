@@ -317,7 +317,7 @@ Pydantic AI's `PatchToolCallsCapability` detects orphaned tool calls (calls with
 
 #### Checkpointing integration
 
-The separate [Inspect Checkpointing design](../design/checkpointing.md) proposes mid-sample durability for long-running evals. `deepagent()` is a primary consumer of this capability — deep agent evals are exactly the ones that run for hours or days and need crash recovery.
+The separate [Inspect Checkpointing design](checkpoint-snapshot-strategy.md) proposes mid-sample durability for long-running evals. `deepagent()` is a primary consumer of this capability — deep agent evals are exactly the ones that run for hours or days and need crash recovery.
 
 **Inspect status:** The checkpointing design is proceeding in parallel. `deepagent()` should accept a `checkpoint=CheckpointConfig(...)` parameter, consistent with `react()`. The integration is straightforward — checkpoints fire at turn boundaries in the agent loop, which `deepagent()` inherits from `react()`.
 

@@ -17,7 +17,14 @@ class ModelCost(BaseModel):
     """Price per million output tokens."""
 
     input_cache_write: float
-    """Price per million input tokens written to cache."""
+    """Price per million input tokens written to cache.
+
+    Record the provider's default-TTL rate here (for Anthropic, the 5-minute
+    rate). Providers that bill longer cache TTLs at a higher rate (e.g.
+    Anthropic's 1-hour writes at 2x base input) are adjusted at cost
+    computation time based on the configured TTL — do not pre-bake a
+    longer-TTL rate into this field or it will be double-applied.
+    """
 
     input_cache_read: float
     """Price per million input tokens read from cache."""
@@ -54,7 +61,10 @@ class OrganizationData(BaseModel):
 
 def load_organizations_from_yaml(file_path: Path) -> Dict[str, OrganizationData]:
     """Load and validate organization data from a YAML file"""
-    with open(file_path, "r") as f:
+    # Bundled data ships with the package and is always UTF-8; read it with
+    # an explicit encoding so a non-UTF-8 platform locale (e.g. Windows cp936)
+    # cannot raise UnicodeDecodeError on every model call. See #5433.
+    with open(file_path, "r", encoding="utf-8") as f:
         data = yaml.safe_load(f)
 
     if not data:

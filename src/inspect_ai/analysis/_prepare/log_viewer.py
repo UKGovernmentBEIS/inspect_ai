@@ -85,6 +85,9 @@ def log_viewer(
         return f"{base_url}/samples/sample_uuid/{row.sample_id}/messages?message={row.message_id}"
 
     def transform(df: pd.DataFrame) -> pd.DataFrame:
+        if df.empty:
+            return df
+
         if target == "sample":
             df[log_viewer_column] = df.apply(sample_log_viewer_url, axis=1)
         elif target == "event":

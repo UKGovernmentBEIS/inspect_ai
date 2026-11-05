@@ -3,6 +3,7 @@ import os
 import pytest
 from test_helpers.utils import (
     skip_if_no_anthropic,
+    skip_if_no_deepseek,
     skip_if_no_google,
     skip_if_no_grok,
     skip_if_no_groq,
@@ -35,7 +36,7 @@ async def test_groq_api_key():
 @pytest.mark.anyio
 @skip_if_no_openai
 async def test_openai_api_key():
-    await check_explicit_api_key("openai/gpt-4", "OPENAI_API_KEY")
+    await check_explicit_api_key("openai/gpt-4o-mini", "OPENAI_API_KEY")
 
 
 @skip_if_no_grok
@@ -71,3 +72,9 @@ async def test_together_api_key():
 @skip_if_no_moonshot
 async def test_moonshot_api_key():
     await check_explicit_api_key("moonshot/kimi-k3", "MOONSHOT_API_KEY")
+
+
+@pytest.mark.anyio
+@skip_if_no_deepseek
+async def test_deepseek_api_key():
+    await check_explicit_api_key("deepseek/deepseek-flash", "DEEPSEEK_API_KEY")

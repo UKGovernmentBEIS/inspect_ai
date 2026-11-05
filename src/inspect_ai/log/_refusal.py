@@ -7,11 +7,16 @@ _log_refusals: bool = False
 
 
 def report_refusal(refusal: str) -> None:
-    from inspect_ai.log._samples import sample_active
+    from inspect_ai.log._samples import report_active_sample_refusal, sample_active
 
     # update counter
     global _refusal_count
     _refusal_count = _refusal_count + 1
+
+    # attribute to the active sample (and thereby to its eval) as well as to the
+    # process; the process-global total can't be reported per eval, since one
+    # process runs many evals concurrently
+    report_active_sample_refusal()
 
     # log warning
     global _log_refusals

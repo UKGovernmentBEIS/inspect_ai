@@ -3,6 +3,15 @@ from inspect_ai._util.deprecation import relocated_module_attribute
 from ._anchor import AnchorEvent
 from ._approval import ApprovalEvent
 from ._branch import BranchEvent
+from ._communication import (
+    CommunicationDelivery,
+    CommunicationEvent,
+    CommunicationKind,
+    CommunicationRecord,
+    CommunicationRejection,
+    CommunicationSend,
+    CommunicationWait,
+)
 from ._compaction import CompactionEvent
 from ._error import ErrorEvent
 from ._event import Event
@@ -11,16 +20,19 @@ from ._input import InputEvent
 from ._interrupt import InterruptEvent
 from ._logger import LoggerEvent, LoggingLevel, LoggingMessage
 from ._model import ModelEvent
+from ._review import ReviewEvent
 from ._sample_init import SampleInitEvent
 from ._sample_limit import SampleLimitEvent
 from ._sandbox import SandboxEvent
 from ._score import ScoreEvent
 from ._score_edit import ScoreEditEvent
+from ._sentinel import SentinelAction, SentinelEvent, SentinelSuspicion
 from ._span import SpanBeginEvent, SpanEndEvent
 from ._state import StateEvent
 from ._step import StepEvent
 from ._store import StoreEvent
 from ._subtask import SubtaskEvent
+from ._swarm import SwarmEvent
 from ._timeline import (
     Outline,
     OutlineNode,
@@ -46,6 +58,18 @@ from ._tree import (
 __all__ = [
     "Event",
     "ApprovalEvent",
+    "ReviewEvent",
+    "SentinelEvent",
+    "SentinelAction",
+    "SentinelSuspicion",
+    "CommunicationEvent",
+    "CommunicationKind",
+    "CommunicationRecord",
+    "CommunicationRejection",
+    "CommunicationSend",
+    "CommunicationDelivery",
+    "CommunicationWait",
+    "SwarmEvent",
     "AnchorEvent",
     "BranchEvent",
     "ErrorEvent",

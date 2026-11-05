@@ -23,17 +23,19 @@ which resolve re-sent messages by object identity / id-bucket equality
 and hash only genuinely new content.
 """
 
-import dataclasses
 import json
 from collections.abc import Iterable, Mapping, Sequence
 from typing import Final, Literal, NamedTuple, TypeVar, cast
 
-from pydantic import BaseModel, JsonValue
+from pydantic import JsonValue
 from pydantic_core import to_jsonable_python
 
 from inspect_ai._util.hash import mm3_hash
+from inspect_ai._util.lineage import eq_prefix_len, needs_strict_eq
 from inspect_ai.event._validate import validate_events
 from inspect_ai.model._chat_message import ChatMessage
+from inspect_ai.model._model_call import CALL_MESSAGE_KEYS
+from inspect_ai.model._model_call import CallMessageKey as CallMessageKey
 
 from ._event import Event
 from ._model import ModelEvent
@@ -47,51 +49,6 @@ def materialize_pooled_events(
     materialized = validate_events(list(events))
     materialized = resolve_model_event_inputs(materialized, message_pool)
     return resolve_model_event_calls(materialized, call_pool)
-
-
-def _strict_eq(a: object, b: object) -> bool:
-    """Equality that distinguishes values with different JSON serializations.
-
-    Python ``==`` conflates values the pool hashes distinguish: ``0 == 0.0``
-    and ``True == 1``, but ``json.dumps`` emits different bytes for each, so
-    ``_msg_hash``/``_call_hash`` differ. An ``==``-based merge of such values
-    would reuse a pool entry whose stored bytes round-trip to the *other*
-    value — silent data corruption. This comparison requires matching types
-    for scalars (recursing into models, dataclasses, dicts, and lists), so a
-    merge implies identical serialization.
-    """
-    if a is b:
-        return True
-    ta, tb = type(a), type(b)
-    if ta is not tb:
-        return False
-    if isinstance(a, BaseModel):
-        return _strict_eq(a.__dict__, b.__dict__)  # type: ignore[attr-defined]
-    if dataclasses.is_dataclass(a) and not isinstance(a, type):
-        return _strict_eq(vars(a), vars(b))
-    if ta is dict:
-        assert isinstance(a, dict) and isinstance(b, dict)
-        if len(a) != len(b):
-            return False
-        sentinel = object()
-        for k, v in a.items():
-            other = b.get(k, sentinel)
-            if other is sentinel or not _strict_eq(v, other):
-                return False
-            # dict lookup matches keys by ==, which conflates 0/0.0 and
-            # True/1 on the key axis just like values ({0: x} and {0.0: x}
-            # serialize to different JSON); str keys (the JSON-bound common
-            # case) cannot ==-collide across types, so only non-str keys
-            # need their counterpart's type checked
-            if type(k) is not str and not any(
-                bk == k and type(bk) is type(k) for bk in b
-            ):
-                return False
-        return True
-    if ta is list or ta is tuple:
-        assert isinstance(a, (list, tuple)) and isinstance(b, (list, tuple))
-        return len(a) == len(b) and all(_strict_eq(x, y) for x, y in zip(a, b))
-    return a == b
 
 
 def _msg_hash(msg: ChatMessage) -> str:
@@ -207,8 +164,7 @@ def condense_model_event_inputs(
     return result, index, new_entries
 
 
-# Known keys for messages array in provider wire formats
-_CALL_MESSAGE_KEYS: Final = ("messages", "contents", "input", "inputs")
+_CALL_MESSAGE_KEYS: Final = CALL_MESSAGE_KEYS
 
 
 def _compress_refs(indices: list[int]) -> list[tuple[int, int]]:
@@ -425,6 +381,7 @@ def condense_model_event_calls(
     new_entries: list[tuple[str, JsonValue]] = []
     result: list[Event] = []
     prev_msgs: list[JsonValue] = []
+    prev_strict: list[bool] = []
     prev_indices: list[int] = []
     for event in events:
         if isinstance(event, ModelEvent) and event.call:
@@ -438,23 +395,18 @@ def condense_model_event_calls(
             if msgs and isinstance(msgs, list):
                 # Reuse the previous event's pool indices for the equal prefix;
                 # hash only the tail that diverges.
-                # _strict_eq, not ==: a prefix element drifting 0 -> 0.0 or
-                # True -> 1 is python-equal but serializes (and hashes)
-                # differently; reusing the pool index would round-trip the
-                # other value.
-                prefix_len = 0
-                for msg, prev_msg in zip(msgs, prev_msgs):
-                    if not _strict_eq(msg, prev_msg):
-                        break
-                    prefix_len += 1
-                raw_indices = list(prev_indices[:prefix_len])
+                prefix_len = eq_prefix_len(msgs, prev_msgs, prev_strict)
+                raw_indices = prev_indices[:prefix_len]
+                strict = prev_strict[:prefix_len]
                 for msg in msgs[prefix_len:]:
                     h = _call_hash(msg)
                     if h not in index:
                         index[h] = next_index + len(new_entries)
                         new_entries.append((h, msg))
                     raw_indices.append(index[h])
+                    strict.append(needs_strict_eq(msg))
                 prev_msgs = list(msgs)
+                prev_strict = strict
                 prev_indices = raw_indices
                 new_request = {
                     k: v for k, v in event.call.request.items() if k != msg_key

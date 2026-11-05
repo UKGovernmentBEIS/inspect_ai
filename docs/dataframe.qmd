@@ -37,6 +37,10 @@ You can further tailor column reading to work in whatever way you need for your 
 [Inspect Viz](https://meridianlabs-ai.github.io/inspect_viz/) is a data visualization framework built to work with the Inspect data frame functions described below. After you've explored the basics of data frames you may also want to check out Inspect Viz.
 :::
 
+::: {.callout-note appearance="simple"}
+If you use a coding agent for log analysis, the [inspect-skills](https://github.com/meridianlabs-ai/inspect-skills#install) plugin provides skills that teach it to pick the right analysis tool for the question and keep large dataframes in memory across follow-up questions.
+:::
+
 ## Basics
 
 ### Reading Data
@@ -71,7 +75,7 @@ RangeIndex: 408 entries, 0 to 407
 Columns: 19 entries, sample_id to fallbacks
 ```
 
-By default, `sample_df()` reads all of the columns in the `EvalSampleSummary` data structure (18 columns), along with the `eval_id` for linking back to the parent eval log file.
+By default, `samples_df()` reads all of the columns in the `EvalSampleSummary` data structure (18 columns), along with the `eval_id` for linking back to the parent eval log file.
 
 ### Column Groups
 
@@ -91,10 +95,10 @@ evals_df(
 ``` default
 <class 'pandas.core.frame.DataFrame'>
 RangeIndex: 9 entries, 0 to 8
-Columns: 23 entries, eval_id to score_headline_value
+Columns: 25 entries, eval_set_id to score_headline_stderr
 ```
 
-This dataframe has 23 columns rather than the 51 we saw when using the default `evals_df()` congiruation, reflecting the explicit columns groups specified.
+This dataframe has 25 columns rather than the 51 we saw when using the default `evals_df()` congiruation, reflecting the explicit columns groups specified.
 
 You can also use column groups to join columns for doing analysis or plotting. For example, here we include eval level data along with each sample:
 
@@ -115,11 +119,11 @@ RangeIndex: 408 entries, 0 to 407
 Columns: 28 entries, sample_id to fallbacks
 ```
 
-This dataframe has 28 columns rather than than the 14 we saw for the default `samples_df()` behavior, reflecting the additional eval level columns. You can create your own column groups and definitions to further customise reading (see [Column Definitions](#column-definitions) for details).
+This dataframe has 28 columns rather than the 14 we saw for the default `samples_df()` behavior, reflecting the additional eval level columns. You can create your own column groups and definitions to further customise reading (see [Column Definitions](#column-definitions) for details).
 
 ### Filtering Logs
 
-The above examples read all of the logs within a given directory. You can also use the `list_eval_logs()` function to filter the list of logs based on arbitrary criteria as well control whether log listings are recursive.
+The above examples read all of the logs within a given directory. You can also use the `list_eval_logs()` function to filter the list of logs based on arbitrary criteria as well as control whether log listings are recursive.
 
 For example, here we read only log files with a `status` of "success":
 
@@ -330,6 +334,8 @@ df = prepare(df, [
 
 The examples above all use built-in column specifications (e.g. `EvalModel`, `EvalResults`, `SampleSummary`, etc.). These specifications exist as a convenient starting point but can be replaced fully or partially by your own custom definitions.
 
+Custom `EventColumn` and `MessageColumn` extraction functions must not mutate messages in place, as message renders are cached within each sample and later rows may otherwise use stale content.
+
 Column definitions specify how JSON data is mapped into dataframe columns, and are specified using subclasses of the `Column` class (e.g. `EvalColumn`, `SampleColumn`). For example, here is the definition of the built-in `EvalTask` column group:
 
 ``` python
@@ -346,11 +352,11 @@ EvalTask: list[Column] = [
 ]
 ```
 
-Columns are defined with a `name`, a `path` (location within JSON to read their value from), and other options (e.g. `required`, `type`, etc.) . Column paths use [JSON Path](https://github.com/h2non/jsonpath-ng) expressions to indicate how they should be read from JSON.
+Columns are defined with a `name`, a `path` (location within JSON to read their value from), and other options (e.g. `required`, `type`, etc.). Column paths use [JSON Path](https://github.com/h2non/jsonpath-ng) expressions to indicate how they should be read from JSON.
 
 Many fields within eval logs are optional, and path expressions will automatically resolve to `None` when they include a missing field (unless the `required=True` option is specified).
 
-Here are are all of the options available for `Column` definitions:
+Here are all of the options available for `Column` definitions:
 
 #### Column Options
 
@@ -409,11 +415,11 @@ if len(errors) > 0:
 | Type | Description |
 |------------------------|------------------------------------------------|
 | `EvalInfo` | Descriptive information (e.g. created, tags, metadata, git commit, etc.) |
-| `EvalTask` | Task configuration (name, file, args, solver, etc.) |
+| `EvalTask` | Task configuration (name, description, file, args, solver, etc.) |
 | `EvalModel` | Model name, args, generation config, etc. |
 | `EvalDataset` | Dataset name, location, sample ids, etc. |
 | `EvalConfiguration` | Epochs, approval, sample limits, etc. |
-| `EvalResults` | Status, errors, samples completed, headline metric. |
+| `EvalResults` | Status, errors, samples completed, headline metric (see [`headline_metric`](metrics.qmd#headline-metric) to control which metric that is). |
 | `EvalScores` | All scores and metrics broken into separate columns. |
 
 The `eval_id` field is automatically included in all eval data frames. Additionally, a `log` field which includes the URI of the log file read from is included.
@@ -445,7 +451,7 @@ evals_df(
 
 The example above demonstrates the use of custom extraction functions, which take an `EvalLog` and return a `JsonValue`.
 
-For example, here is the default extraction function for the the dictionary of scores/metrics:
+For example, here is the default extraction function for the dictionary of scores/metrics:
 
 ``` python
 def scores_dict(log: EvalLog) -> JsonValue:
@@ -484,6 +490,7 @@ SampleSummary: list[Column] = [
     SampleColumn("input", path=sample_input_as_str, required=True),
     SampleColumn("choices", path="choices", full=False),
     SampleColumn("target", path="target", required=True, value=list_as_str),
+    SampleColumn("description", path="description"),
     SampleColumn("metadata_*", path="metadata"),
     SampleColumn("score_*", path="scores", value=score_values),
     SampleColumn("model_usage", path="model_usage"),
@@ -495,14 +502,19 @@ SampleSummary: list[Column] = [
     SampleColumn("token_limit_usage", path="token_limit_usage", default=None),
     SampleColumn("error", path="error", default=""),
     SampleColumn("limit", path="limit"),
+    SampleColumn("limit_reason", path="limit_reason", default=None),
     SampleColumn("retries", path="retries"),
     SampleColumn("fallbacks", path=sample_total_fallbacks),
 ]
 ```
 
+The `description` column is the sample's `description` (`None` when the sample has none, including logs written by older versions of Inspect).
+
 The `turn_count` column is the number of turns (top-level model generations) used by the sample, and `token_limit_usage` is the metered value of the sample's token limit, respecting the limit's type (`None` when no token limit was configured). Both are `None` for logs written by older versions of Inspect.
 
-The `fallbacks` column is the total number of generate calls served by a [fallback model](providers.qmd#anthropic-refusal-fallback) (0 if none). For the full per-pair rollup, add a custom column reading the underlying summary field: `SampleColumn("model_fallbacks", path="model_fallbacks")`.
+The `working_time` column is clock time minus the time when a wait was open in the sample and no model call, sandbox command or tool call was running (not counting commands run with `exec_remote()` or inside `sandbox_agent_bridge()`). See [Working Limit](setting-limits.qmd#working-limit) for its limitations.
+
+The `fallbacks` column is the total number of requests served by a [fallback model](providers.qmd#anthropic-refusal-fallback) (0 if none). One generate call can add more than 1 when Anthropic continues a turn after `pause_turn`. For the full per-pair rollup, add a custom column reading the underlying summary field: `SampleColumn("model_fallbacks", path="model_fallbacks")`.
 
 The `eval_id` and `sample_id` fields are automatically included in all sample data frames. Additionally, a `log` field which includes the URI of the log file read from is included.
 
@@ -569,6 +581,10 @@ You could also write a custom [extraction](#custom-extraction-1) handler to read
 SampleColumn("limit_type", path="limit.type", full=True)
 SampleColumn("limit_value", path="limit.limit", full=True)
 ```
+
+Note that the limit's human-readable reason is available from the summary as
+`limit_reason` (included in `SampleSummary` above), so reading it does not
+require `full=True`.
 
 If you are only interested in reading full values for `metadata`, you can use `full=True` when calling `samples_df()` as shorthand for this:
 
@@ -677,7 +693,7 @@ Because events are so heterogeneous, there is no default `columns` specification
 | Type | Description |
 |-------------------------|----------------------------------------------|
 | `EventInfo` | Event type and span id. |
-| `EventTiming` | Start and end times (both clock time and working time) |
+| `EventTiming` | Start and end times (both clock time and working time; see [Working Limit](setting-limits.qmd#working-limit)) |
 | `ModelEventColumns` | Read data from model events. |
 | `ToolEventColumns` | Read data from tool events. |
 

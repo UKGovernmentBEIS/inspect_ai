@@ -6,10 +6,14 @@ long-running commands in sandbox environments with streaming output.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import shlex
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, ClassVar, Literal, TypeVar, Union, cast
+import time
+import uuid
+from collections.abc import Callable, Coroutine
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any, ClassVar, Literal, TypeVar, Union, cast
 
 import anyio
 from pydantic import BaseModel
@@ -21,14 +25,18 @@ from tenacity import (
     wait_exponential_jitter,
 )
 
+from inspect_ai._util._async import current_async_backend
 from inspect_ai._util._json_rpc import GenericJSONRPCErrorMapper, exec_model_request
+from inspect_ai._util.retry import backoff_multiplier
 
-from ._cli import SANDBOX_CLI
+from ._cli import tools_user_param
 from ._json_rpc_transport import SandboxJSONRPCTransport
 
 if TYPE_CHECKING:
     from .._subprocess import ExecResult
     from .environment import SandboxEnvironment
+
+logger = logging.getLogger(__name__)
 
 
 # ============================================================================
@@ -105,19 +113,53 @@ class ExecRemoteCommonOptions:
     """User to run the command as"""
 
     poll_interval: float | None = None
-    """Interval between poll requests in seconds"""
+    """Interval between poll requests in seconds. The minimum is 5 seconds; 0 or
+    `None` uses the sandbox default (also at least 5 seconds). For the first 10
+    seconds after the start, sandbox tools that support it hold each poll on the
+    server until the command exits or produces output, instead of sleeping
+    between polls (not when `stdin_open` is set)."""
 
     poll_timeout: float | None = None
-    """Timeout for individual RPC poll requests in seconds. Defaults to 120 seconds."""
+    """Timeout for individual RPC poll requests in seconds. Defaults to 120 seconds.
+
+    A poll that times out raises `TimeoutError` unless `poll_timeout_recovery` is
+    set."""
 
     poll_timeout_retry: bool | None = None
-    """Retry individual RPC poll requests when they time out.
+    """Retry individual RPC requests (start, poll, stdin, kill) when they time out.
     Requests will be retried up to twice, with a timeout of no greater
-    than 60 seconds for the first retry and 30 for the second."""
+    than 60 seconds for the first retry and 30 for the second. `False` cannot be
+    combined with `poll_timeout_recovery`."""
 
     concurrency: bool = True
     """For sandboxes that run locally, request that the `concurrency()`
     function be used to throttle concurrent subprocesses."""
+
+    poll_timeout_recovery: float | None = field(default=None, kw_only=True)
+    """Seconds to keep re-issuing a poll after it times out. Defaults to `None`.
+
+    Unset, a poll that times out raises `TimeoutError`. When set, a poll that
+    times out is re-issued 5 seconds later, until the sandbox answers or a poll
+    times out this many seconds or more after the first timeout, when that
+    timeout is raised. The deadline is checked only when a poll times out, and a
+    re-issued poll waits its full `poll_timeout` (plus any `poll_timeout_retry`),
+    so recovery can run past this value by the 5-second pause plus one re-issued
+    poll, including that poll's retries. While the command is running, a
+    re-issued poll replays any output the lost response carried; if the command
+    ended during the stall, its exit status is lost and `RuntimeError` is raised.
+    Only polls are re-issued, and none once `kill()` has been called, even if the
+    kill request itself timed out; the error the last poll got is raised instead.
+    A caller's `timeout` (awaitable mode) or cancellation still ends the wait at
+    once. Raises `ValueError` with `poll_timeout_retry=False`, which asks for
+    timed-out requests not to be retried.
+    """
+
+    def __post_init__(self) -> None:
+        if self.poll_timeout_recovery is not None and self.poll_timeout_retry is False:
+            raise ValueError(
+                "poll_timeout_recovery re-issues timed-out polls, which "
+                "poll_timeout_retry=False asks not to retry; set only one of them."
+            )
 
 
 @dataclass
@@ -148,6 +190,8 @@ class _StartResult(BaseModel):
     """Result from exec_remote_start."""
 
     pid: int
+    poll_wait: bool = False
+    """The server supports the poll `wait` param. Older servers omit it."""
 
 
 class _PollResult(BaseModel):
@@ -166,6 +210,12 @@ class _KillResult(BaseModel):
     seq: int
     stdout: str
     stderr: str
+
+
+class _KillKeyResult(BaseModel):
+    """Result from exec_remote_kill_key."""
+
+    killed: bool
 
 
 class _WriteStdinResult(BaseModel):
@@ -193,7 +243,44 @@ MIN_POLL_INTERVAL = 5
 RPC_TIMEOUT = 120
 """Timeout for individual JSON-RPC calls in seconds."""
 
+POLL_TIMEOUT_RECOVERY_WAIT_SECONDS: float = 5.0
+"""Pause before re-issuing a timed-out poll (see `poll_timeout_recovery`)."""
+
+KILL_KEY_TIMEOUT = 30
+"""Bound in seconds on killing a job whose start got no reply."""
+
+SERVER_WAIT_WINDOW_SECONDS: float = 10.0
+"""Time after the start reply during which polls wait on the server."""
+
 T = TypeVar("T", bound=BaseModel)
+
+
+async def _complete_before_cancelling(
+    work: Callable[[], Coroutine[Any, Any, None]],
+) -> None:
+    """Run `work` to completion, then raise any cancellation of the caller.
+
+    An AnyIO shield does not stop asyncio's `Task.cancel()` (which
+    `asyncio.timeout()` and `asyncio.wait_for()` also use), so under asyncio
+    `work` runs in its own task and the caller waits for it. `work` shields
+    itself from AnyIO cancellation.
+    """
+    if current_async_backend() != "asyncio":
+        await work()
+        return
+
+    task = asyncio.ensure_future(work())
+    cancelled: asyncio.CancelledError | None = None
+    # the shield stops AnyIO from re-delivering its own cancellation
+    with anyio.CancelScope(shield=True):
+        while not task.done():
+            try:
+                await asyncio.shield(task)
+            except asyncio.CancelledError as ex:
+                cancelled = ex
+    task.result()
+    if cancelled is not None:
+        raise cancelled
 
 
 class ExecRemoteProcess:
@@ -255,12 +342,14 @@ class ExecRemoteProcess:
             MIN_POLL_INTERVAL, options.poll_interval or sandbox_default_poll_interval
         )
         self._pid: int | None = None
+        self._job_key = uuid.uuid4().hex
+        self._server_wait_end: float | None = None
         self._last_seq: int = 0
         self._killed = False
         self._completed = False
         self._iteration_started = False
         self._pending_events: list[ExecOutput] = []
-        self._transport = SandboxJSONRPCTransport(sandbox, SANDBOX_CLI)
+        self._transport = SandboxJSONRPCTransport(sandbox)
 
     @property
     def pid(self) -> int:
@@ -273,23 +362,50 @@ class ExecRemoteProcess:
     # RPC helpers
     # -------------------------------------------------------------------------
 
-    async def _rpc(
-        self, method: str, params: dict[str, object], result_type: type[T]
-    ) -> T:
-        """Make an RPC call to the sandbox."""
-        extra_args: dict[str, object] = dict(
-            timeout=RPC_TIMEOUT
+    @property
+    def _rpc_timeout(self) -> float:
+        return (
+            RPC_TIMEOUT
             if self._options.poll_timeout is None
-            else self._options.poll_timeout,
+            else self._options.poll_timeout
+        )
+
+    def _server_wait(self) -> float:
+        """Seconds the next poll asks the server to wait for exit or output.
+
+        Nonzero only within `SERVER_WAIT_WINDOW_SECONDS` of the start reply of a
+        server that supports it. Capped at half the RPC timeout so that the poll
+        replies well before it times out.
+        """
+        if self._server_wait_end is None:
+            return 0
+        remaining = self._server_wait_end - time.monotonic()
+        return max(0, min(remaining, self._rpc_timeout / 2))
+
+    async def _rpc(
+        self,
+        method: str,
+        params: dict[str, object],
+        result_type: type[T],
+        **overrides: object,
+    ) -> T:
+        """Make an RPC call to the sandbox.
+
+        `overrides` replace the transport arguments derived from the options
+        (timeout, timeout_retry, user, concurrency).
+        """
+        extra_args: dict[str, object] = dict(
+            timeout=self._rpc_timeout,
             # Run the CLI wrapper as the same user that started the server.
             # When root is available, this is "root" (needed to access the
-            # protected server directory at /tmp/sandbox-tools/, mode 0o700).
+            # server's private state directory inside the 0700 tools tree).
             # When root isn't available, this is None (sandbox default user).
             user=self._sandbox._tools_user,
             concurrency=self._options.concurrency,
         )
         if self._options.poll_timeout_retry is not None:
             extra_args["timeout_retry"] = self._options.poll_timeout_retry
+        extra_args.update(overrides)
         return await exec_model_request(
             method=method,
             params=params,
@@ -300,28 +416,79 @@ class ExecRemoteProcess:
         )
 
     async def _start(self) -> None:
-        """Submit the job to the sandbox."""
+        """Submit the job to the sandbox.
+
+        The start carries a job key. If the start does not return a PID
+        (cancelled, timed out or failed), the job may still have started in
+        the sandbox, so it is killed by key before the error propagates.
+        """
         # Build params, converting bytes input to string if needed
-        params: dict[str, object] = {"command": shlex.join(self._cmd)}
+        params: dict[str, object] = {
+            "command": shlex.join(self._cmd),
+            "job_key": self._job_key,
+        }
         if self._options.input is not None:
             if isinstance(self._options.input, bytes):
                 params["input"] = self._options.input.decode("utf-8")
             else:
                 params["input"] = self._options.input
-        if (
+        stdin_open = (
             isinstance(self._options, ExecRemoteStreamingOptions)
             and self._options.stdin_open
-        ):
+        )
+        if stdin_open:
             params["stdin_open"] = True
         if self._options.env:
             params["env"] = self._options.env
-        if self._options.cwd:
-            params["cwd"] = self._options.cwd
-        if self._options.user:
-            params["user"] = self._options.user
+        from .identity import sandbox_identity_cwd
 
-        result = await self._rpc("exec_remote_start", params, _StartResult)
+        if cwd := sandbox_identity_cwd(self._sandbox, self._options.cwd):
+            params["cwd"] = cwd
+        if (user := tools_user_param(self._sandbox, self._options.user)) is not None:
+            params["user"] = user
+
+        try:
+            result = await self._rpc("exec_remote_start", params, _StartResult)
+        except BaseException:
+            await self._kill_key()
+            raise
         self._pid = result.pid
+        # A waiting poll that overlaps a stdin write (same ack_seq) can return
+        # output twice, so stdin_open processes do not wait on the server.
+        if result.poll_wait and not stdin_open:
+            self._server_wait_end = time.monotonic() + SERVER_WAIT_WINDOW_SECONDS
+
+    async def _kill_key(self) -> None:
+        """Kill the job by key, or make the sandbox refuse its start.
+
+        Runs to completion even if the caller is cancelled, bounded by
+        `KILL_KEY_TIMEOUT`, and outside sandbox concurrency limits so it
+        cannot wait behind other commands. A failure is logged, as the job
+        may then still be running.
+        """
+        await _complete_before_cancelling(self._kill_key_bounded)
+
+    async def _kill_key_bounded(self) -> None:
+        error: BaseException | None = None
+        with anyio.move_on_after(KILL_KEY_TIMEOUT, shield=True):
+            try:
+                await self._rpc(
+                    "exec_remote_kill_key",
+                    {"job_key": self._job_key},
+                    _KillKeyResult,
+                    timeout=KILL_KEY_TIMEOUT,
+                    timeout_retry=False,
+                    concurrency=False,
+                )
+                return
+            except Exception as ex:
+                error = ex
+        logger.warning(
+            "exec_remote could not kill job %s after its start failed (%s); "
+            "the command may still be running in the sandbox",
+            self._job_key,
+            error or f"timed out after {KILL_KEY_TIMEOUT}s",
+        )
 
     # -------------------------------------------------------------------------
     # Async Iterator Protocol
@@ -398,8 +565,10 @@ class ExecRemoteProcess:
                 if self._killed:
                     raise StopAsyncIteration
 
-                # Still running with no output, wait before polling again
-                await anyio.sleep(self._poll_interval)
+                # Still running with no output. Inside the server wait window
+                # the next poll waits on the server, so poll again at once.
+                if self._server_wait() == 0:
+                    await anyio.sleep(self._poll_interval)
 
         except anyio.get_cancelled_exc_class():
             # Kill the process on cancellation to avoid leaving orphaned processes.
@@ -408,25 +577,87 @@ class ExecRemoteProcess:
             raise
 
     async def _poll(self) -> _PollResult:
+        recovery_deadline: float | None = None
+        retried_repoll_error: RuntimeError | None = None
+
+        def retryable(ex: BaseException) -> bool:
+            nonlocal retried_repoll_error
+            if not isinstance(ex, RuntimeError):
+                return False
+            if recovery_deadline is not None:
+                # a re-issued poll is not retried once kill() has been called
+                if self._killed:
+                    return False
+                retried_repoll_error = ex
+            return True
+
         @retry(
-            wait=wait_exponential_jitter(initial=2),
+            wait=wait_exponential_jitter(**backoff_multiplier(2)),
             stop=(stop_after_attempt(5) | stop_after_delay(30)),
-            retry=retry_if_exception(lambda e: isinstance(e, RuntimeError)),
+            retry=retry_if_exception(retryable),
+            # reraise the underlying RuntimeError on exhaustion so callers and
+            # eval logs see the sandbox's own message instead of an opaque
+            # RetryError wrapping a Future
+            reraise=True,
         )
         async def poll() -> _PollResult:
             from inspect_ai.util._sandbox.events import SandboxEnvironmentProxy
 
+            # tenacity decides to retry before it backs off, so kill() can be
+            # called during the backoff: raise the error again instead of polling
+            if retried_repoll_error is not None and self._killed:
+                raise retried_repoll_error
+
+            params: dict[str, object] = {"pid": self._pid, "ack_seq": self._last_seq}
+            if wait := self._server_wait():
+                params["wait"] = wait
             sandbox_proxy = cast(SandboxEnvironmentProxy, self._transport.sandbox)
             with sandbox_proxy.no_events():
-                result = await self._rpc(
-                    "exec_remote_poll",
-                    {"pid": self._pid, "ack_seq": self._last_seq},
-                    _PollResult,
-                )
+                result = await self._rpc("exec_remote_poll", params, _PollResult)
             self._last_seq = result.seq
             return result
 
-        return await poll()
+        # A timed-out poll lost a response, not the process: the server keeps each
+        # output chunk until the host acknowledges it (ack_seq), so re-issuing the
+        # poll replays what the lost response carried. Each poll() call above is a
+        # fresh RuntimeError retry sequence.
+        while True:
+            try:
+                return await poll()
+            except TimeoutError as ex:
+                recovery = self._options.poll_timeout_recovery
+                if recovery is None or self._killed:
+                    raise
+                now = time.monotonic()
+                if recovery_deadline is None:
+                    recovery_deadline = now + recovery
+                if now >= recovery_deadline:
+                    raise
+                logger.warning(
+                    "exec_remote poll for pid %s timed out (%s); re-polling with "
+                    "ack_seq=%s for up to %.0fs more",
+                    self._pid,
+                    ex,
+                    self._last_seq,
+                    recovery_deadline - now,
+                )
+                await anyio.sleep(POLL_TIMEOUT_RECOVERY_WAIT_SECONDS)
+                if self._killed:
+                    raise
+            except RuntimeError as ex:
+                if (
+                    recovery_deadline is not None
+                    and not self._killed
+                    and f"No job found with pid {self._pid}" in str(ex)
+                ):
+                    raise RuntimeError(
+                        f"exec_remote process {self._pid} is no longer tracked by the "
+                        "sandbox after a poll timed out: it most likely ended during "
+                        "the stall, and its final output and exit status were lost "
+                        "with the timed-out response (a restart of the sandbox's tool "
+                        "server looks the same)."
+                    ) from ex
+                raise
 
     def _enqueue_output(self, stdout: str, stderr: str) -> None:
         """Enqueue any non-empty output as pending events for the iterator."""
@@ -543,7 +774,8 @@ async def exec_remote_streaming(
 
     Submits the start command to the sandbox and returns only after the process
     has been successfully launched (i.e. after the exec_remote_start RPC completes
-    and a PID has been assigned).
+    and a PID has been assigned). If the start is cancelled, times out or fails,
+    the command is killed in the sandbox before the error propagates.
 
     Args:
         sandbox: The sandbox environment to run the command in.

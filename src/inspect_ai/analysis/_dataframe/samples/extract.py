@@ -1,10 +1,10 @@
 from typing import Callable
 
 from jsonpath_ng import JSONPath  # type: ignore
-from pydantic import JsonValue
 
 from inspect_ai.log._log import EvalSample, EvalSampleSummary
 
+from ..columns import JsonLike
 from ..extract import auto_id, messages_as_str
 
 
@@ -28,10 +28,7 @@ def sample_messages_as_str(sample: EvalSample) -> str:
 
 
 def sample_path_requires_full(
-    path: str
-    | JSONPath
-    | Callable[[EvalSampleSummary], JsonValue]
-    | Callable[[EvalSample], JsonValue],
+    path: str | JSONPath | Callable[..., JsonLike],
 ) -> bool:
     if callable(path):
         return False

@@ -1,12 +1,15 @@
 """Tests for score editing functionality."""
 
 from pathlib import Path
+from typing import Any
 
 import pytest
 
 from inspect_ai import Task, eval_async, task
+from inspect_ai._util.constants import get_deserializing_context
 from inspect_ai.dataset import MemoryDataset, Sample
 from inspect_ai.event._score_edit import ScoreEditEvent
+from inspect_ai.log import read_eval_log_sample_async, write_eval_log_async
 from inspect_ai.log._edit import ProvenanceData
 from inspect_ai.log._metric import recompute_metrics
 from inspect_ai.log._score import edit_score
@@ -565,7 +568,7 @@ async def test_recompute_metrics_when_task_has_no_scorers():
 def test_resolve_scorers_info_loads_task_file_metrics_once(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """Custom scorer metrics from task files should resolve during recompute."""
+    """Trusted recompute imports the task file once for its custom scorer metrics."""
     import inspect_ai._eval.score as score_module
     from inspect_ai._eval.loader import load_file_tasks as real_load_file_tasks
     from inspect_ai._util.registry import _registry, registry_key
@@ -642,7 +645,14 @@ def custom_metric_task():
         )
     )
 
-    infos = score_module.resolve_scorers_info(log)
+    # untrusted (the default) never imports the task file
+    with pytest.raises(LookupError, match=metric_one):
+        score_module.resolve_scorers_info(log)
+    assert load_calls == []
+
+    infos = score_module.resolve_scorers_info(
+        log, task_import=score_module.LogTaskFileImport(log, trust_log=True)
+    )
 
     assert load_calls == [task_file.absolute()]
     metrics = infos[0].metrics
@@ -671,5 +681,225 @@ async def test_recompute_preserves_results_metadata():
         recompute_metrics=False,
     )
     recompute_metrics(log)
-
     assert log.results.metadata == {"training_step": 1234, "run_tag": "exp-42"}
+
+
+@pytest.mark.anyio
+async def test_recompute_preserves_logged_samples():
+    """recompute_metrics must carry EvalResults.logged_samples across the rebuild.
+
+    The eval-set run-vs-reuse check classifies a drained log by this count;
+    a rebuild that dropped it would make the log read complete and the
+    abandoned remainder would silently never re-run.
+    """
+    logs = await eval_async(single_metric_task())
+    log = logs[0]
+    assert log.results.logged_samples is None
+
+    log.results.logged_samples = 0
+
+    edit_score(
+        log,
+        log.samples[0].id,
+        "single_metric_scorer",
+        ScoreEdit(value=0),
+        recompute_metrics=False,
+    )
+    recompute_metrics(log)
+    assert log.results.logged_samples == 0
+
+
+@pytest.mark.anyio
+async def test_edit_preserves_reason_by_default():
+    """An edit that doesn't mention reason leaves it unchanged (UNCHANGED default)."""
+    logs = await eval_async(single_metric_task())
+    log = logs[0]
+    sample = log.samples[0]
+    sample.scores["single_metric_scorer"].reason = "invalid_response_format"
+
+    edit_score(
+        log,
+        sample.id,
+        "single_metric_scorer",
+        ScoreEdit(value=0),
+        recompute_metrics=False,
+    )
+
+    assert sample.scores["single_metric_scorer"].reason == "invalid_response_format"
+
+
+@pytest.mark.anyio
+async def test_edit_sets_and_clears_reason():
+    """An edit can set reason to a new value or clear it with explicit None."""
+    logs = await eval_async(single_metric_task())
+    log = logs[0]
+    sample = log.samples[0]
+    sample.scores["single_metric_scorer"].reason = "invalid_response_format"
+
+    edit_score(
+        log,
+        sample.id,
+        "single_metric_scorer",
+        ScoreEdit(value=0, reason=None),
+        recompute_metrics=False,
+    )
+    assert sample.scores["single_metric_scorer"].reason is None
+
+    edit_score(
+        log,
+        sample.id,
+        "single_metric_scorer",
+        ScoreEdit(reason="refusal"),
+        recompute_metrics=False,
+    )
+    assert sample.scores["single_metric_scorer"].reason == "refusal"
+
+
+@pytest.mark.anyio
+async def test_edit_history_captures_original_reason():
+    """The synthesized original-state history entry records the pre-edit reason."""
+    logs = await eval_async(single_metric_task())
+    log = logs[0]
+    sample = log.samples[0]
+    sample.scores["single_metric_scorer"].reason = "grader_failed"
+
+    edit_score(
+        log,
+        sample.id,
+        "single_metric_scorer",
+        ScoreEdit(value=0, reason=None),
+        recompute_metrics=False,
+    )
+
+    original = sample.scores["single_metric_scorer"].history[0]
+    assert original.reason == "grader_failed"
+
+
+@pytest.mark.anyio
+async def test_edit_clearing_reason_drops_legacy_unscored_reason_metadata():
+    """Explicitly clearing `reason` must also drop legacy `metadata["unscored_reason"]`.
+
+    Logs written before `reason` existed (#4048) record the grade-parse
+    failure mode in `metadata["unscored_reason"]`; `Score`'s before-validator
+    lifts that into `reason` for scores that don't already set it. If a user
+    then edits such a score to explicitly clear `reason`, the persisted JSON
+    (written with `exclude_none=True`) omits the `reason` key entirely -
+    indistinguishable from "never set". Without also dropping the legacy
+    metadata key, re-validating that JSON (as happens on log read) would
+    resurrect the cleared reason.
+    """
+    logs = await eval_async(single_metric_task())
+    log = logs[0]
+    sample = log.samples[0]
+
+    legacy_score = Score(value=0, metadata={"unscored_reason": "grade_parse_failure"})
+    assert legacy_score.reason == "grade_parse_failure"
+    sample.scores["single_metric_scorer"] = legacy_score
+
+    edit_score(
+        log,
+        sample.id,
+        "single_metric_scorer",
+        ScoreEdit(reason=None),
+        recompute_metrics=False,
+    )
+
+    edited_score = sample.scores["single_metric_scorer"]
+    assert edited_score.reason is None
+    assert edited_score.metadata is not None
+    assert "unscored_reason" not in edited_score.metadata
+
+    # Simulate a log write (exclude_none=True) followed by a read
+    # (Score.model_validate) - the cleared reason must not be resurrected.
+    round_tripped = Score.model_validate(edited_score.model_dump(exclude_none=True))
+    assert round_tripped.reason is None
+
+
+@pytest.mark.parametrize("log_format", ["eval", "json"])
+@pytest.mark.anyio
+async def test_score_edit_none_fields_round_trip(
+    tmp_path: Path, log_format: str
+) -> None:
+    """Answers and explanations an edit sets to None read back as None.
+
+    ``reason`` is excluded; see test_legacy_score_edit_without_reason_keeps_reason.
+    """
+    log = (await eval_async(single_metric_task(), model="mockllm/model"))[0]
+    assert log.samples
+    sample_id = log.samples[0].id
+    provenance = ProvenanceData(author="test_editor")
+    edit_score(
+        log,
+        sample_id,
+        "single_metric_scorer",
+        ScoreEdit(value=0, explanation="why", provenance=provenance),
+    )
+    edit_score(
+        log,
+        sample_id,
+        "single_metric_scorer",
+        ScoreEdit(explanation=None, provenance=provenance),
+    )
+    assert log.samples[0].scores
+    edited_history = log.samples[0].scores["single_metric_scorer"].history
+    log_file = (tmp_path / f"log.{log_format}").as_posix()
+    await write_eval_log_async(log, log_file)
+
+    read_sample = await read_eval_log_sample_async(log_file, id=sample_id, epoch=1)
+
+    assert read_sample.scores
+    history = read_sample.scores["single_metric_scorer"].history
+    assert history[0].answer is None
+    assert history[0].explanation is None
+    assert history[2].explanation is None
+    assert history[2].answer == "UNCHANGED"
+
+    def fields(edits: list[ScoreEdit]) -> list[tuple[Any, ...]]:
+        return [(e.value, e.answer, e.explanation, e.metadata) for e in edits]
+
+    assert fields(history) == fields(edited_history)
+    edit_events = [e for e in read_sample.events if isinstance(e, ScoreEditEvent)]
+    assert fields([e.edit for e in edit_events]) == fields(history[1:])
+
+
+def test_score_edit_missing_fields_are_unchanged_outside_log_reads() -> None:
+    assert ScoreEdit.model_validate({"value": 1}).answer == "UNCHANGED"
+    assert ScoreEdit(value=1).reason == "UNCHANGED"
+    edit = ScoreEdit.model_validate({"value": 1}, context={"events_by_uuid": {}})
+    assert edit.explanation == "UNCHANGED"
+
+
+@pytest.mark.anyio
+async def test_legacy_score_edit_without_reason_keeps_reason() -> None:
+    """Edits written before ScoreEdit.reason existed have no reason key.
+
+    A missing reason can't be told apart from a None that exclude_none
+    dropped, so it keeps meaning UNCHANGED. Re-applying such an edit must not
+    clear the score's reason.
+    """
+    legacy_edit = ScoreEdit.model_validate(
+        {
+            "value": 0,
+            "answer": "UNCHANGED",
+            "explanation": "UNCHANGED",
+            "metadata": "UNCHANGED",
+        },
+        context=get_deserializing_context(),
+    )
+    assert legacy_edit.reason == "UNCHANGED"
+
+    log = (await eval_async(single_metric_task(), model="mockllm/model"))[0]
+    assert log.samples
+    sample = log.samples[0]
+    scores = sample.scores
+    assert scores is not None
+    scores["single_metric_scorer"] = Score(
+        value=1, metadata={"unscored_reason": "grade_parse_failure"}
+    )
+    edit_score(
+        log, sample.id, "single_metric_scorer", legacy_edit, recompute_metrics=False
+    )
+
+    edited = scores["single_metric_scorer"]
+    assert edited.reason == "grade_parse_failure"
+    assert edited.metadata == {"unscored_reason": "grade_parse_failure"}

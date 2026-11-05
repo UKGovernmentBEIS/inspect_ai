@@ -6,8 +6,8 @@ import pytest
 import yaml
 
 from inspect_ai import Task, eval
-from inspect_ai._cli.eval import parse_modalities
 from inspect_ai._util.error import PrerequisiteError
+from inspect_ai._util.generate_config_args import parse_modalities
 from inspect_ai.dataset import Sample
 from inspect_ai.model._generate_config import ImageOutput
 from inspect_ai.solver import generate

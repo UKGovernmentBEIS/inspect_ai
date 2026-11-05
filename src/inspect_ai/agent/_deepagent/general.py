@@ -43,8 +43,8 @@ def general(
     """Create a general-purpose subagent with full tool access.
 
     The general subagent inherits the parent agent's tools (including
-    skills) by default and has read-write memory access. It is intended for
-    tasks that require full capabilities in an isolated context.
+    skills) by default. It is intended for tasks that require full
+    capabilities in an isolated context.
 
     Args:
         tools: Tools for this subagent. "default" inherits the parent
@@ -55,6 +55,8 @@ def general(
             general prompt.
         skills: Subagent-specific skills (merged with parent skills).
         memory: Memory access level ("readwrite", "readonly", or False).
+            Defaults to False: the parent deepagent's memory tool is not
+            inherited, so pass "readwrite" or "readonly" to share it.
         limits: Scoped limits for each invocation.
         model: Model override (None inherits from parent).
         fork: If True, inherits parent conversation context.

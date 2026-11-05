@@ -1,18 +1,326 @@
+from contextlib import asynccontextmanager
 from os.path import dirname, join
 from pathlib import Path
+from typing import Any, AsyncIterator, cast
 
-from inspect_ai.log import list_eval_logs
+import anyio
+import boto3
+import pytest
+
+from inspect_ai._util.azure import AzureAuthError
+from inspect_ai._util.file import filesystem
+from inspect_ai.log import list_eval_logs, list_eval_logs_async
+from inspect_ai.log._file import (
+    EvalLogInfo,
+    _walk_without_detail,
+    manifest_eval_log_name,
+)
+
+AZURE_AUTH_MESSAGE = "Server failed to authenticate the request"
 
 file = Path(__file__)
+
+log_dir = join(dirname(file), "test_list_logs")
 
 ignored_files = ["ignore.json"]
 
 
+def test_manifest_eval_log_name_uses_filesystem_separator() -> None:
+    info = EvalLogInfo(
+        name="logs\\2024-01-01_task.eval",
+        type="file",
+        size=100,
+        mtime=1.0,
+        task="task",
+        task_id="1",
+        suffix=None,
+    )
+
+    assert manifest_eval_log_name(info, "logs", "\\") == "2024-01-01_task.eval"
+
+
+def test_manifest_eval_log_name_normalizes_manifest_separator() -> None:
+    info = EvalLogInfo(
+        name="logs/subdir/2024-01-01_task.eval",
+        type="file",
+        size=100,
+        mtime=1.0,
+        task="task",
+        task_id="1",
+        suffix=None,
+    )
+
+    assert manifest_eval_log_name(info, "logs", "/") == "subdir/2024-01-01_task.eval"
+
+
 def test_list_logs():
-    logs = list_eval_logs(
-        join(dirname(file), "test_list_logs"), formats=["eval", "json"]
+    logs = list_eval_logs(log_dir, formats=["eval", "json"])
+    names = [log.name for log in logs]
+
+    assert len(logs) == 3
+    assert all(file not in names for file in ignored_files)
+
+
+@pytest.mark.parametrize("recursive", [False, True])
+def test_list_logs_with_prefix_scoped_s3(
+    prefix_scoped_s3: str, recursive: bool
+) -> None:
+    client = boto3.client("s3")
+    prefix = prefix_scoped_s3.removeprefix("s3://test-bucket/")
+    filename = "2026-01-01T00-00-00_task_id.eval"
+    client.put_object(Bucket="test-bucket", Key=f"{prefix}/{filename}", Body=b"")
+    client.put_object(Bucket="test-bucket", Key=f"{prefix}/nested/{filename}", Body=b"")
+
+    logs = list_eval_logs(prefix_scoped_s3, recursive=recursive)
+    expected = {f"{prefix_scoped_s3}/{filename}"}
+    if recursive:
+        expected.add(f"{prefix_scoped_s3}/nested/{filename}")
+    assert {log.name for log in logs} == expected
+
+
+@pytest.mark.parametrize(
+    ("recursive", "error"),
+    [(False, FileNotFoundError), (False, PermissionError), (True, PermissionError)],
+)
+def test_list_logs_root_listing_errors(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    recursive: bool,
+    error: type[OSError],
+) -> None:
+    fs = filesystem(str(tmp_path))
+
+    def deny_listing(path: str, **kwargs: Any) -> list[dict[str, Any]]:
+        raise error("root listing denied")
+
+    monkeypatch.setattr(fs.fs, "ls", deny_listing)
+    monkeypatch.setattr("inspect_ai.log._file.filesystem", lambda *args: fs)
+
+    if error is FileNotFoundError:
+        assert list_eval_logs(str(tmp_path), recursive=recursive) == []
+    else:
+        with pytest.raises(PermissionError, match="root listing denied"):
+            list_eval_logs(str(tmp_path), recursive=recursive)
+
+
+@pytest.mark.parametrize("recursive", [False, True])
+async def test_list_logs_async_with_prefix_scoped_s3(
+    prefix_scoped_s3: str,
+    recursive: bool,
+) -> None:
+    prefix = prefix_scoped_s3.removeprefix("s3://test-bucket/")
+    filename = "2026-01-01T00-00-00_task_id.eval"
+    boto3.client("s3").put_object(
+        Bucket="test-bucket", Key=f"{prefix}/nested/{filename}", Body=b""
+    )
+    logs = await list_eval_logs_async(
+        prefix_scoped_s3,
+        recursive=recursive,
+        fs_options={"anon": True},
+    )
+    expected = {f"{prefix_scoped_s3}/nested/{filename}"} if recursive else set()
+    assert {log.name for log in logs} == expected
+
+
+async def test_list_logs_async_matches_sync():
+    sync_names = sorted(
+        log.name for log in list_eval_logs(log_dir, formats=["eval", "json"])
+    )
+    async_names = sorted(
+        log.name
+        for log in await list_eval_logs_async(log_dir, formats=["eval", "json"])
+    )
+
+    assert async_names == sync_names
+
+
+async def test_list_logs_async_missing_dir(tmp_path: Path):
+    logs = await list_eval_logs_async(str(tmp_path / "does-not-exist"))
+
+    assert logs == []
+
+
+async def _check_list_logs_async_filter() -> None:
+    logs = await list_eval_logs_async(
+        log_dir, formats=["eval", "json"], filter=lambda log: True
     )
     names = [log.name for log in logs]
 
     assert len(logs) == 3
     assert all(file not in names for file in ignored_files)
+
+
+async def test_list_logs_async_filter():
+    await _check_list_logs_async_filter()
+
+
+async def test_list_logs_async_filter_excludes_all():
+    logs = await list_eval_logs_async(
+        log_dir, formats=["eval", "json"], filter=lambda log: False
+    )
+
+    assert logs == []
+
+
+async def _check_list_logs_async_header_fallback() -> None:
+    # custom.eval has a non-conforming filename, so its task/task_id must be
+    # resolved by reading the log header — verify this works on both backends
+    # (under trio a sync header read would silently degrade to empty fields)
+    logs = await list_eval_logs_async(log_dir, formats=["eval", "json"])
+    custom = next(log for log in logs if log.name.endswith("custom.eval"))
+    assert custom.task == "input_task"
+    assert custom.task_id == "hxs4q9azL3ySGkjJirypKZ"
+
+
+async def test_list_logs_async_header_fallback():
+    await _check_list_logs_async_header_fallback()
+
+
+async def test_list_logs_unfiltered_in_async_context():
+    # unfiltered sync listing is backend-agnostic (the trio guard is filter-only)
+    logs = list_eval_logs(log_dir, formats=["eval", "json"])
+    assert len(logs) == 3
+
+
+async def test_walk_without_detail_error_handling():
+    # Unreadable descendants are skipped, but the requested root must be readable.
+    class FakeFS:
+        async def _ls(self, path: str, detail: bool = True) -> list[dict[str, Any]]:
+            if path == "root":
+                return [
+                    {"name": "root/a.eval", "type": "file"},
+                    {"name": "root/ok", "type": "directory"},
+                    {"name": "root/denied", "type": "directory"},
+                ]
+            elif path == "root/ok":
+                return [{"name": "root/ok/b.eval", "type": "file"}]
+            elif path == "root/denied":
+                raise PermissionError("access denied")
+            else:
+                raise ValueError(f"unexpected path {path}")
+
+    files = await _walk_without_detail(cast(Any, FakeFS()), "root")
+    names = {file["name"] for file in files}
+    assert "root/a.eval" in names
+    assert "root/ok/b.eval" in names
+
+    class FailingFS:
+        async def _ls(self, path: str, detail: bool = True) -> list[dict[str, Any]]:
+            raise ValueError("auth failure")
+
+    with pytest.raises(ValueError, match="auth failure"):
+        await _walk_without_detail(cast(Any, FailingFS()), "root")
+
+    class DeniedRoot:
+        async def _ls(self, path: str, detail: bool = True) -> list[dict[str, Any]]:
+            raise PermissionError("root listing denied")
+
+    with pytest.raises(PermissionError, match="root listing denied"):
+        await _walk_without_detail(cast(Any, DeniedRoot()), "root")
+
+
+# NOTE: The trio tests below use anyio.run(backend="trio") directly so the
+# trio paths run on regular CI, which has no --runtrio leg (see the NOTE
+# above the trio tests in test_eval_log.py).
+
+
+def test_list_logs_filter_trio_guard():
+    async def check() -> None:
+        with pytest.raises(RuntimeError, match="list_eval_logs_async"):
+            list_eval_logs(log_dir, formats=["eval", "json"], filter=lambda log: True)
+
+    anyio.run(check, backend="trio")
+
+
+def test_list_logs_async_filter_trio():
+    anyio.run(_check_list_logs_async_filter, backend="trio")
+
+
+def test_list_logs_async_header_fallback_trio():
+    anyio.run(_check_list_logs_async_header_fallback, backend="trio")
+
+
+def test_list_logs_async_remote_fs_trio(monkeypatch: pytest.MonkeyPatch):
+    # remote (async) filesystems must be listed via the backend-agnostic sync
+    # fallback under trio (fsspec's asynchronous=True mode is asyncio-only) —
+    # simulate one by marking the local filesystem async
+    def remote_style_filesystem(path: str, fs_options: dict[str, Any] = {}) -> Any:
+        fs = filesystem(path, fs_options)
+        monkeypatch.setattr(fs, "is_async", lambda: True)
+        return fs
+
+    monkeypatch.setattr("inspect_ai.log._file.filesystem", remote_style_filesystem)
+
+    async def check() -> None:
+        logs = await list_eval_logs_async(log_dir, formats=["eval", "json"])
+        assert len(logs) == 3
+
+    anyio.run(check, backend="trio")
+
+
+class _FakeAsyncAzureFilesystem:
+    """Stands in for an az:// filesystem whose listing call raises."""
+
+    def is_async(self) -> bool:
+        return True
+
+    def is_s3(self) -> bool:
+        return False
+
+    def invalidate_cache(self, path: str) -> None:
+        pass
+
+    async def _ls(self, path: str, detail: bool = True) -> list[dict[str, Any]]:
+        raise Exception(AZURE_AUTH_MESSAGE)
+
+    def ls(self, path: str, recursive: bool = True, **kwargs: Any) -> list[Any]:
+        raise Exception(AZURE_AUTH_MESSAGE)
+
+
+def _patch_azure_auth_filesystem(monkeypatch: pytest.MonkeyPatch) -> None:
+    @asynccontextmanager
+    async def fake_async_filesystem(
+        location: str, fs_options: dict[str, Any] = {}
+    ) -> AsyncIterator[Any]:
+        yield _FakeAsyncAzureFilesystem()
+
+    monkeypatch.setattr(
+        "inspect_ai.log._file.filesystem",
+        lambda path, fs_options={}: _FakeAsyncAzureFilesystem(),
+    )
+    monkeypatch.setattr("inspect_ai.log._file.async_filesystem", fake_async_filesystem)
+
+
+async def _check_azure_auth_error_raises() -> None:
+    # an auth failure is not an empty directory: it must surface as a friendly
+    # AzureAuthError rather than being downgraded to a warning and []
+    with pytest.raises(AzureAuthError, match="Azure storage authentication failed"):
+        await list_eval_logs_async("az://container/logs")
+
+
+async def test_list_logs_async_azure_auth_error_raises(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_azure_auth_filesystem(monkeypatch)
+    await _check_azure_auth_error_raises()
+
+
+def test_list_logs_async_azure_auth_error_raises_trio(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # the trio sync-fallback branch must behave identically
+    _patch_azure_auth_filesystem(monkeypatch)
+    anyio.run(_check_azure_auth_error_raises, backend="trio")
+
+
+async def test_list_logs_async_azure_auth_error_keeps_original(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # the raw provider error must remain reachable via __cause__ so the
+    # friendly message does not lose the underlying diagnostic
+    _patch_azure_auth_filesystem(monkeypatch)
+    with pytest.raises(AzureAuthError) as exc_info:
+        await list_eval_logs_async("az://container/logs")
+
+    assert isinstance(exc_info.value.__cause__, Exception)
+    assert AZURE_AUTH_MESSAGE in str(exc_info.value.__cause__)

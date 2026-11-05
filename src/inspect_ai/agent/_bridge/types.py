@@ -1,8 +1,10 @@
+from enum import IntEnum
 from functools import lru_cache
-from typing import NamedTuple, Sequence, Set
+from typing import TYPE_CHECKING, Any, Callable, NamedTuple, NoReturn, Sequence, Set
 
 from shortuuid import uuid
 
+from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai.agent._agent import AgentState
@@ -15,12 +17,53 @@ from inspect_ai.model._compaction import (
 from inspect_ai.model._compaction import (
     compaction as create_compaction,
 )
-from inspect_ai.model._model import GenerateFilter, Model, ModelEventSink
+from inspect_ai.model._model import (
+    GenerateFilter,
+    Model,
+    ModelEventSink,
+    ModelResolver,
+    ModelResponseFilter,
+)
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool._tool import Tool
+from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.util._checkpoint.checkpointer import Checkpointer
 from inspect_ai.util._checkpoint.checkpointer_noop import _NoopCheckpointer
+
+if TYPE_CHECKING:
+    # deferred: `_bridge.types` is imported at the top of `inspect_ai.agent`, well
+    # before `inspect_ai.approval` can be initialized (approval -> event -> scorer
+    # cycles back through partially-initialized modules). Same reason
+    # `model/_call_tools.py` defers it.
+    from inspect_ai.approval._policy import ApprovalPolicy
+
+
+class DispatchedCall(NamedTuple):
+    """A bridged tool call the model made through a scaffold's dispatcher function."""
+
+    server: str
+    """The bridged server the target tool is registered under."""
+
+    target: ToolCall
+    """The call to the bridged tool itself, under the dispatcher call's id."""
+
+    dispatch: Callable[[dict[str, Any]], dict[str, Any]]
+    """Arguments for the dispatcher call that make the target call with the given ones."""
+
+
+class ReviewedCalls(NamedTuple):
+    """The calls approval reviews for one tool call in a bridged response."""
+
+    calls: list[ToolCall]
+    """The calls approvers see, under the tool call's id: one per bridged tool it would run."""
+
+    dispatch: Callable[[dict[str, Any]], dict[str, Any]]
+    """Arguments for the tool call that make a reviewed call with the given ones."""
+
+
+def _unchanged(arguments: dict[str, Any]) -> dict[str, Any]:
+    return arguments
 
 
 class AgentBridge:
@@ -36,8 +79,21 @@ class AgentBridge:
         model_aliases: dict[str, str | Model] | None = None,
         model_event_sink: ModelEventSink | None = None,
         forward_generation_config: bool = False,
+        approval: list["ApprovalPolicy"] | None = None,
         checkpointer: Checkpointer | None = None,
+        allow_remote_mcp: bool = True,
+        allow_remote_media: bool = False,
+        model_resolver: ModelResolver | None = None,
+        allow_client_model_names: bool = False,
+        response_filter: ModelResponseFilter | None = None,
     ) -> None:
+        # Capabilities a client-declared request may reach for. Media and
+        # client-chosen model names default closed so new bridge subclasses
+        # cannot accidentally grant host I/O or host credentials. The known
+        # in-process factory grants them explicitly.
+        self.allow_remote_mcp = allow_remote_mcp
+        self.allow_remote_media = allow_remote_media
+        self.allow_client_model_names = allow_client_model_names
         self._cp = checkpointer or _NoopCheckpointer()
         # AgentState is not a BaseModel so it can't be tracked directly;
         # track its messages and output separately (same approach as react()).
@@ -77,31 +133,33 @@ class AgentBridge:
             value_type=list[ChatMessage],
         )
         self.filter = filter
+        self.response_filter = response_filter
         self.retry_refusals = retry_refusals
         self.model = model
         self.model_aliases: dict[str, str | Model] = model_aliases or {}
+        self.model_resolver = model_resolver
         self.model_event_sink = model_event_sink
         self.forward_generation_config = forward_generation_config
+        self.approval = approval
         self._compaction = compaction
         self._compact: Compact | None = None
         self._last_message_count = 0
         # thread-tracking state for _track_state (see its docstring). the
         # descent anchor is the initial input (via _compaction_prefix, which
         # restores to the original input on checkpoint resume).
-        self._initial_fps = [
-            _message_fingerprint(m)
-            for m in self._compaction_prefix
-            if m.role != "system"
-        ]
+        initial_messages = [m for m in self._compaction_prefix if m.role != "system"]
+        self._initial_fps = [_message_fingerprint(m) for m in initial_messages]
         self._initial_fps_condensed = [
             _condensed_fingerprint(fp) for fp in self._initial_fps
         ]
+        self._initial_texts = [m.text.strip() for m in initial_messages]
         self._tracked_fps: list[_MessageFingerprint] | None = None
         self._tracked_calls = 0
-        self._tracked_descends: bool | None = None
+        self._tracked_descends: _Descent | None = None
         self._candidate_fps: list[_MessageFingerprint] | None = None
         self._pending_operator = 0
         self._operator_keys: set[str] = set()
+        self._warned_request_settings: set[str] = set()
 
     state: AgentState
     """State updated from messages traveling over the bridge."""
@@ -112,25 +170,52 @@ class AgentBridge:
     A filter may substitute for the default model generation by returning a ModelOutput or return None to allow default processing to continue.
     """
 
+    response_filter: ModelResponseFilter | None
+    """Filter that can replace model output after generation (see ``ModelResponseFilter``).
+
+    Return ``None`` to pass through; return a ``ModelOutput`` to replace the response.
+    """
+
     model: str | None
-    """Fallback model for requests that don't use ``inspect`` or ``inspect/``
-    prefixed names.  ``None`` means no fallback (the request model name is
-    used as-is).
+    """Model that serves every request the bridge does not otherwise recognise
+    (e.g. ``"inspect/openai/gpt-6-luna"``; the ``inspect/`` prefix is optional).
+    Aliases, resolver results and the name ``"inspect"`` are not pinned.
+    ``None`` (or ``"inspect"``) serves such requests with the eval's active
+    model, or with the model the name implies when
+    ``allow_client_model_names`` is set.
     """
 
     model_aliases: dict[str, str | Model]
     """Map of model name aliases.  When a request uses a name that appears
     here, the corresponding value (a ``Model`` instance or model spec string)
-    is used instead.  Checked before the fallback ``model``.
+    is used instead.  Checked before the pinned ``model``.
+    """
+
+    model_resolver: ModelResolver | None
+    """Dynamic per-request model routing policy.  Called with the requested
+    model name after ``model_aliases`` and before the pinned ``model``;
+    returning a ``Model``/spec routes the request there, ``None`` defers to the
+    rest of the resolution.  Lets a bridge route by policy without enumerating
+    every name.
+    """
+
+    allow_client_model_names: bool
+    """Let a requested name the bridge does not otherwise recognise reach the
+    model role or model it names (e.g. ``"inspect/openai/gpt-6-luna"``).  When
+    ``False`` (the default), such requests are served by the eval's active
+    model.  Set by the in-process ``agent_bridge()``, whose agent already has
+    the host's credentials.
     """
 
     model_event_sink: ModelEventSink | None
     """Optional sink that takes ownership of `ModelEvent` emission for calls
     routed through the bridge. When set, the bridge installs it around
-    `model.generate()`; `_record_model_interaction` then dispatches pending /
-    complete events to the sink instead of emitting them to the transcript.
-    Use this to attribute bridge model events to externally-managed agent
-    spans (e.g. spans driven by a side-channel event stream).
+    `model.generate()`. The sink's optional `on_start` decides under which span
+    each generation runs, which a live sentinel's conversation follows;
+    `_record_model_interaction` dispatches pending / complete events to the
+    sink, which decides when each is emitted to the transcript. Use this to
+    attribute bridge model events to externally-managed agent spans (e.g.
+    spans driven by a side-channel event stream). See `ModelEventSink`.
     """
 
     forward_generation_config: bool
@@ -145,6 +230,97 @@ class AgentBridge:
     response format, stop sequences) are always forwarded. Set `True` to forward
     the client's generation parameters (faithful-proxy behavior).
     """
+
+    approval: list["ApprovalPolicy"] | None
+    """Approval policies for tool calls made by the bridged agent.
+
+    Applied to the tool calls in each bridged model response, replacing any ambient
+    policies for the duration of the approval. Ambient policies (eval-level and
+    task-level) already apply without this; it exists because a sandbox bridge's
+    generations run in the sandbox service task, which holds a *copy* of the context
+    taken when the bridge was entered — so an `approval()` block entered inside the
+    agent body is invisible to them. Setting policies here is the only reliable way
+    to scope approval from within the agent.
+    """
+
+    def request_terminate(self, reason: str) -> NoReturn:
+        """Terminate the sample from a bridged generation.
+
+        Raises `TerminateSampleError`, which propagates out through the agent to the
+        sample runner. A `SandboxAgentBridge`'s generations run in the sandbox
+        service task: there the raise reaches the service dispatcher, which answers
+        the RPC and propagates the termination out of the service task, unwinding
+        the bridge's task group.
+        """
+        raise TerminateSampleError(reason)
+
+    def request_fail(self, error: Exception) -> None:
+        """Fail the sample with `error` from a bridged generation.
+
+        The caller then raises `error`, which propagates out through the agent to
+        the sample runner, so an in-process bridge has nothing to do here.
+        `SandboxAgentBridge` overrides this to signal its monitor task, since the
+        sandbox service dispatcher turns a raise (other than a limit or a
+        termination) into an RPC error that never reaches the sample runner.
+        """
+
+    grants_tool_execution: bool = False
+    """Whether this bridge binds host-tool execution to the calls in each response.
+
+    In-process bridges execute no host tools through a separate service, so nothing
+    is granted or checked. `SandboxAgentBridge` sets this and overrides
+    `register_tool_execution_grants`; `apply_bridge_tool_approval` reads it to
+    decide whether alternate choices must be dropped without an approval policy.
+    """
+
+    def register_tool_execution_grants(
+        self,
+        calls: Sequence[ToolCall],
+        tools: Sequence[ToolInfo | Tool],
+        *,
+        span_id: str | None = None,
+    ) -> None:
+        """Register the calls in a response handed to the scaffold for execution-edge checks.
+
+        `tools` are the declarations the scaffold made to the model in the request
+        that produced the response; a subclass overriding this hook must accept
+        them (the parameter is new, and required, since the calls cannot be
+        resolved without it). `span_id` is the span the proposing `ModelEvent`
+        was placed in when a `ModelEventSink` put it somewhere other than the
+        current span, else `None`; an override must accept it too, as
+        `bridge_generate` passes it for every generation. In-process bridges
+        execute no host tools through a separate service, so the base
+        implementation has nothing to register. Sandbox bridges override this to
+        bind later service requests to the calls the model actually made.
+        """
+
+    def dispatched_call(self, call: ToolCall) -> DispatchedCall | None:
+        """The bridged tool call that `call` makes through a dispatcher, if any.
+
+        Some scaffolds reach every bridged tool through one function whose arguments
+        name the target. Approval reviews such a call as the target call, so policies
+        match the bridged tool's own name and approvers see (and modify) its own
+        arguments. In-process bridges have no bridged tools, so nothing is
+        dispatched; `SandboxAgentBridge` overrides this.
+        """
+        return None
+
+    def reviewed_calls(
+        self, call: ToolCall, tools: Sequence[ToolInfo | Tool]
+    ) -> ReviewedCalls:
+        """The calls approval reviews `call` as.
+
+        Approval must review a call as the tool it will run, so policies match
+        that tool's name and approvers see its arguments. Here that is the
+        target of a dispatcher call (`dispatched_call`), else the call itself.
+        `tools` are the declarations the scaffold made to the model in the
+        request that produced `call`. `SandboxAgentBridge` overrides this to
+        resolve a call the same way its execution grants do.
+        """
+        dispatched = self.dispatched_call(call)
+        if dispatched is not None:
+            return ReviewedCalls([dispatched.target], dispatched.dispatch)
+        return ReviewedCalls([call], _unchanged)
 
     def compaction(
         self, tools: Sequence[ToolInfo | Tool], model: Model
@@ -229,15 +405,23 @@ class AgentBridge:
           are a prefix of it, compared by role + text) always updates the state.
         - Otherwise the call starts a new thread and we consult *descent*: a
           thread descends from the initial input if its non-system messages
-          start with the initial input's non-system messages (verbatim or as
-          their condensed ``attachment://<hash>`` references — see
-          `_descends_from_initial`). A descending
-          thread displaces a tracked non-descending thread when that thread is
-          a one-shot call (the opencode title case) or when the descending
-          call is longer than the tracked thread (the main loop reclaiming
-          tracking from a promoted sub-agent loop, below). A non-descending
-          call never directly displaces a tracked descending thread (side
-          calls, sub-agent loops).
+          start with the initial input's non-system messages (verbatim, as
+          their condensed ``attachment://<hash>`` references, or as decorated
+          text containing the initial message — see `_descends_from_initial`).
+          Descent is graded (see `_Descent`): quote-wrapped store-transform
+          anchors outrank verbatim/condensed anchors, which outrank generic
+          containment, which outranks no anchor. A stronger-descending
+          thread displaces the tracked thread when that thread is a one-shot
+          call (the opencode title case) or when the stronger call is longer
+          than the tracked thread (the main loop reclaiming tracking from a
+          promoted sub-agent loop, below). The grading means a side call that
+          quotes the whole prompt inside a preamble message (containment
+          grade) can never outrank a verbatim-anchored main loop, and a side
+          call resending the raw prompt verbatim (a topic detector) can never
+          outrank opencode's quote-wrapped main loop — while a decorated main
+          loop still displaces a non-descending title call. A
+          weaker-descending call never directly displaces the tracked thread
+          (side calls, sub-agent loops).
         - When descent can't discriminate (equal verdicts, or no initial input
           to anchor on — e.g. a scaffold that rewrites the input prompt), fall
           back to the legacy length heuristic: adopt the new thread when it
@@ -269,23 +453,24 @@ class AgentBridge:
             # post-compaction conversation): promote it over the tracked thread
             self._adopt_thread(messages, output, fps, calls=2)
         else:
-            descends = self._descends_from_initial(fps)
+            descends = self._descends_from_initial(messages, fps)
             if (
-                descends is True
-                and self._tracked_descends is False
+                descends is not None
+                and self._tracked_descends is not None
+                and descends > self._tracked_descends
                 and (self._tracked_calls == 1 or len(messages) > len(self._tracked_fps))
             ):
-                # the real conversation displacing a non-descending thread:
+                # the real conversation displacing a weaker-anchored thread:
                 # a one-shot side call that landed first (the opencode title
                 # case) or, when longer than the tracked thread, a promoted
                 # multi-call sub-agent loop (a main loop resuming with a
                 # single final call would otherwise be parked as a candidate
                 # that nothing extends). a short stray descending one-shot
-                # still can't displace an established non-descending thread
+                # still can't displace an established weaker-anchored thread
                 # (flapping guard).
                 self._adopt_thread(messages, output, fps, calls=1)
             elif descends == self._tracked_descends and len(messages) > (
-                len(self._tracked_fps) if descends is True else self._last_message_count
+                len(self._tracked_fps) if descends else self._last_message_count
             ):
                 # legacy length heuristic. when both threads descend, compare
                 # against the tracked thread so a parked side call can't lower
@@ -313,26 +498,50 @@ class AgentBridge:
         """Make `messages` the tracked main thread (see `_track_state`).
 
         `calls` is the number of bridge calls attributed to the thread; a
-        descending thread may displace a non-descending one-shot (`calls == 1`)
-        thread regardless of length.
+        stronger-descending thread may displace a weaker-anchored one-shot
+        (`calls == 1`) thread regardless of length.
         """
         self.state.messages = messages
         self.state.output = output
         self._tracked_fps = fps
         self._tracked_calls = calls
-        self._tracked_descends = self._descends_from_initial(fps)
+        self._tracked_descends = self._descends_from_initial(messages, fps)
         self._candidate_fps = None
 
-    def _descends_from_initial(self, fps: list["_MessageFingerprint"]) -> bool | None:
-        """Whether a thread's non-system messages start with the initial input.
+    def _descends_from_initial(
+        self, messages: list[ChatMessage], fps: list["_MessageFingerprint"]
+    ) -> "_Descent | None":
+        """How a thread's non-system messages anchor on the initial input.
 
-        Each initial message matches either verbatim or as its condensed
-        `attachment://<hash>` reference: a long prompt that rides into the
-        scaffold via inspect's transcript condensation crosses the bridge as
-        the placeholder rather than the original text (observed with opencode,
-        whose conversation store round-trips it), and the main loop must still
-        anchor. Only the exact reference to the initial content matches — an
-        attachment reference to other content is not a wildcard.
+        Each initial message matches verbatim, as its condensed
+        `attachment://<hash>` reference, or as decorated text that contains
+        the initial message. Scaffolds transform the prompt on its way
+        through their conversation store: a long prompt that rides in via
+        inspect's transcript condensation crosses the bridge as the
+        placeholder rather than the original text, and opencode round-trips
+        the prompt wrapped in literal double quotes — the main loop must
+        still anchor in both cases. Only the exact reference to the initial
+        content matches (an attachment reference to other content is not a
+        wildcard), and containment requires a same-role message and at least
+        `_ANCHOR_CONTAINMENT_MIN_CHARS` of initial text so a trivially short
+        prompt can't match a side call by coincidence.
+
+        The verdict is graded per aligned position (see `_position_descent`)
+        so `_track_state` can arbitrate between two anchored threads by
+        evidence strength (see `_Descent` for the ordering rationale),
+        aggregated weakness-first:
+
+        - any position that needed generic containment caps the thread at
+          `CONTAINED` — side calls copy stored (possibly quote-wrapped)
+          messages too, so an interpolated position makes the whole thread
+          low-confidence no matter how its other positions anchor;
+        - otherwise quote-wrap at any position grades the thread `QUOTED`:
+          among threads whose every position matches exactly, the store
+          transform marks the persisted main conversation, and evidence at
+          one position is not diluted by others that round-trip verbatim (a
+          partially transformed main thread must still outrank a raw-copy
+          side call);
+        - otherwise `EXACT`.
 
         Returns `None` when there is no initial input to anchor on (descent
         can't discriminate threads, so `_track_state` falls back to the legacy
@@ -340,15 +549,25 @@ class AgentBridge:
         """
         if not self._initial_fps:
             return None
-        non_system = [fp for fp in fps if fp.role != "system"]
+        non_system = [(m, fp) for m, fp in zip(messages, fps) if fp.role != "system"]
         if len(non_system) < len(self._initial_fps):
-            return False
-        return all(
-            fp == initial or fp == condensed
-            for fp, initial, condensed in zip(
-                non_system, self._initial_fps, self._initial_fps_condensed
-            )
-        )
+            return _Descent.NO
+        quoted = False
+        contained = False
+        for (message, fp), initial, condensed, initial_text in zip(
+            non_system,
+            self._initial_fps,
+            self._initial_fps_condensed,
+            self._initial_texts,
+        ):
+            position = _position_descent(message, fp, initial, condensed, initial_text)
+            if position is _Descent.NO:
+                return _Descent.NO
+            quoted = quoted or position is _Descent.QUOTED
+            contained = contained or position is _Descent.CONTAINED
+        if contained:
+            return _Descent.CONTAINED
+        return _Descent.QUOTED if quoted else _Descent.EXACT
 
 
 @lru_cache(maxsize=100)
@@ -370,6 +589,101 @@ class _MessageFingerprint(NamedTuple):
 
 def _message_fingerprint(message: ChatMessage) -> _MessageFingerprint:
     return _MessageFingerprint(role=message.role, text_hash=mm3_hash(message.text))
+
+
+class _Descent(IntEnum):
+    """Graded descent-from-initial-input verdict (see `_descends_from_initial`).
+
+    Ordered by strength of evidence that the thread is the *main*
+    conversation, so `_track_state` can arbitrate between two descending
+    threads. `QUOTED` (nothing but the initial input in literal double
+    quotes) sits above `EXACT`: quote-wrap is the scaffold's conversation-
+    store transform, so it can only come from the persisted main thread,
+    whereas a verbatim resend is also what side calls produce by copying the
+    raw input (topic detectors, title preambles). Generic containment ranks
+    below both — any call that interpolates the prompt into other text
+    produces it.
+
+    `QUOTED` > `EXACT` is a deliberate trade with a mirrored residual
+    ambiguity: under a scaffold that does *not* quote-wrap its store, a
+    side call whose whole aligned message is exactly the quoted prompt
+    presents the same observables as opencode's quote-wrapped main vs a
+    raw-copy side call (one QUOTED one-shot, one EXACT one-shot), so any
+    static ordering fails exactly one of the two shapes. This ordering
+    sacrifices the bare-quoted side call — a constructed shape, no scaffold
+    observed producing it — to protect the observed opencode failure;
+    demoting QUOTED to tie EXACT breaks the observed shape in three test
+    pairs while still failing one order of the constructed one. Exposure is
+    one-shot mains only (the calls/length gate in `_track_state` protects
+    established threads, and a multi-turn main reclaims tracking via
+    candidate promotion); the losing side is pinned by the
+    `test_bare_quoted_side_call_*` tests. Resolving the pair outright
+    requires out-of-band knowledge of the scaffold's store transform (a
+    bridge-caller declaration) rather than more signal at this layer.
+    """
+
+    NO = 0
+    CONTAINED = 1
+    EXACT = 2
+    QUOTED = 3
+
+
+_ANCHOR_CONTAINMENT_MIN_CHARS = 20
+"""Minimum initial-message length for containment anchoring.
+
+Below this, a side call could contain the initial text by coincidence (e.g.
+a bash path-detection call quoting a short command prompt) and be adopted as
+the descending thread; such short prompts anchor by exact/condensed match
+or by exact quote-wrapping only (see `_position_descent`).
+"""
+
+
+def _position_descent(
+    message: ChatMessage,
+    fp: _MessageFingerprint,
+    initial: _MessageFingerprint,
+    condensed: _MessageFingerprint,
+    initial_text: str,
+) -> "_Descent":
+    """Grade how one aligned message anchors on its initial counterpart.
+
+    Scaffolds decorate the prompt as it round-trips their conversation store
+    (opencode wraps it in literal double quotes; others prepend headers), so
+    exact-text anchoring alone misses the main loop. Beyond the verbatim and
+    condensed ``attachment://<hash>`` forms, a same-role message anchors as
+    `QUOTED` when it is exactly the initial text (or its condensed
+    reference, since decoration composes with transcript condensation) in
+    double quotes, and as `CONTAINED` when it contains the initial text
+    inside other content. `initial_text` is pre-stripped (in `__init__`) and
+    the quote *interior* is stripped before comparison: the scaffold quotes
+    the original prompt, so whitespace around the task survives inside the
+    wrapper (`"  task  "`) while trimming by the scaffold removes it —
+    neither may defeat matching.
+
+    Generic containment requires `_ANCHOR_CONTAINMENT_MIN_CHARS` of initial
+    text so a trivially short prompt can't match a side call by coincidence;
+    the quoted and condensed forms are exempt from the floor because they
+    can't match by coincidence (nothing but the quoted prompt / a content
+    hash). An attachment reference to other content is not a wildcard — only
+    the exact reference to the initial content matches.
+    """
+    if fp == initial or fp == condensed:
+        return _Descent.EXACT
+    if fp.role != initial.role:
+        return _Descent.NO
+    stripped = message.text.strip()
+    if len(stripped) >= 2 and stripped[0] == '"' and stripped[-1] == '"':
+        interior = stripped[1:-1].strip()
+        if interior == f"{ATTACHMENT_PROTOCOL}{initial.text_hash}" or (
+            initial_text and interior == initial_text
+        ):
+            return _Descent.QUOTED
+    if (
+        len(initial_text) >= _ANCHOR_CONTAINMENT_MIN_CHARS
+        and initial_text in message.text
+    ) or f"{ATTACHMENT_PROTOCOL}{initial.text_hash}" in message.text:
+        return _Descent.CONTAINED
+    return _Descent.NO
 
 
 def _condensed_fingerprint(fp: _MessageFingerprint) -> _MessageFingerprint:

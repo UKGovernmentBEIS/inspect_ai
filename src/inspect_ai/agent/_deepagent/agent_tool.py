@@ -1,19 +1,22 @@
 from __future__ import annotations
 
-from contextlib import contextmanager
+from contextlib import asynccontextmanager, contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
-from logging import getLogger
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Iterator, Literal, Sequence
+from typing import TYPE_CHECKING, AsyncIterator, Callable, Iterator, Literal, Sequence
 
 if TYPE_CHECKING:
     from inspect_ai.approval._policy import ApprovalPolicy
     from inspect_ai.tool._tools._skill import Skill
+    from inspect_ai.util._background import BackgroundTarget
+
 
 import anyio
+from anyio.abc import TaskGroup
 from shortuuid import uuid as shortuuid
 
+from inspect_ai._util._async import unwrap_exception_group
 from inspect_ai.agent._agent import Agent, AgentState
 from inspect_ai.agent._react import react
 from inspect_ai.agent._run import run
@@ -33,13 +36,22 @@ from inspect_ai.tool._tool_call import (
     ToolCall,
     ToolCallContent,
     ToolCallView,
+    ToolCallViewer,
 )
 from inspect_ai.tool._tool_def import ToolDef
+from inspect_ai.util._tool_state import private_tool_instance
 
 from .prompt import SUBAGENT_SUBMIT_PROMPT
 from .subagent import Subagent
 
-logger = getLogger(__name__)
+SUBAGENT_RESULT_MAX_OUTPUT = 0
+"""Output limit for tools that hand a subagent's result back to the parent.
+
+A subagent's report *is* the payload of the delegation, so clipping it at
+``max_tool_output`` (16KB by default) throws away the very thing the parent
+dispatched for. ``0`` disables truncation. Shared with the background
+lifecycle tools, which echo the same results.
+"""
 
 # ---------------------------------------------------------------------------
 # Background dispatch registry
@@ -93,7 +105,9 @@ class BackgroundRegistry:
 
     Lives in a ContextVar set/reset in ``deepagent.execute()``. Nested
     deepagents get isolated namespaces because ContextVars carry per-task
-    semantics.
+    semantics. Children run in the sample's task group, or in a task group
+    the registry owns when the deepagent starts without a live one (see
+    ``owned_task_group()``).
     """
 
     max_background: int
@@ -107,8 +121,15 @@ class BackgroundRegistry:
     re-announces a finish the model already saw; never filters what any tool
     displays."""
 
+    _task_group: TaskGroup | None = field(default=None, init=False, repr=False)
+    _target: BackgroundTarget | None = field(default=None, init=False, repr=False)
+
     def next_id(self) -> str:
-        """Allocate the next AGENT-N handle. Counter never reuses."""
+        """Allocate the next AGENT-N handle.
+
+        The counter never reuses an id, except one whose child failed to
+        start (``_dispatch_background()`` gives it back).
+        """
         self.counter += 1
         return f"AGENT-{self.counter}"
 
@@ -120,6 +141,61 @@ class BackgroundRegistry:
         don't occupy a slot.
         """
         return sum(1 for f in self.futures.values() if f.status == "running")
+
+    @asynccontextmanager
+    async def owned_task_group(self) -> AsyncIterator[None]:
+        """Own a task group for children when the sample has none.
+
+        While the sample's task group is live, this does nothing: children
+        run there via ``background()`` and keep the sample-scoped lifetime.
+        The sample runner cancels that group when the solver chain finishes,
+        so a deepagent that starts in a scorer owns a task group instead. Its
+        children are cancelled when the deepagent exits, and the exit waits
+        for them to finish.
+
+        While ``background_target`` is set, this also does nothing: children
+        start in that target via ``background()``, and it owns them. The
+        target is fixed for the deepagent's lifetime: the registry records
+        the one set on entry, and ``_dispatch_background()`` refuses a
+        dispatch made under a different one.
+        """
+        from inspect_ai.util._background import background_target
+
+        self._target = background_target.get()
+        if self._target is not None or _live_sample_task_group() is not None:
+            yield
+            return
+
+        cancelled: BaseException | None = None
+        try:
+            async with (
+                unwrap_exception_group(),
+                anyio.create_task_group() as task_group,
+            ):
+                self._task_group = task_group
+                try:
+                    yield
+                except anyio.get_cancelled_exc_class() as ex:
+                    # The group's own cancel below would absorb a cancellation
+                    # the body re-raises after its scope exited; keep it.
+                    cancelled = ex
+                    raise
+                finally:
+                    task_group.cancel_scope.cancel()
+        finally:
+            self._task_group = None
+        if cancelled is not None:
+            raise cancelled
+
+
+def _live_sample_task_group() -> TaskGroup | None:
+    """The running sample's task group, if children can still start in it."""
+    from inspect_ai.log._samples import sample_active
+
+    sample = sample_active()
+    if sample is None or sample.tg is None or sample.tg.cancel_scope.cancel_called:
+        return None
+    return sample.tg
 
 
 _background_registry: ContextVar[BackgroundRegistry | None] = ContextVar(
@@ -168,27 +244,39 @@ def active_background_agents() -> list[AgentFuture]:
     return list(reg.futures.values())
 
 
-def _agent_viewer(call: ToolCall) -> ToolCallView:
-    """Render an agent() dispatch as a markdown header + prompt body.
+def _agent_viewer_for(single_name: str | None) -> ToolCallViewer:
+    """Build the viewer that renders an agent() dispatch in the transcript.
 
-    The viewer's content uses ``{{key}}`` placeholders that the framework
+    The rendered content uses ``{{key}}`` placeholders that the framework
     substitutes with the actual tool arguments at render time. When the
     model provides a ``task_description``, it renders as a heading above
     the prompt; when absent, the heading is omitted (otherwise the
     literal ``{{task_description}}`` would render).
+
+    Args:
+        single_name: Name of the sole subagent, or None when there are
+            several. Single-subagent tools take no ``subagent_type``
+            argument, so the name has to come from here for the title to
+            say which subagent ran.
     """
-    subagent_type = call.arguments.get("subagent_type") or ""
-    has_description = bool(call.arguments.get("task_description"))
-    content = (
-        "### {{task_description}}\n\n{{prompt}}" if has_description else "{{prompt}}"
-    )
-    return ToolCallView(
-        call=ToolCallContent(
-            title=f"agent: {subagent_type}",
-            format="markdown",
-            content=content,
+
+    def viewer(call: ToolCall) -> ToolCallView:
+        subagent_type = call.arguments.get("subagent_type") or single_name
+        has_description = bool(call.arguments.get("task_description"))
+        content = (
+            "### {{task_description}}\n\n{{prompt}}"
+            if has_description
+            else "{{prompt}}"
         )
-    )
+        return ToolCallView(
+            call=ToolCallContent(
+                title=f"agent: {subagent_type}" if subagent_type else "agent",
+                format="markdown",
+                content=content,
+            )
+        )
+
+    return viewer
 
 
 def agent_tool(
@@ -323,10 +411,68 @@ def agent_tool(
                 child_agent, sa, dispatch_input, span_id=agent_span_id
             )
 
-    if background_enabled:
+    # With one subagent there is no choice to make, so `subagent_type` is dropped from the
+    # schema and resolved here rather than asked of the model. It returns as soon as there
+    # are two.
+    single_name = subagents[0].name if len(subagents) == 1 else None
 
-        @tool(parallel=can_parallel, viewer=_agent_viewer)
+    async def _invoke(
+        subagent_type: str, prompt: str, background: bool
+    ) -> tuple[str, str]:
+        """Shared dispatch body for every tool variant; returns (result, agent span id)."""
+        sa, child_agent, dispatch_input, agent_span_id, from_message = (
+            _prepare_dispatch(subagent_type, prompt)
+        )
+        if background:
+            return (
+                _dispatch_background(
+                    child_agent,
+                    sa,
+                    dispatch_input,
+                    agent_span_id,
+                    sa.fork,
+                    from_message,
+                ),
+                agent_span_id,
+            )
+        return (
+            await _run_sync(
+                sa, child_agent, dispatch_input, agent_span_id, from_message
+            ),
+            agent_span_id,
+        )
+
+    if background_enabled and single_name is not None:
+        only = single_name
+
+        @tool(
+            parallel=can_parallel,
+            viewer=_agent_viewer_for(single_name),
+            max_output=SUBAGENT_RESULT_MAX_OUTPUT,
+        )
         def agent() -> Tool:
+            """Delegate a task to a specialized subagent."""
+
+            async def execute(
+                prompt: str,
+                background: bool = False,
+                task_description: str | None = None,
+            ) -> str:
+                value, span_id = await _invoke(only, prompt, background)
+                execute.agent_span_id = span_id  # type: ignore[attr-defined]
+                return value
+
+            execute.__doc__ = tool_description
+            return execute
+
+    elif background_enabled:
+
+        @tool(
+            parallel=can_parallel,
+            viewer=_agent_viewer_for(single_name),
+            max_output=SUBAGENT_RESULT_MAX_OUTPUT,
+        )
+        def agent() -> Tool:  # type: ignore[no-redef]
             """Delegate a task to a specialized subagent."""
 
             async def execute(
@@ -335,47 +481,42 @@ def agent_tool(
                 background: bool = False,
                 task_description: str | None = None,
             ) -> str:
-                """Delegate a task to a specialized subagent.
+                value, span_id = await _invoke(subagent_type, prompt, background)
+                execute.agent_span_id = span_id  # type: ignore[attr-defined]
+                return value
 
-                Args:
-                    subagent_type: Which subagent to use.
-                    prompt: Detailed instructions for the subagent. Include
-                        all necessary context — the subagent starts with a
-                        fresh context and cannot see your conversation history
-                        unless it uses forked mode.
-                    background: When True, dispatch the subagent in the
-                        background and return immediately with an
-                        ``AGENT-N`` handle.
-                    task_description: Brief description of the task.
-                """
-                sa, child_agent, dispatch_input, agent_span_id, from_message = (
-                    _prepare_dispatch(subagent_type, prompt)
-                )
+            execute.__doc__ = tool_description
+            return execute
 
-                if background:
-                    handle = _dispatch_background(
-                        child_agent,
-                        sa,
-                        dispatch_input,
-                        agent_span_id,
-                        sa.fork,
-                        from_message,
-                    )
-                    execute.agent_span_id = agent_span_id  # type: ignore[attr-defined]
-                    return handle
+    elif single_name is not None:
+        only = single_name
 
-                result = await _run_sync(
-                    sa, child_agent, dispatch_input, agent_span_id, from_message
-                )
-                execute.agent_span_id = agent_span_id  # type: ignore[attr-defined]
-                return result
+        @tool(
+            parallel=can_parallel,
+            viewer=_agent_viewer_for(single_name),
+            max_output=SUBAGENT_RESULT_MAX_OUTPUT,
+        )
+        def agent() -> Tool:  # type: ignore[no-redef]
+            """Delegate a task to a specialized subagent."""
+
+            async def execute(
+                prompt: str,
+                task_description: str | None = None,
+            ) -> str:
+                value, span_id = await _invoke(only, prompt, False)
+                execute.agent_span_id = span_id  # type: ignore[attr-defined]
+                return value
 
             execute.__doc__ = tool_description
             return execute
 
     else:
 
-        @tool(parallel=can_parallel, viewer=_agent_viewer)
+        @tool(
+            parallel=can_parallel,
+            viewer=_agent_viewer_for(single_name),
+            max_output=SUBAGENT_RESULT_MAX_OUTPUT,
+        )
         def agent() -> Tool:  # type: ignore[no-redef]
             """Delegate a task to a specialized subagent."""
 
@@ -384,24 +525,9 @@ def agent_tool(
                 prompt: str,
                 task_description: str | None = None,
             ) -> str:
-                """Delegate a task to a specialized subagent.
-
-                Args:
-                    subagent_type: Which subagent to use.
-                    prompt: Detailed instructions for the subagent. Include
-                        all necessary context — the subagent starts with a
-                        fresh context and cannot see your conversation history
-                        unless it uses forked mode.
-                    task_description: Brief description of the task.
-                """
-                sa, child_agent, dispatch_input, agent_span_id, from_message = (
-                    _prepare_dispatch(subagent_type, prompt)
-                )
-                result = await _run_sync(
-                    sa, child_agent, dispatch_input, agent_span_id, from_message
-                )
-                execute.agent_span_id = agent_span_id  # type: ignore[attr-defined]
-                return result
+                value, span_id = await _invoke(subagent_type, prompt, False)
+                execute.agent_span_id = span_id  # type: ignore[attr-defined]
+                return value
 
             execute.__doc__ = tool_description
             return execute
@@ -414,11 +540,17 @@ def agent_tool(
 def _build_agent_description(
     subagents: list[Subagent], background_enabled: bool = True
 ) -> str:
+    # Mirrors the schema built in `agent_tool`: no `subagent_type` when there is one subagent.
+    single = subagents[0] if len(subagents) == 1 else None
     lines = ["Delegate a task to a specialized subagent.\n"]
-    lines.append("Available subagent types:\n")
-    for sa in subagents:
-        suffix = " (has conversation context)" if sa.fork else ""
-        lines.append(f"- **{sa.name}**: {sa.description}{suffix}")
+    if single is not None:
+        suffix = " (inherits your conversation context)" if single.fork else ""
+        lines.append(f"The subagent is **{single.name}**: {single.description}{suffix}")
+    else:
+        lines.append("Available subagent types:\n")
+        for sa in subagents:
+            suffix = " (has conversation context)" if sa.fork else ""
+            lines.append(f"- **{sa.name}**: {sa.description}{suffix}")
     lines.append("")
     lines.append(
         "Delegate when the work is multi-step, benefits from tool isolation, "
@@ -435,7 +567,16 @@ def _build_agent_description(
     )
     lines.append("")
     has_forked = any(sa.fork for sa in subagents)
-    if has_forked:
+    if single is not None:
+        lines.append(
+            "The subagent inherits your full conversation context, so you do not need to "
+            "restate it: state the goal and what you need back."
+            if single.fork
+            else "The subagent starts with a fresh context and cannot see your "
+            "conversation history. Write the prompt as a self-contained brief: state the "
+            "goal, include any relevant findings or data, and specify what you need back."
+        )
+    elif has_forked:
         lines.append(
             "Non-forked subagents start with a fresh context and cannot see "
             "your conversation history. Write the prompt as a self-contained "
@@ -457,7 +598,8 @@ def _build_agent_description(
     )
     lines.append("")
     lines.append("Args:")
-    lines.append("    subagent_type: Which subagent to use.")
+    if single is None:
+        lines.append("    subagent_type: Which subagent to use.")
     lines.append(
         "    prompt: Self-contained instructions for the subagent, "
         "including all necessary context."
@@ -504,20 +646,30 @@ def _dispatch_background(
     """Spawn the child agent in the background and return the AGENT-N handle.
 
     Validates the cap, registers an ``AgentFuture``, and kicks the child
-    off via ``background()`` (sample-scoped lifetime).
+    off via ``background()`` (sample-scoped lifetime, or the
+    ``background_target``'s when one is set), or in the registry's own task
+    group when it has one (see ``owned_task_group()``). A dispatch under a
+    different ``background_target`` from the one the deepagent started with
+    is refused. If starting the child raises, the future and its id are
+    given back and the error propagates.
 
     All registration is synchronous (no awaits) so the cap check and
     insert form an atomic critical section under cooperative scheduling —
     two parallel ``agent(background=True)`` calls cannot both succeed past
     the cap.
     """
-    from inspect_ai.util._background import background
+    from inspect_ai.util._background import background, background_target
 
     registry = current_background_registry()
     if registry is None:
         raise ToolError(
             "Background dispatch is not available in this context. "
             "(No deepagent background registry on the current ContextVar.)"
+        )
+    if background_target.get() is not registry._target:
+        raise ToolError(
+            "Background dispatch is not available in this context. "
+            "(The background target changed after the deepagent started.)"
         )
 
     # Cap check + registration is a single synchronous critical section:
@@ -541,16 +693,19 @@ def _dispatch_background(
     )
     registry.futures[agent_id] = future
 
-    background(
-        _run_background,
-        future,
-        child_agent,
-        sa,
-        dispatch_input,
-        span_id,
-        forked,
-        from_message,
-    )
+    args = (future, child_agent, sa, dispatch_input, span_id, forked, from_message)
+    try:
+        if registry._task_group is not None:
+            registry._task_group.start_soon(_run_background, *args)
+        else:
+            background(_run_background, *args)
+    except BaseException:
+        # The child never started, so it must not hold a slot, a "running"
+        # future that nothing will finish, or an id. Nothing above awaits, so
+        # no sibling dispatch has taken a later id.
+        del registry.futures[agent_id]
+        registry.counter -= 1
+        raise
 
     return f"Dispatched {agent_id}."
 
@@ -571,16 +726,19 @@ async def _run_background(
     reference in ``future.child_state`` for the parent's status-peek to
     read — ``run()``'s internal state is unreachable from outside.
 
-    On cancellation (``future.cancel_scope`` is cancelled, or the sample
-    ends), we record ``cancelled`` status and re-raise. ``CancelledError``
+    On cancellation (``future.cancel_scope`` is cancelled, the sample ends,
+    or the deepagent that owns the task group exits), we record
+    ``cancelled`` status and re-raise. ``CancelledError``
     derives from ``BaseException`` so the ``except Exception`` in
     ``background()`` (``_background.py:62-65``) will not log it as an
     error.
     """
     from copy import copy, deepcopy
 
+    from inspect_ai._sentinel._context import SentinelFailure
     from inspect_ai._util.exception import TerminateSampleError
     from inspect_ai.event._timeline import timeline_branch
+    from inspect_ai.model._model import ModelRefusalError
     from inspect_ai.util._limit import LimitExceededError, apply_limits
     from inspect_ai.util._span import AGENT_SPAN_TYPE, span
 
@@ -636,27 +794,31 @@ async def _run_background(
         # structured concurrency requires it to propagate.
         future.status = "cancelled"
         raise
-    except (LimitExceededError, TerminateSampleError):
+    except (
+        LimitExceededError,
+        TerminateSampleError,
+        ModelRefusalError,
+        SentinelFailure,
+    ):
         # Sample-level control flow must propagate so the sample runner
-        # records/enforces it (run.py catches these off sample.tg). The
+        # records/enforces it (run.py catches these off sample.tg; from an
+        # owned task group they reach the deepagent's caller). The
         # subagent's OWN limits were already caught into limit_scope by
         # apply_limits(catch_errors=True), so any LimitExceededError that
         # reaches here belongs to an outer (sample/parent) scope and must
-        # not be downgraded to a per-agent "errored" result. The sample is
-        # terminating; record a terminal status so the `finally: done.set()`
-        # below never wakes a waiter with a stale "running" status.
+        # not be downgraded to a per-agent "errored" result. A refusal under
+        # fail_on_refusal, or a sentinel's own error, likewise fails the
+        # sample wherever it occurs. The sample is terminating; record a
+        # terminal status so the `finally: done.set()` below never wakes a
+        # waiter with a stale "running" status.
         future.status = "cancelled"
         raise
     except Exception as ex:
-        # A background subagent failure is captured on the future and
-        # surfaced via agent_status / agent_wait — it must NOT propagate
-        # to sample.tg (that would fail the whole sample). Swallow after
-        # recording; log so the failure is still visible in the eval log.
+        # Unexpected failures must reach the sample runner, just as they
+        # do for foreground subagents, so retry_on_error / fail_on_error apply.
         future.status = "errored"
         future.error = f"{type(ex).__name__}: {ex}"
-        logger.warning(
-            f"Background agent '{future.agent_id}' ({sa.name}) errored: {ex}"
-        )
+        raise
     finally:
         future.done.set()
 
@@ -809,7 +971,7 @@ def _resolve_tools(
     if merged_skills:
         from inspect_ai.tool._tools._skill import skill as skill_fn
 
-        tools.append(skill_fn(merged_skills, instance=sa.name))
+        tools.append(skill_fn(merged_skills, instance=private_tool_instance(sa.name)))
 
     if depth + 1 < max_depth:
         # Pass the effective model (sa.model or parent_model) so nested

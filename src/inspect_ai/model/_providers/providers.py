@@ -121,6 +121,10 @@ def vllm_completions() -> type[ModelAPI]:
 
 @modelapi(name="cloudflare")
 def cloudflare() -> type[ModelAPI]:
+    # validate
+    validate_openai_client("CloudFlare API")
+
+    # in the clear
     from .cloudflare import CloudFlareAPI
 
     return CloudFlareAPI
@@ -130,7 +134,7 @@ def cloudflare() -> type[ModelAPI]:
 def mistral() -> type[ModelAPI]:
     FEATURE = "Mistral API"
     PACKAGE = "mistralai"
-    MIN_VERSION = "2.0.1"
+    MIN_VERSION = "3.0.0"
 
     # verify we have the package
     try:
@@ -193,6 +197,30 @@ def moonshot() -> type[ModelAPI]:
     from .moonshot import MoonshotAPI
 
     return MoonshotAPI
+
+
+@modelapi(name="meta")
+def meta() -> type[ModelAPI]:
+    validate_openai_client("Meta Model API")
+    from .meta import MetaAPI
+
+    return MetaAPI
+
+
+@modelapi(name="litellm-proxy")
+def litellm_proxy() -> type[ModelAPI]:
+    validate_openai_client("LiteLLM Proxy")
+    from .litellm_proxy import LiteLLMProxyAPI
+
+    return LiteLLMProxyAPI
+
+
+@modelapi(name="deepseek")
+def deepseek() -> type[ModelAPI]:
+    validate_openai_client("DeepSeek API")
+    from .deepseek import DeepSeekAPI
+
+    return DeepSeekAPI
 
 
 @modelapi(name="sambanova")
@@ -351,7 +379,9 @@ def hf_inference_providers() -> type[ModelAPI]:
 def validate_openai_client(feature: str) -> None:
     FEATURE = feature
     PACKAGE = "openai"
-    MIN_VERSION = "2.45.0"
+    # 3.4.0: Azure clients ignore AZURE_OPENAI_AD_TOKEN when given explicit
+    # credentials, so OpenAIAPI.refresh_credentials() can update the key in place
+    MIN_VERSION = "3.4.0"
 
     # verify we have the package
     try:
@@ -365,7 +395,8 @@ def validate_openai_client(feature: str) -> None:
 
 def validate_anthropic_client(feature: str) -> None:
     PACKAGE = "anthropic"
-    MIN_VERSION = "0.115.0"
+    # 2.0.0 split MessageParam into role-specific types — inspect requires it
+    MIN_VERSION = "2.0.0"
 
     # verify we have the package
     try:
@@ -379,7 +410,7 @@ def validate_anthropic_client(feature: str) -> None:
 
 def validate_google_client(feature: str) -> None:
     PACKAGE = "google-genai"
-    MIN_VERSION = "1.69.0"
+    MIN_VERSION = "2.31.0"
 
     # verify we have the package
     try:

@@ -420,6 +420,68 @@ async def test_after_cancel_drain_no_double_fire_when_submit_already_cleared() -
             assert len(resolved) == 1
 
 
+async def test_turn_state_relays_from_bound_channel_to_subscribers() -> None:
+    """``subscribe_turn_state`` fires when the bound channel enters/exits its scope.
+
+    The transport subscribes to ``channel.subscribe_turn_state`` during
+    ``maybe_bind`` and fans the transition out to its own subscriber
+    list — the per-connection forwarder hooks here to emit
+    ``inspect/turn_state``. Without this relay an ACP client has no
+    clean "agent is working" signal: ``session/prompt`` returns
+    immediately and the agent drains the prompt at its own boundary.
+    """
+    from inspect_ai.agent._channel import agent_channel
+
+    async with acp_session() as acp:
+        async with agent_channel() as ch:
+            assert acp.maybe_bind(ch, ch._ref()) is True
+            states: list[str] = []
+            acp.subscribe_turn_state(lambda s: states.append(s))
+            assert acp.turn_active is False
+            with ch.turn_scope():
+                assert states == ["started"]
+                assert acp.turn_active is True
+            assert states == ["started", "ended"]
+            assert acp.turn_active is False
+
+
+async def test_turn_active_is_snapshotted_when_transport_binds_mid_turn() -> None:
+    """A transport binding inside a running turn sees it as active immediately."""
+    from inspect_ai.agent._channel import agent_channel
+
+    async with acp_session() as acp:
+        async with agent_channel() as ch:
+            with ch.turn_scope():
+                assert acp.maybe_bind(ch, ch._ref()) is True
+                assert acp.turn_active is True
+            assert acp.turn_active is False
+
+
+async def test_turn_state_unbind_drops_channel_subscription() -> None:
+    """After ``unbind`` the transport no longer relays the channel's turn state."""
+    from inspect_ai.agent._channel import agent_channel
+
+    async with acp_session() as acp:
+        async with agent_channel() as ch:
+            ref = ch._ref()
+            assert acp.maybe_bind(ch, ref) is True
+            states: list[str] = []
+            acp.subscribe_turn_state(lambda s: states.append(s))
+            acp.unbind(ref)
+            with ch.turn_scope():
+                pass
+            assert states == []
+
+
+def test_noop_session_subscribe_turn_state_is_noop() -> None:
+    noop = current_acp_transport()
+    assert noop.session_id == "noop"
+    assert noop.turn_active is False
+    unsub = noop.subscribe_turn_state(lambda s: None)
+    unsub()
+    unsub()
+
+
 async def test_repeated_cancel_keeps_pending_and_re_fires_interrupted() -> None:
     """Cancel-cancel (without intervening submit) re-fires + keeps pending.
 
@@ -788,6 +850,123 @@ async def test_subscribe_approver_attach_unsubscribe_is_idempotent() -> None:
         unsub = acp.subscribe_approver_attach(lambda: None)
         unsub()
         unsub()  # no raise
+
+
+# ---------------------------------------------------------------------------
+# has_client / wait_for_client — general client-presence signal
+#
+# Every bound ACP connection registers in the approver-client registry
+# (unconditionally, unlike the capability-gated elicitation registry), so
+# its ready set doubles as the authoritative client-presence set.
+# ---------------------------------------------------------------------------
+
+
+async def test_has_client_tracks_bound_clients_only() -> None:
+    """``has_client`` flips on notify (bound), not on pending attach."""
+    async with acp_session() as acp:
+        assert acp.has_client is False
+        client = _StubApproverClient()
+        unsub = acp.attach_approver_client(client)
+        # Pending (mid-replay) clients are not reported.
+        assert acp.has_client is False
+        acp.notify_approver_attach(client)
+        assert acp.has_client is True
+        unsub()
+        assert acp.has_client is False
+
+
+async def test_wait_for_client_returns_immediately_when_bound() -> None:
+    async with acp_session() as acp:
+        _bind_approver(acp, _StubApproverClient())
+        with anyio.fail_after(1):
+            await acp.wait_for_client()
+
+
+async def test_wait_for_client_wakes_on_bind() -> None:
+    async with acp_session() as acp:
+        released = anyio.Event()
+
+        async def waiter() -> None:
+            await acp.wait_for_client()
+            released.set()
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(waiter)
+            await anyio.wait_all_tasks_blocked()
+            assert not released.is_set()
+            _bind_approver(acp, _StubApproverClient())
+            with anyio.fail_after(1):
+                await released.wait()
+
+
+async def test_wait_for_client_raises_after_session_exit() -> None:
+    async with acp_session() as acp:
+        pass
+    with pytest.raises(RuntimeError):
+        await acp.wait_for_client()
+
+
+async def test_wait_for_client_raises_when_session_closes_while_parked() -> None:
+    raised = False
+
+    async def waiter(acp: AcpTransport) -> None:
+        nonlocal raised
+        try:
+            await acp.wait_for_client()
+        except RuntimeError:
+            raised = True
+
+    async with anyio.create_task_group() as tg:
+        async with acp_session() as acp:
+            tg.start_soon(waiter, acp)
+            await anyio.wait_all_tasks_blocked()
+            assert raised is False
+        # Session ``__aexit__`` wakes the waiter; the task group exit
+        # then waits for it to observe the closed transport and raise.
+    assert raised is True
+
+
+async def test_wait_for_client_reparks_when_client_detaches_before_wake() -> None:
+    """A bind+detach flap before the waiter runs re-parks it, not raises.
+
+    Regression: the pre-loop implementation raised "transport closed"
+    on any wake that found no bound client — so a client attaching
+    (which wakes the waiter) and detaching again before the waiter
+    task was scheduled tripped the error while the transport was
+    still fully open. The waiter must instead keep waiting for the
+    next client.
+    """
+    async with acp_session() as acp:
+        released = anyio.Event()
+
+        async def waiter() -> None:
+            await acp.wait_for_client()
+            released.set()
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(waiter)
+            await anyio.wait_all_tasks_blocked()
+            # Flap: bind (wakes the waiter) then detach, without
+            # yielding to the waiter in between.
+            unsub = _bind_approver(acp, _StubApproverClient())
+            unsub()
+            # The waiter runs, finds no client and an open transport,
+            # and re-parks.
+            await anyio.wait_all_tasks_blocked()
+            assert not released.is_set()
+            # A subsequent real bind releases it.
+            _bind_approver(acp, _StubApproverClient())
+            with anyio.fail_after(1):
+                await released.wait()
+
+
+async def test_noop_wait_for_client_raises() -> None:
+    from inspect_ai.agent._acp.transport_noop import NoOpAcpTransport
+
+    noop = NoOpAcpTransport()
+    assert noop.has_client is False
+    with pytest.raises(RuntimeError):
+        await noop.wait_for_client()
 
 
 # ---------------------------------------------------------------------------

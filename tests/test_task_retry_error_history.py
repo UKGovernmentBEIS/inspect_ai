@@ -13,9 +13,24 @@ must therefore carry the prior attempt's error in ``error_retries`` so that:
 import tempfile
 from pathlib import Path
 
+import anyio
+
 from inspect_ai import Task, eval_set, task
+from inspect_ai._eval.task.run import _eval_retry_error_from_sample
 from inspect_ai.dataset import Sample
-from inspect_ai.log import read_eval_log, read_eval_log_sample_summaries
+from inspect_ai.event._model import ModelEvent
+from inspect_ai.log import (
+    EvalError,
+    EvalSample,
+    read_eval_log,
+    read_eval_log_sample_summaries,
+)
+from inspect_ai.log._condense import ATTACHMENT_PROTOCOL
+from inspect_ai.model import ContentImage
+from inspect_ai.model._chat_message import ChatMessageUser
+from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._model_call import ModelCall
+from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.solver import Generate, Solver, TaskState, solver
 
 
@@ -74,6 +89,40 @@ def test_task_retry_seeds_error_retries_on_sample() -> None:
         assert "transient task failure" in sample.error_retries[0].message
 
 
+def test_task_retry_resolves_attachments_in_seeded_error_events() -> None:
+    image_data_uri = "data:image/png;base64,iVBORw0KGgo="
+    attachment_ref = f"{ATTACHMENT_PROTOCOL}image"
+    event = ModelEvent(
+        model="test-model",
+        input=[
+            ChatMessageUser(content=[ContentImage(image=attachment_ref)]),
+        ],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        output=ModelOutput.from_content("test-model", "response"),
+        call=ModelCall.create(
+            {"messages": [{"role": "user", "content": attachment_ref}]}, None
+        ),
+    )
+    sample = EvalSample(
+        id="sample",
+        epoch=1,
+        input="input",
+        target="target",
+        error=EvalError(message="boom", traceback="", traceback_ansi=""),
+        events=[event],
+        attachments={"image": image_data_uri},
+    )
+
+    retry_error = _eval_retry_error_from_sample(sample)
+
+    assert retry_error.events is not None
+    retry_json = retry_error.model_dump_json()
+    assert ATTACHMENT_PROTOCOL not in retry_json
+    assert image_data_uri in retry_json
+
+
 def test_task_retry_retries_in_sample_summaries() -> None:
     """Endpoint path: the stored summary reports the retry count.
 
@@ -116,8 +165,6 @@ def test_task_retry_does_not_count_cancelled_siblings() -> None:
     genuine failure) while sample 2 reports ``retries == 0`` (it was only
     cancelled, never genuinely failed).
     """
-    import anyio
-
     attempts = {"n": 0}
 
     @solver
@@ -210,141 +257,3 @@ def test_task_retry_accumulates_across_attempts() -> None:
         assert summaries[1].retries == 1
         assert summaries[2].retries == 0
         assert summaries[3].retries == 2
-
-
-async def test_finish_task_log_carries_forward_on_every_non_success_status(
-    monkeypatch,
-) -> None:
-    """All terminal finishes preserve retry history; success skips it.
-
-    `_finish_task_log` is the single finish chokepoint: before it existed,
-    carry-forward was called at two of the three teardown branches and the
-    external-cancellation (Ctrl-C) branch silently dropped retry history —
-    and a cancelled log IS the seed for the next attempt. The chokepoint
-    makes the omission structurally impossible; this pins the status gating.
-    """
-    from types import SimpleNamespace
-    from typing import Any
-
-    import inspect_ai._eval.task.run as run_mod
-    from inspect_ai._eval.task.run import _finish_task_log
-    from inspect_ai.log import EvalStats
-
-    carried: list[str] = []
-    finished: list[tuple[str, Any]] = []
-
-    async def fake_carry_forward(
-        logger: Any, sample_source: Any, sample_ids: Any, epochs: Any, log_images: Any
-    ) -> None:
-        carried.append("called")
-
-    monkeypatch.setattr(run_mod, "carry_forward_unlogged_samples", fake_carry_forward)
-
-    async def log_finish(
-        status: str,
-        stats: Any,
-        results: Any = None,
-        reductions: Any = None,
-        error: Any = None,
-    ) -> Any:
-        finished.append((status, error))
-        return SimpleNamespace(status=status)
-
-    logger = SimpleNamespace(log_finish=log_finish)
-
-    for status, expect_carry in (
-        ("cancelled", True),  # the branch that used to skip it (Ctrl-C)
-        ("error", True),
-        ("success", False),
-    ):
-        carried.clear()
-        log = await _finish_task_log(
-            logger=logger,  # type: ignore[arg-type]
-            sample_source=None,
-            sample_ids=[1],
-            epochs=1,
-            log_images=False,
-            status=status,  # type: ignore[arg-type]
-            stats=EvalStats(),
-        )
-        assert log.status == status
-        assert bool(carried) == expect_carry, f"{status}: carry={carried}"
-
-    # the finish itself always ran
-    assert [s for s, _ in finished] == ["cancelled", "error", "success"]
-
-
-async def test_carry_forward_probes_only_error_history_candidates() -> None:
-    """Carry-forward probes the prior attempt's errored samples only.
-
-    Probing the full plan (one prior-log sample read per planned (id, epoch))
-    stalled Ctrl-C teardown of large remote retries for minutes inside the
-    cancellation shield; only errored prior samples can yield PreviousError,
-    so the probe set is the source's error_history_ids — minus already-logged
-    samples and anything outside the current plan.
-    """
-    from types import SimpleNamespace
-    from typing import Any
-
-    from inspect_ai._eval.task.run import (
-        EvalSampleSource,
-        carry_forward_unlogged_samples,
-    )
-
-    lookups: list[tuple[Any, int]] = []
-
-    async def lookup(id: Any, epoch: int) -> Any:
-        lookups.append((id, epoch))
-        return None  # probed, but yields no PreviousError
-
-    async def error_ids() -> set[tuple[Any, int]]:
-        return {(5, 1), (7, 1), (999, 1)}  # 999 is outside the plan
-
-    async def sample_summaries() -> Any:
-        # sample 7 already logged this attempt
-        return [SimpleNamespace(id=7, epoch=1)]
-
-    logger = SimpleNamespace(sample_summaries=sample_summaries)
-    source = EvalSampleSource(lookup=lookup, error_history_ids=error_ids)
-
-    await carry_forward_unlogged_samples(
-        logger,  # type: ignore[arg-type]
-        source,
-        sample_ids=list(range(100)),
-        epochs=1,
-        log_images=False,
-    )
-
-    # 100 planned samples, but only the unlogged, in-plan candidate is probed
-    assert lookups == [(5, 1)]
-
-
-async def test_carry_forward_skips_entirely_without_candidates() -> None:
-    """No errored prior samples → no recorder read and no probes at all."""
-    from types import SimpleNamespace
-    from typing import Any
-
-    from inspect_ai._eval.task.run import (
-        EvalSampleSource,
-        carry_forward_unlogged_samples,
-    )
-
-    async def lookup(id: Any, epoch: int) -> Any:
-        raise AssertionError("no candidates — lookup must not be called")
-
-    async def error_ids() -> set[tuple[Any, int]]:
-        return set()
-
-    async def sample_summaries() -> Any:
-        raise AssertionError("no candidates — recorder must not be read")
-
-    logger = SimpleNamespace(sample_summaries=sample_summaries)
-    source = EvalSampleSource(lookup=lookup, error_history_ids=error_ids)
-
-    await carry_forward_unlogged_samples(
-        logger,  # type: ignore[arg-type]
-        source,
-        sample_ids=list(range(100)),
-        epochs=1,
-        log_images=False,
-    )

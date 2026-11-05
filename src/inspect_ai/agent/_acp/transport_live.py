@@ -41,6 +41,7 @@ from inspect_ai.agent._acp.transport import (
     AcpUpdate,
     ApproverClient,
     ElicitationClient,
+    TurnStateUpdate,
 )
 from inspect_ai.log._transcript import transcript
 from inspect_ai.model._chat_message import (
@@ -51,6 +52,7 @@ from inspect_ai.tool._tool_call import ToolCallError
 if TYPE_CHECKING:
     from inspect_ai.agent._acp.event_mapping import _AcpEventRouter
     from inspect_ai.agent._channel import AgentChannel, AgentRef
+    from inspect_ai.agent._channel.channel import TurnState
     from inspect_ai.event._model import ModelEvent
     from inspect_ai.event._tool import ToolEvent
     from inspect_ai.log._transcript import Transcript
@@ -546,6 +548,10 @@ class LiveAcpTransport:
         self._transcript_capture = _TranscriptCapture()
         self._turn_cancel = _TurnCancelMachinery()
         self._clients = _SessionClientRegistries()
+        # One-shot events for callers parked in ``wait_for_client``. Every
+        # bound ACP connection registers in the approver registry, so its
+        # ready set is also the authoritative general client-presence set.
+        self._client_waiters: list[anyio.Event] = []
         # When True, the live router drops events emitted inside
         # sub-agents (depth>0). Standard ACP semantic for editor clients.
         # Disabled by consumers (debugging tooling, raw-stream TUIs) that
@@ -574,6 +580,21 @@ class LiveAcpTransport:
         # during :meth:`maybe_bind`. Stored so :meth:`unbind` can drop
         # the subscription cleanly; ``None`` when not currently bound.
         self._unsubscribe_drained: Callable[[], None] | None = None
+        # Unsubscribe handle for the channel turn-state observer
+        # registered during :meth:`maybe_bind`; ``None`` when not bound.
+        self._unsubscribe_turn_state: Callable[[], None] | None = None
+        # Current snapshot of the bound channel's turn scope. Updated before
+        # transition subscribers fire so late-bound clients can subscribe,
+        # read, then follow without a race.
+        self._turn_active: bool = False
+        # Per-connection subscribers fired when the bound channel's
+        # :meth:`AgentChannel.turn_scope` transitions ("started" /
+        # "ended" / "cancelled"). The :class:`Forwarders` instance for
+        # each connection subscribes here and relays the transition as
+        # an ``inspect/turn_state`` notification. Kept inline (not
+        # wrapped in a helper) — single list, same rationale as
+        # ``_filter_subagent_events``.
+        self._turn_state_subscribers: list[Callable[[TurnState], None]] = []
         # Clear handle for the channel's external-reach marker. Set in
         # :meth:`maybe_bind` iff :func:`acp_server_accepting_clients`
         # was True at bind time (i.e. an :class:`AcpServer` is up and
@@ -660,6 +681,10 @@ class LiveAcpTransport:
             self._unsubscribe_drained = channel.subscribe_drained(
                 self._on_channel_drained
             )
+            self._unsubscribe_turn_state = channel.subscribe_turn_state(
+                self._on_channel_turn_state
+            )
+            self._turn_active = channel.turn_active
             # Mark the channel "live" iff an ACP server is up and
             # accepting external connections — i.e. iff ``--acp-server``
             # is enabled for this eval. Local import to avoid a
@@ -684,6 +709,10 @@ class LiveAcpTransport:
             if self._unsubscribe_drained is not None:
                 self._unsubscribe_drained()
                 self._unsubscribe_drained = None
+            if self._unsubscribe_turn_state is not None:
+                self._unsubscribe_turn_state()
+                self._unsubscribe_turn_state = None
+            self._turn_active = False
             if self._clear_live is not None:
                 self._clear_live()
                 self._clear_live = None
@@ -701,6 +730,23 @@ class LiveAcpTransport:
 
         if any(isinstance(it, _ChannelUserMessage) for it in items):
             self._interrupt.resolve_if_pending()
+
+    def _on_channel_turn_state(self, state: TurnState) -> None:
+        """Callback fired by the bound channel on :meth:`turn_scope` transitions.
+
+        Fans out to per-connection subscribers (registered via
+        :meth:`subscribe_turn_state`) which relay the transition as
+        ``inspect/turn_state`` over the wire. Runs synchronously in
+        the agent's task; exceptions are swallowed so a broken
+        subscriber cannot stall the agent loop.
+        """
+        self._turn_active = state == "started"
+        self.publish(TurnStateUpdate(state))
+        for cb in list(self._turn_state_subscribers):
+            try:
+                cb(state)
+            except Exception:
+                logger.exception("turn_state subscriber raised; continuing")
 
     async def __aenter__(self) -> AcpTransport:
         """Enter the session scope; attach the event router and return ``self``.
@@ -819,11 +865,13 @@ class LiveAcpTransport:
         """
         from inspect_ai.log._samples import sample_active
 
+        self._turn_active = False
         active = sample_active()
         bound = active is not None and active.acp_transport is self
         if bound:
             # Split-phase: park the session for the scoring window.
             self._agent_completed = True
+            self._wake_client_waiters()
             # The interrupt coordinator and approver-client registry only
             # make sense while the agent loop is running; drop their
             # subscribers / clients so a late listener can't fire into a
@@ -831,6 +879,8 @@ class LiveAcpTransport:
             # so scoring events still flow.
             with acp_guard("ACP session: interrupt clear_subscribers failed"):
                 self._interrupt.clear_subscribers()
+            with acp_guard("ACP session: turn_state clear_subscribers failed"):
+                self._turn_state_subscribers.clear()
             with acp_guard("ACP session: client registries clear failed"):
                 self._clients.clear()
             return
@@ -846,6 +896,8 @@ class LiveAcpTransport:
         #    sample's lifetime (the registration-driven ``on_complete``
         #    hook also never fired, so ``active_sample().__aexit__``
         #    can't finalize us either).
+        self._finalized = True
+        self._wake_client_waiters()
         if self._router is not None:
             with acp_guard("ACP session: router detach failed"):
                 self._router.detach()
@@ -860,6 +912,8 @@ class LiveAcpTransport:
         # would otherwise try to call into a closed connection.
         with acp_guard("ACP session: interrupt clear_subscribers failed"):
             self._interrupt.clear_subscribers()
+        with acp_guard("ACP session: turn_state clear_subscribers failed"):
+            self._turn_state_subscribers.clear()
         with acp_guard("ACP session: client registries clear failed"):
             self._clients.clear()
 
@@ -883,6 +937,7 @@ class LiveAcpTransport:
         if self._finalized:
             return
         self._finalized = True
+        self._wake_client_waiters()
         if self._router is not None:
             with acp_guard("ACP session: router detach failed"):
                 self._router.detach()
@@ -958,6 +1013,44 @@ class LiveAcpTransport:
         unknown or already-detached stream — silently does nothing.
         """
         self._pubsub.detach(stream)
+
+    @property
+    def has_client(self) -> bool:
+        """Whether at least one ACP connection has completed binding.
+
+        Connections are promoted from pending to ready only after transcript
+        replay and post-bind setup complete, so half-bound clients are not
+        reported here.
+        """
+        return self._clients.approvers.has_clients()
+
+    async def wait_for_client(self) -> None:
+        """Wait until an ACP connection has completed binding.
+
+        Loops so that a wake which finds neither a bound client nor a
+        closed transport re-parks on a fresh event rather than raising —
+        a client can attach (waking the waiter) and detach again before
+        the waiter task is scheduled, and only actual transport closure
+        should raise. No re-check is needed between registering the
+        waiter and awaiting it: there is no checkpoint in between, so
+        state cannot change (single event-loop thread).
+        """
+        while True:
+            if self.has_client:
+                return
+            if self._finalized or self._agent_completed:
+                raise RuntimeError("ACP transport closed before a client attached")
+            ready = anyio.Event()
+            self._client_waiters.append(ready)
+            try:
+                await ready.wait()
+            finally:
+                self._client_waiters.remove(ready)
+
+    def _wake_client_waiters(self) -> None:
+        """Wake all current client-presence waiters."""
+        for waiter in self._client_waiters:
+            waiter.set()
 
     def publish(self, update: AcpUpdate) -> None:
         """Fan ``update`` out non-blockingly to all attached subscribers."""
@@ -1054,6 +1147,38 @@ class LiveAcpTransport:
         Returns an idempotent unsubscribe callable.
         """
         return self._interrupt.subscribe_prompt_resolved(callback)
+
+    @property
+    def turn_active(self) -> bool:
+        """Whether the bound channel is currently inside its turn scope."""
+        return self._turn_active
+
+    def subscribe_turn_state(
+        self, callback: Callable[[TurnState], None]
+    ) -> Callable[[], None]:
+        """Register a callback fired on the bound channel's turn-scope transitions.
+
+        Receives ``"started"`` / ``"ended"`` / ``"cancelled"`` from
+        :meth:`AgentChannel.turn_scope`. Per-connection forwarders
+        subscribe here and relay the transition as
+        ``inspect/turn_state`` so an ACP client has an exact "agent
+        is working" signal — ``session/prompt`` returns immediately
+        (the channel decouples prompt delivery from turn execution),
+        so its ``end_turn`` response cannot carry it.
+
+        Returns an idempotent unsubscribe callable. Callbacks run
+        synchronously in the agent's task; exceptions are logged and
+        swallowed so one broken subscriber can't block others.
+        """
+        self._turn_state_subscribers.append(callback)
+
+        def _unsubscribe() -> None:
+            try:
+                self._turn_state_subscribers.remove(callback)
+            except ValueError:
+                pass
+
+        return _unsubscribe
 
     def attach_approver_client(self, client: ApproverClient) -> Callable[[], None]:
         """Register ``client`` as a recipient for approval prompts.
@@ -1163,6 +1288,7 @@ class LiveAcpTransport:
             "parked approval shim may miss this attach"
         ):
             self._clients.approvers.notify_attach(client)
+            self._wake_client_waiters()
 
     def mark_active_session_client(self, client: object) -> None:
         """Promote ``client`` as active driver across every registry it belongs to.

@@ -223,7 +223,7 @@ def test_print_config_renders_buffer_knobs(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """The buffer params (absorbed into `ctl config`) render as task knobs."""
-    from inspect_ai._cli.ctl import _print_config
+    from inspect_ai._cli.ctl._render import _print_config
 
     def _knobs(log_buffer: int, pending: int, log_shared: int | None) -> dict:
         return {

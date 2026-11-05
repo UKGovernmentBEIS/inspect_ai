@@ -6,6 +6,8 @@ to canonical format for model info database lookup.
 
 import pytest
 
+from inspect_ai.model import ModelOutput, ServedModelUsage
+
 
 class TestBedrockCanonicalName:
     """Tests for Bedrock provider canonical_name()."""
@@ -490,7 +492,7 @@ class TestFireworksCanonicalName:
     """Tests for Fireworks provider canonical_name()."""
 
     def test_strips_accounts_prefix(self):
-        """Test that accounts/fireworks/models/ prefix is stripped."""
+        """Test that accounts/fireworks/models/ prefix is replaced by the org."""
         import os
 
         from inspect_ai.model._providers.fireworks import FireworksAIAPI
@@ -500,12 +502,12 @@ class TestFireworksCanonicalName:
             api = FireworksAIAPI(
                 model_name="accounts/fireworks/models/llama-v3p1-8b-instruct"
             )
-            assert api.canonical_name() == "llama-v3p1-8b-instruct"
+            assert api.canonical_name() == "fireworks/llama-v3p1-8b-instruct"
         finally:
             del os.environ["FIREWORKS_API_KEY"]
 
     def test_preserves_name_without_prefix(self):
-        """Test that names without accounts prefix are preserved."""
+        """Test that names without accounts prefix are still org-qualified."""
         import os
 
         from inspect_ai.model._providers.fireworks import FireworksAIAPI
@@ -513,7 +515,43 @@ class TestFireworksCanonicalName:
         os.environ["FIREWORKS_API_KEY"] = "test-key"
         try:
             api = FireworksAIAPI(model_name="llama-v3p1-8b-instruct")
-            assert api.canonical_name() == "llama-v3p1-8b-instruct"
+            assert api.canonical_name() == "fireworks/llama-v3p1-8b-instruct"
+        finally:
+            del os.environ["FIREWORKS_API_KEY"]
+
+    def test_input_tokens_name_uses_synced_catalog(self):
+        """A model in fireworks.yml resolves to Fireworks' own context length."""
+        import os
+
+        from inspect_ai.model._model_info import _get_model_info_direct
+        from inspect_ai.model._providers.fireworks import FireworksAIAPI
+
+        os.environ["FIREWORKS_API_KEY"] = "test-key"
+        try:
+            api = FireworksAIAPI(
+                model_name="accounts/fireworks/models/deepseek-r1-0528"
+            )
+            assert api.input_tokens_name() == "fireworks/deepseek-r1-0528"
+            info = _get_model_info_direct(api.input_tokens_name())
+            assert info is not None
+            # Fireworks serves the open weights at 160K; DeepSeek's own API
+            # entry for the same model name is 64K
+            assert info.input_tokens == 163840
+        finally:
+            del os.environ["FIREWORKS_API_KEY"]
+
+    def test_input_tokens_name_falls_back_when_uncatalogued(self):
+        """A model missing from fireworks.yml falls back to the bare name."""
+        import os
+
+        from inspect_ai.model._providers.fireworks import FireworksAIAPI
+
+        os.environ["FIREWORKS_API_KEY"] = "test-key"
+        try:
+            api = FireworksAIAPI(
+                model_name="accounts/fireworks/models/not-a-real-model"
+            )
+            assert api.input_tokens_name() == "not-a-real-model"
         finally:
             del os.environ["FIREWORKS_API_KEY"]
 
@@ -868,3 +906,135 @@ def reset_cache():
     clear_model_info_cache()
     yield
     clear_model_info_cache()
+
+
+class TestServedModelNames:
+    """Providers report a served model under its model info database name."""
+
+    @staticmethod
+    def _output(model: str) -> ModelOutput:
+        from inspect_ai.model import ModelUsage
+
+        return ModelOutput(
+            model=model,
+            usage=ModelUsage(input_tokens=3, output_tokens=4, total_tokens=7),
+        )
+
+    def test_azureai_deployment(self, monkeypatch):
+        from inspect_ai.model._providers.azureai import AzureAIAPI
+
+        monkeypatch.setenv("AZUREAI_API_KEY", "test-key")
+        monkeypatch.setenv("AZUREAI_BASE_URL", "https://test.azure.com/models")
+        api = AzureAIAPI(model_name="my-deployment")
+        output = self._output("gpt-4o-mini-2024-07-18")
+        assert api.served_model_usage(output) == [
+            ServedModelUsage("openai/gpt-4o-mini-2024-07-18", output.usage)
+        ]
+        assert api.served_model_usage(self._output("my-deployment")) is None
+
+    def test_anthropic_foundry_deployment(self, monkeypatch):
+        from inspect_ai.model._providers.anthropic import AnthropicAPI
+
+        monkeypatch.setenv(
+            "AZUREAI_ANTHROPIC_BASE_URL", "https://test.services.ai.azure.com"
+        )
+        api = AnthropicAPI(model_name="azure/my-claude", api_key="test-key")
+        output = self._output("claude-opus-5-5")
+        assert api.served_model_usage(output) == [
+            ServedModelUsage("anthropic/claude-opus-5-5", output.usage)
+        ]
+        assert api.served_model_usage(self._output("my-claude")) is None
+
+        # first-party names are model ids
+        first_party = AnthropicAPI(model_name="claude-opus-5-5", api_key="test-key")
+        assert (
+            first_party.served_model_usage(self._output("claude-opus-5-5-20261001"))
+            is None
+        )
+
+    def test_fireworks_router(self):
+        from inspect_ai.model._providers.fireworks import FireworksAIAPI
+
+        api = FireworksAIAPI(
+            model_name="accounts/fireworks/routers/kimi-fast-latest", api_key="test-key"
+        )
+        output = self._output("accounts/fireworks/models/kimi-k3-fast")
+        assert api.served_model_usage(output) == [
+            ServedModelUsage("fireworks/kimi-k3-fast", output.usage)
+        ]
+        assert (
+            api.served_model_usage(
+                self._output("accounts/fireworks/routers/kimi-fast-latest")
+            )
+            is None
+        )
+
+        # the same model in either name form
+        model = FireworksAIAPI(
+            model_name="accounts/fireworks/models/kimi-k3", api_key="test-key"
+        )
+        assert model.served_model_usage(self._output("kimi-k3")) is None
+
+    def test_openrouter_router(self):
+        from inspect_ai.model._providers.openrouter import OpenRouterAPI
+
+        api = OpenRouterAPI(
+            model_name="openrouter/auto", base_url=None, api_key="test-key"
+        )
+        output = self._output("anthropic/claude-sonnet-4")
+        assert api.served_model_usage(output) == [
+            ServedModelUsage("anthropic/claude-sonnet-4", output.usage)
+        ]
+
+    def test_openrouter_same_model(self):
+        from inspect_ai.model._providers.openrouter import OpenRouterAPI
+
+        api = OpenRouterAPI(
+            model_name="openai/gpt-4o:free", base_url=None, api_key="test-key"
+        )
+        assert api.served_model_usage(self._output("openai/gpt-4o")) is None
+
+    def test_bedrock_prompt_router(self):
+        from inspect_ai.model._providers.bedrock import (
+            BedrockAPI,
+            ConverseMessage,
+            ConverseMetrics,
+            ConverseOutput,
+            ConverseResponse,
+            ConverseUsage,
+            model_output_from_response,
+        )
+
+        router = "arn:aws:bedrock:us-east-1:123456789012:default-prompt-router/anthropic.claude:1"
+        invoked = "arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-3-haiku-20240307-v1:0"
+        response = ConverseResponse(
+            output=ConverseOutput(
+                message=ConverseMessage(role="assistant", content=[{"text": "hi"}])
+            ),
+            stopReason="end_turn",
+            usage=ConverseUsage(inputTokens=3, outputTokens=4, totalTokens=7),
+            metrics=ConverseMetrics(latencyMs=1),
+            trace={"promptRouter": {"invokedModelId": invoked}},
+        )
+        output = model_output_from_response(router, response, [])
+        assert output.model == invoked
+        assert output.message.model == invoked
+        assert ModelOutput.from_message(output.message).model == invoked
+
+        api = BedrockAPI(model_name=router, base_url=None)
+        assert api.served_model_usage(output) == [
+            ServedModelUsage("anthropic/claude-3-haiku-20240307", output.usage)
+        ]
+
+        # routers invoke cross-region inference profiles
+        output.model = "arn:aws:bedrock:us-east-1:123456789012:inference-profile/us.amazon.nova-lite-v1:0"
+        assert api.served_model_usage(output) == [
+            ServedModelUsage("amazon/nova-lite", output.usage)
+        ]
+
+        # without a prompt router the output model is the called model
+        response.trace = None
+        assert (
+            api.served_model_usage(model_output_from_response(router, response, []))
+            is None
+        )

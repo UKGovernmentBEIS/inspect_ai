@@ -65,7 +65,7 @@ def test_tools_from_responses_tool_flattens_namespace():
         "description": "Submission tools",
         "tools": [_function_tool("submit_pov"), _function_tool("submit_patch")],
     }
-    tools = tools_from_responses_tool(ns, {}, {})
+    tools = tools_from_responses_tool(ns, {}, {}, allow_remote_mcp=True)
     assert [t.name for t in tools] == ["submit_pov", "submit_patch"]
     for t in tools:
         assert isinstance(t, ToolInfo)
@@ -78,7 +78,7 @@ def test_tools_from_responses_tool_stashes_namespace_on_options():
         "description": "Multi-agent orchestration tools",
         "tools": [_function_tool("spawn_agent"), _custom_tool("wait_agent")],
     }
-    tools = tools_from_responses_tool(ns, {}, {})
+    tools = tools_from_responses_tool(ns, {}, {}, allow_remote_mcp=True)
     for t in tools:
         assert isinstance(t, ToolInfo)
         assert t.options is not None
@@ -89,13 +89,17 @@ def test_tools_from_responses_tool_stashes_namespace_on_options():
 
 
 def test_tools_from_responses_tool_single_function():
-    tools = tools_from_responses_tool(_function_tool("calc"), {}, {})
+    tools = tools_from_responses_tool(
+        _function_tool("calc"), {}, {}, allow_remote_mcp=True
+    )
     assert len(tools) == 1
     assert tools[0].name == "calc"
 
 
 def test_tools_from_responses_tool_passes_through_custom():
-    tools = tools_from_responses_tool(_custom_tool("exec"), {}, {})
+    tools = tools_from_responses_tool(
+        _custom_tool("exec"), {}, {}, allow_remote_mcp=True
+    )
     assert len(tools) == 1
     assert tools[0].name == "exec"
 
@@ -107,17 +111,17 @@ def test_namespace_with_mixed_inner_tools():
         "description": "mixed",
         "tools": [_function_tool("fn"), _custom_tool("ct")],
     }
-    tools = tools_from_responses_tool(ns, {}, {})
+    tools = tools_from_responses_tool(ns, {}, {}, allow_remote_mcp=True)
     assert [t.name for t in tools] == ["fn", "ct"]
 
 
 def test_empty_namespace_returns_empty_list():
     ns = {"type": "namespace", "name": "empty", "description": "empty", "tools": []}
-    assert tools_from_responses_tool(ns, {}, {}) == []
+    assert tools_from_responses_tool(ns, {}, {}, allow_remote_mcp=True) == []
 
 
 def test_tool_from_responses_tool_unchanged_for_function():
-    t = tool_from_responses_tool(_function_tool("x"), {}, {})
+    t = tool_from_responses_tool(_function_tool("x"), {}, {}, allow_remote_mcp=True)
     assert isinstance(t, ToolInfo)
     assert t.name == "x"
 
@@ -151,3 +155,45 @@ def test_response_function_tool_call_no_namespace_map():
     ]
     assert len(function_calls) == 1
     assert function_calls[0].namespace is None
+
+
+def test_response_custom_tool_call_preserves_namespace():
+    message = ChatMessageAssistant(
+        content=[ContentText(text="")],
+        tool_calls=[
+            ToolCall(
+                id="call-1",
+                function="apply_patch",
+                arguments={"input": "*** Begin Patch"},
+                type="custom",
+            ),
+            ToolCall(
+                id="call-2",
+                function="free_text",
+                arguments={"input": "x"},
+                type="custom",
+            ),
+        ],
+    )
+    tool_namespaces = {"apply_patch": "codex"}
+    items = responses_output_items_from_assistant_message(message, tool_namespaces)
+    custom_calls = {
+        item.name: item for item in items if item.type == "custom_tool_call"
+    }
+    assert custom_calls["apply_patch"].namespace == "codex"
+    assert custom_calls["free_text"].namespace is None
+    dumped = custom_calls["apply_patch"].model_dump(mode="json", warnings=False)
+    assert dumped["namespace"] == "codex"
+
+
+def test_response_custom_tool_call_no_namespace_map():
+    message = ChatMessageAssistant(
+        content=[ContentText(text="")],
+        tool_calls=[
+            ToolCall(id="c", function="plain", arguments={"input": "x"}, type="custom")
+        ],
+    )
+    items = responses_output_items_from_assistant_message(message)
+    custom_calls = [item for item in items if item.type == "custom_tool_call"]
+    assert len(custom_calls) == 1
+    assert custom_calls[0].namespace is None

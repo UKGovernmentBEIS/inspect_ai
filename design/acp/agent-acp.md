@@ -1153,7 +1153,7 @@ Landed the JSON-RPC 2.0 mux server so external ACP clients can reach a running e
 **Two simplifications from the original sketch** (both requested during planning):
 
 1. **One CLI flag instead of three.** The original plan had `--agent-acp` (bool) + `--agent-acp-port=N` + `--agent-acp-socket=PATH`. Collapsed to a single `--acp-server` with a `bool | int | str | None` value reusing the existing `int_bool_or_str_flag_callback` helper (the same callback `--cache` and `--batch` use):
-   - `--acp-server` (or `--acp-server=true`) → default AF_UNIX socket at `<inspect_data_dir>/acp/<run_id>.sock`
+   - `--acp-server` (or `--acp-server=true`) → default AF_UNIX socket at `<inspect_data_dir>/acp/<pid>.sock` (keyed on the pid, like the control channel's, so an ordinary home directory cannot push the path past the 104-byte `sun_path` limit)
    - `--acp-server=12345` → TCP loopback on port 12345
    - `--acp-server=/path/to.sock` → custom AF_UNIX path
    - omitted or `--acp-server=false` → disabled

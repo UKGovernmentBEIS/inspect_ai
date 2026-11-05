@@ -7,21 +7,36 @@ description: Model interface and providers.
 
 ### get_model
 ### Model
+### ModelRole
+### ModelRoles
 ### GenerateConfig
 ### GenerateConfigArgs
 ### GenerateFilter
+### ModelResponseFilter
 ### BatchConfig
 ### ResponseSchema
 ### ModelOutput
 ### ModelConfig
 ### ModelCall
+### ModelRequestId
 ### ModelConversation
+### model_origin
 ### ModelUsage
 ### StopReason
 ### ChatCompletionChoice
 ### OutputModality
 ### ImageOutput
 ### RetryDecision
+### ServedModelUsage
+
+## Streaming
+
+### StreamHandler
+### StreamEvent
+### StreamTextEvent
+### StreamReasoningEvent
+### StreamToolCallEvent
+### StreamRetryEvent
 
 ## Messages
 
@@ -65,6 +80,7 @@ description: Model interface and providers.
 ### compaction
 ### Compact
 ### CompactionStrategy
+### CompactionResult
 ### CompactionAuto
 ### CompactionNative
 ### CompactionEdit
@@ -77,6 +93,7 @@ description: Model interface and providers.
 ### get_model_info
 ### set_model_info
 ### set_model_cost
+### compute_model_cost
 ### ModelInfo
 ### ModelCost
 ### model_roles
@@ -112,6 +129,4 @@ description: Model interface and providers.
 
 ### modelapi
 ### ModelAPI
-
-
-
+### record_response_headers

@@ -12,11 +12,16 @@ from inspect_ai.scorer import exact
 from inspect_ai.solver import generate
 
 # Expected task identifiers for each version. These values must NOT be changed.
-# If the task_identifier computation changes, add a new version entry with the
-# new expected value and bump TASK_IDENTIFIER_VERSION.
+# If the computed identifier changes, add a new version entry with the new
+# expected value and bump TASK_IDENTIFIER_VERSION. A logic change that leaves
+# the identifier unchanged (proven by this test still passing) is not a new
+# version.
 _EXPECTED_TASK_IDENTIFIERS: dict[int, str] = {
     1: "tests/test_task_identifier_version.py@version_test_task#44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a/mockllm/model/29797164a2ed3858f2e5b9a08f6594cfe398a975e2094dadb17a15f84e53613c",
     2: "tests/test_task_identifier_version.py@version_test_task#44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a/mockllm/model/83650e91c9e6d632029a66c6c00022eadbc3ba23687c82c324f9f41cfc193104",
+    # 3 also excludes stream_idle_timeout, added (and excluded) later without
+    # a version bump: excluding a field no prior config could set changes no
+    # existing hash (the fixture sets it to prove the exclusion holds).
     3: "tests/test_task_identifier_version.py@version_test_task#44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a/mockllm/model/7d262bcd59b6c9bd5c8acdf7c3f1342cede8c626a416c5b4b4a77a2e7ade7e99",
 }
 
@@ -54,7 +59,9 @@ def _create_resolved_task_with_all_fields():
     # excludes are detectable here.
     model = get_model(
         "mockllm/model",
-        config=GenerateConfig(temperature=0.5, max_connections=10),
+        config=GenerateConfig(
+            temperature=0.5, max_connections=10, stream_idle_timeout=30
+        ),
     )
     scorer_model = get_model(
         "mockllm/scorer",

@@ -15,12 +15,20 @@ from openai.types.responses import (
     ResponseReasoningItem,
     ResponseUsage,
 )
+from openai.types.responses.mcp_tool_call_error import (
+    HTTPError,
+    McpProtocolError,
+    McpToolCallError,
+    McpToolExecutionError,
+)
+from openai.types.responses.response_output_item import McpCall
 from openai.types.responses.response_usage import (
     InputTokensDetails,
     OutputTokensDetails,
 )
 
 from inspect_ai._util.content import ContentReasoning, ContentText
+from inspect_ai._util.json import to_json_str_safe
 from inspect_ai.model import (
     model_output_from_openai,
     model_output_from_openai_responses,
@@ -28,11 +36,17 @@ from inspect_ai.model import (
 from inspect_ai.model._chat_message import (
     ChatMessageAssistant,
 )
-from inspect_ai.model._model_output import ModelOutput
-from inspect_ai.model._openai import chat_message_assistant_from_openai
+from inspect_ai.model._model_output import ModelOutput, ModelUsage, StopReason
+from inspect_ai.model._openai import (
+    chat_message_assistant_from_openai,
+    openai_chat_choices,
+    openai_completion_usage,
+)
 from inspect_ai.model._openai_responses import (
+    mcp_call_to_tool_use,
     reasoning_from_responses_reasoning,
     responses_reasoning_from_reasoning,
+    tool_use_to_mcp_call_param,
 )
 
 
@@ -73,6 +87,7 @@ async def test_model_output_from_openai_basic() -> None:
     assert result.usage.input_tokens == 10
     assert result.usage.output_tokens == 20
     assert result.usage.total_tokens == 30
+    assert result.response_id == "chatcmpl-123"
 
 
 async def test_model_output_from_openai_with_tool_calls() -> None:
@@ -231,6 +246,7 @@ async def test_model_output_from_openai_responses_basic() -> None:
     assert result.usage.input_tokens == 100
     assert result.usage.output_tokens == 200
     assert result.usage.total_tokens == 300
+    assert result.response_id == "resp-123"
 
 
 async def test_model_output_from_openai_responses_with_reasoning() -> None:
@@ -450,6 +466,22 @@ async def test_model_output_from_openai_length_stop_reason() -> None:
     assert result.choices[0].stop_reason == "max_tokens"
 
 
+def test_openai_chat_choices_stop_reason_to_finish_reason() -> None:
+    """Chat Completions conversion maps truncation stop reasons to finish_reason=length."""
+
+    def finish_reason(stop_reason: StopReason) -> str:
+        output = ModelOutput.from_content(
+            model="mock/test",
+            content="partial response",
+            stop_reason=stop_reason,
+        )
+        return openai_chat_choices(output.choices)[0].finish_reason
+
+    assert finish_reason("max_tokens") == "length"
+    assert finish_reason("model_length") == "length"
+    assert finish_reason("stop") == "stop"
+
+
 async def test_model_output_from_openai_cache_token_normalization() -> None:
     """Test that input_tokens excludes cached tokens for OpenAI Chat Completions."""
     completion = ChatCompletion(
@@ -484,6 +516,64 @@ async def test_model_output_from_openai_cache_token_normalization() -> None:
     assert result.usage.input_tokens_cache_read == 600
     assert result.usage.output_tokens == 50
     assert result.usage.total_tokens == 1050
+
+
+async def test_model_output_from_openai_cache_write_token_normalization() -> None:
+    """Test that cache writes are preserved and excluded from input tokens."""
+    completion = ChatCompletion(
+        id="chatcmpl-cache-write",
+        model="gpt-5.6",
+        object="chat.completion",
+        created=1234567890,
+        choices=[
+            Choice(
+                index=0,
+                message=ChatCompletionMessage(
+                    role="assistant",
+                    content="Hello!",
+                ),
+                finish_reason="stop",
+                logprobs=None,
+            )
+        ],
+        usage=CompletionUsage(
+            prompt_tokens=1000,
+            completion_tokens=50,
+            total_tokens=1050,
+            prompt_tokens_details=PromptTokensDetails(
+                cached_tokens=600, cache_write_tokens=80
+            ),
+        ),
+    )
+
+    result = await model_output_from_openai(completion)
+
+    assert result.usage is not None
+    assert result.usage.input_tokens == 320
+    assert result.usage.input_tokens_cache_read == 600
+    assert result.usage.input_tokens_cache_write == 80
+    assert result.usage.output_tokens == 50
+    assert result.usage.total_tokens == 1050
+
+
+def test_openai_completion_usage_round_trips_cache_details() -> None:
+    """Test outbound Chat Completions usage keeps cache reads and writes."""
+    usage = ModelUsage(
+        input_tokens=320,
+        output_tokens=50,
+        total_tokens=1050,
+        input_tokens_cache_read=600,
+        input_tokens_cache_write=80,
+    )
+
+    result = openai_completion_usage(usage)
+
+    assert result.prompt_tokens == 1000
+    assert result.completion_tokens == 50
+    assert result.total_tokens == 1050
+    assert result.prompt_tokens_details is not None
+    assert result.prompt_tokens_details.cached_tokens == 600
+    assert result.prompt_tokens_details.cache_write_tokens == 80
 
 
 async def test_model_output_from_openai_no_cache_tokens() -> None:
@@ -758,3 +848,59 @@ def test_reasoning_round_trip_content_encrypted_and_summary() -> None:
     assert len(replayed_summary) == 1
     assert replayed_summary[0]["text"] == "API summary"
     assert replayed["id"] == "rs_rt_all"
+
+
+def _mcp_call(error: McpToolCallError | None) -> McpCall:
+    return McpCall(
+        id="mcp_1",
+        type="mcp_call",
+        name="get_weather",
+        server_label="weather",
+        arguments='{"city": "Paris"}',
+        output=None,
+        error=error,
+    )
+
+
+def test_mcp_call_error_round_trip() -> None:
+    """In openai 3.1.0, `McpCall.error` changed from a string to a structured union."""
+    cases: list[tuple[McpToolCallError | None, str | None]] = [
+        (
+            McpProtocolError(
+                type="mcp_protocol_error", code=-32000, message="tool not found"
+            ),
+            "tool not found (-32000)",
+        ),
+        (
+            HTTPError(type="http_error", code=503, message="upstream unavailable"),
+            "upstream unavailable (503)",
+        ),
+        (
+            McpToolExecutionError(
+                type="mcp_tool_execution_error",
+                content=[{"type": "text", "text": "boom"}],
+            ),
+            to_json_str_safe([{"type": "text", "text": "boom"}]),
+        ),
+        # string content passes through unquoted so replay round trips are idempotent
+        (
+            McpToolExecutionError(type="mcp_tool_execution_error", content="boom"),
+            "boom",
+        ),
+        (None, None),
+    ]
+    for error, expected in cases:
+        content = mcp_call_to_tool_use(_mcp_call(error))
+        assert content.error == expected
+
+        param = tool_use_to_mcp_call_param(content)
+        revalidated = McpCall.model_validate(param)
+        if expected is None:
+            assert revalidated.error is None
+        else:
+            # the original variant isn't recoverable from the display string
+            assert isinstance(revalidated.error, McpToolExecutionError)
+            assert revalidated.error.content == expected
+
+        # a second conversion pass must not compound quoting
+        assert mcp_call_to_tool_use(revalidated).error == expected

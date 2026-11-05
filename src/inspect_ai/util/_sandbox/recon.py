@@ -2,6 +2,7 @@ from typing import Literal, TypeAlias
 
 from typing_extensions import TypedDict
 
+from inspect_ai.util._sandbox._privileged import privileged_shell
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
 
 Architecture: TypeAlias = Literal[
@@ -50,12 +51,15 @@ fi
 
 
 async def _sandbox_exec(sandbox: SandboxEnvironment, command: str) -> str:
-    """Execute a command in the container and return the output."""
-    result = await sandbox.exec(["sh", "-c", command], timeout=120)
+    """Execute a probe in the container as the default user and return the output.
+
+    The answers decide which binaries get injected and run with the tools user's
+    authority, so the probe itself must not be answerable by a utility the agent
+    planted on the image's ``PATH``.
+    """
+    result = await privileged_shell(sandbox, command, user=None, timeout=120)
     if not result.success:
-        raise RuntimeError(
-            f"Error executing command {' '.join(command)}: {result.stderr}"
-        )
+        raise RuntimeError(f"Error executing command {command}: {result.stderr}")
     return result.stdout.strip()
 
 

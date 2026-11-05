@@ -1,6 +1,7 @@
 """End-to-end tests for adaptive_connections wiring through Model.generate."""
 
 from collections.abc import Callable
+from contextlib import nullcontext
 from typing import Any
 
 import pytest
@@ -15,11 +16,72 @@ from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool import ToolChoice, ToolInfo
 from inspect_ai.util import AdaptiveConcurrency
 from inspect_ai.util._concurrency import (
+    ConcurrencySemaphore,
     _active_controller,
+    _AnyIOSemaphoreRegistry,
     _request_had_retry,
     adaptive_controllers,
     init_concurrency,
 )
+
+
+@pytest.mark.parametrize("fail", [False, True])
+@pytest.mark.parametrize("operation", ["generate", "count_tokens"])
+async def test_model_requests_with_fixed_limit_registry(
+    fail: bool,
+    operation: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FixedRegistry(_AnyIOSemaphoreRegistry):
+        async def get_or_create(
+            self,
+            name: str,
+            concurrency: int,
+            key: str | None,
+            visible: bool,
+            adaptive: AdaptiveConcurrency | None = None,
+            resizable: bool = False,
+        ) -> ConcurrencySemaphore:
+            return await super().get_or_create(name, concurrency, key, visible)
+
+    registry = FixedRegistry()
+
+    def check_provider_call() -> None:
+        (semaphore,) = registry.values()
+        assert semaphore.in_use == 1
+        if fail:
+            raise RuntimeError("provider failed")
+
+    def output(
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        check_provider_call()
+        return ModelOutput.from_content(model="mockllm", content="ok")
+
+    async def count_tokens(
+        input: str | list[ChatMessage], config: GenerateConfig | None = None
+    ) -> int:
+        check_provider_call()
+        return 7
+
+    init_concurrency(registry)
+    model = get_model("mockllm/model", custom_outputs=output)
+    monkeypatch.setattr(model.api, "count_tokens", count_tokens)
+
+    with (
+        pytest.raises(RuntimeError, match="provider failed") if fail else nullcontext()
+    ):
+        if operation == "generate":
+            response = await model.generate("hello")
+            assert response.completion == "ok"
+        else:
+            assert await model.count_tokens("hello") == 7
+    (semaphore,) = registry.values()
+    assert semaphore.in_use == 0
+    assert semaphore.concurrency == AdaptiveConcurrency().start
 
 
 def _make_output_fn() -> Callable[..., ModelOutput]:
@@ -290,7 +352,7 @@ def test_parse_adaptive_connections_cli_value_forms() -> None:
 
     Verifies the four user-visible forms of `--adaptive-connections VALUE`.
     """
-    from inspect_ai._cli.eval import _parse_adaptive_connections_cli
+    from inspect_ai._util.generate_config_args import _parse_adaptive_connections_cli
 
     # absence
     assert _parse_adaptive_connections_cli(None) is None
@@ -329,7 +391,7 @@ def test_parse_adaptive_connections_cli_invalid_raises_click_error() -> None:
     """
     import click
 
-    from inspect_ai._cli.eval import _parse_adaptive_connections_cli
+    from inspect_ai._util.generate_config_args import _parse_adaptive_connections_cli
 
     with pytest.raises(click.BadParameter, match="not a valid value"):
         _parse_adaptive_connections_cli("nope")
@@ -762,52 +824,70 @@ async def test_transient_retry_blocks_success_counting() -> None:
     assert ctrls[0].concurrency == 4
 
 
-# ---------- count_tokens has no per-model concurrency cap ----------
+# ---------- count_tokens uses its own adaptive pool ----------
+
+
+def _patch_counting_count_tokens(monkeypatch, model, sleep_s: float):
+    import anyio
+
+    state = {"in_flight": 0, "peak": 0}
+
+    async def counting_count_tokens(self, input, config=None):
+        state["in_flight"] += 1
+        state["peak"] = max(state["peak"], state["in_flight"])
+        try:
+            await anyio.sleep(sleep_s)
+            return 1
+        finally:
+            state["in_flight"] -= 1
+
+    monkeypatch.setattr(type(model.api), "count_tokens", counting_count_tokens)
+    return state
 
 
 @pytest.mark.anyio
-async def test_count_tokens_no_concurrency_cap(monkeypatch) -> None:
-    """`Model.count_tokens` is not capped — concurrent calls all run in parallel.
+async def test_count_tokens_adaptive_pool_scales_past_static_cap(monkeypatch) -> None:
+    """Default config: the count pool is adaptive and starts above the old cap.
 
-    Historically there was a per-model `concurrency(...)` semaphore at limit
-    10 around `count_tokens`. It was removed because (a) the cost is O(delta)
-    via compaction's baseline mechanism, (b) `max_samples` already provides a
-    structural ceiling, (c) retries handle 429s symmetrically with generate,
-    and (d) provider count_tokens envelopes are wider than generate envelopes.
-
-    This guards against re-introducing such a cap. We monkey-patch the model
-    API's `count_tokens` to track peak in-flight calls; without a cap the
-    peak should reach (or near) the launched-task count, well above 10.
+    Token counting gets its own controller keyed apart from generate's, so the
+    historical fixed cap of 10 (removed in #3892 for queueing costs) is not
+    silently re-introduced: with the default start of 20, a fan-out of 40
+    counts runs more than 10 concurrently.
     """
-    import anyio
-
     from inspect_ai._util._async import tg_collect
 
     init_concurrency()
     model = get_model("mockllm/model")
+    state = _patch_counting_count_tokens(monkeypatch, model, sleep_s=0.1)
 
-    in_flight = 0
-    peak_in_flight = 0
+    await tg_collect([lambda: model.count_tokens("hello") for _ in range(40)])
 
-    async def counting_count_tokens(self, input, config=None):
-        nonlocal in_flight, peak_in_flight
-        in_flight += 1
-        peak_in_flight = max(peak_in_flight, in_flight)
-        try:
-            await anyio.sleep(0.05)
-            return 1
-        finally:
-            in_flight -= 1
-
-    monkeypatch.setattr(type(model.api), "count_tokens", counting_count_tokens)
-
-    # Launch 50 concurrent count_tokens calls. With the old 10-cap, peak
-    # in-flight would max at 10. Without the cap, peak should be ~50.
-    await tg_collect([lambda: model.count_tokens("hello") for _ in range(50)])
-
-    assert peak_in_flight > 10, (
-        f"count_tokens appears capped at <=10 concurrent: peak in-flight = {peak_in_flight}"
+    assert state["peak"] > 10, (
+        f"count pool looks statically capped: peak in-flight = {state['peak']}"
     )
+
+
+@pytest.mark.anyio
+async def test_count_tokens_static_fallback_capped_at_10(monkeypatch) -> None:
+    """Explicit max_connections switches the count pool to its static fallback.
+
+    The fallback caps counts at 10 without sharing the generate() limiter
+    (inference would be throttled to `max_connections=3`, counts are not).
+    """
+    from inspect_ai._util._async import tg_collect
+
+    init_concurrency()
+    model = get_model("mockllm/model")
+    state = _patch_counting_count_tokens(monkeypatch, model, sleep_s=0.05)
+
+    cfg = GenerateConfig(max_connections=3)
+    await tg_collect(
+        [lambda: model.count_tokens("hello", config=cfg) for _ in range(20)]
+    )
+
+    # Exact 10 requires all ten to overlap inside one sleep window, which
+    # flakes on a loaded CI machine; the cap is the deterministic part.
+    assert 3 < state["peak"] <= 10
 
 
 # ---------- adaptive_active / resolve_adaptive helpers ----------

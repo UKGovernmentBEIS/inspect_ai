@@ -6,7 +6,7 @@ import yaml
 from jsonpath_ng import JSONPath  # type: ignore
 from pydantic import JsonValue
 
-from inspect_ai._util.dateutil import datetime_from_iso_format_safe
+from inspect_ai._util.dateutil import datetime_from_iso_format_safe, datetime_safe
 from inspect_ai.analysis._dataframe.events.columns import EventColumn
 from inspect_ai.analysis._dataframe.messages.columns import MessageColumn
 from inspect_ai.analysis._dataframe.samples.columns import SampleColumn
@@ -91,7 +91,9 @@ def import_record(
         try:
             result[name] = _resolve_value(value, column.type)
         except ValueError as ex:
-            error = ColumnError(name, path=column.path, error=ex, log=log)
+            error = ColumnError(
+                name, path=str(column.path) if column.path else None, error=ex, log=log
+            )
             if strict:
                 raise ValueError(str(error))
             else:
@@ -104,7 +106,7 @@ def import_record(
         ex = ValueError(
             f"field not of type {required_type}" if required_type else "field not found"
         )
-        error = ColumnError(name, path=path, error=ex, log=log)
+        error = ColumnError(name, path=str(path) if path else None, error=ex, log=log)
         if strict:
             raise ValueError(str(error))
         else:
@@ -144,7 +146,7 @@ def import_record(
                 and column._extract_sample is not None
                 and isinstance(record_target, EvalSample | EvalSampleSummary)
             ):
-                value = column._extract_sample(record_target)  # type: ignore[arg-type]
+                value = column._extract_sample(record_target)
             elif (
                 isinstance(column, MessageColumn)
                 and column._extract_message is not None
@@ -270,7 +272,7 @@ def _resolve_value(
 
     # give up
     raise ValueError(
-        f"Cannot coerce {value} from type {type(value).__name__}) to {type_.__name__}"
+        f"Cannot coerce {value} from type {type(value).__name__} to {type_.__name__}"
     )
 
 
@@ -288,6 +290,13 @@ def _try_constructor(tp: Type[ColumnType], obj: Any) -> ColumnType:
     # reflect None back
     if obj is None:
         return obj
+
+    # bool("false") -- like any non-empty string -- is True, which would make
+    # every string value coerce to True. Skip the bare constructor for str->bool
+    # and let _coerce_from_str handle it via YAML, so "false"/"0"/"no"/"off"
+    # parse to False and "true"/"1"/"yes"/"on" to True.
+    if tp is bool and isinstance(obj, str):
+        return None
 
     try:
         coerced = tp(obj)  # type: ignore[call-arg, misc]
@@ -340,7 +349,9 @@ def _coerce_from_str(tp: Type[ColumnType], text: str) -> ColumnType:
         # exact match?
         if isinstance(parsed, tp) and not _is_bool_int_mismatch(tp, parsed):
             if isinstance(parsed, datetime):
-                parsed = parsed.astimezone(timezone.utc)
+                # YAML timestamps without an offset are naive, and astimezone()
+                # treats those as local time. Tag them UTC first.
+                parsed = datetime_safe(parsed, timezone.utc).astimezone(timezone.utc)
             return cast(ColumnType, parsed)
         # try constructor on the YAML result (e.g. str→float via YAML "1.5")
         coerced = _try_constructor(tp, parsed)

@@ -16,9 +16,13 @@ def answer_index(char: str) -> int:
 
         'A' -> 0, 'B' -> 1, etc
     """
-    if char.isalpha():
+    if len(char) == 1 and char.isalpha():
         return ord(char.upper()) - ord("A")
     elif char.isnumeric():
+        if int(char) == 0:
+            raise ValueError(
+                f"Unexpected multiple choice answer: {char} (numeric choices start at 1)"
+            )
         return 25 + int(char)
     else:
         raise ValueError(

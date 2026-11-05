@@ -80,10 +80,17 @@ class _ProbeContext:
 class _FakeAgentChannel:
     def __init__(self, events: list[str]) -> None:
         self._events = events
+        # no turn gate, so after_answer() lets the loop return
+        self._gate = None
 
-    async def before_turn(self, _messages: object) -> list[object]:
+    async def before_turn(
+        self, _messages: object, state: object = None
+    ) -> list[object]:
         self._events.append("before_turn")
         return []
+
+    def _take_rewritten(self) -> bool:
+        return False
 
     @contextmanager
     def turn_scope(self) -> Iterator[None]:
@@ -181,6 +188,7 @@ async def test_initial_attempt_enters_mcp_and_agent_channel(
         _tools: object,
         _retry_refusals: object,
         _compact: object,
+        _approval: object,
     ) -> AgentState:
         output = output_factory()
         state.output = output
@@ -342,7 +350,7 @@ async def test_resumed_compaction_prefix_excludes_prior_conversation(
 
     assert len(generate_inputs) == 3
     # sanity: call 2 was the summarization call triggered by compaction
-    assert "continuation summary" in generate_inputs[1][-1].text
+    assert "summarizing conversations" in generate_inputs[1][-1].text
 
     post_compaction_input = generate_inputs[2]
     # the compacted view must retain the true prefix and the summary ...

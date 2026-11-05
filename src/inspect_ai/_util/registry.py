@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import inspect
+import sys
+from contextlib import contextmanager
 from inspect import get_annotations, isclass
 from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
+    Iterator,
     Literal,
     TypeGuard,
     cast,
@@ -29,6 +32,7 @@ if TYPE_CHECKING:
     from inspect_ai.approval import Approver
     from inspect_ai.hooks._hooks import Hooks
     from inspect_ai.model import ModelAPI
+    from inspect_ai.review import Reviewer
     from inspect_ai.scorer import Metric, Scorer, ScoreReducer
     from inspect_ai.solver import Plan, Solver
     from inspect_ai.tool import Tool
@@ -40,6 +44,7 @@ RegistryType = Literal[
     "agent",
     "approver",
     "hooks",
+    "reviewer",
     "metric",
     "modelapi",
     "plan",
@@ -54,13 +59,24 @@ RegistryType = Literal[
     "scanner",
     "scanjob",
     "validation_predicate",
+    "monitor",
+    "protocol",
+    "swarm_controller",
+    "swarm_channel",
+    "range_goal",
 ]
 """Enumeration of registry object types.
 
 These are the types of objects in this system that can be
-registered using a decorator (e.g. `@task`, `@solver`).
+registered using a decorator (e.g. `@task`, `@solver`). The "monitor",
+"protocol", "swarm_controller" and "swarm_channel" types are constructed via
+`create_registry_object()` rather than `registry_create()`; see the note above
+the `registry_create()` overloads.
 Registered objects can in turn be created dynamically using
 the `registry_create()` function.
+
+The "monitor" and "protocol" types are experimental: not yet a stable API;
+may change without notice.
 """
 
 _REGISTRY_TYPE_VALUES: frozenset[str] = frozenset(get_args(RegistryType))
@@ -77,6 +93,48 @@ class RegistryInfo(BaseModel):
 
     metadata: dict[str, Any] = Field(default_factory=dict)
     """Additional registry metadata."""
+
+
+def set_annotations(wrapper: Callable[..., Any], annotations: dict[str, Any]) -> None:
+    """Set `wrapper`'s annotations in both PEP 649 representations.
+
+    On Python 3.14+ a bare `wrapper.__annotations__ = ...` assignment sets the lazy
+    `__annotate__` to None, and mutating the dict in place doesn't update
+    `__annotate__` at all. Either way, a further `functools.wraps` layer (which
+    copies `__annotate__`, not `__annotations__`) then silently drops the
+    annotations — e.g. in user decorators that extend @task/@solver/@agent and
+    re-register their own wrapper. Setting both representations keeps annotations
+    consistent under further wrapping. Always use this instead of assigning
+    `__annotations__` directly.
+    """
+    annotations = dict(annotations)
+    wrapper.__annotations__ = annotations
+    if sys.version_info >= (3, 14):
+        from annotationlib import Format  # type: ignore[import-not-found,unused-ignore]
+
+        def __annotate__(format: Format) -> dict[str, Any]:
+            # NotImplementedError is the protocol's "format not supported" signal:
+            # PEP 749 requires it for VALUE_WITH_FAKE_GLOBALS (hand-written annotate
+            # functions can't run under fake globals), and annotationlib's consumers
+            # compute FORWARDREF/STRING themselves by falling back to VALUE. See
+            # "Format compatibility" in the annotationlib docs:
+            # https://docs.python.org/3.14/library/annotationlib.html
+            if format != Format.VALUE:
+                raise NotImplementedError(format)
+            return dict(annotations)
+
+        wrapper.__annotate__ = __annotate__  # type: ignore[attr-defined,unused-ignore]
+
+
+def set_return_annotation(wrapper: Callable[..., Any], return_type: type[Any]) -> None:
+    """Restore `wrapper`'s return annotation after `functools.wraps` clobbered it.
+
+    Decorators like @task wrap the user's function with `functools.wraps` (so name,
+    docstring, and params carry over) but need the wrapper itself to be annotated as
+    returning the registry type: `registry_create` consults the return
+    annotation to decide whether a registered callable is a factory to invoke.
+    """
+    set_annotations(wrapper, {**wrapper.__annotations__, "return": return_type})
 
 
 def registry_add(o: object, info: RegistryInfo) -> None:
@@ -107,6 +165,7 @@ def registry_tag(
     type: Callable[..., Any],
     o: object,
     info: RegistryInfo,
+    /,
     *args: Any,
     **kwargs: Any,
 ) -> None:
@@ -116,6 +175,11 @@ def registry_tag(
     add the object to the registry (call registry_add() to both
     tag and add an object to the registry). Call registry_info()
     on a tagged/registered object to retrieve its info
+
+    `type`, `o` and `info` are positional-only so that a creation keyword
+    argument sharing one of those names (e.g. a `@solver` that takes a
+    `type` **kwarg) lands in `**kwargs` instead of colliding with the
+    parameter and raising `TypeError: got multiple values for argument`.
 
     Args:
         type (T): type of object being tagged
@@ -133,19 +197,44 @@ def registry_tag(
 
 
 def extract_named_params(
-    type: Callable[..., Any], apply_defaults: bool, *args: Any, **kwargs: Any
+    type: Callable[..., Any], apply_defaults: bool, /, *args: Any, **kwargs: Any
 ) -> dict[str, Any]:
-    # bind arguments to params
+    # positional-only for the same collision reason documented on
+    # registry_tag: a creation keyword argument named `type` must land in
+    # **kwargs rather than in these leading parameters.
     named_params: dict[str, Any] = {}
 
+    sig = inspect.signature(type)
     if apply_defaults:
-        bound_params = inspect.signature(type).bind_partial(*args, **kwargs)
+        bound_params = sig.bind_partial(*args, **kwargs)
         bound_params.apply_defaults()
     else:
-        bound_params = inspect.signature(type).bind(*args, **kwargs)
+        bound_params = sig.bind(*args, **kwargs)
 
+    # arguments passed through a **kwargs (VAR_KEYWORD) parameter are collected
+    # by inspect under the variadic parameter's own name (e.g. {"kwargs": {...}}).
+    # Record them under their original keyword names instead, so that capturing
+    # and then replaying a spec is idempotent rather than nesting the kwargs one
+    # level deeper on every round-trip (#4374).
+    var_keyword = next(
+        (
+            name
+            for name, param in sig.parameters.items()
+            if param.kind == inspect.Parameter.VAR_KEYWORD
+        ),
+        None,
+    )
+
+    # limitation: flattening last means a **kwargs key that shares its name with
+    # a positional-only parameter (e.g. `def f(x, /, **kw)` called as `f(1, x=2)`)
+    # overwrites that parameter's captured value. Such a signature could never
+    # replay from a kwargs dict anyway, so we accept the lossy capture.
     for param, value in bound_params.arguments.items():
-        named_params[param] = registry_value(value)
+        if param == var_keyword and isinstance(value, dict):
+            for kwarg_name, kwarg_value in value.items():
+                named_params[kwarg_name] = registry_value(kwarg_value)
+        else:
+            named_params[param] = registry_value(value)
 
     # callables are not serializable so use their names
     for param in named_params.keys():
@@ -183,6 +272,26 @@ def registry_name(o: object, name: str) -> str:
     return f"{package}/{name}" if package else name
 
 
+class RegistryNameNotFound(LookupError):
+    """No object is registered under the name.
+
+    Raised by `registry_create()` and `create_registry_object()` (at any
+    depth of nested arguments), so callers can tell a missing registration
+    from a `LookupError` raised inside a registered factory.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        registry_type: RegistryType | None = None,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.registry_type = registry_type
+        self.name = name
+
+
 def registry_lookup(type: RegistryType, name: str) -> object | None:
     r"""Lookup an object in the registry by type and name.
 
@@ -197,19 +306,7 @@ def registry_lookup(type: RegistryType, name: str) -> object | None:
     Returns:
         Object or None if not found.
     """
-
-    def _lookup() -> object | None:
-        # first try
-        object = _registry.get(registry_key(type, name))
-        if object:
-            return object
-        # unnamespaced objects can also be found in inspect_ai
-        elif name.find("/") == -1:
-            return _registry.get(registry_key(type, f"{PKG_NAME}/{name}"))
-        else:
-            return None
-
-    o = _lookup()
+    o = _registry_get(type, name)
 
     # try to recover
     if o is None:
@@ -218,9 +315,29 @@ def registry_lookup(type: RegistryType, name: str) -> object | None:
             package = name.split("/")[0]
             ensure_entry_points(package)
 
-        return _lookup()
+        return _registry_get(type, name)
     else:
         return o
+
+
+def registry_has(type: RegistryType, name: str) -> bool:
+    """Whether `name` is already registered as `type`, without loading entry points.
+
+    Safe to call from a decorator at import time, where `registry_lookup()`
+    could trigger entry-point loading mid-import.
+    """
+    return _registry_get(type, name) is not None
+
+
+def _registry_get(type: RegistryType, name: str) -> object | None:
+    object = _registry.get(registry_key(type, name))
+    if object:
+        return object
+    # unnamespaced objects can also be found in inspect_ai
+    elif name.find("/") == -1:
+        return _registry.get(registry_key(type, f"{PKG_NAME}/{name}"))
+    else:
+        return None
 
 
 def registry_package_name(name: str) -> str | None:
@@ -261,6 +378,12 @@ def registry_create(type: Literal["agent"], name: str, **kwargs: Any) -> Agent: 
 def registry_create(
     type: Literal["approver"], name: str, **kwargs: Any
 ) -> Approver: ...
+
+
+@overload
+def registry_create(
+    type: Literal["reviewer"], name: str, **kwargs: Any
+) -> "Reviewer": ...
 
 
 @overload
@@ -321,6 +444,10 @@ def registry_create(type: Literal["scanner"], name: str, **kwargs: Any) -> Any: 
 def registry_create(type: Literal["scanjob"], name: str, **kwargs: Any) -> Any: ...
 
 
+# No "monitor"/"protocol"/"swarm_controller"/"swarm_channel" overloads: they are
+# built with create_registry_object(), so registry_create() is a type error.
+
+
 def registry_create(type: RegistryType, name: str, **kwargs: Any) -> object:  # type: ignore[return]
     r"""Create a registry object.
 
@@ -344,7 +471,8 @@ def registry_create(type: RegistryType, name: str, **kwargs: Any) -> object:  # 
         Instance of specified name and type.
 
     Raises:
-        LookupError: If the named object was not found in the registry.
+        RegistryNameNotFound: If the named object was not found in the
+            registry (a `LookupError`).
         TypeError: If the specified parameters are not valid for the object.
     """
     obj = registry_lookup(type, name)
@@ -364,11 +492,51 @@ def registry_create(type: RegistryType, name: str, **kwargs: Any) -> object:  # 
         else:
             return obj
     else:
-        raise LookupError(f"{name} was not found in the registry")
+        raise RegistryNameNotFound(
+            f"{name} was not found in the registry", registry_type=type, name=name
+        )
+
+
+LOG_METRIC_OPTION_TYPES: frozenset[RegistryType] = frozenset(
+    {"metric", "score_reducer"}
+)
+"""Registry types that metric options from an untrusted log may construct."""
+
+
+class DisallowedRegistryArg(ValueError):
+    """An argument names an object that `allowed_types` does not permit.
+
+    Raised by `create_registry_object()` with an `allowed_types` allow-list,
+    before the object's factory is called. The message names the object
+    being created and the option path of the refused value.
+    """
+
+    def __init__(self, kind: str) -> None:
+        super().__init__(kind)
+        self.kind = kind
+        self.path: list[str] = []
+        self.owner: tuple[RegistryType, str] | None = None
+        self.advice: str | None = None
+
+    def __str__(self) -> str:
+        if self.owner is None:
+            message = f"{self.kind} cannot be created from these options."
+        else:
+            owner_type, owner_name = self.owner
+            label = owner_type.replace("_", " ")
+            message = (
+                f"{label.capitalize()} '{owner_name}' option '{'.'.join(self.path)}': "
+                f"{self.kind} cannot be created from {label} options in an untrusted log."
+            )
+        return f"{message} {self.advice}" if self.advice else message
 
 
 def create_registry_object(
-    type: RegistryType, name: str, args: dict[str, Any]
+    type: RegistryType,
+    name: str,
+    args: dict[str, Any],
+    *,
+    allowed_types: frozenset[RegistryType] | None = None,
 ) -> object:
     """Restore a registry object, passing creation arguments as a dict.
 
@@ -376,19 +544,33 @@ def create_registry_object(
     and factories are always instantiated. The explicit arguments dictionary
     also avoids collisions with `registry_create()`'s positional parameters
     (e.g. replaying a factory such as `react` that has its own `name` parameter).
+
+    With `allowed_types`, a model dict or a registry dict of another type
+    anywhere in `args` raises `DisallowedRegistryArg` instead of being
+    constructed, before the factory for `name` is called.
     """
     obj = registry_lookup(type, name)
 
     if isclass(obj) or callable(obj):
-        return _instantiate_registry_object(obj, args)
+        try:
+            return _instantiate_registry_object(obj, args, allowed_types=allowed_types)
+        except DisallowedRegistryArg as ex:
+            # the outermost object names the error
+            ex.owner = (type, name)
+            raise
     else:
-        raise LookupError(f"{name} was not found in the registry")
+        raise RegistryNameNotFound(
+            f"{name} was not found in the registry", registry_type=type, name=name
+        )
 
 
 def _instantiate_registry_object(
-    obj: Callable[..., object], args: dict[str, Any]
+    obj: Callable[..., object],
+    args: dict[str, Any],
+    *,
+    allowed_types: frozenset[RegistryType] | None = None,
 ) -> object:
-    instance = obj(**registry_kwargs(**args))
+    instance = obj(**_resolve_registry_args(args, allowed_types=allowed_types))
     info = registry_info(obj)
     # Objects created by self-tagging factories (e.g. @agent / @solver) already
     # carry richer metadata. Preserve it while retaining the factory identity.
@@ -604,24 +786,65 @@ def registry_value(o: object) -> Any:
         return o
 
 
-def registry_arg(arg: Any) -> Any:
+def registry_arg(
+    arg: Any, /, *, allowed_types: frozenset[RegistryType] | None = None
+) -> Any:
+    """Resolve registry and model dicts in `arg` into objects.
+
+    Args:
+        arg: Serialized argument value.
+        allowed_types: If given, the only registry types that may be
+            constructed; a model dict or a registry dict of another type
+            raises `DisallowedRegistryArg`. Applies at every depth.
+    """
     if isinstance(arg, dict):
         if is_registry_dict(arg):
-            return create_registry_object(arg["type"], arg["name"], arg["params"])
+            if allowed_types is not None and arg["type"] not in allowed_types:
+                raise DisallowedRegistryArg(f"a {arg['type']} ('{arg['name']}')")
+            with _disallowed_arg_path("params"):
+                return create_registry_object(
+                    arg["type"], arg["name"], arg["params"], allowed_types=allowed_types
+                )
         elif is_model_dict(arg):
+            if allowed_types is not None:
+                raise DisallowedRegistryArg("a model")
             return model_create_from_dict(arg)
         else:
-            return {k: registry_arg(v) for k, v in arg.items()}
+            return _resolve_registry_args(arg, allowed_types=allowed_types)
     elif isinstance(arg, (list, tuple)):
-        return [registry_arg(item) for item in arg]
+        resolved: list[Any] = []
+        for index, item in enumerate(arg):
+            with _disallowed_arg_path(str(index)):
+                resolved.append(registry_arg(item, allowed_types=allowed_types))
+        return resolved
     else:
         return arg
+
+
+def _resolve_registry_args(
+    args: dict[str, Any], /, *, allowed_types: frozenset[RegistryType] | None
+) -> dict[str, Any]:
+    resolved: dict[str, Any] = {}
+    for key, value in args.items():
+        with _disallowed_arg_path(str(key)):
+            resolved[key] = registry_arg(value, allowed_types=allowed_types)
+    return resolved
+
+
+@contextmanager
+def _disallowed_arg_path(key: str) -> Iterator[None]:
+    """Prefix the option path of a `DisallowedRegistryArg` raised inside."""
+    try:
+        yield
+    except DisallowedRegistryArg as ex:
+        ex.path.insert(0, key)
+        raise
 
 
 # resolve embedded registry objects and models
 def registry_kwargs(**kwargs: Any) -> dict[str, Any]:
     """Resolve any registry and model dicts in the given kwargs."""
-    return {k: registry_arg(v) for k, v in kwargs.items()}
+    return _resolve_registry_args(kwargs, allowed_types=None)
 
 
 def registry_create_from_dict(d: RegistryDict) -> object:

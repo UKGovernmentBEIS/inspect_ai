@@ -1,21 +1,37 @@
 import contextlib
 import importlib.util
 import re
+from collections.abc import Mapping, Sequence
 from contextvars import ContextVar
 from dataclasses import dataclass, field
-from functools import wraps
-from typing import Any, AsyncGenerator, Awaitable, Callable, Type, cast
+from functools import cache, wraps
+from logging import getLogger
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    AsyncGenerator,
+    Awaitable,
+    Callable,
+    Type,
+    cast,
+)
 
-import httpx
 from pydantic import BaseModel, Field, ValidationError
 from pydantic_core import to_json
 
+from inspect_ai._sentinel._context import warn_sentinel_bridged
 from inspect_ai._util._async import is_callable_coroutine
+from inspect_ai._util.logger import warn_once
 from inspect_ai.agent._agent import Agent, AgentState, agent
 from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.log._samples import sample_active
 from inspect_ai.model._compaction.types import CompactionStrategy
-from inspect_ai.model._model import GenerateFilter, ModelEventSink, get_model
+from inspect_ai.model._model import (
+    GenerateFilter,
+    ModelEventSink,
+    ModelResponseFilter,
+    get_model,
+)
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.model._openai_convert import (
     messages_from_openai,
@@ -37,8 +53,17 @@ from .responses import inspect_responses_api_request
 from .util import (
     default_code_execution_providers,
     internal_web_search_providers,
-    resolve_web_search_providers,
+    resolve_bridge_code_execution,
+    resolve_bridge_web_search,
 )
+
+if TYPE_CHECKING:
+    # deferred: importing `inspect_ai.approval` at module scope here cycles
+    # through approval -> event -> scorer while `inspect_ai.agent` is still
+    # initializing. Same reason `model/_call_tools.py` defers it.
+    from inspect_ai.approval._policy import ApprovalPolicy
+
+logger = getLogger(__name__)
 
 # Headers blocked from bridge clients (exact match, case-insensitive)
 _BLOCKED_BRIDGE_HEADERS = frozenset(
@@ -65,6 +90,148 @@ _BLOCKED_BRIDGE_HEADERS = frozenset(
 _BLOCKED_BRIDGE_HEADER_PREFIXES = ("x-stainless-",)
 
 
+# Headers a sandboxed client may never set on the host's request, whatever
+# `forward_client_headers` lists: credentials, transport framing, and values
+# the provider SDK or Inspect owns. The credential names cover the provider
+# SDKs Inspect uses: bearer tokens, Anthropic and Foundry keys, Azure OpenAI's
+# `api-key`, Google's `x-goog-api-key`, and AWS SigV4 (`x-amz-` prefix).
+_BLOCKED_CLIENT_HEADERS = frozenset(
+    [
+        "authorization",
+        "proxy-authorization",
+        "x-api-key",
+        "api-key",
+        "x-goog-api-key",
+        "cookie",
+        "host",
+        "content-type",
+        "content-length",
+        "transfer-encoding",
+        "connection",
+        "anthropic-version",
+        "user-agent",
+        "x-irid",
+    ]
+)
+_BLOCKED_CLIENT_HEADER_PREFIXES = ("x-stainless-", "x-amz-")
+
+_FORWARD_CLIENT_HEADERS_OPTION = "sandbox_agent_bridge(forward_client_headers=...)"
+
+
+def _is_blocked_client_header(lower_name: str) -> bool:
+    return lower_name in _BLOCKED_CLIENT_HEADERS or lower_name.startswith(
+        _BLOCKED_CLIENT_HEADER_PREFIXES
+    )
+
+
+def resolve_forward_client_headers(
+    forward_client_headers: Mapping[str, Sequence[str]] | None,
+) -> dict[str, frozenset[str]]:
+    """Validate `forward_client_headers`, keyed by lowercase header name.
+
+    Names and values are stripped of surrounding whitespace, as client header
+    values are when they are matched one comma-separated item at a time.
+
+    Raises:
+        TypeError: The mapping is not a mapping, a name is not a string, or a
+            value list is a bare string, not a sequence, or holds a non-string.
+        ValueError: A header that must never cross the sandbox boundary, or
+            `Accept-Encoding` (which has its own policy), is listed, or a value
+            contains a comma and so could never match one item of a header.
+    """
+    if forward_client_headers is None:
+        return {}
+    if isinstance(forward_client_headers, str) or not isinstance(
+        forward_client_headers, Mapping
+    ):
+        raise TypeError(
+            "forward_client_headers must map header names to lists of allowed "
+            f"values (got {forward_client_headers!r})."
+        )
+    resolved: dict[str, frozenset[str]] = {}
+    for name, values in forward_client_headers.items():
+        if not isinstance(name, str):
+            raise TypeError(
+                f"forward_client_headers names must be strings (got {name!r})."
+            )
+        lower_name = name.strip().lower()
+        if _is_blocked_client_header(lower_name):
+            raise ValueError(
+                f"forward_client_headers cannot list '{name}': the sandboxed agent "
+                "may never set this header on the host's model request."
+            )
+        if lower_name == "accept-encoding":
+            raise ValueError(
+                "forward_client_headers cannot list 'accept-encoding': the bridge "
+                "forwards the codings the host can decode."
+            )
+        if isinstance(values, str) or not isinstance(values, Sequence):
+            raise TypeError(
+                f"forward_client_headers['{name}'] must be a list of allowed "
+                f"values (got {values!r})."
+            )
+        for value in values:
+            if not isinstance(value, str):
+                raise TypeError(
+                    f"forward_client_headers['{name}'] values must be strings "
+                    f"(got {value!r})."
+                )
+            if "," in value:
+                raise ValueError(
+                    f"forward_client_headers['{name}'] value {value!r} contains a "
+                    "comma: list each comma-separated item as its own value."
+                )
+        resolved[lower_name] = resolved.get(lower_name, frozenset()) | frozenset(
+            value.strip() for value in values
+        )
+    return resolved
+
+
+@cache
+def _decodable_content_codings() -> frozenset[str]:
+    """Content codings every HTTP client the model providers use can decode.
+
+    httpx and httpx2 (used by the OpenAI and Anthropic SDKs) each skip a content
+    coding they have no decoder for and pass the body on still encoded, so a
+    client may only advertise codings both decode on this host. Both decode `br`
+    only with `brotli` installed, which Inspect does not require, and httpx2
+    decodes `zstd` only on Python 3.14+ or with `backports.zstd` installed. If
+    httpx's private decoder table cannot be imported, no coding is treated as
+    decodable and the client's `Accept-Encoding` is dropped.
+    """
+    try:
+        from httpx._decoders import SUPPORTED_DECODERS as httpx_decoders
+    except ImportError:
+        return frozenset()
+
+    codings = set(httpx_decoders)
+    try:
+        from httpx2._decoders import SUPPORTED_DECODERS as httpx2_decoders
+    except ImportError:
+        pass
+    else:
+        codings &= set(httpx2_decoders)
+    return frozenset(codings)
+
+
+def _with_decodable_accept_encoding(
+    headers: dict[str, str],
+) -> dict[str, str] | None:
+    """Narrow a forwarded `Accept-Encoding` to codings the host can decode."""
+    for name in list(headers):
+        if name.lower() == "accept-encoding":
+            kept = [
+                item.strip()
+                for item in headers[name].split(",")
+                if item.split(";")[0].strip().lower() in _decodable_content_codings()
+            ]
+            if kept:
+                headers[name] = ", ".join(kept)
+            else:
+                del headers[name]
+    return headers if headers else None
+
+
 def filter_bridge_headers(headers: dict[str, str] | None) -> dict[str, str] | None:
     """Filter headers from bridge clients, removing sensitive/internal headers.
 
@@ -79,7 +246,114 @@ def filter_bridge_headers(headers: dict[str, str] | None) -> dict[str, str] | No
         if k.lower() not in _BLOCKED_BRIDGE_HEADERS
         and not k.lower().startswith(_BLOCKED_BRIDGE_HEADER_PREFIXES)
     }
-    return filtered if filtered else None
+    return _with_decodable_accept_encoding(filtered)
+
+
+def filter_sandbox_client_headers(
+    headers: object,
+    forward_client_headers: Mapping[str, frozenset[str]],
+) -> dict[str, str] | None:
+    """Filter a sandboxed client's headers to `forward_client_headers`.
+
+    The sandboxed agent is untrusted code using the host's credentials, so only
+    `Accept-Encoding` and the headers and values the eval lists are forwarded;
+    every other header is dropped, including provider tenant/billing headers
+    such as `OpenAI-Organization` or Google's `x-goog-user-project`. The
+    in-process `agent_bridge()` uses `filter_bridge_headers` instead.
+
+    Args:
+        headers: Headers sent by the sandboxed client, as decoded from the
+            proxy's JSON request. Anything other than string names and values
+            is dropped and logged once.
+        forward_client_headers: Allowed client headers, from
+            `resolve_forward_client_headers`. A listed header keeps only its
+            listed comma-separated values (the others are dropped with a
+            warning) and is removed if none remain.
+    """
+    if headers is None:
+        return None
+    if not isinstance(headers, dict):
+        warn_once(
+            logger,
+            "Agent bridge ignored the sandboxed agent's request headers: they "
+            "were not a mapping of names to values.",
+        )
+        return None
+    filtered: dict[str, str] = {}
+    for name, value in headers.items():
+        if not isinstance(name, str) or not isinstance(value, str):
+            warn_once(
+                logger,
+                "Agent bridge dropped request headers from the sandboxed agent "
+                "whose name or value was not a string.",
+            )
+            continue
+        lower_name = name.lower()
+        if lower_name in forward_client_headers:
+            value = _allowed_header_value(
+                name, value, forward_client_headers[lower_name]
+            )
+            if value:
+                filtered[name] = value
+        elif lower_name == "accept-encoding":
+            filtered[name] = value
+        elif not _is_blocked_client_header(lower_name):
+            _log_dropped_client_header(
+                f"Agent bridge did not forward the sandboxed agent's "
+                f"{_loggable(lower_name)} header. To forward it, list it in "
+                f"{_FORWARD_CLIENT_HEADERS_OPTION}.",
+                warning=False,
+            )
+    return _with_decodable_accept_encoding(filtered)
+
+
+def _allowed_header_value(name: str, value: str, allowed: frozenset[str]) -> str:
+    """Keep the allowed tokens of a comma-separated header value."""
+    kept: list[str] = []
+    for token in (t.strip() for t in value.split(",")):
+        if not token:
+            continue
+        if token in allowed:
+            kept.append(token)
+        else:
+            _log_dropped_client_header(
+                f"Agent bridge dropped {_loggable(token)} from the sandboxed "
+                f"agent's {_loggable(name.lower())} header. To forward it, add it "
+                f"to {_FORWARD_CLIENT_HEADERS_OPTION}.",
+                warning=True,
+            )
+    return ",".join(kept)
+
+
+_MAX_LOGGED_CLIENT_HEADER_DROPS = 100
+_MAX_LOGGED_CLIENT_HEADER_TEXT = 64
+_logged_client_header_drops: set[str] = set()
+
+
+def _loggable(text: str) -> str:
+    """Quote client-chosen header text for a log message, truncated."""
+    if len(text) > _MAX_LOGGED_CLIENT_HEADER_TEXT:
+        text = text[:_MAX_LOGGED_CLIENT_HEADER_TEXT] + "..."
+    return repr(text)
+
+
+def _log_dropped_client_header(message: str, *, warning: bool) -> None:
+    """Log a dropped client header once per message, for a bounded number of messages.
+
+    The sandboxed agent chooses the header names and values, so the set of
+    distinct messages is capped rather than growing for the life of the process.
+    """
+    if message in _logged_client_header_drops:
+        return
+    if len(_logged_client_header_drops) >= _MAX_LOGGED_CLIENT_HEADER_DROPS:
+        return
+    _logged_client_header_drops.add(message)
+    if len(_logged_client_header_drops) == _MAX_LOGGED_CLIENT_HEADER_DROPS:
+        message += " Further dropped client headers will not be logged."
+    if warning:
+        logger.warning(message)
+    else:
+        logger.info(message)
 
 
 @contextlib.asynccontextmanager
@@ -89,10 +363,13 @@ async def agent_bridge(
     filter: GenerateFilter | None = None,
     retry_refusals: int | None = None,
     compaction: CompactionStrategy | None = None,
-    web_search: WebSearchProviders | None = None,
-    code_execution: CodeExecutionProviders | None = None,
+    web_search: WebSearchProviders | bool | None = None,
+    code_execution: CodeExecutionProviders | bool | None = None,
+    client_mcp_servers: bool | None = None,
     model_event_sink: ModelEventSink | None = None,
     forward_generation_config: bool = False,
+    approval: list["ApprovalPolicy"] | None = None,
+    response_filter: ModelResponseFilter | None = None,
 ) -> AsyncGenerator[AgentBridge, None]:
     """Agent bridge.
 
@@ -101,6 +378,10 @@ async def agent_bridge(
     The bridge patches the OpenAI and Anthropic client libraries
     to redirect any model named "inspect" (or prefaced with
     "inspect/" for non-default models) into the Inspect model API.
+
+    The eval's configuration, not the agent's request, governs `service_tier`,
+    `store`, `truncation` and the options of provider tools the agent declares;
+    requests with `previous_response_id` are refused.
 
     See the [Agent Bridge](https://inspect.aisi.org.uk/agent-bridge.html)
     documentation for additional details.
@@ -113,21 +394,28 @@ async def agent_bridge(
        compaction: Compact the conversation when it it is close to overflowing
           the model's context window. See [Compaction](https://inspect.aisi.org.uk/compaction.html) for details on compaction strategies.
        web_search: Configuration for mapping model internal
-          web_search tools to Inspect. By default, will map to the
-          internal provider of the target model (supported for OpenAI,
+          web_search tools to Inspect. By default (in-process bridges), will map
+          to the internal provider of the target model (supported for OpenAI,
           Anthropic, Gemini, Grok, and Perplexity). Pass an alternate
           configuration to use to use an external provider like
-          Tavili or Exa for models that don't support internal search.
+          Tavili or Exa for models that don't support internal search, or
+          `False` to withhold web search from the bridged agent entirely.
        code_execution: Configuration for mapping model internal
           code_execution tools to Inspect. By default, will map to the
           internal provider of the target model (supported for OpenAI,
           Anthropic, Google, and Grok). If the provider does not support
           native code execution then the bash() tool will be provided
           (note that this requires a sandbox by declared for the task).
+          Pass `False` to withhold code execution from the bridged agent.
+       client_mcp_servers: Honor MCP servers declared by the bridged client
+          (defaults to `True` for in-process bridges). When enabled, a client
+          may name any server URL and the model provider will connect to it.
        model_event_sink: Optional sink that takes ownership of `ModelEvent`
           emission for calls routed through the bridge. When set, the bridge
-          installs it around `model.generate()` so the sink decides when and
-          under which span each event is emitted to the transcript.
+          installs it around `model.generate()`. The sink decides under which
+          span each generation runs (its optional `on_start`) and when each
+          event is emitted to the transcript (`on_pending`/`on_complete`); see
+          `ModelEventSink`.
        forward_generation_config: Forward client generation parameters (e.g.
           `max_tokens`, `temperature`, reasoning effort) to the model. Defaults
           to `False`, in which case those parameters are dropped and the resolved
@@ -135,13 +423,26 @@ async def agent_bridge(
           parameters like the system prompt, tools, and response format are always
           forwarded). Set `True` for faithful-proxy behavior where the client's
           generation parameters are authoritative.
+       approval: Approval policies for tool calls made by the bridged agent.
+          Temporarily replaces any active approval policies for the duration of
+          each approval. Eval-level and task-level policies already apply without
+          this. A rejected tool call is never handed to the agent: the model is
+          told it was rejected and generation is retried.
+       response_filter: Filter that can replace model output after generation
+          (see ``ModelResponseFilter``). Return ``None`` to pass through; return
+          a ``ModelOutput`` to replace the response.
     """
     # ensure one time init
     init_bridge_request_patch()
+    warn_sentinel_bridged()
 
-    # resolve web search config
-    web_search = resolve_web_search_providers(web_search)
-    code_execution = code_execution or default_code_execution_providers()
+    # resolve granted capabilities (in-process bridges grant by default: the
+    # scaffold already shares the host's network, so withholding buys nothing)
+    web_search_grant = resolve_bridge_web_search(web_search, default_grant=True)
+    code_execution_grant = resolve_bridge_code_execution(
+        code_execution, default_grant=True
+    )
+    allow_remote_mcp = True if client_mcp_servers is None else client_mcp_servers
 
     # create a state value that will be used to track mesages going over the bridge
     state = state or AgentState(messages=[])
@@ -154,14 +455,19 @@ async def agent_bridge(
         compaction,
         model_event_sink=model_event_sink,
         forward_generation_config=forward_generation_config,
+        approval=approval,
+        allow_remote_mcp=allow_remote_mcp,
+        allow_remote_media=True,
+        allow_client_model_names=True,
+        response_filter=response_filter,
     )
 
     # set the patch config for this context and child coroutines
     token = _patch_config.set(
         PatchConfig(
             enabled=True,
-            web_search=web_search,
-            code_execution=code_execution,
+            web_search=web_search_grant,
+            code_execution=code_execution_grant,
             bridge=bridge,
         )
     )
@@ -177,10 +483,10 @@ _patch_initialised: bool = False
 @dataclass
 class PatchConfig:
     enabled: bool = field(default=False)
-    web_search: WebSearchProviders = field(
+    web_search: WebSearchProviders | None = field(
         default_factory=internal_web_search_providers
     )
-    code_execution: CodeExecutionProviders = field(
+    code_execution: CodeExecutionProviders | None = field(
         default_factory=default_code_execution_providers
     )
     bridge: AgentBridge = field(
@@ -211,10 +517,14 @@ def init_openai_request_patch() -> None:
         return
     validate_openai_client("agent bridge")
 
+    # deferred with the openai imports below: httpx2 is not a dependency of
+    # inspect_ai (we only get it transitively via openai >= 3), and this
+    # module must import without openai installed
+    import httpx2
     from openai._base_client import AsyncAPIClient, _AsyncStreamT
     from openai._constants import RAW_RESPONSE_HEADER
     from openai._models import FinalRequestOptions
-    from openai._types import Omit, ResponseT
+    from openai._types import NotGiven, Omit, ResponseT
 
     # extract headers
     def request_headers(options: FinalRequestOptions) -> dict[str, str] | None:
@@ -261,7 +571,7 @@ def init_openai_request_patch() -> None:
         if not raw_response:
             return result
 
-        response = httpx.Response(
+        response = httpx2.Response(
             status_code=200,
             headers={"content-type": "application/json"},
             content=result.model_dump_json().encode(),
@@ -299,7 +609,9 @@ def init_openai_request_patch() -> None:
             and options.url in ["/chat/completions", "/responses"]
         ):
             # must also be an explicit request for an inspect model
-            json_data = cast(dict[str, Any], options.json_data)
+            json_data = strip_omitted_params(
+                cast(dict[str, Any], options.json_data), (Omit, NotGiven)
+            )
             if targets_inspect_model(json_data):
                 if stream:
                     raise_stream_error()
@@ -320,7 +632,12 @@ def init_openai_request_patch() -> None:
                         config.bridge,
                     )
                 return await finalize_bridge_response(
-                    self, cast_to, options, stream, stream_cls, result
+                    self,
+                    cast_to,
+                    options.model_copy(update={"json_data": json_data}),
+                    stream,
+                    stream_cls,
+                    result,
                 )
 
         # otherwise just delegate
@@ -342,10 +659,14 @@ def init_anthropic_request_patch() -> None:
 
     validate_anthropic_client("agent bridge")
 
+    # httpx2 deferred for the same reason as in init_openai_request_patch
+    # above (it arrives transitively via anthropic >= 1)
+    import httpx2
     from anthropic._base_client import AsyncAPIClient, _AsyncStreamT
     from anthropic._constants import RAW_RESPONSE_HEADER
     from anthropic._models import FinalRequestOptions
     from anthropic._types import Omit, ResponseT
+    from anthropic.types.beta import BetaMessage
 
     # extract headers
     def request_headers(options: FinalRequestOptions) -> dict[str, str] | None:
@@ -384,7 +705,7 @@ def init_anthropic_request_patch() -> None:
         if not raw_response:
             return result
 
-        response = httpx.Response(
+        response = httpx2.Response(
             status_code=200,
             headers={"content-type": "application/json"},
             content=result.model_dump_json().encode(),
@@ -423,11 +744,17 @@ def init_anthropic_request_patch() -> None:
         ):
             # must also be an explicit request for an inspect model
             json_data = cast(dict[str, Any], options.json_data)
+            if options.extra_json:
+                json_data = json_data | dict(options.extra_json)
             if targets_inspect_model(json_data):
                 if stream:
                     raise_stream_error()
 
-                is_beta = "beta" in options.url
+                # the SDK prepares the body inside request(), below this patch
+                options = await self._copy_and_prepare(options)
+                json_data = cast(dict[str, Any], options.json_data)
+                # anthropic >= 2.3 no longer puts ?beta=true on the url
+                is_beta = isinstance(cast_to, type) and issubclass(cast_to, BetaMessage)
                 result = await inspect_anthropic_api_request(
                     json_data,
                     filter_bridge_headers(request_headers(options)),
@@ -484,6 +811,7 @@ def init_google_request_patch() -> None:
                     config.web_search,
                     config.code_execution,
                     config.bridge,
+                    requested_model=_google_api_requested_model(path),
                 )
                 import json
 
@@ -532,6 +860,39 @@ def _google_api_model_name(path: str) -> str | None:
     """Extract model name from Google API path like 'models/inspect:generateContent'."""
     match = re.search(r"models/([^/:]+)", path)
     return match.group(1) if match else None
+
+
+def _google_api_requested_model(path: str) -> str | None:
+    """Extract the whole model name from a Google API generateContent path.
+
+    Anchored on the operation rather than the first colon, since a model name
+    may contain colons (e.g. 'models/inspect/ollama/llama3:8b:generateContent').
+    """
+    match = re.search(r"models/(.+):generateContent(?:\?.*)?$", path)
+    return match.group(1) if match else None
+
+
+def strip_omitted_params(
+    json_data: dict[str, Any], sentinels: tuple[type, ...]
+) -> dict[str, Any]:
+    """Drop the SDK's `omit` / `not_given` sentinels from a request body.
+
+    For SDKs that don't prepare the body inside `request()`: they strip
+    sentinels at the resource layer, but not from a caller's `extra_body`,
+    which `_build_request()`'s JSON encoder cannot serialize. Recurses like the
+    SDK does, so a nested sentinel is dropped too.
+    """
+
+    def strip(value: Any) -> Any:
+        if isinstance(value, dict):
+            return {
+                k: strip(v) for k, v in value.items() if not isinstance(v, sentinels)
+            }
+        if isinstance(value, list):
+            return [strip(v) for v in value if not isinstance(v, sentinels)]
+        return value
+
+    return cast(dict[str, Any], strip(json_data))
 
 
 def targets_inspect_model(json_data: dict[str, Any]) -> bool:

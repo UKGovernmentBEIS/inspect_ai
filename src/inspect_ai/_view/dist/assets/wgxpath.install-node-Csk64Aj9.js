@@ -566,10 +566,10 @@ var wgxpath_install_node_Csk64Aj9_default = o(((exports, n) => {
 		}, 0, 1), R(`string-length`, 1, !1, !0, function(e, t) {
 			return (t ? A(t, e) : b(e.a)).length;
 		}, 0, 1), R(`substring`, 3, !1, !1, function(e, t, n, r) {
-			if (n = k(n, e), isNaN(n) || n == Infinity || n == -Infinity || (r = r ? k(r, e) : Infinity, isNaN(r) || r === -Infinity)) return ``;
+			if (n = k(n, e), isNaN(n) || n == 1 / 0 || n == -1 / 0 || (r = r ? k(r, e) : 1 / 0, isNaN(r) || r === -1 / 0)) return ``;
 			n = Math.round(n) - 1;
 			var i = Math.max(n, 0);
-			return e = A(t, e), r == Infinity ? e.substring(i) : e.substring(i, n + Math.round(r));
+			return e = A(t, e), r == 1 / 0 ? e.substring(i) : e.substring(i, n + Math.round(r));
 		}, 2, 3), R(`substring-after`, 3, !1, !1, function(e, t, n) {
 			return t = A(t, e), e = A(n, e), n = t.indexOf(e), n == -1 ? `` : t.substring(n + e.length);
 		}, 2), R(`substring-before`, 3, !1, !1, function(e, t, n) {

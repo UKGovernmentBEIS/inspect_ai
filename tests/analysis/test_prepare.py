@@ -1,14 +1,29 @@
 from pathlib import Path
 from typing import Any
 
-from inspect_ai.analysis import evals_df, log_viewer, prepare, task_info
+from inspect_ai.analysis import (
+    evals_df,
+    frontier,
+    log_viewer,
+    model_info,
+    prepare,
+    task_info,
+)
 from inspect_ai.analysis._dataframe.samples.table import samples_df
 from inspect_ai.analysis._prepare.score_to_float import score_to_float
+from inspect_ai.model import ModelInfo, set_model_info
+from inspect_ai.model._model_info import clear_model_info_cache
 
 LOGS_DIR = Path(__file__).parent / "test_logs"
 
 
 def test_task_info():
+    import pandas as pd
+
+    df_empty = pd.DataFrame()
+    out_empty = prepare(df_empty, task_info({}))
+    assert out_empty.empty
+
     df = evals_df(LOGS_DIR / "2025-05-12T20-27-36-04-00_browser.json")
     df = prepare(df, task_info({}))
     assert df["task_display_name"].to_list() == ["browser"]
@@ -17,6 +32,12 @@ def test_task_info():
 
 
 def test_prepare_log_viewer():
+    import pandas as pd
+
+    df_empty = pd.DataFrame()
+    out_empty = prepare(df_empty, log_viewer("eval", {}))
+    assert out_empty.empty
+
     df = evals_df(LOGS_DIR)
     check_log_viewer(df, {LOGS_DIR.as_posix(): "https://logs.example.com"})
     check_log_viewer(df, {LOGS_DIR.as_posix(): "https://logs.example.com/"})
@@ -53,6 +74,7 @@ def test_score_to_float_with_na():
     assert df["score_match"].isna().any()
 
     out = prepare(df, score_to_float("score_match"))
+    assert out["score_match"].dtype == "float64"
 
     # NA inputs map to NaN, real values convert to float
     for original, converted in zip(df["score_match"], out["score_match"]):
@@ -60,6 +82,76 @@ def test_score_to_float_with_na():
             assert math.isnan(converted)
         else:
             assert isinstance(converted, float) and not math.isnan(converted)
+
+
+def test_frontier_all_na_scores_in_date_group():
+    """frontier() must not crash when a release-date group has only NA scores.
+
+    When logs from multiple models are combined, a model_release_date group can
+    contain only missing headline scores (e.g. a model that wasn't run on the
+    task). Grouping by date and calling idxmax() over such an all-NA group
+    raises (pandas >= 3) or returns NaN (pandas < 3, breaking the subsequent
+    .loc), so rows with a missing score must be dropped before grouping.
+    """
+    import pandas as pd
+
+    nan = float("nan")
+    df = pd.DataFrame(
+        {
+            "task_name": ["t", "t", "t", "t"],
+            "model_release_date": [
+                "2024-01-01",
+                "2024-01-01",
+                "2024-02-01",
+                "2024-03-01",
+            ],
+            "score_headline_value": [nan, nan, 0.5, 0.7],
+        }
+    )
+
+    out = prepare(df, frontier())
+
+    # the all-NA-score date group (2024-01-01) is skipped; the later scored
+    # models are each an improvement, so both are on the frontier
+    assert list(out["frontier"]) == [False, False, True, True]
+
+
+def test_model_info():
+    import pandas as pd
+    import pytest
+
+    # empty DataFrame should return empty DataFrame without error
+    df_empty = pd.DataFrame()
+    out_empty = prepare(df_empty, model_info())
+    assert out_empty.empty
+
+    # missing 'model' column should raise ValueError
+    df_no_model = pd.DataFrame({"task_name": ["t1"]})
+    with pytest.raises(ValueError, match="Required column 'model' not found"):
+        prepare(df_no_model, model_info())
+
+    # normal operation with valid model column (built-in model vs custom model)
+    df = pd.DataFrame({"model": ["openai/gpt-4o", "unknown_model"]})
+    out = prepare(df, model_info())
+    assert "model_display_name" in out.columns
+    assert out["model_display_name"].to_list() == ["GPT-4o", "unknown_model"]
+
+
+def test_model_info_user_supplied():
+    import pandas as pd
+
+    set_model_info("custom/registered", ModelInfo(model="Registered Model"))
+    try:
+        df = pd.DataFrame({"model": ["custom/registered", "custom/argument"]})
+        out = prepare(
+            df, model_info({"custom/argument": ModelInfo(model="Argument Model")})
+        )
+    finally:
+        clear_model_info_cache()
+    assert out["model_display_name"].to_list() == [
+        "Registered Model",
+        "Argument Model",
+    ]
 
 
 def check_log_viewer(

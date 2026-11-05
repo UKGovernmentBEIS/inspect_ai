@@ -1,13 +1,22 @@
 import contextlib
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from logging import getLogger
-from typing import AsyncIterator
+from typing import TYPE_CHECKING, AsyncIterator
 
 import anyio
 from shortuuid import uuid
 
+from inspect_ai._sentinel._context import warn_sentinel_bridged
+from inspect_ai._util._async import raise_unwrapped
+from inspect_ai._util.working import untracked_sandbox_execs
 from inspect_ai.model._compaction.types import CompactionStrategy
-from inspect_ai.model._model import GenerateFilter, Model, ModelEventSink
+from inspect_ai.model._model import (
+    GenerateFilter,
+    Model,
+    ModelEventSink,
+    ModelResolver,
+    ModelResponseFilter,
+)
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._mcp._tools_bridge import BridgedToolsSpec
 from inspect_ai.tool._sandbox_tools_utils.sandbox import sandbox_with_injected_tools
@@ -25,11 +34,18 @@ from inspect_ai.util._sandbox.exec_remote import (
     ExecRemoteStreamingOptions,
     ExecStderr,
 )
+from inspect_ai.util._sandbox.service import find_control_flow
 
 from ..._agent import AgentState
-from ..util import default_code_execution_providers, internal_web_search_providers
+from ..util import resolve_bridge_code_execution, resolve_bridge_web_search
 from .service import MODEL_SERVICE, run_model_service
 from .types import SandboxAgentBridge
+
+if TYPE_CHECKING:
+    # deferred: importing `inspect_ai.approval` at module scope here cycles
+    # through approval -> event -> scorer while `inspect_ai.agent` is still
+    # initializing. Same reason `model/_call_tools.py` defers it.
+    from inspect_ai.approval._policy import ApprovalPolicy
 
 logger = getLogger(__name__)
 
@@ -40,17 +56,23 @@ async def sandbox_agent_bridge(
     *,
     model: str | None = None,
     model_aliases: dict[str, str | Model] | None = None,
+    model_resolver: ModelResolver | None = None,
     filter: GenerateFilter | None = None,
     retry_refusals: int | None = None,
     compaction: CompactionStrategy | None = None,
     sandbox: str | None = None,
     port: int = 13131,
-    web_search: WebSearchProviders | None = None,
-    code_execution: CodeExecutionProviders | None = None,
+    poll_timeout_recovery: float | None = None,
+    web_search: WebSearchProviders | bool | None = None,
+    code_execution: CodeExecutionProviders | bool | None = None,
+    client_mcp_servers: bool | None = None,
     bridged_tools: Sequence[BridgedToolsSpec] | None = None,
     model_event_sink: ModelEventSink | None = None,
     forward_generation_config: bool = False,
+    approval: list["ApprovalPolicy"] | None = None,
     checkpointer: Checkpointer | None = None,
+    forward_client_headers: Mapping[str, Sequence[str]] | None = None,
+    response_filter: ModelResponseFilter | None = None,
 ) -> AsyncIterator[SandboxAgentBridge]:
     """Sandbox agent bridge.
 
@@ -60,44 +82,94 @@ async def sandbox_agent_bridge(
 
     You should set `OPENAI_BASE_URL=http://localhost:13131/v1`, `ANTHROPIC_BASE_URL=http://localhost:13131`, or `GOOGLE_GEMINI_BASE_URL=http://localhost:13131` when executing
     the agent within the container and ensure that your agent targets the
-    model name "inspect" when calling OpenAI, Anthropic, or Google. Use "inspect/<full-model-name>" to target other Inspect model providers.
+    model name "inspect" when calling OpenAI, Anthropic, or Google. Requests for other
+    model names are served by the eval's model unless `model_aliases` or
+    `model_resolver` maps them elsewhere.
+
+    The eval's configuration, not the agent's request, governs `service_tier`,
+    `store`, `truncation` and the options of provider tools the agent declares;
+    requests with `previous_response_id` are refused, and of the agent's HTTP
+    headers only `Accept-Encoding` and those listed in `forward_client_headers`
+    are forwarded.
+
+    Sandbox commands run inside the block, such as the one that launches the
+    agent, are not known work, because Inspect cannot see when a bridged agent
+    is working: they do not count as working while a known wait (such as a
+    model retry) is in progress. Otherwise their time counts as working, as
+    any time does. The agent's model requests and bridged tool calls are
+    known work.
 
     Args:
         state: Initial state for agent bridge. Used as a basis for yielding
             an updated state based on traffic over the bridge.
-        model: Fallback model for requests that don't use "inspect" or an "inspect/"
-            prefixed model (defaults to "inspect", can also specify e.g.
-            "inspect/openai/gpt-4o" to force another specific model).
+        model: Pin every request the bridge does not otherwise recognise to
+            this model (e.g. "inspect/openai/gpt-6-luna"; the "inspect/" prefix is
+            optional). Aliases, resolver results and the name "inspect" are not
+            pinned. Defaults to `None`, which routes unrecognised names to the
+            eval's active model ("inspect" means the same); map other names
+            with `model_aliases`.
         model_aliases: Map of model name aliases. When a request uses a name
             that appears here, the corresponding value (a ``Model`` instance
-            or model spec string) is used instead. Checked before the fallback ``model``.
+            or model spec string) is used instead. Checked before the ``model``
+            pin. Keys are the exact names the agent sends. Use this to reach a
+            model other than the eval's model (e.g.
+            ``{"claude-haiku-4-5": get_model("anthropic/claude-haiku-4-5")}``),
+            including a model role the agent is meant to call
+            (``{"subagent": get_model(role="subagent")}``). Every key is a
+            model the agent can call, so do not alias a role such as a grader.
+        model_resolver: Dynamic routing policy called with the requested model
+            name (provider-qualified on a provider-specific endpoint, e.g.
+            ``openai/gpt-5.1``). Checked after ``model_aliases`` and before the ``model``
+            pin; return a ``Model``/spec to route the request there, or
+            ``None`` to defer. Routes by policy without enumerating every name.
         filter: Filter for bridge model generation.
         retry_refusals: Should refusals be retried? (pass number of times to retry)
         compaction: Compact the conversation when it it is close to overflowing
             the model's context window. See [Compaction](https://inspect.aisi.org.uk/compaction.html) for details on compaction strategies.
         sandbox: Sandbox to run model proxy server within.
         port: Port to run proxy server on.
-        web_search: Configuration for mapping model internal
-            web_search tools to Inspect. By default, will map to the
-            internal provider of the target model (supported for OpenAI,
-            Anthropic, Gemini, Grok, and Perplexity). Pass an alternate
-            configuration to use to use an external provider like
-            Tavily or Exa for models that don't support internal search.
-        code_execution: Configuration for mapping model internal
-            code_execution tools to Inspect. By default, will map to the
-            internal provider of the target model (supported for OpenAI,
-            Anthropic, Google, and Grok). If the provider does not support
+        poll_timeout_recovery: Seconds to keep re-polling the proxy server's
+            process after a poll of it times out. Defaults to `None`, where a
+            proxy poll that times out fails the sample. Each re-issued poll can
+            wait the proxy's full 600-second poll timeout, so recovery can run
+            past this value by about that much (see
+            `ExecRemoteCommonOptions.poll_timeout_recovery`).
+        web_search: Configuration for mapping model internal web_search tools to
+            Inspect. Withheld by default: a sandboxed agent that names the native
+            tool in a request would otherwise reach the web through the model
+            provider, bypassing the sandbox's own network policy. Pass `True` to
+            map to the internal provider of the target model (supported for
+            OpenAI, Anthropic, Gemini, Grok, and Perplexity), or a configuration
+            to use an external provider like Tavily or Exa for models that don't
+            support internal search.
+        code_execution: Configuration for mapping model internal code_execution
+            tools to Inspect. Withheld by default (see `web_search`). Pass `True`
+            to map to the internal provider of the target model (supported for
+            OpenAI, Anthropic, Google, and Grok); if the provider does not support
             native code execution then the bash() tool will be provided
             (note that this requires a sandbox by declared for the task).
+        client_mcp_servers: Honor MCP servers declared by the sandboxed agent
+            (defaults to `False`). When enabled, the agent may name any server URL
+            and the model provider will connect to it. Prefer `bridged_tools` for
+            exposing tools you choose.
         bridged_tools: Host-side Inspect tools to expose to the sandboxed agent
             via MCP protocol. Each BridgedToolsSpec creates an MCP server that
-            makes the specified tools available to the agent. The resolved
-            MCPServerConfigStdio objects to pass to CLI agents are available via
-            bridge.mcp_server_configs.
+            makes the specified tools available to the agent. A bridged tool
+            executes only for a call the model proposed in a bridged generation,
+            once per proposal, unless its spec sets `require_proposal=False`
+            (see `BridgedToolsSpec`); an agent that calls host tools from
+            model-written code, such as Codex CLI in code mode, needs that
+            opt-out. The resolved MCPServerConfigStdio objects
+            to pass to CLI agents are available via bridge.mcp_server_configs.
         model_event_sink: Optional sink that takes ownership of `ModelEvent`
             emission for calls routed through the bridge. When set, the bridge
-            installs it around `model.generate()` so the sink decides when and
-            under which span each event is emitted to the transcript.
+            installs it around `model.generate()`. The sink decides under which
+            span each generation runs (its optional `on_start`) and when each
+            event is emitted to the transcript (`on_pending`/`on_complete`); see
+            `ModelEventSink`. A host tool call the model proposed is recorded in the span the sink set
+            on the proposing `ModelEvent` by the time `on_complete` returns,
+            and is recorded right away: a span set later, or a `ModelEvent`
+            the sink emits later, is not matched up with it.
         forward_generation_config: Forward client generation parameters (e.g.
             `max_tokens`, `temperature`, reasoning effort) to the model. Defaults
             to `False`, in which case those parameters are dropped and the resolved
@@ -105,21 +177,50 @@ async def sandbox_agent_bridge(
             parameters like the system prompt, tools, and response format are always
             forwarded). Set `True` for faithful-proxy behavior where the client's
             generation parameters are authoritative.
+        approval: Approval policies for tool calls made by the bridged agent.
+            Temporarily replaces any active approval policies for the duration of
+            each approval. Eval-level and task-level policies already apply without
+            this, but an `approval()` block entered inside the agent body does not
+            reach the sandbox service task — pass policies here instead. A rejected
+            tool call is never handed to the agent: the model is told it was
+            rejected and generation is retried.
         checkpointer: Checkpointer to drive through the bridge. When provided,
             the bridge ticks it after each generation and registers its agent
             state (messages, output, compaction prefix) for checkpoint backup
             and restore, so a checkpointed run survives resume. Defaults to
             `None` (no checkpointing).
+        forward_client_headers: Client request headers the sandboxed agent may
+            send to the model provider, mapping each header name
+            (case-insensitive) to its allowed values, e.g.
+            `{"anthropic-beta": ["context-management-2025-06-27"]}`. A
+            comma-separated value is matched one item at a time, so a listed
+            value cannot contain a comma; items not listed are dropped with a
+            warning, and the header is dropped when none remain. Defaults to
+            `None`: no client header is forwarded except `Accept-Encoding`.
+            `Accept-Encoding` and credential and transport headers (e.g.
+            `Authorization`, `api-key`, `x-goog-api-key`, `x-amz-*`, `Host`,
+            `Content-Type`) cannot be listed.
+        response_filter: Filter that can replace model output after generation
+            (see ``ModelResponseFilter``). Return ``None`` to pass through;
+            return a ``ModelOutput`` to replace the response.
     """
+    warn_sentinel_bridged()
+
     # instance id for this bridge
     instance = f"proxy_{uuid()}"
 
     # resolve sandbox
     sandbox_env = await sandbox_with_injected_tools(sandbox_name=sandbox)
 
-    # resolve internal services
-    web_search = web_search or internal_web_search_providers()
-    code_execution = code_execution or default_code_execution_providers()
+    # resolve granted capabilities. These default to withheld: the sandboxed agent
+    # can otherwise obtain them just by naming the native tool in a request, which
+    # reaches the web through the model provider even when the sandbox has no
+    # network egress of its own.
+    web_search_grant = resolve_bridge_web_search(web_search, default_grant=False)
+    code_execution_grant = resolve_bridge_code_execution(
+        code_execution, default_grant=False
+    )
+    allow_remote_mcp = False if client_mcp_servers is None else client_mcp_servers
 
     # create a state value that will be used to track mesages going over the bridge
     state = state or AgentState(messages=[])
@@ -128,6 +229,7 @@ async def sandbox_agent_bridge(
     # should be logged but not cause the sample to fail.
     agent_completed = False
 
+    bridge: SandboxAgentBridge | None = None
     try:
         async with anyio.create_task_group() as tg:
             # event to signal startup of model service
@@ -142,9 +244,14 @@ async def sandbox_agent_bridge(
                 port=port,
                 model=model,
                 model_aliases=model_aliases,
+                model_resolver=model_resolver,
                 model_event_sink=model_event_sink,
                 forward_generation_config=forward_generation_config,
+                approval=approval,
                 checkpointer=checkpointer,
+                allow_remote_mcp=allow_remote_mcp,
+                forward_client_headers=forward_client_headers,
+                response_filter=response_filter,
             )
 
             # register bridged tools with the bridge
@@ -158,13 +265,14 @@ async def sandbox_agent_bridge(
                 seen_names.add(spec.name)
                 config = _register_bridged_tools(bridge, spec, port)
                 bridge.mcp_server_configs.append(config)
+            bridge.warn_indistinct_tools()
 
             # sandbox service that receives model requests (and tool calls)
             tg.start_soon(
                 run_model_service,
                 sandbox_env,
-                web_search,
-                code_execution,
+                web_search_grant,
+                code_execution_grant,
                 bridge,
                 instance,
                 started,
@@ -178,20 +286,29 @@ async def sandbox_agent_bridge(
                 cmd=[SANDBOX_CLI, "model_proxy"],
                 options=ExecRemoteStreamingOptions(
                     concurrency=False,
+                    user=sandbox_env._tools_user,
                     env={
                         f"{MODEL_SERVICE.upper()}_PORT": str(port),
                         f"{MODEL_SERVICE.upper()}_INSTANCE": instance,
                     },
                     poll_timeout=600,
+                    poll_timeout_recovery=poll_timeout_recovery,
                 ),
             )
 
             # monitor proxy for unexpected death
             tg.start_soon(_monitor_proxy, proxy)
 
+            # monitor for a sample failure requested from the service task
+            # (fail_on_refusal, a response filter failure, an invalid approver
+            # modification, a host tool bug). A termination needs no monitor:
+            # the service dispatcher propagates it out of run_model_service.
+            tg.start_soon(_monitor_failure, bridge)
+
             # main agent
             try:
-                yield bridge
+                with untracked_sandbox_execs():
+                    yield bridge
                 agent_completed = True
             finally:
                 with anyio.CancelScope(shield=True):
@@ -201,6 +318,19 @@ async def sandbox_agent_bridge(
                 # ensure the scope is cancelled
                 tg.cancel_scope.cancel()
     except Exception as ex:
+        # A termination ends the sample even if the agent completed first: the
+        # service dispatcher answers a terminating request before raising, so the
+        # scaffold can read that reply and exit before the termination arrives.
+        termination = find_control_flow(ex)
+        if termination is not None:
+            raise termination from ex
+        # A requested failure or a generation limit takes the place of the
+        # error the agent unwound with (often the scaffold's, after it read the
+        # error reply). A cancellation from an enclosing scope is not an
+        # Exception, so it passes through unchanged for that scope to handle.
+        error = await _error_after_unwind(bridge, ex)
+        if error is not None:
+            raise_unwrapped(ex, error)
         # If the agent completed successfully but we got an error during cleanup,
         # log the error but don't fail the sample.
         if agent_completed:
@@ -209,7 +339,52 @@ async def sandbox_agent_bridge(
             )
         else:
             # Error occurred before or during agent execution
-            raise inner_exception(ex)
+            raise_unwrapped(ex, inner_exception(ex))
+    # the agent returned after a failure was requested or a limit was reached
+    error = await _error_after_unwind(bridge, None)
+    if error is not None:
+        raise error
+
+
+async def _error_after_unwind(
+    bridge: SandboxAgentBridge | None, unwound: Exception | None
+) -> Exception | None:
+    """The error to raise once the agent has unwound, if any.
+
+    A requested sample failure (`SandboxAgentBridge.request_fail`), else the
+    generation limit recorded (`SandboxAgentBridge.generation_limit`). A
+    failure `_monitor_failure` raised, so the agent unwound with it, is
+    returned as is. Otherwise a pending enclosing cancellation is delivered
+    first: it passes through, and a failure the monitor had not yet raised is
+    lost with the limit (decision: Ransom, 2026-10-29).
+    """
+    if bridge is None:
+        return None
+    failure = bridge._failure
+    if failure is not None and unwound is not None and _holds(unwound, failure):
+        return failure
+    error = failure or bridge.generation_limit
+    if error is not None:
+        await _deliver_enclosing_cancellation()
+    return error
+
+
+def _holds(group: Exception, error: Exception) -> bool:
+    """Whether `group` is `error` or holds it as a member."""
+    if isinstance(group, BaseExceptionGroup):
+        return group.subgroup(lambda member: member is error) is not None
+    return group is error
+
+
+async def _deliver_enclosing_cancellation() -> None:
+    """Raise a cancellation an enclosing scope requested, if any.
+
+    A cancellation requested while the bridge shut down in its shielded scope
+    can be left undelivered on asyncio once the task group exits. Delivering it
+    before an error is raised in its place lets it pass through unchanged, as
+    when it arrives earlier.
+    """
+    await anyio.lowlevel.checkpoint_if_cancelled()
 
 
 def _register_bridged_tools(
@@ -220,9 +395,11 @@ def _register_bridged_tools(
     Tools are registered in bridge.bridged_tools for execution by the service.
     Returns an MCPServerConfigHTTP with URL pointing to the MCP HTTP endpoint.
     """
-    # Build tool registry for this server
-    tools_dict = {ToolDef(tool).name: tool for tool in spec.tools}
-    bridge.bridged_tools[spec.name] = tools_dict
+    bridge.register_bridged_tools(
+        spec.name,
+        {ToolDef(tool).name: tool for tool in spec.tools},
+        require_proposal=spec.require_proposal,
+    )
 
     # Return MCP config with HTTP URL
     return MCPServerConfigHTTP(
@@ -231,6 +408,20 @@ def _register_bridged_tools(
         url=f"http://localhost:{port}/mcp/{spec.name}",
         tools="all",
     )
+
+
+async def _monitor_failure(bridge: SandboxAgentBridge) -> None:
+    """Raise the error a bridged generation or tool call asked the sample to fail with.
+
+    Bridged generations and host tool calls run in the sandbox service task,
+    whose dispatcher turns their exceptions into RPC error responses, except a
+    limit or a termination (see `SandboxAgentBridge.request_fail`). Raising here
+    instead puts the error in the bridge's own task group, so it unwinds the
+    agent and reaches the sample runner.
+    """
+    await bridge._failure_requested.wait()
+    assert bridge._failure is not None
+    raise bridge._failure
 
 
 async def _monitor_proxy(proxy: ExecRemoteProcess) -> None:

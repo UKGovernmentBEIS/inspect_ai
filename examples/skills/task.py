@@ -5,7 +5,7 @@ This example demonstrates how to use the skill() tool to provide
 specialized instructions to agents for Linux system exploration tasks.
 
 Run with:
-    inspect eval examples/skills/task.py --model openai/gpt-5
+    inspect eval examples/skills/task.py --model openai/gpt-6-luna
 
 Skills provide structured guidance that agents can invoke on-demand,
 including instructions and executable scripts.

@@ -31,6 +31,7 @@ if TYPE_CHECKING:
         ElicitationClient,
     )
     from inspect_ai.agent._channel import AgentChannel, AgentRef
+    from inspect_ai.agent._channel.channel import TurnState
     from inspect_ai.event._model import ModelEvent
     from inspect_ai.event._tool import ToolEvent
 
@@ -75,6 +76,15 @@ class NoOpAcpTransport:
     def detach(self, stream: MemoryObjectReceiveStream[AcpUpdate]) -> None:
         """No-op detach."""
         return None
+
+    @property
+    def has_client(self) -> bool:
+        """No-op sessions never have an attached ACP client."""
+        return False
+
+    async def wait_for_client(self) -> None:
+        """Raise because no ACP client can attach to a no-op session."""
+        raise RuntimeError("ACP transport is not active")
 
     def publish(self, update: AcpUpdate) -> None:
         """No-op publish — updates are discarded."""
@@ -136,6 +146,11 @@ class NoOpAcpTransport:
         """No-op session has no lifecycle to complete."""
         return False
 
+    @property
+    def turn_active(self) -> bool:
+        """No-op sessions never have an active agent turn."""
+        return False
+
     def subscribe_interrupted(self, callback: Callable[[], None]) -> Callable[[], None]:
         """No-op subscribe — no cancels can fire on the no-op session."""
 
@@ -148,6 +163,16 @@ class NoOpAcpTransport:
         self, callback: Callable[[], None]
     ) -> Callable[[], None]:
         """No-op subscribe — no prompts can be resolved on the no-op session."""
+
+        def _noop_unsubscribe() -> None:
+            return None
+
+        return _noop_unsubscribe
+
+    def subscribe_turn_state(
+        self, callback: Callable[[TurnState], None]
+    ) -> Callable[[], None]:
+        """No-op subscribe — no turn scope binds on the no-op session."""
 
         def _noop_unsubscribe() -> None:
             return None

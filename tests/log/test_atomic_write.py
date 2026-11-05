@@ -11,6 +11,7 @@ import pytest
 
 from inspect_ai._util.atomic_write import atomic_write, atomic_write_bytes
 from inspect_ai.log import EvalLog, EvalSample, read_eval_log, write_eval_log
+from inspect_ai.log._recorders.recorder import SampleRecordKey
 
 
 class TestAtomicWriteBasics:
@@ -199,6 +200,17 @@ class TestAtomicWriteInvalidInputs:
 
         assert target.read_bytes() == b"data"
 
+    def test_missing_parent_directory_not_created_when_asked(
+        self, tmp_path: Path
+    ) -> None:
+        """With ``make_parents=False`` a missing parent fails the write."""
+        target = tmp_path / "a" / "c.dat"
+
+        with pytest.raises(FileNotFoundError):
+            atomic_write_bytes(str(target), b"data", make_parents=False)
+
+        assert not (tmp_path / "a").exists()
+
     def test_remote_path_rejected(self) -> None:
         """Remote paths must be rejected — use AsyncFilesystem instead."""
         with pytest.raises(ValueError, match="local"):
@@ -240,6 +252,25 @@ class TestAtomicWriteFileMode:
             f.write(b"x")
 
         assert stat.S_IMODE(target.stat().st_mode) == expected
+
+    def test_mode_applies_to_new_and_existing_files(self, tmp_path: Path) -> None:
+        """An explicit mode is used at creation, never a looser one."""
+        new = tmp_path / "new.dat"
+        existing = tmp_path / "existing.dat"
+        existing.write_bytes(b"old")
+        os.chmod(existing, 0o644)
+        umask = os.umask(0o022)
+        try:
+            # created with the mode, not loosened then tightened
+            with mock.patch("os.chmod") as chmod:
+                atomic_write_bytes(str(new), b"x", mode=0o600)
+                atomic_write_bytes(str(existing), b"y", mode=0o600)
+            chmod.assert_not_called()
+        finally:
+            os.umask(umask)
+
+        assert stat.S_IMODE(new.stat().st_mode) == 0o600
+        assert stat.S_IMODE(existing.stat().st_mode) == 0o600
 
 
 class TestAtomicWriteInterruption:
@@ -405,7 +436,7 @@ class TestFlushPermissionError:
         # survive a skipped flush (buffered_sample falls back to the
         # on-disk log once cleared, which a skipped flush hasn't written)
         sample = EvalSample(id="s1", epoch=1, input="x", target="y")
-        log._streaming_samples[("s1", 1)] = sample
+        log._streaming_samples[SampleRecordKey("s1", 1)] = sample
 
         locked = PermissionError(13, "The process cannot access the file")
         with mock.patch("os.replace", side_effect=locked):

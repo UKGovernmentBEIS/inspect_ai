@@ -133,7 +133,10 @@ TOTAL_MESSAGES_META_KEY = "inspect.total_messages"
 # Inspect, so there's no pending ``ToolEvent`` for the connection handler to
 # cancel — the request would silently no-op. The Inspect TUI reads this off the
 # tool card to suppress the per-tool "cancel tool" affordance (the operator can
-# still interrupt the whole turn). Absent ⇒ cancelable (the react default).
+# still interrupt the whole turn). Absent ⇒ cancelable (the react default). A
+# ``ToolCallProgress`` carrying the key changes it: when a sandbox bridge runs a
+# host tool for a proposed call, the real pending ``ToolEvent`` makes the card
+# cancelable.
 TOOL_CALL_CANCELABLE_META_KEY = "inspect.tool_call_cancelable"
 
 
@@ -168,6 +171,17 @@ INSPECT_LIST_SAMPLES_METHOD = "inspect/list_samples"
 # stays alive so the client can switch to a different sample via the
 # picker). Params: ``{"sessionId": "<live-session-uuid>"}``.
 INSPECT_SESSION_ENDED_METHOD = "inspect/session_ended"
+
+# Server → client notification: the bound agent's turn scope has
+# transitioned. Params: ``{"sessionId": "...", "state": "started" |
+# "ended" | "cancelled"}``. Standard ACP expects ``session/prompt`` to
+# span the turn (request → ``end_turn`` response), but Inspect's
+# producer/consumer channel decouples prompt delivery from turn
+# execution — ``session/prompt`` returns immediately and the agent
+# drains the prompt at its own boundary. This notification gives an
+# ACP client an exact "agent is working" signal it would otherwise
+# have to infer from message-chunk traffic.
+INSPECT_TURN_STATE_METHOD = "inspect/turn_state"
 
 
 # ---------------------------------------------------------------------------
