@@ -94,7 +94,7 @@ def steps_from_events(
 
     Every step's `agent_messages` is None: the log does not record the agent's own messages, and model input can hold messages the agent kept out of them.
 
-    A log that does not record where a model call was made (`ModelEvent.origin`, written since inspect_ai PR #5990), as an older Inspect log does not, has its turns inferred from its span tree: a call made in the scorers' span is a scorer's, whatever tool or agent span holds it (live, the scorers' scope is final); one in a tool's span a tool's, and one in the init span, or, in a log that records a `solvers` span, outside every phase span (lifecycle hooks before solving, scoring hooks and `Task.cleanup` after it), setup's; of the rest, those the inferred timeline shows as utility (`timeline_build`'s prompt and continuity rules, the calls above and a sentinel's taking no part in either) are not turns, and the others are. A final scope no span records reads as the region holding it: a `model_origin()` region, `score()` called by a solver or a tool, an approver's model call; where the timeline does not show such a call as utility, its call is a turn (or, in a tool, its calls are checked), as live it was not.
+    A log that does not record where a model call was made (`ModelEvent.origin`, written since inspect_ai PR #5990), as an older Inspect log does not, has its turns inferred from its span tree: a call made in the scorers' span is a scorer's, whatever tool or agent span holds it (live, the scorers' scope is final); one in a tool's span a tool's, and one in the init span or outside every phase span (lifecycle hooks before solving, scoring hooks and `Task.cleanup` after it, whether or not solving started), setup's; of the rest, those the inferred timeline shows as utility (`timeline_build`'s prompt and continuity rules, the calls above and a sentinel's taking no part in either) are not turns, and the others are. A final scope no span records reads as the region holding it: a `model_origin()` region, `score()` called by a solver or a tool, an approver's model call; where the timeline does not show such a call as utility, its call is a turn (or, in a tool, its calls are checked), as live it was not.
 
     Inspect logs record origins on every model call or on none. If a transcript mixes calls with and without origins, recorded calls retain their recorded classification and calls without origins are inferred; continuity across that mixed sequence is not guaranteed.
 
@@ -994,7 +994,6 @@ class _Driver:
         # the prompt its turns are classified by
         known: dict[int, str] = {}
         outside: set[int] = set()
-        phased = self._records_solvers()
         for event in self.events:
             if not isinstance(event, ModelEvent | CompactionEvent):
                 continue
@@ -1005,7 +1004,7 @@ class _Driver:
                 origin: str | None = "scorer"
             elif region.kind == "tool":
                 origin = "tool"
-            elif region.phase == "init" or (region.phase is None and phased):
+            elif region.phase in ("init", None):
                 origin = "setup"
             else:
                 origin = None
@@ -1040,14 +1039,6 @@ class _Driver:
                 id(event), "helper" if id(event) in utility else "agent"
             )
         return inferred
-
-    def _records_solvers(self) -> bool:
-        return any(
-            isinstance(e, SpanBeginEvent)
-            and e.parent_id is None
-            and e.name == "solvers"
-            for e in self.events
-        )
 
     def _scoring(self, event: Event) -> bool:
         """Whether `event` was recorded in the scorers' phase, under the top-level `scorers` span."""

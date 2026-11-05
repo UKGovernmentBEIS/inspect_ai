@@ -1754,6 +1754,52 @@ def test_a_model_call_outside_the_phases_is_not_a_turn(where: str) -> None:
             ]
 
 
+@pytest.mark.parametrize("start", ["sample_start", "sample_attempt_start"])
+@pytest.mark.parametrize("after", [False, True])
+def test_a_model_call_before_solving_stops_early_is_not_a_turn(
+    start: str, after: bool
+) -> None:
+    from inspect_ai._util.registry import _registry
+    from inspect_ai.hooks import Hooks, hooks
+    from inspect_ai.util import LimitExceededError
+
+    async def call_and_stop(*args: Any) -> None:
+        await get_model().generate(start)
+        raise LimitExceededError("custom", value=1, limit=1)
+
+    async def call_the_model(*args: Any) -> None:
+        await get_model().generate("after")
+
+    @hooks(name="r7_stops_early", description="calls the model, then stops")
+    class StopsEarly(Hooks):
+        pass
+
+    setattr(StopsEarly, f"on_{start}", call_and_stop)
+    if after:
+        setattr(StopsEarly, "on_sample_scoring", call_the_model)
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=generate(),
+        cleanup=call_the_model if after else None,
+    )
+    try:
+        log = eval(task, model=outputs(done(), done(), done()))[0]
+    finally:
+        _registry.pop("hooks:r7_stops_early", None)
+    assert log.status == "success", log.error
+    events = logged_sample(log).events
+    assert not any(
+        isinstance(e, SpanBeginEvent) and e.name == "solvers" for e in events
+    )
+    models = [e for e in events if isinstance(e, ModelEvent)]
+    assert len(models) == (3 if after else 1)
+    assert all(e.origin == "setup" for e in models)
+    for inputs in ["expanded", "pooled"]:
+        for recorded in [events, without_origins(events)]:
+            replay = replay_inputs(log, recorded, inputs)
+            assert not [s for s in replay if s.stage in ("model_input", "model_output")]
+
+
 @protocol
 def r7_generate_fails() -> Protocol:
     async def check(
@@ -2006,6 +2052,20 @@ def test_a_stored_timeline_gives_one_conversation_per_branch() -> None:
     ] == ["target", "rollback"]
 
 
+def solving(events: list[Event]) -> list[Event]:
+    for event in events:
+        if isinstance(event, SpanBeginEvent):
+            if event.parent_id is None:
+                event.parent_id = "solvers"
+        elif not isinstance(event, SpanEndEvent) and event.span_id is None:
+            event.span_id = "solvers"
+    return [
+        SpanBeginEvent(id="solvers", name="solvers", type="solvers"),
+        *events,
+        SpanEndEvent(id="solvers"),
+    ]
+
+
 def test_a_stored_timeline_does_not_change_turn_inference_without_origins() -> None:
     task = ChatMessageUser(content="Solve it.")
     m1 = linked_call("m1", "agent", [task], "First.", None)
@@ -2023,14 +2083,16 @@ def test_a_stored_timeline_does_not_change_turn_inference_without_origins() -> N
         "Done.",
         None,
     )
-    events: list[Event] = [
-        SpanBeginEvent(id="agent", name="agent", type="agent"),
-        m1,
-        m2,
-        m3,
-        m4,
-        SpanEndEvent(id="agent"),
-    ]
+    events = solving(
+        [
+            SpanBeginEvent(id="agent", name="agent", type="agent"),
+            m1,
+            m2,
+            m3,
+            m4,
+            SpanEndEvent(id="agent"),
+        ]
+    )
     stored = Timeline(
         name="target",
         description="",
@@ -2119,10 +2181,7 @@ def test_replay_infers_the_turns_of_the_continuity_fixtures(fixture: str) -> Non
     assert steps(events) == steps(recorded)
 
 
-@pytest.mark.parametrize("phases", [True, False])
-def test_a_solver_s_call_after_the_only_agent_is_not_judged_by_its_prompt(
-    phases: bool,
-) -> None:
+def test_a_solver_s_call_after_the_only_agent_is_not_judged_by_its_prompt() -> None:
     # self-review after Ransom's ninth review: the timeline merges a solver's
     # calls beside the only agent span into that span, and the prompt rule
     # took the agent's tool-calling prompt as theirs, so a final generate()
@@ -2138,22 +2197,16 @@ def test_a_solver_s_call_after_the_only_agent_is_not_judged_by_its_prompt(
         ChatMessageSystem(content="You are the main solver."),
         ChatMessageUser(content="Solve it."),
     ]
-    m1 = linked_call("M1", "solvers" if phases else None, final, "Solved.", None)
+    m1 = linked_call("M1", "solvers", final, "Solved.", None)
     events: list[Event] = [
+        SpanBeginEvent(id="solvers", name="solvers", type="solvers"),
         SpanBeginEvent(id="B", name="checker", type="agent", parent_id="solvers"),
         b1,
         b2,
         SpanEndEvent(id="B"),
         m1,
+        SpanEndEvent(id="solvers"),
     ]
-    if phases:
-        events = [
-            SpanBeginEvent(id="solvers", name="solvers", type="solvers"),
-            *events,
-            SpanEndEvent(id="solvers"),
-        ]
-    else:
-        events[0] = SpanBeginEvent(id="B", name="checker", type="agent")
 
     def steps(events: list[Event]) -> list[tuple[str, str]]:
         return sorted(
@@ -2578,7 +2631,7 @@ def test_tool_call_prompt_scan_without_system_message_is_linear(
         work.append(0)
         replay = steps_from_events(
             [],
-            events,
+            solving(events),
             pool,
             sample_uuid="sample",
             eval_info=EvalInfo(inspect_ai_version="0.3.200", sentinel=False),
@@ -3906,6 +3959,7 @@ def _historical_approval_events(
             ]
         )
     events.extend([second, SpanEndEvent(id="agent")])
+    events = solving(events)
     pool: list[ChatMessage] = []
     if inputs == "pooled":
         events, pool = _replay._condensed(events, [])
@@ -4344,7 +4398,7 @@ def test_a_prior_decision_survives_a_later_execution_with_reused_id(
     from inspect_ai._sentinel import _replay
 
     messages, events, _ = _historical_approval_events("expanded", decision, True)
-    events.pop()
+    del events[-2:]
     later_id = "c1" if reused_id else "c2"
     proposal = ToolCall(id=later_id, function="addition", arguments={"x": 2, "y": 1})
     later = linked_call("m3", "agent", messages, "Try again", None, proposal)
@@ -4380,6 +4434,7 @@ def test_a_prior_decision_survives_a_later_execution_with_reused_id(
             SpanEndEvent(id="later-tool"),
             final,
             SpanEndEvent(id="agent"),
+            SpanEndEvent(id="solvers"),
         ]
     )
     pool: list[ChatMessage] = []
@@ -4959,18 +5014,26 @@ def region_with_side_calls(
             "m2", "agent", [*opening, m1.output.message, result], "Solved.", agent
         )
         helpers = side_calls(count, "tool-c1", "tool" if recorded else None, tooled)
-        events: list[Event] = [
-            SpanBeginEvent(id="agent", name="agent", type="agent"),
-            m1,
-            SpanBeginEvent(id="tool-c1", name="check", type="tool", parent_id="agent"),
-            *helpers,
-            ToolEvent(
-                id="c1", function="check", arguments={}, result="ok", span_id="tool-c1"
-            ),
-            SpanEndEvent(id="tool-c1"),
-            m2,
-            SpanEndEvent(id="agent"),
-        ]
+        events = solving(
+            [
+                SpanBeginEvent(id="agent", name="agent", type="agent"),
+                m1,
+                SpanBeginEvent(
+                    id="tool-c1", name="check", type="tool", parent_id="agent"
+                ),
+                *helpers,
+                ToolEvent(
+                    id="c1",
+                    function="check",
+                    arguments={},
+                    result="ok",
+                    span_id="tool-c1",
+                ),
+                SpanEndEvent(id="tool-c1"),
+                m2,
+                SpanEndEvent(id="agent"),
+            ]
+        )
         return [*opening, m1.output.message, result, m2.output.message], events
     m1 = linked_call("m1", "agent", opening, "Solved.", agent)
     messages: list[ChatMessage] = [*opening, m1.output.message]
@@ -4978,7 +5041,7 @@ def region_with_side_calls(
         graders = side_calls(count, "match", "scorer" if recorded else None, tooled)
         m1.span_id = None
         return messages, [
-            m1,
+            *solving([m1]),
             SpanBeginEvent(id="scorers", name="scorers", type="scorers"),
             SpanBeginEvent(
                 id="match", name="match", type="scorer", parent_id="scorers"
@@ -4990,16 +5053,18 @@ def region_with_side_calls(
     monitors = side_calls(count, "check", "helper" if recorded else None, tooled)
     return (
         messages,
-        [
-            SpanBeginEvent(id="agent", name="agent", type="agent"),
-            m1,
-            SpanBeginEvent(
-                id="check", name="probe", type="sentinel", parent_id="agent"
-            ),
-            *monitors,
-            SpanEndEvent(id="check"),
-            SpanEndEvent(id="agent"),
-        ],
+        solving(
+            [
+                SpanBeginEvent(id="agent", name="agent", type="agent"),
+                m1,
+                SpanBeginEvent(
+                    id="check", name="probe", type="sentinel", parent_id="agent"
+                ),
+                *monitors,
+                SpanEndEvent(id="check"),
+                SpanEndEvent(id="agent"),
+            ]
+        ),
     )
 
 
