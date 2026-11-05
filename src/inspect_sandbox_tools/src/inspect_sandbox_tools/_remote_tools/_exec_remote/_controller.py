@@ -141,7 +141,10 @@ class Controller:
             job = await asyncio.shield(spawned)
         else:
             job = self._keyed_jobs.get(job_key)
-        if job is None or self._jobs.get(job.pid) is not job:
+        if job is None:
+            return KillKeyResult(killed=False)
+        if self._jobs.get(job.pid) is not job:
+            await job.await_termination()
             return KillKeyResult(killed=False)
         await self.kill(job.pid, ack_seq=0)
         return KillKeyResult(killed=job.killed)

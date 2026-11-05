@@ -310,6 +310,11 @@ class Job:
         seq, chunks = self._acked_buffer.collect(ack_seq)
         return OutputChunk(seq, *self._combine_chunks(chunks))
 
+    async def await_termination(self) -> None:
+        """Wait for an in-progress kill to finish, if one exists."""
+        if self._termination is not None:
+            await asyncio.shield(self._termination)
+
     async def _terminate_group(self, timeout: int) -> None:
         # The leader is checked here, with no await before the signal, so an exit
         # after kill() was called keeps its exit code. Check and signal are still

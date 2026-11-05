@@ -61,6 +61,7 @@ class TestControllerConcurrentPollAndKill:
 
         job.poll = mock_poll
         job.kill = mock_kill
+        job.await_termination = AsyncMock()
 
         # Inject the mock job directly into the controller's registry.
         controller._jobs[pid] = job
@@ -772,6 +773,48 @@ class TestKillByJobKey:
 
         assert (await controller.kill_key(_JOB_KEY)).killed is False
         assert job._exit_code == 3
+
+    @pytest.mark.asyncio
+    async def test_kill_key_joins_termination_after_a_waiting_poll_retires_the_job(
+        self,
+    ) -> None:
+        terminating = asyncio.Event()
+        release_termination = asyncio.Event()
+        job = MagicMock(pid=42, killed=True)
+
+        async def poll(ack_seq: int, wait: float) -> PollResult:
+            await terminating.wait()
+            return PollResult(
+                state="killed", exit_code=None, seq=1, stdout="", stderr=""
+            )
+
+        async def kill(ack_seq: int) -> tuple[int, str, str]:
+            terminating.set()
+            await release_termination.wait()
+            return (1, "", "")
+
+        job.poll = poll
+        job.kill = kill
+        job.cleanup = AsyncMock()
+        job.await_termination = AsyncMock(side_effect=release_termination.wait)
+        controller = Controller()
+        controller._jobs[job.pid] = job
+        controller._keyed_jobs[_JOB_KEY] = job
+        with anyio.fail_after(1):
+            waiting_poll = asyncio.create_task(
+                controller.poll(job.pid, ack_seq=0, wait=10)
+            )
+            first_kill = asyncio.create_task(controller.kill_key(_JOB_KEY))
+            await terminating.wait()
+            await waiting_poll
+            assert not first_kill.done()
+            second_kill = asyncio.create_task(controller.kill_key(_JOB_KEY))
+            await asyncio.sleep(0)
+            assert not second_kill.done()
+            release_termination.set()
+            assert (await second_kill).killed is False
+            assert (await first_kill).killed is True
+        job.await_termination.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_kill_key_after_the_job_ended_reports_nothing_killed(self) -> None:
