@@ -13,8 +13,9 @@ There are a progression of concurrency concerns, and while most evaluations can 
 
 1.  Evaluating multiple models in parallel.
 2.  Evaluating multiple tasks in parallel.
-3.  Sandbox environment concurrency.
-4.  Writing parallel code in custom tools, solvers, and scorers.
+3.  Sharding one task across several worker processes.
+4.  Sandbox environment concurrency.
+5.  Writing parallel code in custom tools, solvers, and scorers.
 
 ::: {.callout-note appearance="simple"}
 For tuning model API connection limits and rate-limit handling (`max_connections`, adaptive connections, retries) see [Model Concurrency](models-concurrency.qmd).
@@ -83,6 +84,10 @@ eval(
 ```
 
 This code will evaluate a total of 6 tasks (3 reasoning effort variations against 2 models each) with up to 5 tasks run in parallel.
+
+## Sharding {#sec-sharding}
+
+To spread one task's samples over several processes or machines, run each part as its own worker that writes its own log (a *shard*), then merge the shards into one log. See [Sharding](sharding.qmd) for the log layout, merging and limitations.
 
 ## Dataset Memory {#sec-dataset-memory}
 
