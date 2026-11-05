@@ -1,4 +1,6 @@
 import gzip
+import hashlib
+import io
 import os
 import stat
 import subprocess
@@ -552,13 +554,45 @@ def _uncompressed_tar_bytes(name: str, gz_bytes: bytes) -> bytes:
 
 
 @asynccontextmanager
-async def _open_executable(executable: str) -> AsyncIterator[BinaryIO]:
-    """Open the executable file from the binaries package."""
+async def _open_executable(executable: str, *, verify: bool) -> AsyncIterator[BinaryIO]:
+    """Open the executable file from the binaries package.
+
+    With ``verify``, the bytes must match the vendored ``SHA256SUMS`` digest,
+    else ``PrerequisiteError``. The yielded stream holds the bytes that were
+    checked, so the file cannot change between verification and use.
+    """
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", category=DeprecationWarning)
         with resources.path("inspect_ai.binaries", executable) as executable_path:
-            with open(executable_path, "rb") as f:
-                yield f
+            data = executable_path.read_bytes()
+            if verify:
+                _verify_digest(executable, executable_path, data)
+    yield io.BytesIO(data)
+
+
+def _expected_digest(filename: str) -> str:
+    """Pinned digest for ``filename``; ``PrerequisiteError`` if there is none."""
+    try:
+        return lookup_digest(filename)
+    except RuntimeError as e:
+        raise PrerequisiteError(
+            f"Cannot verify sandbox tools executable {filename}: {e} If "
+            f"reinstalling inspect_ai does not resolve this, report it to the "
+            f"inspect_ai maintainers rather than retrying."
+        ) from e
+
+
+def _verify_digest(filename: str, path: Path, data: bytes) -> None:
+    expected = _expected_digest(filename)
+    actual = hashlib.sha256(data).hexdigest()
+    if actual != expected:
+        raise PrerequisiteError(
+            f"Digest verification failed for {filename} at {path}: expected "
+            f"{expected}, got {actual}. The local artifact does not match the "
+            f"digest pinned in this inspect_ai release, which may indicate a "
+            f"compromised or corrupted artifact — please report this to the "
+            f"inspect_ai maintainers rather than retrying."
+        )
 
 
 def _prompt_user_action(
@@ -606,6 +640,9 @@ async def _open_executable_for_arch(
     install_state = _get_install_state()
 
     executable_name = _get_executable_name(arch, install_state == "edited", musl)
+    # "edited" resolves -dev names. SHA256SUMS has no -dev entries: dev
+    # artifacts are only built locally, and local builds are not reproducible.
+    verify = install_state != "edited"
 
     trace_message(logger, TRACE_SANDBOX_TOOLS, f"looking for {executable_name}")
 
@@ -613,7 +650,7 @@ async def _open_executable_for_arch(
     async with concurrency(executable_name, 1, visible=False):
         # Local Executable Check
         try:
-            async with _open_executable(executable_name) as f:
+            async with _open_executable(executable_name, verify=verify) as f:
                 trace_message(logger, TRACE_SANDBOX_TOOLS, f"found {executable_name}")
                 yield executable_name, f
                 return
@@ -626,15 +663,14 @@ async def _open_executable_for_arch(
                         f"musl executable {executable_name} not bundled in PyPI package; attempting S3 download",
                     )
                 else:
-                    msg = f"Tool support executable {executable_name} is missing from the PyPI package installation. This indicates a problem with the package. Please reinstall inspect_ai."
-                    # TODO: once we get the github CI/CD actions robust, this should be fatal
-                    # raise PrerequisiteError(msg)
-                    warn_once(logger, msg)
+                    raise PrerequisiteError(
+                        f"Tool support executable {executable_name} is missing from the PyPI package installation. This indicates a problem with the package. Please reinstall inspect_ai."
+                    )
 
         # S3 Download Attempt. "pypi" might be wrongly detected, e.g., when UV_NO_INSTALLER_METADATA=1
         if install_state in {"clean", "pypi"}:
             if await _download_from_s3(executable_name):
-                async with _open_executable(executable_name) as f:
+                async with _open_executable(executable_name, verify=True) as f:
                     trace_message(
                         logger,
                         TRACE_SANDBOX_TOOLS,
@@ -649,7 +685,8 @@ async def _open_executable_for_arch(
         # Build it locally
         await _build_it(arch, musl, executable_name)
 
-        async with _open_executable(executable_name) as f:
+        # Local builds are not reproducible, so they cannot match SHA256SUMS.
+        async with _open_executable(executable_name, verify=False) as f:
             yield executable_name, f
 
 
@@ -684,16 +721,9 @@ async def _download_from_s3(filename: str) -> bool:
     the user wrapped in SandboxInjectionError) with nothing written to the
     binaries directory.
     """
-    try:
-        # Raises if the sums file is unreadable or has no entry for this name —
-        # deliberately before any network I/O.
-        expected_sha256 = lookup_digest(filename)
-    except RuntimeError as e:
-        raise PrerequisiteError(
-            f"Cannot verify sandbox tools executable {filename}: {e} If "
-            f"reinstalling inspect_ai does not resolve this, report it to the "
-            f"inspect_ai maintainers rather than retrying."
-        ) from e
+    # Raises if the sums file is unreadable or has no entry for this name —
+    # deliberately before any network I/O.
+    expected_sha256 = _expected_digest(filename)
 
     binaries_path = _binaries_dir()
     binaries_path.mkdir(exist_ok=True)
