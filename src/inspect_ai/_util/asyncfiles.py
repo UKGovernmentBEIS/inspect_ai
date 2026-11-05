@@ -1708,7 +1708,9 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                         if fnmatchcase(dirname, pattern):
                             yield f"{dirpath.rstrip('/')}/{dirname}/"
 
-    async def list_dir(self, base: str) -> DirListing:
+    async def list_dir(
+        self, base: str, *, indirect_error: type[Exception] | None = None
+    ) -> DirListing:
         """List the files and subdirectories directly under ``base``.
 
         One delimited listing: on S3 a single ``list_objects_v2`` sweep with
@@ -1724,6 +1726,13 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
 
         Raises ``FileNotFoundError`` when a local ``base`` does not exist; an
         S3 prefix with no objects lists as empty.
+
+        Other fsspec backends name each child after the last component of the
+        entry ``ls`` returned, so an entry that is not a name directly under
+        ``base`` (a key with an empty path component lists as ``base``
+        itself) would read as a child. With ``indirect_error``, such an entry
+        raises that error instead. Local and S3 names are not rebuilt, so a
+        caller can check those itself.
         """
         prefix_path = base.rstrip("/")
         if is_s3_filename(base):
@@ -1762,8 +1771,20 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
             )
         files = []
         dirs = []
+        listed = fsw.fs._strip_protocol(base).rstrip("/") if indirect_error else None
         for entry in fsw.fs.ls(base, detail=True):
             name = entry["name"].rstrip("/").rsplit("/", 1)[-1]
+            if indirect_error is not None:
+                # compared in the backend's path form: some backends (WebHDFS)
+                # name entries with the qualified URL they were listed with
+                entry_path = fsw.fs._strip_protocol(entry["name"]).rstrip("/")
+                parent, _, child = entry_path.rpartition("/")
+                if not child or parent != listed:
+                    raise indirect_error(
+                        f"{base} lists {entry['name']}, which is not a file or "
+                        "directory directly in it: a name with an empty path "
+                        "component ('//') lists this way. Rename it."
+                    )
             if entry["type"] == "directory":
                 dirs.append(f"{prefix_path}/{name}")
             elif entry["type"] == "file":

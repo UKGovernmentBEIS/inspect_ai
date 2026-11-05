@@ -6,11 +6,14 @@ long-running commands in sandbox environments with streaming output.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import shlex
 import time
+import uuid
+from collections.abc import Callable, Coroutine
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, ClassVar, Literal, TypeVar, Union, cast
+from typing import TYPE_CHECKING, Any, ClassVar, Literal, TypeVar, Union, cast
 
 import anyio
 from pydantic import BaseModel
@@ -22,6 +25,7 @@ from tenacity import (
     wait_exponential_jitter,
 )
 
+from inspect_ai._util._async import current_async_backend
 from inspect_ai._util._json_rpc import GenericJSONRPCErrorMapper, exec_model_request
 from inspect_ai._util.retry import backoff_multiplier
 
@@ -208,6 +212,12 @@ class _KillResult(BaseModel):
     stderr: str
 
 
+class _KillKeyResult(BaseModel):
+    """Result from exec_remote_kill_key."""
+
+    killed: bool
+
+
 class _WriteStdinResult(BaseModel):
     """Result from exec_remote_write_stdin."""
 
@@ -236,10 +246,41 @@ RPC_TIMEOUT = 120
 POLL_TIMEOUT_RECOVERY_WAIT_SECONDS: float = 5.0
 """Pause before re-issuing a timed-out poll (see `poll_timeout_recovery`)."""
 
+KILL_KEY_TIMEOUT = 30
+"""Bound in seconds on killing a job whose start got no reply."""
+
 SERVER_WAIT_WINDOW_SECONDS: float = 10.0
 """Time after the start reply during which polls wait on the server."""
 
 T = TypeVar("T", bound=BaseModel)
+
+
+async def _complete_before_cancelling(
+    work: Callable[[], Coroutine[Any, Any, None]],
+) -> None:
+    """Run `work` to completion, then raise any cancellation of the caller.
+
+    An AnyIO shield does not stop asyncio's `Task.cancel()` (which
+    `asyncio.timeout()` and `asyncio.wait_for()` also use), so under asyncio
+    `work` runs in its own task and the caller waits for it. `work` shields
+    itself from AnyIO cancellation.
+    """
+    if current_async_backend() != "asyncio":
+        await work()
+        return
+
+    task = asyncio.ensure_future(work())
+    cancelled: asyncio.CancelledError | None = None
+    # the shield stops AnyIO from re-delivering its own cancellation
+    with anyio.CancelScope(shield=True):
+        while not task.done():
+            try:
+                await asyncio.shield(task)
+            except asyncio.CancelledError as ex:
+                cancelled = ex
+    task.result()
+    if cancelled is not None:
+        raise cancelled
 
 
 class ExecRemoteProcess:
@@ -301,6 +342,7 @@ class ExecRemoteProcess:
             MIN_POLL_INTERVAL, options.poll_interval or sandbox_default_poll_interval
         )
         self._pid: int | None = None
+        self._job_key = uuid.uuid4().hex
         self._server_wait_end: float | None = None
         self._last_seq: int = 0
         self._killed = False
@@ -341,9 +383,17 @@ class ExecRemoteProcess:
         return max(0, min(remaining, self._rpc_timeout / 2))
 
     async def _rpc(
-        self, method: str, params: dict[str, object], result_type: type[T]
+        self,
+        method: str,
+        params: dict[str, object],
+        result_type: type[T],
+        **overrides: object,
     ) -> T:
-        """Make an RPC call to the sandbox."""
+        """Make an RPC call to the sandbox.
+
+        `overrides` replace the transport arguments derived from the options
+        (timeout, timeout_retry, user, concurrency).
+        """
         extra_args: dict[str, object] = dict(
             timeout=self._rpc_timeout,
             # Run the CLI wrapper as the same user that started the server.
@@ -355,6 +405,7 @@ class ExecRemoteProcess:
         )
         if self._options.poll_timeout_retry is not None:
             extra_args["timeout_retry"] = self._options.poll_timeout_retry
+        extra_args.update(overrides)
         return await exec_model_request(
             method=method,
             params=params,
@@ -365,9 +416,17 @@ class ExecRemoteProcess:
         )
 
     async def _start(self) -> None:
-        """Submit the job to the sandbox."""
+        """Submit the job to the sandbox.
+
+        The start carries a job key. If the start does not return a PID
+        (cancelled, timed out or failed), the job may still have started in
+        the sandbox, so it is killed by key before the error propagates.
+        """
         # Build params, converting bytes input to string if needed
-        params: dict[str, object] = {"command": shlex.join(self._cmd)}
+        params: dict[str, object] = {
+            "command": shlex.join(self._cmd),
+            "job_key": self._job_key,
+        }
         if self._options.input is not None:
             if isinstance(self._options.input, bytes):
                 params["input"] = self._options.input.decode("utf-8")
@@ -388,12 +447,48 @@ class ExecRemoteProcess:
         if (user := tools_user_param(self._sandbox, self._options.user)) is not None:
             params["user"] = user
 
-        result = await self._rpc("exec_remote_start", params, _StartResult)
+        try:
+            result = await self._rpc("exec_remote_start", params, _StartResult)
+        except BaseException:
+            await self._kill_key()
+            raise
         self._pid = result.pid
         # A waiting poll that overlaps a stdin write (same ack_seq) can return
         # output twice, so stdin_open processes do not wait on the server.
         if result.poll_wait and not stdin_open:
             self._server_wait_end = time.monotonic() + SERVER_WAIT_WINDOW_SECONDS
+
+    async def _kill_key(self) -> None:
+        """Kill the job by key, or make the sandbox refuse its start.
+
+        Runs to completion even if the caller is cancelled, bounded by
+        `KILL_KEY_TIMEOUT`, and outside sandbox concurrency limits so it
+        cannot wait behind other commands. A failure is logged, as the job
+        may then still be running.
+        """
+        await _complete_before_cancelling(self._kill_key_bounded)
+
+    async def _kill_key_bounded(self) -> None:
+        error: BaseException | None = None
+        with anyio.move_on_after(KILL_KEY_TIMEOUT, shield=True):
+            try:
+                await self._rpc(
+                    "exec_remote_kill_key",
+                    {"job_key": self._job_key},
+                    _KillKeyResult,
+                    timeout=KILL_KEY_TIMEOUT,
+                    timeout_retry=False,
+                    concurrency=False,
+                )
+                return
+            except Exception as ex:
+                error = ex
+        logger.warning(
+            "exec_remote could not kill job %s after its start failed (%s); "
+            "the command may still be running in the sandbox",
+            self._job_key,
+            error or f"timed out after {KILL_KEY_TIMEOUT}s",
+        )
 
     # -------------------------------------------------------------------------
     # Async Iterator Protocol
@@ -679,7 +774,8 @@ async def exec_remote_streaming(
 
     Submits the start command to the sandbox and returns only after the process
     has been successfully launched (i.e. after the exec_remote_start RPC completes
-    and a PID has been assigned).
+    and a PID has been assigned). If the start is cancelled, times out or fails,
+    the command is killed in the sandbox before the error propagates.
 
     Args:
         sandbox: The sandbox environment to run the command in.
