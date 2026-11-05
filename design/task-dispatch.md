@@ -1143,8 +1143,11 @@ design depends on it.
 
 ### Interactions with related changes
 
-- Recording which task added a task: `TaskRecord.creator` is the attempt
-  that change would record.
+- Recording which task added a task: `TaskRecord.creator` is the running
+  attempt that owns the record's port and lending, not its full origin. A
+  task added in `TaskSource.task_complete`, after the adding task's attempt
+  has finished, has no creator although a task added it, so that change
+  must record the origin itself rather than read this field.
 - Added tasks under `eval_set()` using their creator's model: it changes
   `_resolve_enqueued_tasks`, which this design calls unchanged; with it, a
   call made from a task adds one task × model instead of one per run

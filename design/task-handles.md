@@ -68,7 +68,8 @@ Goals:
 - A handle from `enqueue_task()` that waits, cancels, closes, and sends
   samples to a `SampleSource` task and returns their results, with one
   terminal outcome per method for every way the task can end; no wait
-  hangs.
+  hangs on the target's lifecycle (a `result()` on a sample-sending
+  handle also needs the port closed; see "Keeping the task open").
 - Samples sent through a handle obey the receiving task's selection rules
   (`--limit`, `--sample-id`) and share its remaining sample budget, so they
   can take budget that would otherwise run a source sample; tasks without
@@ -262,7 +263,9 @@ class TaskHandle:
 
         Returns its latest attempt's log, or None if no attempt returned one
         (cancelled while queued, admission failed, or the run ended first).
-        Never raises TaskEndedError.
+        Never raises TaskEndedError. Does not close a sample port: on a
+        handle created with send_samples=True, call close() first (or close
+        it from elsewhere), since the task stays open while its port is.
         """
     def cancel(self) -> None:
         """Abort it, like `inspect ctl task cancel`.
@@ -635,6 +638,14 @@ since nothing after it can send; an attempt that ends without reaching
 So a creator that forgets `close()` cannot keep a rollout task open past
 its own attempt, and a task added without `send_samples` ends when its
 source is done, as today.
+
+`result()` does not close the port. A creator that awaits `result()` on a
+sample-sending handle whose port is still open waits until something
+closes it: its own `close()` before the wait, another closer it arranges
+(a sibling sample, a `cancel()`, a drain), or the run ending. Lending
+starts the target but cannot end it, so the creator's own attempt, still
+waiting, never reaches its automatic close. The docs and the `result()`
+docstring say to close first; nothing detects the cycle.
 
 **Graceful directives stop the port.** A control-channel drain, or a task
 cancel with `action="score"` or `action="error"`, stamps the attempt's
@@ -1158,7 +1169,11 @@ test touched), with mockllm models:
     `result()` inside `TaskSource.next_tasks()` at `max_tasks=1` and `2`,
     while `enqueue_task()` there still works;
   - the port closing when the creator attempt ends;
-  - slot lending: an earlier unrelated queued task U ahead of the awaited
+  - slot lending (every `result()` wait below is on a child added without
+    `send_samples`, or on a sample-sending child after `close()`, per
+    "Keeping the task open"; a `result()` on an open port is tested
+    separately: it completes once a sibling closes the port): an earlier
+    unrelated queued task U ahead of the awaited
     child C at `max_tasks=1`, where C starts on the loan and U waits for an
     ordinary slot; several samples waiting on one queued task share one
     loan; repeated `enqueue_sample()` calls on a running task take no extra
@@ -1255,7 +1270,10 @@ test touched), with mockllm models:
     and `state` work there; a plain `enqueue_task()` there returns handles
     whose tasks run to completion after the parent ends; the same three
     waits inside the parent's `sample_complete` lend at `max_tasks=1`, so
-    the child starts and each wait completes; a port the parent's solver
+    the child starts and each wait completes (`started()` and
+    `enqueue_sample()` on a sample-sending child with its port open,
+    `result()` after `close()` on that handle, and `result()` on a child
+    added without `send_samples`); a port the parent's solver
     opened closes when the parent's attempt finishes, before
     `task_complete` runs;
   - `send_samples=True` outside a running attempt, for a non-`SampleSource`
