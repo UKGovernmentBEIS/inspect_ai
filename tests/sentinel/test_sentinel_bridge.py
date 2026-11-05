@@ -2731,7 +2731,6 @@ def real_checkpointer(
         resume_checkpoint=None
         if agent_state is None
         else ResumeCheckpoint(attempt="resume"),
-        reset_transcript_store=agent_state is None,
     )
 
 

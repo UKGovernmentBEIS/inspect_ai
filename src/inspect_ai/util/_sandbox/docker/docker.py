@@ -393,12 +393,15 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         #   137: SIGKILL escalation via -k (command ignored SIGTERM)
         #   143: BusyBox timeout, command killed by SIGTERM (128 + 15)
         #
-        # 137 and 143 are ambiguous: OOM kills also produce 137, and
-        # any SIGTERM from any source produces 143. we use wall-clock
-        # time to disambiguate these from actual timeouts.
+        # all three are ambiguous: the command can exit 124 itself (e.g. a
+        # script ending in its own `timeout 10 pytest`), OOM kills also
+        # produce 137, and any SIGTERM from any source produces 143. the
+        # in-container timeout cannot fire before `timeout` seconds have
+        # passed since this call started, so we use wall-clock time to
+        # disambiguate these from actual timeouts.
         elapsed = time.monotonic() - start_time
         if timeout is not None and exec_result.returncode in (124, 137, 143):
-            if exec_result.returncode == 124 or elapsed >= timeout:
+            if elapsed >= timeout:
                 # preserve the partial output captured before the timeout so it can
                 # be surfaced to the caller via SandboxTimeoutError.truncated_output
                 timeout_error = TimeoutError(
@@ -408,8 +411,9 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                 if partial_output:
                     setattr(timeout_error, "truncated_output", partial_output)
                 raise timeout_error
-            # else: signal-death exit code but too fast to be a timeout
-            # (e.g. OOM kill) — fall through and return the ExecResult
+            # else: the command's own exit code or a signal death that came
+            # too fast to be a timeout (e.g. OOM kill) — fall through and
+            # return the ExecResult
 
         failure = classify_exec_failure(
             exec_result,

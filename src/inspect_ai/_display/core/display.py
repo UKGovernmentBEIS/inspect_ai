@@ -15,6 +15,7 @@ from typing import (
     runtime_checkable,
 )
 
+import anyio
 import rich
 from pydantic import BaseModel, Field, field_validator
 from rich.console import Console
@@ -59,6 +60,10 @@ class TaskCancel:
     can_retry: bool
     cancel_task: Callable[[CancelType], None]
     cancel_type: CancelType = None
+    log_write_scope: anyio.CancelScope | None = None
+    """The scope around the task's error-log write while it runs. An abort or
+    retry request made then bounds the write and takes effect when it ends
+    (see ``abort_bounded_write``)."""
 
 
 @dataclass

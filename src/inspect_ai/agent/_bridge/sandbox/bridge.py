@@ -349,11 +349,11 @@ async def _error_after_unwind(
     """The error to raise once the agent has unwound, if any.
 
     A requested sample failure (`SandboxAgentBridge.request_fail`), else the
-    first generation limit recorded. A failure `_monitor_failure` raised, so
-    the agent unwound with it, is returned as is. Otherwise a pending enclosing
-    cancellation is delivered first: it passes through, and a failure the
-    monitor had not yet raised is lost with the limit (decision: Ransom,
-    2026-10-29).
+    generation limit recorded (`SandboxAgentBridge.generation_limit`). A
+    failure `_monitor_failure` raised, so the agent unwound with it, is
+    returned as is. Otherwise a pending enclosing cancellation is delivered
+    first: it passes through, and a failure the monitor had not yet raised is
+    lost with the limit (decision: Ransom, 2026-10-29).
     """
     if bridge is None:
         return None

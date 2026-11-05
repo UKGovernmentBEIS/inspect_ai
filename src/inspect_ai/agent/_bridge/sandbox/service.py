@@ -1,14 +1,21 @@
 from logging import getLogger  # noqa: E402
-from typing import Awaitable, Callable, Protocol, cast
+from typing import Awaitable, Callable, Protocol, TypeGuard, cast
 
 import anyio
 from pydantic import JsonValue
 
+from inspect_ai._sentinel._scope import solving
 from inspect_ai.model._call_tools import get_tools_info
-from inspect_ai.model._model import ModelRefusalError
+from inspect_ai.model._model import ModelRefusalError, _check_limits_before_dispatch
 from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
 from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
-from inspect_ai.util._limit import LimitExceededError, check_turn_limit
+from inspect_ai.util._limit import (
+    Limit,
+    LimitExceededError,
+    _Node,
+    check_turn_limit,
+    sample_limits,
+)
 from inspect_ai.util._sandbox import SandboxEnvironment, sandbox_service
 from inspect_ai.util._sandbox.service import find_control_flow
 
@@ -61,6 +68,9 @@ def _forward_provider_errors(
     reply too. The first limit reached is recorded in `bridge.generation_limit`:
     once the agent has unwound, `sandbox_agent_bridge` raises it, so the scope
     that applied it (`run()`, or the sample) handles it, as for a native agent.
+    A later limit replaces it only when it encloses it (see `_encloses`), so a
+    sample limit reached by a concurrent generation is not lost behind an inner
+    limit that a caller catches.
     A limit only in an exception's cause or context is not recorded: it was
     handled, or replaced by the error that escaped (a refusal reduced from a
     response filter's group, a `ResponseFilterError`, a fallback's provider
@@ -72,6 +82,11 @@ def _forward_provider_errors(
 
     A turn limit is checked after a generation, so a request that arrives
     once one is exceeded gets its error reply without another generation.
+    Once a limit is recorded the agent is ending, so a later request (a
+    scaffold retrying after its error reply) gets the recorded limit's error
+    reply without compaction, filter or generation. A token or cost limit
+    already reached is checked first, so one enclosing the recorded limit
+    still replaces it.
     """
 
     async def generate_forwarding_errors(
@@ -80,6 +95,13 @@ def _forward_provider_errors(
     ) -> dict[str, JsonValue]:
         try:
             check_turn_limit()
+            if bridge.generation_limit is not None:
+                _check_limits_before_dispatch()
+                return {
+                    PROVIDER_ERROR_KEY: cast(
+                        JsonValue, provider_error_payload(bridge.generation_limit)
+                    )
+                }
             return await generate(json_data, headers)
         except Exception as ex:
             if find_control_flow(ex) is not None:
@@ -87,8 +109,12 @@ def _forward_provider_errors(
                 raise
             control = _first_control(ex)
             if isinstance(control, LimitExceededError):
-                # only the first is raised, so later ones are not kept
-                if bridge.generation_limit is None:
+                # only one is raised, so the others are not kept; no local
+                # holds a displaced one, since this frame stays in the
+                # traceback of the error that replaces it
+                if bridge.generation_limit is None or _encloses(
+                    control, bridge.generation_limit
+                ):
                     bridge.generation_limit = control
                 _warn_other_errors(ex)
                 return {PROVIDER_ERROR_KEY: cast(JsonValue, provider_error_payload(ex))}
@@ -116,6 +142,51 @@ def _forward_provider_errors(
             return {PROVIDER_ERROR_KEY: cast(JsonValue, payload)}
 
     return generate_forwarding_errors
+
+
+def _encloses(outer: LimitExceededError, inner: LimitExceededError) -> bool:
+    """Whether the limit that raised `outer` encloses the one that raised `inner`.
+
+    It does when it is an ancestor of `inner`'s in the same limit tree, or,
+    while the solvers run, one of the sample's own limits (the roots of the
+    live limit trees) while `inner`'s is not. Other limits in different trees
+    are not compared: outside the solve (scorers run after the sample's limits
+    have exited) a tree's root can be an agent's limit, so nesting across trees
+    cannot be told. A limit error with no source, or a source in no limit tree,
+    encloses nothing and is enclosed by nothing.
+    """
+    outer_node, inner_node = outer.source, inner.source
+    if not _in_tree(outer_node) or not _in_tree(inner_node):
+        return False
+    roots = _sample_roots()
+    if any(outer.source is root for root in roots):
+        return not any(inner.source is root for root in roots)
+    node: _Node | None = inner_node.parent
+    while node is not None:
+        if node is outer_node:
+            return True
+        node = node.parent
+    return False
+
+
+def _sample_roots() -> list[Limit]:
+    """The sample's own limits while its solvers run, else none."""
+    if not solving():
+        return []
+    limits = sample_limits()
+    return [
+        limits.token,
+        limits.cost,
+        limits.message,
+        limits.turn,
+        limits.working,
+        limits.time,
+    ]
+
+
+def _in_tree(source: Limit | None) -> TypeGuard[_Node]:
+    """Whether `source` is a limit tree node that has been entered (so has a parent)."""
+    return isinstance(source, _Node) and source._entered
 
 
 def _first_control(ex: Exception) -> LimitExceededError | ModelRefusalError | None:
