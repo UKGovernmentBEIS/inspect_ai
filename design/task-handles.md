@@ -1358,8 +1358,9 @@ test touched), with mockllm models:
 
 This design is step 5 of the plan in
 [task-dispatch.md](task-dispatch.md#implementation-plan), one PR, after
-step 3 (the run queue and dispatcher) and after the companion change that
-gives anonymous dynamic samples unique ids, independent of step 4, plus a
+step 3 (the run queue and dispatcher), step 4 (setup beside the dispatcher,
+whose setup-failure attempt path the handle outcomes and loans rely on) and
+the companion change that gives anonymous dynamic samples unique ids, plus a
 companion change in Steward (step 6):
 
 5. **Task handles.** `_eval/task/enqueue.py` (`TaskHandle`, `SamplePort`,

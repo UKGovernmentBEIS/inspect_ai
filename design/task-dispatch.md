@@ -1144,10 +1144,13 @@ design depends on it.
 ### Interactions with related changes
 
 - Recording which task added a task: `TaskRecord.creator` is the running
-  attempt that owns the record's port and lending, not its full origin. A
-  task added in `TaskSource.task_complete`, after the adding task's attempt
-  has finished, has no creator although a task added it, so that change
-  must record the origin itself rather than read this field.
+  attempt that owns the record's sample port, not its full origin. A task
+  added in `TaskSource.task_complete`, after the adding task's attempt has
+  finished, has no creator although a task added it, so that change must
+  record the origin itself rather than read this field. Slot lending does
+  not use the creator: a loan is held by whichever running attempt waits on
+  the target, creator or not
+  ([task-handles.md](task-handles.md#slot-lending)).
 - Added tasks under `eval_set()` using their creator's model: it changes
   `_resolve_enqueued_tasks`, which this design calls unchanged; with it, a
   call made from a task adds one task × model instead of one per run
@@ -1604,9 +1607,12 @@ batch has its own `eval_run` and cleans up its own state).
    forwarding, cancel dropping waiting jobs.
    Needs step 3.
 5. **Task handles**, designed in [task-handles.md](task-handles.md) (its
-   "Implementation plan" lists the files and tests). Needs step 3 and the
-   separate change that gives anonymous dynamic samples unique ids;
-   independent of step 4.
+   "Implementation plan" lists the files and tests). Needs step 4 (and so
+   step 3) and the separate change that gives anonymous dynamic samples
+   unique ids. Step 4's setup-failure attempt path is what lets a handle
+   report a setup failure (`started()` returns, `result()` returns the error
+   log) and a loan start a target whose setup failed; with step 3's inline
+   setup a failure has no attempt and no log.
 
 Follow-ups in provider repositories, none a gate for any step above:
 inspect_sandboxes declares `supports_sandbox_setup` for E2B, Modal and
