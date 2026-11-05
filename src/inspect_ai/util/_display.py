@@ -26,6 +26,8 @@ def init_display_type(display: str | None = None) -> DisplayType:
     if configured_async_backend() == "trio" and display == "full":
         display = "rich"
 
+    requested = display
+
     # if we are on a background thread then throttle down to "plain"
     # ("full" requires textual which cannot run in a background thread
     # b/c it calls the Python signal function; "rich" assumes exclusive
@@ -58,10 +60,14 @@ def init_display_type(display: str | None = None) -> DisplayType:
             else None
         )
         if running is not None:
-            logger.warning(
-                f"Ignoring display type '{new_display_type}' while {running} is "
-                f"running with display type '{_display_type}'."
-            )
+            # a request for the current type that only differs because of the
+            # background thread throttle (e.g. score() with no display called
+            # from a scorer on a worker thread) isn't a change
+            if requested != _display_type:
+                logger.warning(
+                    f"Ignoring display type '{new_display_type}' while {running} "
+                    f"is running with display type '{_display_type}'."
+                )
             return _display_type
 
         # the active display was built for the previous type (e.g. by an

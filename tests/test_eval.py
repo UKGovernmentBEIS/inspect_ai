@@ -513,11 +513,13 @@ def test_display_type_change_during_eval_keeps_running_display(
     assert "Ignoring display type 'log'" in caplog.text
 
 
+@pytest.mark.parametrize("inner_display", ["plain", None])
 def test_display_type_change_during_score_keeps_running_display(
     fresh_display: None,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     caplog: pytest.LogCaptureFixture,
+    inner_display: DisplayType | None,
 ) -> None:
     import inspect_ai._display.core.rich as display_rich
     from inspect_ai import score
@@ -531,7 +533,9 @@ def test_display_type_change_during_score_keeps_running_display(
     @scorer(metrics=[accuracy()])
     def nested_score() -> Scorer:
         async def score_sample(state: TaskState, target: Target) -> Score:
-            await anyio.to_thread.run_sync(lambda: score(log, match(), display="plain"))
+            await anyio.to_thread.run_sync(
+                lambda: score(log, match(), display=inner_display)
+            )
             return Score(value=1)
 
         return score_sample
@@ -540,7 +544,9 @@ def test_display_type_change_during_score_keeps_running_display(
     assert scored.results is not None
     assert scored.results.scores[-1].name == "nested_score"
     assert display_type() == "rich"
-    assert "Ignoring display type 'plain'" in caplog.text
+    # without a display argument the worker thread asks for the current type
+    warned = "Ignoring display type 'plain'" in caplog.text
+    assert warned == (inner_display is not None)
 
 
 def test_max_tasks_bounds_concurrent_models_single_task():
