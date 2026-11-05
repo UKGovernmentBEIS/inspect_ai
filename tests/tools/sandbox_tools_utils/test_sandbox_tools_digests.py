@@ -504,13 +504,8 @@ def test_pypi_verify_dist_rejects_unexpected_files(
 _SDIST_BINARY = "src/inspect_ai/binaries/inspect-sandbox-tools-amd64-v9"
 
 
-@pytest.fixture
-def no_sdist_binaries_bypass(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("INSPECT_ALLOW_SDIST_BINARIES", raising=False)
-
-
-@pytest.mark.usefixtures("wheel_globs", "no_sdist_binaries_bypass")
-@pytest.mark.parametrize("version", ["0.3.288", "0.3.300", "0.4.0"])
+@pytest.mark.usefixtures("wheel_globs")
+@pytest.mark.parametrize("version", ["0.3.278", "0.3.287", "0.3.288", "0.4.0"])
 @pytest.mark.parametrize(
     "manifest",
     [None, "prune tests\n", "recursive-exclude src/inspect_ai/binaries *\n"],
@@ -518,7 +513,7 @@ def no_sdist_binaries_bypass(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_pypi_verify_dist_rejects_binaries_in_sdist(
     pypi_release: ModuleType, tmp_path: Path, version: str, manifest: str | None
 ) -> None:
-    """From the cutoff on, any binaries fail whatever MANIFEST.in says."""
+    """Any binaries fail whatever the version or MANIFEST.in says."""
     _write_dist(
         tmp_path / "dist",
         version,
@@ -528,58 +523,6 @@ def test_pypi_verify_dist_rejects_binaries_in_sdist(
     )
     with pytest.raises(RuntimeError, match="must not contain the sandbox tools"):
         pypi_release.verify_dist(tmp_path / "dist", version, "9")
-
-
-@pytest.mark.usefixtures("wheel_globs", "no_sdist_binaries_bypass")
-@pytest.mark.parametrize("version", ["0.3.278", "0.3.287"])
-def test_pypi_verify_dist_allows_binaries_before_cutoff(
-    pypi_release: ModuleType, tmp_path: Path, version: str
-) -> None:
-    """Publish-parity rebuilds older tags whose sdist still shipped binaries."""
-    _write_dist(tmp_path / "dist", version, version, (_SDIST_BINARY,))
-    pypi_release.verify_dist(tmp_path / "dist", version, "9")
-
-
-@pytest.mark.usefixtures("wheel_globs")
-@pytest.mark.parametrize("value", ["1", "true", "YES"])
-def test_pypi_verify_dist_allows_binaries_with_env_bypass(
-    pypi_release: ModuleType,
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    value: str,
-) -> None:
-    monkeypatch.setenv("INSPECT_ALLOW_SDIST_BINARIES", value)
-    _write_dist(tmp_path / "dist", "0.3.288", "0.3.288", (_SDIST_BINARY,))
-    pypi_release.verify_dist(tmp_path / "dist", "0.3.288", "9")
-
-
-@pytest.mark.usefixtures("no_sdist_binaries_bypass")
-@pytest.mark.parametrize(
-    "version,allowed",
-    [
-        ("0.3.287", True),
-        ("0.2.999", True),
-        ("0.3.288", False),
-        ("0.3.288.1", False),
-        ("1.0", False),
-        # Not a plain release version: only the env var can allow binaries.
-        ("0.3.287.dev1+g1234567", False),
-        ("0.3.287rc1", False),
-        ("", False),
-    ],
-)
-def test_pypi_allow_sdist_binaries(
-    pypi_release: ModuleType, version: str, allowed: bool
-) -> None:
-    assert pypi_release._allow_sdist_binaries(version) is allowed
-
-
-@pytest.mark.parametrize("value", ["0", "false", "", "no"])
-def test_pypi_allow_sdist_binaries_env_falsy(
-    pypi_release: ModuleType, monkeypatch: pytest.MonkeyPatch, value: str
-) -> None:
-    monkeypatch.setenv("INSPECT_ALLOW_SDIST_BINARIES", value)
-    assert pypi_release._allow_sdist_binaries("0.3.288") is False
 
 
 @pytest.mark.usefixtures("wheel_globs")

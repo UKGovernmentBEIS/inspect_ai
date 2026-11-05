@@ -489,43 +489,6 @@ def verify_wheel_contents(
     logging.info(f"✓ Wheel contents verified: {wheel_path.name}")
 
 
-# First release whose sdist must not contain the sandbox tools binaries. Earlier
-# tags shipped them, and publish-parity rebuilds the latest tag with this
-# revision's verify-dist.
-SDIST_BINARIES_ALLOWED_BEFORE = "0.3.288"
-
-ALLOW_SDIST_BINARIES_ENV = "INSPECT_ALLOW_SDIST_BINARIES"
-
-
-def _release_version_tuple(version: str) -> Optional[Tuple[int, ...]]:
-    """Parse a plain release version (`0.3.287`); None for anything else.
-
-    The script runs without site-packages (bare setup-python in publish-dist,
-    `python -I -S` for local releases), so `packaging` is not available.
-    """
-    if not re.fullmatch(r"\d+(?:\.\d+)*", version):
-        return None
-    return tuple(int(part) for part in version.split("."))
-
-
-def _allow_sdist_binaries(version: str) -> bool:
-    """True when an sdist of `version` may contain the sandbox tools binaries.
-
-    Allowed when `INSPECT_ALLOW_SDIST_BINARIES` is 1/true/yes, or when `version`
-    is a plain release version earlier than `SDIST_BINARIES_ALLOWED_BEFORE`.
-    Any other version (including dev or local versions) never allows them.
-    """
-    if os.environ.get(ALLOW_SDIST_BINARIES_ENV, "").strip().lower() in (
-        "1",
-        "true",
-        "yes",
-    ):
-        return True
-    parsed = _release_version_tuple(version)
-    cutoff = _release_version_tuple(SDIST_BINARIES_ALLOWED_BEFORE)
-    return parsed is not None and cutoff is not None and parsed < cutoff
-
-
 def verify_dist(dist_dir: Path, version: str, sandbox_version: str) -> None:
     """Post-build gate for CI: dist/ holds one sdist and one wheel of `version`.
 
@@ -536,9 +499,8 @@ def verify_dist(dist_dir: Path, version: str, sandbox_version: str) -> None:
     Raises:
         RuntimeError: If dist/ holds anything other than exactly one sdist
             and one wheel of `version`, the sdist contains a file under
-            `src/inspect_ai/binaries/` (allowed only when `version` predates
-            `SDIST_BINARIES_ALLOWED_BEFORE` or `INSPECT_ALLOW_SDIST_BINARIES`
-            is set), or the wheel fails `verify_wheel_contents`.
+            `src/inspect_ai/binaries/`, or the wheel fails
+            `verify_wheel_contents`.
     """
     files = sorted(f.name for f in dist_dir.iterdir()) if dist_dir.is_dir() else []
     wheels = [f for f in files if f.endswith(".whl")]
@@ -562,18 +524,11 @@ def verify_dist(dist_dir: Path, version: str, sandbox_version: str) -> None:
             for name in archive.getnames()
             if name.partition("/")[2].startswith("src/inspect_ai/binaries/")
         ]
-    if binaries and not _allow_sdist_binaries(version):
+    if binaries:
         raise RuntimeError(
             f"{sdist} must not contain the sandbox tools binaries; found "
             f"{binaries}. Check MANIFEST.in."
         )
-    if binaries:
-        logging.info(
-            f"{sdist} contains sandbox tools binaries; allowed for {version} "
-            f"(predates {SDIST_BINARIES_ALLOWED_BEFORE} or "
-            f"{ALLOW_SDIST_BINARIES_ENV} is set)"
-        )
-
     verify_wheel_contents(dist_dir / wheel, sandbox_version)
     logging.info(f"✓ Distributions verified for version {version}: {files}")
 
