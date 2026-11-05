@@ -139,10 +139,15 @@ under `inspect eval` and `INSPECT_EVAL_SET_MODEL_BASE_URL` under
 `INSPECT_EVAL_MODEL_BASE_URL` only after their own variables such as
 `OPENAI_BASE_URL` (`model_base_url`,
 `model/_providers/util/util.py:38-50`), so an unbound option does not keep
-eval's precedence. Options that must not read the environment set
-`allow_from_autoenv=False` (`--notification`, `_cli/eval.py:416`; ctl's
-`--log-dir`, `_cli/ctl/_group.py:240`). The common options all name their
-variables (`INSPECT_LOG_DIR`, `INSPECT_LOG_LEVEL`, `INSPECT_DISPLAY`, ...).
+eval's precedence. A named `envvar` does not turn the automatic lookup
+off: click reads the named variable first and, when it is unset or empty,
+the automatic one (`Option.resolve_envvar_value`, click 8.4.2), so
+`inspect eval-set --model` reads `INSPECT_EVAL_MODEL` and then
+`INSPECT_EVAL_SET_MODEL`. Only `allow_from_autoenv=False` removes the
+fallback (`--notification`, `_cli/eval.py:416`; ctl's `--log-dir`,
+`_cli/ctl/_group.py:240`). The common options all name their variables
+(`INSPECT_LOG_DIR`, `INSPECT_LOG_LEVEL`, `INSPECT_DISPLAY`, ...) and keep
+the same fallback.
 
 **The construction context in real tasks.** Of the 252 `@task` functions
 in inspect_evals, six call `get_model` or `active_model` in the factory
@@ -194,10 +199,10 @@ inside the command function, as in `recover`.
   `--task-config`, `--model`, `--model-base-url`, `-M`, `--model-config`,
   `--model-role`, `--epochs`, `--epochs-reducer`, `--no-epochs-reducer`.
   They mean what they mean to `inspect eval`, read the same
-  `INSPECT_EVAL_*` environment variables as under `inspect eval`
-  ("Environment bindings" below), and a launcher passes the values it gave
-  its workers. Pass `--model`, `--model-role` and `-M` when the
-  task reads them while it is built; they also set the model context the
+  `INSPECT_EVAL_*` environment variables as under `inspect eval`, with
+  click's automatic fallback ("Environment bindings" below), and a
+  launcher passes the values it gave its workers. Pass `--model`,
+  `--model-role` and `-M` when the task reads them while it is built; they also set the model context the
   merge's metrics and reducers run in. A model given here is constructed,
   as `inspect eval` constructs it, and needs its provider's credentials.
   Without `--model` (and without `INSPECT_EVAL_MODEL`) the task is built
@@ -218,8 +223,11 @@ inside the command function, as in `recover`.
   `--display`, `--traceback-locals`, `--debug`, `--debug-errors`. Its
   `--log-dir` has no meaning here: given on the command line it is refused
   (`invalid_arguments`, "pass the merged log or its shards directory as
-  LOG"); from `INSPECT_LOG_DIR` it is ignored, as `inspect log recover`
-  ignores it when given a log.
+  LOG"); from the environment (`INSPECT_LOG_DIR`, or the automatic
+  `INSPECT_LOG_MERGE_SHARDS_LOG_DIR`) it is ignored, as `inspect log
+  recover` ignores `INSPECT_LOG_DIR` when given a log. "On the command
+  line" is `ctx.get_parameter_source("log_dir") ==
+  ParameterSource.COMMANDLINE`, the test `resolve_model_spec` uses.
 
 Options `inspect eval` has and this command does not (solver, sandbox,
 limits, approval, `--limit`, `--sample-shuffle`, ...) are not accepted, so
@@ -251,21 +259,35 @@ option (`--model`, `--model-base-url`, `--model-config`, `-M`) is typed on
 the command line, the case where `inspect eval` would let the spec replace
 the model.
 
-**Environment bindings.** Every option of the command either names its
-variable explicitly or sets `allow_from_autoenv=False`, so nothing reads
-an automatic `INSPECT_LOG_MERGE_SHARDS_*` variable:
+**Environment bindings.** The five options only this command has are
+command-line only; the shared and common options keep click's normal
+lookup, as they have under `inspect eval` and `inspect eval-set`:
 
-- The shared task options read exactly the variable `inspect eval` reads.
-  For `--model-base-url`, the shared decorator takes the envvar as a
-  parameter: `eval_options` passes none, keeping the prefix bindings
+- `--task`, `--sample-id`, `--sample-count`, `--allow-incomplete` and
+  `--json` set `allow_from_autoenv=False` and name no variable, so no
+  environment variable, named or automatic, supplies the task, the
+  selection or the output form.
+- The shared task options read the variable `inspect eval` reads and,
+  when it is unset or empty, click's automatic
+  `INSPECT_LOG_MERGE_SHARDS_<OPTION>` (`INSPECT_LOG_MERGE_SHARDS_MODEL`,
+  `INSPECT_LOG_MERGE_SHARDS_T` for `-T`, ...), as eval-set's read
+  `INSPECT_EVAL_SET_<OPTION>` after their `INSPECT_EVAL_*` name. The named
+  variable wins when both are set. For `--model-base-url`, the shared
+  decorator takes the envvar as a parameter: `eval_options` passes none, keeping the prefix bindings
   `INSPECT_EVAL_MODEL_BASE_URL` (eval) and
   `INSPECT_EVAL_SET_MODEL_BASE_URL` (eval-set) unchanged, and the merge
   command passes `INSPECT_EVAL_MODEL_BASE_URL`, so the option, not the
   provider's fallback, supplies it and it wins over `OPENAI_BASE_URL` as
   under `inspect eval`.
-- `--task`, `--sample-id`, `--sample-count`, `--allow-incomplete` and
-  `--json` set `allow_from_autoenv=False`: they are command-line only.
-- The common options keep their named variables.
+- The common options keep their named variables and the same automatic
+  fallback (`INSPECT_LOG_MERGE_SHARDS_LOG_LEVEL`, ...).
+
+The decorators are not changed to turn the fallback off: that would
+change `inspect eval` and `inspect eval-set`, whose users can set the
+automatic names today, and those names are as much the user's as the
+named ones. What the command must not do is take the task or the
+selection from the environment, and the five command-line-only options
+ensure it.
 
 ### Sharing the options with `inspect eval`
 
@@ -400,7 +422,7 @@ so an error from the task's own code never reads as a merge refusal:
 | `incomplete` | `ShardSetIncomplete` | `incomplete`: `status`, `missing` (`null` for a count or no selection), `running`, `failed` |
 | `outside_selection` | `ShardSelectionError` | `outside` (`null` for a count) |
 | `refused` | any other `ShardSetError`, including a task that does not match the shards | |
-| `conflict` | `WriteConflictError`: another merge holds the lock or published first; re-run later | |
+| `conflict` | `WriteConflictError`: another merge holds the lock or published first. A live merge's lock, or a lost S3 conditional upload, clears: re-run once the other merge has finished. A lock left by a local merge that crashed does not, and every re-run is refused until it is removed: the message names the host and process that held it; check that process has stopped, delete the lock file and re-run (`docs/sharding.qmd`, "Merging") | |
 | `storage_error` | any other `OSError`, or a botocore error, from the merge | |
 | `internal` | anything else from the merge (a metric or reducer that raises); its traceback goes to stderr | |
 
@@ -467,6 +489,13 @@ reference page picks the command up from click.
   beside the model is generate config, which the command does not take.
   The flags cover what builds the task; refusing the environment variables
   keeps an ambient one from changing it silently.
+- **Turn off the automatic lookup on every option of the command**
+  (`allow_from_autoenv=False` on the shared and common options as well).
+  No `INSPECT_LOG_MERGE_SHARDS_*` variable would be read at all, but the
+  shared decorators would need a second parameter per option and a copy
+  of `common_options`, for variables the user sets and that name the same
+  options `inspect eval` reads. The task and the selection, the values
+  that must not come from the environment, are already command-line only.
 - **Copy the option definitions** into the new module instead of sharing
   decorators. No change to `_cli/eval.py`, but two definitions of each
   option drift (help, environment variables, parsing); sharing is the
@@ -522,10 +551,11 @@ No migration required.
   under `--json`. Control characters in a local shard file name reach the
   terminal unchanged, as they do from `inspect log list` ("Not this
   design").
-- **Environment.** The shared options read the `INSPECT_EVAL_*` variables
-  `inspect eval` reads, which the user controls; no option reads an
-  automatic `INSPECT_LOG_MERGE_SHARDS_*` variable, and the run-config and
-  model-spec variables are refused rather than ignored.
+- **Environment.** The shared and common options read the variables
+  `inspect eval` reads and, when those are unset, click's automatic
+  `INSPECT_LOG_MERGE_SHARDS_*` names; the user sets both. The task, the
+  selection and `--json` come only from the command line, and the
+  run-config and model-spec variables are refused rather than ignored.
 
 ## Testing
 
@@ -552,7 +582,12 @@ network, Docker or provider keys. Each test writes a task file to
   `INSPECT_EVAL_TASK_ARGS` and `INSPECT_EVAL_EPOCHS` build the same task
   as the flags; `INSPECT_EVAL_SAMPLE_ID` does not become the selection;
   `INSPECT_LOG_MERGE_SHARDS_TASK`, `..._SAMPLE_ID`, `..._SAMPLE_COUNT`,
-  `..._ALLOW_INCOMPLETE` and `..._JSON` are not read. With both
+  `..._ALLOW_INCOMPLETE` and `..._JSON` are not read. The shared and
+  common options keep the fallback: `INSPECT_LOG_MERGE_SHARDS_MODEL`
+  supplies the model with `INSPECT_EVAL_MODEL` unset and loses to it when
+  both are set, `INSPECT_LOG_MERGE_SHARDS_T` builds the same task as
+  `-T`, and `INSPECT_LOG_MERGE_SHARDS_LOG_DIR`, like `INSPECT_LOG_DIR`,
+  is ignored rather than refused. With both
   `INSPECT_EVAL_MODEL_BASE_URL` and `OPENAI_BASE_URL` set, the model the
   command builds for `--model openai/<name>` (a dummy key; nothing is
   called) has the base URL `inspect eval` gives it, the former; the same
