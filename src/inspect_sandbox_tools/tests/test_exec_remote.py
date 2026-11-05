@@ -389,6 +389,64 @@ class TestExecRemoteKill:
         assert "err_from_kill" in kill_response["result"]["stderr"]
 
 
+class TestExecRemoteKillKey:
+    """Tests for exec_remote_kill_key."""
+
+    JOB_KEY = "fedcba9876543210fedcba9876543210"
+
+    def test_kill_key_kills_the_job_started_with_it(
+        self, rpc_client: RpcClient
+    ) -> None:
+        response = rpc_client(
+            {
+                "jsonrpc": "2.0",
+                "method": "exec_remote_start",
+                "params": {
+                    "command": f"sleep {LONG_RUNNING_SLEEP_SECONDS * 10}",
+                    "job_key": self.JOB_KEY,
+                },
+                "id": 1,
+            },
+            DEFAULT_RPC_TIMEOUT,
+        )
+        pid = response["result"]["pid"]
+
+        kill_response = rpc_client(
+            {
+                "jsonrpc": "2.0",
+                "method": "exec_remote_kill_key",
+                "params": {"job_key": self.JOB_KEY},
+                "id": 2,
+            },
+            DEFAULT_RPC_TIMEOUT,
+        )
+        poll_response = rpc_client(
+            {
+                "jsonrpc": "2.0",
+                "method": "exec_remote_poll",
+                "params": {"pid": pid, "ack_seq": 0},
+                "id": 3,
+            },
+            DEFAULT_RPC_TIMEOUT,
+        )
+
+        assert kill_response["result"] == {"killed": True}
+        assert "No job found" in poll_response["error"]["message"]
+
+    def test_job_key_must_be_hex(self, rpc_client: RpcClient) -> None:
+        response = rpc_client(
+            {
+                "jsonrpc": "2.0",
+                "method": "exec_remote_kill_key",
+                "params": {"job_key": "not-a-key"},
+                "id": 1,
+            },
+            DEFAULT_RPC_TIMEOUT,
+        )
+
+        assert "error" in response
+
+
 class TestNonexistentJobErrors:
     """Tests for error handling when operating on nonexistent jobs."""
 
