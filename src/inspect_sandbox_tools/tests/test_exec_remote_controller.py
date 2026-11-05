@@ -176,6 +176,27 @@ async def _stop_job(job: Job) -> None:
     await job.cleanup()
 
 
+@pytest.mark.parametrize(
+    "error",
+    [BrokenPipeError(32, "Broken pipe"), ConnectionResetError("Connection lost")],
+)
+async def test_initialize_stdin_reports_a_closed_stdin_as_connection_lost(
+    monkeypatch: pytest.MonkeyPatch, error: OSError
+) -> None:
+    """Both low-level stdin errors report Connection lost and keep their cause."""
+    job = await Job.spawn("exec sleep 30", stdin=True)
+    try:
+        assert job._process.stdin is not None
+        monkeypatch.setattr(job._process.stdin, "drain", AsyncMock(side_effect=error))
+
+        with pytest.raises(ConnectionResetError, match="Connection lost") as raised:
+            await job.initialize_stdin("input", stdin_open=False)
+
+        assert raised.value.__cause__ is error
+    finally:
+        await _stop_job(job)
+
+
 @pytest.mark.asyncio
 async def test_kill_signals_group_while_leader_runs(
     monkeypatch: pytest.MonkeyPatch,
@@ -599,7 +620,7 @@ class TestKillByJobKey:
             assert result.killed is True
             assert not _group_alive(child_pids[0])
             # killing the job ends the stdin write the start was waiting on
-            with pytest.raises((BrokenPipeError, ConnectionResetError)):
+            with pytest.raises(ConnectionResetError, match="Connection lost"):
                 await asyncio.wait_for(submit, timeout=10)
             assert controller._jobs == {}
         finally:
@@ -671,7 +692,7 @@ class TestKillByJobKey:
 
             assert result.killed is True
             assert not _group_alive(job.pid)
-            with pytest.raises((BrokenPipeError, ConnectionResetError)):
+            with pytest.raises(ConnectionResetError, match="Connection lost"):
                 await submit
             assert controller._jobs == {}
         finally:
@@ -706,7 +727,7 @@ class TestKillByJobKey:
         spawned = _record_spawns(monkeypatch)
         controller = Controller()
         try:
-            with pytest.raises((BrokenPipeError, ConnectionResetError)):
+            with pytest.raises(ConnectionResetError, match="Connection lost"):
                 await controller.submit(
                     "exec 0<&-; exec sleep 60", input=_LARGE_INPUT, job_key=_JOB_KEY
                 )
@@ -752,7 +773,7 @@ class TestKillByJobKey:
 
             assert result.killed is True
             assert not _group_alive(job.pid)
-            with pytest.raises((BrokenPipeError, ConnectionResetError)):
+            with pytest.raises(ConnectionResetError, match="Connection lost"):
                 await submit
             assert controller._jobs == {}
         finally:

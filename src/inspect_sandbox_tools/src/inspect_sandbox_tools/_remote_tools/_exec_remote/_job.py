@@ -136,7 +136,9 @@ class Job:
         """Write the initial input, then close stdin unless it is kept open.
 
         This can wait as long as the command does not read its input, and it
-        raises if the command closes stdin first.
+        raises ConnectionResetError("Connection lost") if the command closes
+        stdin first. asyncio raises BrokenPipeError or ConnectionResetError
+        depending on timing, so both map to the one error.
 
         Args:
             input: Standard input to send to the command, if any.
@@ -145,12 +147,15 @@ class Job:
         stdin = self._process.stdin
         if stdin is None:
             return
-        if input is not None:
-            stdin.write(input.encode("utf-8"))
-            await stdin.drain()
-        if not stdin_open:
-            stdin.close()
-            await stdin.wait_closed()
+        try:
+            if input is not None:
+                stdin.write(input.encode("utf-8"))
+                await stdin.drain()
+            if not stdin_open:
+                stdin.close()
+                await stdin.wait_closed()
+        except (BrokenPipeError, ConnectionResetError) as ex:
+            raise ConnectionResetError("Connection lost") from ex
 
     def __init__(self, process: AsyncIOProcess) -> None:
         self._process = process
