@@ -2306,13 +2306,21 @@ def test_incremental_merge_reads_only_changed_shards(
         opened.append(filename)
         init(self, fs, filename, *a, **k)
 
+    open_member = AsyncZipReader.open_member
+
     async def spy_read(self: AsyncZipReader, member: Any) -> bytes:
         name = member if isinstance(member, str) else member.filename
         member_reads.append((self._filename, name))
         return await read_member(self, member)
 
+    async def spy_open(self: AsyncZipReader, member: Any) -> Any:
+        name = member if isinstance(member, str) else member.filename
+        member_reads.append((self._filename, name))
+        return await open_member(self, member)
+
     monkeypatch.setattr(AsyncZipReader, "__init__", spy_init)
     monkeypatch.setattr(AsyncZipReader, "read_member_fully", spy_read)
+    monkeypatch.setattr(AsyncZipReader, "open_member", spy_open)
 
     # nothing changed: nothing written, no shard opened
     result = merge_eval_log_shards(merged, _task(), allow_incomplete=True)
@@ -3092,19 +3100,27 @@ def _crc_failures(
     error: Exception,
     member: str = "samples/",
 ) -> list[str]:
-    """Fail the first `failures` reads of `member` from a shard with `error`."""
+    """Fail the first `failures` reads of `member` from a shard with `error`.
+
+    Whole reads (headers) and streamed reads (samples) are both counted.
+    """
     calls: list[str] = []
-    read_member = AsyncZipReader.read_member_fully
 
-    async def failing(self: AsyncZipReader, member_: Any) -> bytes:
-        name = member_ if isinstance(member_, str) else member_.filename
-        if self._filename.startswith(shards) and name.startswith(member):
-            calls.append(name)
-            if len(calls) <= failures:
-                raise error
-        return await read_member(self, member_)
+    def failing(read: Callable[..., Any]) -> Callable[..., Any]:
+        async def call(self: AsyncZipReader, member_: Any) -> Any:
+            name = member_ if isinstance(member_, str) else member_.filename
+            if self._filename.startswith(shards) and name.startswith(member):
+                calls.append(name)
+                if len(calls) <= failures:
+                    raise error
+            return await read(self, member_)
 
-    monkeypatch.setattr(AsyncZipReader, "read_member_fully", failing)
+        return call
+
+    for method in ["read_member_fully", "open_member"]:
+        monkeypatch.setattr(
+            AsyncZipReader, method, failing(getattr(AsyncZipReader, method))
+        )
     return calls
 
 
@@ -4301,5 +4317,204 @@ def test_a_declared_score_without_a_sample_init_event_is_refused(
     write_eval_log(full)
     before = _files(shards)
     with pytest.raises(ShardSetError, match="Sample '5' has no sample_init event"):
+        merge_eval_log_shards(merged, _task())
+    assert not os.path.exists(merged) and _files(shards) == before
+
+
+# Streaming recomputation: the merge parses each sample member as it streams
+# past, keeping only its metric inputs, so peak memory does not follow the
+# size of a sample's transcript.
+
+_MiB = 1024 * 1024
+
+
+@solver
+def _chatty(events: int) -> Solver:
+    """Logs `events` info events of 32 KiB of incompressible text each."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        import base64
+
+        from inspect_ai.log import transcript
+
+        for _ in range(events):
+            transcript().info(base64.b64encode(os.urandom(24 * 1024)).decode())
+        return await generate(state)
+
+    return solve
+
+
+def _merge_peak(merged: str, task: Task) -> tuple[ShardMergeResult, int]:
+    """Merge, returning the result and the merge's peak traced memory."""
+    import tracemalloc
+
+    tracemalloc.start()
+    try:
+        result = merge_eval_log_shards(merged, task)
+        return result, tracemalloc.get_traced_memory()[1]
+    finally:
+        tracemalloc.stop()
+
+
+@pytest.mark.parametrize("writer", ["zstd", "deflate"])
+@pytest.mark.parametrize("write", ["fresh", "incremental"])
+def test_merge_peak_memory_does_not_grow_with_transcript_size(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, write: str, writer: str
+) -> None:
+    if writer == "deflate":
+        # a compressor that returns its output as it goes, so that the
+        # measurement is of the merge's reading and parsing alone
+        monkeypatch.setattr(
+            "inspect_ai.log._shards._write.zipfile_compress_kwargs",
+            {"compression": zipfile.ZIP_DEFLATED},
+        )
+    peaks, compressed = {}, {}
+    for events in [100, 400]:
+        task = _task(samples=2, solver=_chatty(events))
+        merged, shards = _paths(tmp_path / str(events))
+        _run(shards, "0", task, sample_id=[1])
+        _run(shards, "1", task, sample_id=[2])
+        if write == "incremental":
+            # sample 1 is carried from the merged log, sample 2 read again
+            merge_eval_log_shards(merged, task)
+            _run(shards, "1", task, sample_id=[2])
+        result, peaks[events] = _merge_peak(merged, task)
+        assert result.written
+        assert result.log.results is not None
+        assert result.log.results.scores[0].metrics["accuracy"].value == 0.5
+        with zipfile.ZipFile(local_path(merged)) as zf:
+            member = zf.getinfo("samples/2_epoch_1.json")
+        assert member.file_size > events * 32 * 1024
+        compressed[events] = member.compress_size
+    # sample members of about 3 and 13 MiB; parsing them whole took 4.5 times
+    # their size. The recorder's multi-threaded zstd compressor returns most
+    # of a member's compressed bytes only when the member is closed.
+    bound = _MiB if writer == "deflate" else compressed[400] + _MiB
+    assert peaks[400] - peaks[100] < bound, (peaks, compressed)
+
+
+_SEEN_SCORE_METADATA: list[dict[str, Any] | None] = []
+
+
+@metric(name="shard_score_metadata")
+def shard_score_metadata() -> Metric:
+    """Records the score metadata it is given."""
+
+    def compute(scores: list[SampleScore]) -> float:
+        _SEEN_SCORE_METADATA.extend(s.score.metadata for s in scores)
+        return float(len(scores))
+
+    return compute
+
+
+@scorer(metrics=[shard_score_metadata()])
+def blob_scored(size: int) -> Scorer:
+    """Scores with `size` bytes of incompressible text in the score metadata."""
+
+    async def score(state: TaskState, target: Target) -> Score:
+        import base64
+
+        blob = base64.b64encode(os.urandom(size * 3 // 4)).decode()
+        return Score(value=1, metadata={"blob": blob})
+
+    return score
+
+
+def test_merge_peak_memory_grows_with_the_retained_score_metadata(
+    tmp_path: Path,
+) -> None:
+    peaks = {}
+    for size in [1024, 256 * 1024]:
+        task = _task(samples=6)
+        task.scorer = [blob_scored(size)]
+        merged, shards = _paths(tmp_path / str(size))
+        _run(shards, "0", task, sample_id=[1, 2, 3])
+        _run(shards, "1", task, sample_id=[4, 5, 6])
+        _SEEN_SCORE_METADATA.clear()
+        _, peaks[size] = _merge_peak(merged, task)
+        # the metric is given the score metadata as the log stores it
+        samples = read_eval_log(merged).samples
+        assert samples is not None
+        stored = [s.scores["blob_scored"].metadata for s in samples if s.scores]
+        assert _SEEN_SCORE_METADATA == stored
+    # six scores of 256 KiB more each are retained as metric inputs (the
+    # summaries keep thinned score metadata)
+    retained = 6 * (256 - 1) * 1024
+    assert retained <= peaks[256 * 1024] - peaks[1024] < 3 * retained + _MiB, peaks
+
+
+_SEEN_SAMPLE_METADATA: list[dict[str, Any] | None] = []
+
+
+@metric(name="shard_sample_metadata")
+def shard_sample_metadata() -> Metric:
+    """Records the sample metadata it is given."""
+
+    def compute(scores: list[SampleScore]) -> float:
+        _SEEN_SAMPLE_METADATA.extend(s.sample_metadata for s in scores)
+        return float(len(scores))
+
+    return compute
+
+
+@scorer(metrics=[shard_sample_metadata()])
+def big_metadata_scored() -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
+        return Score(value=1)
+
+    return score
+
+
+def test_a_sample_the_streaming_parser_refuses_is_parsed_whole(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from inspect_ai.log._shards import _write
+
+    # an integer too large for the streaming parser, in the dataset metadata
+    big = 2**70
+    task = _task(samples=4)
+    task.scorer = [big_metadata_scored()]
+    assert task.dataset[2].metadata is not None
+    task.dataset[2].metadata["big"] = big
+    merged, shards = _paths(tmp_path)
+    _run(shards, "0", task, sample_id=[1, 2])
+    _run(shards, "1", task, sample_id=[3, 4])
+    whole: list[int | str] = []
+    parse_whole = _write._parse_whole
+
+    def spy(data: bytes) -> Any:
+        parsed = parse_whole(data)
+        whole.append(parsed.fields["id"])
+        return parsed
+
+    monkeypatch.setattr(_write, "_parse_whole", spy)
+    _SEEN_SAMPLE_METADATA.clear()
+    result = merge_eval_log_shards(merged, task)
+    assert result.written
+    assert whole == [3]
+    assert _SEEN_SAMPLE_METADATA == [{"index": i} for i in (1, 2)] + [
+        {"index": 3, "big": big},
+        {"index": 4},
+    ]
+    samples = read_eval_log(merged).samples
+    assert samples is not None and [s.id for s in samples] == [1, 2, 3, 4]
+
+
+def test_a_sample_member_with_a_field_inspect_does_not_write_is_refused(
+    tmp_path: Path,
+) -> None:
+    merged, shards = _paths(tmp_path)
+    _run(shards, "0", sample_id=[1, 2, 3])
+    log = _run(shards, "1", sample_id=[4, 5, 6])
+    name = "samples/5_epoch_1.json"
+    with zipfile.ZipFile(local_path(log.location)) as zf:
+        sample = json.loads(zf.read(name))
+    # the single score of log files from before `scores`
+    sample["score"] = sample.pop("scores")["match"]
+    _replace_member(log.location, name, json.dumps(sample).encode())
+    before = _files(shards)
+    with pytest.raises(
+        ShardSetError, match=r"samples/5_epoch_1.json has the fields \['score'\]"
+    ):
         merge_eval_log_shards(merged, _task())
     assert not os.path.exists(merged) and _files(shards) == before

@@ -187,6 +187,36 @@ class ExcludingObjectBuilder:
                 self._builder = None
 
 
+class JSONPushParser:
+    """Parse one JSON document from byte chunks pushed to it.
+
+    The push counterpart of ``ijson.parse`` (with ``use_float=True``): each
+    call returns the ``(prefix, event, value)`` events its chunk completed,
+    so a caller that is already passing the bytes elsewhere can parse them
+    without reading them twice. Raises ijson's errors as ``ijson.parse``
+    does.
+    """
+
+    def __init__(self) -> None:
+        self._events = ijson.sendable_list()
+        self._parser = ijson.parse_coro(self._events, use_float=True)
+
+    def feed(self, chunk: bytes) -> list[tuple[str, str, Any]]:
+        """Parse the next chunk and return the events it completed."""
+        self._parser.send(chunk)
+        return self._take()
+
+    def close(self) -> list[tuple[str, str, Any]]:
+        """End the document and return its last events; raises if it is incomplete."""
+        self._parser.close()
+        return self._take()
+
+    def _take(self) -> list[tuple[str, str, Any]]:
+        events = list(self._events)
+        del self._events[:]
+        return events
+
+
 JSONType = Literal["string", "integer", "number", "boolean", "array", "object", "null"]
 """Valid types within JSON schema."""
 

@@ -4,7 +4,7 @@ import functools
 import json
 import tempfile
 import zipfile
-from collections.abc import Sequence
+from collections.abc import AsyncGenerator, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal, NamedTuple
 
@@ -67,6 +67,7 @@ if TYPE_CHECKING:
     from inspect_ai._eval.task.task import Task
 
 _MAX_CONCURRENT_READS = 16
+_CHUNK_SIZE = 1024 * 1024
 
 
 @dataclass(frozen=True)
@@ -417,17 +418,27 @@ async def _merge_pass(
                         f"{merged_path} so the next merge rebuilds it from the shards."
                     )
 
-            async def read_member(key: SampleRecordKey) -> bytes:
+            async def read_member(key: SampleRecordKey) -> AsyncGenerator[bytes, None]:
                 read = taken.get(key)
                 if read is not None:
                     reader = readers[read.shard]
-                    return await reader.read_member_fully(read.members[key])
+                    async with await reader.open_member(read.members[key]) as member:
+                        async for chunk in member:
+                            yield chunk
+                    return
                 assert carried_zip is not None
-                return await run_owned(
+                source = await run_owned(
                     functools.partial(
-                        carried_zip.read, _sample_filename(key.sample_id, key.epoch)
+                        carried_zip.open, _sample_filename(key.sample_id, key.epoch)
                     )
                 )
+                try:
+                    while chunk := await run_owned(
+                        functools.partial(source.read, _CHUNK_SIZE)
+                    ):
+                        yield chunk
+                finally:
+                    source.close()
 
             name = log_basename(merged_path)
             total = selected_total(selection, held_ids) * epochs
