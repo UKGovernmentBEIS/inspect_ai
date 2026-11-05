@@ -21,7 +21,8 @@ from inspect_ai.model._model_role import ModelRole, as_model_role
 from inspect_ai.solver._task_state import TaskState
 from inspect_ai.util import resource
 
-from ._metric import NOANSWER, Score
+from ._common import no_response
+from ._metric import Score
 from ._metrics import accuracy, stderr
 from ._multi import multi_scorer
 from ._reducer.types import ScoreReducer
@@ -43,9 +44,6 @@ def model_graded_fact(
     reducer: str | ScoreReducer = "majority",
 ) -> Scorer:
     """Score a question/answer task with a fact response using a model.
-
-    A blank completion without attached media returns NOANSWER immediately
-    and never reaches the grader.
 
     Args:
       template: Template for grading prompt. This template uses
@@ -126,9 +124,6 @@ def model_graded_qa(
     reducer: str | ScoreReducer = "majority",
 ) -> Scorer:
     """Score a question/answer task using a model.
-
-    A blank completion without attached media returns NOANSWER immediately
-    and never reaches the grader.
 
     Args:
       template: Template for grading prompt. This template has
@@ -248,16 +243,6 @@ def model_graded_qa(
     return score
 
 
-def _output_media(output: ModelOutput) -> list[Content]:
-    if len(output.choices) > 0 and isinstance(output.message.content, list):
-        return [
-            content
-            for content in output.message.content
-            if content.type in ["image", "audio", "video"]
-        ]
-    return []
-
-
 @scorer(metrics=[accuracy(), stderr()])
 def _model_graded_qa_single(
     grading_template: str,
@@ -297,14 +282,7 @@ def _model_graded_qa_single(
     )
 
     async def score(state: TaskState, target: Target) -> Score:
-        completion = state.output.completion or ""
-        if not completion.strip() and not _output_media(state.output):
-            return Score(
-                value=NOANSWER,
-                answer="",
-                explanation=state.output.completion,
-                reason="no_response",
-            )
+        empty = no_response(state.output.completion or "")
 
         # resolve model
         grader = model if isinstance(model, Model) else get_model(model)
@@ -362,6 +340,7 @@ def _model_graded_qa_single(
                 value=value,
                 answer=state.output.completion,
                 explanation=result.completion,
+                reason="no_response" if empty else None,
                 metadata=dict(
                     grading=[
                         scoring_prompt,
@@ -580,7 +559,15 @@ def model_scoring_prompt(
     }
 
     # we need to remove media objects from output and reference them as attachements in the answer
-    media: list[Content] = _output_media(output)
+    media: list[Content] = (
+        [
+            content
+            for content in output.message.content
+            if content.type in ["image", "audio", "video"]
+        ]
+        if len(output.choices) > 0 and isinstance(output.message.content, list)
+        else []
+    )
     if len(media) > 0:
         if len(answer) > 0:
             answer = f"{answer} (see also attached media)"

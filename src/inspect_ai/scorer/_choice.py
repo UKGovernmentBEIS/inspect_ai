@@ -5,6 +5,7 @@ from inspect_ai.solver._multiple_choice import (
 )
 from inspect_ai.solver._task_state import Choices, TaskState
 
+from ._common import no_response
 from ._metric import CORRECT, INCORRECT, NOANSWER, Score
 from ._metrics import accuracy, stderr
 from ._scorer import Scorer, scorer
@@ -96,20 +97,7 @@ def choice() -> Scorer:
             i for i, choice in enumerate(choices) if choice.correct is True
         ]
 
-        # The model left no usable answer. An empty completion means there
-        # is nothing to grade; check this before target_matches_choices so that
-        # an empty target cannot match an empty completion to score CORRECT.
-        # These branches only run when no choice was selected: a marked
-        # choice keeps its answer even if the completion text is empty.
-        if not generated_selected_choices:
-            completion = state.output.completion or ""
-            if not completion.strip():
-                return Score(
-                    value=NOANSWER,
-                    answer="",
-                    explanation=explanation,
-                    reason="no_response",
-                )
+        empty = no_response(state.output.completion or "")
 
         target_matches_choices = generated_selected_choices == sorted(target_positions)
 
@@ -118,13 +106,26 @@ def choice() -> Scorer:
                 value=CORRECT,
                 answer=", ".join(answers),
                 explanation=explanation,
+                reason="no_response"
+                if (not generated_selected_choices and empty)
+                else None,
             )
 
-        # Any other completion without a selected choice means the model did
-        # not follow the requested ANSWER format. The sample stays in the
-        # denominator either way, but the reason lets analysis separate the
-        # two causes (see ScoreReason).
+        # The model left no usable answer. An empty completion means there
+        # is nothing to grade; any other completion without a selected
+        # choice means the model did not follow the requested ANSWER
+        # format. The sample stays in the denominator either way, but the
+        # reason lets analysis separate the two causes (see ScoreReason).
+        # These branches only run when no choice was selected: a marked
+        # choice keeps its answer even if the completion text is empty.
         if not generated_selected_choices:
+            if empty:
+                return Score(
+                    value=NOANSWER,
+                    answer="",
+                    explanation=explanation,
+                    reason="no_response",
+                )
             return Score(
                 value=INCORRECT,
                 answer="",

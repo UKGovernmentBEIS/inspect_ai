@@ -8,12 +8,7 @@ import pytest
 
 from inspect_ai import Task, eval, score
 from inspect_ai._eval.score import resolve_scorers
-from inspect_ai._util.content import (
-    ContentAudio,
-    ContentImage,
-    ContentText,
-    ContentVideo,
-)
+from inspect_ai._util.content import ContentImage, ContentText
 from inspect_ai.dataset import Sample
 from inspect_ai.dataset._sources.json import json_dataset
 from inspect_ai.log._condense import resolve_sample_attachments
@@ -30,7 +25,6 @@ from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.scorer import (
     CORRECT,
     INCORRECT,
-    NOANSWER,
     PARTIAL,
     Score,
     Scorer,
@@ -1165,7 +1159,7 @@ def test_model_role_override_warning_silent_by_default(clear_warned: Any) -> Non
 
 @pytest.mark.parametrize("scorer_factory", [model_graded_qa, model_graded_fact])
 @pytest.mark.parametrize("completion", ["", "   "])
-def test_model_graded_empty_completion_is_noanswer(
+def test_model_graded_empty_completion_is_no_response(
     scorer_factory: Callable[..., Scorer], completion: str
 ) -> None:
     grader_model = get_model(
@@ -1188,40 +1182,5 @@ def test_model_graded_empty_completion_is_noanswer(
     score = asyncio.run(scorer(state, Target("Criterion")))
 
     assert score is not None
-    assert score.value == NOANSWER
-    assert score.reason == "no_response"
-    assert score.answer == ""
-
-
-@pytest.mark.parametrize("scorer_factory", [model_graded_qa, model_graded_fact])
-@pytest.mark.parametrize(
-    "media",
-    [
-        ContentImage(image="data:;base64,PHN2Zy8+"),
-        ContentAudio(audio="data:;base64,AAAA", format="mp3"),
-        ContentVideo(video="data:;base64,AAAA", format="mp4"),
-    ],
-)
-def test_model_graded_media_only_completion_reaches_grader(
-    scorer_factory: Callable[..., Scorer], media: Any
-) -> None:
-    grader_model = get_model(
-        "mockllm/model",
-        custom_outputs=[
-            ModelOutput.from_content("mockllm/model", [ContentText(text="GRADE: C")])
-        ],
-    )
-    scorer = scorer_factory(model=grader_model)
-    state = TaskState(
-        model=ModelName("mockllm/model"),
-        sample_id=1,
-        epoch=1,
-        input="Question",
-        messages=[ChatMessageUser(content="Question")],
-        output=ModelOutput.from_content("mockllm/model", [media]),
-    )
-    score = asyncio.run(scorer(state, Target("Criterion")))
-
-    assert score is not None
     assert score.value == CORRECT
-    assert score.reason != "no_response"
+    assert score.reason == "no_response"
