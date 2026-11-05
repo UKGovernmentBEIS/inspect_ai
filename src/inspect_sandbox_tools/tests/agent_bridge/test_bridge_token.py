@@ -115,6 +115,55 @@ def test_publish_refuses_an_unknown_user(request_in: TokenRequest) -> None:
     assert not request_in.file.parent.exists()
 
 
+_PASSWD = {
+    "member": pwd.struct_passwd(("member", "x", 1000, 1000, "", "/home/member", "")),
+    "1000": pwd.struct_passwd(("1000", "x", 2000, 2000, "", "/home/2000", "")),
+}
+
+
+@pytest.mark.parametrize(
+    "user,owner",
+    [
+        ("member", (1000, 1000)),
+        ("1000", (1000, 1000)),
+        ("01000", (1000, 1000)),
+        ("4242", (4242, -1)),
+    ],
+)
+def test_publish_gives_the_token_to_a_name_or_a_uid(
+    request_in: TokenRequest,
+    monkeypatch: pytest.MonkeyPatch,
+    user: str,
+    owner: tuple[int, int],
+) -> None:
+    """An all-digit user is a uid, as in sandbox_identity(), even if it is a name."""
+
+    def getpwnam(name: str) -> pwd.struct_passwd:
+        return _PASSWD[name]
+
+    def getpwuid(uid: int) -> pwd.struct_passwd:
+        for entry in _PASSWD.values():
+            if entry.pw_uid == uid:
+                return entry
+        raise KeyError(uid)
+
+    owners: list[tuple[int, int]] = []
+    monkeypatch.setattr(pwd, "getpwnam", getpwnam)
+    monkeypatch.setattr(pwd, "getpwuid", getpwuid)
+    monkeypatch.setattr(os, "fchown", lambda _fd, uid, gid: owners.append((uid, gid)))
+
+    publish_token(new_token(), request_in._replace(user=user))
+
+    assert owners == [owner]
+    assert request_in.file.exists()
+
+
+def test_publish_refuses_a_uid_out_of_range(request_in: TokenRequest) -> None:
+    with pytest.raises(RuntimeError, match="not a valid uid"):
+        publish_token(new_token(), request_in._replace(user=str(2**32 - 1)))
+    assert not request_in.file.parent.exists()
+
+
 def test_token_request_reads_the_environment() -> None:
     assert token_request({}) is None
     file = str(TOKEN_DIR / "proxy_abc")

@@ -31,6 +31,15 @@ TOKEN_BYTES = 32
 """A token is this many random bytes, hex-encoded (64 characters)."""
 
 _TOKEN_NAME = re.compile(r"[A-Za-z0-9_-]{1,128}")
+_UID = re.compile(r"[0-9]+")
+_MAX_UID = 0xFFFFFFFE
+"""Largest uid: `(uid_t)-1` means "unchanged" to chown."""
+
+
+class _Owner(NamedTuple):
+    uid: int
+    gid: int
+    """-1 leaves the file's group unchanged."""
 
 
 class TokenRequest(NamedTuple):
@@ -80,12 +89,7 @@ def publish_token(token: str, request: TokenRequest) -> None:
         RuntimeError: The user does not exist, the directory cannot be trusted,
             an entry already exists, or the file cannot be given to the user.
     """
-    try:
-        owner = pwd.getpwnam(request.user)
-    except KeyError:
-        raise RuntimeError(
-            f"Bridge token user '{request.user}' does not exist."
-        ) from None
+    owner = _token_owner(request.user)
 
     directory = request.file.parent
     ensure_private_server_dir(directory, mode=TOKEN_DIR_MODE, repair_mode=False)
@@ -108,7 +112,7 @@ def publish_token(token: str, request: TokenRequest) -> None:
                 file.flush()
                 os.fchmod(file.fileno(), 0o400)
                 try:
-                    os.fchown(file.fileno(), owner.pw_uid, owner.pw_gid)
+                    os.fchown(file.fileno(), owner.uid, owner.gid)
                 except PermissionError as ex:
                     raise RuntimeError(
                         f"Bridge token file cannot be given to user '{request.user}': "
@@ -128,6 +132,32 @@ def publish_token(token: str, request: TokenRequest) -> None:
             os.unlink(temp, dir_fd=dir_fd)
     finally:
         os.close(dir_fd)
+
+
+def _token_owner(user: str) -> _Owner:
+    """The uid and gid to give the token to.
+
+    As in `sandbox_identity()` (and getent), an all-digit user is a uid, even
+    when a user has that name, and needs no passwd entry. Its gid comes from its
+    passwd entry, if any; without one the file keeps its group, which cannot
+    read it (mode 0400).
+
+    Raises:
+        RuntimeError: The user is a name with no passwd entry, or not a valid uid.
+    """
+    if _UID.fullmatch(user):
+        uid = int(user)
+        if uid > _MAX_UID:
+            raise RuntimeError(f"Bridge token user '{user}' is not a valid uid.")
+        try:
+            return _Owner(uid, pwd.getpwuid(uid).pw_gid)
+        except KeyError:
+            return _Owner(uid, -1)
+    try:
+        entry = pwd.getpwnam(user)
+    except KeyError:
+        raise RuntimeError(f"Bridge token user '{user}' does not exist.") from None
+    return _Owner(entry.pw_uid, entry.pw_gid)
 
 
 def remove_token(file: Path) -> None:
