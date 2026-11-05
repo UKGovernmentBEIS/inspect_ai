@@ -11,7 +11,11 @@ import inspect_ai.hooks._startup as hooks_startup_module
 from inspect_ai import eval, eval_async
 from inspect_ai._eval.task.task import Task
 from inspect_ai._util._async import current_async_backend
-from inspect_ai._util.entrypoints import clear_entry_points_state, ensure_entry_points
+from inspect_ai._util.entrypoints import (
+    clear_entry_points_state,
+    ensure_entry_points,
+    entry_point_load_errors,
+)
 from inspect_ai._util.environ import environ_var
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.registry import _registry, registry_info, registry_lookup
@@ -751,6 +755,82 @@ def test_required_entry_point_hook_not_reported_missing_when_a_hook_is_already_r
     assert entry_point_hook_name in {registry_info(hook).name for hook in loaded}
 
 
+class _FailingEntryPoint:
+    """Stand-in for an `inspect_ai` entry point whose module fails to import."""
+
+    def __init__(self, name: str, value: str) -> None:
+        self.name = name
+        self.value = value
+
+    def load(self) -> None:
+        raise ModuleNotFoundError("No module named 'inspect_ai._does_not_exist'")
+
+
+@contextmanager
+def _entry_points(*eps: object) -> Generator[None, None, None]:
+    clear_entry_points_state()
+    try:
+        with patch("inspect_ai._util.entrypoints.entry_points", return_value=list(eps)):
+            yield
+    finally:
+        clear_entry_points_state()
+        ensure_entry_points()
+
+
+@pytest.mark.parametrize(
+    "entry_point",
+    [
+        # matched by the top-level module of the entry point value
+        _FailingEntryPoint("broken_hooks_ep", "broken_hooks_pkg._registry"),
+        # matched by the entry point name
+        _FailingEntryPoint("broken_hooks_pkg", "other_module._registry"),
+    ],
+)
+def test_required_hook_entry_point_load_error_raises_with_cause(
+    entry_point: _FailingEntryPoint,
+) -> None:
+    with _entry_points(entry_point):
+        with environ_var("INSPECT_REQUIRED_HOOKS", "broken_hooks_pkg/audit"):
+            with pytest.raises(PrerequisiteError) as exc_info:
+                _load_registry_hooks()
+            # a repeat load still raises rather than treating hooks as loaded
+            with pytest.raises(PrerequisiteError):
+                _load_registry_hooks()
+
+    message = str(exc_info.value)
+    assert "broken_hooks_pkg/audit" in message
+    assert f"'{entry_point.value}'" in message
+    assert (
+        "ModuleNotFoundError: No module named 'inspect_ai._does_not_exist'" in message
+    )
+    assert isinstance(exc_info.value.__cause__, ModuleNotFoundError)
+
+
+def test_entry_point_load_error_cleared_when_retry_succeeds() -> None:
+    entry_point = _FailingEntryPoint("flaky_hooks_pkg", "flaky_hooks_pkg._registry")
+    with _entry_points(entry_point):
+        ensure_entry_points()
+        assert entry_point in entry_point_load_errors()
+        with patch.object(entry_point, "load"):
+            ensure_entry_points()
+        assert entry_point not in entry_point_load_errors()
+
+
+@pytest.mark.parametrize("required_hooks", ["", "test_hooks"])
+def test_unrelated_entry_point_load_error_only_warns(
+    required_hooks: str,
+    mock_hooks: MockHooks,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    entry_point = _FailingEntryPoint("broken_extension", "broken_extension._registry")
+    with _entry_points(entry_point):
+        with environ_var("INSPECT_REQUIRED_HOOKS", required_hooks):
+            loaded = _load_registry_hooks()
+
+    assert "test_hooks" in {registry_info(hook).name for hook in loaded}
+    assert "loading entrypoints from 'broken_extension._registry'" in caplog.text
+
+
 def test_required_hooks_when_all_installed(
     monkeypatch: pytest.MonkeyPatch, mock_hooks: MockHooks, hooks_2: MockHooks
 ) -> None:
@@ -763,6 +843,9 @@ def test_required_hooks_when_one_missing(
 ) -> None:
     with environ_var("INSPECT_REQUIRED_HOOKS", "test_hooks,fake"):
         with pytest.raises(PrerequisiteError) as exc_info:
+            init_hooks()
+        # a repeat call still raises rather than treating hooks as loaded
+        with pytest.raises(PrerequisiteError):
             init_hooks()
 
     assert "missing: {'fake'}" in str(exc_info.value)

@@ -82,6 +82,7 @@ from typing import NamedTuple
 from inspect_ai._util.trace import trace_message
 from inspect_ai.util._subprocess import ExecResult
 
+from ._framework_operation import framework_sandbox_operation
 from ._privileged import SHELL_PATH, SYSTEM_PATH, pinned_env
 from .environment import SandboxEnvironment
 
@@ -438,15 +439,21 @@ async def _run_verified(
         *cmd,
     ]
     env = pinned_env(None)
-    if concurrency:
-        result = await sandbox.exec(
-            argv, env=env, user=user, input=input, timeout=timeout
-        )
-    else:
-        # Only passed when set: some providers' exec() predates the parameter.
-        result = await sandbox.exec(
-            argv, env=env, user=user, input=input, timeout=timeout, concurrency=False
-        )
+    with framework_sandbox_operation():
+        if concurrency:
+            result = await sandbox.exec(
+                argv, env=env, user=user, input=input, timeout=timeout
+            )
+        else:
+            # Only passed when set: some providers' exec() predates the parameter.
+            result = await sandbox.exec(
+                argv,
+                env=env,
+                user=user,
+                input=input,
+                timeout=timeout,
+                concurrency=False,
+            )
     if _VERIFIED_MARKER in result.stderr.splitlines():
         # Verification completed; whatever follows is the wrapped command's own
         # outcome (so any verdict-shaped line it printed is not ours).
