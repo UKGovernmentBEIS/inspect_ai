@@ -938,8 +938,9 @@ the task may have changed since the log was written".
        model=None,                   # explicit, as eval_set passes it with ResolvedTasks
        solver=empty_attempt(),
        epochs=<Epochs(config.epochs, config.epochs_reducer), or None when unrecorded, as eval-retry>,
-       time_limit=..., working_limit=..., retry_on_error=...,
-       max_samples=..., max_sandboxes=...,   # from log.eval.config
+       message_limit=..., token_limit=..., turn_limit=...,
+       time_limit=..., working_limit=..., cost_limit=...,   # the recorded sample limits
+       retry_on_error=..., max_samples=..., max_sandboxes=...,   # from log.eval.config
        sandbox_cleanup=True,
        fail_on_error=False,
        log_format="eval",
@@ -957,6 +958,30 @@ the task may have changed since the log was written".
      run once per environment model, and an unavailable environment provider
      would fail the scratch eval before the task ran.
    - **Generate config.** `log.plan.config`, as eval-retry passes it.
+   - **Sample limits.** Every sample limit `log.eval.config` records is
+     passed: `message_limit`, `token_limit`, `turn_limit`, `time_limit`,
+     `working_limit` and `cost_limit`. The runner records a task's own
+     limits there when no eval-level limit overrides them
+     (`src/inspect_ai/_eval/run.py:333-368`), so the recorded values are the
+     limits the original attempt ran under. An omitted limit falls back to
+     the task's default, which is none for a limit that was given only to
+     `eval()`; a `Task.setup` that generates would then run unbounded and
+     produce an error-free verdict that step 8 accepts, where the original
+     run would have hit the limit. The token limit is rebuilt with its
+     recorded metering type, as eval-retry does
+     (`src/inspect_ai/_eval/eval.py:1853-1861`): `TokenLimit(tokens=...,
+     type=token_limit_type)` when the type is recorded and not `"all"`, the
+     plain count otherwise. `cost_limit` is passed as recorded; eval-retry's
+     own forwarding is not changed by this design.
+   - **Hooks.** The scratch eval is an ordinary eval, so installed hooks
+     receive its run, task and sample events, with the solver
+     `inspect_ai/empty_attempt` and the empty-attempt verdicts. A hook that
+     exports runs (the MLflow example, `examples/hooks/mlflow_tracking.py`,
+     creates a tracking run and exports metrics and the log at task end)
+     records the scratch eval as a run of its own, including when zero then
+     refuses the result; removing the scratch directory does not retract
+     it. Zero does not suppress hooks; the docs say that the scratch eval is
+     visible to them.
    - **Target selection.** The scratch eval passes no `sample_id` and no
      `limit`, so the runner runs every sample of the filtered dataset, and
      that dataset holds exactly the targets, by the string equality of step
@@ -1249,6 +1274,10 @@ No migration required.
   `SampleSelector`. `edit_score()` and `recompute_metrics()` are unchanged.
 - **CLI.** New `inspect log exclude` and `inspect log zero`. `inspect ctl` is
   unchanged.
+- **Hooks.** A zero runs a scratch eval, which installed hooks see as an
+  eval run of the task with the solver `inspect_ai/empty_attempt` (see step
+  6). A hook that exports or notifies on every run does so for it, whether
+  or not zero then commits the verdicts.
 - **Task-file imports.** `eval_set()`, `eval()` and `load_module()` behave
   as today unless `inline_eval_set_suppressed()` is active, which only the
   disposition functions enter. Capture mode is unchanged.
@@ -1457,8 +1486,11 @@ backends; run the zero tests with `--runtrio` locally.
       returns `None` on the empty attempt, both with and without setting
       `state.completed`: refused with the setup-scores message, and the
       input log's samples, results and reductions are unchanged;
-    - a `Task.setup` that exceeds a message limit: refused as having hit a
-      limit;
+    - a `Task.setup` that generates twice, in a log written with
+      `eval(..., message_limit=1)` and a task with no limit of its own:
+      the scratch eval hits the recorded limit and the target is refused as
+      having hit a limit; likewise a recorded `token_limit` with an
+      `"output"` metering type;
     - a log with no task scorers;
     - a task edited to return a scalar under a name whose logged metrics
       expect a dict: the `TypeError` is re-raised and the samples, results
@@ -1516,7 +1548,8 @@ path.
      `SetupWroteScores` and the scratch eval.
    - `zero_samples` / `zero_samples_async` in `_disposition.py`, with a
      function-local import of `_eval.zero`.
-   - `inspect log zero`, and the docs section extended.
+   - `inspect log zero`, and the docs section extended, including that
+     hooks see the scratch eval.
 
    Tests as above, plus the existing eval-retry tests unchanged.
 
