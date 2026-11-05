@@ -1,4 +1,3 @@
-from pathlib import Path
 from textwrap import dedent
 
 import pytest
@@ -28,7 +27,7 @@ from inspect_ai.solver import (
     use_tools,
     user_message,
 )
-from inspect_ai.tool import ToolFunction, bash_session, text_editor, web_browser
+from inspect_ai.tool import ToolFunction, bash_session, text_editor, web_search
 from inspect_ai.tool._tool import Tool, ToolResult, tool
 from inspect_ai.util._collect import collect
 
@@ -40,14 +39,13 @@ def web_surfer() -> Agent:
         # some general guidance for the agent
         state.messages.append(
             ChatMessageSystem(
-                content="Use the web browser tools for every question, "
+                content="Use the web search tool for every question, "
                 + "even if you think you already know the answer."
             )
         )
 
-        # run a tool loop w/ the web_browser then update & return state
         messages, state.output = await get_model().generate_loop(
-            state.messages, tools=web_browser()
+            state.messages, tools=[web_search()]
         )
         state.messages.extend(messages)
         return state
@@ -55,29 +53,22 @@ def web_surfer() -> Agent:
     return execute
 
 
-def sandbox_config():
-    return ("docker", (Path(__file__).parent / "compose.yaml").as_posix())
-
-
 def check_agent_web_surfer(solver):
     task = Task(
         dataset=[Sample("What were the 3 most popular movies of 2020?")],
         solver=solver,
-        sandbox=sandbox_config(),
     )
     log = eval(task, model="openai/gpt-4o")[0]
     assert log.status == "success"
 
 
 @pytest.mark.slow
-@skip_if_no_docker
 @skip_if_no_openai
 def test_agent_web_surfer_as_solver():
     check_agent_web_surfer(web_surfer())
 
 
 @pytest.mark.slow
-@skip_if_no_docker
 @skip_if_no_openai
 def test_agent_web_surfer_as_tool():
     check_agent_web_surfer(
@@ -93,7 +84,6 @@ def test_agent_web_surfer_as_tool():
 
 
 @pytest.mark.slow
-@skip_if_no_docker
 @skip_if_no_openai
 def test_agent_web_surfer_handoff():
     check_agent_web_surfer(
@@ -110,7 +100,6 @@ def test_agent_web_surfer_handoff():
 
 
 @pytest.mark.slow
-@skip_if_no_docker
 @skip_if_no_openai
 def test_agent_web_surfer_run():
     @solver
@@ -164,15 +153,14 @@ def test_agent_react_ctf():
 
 
 @pytest.mark.slow
-@skip_if_no_docker
 @skip_if_no_openai
 def test_agent_react_multi_agent():
     web_surfer_react = react(
         name="web_surfer",
         description="Web research assistant",
-        prompt="Use the web browser tools for every question, "
+        prompt="Use the web search tool for every question, "
         + "even if you think you already know the answer.",
-        tools=web_browser(),
+        tools=[web_search()],
     )
 
     supervisor = react(
@@ -185,7 +173,6 @@ def test_agent_react_multi_agent():
             Sample(input="Please add 1+1 then tell me what movies were popular in 2022")
         ],
         solver=supervisor,
-        sandbox=sandbox_config(),
     )
 
     eval(task, model="openai/gpt-4o")
@@ -239,7 +226,7 @@ def web_researcher() -> Tool:
         """
 
         async def web_query() -> str:
-            _, output = await get_model().generate_loop(query, tools=web_browser())
+            _, output = await get_model().generate_loop(query, tools=[web_search()])
             return output.completion
 
         results = await collect(web_query(), web_query())
@@ -249,12 +236,10 @@ def web_researcher() -> Tool:
 
 
 @skip_if_no_openai
-@skip_if_no_docker
 def test_agent_collect() -> None:
     task = Task(
         dataset=[Sample(input="What was the most popular movie of 2019?")],
         solver=react(tools=[web_researcher()]),
-        sandbox=("docker", (Path(__file__).parent / "compose.yaml").as_posix()),
     )
     log = eval(task, model="openai/gpt-4o")[0]
     assert log.status == "success"

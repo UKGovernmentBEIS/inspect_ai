@@ -16,7 +16,7 @@ from inspect_ai.tool._sandbox_tools_utils._error_mapper import (
 )
 from inspect_ai.tool._sandbox_tools_utils.sandbox import sandbox_with_injected_tools
 from inspect_ai.util import StoreModel, store_as
-from inspect_ai.util._sandbox._cli import SANDBOX_CLI, tools_user_param
+from inspect_ai.util._sandbox._cli import tools_user_param
 from inspect_ai.util._sandbox._json_rpc_transport import SandboxJSONRPCTransport
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
 from inspect_ai.util._sandbox.identity import (
@@ -252,7 +252,7 @@ def bash_session(
         scope = sandbox_identity_scope(sandbox)
 
         # Create transport for all RPC calls
-        transport = SandboxJSONRPCTransport(sandbox, SANDBOX_CLI)
+        transport = SandboxJSONRPCTransport(sandbox)
 
         if scope is not None or store.identity is not None:
             old_tools = await _tools_without_bound_shells(sandbox, transport)

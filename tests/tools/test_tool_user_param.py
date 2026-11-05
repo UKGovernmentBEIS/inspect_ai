@@ -24,10 +24,6 @@ from inspect_ai.tool import (
     skill,
 )
 from inspect_ai.tool._sandbox_tools_utils._error_mapper import ServerErrorCode
-from inspect_ai.tool._sandbox_tools_utils._legacy_helpers import (
-    LEGACY_SANDBOX_CLI,
-    legacy_tool_support_sandbox,
-)
 from inspect_ai.tool._tools import _bash_session as bash_session_module
 from inspect_ai.tool._tools import _text_editor as text_editor_module
 from inspect_ai.tool._tools._skill.types import Skill
@@ -35,7 +31,6 @@ from inspect_ai.util import tool_state_scope
 from inspect_ai.util._sandbox.context import (
     sandbox_default_context_var,
     sandbox_environments_context_var,
-    sandbox_with_environments_context_var,
 )
 from inspect_ai.util._sandbox.environment import (
     SandboxDefaultUser,
@@ -158,6 +153,10 @@ async def test_exec_tools_run_as_the_scope_user(
     factory: Callable[..., Tool], args: dict[str, Any]
 ) -> None:
     default, workspace = _RecordingSandbox(), _RecordingSandbox()
+    # the home directory lookup prints the passwd home
+    workspace.policy = lambda cmd, _user: ExecResult(
+        True, 0, "/srv/w-1\n" if cmd[0] == "/bin/sh" else "out\n", ""
+    )
     with (
         _environments(default=default, workspace=workspace),
         sandbox_identity("w-1", cwd="/home/w-1", sandbox="workspace"),
@@ -165,10 +164,35 @@ async def test_exec_tools_run_as_the_scope_user(
         await factory()(**args)
         await factory(user="w-1")(**args)
     assert default.calls == []
-    assert [(user, cwd) for _cmd, user, cwd in workspace.calls] == [
+    lookup, *runs = workspace.calls
+    assert (lookup[0][-1], lookup[1]) == ("w-1", None)
+    assert [(user, cwd) for _cmd, user, cwd in runs] == [
         ("w-1", "/home/w-1"),
         ("w-1", "/home/w-1"),
     ]
+    assert workspace.envs[1:] == [{"HOME": "/srv/w-1"}, {"HOME": "/srv/w-1"}]
+
+
+@pytest.mark.parametrize("factory, args", _EXEC_TOOLS)
+async def test_exec_tools_bound_the_home_lookup_by_their_timeout(
+    factory: Callable[..., Tool], args: dict[str, Any]
+) -> None:
+    default = _RecordingSandbox()
+    with _environments(default=default), sandbox_identity("w-1"):
+        await factory(timeout=5)(**args)
+    lookup_timeout, _run_timeout = default.timeouts
+    assert lookup_timeout == (5, False)
+
+
+@pytest.mark.parametrize("factory, args", _EXEC_TOOLS)
+async def test_exec_tools_set_no_env_outside_a_scope(
+    factory: Callable[..., Tool], args: dict[str, Any]
+) -> None:
+    default = _RecordingSandbox()
+    with _environments(default=default):
+        await factory(user="w-1")(**args)
+    assert [user for _cmd, user, _cwd in default.calls] == ["w-1"]
+    assert default.envs == [None]
 
 
 @pytest.mark.parametrize("factory, args", _EXEC_TOOLS)
@@ -194,6 +218,7 @@ async def test_exec_tools_keep_an_explicit_other_sandbox(
         await factory(user="root", sandbox="comparator")(**args)
     assert default.calls == []
     assert [(user, cwd) for _cmd, user, cwd in comparator.calls] == [("root", None)]
+    assert comparator.envs == [None]
 
 
 async def test_text_editor_runs_as_the_scope_user(
@@ -374,55 +399,6 @@ async def test_skill_installs_in_a_sandbox_outside_the_scope() -> None:
     assert "Base Path: /skills/example/SKILL.md" in str(result)
     assert default.calls == []
     assert other.written == ["/skills/example/SKILL.md"]
-
-
-def _tool_support_sandbox() -> _RecordingSandbox:
-    """A sandbox with `inspect-tool-support` on its PATH that reports version 1.0.0."""
-    sandbox = _RecordingSandbox()
-    sandbox.policy = lambda cmd, _user: ExecResult(
-        True,
-        0,
-        '{"jsonrpc": "2.0", "result": "1.0.0", "id": 1}'
-        if cmd[0] == LEGACY_SANDBOX_CLI
-        else f"/usr/local/bin/{LEGACY_SANDBOX_CLI}\n",
-        "",
-    )
-    return sandbox
-
-
-def _tool_support_launches(sandbox: _RecordingSandbox) -> list[list[str]]:
-    return [cmd for cmd, _user, _cwd in sandbox.calls if cmd[0] == LEGACY_SANDBOX_CLI]
-
-
-@pytest.mark.parametrize("cached", [False, True], ids=["cold", "cached"])
-async def test_web_browser_refuses_a_scope_before_running_tool_support(
-    cached: bool,
-) -> None:
-    from inspect_ai.tool._tools._web_browser import _web_browser as web_browser_module
-
-    default = _tool_support_sandbox()
-    with _environments(default=default):
-        sandbox_with_environments_context_var.set(
-            {f":{LEGACY_SANDBOX_CLI}:True": default} if cached else {}
-        )
-        with sandbox_identity("w-1"):
-            with pytest.raises(SandboxIdentityError, match="cannot run as a user"):
-                await web_browser_module.web_browser_go()(url="https://example.com")
-    assert _tool_support_launches(default) == []
-    if cached:
-        assert default.calls == []
-
-
-async def test_web_browser_discovery_outside_the_scope_sandbox() -> None:
-    default, browser = _RecordingSandbox(), _tool_support_sandbox()
-    default.policy = lambda _cmd, _user: ExecResult(False, 1, "", "")
-    with _environments(default=default, browser=browser):
-        sandbox_with_environments_context_var.set({})
-        with sandbox_identity("w-1"):
-            sandbox_env, version = await legacy_tool_support_sandbox("web browser")
-    assert sandbox_env is browser
-    assert str(version) == "1.0.0"
-    assert _tool_support_launches(default) == []
 
 
 async def test_bash_session_cannot_move_to_another_sandbox(

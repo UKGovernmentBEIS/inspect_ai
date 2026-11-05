@@ -1057,7 +1057,7 @@ async def test_terminal_log_write_failure_preserves_recovery(
 
     from inspect_ai.log import read_eval_log_async
     from inspect_ai.log._recorders.buffer import database as database_module
-    from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
+    from inspect_ai.log._recorders.buffer.database import DbPhase, SampleBufferDatabase
     from inspect_ai.log._recorders.eval import EvalRecorder, ZipLogFile
     from inspect_ai.log._recover import recover_eval_log_async
     from inspect_ai.model import ModelOutput, get_model
@@ -1116,7 +1116,7 @@ async def test_terminal_log_write_failure_preserves_recovery(
         assert not logger._stale_flush_stops
         assert all(entry._temp_file.closed and entry._zip is None for entry in entries)
         buffer = buffers[-1]
-        assert buffer._closed and not buffer._connections
+        assert buffer._db_phase is DbPhase.CLOSED and not buffer._connections
         assert buffer._sync_thread is None
         assert buffer.db_path.exists()
         filestore = buffer._sync_filestore

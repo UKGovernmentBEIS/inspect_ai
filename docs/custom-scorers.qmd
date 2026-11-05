@@ -221,6 +221,7 @@ def includes(ignore_case: bool = True):
 Here's a somewhat simplified version of the code for the `model_graded_qa()` scorer:
 
 ``` python
+import secrets
 
 @scorer(metrics=[accuracy(), stderr()])
 def model_graded_qa(
@@ -245,6 +246,7 @@ def model_graded_qa(
             answer=state.output.completion,
             criterion=target.text,
             instructions=instructions,
+            grader_nonce=secrets.token_hex(4),
         )
 
         # query the model for the score
