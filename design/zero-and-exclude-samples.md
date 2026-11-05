@@ -19,16 +19,17 @@ that have landed.
   (sandbox, files, setup script, `Task.setup`), the task's main solver is
   skipped, and the scorers run on the untouched state. The score's `reason`
   becomes `"zeroed"`. Zero needs samples with string ids, which name the same
-  sample however the dataset is reordered, and a task whose scorers are the
-  ones the log records. A zero that cannot give the sample a counted score
-  under every name it holds is refused, and the log is left unchanged.
+  sample however the dataset is reordered, a task whose scorers are the ones
+  the log records, and scorers that return a single value (not a dict or a
+  list). A zero that cannot give the sample a counted score under every name
+  it holds is refused, and the log is left unchanged.
 
 Both keep the sample's transcript and error. Both record who decided and why
 as score-edit provenance, so the earlier score stays in `Score.history`, and
 both recompute the log's metrics. They are Python functions in
 `inspect_ai.log` and two `inspect log` subcommands. Zero runs its empty
-attempts in a scratch eval of the same task, with the log's recorded
-models, and copies the verdicts in.
+attempts in a scratch eval of the same task, restricted to the targeted
+samples and run with the log's recorded models, and copies the verdicts in.
 Neither applies to a log that is still being written.
 
 ## Why
@@ -297,17 +298,23 @@ counted.
 - **Epoch reducers on recompute.** `resolve_log_metrics()` builds the epoch
   reducers before it considers importing the task file for missing metrics
   (`src/inspect_ai/log/_metric.py:64`).
-- **Sample-id selection** goes through two steps:
-  1. `resolve_task_sample_ids` (`src/inspect_ai/_eval/task/util.py`) strips a
-     leading `<task>:` scope. `_requalify_sample_ids`
-     (`src/inspect_ai/_eval/eval.py:1562`) prefixes ids with the task name so
-     that an id containing `:` survives that step. This is the in-Inspect
-     answer to Steward's `_selectors` workaround.
+- **Sample-id selection** (`eval(sample_id=...)`) is not literal, which is
+  why Steward prefixes its ids with the task name:
+  1. `resolve_task_sample_ids` (`src/inspect_ai/_eval/task/util.py:76`) reads
+     a prefix before the first `:` as a task scope when it names a task in
+     the run (`:101-110`), so an id `t1:a:b` of task `t1` loses its prefix.
   2. The remaining selector is a pattern, not a literal. `sample_id_filter`
      matches with `fnmatch` (`util.py:71`), so a selector `case[1]` matches
      `case1` and not itself, and `case*` matches every id starting with
      `case`. Before matching, `normalise_sample_id` treats the string `"12"`
      and the int `12` as the same id.
+
+  Without `sample_id` or `limit`, the runner runs every sample of
+  `task.dataset` (`slice_dataset`, `util.py:196-202`). `Task.dataset` is a
+  plain attribute, and `MemoryDataset.filter()` returns a new dataset holding
+  the same `Sample` objects (`src/inspect_ai/dataset/_dataset.py:384`). The
+  runner assigns positional ids only to samples whose id is `None`
+  (`src/inspect_ai/_eval/run.py:224-226`).
 - **`resolve_plan()`** (`src/inspect_ai/_eval/task/run.py:674`) prepends
   `Task.setup` to whatever solver is in effect (`:685-692`). `Task.setup` is
   documented as "always run even when the main `solver` is replaced".
@@ -331,16 +338,26 @@ The only existing producer of zero and exclude is Steward. It works on landed
 `.eval` logs of tasks loaded from a file or the registry, with static datasets
 whose samples have string ids (its fixture's ids are `user:cybergym/arvo_1`
 and so on, `tests/evalset/fixtures/erroring_evalset.py:37` of
-meridianlabs-ai/inspect_steward). Searching inspect_ai, inspect_scout,
+meridianlabs-ai/inspect_steward). Its fixture's scorer is `exact()`, which
+returns a single string value (`:43`). Searching inspect_ai, inspect_scout,
 inspect_flow and inspect_swe for the reasons `excluded` / `zeroed` finds no
 other producer or reader, and the viewer shows any reason string as text.
+
+Scorers with dict values exist (inspect_evals' HLE returns `{"score",
+"confidence"}`; BrowseComp, TAC and Mind2Web read named keys with
+`aggregate(..., on_missing="skip")`, which skips a key that is missing or
+`None`), but no zero of one has been asked for. Deciding that a dict or list
+verdict is counted by every metric needs rules about the keys the log's
+metrics read, so zero supports single-value verdicts only.
+
 The design therefore supports:
 
 - zero for tasks that eval-retry can reload (file or registered) and that
   have scorers, run with the log's recorded models; static datasets; samples
   with string ids that the task's dataset still holds; tasks whose scorers
-  are the ones the log records; and samples whose scores all come from those
-  scorers;
+  are the ones the log records; scorers whose empty-attempt verdict is a
+  single `str`, `int`, `float` or `bool`; and samples whose scores all come
+  from those scorers;
 - exclusion for any landed log, for a sample that holds a score or of a log
   that names a scorer.
 
@@ -367,29 +384,25 @@ ScoreReason = Literal[
 ]
 ```
 
-Two predicates sit beside it in `src/inspect_ai/scorer/_metric.py`, used by
+A predicate sits beside it in `src/inspect_ai/scorer/_metric.py`, used by
 epoch reduction and by the disposition functions:
 
 ```python
 def score_is_excluded(score: Score) -> bool:
     """`reason == "excluded"` and the value is a float NaN at the root."""
-
-def score_value_is_counted(value: Value) -> bool:
-    """No float NaN and no None at the root, among a dict's values, or among a list's elements."""
 ```
 
-`score_value_is_counted` rules out the two values Inspect's metrics skip
-inside a value: the framework's dict-metric expansion and `aggregate()`
-skip a `NaN` key, and `aggregate(..., on_missing="skip")` also skips a key
-that is `None` (`src/inspect_ai/scorer/_metrics/aggregate.py:120`, `:134`).
-It is stricter than the metrics, which count a dict's other keys when one
-is skipped, so that a zeroed epoch score is not skipped under any key. It
-does not establish that every metric counts the value: a metric that reads
-a named key skips a dict that lacks the key (`aggregate(..., on_missing=
-"skip")` treats a missing key as it treats `None`). Zero therefore adds a
-key check against the log (the "Missing key" refusal under "Which score
-names a disposition covers"). Beyond these, it is a check on raw values
-only:
+Zero copies single-value verdicts only. A private helper in
+`src/inspect_ai/log/_disposition.py` says which of them count:
+
+```python
+def _counted_scalar(value: Value) -> bool:
+    """A `str`, `int`, `float` or `bool` that is not a float NaN."""
+```
+
+A single value cannot be `None` (`Value`, `src/inspect_ai/scorer/_metric.py:68`),
+so the only single value that metrics skip is a root `NaN`. The helper is a
+check on the raw value only:
 
 - Whether the verdict fits the log's metrics (a scalar where a dict metric
   expects a dict, after the task changed) is checked by computing the
@@ -412,6 +425,17 @@ epoch=...)`:
   explanation=v.explanation, reason="zeroed", metadata=v.metadata or {},
   provenance=provenance)`, where `v` is the empty attempt's score of the same
   name. When the sample already had that score, the original is `history[0]`.
+
+`ScoreEdit` marks a field to keep with the string `"UNCHANGED"` (`UNCHANGED`,
+`src/inspect_ai/scorer/_metric.py:79`). `edit_score()` keeps the current
+field for it on an existing score, and on a new score refuses it as a value
+and stores `None` for it as an answer or explanation
+(`src/inspect_ai/log/_score.py:94-108`, `:126-131`). A copied verdict or an
+operator's reason that is that literal string would therefore be dropped.
+Both are refused before any edit: the reason with the provenance checks (see
+Python API), and a verdict with the zero refusals below. A verdict's
+`metadata` is copied as `v.metadata or {}`, a dict, which never equals the
+sentinel.
 
 The sample's `error`, `events` (beyond the appended `ScoreEditEvent`s),
 `messages`, `output`, `limit` and `invalidation` are untouched.
@@ -466,32 +490,27 @@ The only difference from a score under every scorer is in the other
 scorers' `unscored_samples` counts, which do not count it.
 
 **Zero** edits exactly the names the empty attempt scored. A target is
-refused, before anything changes, in four cases:
+refused, before anything changes, in five cases:
 
 - **No verdict.** The empty attempt produced no score: every scorer returned
   `None`. Message: "the empty attempt of sample <id> (epoch <n>) produced no
   score; exclude it instead".
-- **Unscored verdict.** A score of the empty attempt fails
-  `score_value_is_counted()`: a root `NaN` (a grader failure), or a `NaN`
-  among a dict's or list's values (HLE's `{"score": NaN, ...}`), or a `None`
-  among them (`{"x": None}`), whether the other values are finite or not. Copying it would label a sample `zeroed`
-  that some metric leaves out of its denominator. This holds whether every
-  scorer's verdict is unscored or only one. Message: "the empty attempt of
-  sample <id> (epoch <n>) was not scored by <name> (<reason>:
+- **Structured verdict.** A score of the empty attempt has a dict or list
+  value. Message: "the empty attempt of sample <id> (epoch <n>) scored
+  <name> with a <dict|list> value; zero supports single-value verdicts only,
+  so exclude it instead". This is checked first, whatever the other scores
+  are.
+- **Unscored verdict.** A score of the empty attempt has a root `NaN` value
+  (a grader failure, `Score.unscored()`). Copying it would label a sample
+  `zeroed` that metrics leave out of the denominator. This holds whether
+  every scorer's verdict is unscored or only one. Message: "the empty attempt
+  of sample <id> (epoch <n>) was not scored by <name> (<reason>:
   <explanation>); zero it again, or exclude it".
-- **Missing key.** A dict-valued verdict lacks a key that the log's counted
-  dict values under the same name hold. The reference is the union of the
-  key sets of every value in the input log, on any sample and epoch, held
-  under that name and passing `score_value_is_counted()`. A metric that
-  reads a named key (`aggregate("x", ...)`, or a wrapper built on it, as
-  inspect_evals' BrowseComp and AssistantBench use with
-  `on_missing="skip"`) would skip a verdict without it, while the scorer's
-  results still counted the sample as scored. Message: "the empty attempt of
-  sample <id> (epoch <n>) scored <name> without the keys <keys> that its
-  other scores hold; exclude it instead". When the log holds no counted dict
-  value under that name, there is nothing to compare with and the check
-  passes; the staged metric computation still refuses a verdict that a
-  metric rejects.
+- **Reserved text.** A score of the empty attempt has a `value`, `answer` or
+  `explanation` that is the literal string `"UNCHANGED"`, which the edit
+  would read as "keep the current field". Message: "the empty attempt of
+  sample <id> (epoch <n>) scored <name> with the literal text UNCHANGED in
+  its <field>, which a score edit cannot record; exclude it instead".
 - **Uncovered score.** The sample holds a score under a name the empty attempt
   did not produce: a scorer that returned `None` on the empty attempt but
   scored the original, or a solver-written score. Leaving that score would
@@ -531,8 +550,8 @@ only its reason:
   `score_is_excluded()` holds for every score it holds.
 - **Zero:** the sample holds at least one score, and for every score it
   holds, the last entry of `Score.history` is an edit with reason
-  `"zeroed"` and provenance, and `score_value_is_counted()` holds for the
-  value. `edit_score()` appends every edit to the history, so the last entry
+  `"zeroed"` and provenance, and `_counted_scalar()` holds for the value.
+  `edit_score()` appends every edit to the history, so the last entry
   is the most recent edit. A later `ScoreEdit(value=1)` keeps
   `reason="zeroed"` on the score (an `UNCHANGED` field keeps its value), but
   it is the last history entry, and its reason is `UNCHANGED`. Zero spends no
@@ -591,10 +610,25 @@ def empty_attempt_check() -> Solver:
         return state
     return solve
 
-def empty_attempt() -> Plan:
+@solver(name="inspect_ai/empty_attempt")
+def empty_attempt() -> Solver:
     """No steps of its own (`Task.setup` is prepended), and the check as the finish solver."""
-    return Plan([], finish=empty_attempt_check(), name="inspect_ai/empty_attempt", internal=True)
+    return Plan([], finish=empty_attempt_check(), internal=True)
 ```
+
+The factory is registered with `@solver` because the runner records every
+solver override: `eval_async(solver=...)` passes it through
+`as_solver_spec()` (`src/inspect_ai/_eval/run.py:193`), which refuses an
+object that a `@solver` function did not create
+(`src/inspect_ai/_eval/loader.py:674`). A `Plan` is not registered by being
+named, and registering only its finish solver does not register the plan.
+`@solver` tags the returned object and keeps its type, so `resolve_plan()`
+still sees a `Plan` (`src/inspect_ai/solver/_solver.py:212-226`). I verified
+this with `eval(task, solver=empty_attempt())` on a `mockllm` task: the run
+records the solver `inspect_ai/empty_attempt`, runs `Task.setup` and the
+check and not the task's solver, and a `Task.setup` that writes a score
+errors the sample with `SetupWroteScores`, with and without setting
+`state.completed`.
 
 `Task.setup` is a solver, and a solver may write `state.scores`. The runner
 keeps those keys beside the task scorers' results (`run.py:3191`, `:3273`),
@@ -658,8 +692,10 @@ caller. These rules are checked before anything changes:
   `ValueError`.
 - A log with `log.status == "started"` is refused: it is still being written.
   The message says to run the command once the eval finishes.
-- `provenance.reason` must be a non-empty string. It is the explanation an
-  exclusion records and the only record of why a zero was applied.
+- `provenance.reason` must be a non-empty string other than the literal
+  `"UNCHANGED"` (see "Vocabulary" above): "the reason UNCHANGED is reserved by
+  score edits; give another reason". It is the explanation an exclusion
+  records and the only record of why a zero was applied.
 - Every selector must match.
   - A bare id matches every epoch of that id.
   - An `(id, epoch)` pair must name a sample in the log.
@@ -778,6 +814,9 @@ the task may have changed since the log was written".
    prepared.task.early_stopping = None
    ```
 
+   Zero rebinds two attributes on its copy of the task, `early_stopping`
+   here and `dataset` in step 6.
+
    - **Running eval.** `eval_init()` resets process-wide state, not only
      context variables: it clears the active-sample registry and replaces
      the concurrency registries (`src/inspect_ai/_eval/context.py:34`,
@@ -806,7 +845,7 @@ the task may have changed since the log was written".
      `dataclasses.replace(prepared, task=copy(prepared.task))`, as a normal
      run shallow-copies the task before applying its overrides
      (`src/inspect_ai/_eval/run.py:261`). `task_with()` is not used, because
-     it changes the task it is given. Zero only rebinds the attribute on the
+     it changes the task it is given. Zero only rebinds attributes on the
      copy, so the shared nested state is not changed.
 
    - **Model context.** `eval_resolve_tasks()` installs the model roles and
@@ -871,31 +910,33 @@ the task may have changed since the log was written".
      "sample <id> has an integer id, which need not name the same sample in
      a new run; zero needs samples with string ids: give the task's samples
      string ids".
-   - Exactly one sample of `prepared.task.dataset` must match it under
-     `normalise_sample_id`, and that sample's id must be the same `str`. A
-     sample without an id still has `id=None` here, because positional ids
-     are assigned when the run starts (`src/inspect_ai/_eval/run.py:222`),
-     so it never matches.
-     - No match: "the task's dataset no longer holds sample <id>".
+   - Exactly one sample of `prepared.task.dataset` must have an id that is
+     a `str` equal to it. The comparison is plain string equality, with no
+     pattern matching, task scope or normalisation, so an id containing
+     `:`, `*` or `[` compares as itself, and a dataset sample with the
+     `int` id `12` does not match the logged `"12"`. A sample without an id
+     still has `id=None` here, because positional ids are assigned when the
+     run starts (`src/inspect_ai/_eval/run.py:224`), so it never matches.
+     - No match: "the task's dataset no longer holds a sample with the
+       string id <id>".
      - More than one (a dataset the run would also refuse, through
        `ensure_unique_ids`): "the task's dataset holds more than one sample
-       matching <id>".
-     - A match whose id is an `int` (`12` in the dataset for the logged
-       `"12"`): refused with the integer-id message above.
+       with the id <id>".
 
    Steward's datasets are static and use string ids (see "Who uses which
    shapes"). Exclusion needs none of this: it edits the logged record and
    never re-runs a sample.
-6. Runs one scratch eval in a temporary local directory:
+6. Restricts the copied task to the targets and runs one scratch eval in a
+   temporary local directory:
 
    ```python
+   prepared.task.dataset = prepared.task.dataset.filter(
+       lambda sample: isinstance(sample.id, str) and sample.id in target_ids
+   )
    eval_async(
        tasks=prepared,               # the ResolvedTask from step 4, which carries its models and sandbox
        model=None,                   # explicit, as eval_set passes it with ResolvedTasks
        solver=empty_attempt(),
-       sample_id=_requalify_sample_ids(
-           prepared.task.name, [literal_sample_id(id) for id in target_ids]
-       ),
        epochs=<Epochs(config.epochs, config.epochs_reducer), or None when unrecorded, as eval-retry>,
        time_limit=..., working_limit=..., retry_on_error=...,
        max_samples=..., max_sandboxes=...,   # from log.eval.config
@@ -916,22 +957,22 @@ the task may have changed since the log was written".
      run once per environment model, and an unavailable environment provider
      would fail the scratch eval before the task ran.
    - **Generate config.** `log.plan.config`, as eval-retry passes it.
-   - **Literal ids.** `literal_sample_id(id: str) -> str`, a new helper in
-     `src/inspect_ai/_eval/task/util.py` beside `sample_id_filter`, escapes
-     the `fnmatch` metacharacters of an id (`*` as `[*]`, `?` as `[?]`, `[`
-     as `[[]`). Re-qualification then protects a `:`. It uses the prepared
-     task's name, `prepared.task.name`, not the log's `log.eval.task`: the
-     scratch run resolves selectors against the names of the tasks it runs
-     (`resolve_task_sample_ids`, `src/inspect_ai/_eval/task/util.py:101`),
-     and a task file edited since the log was written may have renamed the
-     task (`Task(name=...)`). Under the old name, `old:a` would not be a
-     scope but a literal id, and would run a sample with that id instead of
-     `a`. I verified this by
-     running the selection functions on candidates `case[1]`, `case1`,
-     `case*`, `caseX`, `case?`, `t1:a:b` and `a:b`: each escaped and
-     re-qualified target selected only itself. Step 5 has established that
-     each target matches exactly one dataset sample, so selection's
-     normalisation of `"12"` and `12` to one id selects nothing extra.
+   - **Target selection.** The scratch eval passes no `sample_id` and no
+     `limit`, so the runner runs every sample of the filtered dataset, and
+     that dataset holds exactly the targets, by the string equality of step
+     5. Selection by `sample_id` is not used, because its selectors are
+     patterns read with a task scope (see "Sample-id selection" above): an
+     id with `fnmatch` metacharacters, a task renamed since the log was
+     written, or a task name containing `:` would each need escaping or
+     qualification rules. The filter needs none, and the task's name plays
+     no part. `filter()` returns a new dataset holding the same `Sample`
+     objects, and only the copy's attribute is rebound, so the task the
+     factory returned keeps its whole dataset. Every target has a string id,
+     so the runner's positional-id assignment, which writes to `Sample`
+     objects, leaves them alone. I verified this on a `mockllm` task named
+     `benchmark:variant` with samples `a`, `benchmark:variant:a`, `case[1]`
+     and `case1`: filtering to `a` and `case[1]` ran exactly those two, over
+     two epochs, and the original task's dataset still held all four.
    - **Epochs.** The scratch eval runs the log's recorded epoch count and
      reducers, as eval-retry passes them (`eval.py:1844-1846`). A smaller
      count would keep the task's reducers, and the runner refuses
@@ -1075,8 +1116,9 @@ inspect log zero    LOG_FILE --sample ID [--sample ID ...] [--epoch N]
 ### Errors and edge cases
 
 - **Selectors and ids.** Ids are matched against the log only, never
-  interpreted. For zero's scratch eval, ids are escaped and re-qualified so
-  that selection is literal.
+  interpreted. Zero's scratch eval runs a copy of the task whose dataset is
+  filtered to the target ids by string equality, so no id is read as a
+  pattern or a task scope.
 - **Changed dataset.** A task's static dataset may have been reordered,
   shuffled or extended since the log was written; a string id still names
   the same sample. A targeted sample the dataset no longer holds, an integer
@@ -1157,6 +1199,17 @@ inspect log zero    LOG_FILE --sample ID [--sample ID ...] [--epoch N]
   missing key already counts toward no metric, so the gain is only in the
   other scorers' unscored counts. Steward's rule (the held keys, or the first
   scorer for a sample with none) needs no inference.
+- **Select the scratch targets with `sample_id`**, as Steward does from its
+  separate eval-set process. Ids would have to be escaped for `fnmatch` and
+  qualified with the running task's name, and a task name containing `:`
+  cannot be qualified, because the scope ends at the first `:`. Zero runs
+  in-process with the prepared task in hand, so filtering its dataset by
+  string equality is literal with no encoding.
+- **Zero dict and list verdicts**, refusing those with a `NaN` or `None`
+  inside and those missing a key the log's other scores hold. Each rule
+  infers from the log what the metrics read, and `aggregate()` and dict
+  metrics count some keys of a value while skipping others. No real use asks
+  for it yet (see Future improvements).
 - **Attribute each held key to a scorer when the scorer list was appended
   to.** Zero could compare options and score-event attribution per key, and
   refuse only ambiguous cases. Refusing any log whose scorer list differs
@@ -1225,13 +1278,15 @@ No migration required.
   `eval_set()` or `eval()` does not start an evaluation, write logs or reach
   a provider.
 - **Reason and author** are free text from the local caller: the Python
-  caller or the CLI user. They are stored as data in `ProvenanceData` and
+  caller or the CLI user. A reason that is the literal `"UNCHANGED"` is
+  refused, because a score edit would drop it. They are stored as data in
+  `ProvenanceData` and
   `Score.explanation`, and the viewer renders explanations as it renders any
   scorer's explanation. They are not interpolated into commands or paths.
 - **Sample selectors** are compared with logged ids and never become paths or
-  queries. The scratch eval's sample ids are escaped so that the runner's
-  selection matches them literally. An id therefore cannot widen the scratch
-  run to other samples, which would run their setup, sandboxes and graders.
+  queries. The scratch eval's dataset holds only the samples whose ids equal
+  the targets as strings. An id therefore cannot widen the scratch run to
+  other samples, which would run their setup, sandboxes and graders.
 - **Model output, tool output and sandbox output** reach a zero only through
   the task's own scorers in the empty attempt, exactly as in an eval run.
 - **Scratch directory.** It is a fresh `tempfile.TemporaryDirectory`, removed
@@ -1292,7 +1347,9 @@ backends; run the zero tests with `--runtrio` locally.
     `<tmp>/inline` is never created, and the guard variable is reset
     afterwards, also when the body raises.
   - Refusals that raise and leave the log unchanged: unknown selectors, a
-    `started` log, an empty reason, and an unresolvable metric.
+    `started` log, an empty reason, the reason `"UNCHANGED"` (for both
+    functions, on a sample whose score has an explanation), and an
+    unresolvable metric.
 - `tests/log/test_zero_samples.py` (new: no existing file covers running an
   eval to edit a log). The fixture is a task file with string sample ids,
   whose `Task.setup` sets a metadata flag and whose main solver would
@@ -1305,6 +1362,9 @@ backends; run the zero tests with `--runtrio` locally.
   - Ids `case[1]`, `case*`, `case?` and `t1:a:b`, in a dataset that also
     holds `case1`, `caseX` and `a:b`: the scratch log holds only the
     targets.
+  - The scratch eval goes through the real override path,
+    `eval_async(..., solver=empty_attempt())`: its log records the solver
+    `inspect_ai/empty_attempt`, and the task's main solver does not run.
   - A multi-epoch log with targets `a/1` and `b/2`: `a/2` and `b/1` run in
     the scratch eval, and those samples are left unedited.
   - Epoch reducers: zeroing epoch 1 of a log recorded with `Epochs(5, r)`
@@ -1320,8 +1380,9 @@ backends; run the zero tests with `--runtrio` locally.
     resolve).
   - Integer ids, each refused before the scratch eval with the log
     unchanged: a log of a task whose dataset samples have no ids, run with
-    and without `sample_shuffle`; a dataset with explicit `int` ids; and a
-    logged `"12"` whose dataset sample now has the id `12`.
+    and without `sample_shuffle`; and a dataset with explicit `int` ids. A
+    logged `"12"` whose dataset sample now has the id `12` is refused as no
+    longer held.
   - String ids: a log written with string ids, zeroed after the task file
     reorders its dataset and adds a sample, zeroes the samples with those
     ids. A string id the dataset no longer holds is refused before the
@@ -1350,9 +1411,11 @@ backends; run the zero tests with `--runtrio` locally.
     failure, whose original log holds both epochs: zeroing every epoch runs
     both empty attempts and zeroes both, and the task's own
     `early_stopping` object and the log are otherwise unchanged.
-  - Renamed task: a log of task `old` with a target `a`, zeroed after the
-    task file renames the task to `new` and its dataset also holds a sample
-    with the literal id `old:a`: only `a` runs in the scratch eval.
+  - Task names: a task named `benchmark:variant` whose dataset holds `a`
+    and `benchmark:variant:a`, zeroing `a`; and a log of task `old` with a
+    target `a`, zeroed after the task file renames the task to `new` and
+    adds a sample `old:a`. In both only `a` runs in the scratch eval, and
+    the factory's task keeps its whole dataset.
   - Scratch aggregation: seven samples, two epochs, `max_samples=1`, and a
     reducer that writes the epoch mean into its first input, plus a metric
     that mutates its inputs and succeeds: the zeroed scores equal each
@@ -1380,17 +1443,16 @@ backends; run the zero tests with `--runtrio` locally.
       with no scores;
     - an empty attempt whose only scorer returns
       `Score.unscored(reason="grader_failed")`;
-    - an empty attempt whose scorer returns `{"x": NaN}`, and one returning
-      `{"x": 0, "y": NaN}`;
+    - structured verdicts: an empty attempt whose scorer returns `{"x": 0}`,
+      one returning `{"score": NaN, "confidence": 100}` (HLE's shape), and
+      one returning `[0, 1]`; each refused as structured;
+    - an empty attempt whose scorer returns `"UNCHANGED"` as its value, and,
+      separately, as its answer and as its explanation, each on a sample
+      that already holds a score under that name: refused as reserved text;
     - two scorers, one scored and one unscored;
     - a conditional scorer that scored the original and returns `None` on the
       empty attempt;
     - a solver-written score;
-    - with a dict-valued scorer whose other samples score `{"x": 1, ...}`
-      and a metric `aggregate("x", mean(), on_missing="skip")`, alone and
-      inside a wrapper metric, with epoch reduction disabled: an empty
-      attempt returning `{"other": 0}` (missing key) and one returning
-      `{"x": None}`;
     - a `Task.setup` that writes `state.scores` while the task's only scorer
       returns `None` on the empty attempt, both with and without setting
       `state.completed`: refused with the setup-scores message, and the
@@ -1419,7 +1481,7 @@ path.
 ## Implementation plan
 
 1. **Vocabulary and epoch reduction.**
-   - Add the two reasons, `score_is_excluded` and `score_value_is_counted` to
+   - Add the two reasons and `score_is_excluded` to
      `src/inspect_ai/scorer/_metric.py`.
    - Drop excluded epochs in `reduce_scores()`
      (`src/inspect_ai/_eval/task/results.py`).
@@ -1450,7 +1512,6 @@ path.
 3. **Zero.**
    - `log_task_spec` and `LogTaskSpec`, extracted in
      `src/inspect_ai/_eval/eval.py` and used by `eval_retry_async`.
-   - `literal_sample_id` in `src/inspect_ai/_eval/task/util.py`.
    - `src/inspect_ai/_eval/zero.py`: `empty_attempt`, `empty_attempt_check`,
      `SetupWroteScores` and the scratch eval.
    - `zero_samples` / `zero_samples_async` in `_disposition.py`, with a
@@ -1497,6 +1558,11 @@ additions later:
   later need a per-sample mark that does not depend on reading score
   reasons. `EvalSample.invalidation` cannot serve: an invalidated sample is
   one to re-run.
+- **Zero for dict and list verdicts**, for scorers such as HLE's. It needs
+  a rule for when a structured verdict counts under every metric the log
+  computes: no `NaN` or `None` among its values, and every key that a metric
+  reading named keys (`aggregate(..., on_missing="skip")`) expects, without
+  inferring those keys from other samples' scores.
 - **Zero for integer ids**, for datasets that do not give their samples
   string ids, if a reliable way to establish that a logged integer id names
   the same sample turns up (the log would have to record whether its ids
