@@ -861,11 +861,12 @@ async def test_s3_walk_lists_each_directory_once_and_never_a_buffer(
     name = Path(finished_log.location).name
     _upload(finished_log.location, f"{prefix}/{name}")
     _upload(finished_log.location, f"{prefix}/sub/{name}")
+    s3 = boto3.client("s3")
     for i in range(300):
-        boto3.client("s3").put_object(
+        s3.put_object(
             Bucket="test-bucket", Key=f"{prefix}/.buffer/x/segment.{i}.zip", Body=b""
         )
-        boto3.client("s3").put_object(
+        s3.put_object(
             Bucket="test-bucket", Key=f"{prefix}/run.checkpoints/{i}", Body=b""
         )
     async with AsyncFilesystem() as fs:
@@ -2796,10 +2797,11 @@ async def test_s3_walk_of_a_shard_set_lists_each_shard_once(
 ) -> None:
     prefix = "log-dir-shards"
     name = Path(finished_log.location).name
+    s3 = boto3.client("s3")
     for k in range(5):
         _upload(finished_log.location, f"{prefix}/{_SET_NAME}.shards/{k}/{name}")
         for i in range(50):
-            boto3.client("s3").put_object(
+            s3.put_object(
                 Bucket="test-bucket",
                 Key=f"{prefix}/{_SET_NAME}.shards/{k}/.buffer/x/segment.{i}.zip",
                 Body=b"",
