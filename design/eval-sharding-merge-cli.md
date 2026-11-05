@@ -247,9 +247,17 @@ with the equivalent flags: a spec's `model`, `base_url` and model args as
 needed, above); a run config's `task` and its arguments, `model` with
 its arguments and base URL, `model_roles`, and the `epochs` and
 `epochs_reducer` of its `eval_config` as `--task`, `-T`, `--model`, `-M`,
-`--model-base-url`, `--model-role`, `--epochs` and `--epochs-reducer`
-(`inspect log export-config` of a worker's shard log shows these values;
-the command does not read them from the log itself). Their environment
+`--model-base-url`, `--model-role`, `--epochs` and `--epochs-reducer`.
+The values are the ones the launcher gave its workers, taken from its own
+command line or the original spec or run config, including the model
+roles it passed. `inspect log export-config` of a shard log is not a
+substitute: it exports the model, arguments and roles recorded after
+task resolution applied the task's own model and role defaults
+(`log/_config.py:46-77`, `_eval/loader.py:110-125`), so a factory built
+under `--model mockllm/incoming` that returns a task on
+`mockllm/execution` exports the latter, and rebuilding from it can build
+a different metric under the same name, which the names-only check
+accepts. Their environment
 variables would change the task `inspect eval` builds, so the command
 refuses them rather than ignore them (`invalid_arguments`, before the task
 is built, naming the variable and the flags to use instead):
@@ -428,8 +436,18 @@ so an error from the task's own code never reads as a merge refusal:
 
 Click's own errors (an unknown option, a missing `--task`, a non-integer
 `--sample-count`) exit 2 with click's usage message and no envelope, as in
-`inspect ctl`. Ctrl-C passes through: the merge's own cancellation handling
-releases its lock and writes nothing, and no envelope is printed.
+`inspect ctl`. Ctrl-C passes through with no report and no envelope,
+and the merge's own cancellation handling releases its lock. What it
+leaves depends on when it lands. Before publication, the merged log is
+unchanged. During publication the outcome is the merge API's, unchanged
+here: a local replacement runs in an owned worker that finishes before
+the cancellation propagates (`run_owned`, `_shards/_publish.py:164-168`),
+so the merged log may be replaced; an S3 conditional upload cancelled
+after its final request was sent may or may not have been written
+(`AsyncFilesystem.write_file_conditional`). An interrupted command
+therefore does not show that nothing was published: inspect the merged
+log, or run the merge again, which is idempotent and reports
+"No changes" when the interrupted run did publish.
 
 The incomplete message the API raises names the Python argument; it
 becomes "Pass allow_incomplete (--allow-incomplete on the command line) to
@@ -622,6 +640,16 @@ network, Docker or provider keys. Each test writes a task file to
   before the task file is imported; `--log-dir` on the command line is
   `invalid_arguments`; a metric that raises is `internal` with its
   traceback on stderr.
+- **Interruption.** A command whose merge is cancelled before
+  publication (a patched shard read that cancels) prints no report and no
+  envelope, leaves the merged log byte-identical and removes its lock;
+  one cancelled after the local publication worker started (the
+  `_replace_local` pause of
+  `test_a_cancelled_publish_finishes_before_a_later_merge`) prints no
+  report and no envelope, and a re-run reports "No changes" with
+  `written: false`. The publication boundary itself stays covered by that
+  API test on asyncio; the S3 path's unknown outcome is the existing
+  `write_file_conditional` contract and is not re-tested here.
 - **`--json` owns stdout.** With a factory that prints and a metric that
   logs a warning, stdout parses as exactly one JSON object, on success and
   on each error kind above; stderr holds the print and the warning.
