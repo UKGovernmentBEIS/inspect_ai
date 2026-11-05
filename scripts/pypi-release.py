@@ -489,34 +489,41 @@ def verify_wheel_contents(
     logging.info(f"✓ Wheel contents verified: {wheel_path.name}")
 
 
-def _manifest_excludes_sandbox_binaries(manifest_text: str) -> bool:
-    """True when MANIFEST.in keeps sandbox tools binaries out of the sdist."""
-    return (
-        re.search(
-            r"^(?:recursive-exclude|prune)\s+src/inspect_ai/binaries\b",
-            manifest_text,
-            flags=re.MULTILINE,
-        )
-        is not None
-    )
+# First release whose sdist must not contain the sandbox tools binaries. Earlier
+# tags shipped them, and publish-parity rebuilds the latest tag with this
+# revision's verify-dist.
+SDIST_BINARIES_ALLOWED_BEFORE = "0.3.288"
+
+ALLOW_SDIST_BINARIES_ENV = "INSPECT_ALLOW_SDIST_BINARIES"
 
 
-def _sdist_manifest_excludes_sandbox_binaries(archive: tarfile.TarFile) -> bool:
-    """Read MANIFEST.in from an sdist and report whether it excludes the binaries.
+def _release_version_tuple(version: str) -> Optional[Tuple[int, ...]]:
+    """Parse a plain release version (`0.3.287`); None for anything else.
 
-    Publish-parity rebuilds the latest PyPI tag with this revision's verify-dist.
-    Older tags shipped binaries in the sdist and their MANIFEST.in does not
-    exclude them; the gate must not fail those rebuilds. New trees that exclude
-    the binaries in MANIFEST.in still fail if the sdist packs them.
+    The script runs without site-packages (bare setup-python in publish-dist,
+    `python -I -S` for local releases), so `packaging` is not available.
     """
-    for member in archive.getmembers():
-        if not member.isfile() or member.name.partition("/")[2] != "MANIFEST.in":
-            continue
-        extracted = archive.extractfile(member)
-        if extracted is None:
-            return False
-        return _manifest_excludes_sandbox_binaries(extracted.read().decode())
-    return False
+    if not re.fullmatch(r"\d+(?:\.\d+)*", version):
+        return None
+    return tuple(int(part) for part in version.split("."))
+
+
+def _allow_sdist_binaries(version: str) -> bool:
+    """True when an sdist of `version` may contain the sandbox tools binaries.
+
+    Allowed when `INSPECT_ALLOW_SDIST_BINARIES` is 1/true/yes, or when `version`
+    is a plain release version earlier than `SDIST_BINARIES_ALLOWED_BEFORE`.
+    Any other version (including dev or local versions) never allows them.
+    """
+    if os.environ.get(ALLOW_SDIST_BINARIES_ENV, "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+    ):
+        return True
+    parsed = _release_version_tuple(version)
+    cutoff = _release_version_tuple(SDIST_BINARIES_ALLOWED_BEFORE)
+    return parsed is not None and cutoff is not None and parsed < cutoff
 
 
 def verify_dist(dist_dir: Path, version: str, sandbox_version: str) -> None:
@@ -529,8 +536,9 @@ def verify_dist(dist_dir: Path, version: str, sandbox_version: str) -> None:
     Raises:
         RuntimeError: If dist/ holds anything other than exactly one sdist
             and one wheel of `version`, the sdist contains a file under
-            `src/inspect_ai/binaries/` while its MANIFEST.in excludes them,
-            or the wheel fails `verify_wheel_contents`.
+            `src/inspect_ai/binaries/` (allowed only when `version` predates
+            `SDIST_BINARIES_ALLOWED_BEFORE` or `INSPECT_ALLOW_SDIST_BINARIES`
+            is set), or the wheel fails `verify_wheel_contents`.
     """
     files = sorted(f.name for f in dist_dir.iterdir()) if dist_dir.is_dir() else []
     wheels = [f for f in files if f.endswith(".whl")]
@@ -554,16 +562,16 @@ def verify_dist(dist_dir: Path, version: str, sandbox_version: str) -> None:
             for name in archive.getnames()
             if name.partition("/")[2].startswith("src/inspect_ai/binaries/")
         ]
-        excludes = _sdist_manifest_excludes_sandbox_binaries(archive)
-    if binaries and excludes:
+    if binaries and not _allow_sdist_binaries(version):
         raise RuntimeError(
             f"{sdist} must not contain the sandbox tools binaries; found "
             f"{binaries}. Check MANIFEST.in."
         )
     if binaries:
         logging.info(
-            f"{sdist} contains sandbox tools binaries; its MANIFEST.in does not "
-            f"exclude them (expected when rebuilding a release that shipped them)"
+            f"{sdist} contains sandbox tools binaries; allowed for {version} "
+            f"(predates {SDIST_BINARIES_ALLOWED_BEFORE} or "
+            f"{ALLOW_SDIST_BINARIES_ENV} is set)"
         )
 
     verify_wheel_contents(dist_dir / wheel, sandbox_version)
