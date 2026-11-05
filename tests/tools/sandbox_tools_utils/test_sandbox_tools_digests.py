@@ -367,6 +367,26 @@ async def test_open_executable_after_local_build_is_not_verified(
     assert await _open() == (_GLIBC_DEV, b"local build")
 
 
+async def test_open_executable_verifies_published_name_after_local_build(
+    binaries: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _install_state(monkeypatch, "clean")
+
+    async def download(filename: str) -> bool:
+        return False
+
+    async def build(arch: str, musl: bool, name: str) -> None:
+        (binaries / name).write_bytes(b"tampered")
+
+    monkeypatch.setattr(sandbox_module, "_download_from_s3", download)
+    monkeypatch.setattr(sandbox_module, "_build_it", build)
+
+    with pytest.raises(
+        PrerequisiteError, match=f"Digest verification failed for {_GLIBC}"
+    ):
+        await _open()
+
+
 # ---------------------------------------------------------------------------
 # scripts/pypi-release.py verification helpers
 # ---------------------------------------------------------------------------

@@ -690,9 +690,10 @@ async def test_extract_falls_back_to_plain_tar_inside_verified_directory() -> No
 async def test_extract_fallback_ignores_stale_uncompressed_tar(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A stale or tampered `.tar` in the binaries dir is never injected."""
+    """A stale or tampered `<name>.tar` in the binaries dir is never injected."""
     monkeypatch.setattr(sandbox_tools, "_binaries_dir", lambda: tmp_path)
-    (tmp_path / "inspect-sandbox-tools-amd64-v1.tar").write_bytes(b"tampered")
+    stale = tmp_path / "name.tar"
+    stale.write_bytes(b"tampered")
 
     sandbox = CannedSandbox(_gzip_unsupported)
     await sandbox_tools._extract_tools_tree(
@@ -701,6 +702,8 @@ async def test_extract_fallback_ignores_stale_uncompressed_tar(
 
     assert sandbox.inputs[-1] == b"verified"
     assert b"tampered" not in sandbox.inputs
+    assert list(tmp_path.iterdir()) == [stale]
+    assert stale.read_bytes() == b"tampered"
 
 
 async def test_extract_propagates_helper_verdict() -> None:
