@@ -1407,7 +1407,9 @@ def _read_message_file(path: str) -> str:
     """
     try:
         if path == "-":
-            return click.get_text_stream("stdin", encoding="utf-8").read()
+            with click.open_file("-", encoding="utf-8") as stdin:
+                text: str = stdin.read()
+            return text
         with file(local_path(path), "r", encoding="utf-8") as f:
             return f.read()
     except Exception as ex:
