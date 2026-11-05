@@ -89,10 +89,38 @@ class Job:
             user: User to run the command as (requires can_switch_user=True).
             can_switch_user: Whether the server can switch users (running as root).
         """
-        user = switch_target(user, can_switch_user)
+        job = await cls.spawn(
+            command,
+            stdin=input is not None or stdin_open,
+            env=env,
+            cwd=cwd,
+            user=user,
+            can_switch_user=can_switch_user,
+        )
+        await job.initialize_stdin(input, stdin_open)
+        return job
 
-        # Use stdin=PIPE if we have input to send or if stdin should stay open
-        stdin = asyncio.subprocess.PIPE if (input is not None or stdin_open) else None
+    @classmethod
+    async def spawn(
+        cls,
+        command: str,
+        stdin: bool = False,
+        env: dict[str, str] | None = None,
+        cwd: str | None = None,
+        user: str | RunAs | None = None,
+        can_switch_user: bool = False,
+    ) -> "Job":
+        """Start the process for a new Job, without writing to its stdin.
+
+        Args:
+            command: The shell command to execute.
+            stdin: If True, connect stdin to a pipe for `initialize_stdin`.
+            env: Additional environment variables (merged with current env).
+            cwd: Working directory for command execution.
+            user: User to run the command as (requires can_switch_user=True).
+            can_switch_user: Whether the server can switch users (running as root).
+        """
+        user = switch_target(user, can_switch_user)
 
         # Merge additional env vars with current environment if provided. When
         # switching user, HOME follows the user unless the caller set it explicitly.
@@ -102,7 +130,7 @@ class Job:
 
         process = await asyncio.create_subprocess_shell(
             command,
-            stdin=stdin,
+            stdin=asyncio.subprocess.PIPE if stdin else None,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             start_new_session=True,
@@ -111,19 +139,27 @@ class Job:
             preexec_fn=make_preexec(user),
         )
 
-        job = cls(process)
+        return cls(process)
 
-        # Write initial input if provided
-        if input is not None and process.stdin is not None:
-            process.stdin.write(input.encode("utf-8"))
-            await process.stdin.drain()
+    async def initialize_stdin(self, input: str | None, stdin_open: bool) -> None:
+        """Write the initial input, then close stdin unless it is kept open.
 
-        # Close stdin unless caller wants it kept open
-        if not stdin_open and process.stdin is not None:
-            process.stdin.close()
-            await process.stdin.wait_closed()
+        This can wait as long as the command does not read its input, and it
+        raises if the command closes stdin first.
 
-        return job
+        Args:
+            input: Standard input to send to the command, if any.
+            stdin_open: If True, keep stdin open for later writes.
+        """
+        stdin = self._process.stdin
+        if stdin is None:
+            return
+        if input is not None:
+            stdin.write(input.encode("utf-8"))
+            await stdin.drain()
+        if not stdin_open:
+            stdin.close()
+            await stdin.wait_closed()
 
     def __init__(self, process: AsyncIOProcess) -> None:
         self._process = process
@@ -136,6 +172,8 @@ class Job:
         self._acked_buffer: AckedChunkBuffer[tuple[str, str]] = AckedChunkBuffer()
         self._known_descendants: list[psutil.Process] = []
         self._retired = False
+        # Termination started by the first kill(); later kills wait for it.
+        self._termination: asyncio.Task[None] | None = None
 
         # Start background read tasks
         self._stdout_task = asyncio.create_task(
@@ -150,6 +188,11 @@ class Job:
         """Return the process ID."""
         assert self._process.pid is not None
         return self._process.pid
+
+    @property
+    def killed(self) -> bool:
+        """Whether kill() or shutdown() signalled the leader while it ran."""
+        return self._killed
 
     @property
     def _state(self) -> Literal["running", "completed", "killed"]:
@@ -246,32 +289,48 @@ class Job:
         as root would then signal. A job whose leader exited on its own is
         treated as finished: it keeps its exit code, its buffered output is
         returned and any children that outlived it may be left running.
+
+        Termination runs once, shielded from cancellation of the caller: a kill
+        that arrives while another is terminating the job waits for it, so no
+        caller returns before the group has been terminated.
         """
-        if self._killed:
+        if self._killed and self._termination is None:
+            # shutdown() already terminated it
             self._acked_buffer.push(("", ""))
             seq, chunks = self._acked_buffer.collect(ack_seq)
             return OutputChunk(seq, *self._combine_chunks(chunks))
 
-        # Check and signal are not atomic. Likelihood that leader could exit, be
-        # reaped and have its PID reused between is unlikely, as the PID space must
-        # wrap inside that gap.
-        if self._leader_running():
-            self._killed = True
-            pgid = self.pid
-            try:
-                os.killpg(pgid, signal.SIGTERM)
-                await asyncio.wait_for(self._process.wait(), timeout=timeout)
-            except asyncio.TimeoutError:
-                await self._force_kill_group(pgid, timeout)
-            except ProcessLookupError:
-                pass
-
+        if self._termination is None:
+            self._termination = asyncio.create_task(self._terminate_group(timeout))
+        await asyncio.shield(self._termination)
         await self._wait_for_readers()
 
         stdout, stderr = self._drain_buffers(final=True)
         self._acked_buffer.push((stdout, stderr))
         seq, chunks = self._acked_buffer.collect(ack_seq)
         return OutputChunk(seq, *self._combine_chunks(chunks))
+
+    async def await_termination(self) -> None:
+        """Wait for an in-progress kill to finish, if one exists."""
+        if self._termination is not None:
+            await asyncio.shield(self._termination)
+
+    async def _terminate_group(self, timeout: int) -> None:
+        # The leader is checked here, with no await before the signal, so an exit
+        # after kill() was called keeps its exit code. Check and signal are still
+        # not atomic. Likelihood that leader could exit, be reaped and have its PID
+        # reused between is unlikely, as the PID space must wrap inside that gap.
+        if not self._leader_running():
+            return
+        self._killed = True
+        pgid = self.pid
+        try:
+            os.killpg(pgid, signal.SIGTERM)
+            await asyncio.wait_for(self._process.wait(), timeout=timeout)
+        except asyncio.TimeoutError:
+            await self._force_kill_group(pgid, timeout)
+        except ProcessLookupError:
+            pass
 
     async def shutdown(self, timeout: int = 30) -> None:
         """Forcefully terminate this server-owned job during server shutdown."""
