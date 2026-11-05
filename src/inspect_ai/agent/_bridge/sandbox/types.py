@@ -106,7 +106,7 @@ class SandboxAgentBridge(AgentBridge):
         self._failure_requested = anyio.Event()
         self._failure: Exception | None = None
         self.generation_limit: LimitExceededError | None = None
-        """The first limit reached in a bridged generation, raised by `sandbox_agent_bridge`."""
+        """The limit reached in a bridged generation that `sandbox_agent_bridge` raises: the first, unless a later one encloses it."""
 
     port: int
     """Model proxy server port."""

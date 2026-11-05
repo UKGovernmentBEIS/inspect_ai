@@ -404,7 +404,7 @@ Run it from the command line:
 inspect eval addition.py --model openai/gpt-6-luna
 ```
 
-Inspect includes many [standard tools](tools-standard.qmd) (code execution, web search, web browsing, computer use, etc.) so check the built-in tools before writing your own.
+Inspect includes many [standard tools](tools-standard.qmd) (code execution, web search, computer use, etc.) so check the built-in tools before writing your own.
 
 ## Log Analysis {#sec-analysis}
 

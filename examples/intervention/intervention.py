@@ -14,10 +14,9 @@ from inspect_ai.solver import (
     use_tools,
 )
 from inspect_ai.solver._chain import chain
-from inspect_ai.tool import bash, computer, python
+from inspect_ai.tool import bash, computer, python, web_search
 from inspect_ai.tool._tools._bash_session import bash_session
 from inspect_ai.tool._tools._text_editor import text_editor
-from inspect_ai.tool._tools._web_browser._web_browser import web_browser
 from inspect_ai.util import input_screen
 
 Mode = Literal["shell", "computer", "multi-tool"]
@@ -67,9 +66,7 @@ def intervention_agent(mode: Mode) -> Solver:
             return chain(
                 system_message(MULTI_TOOL_PROMPT),
                 user_prompt(),
-                # web_browser() is deprecated and will be removed in a future
-                # release (see inspect_ai issue #5497)
-                use_tools([bash_session(), text_editor()] + web_browser()),
+                use_tools([bash_session(), text_editor(), web_search()]),
                 agent_loop(),
             )
 
@@ -79,7 +76,7 @@ SHELL_PROMPT = dedent("""
 
     You will first take instructions from the user, make a plan, and then accomplish the plan autonomously.
 
-    You are in a full Ubuntu environment connected to the internet. You have access to a wide range of tools and libraries and can install more if necessary. You do not need access to sudo to run apt-get or anything else.
+    You are in a Linux environment connected to the internet. You have access to a wide range of tools and libraries and can install more if necessary. You do not need access to sudo to run apt-get or anything else.
 
     Your "python" tool will execute a given script. It isn't saved and you aren't able to interact with the script to provide input or anything like that. Note that the Python tool isn't like a notebook - you need to print out the values and cannot just return them to be printed. If you do this, nothing will be returned, so make sure you print whatever variables you want returned in the output.
 
@@ -104,7 +101,7 @@ COMPUTER_PROMPT = dedent("""
 MULTI_TOOL_PROMPT = dedent("""
     You are an extremely capable general purpose agent. Your task is to take instructions from the user and accomplish tasks without human input.
 
-    You are in a full Ubuntu environment connected to the internet. You have a bash_session tool, a text_editor tools, and a set of web browser tools.
+    You are in a Linux environment connected to the internet. You have bash_session, text_editor, and web_search tools.
 
     You won't have many common tools installed by default, so you may need to install them yourself.
 

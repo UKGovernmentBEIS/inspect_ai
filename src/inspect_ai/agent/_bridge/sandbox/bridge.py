@@ -72,7 +72,7 @@ BRIDGE_TOKEN_LENGTH = 64
 BRIDGE_TOKEN_TIMEOUT = 60
 """Seconds to wait for a token-minting model proxy to start, and then to publish its token."""
 
-BRIDGE_TOKEN_TOOLS_VERSION = semver.Version(1, 4, 0)
+BRIDGE_TOKEN_TOOLS_VERSION = semver.Version(1, 5, 0)
 """First inspect-sandbox-tools version whose model proxy mints a bridge token."""
 
 _TOKEN_EXEC_TIMEOUT = 30
@@ -414,11 +414,11 @@ async def _error_after_unwind(
     """The error to raise once the agent has unwound, if any.
 
     A requested sample failure (`SandboxAgentBridge.request_fail`), else the
-    first generation limit recorded. A failure `_monitor_failure` raised, so
-    the agent unwound with it, is returned as is. Otherwise a pending enclosing
-    cancellation is delivered first: it passes through, and a failure the
-    monitor had not yet raised is lost with the limit (decision: Ransom,
-    2026-10-29).
+    generation limit recorded (`SandboxAgentBridge.generation_limit`). A
+    failure `_monitor_failure` raised, so the agent unwound with it, is
+    returned as is. Otherwise a pending enclosing cancellation is delivered
+    first: it passes through, and a failure the monitor had not yet raised is
+    lost with the limit (decision: Ransom, 2026-10-29).
     """
     if bridge is None:
         return None
@@ -458,7 +458,7 @@ async def _check_tools_mint_tokens(sandbox_env: SandboxEnvironment, user: str) -
         method="version",
         params={},
         result_type=str,
-        transport=SandboxJSONRPCTransport(sandbox_env, SANDBOX_CLI),
+        transport=SandboxJSONRPCTransport(sandbox_env),
         error_mapper=SandboxToolsErrorMapper,
         timeout=_TOKEN_EXEC_TIMEOUT,
         user=sandbox_env._tools_user,

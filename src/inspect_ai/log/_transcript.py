@@ -40,7 +40,7 @@ from inspect_ai.log._condense import (
     resolve_events_attachments,
 )
 from inspect_ai.model._chat_message import ChatMessageBase
-from inspect_ai.model._model_call import ModelCall
+from inspect_ai.model._model_call import ModelCall, init_call_interner
 from inspect_ai.util._span import AgentSpans
 from inspect_ai.util._store import (
     store,
@@ -1175,6 +1175,7 @@ def track_store_changes() -> Iterator[None]:
 
 def init_transcript(transcript: Transcript) -> None:
     _transcript.set(transcript)
+    init_call_interner(transcript._log_model_api is True)
 
 
 _transcript: ContextVar[Transcript | None] = ContextVar(

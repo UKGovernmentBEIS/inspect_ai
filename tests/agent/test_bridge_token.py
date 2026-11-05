@@ -69,7 +69,7 @@ class _BridgeSandbox(CannedSandbox):
     def __init__(
         self,
         *,
-        tools_version: str = "1.4.0",
+        tools_version: str = "1.5.0",
         publish_after: int | None = 2,
         exit_stderr: str | None = None,
     ) -> None:
@@ -405,9 +405,9 @@ async def test_a_proxy_start_that_never_answers_ends_the_bridge_within_the_bound
 async def test_bridge_in_a_scope_refuses_tools_that_cannot_mint_tokens(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    sandbox = _BridgeSandbox(tools_version="1.3.0")
+    sandbox = _BridgeSandbox(tools_version="1.4.0")
     with _sandbox(monkeypatch, sandbox), sandbox_identity("w-1"):
-        with pytest.raises(SandboxIdentityError, match="needs version 1.4.0"):
+        with pytest.raises(SandboxIdentityError, match="needs version 1.5.0"):
             async with sandbox_agent_bridge():
                 raise AssertionError("bridge yielded")
 
