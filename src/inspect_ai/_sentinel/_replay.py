@@ -177,26 +177,56 @@ def _records_phases(
 
 def _has_spanless_native_tool(events: Sequence[Event]) -> bool:
     """Whether a completed native tool event has no matching tool span, as in logs before 0.3.94."""
-    previous: Event | None = None
-    for event in events:
-        if (
-            isinstance(event, ToolEvent)
-            and not (
-                isinstance(previous, SpanBeginEvent)
-                and previous.type == "tool"
-                and previous.name == event.function
-            )
-            and event.completed is not None
-            and not (event.metadata is not None and "bridge" in event.metadata)
-            and not event.pending
-            and (
-                event.error is None
-                or event.error.type not in ("parsing", "approval", "cancelled")
-            )
-        ):
-            return True
-        previous = event
-    return False
+    spans = _tool_spans(events)
+    return any(
+        isinstance(event, ToolEvent)
+        and index not in spans
+        and event.completed is not None
+        and not (event.metadata is not None and "bridge" in event.metadata)
+        and not event.pending
+        and (
+            event.error is None
+            or event.error.type not in ("parsing", "approval", "cancelled")
+        )
+        for index, event in enumerate(events)
+    )
+
+
+def _tool_spans(events: Sequence[Event]) -> dict[int, str]:
+    """The `tool` span of each `ToolEvent` that has one, by event index.
+
+    `call_tool` records the event, which names the span that called the tool, first in the tool's span (under a `handoff` span for a handoff), so the span is the event's previous sibling in the span tree. Rescoring rebuilds the events from that tree, which moves the event after the span's end. An event that names the tool span itself is paired with it when it is the span's first child.
+    """
+    begins: dict[str, SpanBeginEvent] = {}
+    last_child: dict[str | None, Event] = {}
+    spans: dict[int, str] = {}
+    for index, event in enumerate(events):
+        if isinstance(event, SpanEndEvent):
+            continue
+        if isinstance(event, SpanBeginEvent):
+            begins[event.id] = event
+            parent = event.parent_id
+        else:
+            parent = event.span_id
+        if isinstance(event, ToolEvent):
+            own = begins.get(parent) if parent is not None else None
+            if own is not None and parent not in last_child:
+                candidate: Event | None = own
+            else:
+                candidate = last_child.get(parent)
+                if (
+                    isinstance(candidate, SpanBeginEvent)
+                    and candidate.type == "handoff"
+                ):
+                    candidate = last_child.get(candidate.id)
+            if (
+                isinstance(candidate, SpanBeginEvent)
+                and candidate.type == "tool"
+                and candidate.name == event.function
+            ):
+                spans[index] = candidate.id
+        last_child[parent] = event
+    return spans
 
 
 def _condensed(
@@ -434,7 +464,7 @@ class _Call:
     producer: ModelEvent | None
     approval: ApprovalEvent | None
     seq: int
-    # the call's `tool` span, which call_tool opens just before recording the event
+    # the call's `tool` span (_tool_spans)
     tool_span: str | None
 
 
@@ -542,6 +572,7 @@ class _Driver:
         unplaced_approvals: list[tuple[int, ApprovalEvent]] = []
         consumed_approvals: set[int] = set()
         calls: list[_Call] = []
+        tool_spans = _tool_spans(self.events)
 
         # Every span first so origin inference sees later span declarations.
         for event in self.events:
@@ -643,7 +674,7 @@ class _Driver:
                     producer,
                     recorded_approval[1] if recorded_approval is not None else None,
                     self._next_seq(3),
-                    self._tool_span(index, event),
+                    tool_spans.get(index),
                 )
                 calls.append(entry)
 
@@ -756,16 +787,6 @@ class _Driver:
         for walked_id in walked:
             self.sentinel_span_of[walked_id] = found
         return found
-
-    def _tool_span(self, index: int, event: ToolEvent) -> str | None:
-        previous = self.events[index - 1] if index > 0 else None
-        if (
-            isinstance(previous, SpanBeginEvent)
-            and previous.type == "tool"
-            and previous.name == event.function
-        ):
-            return previous.id
-        return None
 
     def _in_sentinel_span(self, span_id: str | None) -> bool:
         return self._sentinel_span(span_id) is not None

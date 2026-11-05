@@ -5352,6 +5352,42 @@ def test_the_archived_0_3_99_log_is_refused(inputs: str, versioned: bool) -> Non
         )
 
 
+@scorer(metrics=[])
+def constant() -> Scorer:
+    async def apply(state: TaskState, target: Target) -> Score:
+        return Score(value=1)
+
+    return apply
+
+
+def rescored(log: EvalLog, action: Literal["append", "overwrite"] | None) -> EvalLog:
+    from inspect_ai import score
+
+    if action is None:
+        return log
+    return score(log.model_copy(deep=True), constant(), action=action, display="none")
+
+
+def replay_sample(
+    log: EvalLog, origins: bool, inputs: str, versioned: bool = True
+) -> list["ReplayStep"]:
+    from inspect_ai._sentinel import _replay
+
+    [sample] = log.samples or []
+    sample = EvalSample.model_validate_json(sample.model_dump_json())
+    events = sample.events if origins else without_origins(sample.events)
+    pool: list[ChatMessage] = []
+    if inputs == "pooled":
+        events, pool = _replay._condensed(events, [])
+    return steps_from_events(
+        sample.messages,
+        events,
+        pool,
+        sample_uuid=sample.uuid or "sample",
+        eval_info=EvalInfo.from_eval(log.eval) if versioned else EvalInfo(None, False),
+    )
+
+
 @pytest.mark.parametrize("inputs", ["expanded", "pooled"])
 @pytest.mark.parametrize("action", ["append", "overwrite"])
 @pytest.mark.parametrize("approval", ["unchanged", "none"])
@@ -5361,23 +5397,10 @@ def test_a_rescored_then_retried_0_3_99_sample_is_refused(
     # Ransom's review 37 B1: rescoring adds a top-level scorers span to an
     # older sample, which a retried eval keeps under a newer header; the
     # approval is left unchanged so only the layout refuses it
-    from inspect_ai import score
     from inspect_ai._sentinel import _replay
 
-    @scorer(metrics=[])
-    def constant() -> Scorer:
-        async def apply(state: TaskState, target: Target) -> Score:
-            return Score(value=1)
-
-        return apply
-
     path = Path(__file__).parent / "fixtures" / "approval_modified_0.3.99.json"
-    log = score(
-        read_eval_log(str(path), resolve_attachments="full"),
-        constant(),
-        action=action,
-        display="none",
-    )
+    log = rescored(read_eval_log(str(path), resolve_attachments="full"), action)
     [sample] = log.samples or []
     sample = EvalSample.model_validate_json(sample.model_dump_json())
     assert any(
@@ -5408,27 +5431,80 @@ def test_a_rescored_then_retried_0_3_99_sample_is_refused(
 
 
 @pytest.mark.parametrize("inputs", ["expanded", "pooled"])
+@pytest.mark.parametrize("origins", [True, False])
+@pytest.mark.parametrize("cleanup", [False, True])
+@pytest.mark.parametrize("action", ["append", "overwrite"])
+@pytest.mark.parametrize("shape", ["call", "parallel", "handoff"])
+def test_a_rescored_log_replays_its_tool_stages(
+    shape: str,
+    action: Literal["append", "overwrite"],
+    cleanup: bool,
+    origins: bool,
+    inputs: str,
+) -> None:
+    # Review of 76e89a08b: rescoring rebuilds the events from the span tree,
+    # which moves each ToolEvent after its tool span's end
+    from inspect_ai.solver import chain
+
+    @solver
+    def cleans_up() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            await get_model().generate("cleanup")
+            return state
+
+        return solve
+
+    async def cleanup_chain(state: TaskState) -> None:
+        async def no_generate(*args: Any, **kwargs: Any) -> TaskState:
+            raise AssertionError("cleanup does not generate")
+
+        await chain(cleans_up())(state, no_generate)
+
+    tools: list[Tool] = (
+        [handoff(helper(outputs(call("addition", x=2, y=3), done("helper done"))))]
+        if shape == "handoff"
+        else [addition()]
+    )
+    first = {
+        "call": call("addition", x=1, y=1),
+        "parallel": calls(
+            ("addition", {"x": 1, "y": 1}), ("addition", {"x": 2, "y": 2})
+        ),
+        "handoff": call("transfer_to_helper"),
+    }[shape]
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=tool_loop(*tools),
+        cleanup=cleanup_chain if cleanup else None,
+    )
+    log = eval(task, model=outputs(first, done(), done("cleaned")))[0]
+    assert log.status == "success", log.error
+    log = read_eval_log(str(log.location), resolve_attachments="full")
+    tool_calls = len(first.message.tool_calls or []) + (shape == "handoff")
+
+    def stages(log: EvalLog) -> list[tuple[str, str, tuple[str, int], Any]]:
+        return [
+            (s.stage, s.id, s.segment, comparable(s.step))
+            for s in replay_sample(log, origins, inputs)
+        ]
+
+    before = stages(log)
+    assert [stage for stage, *_ in before].count("tool_result") == tool_calls
+    assert stages(rescored(log, action)) == before
+
+
+@pytest.mark.parametrize("action", [None, "append", "overwrite"])
+@pytest.mark.parametrize("inputs", ["expanded", "pooled"])
 @pytest.mark.parametrize("versioned", [True, False])
-def test_an_archived_0_3_100_log_replays(inputs: str, versioned: bool) -> None:
+def test_an_archived_0_3_100_log_replays(
+    inputs: str, versioned: bool, action: Literal["append", "overwrite"] | None
+) -> None:
     # Inspect 0.3.100's solvers and scorers spans keep the scorer's model call
     # out of the agent's turns in a log without origins
-    from inspect_ai._sentinel import _replay
-
     path = Path(__file__).parent / "fixtures" / "scored_0.3.100.json"
     log = read_eval_log(str(path), resolve_attachments="full")
-    [sample] = log.samples or []
     assert log.eval.packages["inspect_ai"] == "0.3.100"
-    events: list[Event] = list(sample.events)
-    pool: list[ChatMessage] = []
-    if inputs == "pooled":
-        events, pool = _replay._condensed(events, [])
-    replay = steps_from_events(
-        sample.messages,
-        events,
-        pool,
-        sample_uuid=sample.uuid or "sample",
-        eval_info=EvalInfo.from_eval(log.eval) if versioned else EvalInfo(None, False),
-    )
+    replay = replay_sample(rescored(log, action), True, inputs, versioned)
     assert [s.stage for s in replay] == [
         "model_input",
         "model_output",
