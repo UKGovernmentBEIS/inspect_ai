@@ -1345,7 +1345,12 @@ def test_an_approvers_approve_replays_as_it_ran() -> None:
 
 
 @agent
-def r7_runs_a_bridged_host_tool() -> Agent:
+def r7_runs_a_bridged_host_tool(
+    name: str = "mcp__host__addition",
+    approval: list[ApprovalPolicy] | None = None,
+) -> Agent:
+    """A scaffold that declares the host tool as `name` (or calls it through Antigravity's `call_mcp_tool` dispatcher) and runs the call the bridge hands it."""
+
     async def execute(state: AgentState) -> AgentState:
         from inspect_ai.agent._bridge.completions import (
             inspect_completions_api_request,
@@ -1361,35 +1366,39 @@ def r7_runs_a_bridged_host_tool() -> Agent:
             port=8080,
             model=None,
             bridged_tools={"host": {"addition": addition()}},
+            approval=approval,
         )
         [served] = bridge.served_tools.values()
         # the scaffold declares the tool under its own name, with the
         # description the bridge served
+        declared = (
+            {
+                "name": name,
+                "description": "Call a tool on an MCP server.",
+                "parameters": {"type": "object"},
+            }
+            if name == "call_mcp_tool"
+            else {
+                "name": name,
+                "description": served.description,
+                "parameters": served.parameters.model_dump(exclude_none=True),
+            }
+        )
         completion = await inspect_completions_api_request(
             {
                 "model": "inspect",
                 "messages": [{"role": "user", "content": "What is 1 + 1?"}],
-                "tools": [
-                    {
-                        "type": "function",
-                        "function": {
-                            "name": "mcp__host__addition",
-                            "description": served.description,
-                            "parameters": served.parameters.model_dump(
-                                exclude_none=True
-                            ),
-                        },
-                    }
-                ],
+                "tools": [{"type": "function", "function": declared}],
             },
             None,
             bridge,
         )
         [proposed] = completion.choices[0].message.tool_calls or []
         assert proposed.type == "function"
-        await call_tool(bridge)(
-            "host", "addition", json.loads(proposed.function.arguments)
-        )
+        arguments = json.loads(proposed.function.arguments)
+        if name == "call_mcp_tool":
+            arguments = arguments["Arguments"]
+        await call_tool(bridge)("host", "addition", arguments)
         return state
 
     return execute
@@ -1413,6 +1422,117 @@ def test_a_bridged_host_tool_call_has_no_tool_steps() -> None:
     live = [e.stage for e in events if isinstance(e, SentinelEvent)]
     assert live == ["model_input", "model_output"]
     assert [step.stage for step in replayed(log)] == live
+
+
+@approver
+def r7_bridged_approver(decision: str) -> Approver:
+    async def approve(
+        message: str, call: ToolCall, view: ToolCallView, history: list[ChatMessage]
+    ) -> Approval:
+        if decision == "modify":
+            return Approval(
+                decision="modify",
+                modified=ToolCall(
+                    id=call.id, function=call.function, arguments={"x": 2, "y": 1}
+                ),
+            )
+        return Approval(decision="approve")
+
+    return approve
+
+
+# the names scaffolds declare a bridged host tool by
+# (tests/agent/test_bridge_approval.py)
+BRIDGED_NAMES = {
+    "bare": "addition",
+    "claude-code": "mcp__host__addition",
+    "gemini-cli": "mcp_host_addition",
+    "gemini-cut": "mcp_" + "s" * 26 + "..." + "s" * 20 + "_addition",
+    "opencode": "host_addition",
+    "codex-hashed": "additio_9f2b038d5e15",
+    "dispatcher": "call_mcp_tool",
+}
+
+
+def bridged_approval_log(name: str, decision: str) -> EvalLog:
+    seen: dict[str, Step] = {}
+    arguments: dict[str, Any] = {"x": 1, "y": 1}
+    proposed = (
+        call(name, ServerName="host", ToolName="addition", Arguments=arguments)
+        if name == "call_mcp_tool"
+        else call(name, **arguments)
+    )
+    return run_logged(
+        as_solver(
+            r7_runs_a_bridged_host_tool(
+                name, [ApprovalPolicy(r7_bridged_approver(decision), "*")]
+            )
+        ),
+        outputs(proposed),
+        sentinel=[r7_probe(seen)],
+    )
+
+
+def replay_inputs(
+    log: EvalLog, events: Sequence[Event], inputs: str
+) -> list["ReplayStep"]:
+    from inspect_ai._sentinel import _replay
+
+    sample = logged_sample(log)
+    pool: list[ChatMessage] = []
+    if inputs == "pooled":
+        events, pool = _replay._condensed(events, [])
+    return steps_from_events(
+        sample.messages,
+        events,
+        pool,
+        sample_uuid=sample.uuid or "",
+        eval_info=EvalInfo.from_eval(log.eval),
+    )
+
+
+@pytest.mark.parametrize("decision", ["approve", "modify"])
+@pytest.mark.parametrize("scaffold", list(BRIDGED_NAMES))
+def test_an_approved_bridged_host_tool_call_replays(
+    scaffold: str, decision: str
+) -> None:
+    """The approval records the call under the scaffold's name, and the host tool's `ToolEvent` under the tool's."""
+    name = BRIDGED_NAMES[scaffold]
+    log = bridged_approval_log(name, decision)
+    events = logged_sample(log).events
+    [approval] = [e for e in events if isinstance(e, ApprovalEvent)]
+    [ran] = [e for e in events if isinstance(e, ToolEvent)]
+    approved = approval.modified or approval.call
+    assert approval.decision == decision
+    assert ran.metadata is not None and ran.metadata["bridge"]["grant"] == "consumed"
+    assert ran.error is None
+    assert ran.arguments == approved.arguments
+    assert ran.function == "addition"
+    assert approved.function == ("addition" if name == "call_mcp_tool" else name)
+    live = [e.stage for e in events if isinstance(e, SentinelEvent)]
+    assert live == ["model_input", "model_output"]
+    expected = [(step.stage, step.id) for step in replayed(log)]
+    assert [stage for stage, _ in expected] == live
+    for inputs in ["expanded", "pooled"]:
+        for recorded in [events, without_origins(events)]:
+            replay = replay_inputs(log, recorded, inputs)
+            assert [(step.stage, step.id) for step in replay] == expected
+
+
+@pytest.mark.parametrize("inputs", ["expanded", "pooled"])
+def test_a_native_tool_event_with_a_bridged_approvals_name_is_refused(
+    inputs: str,
+) -> None:
+    """Without `metadata["bridge"]`, the scaffold's name in the approval is a call the `ToolEvent` does not record."""
+    log = bridged_approval_log("mcp__host__addition", "modify")
+    events = [
+        e.model_copy(update={"metadata": None}) if isinstance(e, ToolEvent) else e
+        for e in logged_sample(log).events
+    ]
+    with pytest.raises(
+        ValueError, match=r"approved call does not match the ToolEvent that ran"
+    ):
+        replay_inputs(log, events, inputs)
 
 
 def run_logged(

@@ -781,10 +781,17 @@ class _Driver:
         parsing or approval error may have been refused before it ran, or its
         tool may have raised the error after running; where its approved call
         differs, it is added to `unverified_calls` instead of refused.
+
+        A host call a sandbox bridge ran (`metadata["bridge"]`) is not checked:
+        its approval records the call under the scaffold's name and its
+        `ToolEvent` under the host tool's, and replay builds no tool steps for
+        it (`_checks_tool_calls`).
         """
         approval = call.approval
         event = call.event
         if approval is None or approval.decision not in ("approve", "modify"):
+            return
+        if event.metadata is not None and "bridge" in event.metadata:
             return
         before_span = self.step_spans.get(("tool_call", event.id))
         approved = approval.modified if approval.modified is not None else approval.call
