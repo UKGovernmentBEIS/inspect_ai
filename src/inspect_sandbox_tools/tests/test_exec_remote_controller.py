@@ -20,8 +20,25 @@ import pytest
 from inspect_sandbox_tools._remote_tools._exec_remote import _job as job_module
 from inspect_sandbox_tools._remote_tools._exec_remote._controller import Controller
 from inspect_sandbox_tools._remote_tools._exec_remote._job import Job
-from inspect_sandbox_tools._remote_tools._exec_remote.tool_types import PollResult
+from inspect_sandbox_tools._remote_tools._exec_remote.tool_types import (
+    OutputChunk,
+    OutputResult,
+    PollResult,
+)
 from inspect_sandbox_tools._util.common_types import ToolException
+
+
+def _stdout(result: OutputResult) -> str:
+    return "".join(chunk.stdout for chunk in result.chunks)
+
+
+def _stderr(result: OutputResult) -> str:
+    return "".join(chunk.stderr for chunk in result.chunks)
+
+
+def _ack_seq(result: OutputResult, ack_seq: int) -> int:
+    """The seq to acknowledge after a reply: its highest chunk seq."""
+    return max([ack_seq, *(chunk.seq for chunk in result.chunks)])
 
 
 class TestControllerConcurrentPollAndKill:
@@ -40,9 +57,7 @@ class TestControllerConcurrentPollAndKill:
         controller = Controller()
         pid = 42
 
-        completed_result = PollResult(
-            state="completed", exit_code=0, seq=1, stdout="", stderr=""
-        )
+        completed_result = PollResult(state="completed", exit_code=0, chunks=[])
 
         # Create a mock job whose poll() and kill() yield control via
         # asyncio.sleep(0). This ensures both coroutines get past _get_job()
@@ -55,9 +70,9 @@ class TestControllerConcurrentPollAndKill:
             await asyncio.sleep(0)
             return completed_result
 
-        async def mock_kill(ack_seq: int) -> tuple[int, str, str]:
+        async def mock_kill(ack_seq: int) -> list[OutputChunk]:
             await asyncio.sleep(0)
-            return (1, "", "")
+            return []
 
         job.poll = mock_poll
         job.kill = mock_kill
@@ -75,7 +90,7 @@ class TestControllerConcurrentPollAndKill:
 
         # Both should complete without error.
         assert poll_result.state == "completed"
-        assert kill_result.stdout == ""
+        assert kill_result.chunks == []
 
         # The job should have been removed from the registry.
         assert pid not in controller._jobs
@@ -196,14 +211,12 @@ async def test_kill_after_leader_exited_returns_output_without_signalling(
     monkeypatch.setattr(os, "killpg", killpg)
 
     try:
-        seq, stdout, stderr = await job.kill(ack_seq=0)
+        chunks = await job.kill(ack_seq=0)
     finally:
         await _stop_job(job)
 
     killpg.assert_not_called()
-    assert seq == 1
-    assert stdout == "done\n"
-    assert stderr == ""
+    assert chunks == [OutputChunk(seq=1, stdout="done\n", stderr="")]
 
 
 @pytest.mark.asyncio
@@ -358,9 +371,9 @@ class TestPollDeliversOutputAfterLeaderExits:
         with anyio.fail_after(5):
             while True:
                 result = await controller.poll(pid, ack_seq)
-                ack_seq = result.seq
-                stdout += result.stdout
-                stderr += result.stderr
+                ack_seq = _ack_seq(result, ack_seq)
+                stdout += _stdout(result)
+                stderr += _stderr(result)
                 if result.state != "running":
                     return result, stdout, stderr
                 await anyio.sleep(interval)
@@ -784,14 +797,12 @@ class TestKillByJobKey:
 
         async def poll(ack_seq: int, wait: float) -> PollResult:
             await terminating.wait()
-            return PollResult(
-                state="killed", exit_code=None, seq=1, stdout="", stderr=""
-            )
+            return PollResult(state="killed", exit_code=None, chunks=[])
 
-        async def kill(ack_seq: int) -> tuple[int, str, str]:
+        async def kill(ack_seq: int) -> list[OutputChunk]:
             terminating.set()
             await release_termination.wait()
-            return (1, "", "")
+            return []
 
         job.poll = poll
         job.kill = kill
@@ -815,6 +826,54 @@ class TestKillByJobKey:
             assert (await second_kill).killed is False
             assert (await first_kill).killed is True
         job.await_termination.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_waiting_poll_reports_a_kill_only_after_termination(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Race 3: a waiting poll wakes on a kill whose termination still runs.
+
+        The poll waits for the termination before it drains the readers,
+        reports the kill and retires the job.
+        """
+        release_termination = asyncio.Event()
+        real_terminate_group = Job._terminate_group
+
+        async def held_termination(job: Job, timeout: int) -> None:
+            job._killed = True  # as signalled, before the group has exited
+            await release_termination.wait()
+            await real_terminate_group(job, timeout)
+
+        monkeypatch.setattr(Job, "_terminate_group", held_termination)
+        controller = Controller()
+        pid = await controller.submit("sleep 30")
+        job = controller._jobs[pid]
+        joined = asyncio.Event()
+        real_await_termination = job.await_termination
+
+        async def await_termination() -> None:
+            joined.set()
+            await real_await_termination()
+
+        monkeypatch.setattr(job, "await_termination", await_termination)
+        try:
+            with anyio.fail_after(5):
+                poll = asyncio.create_task(controller.poll(pid, ack_seq=0, wait=10))
+                kill = asyncio.create_task(controller.kill(pid, ack_seq=0))
+                await joined.wait()
+                await asyncio.sleep(0)
+                assert not poll.done()
+                assert controller._jobs.get(pid) is job
+
+                release_termination.set()
+                result = await poll
+                await kill
+        finally:
+            _kill_group(pid)
+
+        assert result.state == "killed"
+        assert job._process.returncode is not None
+        assert controller._retired_jobs == [job]
 
     @pytest.mark.asyncio
     async def test_kill_key_after_the_job_ended_reports_nothing_killed(self) -> None:
@@ -863,7 +922,7 @@ class TestWaitingPoll:
             _kill_group(pid)
             await _stop_job(controller._jobs[pid])
 
-        assert (result.state, result.exit_code, result.stdout) == (
+        assert (result.state, result.exit_code, _stdout(result)) == (
             "running",
             None,
             "early",
@@ -881,7 +940,7 @@ class TestWaitingPoll:
 
         result, _ = await _poll_timed(controller, pid, wait=10)
 
-        assert (result.state, result.exit_code, result.stdout) == (
+        assert (result.state, result.exit_code, _stdout(result)) == (
             "completed",
             3,
             "done",
@@ -896,7 +955,7 @@ class TestWaitingPoll:
         finally:
             await controller.kill(pid, ack_seq=0)
 
-        assert (result.state, result.stdout, result.stderr) == ("running", "", "")
+        assert (result.state, result.chunks) == ("running", [])
         assert 0.3 <= elapsed < 2
 
     @pytest.mark.asyncio
@@ -929,7 +988,7 @@ class TestWaitingPoll:
             monkeypatch.undo()
             await controller.kill(pid, ack_seq=0)
 
-        assert (result.state, result.exit_code, result.stdout) == ("running", None, "")
+        assert (result.state, result.exit_code, result.chunks) == ("running", None, [])
         sleep.assert_not_called()
 
 
@@ -941,7 +1000,7 @@ async def test_poll_reports_exit_with_the_output_it_drains() -> None:
 
     result = await controller.poll(pid, ack_seq=0)
 
-    assert (result.state, result.exit_code, result.stdout, result.stderr) == (
+    assert (result.state, result.exit_code, _stdout(result), _stderr(result)) == (
         "completed",
         3,
         "out",
@@ -962,8 +1021,8 @@ async def test_poll_reports_running_until_output_past_the_cap_is_drained(
     ack_seq = 0
     for _ in range(3):
         result = await controller.poll(pid, ack_seq)
-        ack_seq = result.seq
-        replies.append((result.state, result.exit_code, result.stdout))
+        ack_seq = _ack_seq(result, ack_seq)
+        replies.append((result.state, result.exit_code, _stdout(result)))
 
     assert replies == [
         ("running", None, "0123"),

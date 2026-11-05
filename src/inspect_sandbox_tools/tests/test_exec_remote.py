@@ -24,6 +24,20 @@ LONG_RUNNING_SLEEP_SECONDS = 10
 NONEXISTENT_PID = 99999
 
 
+def joined(result: dict[str, Any], ack_seq: int = 0) -> dict[str, Any]:
+    """A reply with its output chunks joined into `stdout` and `stderr`.
+
+    `seq` is the highest chunk seq, or `ack_seq` when the reply has no chunks.
+    """
+    chunks = result["chunks"]
+    return {
+        **result,
+        "seq": max([ack_seq, *(chunk["seq"] for chunk in chunks)]),
+        "stdout": "".join(chunk["stdout"] for chunk in chunks),
+        "stderr": "".join(chunk["stderr"] for chunk in chunks),
+    }
+
+
 def poll_until_complete(
     rpc_client: RpcClient,
     pid: int,
@@ -68,7 +82,7 @@ def poll_until_complete(
         if "error" in response:
             pytest.fail(f"Poll failed: {response['error']}")
 
-        result = response["result"]
+        result = joined(response["result"], ack_seq)
         ack_seq = result["seq"]
         stdout_parts.append(result["stdout"])
         stderr_parts.append(result["stderr"])
@@ -293,7 +307,7 @@ class TestExecRemotePoll:
         )
         elapsed = time.monotonic() - start
 
-        result = poll_response["result"]
+        result = joined(poll_response["result"])
         assert result["stdout"] == "done"
         assert elapsed < 5
         if result["state"] == "running":
@@ -326,7 +340,7 @@ class TestExecRemoteKill:
     """Tests for exec_remote_kill."""
 
     def test_kill_running_job(self, rpc_client: RpcClient) -> None:
-        """Test killing a running job returns stdout and stderr fields."""
+        """Test killing a running job returns its output chunks."""
         # Start a long-running job
         response = rpc_client(
             {
@@ -351,8 +365,7 @@ class TestExecRemoteKill:
         )
 
         assert "result" in kill_response
-        assert "stdout" in kill_response["result"]
-        assert "stderr" in kill_response["result"]
+        assert kill_response["result"] == {"chunks": []}
 
     def test_kill_returns_buffered_output(self, rpc_client: RpcClient) -> None:
         """Test that kill returns any output buffered since the last poll."""
@@ -385,8 +398,9 @@ class TestExecRemoteKill:
         )
 
         assert "result" in kill_response
-        assert "hello_from_kill" in kill_response["result"]["stdout"]
-        assert "err_from_kill" in kill_response["result"]["stderr"]
+        result = joined(kill_response["result"])
+        assert "hello_from_kill" in result["stdout"]
+        assert "err_from_kill" in result["stderr"]
 
 
 class TestExecRemoteKillKey:
@@ -854,7 +868,7 @@ class TestIncrementalOutput:
             if "error" in poll_response:
                 break
 
-            result = poll_response["result"]
+            result = joined(poll_response["result"], ack_seq)
             ack_seq = result["seq"]
             if result["stdout"]:
                 all_stdout.append(result["stdout"])
@@ -990,8 +1004,9 @@ class TestWriteStdinAndCloseStdin:
             DEFAULT_RPC_TIMEOUT,
         )
         assert "result" in response, f"write_stdin failed: {response}"
-        self._ack_seq = response["result"]["seq"]
-        return response["result"]
+        result = joined(response["result"], self._ack_seq)
+        self._ack_seq = result["seq"]
+        return result
 
     def _close_stdin(self, rpc_client: RpcClient, pid: int) -> dict[str, Any]:
         """Close a process's stdin and return the result."""
@@ -1005,8 +1020,9 @@ class TestWriteStdinAndCloseStdin:
             DEFAULT_RPC_TIMEOUT,
         )
         assert "result" in response, f"close_stdin failed: {response}"
-        self._ack_seq = response["result"]["seq"]
-        return response["result"]
+        result = joined(response["result"], self._ack_seq)
+        self._ack_seq = result["seq"]
+        return result
 
     def test_write_then_close_produces_output(self, rpc_client: RpcClient) -> None:
         """Write lines to stdin, close it, and verify the process echoes them back."""

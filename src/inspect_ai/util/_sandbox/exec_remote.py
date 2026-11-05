@@ -147,8 +147,10 @@ class ExecRemoteCommonOptions:
     poll, including that poll's retries. While the command is running, a
     re-issued poll replays any output the lost response carried; if the command
     ended during the stall, its exit status is lost and `RuntimeError` is raised.
-    Only polls are re-issued, and none once `kill()` has been called, even if the
-    kill request itself timed out; the error the last poll got is raised instead.
+    Only polls are re-issued, and none once `kill()` has been called: iteration
+    then ends with the kill's output once the kill request finishes, or, if the
+    kill request failed (for example, it also timed out), the poll's
+    `TimeoutError` is raised.
     A caller's `timeout` (awaitable mode) or cancellation still ends the wait at
     once. Raises `ValueError` with `poll_timeout_retry=False`, which asks for
     timed-out requests not to be retried.
@@ -194,44 +196,31 @@ class _StartResult(BaseModel):
     """The server supports the poll `wait` param. Older servers omit it."""
 
 
-class _PollResult(BaseModel):
+class _OutputChunk(BaseModel):
+    """Output the server buffered for one request, with its sequence number."""
+
+    seq: int
+    stdout: str
+    stderr: str
+
+
+class _OutputResult(BaseModel):
+    """Result from exec_remote_kill, exec_remote_write_stdin and exec_remote_close_stdin."""
+
+    chunks: list[_OutputChunk]
+
+
+class _PollResult(_OutputResult):
     """Result from exec_remote_poll."""
 
     state: Literal["running", "completed", "killed"]
     exit_code: int | None = None
-    seq: int
-    stdout: str
-    stderr: str
-
-
-class _KillResult(BaseModel):
-    """Result from exec_remote_kill."""
-
-    seq: int
-    stdout: str
-    stderr: str
 
 
 class _KillKeyResult(BaseModel):
     """Result from exec_remote_kill_key."""
 
     killed: bool
-
-
-class _WriteStdinResult(BaseModel):
-    """Result from exec_remote_write_stdin."""
-
-    seq: int
-    stdout: str
-    stderr: str
-
-
-class _CloseStdinResult(BaseModel):
-    """Result from exec_remote_close_stdin."""
-
-    seq: int
-    stdout: str
-    stderr: str
 
 
 # ============================================================================
@@ -345,6 +334,9 @@ class ExecRemoteProcess:
         self._job_key = uuid.uuid4().hex
         self._server_wait_end: float | None = None
         self._last_seq: int = 0
+        # Created by the first kill(); set once its kill request has finished.
+        self._stop: anyio.Event | None = None
+        # The sandbox reported the job killed (a poll, or the reply to our kill).
         self._killed = False
         self._completed = False
         self._iteration_started = False
@@ -523,47 +515,57 @@ class ExecRemoteProcess:
         if self._pid is None:
             raise RuntimeError("Process has not been submitted yet")
 
-        # Return any pending events first
-        if self._pending_events:
-            return self._pending_events.pop(0)
-
-        # If already in terminal state, stop iteration
-        if self._completed or self._killed:
-            raise StopAsyncIteration
-
         try:
             while True:
-                # Perform the poll
-                result = await self._poll()
+                if self._pending_events:
+                    return self._pending_events.pop(0)
 
-                # Collect events from this poll
-                events: list[ExecOutput] = []
-                if result.stdout:
-                    events.append(ExecStdout(data=result.stdout))
-                if result.stderr:
-                    events.append(ExecStderr(data=result.stderr))
+                # After kill(), never poll again: end once the kill request
+                # has finished and its output has been yielded.
+                if self._stop is not None:
+                    if self._stop.is_set():
+                        raise StopAsyncIteration
+                    await self._stop.wait()
+                    continue
 
-                # Check for terminal state
+                if self._completed or self._killed:
+                    raise StopAsyncIteration
+
+                try:
+                    result = await self._poll()
+                except (RuntimeError, TimeoutError) as ex:
+                    if self._stop is None:
+                        raise
+                    # kill() was called while this poll was in flight: the job
+                    # may be gone, so end through the kill instead. A timeout
+                    # is still raised unless the kill reached the sandbox.
+                    await self._stop.wait()
+                    if isinstance(ex, TimeoutError) and not self._killed:
+                        raise
+                    continue
+
+                self._merge_output(result.chunks)
                 if result.state == "completed":
                     self._completed = True
                     if result.exit_code is None:
                         raise RuntimeError(
                             "Server returned completed state without exit_code"
                         )
-                    events.append(ExecCompleted(exit_code=result.exit_code))
+                    self._pending_events.append(
+                        ExecCompleted(exit_code=result.exit_code)
+                    )
                 elif result.state == "killed":
-                    # Process was killed (possibly by another call to kill())
+                    # Killed by another call to kill() or in the sandbox. No
+                    # ExecCompleted is yielded for a killed process.
                     self._killed = True
-                    # Don't yield ExecCompleted for killed processes - kill() discards output
 
-                # If we have events, return the first and queue the rest
-                if events:
-                    self._pending_events = events[1:]
-                    return events[0]
-
-                # If killed with no events, stop iteration
-                if self._killed:
-                    raise StopAsyncIteration
+                if (
+                    self._pending_events
+                    or self._completed
+                    or self._killed
+                    or self._stop is not None
+                ):
+                    continue
 
                 # Still running with no output. Inside the server wait window
                 # the next poll waits on the server, so poll again at once.
@@ -578,17 +580,14 @@ class ExecRemoteProcess:
 
     async def _poll(self) -> _PollResult:
         recovery_deadline: float | None = None
-        retried_repoll_error: RuntimeError | None = None
+        retried_error: RuntimeError | None = None
 
         def retryable(ex: BaseException) -> bool:
-            nonlocal retried_repoll_error
-            if not isinstance(ex, RuntimeError):
+            nonlocal retried_error
+            # a poll is not retried once kill() has been called
+            if not isinstance(ex, RuntimeError) or self._stop is not None:
                 return False
-            if recovery_deadline is not None:
-                # a re-issued poll is not retried once kill() has been called
-                if self._killed:
-                    return False
-                retried_repoll_error = ex
+            retried_error = ex
             return True
 
         @retry(
@@ -605,17 +604,15 @@ class ExecRemoteProcess:
 
             # tenacity decides to retry before it backs off, so kill() can be
             # called during the backoff: raise the error again instead of polling
-            if retried_repoll_error is not None and self._killed:
-                raise retried_repoll_error
+            if retried_error is not None and self._stop is not None:
+                raise retried_error
 
             params: dict[str, object] = {"pid": self._pid, "ack_seq": self._last_seq}
             if wait := self._server_wait():
                 params["wait"] = wait
             sandbox_proxy = cast(SandboxEnvironmentProxy, self._transport.sandbox)
             with sandbox_proxy.no_events():
-                result = await self._rpc("exec_remote_poll", params, _PollResult)
-            self._last_seq = result.seq
-            return result
+                return await self._rpc("exec_remote_poll", params, _PollResult)
 
         # A timed-out poll lost a response, not the process: the server keeps each
         # output chunk until the host acknowledges it (ack_seq), so re-issuing the
@@ -626,7 +623,7 @@ class ExecRemoteProcess:
                 return await poll()
             except TimeoutError as ex:
                 recovery = self._options.poll_timeout_recovery
-                if recovery is None or self._killed:
+                if recovery is None or self._stop is not None:
                     raise
                 now = time.monotonic()
                 if recovery_deadline is None:
@@ -642,12 +639,12 @@ class ExecRemoteProcess:
                     recovery_deadline - now,
                 )
                 await anyio.sleep(POLL_TIMEOUT_RECOVERY_WAIT_SECONDS)
-                if self._killed:
+                if self._stop is not None:
                     raise
             except RuntimeError as ex:
                 if (
                     recovery_deadline is not None
-                    and not self._killed
+                    and self._stop is None
                     and f"No job found with pid {self._pid}" in str(ex)
                 ):
                     raise RuntimeError(
@@ -659,11 +656,24 @@ class ExecRemoteProcess:
                     ) from ex
                 raise
 
-    def _enqueue_output(self, stdout: str, stderr: str) -> None:
-        """Enqueue any non-empty output as pending events for the iterator."""
-        if stdout:
+    @property
+    def _terminated(self) -> bool:
+        """Completed or killed, or kill() has been called."""
+        return self._completed or self._killed or self._stop is not None
+
+    def _merge_output(self, chunks: list[_OutputChunk]) -> None:
+        """Queue the output of every chunk not taken yet, and acknowledge it.
+
+        Replies to overlapping requests (poll, kill, stdin) can carry the same
+        chunks and arrive in any order, so only chunks past `_last_seq` are
+        taken, and `_last_seq` never decreases. Output is appended, never
+        replacing events already queued.
+        """
+        new = [chunk for chunk in chunks if chunk.seq > self._last_seq]
+        self._last_seq = max([self._last_seq, *(chunk.seq for chunk in new)])
+        if stdout := "".join(chunk.stdout for chunk in new):
             self._pending_events.append(ExecStdout(data=stdout))
-        if stderr:
+        if stderr := "".join(chunk.stderr for chunk in new):
             self._pending_events.append(ExecStderr(data=stderr))
 
     async def write_stdin(self, data: str | bytes) -> None:
@@ -688,7 +698,7 @@ class ExecRemoteProcess:
             )
         if self._pid is None:
             raise RuntimeError("Process has not been submitted yet")
-        if self._completed or self._killed:
+        if self._terminated:
             raise RuntimeError("Cannot write to stdin: process has terminated")
 
         if isinstance(data, bytes):
@@ -697,10 +707,9 @@ class ExecRemoteProcess:
         result = await self._rpc(
             "exec_remote_write_stdin",
             {"pid": self._pid, "data": data, "ack_seq": self._last_seq},
-            _WriteStdinResult,
+            _OutputResult,
         )
-        self._last_seq = result.seq
-        self._enqueue_output(result.stdout, result.stderr)
+        self._merge_output(result.chunks)
 
     async def close_stdin(self) -> None:
         """Close the process's stdin to signal EOF.
@@ -722,16 +731,15 @@ class ExecRemoteProcess:
             )
         if self._pid is None:
             raise RuntimeError("Process has not been submitted yet")
-        if self._completed or self._killed:
+        if self._terminated:
             return
 
         result = await self._rpc(
             "exec_remote_close_stdin",
             {"pid": self._pid, "ack_seq": self._last_seq},
-            _CloseStdinResult,
+            _OutputResult,
         )
-        self._last_seq = result.seq
-        self._enqueue_output(result.stdout, result.stderr)
+        self._merge_output(result.chunks)
 
     async def kill(self) -> None:
         """Terminate the process.
@@ -739,24 +747,38 @@ class ExecRemoteProcess:
         Any output buffered since the last poll is enqueued as pending events
         so the async iterator can yield them before StopAsyncIteration.
 
-        If the process has already completed or been killed, this is a no-op.
+        The first call sends the kill request; later calls wait for it. The
+        request runs to completion even if the calling task is cancelled (the
+        first caller's cancellation is raised once it finishes), and a failed
+        request is logged, not raised. A no-op once the process has completed.
         """
-        if self._pid is None or self._completed or self._killed:
+        if self._pid is None:
             return
+        if self._stop is not None:
+            await self._stop.wait()
+            return
+        if self._completed:
+            return
+        self._stop = anyio.Event()
+        await _complete_before_cancelling(self._send_kill)
 
-        self._killed = True
+    async def _send_kill(self) -> None:
+        assert self._stop is not None
         try:
-            result = await self._rpc(
-                "exec_remote_kill",
-                {"pid": self._pid, "ack_seq": self._last_seq},
-                _KillResult,
-            )
-            self._last_seq = result.seq
-            self._enqueue_output(result.stdout, result.stderr)
+            with anyio.CancelScope(shield=True):
+                result = await self._rpc(
+                    "exec_remote_kill",
+                    {"pid": self._pid, "ack_seq": self._last_seq},
+                    _OutputResult,
+                )
+            self._killed = True
+            self._merge_output(result.chunks)
         except Exception:
             logging.debug(
                 f"exec_remote kill RPC failed for pid {self._pid}", exc_info=True
             )
+        finally:
+            self._stop.set()
 
 
 # ============================================================================
