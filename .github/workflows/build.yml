@@ -549,6 +549,7 @@ jobs:
   # source or version changed, build a -dev binary first; otherwise let
   # pytest resolve the published v{N} via the runtime's S3 download path.
   slow-tool-tests-dev:
+    name: slow-tool-tests-dev${{ matrix.backend == 'trio' && ' (trio)' || '' }}
     needs: [detect-slow, check-version-bump]
     if: needs.detect-slow.outputs.tools_changed == 'true'
     runs-on: ubuntu-latest
@@ -613,6 +614,7 @@ jobs:
   # slow-tool-tests-dev: it consumes only the published S3 artifacts,
   # nothing the dev job produces.
   slow-tool-tests-release:
+    name: slow-tool-tests-release${{ matrix.backend == 'trio' && ' (trio)' || '' }}
     needs: [detect-slow, check-version-bump]
     if: needs.detect-slow.outputs.tools_changed == 'true' && needs.check-version-bump.outputs.version_correctly_bumped == 'true'
     runs-on: ubuntu-latest
@@ -790,6 +792,7 @@ jobs:
   # no new job is needed. Runs plain `pytest --runslow` (no build artifact,
   # no secrets); API-key tests self-skip via skip_if_no_*.
   slow-tests:
+    name: slow-tests (${{ matrix.area }}${{ matrix.backend == 'trio' && ', trio' || '' }})
     needs: detect-slow
     # An empty matrix vector errors, so skip the whole job when nothing matched.
     if: needs.detect-slow.outputs.areas != '[]'
