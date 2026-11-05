@@ -195,10 +195,11 @@ def _has_spanless_native_tool(events: Sequence[Event]) -> bool:
 def _tool_spans(events: Sequence[Event]) -> dict[int, str]:
     """The `tool` span of each `ToolEvent` that has one, by event index.
 
-    `call_tool` records the event, which names the span that called the tool, first in the tool's span (under a `handoff` span for a handoff), so the span is the event's previous sibling in the span tree. Rescoring rebuilds the events from that tree, which moves the event after the span's end. An event that names the tool span itself is paired with it when it is the span's first child.
+    `call_tool` records the event, which names the span that called the tool, first in the tool's span (under a `handoff` span for a handoff), so the span is the event's previous sibling in the span tree. Rescoring rebuilds the events from that tree, which moves the event after the span's end. A handoff span's tool span is its last child span, since the handoff ends with the `StoreEvent` of an agent that changes the store. An event that names the tool span itself is paired with it when it is the span's first child.
     """
     begins: dict[str, SpanBeginEvent] = {}
     last_child: dict[str | None, Event] = {}
+    last_span: dict[str | None, SpanBeginEvent] = {}
     spans: dict[int, str] = {}
     for index, event in enumerate(events):
         if isinstance(event, SpanEndEvent):
@@ -218,7 +219,7 @@ def _tool_spans(events: Sequence[Event]) -> dict[int, str]:
                     isinstance(candidate, SpanBeginEvent)
                     and candidate.type == "handoff"
                 ):
-                    candidate = last_child.get(candidate.id)
+                    candidate = last_span.get(candidate.id)
             if (
                 isinstance(candidate, SpanBeginEvent)
                 and candidate.type == "tool"
@@ -226,6 +227,8 @@ def _tool_spans(events: Sequence[Event]) -> dict[int, str]:
             ):
                 spans[index] = candidate.id
         last_child[parent] = event
+        if isinstance(event, SpanBeginEvent):
+            last_span[parent] = event
     return spans
 
 

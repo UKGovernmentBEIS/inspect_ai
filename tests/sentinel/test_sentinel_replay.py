@@ -92,6 +92,7 @@ from inspect_ai.tool import (
     tool,
 )
 from inspect_ai.tool._tool import ToolApprovalError, ToolParsingError
+from inspect_ai.util import store
 from inspect_ai.util._span import span
 
 from .test_sentinel_dispatch import (
@@ -5434,7 +5435,7 @@ def test_a_rescored_then_retried_0_3_99_sample_is_refused(
 @pytest.mark.parametrize("origins", [True, False])
 @pytest.mark.parametrize("cleanup", [False, True])
 @pytest.mark.parametrize("action", ["append", "overwrite"])
-@pytest.mark.parametrize("shape", ["call", "parallel", "handoff"])
+@pytest.mark.parametrize("shape", ["call", "parallel", "handoff", "store_handoff"])
 def test_a_rescored_log_replays_its_tool_stages(
     shape: str,
     action: Literal["append", "overwrite"],
@@ -5443,8 +5444,20 @@ def test_a_rescored_log_replays_its_tool_stages(
     inputs: str,
 ) -> None:
     # Review of 76e89a08b: rescoring rebuilds the events from the span tree,
-    # which moves each ToolEvent after its tool span's end
+    # which moves each ToolEvent after its tool span's end; review of
+    # bf13d1da7: a handoff whose agent writes to the store ends with a
+    # StoreEvent after its tool span
     from inspect_ai.solver import chain
+
+    @agent
+    def writer() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            """Record the answer in the store."""
+            store().set("answer", 2)
+            state.output = done("2")
+            return state
+
+        return execute
 
     @solver
     def cleans_up() -> Solver:
@@ -5460,17 +5473,19 @@ def test_a_rescored_log_replays_its_tool_stages(
 
         await chain(cleans_up())(state, no_generate)
 
-    tools: list[Tool] = (
-        [handoff(helper(outputs(call("addition", x=2, y=3), done("helper done"))))]
-        if shape == "handoff"
-        else [addition()]
-    )
+    tools: list[Tool] = {
+        "handoff": [
+            handoff(helper(outputs(call("addition", x=2, y=3), done("helper done"))))
+        ],
+        "store_handoff": [handoff(writer())],
+    }.get(shape, [addition()])
     first = {
         "call": call("addition", x=1, y=1),
         "parallel": calls(
             ("addition", {"x": 1, "y": 1}), ("addition", {"x": 2, "y": 2})
         ),
         "handoff": call("transfer_to_helper"),
+        "store_handoff": call("transfer_to_writer"),
     }[shape]
     task = Task(
         dataset=[Sample(input="What is 1 + 1?", target="2")],
@@ -5482,15 +5497,21 @@ def test_a_rescored_log_replays_its_tool_stages(
     log = read_eval_log(str(log.location), resolve_attachments="full")
     tool_calls = len(first.message.tool_calls or []) + (shape == "handoff")
 
-    def stages(log: EvalLog) -> list[tuple[str, str, tuple[str, int], Any]]:
+    def stages(
+        log: EvalLog, versioned: bool = True
+    ) -> list[tuple[str, str, tuple[str, int], Any]]:
         return [
             (s.stage, s.id, s.segment, comparable(s.step))
-            for s in replay_sample(log, origins, inputs)
+            for s in replay_sample(log, origins, inputs, versioned)
         ]
 
     before = stages(log)
     assert [stage for stage, *_ in before].count("tool_result") == tool_calls
-    assert stages(rescored(log, action)) == before
+    after = rescored(log, action)
+    if shape == "store_handoff":
+        assert (after.samples or [])[0].store == {"answer": 2}
+    assert stages(after) == before
+    assert stages(after, versioned=False) == stages(log, versioned=False)
 
 
 @pytest.mark.parametrize("action", [None, "append", "overwrite"])
