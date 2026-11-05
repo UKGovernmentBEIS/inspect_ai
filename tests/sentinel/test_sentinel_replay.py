@@ -33,6 +33,7 @@ from inspect_ai.agent import (
     as_tool,
     handoff,
     react,
+    run,
 )
 from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.approval import Approval, ApprovalPolicy, Approver, approver
@@ -1629,6 +1630,131 @@ def test_a_bridged_approval_reaches_the_requests_before_its_call_runs(
                 assert [(d.step_id, d.decided.report.action) for d in decisions] == [
                     (approval.call.id, "proceed")
                 ], (inputs, step.stage)
+
+
+class _Overlap:
+    first_waiting: anyio.Event
+    second_proposed: anyio.Event
+
+
+@approver
+def r7_first_approver() -> Approver:
+    async def approve(
+        message: str, call: ToolCall, view: ToolCallView, history: list[ChatMessage]
+    ) -> Approval:
+        _Overlap.first_waiting.set()
+        await _Overlap.second_proposed.wait()
+        return Approval(decision="approve")
+
+    return approve
+
+
+@approver
+def r7_second_approver() -> Approver:
+    async def approve(
+        message: str, call: ToolCall, view: ToolCallView, history: list[ChatMessage]
+    ) -> Approval:
+        _Overlap.second_proposed.set()
+        return Approval(
+            decision="modify",
+            modified=ToolCall(
+                id=call.id, function=call.function, arguments={"x": 2, "y": 1}
+            ),
+        )
+
+    return approve
+
+
+@solver
+def r7_two_bridged_agents_overlap() -> Solver:
+    """The first agent awaits approval of its call while the second proposes its own."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        first = r7_runs_a_bridged_host_tool(
+            approval=[ApprovalPolicy(r7_first_approver(), "*")],
+            request_before_running=True,
+        )
+        second = r7_runs_a_bridged_host_tool(
+            approval=[ApprovalPolicy(r7_second_approver(), "*")],
+            request_before_running=True,
+        )
+
+        async def run_first() -> None:
+            await run(first, "What is 1 + 1?")
+
+        async def run_second() -> None:
+            await _Overlap.first_waiting.wait()
+            await run(second, "What is 1 + 1?")
+
+        await tg_collect([run_first, run_second])
+        return state
+
+    return solve
+
+
+@pytest.mark.parametrize("shared_id", [True, False])
+@pytest.mark.parametrize("tool_event", [True, False])
+def test_concurrent_bridged_approvals_reach_their_own_agents(
+    tool_event: bool, shared_id: bool, caplog: pytest.LogCaptureFixture
+) -> None:
+    _Overlap.first_waiting = anyio.Event()
+    _Overlap.second_proposed = anyio.Event()
+    proposed = [
+        ModelOutput.for_tool_call(
+            "mockllm/model",
+            tool_name="mcp__host__addition",
+            tool_arguments={"x": 1, "y": 1},
+            tool_call_id="call_0" if shared_id else f"call_{agent}",
+        )
+        for agent in range(2)
+    ]
+    log = run_logged(
+        r7_two_bridged_agents_overlap(),
+        outputs(*proposed, done(), done()),
+    )
+    events = logged_sample(log).events
+    first, second = [e for e in events if isinstance(e, ApprovalEvent)][::-1]
+    assert first.approver == "r7_first_approver"
+    assert (first.call.id == second.call.id) == shared_id
+    turns = [e for e in events if isinstance(e, ModelEvent)]
+    assert len(turns) == 4
+    agents = {turn.uuid: turn.span_id for turn in turns}
+    # the first agent's approval is recorded after the second's proposal
+    assert events.index(turns[1]) < events.index(first)
+    assert [turns[0].span_id, turns[1].span_id] == [first.span_id, second.span_id]
+    ran = [e for e in events if isinstance(e, ToolEvent)]
+    assert len(ran) == 2
+    if not tool_event:
+        events = [e for e in events if e not in ran]
+    expected = {
+        approval.span_id: [(approval.call.id, action)]
+        for approval, action in [(first, "proceed"), (second, "modify")]
+    }
+    approvers = (first.approver, second.approver)
+    for inputs in ["expanded", "pooled"]:
+        for recorded in [events, without_origins(events)]:
+            replay = replay_inputs(log, recorded, inputs, human_approvers=approvers)
+            assert len(replay) == 8
+            for step in replay:
+                decisions = step.step.human_decisions or []
+                assert [(d.step_id, d.decided.report.action) for d in decisions] == (
+                    []
+                    if step.id in (turns[0].uuid, turns[1].uuid)
+                    else expected[agents[step.id]]
+                ), (inputs, step.stage)
+    if not shared_id:
+        return
+    # recorded outside both agents, the first approval is left unpublished
+    outside = [
+        e.model_copy(update={"span_id": None}) if e is first else e for e in events
+    ]
+    replay = replay_inputs(log, outside, "expanded", human_approvers=approvers)
+    for step in replay[4:]:
+        decisions = step.step.human_decisions or []
+        assert [(d.step_id, d.decided.report.action) for d in decisions] == (
+            expected[second.span_id] if agents[step.id] == second.span_id else []
+        )
+    assert "Skipped the human decisions on call(s) 'call_0'" in caplog.text
 
 
 def run_logged(

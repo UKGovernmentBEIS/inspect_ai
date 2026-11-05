@@ -482,8 +482,11 @@ class _Driver:
         ] = {}
         calls_made: set[str | None] = set()
         produced: dict[str, tuple[ChatMessageAssistant, ModelEvent, ToolCall]] = {}
+        # every model call proposing each call id, in log order
+        proposers: dict[str, list[ModelEvent]] = {}
         approvals: dict[str, tuple[int, ApprovalEvent]] = {}
         approval_entries: list[tuple[int, ApprovalEvent, str]] = []
+        unplaced_approvals: list[tuple[int, ApprovalEvent]] = []
         consumed_approvals: set[int] = set()
         calls: list[_Call] = []
 
@@ -509,6 +512,7 @@ class _Driver:
                         # A new proposal cannot consume the prior attempt's approval.
                         approvals.pop(tool_call.id, None)
                         produced[tool_call.id] = (message, event, tool_call)
+                        proposers.setdefault(tool_call.id, []).append(event)
                 if not is_agent_turn(self._origin(event)):
                     continue
                 conversation = self._conversation(event)
@@ -531,13 +535,13 @@ class _Driver:
                     open_generates[attempt_key] = group
             elif isinstance(event, ApprovalEvent):
                 approvals[event.call.id] = (index, event)
-                found = produced.get(event.call.id)
-                conversation = (
-                    self._conversation(found[1])
-                    if found is not None
-                    else self._conversation(event)
+                approved_in = self._approval_conversation(
+                    event, proposers.get(event.call.id, [])
                 )
-                approval_entries.append((index, event, conversation))
+                if approved_in is None:
+                    unplaced_approvals.append((index, event))
+                else:
+                    approval_entries.append((index, event, approved_in))
             elif isinstance(event, CompactionEvent):
                 conversation = self._conversation(event)
                 self._at(index, 2, partial(self._count_compaction, conversation))
@@ -596,6 +600,19 @@ class _Driver:
                 "older or unknown."
             )
         if self.reconstruct_approval_decisions:
+            unplaced = [
+                approval.call.id
+                for index, approval in unplaced_approvals
+                if index not in consumed_approvals
+                and approval.approver in self.human_approvers
+            ]
+            if unplaced:
+                logging.getLogger(__name__).warning(
+                    "Skipped the human decisions on call(s) %s: model calls in "
+                    "several conversations proposed each id, none in the "
+                    "approval's own.",
+                    ", ".join(repr(id) for id in unplaced),
+                )
             for index, approval, conversation in approval_entries:
                 if index not in consumed_approvals:
                     self._approval_decision(
@@ -676,6 +693,21 @@ class _Driver:
         for walked_id in walked:
             self.sentinel_span_of[walked_id] = found
         return found
+
+    def _approval_conversation(
+        self, approval: ApprovalEvent, proposers: list[ModelEvent]
+    ) -> str | None:
+        # Concurrent agents can propose the same call id: the latest proposal
+        # in the approval's span or conversation, else the only conversation
+        # proposing it, else none.
+        own = self._conversation(approval)
+        if not proposers:
+            return own
+        conversations = [self._conversation(event) for event in proposers]
+        for event, conversation in zip(reversed(proposers), reversed(conversations)):
+            if event.span_id == approval.span_id or conversation == own:
+                return conversation
+        return conversations[0] if len(set(conversations)) == 1 else None
 
     def _tool_span(self, index: int, event: ToolEvent) -> str | None:
         previous = self.events[index - 1] if index > 0 else None
