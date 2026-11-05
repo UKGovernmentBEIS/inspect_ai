@@ -452,8 +452,9 @@ class _Driver:
         self._inferred: dict[int, str] | None = None
         # the uuids of model calls made outside sentinel spans
         self.calls_made: set[str | None] = set()
-        # ToolEvent ids whose tool steps are skipped (_check_modified_approval)
-        self.unverified_calls: set[str] = set()
+        # event indexes of ToolEvents whose tool steps are skipped
+        # (_check_modified_approval); a call id can recur across turns
+        self.unverified_calls: set[int] = set()
         # span id -> the region holding it
         self._regions: dict[str | None, _Region] = {}
         self._span_begins: dict[str, SpanBeginEvent] | None = None
@@ -595,7 +596,7 @@ class _Driver:
                 ", ".join(
                     repr(entry.event.id)
                     for entry in calls
-                    if entry.event.id in self.unverified_calls
+                    if entry.index in self.unverified_calls
                 ),
             )
         for group in generates:
@@ -798,7 +799,7 @@ class _Driver:
             and event.error is not None
             and event.error.type in ("parsing", "approval")
         ):
-            self.unverified_calls.add(event.id)
+            self.unverified_calls.add(call.index)
             return
         raise ValueError(
             "steps_from_events cannot replay an approval whose approved call "
@@ -822,7 +823,7 @@ class _Driver:
         if (
             proposal is None
             or call.assistant is None
-            or event.id in self.unverified_calls
+            or call.index in self.unverified_calls
         ):
             return
         recorded = before_span is not None or after_span is not None

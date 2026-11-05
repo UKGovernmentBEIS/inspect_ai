@@ -1216,6 +1216,70 @@ def test_an_older_approved_call_that_raised_a_parsing_or_approval_error_is_skipp
     ]
 
 
+@pytest.mark.parametrize("inputs", ["expanded", "pooled"])
+@pytest.mark.parametrize("version", ["0.3.276", "0.3.300", None])
+@pytest.mark.parametrize("decision", ["approve", "modify"])
+@pytest.mark.parametrize("error", ["parsing", "approval"])
+@pytest.mark.parametrize("successful", ["before", "after"])
+def test_a_skipped_call_does_not_skip_a_successful_call_sharing_its_id(
+    successful: str,
+    inputs: str,
+    version: str | None,
+    decision: str,
+    error: str,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Inspect 0.3.276 runs a successful call before or after a skipped call `c1`, with id `c1` (`same_*` samples) or another id (`distinct_*` samples)."""
+    from inspect_ai._sentinel import _replay
+
+    path = (
+        Path(__file__).parent
+        / "fixtures"
+        / f"approval_error_{error}_{decision}_shared_id_0.3.276.json"
+    )
+    log = read_eval_log(str(path), resolve_attachments="full")
+    samples = {sample.id: sample for sample in log.samples or []}
+
+    def replay_tool_steps(ids: str) -> list[tuple[str, dict[str, Any]]]:
+        sample = samples[f"{ids}_{successful}"]
+        tool_events = [e for e in sample.events if isinstance(e, ToolEvent)]
+        other = "c1" if ids == "same" else "c0" if successful == "before" else "c2"
+        layout = [(other, successful), ("c1", "proposed")]
+        if successful == "after":
+            layout.reverse()
+        assert [(e.id, e.arguments["path"]) for e in tool_events] == layout
+        assert [e.error.type if e.error else None for e in tool_events] == [
+            error if path == "proposed" else None for _, path in layout
+        ]
+        events: list[Event] = list(sample.events)
+        pool: list[ChatMessage] = []
+        if inputs == "pooled":
+            events, pool = _replay._condensed(events, [])
+        caplog.clear()
+        replay = steps_from_events(
+            sample.messages,
+            events,
+            pool,
+            sample_uuid=sample.uuid or "sample",
+            eval_info=EvalInfo(version, False),
+        )
+        assert [
+            r.message for r in caplog.records if "Skipped the tool" in r.message
+        ] == [UNVERIFIED_CALL_WARNING.format("'c1'")]
+        return [
+            (step.stage, step.step.call.arguments)
+            for step in replay
+            if isinstance(step.step, BeforeToolCall | AfterToolCall)
+        ]
+
+    expected = [
+        ("tool_call", {"path": successful}),
+        ("tool_result", {"path": successful}),
+    ]
+    assert replay_tool_steps("distinct") == expected
+    assert replay_tool_steps("same") == expected
+
+
 @approver
 def r7_changes_the_call_and_escalates() -> Approver:
     async def approve(
