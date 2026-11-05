@@ -43,6 +43,7 @@ Inspect runs evaluations that execute model-generated code, and tasks, solvers, 
 - Model-generated code running inside a sandbox is the purpose of the sandbox and is not a vulnerability.
 - Loading a task, solver, scorer, or config file from an untrusted source runs that code. Treat these files the same way you would treat any other Python you did not write.
 - Docker provides limited isolation. If you run untrusted code, use a stronger sandbox such as gVisor. Weaknesses in Docker itself should be reported to Docker.
+- An escape that depends on an unpatched Docker Engine, container runtime (such as runc) or host. Inspect's prerequisite checks do not check for security updates. Users are responsible for Docker and host security updates.
 - Vulnerabilities in third-party dependencies should be reported to that project. Tell us if `inspect_ai` needs a change in response, such as a version pin.
 - Reports produced by a scanner, or written mainly by an automated tool or a language model, with no working proof of concept. We will close these without a detailed response.
 

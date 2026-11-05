@@ -8,13 +8,21 @@ design/ctl/log-dir-mode.md). The CLI surface is tested in test_ctl.py.
 
 import errno
 import functools
+import hashlib
+import importlib
+import io
 import os
 import shutil
+import stat
+import sys
+import time
 import zipfile
 from collections import Counter
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, NamedTuple
+from typing import Any, Literal, NamedTuple
 
 import anyio
 import boto3
@@ -24,6 +32,12 @@ from test_helpers.utils import skip_if_trio
 from inspect_ai import Task, eval, eval_async
 from inspect_ai._control.events import decode_cursor
 from inspect_ai._control.log_dir import consistency
+from inspect_ai._control.log_dir.cache import (
+    JournalCache,
+    LogDirCache,
+    open_cache,
+    use_cache,
+)
 from inspect_ai._control.log_dir.consistency import (
     LogChangedError,
     LogUnparseableError,
@@ -63,7 +77,7 @@ from inspect_ai._control.log_dir.walk import walk_log_dir
 from inspect_ai._control.state import _iso_to_timestamp
 from inspect_ai._util.async_zip import AsyncZipReader, ZipCrcError
 from inspect_ai._util.asyncfiles import AsyncFilesystem, FileContent
-from inspect_ai._util.file import local_path
+from inspect_ai._util.file import filesystem, local_path
 from inspect_ai._util.log_layout import log_basename
 from inspect_ai.dataset import Sample
 from inspect_ai.event import InfoEvent, ModelEvent
@@ -2918,3 +2932,1175 @@ def test_cli_read_only_over_a_shard_set(
         result = _ctl(tmp_path, *args, "--json")
         assert result.exit_code == 0, (args, result.output)
     assert snapshot() == before
+
+
+# --- cache ---------------------------------------------------------------------
+
+
+class _Poll(NamedTuple):
+    dir_index: LogDirIndex
+    views: list[TaskView]
+
+
+@contextmanager
+def _reads(cache: LogDirCache | None) -> Iterator[None]:
+    """Reads that use ``cache``, closed after them as a CLI invocation's is."""
+    try:
+        with use_cache(cache):
+            yield
+    finally:
+        if cache is not None:
+            cache.close()
+
+
+async def _poll(
+    root: Path | str, cache: LogDirCache | None | Literal["new"] = "new"
+) -> _Poll:
+    """One invocation's list read, by default with a new cache object (a new poller)."""
+    async with AsyncFilesystem() as fs:
+        with _reads(open_cache() if cache == "new" else cache):
+            index = await index_log_dir(fs, str(root))
+            views = await read_task_views(fs, index.tasks)
+    return _Poll(dir_index=index, views=views)
+
+
+def _only_member(view: TaskView) -> MemberSnapshot | None:
+    """The view of an unsharded task's log, or ``None`` if it was unreadable."""
+    [read] = view.reads
+    return read.snapshot
+
+
+def _answers(poll: _Poll) -> list[Any]:
+    """What a list read reports (less ``tokens_per_second``, which uses the clock)."""
+    return [
+        (
+            {**task_row(view), "tokens_per_second": None},
+            sample_listing(view, content=True),
+        )
+        for view in poll.views
+    ]
+
+
+def _cache_files(data_dir: Path) -> list[Path]:
+    return sorted((data_dir / "ctl" / "log-dir-cache").glob("*"))
+
+
+@pytest.fixture
+def central_directory_reads(monkeypatch: pytest.MonkeyPatch) -> Counter[str]:
+    """Count central-directory reads, by log file name."""
+    from inspect_ai._util import async_zip
+
+    counts = Counter[str]()
+    original = async_zip._parse_central_directory
+
+    async def counting(
+        filesystem: AsyncFilesystem, filename: str, pin_version: bool = False
+    ) -> Any:
+        counts[Path(filename).name] += 1
+        return await original(filesystem, filename, pin_version)
+
+    monkeypatch.setattr(async_zip, "_parse_central_directory", counting)
+    return counts
+
+
+async def _per_sample_reads(task: LogicalTask) -> list[Any]:
+    async with AsyncFilesystem() as fs:
+        return [
+            await sample_detail(fs, task, "2", 1, content=True),
+            await sample_events(fs, task, "1", 1, types=frozenset({"*"})),
+            {**await sample_messages(fs, task, "1", 1), "as_of": 0},
+            {**await sample_store(fs, task, "1", 1), "as_of": 0},
+        ]
+
+
+async def test_a_warm_poll_answers_as_a_cold_one_without_re_reading_finished_logs(
+    log_dir: Path,
+    finished_log: EvalLog,
+    central_directory_reads: Counter[str],
+    _isolate_log_dir_cache: Path,
+) -> None:
+    running = await _write_running_log(
+        log_dir, finished_log, logged=[1, 2], sample_ids=[1, 2, 3]
+    )
+    uncached = await _poll(log_dir, cache=None)
+    uncached_reads = await _per_sample_reads(uncached.dir_index.tasks[0])
+    central_directory_reads.clear()
+
+    cold = await _poll(log_dir)
+    assert len(_cache_files(_isolate_log_dir_cache)) == 2
+    assert set(central_directory_reads) == {
+        Path(finished_log.location).name,
+        running.name,
+    }
+    central_directory_reads.clear()
+
+    warm = await _poll(log_dir)
+    # nothing changed: the finished log's plan, status and summaries come from
+    # the cache; the running log's central directory is read again
+    assert central_directory_reads == Counter({running.name: 1})
+    assert _answers(uncached) == _answers(cold) == _answers(warm)
+    assert {
+        member.plan.finished: member.plan.central_directory is None
+        for member in map(_only_member, warm.views)
+        if member
+    } == {True: True, False: False}
+    finished = next(
+        t for t in warm.dir_index.tasks if t.current.run and t.current.run.finished
+    )
+    with _reads(open_cache()):
+        assert await _per_sample_reads(finished) == uncached_reads
+
+
+async def test_a_warm_poll_of_a_running_log_reads_only_its_central_directory_and_new_journal_members(
+    tmp_path: Path,
+    finished_log: EvalLog,
+    central_directory_reads: Counter[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from inspect_ai._control.log_dir import cache as cache_module
+    from inspect_ai._control.log_dir import snapshot as snapshot_module
+    from inspect_ai.log._recorders.eval import (
+        _read_journal_summaries as read_journal,
+    )
+    from inspect_ai.log._recorders.eval import _read_member_json as read_member_json
+
+    running = await _start_running_log(
+        tmp_path, finished_log, logged=[1], sample_ids=[1, 2, 3]
+    )
+    await _poll(tmp_path)
+
+    member_reads: list[str] = []
+
+    async def journal_read(reader: AsyncZipReader, path: str) -> Any:
+        member_reads.append(path)
+        return await read_journal(reader, path)
+
+    async def member_json_read(reader: AsyncZipReader, path: str) -> Any:
+        member_reads.append(path)
+        return await read_member_json(reader, path)
+
+    monkeypatch.setattr(cache_module, "_read_journal_summaries", journal_read)
+    monkeypatch.setattr(snapshot_module, "_read_member_json", member_json_read)
+
+    def journal() -> set[str]:
+        with zipfile.ZipFile(running.location) as archive:
+            return {
+                n for n in archive.namelist() if n.startswith("_journal/summaries/")
+            }
+
+    # unchanged: its central directory, and no member
+    central_directory_reads.clear()
+    await _poll(tmp_path)
+    assert central_directory_reads == Counter({running.location.name: 1})
+    assert member_reads == []
+
+    # after a flush: its central directory and the new journal members only
+    before = journal()
+    await _flush(running, [running.sample(2)])
+    added = journal() - before
+    assert added
+    central_directory_reads.clear()
+    warm = await _poll(tmp_path)
+    assert central_directory_reads == Counter({running.location.name: 1})
+    assert sorted(member_reads) == sorted(added)
+    assert _answers(warm) == _answers(await _poll(tmp_path, cache=None))
+
+
+async def test_a_warm_poll_of_a_shard_set_answers_as_an_uncached_one(
+    tmp_path: Path,
+    finished_log: EvalLog,
+    central_directory_reads: Counter[str],
+    monkeypatch: pytest.MonkeyPatch,
+    _isolate_log_dir_cache: Path,
+) -> None:
+    from inspect_ai._control.log_dir import cache as cache_module
+    from inspect_ai._control.log_dir import snapshot as snapshot_module
+    from inspect_ai.log._recorders.eval import (
+        _read_journal_summaries as read_journal,
+    )
+    from inspect_ai.log._recorders.eval import _read_member_json as read_member_json
+
+    # a merged log, a finished shard and a running shard
+    companion = await _shard_set(tmp_path, finished_log, {"1": [3]})
+    await _merged(tmp_path, finished_log)
+    running = await _start_running_log(
+        companion / "0", finished_log, logged=[1], sample_ids=[1, 2]
+    )
+
+    async def per_sample_reads(task: LogicalTask) -> list[Any]:
+        async with AsyncFilesystem() as fs:
+            return [
+                await sample_detail(fs, task, "1", 1, content=True),
+                await sample_detail(fs, task, "3", 1, content=True),
+                await sample_events(fs, task, "3", 1, types=frozenset({"*"})),
+                {**await sample_messages(fs, task, "1", 1), "as_of": 0},
+            ]
+
+    uncached = await _poll(tmp_path, cache=None)
+    uncached_reads = await per_sample_reads(uncached.dir_index.tasks[0])
+    assert task_row(uncached.views[0])["shards"]["running"] == 1
+
+    cold = await _poll(tmp_path)
+    assert len(_cache_files(_isolate_log_dir_cache)) == 3
+    central_directory_reads.clear()
+    warm = await _poll(tmp_path)
+    # the merged log and the finished shard come from the cache; the running
+    # shard's central directory is read again
+    assert central_directory_reads == Counter({running.location.name: 1})
+    assert _answers(uncached) == _answers(cold) == _answers(warm)
+    with _reads(open_cache()):
+        assert await per_sample_reads(warm.dir_index.tasks[0]) == uncached_reads
+
+    member_reads: list[str] = []
+
+    async def journal_read(reader: AsyncZipReader, path: str) -> Any:
+        member_reads.append(path)
+        return await read_journal(reader, path)
+
+    async def member_json_read(reader: AsyncZipReader, path: str) -> Any:
+        member_reads.append(path)
+        return await read_member_json(reader, path)
+
+    monkeypatch.setattr(cache_module, "_read_journal_summaries", journal_read)
+    monkeypatch.setattr(snapshot_module, "_read_member_json", member_json_read)
+
+    def journal() -> set[str]:
+        with zipfile.ZipFile(running.location) as archive:
+            return {
+                n for n in archive.namelist() if n.startswith("_journal/summaries/")
+            }
+
+    # unchanged: no member of any log is read
+    await _poll(tmp_path)
+    assert member_reads == []
+
+    # after the running shard flushes: only its new journal members
+    before = journal()
+    await _flush(running, [running.sample(2)])
+    added = journal() - before
+    assert added
+    central_directory_reads.clear()
+    warm = await _poll(tmp_path)
+    assert central_directory_reads == Counter({running.location.name: 1})
+    assert sorted(member_reads) == sorted(added)
+    assert _answers(warm) == _answers(await _poll(tmp_path, cache=None))
+
+
+async def test_non_finite_scores_and_metrics_are_served_from_the_cache(
+    tmp_path: Path, finished_log: EvalLog, central_directory_reads: Counter[str]
+) -> None:
+    log = finished_log.model_copy(deep=True)
+    assert log.samples is not None and log.results is not None
+    sample = log.samples[0]
+    assert sample.scores is not None
+    scorer = next(iter(sample.scores))
+    sample.scores[scorer] = sample.scores[scorer].model_copy(
+        update={"value": float("nan")}
+    )
+    metric = next(iter(log.results.scores[0].metrics.values()))
+    metric.value = float("inf")
+    await write_eval_log_async(log, str(tmp_path / Path(log.location).name))
+    await _poll(tmp_path)
+    central_directory_reads.clear()
+    [view] = (await _poll(tmp_path)).views
+    assert central_directory_reads == Counter()
+    member = _only_member(view)
+    assert member is not None
+    assert member.plan.header.results is not None
+    assert member.plan.header.results.scores[0].metrics[metric.name].value == float(
+        "inf"
+    )
+
+
+async def test_a_changed_log_is_re_read_and_an_older_entry_written_over_a_newer_one_is_not_used(
+    log_dir: Path, _isolate_log_dir_cache: Path
+) -> None:
+    [path] = list(log_dir.glob("*.eval"))
+    poller_a = open_cache()
+    first = await _poll(log_dir, poller_a)
+    assert _statuses(sample_listing(first.views[0]))[2] == "error"
+
+    # the log is rewritten (sample 2 now succeeded) and a second poller reads it
+    replaced = await read_eval_log_async(str(path))
+    assert replaced.samples is not None
+    replaced.samples[1] = replaced.samples[1].model_copy(update={"error": None})
+    await write_eval_log_async(replaced, str(path))
+    second = await _poll(log_dir)
+    assert _statuses(sample_listing(second.views[0]))[2] == "completed"
+
+    # the first poller, still holding the older view, writes it over the
+    # second's entry: it describes the older version, so it is not used
+    member = _only_member(first.views[0])
+    assert member is not None
+    assert poller_a is not None
+    poller_a.store_snapshot(member, JournalCache({}))
+    poller_a.flush()
+    third = await _poll(log_dir)
+    assert _answers(third) == _answers(second)
+
+
+async def test_a_log_replaced_between_its_version_lookup_and_its_read_gets_no_older_summaries(
+    log_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from inspect_ai._control.log_dir import snapshot as snapshot_module
+
+    [path] = list(log_dir.glob("*.eval"))
+    await _poll(log_dir)
+    replaced = await read_eval_log_async(str(path))
+    assert replaced.samples is not None
+    replaced.samples[1] = replaced.samples[1].model_copy(update={"error": None})
+
+    # the listing carries no version, so the plan is read again; the log is
+    # replaced after its version is looked up and before its central
+    # directory is read
+    async def unlisted(fs: AsyncFilesystem, file: Any) -> None:
+        return None
+
+    real_log_version = consistency.log_version
+    pending = [replaced]
+
+    async def replaced_after_lookup(fs: AsyncFilesystem, location: str) -> str | None:
+        version = await real_log_version(fs, location)
+        if pending:
+            await write_eval_log_async(pending.pop(), str(path))
+        return version
+
+    monkeypatch.setattr(snapshot_module, "listed_version", unlisted)
+    monkeypatch.setattr(consistency, "log_version", replaced_after_lookup)
+    warm = await _poll(log_dir)
+    assert not pending
+    assert _statuses(sample_listing(warm.views[0]))[2] == "completed"
+    uncached = await _poll(log_dir, cache=None)
+    assert _unlisted_time(warm) == _unlisted_time(uncached)
+    assert _answers(await _poll(log_dir)) == _answers(uncached)
+
+
+@pytest.mark.parametrize("plan_only", [True, False])
+async def test_a_log_replaced_during_a_read_and_then_restored_is_read_again(
+    log_dir: Path, finished_log: EvalLog, plan_only: bool
+) -> None:
+    [path] = list(log_dir.glob("*.eval"))
+    replaced = await read_eval_log_async(str(path))
+    assert replaced.samples is not None
+    replaced.eval = replaced.eval.model_copy(update={"model": "mockllm/other"})
+    replaced.samples[1] = replaced.samples[1].model_copy(update={"error": None})
+    aside = log_dir / "aside"
+
+    # the log is moved aside and replaced after its version is looked up and
+    # before its central directory is read; afterwards the original is moved
+    # back, so its stat is the version looked up
+    real_log_version = consistency.log_version
+    pending = [replaced]
+
+    async def replaced_after_lookup(fs: AsyncFilesystem, location: str) -> str | None:
+        version = await real_log_version(fs, location)
+        if pending:
+            os.rename(path, aside)
+            await write_eval_log_async(pending.pop(), str(path))
+        return version
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(consistency, "log_version", replaced_after_lookup)
+        if plan_only:
+            async with AsyncFilesystem() as fs:
+                with _reads(open_cache()):
+                    await index_log_dir(fs, str(log_dir))
+        else:
+            await _poll(log_dir)
+    assert not pending
+    os.replace(aside, path)
+
+    warm = await _poll(log_dir)
+    assert identity_row(warm.dir_index.tasks[0])["model"] == finished_log.eval.model
+    assert _statuses(sample_listing(warm.views[0]))[2] == "error"
+    assert _answers(warm) == _answers(await _poll(log_dir, cache=None))
+
+
+def _unlisted_time(poll: _Poll) -> list[Any]:
+    """:func:`_answers` less ``updated_at``, the mtime the listing saw."""
+    return [({**row, "updated_at": None}, rows) for row, rows in _answers(poll)]
+
+
+async def test_after_a_cache_failure_a_replaced_log_is_read_as_uncached(
+    log_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from inspect_ai._control.log_dir import cache as cache_module
+
+    [path] = list(log_dir.glob("*.eval"))
+    await _poll(log_dir)
+    replaced = await read_eval_log_async(str(path))
+    assert replaced.samples is not None
+    replaced.samples[1] = replaced.samples[1].model_copy(update={"error": None})
+
+    # the first entry load fails, the log is replaced after its version is
+    # looked up and before its central directory is read, and writes fail
+    real_load = cache_module.LogDirCache._load
+    loads: list[str] = []
+
+    def load_failing_once(self: LogDirCache, key: str) -> Any:
+        loads.append(key)
+        if len(loads) == 1:
+            raise OSError("transient")
+        return real_load(self, key)
+
+    real_log_version = consistency.log_version
+    pending = [replaced]
+
+    async def replaced_after_lookup(fs: AsyncFilesystem, location: str) -> str | None:
+        version = await real_log_version(fs, location)
+        if pending:
+            await write_eval_log_async(pending.pop(), str(path))
+        return version
+
+    def failing_write(*args: Any, **kwargs: Any) -> None:
+        raise OSError("no space left")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(cache_module.LogDirCache, "_load", load_failing_once)
+        patch.setattr(consistency, "log_version", replaced_after_lookup)
+        patch.setattr(cache_module, "atomic_write_bytes", failing_write)
+        warm = await _poll(log_dir)
+    assert not pending
+    assert _statuses(sample_listing(warm.views[0]))[2] == "completed"
+    assert _unlisted_time(warm) == _unlisted_time(await _poll(log_dir, cache=None))
+    # the failure turned the cache off: nothing else was loaded
+    assert len(loads) == 1
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX permission bits")
+async def test_a_cache_directory_deleted_after_it_is_opened_is_not_recreated(
+    log_dir: Path, finished_log: EvalLog, _isolate_log_dir_cache: Path
+) -> None:
+    await _write_running_log(log_dir, finished_log, logged=[1, 2], sample_ids=[1, 2, 3])
+    uncached = await _poll(log_dir, cache=None)
+    umask = os.umask(0o022)
+    try:
+        cache = open_cache()
+        directory = _isolate_log_dir_cache / "ctl" / "log-dir-cache"
+        shutil.rmtree(directory)
+        before = set(_isolate_log_dir_cache.rglob("*"))
+        deleted = await _poll(log_dir, cache)
+        again = await _poll(log_dir, cache)
+        # nothing is created: no directory, no entry, no temp file
+        assert set(_isolate_log_dir_cache.rglob("*")) == before
+
+        # opened again, the directory is created owner-only, and so are entries
+        cold = await _poll(log_dir)
+        entries = _cache_files(_isolate_log_dir_cache)
+        assert len(entries) == 2
+        assert stat.S_IMODE(directory.stat().st_mode) == 0o700
+        assert {stat.S_IMODE(e.stat().st_mode) for e in entries} == {0o600}
+    finally:
+        os.umask(umask)
+    assert _answers(deleted) == _answers(again) == _answers(uncached)
+    assert _answers(cold) == _answers(uncached)
+
+
+def test_a_cli_invocation_writes_each_entry_at_most_once(
+    log_dir: Path,
+    finished_log: EvalLog,
+    monkeypatch: pytest.MonkeyPatch,
+    no_discovery: None,
+    _isolate_log_dir_cache: Path,
+) -> None:
+    from inspect_ai._control.log_dir import cache as cache_module
+    from inspect_ai._util.atomic_write import atomic_write_bytes as real_write
+
+    running = anyio.run(
+        functools.partial(
+            _start_running_log,
+            log_dir,
+            finished_log,
+            logged=[1],
+            sample_ids=list(range(1, 20)),
+        )
+    )
+    [finished] = [p for p in log_dir.glob("*.eval") if p != running.location]
+    entry_name = {
+        f"{hashlib.sha256(str(path).encode()).hexdigest()}.json": path.name
+        for path in [finished, running.location]
+    }
+    writes = Counter[str]()
+
+    def counting(target_path: str, data: bytes, *args: Any, **kwargs: Any) -> None:
+        writes[entry_name[Path(target_path).name]] += 1
+        real_write(target_path, data, *args, **kwargs)
+
+    monkeypatch.setattr(cache_module, "atomic_write_bytes", counting)
+
+    def written(*args: str) -> Counter[str]:
+        writes.clear()
+        result = _ctl(log_dir, *args, "--json")
+        assert result.exit_code == 0, result.output
+        return Counter(writes)
+
+    both = Counter({finished.name: 1, running.location.name: 1})
+    running_only = Counter({running.location.name: 1})
+    # each command indexes the directory, then reads views or a sample
+    finished_id = finished_log.eval.task_id
+    running_id = running.spec.task_id
+    commands = [
+        ["task", "list"],
+        ["sample", "list", "--content"],
+        ["sample", "errors"],
+        ["sample", "show", running_id, "1"],
+        ["sample", "events", running_id, "1"],
+        ["sample", "messages", running_id, "1"],
+        ["sample", "store", running_id, "1"],
+        ["sample", "show", finished_id, "1"],
+    ]
+    for n, command in enumerate(commands, start=2):
+        for entry in _cache_files(_isolate_log_dir_cache):
+            entry.unlink()
+        assert written(*command) == both, command
+        # an unchanged finished log is not written; a running log once
+        assert written(*command) == running_only, command
+        anyio.run(_flush, running, [running.sample(n)])
+        _edit_member(finished, "header.json", functools.partial(_set_note, note=n))
+        assert written(*command) == both, command
+
+
+def _set_note(header: Any, note: int) -> None:
+    header["eval"]["metadata"] = {"note": note}
+
+
+def _padded(data: bytes, size: int) -> bytes:
+    """The ZIP ``data`` grown to ``size`` bytes with an archive comment."""
+    buffer = io.BytesIO(data)
+    with zipfile.ZipFile(buffer, "a") as archive:
+        archive.comment = b" " * (size - len(data))
+    return buffer.getvalue()
+
+
+async def test_a_same_size_azure_rewrite_is_read_again(
+    log_dir: Path, monkeypatch: pytest.MonkeyPatch, _isolate_log_dir_cache: Path
+) -> None:
+    # neither package ships type information
+    azure_fs = importlib.import_module("adlfs").AzureBlobFileSystem
+    memory = filesystem("memory://").fs
+    memory_type = type(memory)
+
+    # Azure's metadata as adlfs reports it: a lowercase etag and
+    # last_modified, which Inspect's file info does not read, so a log's
+    # version comes from its creation time and size
+    properties: dict[str, dict[str, Any]] = {}
+    real_info = memory_type.info
+
+    def azure_info(self: Any, path: str, **kwargs: Any) -> Any:
+        info = real_info(self, path, **kwargs)
+        return {**info, **properties.get(info["name"], {})}
+
+    monkeypatch.setattr(memory_type, "info", azure_info)
+    monkeypatch.setattr(memory_type, "created", azure_fs.created)
+    monkeypatch.setattr(memory_type, "modified", azure_fs.modified)
+
+    [path] = list(log_dir.glob("*.eval"))
+    replaced = await read_eval_log_async(str(path))
+    assert replaced.samples is not None
+    replaced.samples[1] = replaced.samples[1].model_copy(update={"error": None})
+    await write_eval_log_async(replaced, str(log_dir / "replaced" / path.name))
+    old = path.read_bytes()
+    new = (log_dir / "replaced" / path.name).read_bytes()
+    size = max(len(old), len(new))
+    old, new = _padded(old, size), _padded(new, size)
+
+    root = f"/ctl-azure-{os.getpid()}-{time.time_ns()}"
+    name = f"{root}/{path.name}"
+    created = datetime(2026, 1, 1, tzinfo=timezone.utc)
+
+    def upload(data: bytes, etag: str, modified: datetime) -> None:
+        memory.pipe_file(name, data)
+        properties[name] = {
+            "etag": etag,
+            "last_modified": modified,
+            "creation_time": created,
+        }
+
+    try:
+        upload(old, "0x1", created)
+        cold = await _poll(f"memory://{root}")
+        assert _statuses(sample_listing(cold.views[0]))[2] == "error"
+        async with AsyncFilesystem() as fs:
+            before = await consistency.log_version(fs, f"memory://{name}")
+            upload(new, "0x2", datetime(2026, 1, 2, tzinfo=timezone.utc))
+            assert await consistency.log_version(fs, f"memory://{name}") == before
+
+        warm = await _poll(f"memory://{root}")
+        uncached = await _poll(f"memory://{root}", cache=None)
+        assert _statuses(sample_listing(warm.views[0]))[2] == "completed"
+        assert _answers(warm) == _answers(uncached)
+        with _reads(open_cache()):
+            assert await _per_sample_reads(warm.dir_index.tasks[0]) == (
+                await _per_sample_reads(uncached.dir_index.tasks[0])
+            )
+        # nothing read from a backend without a content version is cached
+        assert _cache_files(_isolate_log_dir_cache) == []
+    finally:
+        memory.rm(root, recursive=True)
+
+
+async def test_logs_under_a_local_path_that_is_not_utf8_are_read_as_uncached(
+    tmp_path: Path, finished_log: EvalLog, _isolate_log_dir_cache: Path
+) -> None:
+    # a valid native name that does not decode as UTF-8 (surrogate-escaped
+    # in Python), so the cache cannot hash it as a key
+    root = tmp_path / os.fsdecode(b"logs-\xff")
+    try:
+        root.mkdir()
+    except OSError:
+        pytest.skip("this filesystem refuses names that are not UTF-8")
+    shutil.copy(finished_log.location, root / Path(finished_log.location).name)
+    await _write_running_log(root, finished_log, logged=[1, 2], sample_ids=[1, 2, 3])
+    uncached = await _poll(root, cache=None)
+    assert len(uncached.views) == 2
+    assert _answers(await _poll(root)) == _answers(uncached)
+    assert _answers(await _poll(root)) == _answers(uncached)
+    assert _cache_files(_isolate_log_dir_cache) == []
+
+
+def test_cli_cache_entries_change_what_is_fetched_never_what_is_returned(
+    log_dir: Path,
+    finished_log: EvalLog,
+    no_discovery: None,
+    _isolate_log_dir_cache: Path,
+) -> None:
+    import json
+    import stat
+
+    from inspect_ai._control.log_dir import cache
+
+    task_id = finished_log.eval.task_id
+    commands = [
+        ["task", "list"],
+        ["sample", "list", "--content"],
+        ["sample", "errors"],
+        ["sample", "show", task_id, "2", "--content"],
+        ["sample", "events", task_id, "1"],
+        ["sample", "messages", task_id, "1"],
+        ["sample", "store", task_id, "1"],
+    ]
+
+    def answers() -> list[Any]:
+        results = [_ctl(log_dir, *command, "--json") for command in commands]
+        assert all(r.exit_code == 0 for r in results), [r.output for r in results]
+        return [{**_json(r), "as_of": 0} for r in results]
+
+    cold = answers()
+    [entry] = _cache_files(_isolate_log_dir_cache)
+    assert stat.S_IMODE(entry.parent.stat().st_mode) == 0o700
+    assert answers() == cold
+
+    entry.write_text("{not json")
+    assert answers() == cold
+    entry.unlink()
+    assert answers() == cold
+    # an entry of another schema version is discarded and rebuilt
+    data = json.loads(entry.read_text())
+    entry.write_text(json.dumps({**data, "schema_version": cache.SCHEMA_VERSION + 1}))
+    assert answers() == cold
+    assert json.loads(entry.read_text())["schema_version"] == cache.SCHEMA_VERSION
+
+    # an entry written by another Inspect version, whose parser may have
+    # dropped a field (here sample 2's error), or by one that recorded none,
+    # is discarded and rebuilt
+    data = json.loads(entry.read_text())
+    assert data["inspect_version"] == cache.INSPECT_VERSION
+    dropped = [{**s, "error": None} for s in data["summaries"]]
+    older = {**data, "inspect_version": "0.0.1", "summaries": dropped}
+    unversioned = {k: v for k, v in data.items() if k != "inspect_version"}
+    for other in [older, unversioned]:
+        entry.write_text(json.dumps(other))
+        assert answers() == cold
+        assert json.loads(entry.read_text()) == data
+
+    # entries whose header validators raise other exception types
+    header = data["plan"]["header"]
+    for malformed in [
+        {**header, "eval": {**header["eval"], "sandbox": []}},  # IndexError
+        {**header, "results": 1},  # TypeError
+        {**header, "results": {"scorer": {}}},  # KeyError
+    ]:
+        entry.write_text(
+            json.dumps({**data, "plan": {**data["plan"], "header": malformed}})
+        )
+        assert answers() == cold
+        assert json.loads(entry.read_text()) == data
+
+
+def _edit_member(path: Path, member: str, edit: Callable[[Any], None]) -> None:
+    """Rewrite one JSON member of the ``.eval`` log at ``path`` in place."""
+    import json
+
+    with zipfile.ZipFile(path) as src:
+        members = {info.filename: src.read(info.filename) for info in src.infolist()}
+    data = json.loads(members[member])
+    edit(data)
+    members[member] = json.dumps(data).encode()
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as out:
+        for name, content in members.items():
+            out.writestr(name, content)
+
+
+def _set_metadata(header: Any) -> None:
+    header["eval"]["metadata"] = {"note": "\ud800"}
+
+
+def _set_first_input(summaries: Any) -> None:
+    summaries[0]["input"] = "\ud800"
+
+
+@pytest.mark.parametrize(
+    "member,edit,running",
+    [
+        ("header.json", _set_metadata, False),
+        ("summaries.json", _set_first_input, False),
+        ("_journal/summaries/1.json", _set_first_input, True),
+    ],
+)
+async def test_a_log_the_cache_cannot_serialize_is_read_without_an_entry(
+    log_dir: Path,
+    finished_log: EvalLog,
+    member: str,
+    edit: Callable[[Any], None],
+    running: bool,
+    _isolate_log_dir_cache: Path,
+) -> None:
+    # an escaped lone surrogate parses, but does not serialize
+    if running:
+        [finished] = list(log_dir.glob("*.eval"))
+        finished.unlink()
+        path = await _write_running_log(
+            log_dir, finished_log, logged=[1, 2], sample_ids=[1, 2, 3]
+        )
+    else:
+        [path] = list(log_dir.glob("*.eval"))
+    _edit_member(path, member, edit)
+    uncached = await _poll(log_dir, cache=None)
+    assert _answers(await _poll(log_dir)) == _answers(uncached)
+    assert _answers(await _poll(log_dir)) == _answers(uncached)
+    # the failure turns the cache off, so nothing is written
+    assert _cache_files(_isolate_log_dir_cache) == []
+
+
+async def test_failed_and_cancelled_reads_store_no_snapshot(
+    log_dir: Path, monkeypatch: pytest.MonkeyPatch, _isolate_log_dir_cache: Path
+) -> None:
+    from inspect_ai._util import async_zip
+
+    poller = open_cache()
+    assert poller is not None
+    async with AsyncFilesystem() as fs:
+        with _reads(poller):
+            index = await index_log_dir(fs, str(log_dir))
+    # the plan read succeeded and is stored, with no summaries yet
+    [entry] = _cache_files(_isolate_log_dir_cache)
+    plan = index.tasks[0].current.run
+    assert plan is not None
+    stored = entry.read_bytes()
+
+    # a member read that keeps failing its CRC check
+    def always_torn(filename: str, member: Any, crc: int) -> None:
+        raise ZipCrcError(f"torn {member.filename}")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(async_zip, "_check_crc", always_torn)
+        [view] = (await _poll(log_dir)).views
+    assert _only_member(view) is None
+    assert entry.read_bytes() == stored
+
+    # a read cancelled while it reads the summaries
+    started = anyio.Event()
+    original = async_zip.AsyncZipReader.read_member_fully
+
+    async def blocked(self: AsyncZipReader, member: Any) -> bytes:
+        if member == "summaries.json":
+            started.set()
+            await anyio.sleep_forever()
+        return await original(self, member)
+
+    monkeypatch.setattr(async_zip.AsyncZipReader, "read_member_fully", blocked)
+    async with AsyncFilesystem() as fs:
+        async with anyio.create_task_group() as tg:
+
+            async def poll() -> None:
+                with _reads(open_cache()):
+                    await read_task_views(fs, index.tasks)
+
+            tg.start_soon(poll)
+            await started.wait()
+            tg.cancel_scope.cancel()
+    assert entry.read_bytes() == stored
+    fresh = open_cache()
+    assert fresh is not None
+    assert fresh.snapshot(plan) is None
+
+
+async def _replace_with_other_model(location: Path, finished_log: EvalLog) -> None:
+    """Write another running log, of model ``mockllm/other``, at ``location``."""
+    other = finished_log.model_copy(
+        update={"eval": finished_log.eval.model_copy(update={"model": "mockllm/other"})}
+    )
+    staging = location.parent.parent / f"{location.parent.name}-staging"
+    replacement = await _write_running_log(
+        staging, other, logged=[1, 2], sample_ids=[1, 2]
+    )
+    shutil.move(replacement, location)
+
+
+async def test_a_replaced_start_record_is_read_again(
+    tmp_path: Path, finished_log: EvalLog, central_directory_reads: Counter[str]
+) -> None:
+    root = tmp_path / "logs"
+    root.mkdir()
+    location = await _write_running_log(
+        root, finished_log, logged=[1], sample_ids=[1, 2]
+    )
+    await _poll(root)
+    # another running log written under the same name: the cached plan is of
+    # another version, so it is read again, and the start record's CRC-32
+    # shows it changed too
+    await _replace_with_other_model(location, finished_log)
+    warm = await _poll(root)
+    assert identity_row(warm.dir_index.tasks[0])["model"] == "mockllm/other"
+    assert _answers(warm) == _answers(await _poll(root, cache=None))
+
+
+async def test_a_cached_plan_of_a_log_that_finished_or_was_replaced_is_read_again(
+    tmp_path: Path, finished_log: EvalLog
+) -> None:
+    # a running log that finishes between two polls
+    running_dir = tmp_path / "running"
+    running_dir.mkdir()
+    running = await _start_running_log(
+        running_dir, finished_log, logged=[1], sample_ids=[1, 2, 3]
+    )
+    await _poll(running_dir)
+    assert finished_log.results is not None
+    await running.recorder.log_finish(
+        running.spec, "success", finished_log.stats, finished_log.results, None
+    )
+    warm = await _poll(running_dir)
+    assert identity_row(warm.dir_index.tasks[0])["status"] == "completed"
+    assert _answers(warm) == _answers(await _poll(running_dir, cache=None))
+
+    # a finished log replaced by a running one with a shared buffer
+    finished_dir = tmp_path / "finished"
+    finished_dir.mkdir()
+    location = finished_dir / Path(finished_log.location).name
+    shutil.copy(finished_log.location, location)
+    await _poll(finished_dir)
+    staging = tmp_path / "staging"
+    staging.mkdir()
+    shared = await _start_running_log(
+        staging, finished_log, logged=[1], sample_ids=[1, 2], log_shared=10
+    )
+    shutil.move(shared.location, location)
+    _write_buffer(location, [(_buffer_summary(2), [])])
+    warm = await _poll(finished_dir)
+    row = task_row(warm.views[0])
+    assert row["live_samples"] == "buffer" and row["samples"]["in_flight"] == 1
+    assert _answers(warm) == _answers(await _poll(finished_dir, cache=None))
+
+
+def test_cli_selectors_match_a_replaced_logs_new_identity(
+    tmp_path: Path, finished_log: EvalLog, no_discovery: None
+) -> None:
+    root = tmp_path / "logs"
+    root.mkdir()
+    location = anyio.run(
+        functools.partial(
+            _write_running_log, root, finished_log, logged=[1], sample_ids=[1, 2]
+        )
+    )
+    assert _ctl(root, "sample", "list", "alpha", "--json").exit_code == 0
+    anyio.run(_replace_with_other_model, location, finished_log)
+    for _ in range(2):
+        result = _ctl(root, "sample", "list", "alpha", "--model", "other", "--json")
+        assert result.exit_code == 0, result.output
+        assert _json(result)["counts"]["completed"] == 1
+
+
+def test_cli_reads_without_a_cache_when_the_data_directory_is_unavailable(
+    log_dir: Path, monkeypatch: pytest.MonkeyPatch, no_discovery: None
+) -> None:
+    expected = _ctl(log_dir, "task", "list", "--json")
+    assert expected.exit_code == 0
+
+    def unavailable(subdir: str | None) -> Path:
+        raise PermissionError(13, "Permission denied", "data")
+
+    monkeypatch.setattr(
+        "inspect_ai._control.log_dir.cache.inspect_data_dir", unavailable
+    )
+    result = _ctl(log_dir, "task", "list", "--json")
+    assert result.exit_code == 0, result.output
+    assert {**_json(result), "as_of": 0} == {**_json(expected), "as_of": 0}
+
+
+async def test_a_key_admitted_to_the_manifest_of_an_unchanged_log_is_found(
+    tmp_path: Path, finished_log: EvalLog
+) -> None:
+    running = await _start_running_log(
+        tmp_path, finished_log, logged=[1], sample_ids=[1, 2], log_shared=10
+    )
+    _write_buffer(running.location, [(_buffer_summary(2), [])])
+    poll = await _poll(tmp_path)
+    await _poll(tmp_path)
+    # a SampleSource admits sample 7; the log itself has not changed
+    _write_buffer(
+        running.location, [(_buffer_summary(2), []), (_buffer_summary(7), [])]
+    )
+    async with AsyncFilesystem() as fs:
+        with _reads(open_cache()):
+            detail = await sample_detail(fs, poll.dir_index.tasks[0], "7", 1)
+    assert detail["status"] == "running"
+
+
+async def test_the_least_recently_used_entries_are_pruned(
+    tmp_path: Path,
+    finished_log: EvalLog,
+    monkeypatch: pytest.MonkeyPatch,
+    _isolate_log_dir_cache: Path,
+) -> None:
+    from inspect_ai._control.log_dir import cache
+
+    async def poll_new_directory(name: str) -> Path:
+        directory = tmp_path / name
+        directory.mkdir()
+        shutil.copy(finished_log.location, directory)
+        before = set(_cache_files(_isolate_log_dir_cache))
+        await _poll(directory)
+        [entry] = set(_cache_files(_isolate_log_dir_cache)) - before
+        return entry
+
+    entries = [await poll_new_directory(str(i)) for i in range(3)]
+    # last used 300, 200 and 100 seconds ago
+    now = time.time()
+    for age, entry in zip((300, 200, 100), entries):
+        os.utime(entry, (now - age, now - age))
+    monkeypatch.setattr(cache, "MAX_CACHE_BYTES", int(2.5 * entries[0].stat().st_size))
+
+    # a warm read of the oldest makes it the most recently used
+    await _poll(tmp_path / "0")
+    assert len(_cache_files(_isolate_log_dir_cache)) == 3
+    # a new entry pushes the cache over the limit
+    newest = await poll_new_directory("3")
+    assert _cache_files(_isolate_log_dir_cache) == sorted([entries[0], newest])
+
+
+@skip_if_trio
+async def test_s3_request_counts_with_the_cache_for_finished_logs(
+    mock_s3: None, tmp_path: Path, finished_log: EvalLog, s3_requests: Counter[str]
+) -> None:
+    prefix = "log-dir-cache-finished"
+    root = f"s3://test-bucket/{prefix}"
+    logs = 3
+    for i in range(logs):
+        task_id = f"TASK{i}"
+        log = finished_log.model_copy(
+            update={"eval": finished_log.eval.model_copy(update={"task_id": task_id})}
+        )
+        path = await _attempt(log, tmp_path, f"2026-01-0{i + 1}T00-00-00+00-00")
+        _upload(path, f"{prefix}/{path.name}")
+
+    cold = await _poll(root)
+    # per log: the plan (central directory and header.json), then summaries.json
+    assert s3_requests == Counter({"ListObjectsV2": 1, "GetObject": 3 * logs})
+    s3_requests.clear()
+
+    warm = await _poll(root)
+    # a finished run with nothing changed: the listing alone
+    assert s3_requests == Counter({"ListObjectsV2": 1})
+    assert _answers(warm) == _answers(cold)
+    s3_requests.clear()
+
+    task = warm.dir_index.tasks[0]
+    async with AsyncFilesystem() as fs:
+        with _reads(open_cache()):
+            await sample_detail(fs, task, "1", 1)
+            # the key refresh is free; the sample read is the central
+            # directory, the member's local header and its body
+            assert s3_requests == Counter({"GetObject": 3})
+            s3_requests.clear()
+            await sample_events(fs, task, "1", 1)
+            # the central directory and one full member read
+            assert s3_requests == Counter({"GetObject": 2})
+            s3_requests.clear()
+
+    # one log changes: only it is read again (its central directory,
+    # header.json and summaries.json)
+    [path] = list(tmp_path.glob("2026-01-02*"))
+    changed = await read_eval_log_async(str(path))
+    assert changed.samples is not None
+    changed.samples[1] = changed.samples[1].model_copy(update={"error": None})
+    await write_eval_log_async(changed, str(path))
+    _upload(path, f"{prefix}/{path.name}")
+    s3_requests.clear()
+    after = await _poll(root)
+    assert s3_requests == Counter({"ListObjectsV2": 1, "GetObject": 3})
+    assert [task_row(v)["samples"]["errored"] for v in after.views] == [1, 0, 1]
+
+
+@skip_if_trio
+async def test_s3_request_counts_with_the_cache_for_running_logs(
+    mock_s3: None, tmp_path: Path, finished_log: EvalLog, s3_requests: Counter[str]
+) -> None:
+    running = await _start_running_log(
+        tmp_path, finished_log, logged=[1], sample_ids=[1, 2, 3], log_shared=10
+    )
+    buffer = _write_buffer(running.location, [(_buffer_summary(2), [])])
+    prefix = "log-dir-cache-running"
+    root = f"s3://test-bucket/{prefix}"
+    manifest_key = f"{prefix}/.buffer/{buffer.name}/manifest.json"
+
+    def journal() -> int:
+        return len(
+            [
+                n
+                for n in zipfile.ZipFile(running.location).namelist()
+                if n.startswith("_journal/summaries/")
+            ]
+        )
+
+    _upload(running.location, f"{prefix}/{running.location.name}")
+    _upload(buffer / "manifest.json", manifest_key)
+    await _poll(root)
+    s3_requests.clear()
+
+    # between flushes: the central directory, the manifest and the freshness
+    # check; no member reads
+    warm = await _poll(root)
+    assert s3_requests == Counter({"ListObjectsV2": 1, "GetObject": 2, "HeadObject": 1})
+    assert task_row(warm.views[0])["samples"]["in_flight"] == 1
+    s3_requests.clear()
+
+    # after a flush: the central directory and the new journal members only
+    # (start.json and the journal members already parsed are not read)
+    before = journal()
+    await _flush(running, [running.sample(2)])
+    _write_buffer(running.location, [])
+    _upload(running.location, f"{prefix}/{running.location.name}")
+    _upload(buffer / "manifest.json", manifest_key)
+    s3_requests.clear()
+    flushed = await _poll(root)
+    assert journal() > before
+    assert s3_requests == Counter(
+        {
+            "ListObjectsV2": 1,
+            "GetObject": 1 + 1 + (journal() - before),
+            "HeadObject": 1,
+        }
+    )
+    assert _statuses(sample_listing(flushed.views[0]))[2] == "error"
+    s3_requests.clear()
+
+    # the log finishes and the worker removes its buffer: the central
+    # directory, the final header.json and summaries.json
+    assert finished_log.results is not None
+    await running.recorder.log_finish(
+        running.spec, "success", finished_log.stats, finished_log.results, None
+    )
+    _upload(running.location, f"{prefix}/{running.location.name}")
+    boto3.client("s3").delete_object(Bucket="test-bucket", Key=manifest_key)
+    s3_requests.clear()
+    done = await _poll(root)
+    assert s3_requests == Counter({"ListObjectsV2": 1, "GetObject": 3})
+    assert task_row(done.views[0])["status"] == "completed"
+    s3_requests.clear()
+    await _poll(root)
+    assert s3_requests == Counter({"ListObjectsV2": 1})
+
+
+async def _large_versions(source: EvalLog, directory: Path) -> tuple[Path, Path]:
+    """Two versions of one log, sample 1's target ``OLD`` and ``NEW``.
+
+    Stored uncompressed, with the same member layout, and with a central
+    directory larger than the reader's first (suffix) read, so it takes a
+    second range request.
+    """
+    paths: list[Path] = []
+    for target in ("OLD", "NEW"):
+        log = source.model_copy(deep=True)
+        assert log.samples is not None
+        log.samples[0] = log.samples[0].model_copy(update={"target": target})
+        written = directory / f"{target}-written.eval"
+        await write_eval_log_async(log, str(written))
+        path = directory / f"{target}.eval"
+        stamp = (2026, 1, 1, 0, 0, 0)
+        with (
+            zipfile.ZipFile(written) as zin,
+            zipfile.ZipFile(path, "w", zipfile.ZIP_STORED) as zout,
+        ):
+            for info in zin.infolist():
+                zout.writestr(zipfile.ZipInfo(info.filename, stamp), zin.read(info))
+            for i in range(1500):
+                zout.writestr(
+                    zipfile.ZipInfo(f"padding/{i:05d}-{'x' * 48}", stamp), b""
+                )
+        paths.append(path)
+    old, new = paths
+    assert old.stat().st_size == new.stat().st_size
+    return old, new
+
+
+@skip_if_trio
+async def test_s3_a_log_replaced_during_a_large_central_directory_read(
+    mock_s3: None,
+    tmp_path: Path,
+    finished_log: EvalLog,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from inspect_ai._control.log_dir import samples
+
+    old, new = await _large_versions(finished_log, tmp_path)
+    name = Path(finished_log.location).name
+    key = f"log-dir-large/{name}"
+    root = "s3://test-bucket/log-dir-large"
+
+    def etag() -> str:
+        return str(
+            boto3.client("s3").head_object(Bucket="test-bucket", Key=key)["ETag"]
+        ).strip('"')
+
+    # replace the log with NEW right after the next suffix read of it, before
+    # the central directory's second range request
+    armed: list[bool] = []
+    original = AsyncFilesystem.read_file_suffix
+
+    async def replacing(self: AsyncFilesystem, filename: str, length: int) -> Any:
+        result = await original(self, filename, length)
+        if armed and filename.endswith(name):
+            armed.clear()
+            _upload(new, key)
+        return result
+
+    monkeypatch.setattr(AsyncFilesystem, "read_file_suffix", replacing)
+
+    # a cold read: the cached snapshot is of the version its bytes came from
+    _upload(old, key)
+    armed.append(True)
+    [view] = (await _poll(root)).views
+    member = _only_member(view)
+    assert member is not None
+    assert member.plan.version == etag()
+    assert member.summaries[SampleKey("1", 1)].target == "NEW"
+    cache = open_cache()
+    assert cache is not None
+    cached = cache.snapshot(member.plan)
+    assert cached is not None
+    assert cached.summaries[SampleKey("1", 1)].target == "NEW"
+
+    # a warm sample read: the cached summary is OLD's, and the sample member
+    # is read through a central directory that NEW replaces mid-read; the
+    # summary is re-read, so it agrees with the sample
+    _upload(old, key)
+    await _poll(root)
+    poll = await _poll(root)
+    armed.append(True)
+    async with AsyncFilesystem() as fs:
+        with _reads(open_cache()):
+            located = await samples._locate(fs, poll.dir_index.tasks[0], "1", 1)
+            assert located.summary.target == "OLD"
+            read = await samples._read_sample(fs, located, None)
+    assert read.summary is not None
+    assert (read.sample.target, read.summary.target) == ("NEW", "NEW")

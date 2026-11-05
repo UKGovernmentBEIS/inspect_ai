@@ -67,8 +67,7 @@ class AnthropicBatcher(Batcher[Message, CompletedBatchInfo]):
         for request in batch:
             # the Batches API has no extra_body: merge it into the request
             # body root, which is where the SDK would put it on the direct
-            # path (e.g. temperature/top_p/top_k, which anthropic >= 1.0
-            # removed from the method signatures but the API still accepts)
+            # path
             params: dict[str, Any] = request.request
             extra_body = params.pop("extra_body", None)
             if extra_body:

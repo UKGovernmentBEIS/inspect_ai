@@ -82,13 +82,12 @@ def test_noqa_invalid_code_list_is_inert() -> None:
     assert scan("import os  # noqa:\n") == []
 
 
-def test_noqa_spaced_colon_is_blanket() -> None:
-    # ruff opens the code list only when the colon is attached to noqa;
-    # with whitespace before it the colon and everything after are
-    # trailing text on a BLANKET noqa (verified: "noqa :" and
-    # "noqa : F401" both suppress every rule on the line).
-    assert scan("import os  # noqa : F401\n") == [("noqa", True)]
-    assert scan("import os  # noqa :F401\n") == [("noqa", True)]
+def test_noqa_spaced_colon_parses_codes() -> None:
+    # ruff tolerates whitespace before the colon (verified: "noqa : F401"
+    # suppresses F401 only, and "noqa :" suppresses nothing).
+    assert scan("import os  # noqa : F401\n") == [("noqa:F401", False)]
+    assert scan("import os  # noqa :F401\n") == [("noqa:F401", False)]
+    assert scan("import os  # noqa :\n") == []
 
 
 def test_noqa_trailing_junk_after_valid_codes_counts_parsed_codes() -> None:
@@ -159,10 +158,120 @@ def test_trailing_file_wide_noqa_is_inert() -> None:
     assert scan("x = 1  # flake8: noqa\n") == []
 
 
-def test_file_wide_noqa_mid_comment_is_inert() -> None:
-    # Own line, but the directive doesn't open the comment: ruff silently
-    # ignores it (verified).
-    assert scan("# prose  # ruff: noqa\nimport os\n") == []
+def test_file_wide_noqa_in_any_segment_of_own_line_comment() -> None:
+    # ruff honors the file-level form in a later segment of an own-line
+    # comment, and after a doubled hash (verified).
+    for text in (
+        "# prose  # ruff: noqa\nimport os\n",
+        "# prose #flake8: noqa\nimport os\n",
+        "## ruff: noqa\nimport os\n",
+    ):
+        assert scan(text) == [("noqa (file-wide)", False)], text
+    assert scan("# prose  # ruff: noqa: F401\nimport os\n") == [
+        ("noqa:F401 (file-wide)", False)
+    ]
+    # Without a hash of its own, the directive is prose.
+    assert scan("# prose ruff: noqa\nimport os\n") == []
+
+
+# --- scanner: ruff ignore and disable ---
+
+
+def test_ruff_ignore_trailing_counts_per_code() -> None:
+    assert scan("import os, sys  # ruff: ignore[F401, E401]\n") == [
+        ("ruff: ignore[F401]", False),
+        ("ruff: ignore[E401]", False),
+    ]
+
+
+def test_ruff_ignore_trailing_in_any_segment() -> None:
+    # Like noqa, a trailing ruff: ignore counts after other comment text
+    # (verified).
+    assert scan("import os  # prose  # ruff: ignore[F401]\n") == [
+        ("ruff: ignore[F401]", False)
+    ]
+    assert scan("import os  ## ruff: ignore[F401]\n") == [("ruff: ignore[F401]", False)]
+
+
+def test_ruff_ignore_own_line_covers_next_line() -> None:
+    assert scan("# ruff: ignore[F401]  # re-export\nimport os\n") == [
+        ("ruff: ignore[F401]", True)
+    ]
+
+
+def test_ruff_disable_counts_per_code() -> None:
+    assert scan("# ruff: disable[F401,E401,]\nimport os, sys\n") == [
+        ("ruff: disable[F401]", False),
+        ("ruff: disable[E401]", False),
+    ]
+    assert scan("    #ruff : disable [ B904 ] reason\n") == [
+        ("ruff: disable[B904]", True)
+    ]
+
+
+def test_ruff_enable_is_not_a_suppression() -> None:
+    assert scan("# ruff: enable[F401]\n") == []
+
+
+def test_ruff_disable_and_own_line_ignore_must_open_the_comment() -> None:
+    # ruff ignores these after other comment text or a doubled hash, and
+    # ignores a disable trailing code (all verified).
+    for text in (
+        "# prose  # ruff: disable[F401]\nimport os\n",
+        "## ruff: disable[F401]\nimport os\n",
+        "# prose  # ruff: ignore[F401]\nimport os\n",
+        "## ruff: ignore[F401]\nimport os\n",
+        "x = 1  # ruff: disable[F401]\nimport os\n",
+    ):
+        assert scan(text) == [], text
+
+
+def test_ruff_bracket_codes_keep_only_uppercase_codes() -> None:
+    # ruff applies each valid code and skips other entries (verified:
+    # "[e501, F401]" suppresses F401, as does "[F401, ]"). A list with no
+    # valid code, an empty entry before the last, a hash in the list, an
+    # unclosed list, or an uppercase prefix or verb suppresses nothing.
+    assert scan("import os  # ruff: ignore[e501, F401]\n") == [
+        ("ruff: ignore[F401]", False)
+    ]
+    assert scan("import os  # ruff: ignore[F401, ]\n") == [
+        ("ruff: ignore[F401]", False)
+    ]
+    for text in (
+        "import os  # ruff: ignore[,F401]\n",
+        "import os, sys  # ruff: ignore[F401,,E401]\n",
+        "import os  # ruff: ignore[F401,,]\n",
+        "import os  # ruff: ignore[F401, # x]\n",
+        "# ruff: disable[,F401]\nimport os\n",
+        "import os, sys  # ruff: ignore[F401 E401]\n",
+        "import os  # ruff: ignore[unused-import]\n",
+        "import os  # ruff: ignore[ALL]\n",
+        "import os  # ruff: ignore[]\n",
+        "# ruff: disable[F401\nimport os\n",
+        "import os  # RUFF: ignore[F401]\n",
+        "import os  # ruff: IGNORE[F401]\n",
+        "# flake8: disable[F401]\nimport os\n",
+    ):
+        assert scan(text) == [], text
+
+
+def test_ruff_bracket_list_embedding_hash_does_not_swallow_later_directive() -> None:
+    # The ruff bracket list stops at `#`, so a list that embeds a later
+    # comment segment is not matched as a ruff directive (the list never
+    # closes). Scanning resumes and the embedded pyright directive is
+    # recorded — otherwise this is a way around the gate.
+    assert scan(
+        'x: int = "bad"  # ruff: ignore[ # pyright: ignore[reportAssignmentType]]\n'
+    ) == [("pyright: ignore[reportAssignmentType]", True)]
+    assert scan(
+        '# ruff: disable[ # pyright: ignore[reportAssignmentType]]\nx: int = "bad"\n'
+    ) == [("pyright: ignore[reportAssignmentType]", True)]
+
+
+def test_ruff_bracket_list_with_embedded_hash_records_nothing() -> None:
+    # ruff drops a bracket list that contains a hash, so `# ruff: ignore[F401,
+    # # x]` suppresses nothing (verified) and records no ruff rule.
+    assert scan("import os  # ruff: ignore[F401, # x]\n") == []
 
 
 # --- scanner: mypy ---

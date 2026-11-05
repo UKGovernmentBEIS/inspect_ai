@@ -28,6 +28,27 @@ def _isolate_terminal_source_caches() -> Iterator[None]:
         clear_terminal_source_caches()
 
 
+@pytest.fixture(autouse=True)
+def _isolate_log_dir_cache(
+    tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
+) -> Path:
+    """Point the ``inspect ctl --log-dir`` cache at a directory of this test's own.
+
+    Keeps CLI tests from writing the user's data directory, and from serving
+    one test's entries to another. Returns the data directory the cache lives
+    under.
+    """
+    data_dir = tmp_path_factory.mktemp("data")
+
+    def _stub(subdir: str | None) -> Path:
+        path = data_dir / (subdir or "")
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    monkeypatch.setattr("inspect_ai._control.log_dir.cache.inspect_data_dir", _stub)
+    return data_dir
+
+
 @pytest.fixture
 def short_data_dir(monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
     """Short data dir under /tmp so AF_UNIX paths fit in 104 chars.

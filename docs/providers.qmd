@@ -16,7 +16,7 @@ To use the [OpenAI](https://platform.openai.com/) provider, install the `openai`
 ``` bash
 pip install openai
 export OPENAI_API_KEY=your-openai-api-key
-inspect eval arc.py --model openai/gpt-4o-mini
+inspect eval arc.py --model openai/gpt-6-luna
 ```
 
 The following environment variables are supported by the OpenAI provider
@@ -39,7 +39,7 @@ The `openai` provider supports the following custom model args (other model args
 | `responses_store` | Pass `store=True` to the Responses API (defaults to `True`). |
 | `responses_phase` | Synthesize missing assistant message `phase` values when replaying Responses API histories. |
 | `service_tier` | Processing type used for serving the request ("auto", "default", or "flex"). |
-| `background` | Execute generate requests asynchronously, polling response objects to check status over time. Defaults to `True` for `gpt-5-pro` and `deep-research` models and for requests with `reasoning_mode="pro"`, and `False` otherwise. |
+| `background` | Execute generate requests asynchronously, polling response objects to check status over time. Defaults to `True` for `-pro` models such as `gpt-5.5-pro`, for `deep-research` models, and for requests with `reasoning_mode="pro"`, and `False` otherwise. |
 | `safety_identifier` | A stable identifier used to help detect users of your application. |
 | `streaming` | Whether to use streaming responses. The default ("auto") streams when the caller passes an `on_stream` callback to `generate()` — except Azure chat-completions requests, which never auto-stream (accumulated streamed responses would lose content-filter stop details); pass `true` or `false` to override. If the server rejects the streaming request itself (a 400 naming the `stream` param — e.g. reasoning models on organizations that haven't completed verification), auto mode retries the request non-streamed. |
 | `prompt_cache_key` | Used by OpenAI to cache responses for similar requests. |
@@ -51,8 +51,8 @@ The `openai` provider supports the following custom model args (other model args
 For example:
 
 ``` bash
-inspect eval arc.py --model openai/gpt-4o-mini \ 
-   -M responses_api=true
+inspect eval arc.py --model openai/gpt-6-luna \
+   -M service_tier=flex
 ```
 
 Or from Python:
@@ -61,22 +61,22 @@ Or from Python:
 from inspect_ai import eval
 
 eval(
-    "arc.py", model=" openai/gpt-4o-mini", 
-    model_args= { "responses_api": True }
+    "arc.py", model="openai/gpt-6-luna",
+    model_args= { "service_tier": "flex" }
 )
 ```
 
 ### Responses API
 
-By default, Inspect uses the standard OpenAI Chat Completions API for GPT-4 models and the new [Responses API](https://platform.openai.com/docs/api-reference/responses) for GPT-5 and later (including GPT-6), o-series models, and the `computer_use_preview` model.
+By default, Inspect uses the standard OpenAI Chat Completions API for GPT-4 models and the new [Responses API](https://platform.openai.com/docs/api-reference/responses) for GPT-5 and later (including GPT-6) and o-series models.
 
 If you want to manually enable or disable the Responses API you can use the `responses_api` model argument. For example:
 
 ``` bash
-inspect eval math.py --model openai/gpt-4o -M responses_api=true
+inspect eval math.py --model openai/gpt-6-luna -M responses_api=false
 ```
 
-Note that certain models including `o1-pro` and `computer_use_preview` *require* the use of the Responses API. Check the Open AI [models documentation](https://platform.openai.com/docs/models) for details on which models are supported by the respective APIs.
+Note that certain models including `gpt-5.5-pro` *require* the use of the Responses API. On Chat Completions, GPT-6 Luna supports function calling only with reasoning off, so set `reasoning_effort="none"` when using tools with `responses_api=false`. Check the Open AI [models documentation](https://platform.openai.com/docs/models) for details on which models are supported by the respective APIs.
 
 ### Responses Phase
 
@@ -93,16 +93,16 @@ When enabled, assistant messages with tool calls are labeled `commentary`; other
 By default, Inspect's implementation of the Responses API does not store messages on the server. Reasoning content (which is intended to be opaque to clients) is handled using encrypted payloads (via the "reasoning.encrypted_content" include option). To control this behavior explicitly use the `responses_store` model argument. For example:
 
 ``` bash
-inspect eval math.py --model openai/o4-mini -M responses_store=True
+inspect eval math.py --model openai/gpt-6-luna -M responses_store=True
 ```
 
 ### Responses Metadata
 
-You can attach [`metadata`](https://platform.openai.com/docs/api-reference/responses/create#responses-create-metadata) key-value pairs to Responses API requests via the `extra_body` generation config. For example:
+You can attach [`metadata`](https://developers.openai.com/api/reference/resources/responses/methods/create) key-value pairs to Responses API requests via the `extra_body` generation config (`--extra-body` on the command line). For example:
 
 ``` bash
 inspect eval math.py --model openai/gpt-5.4 \
-    -M extra_body='{"metadata": {"experiment": "baseline"}}'
+    --extra-body '{"metadata": {"experiment": "baseline"}}'
 ```
 
 The `metadata` returned on responses (the echoed request metadata, which some models augment with additional fields) is surfaced as `ModelOutput.metadata`. Note that request metadata is not sent when `responses_store=True`.
@@ -111,18 +111,18 @@ The `metadata` returned on responses (the echoed request metadata, which some mo
 
 [Flex processing](https://platform.openai.com/docs/guides/flex-processing) provides significantly lower costs for requests in exchange for slower response times and occasional resource unavailability (input and output tokens are priced using [batch API rates](https://platform.openai.com/docs/guides/batch) for flex requests).
 
-Note that flex processing is in beta, and currently **only available for o3 and o4-mini models**.
+Note that flex processing is in beta with limited model availability. The OpenAI [pricing page](https://platform.openai.com/docs/pricing) lists the supported models.
 
 To enable flex processing, use the `service_tier` model argument, setting it to "flex". For example:
 
 ``` bash
-inspect eval math.py --model openai/o4-mini -M service_tier=flex
+inspect eval math.py --model openai/gpt-6-luna -M service_tier=flex
 ```
 
 OpenAI recommends using a [higher client timeout](https://platform.openai.com/docs/guides/flex-processing#api-request-timeouts) when making flex requests (15 minutes rather than the standard 10). Inspect automatically increases the client timeout to 15 minutes (900 seconds) for flex requests. To specify another value, use the `client_timeout` model argument. For example:
 
 ``` bash
-inspect eval math.py --model openai/o4-mini \
+inspect eval math.py --model openai/gpt-6-luna \
     -M service_tier=flex -M client_timeout=1200
 ```
 
@@ -138,13 +138,13 @@ The `openai` provider supports OpenAI models deployed on the [Azure AI Foundry](
 | `AZUREAI_OPENAI_API_VERSION` | OpenAI API version (optional) |
 | `AZUREAI_AUDIENCE` | Azure resource URI that the access token is intended for when using managed identity (optional, defaults to `https://cognitiveservices.azure.com/.default`) |
 
-You can then use the normal `openai` provider with the `azure` qualifier and the name of your model deployment (e.g. `gpt-4o-mini`). For example:
+You can then use the normal `openai` provider with the `azure` qualifier and the name of your model deployment (e.g. `gpt-6-luna`). For example:
 
 ``` bash
 export AZUREAI_OPENAI_API_KEY=your-api-key
 export AZUREAI_OPENAI_BASE_URL=https://your-url-at.azure.com
 export AZUREAI_OPENAI_API_VERSION=2025-03-01-preview
-inspect eval math.py --model openai/azure/gpt-4o-mini
+inspect eval math.py --model openai/azure/gpt-6-luna
 ```
 
 If using managed identity for authentication, install the `azure-identity` package and do not specify `AZUREAI_API_KEY`.
@@ -154,7 +154,7 @@ pip install azure-identity
 export AZUREAI_OPENAI_BASE_URL=https://your-url-at.azure.com
 export AZUREAI_AUDIENCE=https://cognitiveservices.azure.com/.default
 export AZUREAI_OPENAI_API_VERSION=2025-03-01-preview
-inspect eval math.py --model openai/azure/gpt-4o-mini
+inspect eval math.py --model openai/azure/gpt-6-luna
 ```
 
 Note that if the `AZUREAI_OPENAI_API_VERSION` is not specified, Inspect will generally default to the latest deployed version, which as of this writing is `2025-03-01-preview`. When using managed identity for authentication, install the `azure-identity` package and leave `AZUREAI_OPENAI_API_KEY` undefined.
@@ -215,6 +215,8 @@ inspect eval arc.py --model anthropic/claude-sonnet-4-0
 ```
 
 For the `anthropic` provider, custom model args (`-M`) are forwarded to the constructor of the `AsyncAnthropic` class.
+
+The `anthropic` provider does not pass `temperature`, `top_p`, or `top_k` to the model, because the Anthropic API rejects them as of API version `2026-10-21` (sent by `anthropic>=2.0`). It logs a warning when one of them is set.
 
 The following environment variables are supported by the Anthropic provider
 
@@ -590,6 +592,10 @@ The following environment variables are supported by the Meta provider
 | `META_API_KEY` | API key credentials (required unless `MODEL_API_KEY` is set). |
 | `MODEL_API_KEY` | API key credentials (Meta's official variable name; used when `META_API_KEY` is not set). |
 | `META_BASE_URL` | Base URL for requests (optional, defaults to `https://api.meta.ai/v1`). |
+
+### Prompt Caching {#meta-prompt-caching}
+
+Inspect sets Meta's [`prompt_cache_key`](https://dev.meta.ai/docs/prompt-caching#prompt-cache-key) to the running sample's unique id (no key is sent outside a sample) and, on the Responses API, sets `prompt_cache_retention` to `"24h"`. Use the `prompt_cache_key` and `prompt_cache_retention` model args to override these (e.g. `-M prompt_cache_retention=in_memory`). Values supplied in `GenerateConfig(extra_body=...)` take precedence. Cached tokens are reported as `input_tokens_cache_read`.
 
 ## Grok {#grok}
 
@@ -980,9 +986,13 @@ The following environment variables are supported by the Perplexity provider
 | Variable | Description |
 |----------------------------|--------------------------------------------|
 | `PERPLEXITY_API_KEY` | API key credentials (required). |
-| `PERPLEXITY_BASE_URL` | Base URL for requests (optional, defaults to `https://api.perplexity.ai`) |
+| `PERPLEXITY_BASE_URL` | Base URL for requests (optional, defaults to `https://api.perplexity.ai/v1`) |
 
-Perplexity responses include citations when available. These are surfaced as `UrlCitation`s attached to the assistant message. Additional usage metrics such as `reasoning_tokens` and `citation_tokens` are recorded in `ModelOutput.metadata`.
+The provider uses Perplexity's [Agent API](https://docs.perplexity.ai/docs/agent-api/quickstart). Name models as `perplexity/<provider>/<model>`, using the ids in Perplexity's [model list](https://docs.perplexity.ai/docs/agent-api/models) (for example `perplexity/openai/gpt-5.6-luna`). Perplexity's own models can omit the provider, so `perplexity/sonar` is the same as `perplexity/perplexity/sonar`. Perplexity retired `sonar-pro`, `sonar-reasoning-pro`, and `sonar-deep-research` with its Sonar API; use another Agent API model instead.
+
+Perplexity models search the web only when you pass the [`web_search()`](tools-standard.qmd#perplexity-options) tool, which also takes the search options. This is true for `perplexity/sonar` as well: Sonar searched on every request, but the Agent API does not. Add `web_search()` to keep search-grounded answers and citations. Other Agent API request fields can be passed with `extra_body`. Fields that Inspect sets from the generation config, such as `include` and `text`, are not replaced. From a `reasoning` object, only fields that the config has no option for, such as `context`, are sent. Set the effort, mode and summary with `reasoning_effort`, `reasoning_mode` and `reasoning_summary`. The `tools` in `extra_body` can include Perplexity's [`fetch_url`](https://docs.perplexity.ai/docs/agent-api/tools/fetch-url) tool; `web_search()` adds its tool to that list. Inspect's `tool_choice` does not apply to the tools in `extra_body`. To turn them off, set `tool_choice` in `extra_body`. The request has a single tool choice, so that value applies to the `web_search()` tool as well. A `tool_choice` that forces a search raises an error if `extra_body` sets a different `tool_choice`. Inspect cannot read the results of Perplexity's other tools, so a response with them raises an error.
+
+When the model searches or fetches a page, the results are recorded in `ModelOutput.metadata["search_results"]` or `ModelOutput.metadata["fetch_url_results"]` and attached as `UrlCitation`s to the assistant message. The number of searches, which Perplexity bills per search, is recorded in `ModelOutput.metadata["num_search_queries"]`.
 
 ## Hugging Face {#hugging-face}
 

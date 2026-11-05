@@ -55,7 +55,7 @@ from inspect_ai.review._policy import (
 from inspect_ai.scorer import Metric, Scorer
 from inspect_ai.scorer._reducer import ScoreReducers, create_reducers
 from inspect_ai.solver import Plan, Solver, generate
-from inspect_ai.solver._chain import chain
+from inspect_ai.solver._chain import chain, is_solver_sequence
 from inspect_ai.solver._task_state import TaskState
 from inspect_ai.util._checkpoint.config import CheckpointConfig, normalize_checkpoint
 from inspect_ai.util._limit import TokenLimit, token_limit_fields
@@ -73,7 +73,7 @@ logger = getLogger(__name__)
 
 
 class TaskDeprecatedArgs(TypedDict, total=False):
-    plan: Plan | Solver | list[Solver]
+    plan: Plan | Solver | Sequence[Solver]
     tool_environment: str | SandboxEnvironmentSpec | None
     epochs_reducer: ScoreReducers | None
     max_messages: int | None
@@ -88,8 +88,8 @@ class Task:
     def __init__(
         self,
         dataset: Dataset | Sequence[Sample] | SampleSource | None = None,
-        setup: Solver | list[Solver] | None = None,
-        solver: Solver | Agent | list[Solver] = generate(),
+        setup: Solver | Sequence[Solver] | None = None,
+        solver: Solver | Agent | Sequence[Solver] = generate(),
         cleanup: Callable[[TaskState], Awaitable[None]] | None = None,
         scorer: "Scorers" | None = None,
         metrics: list[Metric | dict[str, list[Metric]]]
@@ -186,9 +186,10 @@ class Task:
             time_limit: Limit on clock time (in seconds) for samples.
             working_limit: Limit on working time (in seconds) for sample. Working
                 time includes model generation, tool calls, etc. but does not include
-                time spent waiting on retries or shared resources. Work done while
-                any wait is open is not charged, so working time can undercount;
-                set `time_limit` as well to bound wall clock time.
+                time spent waiting on retries or shared resources. While a wait is
+                open, only model calls, sandbox commands and tool calls are charged,
+                so working time can undercount; set `time_limit` as well to bound
+                wall clock time.
             cost_limit: Limit on total cost (in dollars) for each sample.
                 Requires model cost data via set_model_cost() or --model-cost-config.
             early_stopping: Early stopping callbacks.
@@ -321,8 +322,8 @@ def task_with(
     task: Task,
     *,
     dataset: Dataset | Sequence[Sample] | SampleSource | None | NotGiven = NOT_GIVEN,
-    setup: Solver | list[Solver] | None | NotGiven = NOT_GIVEN,
-    solver: Solver | Agent | list[Solver] | NotGiven = NOT_GIVEN,
+    setup: Solver | Sequence[Solver] | None | NotGiven = NOT_GIVEN,
+    solver: Solver | Agent | Sequence[Solver] | NotGiven = NOT_GIVEN,
     cleanup: Callable[[TaskState], Awaitable[None]] | None | NotGiven = NOT_GIVEN,
     scorer: "Scorers" | None | NotGiven = NOT_GIVEN,
     metrics: list[Metric | dict[str, list[Metric]]]
@@ -430,9 +431,10 @@ def task_with(
         time_limit: Limit on clock time (in seconds) for samples.
         working_limit: Limit on working time (in seconds) for sample. Working
             time includes model generation, tool calls, etc. but does not include
-            time spent waiting on retries or shared resources. Work done while
-            any wait is open is not charged, so working time can undercount;
-            set `time_limit` as well to bound wall clock time.
+            time spent waiting on retries or shared resources. While a wait is
+            open, only model calls, sandbox commands and tool calls are charged,
+            so working time can undercount; set `time_limit` as well to bound
+            wall clock time.
         cost_limit: Limit on total cost (in dollars) for each sample.
             Requires model cost data via set_model_cost() or --model-cost-config.
         early_stopping: Early stopping callbacks.
@@ -564,6 +566,9 @@ class PreviousTask:
     task_args: dict[str, Any]
     model: Model | None
     model_roles: dict[str, Model | list[Model]] | None
+    # the sandbox to resume in: eval-set's resolved task sandbox, never the
+    # log's; eval-retry's from the log, which records a --sandbox override
+    sandbox: SandboxEnvironmentSpec | None
     log: EvalLog
     log_info: EvalLogInfo | None
 
@@ -663,11 +668,13 @@ def resolve_dataset(dataset: Dataset | Sequence[Sample] | None) -> Dataset:
     return dataset if isinstance(dataset, Dataset) else MemoryDataset(list(dataset))
 
 
-def resolve_solver(solver: Solver | Agent | list[Solver]) -> Solver:
-    if isinstance(solver, list):
-        return chain(solver)
-    elif is_agent(solver):
+def resolve_solver(
+    solver: Solver | Agent | Sequence[Solver],
+) -> Solver:
+    if is_agent(solver):
         return as_solver(solver)
+    elif is_solver_sequence(solver):
+        return chain(solver)
     else:
         return cast(Solver, solver)
 

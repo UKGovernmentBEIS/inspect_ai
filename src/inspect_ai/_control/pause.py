@@ -636,7 +636,8 @@ async def wait_generate_dispatch(
 
     The hold and the slot reacquire after it are an open sample wait (see
     design/working-time-concurrency.md), so held time counts as waiting time
-    for ``working_limit`` and the sample's reported working time. ``time_limit``
+    for ``working_limit`` and the sample's reported working time, unless other
+    known work runs in the sample. ``time_limit``
     deadlines deliberately keep running while held — explicitly the
     operator's risk with ``pause --now``.
 

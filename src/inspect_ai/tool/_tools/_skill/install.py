@@ -7,10 +7,15 @@ from weakref import WeakKeyDictionary
 import anyio
 
 from inspect_ai.util import sandbox as sandbox_env
+from inspect_ai.util._sandbox._framework_operation import framework_sandbox_operation
 from inspect_ai.util._sandbox._privileged import privileged_exec, privileged_shell
 from inspect_ai.util._sandbox.environment import (
     SandboxEnvironment,
     SandboxUserUnsupportedError,
+)
+from inspect_ai.util._sandbox.identity import (
+    sandbox_file_user_params,
+    sandbox_operation_user,
 )
 
 from .read import read_skills
@@ -45,11 +50,20 @@ async def install_skills(
     # resolve sandbox
     sbox = sandbox if isinstance(sandbox, SandboxEnvironment) else sandbox_env(sandbox)
 
+    # inside a sandbox identity scope an omitted user installs as the scope's
+    # user; check that the provider can write as a user before writing anything
+    member = sandbox_operation_user(sbox, None) if user is None else None
+    if member is not None:
+        sandbox_file_user_params(sbox, "write_file", None)
+    install_user = member or user
+
     # install skills
-    skills_dir = await _resolve_skills_dir(sbox, user, dir)
+    skills_dir = await _resolve_skills_dir(sbox, install_user, dir)
     skills_info: list[SkillInfo] = []
     for skill in resolved_skills:
-        await _write_skill(sbox, user, skills_dir, skill)
+        await _write_skill(
+            sbox, install_user, skills_dir, skill, as_user=member is not None
+        )
         skills_info.append(_skill_info(skills_dir, skill))
 
     return skills_info
@@ -235,15 +249,31 @@ async def _write_skill(
     user: str | None,
     skills_dir: PurePosixPath,
     skill: Skill,
+    *,
+    as_user: bool,
 ) -> None:
     for file in _skill_files(skills_dir, skill):
-        await _write_skill_file(sbox, user, file)
+        await _write_skill_file(sbox, user, file, as_user=as_user)
 
 
 async def _write_skill_file(
-    sbox: SandboxEnvironment, user: str | None, file: _SkillFile
+    sbox: SandboxEnvironment, user: str | None, file: _SkillFile, *, as_user: bool
 ) -> None:
-    await sbox.write_file(file.path, _write_contents(file))
+    """Write a skill file for `install_skills()`.
+
+    With `as_user`, the file is written as `user`, who then owns it, so it is
+    not given to `user` with `chown`. Otherwise it is written as the sandbox's
+    default user (also inside a sandbox identity scope) and then given to
+    `user`, if any.
+    """
+    if as_user:
+        params = sandbox_file_user_params(sbox, "write_file", user)
+        await sbox.write_file(file.path, _write_contents(file), **params)
+        if file.executable:
+            await _checked_exec(sbox, user, ["chmod", "+x", file.path])
+        return
+    with framework_sandbox_operation():
+        await sbox.write_file(file.path, _write_contents(file))
     await _set_file_owner_and_mode(sbox, user, file)
 
 

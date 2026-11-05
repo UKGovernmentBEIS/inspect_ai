@@ -1,9 +1,11 @@
+import contextlib
 from contextvars import ContextVar
 from copy import deepcopy
 from typing import (
     TYPE_CHECKING,
     Any,
     ItemsView,
+    Iterator,
     KeysView,
     Type,
     TypeVar,
@@ -117,6 +119,55 @@ def init_subtask_store(store: Store) -> None:
 
 
 _subtask_store: ContextVar[Store] = ContextVar("subtask_store", default=Store())
+
+
+@contextlib.contextmanager
+def suspend_store_events() -> Iterator[None]:
+    """Suspend store change tracking for spans opened within a block of code.
+
+    Each `span()` records the store changes made inside it as a `StoreEvent`.
+    It does this by copying the whole store when the span begins and ends.
+    When several spans run at once, each one records every write, including
+    writes made by the others.
+
+    While this context manager is open:
+
+    - Spans opened inside the block do not copy the store and record no
+      `StoreEvent`.
+    - Spans opened before the block keep tracking changes to their own store,
+      so the enclosing span records the net change once when it ends.
+      Separate stores created by subtasks or forks started inside the block
+      have no `StoreEvent` for their changes.
+    - Tasks started inside the block inherit the suspension. Tasks started
+      outside it do not.
+    - The store itself is unaffected: reads and writes work as usual, and the
+      sample's final store is logged as usual.
+
+    Useful for running many agents at once inside one span. Not public API:
+    inspect_swarm imports it from this module.
+
+    Example:
+        async with span("team"):
+            with suspend_store_events():
+                async with anyio.create_task_group() as tg:
+                    for member in members:
+                        tg.start_soon(member)
+    """
+    token = _store_events_suspended.set(True)
+    try:
+        yield
+    finally:
+        _store_events_suspended.reset(token)
+
+
+def store_events_suspended() -> bool:
+    """Whether `suspend_store_events()` is active in the current context."""
+    return _store_events_suspended.get()
+
+
+_store_events_suspended: ContextVar[bool] = ContextVar(
+    "store_events_suspended", default=False
+)
 
 
 def store_changes(
