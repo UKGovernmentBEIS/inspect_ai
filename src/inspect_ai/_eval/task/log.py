@@ -558,6 +558,15 @@ class TaskLogger:
         """Whether :meth:`log_finish` completed for this attempt (its log is written)."""
         return self._finished
 
+    @property
+    def finished_log(self) -> EvalLog | None:
+        """The log :meth:`log_finish` wrote this attempt, without taking it.
+
+        Lets ``task_run`` give started hooks the written log while the
+        dispatcher still takes it with :meth:`pop_finished_log`.
+        """
+        return self._finished_log
+
     def pop_finished_log(self) -> EvalLog | None:
         """Take the log :meth:`log_finish` wrote this attempt (``None`` if none).
 

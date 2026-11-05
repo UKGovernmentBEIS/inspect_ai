@@ -55,6 +55,7 @@ in ``src`` that passes a literal argv outside the agent-facing tools.
 
 from inspect_ai.util._subprocess import ExecResult
 
+from ._framework_operation import framework_sandbox_operation
 from .environment import SandboxEnvironment
 
 SHELL_PATH = "/bin/sh"
@@ -147,8 +148,8 @@ async def privileged_exec(
         sandbox: Sandbox to run in.
         cmd: Command and arguments.
         user: User to run as (as for ``sandbox.exec``); ``None`` is the sandbox
-            default user. Required so the authority a call carries is explicit at
-            the call site.
+            default user, also inside a sandbox identity scope. Required so the
+            authority a call carries is explicit at the call site.
         input: Standard input (as for ``sandbox.exec``).
         cwd: Working directory (as for ``sandbox.exec``).
         env: Extra environment variables; ``PATH`` is overridden.
@@ -163,16 +164,17 @@ async def privileged_exec(
         ValueError: ``cmd`` is empty.
         Everything ``sandbox.exec`` raises.
     """
-    return await sandbox.exec(
-        pinned_command(cmd),
-        input=input,
-        cwd=cwd,
-        env=pinned_env(env),
-        user=user,
-        timeout=timeout,
-        timeout_retry=timeout_retry,
-        concurrency=concurrency,
-    )
+    with framework_sandbox_operation():
+        return await sandbox.exec(
+            pinned_command(cmd),
+            input=input,
+            cwd=cwd,
+            env=pinned_env(env),
+            user=user,
+            timeout=timeout,
+            timeout_retry=timeout_retry,
+            concurrency=concurrency,
+        )
 
 
 async def privileged_shell(
@@ -200,16 +202,17 @@ async def privileged_shell(
     Raises:
         Everything ``sandbox.exec`` raises.
     """
-    return await sandbox.exec(
-        pinned_shell_command(script, *args),
-        input=input,
-        cwd=cwd,
-        env=pinned_env(env),
-        user=user,
-        timeout=timeout,
-        timeout_retry=timeout_retry,
-        concurrency=concurrency,
-    )
+    with framework_sandbox_operation():
+        return await sandbox.exec(
+            pinned_shell_command(script, *args),
+            input=input,
+            cwd=cwd,
+            env=pinned_env(env),
+            user=user,
+            timeout=timeout,
+            timeout_retry=timeout_retry,
+            concurrency=concurrency,
+        )
 
 
 async def image_path_lookup(
@@ -232,7 +235,7 @@ async def image_path_lookup(
         sandbox: Sandbox to run in.
         name: Program name to look up.
         user: User to run as (as for ``sandbox.exec``); ``None`` is the sandbox
-            default user.
+            default user, also inside a sandbox identity scope.
         concurrency: As for ``sandbox.exec``.
 
     Returns:
@@ -243,12 +246,13 @@ async def image_path_lookup(
     Raises:
         Everything ``sandbox.exec`` raises.
     """
-    return await sandbox.exec(
-        pinned_shell_command(
-            "which_bin=$(command -v which) || exit 127\n"
-            f'PATH=${IMAGE_PATH_VARIABLE} exec "$which_bin" "$1"',
-            name,
-        ),
-        user=user,
-        concurrency=concurrency,
-    )
+    with framework_sandbox_operation():
+        return await sandbox.exec(
+            pinned_shell_command(
+                "which_bin=$(command -v which) || exit 127\n"
+                f'PATH=${IMAGE_PATH_VARIABLE} exec "$which_bin" "$1"',
+                name,
+            ),
+            user=user,
+            concurrency=concurrency,
+        )

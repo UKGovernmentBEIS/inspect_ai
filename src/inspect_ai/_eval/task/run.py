@@ -780,9 +780,25 @@ async def notify_task_source(options: TaskRunOptions, eval_log: EvalLog) -> None
     retry request cancels that scope, so the callback runs (and can await)
     whether or not the task was cancelled. A preview (``run_samples=False``)
     ran no samples, so it is not reported.
+
+    An exception from the callback is not a task failure: it is logged, the
+    attempt keeps its written log and is not retried for it, and no follow-up
+    tasks are added (with ``debug_errors`` it propagates). Errors adding the
+    tasks the callback returned propagate.
     """
     if options.task_source is not None and options.run_samples:
-        _enqueue_source_tasks(await options.task_source.task_complete(eval_log))
+        try:
+            tasks = await options.task_source.task_complete(eval_log)
+        except Exception as ex:
+            if options.debug_errors:
+                raise
+            py_logger.error(
+                "TaskSource.task_complete() raised an error for task "
+                f"'{options.task.name}': {inner_exception(ex)}",
+                exc_info=ex,
+            )
+            return
+        _enqueue_source_tasks(tasks)
 
 
 ABORTED_LOG_WRITE_TIMEOUT = 10.0
@@ -859,6 +875,7 @@ def _enqueue_source_samples(samples: list[Sample] | None) -> None:
 
 async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> EvalLog:
     from inspect_ai.hooks._hooks import (
+        Hooks,
         emit_task_end,
         emit_task_start,
     )
@@ -1042,6 +1059,10 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             # (see TaskLogger.log_finish)
             prune_unplanned=status == "success" and not record_logged_samples,
         )
+
+    # hooks whose on_task_start was entered and that are still owed their
+    # on_task_end (see emit_task_start / emit_task_end)
+    task_end_pending: list[Hooks] = []
 
     # handle sample errors (raise as required). use total_samples (sliced
     # dataset * epochs) as the denominator for fractional fail_on_error so
@@ -1351,7 +1372,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             # call hook (after the retry-abandon check above: every task
             # start must be paired with a task end, and an abandoned attempt
             # ends with neither a log nor an end hook)
-            await emit_task_start(logger, eval_plan)
+            await emit_task_start(logger, eval_plan, task_end_pending)
 
             # publish the interim-scoring capability (the task's scorers and
             # scoring inputs as resolved at eval start) for the control
@@ -2163,7 +2184,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                 reductions=reductions,
             )
 
-            await emit_task_end(logger, eval_log)
+            await emit_task_end(logger, eval_log, task_end_pending, raise_limits=True)
 
             # display task summary
             td.complete(
@@ -2228,6 +2249,9 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         reductions=reductions,
                         error=error,
                     )
+                    await emit_task_end(
+                        logger, eval_log, task_end_pending, raise_limits=False
+                    )
                     td.complete(
                         TaskError(
                             logger.samples_completed,
@@ -2243,6 +2267,9 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         stats=stats,
                         results=results,
                         reductions=reductions,
+                    )
+                    await emit_task_end(
+                        logger, eval_log, task_end_pending, raise_limits=False
                     )
                     td.complete(TaskCancelled(logger.samples_completed, stats))
 
@@ -2286,6 +2313,9 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         TaskError(logger.samples_completed, type, value, traceback)
                     )
                     raise
+                await emit_task_end(
+                    logger, eval_log, task_end_pending, raise_limits=False
+                )
 
                 # display it
                 td.complete(TaskError(logger.samples_completed, type, value, traceback))
@@ -2303,6 +2333,21 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             # unwinds past the rest of task_run, still unlinks the temp file)
             if isinstance(sample_store, DiskSampleStore):
                 sample_store.close()
+
+            # an exception escaping the handlers above (a debug_errors
+            # re-raise, a failed log write, a failure computing partial
+            # results, a hook raising cancellation) leaves started hooks
+            # without their end: give them the written log, or else an
+            # errored one. For an exception _run_task converts, that errored
+            # log is the result it returns; a cancellation before the write
+            # completes can leave eval() with no log for this task
+            if task_end_pending and (escaping := sys.exc_info()[1]) is not None:
+                await emit_task_end(
+                    logger,
+                    logger.finished_log or unwritten_task_log(logger, escaping),
+                    task_end_pending,
+                    raise_limits=False,
+                )
 
     # notify the view module that an eval just completed
     # (in case we have a view polling for new evals)
@@ -4255,6 +4300,23 @@ def _seed_error_retries(sample: EvalSample) -> list[EvalRetryError]:
     if sample.error is not None and not _is_cancellation_error(sample.error):
         seed.append(_eval_retry_error_from_sample(sample))
     return seed
+
+
+def unwritten_task_log(logger: TaskLogger, ex: BaseException) -> EvalLog:
+    """An errored log for a task whose final log was not written.
+
+    Used when writing the log itself failed (``_run_task`` returns it to the
+    dispatcher) and as the task-end hook's log when no final log exists. Its
+    ``location`` is the log file the write was destined for, which may not
+    exist or may hold a partial log.
+    """
+    inner = inner_exception(ex) if isinstance(ex, Exception) else ex
+    return EvalLog(
+        status="error",
+        eval=logger.eval,
+        error=eval_error(inner, type(inner), inner, inner.__traceback__),
+        location=logger.location,
+    )
 
 
 async def _finish_task_log(
