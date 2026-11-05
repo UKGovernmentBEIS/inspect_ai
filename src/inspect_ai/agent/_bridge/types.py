@@ -169,21 +169,23 @@ class AgentBridge:
         # deferred: `_sentinel` imports this module
         from ._sentinel import history_ids, inherited_result_keys
 
-        # a checkpoint written without these exempts and reserves nothing
-        initial = self._cp.attempt == "initial"
+        # a checkpoint written without the keys exempts nothing
         self._inherited_results = frozenset(
             self._cp.track(
                 "bridge_inherited_results",
                 lambda: sorted(self._inherited_results),
-                sorted(inherited_result_keys(state.messages)) if initial else [],
+                sorted(inherited_result_keys(state.messages))
+                if self._cp.attempt == "initial"
+                else [],
                 value_type=list[str],
             )
         )
+        # one written without the reservations reserves its prefix's ids
         self._reserved_ids = frozenset(
             self._cp.track(
                 "bridge_reserved_ids",
                 lambda: sorted(self._reserved_ids),
-                sorted(history_ids(state.messages)) if initial else [],
+                sorted(history_ids(self._compaction_prefix)),
                 value_type=list[str],
             )
         )

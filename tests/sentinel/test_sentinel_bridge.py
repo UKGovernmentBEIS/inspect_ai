@@ -2615,9 +2615,17 @@ async def test_a_starting_call_id_is_not_reissued_when_a_request_omits_it(
     await reintroduce_after_a_summary(bridge, model)
 
 
+@pytest.mark.parametrize(
+    "keys",
+    [
+        ["bridge_inherited_results", "bridge_reserved_ids"],
+        # a checkpoint written without the reservations: those of its prefix
+        [],
+    ],
+)
 @pytest.mark.parametrize("sandbox", [False, True])
 async def test_a_resumed_bridge_keeps_its_starting_call_ids_reserved(
-    sandbox: bool,
+    sandbox: bool, keys: list[str]
 ) -> None:
     new = replace(READ, arguments={"path": "new.txt"})
     model = Scripted(calls_output(new), calls_output())
@@ -2626,12 +2634,7 @@ async def test_a_resumed_bridge_keeps_its_starting_call_ids_reserved(
         sandbox, model.model, AgentState(messages=old_conversation("safe")), first
     )
     checkpointer = RecordingCheckpointer(
-        restored=saved(
-            first,
-            "bridge_compaction_prefix",
-            "bridge_inherited_results",
-            "bridge_reserved_ids",
-        )
+        restored=saved(first, "bridge_compaction_prefix", *keys)
     )
     bridge = started_with(
         sandbox, model.model, AgentState(messages=[SUMMARY]), checkpointer
