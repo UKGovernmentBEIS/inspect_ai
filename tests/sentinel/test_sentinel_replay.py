@@ -1754,6 +1754,50 @@ def test_a_model_call_outside_the_phases_is_not_a_turn(where: str) -> None:
             ]
 
 
+def test_a_chain_in_cleanup_is_not_an_earlier_layout() -> None:
+    # Ransom's review 31 B1: a chain awaited in Task.cleanup records a
+    # top-level solver span after the solvers and scorers spans close
+    from inspect_ai.solver import chain
+
+    @solver
+    def cleans_up() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            await get_model().generate("cleanup")
+            return state
+
+        return solve
+
+    async def cleanup(state: TaskState) -> None:
+        async def no_generate(*args: Any, **kwargs: Any) -> TaskState:
+            raise AssertionError("cleanup does not generate")
+
+        await chain(cleans_up())(state, no_generate)
+
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=generate(),
+        cleanup=cleanup,
+    )
+    log = eval(task, model=outputs(done(), done()))[0]
+    assert log.status == "success", log.error
+    events = logged_sample(log).events
+    assert any(
+        isinstance(e, SpanBeginEvent) and e.parent_id is None and e.type == "solver"
+        for e in events
+    )
+    models = [e for e in events if isinstance(e, ModelEvent)]
+    [solve] = [e for e in models if e.origin == "agent"]
+    [outside] = [e for e in models if e is not solve]
+    assert outside.origin == "setup"
+    for inputs in ["expanded", "pooled"]:
+        for recorded in [events, without_origins(events)]:
+            replay = replay_inputs(log, recorded, inputs)
+            assert [(s.stage, s.id) for s in replay] == [
+                ("model_input", solve.uuid),
+                ("model_output", solve.uuid),
+            ]
+
+
 @pytest.mark.parametrize("start", ["sample_start", "sample_attempt_start"])
 @pytest.mark.parametrize("after", [False, True])
 def test_a_model_call_before_solving_stops_early_is_not_a_turn(
@@ -5436,6 +5480,71 @@ def test_an_approvals_context_replays_only_for_the_call_it_viewed(
         assert before.view.context is None
     else:
         assert comparable(before.view.context) == comparable(live.view.context)
+
+
+@protocol
+def r7_clicks_elsewhere() -> Protocol:
+    async def rewrite(
+        context: Context, step: BeforeToolCall, escalations: Escalations
+    ) -> Decision | None:
+        modified = replace(
+            step.call, arguments={**step.call.arguments, "element_id": 3}
+        )
+        return Decision(action="modify", modified=modified, explanation="elsewhere")
+
+    return rewrite
+
+
+@pytest.mark.parametrize("inputs", ["expanded", "pooled"])
+@pytest.mark.parametrize("origins", [True, False])
+def test_an_approvals_view_replays_when_only_a_sentinel_changes_the_call(
+    inputs: str, origins: bool
+) -> None:
+    # Ransom's review 31 B2: the approver approves the call unchanged, then a
+    # sentinel modifies it; the before-tool stage was handed the approval's view
+    from inspect_ai._sentinel import _replay
+
+    seen: dict[str, Step] = {}
+    task = Task(
+        dataset=[Sample(input="Click item 1", target="")],
+        solver=tool_loop(r7_click()),
+        sentinel=[r7_probe(seen, copies=True), r7_clicks_elsewhere()],
+        approval=[ApprovalPolicy(r7_clicks("approve", 1), "*")],
+    )
+    model = outputs(call("r7_click", element_id=1, options={}), done())
+    log = eval(task, model=model)[0]
+    assert log.status == "success", log.error
+    sample = logged_sample(log)
+    [tool_event] = [e for e in sample.events if isinstance(e, ToolEvent)]
+    assert tool_event.arguments["element_id"] == 3
+    [(_, live)] = [
+        (key, step)
+        for key, step in live_steps(sample, seen).items()
+        if key[0] == "tool_call"
+    ]
+    assert live.view.context is not None
+    assert "* [1] button" in live.view.context.content
+    assert_logged_replay_equals_live(log, seen)
+
+    events: list[Event] = list(
+        sample.events if origins else without_origins(sample.events)
+    )
+    pool: list[ChatMessage] = []
+    if inputs == "pooled":
+        events, pool = _replay._condensed(events, [])
+    adapter = TypeAdapter(list[Event])
+    events = adapter.validate_json(adapter.dump_json(events))
+    replay = steps_from_events(
+        sample.messages,
+        events,
+        pool,
+        sample_uuid=sample.uuid or "",
+        eval_info=EvalInfo.from_eval(log.eval),
+    )
+    [before] = [s.step for s in replay if isinstance(s.step, BeforeToolCall)]
+    assert before.call.arguments["element_id"] == 1
+    assert comparable(before.view.context) == comparable(live.view.context)
+    assert comparable(before.view.call) == comparable(live.view.call)
 
 
 def test_a_result_is_the_message_the_tool_event_names() -> None:

@@ -100,7 +100,7 @@ def steps_from_events(
 
     In logs without origins, recorded sentinel checks and human decisions are used only when their step id pairs with a model call's exact id. Inferred turns may differ from those seen by a sentinel that ran before origins were recorded; reproducing that sentinel's live steps is outside this replay contract. For a run without a sentinel, human decisions are reconstructed from `ApprovalEvent`s only when the log records inspect_ai 0.3.277 or later; older or unknown versions omit them and warn once when a selected human approver appears. A `tool_call` step whose call an approver changed has no `view.context`: the `ApprovalEvent` view describes the call the approver was shown, and live renders the changed call's context again, which the log does not record. A log is refused where the call an approval approved (its modified call, else the call it records) is not the call its `ToolEvent` records, unless a recorded sentinel modify changed the call again to the one the `ToolEvent` records. Inspect before 0.3.277 wrote such logs, including for a call an approver changed in place and approved without a modified call, and they are refused whatever version the header records, since a retried eval keeps its completed samples under a newer header. This includes an approved call whose tool records other arguments than it was given, such as `memory()` resolving a path: the log does not show which implementation ran. Replay such a transcript from its messages instead. Where such a call has no recorded step and its `ToolEvent` has a parsing or approval error, it may have been refused before it ran or raised the error after running, so replay skips its tool steps with a warning naming the call instead of refusing the log.
 
-    Replay requires a log written by Inspect 0.3.100 or later. Earlier logs lack the `solvers` and `scorers` spans (and, before 0.3.94, native tool spans) and cannot be replayed reliably. A log whose samples have an earlier layout is refused whatever its header says, since a retried eval keeps its completed samples under a newer header: a `ToolEvent` that nests other events, a solver or scorer `StepEvent`, or a top-level solver or scorer span (outside the `solvers` and `scorers` spans). If the recorded version is unknown, completed native tool events without a matching tool span, including execution failures, are also refused as potentially older logs. Pre-execution halts remain allowed.
+    Replay requires a log written by Inspect 0.3.100 or later. Earlier logs lack the `solvers` and `scorers` spans (and, before 0.3.94, native tool spans) and cannot be replayed reliably. A log whose samples have an earlier layout is refused whatever its header says, since a retried eval keeps its completed samples under a newer header: a `ToolEvent` that nests other events, a solver or scorer `StepEvent`, a top-level scorer span, or a top-level solver span in a sample that records no `solvers` or `scorers` span (where one is recorded, a top-level solver span is a chain `Task.cleanup` or a hook awaited, and its calls are setup's). If the recorded version is unknown, completed native tool events without a matching tool span, including execution failures, are also refused as potentially older logs. Pre-execution halts remain allowed.
 
     Args:
         messages: The sample's messages (`EvalSample.messages`).
@@ -152,16 +152,26 @@ def steps_from_events(
 
 
 def _has_earlier_layout(events: Sequence[Event]) -> bool:
-    """Whether the samples have a layout of Inspect before 0.3.100, which a retried eval keeps under a newer header: a `ToolEvent` that nests events, a solver or scorer `StepEvent`, or a top-level solver or scorer span."""
+    """Whether the samples have a layout of Inspect before 0.3.100, which a retried eval keeps under a newer header: a `ToolEvent` that nests events, a solver or scorer `StepEvent`, a top-level scorer span, or a top-level solver span in a log that records no `solvers` or `scorers` span (0.3.99 records `init`). Where one is recorded, a solver span outside them is a chain awaited by `Task.cleanup` or a hook."""
+    phased = _records_phases(events, ("solvers", "scorers"))
     return any(
         (isinstance(event, ToolEvent) and event.events)
         or (isinstance(event, StepEvent) and event.type in ("solver", "scorer"))
         or (
             isinstance(event, SpanBeginEvent)
             and event.parent_id is None
-            and event.type in ("solver", "scorer")
+            and (event.type == "scorer" or (event.type == "solver" and not phased))
         )
         for event in events
+    )
+
+
+def _records_phases(
+    events: Sequence[Event], phases: tuple[str, ...] = ("init", "solvers", "scorers")
+) -> bool:
+    return any(
+        isinstance(e, SpanBeginEvent) and e.parent_id is None and e.name in phases
+        for e in events
     )
 
 
@@ -873,24 +883,32 @@ class _Driver:
 
         modify = self._sentinel_modify(before_span, event)
         approved = approver_modified or proposal
-        if modify is not None:
-            before_call = approved
-        else:
+        if modify is None:
             before_call = replace(approved, arguments=event.arguments)
+        elif self.approval_log_reliable and approval is not None:
+            # the call the approver approved, validated, which the sentinel's
+            # modify then replaced
+            before_call = approver_modified or approval.call
+        else:
+            before_call = approved
+        presented = event if modify is None else before_call
+        shown = (
+            approval is not None
+            and presented.function == approval.call.function
+            and json_equal(presented.arguments, approval.call.arguments)
+        )
         if (
             self.approval_log_reliable
             and approval is not None
             and approval.view is not None
-            and modify is None
+            and (modify is None or shown)
         ):
             # the approval's view is of the call it was shown; a changed call's
             # context is not recorded
-            shown = event.function == approval.call.function and json_equal(
-                event.arguments, approval.call.arguments
-            )
             before_view = ToolCallView(
                 context=approval.view.context if shown else None,
-                call=event.view or _default_view(before_call),
+                call=(event.view if modify is None else approval.view.call)
+                or _default_view(before_call),
             )
         elif (
             not self.approval_log_reliable
@@ -994,7 +1012,7 @@ class _Driver:
         # the prompt its turns are classified by
         known: dict[int, str] = {}
         outside: set[int] = set()
-        phased = self._records_phases()
+        phased = _records_phases(self.events)
         for event in self.events:
             if not isinstance(event, ModelEvent | CompactionEvent):
                 continue
@@ -1040,14 +1058,6 @@ class _Driver:
                 id(event), "helper" if id(event) in utility else "agent"
             )
         return inferred
-
-    def _records_phases(self) -> bool:
-        return any(
-            isinstance(e, SpanBeginEvent)
-            and e.parent_id is None
-            and e.name in ("init", "solvers", "scorers")
-            for e in self.events
-        )
 
     def _scoring(self, event: Event) -> bool:
         """Whether `event` was recorded in the scorers' phase, under the top-level `scorers` span."""
