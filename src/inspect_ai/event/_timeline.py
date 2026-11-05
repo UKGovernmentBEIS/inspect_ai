@@ -1745,8 +1745,18 @@ class _Continuity:
         )
 
 
+def _call_failed(event: ModelEvent) -> bool:
+    """Whether the caller did not receive the call's output: it failed, is pending, or was refused under ``fail_on_refusal`` (`Model.generate()` completes the event before raising `ModelRefusalError`)."""
+    refused = (
+        bool(event.config.fail_on_refusal)
+        and not event.output.empty
+        and event.output.stop_reason == "content_filter"
+    )
+    return event.error is not None or bool(event.pending) or refused
+
+
 def _answer(event: ModelEvent) -> ChatMessage | None:
-    if event.error is not None or event.pending or not event.output.choices:
+    if _call_failed(event) or not event.output.choices:
         return None
     return event.output.choices[0].message
 

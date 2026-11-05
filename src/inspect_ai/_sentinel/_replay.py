@@ -22,6 +22,7 @@ from inspect_ai.event._timeline import (
     Timeline,
     TimelineEvent,
     TimelineSpan,
+    _call_failed,
     _timeline_build,
 )
 from inspect_ai.event._tool import ToolEvent
@@ -733,12 +734,7 @@ class _Driver:
         )
         self._settle_at_end(before_span)
 
-        refused = (
-            bool(last.config.fail_on_refusal)
-            and not last.output.empty
-            and last.output.stop_reason == "content_filter"
-        )
-        if last.error is not None or last.pending or refused:
+        if _call_failed(last):
             return
         after_span = (
             self.step_spans.get(("model_output", first.uuid))

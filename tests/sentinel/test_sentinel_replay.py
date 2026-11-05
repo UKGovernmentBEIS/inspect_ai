@@ -4976,6 +4976,74 @@ def test_a_refusal_raised_under_fail_on_refusal_has_no_after_step() -> None:
     assert [s.stage for s in replay] == ["model_input", "model_input", "model_output"]
 
 
+@solver
+def r7_continues_after_a_retried_refusal() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        model = get_model()
+        try:
+            await model.generate(
+                state.messages, config=GenerateConfig(fail_on_refusal=True)
+            )
+        except ModelRefusalError:
+            pass
+        output = await model.generate(state.messages)
+        state.messages.extend([output.message, ChatMessageUser(content="And 2 + 2?")])
+        state.output = await model.generate(state.messages)
+        return state
+
+    return solve
+
+
+@pytest.mark.parametrize("inputs", ["expanded", "pooled"])
+def test_a_refusal_raised_under_fail_on_refusal_is_a_failed_call_in_continuity(
+    inputs: str,
+) -> None:
+    # Ransom's review 26 B1: a refused call R, its retry S on the same input,
+    # then a call continuing S; without origins continuity took R's refusal
+    # as an answer and made R utility, dropping its model_input step
+    from inspect_ai._sentinel import _replay
+
+    model = outputs(
+        ModelOutput.from_content(
+            "mockllm/model", "I refuse", stop_reason="content_filter"
+        ),
+        done("2"),
+        done(),
+    )
+    seen: dict[str, Step] = {}
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=r7_continues_after_a_retried_refusal(),
+        sentinel=[r7_probe(seen, copies=True)],
+    )
+    log = eval(task, model=model)[0]
+    assert log.status == "success", log.error
+    recorded = assert_logged_replay_equals_live(log, seen)
+    assert [s.stage for s in recorded] == [
+        "model_input",
+        "model_input",
+        "model_output",
+        "model_input",
+        "model_output",
+    ]
+    sample = logged_sample(log)
+    refused = next(e for e in sample.events if isinstance(e, ModelEvent))
+    assert refused.output.stop_reason == "content_filter"
+    events: list[Event] = without_origins(sample.events)
+    pool: list[ChatMessage] = []
+    if inputs == "pooled":
+        events, pool = _replay._condensed(events, [])
+    inferred = steps_from_events(
+        sample.messages,
+        events,
+        pool,
+        sample_uuid=sample.uuid or "",
+        eval_info=EvalInfo.from_eval(log.eval),
+    )
+    assert [(s.stage, s.id) for s in inferred] == [(s.stage, s.id) for s in recorded]
+    assert ("model_input", refused.uuid) in [(s.stage, s.id) for s in inferred]
+
+
 def test_a_superseded_human_decision_is_withdrawn(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
