@@ -301,7 +301,8 @@ def framework_sandbox_operation() -> Iterator[None]:
     Wrap only calls whose `user=None` means the sandbox's default user, and
     never code that runs model-chosen work. The one deliberate exception is
     in-loop scoring: `score()` wraps the task's scorer, which may execute
-    submitted code as the default user.
+    submitted code as the default user. Opening a `sandbox_identity()` scope
+    inside the block raises `SandboxIdentityError`.
     """
     token = _framework_operation.set(True)
     try:
@@ -451,6 +452,16 @@ submitted program, `src/inspect_evals/frontier_cs/scorer.py:305`). In-loop, it
 does so as the default user while other members are still running, so member
 user isolation does not protect peers from that scorer. Final scoring runs the
 same code only after every member has finished.
+
+**A scorer cannot open its own scope during in-loop scoring.** Inside the
+marked block a scope's user would not reach the scorer's userless calls, while
+the same scorer opening the same scope at final scoring, which is unmarked,
+would run them as that user. `sandbox_identity()` therefore raises
+`SandboxIdentityError` when it is opened inside `framework_sandbox_operation()`,
+rather than silently ignoring the scope there. No scorer in Inspect or its
+satellite packages opens a scope. Supporting one would need a scope-aware
+exemption to the marker and is not part of this design (decision: Ransom,
+2026-11-04).
 
 ### Providers that cannot take a file user
 
@@ -723,6 +734,8 @@ the async conventions in AGENTS.md, so they run under asyncio and, with
   `framework_sandbox_operation()` an omitted user stays `None`; after the block
   it resolves again; a task started inside the block inherits the marker, and a
   task started after it does not.
+- `test_scope_cannot_open_inside_a_framework_operation`: `sandbox_identity()`
+  opened inside `framework_sandbox_operation()` raises `SandboxIdentityError`.
 - `test_provider_without_file_user_raises_in_a_scope`: a fake whose
   `read_file()` and `write_file()` declare no `user` raises
   `SandboxUserUnsupportedError` naming the scope, and the same fake works

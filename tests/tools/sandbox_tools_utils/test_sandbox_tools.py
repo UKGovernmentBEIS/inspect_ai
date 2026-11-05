@@ -916,6 +916,65 @@ def test_two_scoped_users_share_one_bash_session() -> None:
 
 
 @solver
+def _custom_tools_run_as_the_scope_user() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        sb = sandbox()
+        default_uid = (await sb.exec(["id", "-u"])).stdout.strip()
+        for user in ("w1", "w2"):
+            created = await sb.exec(
+                [
+                    "sh",
+                    "-c",
+                    f"useradd -m {user} && chmod 700 /home/{user} && "
+                    f"echo {user} > /home/{user}/secret && "
+                    f"chown {user} /home/{user}/secret",
+                ],
+                user="root",
+            )
+            assert created.success, created.stderr
+
+        # what a custom tool does: sandbox operations with no user
+        async def custom_tool(user: str, other: str) -> None:
+            assert (await sandbox().exec(["id", "-un"])).stdout.strip() == user
+            await sandbox().write_file(f"/home/{user}/note", user)
+            assert await sandbox().read_file(f"/home/{user}/secret") == f"{user}\n"
+            with pytest.raises(PermissionError):
+                await sandbox().read_file(f"/home/{other}/secret")
+
+        for user, other in (("w1", "w2"), ("w2", "w1")):
+            with sandbox_identity(user):
+                await custom_tool(user, other)
+                # injects the sandbox tools inside the first scope
+                result = await sandbox().exec_remote(["id", "-un"], stream=False)
+                assert result.stdout.strip() == user, result
+        for user in ("w1", "w2"):
+            owner = await sb.exec(
+                ["stat", "-c", "%U", f"/home/{user}/note"], user="root"
+            )
+            assert owner.stdout.strip() == user, owner
+        assert sb._tools_default_user is not None
+        assert str(sb._tools_default_user.uid) == default_uid
+        assert (await sb.exec(["id", "-u"])).stdout.strip() == default_uid
+        return state
+
+    return solve
+
+
+# A custom tool's exec(), read_file() and write_file() with no user run as the
+# scope's user; injection first triggered inside a scope still records the
+# sandbox's default identity.
+@pytest.mark.slow
+def test_custom_tools_run_as_the_scope_user() -> None:
+    task = Task(
+        dataset=[Sample(input="x")],
+        solver=_custom_tools_run_as_the_scope_user(),
+        sandbox=("docker", NONROOT_COMPOSE),
+    )
+    log = eval(task, model=get_model("mockllm/model"))[0]
+    assert log.status == "success", log.error
+
+
+@solver
 def _scoped_tools_report_the_user_home() -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         sb = sandbox()

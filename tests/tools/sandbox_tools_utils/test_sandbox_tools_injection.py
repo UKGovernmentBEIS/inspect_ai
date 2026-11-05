@@ -368,6 +368,54 @@ async def test_inject_installs_rootless_quietly_when_root_unusable(
     assert _warn_once_messages == []
 
 
+MEMBER_IDENTITY = ExecResult(
+    success=True,
+    returncode=0,
+    stdout="Uid: 2222\t2222\t2222\t2222\nGid: 2222\t2222\t2222\t2222\nGroups: 2222 \nHOME: /home/w-1\nHOME_SET: 1\n",
+    stderr="",
+)
+"""Result of the identity probe if it ran as the scope's user `w-1`."""
+
+
+@pytest.mark.parametrize(
+    "root_access, tools_user",
+    [(ROOT_USABLE, "root"), (ROOT_UNUSABLE, None)],
+    ids=["root", "rootless"],
+)
+async def test_injection_inside_a_scope_records_the_default_identity(
+    stub_artifact: dict[str, object], root_access: RootAccess, tools_user: str | None
+) -> None:
+    """Injection first triggered inside a member's scope keeps the default user."""
+    from inspect_ai.util._sandbox.context import (
+        sandbox_default_context_var,
+        sandbox_environments_context_var,
+    )
+    from inspect_ai.util._sandbox.identity import sandbox_identity
+
+    def policy(cmd: list[str], user: str | None) -> ExecResult[str]:
+        if is_identity_probe(cmd) and user == "w-1":
+            return MEMBER_IDENTITY
+        return helper_ok(cmd, user)
+
+    provider = CannedSandbox(policy)
+    provider._root_access = root_access
+    proxy = SandboxEnvironmentProxy(provider)
+    envs_token = sandbox_environments_context_var.set({"default": proxy})
+    default_token = sandbox_default_context_var.set("default")
+    try:
+        with sandbox_identity("w-1"):
+            await sandbox_tools._inject_container_tools_code(proxy)
+    finally:
+        sandbox_default_context_var.reset(default_token)
+        sandbox_environments_context_var.reset(envs_token)
+
+    assert proxy._tools_user == tools_user
+    assert proxy._tools_default_user == (NONROOT if tools_user == "root" else None)
+    assert ([SANDBOX_CLI, "start-server"], tools_user) in provider.exec_calls
+    assert any(is_framework_dir_call(cmd) for cmd, _ in provider.exec_calls)
+    assert {user for _, user in provider.exec_calls} <= {None, "root"}
+
+
 async def test_inject_warns_once_per_process_when_root_access_ambiguous(
     stub_artifact: dict[str, object], _warn_once_messages: list[str]
 ) -> None:
