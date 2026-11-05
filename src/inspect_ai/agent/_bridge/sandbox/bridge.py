@@ -339,7 +339,8 @@ async def sandbox_agent_bridge(
             # proxy server that runs in container and forwards to sandbox service.
             # A proxy minting a token must be owned (killed below) before a
             # cancellation ends the bridge, or it could publish after the token
-            # is removed, so its launch is shielded, for a bounded time.
+            # is removed, so its launch is shielded, for a bounded time. A launch
+            # that times out first kills the proxy by its job key (exec_remote).
             with anyio.fail_after(
                 BRIDGE_TOKEN_TIMEOUT if token_file is not None else None,
                 shield=token_file is not None,

@@ -29,6 +29,7 @@ from inspect_ai.util._sandbox.context import (
     sandbox_environments_context_var,
 )
 from inspect_ai.util._sandbox.exec_remote import (
+    KILL_KEY_TIMEOUT,
     ExecCompleted,
     ExecOutput,
     ExecRemoteStreamingOptions,
@@ -284,7 +285,8 @@ class _DelayedKillSandbox(_BridgeSandbox):
 
     The proxy never publishes its token and its polls never return. A readiness
     check cancelled mid-flight finishes after a short delay, so on an enclosing
-    cancellation the monitor's own kill of the proxy starts first.
+    cancellation the monitor's own kill of the proxy starts first. A kill by
+    job key stops the started proxy, so `publish_late()` then publishes nothing.
     """
 
     def __init__(self) -> None:
@@ -293,6 +295,15 @@ class _DelayedKillSandbox(_BridgeSandbox):
         self.on_submitted: Callable[[], None] = lambda: None
         self.start_delay = 0.0
         """Seconds the proxy's start reply (its pid) takes after submission."""
+        self.job_key: str | None = None
+        self.kill_key_args: dict[str, object] = {}
+        self.proxy_killed_by_key = False
+        self.late_tokens: list[str] = []
+
+    def publish_late(self) -> None:
+        """Publish the token, as a started proxy that was not killed would."""
+        if self.job_key is not None and not self.proxy_killed_by_key:
+            self.late_tokens.append(self.job_key)
 
     async def exec(
         self,
@@ -305,14 +316,25 @@ class _DelayedKillSandbox(_BridgeSandbox):
         timeout_retry: bool = True,
         concurrency: bool = True,
     ) -> ExecResult[str]:
-        method = json.loads(input)["method"] if isinstance(input, str) else None
+        request = json.loads(input) if isinstance(input, str) else {}
+        method = request.get("method")
         if method == "exec_remote_start":
+            self.job_key = request["params"]["job_key"]
             self.events.append("submitted")
             self.on_submitted()
             await anyio.sleep(self.start_delay)
             return _rpc_result({"pid": 42})
         if method == "exec_remote_poll":
             await anyio.sleep_forever()
+        if method == "exec_remote_kill_key":
+            self.events.append("kill_key")
+            self.kill_key_args = dict(
+                job_key=request["params"]["job_key"],
+                timeout=timeout,
+                concurrency=concurrency,
+            )
+            self.proxy_killed_by_key = request["params"]["job_key"] == self.job_key
+            return _rpc_result({"killed": self.proxy_killed_by_key})
         if method == "exec_remote_kill":
             self.events.append("kill_started")
             await anyio.sleep(0.5)
@@ -378,10 +400,10 @@ async def test_cancellation_while_the_proxy_starts_still_kills_it_before_removal
     assert sandbox.events == ["submitted", "kill_started", "kill_finished", "remove"]
 
 
-async def test_a_proxy_start_that_never_answers_ends_the_bridge_within_the_bound(
+async def test_a_proxy_start_that_times_out_is_killed_by_key_before_removal(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The shielded launch does not hold a cancellation past its bound."""
+    """A proxy whose pid never arrives must not publish after the token removal."""
     monkeypatch.setattr(bridge_module, "BRIDGE_TOKEN_TIMEOUT", 0.5)
     sandbox = _DelayedKillSandbox()
     sandbox.start_delay = 60
@@ -392,6 +414,7 @@ async def test_a_proxy_start_that_never_answers_ends_the_bridge_within_the_bound
                     sandbox.on_submitted = scope.cancel
                     async with sandbox_agent_bridge():
                         raise AssertionError("bridge yielded")
+    sandbox.publish_late()
 
     # under trio the cancelled scope strips its own cancellation from the
     # bridge's task group, leaving the timeout in a group
@@ -399,7 +422,11 @@ async def test_a_proxy_start_that_never_answers_ends_the_bridge_within_the_bound
     if isinstance(error, ExceptionGroup):
         [error] = error.exceptions
     assert isinstance(error, TimeoutError)
-    assert sandbox.events == ["submitted", "remove"]
+    assert sandbox.events == ["submitted", "kill_key", "remove"]
+    assert sandbox.kill_key_args == dict(
+        job_key=sandbox.job_key, timeout=KILL_KEY_TIMEOUT, concurrency=False
+    )
+    assert sandbox.late_tokens == []
 
 
 async def test_bridge_in_a_scope_refuses_tools_that_cannot_mint_tokens(
