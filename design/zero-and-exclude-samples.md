@@ -973,6 +973,21 @@ the task may have changed since the log was written".
      type=token_limit_type)` when the type is recorded and not `"all"`, the
      plain count otherwise. `cost_limit` is passed as recorded; eval-retry's
      own forwarding is not changed by this design.
+   - **Cost prices.** A log records its cost ceiling, not the prices it was
+     computed with (`set_model_cost()`, `set_model_info()` or
+     `--model-cost-config` are not persisted). With a recorded `cost_limit`,
+     the scratch eval's native price check (`resolve_model_costs`,
+     `src/inspect_ai/model/_util.py:67`, called from
+     `src/inspect_ai/_eval/eval.py:871`) requires cost data for the primary
+     model and every model role, and raises `PrerequisiteError` naming the
+     unpriced models before any sample runs, so zero refuses with the log
+     unchanged. Prices in Inspect's model database need nothing. A Python
+     caller restores custom prices before calling zero with
+     `set_model_cost()`, or `set_model_info()` for a model the database does
+     not know ([Model Cost](../docs/setting-limits.qmd#model-cost)). A fresh
+     `inspect log zero` process has only the database prices and those the
+     task file registers when it is imported; zero adds no pricing flag or
+     stored pricing format, and the docs section says so.
    - **Hooks.** The scratch eval is an ordinary eval, so installed hooks
      receive its run, task and sample events, with the solver
      `inspect_ai/empty_attempt` and the empty-attempt verdicts. A hook that
@@ -1097,8 +1112,9 @@ def inline_eval_set_suppressed() -> Iterator[None]:
 - While it is set, `eval_set()` raises `InlineEvalSetSuppressed` as its first
   statement, before the capture branch or any log-directory side effect.
   `eval()` (the synchronous entry point a script calls at module scope) does
-  the same. `eval_async()` does not check it, because zero's own scratch
-  eval runs inside the guard, and a module cannot await at its top level.
+  the same. `eval_async()` does not check it: a module cannot await at its
+  top level, so a module-scope evaluation goes through `eval()` or
+  `eval_set()`.
 - `load_module()` catches `InlineEvalSetSuppressed` around
   `loader.exec_module(module)` and returns the module, executed up to the
   call. Tasks the file defines above its `eval_set()` call are registered
@@ -1109,8 +1125,15 @@ def inline_eval_set_suppressed() -> Iterator[None]:
 
 The exception derives from `BaseException`, so a definition's own
 `except Exception` around its `eval_set()` call does not swallow it. The
-variable is a `ContextVar`, so it reaches the task loading that `eval_async`
-does in its child tasks, and it does not leak to unrelated tasks.
+guard covers task-file imports only: zero sets it inside step 4's `prepare`,
+which runs in a copied context and resets it before returning, and
+`exclude_samples` sets it around trusted metric resolution alone. Zero's
+scratch eval (step 6) runs outside it. That eval receives the
+`ResolvedTask` that `prepare` returned, which task loading passes through
+without importing anything (`src/inspect_ai/_eval/loader.py:134`), so no
+import happens there; and the task's own code that runs during it (setup,
+scorers, metrics) sees the variable unset, so a nested `eval()` there
+behaves as it does in any other eval.
 
 ### CLI
 
@@ -1491,6 +1514,11 @@ backends; run the zero tests with `--runtrio` locally.
       the scratch eval hits the recorded limit and the target is refused as
       having hit a limit; likewise a recorded `token_limit` with an
       `"output"` metering type;
+    - a log written with a `cost_limit`, a primary model and a model role
+      priced through `set_model_info()`, zeroed after the price cache is
+      cleared: refused with the native `PrerequisiteError` naming both models
+      and the log unchanged; restoring only the primary's price still refuses
+      on the role; restoring both, zero succeeds;
     - a log with no task scorers;
     - a task edited to return a scalar under a name whose logged metrics
       expect a dict: the `TypeError` is re-raised and the samples, results
@@ -1549,7 +1577,8 @@ path.
    - `zero_samples` / `zero_samples_async` in `_disposition.py`, with a
      function-local import of `_eval.zero`.
    - `inspect log zero`, and the docs section extended, including that
-     hooks see the scratch eval.
+     hooks see the scratch eval and that a log with a cost limit needs its
+     custom prices restored (linking Model Cost).
 
    Tests as above, plus the existing eval-retry tests unchanged.
 
