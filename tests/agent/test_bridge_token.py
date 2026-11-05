@@ -16,6 +16,8 @@ from test_helpers.utils import skip_if_no_docker
 
 import inspect_ai.agent._bridge.sandbox.bridge as bridge_module
 import inspect_ai.agent._bridge.sandbox.service as service_module
+import inspect_ai.tool._sandbox_tools_utils.sandbox as tools_module
+import inspect_ai.util._sandbox.environment as environment_module
 from inspect_ai import Task, eval
 from inspect_ai.agent._bridge.sandbox.bridge import (
     BRIDGE_TOKEN_DIR,
@@ -27,7 +29,7 @@ from inspect_ai.model import get_model
 from inspect_ai.solver import Generate, Solver, TaskState, solver
 from inspect_ai.tool._mcp._tools_bridge import BridgedToolsSpec
 from inspect_ai.tool._tool import Tool, tool
-from inspect_ai.util import LimitExceededError, sandbox, time_limit
+from inspect_ai.util import LimitExceededError, SandboxEnvironment, sandbox, time_limit
 from inspect_ai.util._sandbox.context import (
     sandbox_default_context_var,
     sandbox_environments_context_var,
@@ -111,6 +113,8 @@ class _BridgeSandbox(CannedSandbox):
         )
 
     def _answer(self, cmd: list[str], user: str | None) -> ExecResult[str]:
+        if cmd == ["check-tools"]:
+            return ExecResult(True, 0, "", "")
         if cmd[-1] == "exec":
             result = json.dumps(
                 {"jsonrpc": "2.0", "result": self.tools_version, "id": 1}
@@ -305,6 +309,58 @@ async def test_token_wait_does_not_wait_for_sandbox_capacity(
             async with sandbox_agent_bridge():
                 assert sandbox.checks == 1
 
+    assert sandbox.proxy.killed.is_set()
+    assert len(sandbox.removed) == 1
+
+
+async def test_proxy_launch_does_not_check_tools_again(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The public exec_remote() launches the proxy while the capacity is held.
+
+    The bridge has already checked the sandbox's tools, so a second check, which
+    waits for capacity, must not run inside the bounded launch.
+    """
+    monkeypatch.setattr(bridge_module, "BRIDGE_TOKEN_TIMEOUT", 0.5)
+    sandbox = _BridgeSandbox(publish_after=0)
+    tools_checks: list[SandboxEnvironment] = []
+    launches: list[ExecRemoteStreamingOptions] = []
+
+    async def check_tools(
+        *, sandbox_name: str | None = None, sandbox: Any = None
+    ) -> SandboxEnvironment:
+        tools_checks.append(sandbox)
+        await sandbox.exec(["check-tools"])
+        return cast(SandboxEnvironment, sandbox)
+
+    async def start(
+        target: SandboxEnvironment,
+        cmd: list[str],
+        poll_interval: float,
+        options: ExecRemoteStreamingOptions,
+    ) -> _FakeProxy:
+        launches.append(options)
+        return sandbox.proxy
+
+    async def run_model_service(*args: Any) -> None:
+        sandbox.saturated = True
+        started: anyio.Event = args[-1]
+        started.set()
+        await anyio.sleep_forever()
+
+    with _sandbox(monkeypatch, sandbox), sandbox_identity("w-1"):
+        monkeypatch.delattr(sandbox, "exec_remote")
+        monkeypatch.setattr(tools_module, "sandbox_with_injected_tools", check_tools)
+        monkeypatch.setattr(environment_module, "exec_remote_streaming", start)
+        monkeypatch.setattr(bridge_module, "run_model_service", run_model_service)
+        assert not sandbox._tools_injected
+        with anyio.fail_after(10):
+            async with sandbox_agent_bridge():
+                assert sandbox.checks == 1
+
+    assert tools_checks == []
+    [launch] = launches
+    assert launch.concurrency is False
     assert sandbox.proxy.killed.is_set()
     assert len(sandbox.removed) == 1
 
