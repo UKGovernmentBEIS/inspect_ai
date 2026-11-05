@@ -801,8 +801,13 @@ class Loan:
   in [task-dispatch.md](task-dispatch.md#the-run-queue)), so the usual
   `enqueue_task()` followed by an immediate `await handle.result()` begins
   its wait in `waiting` or `admitting`.
-- **One loan per target.** The first such wait creates `target.loan`;
-  later waits on the same target add to `waiters` and share it. A loan
+- **One loan per target.** The first such wait creates `target.loan` and,
+  in the same synchronous step, rings the queue's `wake`, so a dispatcher
+  already waiting rescans: the target may have been startable for a while
+  (admitted with its setups settled, or a retry pending) with every
+  admission and setup wake already consumed. A later wait that recreates a
+  dropped loan rings it too. Later waits on the same target add to
+  `waiters` and share it. A loan
   costs a slot only while an attempt of the target runs on it, so waits on
   a target whose attempt runs on an ordinary slot, such as repeated
   `enqueue_sample()` calls to a running rollout task, cost no more slots.
@@ -1117,7 +1122,12 @@ test touched), with mockllm models:
     failing, and C cancelled during admission, settle the waits with
     `TaskEndedError` and leave no loan; a `result()` begun while C's first
     attempt runs on an ordinary slot that then errors with a retry queued
-    starts the retry on the loan;
+    starts the retry on the loan; each of the three waits begun only after
+    C is admitted with its setups settled and the dispatcher is already
+    waiting on `wake` (held there by an event-controlled spy, with no other
+    event afterwards), and likewise against a ready pending retry of C,
+    starts C on the loan; a wait that recreates a dropped loan starts C the
+    same way;
   - headroom: with `max_sandboxes=1` (stub sandbox provider), a parent
     sample holding the only sandbox awaits its child's `started()`, then
     finishes, and the child's sample then gets the sandbox and runs; a
