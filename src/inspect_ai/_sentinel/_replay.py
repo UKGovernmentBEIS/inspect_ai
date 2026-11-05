@@ -557,7 +557,14 @@ class _Driver:
                     if producer is not None
                     else self._conversation(event)
                 )
-                recorded_approval = approvals.pop(event.id, None)
+                # The bridge approves a host call when the model proposes it,
+                # and the scaffold may run it after later requests, so its
+                # decision is published where the approval is recorded.
+                recorded_approval = (
+                    None
+                    if event.metadata is not None and "bridge" in event.metadata
+                    else approvals.pop(event.id, None)
+                )
                 if recorded_approval is not None:
                     consumed_approvals.add(recorded_approval[0])
                 entry = _Call(
@@ -788,16 +795,14 @@ class _Driver:
         tool may have raised the error after running; where its approved call
         differs, it is added to `unverified_calls` instead of refused.
 
-        A host call a sandbox bridge ran (`metadata["bridge"]`) is not checked:
-        its approval records the call under the scaffold's name and its
-        `ToolEvent` under the host tool's, and replay builds no tool steps for
-        it (`_checks_tool_calls`).
+        A host call a sandbox bridge ran (`metadata["bridge"]`) has no paired
+        approval, so is not checked: its approval may record the call under the
+        scaffold's name and its `ToolEvent` under the host tool's, and replay
+        builds no tool steps for it (`_checks_tool_calls`).
         """
         approval = call.approval
         event = call.event
         if approval is None or approval.decision not in ("approve", "modify"):
-            return
-        if event.metadata is not None and "bridge" in event.metadata:
             return
         before_span = self.step_spans.get(("tool_call", event.id))
         approved = approval.modified if approval.modified is not None else approval.call

@@ -1349,8 +1349,9 @@ def test_an_approvers_approve_replays_as_it_ran() -> None:
 def r7_runs_a_bridged_host_tool(
     name: str = "mcp__host__addition",
     approval: list[ApprovalPolicy] | None = None,
+    request_before_running: bool = False,
 ) -> Agent:
-    """A scaffold that declares the host tool as `name` (or calls it through Antigravity's `call_mcp_tool` dispatcher) and runs the call the bridge hands it."""
+    """A scaffold that declares the host tool as `name` (or calls it through Antigravity's `call_mcp_tool` dispatcher) and runs the call the bridge hands it, after one more model request if `request_before_running`."""
 
     async def execute(state: AgentState) -> AgentState:
         from inspect_ai.agent._bridge.completions import (
@@ -1396,6 +1397,20 @@ def r7_runs_a_bridged_host_tool(
         )
         [proposed] = completion.choices[0].message.tool_calls or []
         assert proposed.type == "function"
+        if request_before_running:
+            await inspect_completions_api_request(
+                {
+                    "model": "inspect",
+                    "messages": [
+                        {"role": "user", "content": "What is 1 + 1?"},
+                        completion.choices[0].message.model_dump(exclude_none=True),
+                        {"role": "user", "content": "Go ahead."},
+                    ],
+                    "tools": [{"type": "function", "function": declared}],
+                },
+                None,
+                bridge,
+            )
         arguments = json.loads(proposed.function.arguments)
         if name == "call_mcp_tool":
             arguments = arguments["Arguments"]
@@ -1475,7 +1490,7 @@ def bridged_approval_log(name: str, decision: str) -> EvalLog:
 
 
 def replay_inputs(
-    log: EvalLog, events: Sequence[Event], inputs: str
+    log: EvalLog, events: Sequence[Event], inputs: str, **kwargs: Any
 ) -> list["ReplayStep"]:
     from inspect_ai._sentinel import _replay
 
@@ -1489,6 +1504,7 @@ def replay_inputs(
         pool,
         sample_uuid=sample.uuid or "",
         eval_info=EvalInfo.from_eval(log.eval),
+        **kwargs,
     )
 
 
@@ -1573,6 +1589,46 @@ def test_a_native_tool_event_with_a_bridged_approvals_name_is_refused(
         ValueError, match=r"approved call does not match the ToolEvent that ran"
     ):
         replay_inputs(log, events, inputs)
+
+
+@pytest.mark.parametrize("tool_event", [True, False])
+def test_a_bridged_approval_reaches_the_requests_before_its_call_runs(
+    tool_event: bool,
+) -> None:
+    """The bridge approves a call when the model proposes it and the scaffold may run it after later requests, so those requests' steps carry the person's decision."""
+    log = run_logged(
+        as_solver(
+            r7_runs_a_bridged_host_tool(
+                approval=[ApprovalPolicy(r7_bridged_approver("approve"), "*")],
+                request_before_running=True,
+            )
+        ),
+        outputs(call("mcp__host__addition", x=1, y=1), done()),
+    )
+    events = logged_sample(log).events
+    [approval] = [e for e in events if isinstance(e, ApprovalEvent)]
+    [ran] = [e for e in events if isinstance(e, ToolEvent)]
+    assert ran.metadata is not None and ran.metadata["bridge"]["grant"] == "consumed"
+    turns = [e for e in events if isinstance(e, ModelEvent)]
+    assert len(turns) == 2
+    assert events.index(approval) < events.index(turns[1]) < events.index(ran)
+    if not tool_event:
+        events = [e for e in events if e is not ran]
+    for inputs in ["expanded", "pooled"]:
+        for recorded in [events, without_origins(events)]:
+            replay = replay_inputs(
+                log, recorded, inputs, human_approvers=(approval.approver,)
+            )
+            assert [(s.stage, s.id) for s in replay] == [
+                (stage, turn.uuid)
+                for turn in turns
+                for stage in ["model_input", "model_output"]
+            ]
+            for step in replay[2:]:
+                decisions = step.step.human_decisions or []
+                assert [(d.step_id, d.decided.report.action) for d in decisions] == [
+                    (approval.call.id, "proceed")
+                ], (inputs, step.stage)
 
 
 def run_logged(
