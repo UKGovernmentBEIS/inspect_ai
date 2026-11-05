@@ -371,6 +371,65 @@ class _Generate:
     seq: int
 
 
+class _Proposal(NamedTuple):
+    position: int
+    message: ChatMessageAssistant
+    event: ModelEvent
+    call: ToolCall
+    conversation: str
+
+
+class _Proposals:
+    # Concurrent agents can propose the same call id. An approval or ToolEvent
+    # is owned by the latest proposal of the only conversation proposing its
+    # id, else by the latest in its own span or conversation, else by none.
+
+    def __init__(self) -> None:
+        self._latest: dict[str, _Proposal] = {}
+        self._by_span: dict[tuple[str, str | None], _Proposal] = {}
+        self._by_conversation: dict[tuple[str, str], _Proposal] = {}
+        # the one conversation proposing each id; None once several have
+        self._conversation: dict[str, str | None] = {}
+
+    def add(self, proposal: _Proposal) -> None:
+        id = proposal.call.id
+        self._latest[id] = proposal
+        self._by_span[(id, proposal.event.span_id)] = proposal
+        self._by_conversation[(id, proposal.conversation)] = proposal
+        if self._conversation.get(id, proposal.conversation) != proposal.conversation:
+            self._conversation[id] = None
+        else:
+            self._conversation[id] = proposal.conversation
+
+    def proposed(self, id: str) -> bool:
+        return id in self._latest
+
+    def owner(
+        self, id: str, span_id: str | None, conversation: str
+    ) -> _Proposal | None:
+        if self._conversation.get(id) is not None:
+            return self._latest[id]
+        found = [
+            proposal
+            for proposal in (
+                self._by_span.get((id, span_id)),
+                self._by_conversation.get((id, conversation)),
+            )
+            if proposal is not None
+        ]
+        return max(found, key=lambda proposal: proposal.position) if found else None
+
+    def approval_key(
+        self, id: str, owner: _Proposal | None, conversation: str
+    ) -> tuple[str, str | None]:
+        # an approval a ToolEvent can consume is held under its owner's
+        # conversation, its own where proposals are ambiguous, and None where
+        # nothing has proposed the id yet (a pre-filled call)
+        if owner is not None:
+            return (id, owner.conversation)
+        return (id, conversation if self.proposed(id) else None)
+
+
 @dataclass
 class _Call:
     index: int
@@ -481,10 +540,10 @@ class _Driver:
             tuple[str | None, tuple[tuple[int, int], ...]], _Generate
         ] = {}
         calls_made: set[str | None] = set()
-        produced: dict[str, tuple[ChatMessageAssistant, ModelEvent, ToolCall]] = {}
-        # every model call proposing each call id, in log order
-        proposers: dict[str, list[ModelEvent]] = {}
-        approvals: dict[str, tuple[int, ApprovalEvent]] = {}
+        proposals = _Proposals()
+        # approvals a ToolEvent can consume, by call id and owning conversation
+        # (None before any model call proposed the id)
+        approvals: dict[tuple[str, str | None], tuple[int, ApprovalEvent]] = {}
         approval_entries: list[tuple[int, ApprovalEvent, str]] = []
         unplaced_approvals: list[tuple[int, ApprovalEvent]] = []
         consumed_approvals: set[int] = set()
@@ -508,11 +567,14 @@ class _Driver:
                 message_id = producing_message_id(event)
                 if message_id is not None:
                     message = event.output.choices[0].message
+                    proposed_in = self._conversation(event)
                     for tool_call in message.tool_calls or []:
                         # A new proposal cannot consume the prior attempt's approval.
-                        approvals.pop(tool_call.id, None)
-                        produced[tool_call.id] = (message, event, tool_call)
-                        proposers.setdefault(tool_call.id, []).append(event)
+                        approvals.pop((tool_call.id, proposed_in), None)
+                        approvals.pop((tool_call.id, None), None)
+                        proposals.add(
+                            _Proposal(index, message, event, tool_call, proposed_in)
+                        )
                 if not is_agent_turn(self._origin(event)):
                     continue
                 conversation = self._conversation(event)
@@ -534,40 +596,47 @@ class _Driver:
                 if event.error is not None:
                     open_generates[attempt_key] = group
             elif isinstance(event, ApprovalEvent):
-                approvals[event.call.id] = (index, event)
-                approved_in = self._approval_conversation(
-                    event, proposers.get(event.call.id, [])
+                own = self._conversation(event)
+                owner = proposals.owner(event.call.id, event.span_id, own)
+                approvals[proposals.approval_key(event.call.id, owner, own)] = (
+                    index,
+                    event,
                 )
-                if approved_in is None:
+                if owner is None and proposals.proposed(event.call.id):
                     unplaced_approvals.append((index, event))
                 else:
-                    approval_entries.append((index, event, approved_in))
+                    approval_entries.append(
+                        (index, event, owner.conversation if owner else own)
+                    )
             elif isinstance(event, CompactionEvent):
                 conversation = self._conversation(event)
                 self._at(index, 2, partial(self._count_compaction, conversation))
             elif isinstance(event, ToolEvent):
                 if self._in_sentinel_span(event.span_id):
                     continue
-                found = produced.get(event.id)
+                own = self._conversation(event)
+                owner = proposals.owner(event.id, event.span_id, own)
                 producer: ModelEvent | None = None
                 assistant: ChatMessageAssistant | None
                 proposal: ToolCall | None
-                if found is not None:
-                    assistant, producer, proposal = found
+                if owner is not None:
+                    assistant, producer, proposal = (
+                        owner.message,
+                        owner.event,
+                        owner.call,
+                    )
                 else:
                     assistant, proposal = self._assistant(event.id)
-                conversation = (
-                    self._conversation(producer)
-                    if producer is not None
-                    else self._conversation(event)
-                )
+                conversation = owner.conversation if owner is not None else own
                 # The bridge approves a host call when the model proposes it,
                 # and the scaffold may run it after later requests, so its
                 # decision is published where the approval is recorded.
                 recorded_approval = (
                     None
                     if event.metadata is not None and "bridge" in event.metadata
-                    else approvals.pop(event.id, None)
+                    else approvals.pop(
+                        proposals.approval_key(event.id, owner, own), None
+                    )
                 )
                 if recorded_approval is not None:
                     consumed_approvals.add(recorded_approval[0])
@@ -693,21 +762,6 @@ class _Driver:
         for walked_id in walked:
             self.sentinel_span_of[walked_id] = found
         return found
-
-    def _approval_conversation(
-        self, approval: ApprovalEvent, proposers: list[ModelEvent]
-    ) -> str | None:
-        # Concurrent agents can propose the same call id: the latest proposal
-        # in the approval's span or conversation, else the only conversation
-        # proposing it, else none.
-        own = self._conversation(approval)
-        if not proposers:
-            return own
-        conversations = [self._conversation(event) for event in proposers]
-        for event, conversation in zip(reversed(proposers), reversed(conversations)):
-            if event.span_id == approval.span_id or conversation == own:
-                return conversation
-        return conversations[0] if len(set(conversations)) == 1 else None
 
     def _tool_span(self, index: int, event: ToolEvent) -> str | None:
         previous = self.events[index - 1] if index > 0 else None

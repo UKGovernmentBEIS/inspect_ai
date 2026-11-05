@@ -1757,6 +1757,192 @@ def test_concurrent_bridged_approvals_reach_their_own_agents(
     assert "Skipped the human decisions on call(s) 'call_0'" in caplog.text
 
 
+class _Interleave:
+    native_approved: anyio.Event
+    other_approved: anyio.Event
+
+
+@approver
+def r7_other_approver(decision: str = "approve") -> Approver:
+    async def approve(
+        message: str, call: ToolCall, view: ToolCallView, history: list[ChatMessage]
+    ) -> Approval:
+        _Interleave.other_approved.set()
+        return Approval(decision="reject" if decision == "reject" else "approve")
+
+    return approve
+
+
+@monitor
+def r7_holds_the_native_call() -> MonitorGroup:
+    async def before_call(context: Context, step: BeforeToolCall) -> Observation | None:
+        if not _Interleave.native_approved.is_set():
+            _Interleave.native_approved.set()
+            await _Interleave.other_approved.wait()
+        return None
+
+    return MonitorGroup(before_call)
+
+
+@solver
+def r7_native_call_held_across_another_agent(other: str) -> Solver:
+    """A native agent's approved call waits to run while another agent (bridged, or native and refused) proposes and is approved a call with the same id."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        native = react(
+            tools=[addition()],
+            approval=[ApprovalPolicy(d3_approver([], "modify", x=2), "*")],
+            submit=False,
+        )
+        second = (
+            r7_runs_a_bridged_host_tool(
+                approval=[ApprovalPolicy(r7_other_approver(), "*")]
+            )
+            if other == "bridge"
+            else react(
+                tools=[addition()],
+                approval=[ApprovalPolicy(r7_other_approver("reject"), "*")],
+                submit=False,
+            )
+        )
+
+        async def run_native() -> None:
+            await run(native, "What is 1 + 1?")
+
+        async def run_other() -> None:
+            await _Interleave.native_approved.wait()
+            await run(second, "What is 1 + 1?")
+
+        await tg_collect([run_native, run_other])
+        return state
+
+    return solve
+
+
+@pytest.mark.parametrize("other", ["bridge", "native"])
+def test_a_native_call_takes_only_its_own_agent_s_approval(other: str) -> None:
+    _Interleave.native_approved = anyio.Event()
+    _Interleave.other_approved = anyio.Event()
+    proposed = [
+        ModelOutput.for_tool_call(
+            "mockllm/model",
+            tool_name=name,
+            tool_arguments={"x": 1, "y": 1},
+            tool_call_id="call_0",
+        )
+        for name in [
+            "addition",
+            "mcp__host__addition" if other == "bridge" else "addition",
+        ]
+    ]
+    log = run_logged(
+        r7_native_call_held_across_another_agent(other),
+        outputs(*proposed, done(), done()),
+        sentinel=[r7_holds_the_native_call()],
+    )
+    events = logged_sample(log).events
+    native_approval, other_approval = [
+        e for e in events if isinstance(e, ApprovalEvent)
+    ]
+    assert native_approval.decision == "modify"
+    assert other_approval.call.id == "call_0"
+    native_turn, other_turn = [e for e in events if isinstance(e, ModelEvent)][:2]
+    [ran] = [
+        e
+        for e in events
+        if isinstance(e, ToolEvent)
+        and not e.error
+        and "bridge" not in (e.metadata or {})
+    ]
+    assert ran.arguments == {"x": 2, "y": 1}
+    # the other agent proposes and is approved the id while the native call waits
+    assert (
+        events.index(native_approval)
+        < events.index(other_turn)
+        < events.index(other_approval)
+        < events.index(ran)
+    )
+    for inputs in ["expanded", "pooled"]:
+        for recorded in [events, without_origins(events)]:
+            replay = replay_inputs(log, recorded, inputs)
+            [generate] = [
+                s
+                for s in replay
+                if s.id == native_turn.uuid and s.stage == "model_input"
+            ]
+            tool_steps = [s for s in replay if s.stage.startswith("tool")]
+            assert [s.stage for s in tool_steps] == ["tool_call", "tool_result"]
+            for replayed_step in tool_steps:
+                step = replayed_step.step
+                assert isinstance(step, BeforeToolCall | AfterToolCall)
+                assert step.conversation == generate.step.conversation
+                assert step.message_id == native_turn.output.message.id
+                assert step.call.arguments == {"x": 2, "y": 1}
+
+
+@pytest.mark.parametrize("inputs", ["expanded", "pooled"])
+def test_approvals_of_a_reused_call_id_replay_in_linear_work(
+    inputs: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # after Ransom's 35th review: each approval found its proposal by
+    # rescanning every earlier proposal of its id
+    from inspect_ai._sentinel import _replay
+
+    conversation = _replay._Driver._conversation
+    work: list[int] = []
+
+    def counting_conversation(self: Any, event: Event) -> str:
+        work[-1] += 1
+        return conversation(self, event)
+
+    monkeypatch.setattr(_replay._Driver, "_conversation", counting_conversation)
+    for turns in (100, 200, 400):
+        events: list[Event] = [
+            SpanBeginEvent(id=agent, name=agent, type="agent") for agent in "ab"
+        ]
+        for n in range(turns):
+            agent = "ab"[n % 2]
+            proposed = ToolCall(id="call_0", function="lookup", arguments={"n": n})
+            turn = imported_call(
+                f"model-{n}", [ChatMessageUser(content=f"turn {n}")], agent, proposed
+            )
+            events += [
+                turn.model_copy(update={"origin": "agent"}),
+                ApprovalEvent(
+                    message="",
+                    call=proposed,
+                    approver="auto",
+                    decision="approve",
+                    span_id=agent,
+                ),
+                ToolEvent(
+                    id="call_0",
+                    function="lookup",
+                    arguments={"n": n},
+                    result="found",
+                    metadata={"bridge": "host"},
+                    span_id=agent,
+                ),
+            ]
+        events += [SpanEndEvent(id=agent) for agent in "ab"]
+        events = solving(events)
+        pool: list[ChatMessage] = []
+        if inputs == "pooled":
+            events, pool = _replay._condensed(events, [])
+        work.append(0)
+        replay = steps_from_events(
+            [],
+            events,
+            pool,
+            sample_uuid="sample",
+            eval_info=EvalInfo(inspect_ai_version="0.3.300", sentinel=False),
+            human_approvers=(),
+        )
+        assert len([s for s in replay if s.stage == "model_input"]) == turns
+        assert work[-1] <= 5 * turns, work
+    assert work[-1] <= 4.2 * work[0], work
+
+
 def run_logged(
     solver: Solver | list[Solver],
     model: Any,
