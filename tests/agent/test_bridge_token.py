@@ -203,6 +203,8 @@ async def test_bridge_in_a_scope_waits_for_its_token_and_removes_it(
         assert not re.search(r"[0-9a-f]{64}", value)
     [config] = bridge.mcp_server_configs
     assert config.headers == {"Authorization": "Bearer ${INSPECT_BRIDGE_TOKEN}"}
+    # the proxy listens only on IPv4; `localhost` could reach another user on ::1
+    assert config.url == f"http://127.0.0.1:{bridge.port}/mcp/tools"
     checks = [cmd for cmd, _ in sandbox.exec_calls if "wc -c" in " ".join(cmd)]
     assert all(cmd[-1] == token_file for cmd in checks)
     assert {user for cmd, user in sandbox.exec_calls} == {"root"}
@@ -225,6 +227,9 @@ async def test_bridge_outside_a_scope_asks_for_no_token(
     assert launch.env is not None
     assert TOKEN_FILE_ENV not in launch.env and TOKEN_USER_ENV not in launch.env
     assert bridge.mcp_server_configs[0].headers is None
+    assert (
+        bridge.mcp_server_configs[0].url == f"http://localhost:{bridge.port}/mcp/tools"
+    )
     assert sandbox.exec_calls == []
 
 
@@ -591,7 +596,7 @@ import json, sys, urllib.error, urllib.request
 
 def post(path, body, headers):
     request = urllib.request.Request(
-        "http://localhost:13131" + path,
+        "http://127.0.0.1:13131" + path,
         data=json.dumps(body).encode(),
         headers={"Content-Type": "application/json", **headers},
     )
@@ -629,6 +634,8 @@ def _scoped_bridge_in_docker() -> Solver:
             ) as bridge:
                 token_file = bridge.token_file
                 assert token_file is not None
+                [config] = bridge.mcp_server_configs
+                assert config.url == "http://127.0.0.1:13131/mcp/tools"
                 # the first request is served: no retry until the proxy listens
                 result = await sb.exec(
                     ["python3", "-c", _SCOPED_CLIENT, token_file], user="w1"

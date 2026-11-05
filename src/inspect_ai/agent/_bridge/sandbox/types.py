@@ -118,10 +118,13 @@ class SandboxAgentBridge(AgentBridge):
     The file holds 64 hex characters, is readable only by the scope's user (and
     root), and exists while the bridge runs. Send its contents as an
     `Authorization: Bearer` token, `x-api-key` or `x-goog-api-key`; the proxy
-    refuses other requests with HTTP 401. The bridged-tools MCP configs send
-    `Authorization: Bearer ${INSPECT_BRIDGE_TOKEN}`, which the client expands
-    from its environment. `None` outside a scope, where the proxy accepts any
-    request.
+    refuses other requests with HTTP 401. Send it only to `127.0.0.1`, where the
+    proxy listens (for example `OPENAI_BASE_URL=http://127.0.0.1:13131/v1`):
+    `localhost` can resolve to `::1`, where another user may listen on the same
+    port. The bridged-tools MCP configs send
+    `Authorization: Bearer ${INSPECT_BRIDGE_TOKEN}` to `127.0.0.1`, expanded by
+    the client from its environment. `None` outside a scope, where the proxy
+    accepts any request.
     """
 
     mcp_server_configs: list[MCPServerConfigHTTP]

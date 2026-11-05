@@ -327,10 +327,12 @@ comes from the scope as well as from tool construction:
   the host removes it and its temporary file after killing the proxy, in
   case the proxy was killed outright. The token does not
   cross the host channel: the host waits for the file by its size alone, and
-  the proxy drops the key headers before forwarding a request. The proxy
-  forwards through the bridge's sandbox service, whose queue belongs to the
-  tools user, so the sandbox's default user cannot submit requests to it
-  directly. Outside a scope the proxy accepts any request, and the queue
+  the proxy drops the key headers before forwarding a request. Clients send
+  the token to `127.0.0.1`, the only address the proxy listens on: another
+  user can listen on `[::1]` at the same port, so `localhost` could deliver
+  it to them. The proxy forwards through the bridge's sandbox service, whose
+  queue belongs to the tools user, so the sandbox's default user cannot
+  submit requests to it directly. Outside a scope the proxy accepts any request, and the queue
   belongs to the default user.
 - **Sandbox operations.** `SandboxEnvironment.exec()`, `read_file()` and
   `write_file()` calls on the scope's sandbox that name no user run as the

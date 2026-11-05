@@ -132,8 +132,8 @@ async def sandbox_agent_bridge(
     known work.
 
     Inside a sandbox identity scope for its sandbox, the proxy requires a token
-    on every request; see `SandboxAgentBridge.token_file`. Outside one it
-    accepts any request.
+    on every request; see `SandboxAgentBridge.token_file`. Send it to
+    `127.0.0.1`, not `localhost`. Outside a scope the proxy accepts any request.
 
     Args:
         state: Initial state for agent bridge. Used as a basis for yielding
@@ -572,7 +572,9 @@ def _register_bridged_tools(
     Tools are registered in bridge.bridged_tools for execution by the service.
     Returns an MCPServerConfigHTTP with URL pointing to the MCP HTTP endpoint.
     With `token`, the config sends the bridge token through a placeholder the
-    client expands from its environment.
+    client expands from its environment, to `127.0.0.1`: the proxy listens only
+    there, and `localhost` can resolve to `::1`, where another user may listen
+    on the same port.
     """
     bridge.register_bridged_tools(
         spec.name,
@@ -584,7 +586,7 @@ def _register_bridged_tools(
     return MCPServerConfigHTTP(
         name=spec.name,
         type="http",
-        url=f"http://localhost:{port}/mcp/{spec.name}",
+        url=f"http://{'127.0.0.1' if token else 'localhost'}:{port}/mcp/{spec.name}",
         headers=(
             {"Authorization": f"Bearer ${{{BRIDGE_TOKEN_ENV}}}"} if token else None
         ),
