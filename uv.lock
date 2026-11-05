@@ -28,7 +28,6 @@ anthropic = { timestamp = "0001-01-01T00:00:00Z", span = "PT6H" }
 azure-ai-inference = { timestamp = "0001-01-01T00:00:00Z", span = "PT6H" }
 google-genai = { timestamp = "0001-01-01T00:00:00Z", span = "PT6H" }
 groq = { timestamp = "0001-01-01T00:00:00Z", span = "PT6H" }
-huggingface-hub = { timestamp = "0001-01-01T00:00:00Z", span = "PT6H" }
 inspect-scout = { timestamp = "0001-01-01T00:00:00Z", span = "PT6H" }
 inspect-sentinel = { timestamp = "0001-01-01T00:00:00Z", span = "PT6H" }
 mistralai = { timestamp = "0001-01-01T00:00:00Z", span = "PT6H" }
