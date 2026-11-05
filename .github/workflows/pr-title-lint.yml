@@ -15,7 +15,7 @@ jobs:
   lint:
     permissions:
       pull-requests: read
-    uses: meridianlabs-ai/actions/.github/workflows/pr-title-lint.yml@bffd0dbbfb0bb84dbc7ea65b74fd2d397d7bfc6d # main, 2026-10-05
+    uses: meridianlabs-ai/actions/.github/workflows/pr-title-lint.yml@62bc8360498822ef3eab7c9584d1bd523de3febf # main, 2026-10-05
     with:
       # read the type list from the same pinned commit
       types-ref: 6fdc8c6f9b26446215ed86b814f0165e8b17c988

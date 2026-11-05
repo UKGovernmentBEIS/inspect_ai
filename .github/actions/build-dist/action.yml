@@ -22,18 +22,19 @@ runs:
       with:
         python-version: "3.11"
 
-    # The build frontend and backend come from requirements.txt, pinned with
-    # hashes. The build below runs without isolation, so nothing else is
-    # resolved at build time. Dependabot updates the file weekly with a 7-day
-    # cooldown. To update it by hand, run in this directory (or use
-    # --upgrade-package <pkg> for one tool):
+    # The build frontend and backend come from scripts/build-dist/requirements.txt,
+    # pinned with hashes. The build below runs without isolation, so nothing
+    # else is resolved at build time. Dependabot updates the file weekly with a
+    # 7-day cooldown; it lives outside .github/ because Dependabot can't change
+    # files there for any ecosystem but github-actions. To update it by hand,
+    # run in scripts/build-dist (or use --upgrade-package <pkg> for one tool):
     #   uv pip compile --no-config --generate-hashes --python-version 3.11 \
     #     --python-platform x86_64-unknown-linux-gnu --exclude-newer "7 days" \
     #     --only-binary :all: --upgrade requirements.in -o requirements.txt
     - name: Install build toolchain
       shell: bash
       env:
-        REQUIREMENTS: ${{ github.action_path }}/requirements.txt
+        REQUIREMENTS: ${{ github.action_path }}/../../../scripts/build-dist/requirements.txt
       run: |
         python -m pip install --require-hashes --only-binary :all: --no-deps -r "$REQUIREMENTS"
 

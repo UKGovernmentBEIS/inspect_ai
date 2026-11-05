@@ -15,6 +15,7 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.list import find_last_match
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageTool, ChatMessageUser
+from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model import Model, get_model
 from inspect_ai.model._model_info import get_model_input_tokens
 from inspect_ai.model._tokens import count_media_tokens
@@ -381,16 +382,21 @@ async def _fit_summarization_input(
     return messages
 
 
-def _output_reserve(model: Model, context_window: int) -> int:
+def _output_reserve(
+    model: Model, context_window: int, config: GenerateConfig | None = None
+) -> int:
     """Tokens to reserve for the summary output when fitting the input.
 
     Mirrors the `max_tokens` resolution in `Model.generate()` (explicit config,
     then provider defaults), capped at half the window so that small-window
-    models keep room for input.
+    models keep room for input. When `config` is given, it is the resolved
+    config used in place of `model.config` (callers pass `model._resolve_config`
+    to match what `Model.generate` reads); when omitted, `model.config` is used.
     """
+    effective = config if config is not None else model.config
     max_tokens = (
-        model.config.max_tokens
-        or model.api.max_tokens_for_config(model.config)
+        effective.max_tokens
+        or model.api.max_tokens_for_config(effective)
         or model.api.max_tokens()
         or _DEFAULT_OUTPUT_RESERVE
     )

@@ -313,7 +313,7 @@ The control channel runs as an **HTTP server embedded directly in the eval proce
 ### Why HTTP
 
 - **Excellent CLI ergonomics.** `inspect ctl task cancel <task>` is one `httpx` call; shell users can hit endpoints directly with `curl`. Pipe composition works (`inspect ctl task list --json | jq ... | xargs inspect ctl task cancel`). Easy to write small monitoring scripts in any language.
-- **No new dependencies.** FastAPI, uvicorn, and starlette are already hard dependencies in `requirements.txt` (used by the `inspect view` server). Picking HTTP costs zero framework footprint.
+- **No new dependencies.** FastAPI, uvicorn, and starlette are already hard dependencies in `pyproject.toml` (used by the `inspect view` server). Picking HTTP costs zero framework footprint.
 - **Already a pattern in the codebase.** `src/inspect_ai/_view/fastapi_server.py` shows the FastAPI-server-in-Inspect template — including the bits we need: streaming responses, live in-progress reads (`api_pending_samples`, `api_sample_events`), and an OpenAPI generation pipeline (`_view/_openapi.py`). The control channel reuses the same shape.
 - **Universal tooling.** Browsers, Postman, generated OpenAPI clients, HTTP-level proxies / logging / debugging — all off the shelf.
 - **Natural fit for the operation shape.** "Cancel an eval" is request/response with optional payload — the canonical HTTP pattern. Resource-oriented URLs (`/evals/<id>/samples/<sid>`) describe what they target.
@@ -924,6 +924,7 @@ Both accept `?dry_run=true` / `--dry-run` and return `changed` so the CLI's unif
 #### Other directives
 
 - `POST /evals/<id>/sample/cancel-tool-call` (`ctl sample cancel-tool-call`) — cancel one in-flight tool call and let the sample continue: the per-call cancel primitive that ACP's `inspect/cancel_tool_call` targets by id (and the TUI's timeout button fans out over), surfaced on the default-on control channel. Implemented — [`tool-call-cancel.md`](tool-call-cancel.md) owns the semantics (targeting, decision table, read-surface enablement).
+- `GET /evals/<id>/sample/agents` and `POST /evals/<id>/sample/agent/<action>` (`ctl sample agent list|message|pause|resume|stop`) — list the named agents and groups that code in the sample registered with `operator_group()` (`src/inspect_ai/_control/operator.py`), and send one of them `message`, `pause`, `resume` or `stop`. The registrant implements the actions. The message text is a JSON body, `{"text": ...}`. The CLI sends these mutations once, never retried, and reports a request whose response was lost as `unknown_outcome`. Implemented.
 - `POST /tasks/<task-id>/drain` (`ctl task drain`) — implemented; [`task-drain.md`](task-drain.md) owns the semantics. (The per-sample time / token / message limits shipped as further knobs on `PATCH /tasks/<task-id>/config` — CLI: `ctl config TASK --time-limit/--token-limit/--message-limit` — as did modify *concurrency*: `max_samples` / `max_sandboxes` / adaptive `max_connections` / named registry keys via `--key` (which also reaches the static `max_connections` semaphores by model name); `max_tasks` is the remaining concurrency slice.)
 
 ### Phase 4 — push (SSE)

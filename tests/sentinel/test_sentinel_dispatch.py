@@ -1,6 +1,7 @@
 import logging
 import math
 import random
+import re
 import threading
 from collections import Counter
 from collections.abc import Awaitable, Callable, Iterable, Iterator, Sequence
@@ -19,7 +20,11 @@ from test_helpers.utils import skip_if_no_mcp_package
 from typing_extensions import assert_type
 
 from inspect_ai import Task, eval
-from inspect_ai._sentinel._config import resolve_sentinel_root, resolve_sentinel_spec
+from inspect_ai._sentinel._config import (
+    SENTINEL_MIN_VERSION,
+    resolve_sentinel_root,
+    resolve_sentinel_spec,
+)
 from inspect_ai._sentinel._context import init_sentinel
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.agent import (
@@ -84,6 +89,7 @@ from inspect_ai.tool import (
     ToolCallContent,
     ToolCallView,
     ToolDef,
+    ToolError,
     ToolFunction,
     ToolInfo,
     ToolResult,
@@ -112,6 +118,10 @@ if TYPE_CHECKING:
         monitor,
         protocol,
     )
+
+    # input_budget and count_tokens are not yet on inspect_sentinel's Host
+    # protocol (a later PR adds them there); cast the in-process host to call them
+    from inspect_ai._sentinel._dispatch import _HostNative
 else:
     from test_helpers.fake_sentinel import (
         AfterGenerate,
@@ -275,6 +285,35 @@ def d3_asks_with(model: str | None = None, role: str | None = None) -> Monitor:
             "How suspicious is this call?", model=model, role=role
         )
         return Observation.score(float(output.completion))
+
+    return ask
+
+
+@monitor
+def d3_budget(
+    model: str | None = None,
+    role: str | None = None,
+    max_tokens: int | None = None,
+) -> Monitor:
+    async def ask(context: Context, step: BeforeToolCall) -> Observation | None:
+        config = (
+            GenerateConfig(max_tokens=max_tokens) if max_tokens is not None else None
+        )
+        budget = await cast("_HostNative", context.host).input_budget(
+            model=model, role=role, config=config
+        )
+        return Observation.score(0.0, str(budget))
+
+    return ask
+
+
+@monitor
+def d3_count(text: str, model: str | None = None, role: str | None = None) -> Monitor:
+    async def ask(context: Context, step: BeforeToolCall) -> Observation | None:
+        count = await cast("_HostNative", context.host).count_tokens(
+            text, model=model, role=role
+        )
+        return Observation.score(0.0, str(count))
 
     return ask
 
@@ -1386,7 +1425,7 @@ def test_an_escalate_returned_to_the_host_fails_the_sample(stage: str) -> None:
     assert sample.limit is None
     assert sample.error is not None
     assert f"returned an escalate at the {stage} stage" in sample.error.message
-    assert "inspect_sentinel 0.2.0 or later" in sample.error.message
+    assert f"inspect_sentinel {SENTINEL_MIN_VERSION} or later" in sample.error.message
     assert tool_messages(log) == []
     [event] = [e for e in sample.events if isinstance(e, ToolEvent)]
     assert event.failed is True
@@ -2194,6 +2233,75 @@ def test_host_generate_warns_once_without_the_role(
     assert [r for _, r in monitor_calls(log)] == [role]
 
 
+# mockllm has no provider max_tokens default, so the output reserve is
+# inspect_ai's own default
+_MOCK_OUTPUT_RESERVE = 4096
+
+
+def _register_window(monkeypatch: pytest.MonkeyPatch, model: str, window: int) -> None:
+    import inspect_ai.model._model_info as _model_info
+    from inspect_ai.model import ModelInfo
+
+    monkeypatch.setitem(
+        _model_info._custom_models, model, ModelInfo(context_length=window)
+    )
+
+
+def test_host_input_budget_resolves_like_generate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _register_window(monkeypatch, "mockllm/monitor", 200_000)
+    _register_window(monkeypatch, "mockllm/judge", 50_000)
+    _register_window(monkeypatch, "mockllm/named", 300_000)
+    log = run(
+        [d3_budget(), d3_budget(role="judge"), d3_budget(model="mockllm/named")],
+        model_roles={
+            "monitor": get_model("mockllm/monitor"),
+            "judge": get_model("mockllm/judge"),
+        },
+    )
+    assert log.status == "success", log.error
+    default, judge, named = sentinel_events(log)
+    assert default.explanation == str(200_000 - _MOCK_OUTPUT_RESERVE)
+    assert judge.explanation == str(50_000 - _MOCK_OUTPUT_RESERVE)
+    assert named.explanation == str(300_000 - _MOCK_OUTPUT_RESERVE)
+
+
+def test_host_input_budget_reserve_follows_config_max_tokens(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _register_window(monkeypatch, "mockllm/model", 200_000)
+    log = run(
+        [d3_budget(), d3_budget(max_tokens=1000)],
+        model_roles={"monitor": get_model("mockllm/model")},
+    )
+    assert log.status == "success", log.error
+    default, capped = sentinel_events(log)
+    assert default.explanation == str(200_000 - _MOCK_OUTPUT_RESERVE)
+    assert capped.explanation == str(200_000 - 1000)
+
+
+def test_host_count_tokens_resolves_and_returns_the_models_count() -> None:
+    from inspect_ai.model._tokens import count_text_tokens
+
+    text = "How suspicious is this tool call?"
+    expected = count_text_tokens(text)
+    assert expected > 0
+    log = run(
+        [
+            d3_count(text),
+            d3_count(text, role="judge"),
+            d3_count(text, model="mockllm/named"),
+        ],
+        model_roles={
+            "monitor": get_model("mockllm/model"),
+            "judge": get_model("mockllm/judge"),
+        },
+    )
+    assert log.status == "success", log.error
+    assert [e.explanation for e in sentinel_events(log)] == [str(expected)] * 3
+
+
 async def test_a_message_no_model_call_produced_has_no_input() -> None:
     init_transcript(Transcript())
     seen: Seen = []
@@ -2641,6 +2749,89 @@ def test_sentinel_limits_end_the_sample_before_the_call(
     assert event.failed is True
 
 
+_GROUP_REPEATS = 50
+"""Order-sensitive group cases repeat with fresh exceptions: a group's leaves
+were once ordered by a set (object addresses), so one order could pass by
+chance."""
+
+
+def _working_limit() -> LimitExceededError:
+    return LimitExceededError("working", value=10, limit=5, message="working limit hit")
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+@pytest.mark.parametrize(
+    "decisive,other",
+    [
+        (lambda: TerminateSampleError("stop now"), lambda: ToolError("retry")),
+        (lambda: TerminateSampleError("stop now"), _working_limit),
+        (lambda: RuntimeError("defect"), _working_limit),
+        (lambda: ToolError("retry"), _working_limit),
+    ],
+    ids=[
+        "termination-tool-error",
+        "termination-limit",
+        "defect-limit",
+        "tool-error-limit",
+    ],
+)
+def test_a_grouped_sentinel_error_is_decided_by_its_most_serious_leaf(
+    decisive: Callable[[], Exception], other: Callable[[], Exception], reverse: bool
+) -> None:
+    """A termination decides, then any error that fails the sample, then a limit."""
+    from inspect_ai._sentinel._context import SentinelFailure
+    from inspect_ai.model._call_tools import _sentinel_exception
+
+    for _ in range(_GROUP_REPEATS):
+        leaf = decisive()
+        leaves = [leaf, other()]
+        failure = SentinelFailure(
+            ExceptionGroup("sentinel errors", leaves[::-1] if reverse else leaves)
+        )
+        expected = leaf if isinstance(leaf, TerminateSampleError) else failure
+        assert _sentinel_exception(failure) is expected
+
+
+def test_a_group_of_sentinel_limits_keeps_its_first_limit() -> None:
+    from inspect_ai._sentinel._context import SentinelFailure
+    from inspect_ai.model._call_tools import _sentinel_exception
+
+    for _ in range(_GROUP_REPEATS):
+        first = _working_limit()
+        failure = SentinelFailure(
+            ExceptionGroup("sentinel errors", [first, _working_limit()])
+        )
+        assert _sentinel_exception(failure) is first
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+@pytest.mark.parametrize(
+    "leaves,limit",
+    [
+        (lambda: [ToolError("retry"), TerminateSampleError("stop now")], "operator"),
+        (lambda: [_working_limit(), _working_limit()], "working"),
+        (lambda: [ToolError("retry"), _working_limit()], None),
+    ],
+    ids=["termination", "limits", "tool-error-and-limit"],
+)
+def test_a_grouped_sentinel_error_ends_the_sample_by_its_most_serious_leaf(
+    leaves: Callable[[], list[Exception]], limit: str | None, reverse: bool
+) -> None:
+    errors = leaves()
+    group = ExceptionGroup("sentinel errors", errors[::-1] if reverse else errors)
+    log = run([d3_raising(group)])
+    assert log.samples
+    sample = log.samples[0]
+    if limit is None:
+        assert log.status == "error"
+        assert sample.error is not None and "retry" in sample.error.message
+    else:
+        assert log.status == "success", log.error
+        assert sample.error is None
+        assert sample.limit is not None and sample.limit.type == limit
+    assert tool_messages(log) == []
+
+
 @monitor
 def d3_recording_after(seen: list[AfterToolCall]) -> Monitor:
     async def record(context: Context, step: AfterToolCall) -> Observation | None:
@@ -2683,7 +2874,10 @@ def test_a_sentinel_whose_tool_steps_lack_message_id_asks_for_an_upgrade(
     monkeypatch.setattr(dispatch, "BeforeToolCall", _ToolStepWithoutMessageId)
     with pytest.raises(
         SentinelFailure,
-        match=r"requires inspect_sentinel 0\.2\.0 or later: pip install --upgrade inspect-sentinel",
+        match=re.escape(
+            f"requires inspect_sentinel {SENTINEL_MIN_VERSION} or later: "
+            "pip install --upgrade inspect-sentinel"
+        ),
     ):
         dispatch._require_message_id()
 

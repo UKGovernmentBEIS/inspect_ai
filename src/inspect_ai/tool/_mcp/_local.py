@@ -36,7 +36,6 @@ from inspect_ai._util.trace import trace_action
 from inspect_ai.tool._tool import Tool, ToolError, ToolParsingError, ToolResult
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tool_params import ToolParams
-from inspect_ai.util._anyio import inner_exception
 
 from ._compat import (
     MCP_READ_TIMEOUT_CODES,
@@ -334,7 +333,12 @@ class MCPServerLocalSession(MCPServer):
 
                     return as_inspect_content_list(result.content)  # type: ignore[return-value,arg-type]
             except Exception as e:
-                if isinstance(inner_exception(e), TimeoutError):
+                # dodge circular import
+                from inspect_ai.model._call_tools import decisive_tool_exception
+
+                # convert only when the timeout decides the failure, so it can't
+                # hide a sibling defect, limit or termination
+                if isinstance(decisive_tool_exception(e), TimeoutError):
                     raise ToolError(
                         f"Tool '{mcp_tool.name}' timed out before completing."
                     ) from e
