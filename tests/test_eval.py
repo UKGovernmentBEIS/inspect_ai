@@ -29,7 +29,7 @@ from inspect_ai._util.dateutil import datetime_from_iso_format_safe, datetime_no
 from inspect_ai.approval._policy import ApprovalPolicyConfig, ApproverPolicyConfig
 from inspect_ai.dataset import Sample
 from inspect_ai.hooks._hooks import Hooks
-from inspect_ai.scorer import match
+from inspect_ai.scorer import Score, Scorer, Target, accuracy, match, scorer
 from inspect_ai.solver import Generate, Solver, TaskState, solver
 from inspect_ai.util import DisplayType
 
@@ -511,6 +511,36 @@ def test_display_type_change_during_eval_keeps_running_display(
     assert log.status == "success"
     assert display_type() == "rich"
     assert "Ignoring display type 'log'" in caplog.text
+
+
+def test_display_type_change_during_score_keeps_running_display(
+    fresh_display: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    import inspect_ai._display.core.rich as display_rich
+    from inspect_ai import score
+    from inspect_ai.util._display import display_type
+
+    monkeypatch.setattr(display_rich, "is_running_in_vscode", lambda: False)
+
+    task = Task(dataset=[Sample(input="hi", target="hi")])
+    [log] = eval(task, model="mockllm/model", display="none", log_dir=str(tmp_path))
+
+    @scorer(metrics=[accuracy()])
+    def nested_score() -> Scorer:
+        async def score_sample(state: TaskState, target: Target) -> Score:
+            await anyio.to_thread.run_sync(lambda: score(log, match(), display="plain"))
+            return Score(value=1)
+
+        return score_sample
+
+    scored = score(log, nested_score(), display="rich")
+    assert scored.results is not None
+    assert scored.results.scores[-1].name == "nested_score"
+    assert display_type() == "rich"
+    assert "Ignoring display type 'plain'" in caplog.text
 
 
 def test_max_tasks_bounds_concurrent_models_single_task():
