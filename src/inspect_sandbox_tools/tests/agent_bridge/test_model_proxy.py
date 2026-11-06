@@ -2588,10 +2588,10 @@ async def proxy_server_google() -> AsyncGenerator[tuple[AsyncHTTPServer, str], N
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("api_version", [None, "v1"])
+@pytest.mark.parametrize("api_version", ["v1beta", "v1"])
 async def test_google_generate_content_non_streaming(
     proxy_server_google: tuple[AsyncHTTPServer, str],
-    api_version: str | None,
+    api_version: str,
 ) -> None:
     """Test Google generateContent API non-streaming endpoint."""
     _server, base_url = proxy_server_google
@@ -2649,10 +2649,10 @@ async def test_google_proxy_rejects_missing_model_without_crashing(
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("api_version", [None, "v1"])
+@pytest.mark.parametrize("api_version", ["v1beta", "v1"])
 async def test_google_generate_content_streaming(
     proxy_server_google: tuple[AsyncHTTPServer, str],
-    api_version: str | None,
+    api_version: str,
 ) -> None:
     """Test Google generateContent API streaming endpoint."""
     _server, base_url = proxy_server_google
