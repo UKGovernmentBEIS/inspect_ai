@@ -12,7 +12,6 @@ from typing import (
     AsyncGenerator,
     Callable,
     Iterable,
-    Iterator,
     Literal,
     NamedTuple,
     Sequence,
@@ -95,25 +94,6 @@ from .task.results import ScorerInfo, eval_results
 logger = logging.getLogger(__name__)
 
 ScoreAction = Literal["append", "overwrite"]
-
-# score_async() calls showing progress (a set rather than a counter as score()
-# can run on worker threads, e.g. from a scorer)
-_scoring_progress: set[object] = set()
-
-
-def scoring_running() -> bool:
-    """Is a score_async() call showing progress on the display?"""
-    return len(_scoring_progress) > 0
-
-
-@contextlib.contextmanager
-def _scoring_owns_display() -> Iterator[None]:
-    token = object()
-    _scoring_progress.add(token)
-    try:
-        yield
-    finally:
-        _scoring_progress.discard(token)
 
 
 def score(
@@ -368,7 +348,7 @@ async def score_async(
         else None
     )
 
-    with _scoring_owns_display(), display_manager().progress(total=total_samples) as p:
+    with display_manager().progress(total=total_samples) as p:
         scorer_names: list[str] | None = None
         scores: list[dict[str, SampleScore] | None] = [None] * total_samples
         # tally the per-sample error state as we go so an overwrite can restate

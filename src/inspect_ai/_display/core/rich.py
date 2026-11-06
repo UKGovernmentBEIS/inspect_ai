@@ -131,6 +131,20 @@ def rich_restore_defaults() -> None:
     _console_settings = None
 
 
+def rich_live_display_open() -> bool:
+    """Is a Rich live display (e.g. progress or a status) open on the global console?
+
+    Starting a display can replace the console's state (`rich.reconfigure()`),
+    which drops an open live display, and the live display then fails when it
+    stops.
+    """
+    console = rich.get_console()
+    # rich >= 14.1 keeps a stack of live displays, earlier versions a single one
+    return bool(getattr(console, "_live_stack", None)) or (
+        getattr(console, "_live", None) is not None
+    )
+
+
 def _dumb_terminal_size_kwargs() -> dict[str, int]:
     if os.environ.get("TERM") != "dumb":
         return {}

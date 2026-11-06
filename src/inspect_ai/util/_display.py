@@ -47,26 +47,20 @@ def init_display_type(display: str | None = None) -> DisplayType:
 
     if _display_type is not None and new_display_type != _display_type:
         from inspect_ai._display.core.active import clear_active_display
+        from inspect_ai._display.core.rich import rich_live_display_open
         from inspect_ai._eval import eval as eval_module
-        from inspect_ai._eval.score import scoring_running
 
-        # a running eval or score owns the display (e.g. eval() or score()
-        # called from another thread), so keep the type it is rendering with
-        running = (
-            "an eval"
-            if eval_module._eval_async_running
-            else "scoring"
-            if scoring_running()
-            else None
-        )
-        if running is not None:
+        # a running eval or an open live display (e.g. progress for score() or
+        # a log conversion on another thread) is using the display, so keep
+        # the type it is rendering with
+        if eval_module._eval_async_running or rich_live_display_open():
             # a request for the current type that only differs because of the
             # background thread throttle (e.g. score() with no display called
             # from a scorer on a worker thread) isn't a change
             if requested != _display_type:
                 logger.warning(
-                    f"Ignoring display type '{requested}' while {running} "
-                    f"is running with display type '{_display_type}'."
+                    f"Ignoring display type '{requested}' while the "
+                    f"'{_display_type}' display is in use."
                 )
             return _display_type
 

@@ -1,5 +1,6 @@
 import functools
 import logging
+import os
 import tempfile
 import traceback
 from collections.abc import Iterator
@@ -550,6 +551,61 @@ def test_display_type_change_during_score_keeps_running_display(
         assert "Ignoring display type" not in caplog.text
     else:
         assert f"Ignoring display type '{inner_display}'" in caplog.text
+
+
+@pytest.mark.parametrize("utility", ["convert", "chunked", "bundle"])
+@pytest.mark.parametrize("first", ["rich", "conversation", "full", "none", "log"])
+def test_display_type_change_during_log_utility_progress(
+    fresh_display: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    first: DisplayType,
+    utility: str,
+) -> None:
+    import inspect_ai._display.core.rich as display_rich
+    import inspect_ai.log._bundle as bundle
+    import inspect_ai.log._convert as convert
+    import inspect_ai.log._recorders.chunked.convert as chunked
+    from inspect_ai._display import display
+    from inspect_ai.util._display import display_type, init_display_type
+
+    monkeypatch.setattr(display_rich, "is_running_in_vscode", lambda: False)
+
+    log_dir = tmp_path / "logs"
+    task = Task(dataset=[Sample(input="hi", target="hi")])
+    eval(task, model="mockllm/model", display=first, log_dir=str(log_dir))
+
+    def change_display(module: Any, name: str) -> None:
+        original = getattr(module, name)
+
+        def during_progress(*args: Any, **kwargs: Any) -> Any:
+            # as eval(display="plain") does when started on another thread
+            init_display_type("plain")
+            display()
+            return original(*args, **kwargs)
+
+        monkeypatch.setattr(module, name, during_progress)
+
+    output_dir = str(tmp_path / "output")
+    if utility == "convert":
+        change_display(convert, "write_eval_log")
+        convert.convert_eval_logs(str(log_dir), "json", output_dir)
+    elif utility == "chunked":
+        change_display(chunked, "_convert_log_file")
+        chunked.convert_eval_logs_to_chunked(str(log_dir), output_dir)
+    else:
+        change_display(bundle, "write_log_listing")
+        bundle.bundle_log_dir(str(log_dir), output_dir)
+    assert len(os.listdir(output_dir)) > 0
+
+    # the Rich backed displays have a live progress display open, the log
+    # display doesn't
+    if first == "log":
+        assert display_type() == "plain"
+    else:
+        assert display_type() == first
+        assert "Ignoring display type 'plain'" in caplog.text
 
 
 def test_max_tasks_bounds_concurrent_models_single_task():
