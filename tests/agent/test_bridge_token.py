@@ -14,6 +14,7 @@ import pytest
 from test_helpers.sandbox import CannedSandbox
 from test_helpers.utils import skip_if_no_docker
 
+import inspect_ai._util.working as working_module
 import inspect_ai.agent._bridge.sandbox.bridge as bridge_module
 import inspect_ai.agent._bridge.sandbox.service as service_module
 import inspect_ai.tool._sandbox_tools_utils.sandbox as tools_module
@@ -25,6 +26,8 @@ from inspect_ai.agent._bridge.sandbox.bridge import (
 )
 from inspect_ai.agent._bridge.sandbox.service import MODEL_SERVICE
 from inspect_ai.dataset import Sample
+from inspect_ai.event._sandbox import SandboxEvent
+from inspect_ai.log._transcript import Transcript, init_transcript
 from inspect_ai.model import get_model
 from inspect_ai.solver import Generate, Solver, TaskState, solver
 from inspect_ai.tool._mcp._tools_bridge import BridgedToolsSpec
@@ -41,6 +44,7 @@ from inspect_ai.util._sandbox.context import (
     sandbox_default_context_var,
     sandbox_environments_context_var,
 )
+from inspect_ai.util._sandbox.events import SandboxEnvironmentProxy
 from inspect_ai.util._sandbox.exec_remote import (
     KILL_KEY_TIMEOUT,
     ExecCompleted,
@@ -375,6 +379,35 @@ async def test_bridge_refuses_a_token_directory_another_user_created(
     assert sandbox.proxy.killed.is_set()
     # the removal is refused too, rather than run in that directory
     assert len(sandbox.removed) == 1
+
+
+async def test_token_directory_commands_record_no_events() -> None:
+    """The readiness check and removal are plumbing, unlike an agent's exec."""
+    transcript = Transcript()
+    init_transcript(transcript)
+    inner = _BridgeSandbox(publish_after=0)
+    tracked: list[bool] = []
+
+    def answer(cmd: list[str], user: str | None) -> ExecResult[str]:
+        tracked.append(not working_module._untracked_sandbox_execs.get())
+        if cmd == ["echo", "agent"]:
+            return ExecResult(True, 0, "agent\n", "")
+        return inner._answer(cmd, user)
+
+    inner.policy = answer
+    proxy = SandboxEnvironmentProxy(inner)
+    proxy._tools_user = "root"
+    token_file = f"{BRIDGE_TOKEN_DIR}/proxy_x"
+
+    await bridge_module._wait_for_token_file(proxy, token_file, [])
+    await bridge_module._remove_token_file(proxy, token_file)
+    assert inner.checks == 1 and len(inner.removed) == 1
+    assert not [e for e in transcript.events if isinstance(e, SandboxEvent)]
+
+    await proxy.exec(["echo", "agent"])
+    [event] = [e for e in transcript.events if isinstance(e, SandboxEvent)]
+    assert event.cmd == "echo agent"
+    assert tracked == [False, False, True]
 
 
 async def test_proxy_launch_does_not_check_tools_again(

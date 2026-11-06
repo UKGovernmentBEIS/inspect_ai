@@ -39,6 +39,7 @@ from inspect_ai.util._sandbox._framework_directory import (
 )
 from inspect_ai.util._sandbox._json_rpc_transport import SandboxJSONRPCTransport
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
+from inspect_ai.util._sandbox.events import without_sandbox_events
 from inspect_ai.util._sandbox.exec_remote import (
     ExecCompleted,
     ExecRemoteProcess,
@@ -592,23 +593,26 @@ async def _exec_in_token_dir(
     """Run `cmd` as the tools user inside the verified token directory.
 
     The directory must be owned by the tools user (the proxy's user) with mode
-    `0711`; the command runs outside the sandbox's concurrency limits.
+    `0711`; the command runs outside the sandbox's concurrency limits. Like
+    the bridge's other plumbing, it records no transcript event and is not
+    known work.
 
     Raises:
         FrameworkDirectoryNotFoundError: The directory does not exist yet.
         FrameworkDirectoryError: The directory cannot be trusted.
     """
     user = sandbox_env._tools_user
-    return await exec_in_framework_directory(
-        sandbox_env,
-        directory,
-        cmd,
-        user=user,
-        expected_uid=expected_uid_for(user),
-        mode=_TOKEN_DIR_MODE,
-        timeout=_TOKEN_EXEC_TIMEOUT,
-        concurrency=False,
-    )
+    with without_sandbox_events(sandbox_env):
+        return await exec_in_framework_directory(
+            sandbox_env,
+            directory,
+            cmd,
+            user=user,
+            expected_uid=expected_uid_for(user),
+            mode=_TOKEN_DIR_MODE,
+            timeout=_TOKEN_EXEC_TIMEOUT,
+            concurrency=False,
+        )
 
 
 def _register_bridged_tools(
