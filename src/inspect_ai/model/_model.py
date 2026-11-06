@@ -107,7 +107,14 @@ from inspect_ai.util._span import (
 )
 
 from ._agent_message import validate_agent_message
-from ._cache import CacheEntry, CachePolicy, cache_fetch, cache_store, epoch
+from ._cache import (
+    CacheEntry,
+    CachePolicy,
+    cache_fetch,
+    cache_model_args_key,
+    cache_store,
+    epoch,
+)
 from ._call_tools import (
     copy_tools_info,
     execute_tools,
@@ -883,6 +890,7 @@ class Model:
         self.api = api
         self.config = config
         self.model_args = model_args if model_args is not None else {}
+        self._cache_instance_key = uuid()
         self._role: str | None = None
         self._explicit_base_url: str | None = None
 
@@ -1461,6 +1469,7 @@ class Model:
             cleared_retry_wait,
             track_active_model_event,
         )
+        from inspect_ai.model._model_config import model_args_for_log
 
         input, tdefs, base_tools, tool_choice = prepared
 
@@ -1547,6 +1556,24 @@ class Model:
                 else:
                     policy = CachePolicy()
 
+                # per attempt and after the hooks: providers read nested
+                # constructor args per request, and a hook, a retry or the
+                # provider (Anthropic compaction edits) can change them.
+                # Leave out what the log leaves out (credentials), so a
+                # rotated credential or a retry from the log still hits.
+                model_args = model_args_for_log(self.model_args)
+                model_args_key = cache_model_args_key(model_args)
+                if model_args_key is None:
+                    warn_once(
+                        logger,
+                        "Model output caching is scoped to this model instance: "
+                        "constructor arguments contain values without a reliable "
+                        "persistent identity.",
+                    )
+                    model_args_key = cache_model_args_key(
+                        model_args, instance_key=self._cache_instance_key
+                    )
+
                 cache_entry = CacheEntry(
                     base_url=self.api.base_url,
                     config=deepcopy(config),
@@ -1555,6 +1582,7 @@ class Model:
                     policy=policy,
                     tool_choice=tool_choice,
                     tools=event_tools,
+                    model_args_key=model_args_key,
                 )
                 existing = cache_fetch(cache_entry)
                 if isinstance(existing, ModelOutput):
@@ -2716,7 +2744,7 @@ def resolve_tool_model_input(
         # call the function for each tool, passing the index, total, and content
         for index, (position, message) in enumerate(tdef_tool_messages):
             model_input_content = tdef.model_input(
-                index, len(tool_messages), message.content, hints
+                index, len(tdef_tool_messages), message.content, hints
             )
             if model_input_content is not message.content:
                 messages[position] = edited_message(
