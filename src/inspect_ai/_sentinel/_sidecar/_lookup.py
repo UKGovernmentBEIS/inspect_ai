@@ -1,6 +1,7 @@
-"""Asking a sidecar what it decided of an agent call whose reply or refusal came back without the `sentinel` field."""
+"""Asking a sidecar what it decided of an agent call, after every call that went through it, reply or error alike."""
 
-from typing import Any, Literal, NamedTuple
+import time
+from typing import Literal, NamedTuple
 
 import anyio
 
@@ -12,11 +13,14 @@ from inspect_ai.util._limit import (
 )
 
 from .._config import SentinelProxy
-from ._endpoint import SentinelProxyError, SidecarCallError
-from ._field import ReceivedField
+from ._endpoint import UNAUTHORIZED, SentinelProxyError, SidecarCallError
+from ._received import Judgment, ReceivedCall, parse_judgment
 
-FIRST_WAIT = 0.5
-LONGEST_WAIT = 10.0
+RESULT_WAIT = 30.0
+"""How long each `request_result` asks the sidecar to wait while the call is still being judged, in seconds: the longest it waits."""
+
+UNHELD_PAUSE = 0.5
+"""How long to wait before asking again when the sidecar answered that it is still judging without holding the answer, in seconds."""
 
 
 class SidecarNotJudgedError(RuntimeError):
@@ -37,40 +41,57 @@ class Looked(NamedTuple):
     state: Literal["decided", "not_judged", "unavailable"]
     reason: str | None = None
     """Why the call wasn't judged, or why the judgment is unavailable."""
-    field: dict[str, Any] | None = None
-    """The `sentinel` field the reply or refusal carried, once decided."""
+    judgment: Judgment | None = None
+    """What the sidecar decided, once decided."""
 
 
-async def request_result(received: ReceivedField, replied: bool) -> Looked:
-    """Ask the sidecar what it decided of the call's latest attempt, waiting while it is still judging.
+async def request_result(received: ReceivedCall, replied: bool) -> Looked:
+    """Ask the sidecar what it decided of the call's latest attempt, and keep the answer, waiting while it is still judging.
 
-    While Inspect waits, the sample's token, turn and working limits are paused, as they are while an in-process sentinel runs; its time limit still applies. A state other than judging, including one this version doesn't know, is an answer, so only judging is waited on.
+    The sidecar holds each answer while the call is still being judged, up to `RESULT_WAIT`, and Inspect asks again while it is. While Inspect waits, the sample's token, turn and working limits are paused, as they are while an in-process sentinel runs; its time limit still applies. A state other than judging, including one this version doesn't know, is an answer.
 
     Args:
-        received: What was collected of the call.
+        received: What is kept of the call, where the answer is kept too.
         replied: Whether the call came back with a reply. The sidecar never received the reply of a call it is still awaiting the reply of, whether the call came back with a reply or as an error.
+
+    Raises:
+        SentinelProxyError: If the sidecar keeps another token for the eval, so it won't say what it decided.
+        ValueError: If the sidecar's judgment isn't one this Inspect can read.
     """
+    looked = await _request_result(received, replied)
+    received.looked = looked
+    received.judgment = looked.judgment
+    return looked
+
+
+async def _request_result(received: ReceivedCall, replied: bool) -> Looked:
     sidecar = received.sidecar
     if sidecar is None or received.request_id is None:
         return Looked("unavailable", "the call's request id is not known")
-    wait = FIRST_WAIT
     with suspend_token_limit(), suspend_turn_limit(), suspend_working_limit():
         while True:
+            asked = time.monotonic()
             try:
-                result = await sidecar.call(
-                    "request_result", {"id": received.request_id}
+                result = await sidecar.eval_call(
+                    "request_result",
+                    {"id": received.request_id, "wait": RESULT_WAIT},
                 )
             except SidecarCallError as ex:
+                if ex.code == UNAUTHORIZED:
+                    raise SentinelProxyError(
+                        f"The sentinel sidecar at {sidecar.origin} keeps another token for this eval, so it won't say what it decided of its calls."
+                    ) from ex
                 return Looked("unavailable", str(ex))
             records = result.get("records")
             if records != "held":
                 return Looked("unavailable", f"the sidecar's records are {records}")
             state = result.get("state")
             if state == "decided":
-                field = result.get("sentinel")
-                if not isinstance(field, dict):
+                judgment = result.get("judgment")
+                if not isinstance(judgment, dict):
                     return Looked("unavailable", "the sidecar gave no decision")
-                return Looked("decided", field=field)
+                # a judgment this Inspect can't read is never taken for none
+                return Looked("decided", judgment=parse_judgment(judgment))
             if state == "not_judged":
                 return Looked("not_judged", str(result.get("reason")))
             # the proxy hands a reply to the sidecar before passing it on, and
@@ -84,11 +105,14 @@ async def request_result(received: ReceivedField, replied: bool) -> Looked:
                     else "the sidecar never saw a reply",
                 )
             # waiting has no deadline of its own, as for a sentinel inside
-            # Inspect; the sidecar's time limit bounds its judging
+            # Inspect; the sidecar's time limit bounds its judging, and it
+            # holds each answer while it judges
             if state != "judging":
                 return Looked("unavailable", f"the sidecar's state is {state!r}")
-            await anyio.sleep(wait)
-            wait = min(wait * 2, LONGEST_WAIT)
+            # a sidecar that answered at once didn't hold the answer, and
+            # isn't asked again at once
+            if time.monotonic() - asked < UNHELD_PAUSE:
+                await anyio.sleep(UNHELD_PAUSE)
 
 
 def unjudged_reply(looked: Looked, mode: SentinelProxy, request_id: str | None) -> None:

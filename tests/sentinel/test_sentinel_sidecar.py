@@ -1,5 +1,5 @@
 import json
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
 
@@ -23,7 +23,8 @@ from inspect_ai._sentinel._sidecar._endpoint import (
     proxy_client,
 )
 from inspect_ai._sentinel._sidecar._events import SIDECAR_METADATA
-from inspect_ai._sentinel._sidecar._field import receiving_field
+from inspect_ai._sentinel._sidecar._lookup import RESULT_WAIT
+from inspect_ai._sentinel._sidecar._received import receiving_call
 from inspect_ai._sentinel._sidecar._task import (
     MONITOR_STATE_COPY,
     SampleFacts,
@@ -360,6 +361,8 @@ async def test_a_samples_registration_is_completed_once_for_each_attempt() -> No
     messages = completed.pop("sample_input")
     assert completed == {
         "eval_id": "eval_789",
+        # the token the task's registration gave
+        "token": "token-1",
         "task": "weather_desk",
         "sample_id": 1,
         "sample_description": "A rainy day.",
@@ -410,15 +413,119 @@ async def test_a_task_the_sidecar_forgot_is_registered_again() -> None:
 
     await sidecars.complete_registration(sidecar, _sample(), "sample_123", 1)
 
-    # the task's registration again, as first sent, then the sample's again
+    # the task's registration again, as first sent with the token the eval
+    # holds, then the sample's again
     [first, again] = _registered(stand_in, "register_task")
-    assert again == first
+    assert again == {**first, "token": "token-1"}
     assert [call["method"] for call in stand_in.calls] == [
         "register_task",
         "complete_registration",
         "register_task",
         "complete_registration",
     ]
+
+
+async def test_every_call_for_the_eval_presents_its_latest_token() -> None:
+    # a sidecar that lost the eval, as after a restart, gives a new token
+    tokens = iter(["token-1", "token-2"])
+    stand_in = StandInSidecar(
+        methods={
+            "register_task": lambda _: {"token": next(tokens), "fixed": False},
+            "complete_registration": _forgets_the_task(1),
+        }
+    )
+    sidecars = TaskSidecars("auto", _FACTS)
+    sidecar = await sidecars.sidecar(_model(stand_in).api)
+    assert sidecar is not None
+
+    await sidecars.complete_registration(sidecar, _sample(), "sample_123", 1)
+    sidecars.called_through("sample_123", 1, sidecar)
+    await sidecars.end_sample("sample_123")
+
+    assert [
+        (call["method"], call["params"]["eval_id"], call["params"].get("token"))
+        for call in stand_in.calls
+    ] == [
+        ("register_task", "eval_789", None),
+        ("complete_registration", "eval_789", "token-1"),
+        ("register_task", "eval_789", "token-1"),
+        ("complete_registration", "eval_789", "token-2"),
+        ("end_sample", "eval_789", "token-2"),
+    ]
+
+
+async def test_samples_that_find_the_task_lost_at_once_register_it_again_once() -> None:
+    # every sample's first completion finds the sidecar lost the task and the
+    # eval's token, so each registration gets a new token
+    issued = iter(f"token-{n}" for n in range(1, 10))
+    stand_in = StandInSidecar(
+        methods={
+            "register_task": lambda _: {"token": next(issued), "fixed": False},
+            "complete_registration": _forgets_the_task(3),
+        }
+    )
+    sidecars = TaskSidecars("auto", _FACTS)
+    sidecar = await sidecars.sidecar(_model(stand_in).api)
+    assert sidecar is not None
+
+    def complete(uuid: str) -> Callable[[], Awaitable[bool]]:
+        return lambda: sidecars.complete_registration(sidecar, _sample(), uuid, 1)
+
+    await tg_collect([complete(uuid) for uuid in ["sample_1", "sample_2", "sample_3"]])
+
+    # registered again by one, which the others wait for, rather than by
+    # each with a token another's registration has replaced
+    assert len(_registered(stand_in, "register_task")) == 2
+    completed = _registered(stand_in, "complete_registration")
+    assert [params["token"] for params in completed[3:]] == ["token-2"] * 3
+
+
+_UNAUTHORIZED = {"error": {"code": -32010, "message": "another token"}}
+
+
+def test_a_task_a_sidecar_keeps_another_token_for_fails() -> None:
+    stand_in = StandInSidecar(methods={"register_task": lambda _: _UNAUTHORIZED})
+
+    [log] = eval(_task(), model=_model(stand_in), display="none")
+
+    assert log.status == "error"
+    assert log.error is not None
+    assert "keeps another token for this eval" in log.error.message
+
+
+def test_a_sample_whose_results_a_sidecar_wont_give_fails() -> None:
+    stand_in = StandInSidecar(
+        turns=[Turn(text="Sunny.")],
+        methods={"request_result": lambda _: _UNAUTHORIZED},
+    )
+
+    [log] = eval(
+        Task(dataset=[Sample(input="Hi.")], solver=generate()),
+        model=_model(stand_in),
+        display="none",
+    )
+
+    assert log.samples is not None
+    error = log.samples[0].error
+    assert error is not None
+    assert "won't say what it decided" in error.message
+
+
+def test_every_reply_through_a_sidecar_is_looked_up() -> None:
+    stand_in = StandInSidecar(
+        turns=[Turn(text="Sunny.", judgment={"outcome": "proceed", "steps": []})]
+    )
+
+    [log] = eval(
+        Task(dataset=[Sample(input="Hi.")], solver=generate()),
+        model=_model(stand_in),
+        display="none",
+    )
+
+    assert log.status == "success"
+    # a reply never carries what was decided, so it is always asked for
+    [call] = stand_in.model_calls
+    assert _looked_up(stand_in) == [call.headers["x-irid"]]
 
 
 async def test_a_task_the_sidecar_forgets_again_is_an_error() -> None:
@@ -589,14 +696,6 @@ def test_a_call_to_an_endpoint_with_no_sidecar_names_no_sample() -> None:
     assert _registered(stand_in, "register_task") == []
 
 
-_FIELD = {
-    "version": 1,
-    "outcome": "proceed",
-    "steps": [
-        {"stage": "tool_call", "call": "call_1", "decision": {"action": "proceed"}}
-    ],
-}
-
 _FORMATS: dict[str, tuple[str, str, dict[str, Any]]] = {
     "anthropic": ("anthropic", "http://proxy.test", {"streaming": False}),
     "anthropic streamed": ("anthropic", "http://proxy.test", {"streaming": True}),
@@ -615,7 +714,8 @@ _FORMATS: dict[str, tuple[str, str, dict[str, Any]]] = {
 }
 
 
-async def _received(name: str, turn: Turn) -> dict[str, Any] | None:
+async def _kept_id(name: str, turn: Turn) -> tuple[str | None, str | None]:
+    # the id the call is kept under, and the `x-irid` it was sent with
     provider, base_url, model_args = _FORMATS[name]
     stand_in = StandInSidecar(turns=[turn])
     model = get_model(
@@ -626,7 +726,7 @@ async def _received(name: str, turn: Turn) -> dict[str, Any] | None:
         http_client=stand_in.http_client(),
         **model_args,
     )
-    with receiving_field() as received:
+    with receiving_call() as received:
         try:
             # few tokens, as the Anthropic SDK refuses a long call it isn't streaming
             await model.generate(
@@ -634,28 +734,23 @@ async def _received(name: str, turn: Turn) -> dict[str, Any] | None:
             )
         except Exception:
             pass
-    assert len(stand_in.model_calls) == 1
-    return received.field
+    [call] = stand_in.model_calls
+    return received.request_id, call.headers.get("x-irid")
 
 
 @pytest.mark.parametrize("name", list(_FORMATS))
-async def test_the_field_is_read_from_a_reply(name: str) -> None:
-    assert await _received(name, Turn(sentinel=_FIELD)) == _FIELD
+async def test_a_reply_is_kept_under_the_id_it_was_sent_with(name: str) -> None:
+    kept, sent = await _kept_id(name, Turn())
+
+    # the only way `request_result` finds what was decided of it
+    assert kept is not None and kept == sent
 
 
 @pytest.mark.parametrize("name", list(_FORMATS))
-async def test_a_reply_without_the_field_has_none(name: str) -> None:
-    assert await _received(name, Turn()) is None
+async def test_a_refusal_is_kept_under_the_id_it_was_sent_with(name: str) -> None:
+    kept, sent = await _kept_id(name, Turn(status=400))
 
-
-@pytest.mark.parametrize("name", list(_FORMATS))
-@pytest.mark.parametrize("nested", [False, True], ids=["envoy", "litellm"])
-async def test_the_field_is_read_from_a_refusal(name: str, nested: bool) -> None:
-    refused = {**_FIELD, "outcome": "reject"}
-
-    received = await _received(name, Turn(status=400, sentinel=refused, nested=nested))
-
-    assert received == refused
+    assert kept is not None and kept == sent
 
 
 _LOOKED_UP: list[str] = []
@@ -675,12 +770,17 @@ def weather() -> Tool:
     return execute
 
 
-def _turn_json(*calls: tuple[str, str]) -> dict[str, Any]:
-    # the model's turn, as the sidecar writes it in the field
+def _turn_json(*calls: tuple[str, str | None]) -> dict[str, Any]:
+    # the model's turn, as the sidecar writes it in a judgment: a call with no
+    # city is one a decision acted on, redacted to its id and function
     message = ChatMessageAssistant(
         content="Checking.",
         tool_calls=[
-            ToolCall(id=id, function="weather", arguments={"city": city})
+            ToolCall(
+                id=id,
+                function="weather",
+                arguments={"city": city} if city is not None else {},
+            )
             for id, city in calls
         ],
     )
@@ -728,15 +828,16 @@ def _recorded_calls(sample: EvalSample) -> list[tuple[str, dict[str, Any]]]:
 
 def test_a_call_the_sidecar_took_out_is_answered_with_an_approval_error() -> None:
     proposed = {
-        "message": _turn_json(("call_1", "Tokyo"), ("call_2", "Oslo")),
+        "message": _turn_json(("call_1", None), ("call_2", "Oslo")),
         "results": {"call_1": "Tokyo is not allowed."},
+        "redacted": ["call_1"],
     }
     stand_in = StandInSidecar(
         turns=[
             # the sidecar hands over the turn without the rejected call
             Turn(
                 calls=[("call_2", "weather", {"city": "Oslo"})],
-                sentinel={"outcome": "proceed", "steps": [], "proposed": proposed},
+                judgment={"outcome": "proceed", "steps": [], "proposed": proposed},
             ),
             Turn(text="Sunny in Oslo."),
         ]
@@ -744,13 +845,11 @@ def test_a_call_the_sidecar_took_out_is_answered_with_an_approval_error() -> Non
 
     sample = _run_agent(stand_in)
 
-    # the model's own turn, both calls in it, as in process
+    # the model's turn, both calls in it, as in process, and the rejected
+    # call held as given: its id and function, never its arguments
     first = _turns(sample)[0]
     assert [c.id for c in first.tool_calls or []] == ["call_1", "call_2"]
-    assert _recorded_calls(sample) == [
-        ("call_1", {"city": "Tokyo"}),
-        ("call_2", {"city": "Oslo"}),
-    ]
+    assert _recorded_calls(sample) == [("call_1", {}), ("call_2", {"city": "Oslo"})]
     results = _tool_messages(sample)
     assert results["call_1"].error is not None
     assert results["call_1"].error.type == "approval"
@@ -760,22 +859,24 @@ def test_a_call_the_sidecar_took_out_is_answered_with_an_approval_error() -> Non
 
 
 def test_a_call_the_sidecar_changed_runs_with_its_new_arguments() -> None:
-    original = {"id": "call_1", "function": "weather", "arguments": {"city": "Tokyo"}}
     modified = {"id": "call_1", "function": "weather", "arguments": {"city": "Oslo"}}
+    # a changed call is in the turn as it ran; the model's arguments are never
+    # handed to the eval
+    proposed = {"message": _turn_json(("call_1", "Oslo")), "results": {}}
     stand_in = StandInSidecar(
         turns=[
             Turn(
                 calls=[("call_1", "weather", {"city": "Oslo"})],
-                sentinel={
+                judgment={
                     "outcome": "proceed",
                     "steps": [
                         {
                             "stage": "tool_call",
                             "call": "call_1",
-                            "original": original,
                             "decision": {"action": "modify", "modified": modified},
                         }
                     ],
+                    "proposed": proposed,
                 },
             ),
             Turn(text="Sunny in Oslo."),
@@ -784,21 +885,22 @@ def test_a_call_the_sidecar_changed_runs_with_its_new_arguments() -> None:
 
     sample = _run_agent(stand_in)
 
-    # the model's turn keeps the call it made, and the changed one ran
+    # the turn holds the changed call, which ran
     [call] = _turns(sample)[0].tool_calls or []
-    assert call.arguments == {"city": "Tokyo"}
-    assert _recorded_calls(sample) == [("call_1", {"city": "Tokyo"})]
+    assert call.arguments == {"city": "Oslo"}
+    assert _recorded_calls(sample) == [("call_1", {"city": "Oslo"})]
     assert _LOOKED_UP == ["Oslo"]
 
 
 def test_a_turn_the_sidecar_rejected_whole_goes_on_as_the_models_turn() -> None:
     withheld = {
-        "message": _turn_json(("call_1", "Tokyo")),
+        "message": _turn_json(("call_1", None)),
         "results": {"call_1": "Tokyo is not allowed."},
+        "redacted": ["call_1"],
     }
     stand_in = StandInSidecar(
         turns=[
-            Turn(status=400, sentinel={"outcome": "reject", "withheld": withheld}),
+            Turn(status=400, judgment={"outcome": "reject", "withheld": withheld}),
             Turn(text="I can't look that up."),
         ]
     )
@@ -808,7 +910,8 @@ def test_a_turn_the_sidecar_rejected_whole_goes_on_as_the_models_turn() -> None:
     # the agent carries on, as it would in process
     assert sample.error is None
     [call] = _turns(sample)[0].tool_calls or []
-    assert call.id == "call_1"
+    # held as given: its id and function, never its arguments
+    assert (call.id, call.function, call.arguments) == ("call_1", "weather", {})
     error = _tool_messages(sample)["call_1"].error
     assert error is not None
     assert (error.type, error.message) == ("approval", "Tokyo is not allowed.")
@@ -817,7 +920,7 @@ def test_a_turn_the_sidecar_rejected_whole_goes_on_as_the_models_turn() -> None:
 
 
 def _ends(stage: str, call: str | None = None) -> dict[str, Any]:
-    # a sentinel's terminate, as the field reports it
+    # a sentinel's terminate, as the judgment reports it
     return {
         "stage": stage,
         "call": call,
@@ -842,12 +945,12 @@ def _ended_as_operator(sample: EvalSample, reason: str = "Too far.") -> None:
 @pytest.mark.parametrize("agent", ["generate", "react"])
 def test_a_terminate_at_a_call_ends_the_sample_with_the_turn_kept(agent: str) -> None:
     calls = (("call_1", "Tokyo"), ("call_2", "Oslo"))
-    field = {
+    judgment = {
         "outcome": "terminate",
         "steps": [_ends("tool_call", "call_2")],
         "withheld": _ended_turn(*calls),
     }
-    stand_in = StandInSidecar(turns=[Turn(status=400, sentinel=field)])
+    stand_in = StandInSidecar(turns=[Turn(status=400, judgment=judgment)])
 
     sample = _run_agent(stand_in, agent=agent)
 
@@ -870,10 +973,10 @@ def test_a_terminate_at_a_call_ends_the_sample_with_the_turn_kept(agent: str) ->
 def test_a_terminate_before_the_calls_ends_the_sample_at_the_model_call(
     step: dict[str, Any],
 ) -> None:
-    field: dict[str, Any] = {"outcome": "terminate", "steps": [step]}
+    judgment: dict[str, Any] = {"outcome": "terminate", "steps": [step]}
     if step["stage"] == "model_output":
-        field["withheld"] = _ended_turn(("call_1", "Tokyo"))
-    stand_in = StandInSidecar(turns=[Turn(status=400, sentinel=field)])
+        judgment["withheld"] = _ended_turn(("call_1", "Tokyo"))
+    stand_in = StandInSidecar(turns=[Turn(status=400, judgment=judgment)])
 
     sample = _run_agent(stand_in)
 
@@ -884,16 +987,16 @@ def test_a_terminate_before_the_calls_ends_the_sample_at_the_model_call(
 
 
 def test_an_agent_that_doesnt_run_the_turns_calls_ends_at_its_next_call() -> None:
-    field = {
+    judgment = {
         "outcome": "terminate",
         "steps": [_ends("tool_call", "call_1")],
         "withheld": _ended_turn(("call_1", "Tokyo")),
     }
     stand_in = StandInSidecar(
         turns=[
-            Turn(status=400, sentinel=field),
+            Turn(status=400, judgment=judgment),
             # the sidecar refuses every later call of a run it ended
-            Turn(status=400, sentinel={"outcome": "terminate", "steps": []}),
+            Turn(status=400, judgment={"outcome": "terminate", "steps": []}),
         ]
     )
     task = Task(dataset=[Sample(input="Hi.")], solver=_asks_twice())
@@ -925,7 +1028,7 @@ def test_an_approver_never_sees_a_call_the_sidecar_took_out() -> None:
         turns=[
             Turn(
                 calls=[("call_2", "weather", {"city": "Oslo"})],
-                sentinel={"outcome": "proceed", "steps": [], "proposed": proposed},
+                judgment={"outcome": "proceed", "steps": [], "proposed": proposed},
             ),
             Turn(text="Done."),
         ]
@@ -973,8 +1076,8 @@ def test_a_failed_call_with_no_sidecar_asks_the_provider_nothing_more(
     assert asked == []
 
 
-def _decided(field: dict[str, Any]) -> dict[str, Any]:
-    return {"records": "held", "state": "decided", "sentinel": field}
+def _decided(judgment: dict[str, Any]) -> dict[str, Any]:
+    return {"records": "held", "state": "decided", "judgment": judgment}
 
 
 def _taken_out() -> dict[str, Any]:
@@ -982,8 +1085,9 @@ def _taken_out() -> dict[str, Any]:
         "outcome": "proceed",
         "steps": [],
         "proposed": {
-            "message": _turn_json(("call_1", "Tokyo"), ("call_2", "Oslo")),
+            "message": _turn_json(("call_1", None), ("call_2", "Oslo")),
             "results": {"call_1": "Tokyo is not allowed."},
+            "redacted": ["call_1"],
         },
     }
 
@@ -992,7 +1096,7 @@ def _looked_up(stand_in: StandInSidecar) -> list[str]:
     return [params["id"] for params in _registered(stand_in, "request_result")]
 
 
-def test_a_reply_without_the_field_is_acted_on_as_request_result_says() -> None:
+def test_a_reply_is_acted_on_as_request_result_says() -> None:
     stand_in = StandInSidecar(
         turns=[Turn(calls=[("call_2", "weather", {"city": "Oslo"})]), Turn()],
         methods={
@@ -1004,21 +1108,20 @@ def test_a_reply_without_the_field_is_acted_on_as_request_result_says() -> None:
 
     sample = _run_agent(stand_in)
 
-    # asked again while the sidecar was still judging, under the call's id
+    # asked again while the sidecar was still judging, under the call's id,
+    # each time holding the answer while it judges, with the eval's token
     first_call = stand_in.model_calls[0]
     assert _looked_up(stand_in)[:2] == [first_call.headers["x-irid"]] * 2
+    asked = _registered(stand_in, "request_result")[0]
+    assert (asked["wait"], asked["token"]) == (RESULT_WAIT, "token-1")
     assert _tool_messages(sample)["call_1"].error is not None
     assert _LOOKED_UP == ["Oslo"]
 
 
-def test_a_continued_reply_without_the_field_is_looked_up() -> None:
+def test_a_continued_reply_is_looked_up_after_its_continuation() -> None:
     # Anthropic pauses a long turn, and Inspect continues it under the same
-    # request: the paused reply's field says nothing of the continuation's
-    paused = Turn(
-        text="Searching.",
-        stop_reason="pause_turn",
-        sentinel={"outcome": "proceed", "steps": []},
-    )
+    # request: the sidecar is asked once the continuation's reply is in
+    paused = Turn(text="Searching.", stop_reason="pause_turn")
     stand_in = StandInSidecar(
         turns=[paused, Turn(calls=[("call_2", "weather", {"city": "Oslo"})]), Turn()],
         methods={"request_result": _answers(_decided(_taken_out()))},
@@ -1086,12 +1189,13 @@ def test_a_reply_whose_judgment_is_unavailable_fails_a_sample_that_requires_one(
     assert "judgment of the call" in error.message
 
 
-def test_a_refusal_without_the_field_is_acted_on_as_request_result_says() -> None:
+def test_a_refusal_is_acted_on_as_request_result_says() -> None:
     rejected = {
         "outcome": "reject",
         "withheld": {
-            "message": _turn_json(("call_1", "Tokyo")),
+            "message": _turn_json(("call_1", None)),
             "results": {"call_1": "Tokyo is not allowed."},
+            "redacted": ["call_1"],
         },
     }
     stand_in = StandInSidecar(
@@ -1150,7 +1254,7 @@ def test_a_sample_the_sidecar_lost_is_retried_and_registered_again() -> None:
     stand_in = StandInSidecar(
         turns=[
             Turn(status=400),
-            Turn(text="Sunny.", sentinel={"outcome": "proceed", "steps": []}),
+            Turn(text="Sunny.", judgment={"outcome": "proceed", "steps": []}),
         ],
         methods={
             "complete_registration": complete,
@@ -1244,7 +1348,7 @@ def test_an_error_inspect_retries_is_not_looked_up() -> None:
     )
 
     # retried, as today, under the same id; only the reply that came back is
-    # looked up, once, as it came without the field
+    # looked up, once
     failed, replied = stand_in.model_calls
     assert failed.headers["x-irid"] == replied.headers["x-irid"]
     assert _looked_up(stand_in) == [replied.headers["x-irid"]]
@@ -1342,7 +1446,7 @@ def test_each_report_says_which_models_judged_it(
         turns=[
             Turn(
                 calls=[("call_1", "weather", {"city": "Oslo"})],
-                sentinel={"outcome": "proceed", "steps": [step]},
+                judgment={"outcome": "proceed", "steps": [step]},
             ),
             Turn(),
         ]
@@ -1376,7 +1480,7 @@ def test_both_generate_stages_report_the_generates_id() -> None:
         turns=[
             Turn(
                 calls=[("call_1", "weather", {"city": "Oslo"})],
-                sentinel={
+                judgment={
                     "outcome": "proceed",
                     "steps": [
                         {"stage": "model_input", "decision": proceed},
@@ -1435,7 +1539,7 @@ def test_the_sidecars_reports_are_written_as_sentinel_events(trimmed: bool) -> N
     }
     if not trimmed:
         step["recorded"] = _RECORDED
-    field: dict[str, Any] = {
+    judgment: dict[str, Any] = {
         "outcome": "proceed",
         "steps": [step],
         "proposed": {
@@ -1444,10 +1548,10 @@ def test_the_sidecars_reports_are_written_as_sentinel_events(trimmed: bool) -> N
         },
     }
     if trimmed:
-        field["trimmed"] = True
+        judgment["trimmed"] = True
     stand_in = StandInSidecar(
         turns=[
-            Turn(calls=[("call_2", "weather", {"city": "Oslo"})], sentinel=field),
+            Turn(calls=[("call_2", "weather", {"city": "Oslo"})], judgment=judgment),
             Turn(),
         ]
     )
@@ -1496,7 +1600,7 @@ def test_the_sidecars_reports_are_written_as_sentinel_events(trimmed: bool) -> N
 def test_a_step_without_records_keeps_its_decisions_metadata() -> None:
     # a sidecar that sends results, with a step that has no records: the
     # decision's own metadata is kept beside where it came from
-    field: dict[str, Any] = {
+    judgment: dict[str, Any] = {
         "outcome": "proceed",
         "steps": [
             {
@@ -1516,7 +1620,7 @@ def test_a_step_without_records_keeps_its_decisions_metadata() -> None:
     }
     stand_in = StandInSidecar(
         turns=[
-            Turn(calls=[("call_2", "weather", {"city": "Oslo"})], sentinel=field),
+            Turn(calls=[("call_2", "weather", {"city": "Oslo"})], judgment=judgment),
             Turn(),
         ]
     )
@@ -1564,7 +1668,9 @@ def test_a_scorer_reads_the_monitor_state_the_sidecar_keeps() -> None:
     [sample] = log.samples
     assert sample.scores is not None
     assert sample.scores["_reads_monitor_state"].value == 3
-    assert _registered(stand_in, "sample_result") == [{"sample_uuid": sample.uuid}]
+    assert _registered(stand_in, "sample_result") == [
+        {"sample_uuid": sample.uuid, "eval_id": log.eval.eval_id, "token": "token-1"}
+    ]
 
 
 @pytest.mark.parametrize(
@@ -1712,7 +1818,7 @@ def test_required_says_when_an_agent_call_goes_through_a_model_with_no_sidecar()
     None
 ):
     stand_in = StandInSidecar(
-        turns=[Turn(text="Sunny.", sentinel={"outcome": "proceed", "steps": []})]
+        turns=[Turn(text="Sunny.", judgment={"outcome": "proceed", "steps": []})]
     )
     # a second model reached without a proxy, which no sidecar judges
     other = _model(StandInSidecar(), base_url=None)
@@ -1894,7 +2000,9 @@ def test_a_copy_cut_short_by_the_scoring_deadline_says_the_state_is_missing() ->
     assert log.samples is not None
     [sample] = log.samples
     assert sample.error is not None
-    assert _registered(stand_in, "sample_result") == [{"sample_uuid": sample.uuid}]
+    assert _registered(stand_in, "sample_result") == [
+        {"sample_uuid": sample.uuid, "eval_id": log.eval.eval_id, "token": "token-1"}
+    ]
     rescored = score_log(log, _reads_monitor_state(), display="none")
     assert rescored.samples is not None
     again = (rescored.samples[0].scores or {})["_reads_monitor_state"]
@@ -2013,7 +2121,7 @@ def test_a_refused_turn_counts_the_usage_the_provider_billed() -> None:
     }
     refused = {"outcome": "reject", "withheld": withheld, "usage": _BILLED}
     stand_in = StandInSidecar(
-        turns=[Turn(status=400, sentinel=refused), Turn(text="I can't look that up.")]
+        turns=[Turn(status=400, judgment=refused), Turn(text="I can't look that up.")]
     )
     task = Task(
         dataset=[Sample(input="What's the weather?")],
@@ -2037,7 +2145,7 @@ def test_a_refused_turn_past_the_token_limit_is_counted_once() -> None:
         "results": {"call_1": "Tokyo is not allowed."},
     }
     refused = {"outcome": "reject", "withheld": withheld, "usage": _BILLED}
-    stand_in = StandInSidecar(turns=[Turn(status=400, sentinel=refused)])
+    stand_in = StandInSidecar(turns=[Turn(status=400, judgment=refused)])
     task = Task(
         dataset=[Sample(input="What's the weather?")],
         solver=[use_tools(weather()), generate()],
@@ -2067,7 +2175,7 @@ def test_a_bridged_agent_is_never_handed_a_rejected_call() -> None:
         turns=[
             Turn(
                 status=400,
-                sentinel={
+                judgment={
                     "outcome": "reject",
                     "steps": [step],
                     "withheld": withheld,
@@ -2093,12 +2201,12 @@ def test_a_bridged_agent_is_never_handed_a_rejected_call() -> None:
 
 
 def test_a_bridged_agent_ends_at_the_model_call_for_a_terminate_at_a_call() -> None:
-    field = {
+    judgment = {
         "outcome": "terminate",
         "steps": [_ends("tool_call", "call_1")],
         "withheld": _ended_turn(("call_1", "Tokyo")),
     }
-    stand_in = StandInSidecar(turns=[Turn(status=400, sentinel=field)])
+    stand_in = StandInSidecar(turns=[Turn(status=400, judgment=judgment)])
     seen: list[ModelOutput | Exception] = []
     task = Task(dataset=[Sample(input="Hi.")], solver=_bridged_turn(seen))
 
@@ -2111,15 +2219,15 @@ def test_a_bridged_agent_ends_at_the_model_call_for_a_terminate_at_a_call() -> N
 
 
 def test_a_bridged_agent_ends_at_the_model_call_for_a_terminate_looked_up() -> None:
-    field = {
+    judgment = {
         "outcome": "terminate",
         "steps": [_ends("tool_call", "call_1")],
         "withheld": _ended_turn(("call_1", "Tokyo")),
     }
     stand_in = StandInSidecar(
-        # the reply came back with its call, and without the field
+        # the reply came back with its call
         turns=[Turn(calls=[("call_1", "weather", {"city": "Tokyo"})])],
-        methods={"request_result": _answers(_decided(field))},
+        methods={"request_result": _answers(_decided(judgment))},
     )
     seen: list[ModelOutput | Exception] = []
     task = Task(dataset=[Sample(input="Hi.")], solver=_bridged_turn(seen))
@@ -2141,7 +2249,7 @@ def test_a_bridged_agent_is_handed_the_turn_as_the_sidecar_left_it() -> None:
         turns=[
             Turn(
                 calls=[("call_2", "weather", {"city": "Oslo"})],
-                sentinel={"outcome": "proceed", "steps": [], "proposed": proposed},
+                judgment={"outcome": "proceed", "steps": [], "proposed": proposed},
             )
         ]
     )
@@ -2245,7 +2353,7 @@ def test_a_sandbox_bridged_sample_the_sidecar_lost_is_retried_and_registered_aga
     stand_in = StandInSidecar(
         turns=[
             Turn(status=400),
-            Turn(text="Sunny.", sentinel={"outcome": "proceed", "steps": []}),
+            Turn(text="Sunny.", judgment={"outcome": "proceed", "steps": []}),
         ],
         methods={
             "complete_registration": complete,
@@ -2397,24 +2505,24 @@ async def test_a_lookup_a_deadline_cancels_completes_the_calls_event(
 
 
 @pytest.mark.parametrize("status", [_RAISED, _RETURNED], ids=["raised", "returned"])
-async def test_a_field_that_cant_be_read_completes_the_calls_event(
+async def test_a_judgment_that_cant_be_read_completes_the_calls_event(
     monkeypatch: pytest.MonkeyPatch, status: int
 ) -> None:
     discarded = _discards(monkeypatch)
     stand_in = StandInSidecar(
-        turns=[Turn(status=status, sentinel={"outcome": "perhaps"})]
+        turns=[Turn(status=status, judgment={"outcome": "perhaps"})]
     )
     seen: list[ModelOutput | BaseException | str] = []
     task = Task(dataset=[Sample(input="Hi.")], solver=_turn_within(10, seen))
 
     [log] = await eval_async(task, model=_model(stand_in), sentinel_proxy="auto")
 
-    # the field's error is the sample's
+    # the judgment's error is the sample's
     [failed] = seen
     assert isinstance(failed, ValueError)
     assert log.samples is not None
     error = log.samples[0].error
-    assert error is not None and "sentinel field can't be read" in error.message
+    assert error is not None and "judgment can't be read" in error.message
     # and the event has the call's own error
     [event] = _model_events(log)
     assert event.pending is None
@@ -2432,7 +2540,7 @@ async def test_a_refusal_at_either_place_is_still_acted_on_as_the_models_turn(
     }
     stand_in = StandInSidecar(
         turns=[
-            Turn(status=status, sentinel={"outcome": "reject", "withheld": withheld})
+            Turn(status=status, judgment={"outcome": "reject", "withheld": withheld})
         ]
     )
     seen: list[ModelOutput | BaseException | str] = []
@@ -2469,7 +2577,7 @@ def test_an_approver_sees_the_sidecars_change_and_its_own_change_runs() -> None:
         turns=[
             Turn(
                 calls=[("call_1", "weather", {"city": "Oslo"})],
-                sentinel={
+                judgment={
                     "outcome": "proceed",
                     "steps": [
                         {
@@ -2503,7 +2611,7 @@ def test_a_decision_is_recovered_once_inspect_stops_retrying() -> None:
         ],
     }
     stand_in = StandInSidecar(
-        # a refusal Inspect retries, with the field lost every time
+        # a refusal Inspect retries, with the judgment lost every time
         turns=[Turn(status=503)] * 10,
         methods={"request_result": _answers(_decided(ended))},
     )

@@ -1,6 +1,6 @@
 """Acting on a sidecar's protocol decisions, as Inspect acts on an in-process sentinel's.
 
-A sidecar judges a whole turn before Inspect is handed it. A call it rejected is put back into the model's turn and answered with an approval error when Inspect would run it; a call it changed runs with its new arguments, while the model's turn keeps the call the model made; a `terminate` ends the sample where an in-process sentinel's would, at the model call or before the turn's calls run.
+A sidecar judges a whole turn before Inspect is handed it, and Inspect asks what it decided with `request_result`. A call it rejected is put back into the model's turn, with its id and function only, since an eval is never handed a rejected call's arguments, and answered with an approval error when Inspect would run it; a call it changed is held and runs as changed; a `terminate` ends the sample where an in-process sentinel's would, at the model call or before the turn's calls run.
 """
 
 from collections.abc import Callable
@@ -18,15 +18,8 @@ from inspect_ai.model._model_output import (
 )
 from inspect_ai.tool._tool_call import ToolCall
 
-from ._field import (
-    ReceivedField,
-    SentinelField,
-    WithheldTurn,
-    current_receiving,
-    parse_field,
-    received_field,
-)
 from ._lookup import lost_sample, request_result, unjudged_error
+from ._received import Judgment, ReceivedCall, WithheldTurn, current_receiving
 
 _ENDED = "A sentinel in the sidecar ended the sample."
 
@@ -64,7 +57,7 @@ async def refused_output(
 ) -> ModelOutput | None:
     """A refusal of the current agent call, as the model output Inspect acts on, or None if the call wasn't refused by a sidecar's decision.
 
-    A rejected turn is the model's turn, whose calls are answered with approval errors, as in process. A turn refused because the sample ended is the model's turn if the sidecar was handed one, else empty. A refusal that came without the field, which Inspect won't retry, is looked up with `request_result`.
+    A rejected turn is the model's turn, whose calls are answered with approval errors, as in process. A turn refused because the sample ended is the model's turn if the sidecar was handed one, else empty. An error Inspect retries, such as a 503, isn't looked up while it is retried: the sidecar is asked with `request_result` only of an error Inspect won't retry.
 
     Args:
         model: The model's name, for the output.
@@ -73,17 +66,15 @@ async def refused_output(
     """
     # nothing else is asked of a call that didn't go through a sidecar
     received = current_receiving()
-    if received is None:
+    if received is None or retryable():
         return None
-    if received.field is None and not retryable():
-        received.looked = await request_result(received, replied=False)
-        if received.looked.state == "decided":
-            received.field = received.looked.field
-    return _refusal(received_field(), model, bridged())
+    if received.looked is None:
+        await request_result(received, replied=False)
+    return _refusal(received.judgment, model, bridged())
 
 
 async def refusal_after_error(
-    received: ReceivedField, model: str, error: BaseException, bridged: bool
+    received: ReceivedCall, model: str, error: BaseException, bridged: bool
 ) -> ModelOutput | None:
     """A refusal of an agent call that Inspect stopped retrying, as the model output Inspect acts on, or None to let the error stand.
 
@@ -93,18 +84,15 @@ async def refusal_after_error(
         SampleRefusedError: If the sidecar couldn't place the sample.
         SidecarNotJudgedError: If the sidecar couldn't judge the call for another reason.
     """
-    if received.field is None and received.looked is None:
-        received.looked = await request_result(received, replied=False)
-        if received.looked.state == "decided":
-            received.field = received.looked.field
+    if received.looked is None:
+        await request_result(received, replied=False)
     if lost_sample(received.looked, received.registered_beforehand):
         _note_lost(received)
     unjudged_error(received.looked, error, received.registered_beforehand)
-    field = parse_field(received.field) if received.field is not None else None
-    return _refusal(field, model, bridged)
+    return _refusal(received.judgment, model, bridged)
 
 
-def _note_lost(received: ReceivedField) -> None:
+def _note_lost(received: ReceivedCall) -> None:
     # the sidecar lost the sample, so whatever it holds for this attempt now
     # started afresh partway through: the attempt's monitor state is lost
     from inspect_ai.log._samples import sample_active
@@ -118,49 +106,49 @@ def _note_lost(received: ReceivedField) -> None:
 
 
 def _refusal(
-    field: SentinelField | None, model: str, bridged: bool
+    judgment: Judgment | None, model: str, bridged: bool
 ) -> ModelOutput | None:
-    if field is None or field.outcome == "proceed":
+    if judgment is None or judgment.outcome == "proceed":
         return None
     # A bridged agent runs its own tools, so a rejected turn handed to it would
     # run: its refusal stands, as the provider's error, and the sidecar adds
     # the rejection to the conversation's later requests.
-    if field.outcome == "reject" and (bridged or field.withheld is None):
+    if judgment.outcome == "reject" and (bridged or judgment.withheld is None):
         return None
     # the reply the sidecar refused was billed, and counts as the call's usage
-    if field.withheld is None or bridged:
-        return ModelOutput(model=model, choices=[], usage=_usage(field))
+    if judgment.withheld is None or bridged:
+        return ModelOutput(model=model, choices=[], usage=_usage(judgment))
     return ModelOutput(
         model=model,
         choices=[
             ChatCompletionChoice(
-                message=_message(field.withheld), stop_reason="tool_calls"
+                message=_message(judgment.withheld), stop_reason="tool_calls"
             )
         ],
-        usage=_usage(field),
+        usage=_usage(judgment),
     )
 
 
-def refused_usage(received: ReceivedField) -> ModelUsage | None:
+def refused_usage(received: ReceivedCall) -> ModelUsage | None:
     """What the provider billed for a reply the sidecar refused, which Inspect counts as it counts any model call's usage."""
-    return _usage(parse_field(received.field) if received.field is not None else None)
+    return _usage(received.judgment)
 
 
-def _usage(field: SentinelField | None) -> ModelUsage | None:
-    if field is None or field.usage is None:
+def _usage(judgment: Judgment | None) -> ModelUsage | None:
+    if judgment is None or judgment.usage is None:
         return None
-    return ModelUsage.model_validate(field.usage)
+    return ModelUsage.model_validate(judgment.usage)
 
 
-def act_on_field(
-    field: SentinelField, output: ModelOutput, bridged: bool
+def act_on_judgment(
+    judgment: Judgment, output: ModelOutput, bridged: bool
 ) -> ModelOutput:
     """Act on what the sidecar decided of an agent call, and return the output the agent is handed. A `terminate` is acted on by `end_if_terminated`, once the reports are in the transcript, unless it ends the sample at the turn's calls."""
-    if field.outcome == "terminate":
-        if _ends_at_calls(field, output, bridged):
+    if judgment.outcome == "terminate":
+        if _ends_at_calls(judgment, output, bridged):
             # every call of the turn ends the sample, so whichever Inspect
             # would run first ends it before any runs
-            ended = CallDecision("terminate", message=_explanation(field) or _ENDED)
+            ended = CallDecision("terminate", message=_explanation(judgment) or _ENDED)
             _decide({call.id: ended for call in output.message.tool_calls or []})
         return output
     # A bridged agent runs its own tools, so it is handed the turn as the
@@ -169,35 +157,29 @@ def act_on_field(
         return output
 
     decisions: dict[str, CallDecision] = {}
-    turn = field.withheld if field.outcome == "reject" else field.proposed
+    turn = judgment.withheld if judgment.outcome == "reject" else judgment.proposed
     if turn is not None:
         for id, told in turn.results.items():
             decisions[id] = CallDecision("reject", message=told)
-    originals: dict[str, ToolCall] = {}
-    for step in field.steps:
+    for step in judgment.steps:
         if step.stage != "tool_call" or step.call is None:
             continue
         if step.decision.get("action") == "modify" and step.decision.get("modified"):
             modified = _TOOL_CALL.validate_python(step.decision["modified"])
             decisions[step.call] = CallDecision("modify", modified=modified)
-            if step.original is not None:
-                originals[step.call] = _TOOL_CALL.validate_python(step.original)
 
     _decide(decisions)
-    if field.outcome == "proceed" and output.choices:
-        # the model's own turn, as it made it
-        message = (
-            _message(turn)
-            if turn is not None
-            else _with_originals(output.choices[0].message, originals)
-        )
+    if judgment.outcome == "proceed" and output.choices and turn is not None:
+        # the model's turn as the eval holds it: each call taken out put back
+        # with its id and function only, and each changed call as it ran
+        message = _message(turn)
         output.choices[0].message = message
         if message.tool_calls:
             output.choices[0].stop_reason = "tool_calls"
     return output
 
 
-def end_if_terminated(field: SentinelField, output: ModelOutput, bridged: bool) -> None:
+def end_if_terminated(judgment: Judgment, output: ModelOutput, bridged: bool) -> None:
     """End the sample if a sentinel in the sidecar ended it, as an in-process sentinel's `terminate` does.
 
     A sentinel that ended the sample at a call of the model's turn ends it when Inspect would run the turn's calls, as in process, so the turn is the agent's, as an in-process sentinel leaves it.
@@ -205,11 +187,13 @@ def end_if_terminated(field: SentinelField, output: ModelOutput, bridged: bool) 
     Raises:
         TerminateSampleError: If the call's outcome is `terminate`, and it doesn't end the sample at the turn's calls.
     """
-    if field.outcome == "terminate" and not _ends_at_calls(field, output, bridged):
-        raise TerminateSampleError(_explanation(field) or _ENDED)
+    if judgment.outcome == "terminate" and not _ends_at_calls(
+        judgment, output, bridged
+    ):
+        raise TerminateSampleError(_explanation(judgment) or _ENDED)
 
 
-def _ends_at_calls(field: SentinelField, output: ModelOutput, bridged: bool) -> bool:
+def _ends_at_calls(judgment: Judgment, output: ModelOutput, bridged: bool) -> bool:
     # A bridged agent runs its own tools, out of Inspect's sight, so its
     # sample ends at the model call, even for a reply whose calls came back
     # with it, when `request_result` says the run ended at one. A sidecar that
@@ -218,7 +202,11 @@ def _ends_at_calls(field: SentinelField, output: ModelOutput, bridged: bool) -> 
     if bridged or not output.choices or not output.message.tool_calls:
         return False
     ended = next(
-        (s for s in reversed(field.steps) if s.decision.get("action") == "terminate"),
+        (
+            s
+            for s in reversed(judgment.steps)
+            if s.decision.get("action") == "terminate"
+        ),
         None,
     )
     return ended is not None and ended.stage == "tool_call"
@@ -238,17 +226,8 @@ def _message(turn: WithheldTurn) -> ChatMessageAssistant:
     return ChatMessageAssistant.model_validate(turn.message)
 
 
-def _with_originals(
-    message: ChatMessageAssistant, originals: dict[str, ToolCall]
-) -> ChatMessageAssistant:
-    if not originals or not message.tool_calls:
-        return message
-    calls = [originals.get(call.id, call) for call in message.tool_calls]
-    return message.model_copy(update={"tool_calls": calls})
-
-
-def _explanation(field: SentinelField) -> str | None:
-    for step in reversed(field.steps):
+def _explanation(judgment: Judgment) -> str | None:
+    for step in reversed(judgment.steps):
         explanation = step.decision.get("explanation")
         if step.decision.get("action") == "terminate" and isinstance(explanation, str):
             return explanation

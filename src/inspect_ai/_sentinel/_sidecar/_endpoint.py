@@ -5,6 +5,8 @@ from itertools import count
 from logging import getLogger
 from typing import TYPE_CHECKING, Any, Literal, NamedTuple
 
+import anyio
+
 if TYPE_CHECKING:
     from inspect_ai.model._model import ModelAPI
 
@@ -15,6 +17,9 @@ VERSIONS = (1,)
 
 PROBE_TIMEOUT = 10.0
 CALL_TIMEOUT = 60.0
+
+UNAUTHORIZED = -32010
+"""The sidecar's error for a call that didn't present the token it keeps for the eval."""
 
 
 class SentinelProxyError(RuntimeError):
@@ -31,6 +36,17 @@ class SidecarCallError(RuntimeError):
 
 
 @dataclass
+class EvalAccess:
+    """What an eval presents to one sidecar on every call but its first registration: its id, and the token the sidecar gave it when it registered."""
+
+    eval_id: str
+    token: str | None = field(default=None, repr=False)
+    """The latest token the sidecar gave the eval, or None before it registered."""
+    lock: anyio.Lock = field(default_factory=anyio.Lock, repr=False)
+    """Held while the eval registers, so two registrations never present different tokens."""
+
+
+@dataclass
 class Sidecar:
     """A sidecar that answered the probe, reached through the model's proxy with the model's own credentials."""
 
@@ -39,7 +55,24 @@ class Sidecar:
     client: Any = field(repr=False)
     version: int = 1
     """The version of the endpoint for evals Inspect speaks to it."""
+    access: EvalAccess | None = field(default=None, repr=False)
+    """The eval's id and token for this sidecar, shared by every model of the task whose calls go through it."""
     _ids: "count[int]" = field(default_factory=lambda: count(1), repr=False)
+
+    async def eval_call(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
+        """Call a method of the endpoint for evals for the eval, presenting its id and token.
+
+        Raises:
+            SidecarCallError: If the call failed, or was answered with an error, including `unauthorized` when the sidecar keeps another token for the eval.
+        """
+        if self.access is None or self.access.token is None:
+            raise SidecarCallError(
+                method, "the eval hasn't registered with the sidecar"
+            )
+        return await self.call(
+            method,
+            {**params, "eval_id": self.access.eval_id, "token": self.access.token},
+        )
 
     async def call(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
         """Call a method of the endpoint for evals, and return its result."""

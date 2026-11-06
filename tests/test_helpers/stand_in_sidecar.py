@@ -1,6 +1,6 @@
 """A stand-in for a model proxy with a sentinel sidecar behind it, for the sidecar client's tests.
 
-The provider SDKs are given an httpx2 client whose transport answers here, so nothing leaves the process. Model calls are answered in the provider's own format, streamed when the request asks, with the `sentinel` field where a sidecar puts it.
+The provider SDKs are given an httpx2 client whose transport answers here, so nothing leaves the process. Model calls are answered in the provider's own format, streamed when the request asks, and `request_result` answers with what was decided of each, by its `x-irid`.
 """
 
 import json
@@ -18,14 +18,11 @@ class Turn:
     calls: list[tuple[str, str, dict[str, Any]]] = field(default_factory=list)
     """Tool calls, each as its id, function and arguments."""
 
-    sentinel: dict[str, Any] | None = None
-    """The `sentinel` field, or None to send none."""
+    judgment: dict[str, Any] | None = None
+    """What the sidecar decided of the call, which `request_result` answers with by the call's `x-irid`, before `methods` is asked; or None to leave `request_result` to `methods`."""
 
     status: int = 200
-    """An error status refuses the call, with the field beside the error, as Envoy puts it."""
-
-    nested: bool = False
-    """Put the field of an error at `error.provider_specific_fields.sentinel`, as LiteLLM does."""
+    """An error status refuses the call, with an error in the provider's format."""
 
     stop_reason: str | None = None
     """An Anthropic stop reason in place of the one the turn's content gives, such as `pause_turn`."""
@@ -53,7 +50,13 @@ class StandInSidecar:
     turns: list[Turn] = field(default_factory=list)
     """The replies to model calls, in order. A call past the last is answered with a plain `Turn()`."""
 
+    token: str = "token-1"
+    """The token `register_task` gives the eval, unless `methods` answers it."""
+
     requests: list[httpx2.Request] = field(default_factory=list)
+
+    judgments: dict[str, dict[str, Any]] = field(default_factory=dict)
+    """What was decided of each model call whose turn says, by its `x-irid`: the latest attempt's."""
 
     @property
     def probes(self) -> list[httpx2.Request]:
@@ -81,7 +84,14 @@ class StandInSidecar:
             return httpx2.Response(self.probe_status, json=self.info)
         if path == "/sentinel/v1":
             call = json.loads(request.content)
-            answer = self.methods.get(call["method"], lambda params: {})(call["params"])
+            params = call["params"]
+            if call["method"] == "request_result" and params["id"] in self.judgments:
+                # a turn that says what was decided of it is answered so
+                answer = self._default("request_result")(params)
+            else:
+                answer = self.methods.get(
+                    call["method"], self._default(call["method"])
+                )(params)
             body: dict[str, Any] = {"jsonrpc": "2.0", "id": call["id"]}
             if "error" in answer:
                 body["error"] = answer["error"]
@@ -91,14 +101,41 @@ class StandInSidecar:
         if path in _MODEL_ROUTES:
             asked = json.loads(request.content)
             turn = self.turns.pop(0) if self.turns else Turn()
+            irid = request.headers.get("x-irid")
+            if irid is not None and turn.judgment is not None:
+                self.judgments[irid] = turn.judgment
             return _MODEL_ROUTES[path](turn, bool(asked.get("stream")), asked)
         return httpx2.Response(404, json={"error": f"no route {path}"})
+
+    def _default(self, method: str) -> Callable[[dict[str, Any]], dict[str, Any]]:
+        # a registration gives the token; a call whose turn says what was
+        # decided is answered with it
+        if method == "register_task":
+            return lambda params: {
+                "eval_id": params.get("eval_id"),
+                "token": self.token,
+                "task": params.get("task"),
+                "samples": len(params.get("sample_ids", [])),
+                "fixed": False,
+            }
+        if method == "request_result":
+            return lambda params: (
+                {
+                    "id": params["id"],
+                    "records": "held",
+                    "state": "decided",
+                    "judgment": self.judgments[params["id"]],
+                }
+                if params["id"] in self.judgments
+                else {}
+            )
+        return lambda params: {}
 
 
 def _anthropic(turn: Turn, stream: bool, asked: dict[str, Any]) -> httpx2.Response:
     if turn.status != 200:
         error: dict[str, Any] = {"type": "invalid_request_error", "message": "Refused."}
-        return _error(turn, {"type": "error", "error": error}, error)
+        return _error(turn, {"type": "error", "error": error})
     content: list[dict[str, Any]] = [{"type": "text", "text": turn.text}]
     content += [
         {"type": "tool_use", "id": id, "name": name, "input": arguments}
@@ -116,7 +153,7 @@ def _anthropic(turn: Turn, stream: bool, asked: dict[str, Any]) -> httpx2.Respon
         "usage": {"input_tokens": 5, "output_tokens": 2},
     }
     if not stream:
-        return httpx2.Response(200, json=_with_field(message, turn))
+        return httpx2.Response(200, json=message)
     events: list[tuple[str, dict[str, Any]]] = [
         (
             "message_start",
@@ -148,14 +185,11 @@ def _anthropic(turn: Turn, stream: bool, asked: dict[str, Any]) -> httpx2.Respon
     events += [
         (
             "message_delta",
-            _with_field(
-                {
-                    "type": "message_delta",
-                    "delta": {"stop_reason": stop, "stop_sequence": None},
-                    "usage": {"output_tokens": 2},
-                },
-                turn,
-            ),
+            {
+                "type": "message_delta",
+                "delta": {"stop_reason": stop, "stop_sequence": None},
+                "usage": {"output_tokens": 2},
+            },
         ),
         ("message_stop", {"type": "message_stop"}),
     ]
@@ -170,7 +204,7 @@ def _responses(turn: Turn, stream: bool, asked: dict[str, Any]) -> httpx2.Respon
             "param": None,
             "code": None,
         }
-        return _error(turn, {"error": error}, error)
+        return _error(turn, {"error": error})
     output: list[dict[str, Any]] = [
         {
             "type": "message",
@@ -210,7 +244,7 @@ def _responses(turn: Turn, stream: bool, asked: dict[str, Any]) -> httpx2.Respon
         },
     }
     if not stream:
-        return httpx2.Response(200, json=_with_field(response, turn))
+        return httpx2.Response(200, json=response)
     return _sse(
         [
             (
@@ -223,14 +257,11 @@ def _responses(turn: Turn, stream: bool, asked: dict[str, Any]) -> httpx2.Respon
             ),
             (
                 "response.completed",
-                _with_field(
-                    {
-                        "type": "response.completed",
-                        "sequence_number": 1,
-                        "response": response,
-                    },
-                    turn,
-                ),
+                {
+                    "type": "response.completed",
+                    "sequence_number": 1,
+                    "response": response,
+                },
             ),
         ]
     )
@@ -244,7 +275,7 @@ def _chat(turn: Turn, stream: bool, asked: dict[str, Any]) -> httpx2.Response:
             "param": None,
             "code": None,
         }
-        return _error(turn, {"error": error}, error)
+        return _error(turn, {"error": error})
     calls = [
         {
             "id": id,
@@ -267,7 +298,7 @@ def _chat(turn: Turn, stream: bool, asked: dict[str, Any]) -> httpx2.Response:
         "usage": usage,
     }
     if not stream:
-        return httpx2.Response(200, json=_with_field(completion, turn))
+        return httpx2.Response(200, json=completion)
     chunk = {
         "id": "chatcmpl_1",
         "object": "chat.completion.chunk",
@@ -288,14 +319,11 @@ def _chat(turn: Turn, stream: bool, asked: dict[str, Any]) -> httpx2.Response:
             ),
             (
                 "",
-                _with_field(
-                    {
-                        **chunk,
-                        "choices": [{"index": 0, "delta": {}, "finish_reason": finish}],
-                        "usage": usage,
-                    },
-                    turn,
-                ),
+                {
+                    **chunk,
+                    "choices": [{"index": 0, "delta": {}, "finish_reason": finish}],
+                    "usage": usage,
+                },
             ),
         ]
     )
@@ -308,15 +336,7 @@ _MODEL_ROUTES = {
 }
 
 
-def _with_field(data: dict[str, Any], turn: Turn) -> dict[str, Any]:
-    return {**data, "sentinel": turn.sentinel} if turn.sentinel is not None else data
-
-
-def _error(turn: Turn, body: dict[str, Any], error: dict[str, Any]) -> httpx2.Response:
-    if turn.sentinel is not None and turn.nested:
-        error["provider_specific_fields"] = {"sentinel": turn.sentinel}
-    elif turn.sentinel is not None:
-        body["sentinel"] = turn.sentinel
+def _error(turn: Turn, body: dict[str, Any]) -> httpx2.Response:
     return httpx2.Response(turn.status, json=body)
 
 

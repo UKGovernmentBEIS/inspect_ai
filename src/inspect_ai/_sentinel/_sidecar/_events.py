@@ -8,7 +8,7 @@ from inspect_ai.event._sentinel import SentinelEvent
 
 from .._conversation import current_conversation
 from ._endpoint import Sidecar
-from ._field import ReceivedField, SentinelField, parse_field
+from ._received import Judgment, ReceivedCall
 
 logger = getLogger(__name__)
 
@@ -17,19 +17,19 @@ SIDECAR_METADATA = "sentinel_sidecar"
 
 
 def record_sidecar_reports(
-    field: SentinelField,
+    judgment: Judgment,
     sidecar: Sidecar,
     request: str | None,
     generate_id: str,
 ) -> None:
-    """Write each report in the field into the transcript: one event per monitor and protocol report, or, from a sidecar that sends only what Inspect acts on, one per step's decision.
+    """Write each report in the judgment into the transcript: one event per monitor and protocol report, or, from a sidecar that sends only what Inspect acts on, one per step's decision.
 
     Each step is tied to Inspect's own ids, as an in-process sentinel's: a tool stage's to the call's id, and both generate stages to the generate's id, the `uuid` of its first `ModelEvent`.
     """
     from inspect_ai.log._transcript import transcript
 
     conversation = current_conversation()
-    for step in field.steps:
+    for step in judgment.steps:
         step_id = step.call if step.call is not None else generate_id
         if step.models:
             _warn_of_unused_roles(step.models, sidecar)
@@ -40,14 +40,14 @@ def record_sidecar_reports(
             "version": sidecar.version,
             "release": sidecar.release,
             "request": request,
-            "trimmed": bool(field.trimmed),
+            "trimmed": bool(judgment.trimmed),
             "models": step.models or None,
         }
-        if field.trimmed or step.recorded is None:
+        if judgment.trimmed or step.recorded is None:
             # a step without its records holds only what Inspect acts on,
             # with no monitor or protocol, so no function, to name. The
             # decision's own metadata is kept when the sidecar sent it: a
-            # trimmed field leaves it out, and nothing restores it
+            # trimmed judgment leaves it out, and nothing restores it
             transcript()._event(
                 SentinelEvent.model_validate(
                     {
@@ -110,12 +110,12 @@ def _warn_of_unused_roles(models: list[dict[str, Any]], sidecar: Sidecar) -> Non
 
 
 def record_refusal_reports(
-    received: ReceivedField, sidecar: Sidecar, generate_id: str
+    received: ReceivedCall, sidecar: Sidecar, generate_id: str
 ) -> None:
     """Write the reports of a refusal that stands as the call's error into the transcript, as a bridged agent's rejected turn does: the agent is handed the error, and the transcript still shows what the sidecar decided."""
-    if received.field is not None:
+    if received.judgment is not None:
         record_sidecar_reports(
-            parse_field(received.field), sidecar, received.request_id, generate_id
+            received.judgment, sidecar, received.request_id, generate_id
         )
 
 

@@ -130,11 +130,6 @@ from anthropic.types.web_search_tool_result_block_param_content_param import (
 from pydantic import BaseModel, JsonValue, TypeAdapter, ValidationError
 from typing_extensions import override
 
-from inspect_ai._sentinel._sidecar._field import (
-    begin_continuation,
-    report_sentinel_error,
-    report_sentinel_field,
-)
 from inspect_ai._util.constants import BASE_64_DATA_REMOVED, NO_CONTENT
 from inspect_ai._util.content import (
     Content,
@@ -1047,7 +1042,6 @@ class AnthropicAPI(ModelAPI):
                     )
                 except (BadRequestError, APIStatusError) as ex:
                     ex = _normalize_stream_error(ex)
-                    report_sentinel_error(ex)
                     model_call.set_error(
                         as_error_response(ex.body),
                         self._http_hooks.end_request(request_id),
@@ -1310,7 +1304,6 @@ class AnthropicAPI(ModelAPI):
                 head_message, _ = await _capture_compaction_from_stream(stream)
         else:
             head_message = await self.client.messages.create(**request, stream=False)
-            report_sentinel_field(head_message)
 
         head_model_output, continuation_required = await model_output_from_message(
             self.client,
@@ -1331,9 +1324,6 @@ class AnthropicAPI(ModelAPI):
             # inside a code execution container -- reuse it for the continuation
             if head_message.container:
                 tail_request["container"] = head_message.container.id
-            # a sentinel sidecar's decision of the call comes with the
-            # continuation's reply, not the paused one's
-            begin_continuation()
             _, tail_model_output = await self._perform_request_and_continuations(
                 tail_request,
                 streaming,
@@ -5474,7 +5464,6 @@ async def _capture_compaction_from_stream(
         # https://github.com/anthropics/anthropic-sdk-python/pull/1776
         if event.type == "message_delta":
             container = getattr(event.delta, "container", None) or container
-            report_sentinel_field(event)
         if (
             hasattr(event, "delta")
             and getattr(event.delta, "type", None) == "compaction_delta"
