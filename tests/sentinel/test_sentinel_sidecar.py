@@ -2096,6 +2096,58 @@ def test_a_sidecar_that_keeps_an_in_process_sentinels_key_fails_the_sample() -> 
     assert sample.store[_KEPT[0]] == 1
 
 
+class _Tally(StoreModel):
+    # the monitor state a scorer reads with `store_as()`, as a monitor keeps it
+    lookups: int = 0
+
+
+@scorer(metrics=[mean()])
+def _reads_tally() -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
+        # reading puts the model's defaults into the sample store
+        return Score(value=1 if state.store_as(_Tally).lookups >= 1 else 0)
+
+    return score
+
+
+def test_a_scorer_reading_monitor_state_between_attempts_fakes_no_conflict() -> None:
+    # The agent submits before it uses the monitored tool, and the scorer
+    # reads the monitor's state, which the sidecar hasn't written yet, so the
+    # read puts the model's defaults into the store. The agent then uses the
+    # tool, the sidecar writes the state, and the final copy must take it
+    # for its own earlier state, not for a sentinel's inside Inspect.
+    key = f"{_Tally.__name__}:lookups"
+    copies = 0
+
+    def tally(params: dict[str, Any]) -> dict[str, Any]:
+        nonlocal copies
+        copies += 1
+        return _kept({} if copies == 1 else {key: 1})(params)
+
+    stand_in = StandInSidecar(
+        turns=[
+            Turn(calls=[("call_1", "submit", {"answer": "sunny"})]),
+            Turn(calls=[("call_2", "weather", {"city": "Oslo"})]),
+            Turn(calls=[("call_3", "submit", {"answer": "sunny"})]),
+        ],
+        methods={"sample_result": tally},
+    )
+    task = Task(
+        dataset=[Sample(input="What's the weather?")],
+        solver=react(tools=[weather()], attempts=2),
+        scorer=_reads_tally(),
+    )
+
+    [log] = eval(task, model=_model(stand_in), display="none")
+
+    assert log.samples is not None
+    [sample] = log.samples
+    assert sample.error is None, sample.error
+    assert copies == 2
+    assert sample.store[key] == 1
+    assert (sample.scores or {})["_reads_tally"].value == 1
+
+
 class _HungCopy(StandInSidecar):
     # a sidecar that never answers `sample_result`, while `hangs`
     hangs = True
