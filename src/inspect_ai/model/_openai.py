@@ -53,7 +53,6 @@ from openai.types.completion_usage import CompletionUsage, PromptTokensDetails
 from openai.types.shared_params.function_definition import FunctionDefinition
 from pydantic import JsonValue
 
-from inspect_ai._sentinel._sidecar._field import report_sentinel_field
 from inspect_ai._util.constants import BASE_64_DATA_REMOVED, NO_CONTENT
 from inspect_ai._util.content import (
     Content,
@@ -1264,7 +1263,6 @@ async def openai_chat_completion_stream_final(
     async for chunk in stream:
         saw_chunk = True
         state.handle_chunk(chunk)
-        report_sentinel_field(chunk)
         await _report_chat_completion_chunk(chunk, tool_calls)
     if not saw_chunk:
         # get_final_completion() would fail on a bare assert; raise a

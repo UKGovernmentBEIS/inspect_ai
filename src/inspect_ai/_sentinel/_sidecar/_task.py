@@ -3,7 +3,7 @@
 from collections.abc import Awaitable, Callable, Hashable
 from contextvars import ContextVar
 from logging import getLogger
-from typing import TYPE_CHECKING, Any, Generic, NamedTuple, TypeVar
+from typing import TYPE_CHECKING, Any, Generic, NamedTuple, NoReturn, TypeVar
 from weakref import WeakValueDictionary
 
 import anyio
@@ -15,6 +15,8 @@ from inspect_ai.util._store import Store
 from .._config import SentinelProxy
 from ._endpoint import (
     CALL_TIMEOUT,
+    UNAUTHORIZED,
+    EvalAccess,
     SentinelProxyError,
     Sidecar,
     SidecarCallError,
@@ -76,6 +78,10 @@ class TaskSidecars:
         self.facts = facts
         self._found = _Once[Sidecar | str]()
         self._completed = _Once[bool]()
+        # the eval's id and token for each sidecar, by its origin: models with
+        # other credentials reach the same sidecar, which keeps one token for
+        # the eval
+        self._access: dict[str, EvalAccess] = {}
         # the sidecars each sample's calls went through, by the sample's uuid,
         # with the attempt that last called each
         self._through: dict[str, dict[str, tuple[Sidecar, int]]] = {}
@@ -119,7 +125,6 @@ class TaskSidecars:
 
         async def complete() -> bool:
             params = {
-                "eval_id": self.facts.eval_id,
                 "task": self.facts.task,
                 "sample_id": sample.sample_id,
                 "sample_description": sample.sample_description,
@@ -129,18 +134,22 @@ class TaskSidecars:
                 "metadata": to_jsonable_python(sample.metadata),
             }
             try:
+                presented = sidecar.access.token if sidecar.access else None
                 try:
-                    result = await sidecar.call("complete_registration", params)
+                    result = await sidecar.eval_call("complete_registration", params)
                 except SidecarCallError as ex:
                     if ex.code != UNKNOWN_TASK:
                         raise
-                    # registering the task again changes nothing for a
-                    # sidecar that still keeps it, so a sample that races
-                    # another here is safe
-                    await self._register(sidecar)
-                    result = await sidecar.call("complete_registration", params)
+                    # A sidecar that lost the task, or the eval's token, as
+                    # after a restart, takes it again. Registering again
+                    # changes nothing for a sidecar that still keeps it, and
+                    # another sample that already did so is not repeated.
+                    await self._register(sidecar, unless_since=presented)
+                    result = await sidecar.eval_call("complete_registration", params)
                 return result.get("fixed") is True
             except SidecarCallError as ex:
+                if ex.code == UNAUTHORIZED:
+                    raise SentinelProxyError(_unauthorized(sidecar)) from ex
                 raise SentinelProxyError(
                     f"The sentinel sidecar at {sidecar.origin} couldn't register the sample {sample.sample_id!r} of the task {self.facts.task!r}: {ex}"
                 ) from ex
@@ -187,7 +196,7 @@ class TaskSidecars:
         for sidecar, _ in through:
             with anyio.move_on_after(END_SAMPLE_TIMEOUT):
                 try:
-                    await sidecar.call("end_sample", {"sample_uuid": sample_uuid})
+                    await sidecar.eval_call("end_sample", {"sample_uuid": sample_uuid})
                 except SidecarCallError as ex:
                     logger.warning(
                         f"The sentinel sidecar at {sidecar.origin} couldn't be told the sample {sample_uuid} ended: {ex}"
@@ -236,7 +245,7 @@ class TaskSidecars:
         for sidecar in through:
             with anyio.move_on_after(CALL_TIMEOUT) as scope:
                 try:
-                    result = await sidecar.call(
+                    result = await sidecar.eval_call(
                         "sample_result", {"sample_uuid": sample_uuid}
                     )
                 except SidecarCallError as ex:
@@ -308,31 +317,60 @@ class TaskSidecars:
         async def probe_and_register() -> Sidecar | str:
             found = await probe(client)
             if isinstance(found, Sidecar):
+                found.access = self._access.setdefault(
+                    found.origin, EvalAccess(self.facts.eval_id)
+                )
                 await self._register(found)
             return found
 
         return await self._found.run((client.base_url, api.api_key), probe_and_register)
 
-    async def _register(self, sidecar: Sidecar) -> None:
+    async def _register(
+        self, sidecar: Sidecar, unless_since: str | None = None
+    ) -> None:
+        # Registers the task, presenting the token the eval holds for the
+        # sidecar, and keeps the one it gives back: the same, or a new one
+        # from a sidecar that kept none. With `unless_since`, a registration
+        # that another caller already made since that token was presented is
+        # not made again.
         facts = self.facts
-        params = {
-            "eval_id": facts.eval_id,
-            "task": facts.task,
-            "task_description": facts.task_description,
-            "metadata": to_jsonable_python(facts.metadata),
-            "sample_ids": facts.sample_ids,
-            "epochs": facts.epochs,
-        }
-        try:
-            await sidecar.call("register_task", params)
-        except SidecarCallError as ex:
-            if ex.code == REGISTRATION_REFUSED:
+        access = sidecar.access
+        assert access is not None
+        async with access.lock:
+            if unless_since is not None and access.token != unless_since:
+                return
+            params: dict[str, Any] = {
+                "eval_id": facts.eval_id,
+                "task": facts.task,
+                "task_description": facts.task_description,
+                "metadata": to_jsonable_python(facts.metadata),
+                "sample_ids": facts.sample_ids,
+                "epochs": facts.epochs,
+            }
+            if access.token is not None:
+                params["token"] = access.token
+            try:
+                result = await sidecar.call("register_task", params)
+            except SidecarCallError as ex:
+                self._registration_failed(sidecar, ex)
+            token = result.get("token")
+            if not isinstance(token, str):
                 raise SentinelProxyError(
-                    f"The sentinel sidecar at {sidecar.origin} runs only the tasks its admin registered, and the task {facts.task!r} isn't one."
-                ) from ex
+                    f"The sentinel sidecar at {sidecar.origin} registered the task {facts.task!r} without giving the eval a token, so it can't be asked what it decided."
+                )
+            access.token = token
+
+    def _registration_failed(self, sidecar: Sidecar, ex: SidecarCallError) -> NoReturn:
+        facts = self.facts
+        if ex.code == UNAUTHORIZED:
+            raise SentinelProxyError(_unauthorized(sidecar)) from ex
+        if ex.code == REGISTRATION_REFUSED:
             raise SentinelProxyError(
-                f"The sentinel sidecar at {sidecar.origin} couldn't register the task {facts.task!r}: {ex}"
+                f"The sentinel sidecar at {sidecar.origin} runs only the tasks its admin registered, and the task {facts.task!r} isn't one."
             ) from ex
+        raise SentinelProxyError(
+            f"The sentinel sidecar at {sidecar.origin} couldn't register the task {facts.task!r}: {ex}"
+        ) from ex
 
 
 class _Once(Generic[T]):
@@ -354,6 +392,10 @@ class _Once(Generic[T]):
             finally:
                 self._running.pop(key).set()
         return self._done[key]
+
+
+def _unauthorized(sidecar: Sidecar) -> str:
+    return f"The sentinel sidecar at {sidecar.origin} keeps another token for this eval, so it won't take the eval's calls: something else registered the eval with it first."
 
 
 def _copied_keys(store: Store) -> set[str]:

@@ -921,6 +921,14 @@ async def call_tool(
         await record_pending_tool_event()
         raise TerminateSampleError(decided.message or "Sentinel requested termination.")
 
+    # A call a sentinel sidecar rejected is answered as an in-process
+    # sentinel's rejection is, whatever it holds: the eval is handed it with
+    # its id and function only, so its arguments are never parsed. No approver
+    # sees it: the sidecar judged the turn before Inspect was handed it.
+    if decided is not None and decided.action == "reject":
+        await record_pending_tool_event()
+        raise ToolApprovalError(decided.message)
+
     # if there was an error parsing the ToolCall, raise that
     if call.parse_error:
         raise await record_tool_parsing_error(call.parse_error)
@@ -958,13 +966,6 @@ async def call_tool(
     call, arguments = validated
     # without oversight the event records the model's arguments, canonical
     shown = shown_to_callbacks(call)
-
-    # A call a sentinel sidecar rejected is answered as an in-process
-    # sentinel's rejection is. No approver sees it: the sidecar judged the
-    # turn before Inspect was handed it.
-    if decided is not None and decided.action == "reject":
-        await record_pending_tool_event()
-        raise ToolApprovalError(decided.message)
 
     # A call the sidecar changed is the call Inspect is handed, so approvers
     # and an in-process sentinel see it changed and may change it again.

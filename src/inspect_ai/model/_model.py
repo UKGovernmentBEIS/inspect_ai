@@ -46,21 +46,19 @@ from tenacity.wait import WaitBaseT
 
 from inspect_ai._sentinel._context import is_agent_generate
 from inspect_ai._sentinel._sidecar._act import (
-    act_on_field,
+    act_on_judgment,
     end_if_terminated,
     refusal_after_error,
     refused_output,
     refused_usage,
 )
-from inspect_ai._sentinel._sidecar._field import (
-    begin_attempt,
-    parse_field,
-    received_field,
-    receiving_field,
-)
 from inspect_ai._sentinel._sidecar._lookup import (
     request_result,
     unjudged_reply,
+)
+from inspect_ai._sentinel._sidecar._received import (
+    begin_attempt,
+    receiving_call,
 )
 from inspect_ai._util.constants import (
     DEFAULT_MAX_CONNECTIONS,
@@ -1102,7 +1100,7 @@ class Model:
         async with self._connection_concurrency(config) as connection:
             # generate
             with (
-                receiving_field(
+                receiving_call(
                     through_sidecar.sidecar, through_sidecar.registered_beforehand
                 )
                 if through_sidecar is not None
@@ -1147,7 +1145,6 @@ class Model:
                             )
                         raise
                     output, event = recovered, None
-                field = received_field()
 
             # update the most recent ModelEvent with the actual start/completed
             # times as well as a computation of working time (events are
@@ -1186,35 +1183,40 @@ class Model:
             ):
                 raise ModelRefusalError(output, str(self), self.role)
 
-        # a reply without the field doesn't mean the call was allowed
-        if through_sidecar is not None and receiving is not None and field is None:
-            looked = await request_result(receiving, replied=True)
-            if looked.state == "decided" and looked.field is not None:
-                field = parse_field(looked.field)
+        # what the sidecar decided of the call, which a reply never carries:
+        # asked after every call through it, unless a refusal was already asked
+        judgment = None
+        if through_sidecar is not None and receiving is not None:
+            looked = receiving.looked
+            if looked is None:
+                looked = await request_result(receiving, replied=True)
+            if looked.state == "decided" and looked.judgment is not None:
+                judgment = looked.judgment
             else:
                 unjudged_reply(looked, through_sidecar.mode, receiving.request_id)
 
         # before an in-process sentinel, which judges the reply after the
         # proxy did
-        if field is not None and through_sidecar is not None:
+        if judgment is not None and through_sidecar is not None:
             from inspect_ai._sentinel._sidecar._events import record_sidecar_reports
 
-            output = act_on_field(field, output, _bridged())
+            output = act_on_judgment(judgment, output, _bridged())
             if event is not None:
                 from inspect_ai.log._transcript import transcript
 
                 # The proxy hands Inspect the turn with the sidecar's decisions
-                # applied. The event records the model's own turn, which
-                # act_on_field put back, as an in-process sentinel leaves it.
+                # applied. The event records the model's turn as the eval
+                # holds it, which act_on_judgment put back, as an in-process
+                # sentinel leaves it, with the calls taken out redacted.
                 event.output = _snapshot_output(output)
                 transcript()._event_updated(event)
             record_sidecar_reports(
-                field,
+                judgment,
                 through_sidecar.sidecar,
                 receiving.request_id if receiving is not None else None,
                 generate_id,
             )
-            end_if_terminated(field, output, _bridged())
+            end_if_terminated(judgment, output, _bridged())
 
         if generate_step is not None:
             from inspect_ai._sentinel._dispatch import sentinel_after_generate
@@ -2490,7 +2492,7 @@ async def _refused_or_complete(
 ) -> ModelOutput | None:
     """A sidecar's refusal of a failed attempt, completing the attempt's event with its error if the lookup is cancelled or fails.
 
-    The lookup can wait on a sidecar still judging, so the sample's time limit or an interim-scoring deadline can cancel it, and a malformed `sentinel` field raises: either way the event must not stay pending in the live transcript and the log. It records the attempt's own error; what interrupted the lookup propagates as the sample's. An event an intervention producer (ACP operator-cancel) already completed is left alone.
+    The lookup can wait on a sidecar still judging, so the sample's time limit or an interim-scoring deadline can cancel it, and an unauthorized eval raises: either way the event must not stay pending in the live transcript and the log. It records the attempt's own error; what interrupted the lookup propagates as the sample's. An event an intervention producer (ACP operator-cancel) already completed is left alone.
     """
     from inspect_ai.event._model import ModelEvent
 

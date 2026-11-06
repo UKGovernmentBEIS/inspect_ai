@@ -12,10 +12,6 @@ from openai import (
 from openai._types import NOT_GIVEN
 from openai.types.chat import ChatCompletion
 
-from inspect_ai._sentinel._sidecar._field import (
-    report_sentinel_error,
-    report_sentinel_field,
-)
 from inspect_ai._util.logger import warn_once
 from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model._providers._openai_batch import OpenAIBatcher
@@ -142,7 +138,6 @@ async def generate_completions(
                     completion = await openai_chat_completion_stream_final(stream)
             else:
                 completion = await client.chat.completions.create(**request)
-                report_sentinel_field(completion)
             # completion is `CharCompletion | Any`. The lazy type inference engine
             # threw up its hands because of the `**request`.
             assert isinstance(completion, ChatCompletion)
@@ -155,7 +150,6 @@ async def generate_completions(
             choices = chat_choices_from_openai(completion, tools)
             return model_output_from_openai(completion, choices), model_call
         except (BadRequestError, UnprocessableEntityError) as e:
-            report_sentinel_error(e)
             model_call.set_error(
                 as_error_response(e.body), http_hooks.end_request(request_id)
             )
@@ -163,7 +157,6 @@ async def generate_completions(
                 openai_api.service_model_name(), e
             ), model_call
         except APIError as e:
-            report_sentinel_error(e)
             output = openai_handle_stream_error(openai_api.service_model_name(), e)
             if output is None:
                 raise
