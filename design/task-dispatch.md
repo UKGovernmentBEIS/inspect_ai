@@ -306,7 +306,8 @@ control channel. Everything else is refused with a clear error:
 - `TaskSource` passed to `eval_set()`, `eval_retry()` or `score()`: rejected
   as today.
 - Handle misuse (for example awaiting a handle inside
-  `TaskSource.next_tasks()` or `TaskSource.task_complete`): see
+  `TaskSource.next_tasks()`, or after the calling task's `EvalState` is
+  terminal): see
   [task-handles.md](task-handles.md#run-shapes-and-what-is-refused).
 - `enqueue_task()` outside a running eval or with a mismatched `run_id`:
   `RuntimeError`, as today.
@@ -495,11 +496,12 @@ never returns (the source contract allows one,
   process, which aborts the running attempt, or abandons the retry the task
   is waiting for, exactly as `inspect ctl task cancel` does today; the
   control channel itself reaches this phase through that path, not through
-  the queue. While the attempt awaits `TaskSource.task_complete` its
-  `EvalState` is already finalized and that cancel answers "task already
-  finished", as today; no handle work runs there to be cancelled, because
-  [task-handles.md](task-handles.md#run-shapes-and-what-is-refused) refuses
-  handle waits and sample ports in a finished attempt;
+  the queue. Once the attempt's `EvalState` is terminal (`completed_at`
+  set; for example during `TaskSource.task_complete`, or a fixed-dataset
+  task's `on_task_end` hooks) that cancel answers "task already finished",
+  as today; no handle work begins there to be cancelled, because
+  [task-handles.md](task-handles.md#creator-and-running-attempt) refuses
+  handle waits and sample ports past that point;
 - `admitting_cancelled`, `starting_cancelled`, `finalizing`, `ended`: a
   cancel is already in hand or the record has ended, so it does nothing.
 
@@ -738,7 +740,8 @@ loop:
 `max_tasks` counts attempts in flight.
 [task-handles.md](task-handles.md#slot-lending) adds one exception: a task
 that a running task is waiting on through a handle can start on a loan
-beyond the limit.
+beyond the limit, and keeps that extra slot until its attempt ends, even
+after the wait returns.
 
 ### Control channel
 
@@ -1145,8 +1148,9 @@ design depends on it.
 
 - Recording which task added a task: `TaskRecord.creator` is the running
   attempt that owns the record's sample port, not its full origin. A task
-  added in `TaskSource.task_complete`, after the adding task's attempt has
-  finished, has no creator although a task added it, so that change must
+  added after the adding task's `EvalState` is terminal (for example in
+  `TaskSource.task_complete`) has no creator although a task added it, so
+  that change must
   record the origin itself rather than read this field. Slot lending does
   not use the creator: a loan is held by whichever running attempt waits on
   the target, creator or not
