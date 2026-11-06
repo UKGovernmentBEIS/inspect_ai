@@ -221,7 +221,8 @@ Every path through `_open_executable_for_arch` (install state × libc × tier):
 | Install state | Variant | Tier that resolves it | Verified? |
 |---|---|---|---|
 | `pypi` | glibc (amd64/arm64) | bundled in wheel (`binaries/`) | at bundling time by `pypi-release.py` (see consumer 2); not re-hashed at use |
-| `pypi` | glibc, missing from wheel (broken install; today warns) | S3 download fallback | **yes**; wheel vendors `SHA256SUMS` |
+| `pypi` | glibc, missing but listed in `RECORD` (broken wheel install; warns) | S3 download fallback | **yes**; wheel vendors `SHA256SUMS` |
+| `pypi` | glibc, not in `RECORD` (install built from the sdist) | S3 download, no warning | **yes**; sdist vendors `SHA256SUMS` |
 | `pypi` | musl (deliberately not bundled) | S3 download, the normal musl path | **yes**; today this is the highest-traffic unverified site |
 | `clean` (editable, no sandbox-tools edits) | any | S3 download | **yes**; repo checkout vendors `SHA256SUMS` consistent with `version.txt` |
 | `clean`, artifact not yet on S3 (404) | any | falls through to prompted local Docker build | n/a; see below |
@@ -300,6 +301,13 @@ The script stays stdlib-only; it parses `SHA256SUMS` itself (or imports
   per the failure-mode table a wheel missing the sums file turns every PyPI
   musl download into a runtime integrity failure (fatal in strict mode, a
   loud warning by default), discovered only by users.
+- **The sdist has no binaries** (`MANIFEST.in`). The wheel is built from the
+  checkout (`python -m build --sdist --wheel`), not from the sdist, so it
+  still bundles them. `verify-dist` fails if the sdist has a file under
+  `src/inspect_ai/binaries/`. An install built from the sdist (e.g.
+  conda-forge) downloads the binaries from S3 at first use, verified against
+  `SHA256SUMS`. `inspect download sandbox-tools` does this
+  download ahead of time, for air-gapped use.
 - The glibc-only download set is now checked against a four-entry sums file.
   The lookup is by filename, so the two musl entries are simply unused here.
 

@@ -428,12 +428,28 @@ def test_committed_package_data_globs_match_source_files(
             assert any(regex.fullmatch(f) for f in files), pattern
 
 
-def _write_dist(dist: Path, wheel_version: str, sdist_version: str) -> None:
-    dist.mkdir()
+def _write_dist(
+    dist: Path,
+    wheel_version: str,
+    sdist_version: str,
+    sdist_files: tuple[str, ...] = (),
+    sdist_text_files: dict[str, str] | None = None,
+) -> None:
+    dist.mkdir(exist_ok=True)
     _write_wheel(
         dist / f"inspect_ai-{wheel_version}-py3-none-any.whl", _wheel_members()
     )
-    (dist / f"inspect_ai-{sdist_version}.tar.gz").write_bytes(b"sdist")
+    root = f"inspect_ai-{sdist_version}"
+    with tarfile.open(dist / f"{root}.tar.gz", "w:gz") as sdist:
+        for name in ["PKG-INFO", *sdist_files]:
+            info = tarfile.TarInfo(f"{root}/{name}")
+            info.size = len(name)
+            sdist.addfile(info, io.BytesIO(name.encode()))
+        for name, content in (sdist_text_files or {}).items():
+            data = content.encode()
+            info = tarfile.TarInfo(f"{root}/{name}")
+            info.size = len(data)
+            sdist.addfile(info, io.BytesIO(data))
 
 
 @pytest.fixture
@@ -485,6 +501,30 @@ def test_pypi_verify_dist_rejects_unexpected_files(
         pypi_release.verify_dist(dist, "0.3.278", "9")
 
 
+_SDIST_BINARY = "src/inspect_ai/binaries/inspect-sandbox-tools-amd64-v9"
+
+
+@pytest.mark.usefixtures("wheel_globs")
+@pytest.mark.parametrize("version", ["0.3.278", "0.3.287", "0.3.288", "0.4.0"])
+@pytest.mark.parametrize(
+    "manifest",
+    [None, "prune tests\n", "recursive-exclude src/inspect_ai/binaries *\n"],
+)
+def test_pypi_verify_dist_rejects_binaries_in_sdist(
+    pypi_release: ModuleType, tmp_path: Path, version: str, manifest: str | None
+) -> None:
+    """Any binaries fail whatever the version or MANIFEST.in says."""
+    _write_dist(
+        tmp_path / "dist",
+        version,
+        version,
+        (_SDIST_BINARY,),
+        sdist_text_files={"MANIFEST.in": manifest} if manifest else None,
+    )
+    with pytest.raises(RuntimeError, match="must not contain the sandbox tools"):
+        pypi_release.verify_dist(tmp_path / "dist", version, "9")
+
+
 @pytest.mark.usefixtures("wheel_globs")
 def test_pypi_verify_dist_runs_wheel_gate(
     pypi_release: ModuleType, tmp_path: Path
@@ -492,6 +532,21 @@ def test_pypi_verify_dist_runs_wheel_gate(
     _write_dist(tmp_path / "dist", "0.3.278", "0.3.278")
     with pytest.raises(RuntimeError, match="inspect-sandbox-tools-amd64-v10"):
         pypi_release.verify_dist(tmp_path / "dist", "0.3.278", "10")
+
+
+def test_pypi_remove_directories_removes_stale_build(
+    pypi_release: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    stale = tmp_path / "build" / "lib" / "inspect_ai" / "binaries" / "old-binary"
+    stale.parent.mkdir(parents=True)
+    stale.write_bytes(b"stale")
+    (tmp_path / "dist").mkdir()
+    monkeypatch.chdir(tmp_path)
+
+    pypi_release.remove_directories()
+
+    assert not (tmp_path / "build").exists()
+    assert not (tmp_path / "dist").exists()
 
 
 def _prepare_repo(tmp_path: Path, digests: dict[str, str]) -> Path:
