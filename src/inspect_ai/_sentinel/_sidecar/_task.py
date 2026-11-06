@@ -9,6 +9,7 @@ from weakref import WeakValueDictionary
 import anyio
 from pydantic_core import to_jsonable_python
 
+from inspect_ai._util.exception import SampleRefusedError
 from inspect_ai.model._model import Model, ModelAPI
 from inspect_ai.util._store import Store
 
@@ -154,6 +155,12 @@ class TaskSidecars:
             except SidecarCallError as ex:
                 if ex.code == UNAUTHORIZED:
                     raise SentinelProxyError(_unauthorized(sidecar)) from ex
+                if ex.code == REGISTRATION_REFUSED:
+                    # the sidecar takes only the samples the task's registration
+                    # names, and would refuse this one again: never retried
+                    raise SampleRefusedError(
+                        f"The sentinel sidecar at {sidecar.origin} takes only the samples the task's registration names, and the sample {sample.sample_id!r} of the task {self.facts.task!r} isn't one: {ex}"
+                    ) from ex
                 raise SentinelProxyError(
                     f"The sentinel sidecar at {sidecar.origin} couldn't register the sample {sample.sample_id!r} of the task {self.facts.task!r}: {ex}"
                 ) from ex
