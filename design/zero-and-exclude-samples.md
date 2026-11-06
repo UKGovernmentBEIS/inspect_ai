@@ -27,19 +27,19 @@ that have landed.
 Both keep the sample's transcript and error. Both record who decided and why
 as score-edit provenance, so the earlier score stays in `Score.history`, and
 both recompute the log's metrics. They are Python functions in
-`inspect_ai.log` and two `inspect log` subcommands. Zero runs its empty
-attempts in a scratch eval of the same task, restricted to the targeted
-samples and run with the log's recorded models and with the run settings
-eval-retry restores from a log (epochs, approval, review and sentinel
-policies, sample limits, generate config), through a helper the two share.
-Zero runs the task as it stands now, as eval-retry does: it does not
-detect a task edited since the log was written, so the verdict reflects
-the task as it is (see Compatibility). Zero refuses, before the scratch
-eval runs, when the task's scorers are not the ones the log records, when a
-sample's limits were retuned while it ran, and when a retry carried the
-sample's record over from an earlier attempt, since the log does not record
-the settings that attempt ran under. Otherwise it copies the verdicts in.
-Neither applies to a log that is still being written.
+`inspect_ai.log` and two `inspect log` subcommands.
+
+Neither rebuilds anything from the log. As for the shard merge, the caller
+names the task: zero takes the task, the models and the eval settings to run
+it with, as `eval()` and `inspect eval` take them, and runs its empty
+attempts in a scratch eval of that task restricted to the targeted samples.
+Exclusion may take the task to recompute the log's metrics with; without
+it, the metrics are rebuilt from the registry as an untrusted recompute does
+today. A task is refused when its name, scorer names, metric names, epochs or
+epoch reducer names differ from the log's, but its options, code and
+settings are the caller's responsibility: the verdict reflects the task and
+settings passed. Otherwise zero copies the verdicts in. Neither applies to a
+log that is still being written.
 
 ## Why
 
@@ -111,19 +111,19 @@ Non-goals:
   `inspect ctl sample requeue` and by eval-retry with sample invalidation.
 - Changing a sample's `error`, the log's `status`, or which samples an
   eval-set retry re-runs (decision: Ransom, 2026-11-04; see Compatibility).
-- Zeroing the cases where the log cannot say what the empty attempt should
-  run under or how its verdict maps onto the sample. Zero refuses each of
-  them before the scratch eval or before any edit, with a message that names
-  the cause and suggests exclusion, which accepts them all (decision:
-  Ransom, 2026-11-06): a task whose scorers changed since the log;
-  integer ids and sample sources; dict and list verdicts; a sample whose
-  limits were retuned while it ran; a record a retry carried over from an
-  earlier attempt; and a log written before Inspect recorded per-sample
-  limits. Multi-epoch logs and logs written by eval-retry are supported.
-- Detecting a task edited since the log was written. Zero runs the task as
-  it now stands, as eval-retry does; an edit that changes what the empty
-  attempt produces is the user's responsibility (decision: Ransom,
-  2026-11-06; see Compatibility).
+- Rebuilding the task or its run from the log. Zero and exclusion import
+  nothing the log names and build no model, metric or reducer from what it
+  records; the caller passes the task and the settings, as for the shard
+  merge (decision: Ransom, 2026-11-06).
+- Checking that the caller's task and settings are the ones the log ran,
+  beyond the names compared under "Matching the task". A task edited since
+  the log, or settings other than the original run's, change the verdict;
+  that is the caller's responsibility (see Compatibility).
+- Zeroing the shapes zero refuses, each before the scratch eval or before
+  any edit, with a message that names the cause and suggests exclusion,
+  which accepts them all (decision: Ransom, 2026-11-06): a task whose names
+  differ from the log's; integer ids and sample sources; dict and list
+  verdicts. Multi-epoch logs and logs written by eval-retry are supported.
 - Bulk selection by error class or status (`--errored`-style sweeps).
 - A separate `excluded_samples` count beside `unscored_samples`.
 - Changing Steward. Moving Steward onto these functions is its own change.
@@ -287,48 +287,24 @@ counted.
   A logged `EvalSample` carries only the names of the sample's `files`, so a
   sample's sandbox cannot be rebuilt from the log. Rebuilding it needs the
   task's dataset.
-- **`eval_retry_async`** (`src/inspect_ai/_eval/eval.py:1580`) reconstructs a
-  runnable task from a log:
-  - the task spec, from `task_file` and `task_registry_name`
-    (`:1781-1803`, with its errors for unregistered package tasks);
-  - the model, constructed at once with `get_model()` from the recorded name,
-    generate config, base URL and model args (`:1817-1822`);
-  - the model roles, constructed at once by
-    `model_roles_config_to_model_roles()` (`:1825`,
-    `src/inspect_ai/model/_model_config.py:40`);
-  - `task_args_passed`;
-  - the sandbox (`resolve_task_file_sandbox`);
-  - the run settings, from `log.eval.config` (`:1844-1935`): epochs and
-    reducers, the approval, review and sentinel policies, the message,
-    token (with its metering type), turn, time and working limits,
-    `retry_on_error`, the concurrency limits and the sandbox flags, each
-    overridable by a retry argument, and the generate config from
-    `log.plan.config` (`:1943-1952`). It does not restore `cost_limit`.
-    The runner applies an eval-level policy or limit to its run-local copy
-    of the task (`src/inspect_ai/_eval/run.py:333-412`), so reloading the
-    task factory does not recover one; only these arguments do.
 - **Effective settings.** For each sample limit and each policy, the runner
-  uses the eval-level value when one is given and otherwise the task's own,
-  and records the one it used in `log.eval.config`
-  (`src/inspect_ai/_eval/run.py:333-408`; a policy counts as given when
-  `task.approval` or `task.review` is non-empty, or `task.sentinel` is not
-  `None`). The generate config is `task.config.merge(<eval-level options>)`
+  uses the eval-level value when one is given and otherwise the task's own
+  (`src/inspect_ai/_eval/run.py:333-408`), and the generate config is
+  `task.config.merge(<eval-level options>)`
   (`src/inspect_ai/_eval/task/run.py:849`), which keeps the task's value for
   every option the eval leaves `None` (`GenerateConfig.merge`,
-  `src/inspect_ai/model/_generate_config.py:379`), and that merged config is
-  `log.plan.config` (`plan_to_eval_plan`, `src/inspect_ai/_eval/task/log.py:1261`).
-  So a recorded value does not say whether it came from the eval or the
-  task, and a recorded `None` means that neither set one. I verified with a
-  `mockllm` task declaring `max_tokens=20`, run with `temperature=0.5` and
-  `message_limit=3`: `log.plan.config` holds both options and
-  `log.eval.config` the limit. Replaying the recorded values as eval-level
-  arguments, as eval-retry does, reproduces every recorded value whatever
-  the reloaded task declares, but leaves a recorded `None` open to the
-  task's current default.
-
-  Constructing a model checks its provider's credentials. `get_model("openai/gpt-4o")`
-  raises without `OPENAI_API_KEY` (`src/inspect_ai/model/_providers/openai.py:257`),
-  and so does constructing a recorded role on that provider (both verified).
+  `src/inspect_ai/model/_generate_config.py:379`). The log records only the
+  values in effect, so it does not say which came from the eval and which
+  from the task.
+- **The shard merge's task.** The merge computes a merged log's results only
+  with the `Task` its caller passes, imports nothing a log names and builds
+  no model from log values; it refuses a task whose name, scorer names,
+  metric names, epochs or epoch reducer names differ from what the shards
+  recorded, without comparing options (`check_task_matches`,
+  `src/inspect_ai/log/_shards/_write.py:64`;
+  [Eval sharding](eval-sharding.md), "Trust"; decisions: Ransom,
+  2026-11-03 and 2026-11-04). It computes results with `eval_results()` and
+  the task's scorers, metrics and reducer, as a native run does.
 - **Task resolution.** `eval_resolve_tasks()` (`src/inspect_ai/_eval/eval.py:2086`)
   installs the model roles and then, per model, the active model before it
   constructs tasks (`:2104-2119`), so a task factory can call `get_model()`
@@ -344,27 +320,6 @@ counted.
   string id was supplied by the task's author. `ensure_unique_ids`
   (`src/inspect_ai/_eval/run.py:1457`) refuses a dataset with a repeated id,
   including an `int` and a `str` with the same `str()` form.
-- **Per-sample effective limits.** `inspect ctl config` retunes a running
-  task's message, token and time limits through a per-task override store
-  (`src/inspect_ai/util/_limit_overrides.py:45`), which applies to the
-  task's running samples from their next limit check and to samples started
-  later (`:71-80`). The log header keeps the launch values; each
-  `EvalSample` records the ceilings it ran under in `message_limit`,
-  `token_limit` with `token_limit_type`, and `time_limit`
-  (`src/inspect_ai/log/_log.py:598-611`, written at
-  `src/inspect_ai/_eval/task/run.py:3647-3653`). With no retune these equal
-  the header's values, except that the sample records the metering type
-  `"all"` for a plain token count where the header records none (verified
-  with `mockllm` runs with and without limits). The `.eval` writer drops
-  `None` fields (`src/inspect_ai/log/_recorders/eval.py:1228`), so a
-  missing field reads as "no limit". Retunes arrived one release before the
-  sample fields: Inspect 0.3.260 can retune but records no per-sample
-  message or time limit, and 0.3.261 is the first release that records all
-  three. The log records the Inspect version that wrote it in
-  `log.eval.packages["inspect_ai"]`.
-- **Epoch reducers on recompute.** `resolve_log_metrics()` builds the epoch
-  reducers before it considers importing the task file for missing metrics
-  (`src/inspect_ai/log/_metric.py:64`).
 - **Sample-id selection** (`eval(sample_id=...)`) is not literal, which is
   why Steward prefixes its ids with the task name:
   1. `resolve_task_sample_ids` (`src/inspect_ai/_eval/task/util.py:76`) reads
@@ -402,7 +357,9 @@ counted.
 ### Who uses which shapes
 
 The only existing producer of zero and exclude is Steward. It works on landed
-`.eval` logs of tasks loaded from a file or the registry, with static datasets
+`.eval` logs of `eval_set()` runs launched from definitions it loads itself
+(with capture mode, `_marks/run.py:93`), so it can hand zero the task and
+the settings it ran with; its tasks have static datasets
 whose samples have string ids (its fixture's ids are `user:cybergym/arvo_1`
 and so on, `tests/evalset/fixtures/erroring_evalset.py:37` of
 meridianlabs-ai/inspect_steward). Its fixture's scorer is `exact()`, which
@@ -419,14 +376,16 @@ metrics read, so zero supports single-value verdicts only.
 
 The design therefore supports:
 
-- zero for tasks that eval-retry can reload (file or registered) and that
-  have scorers, run with the log's recorded models; static datasets; samples
-  with string ids that the task's dataset still holds; tasks whose scorers
-  are the ones the log records; scorers whose empty-attempt verdict is a
+- zero with a task the caller passes (a built `Task` or a task spec) that
+  has scorers and the log's task, scorer, metric and reducer names and
+  epochs, run with the models and settings the caller passes; static
+  datasets; samples with string ids that the task's dataset holds; scorers
+  whose empty-attempt verdict is a
   single `str`, `int`, `float` or `bool`; and samples whose scores all come
   from those scorers;
 - exclusion for any landed log, for a sample that holds a score or of a log
-  that names a scorer.
+  that names a scorer, with the caller's task's metrics or, without a task,
+  with metrics the registry can build from the header.
 
 Every other shape is refused with an error (see Design).
 
@@ -471,8 +430,8 @@ A single value cannot be `None` (`Value`, `src/inspect_ai/scorer/_metric.py:68`)
 so the only single value that metrics skip is a root `NaN`. The helper is a
 check on the raw value only:
 
-- Whether the verdict fits the log's metrics (a scalar where a dict metric
-  expects a dict, after the task changed) is checked by computing the
+- Whether the verdict fits the task's metrics (a scalar where a dict metric
+  expects a dict) is checked by computing the
   metrics on staged edits before they are committed (see Python API).
 - A reduced sample score is whatever the configured epoch reducer makes of
   its epochs, as for any run. `majority` over finite `[I, C]` is unscored,
@@ -592,8 +551,9 @@ refused, before anything changes, in five cases:
   exclude it instead".
 
 These per-target checks rely on a check of the whole log that comes first
-(step 8 of `zero_samples_async`): the task's scorers must be the ones the log
-records, with the same names and options, in the same order. A log with
+("Matching the task", step 3 of `zero_samples_async`): the task's scorer
+names must be the ones the log records, in the same order; their options
+are not compared. A log with
 appended scores usually fails that check, because append adds its scorers
 to `log.eval.scorers` and the task does not have them. When the check
 passes, zero writes the task's verdicts under the keys the task's scorers
@@ -714,13 +674,13 @@ skipped: `Plan.__call__()` leaves its step loop as soon as
 `Task.setup` that writes a score and completes the state would skip a check
 placed after it. The finish solver runs after the steps whether or not they
 exited early (`_plan.py:120`), and before the task's scorers. The exception
-errors the scratch sample, and step 8 refuses that target with the error's
+errors the scratch sample, and step 7 refuses that target with the error's
 message, leaving the log unchanged. The main solver is skipped, so
 `Task.setup` is the only solver that can have written a score by then.
 
 The finish solver does not run when a step raises (`_plan.py:46`). A
 `Task.setup` that raises errors the scratch sample, and one that exceeds a
-sample limit records `limit` on it; step 8 refuses a scratch sample with
+sample limit records `limit` on it; step 7 refuses a scratch sample with
 either, so no verdict from an attempt that did not pass the check is copied.
 
 ### Python API
@@ -740,26 +700,57 @@ def exclude_samples(
     samples: Sequence[SampleSelector],
     provenance: ProvenanceData,
     *,
-    trust_log: bool = False,
-) -> DispositionResult: ...
-
-def zero_samples(
-    log: EvalLog,
-    samples: Sequence[SampleSelector],
-    provenance: ProvenanceData,
-    *,
-    display: DisplayType | None = None,
+    task: Task | None = None,
 ) -> DispositionResult: ...
 
 async def zero_samples_async(
     log: EvalLog,
+    task: Task | str,
     samples: Sequence[SampleSelector],
     provenance: ProvenanceData,
+    *,
+    task_args: dict[str, Any] | str = dict(),
+    model: str | Model | list[str] | list[Model] | None | NotGiven = NOT_GIVEN,
+    model_base_url: str | None = None,
+    model_args: dict[str, Any] | str = dict(),
+    model_roles: ModelRoles | None = None,
+    sandbox: SandboxEnvironmentType | None = None,
+    approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
+    review: str | list[ReviewPolicy] | ReviewPolicyConfig | None = None,
+    sentinel: SentinelSpec | None = None,
+    epochs: int | Epochs | None = None,
+    message_limit: int | None = None,
+    token_limit: int | TokenLimit | None = None,
+    turn_limit: int | None = None,
+    time_limit: int | None = None,
+    working_limit: int | None = None,
+    cost_limit: float | None = None,
+    model_cost_config: str | dict[str, ModelCost] | None = None,
+    retry_on_error: int | None = None,
+    max_samples: int | None = None,
+    max_subprocesses: int | None = None,
+    max_sandboxes: int | None = None,
+    **kwargs: Unpack[GenerateConfigArgs],
 ) -> DispositionResult: ...
+
+def zero_samples(log, task, samples, provenance, *, display: DisplayType | None = None, <the same keywords>) -> DispositionResult: ...
 ```
 
-Both edit `log` in place, like `edit_score()`, and leave writing to the
-caller. These rules are checked before anything changes:
+Zero's run arguments are a subset of `eval_async()`'s, with the same names,
+types and defaults, and each is passed to the scratch eval as given. They
+are the ones that say which task runs and how a sample runs: the task and
+its arguments, the models, the sandbox, the policies, the epochs, the
+sample limits and their prices, the concurrency limits and the generate
+config. Zero sets the rest itself (step 5): the solver, the selection, the
+logging and the error policy. A caller passes what it passed to `eval()`
+for the original run, and the empty attempt runs with exactly that.
+
+Both functions edit `log` in place, like `edit_score()`, and leave writing
+to the caller. Neither imports anything the log names, and neither builds a
+model, metric or reducer from what the log records: the task, its code and
+the settings to run it with come from the caller, as for the shard merge
+([Eval sharding](eval-sharding.md), "Trust"; decisions: Ransom, 2026-11-03,
+2026-11-04 and 2026-11-06). These rules are checked before anything changes:
 
 - `log.samples` must be present (a log read whole). A header-only read is a
   `ValueError`.
@@ -777,9 +768,72 @@ caller. These rules are checked before anything changes:
   - A selector that matches two distinct ids is an error.
 
   Unmatched selectors are a `ValueError` naming them.
-- Metrics are resolved before the first edit (`resolve_log_metrics()`). A log
-  whose metrics cannot be rebuilt is therefore left unchanged, with the
-  existing `LookupError` or `DisallowedRegistryArg` and its advice.
+- When a task is given (always for zero), it must be the task the log ran,
+  by name (see "Matching the task" below).
+- Metrics are resolved before the first edit. A log whose metrics cannot be
+  built is therefore left unchanged.
+
+**Matching the task.** The shard merge already compares a caller's task
+with what a log recorded, by name only: `check_task_matches()`
+(`src/inspect_ai/log/_shards/_write.py:64`) compares the task name
+(`Task.name` against `eval.task`), the scorer names in order (as the task
+logger records them, against `eval.scorers`), the metric names of each
+scorer and of the task (options dropped), the number of epochs and the epoch
+reducer names (decision: Ransom, 2026-11-03). Its comparison moves into a
+shared helper that returns the first difference, and the merge keeps
+raising its `ShardSetError` from it:
+
+```python
+# src/inspect_ai/log/_task_match.py
+class TaskDifference(NamedTuple):
+    field: str      # "task name", "scorers", "scorer metrics", "task metrics", "epochs", "epoch reducers"
+    given: Any
+    ran: Any
+
+def task_difference(task: Task, header: EvalLog) -> TaskDifference | None: ...
+```
+
+The dispositions raise `ValueError` on a difference: "the task passed
+differs from the one <log> ran in its <field> (<given>, not <ran>); pass
+the task the log ran". Options are not compared: passing the task the log
+ran, with the same options, is the caller's responsibility, as for the
+merge, and the docs say so. The name, the scorer names and the metric names
+are what the dispositions depend on: zero writes the task's verdicts under
+the task's scorer keys (see "Which score names a disposition covers"), and
+both recompute the log's results with the task's metrics and reducer. The
+epoch count must match too, because zero's scratch eval runs the task's
+epochs and every targeted epoch must be among them.
+
+Zero compares a shallow copy of the task with the caller's `epochs` applied
+to it as the runner applies an eval-level `epochs` (`epochs` and
+`epochs_reducer`, `src/inspect_ai/_eval/run.py:311-325`), so a log written
+with `eval(task, epochs=5)` matches a task declaring one epoch when zero is
+given `epochs=5`, as it was given to `eval()`.
+
+**Metrics from the task.** With a task, results are computed with the
+task's own metrics and reducer, as a native run computes them, through a
+helper beside `resolve_log_metrics()`:
+
+```python
+# src/inspect_ai/log/_metric.py
+def task_log_metrics(task: Task) -> LogMetrics:
+    """The task's reducers, metrics and scorers, for compute_log_metrics()."""
+    return LogMetrics(
+        reducers=task.epochs_reducer,
+        metrics=task.metrics,
+        scorers=[ScorerInfo.from_scorer(s) for s in task.scorer or []],
+    )
+```
+
+`compute_log_metrics()` takes a `LogMetrics` (`src/inspect_ai/log/_metric.py:88`)
+and `eval_results()` builds scorer metrics from `ScorerInfo.from_scorer()`
+as a native run does (`src/inspect_ai/_eval/task/results.py:61`, `:125`).
+Without a task (exclusion only), metrics are rebuilt from the log header
+with the existing untrusted `resolve_log_metrics(log)`, which imports
+nothing and refuses a metric or reducer the registry cannot build with its
+`LookupError` or `DisallowedRegistryArg`. Exclusion calls it with
+`trust_log_advice=False`, since it has no such option, and adds advice to
+pass the task instead.
 
 **Staged commit.** Both functions apply their edits to copies of the target
 samples, and compute metrics on a second, disposable view of the log, before
@@ -806,8 +860,9 @@ the input log changes:
    edited targets. Events, messages and outputs are shared, because no
    computation reads them. The log header is small, so `results` is copied
    whole.
-3. `compute_log_metrics(view, resolved)` runs once. It assigns
-   `view.results` and `view.reductions`.
+3. `compute_log_metrics(view, metrics)` runs once, with the task's metrics or
+   those rebuilt from the header. It assigns `view.results` and
+   `view.reductions`.
 4. Only when that returns are the target entries of `log.samples` replaced
    by their edited copies from step 1, and `log.results` and
    `log.reductions` by the view's. The view's samples are discarded, with
@@ -819,21 +874,86 @@ the input log changes:
 An edit, reducer or metric that raises, or mutates its inputs, therefore
 leaves the input log as it was until the commit, and the committed targets
 are exactly the edits. For zero this is how a verdict that does not fit the
-log's metrics is refused: for example, a task edited since the log was
-written now returns a scalar where the logged dict metrics expect a dict,
-and `eval_results()` raises `TypeError` (`results.py:543`). Zero re-raises
-it as "the empty-attempt verdicts do not fit the log's metrics (<error>);
-the task may have changed since the log was written".
+task's metrics is refused: for example, a task whose scorer now returns a
+scalar where its dict metrics expect a dict makes `eval_results()` raise
+`TypeError` (`results.py:543`). Zero re-raises it as "the empty-attempt
+verdicts do not fit the task's metrics (<error>)".
+
+**Task preparation.** Zero resolves the task it is given, and exclusion's
+CLI resolves a task spec, through the task resolution a native eval uses,
+in a copy of the caller's context:
+
+```python
+# src/inspect_ai/log/_disposition.py
+def prepare_task(task: Task | str, task_args, model, model_base_url, model_args,
+                 model_roles, sandbox, config: GenerateConfig) -> ResolvedTask:
+    def prepare() -> ResolvedTask:
+        models = eval_init(model=model, model_base_url=model_base_url,
+                           model_args=model_args, **config.model_dump(exclude_none=True))
+        resolved, _, _ = eval_resolve_tasks(
+            task, task_args, models, model_roles, config,
+            approval=None, sandbox=sandbox, sample_shuffle=None,
+            input_media_policy="trusted_pre_run",
+        )
+        return one(resolved)
+
+    if eval_async_running():
+        raise RuntimeError("cannot run while an eval is running in this process")
+    prepared = contextvars.copy_context().run(prepare)
+    return replace(prepared, task=copy(prepared.task))
+```
+
+- **Task specs.** A `Task` is used as given. A string is a task spec, as
+  for `inspect eval` (`file.py@name`, a registered name), loaded with
+  `task_args` by the same loader; it must resolve to exactly one task. A
+  spec is the caller's choice of code, so importing it is the caller's
+  decision, exactly as for `inspect eval`. A task file that runs an
+  evaluation at module scope (an `eval_set()` definition script) runs it
+  when imported, as it does under `inspect eval`; such definitions are
+  passed as a built `Task`.
+- **Models.** The models are the caller's, resolved by `eval_init()` as for
+  `eval()`: `model=NOT_GIVEN` reads `INSPECT_EVAL_MODEL`, and a list of
+  models is refused because the scratch eval runs one task once. A task that
+  pins its own model or roles keeps them, as in any eval.
+- **Model context.** `eval_resolve_tasks()` installs the model roles and the
+  primary model in the active context before any task factory runs
+  (`src/inspect_ai/_eval/eval.py:2104-2119`), so a factory that calls
+  `get_model()` or looks up a role while it constructs the task
+  (inspect_evals' NIAH calls `get_model()`, `niah/niah.py:84`) gets the
+  caller's models. Running `prepare` in a copy of the caller's context keeps
+  those installations out of the caller's context, as native eval keeps them
+  in its own child task. `eval_set()` resolves tasks the same way before
+  handing `ResolvedTask`s to `eval()` (`src/inspect_ai/_eval/evalset.py:1052`).
+- **Running eval.** `eval_init()` resets process-wide state, not only
+  context variables: it clears the active-sample registry and replaces the
+  concurrency registries (`src/inspect_ai/_eval/context.py:34`, `:51`;
+  `src/inspect_ai/log/_samples.py:480`; `src/inspect_ai/util/_concurrency.py:440`).
+  `copy_context()` does not isolate those. The native running-eval flag
+  (`_eval_async_running`, `src/inspect_ai/_eval/eval.py:795`, read through a
+  small accessor) is therefore checked before `prepare` runs, and a call
+  while another eval runs in the process is refused, so it leaves that
+  eval's active samples, control-channel and TUI views, and concurrency
+  limits as they were. `prepare` is synchronous, so nothing interleaves
+  between the check and its end; the scratch eval then applies the native
+  check again.
+- **The caller's task is not changed.** `ResolvedTask` is a frozen dataclass
+  (`src/inspect_ai/_eval/task/resolved.py:14`) holding the instance the
+  caller passed or the factory returned (a factory may return a cached
+  `Task`; `resolve_tasks()` keeps it, `src/inspect_ai/_eval/loader.py:114`).
+  `prepare_task` therefore returns it with a shallow copy of the task, as a
+  normal run shallow-copies the task before applying its overrides
+  (`src/inspect_ai/_eval/run.py:261`), and zero rebinds attributes only on
+  that copy: `epochs` and `epochs_reducer` for the match, `early_stopping`
+  and `dataset` in step 5. `task_with()` is not used, because it changes the
+  task it is given.
 
 `exclude_samples`:
 
-1. Resolves metrics with the caller's `trust_log`, as `recompute_metrics()`
-   does. With `trust_log=True` this may import the task file, so it runs
-   inside `inline_eval_set_suppressed()`, and on a detached copy of the
-   log's header (`detached_header()`, below), so that a metric or reducer
-   factory that changes the options it is given cannot change the input
-   log. A log with no task scorers is
-   accepted; it is refused only for a target that holds no score.
+1. With a task, checks it with `task_difference()` and takes its metrics
+   from `task_log_metrics()`. Without one, rebuilds the metrics from the
+   header with `resolve_log_metrics(log)`. Nothing is imported either way.
+   A log with no task scorers is accepted; it is refused only for a target
+   that holds no score.
 2. Builds the exclusion edits for every target that is not already excluded
    (the keys it holds, or the first scorer's name), and commits them as
    above.
@@ -844,210 +964,13 @@ the task may have changed since the log was written".
    has no verdict to copy: "the task of <log> has no scorers, so an empty
    attempt has no verdict; exclude the samples instead".
 2. Selects the targets that are not already zeroed. When none are left it
-   returns without loading the task. Otherwise it detaches the input it
-   replays from the caller's log:
-
-   ```python
-   # src/inspect_ai/log/_disposition.py
-   def detached_header(log: EvalLog) -> EvalLog:
-       """A deep copy of the log without its samples and reductions, which nothing it is given to can change in the caller's log."""
-       return deepcopy(log.model_copy(update={"samples": None, "reductions": None}))
-
-   replay = detached_header(log)
-   ```
-
-   Every later step that builds something from the log's recorded settings
-   reads `replay`: the task spec and models (step 3), the scratch eval's
-   run settings (step 6) and the metrics (step 4). The objects they build
-   keep references to what they were given: `get_model(config=...)` keeps
-   the recorded `GenerateConfig` (`src/inspect_ai/model/_model.py:890`),
-   and role reconstruction keeps each role's and each ensemble member's
-   `ModelConfig.config` (`src/inspect_ai/model/_model_config.py:70`). A
-   task factory, `Task.setup` or scorer that changes its model's config,
-   or a metric factory that changes its options, would otherwise change
-   the caller's log, including when zero then refuses; with the copy it
-   changes only `replay`, which zero discards. The checks in steps 5 and 8,
-   and the staged commit, read the caller's `log`, which nothing zero runs
-   holds. The samples and reductions are left out of the copy because no
-   replay step reads them, so detaching costs the size of the header.
-
-   The copy isolates only what is built from it. `get_model()` memoizes by
-   default and returns a cached `Model` for the same name, config, base URL
-   and arguments, ignoring the config it was given
-   (`src/inspect_ai/model/_model.py:2529-2545`); an earlier eval-retry of
-   the same `EvalLog` in the process caches a primary whose config is the
-   caller's own `log.eval.model_generate_config`. Zero therefore constructs
-   its primary with `memoize=False` (step 3), as role reconstruction
-   already does for every role and ensemble member
-   (`src/inspect_ai/model/_model_config.py:70`), so every model zero
-   builds is new and holds only `replay`'s configs.
-3. Reconstructs the task spec as eval-retry does, from `replay`, with
-   `log_task_spec(replay, memoize=False)`; eval-retry keeps the default. The task-spec resolution
-   (`src/inspect_ai/_eval/eval.py:1781-1803`) and the model and model-role
-   construction (`:1817-1825`) move into a helper that both call:
-
-   ```python
-   # src/inspect_ai/_eval/eval.py
-   class LogTaskSpec(NamedTuple):
-       task: str                     # "<file>@<name>" or a registry name
-       task_args: dict[str, Any]
-       sandbox: SandboxEnvironmentType | None
-       model: Model                  # constructed from the recorded config, as eval-retry does
-       model_roles: dict[str, Model | list[Model]] | None
-       config: GenerateConfig        # log.plan.config, as eval-retry passes it
-
-   def log_task_spec(eval_log: EvalLog, *, memoize: bool = True) -> LogTaskSpec:
-       """`memoize` is passed to the primary's `get_model()`; zero passes False."""
-   ```
-
-   The run settings eval-retry reads from `log.eval.config` move into a
-   second helper, which both call:
-
-   ```python
-   # src/inspect_ai/_eval/eval.py, beside log_task_spec()
-   class RecordedEvalArgs(TypedDict):
-       """The `eval_async()` arguments that reproduce how a log's samples ran, read from its recorded config."""
-       epochs: Epochs | None              # Epochs(config.epochs, config.epochs_reducer), None when unrecorded
-       approval: ApprovalPolicyConfig | None
-       review: ReviewPolicyConfig | None
-       sentinel: SentinelConfig | None
-       message_limit: int | None
-       token_limit: int | TokenLimit | None   # TokenLimit(tokens, type) when a type other than "all" is recorded
-       turn_limit: int | None
-       time_limit: int | None
-       working_limit: int | None
-       cost_limit: float | None
-       retry_on_error: int | None
-       max_samples: int | None
-       max_subprocesses: int | None
-       max_sandboxes: int | None
-       sandbox_cleanup: bool | None
-       sandbox_prebuilt: bool | None
-
-   def recorded_eval_args(eval_log: EvalLog) -> RecordedEvalArgs: ...
-   ```
-
-   `eval_retry_async` builds its arguments from `recorded_eval_args()` and
-   then applies its own caller overrides with the expressions it uses today
-   (`max_samples or recorded`, `sandbox_cleanup if not None else recorded`,
-   and so on). Zero passes the dict to its scratch eval as it is, apart from
-   the overrides in step 6. A run setting added to the helper later reaches
-   both, so zero cannot fall behind what retry restores. The selection
-   (`limit`, `sample_id`, `sample_shuffle`), logging, display, notification
-   and error-policy (`fail_on_error`, `continue_on_fail`, `score_on_error`)
-   settings stay in `eval_retry_async`: they say which samples run and how
-   the run reports, not what a sample does. The generate config travels in
-   `LogTaskSpec.config`.
-
-   The helper also restores `cost_limit`, which eval-retry drops today, so
-   an eval-retry of a log written with an eval-level cost limit keeps it
-   (see Compatibility). The other values are the ones retry passes now.
-
-   Zero runs with the log's recorded models, exactly as eval-retry does and
-   as Steward's zero does; it takes no model overrides (see Future
-   improvements). Constructing a recorded model needs its provider's
-   credentials and SDK, as eval-retry does. A task that is neither in a task
-   file nor registered raises the same `FileNotFoundError` that eval-retry
-   raises.
-4. Prepares the task and the log's metrics in one isolated step, through the
-   task resolution a native eval uses:
-
-   ```python
-   def prepare() -> tuple[ResolvedTask, LogMetrics]:
-       with inline_eval_set_suppressed():
-           models = eval_init(model=spec.model, **spec.config.model_dump(exclude_none=True))
-           resolved, _, _ = eval_resolve_tasks(
-               spec.task, spec.task_args, models, spec.model_roles, spec.config,
-               approval=None, sandbox=spec.sandbox, sample_shuffle=None,
-               input_media_policy="trusted_pre_run",
-           )
-           metrics = resolve_log_metrics(replay, trust_log=True)
-       return one(resolved), metrics
-
-   if eval_async_running():
-       raise RuntimeError("zero cannot run while an eval is running in this process")
-   prepared, metrics = contextvars.copy_context().run(prepare)
-   prepared = replace(prepared, task=copy(prepared.task))
-   prepared.task.early_stopping = None
-   ```
-
-   Zero rebinds attributes only on its copy of the task: `early_stopping`
-   here and `dataset` in step 6. The task the factory returned keeps its
-   own. Zero does not set the task's limits, policies or generate config:
-   the recorded ones reach the scratch eval as eval-level arguments (step
-   6), as eval-retry passes them, and the task otherwise runs as it now
-   stands (see Compatibility, "Edited tasks").
-
-   - **Running eval.** `eval_init()` resets process-wide state, not only
-     context variables: it clears the active-sample registry and replaces
-     the concurrency registries (`src/inspect_ai/_eval/context.py:34`,
-     `:51`; `src/inspect_ai/log/_samples.py:480`;
-     `src/inspect_ai/util/_concurrency.py:440`). `copy_context()` does not
-     isolate those. Zero therefore checks the native running-eval flag
-     (`_eval_async_running`, `src/inspect_ai/_eval/eval.py:795`, read
-     through a small accessor) before `prepare` runs, and refuses while
-     another eval runs in the process, so a refused zero leaves that eval's
-     active samples, control-channel and TUI views, and concurrency limits
-     as they were. `prepare` is synchronous, so nothing interleaves between
-     the check and its end; the scratch eval then applies the native check
-     again.
-   - **Early stopping.** Zero clears `early_stopping` (`Task.early_stopping`,
-     `src/inspect_ai/_eval/task/task.py:276`) on its own shallow copy of the
-     prepared `Task`, because the runner may stop a sample-epoch before
-     setup and scoring (`run.py:2729`) and the scratch log would still
-     report success. Each target's empty attempt is a separate verdict, so
-     nothing in the scratch run should stop early. The copy matters because
-     task resolution can return an instance the caller owns: a factory may
-     return a cached `Task`, and `resolve_tasks()` keeps the instance it
-     returns (`src/inspect_ai/_eval/loader.py:114`). Clearing the field on
-     that instance would disable early stopping for every later eval of the
-     task, even after zero refused. `ResolvedTask` is a frozen dataclass
-     (`src/inspect_ai/_eval/task/resolved.py:14`), so zero replaces it with
-     `dataclasses.replace(prepared, task=copy(prepared.task))`, as a normal
-     run shallow-copies the task before applying its overrides
-     (`src/inspect_ai/_eval/run.py:261`). `task_with()` is not used, because
-     it changes the task it is given. Zero only rebinds attributes on the
-     copy, so the shared nested state is not changed.
-
-   - **Model context.** `eval_resolve_tasks()` installs the model roles and
-     the primary model in the active context before any task factory runs
-     (`src/inspect_ai/_eval/eval.py:2104-2119`). A factory that calls
-     `get_model()` or looks up a role while it constructs the task
-     (inspect_evals' NIAH calls `get_model()`, `niah/niah.py:84`) gets the
-     log's models, not whatever the caller's context holds or nothing.
-     Running `prepare` in a copy of the caller's context keeps those
-     installations out of the caller's context, as native eval keeps them in
-     its own child task. `eval_set()` resolves tasks the same way before
-     handing `ResolvedTask`s to `eval()` (`src/inspect_ai/_eval/evalset.py:1052`).
-   - **Order.** The task is resolved first, so importing the task file
-     registers its reducers and metrics before `resolve_log_metrics()`
-     rebuilds them. `resolve_log_metrics()` builds epoch reducers before it
-     considers importing the task file (`src/inspect_ai/log/_metric.py:64`),
-     so a task-file reducer such as HLE's (`hle/hle.py:98`) would otherwise
-     be missing in a fresh process. The resolver's own trust and refusal
-     rules are unchanged; zero only calls it after the import.
-   - **Trust.** Metrics are resolved with `trust_log=True`. Zero imports and
-     runs the task's code, exactly as `inspect eval-retry` does, so the
-     caller has already decided to trust the log. With trusted resolution,
-     metric options naming a model or solver rebuild, as they do when
-     `inspect score` runs the log's own scorers. The docstring, CLI help and
-     docs say to zero only logs you trust.
-   - **Import guard.** Both the task resolution and any import by metric
-     resolution run inside `inline_eval_set_suppressed()` (see "Inline
-     `eval_set()` calls" below), so importing the task file never starts an
-     evaluation the file runs at module scope.
-   - **Task-constructed models.** `Task(model=...)` and `Task(model_roles=...)`
-     are constructed when the task factory runs (`Task.__init__`,
-     `src/inspect_ai/_eval/task/task.py:254`), and a task-pinned primary
-     takes precedence (`src/inspect_ai/_eval/loader.py:119`), as in any eval
-     of the task. Their providers must be available, as for eval-retry.
-
-   `eval_resolve_tasks()` must return exactly one task; the scratch eval
-   reuses it, so the task file is executed once.
-5. Establishes that each target id names the same sample it named in the
-   original run, and that it ran under the settings the scratch eval
-   replays, and refuses otherwise. Four checks, all before the scratch
-   eval:
+   returns without preparing the task.
+3. Prepares the task with `prepare_task()` and the caller's task, models,
+   sandbox and generate config, applies the caller's `epochs` to its copy,
+   checks it with `task_difference()`, and takes its metrics from
+   `task_log_metrics()`.
+4. Establishes that each target id names a sample of the task's dataset,
+   and refuses otherwise. Two checks, both before the scratch eval:
 
    **Static dataset.** Zero refuses a task whose samples come from a
    `SampleSource` (`prepared.task.sample_source is not None`). Its dataset
@@ -1079,166 +1002,58 @@ the task may have changed since the log was written".
      `int` id `12` does not match the logged `"12"`. A sample without an id
      still has `id=None` here, because positional ids are assigned when the
      run starts (`src/inspect_ai/_eval/run.py:224`), so it never matches.
-     - No match: "the task's dataset no longer holds a sample with the
-       string id <id>".
+     - No match: "the task's dataset holds no sample with the string id
+       <id>".
      - More than one (a dataset the run would also refuse, through
        `ensure_unique_ids`): "the task's dataset holds more than one sample
        with the id <id>".
 
-   **Records of this attempt.** The scratch eval replays the log's header
-   (step 6): its generate config, models, limits and policies. The header describes
-   the attempt that wrote the log, and only that attempt's records ran
-   under it. eval-retry and eval-set retries copy a
-   clean record from the earlier log into the new one unchanged
-   (`src/inspect_ai/_eval/task/run.py:1518-1525`), with its earlier
-   `started_at` and `uuid` (verified with a retried `mockllm` log), under a
-   header the new attempt writes from its own run: the retry rebuilds the
-   eval-level settings from the earlier log, but a setting that log recorded
-   as `None` falls back to the reloaded task's default
-   (`src/inspect_ai/_eval/run.py:333-408`), so a task edited between the
-   attempts gives the new header turn, working or cost limits, or policies,
-   that the carried record never ran under, and none of those is recorded
-   per sample. The new header also carries the new attempt's Inspect
-   version (`src/inspect_ai/_eval/task/log.py:225-227`). Zero therefore
-   accepts only records the log's own attempt wrote:
-
-   - the record's `started_at` is present and not earlier than
-     `log.stats.started_at` (also present). Otherwise: "sample <id> epoch
-     <n> was carried over from an earlier attempt of this log (by
-     eval-retry or an eval-set retry), whose settings the log does not
-     record; zero replays only the settings of the attempt that wrote the
-     log: exclude the sample instead". The comparison spans attempts, so it
-     assumes their clocks agree, as seeded retry already does
-     ([Retry seeded attempt log](retry-seeded-attempt-log.md)).
-     `stats.started_at` is recorded to the second, so a record that started
-     in the same second as the attempt counts as the attempt's own.
-
-   This refuses every carried-over record, including a clean one from a
-   recent attempt; an errored sample that a retry re-ran is the new
-   attempt's own record and can be zeroed. A carried-over record can be
-   excluded (decision: Ransom, 2026-11-06). Unlike an edit to the task
-   since the log was written, which the user makes and knows about (see
-   Compatibility), a carried-over record's settings are lost by the retry
-   itself: the log holds only the header the retry wrote.
-
-   **Recorded limits.** A record of this attempt ran under the header's
-   limits unless an operator retuned it with `inspect ctl config` (see
-   "Per-sample effective limits" above). Zero does not replay a retune; it
-   refuses the target instead. For every targeted record (each targeted
-   epoch):
-
-   - `log.eval.packages["inspect_ai"]` is present and at least 0.3.261,
-     compared with the PEP 440 ordering `_installed_version()` already
-     applies (`src/inspect_ai/_util/version.py`; its parsing moves into a
-     `parse_version(raw)` helper beside it), so a development build before
-     that release counts as older. Since the record is the attempt's own,
-     that version wrote it. An older writer omits the per-sample message
-     and time limits, and the writer omits `None` fields, so their absence
-     would not tell "no limit" from "not recorded": "the log was written by
-     Inspect <version or 'an unknown version'>, which does not record the
-     limits each sample ran under, so zero cannot tell whether they were
-     retuned".
-   - The record's `message_limit` and `time_limit` equal the header's, and
-     its (`token_limit`, `token_limit_type`) equals the header's,
-     normalized to (count, type) with type `"all"` for a plain count and
-     (`None`, `None`) for no limit. Otherwise: "sample <id> epoch <n> ran
-     under <field> <recorded>, not the log's <replayed> (it was retuned
-     while it ran)".
-
-   Both refusals end "zero replays the log's limits only: exclude the
-   sample instead". The turn, working and cost limits cannot be retuned, so
-   every record of this attempt ran under the header's. Records of this
-   attempt differ among themselves only through a retune, and each retuned
-   one is refused by name, so every target that passes ran under the limits
-   the scratch eval passes. A record holds the ceilings in force when the
-   sample ended, so a retune that was set and then cleared while a sample
-   ran leaves no trace on it, and zero cannot detect that one.
-
    Steward's datasets are static and use string ids (see "Who uses which
    shapes"). Exclusion needs none of this: it edits the logged record and
    never re-runs a sample.
-6. Restricts the copied task to the targets and runs one scratch eval in a
+5. Restricts the copied task to the targets and runs one scratch eval in a
    temporary local directory:
 
    ```python
+   prepared.task.early_stopping = None
    prepared.task.dataset = prepared.task.dataset.filter(
        lambda sample: isinstance(sample.id, str) and sample.id in target_ids
    )
-   run_args = recorded_eval_args(replay)   # step 3's helper, shared with eval-retry
-   run_args["sandbox_cleanup"] = True
    eval_async(
-       tasks=prepared,               # the ResolvedTask from step 4, which carries its models and sandbox
+       tasks=prepared,               # the ResolvedTask from step 3, which carries its models and sandbox
        model=None,                   # explicit, as eval_set passes it with ResolvedTasks
        solver=empty_attempt(),
-       **run_args,
+       **run_args,                   # the caller's run arguments, as given
+       sandbox_cleanup=True,
        fail_on_error=False,
        log_format="eval",
        log_buffer=1,
        log_dir=<tempdir>,
-       **dict(spec.config),          # log.plan.config, as eval-retry passes it
    )
    ```
 
-   Every argument that says how a sample runs comes from
-   `recorded_eval_args()`; zero lists only its own operational settings.
-   It always cleans up its sandboxes, whatever the log recorded, because
-   nothing reads them afterwards. Its other settings are the ones below.
+   `run_args` holds the caller's approval, review and sentinel policies,
+   epochs, sample limits, `model_cost_config`, `retry_on_error`,
+   concurrency limits and generate config, each as given; the task, task
+   arguments, models and sandbox already reached the `ResolvedTask` in step
+   3. Zero adds only its own operational settings below.
 
+   - **What the verdict reflects.** The scratch eval runs the caller's task
+     under the caller's settings. A setting the caller leaves out takes the
+     task's own value, as in `eval()`, so a run that was given a limit,
+     generate option, policy or model at eval level is reproduced only when
+     the caller gives it again. Zero does not check these settings, or the
+     task's code, against the original run beyond the task match above;
+     see Compatibility, "What zero runs".
    - **No second model resolution.** `model=None` is passed explicitly, as
      `eval_set()` passes it with `ResolvedTask`s
      (`src/inspect_ai/_eval/evalset.py:554`). An omitted `model` is
      `NOT_GIVEN`, which `eval_init()` resolves from `INSPECT_EVAL_MODEL`
      (`src/inspect_ai/_eval/eval.py:824`,
      `src/inspect_ai/model/_model.py:2621`): the prepared task would then
-     run once per environment model, and an unavailable environment provider
-     would fail the scratch eval before the task ran.
-   - **Policies.** The recorded approval, review and sentinel policies are
-     passed as eval-level policies, as eval-retry passes them. The runner
-     records a task's own policy in the same fields when no eval-level one
-     overrode it (`src/inspect_ai/_eval/run.py:388-408`), so the scratch
-     eval's `Task.setup` runs under the policies the original attempt ran
-     under. A policy the log recorded as `None` falls back to the task's
-     own, which is none unless the task was edited to declare one (see
-     Compatibility). Omitting them would let a setup tool call that the recorded
-     approver rejected, or that the recorded reviewer or sentinel stopped,
-     run and produce a different, error-free verdict. `eval_async` resolves
-     the policies before any sample runs (`src/inspect_ai/_eval/eval.py:845`,
-     `:861`), so one that cannot be rebuilt (an approver or reviewer the
-     imported task file does not register, a sentinel whose package is not
-     installed) raises there and zero refuses with the log unchanged, as
-     eval-retry would. A recorded policy that asks a human asks during the
-     scratch eval, as it does during eval-retry.
-   - **Sample limits.** The recorded message, token (with its metering type),
-     turn, time, working and cost limits are passed. The runner records a
-     task's own limits there when no eval-level limit overrides them
-     (`src/inspect_ai/_eval/run.py:333-368`), and step 5 has refused every
-     target that a retune moved off them, so they are the limits each
-     target ran under (a limit the log recorded as `None` falls back to the
-     task's own, as for policies). An omitted limit would fall back to the task's
-     default, which is none for a limit that was given only to `eval()`; a
-     `Task.setup` that generates would then run unbounded and produce an
-     error-free verdict that step 8 accepts, where the original run would
-     have hit the limit.
-   - **Generate config.** `log.plan.config` is passed as the eval-level
-     generate options, as eval-retry passes it, and the runner merges it
-     over the task's own config, so every option the log recorded is the
-     one in effect; an option the log recorded as `None` takes the task's
-     own value, as in eval-retry.
-   - **Cost prices.** A log records its cost ceiling, not the prices it was
-     computed with (`set_model_cost()`, `set_model_info()` or
-     `--model-cost-config` are not persisted). With a recorded `cost_limit`,
-     the scratch eval's native price check (`resolve_model_costs`,
-     `src/inspect_ai/model/_util.py:67`, called from
-     `src/inspect_ai/_eval/eval.py:871`) requires cost data for the primary
-     model and every model role, and raises `PrerequisiteError` naming the
-     unpriced models before any sample runs, so zero refuses with the log
-     unchanged. Prices in Inspect's model database need nothing. A Python
-     caller restores custom prices before calling zero with
-     `set_model_cost()`, or `set_model_info()` for a model the database does
-     not know ([Model Cost](../docs/setting-limits.qmd#model-cost)). A fresh
-     `inspect log zero` process has only the database prices and those the
-     task file registers when it is imported; zero adds no pricing flag or
-     stored pricing format, and the docs section says so.
+     run once per environment model.
+   - **Sandbox cleanup.** Zero always cleans up its sandboxes, because
+     nothing reads them afterwards.
    - **Hooks.** The scratch eval is an ordinary eval, so installed hooks
      receive its run, task and sample events, with the solver
      `inspect_ai/empty_attempt` and the empty-attempt verdicts. A hook that
@@ -1248,38 +1063,39 @@ the task may have changed since the log was written".
      refuses the result; removing the scratch directory does not retract
      it. Zero does not suppress hooks; the docs say that the scratch eval is
      visible to them.
+   - **Early stopping.** Zero clears `early_stopping` (`Task.early_stopping`,
+     `src/inspect_ai/_eval/task/task.py:276`) on its copy of the task,
+     because the runner may stop a sample-epoch before setup and scoring
+     (`run.py:2729`) and the scratch log would still report success. Each
+     target's empty attempt is a separate verdict, so nothing in the
+     scratch run should stop early.
    - **Target selection.** The scratch eval passes no `sample_id` and no
      `limit`, so the runner runs every sample of the filtered dataset, and
      that dataset holds exactly the targets, by the string equality of step
-     5. Selection by `sample_id` is not used, because its selectors are
+     4. Selection by `sample_id` is not used, because its selectors are
      patterns read with a task scope (see "Sample-id selection" above): an
-     id with `fnmatch` metacharacters, a task renamed since the log was
-     written, or a task name containing `:` would each need escaping or
-     qualification rules. The filter needs none, and the task's name plays
-     no part. `filter()` returns a new dataset holding the same `Sample`
-     objects, and only the copy's attribute is rebound, so the task the
-     factory returned keeps its whole dataset. Every target has a string id,
-     so the runner's positional-id assignment, which writes to `Sample`
-     objects, leaves them alone. I verified this on a `mockllm` task named
-     `benchmark:variant` with samples `a`, `benchmark:variant:a`, `case[1]`
-     and `case1`: filtering to `a` and `case[1]` ran exactly those two, over
-     two epochs, and the original task's dataset still held all four.
-   - **Epochs.** The scratch eval runs the log's recorded epoch count and
-     reducers from `recorded_eval_args()`, as eval-retry passes them
-     (`eval.py:1844-1848`). A smaller
-     count would keep the task's reducers, and the runner refuses
-     `pass_at_k`, `pass_k_k` and `at_least_k` reducers with fewer than `k`
-     epochs (`validate_reducer`,
-     `src/inspect_ai/scorer/_reducer/registry.py:176`), so zeroing epoch 1
-     of an `Epochs(5, "pass_at_5")` task would fail before any empty attempt
-     ran. The recorded configuration is one the task already ran with.
-     `epochs` is global, so every targeted id runs every recorded epoch.
-     Zeroing a sample by bare id (every epoch, the CLI default) costs
-     nothing extra; zeroing one epoch of a five-epoch log runs five empty
-     attempts. The extra ones provision their sandboxes and run `Task.setup`
-     and the scorers like any other. Only the targeted epoch scores are
-     copied; the scratch log's other samples, results and reductions are
-     ignored.
+     id with `fnmatch` metacharacters or a task name containing `:` would
+     each need escaping or qualification rules. The filter needs none.
+     `filter()` returns a new dataset holding the same `Sample` objects, and
+     only the copy's attribute is rebound, so the caller's task keeps its
+     whole dataset. Every target has a string id, so the runner's
+     positional-id assignment, which writes to `Sample` objects, leaves them
+     alone. I verified this on a `mockllm` task named `benchmark:variant`
+     with samples `a`, `benchmark:variant:a`, `case[1]` and `case1`:
+     filtering to `a` and `case[1]` ran exactly those two, over two epochs,
+     and the original task's dataset still held all four.
+   - **Epochs.** The scratch eval runs the task's epochs, with the caller's
+     `epochs` applied, which step 3 matched with the log's count and
+     reducers. A smaller count would not cover every targeted epoch, and the
+     runner refuses `pass_at_k`, `pass_k_k` and `at_least_k` reducers with
+     fewer than `k` epochs (`validate_reducer`,
+     `src/inspect_ai/scorer/_reducer/registry.py:176`). `epochs` is global,
+     so every targeted id runs every epoch. Zeroing a sample by bare id
+     (every epoch, the CLI default) costs nothing extra; zeroing one epoch
+     of a five-epoch log runs five empty attempts. The extra ones provision
+     their sandboxes and run `Task.setup` and the scorers like any other.
+     Only the targeted epoch scores are copied; the scratch log's other
+     samples, results and reductions are ignored.
    - **Scratch log.** It is read back whole and the directory removed.
    - **Unbuffered.** `log_buffer=1` writes each scratch sample to the log
      file as it completes. With a larger buffer, the recorder holds the
@@ -1293,110 +1109,28 @@ the task may have changed since the log was written".
      `max_samples=1`, and confirmed `log_buffer=1` prevents it. Each
      verdict is therefore serialized before any aggregation runs, and the
      verdicts zero reads back are the scorers' own.
-7. Checks that the scratch eval completed. Its log must have `status ==
+6. Checks that the scratch eval completed. Its log must have `status ==
    "success"`. A cancelled or errored scratch log raises with its status and
    error, without editing anything. `eval_async` can return a cancelled log
    whose targets are already scored and error-free (verified by the
    reviewer under Trio with unfinished extra epochs), so valid target records
    alone do not show that the zero completed.
-8. Checks that the task's scorers are the ones the log records. The original
-   log's `eval.scorers` and the scratch log's, both as read from disk, must
-   hold the same entries in the same order, compared by `name` and
-   `options`. Otherwise zero refuses: "the task's scorers differ from those
-   the log records (<first difference>): scores may have been appended with
-   `inspect score --action append`, or the task's scorers changed since the
-   log was written; zero the samples before appending scores". This catches
-   an appended log, because append adds its scorers to `log.eval.scorers`
-   (`src/inspect_ai/_eval/score.py:443`), and a task whose scorers were
-   added, removed, reordered or reconfigured. When the lists match, zero
-   writes the task's verdicts under the task's keys; an appended log whose
-   headers match an updated task is accepted, with the limitation described
-   under "Which score names a disposition covers".
-
-   Then, for every target, it requires a scratch sample with the same
-   `(id, epoch)`, no `error` and no `limit`, and applies the zero refusals under "Which
+7. For every target, requires a scratch sample with the same `(id, epoch)`,
+   no `error` and no `limit`, and applies the zero refusals under "Which
    score names a disposition covers". Any failure raises, naming every
    failing target and its cause, without editing anything. A missing scratch
    sample reads "the empty attempt of sample <id> (epoch <n>) did not run".
    An errored one reads "...did not score: <error>", and one that hit a
-   limit reads "...hit its <type> limit". This is atomic where
-   Steward's was not required to be: nothing is half-applied.
-9. Stages the zero edits and computes metrics (see "Staged commit"), then
-   calls `await anyio.lowlevel.checkpoint()`, which raises if the caller was
-   cancelled meanwhile. Only then does it commit the staged samples and
-   results, with no further await.
+   limit reads "...hit its <type> limit". This is atomic where Steward's was
+   not required to be: nothing is half-applied.
+8. Stages the zero edits and computes metrics with the task's (see "Staged
+   commit"), then calls `await anyio.lowlevel.checkpoint()`, which raises if
+   the caller was cancelled meanwhile. Only then does it commit the staged
+   samples and results, with no further await.
 
 `zero_samples` is the synchronous wrapper. It initializes the display type
 from `display` and runs the coroutine, as `score()` does: `anyio.run` with
 the configured backend, or `run_coroutine` in a notebook.
-
-### Inline `eval_set()` calls
-
-An eval-set definition may call `eval_set()` at module scope, so importing it
-runs the evaluation. Steward's definitions are such files: its fixture
-`tests/evalset/fixtures/erroring_evalset.py:47` of meridianlabs-ai/inspect_steward
-calls `eval_set(..., log_dir="logs")` unguarded, and Steward sets
-`INSPECT_EVAL_SET_CAPTURE` before its first import of a definition
-(`_marks/run.py:93`) for that reason. Inspect imports a task file by executing
-it (`load_module`, `src/inspect_ai/_util/module.py:35`), both when loading a
-task (`load_tasks`) and when trusted metric resolution imports the log's task
-file (`load_file_tasks`, `src/inspect_ai/_eval/score.py:678`). Capture mode
-is not a library guard: it writes a manifest and raises `SystemExit(0)`
-(`src/inspect_ai/_eval/evalset.py:845`), which would end the caller's
-process.
-
-The disposition functions therefore import task files inside a new guard:
-
-```python
-# src/inspect_ai/_util/module.py, beside load_module(); the evaluation entry points import it
-_inline_eval_set_suppressed: ContextVar[bool] = ContextVar(..., default=False)
-
-class InlineEvalSetSuppressed(BaseException):
-    """Raised by an evaluation entry point called while a task file is imported under the guard."""
-
-@contextmanager
-def inline_eval_set_suppressed() -> Iterator[None]:
-    """Stop a task file's module-scope evaluation from running while it is imported."""
-```
-
-- The context manager sets the variable and resets it with its token in a
-  `finally`, so it is restored when the body raises or is cancelled.
-- While it is set, each of the five public evaluation entry points,
-  `eval_set()`, `eval()`, `eval_async()`, `eval_retry()` and
-  `eval_retry_async()`, raises `InlineEvalSetSuppressed` as its first
-  statement, before the capture branch, platform or display initialization,
-  hooks, crashed-log recovery or any log-directory side effect. `eval_async()` needs the check because a module can run it
-  without a top-level await, as `anyio.run(partial(eval_async, ...))`; the
-  ContextVar's value reaches the coroutine because `anyio.run` runs it in a
-  copy of the caller's context, and the `BaseException` propagates out of
-  it, under both backends (verified). The retry entry points need their
-  own check because they act before they reach `eval_async()`:
-  `eval_retry()` initializes the platform and display
-  (`src/inspect_ai/_eval/eval.py:1500-1503`), and `eval_retry_async()`
-  recovers a crashed (`started`) log from its sample buffer first
-  (`:1724-1764`, [Automatic Recovery](../docs/handling-errors.qmd#automatic-recovery)),
-  which writes a recovered log and, when recovery finalizes it, returns
-  without calling `eval_async()` at all. Zero's own scratch
-  eval runs after the guard is reset, so the check never stops it.
-- `load_module()` catches `InlineEvalSetSuppressed` around
-  `loader.exec_module(module)` and returns the module, executed up to the
-  call. Tasks the file defines above its `eval_set()` call are registered
-  and load normally, which is what capture mode also relies on. The
-  notebook loader does the same around its cell execution.
-- A task defined below the call is never registered, and loading it fails
-  with the loader's ordinary "task not found" error.
-
-The exception derives from `BaseException`, so a definition's own
-`except Exception` around its `eval_set()` call does not swallow it. The
-guard covers task-file imports only: zero sets it inside step 4's `prepare`,
-which runs in a copied context and resets it before returning, and
-`exclude_samples` sets it around trusted metric resolution alone. Zero's
-scratch eval (step 6) runs outside it. That eval receives the
-`ResolvedTask` that `prepare` returned, which task loading passes through
-without importing anything (`src/inspect_ai/_eval/loader.py:134`), so no
-import happens there; and the task's own code that runs during it (setup,
-scorers, metrics) sees the variable unset, so a nested `eval()` there
-behaves as it does in any other eval.
 
 ### CLI
 
@@ -1405,11 +1139,28 @@ Two subcommands of `inspect log` (`src/inspect_ai/_cli/log.py`, beside
 
 ```
 inspect log exclude LOG_FILE --sample ID [--sample ID ...] [--epoch N]
-                    --reason TEXT [--author NAME] [--trust-log] [--json]
-inspect log zero    LOG_FILE --sample ID [--sample ID ...] [--epoch N]
-                    --reason TEXT [--author NAME] [--json]
+                    --reason TEXT [--author NAME]
+                    [--task TASK [-T NAME=VALUE ...] [--model ...] [--model-role ...]]
+                    [--json]
+inspect log zero    LOG_FILE TASK --sample ID [--sample ID ...] [--epoch N]
+                    --reason TEXT [--author NAME]
+                    [-T NAME=VALUE ...] [--task-config FILE]
+                    [--model ...] [--model-base-url ...] [-M ...] [--model-config FILE]
+                    [--model-role ...] [--epochs N] [--epochs-reducer ...]
+                    [--approval ...] [--message-limit N] [--token-limit N] ...
+                    [generate options: --temperature, --max-tokens, ...] [--json]
 ```
 
+- `TASK` (zero) and `--task` (exclude) name the task as `inspect eval`
+  names it: a task file, `file.py@name` or a registered name. Nothing is
+  read from the log to find or build it. Zero's other options are `inspect
+  eval`'s options of the same names, parsed by the same code: the
+  task-argument, model, model-role, epochs, sample-limit, policy,
+  concurrency and generate-config options move out of `eval_options`
+  (`src/inspect_ai/_cli/eval.py:282`) into option groups that both
+  commands apply, and `eval_command`'s conversion of them into `eval()`
+  arguments into a helper both call. The trust model is that of `inspect
+  eval`: the user names the code to run.
 - `--sample` is repeatable and required. `--epoch N` narrows every named
   sample to that epoch; without it, every epoch of each named sample is
   covered.
@@ -1433,21 +1184,17 @@ inspect log zero    LOG_FILE --sample ID [--sample ID ...] [--epoch N]
 - **Changed dataset.** A task's static dataset may have been reordered,
   shuffled or extended since the log was written; a string id still names
   the same sample. A targeted sample the dataset no longer holds, an integer
-  id, and a task fed by a `SampleSource` are refused in step 5, and nothing
+  id, and a task fed by a `SampleSource` are refused in step 4, and nothing
   is edited.
-- **Retuned limits and older records.** A target whose recorded limits
-  differ from the log's header, because an operator retuned them while it
-  ran, a target whose record was carried over from an earlier attempt by a
-  retry, and every target of a log written before Inspect recorded
-  per-sample limits, are refused in step 5, and nothing is edited.
-  Exclusion accepts all three.
-- **Edited task file.** A task file edited since the log was written runs
-  as edited, as eval-retry does, provided its scorers' names and options
-  are unchanged (step 8); zero does not detect other edits (see
-  Compatibility, "Edited tasks"). The scratch log is not kept, but the zero edits record
-  the scorer's answer and explanation for the empty attempt. A verdict whose
-  shape no longer fits the log's metrics is refused by the staged metric
-  computation, and the log is left unchanged.
+- **Another task.** A task whose name, scorer names, metric names, epochs or
+  epoch reducer names differ from the log's is refused before anything runs
+  (step 3 for zero, step 1 for exclusion with a task). A log with appended
+  scores names scorers the task does not have, so it is refused this way.
+- **Different settings or code.** Anything else about the task or its
+  settings is taken as the caller gives it; the scratch log is not kept, but
+  the zero edits record the scorer's answer and explanation for the empty
+  attempt. A verdict whose shape does not fit the task's metrics is refused
+  by the staged metric computation, and the log is left unchanged.
 - **Concurrency.** The functions are synchronous over an in-memory log,
   except zero's scratch eval, which runs before any edit. The CLI's write is
   a conditional write on S3 and last-writer-wins locally, as `edit_score()`
@@ -1455,7 +1202,7 @@ inspect log zero    LOG_FILE --sample ID [--sample ID ...] [--epoch N]
 - **Cancellation.** Cancelling `zero_samples_async` cancels the scratch eval
   and leaves the log unchanged. Sandbox cleanup runs as for any cancelled
   eval. If the scratch eval absorbs the cancellation and returns a cancelled
-  log, step 7 refuses it. If the cancellation arrives after the scratch eval
+  log, step 6 refuses it. If the cancellation arrives after the scratch eval
   returns, the checkpoint before the commit raises it. The commit itself has
   no await, so a cancellation lands either before it (log unchanged) or after
   it (edits complete).
@@ -1528,34 +1275,30 @@ inspect log zero    LOG_FILE --sample ID [--sample ID ...] [--epoch N]
   infers from the log what the metrics read, and `aggregate()` and dict
   metrics count some keys of a value while skipping others. No real use asks
   for it yet (see Future improvements).
-- **List the scratch eval's arguments in zero itself.** Zero would pick the
-  recorded settings it needs one by one. Each setting it forgot (approval,
-  review, sentinel, a limit, its metering type) would let a scratch attempt
-  run differently from the original and produce an error-free verdict, and
-  a setting added to eval-retry later would not reach zero. One helper
-  shared with eval-retry restores the same settings in both.
-- **Replay each target's effective limits.** The scratch eval runs one task
-  with one set of limits, so targets retuned to different limits would need
-  one scratch eval each, or a per-sample limit override the runner does not
-  have. Retunes are an operator's live intervention and rare in a log that
-  is then zeroed; refusing a retuned target, which can still be excluded,
-  keeps one scratch eval.
-- **Refuse a task edited since the log, by comparing the settings it
-  declares with the recorded ones** (its generate config, sample limits,
-  policies, pinned model and model roles), or **pin the recorded settings
-  on zero's copy of the task.** Either catches only edits to settings the
-  log records. Each location has its own precedence and serialization (a
-  pinned model wins over the recorded one; roles merge with the eval's
-  winning; the primary's recorded base URL is the explicit one, while the
-  role serializer writes the resolved one), so the comparison grows a rule
-  per location, and pinning misses whatever task code reads from the
-  factory's own `Task` or models. A comparison must also refuse an
-  unchanged task run with an eval-level value over its own, because the
-  log records only the value in effect. Neither catches an edit to
-  `Task.setup` code, the dataset or a scorer's internals, which change a
-  verdict as much. Zero instead runs the task as it now stands, as
-  eval-retry does, and documents that an edit is the user's responsibility
-  (decision: Ransom, 2026-11-06).
+- **Rebuild the task and its run from the log**, as eval-retry does: import
+  the log's task file or registered name with its recorded arguments,
+  construct the recorded models and replay the recorded eval settings. It
+  needs nothing from the caller, but the log does not hold what is needed
+  to rebuild the run faithfully: it records only the settings in effect
+  (not which came from the eval and which from the task, so a task edited
+  since cannot be detected), it does not record a task factory's
+  construction context, a retune made while a sample ran or the settings
+  of an attempt a retry carried a record over from, and every setting
+  rebuilt from it needs its own rules (model memoization and shared config
+  objects, prices, base URLs, policies). It also imports code a log names.
+  The caller already holds the task and the settings it ran with, as the
+  shard merge's callers do, so zero takes them (decision: Ransom,
+  2026-11-06).
+- **Compare the caller's settings, or the task's declared settings, with
+  the recorded ones.** It catches only edits to settings the log records,
+  needs a rule per setting and location, refuses an unchanged task run
+  with an eval-level value over its own, and never catches an edit to
+  `Task.setup` code, the dataset or a scorer's internals. Zero compares
+  names only, as the merge does, and leaves the rest to the caller.
+- **Rebuild exclusion's metrics from the log with trust** (importing the
+  log's task file, as `recompute_metrics(trust_log=True)` does). Exclusion
+  instead takes the task when the registry cannot build the metrics, so it
+  imports nothing a log names either.
 - **Attribute each held key to a scorer when the scorer list was appended
   to.** Zero could compare options and score-event attribution per key, and
   refuse only ambiguous cases. Refusing any log whose scorer list differs
@@ -1612,39 +1355,26 @@ No migration required.
   unchanged.
 - **Hooks.** A zero runs a scratch eval, which installed hooks see as an
   eval run of the task with the solver `inspect_ai/empty_attempt` (see step
-  6). A hook that exports or notifies on every run does so for it, whether
+  5). A hook that exports or notifies on every run does so for it, whether
   or not zero then commits the verdicts.
-- **Task-file imports.** `eval_set()`, `eval()`, `eval_async()`,
-  `eval_retry()`, `eval_retry_async()` and `load_module()` behave as today
-  unless `inline_eval_set_suppressed()` is active, which only the
-  disposition functions enter. Capture mode is unchanged.
-- **Eval-retry.** Its task and model reconstruction moves into
-  `log_task_spec()` and its run settings into `recorded_eval_args()`, with
-  the same results and errors and one addition: it now restores a recorded
-  `cost_limit`, which it drops today. An eval-retry of a log written with an
-  eval-level cost limit therefore runs under that limit, as the original
-  did, and needs cost data for its models, as the original did; one
-  written with a task's own cost limit is unchanged, because the reloaded
-  task carries it. The CLI's `inspect eval-retry` gains no flag; a caller who
-  wants no cost limit on the retry has no way to drop it, as for the other
-  recorded limits.
-- **Edited tasks (limitation).** Zero does not detect a task edited since
-  the log was written (decision: Ransom, 2026-11-06). It reloads the task
-  as it now stands and replays the log's recorded eval-level settings
-  through `recorded_eval_args()`, as eval-retry does; a recorded value wins
-  over the task's own, and a setting the log recorded as unset takes the
-  task's current value. If an edit changes what the empty attempt produces,
-  the verdict reflects the task as it is now. Examples: a `Task.setup` that
-  generates or calls tools, under a changed generate option, model or
-  policy; a model-graded scorer whose grader, or the grader's config,
-  changed; a scorer or setup that reads a limit; and edits the log never
-  recorded, to setup code, the dataset or a scorer's internals. Making sure
-  the task still produces the verdict intended is the user's
-  responsibility, as with eval-retry. Zero refuses only a change to the
-  scorers' names and options (step 8). Each zero is recorded as a score
-  edit with its reason and author, and the original score stays in
-  `Score.history`, so a zero can be inspected and redone. The docs section
-  states this.
+- **What zero runs (limitation).** Zero runs the task and settings the
+  caller passes and checks only their names against the log ("Matching the
+  task"; decision: Ransom, 2026-11-06). It does not check that the task's
+  code, the options of its scorers, metrics and reducer, or the settings
+  (models, generate config, limits, policies, epochs) are the ones the log
+  ran with, and it does not detect a task edited since the log was
+  written. When they differ, the verdict reflects what the caller passed.
+  Examples: a `Task.setup` that generates or calls tools under another
+  model, generate option or policy; a model-graded scorer whose grader, or
+  the grader's config, differs; a scorer or setup that reads a limit; and
+  edits to setup code, the dataset or a scorer's internals. A setting the
+  original run was given at eval level is reproduced only when the caller
+  gives it again. Passing the task and settings the log ran is the
+  caller's responsibility, as for the shard merge and for eval-retry of an
+  edited task. Each zero is recorded as a score edit with its reason and
+  author, and the original score stays in `Score.history`, so a zero can be
+  inspected and redone. The docs section states this. Exclusion with a task
+  likewise recomputes with the task's metrics as passed.
 - **Eval-set retry.** Unchanged (decision: Ransom, 2026-11-04). A disposition
   does not clear `error`. An errored sample that was zeroed or excluded is
   therefore re-run by `inspect eval-retry` and eval-set retries, and the new
@@ -1655,27 +1385,26 @@ No migration required.
   Steward zero that copied a `NaN` verdict is not treated as zeroed: zeroing
   it again runs an empty attempt. Steward zeroes errored samples and clean
   ones it rules on, such as a successful sandbox escape
-  (`docs/scanners.qmd:56` of meridianlabs-ai/inspect_steward). An errored
-  sample is never carried over by a retry (reuse needs `error is None`), so
-  its record is the latest attempt's and zero accepts it. A clean sample
-  that an eval-set retry carried over from an earlier attempt is refused by
-  zero (step 5), where Steward's side run zeroes it under the current task;
-  it can be excluded. Like Steward's side run, zero runs the current
-  task.
+  (`docs/scanners.qmd:56` of meridianlabs-ai/inspect_steward), and zero
+  accepts both. Steward can pass zero the task it loaded from its definition and the
+  settings its eval set ran with; like its side run, zero then runs the
+  current task.
 
 ## Security
 
 - **Log contents** (the `log.eval` task file, task name, args, scorer and
-  metric specs) are untrusted when the log is. `exclude_samples` imports
-  nothing unless `trust_log=True` (metric resolution, as `recompute_metrics()`
-  does it). `zero_samples` imports and runs the task, like
-  `inspect eval-retry`, and resolves the log's metrics trusted. The
-  docstring, CLI help and docs say to zero only trusted logs. There is no new
-  code-execution path beyond eval-retry's. Both functions import task files
-  under `inline_eval_set_suppressed()`, so a definition's module-scope
-  `eval_set()`, `eval()`, `eval_retry()`, or `eval_async()` or
-  `eval_retry_async()` run through `anyio.run`, does not start an
-  evaluation, recover a crashed log, write logs or reach a provider.
+  metric specs, recorded models and settings) are untrusted when the log
+  is. Neither function imports anything a log names or builds a model,
+  metric or reducer from what it records: the task and the settings come
+  from the caller, and without a task exclusion rebuilds metrics with the
+  existing untrusted resolver, which refuses metric options that name a
+  model or a non-metric registry object. The log contributes only the
+  names compared with the caller's task, the sample ids and the scores, all
+  compared or copied as data.
+- **The caller's task.** A task spec given to `zero_samples` or on the
+  command line is imported and run, with the trust model of `inspect eval`:
+  the user names the code. A file that runs an evaluation at module scope
+  runs it when imported, as under `inspect eval`.
 - **Reason and author** are free text from the local caller: the Python
   caller or the CLI user. A reason that is the literal `"UNCHANGED"` is
   refused, because a score edit would drop it. They are stored as data in
@@ -1747,32 +1476,25 @@ backends; run the zero tests with `--runtrio` locally.
     metadata. The committed zeroed scores equal the empty attempt's verdicts
     and their last history entries, the committed metadata is the target's,
     and untargeted samples are unchanged.
-  - Inline async eval: a task file that defines a task and then calls
-    `anyio.run(partial(eval_async, ..., log_dir=<tmp>/async))` at module
-    scope, with a main solver that records that it ran. Under the guard
-    neither the solver nor `<tmp>/async` runs or appears, and afterwards an
-    ordinary `eval_async` call in the same process runs normally.
-  - Inline retry with recovery: a task file that defines a task and then
-    calls `eval_retry(<crashed log>, incomplete_action="error",
-    log_dir=<tmp>/retry)` at module scope, where the crashed log is a
-    `started` log with a sample buffer holding a completed and an in-progress
-    sample (the fixtures in `tests/log/test_recover_api.py`). Under the
-    guard no recovered log is written beside the crashed one, the buffer
-    database still exists, and `<tmp>/retry` is never created; the same file
-    with `anyio.run(partial(eval_retry_async, ...))` behaves the same.
-  - Inline `eval_set()`: a task file that defines a task and then calls
-    `eval_set(..., log_dir=<tmp>/inline)` at module scope.
-    `exclude_samples(..., trust_log=True)` and `zero_samples` both succeed,
-    `<tmp>/inline` is never created, and the guard variable is reset
-    afterwards, also when the body raises.
+  - `exclude_samples(..., task=...)`: a log whose metric is defined in a test
+    module and not registered when the log is read, excluded with the task:
+    metrics recompute with the task's metric and no module is imported
+    (asserted by patching `load_module`). The same log without a task is
+    refused with the untrusted resolver's `LookupError`, whose advice names
+    the `task` argument, and is unchanged.
+  - Task match for exclusion: a task with another name, another scorer
+    name, another metric name, another epoch count and another reducer name
+    are each refused naming the field, with the log unchanged; a task whose
+    scorer's options differ is accepted.
   - Refusals that raise and leave the log unchanged: unknown selectors, a
     `started` log, an empty reason, the reason `"UNCHANGED"` (for both
-    functions, on a sample whose score has an explanation), and an
-    unresolvable metric.
+    functions, on a sample whose score has an explanation), and, without a
+    task, an unresolvable metric.
 - `tests/log/test_zero_samples.py` (new: no existing file covers running an
-  eval to edit a log). The fixture is a task file with string sample ids,
-  whose `Task.setup` sets a metadata flag and whose main solver would
-  generate.
+  eval to edit a log). The fixture is a task with string sample ids, whose
+  `Task.setup` sets a metadata flag and whose main solver would generate; it
+  is passed both as a built `Task` and as a `file.py@name` spec with task
+  arguments.
   - The happy path: the zeroed scores equal the empty attempt's (`I` for
     `match()`), with reason `zeroed` and the original in `history[0]`. The
     transcript and `error` are unchanged, `Task.setup` ran, and the scratch
@@ -1786,17 +1508,22 @@ backends; run the zero tests with `--runtrio` locally.
     `inspect_ai/empty_attempt`, and the task's main solver does not run.
   - A multi-epoch log with targets `a/1` and `b/2`: `a/2` and `b/1` run in
     the scratch eval, and those samples are left unedited.
-  - Epoch reducers: zeroing epoch 1 of a log recorded with `Epochs(5, r)`
-    succeeds for each of `pass_at_5`, `pass_k_5` and `at_least_5`.
+  - Epoch reducers: zeroing epoch 1 of a log written with `Epochs(5, r)`
+    succeeds for each of `pass_at_5`, `pass_k_5` and `at_least_5`, with the
+    task declaring the epochs and, separately, with a one-epoch task and
+    `epochs=Epochs(5, r)` given to zero as it was given to `eval()`.
   - Task preparation, run in a fresh context and in a context whose active
     model and a `grader` role are unrelated `mockllm` models: a task factory
     that calls `get_model()` and one that reads the `grader` role while
-    constructing the task both receive the log's recorded models, and the
+    constructing the task both receive the models passed to zero, and the
     caller's active model and roles are unchanged afterwards.
-  - A file-backed task with its own epoch reducer, defined in the task file
-    and absent from the registry before the zero: zeroing succeeds in a
-    fresh process (the reducer is registered by step 4 before metrics
-    resolve).
+  - A task spec whose file defines its own epoch reducer and metric, absent
+    from the registry before the zero: zeroing succeeds in a fresh process,
+    with results computed by the task's reducer and metric.
+  - Nothing from the log: zeroing a log whose header names a task file that
+    does not exist and a model provider that is not installed succeeds with
+    the caller's task and a `mockllm` model; no module the log names is
+    imported and no model is built from its header.
   - Integer ids, each refused before the scratch eval with the log
     unchanged: a log of a task whose dataset samples have no ids, run with
     and without `sample_shuffle`; and a dataset with explicit `int` ids. A
@@ -1809,15 +1536,18 @@ backends; run the zero tests with `--runtrio` locally.
   - Sample sources: a task whose `SampleSource` has an empty seed and later
     produces samples is refused before the scratch eval, with the log
     unchanged, also when its produced samples carry string ids.
-  - Environment models: with `INSPECT_EVAL_MODEL` naming two `mockllm`
-    models, the scratch eval runs the prepared task once, with the recorded
-    model; with it naming an unregistered provider, zero still succeeds.
-  - Scorer list: each refused with the log unchanged:
-    - an errored target and a scored neighbour, after `inspect score
-      --action append` of a differently configured instance of the task's
-      scorer, which wrote under the target's vacant key;
-    - a task file whose scorer's options changed since the log was written;
-    - a task file that added a scorer, and one that reordered two.
+  - Models: with `model` given, the scratch eval's header records it and
+    `INSPECT_EVAL_MODEL` is not read; with `model` omitted, it is read as
+    for `eval()`; a list of models is refused before preparation.
+  - Task match: each refused before preparation finishes running anything,
+    with the log unchanged and the message naming the field: another task
+    name; an errored target and a scored neighbour, after `inspect score
+    --action append` of a differently configured instance of the task's
+    scorer, which wrote under the target's vacant key; a task that added a
+    scorer, and one that reordered two; another metric name; another epoch
+    count; another reducer name. A task whose scorer's options differ is
+    accepted, and its verdicts are copied (options are the caller's
+    responsibility).
   - Appended log with matching headers (accepted): the same append, then the
     task updated to `[probe(0), probe(1)]`. Zeroing the errored target
     writes `probe(0)`'s verdict under `probe`, with the appended `probe(1)`
@@ -1839,14 +1569,12 @@ backends; run the zero tests with `--runtrio` locally.
     reducer that writes the epoch mean into its first input, plus a metric
     that mutates its inputs and succeeds: the zeroed scores equal each
     scorer's per-epoch verdict.
-  - Cached task: a registered factory that returns the same cached `Task`
-    with an early-stopping manager, zeroed on a log whose target the dataset
-    no longer holds, so zero refuses after preparation: the cached task's
-    manager is still installed, and a later eval of the task stops early as
+  - The caller's task is not changed: a built `Task` with an early-stopping
+    manager, and a registered factory that returns the same cached `Task`,
+    each zeroed on a log whose target the dataset no longer holds, so zero
+    refuses after preparation, and once successfully: the task keeps its
+    dataset, epochs and manager, and a later eval of it stops early as
     before.
-  - A task defined below its file's module-scope `eval_set()` call fails
-    with the loader's "task not found" error, and the log is unchanged.
-  - A metric whose options name a model resolves.
   - A sample whose `zeroed` score holds `NaN` (a Steward zero) is zeroed
     again rather than reported unchanged.
   - A zeroed score later edited with `ScoreEdit(value=1)` is zeroed again
@@ -1876,94 +1604,42 @@ backends; run the zero tests with `--runtrio` locally.
       returns `None` on the empty attempt, both with and without setting
       `state.completed`: refused with the setup-scores message, and the
       input log's samples, results and reductions are unchanged;
-    - a `Task.setup` that generates twice, in a log written with
-      `eval(..., message_limit=1)` and a task with no limit of its own:
-      the scratch eval hits the recorded limit and the target is refused as
-      having hit a limit; likewise a recorded `token_limit` with an
-      `"output"` metering type;
-    - a log written with a `cost_limit`, a primary model and a model role
-      priced through `set_model_info()`, zeroed after the price cache is
-      cleared: refused with the native `PrerequisiteError` naming both models
-      and the log unchanged; restoring only the primary's price still refuses
-      on the role; restoring both, zero succeeds;
-    - recorded policies, each given only to `eval()` on a task with none of
-      its own, with a `Task.setup` that makes one local tool call scored by
-      whether the tool ran: an approval policy that rejects the tool, a
-      tool reviewer that terminates the sample, and a sentinel that rejects
-      the tool (the repository's fake sentinel integration,
+    - a `Task.setup` that generates twice, zeroed with `message_limit=1`:
+      the scratch eval hits the limit and the target is refused as having
+      hit a limit; likewise a `token_limit` with an `"output"` metering
+      type;
+    - policies passed to zero, on a task with none of its own, with a
+      `Task.setup` that makes one local tool call scored by whether the tool
+      ran: an approval policy that rejects the tool, a tool reviewer that
+      terminates the sample, and a sentinel that rejects the tool (the
+      repository's fake sentinel integration,
       `tests/test_helpers/fake_sentinel.py`). Under the rejecting approval
       policy and the sentinel the tool does not run in the scratch eval
       (asserted through its side effect) and zero copies the "not run"
       verdict. A tool reviewer examines a call after it has run
       (`docs/review.qmd`), so under the terminating reviewer the tool runs
       once, the scratch sample ends with an operator limit, and zero refuses
-      the target. A policy
-      naming an approver the task file does not register refuses before the
-      scratch eval, with the log unchanged;
-    - retuned limits: a two-sample log in which a hook calls
-      `set_sample_limit_override()` as the first sample starts, so that
-      sample records message, token and time limits that differ from the
-      header while the second keeps the launch limits. Zeroing the first is
-      refused naming the field, before any scratch sample runs; zeroing the
-      second succeeds; zeroing both is refused and nothing is edited. A
-      plain-count token limit (`token_limit_type` absent in the header,
-      `"all"` on the sample) passes;
-    - an older log: the same log with `eval.packages["inspect_ai"]` set to
-      `0.3.260`, to `0.3.261.dev3`, and removed, is refused as not
-      recording per-sample limits; `0.3.261` passes;
-    - carried-over records: a log written with message and time limits and
-      no turn limit, in which one sample errored, retried with eval-retry
-      after the task factory was edited to declare `turn_limit=1`, with a
-      `Task.setup` that would hit that limit. The retried header records the
-      turn limit, and the carried-over clean sample's message, time and
-      token fields still match it. Zeroing the re-run sample runs under the
-      new header; zeroing the carried-over sample is refused as carried
-      over, before any scratch sample runs, and the log is unchanged. The
-      carried record's `started_at` is taken from the real earlier run, not
-      set by hand;
+      the target;
     - a log with no task scorers;
-    - a task edited to return a scalar under a name whose logged metrics
-      expect a dict: the `TypeError` is re-raised and the samples, results
-      and reductions are those of the input log;
-    - an ephemeral task.
-  - An edited task, which zero does not detect: a log written with no
-    message limit and `temperature` unset, zeroed after the factory was
-    edited to declare `message_limit=20` and `temperature=0.7`, with a
-    `Task.setup` that generates and a scorer that reads both: zero succeeds,
-    the scratch eval's header records the task's new values, and the zeroed
-    score carries the reason and the original in `history[0]`. A log
-    written with `eval(task, message_limit=1)` over a task declaring
-    `message_limit=5` runs under the recorded `1`.
-  - Detached input: a file-backed task that pins nothing and runs with a
-    recorded primary model with `temperature=0.0`, a `grader` role with
-    `max_tokens=5` and a two-model `panel` ensemble. Its factory sets the
-    current model's `config.temperature`, the `grader` role's
-    `config.max_tokens` and the first ensemble member's
-    `config.temperature`, and its metric factory appends to its options:
-    - with a target the dataset no longer holds, so zero refuses after
-      preparation;
-    - with a `Task.setup` that sets the same fields again and then raises,
-      so zero refuses after the scratch eval.
-
-    - as the first, with the primary on a provider that memoizes (`none`,
-      which `mockllm` is not), after a native `eval_retry(log)` of the same
-      caller-owned `EvalLog` in the process has cached that primary.
-
-    In each, `log.model_dump()` before and after the call is equal, which
-    covers `eval.model_generate_config`, the nested role and ensemble
-    configs, `plan.config`, the metric options, samples and results.
+    - a task whose scorer returns a scalar where its dict metrics expect a
+      dict: the `TypeError` is re-raised and the samples, results and
+      reductions are those of the input log.
+  - Settings are the caller's: a log written with `temperature` unset and
+    no message limit, zeroed with a task now declaring `message_limit=20`
+    and `temperature=0.7` and a `Task.setup` that generates and a scorer
+    that reads both: zero succeeds, the scratch eval's header records the
+    task's values, and the zeroed score carries the reason and the original
+    in `history[0]`.
   - A scorer that needs a sandbox, using the `local` sandbox, sees files from
     `Sample.files` and nothing the original attempt wrote.
-- `tests/test_eval.py`: the existing eval-retry tests pass unchanged after
-  the reconstruction moves into `log_task_spec()` and
-  `recorded_eval_args()`. One new test: a log written with
-  `eval(..., cost_limit=...)` on a task with none of its own is retried, and
-  the retried log's `eval.config.cost_limit` equals the original's.
-  `recorded_eval_args()` gets a unit test over a log carrying every field,
-  asserting each value and the `TokenLimit` rebuilt for an `"output"` type.
 - `tests/_cli/`: `inspect log exclude|zero` parse `--sample`, `--epoch`,
   `--reason` and `--author`, write in place, and print the per-sample lines
-  and the `--json` envelope.
+  and the `--json` envelope. `inspect log zero LOG TASK` passes `-T`,
+  `--model`, `--model-role`, `--epochs`, a sample limit and a generate
+  option through to the scratch eval (asserted on its header), and
+  `inspect log exclude --task` recomputes with the task's metric.
+  `inspect eval`'s own option tests pass unchanged after its options move
+  into shared groups.
 - Schema drift: the OpenAPI and TypeScript drift checks pass after the
   regeneration step.
 
@@ -1985,42 +1661,40 @@ path.
 
    Tests: the reducer tests.
 2. **Exclude.**
+   - `task_difference()` and `TaskDifference` in
+     `src/inspect_ai/log/_task_match.py`, factored out of the merge's
+     `check_task_matches()` (`src/inspect_ai/log/_shards/_write.py`), which
+     keeps its `ShardSetError` and messages.
+   - `task_log_metrics()` in `src/inspect_ai/log/_metric.py`.
    - `src/inspect_ai/log/_disposition.py`: `SampleSelector`,
-     `DispositionResult`, and `exclude_samples` with its score-key rule.
+     `DispositionResult`, `prepare_task()`, and `exclude_samples` with its
+     score-key rule and optional task.
    - Exports in `src/inspect_ai/log/__init__.py`.
-   - `inspect log exclude` in `src/inspect_ai/_cli/log.py`, with the default
-     author helper moved from `src/inspect_ai/_cli/ctl/_config.py` to
-     `src/inspect_ai/_cli/util.py`.
-   - `inline_eval_set_suppressed()` and `InlineEvalSetSuppressed` in
-     `src/inspect_ai/_util/module.py`, caught by `load_module()` and the
-     notebook loader (`src/inspect_ai/_util/notebook.py`), and checked first
-     in `eval_set()` (`src/inspect_ai/_eval/evalset.py`), `eval()`,
-     `eval_async()`, `eval_retry()` and `eval_retry_async()`
-     (`src/inspect_ai/_eval/eval.py`).
+   - The `inspect eval` options for the task, models, epochs, sample
+     limits, policies, concurrency and generate config split out of
+     `eval_options` (`src/inspect_ai/_cli/eval.py`) into groups, with their
+     conversion into `eval()` arguments in a shared helper; `inspect eval`
+     behaves as before.
+   - `inspect log exclude` in `src/inspect_ai/_cli/log.py`, with `--task`,
+     and the default author helper moved from
+     `src/inspect_ai/_cli/ctl/_config.py` to `src/inspect_ai/_cli/util.py`.
    - A "Zeroing and Excluding Samples" section in `docs/eval-logs.qmd`,
-     including the retry behaviour and, for a running eval, `inspect ctl
-     sample cancel --action cancel` followed by these commands once the log
-     lands.
+     including the retry behaviour, passing the task, and, for a running
+     eval, `inspect ctl sample cancel --action cancel` followed by these
+     commands once the log lands.
 
    Tests as above.
 3. **Zero.**
-   - `log_task_spec` and `LogTaskSpec`, and `recorded_eval_args` and
-     `RecordedEvalArgs`, extracted in `src/inspect_ai/_eval/eval.py` and used
-     by `eval_retry_async`.
-   - `parse_version()` in `src/inspect_ai/_util/version.py`, factored out of
-     `_installed_version()`.
    - `src/inspect_ai/_eval/zero.py`: `empty_attempt`, `empty_attempt_check`,
-     `SetupWroteScores` and the scratch eval; `detached_header` in
-     `_disposition.py`.
+     `SetupWroteScores` and the scratch eval.
    - `zero_samples` / `zero_samples_async` in `_disposition.py`, with a
      function-local import of `_eval.zero`.
-   - `inspect log zero`, and the docs section extended, including that
-     zero runs the task as it now stands and does not detect edits since
-     the log (with the examples under Compatibility, "Edited tasks"), that
-     hooks see the scratch eval and that a log with a cost limit needs its
-     custom prices restored (linking Model Cost).
+   - `inspect log zero LOG TASK` with the shared eval option groups, and the
+     docs section extended: zero runs the task and settings the caller
+     passes and checks only their names against the log (with the examples
+     under Compatibility, "What zero runs"), and hooks see the scratch eval.
 
-   Tests as above, plus the existing eval-retry tests unchanged.
+   Tests as above.
 
 ## Open questions
 
@@ -2069,28 +1743,17 @@ additions later:
   string ids, if a reliable way to establish that a logged integer id names
   the same sample turns up (the log would have to record whether its ids
   were assigned by position).
-- **Model overrides for zero.** `zero_samples(..., model=..., model_roles=...)`
-  and `inspect log zero --model / --model-role`, for a log whose recorded
-  provider is unavailable, plus a task-argument override for tasks that take
-  their model as an argument. Overrides need rules for models the task
-  constructs or pins itself, which take precedence over or are constructed
-  before an eval-level model, and neither the issue nor Steward needs them
-  (decision: Ransom, 2026-11-04).
 - **Live zero** (`inspect ctl sample cancel --action zero`), for queued and
   initializing samples. The runner would resolve it at start by running a
   setup-only plan (`Task.setup` alone) and passing each scorer's result
   through the zero edit. Beyond what live exclusion needs, it needs a
   disposition carried across `retry_on_error` re-parks, and the zero
   refusals applied at scoring time.
-- **Zero records carried over by a retry.** Zero refuses a record copied
-  from an earlier attempt, because the log records only the latest
-  attempt's settings. Recording the turn, working and cost limits and the
-  policies on each sample, or the settings of every attempt in the header,
-  would let zero replay a carried-over record's own settings.
-- **Detecting an edited task.** Zero runs the task as it now stands. A
-  fingerprint of the task recorded in the log (its source, dataset and
-  declared settings, apart from what came from the eval) would let zero
-  refuse, or warn about, a task edited since the log was written.
+- **Checking the caller's task against the log.** Zero compares names only.
+  A fingerprint of the task recorded in the log (its source, dataset and
+  the options of its scorers, metrics and reducer), and a record of which
+  settings came from the eval, would let zero refuse, or warn about, a task
+  or settings other than the ones the log ran.
 
 ## Not this design
 
@@ -2101,10 +1764,6 @@ additions later:
 - Showing dispositions distinctly in the viewer: a badge for `excluded` /
   `zeroed`, and the provenance author and reason on the sample header.
 - An `inspect log invalidate`-style CLI for the existing re-run path.
-- eval-retry builds its models from the `EvalLog` it is given without
-  copying it, so a task or scorer that changes its model's config changes a
-  caller's `EvalLog` object. Zero detaches its own input; eval-retry, which
-  shares `log_task_spec()`, keeps its behaviour.
 - Two recomputation defects that affect any score edit today, with or
   without these functions:
   - `compute_log_metrics()` passes no scorer identities to `eval_results()`
