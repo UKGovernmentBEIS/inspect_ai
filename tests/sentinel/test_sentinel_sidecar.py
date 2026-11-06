@@ -33,7 +33,7 @@ from inspect_ai._sentinel._sidecar._task import (
     TaskSidecars,
 )
 from inspect_ai._util._async import tg_collect
-from inspect_ai._util.exception import TerminateSampleError
+from inspect_ai._util.exception import SampleRefusedError, TerminateSampleError
 from inspect_ai.agent import AgentState, react
 from inspect_ai.agent._bridge.sandbox.service import (
     _forward_provider_errors,
@@ -386,10 +386,29 @@ async def test_a_sample_the_sidecar_wont_take_is_an_error() -> None:
     sidecar = await sidecars.sidecar(_model(stand_in).api)
     assert sidecar is not None
 
-    with pytest.raises(SentinelProxyError, match="couldn't register the sample 1"):
+    # refused, as a sample that would be refused again, not failed
+    with pytest.raises(SampleRefusedError, match="the sample 1 of the task"):
         await sidecars.complete_registration(sidecar, _sample(), "sample_123", 1)
     # a refusal isn't a forgotten task: nothing is registered again
     assert len(_registered(stand_in, "register_task")) == 1
+
+
+async def test_a_sample_the_sidecar_cant_register_is_an_error() -> None:
+    # any other failure to register the sample is an error, which a retry
+    # may get past
+    stand_in = StandInSidecar(
+        methods={
+            "complete_registration": lambda _: {
+                "error": {"code": -32008, "message": "the registration is full"}
+            }
+        }
+    )
+    sidecars = TaskSidecars("auto", _FACTS)
+    sidecar = await sidecars.sidecar(_model(stand_in).api)
+    assert sidecar is not None
+
+    with pytest.raises(SentinelProxyError, match="couldn't register the sample 1"):
+        await sidecars.complete_registration(sidecar, _sample(), "sample_123", 1)
 
 
 def _forgets_the_task(times: int) -> Callable[[dict[str, Any]], dict[str, Any]]:
@@ -1393,6 +1412,38 @@ def test_a_sample_the_sidecar_never_accepted_is_never_retried_or_scored() -> Non
     assert "SampleRefusedError" in sample.error.message
     assert sample.scores is None or sample.scores == {}
     assert len(stand_in.model_calls) == 1
+
+
+def test_a_sample_whose_registration_the_sidecar_refuses_is_never_retried_or_scored() -> (
+    None
+):
+    # a sample the task's registration doesn't name, under `registered_only`,
+    # as one added while the task runs: a retry would be refused the same way
+    stand_in = StandInSidecar(
+        methods={
+            "complete_registration": lambda _: {
+                "error": {"code": -32001, "message": "not a registered sample"}
+            }
+        }
+    )
+    task = Task(dataset=[Sample(input="Hi.")], solver=generate(), scorer=_graded())
+
+    [log] = eval(
+        task,
+        model=_model(stand_in),
+        retry_on_error=2,
+        score_on_error=True,
+        display="none",
+    )
+
+    assert log.samples is not None
+    [sample] = log.samples
+    assert sample.error is not None
+    assert "SampleRefusedError" in sample.error.message
+    assert sample.scores is None or sample.scores == {}
+    # asked once, never retried, and no model call was made
+    assert len(_registered(stand_in, "complete_registration")) == 1
+    assert stand_in.model_calls == []
 
 
 def test_a_sample_the_sidecar_lost_is_retried_and_registered_again() -> None:
