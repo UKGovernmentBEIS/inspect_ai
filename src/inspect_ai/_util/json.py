@@ -2,6 +2,7 @@ import json
 from typing import (
     TYPE_CHECKING,
     Any,
+    Collection,
     Iterable,
     Literal,
     Mapping,
@@ -162,11 +163,17 @@ class ExcludingObjectBuilder:
     selectively: feed it the ``(event, value)`` pairs a streaming parse
     yields, and ``data`` holds the included top-level fields when the parse
     ends. An excluded key's subtree is never built, so it costs no memory.
+    With `include_fields`, every top-level key not in it is excluded too.
     """
 
-    def __init__(self, exclude_fields: set[str]) -> None:
+    def __init__(
+        self,
+        exclude_fields: set[str],
+        include_fields: Collection[str] | None = None,
+    ) -> None:
         self.data: dict[str, Any] = {}
         self._excluded = exclude_fields
+        self._included = include_fields
         self._depth = 0
         self._key = ""
         self._builder: Any | None = None
@@ -179,7 +186,10 @@ class ExcludingObjectBuilder:
 
         if self._depth == 1 and event == "map_key":
             self._key = value
-            self._builder = None if value in self._excluded else ijson.ObjectBuilder()
+            excluded = value in self._excluded or (
+                self._included is not None and value not in self._included
+            )
+            self._builder = None if excluded else ijson.ObjectBuilder()
         elif self._builder is not None:
             self._builder.event(event, value)
             if self._depth == 1:

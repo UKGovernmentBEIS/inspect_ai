@@ -1,14 +1,16 @@
 """Building the merged log's zip, computing results with the caller's task."""
 
-import contextlib
 import functools
 import json
 import zipfile
-from collections.abc import AsyncGenerator, Callable, Sequence
+import zlib
+from collections.abc import Awaitable, Callable, Sequence
 from typing import IO, TYPE_CHECKING, Any, BinaryIO, NamedTuple
 
 from pydantic import BaseModel
 
+from inspect_ai._util.async_zip import AsyncZipReader, _check_crc
+from inspect_ai._util.compression import PieceDecompressor
 from inspect_ai._util.constants import get_deserializing_context
 from inspect_ai._util.error import EvalError
 from inspect_ai._util.json import (
@@ -20,13 +22,13 @@ from inspect_ai._util.json import (
     to_json_safe,
 )
 from inspect_ai._util.registry import registry_unqualified_name
+from inspect_ai._util.zip_common import ZipEntry
 from inspect_ai._util.zipfile import zipfile_compress_kwargs
 from inspect_ai.log._edit import ProvenanceData
 from inspect_ai.log._log import (
     EvalLog,
     EvalMetricDefinition,
     EvalResults,
-    EvalSample,
     EvalSampleReductions,
     EvalSampleSummary,
 )
@@ -142,7 +144,7 @@ async def write_merged_zip(
     out: BinaryIO,
     *,
     keys: Sequence[SampleRecordKey],
-    read_member: Callable[[SampleRecordKey], AsyncGenerator[bytes, None]],
+    read_member: Callable[[SampleRecordKey], Awaitable["SampleMember"]],
     summaries: Sequence[EvalSampleSummary],
     task: "Task",
     total_samples: int,
@@ -150,20 +152,21 @@ async def write_merged_zip(
 ) -> EvalLog:
     """Write the merged log's members to `out` and return its header.
 
-    Each sample's decompressed bytes, streamed by `read_member`, are written
-    under the name rebuilt from its key and parsed as they pass, keeping only
-    what computing the results needs. Then the summaries, the reductions and
-    the header (made by `make_header` from the results and the samples'
-    invalidation) are written. No journal is written: the merged log is
-    always written finished. The results are computed in the caller's model
+    Each sample member that `read_member` locates is decompressed as it
+    streams, written under the name rebuilt from its key and parsed as it
+    passes, keeping only what computing the results needs. Then the
+    summaries, the reductions and the header (made by `make_header` from the
+    results and the samples' invalidation) are written. No journal is
+    written: the merged log is always written finished. The results are computed in the caller's model
     context: the merge builds no model from what the shards record.
 
     Raises:
         ShardSetError: A sample member's id or epoch does not match its name,
-            it has a field this version of Inspect does not write, a sample
+            it has a deprecated field (`score`, `transcript`), a sample
             with a declared score has no `SampleInitEvent`, or some samples
             were scored and others ran without scoring.
         pydantic.ValidationError: A sample member does not parse.
+        ZipCrcError: A sample member's bytes do not match its CRC-32.
     """
     with zipfile.ZipFile(out, "w", **zipfile_compress_kwargs) as zf:
         inputs: list[_SampleInputs] = []
@@ -182,9 +185,22 @@ async def write_merged_zip(
     return header
 
 
+class SampleMember(NamedTuple):
+    """A sample member to copy into the merged log."""
+
+    reader: AsyncZipReader
+    """A reader of the log holding it, which verifies CRCs."""
+    entry: ZipEntry
+    location: str
+    """The log holding it, as errors name it."""
+
+
 _KEPT_FIELDS = frozenset({"id", "epoch", "scores", "error", "invalidation"})
-"""The sample fields the merge keeps; it reads the rest only from `events`."""
-_SKIPPED_FIELDS = frozenset(EvalSample.model_fields) - _KEPT_FIELDS
+"""The sample fields the merge keeps; it reads the rest only from `events`.
+Other fields, including any a later version of Inspect adds, are skipped."""
+_DEPRECATED_FIELDS = frozenset({"score", "transcript"})
+"""Fields that `EvalSample` migrates to `scores` and `events`, written only
+by versions of Inspect from before shards."""
 
 # ijson prefixes of an event, its kind and type, and its sample's metadata
 _EVENT = "events.item"
@@ -206,7 +222,9 @@ class _ScoringFields(BaseModel):
 
 class _ParsedSample(NamedTuple):
     fields: dict[str, Any]
-    """The top-level fields, without the `EvalSample` fields the merge skips."""
+    """The kept top-level fields."""
+    deprecated: list[str]
+    """The deprecated top-level fields present."""
     initialized: bool
     initial_metadata: Any
     scoring_ran: bool
@@ -215,7 +233,7 @@ class _ParsedSample(NamedTuple):
 class _SampleParse:
     """An include-only parse of a sample member, fed its bytes in chunks.
 
-    Builds the kept top-level fields with the builder behind
+    Builds only the kept top-level fields, with the builder behind
     `read_eval_log(exclude_fields=...)`. Of the events, which it never
     builds, it keeps the first `sample_init` event's `sample.metadata` and
     whether a `scorer` span began. Peak memory follows the largest single
@@ -224,7 +242,8 @@ class _SampleParse:
 
     def __init__(self) -> None:
         self._parser = JSONPushParser()
-        self._fields = ExcludingObjectBuilder(set(_SKIPPED_FIELDS))
+        self._fields = ExcludingObjectBuilder(set(), include_fields=_KEPT_FIELDS)
+        self._deprecated: list[str] = []
         self._event: dict[str, Any] = {}
         self._metadata: ExcludingObjectBuilder | None = None
         self._initialized = False
@@ -238,6 +257,7 @@ class _SampleParse:
         self._take(self._parser.close())
         return _ParsedSample(
             fields=self._fields.data,
+            deprecated=self._deprecated,
             initialized=self._initialized,
             initial_metadata=self._initial_metadata,
             scoring_ran=self._scoring_ran,
@@ -246,6 +266,8 @@ class _SampleParse:
     def _take(self, events: list[tuple[str, str, Any]]) -> None:
         for prefix, event, value in events:
             self._fields.event(event, value)
+            if prefix == "" and event == "map_key" and value in _DEPRECATED_FIELDS:
+                self._deprecated.append(value)
             if prefix.startswith(_EVENT):
                 self._sample_event(prefix, event, value)
 
@@ -287,13 +309,18 @@ def _parse_whole(data: bytes) -> _ParsedSample:
     sample = json.loads(data)
     if not isinstance(sample, dict):
         return _ParsedSample(
-            fields={}, initialized=False, initial_metadata=None, scoring_ran=False
+            fields={},
+            deprecated=[],
+            initialized=False,
+            initial_metadata=None,
+            scoring_ran=False,
         )
     events = [e for e in sample.get("events") or [] if isinstance(e, dict)]
     init = next((e for e in events if e.get("event") == "sample_init"), None)
     init_sample = init.get("sample") if init is not None else None
     return _ParsedSample(
-        fields={k: v for k, v in sample.items() if k not in _SKIPPED_FIELDS},
+        fields={k: v for k, v in sample.items() if k in _KEPT_FIELDS},
+        deprecated=[k for k in sample if k in _DEPRECATED_FIELDS],
         initialized=init is not None,
         initial_metadata=(
             init_sample.get("metadata") if isinstance(init_sample, dict) else None
@@ -313,30 +340,38 @@ def _takes_whole_parse(ex: Exception) -> bool:
     )
 
 
+_PIECE_SIZE = 64 * 1024
+"""Bytes of a decompressed member parsed at once. The parser returns every
+event of a piece together, which takes several times the piece's size when
+its JSON holds many small values."""
+
+
 class _SampleCopy:
     """Writes a sample member to the merged zip, parsing it as it passes.
 
+    Fed the member's compressed bytes, it decompresses them in bounded
+    pieces, each written, parsed and added to the CRC-32 before the next.
     Blocking: each call runs in a worker thread.
     """
 
-    def __init__(self, zf: zipfile.ZipFile, name: str) -> None:
+    def __init__(self, zf: zipfile.ZipFile, name: str, member: SampleMember) -> None:
         self._zf = zf
         self._name = name
+        self._member = member
         self._writer: IO[bytes] | None = None
         self._parse: _SampleParse | None = _SampleParse()
+        self._crc = 0
+        self._decompressor = PieceDecompressor(
+            member.entry.compression_method, self._piece, _PIECE_SIZE
+        )
 
-    def write(self, chunk: bytes) -> None:
-        self._open().write(chunk)
-        if self._parse is not None:
-            try:
-                self._parse.feed(chunk)
-            except Exception as ex:
-                if not _takes_whole_parse(ex):
-                    raise
-                self._parse = None
+    def write(self, data: bytes) -> None:
+        """Take the next chunk of the member's compressed bytes."""
+        self._decompressor.write(data)
 
     def finish(self) -> _ParsedSample | None:
         """Finish the member; None when it must be parsed whole."""
+        _check_crc(self._member.location, self._member.entry, self._crc)
         self._open().close()
         if self._parse is None:
             return None
@@ -352,6 +387,17 @@ class _SampleCopy:
         if self._writer is not None:
             self._writer.close()
 
+    def _piece(self, piece: bytes) -> None:
+        self._crc = zlib.crc32(piece, self._crc)
+        self._open().write(piece)
+        if self._parse is not None:
+            try:
+                self._parse.feed(piece)
+            except Exception as ex:
+                if not _takes_whole_parse(ex):
+                    raise
+                self._parse = None
+
     def _open(self) -> IO[bytes]:
         if self._writer is None:
             self._writer = self._zf.open(self._name, "w", force_zip64=True)
@@ -361,18 +407,19 @@ class _SampleCopy:
 async def _copy_sample(
     zf: zipfile.ZipFile,
     key: SampleRecordKey,
-    read_member: Callable[[SampleRecordKey], AsyncGenerator[bytes, None]],
+    read_member: Callable[[SampleRecordKey], Awaitable[SampleMember]],
 ) -> _SampleInputs:
     """Copy one sample member into `zf` and return what the results need of it.
 
-    The member is streamed, so only one chunk of it is in memory at a time,
-    unless it holds a number the streaming parser refuses; it is then read
-    again and parsed whole.
+    The member is streamed, so only one chunk of its compressed bytes and one
+    bounded piece of its decompressed bytes are in memory at a time, unless it
+    holds a number the streaming parser refuses; it is then read again and
+    parsed whole.
     """
-    name = _sample_filename(key.sample_id, key.epoch)
-    copy = _SampleCopy(zf, name)
+    member = await read_member(key)
+    copy = _SampleCopy(zf, _sample_filename(key.sample_id, key.epoch), member)
     try:
-        async with contextlib.aclosing(read_member(key)) as chunks:
+        async with await member.reader.open_member_raw(member.entry) as chunks:
             async for chunk in chunks:
                 await run_owned(functools.partial(copy.write, chunk))
         parsed = await run_owned(copy.finish)
@@ -380,19 +427,17 @@ async def _copy_sample(
         # worker threads have finished (run_owned), so this cannot race them
         copy.close()
     if parsed is None:
-        async with contextlib.aclosing(read_member(key)) as chunks:
-            data = b"".join([chunk async for chunk in chunks])
+        data = await member.reader.read_member_fully(member.entry)
         parsed = await run_owned(functools.partial(_parse_whole, data))
     return _sample_inputs(key, parsed)
 
 
 def _sample_inputs(key: SampleRecordKey, parsed: _ParsedSample) -> _SampleInputs:
     name = _sample_filename(key.sample_id, key.epoch)
-    unknown = sorted(set(parsed.fields) - _KEPT_FIELDS)
-    if unknown:
+    if parsed.deprecated:
         raise ShardSetError(
-            f"Sample member {name} has the fields {unknown}, which this version of "
-            "Inspect does not write in a sample. Re-run the shard holding it."
+            f"Sample member {name} has the deprecated fields {parsed.deprecated}, "
+            "which only logs from before shards hold. Re-run the shard holding it."
         )
     sample = _ScoringFields.model_validate(
         {**parsed.fields, "initial_metadata": parsed.initial_metadata},

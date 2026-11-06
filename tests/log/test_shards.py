@@ -2306,7 +2306,7 @@ def test_incremental_merge_reads_only_changed_shards(
         opened.append(filename)
         init(self, fs, filename, *a, **k)
 
-    open_member = AsyncZipReader.open_member
+    open_member = AsyncZipReader.open_member_raw
 
     async def spy_read(self: AsyncZipReader, member: Any) -> bytes:
         name = member if isinstance(member, str) else member.filename
@@ -2320,7 +2320,7 @@ def test_incremental_merge_reads_only_changed_shards(
 
     monkeypatch.setattr(AsyncZipReader, "__init__", spy_init)
     monkeypatch.setattr(AsyncZipReader, "read_member_fully", spy_read)
-    monkeypatch.setattr(AsyncZipReader, "open_member", spy_open)
+    monkeypatch.setattr(AsyncZipReader, "open_member_raw", spy_open)
 
     # nothing changed: nothing written, no shard opened
     result = merge_eval_log_shards(merged, _task(), allow_incomplete=True)
@@ -3117,7 +3117,7 @@ def _crc_failures(
 
         return call
 
-    for method in ["read_member_fully", "open_member"]:
+    for method in ["read_member_fully", "open_member_raw"]:
         monkeypatch.setattr(
             AsyncZipReader, method, failing(getattr(AsyncZipReader, method))
         )
@@ -4329,16 +4329,23 @@ _MiB = 1024 * 1024
 
 
 @solver
-def _chatty(events: int) -> Solver:
-    """Logs `events` info events of 32 KiB of incompressible text each."""
+def _chatty(events: int, repeated: bool) -> Solver:
+    """Logs `events` info events of 32 KiB of text each.
+
+    The text is random, or with `repeated` one random block repeated with a
+    different prefix, which compresses far beyond the reads' chunk size.
+    """
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         import base64
 
         from inspect_ai.log import transcript
 
-        for _ in range(events):
-            transcript().info(base64.b64encode(os.urandom(24 * 1024)).decode())
+        block = base64.b64encode(os.urandom(24 * 1024)).decode()
+        for i in range(events):
+            if not repeated:
+                block = base64.b64encode(os.urandom(24 * 1024)).decode()
+            transcript().info(f"{i}:{block}")
         return await generate(state)
 
     return solve
@@ -4356,10 +4363,11 @@ def _merge_peak(merged: str, task: Task) -> tuple[ShardMergeResult, int]:
         tracemalloc.stop()
 
 
+@pytest.mark.parametrize("data", ["random", "repeated"])
 @pytest.mark.parametrize("writer", ["zstd", "deflate"])
 @pytest.mark.parametrize("write", ["fresh", "incremental"])
 def test_merge_peak_memory_does_not_grow_with_transcript_size(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, write: str, writer: str
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, write: str, writer: str, data: str
 ) -> None:
     if writer == "deflate":
         # a compressor that returns its output as it goes, so that the
@@ -4370,7 +4378,7 @@ def test_merge_peak_memory_does_not_grow_with_transcript_size(
         )
     peaks, compressed = {}, {}
     for events in [100, 400]:
-        task = _task(samples=2, solver=_chatty(events))
+        task = _task(samples=2, solver=_chatty(events, data == "repeated"))
         merged, shards = _paths(tmp_path / str(events))
         _run(shards, "0", task, sample_id=[1])
         _run(shards, "1", task, sample_id=[2])
@@ -4388,7 +4396,8 @@ def test_merge_peak_memory_does_not_grow_with_transcript_size(
         compressed[events] = member.compress_size
     # sample members of about 3 and 13 MiB; parsing them whole took 4.5 times
     # their size. The recorder's multi-threaded zstd compressor returns most
-    # of a member's compressed bytes only when the member is closed.
+    # of a member's compressed bytes only when the member is closed. Carried
+    # members (incremental) are read back in the writer's compression.
     bound = _MiB if writer == "deflate" else compressed[400] + _MiB
     assert peaks[400] - peaks[100] < bound, (peaks, compressed)
 
@@ -4500,8 +4509,9 @@ def test_a_sample_the_streaming_parser_refuses_is_parsed_whole(
     assert samples is not None and [s.id for s in samples] == [1, 2, 3, 4]
 
 
-def test_a_sample_member_with_a_field_inspect_does_not_write_is_refused(
-    tmp_path: Path,
+@pytest.mark.parametrize("field", ["score", "transcript"])
+def test_a_sample_member_with_a_deprecated_field_is_refused(
+    tmp_path: Path, field: str
 ) -> None:
     merged, shards = _paths(tmp_path)
     _run(shards, "0", sample_id=[1, 2, 3])
@@ -4509,12 +4519,80 @@ def test_a_sample_member_with_a_field_inspect_does_not_write_is_refused(
     name = "samples/5_epoch_1.json"
     with zipfile.ZipFile(local_path(log.location)) as zf:
         sample = json.loads(zf.read(name))
-    # the single score of log files from before `scores`
-    sample["score"] = sample.pop("scores")["match"]
+    # the fields of log files from before `scores` and `events`
+    if field == "score":
+        sample["score"] = sample.pop("scores")["match"]
+    else:
+        sample["transcript"] = {"events": sample.pop("events"), "content": {}}
     _replace_member(log.location, name, json.dumps(sample).encode())
     before = _files(shards)
     with pytest.raises(
-        ShardSetError, match=r"samples/5_epoch_1.json has the fields \['score'\]"
+        ShardSetError,
+        match=rf"samples/5_epoch_1.json has the deprecated fields \['{field}'\]",
     ):
         merge_eval_log_shards(merged, _task())
     assert not os.path.exists(merged) and _files(shards) == before
+
+
+def test_sample_fields_a_later_inspect_adds_are_skipped_and_kept(
+    tmp_path: Path,
+) -> None:
+    merged, shards = _paths(tmp_path)
+    first = _run(shards, "0", sample_id=[1, 2, 3])
+    second = _run(shards, "1", sample_id=[4, 5, 6])
+    # sample 5's field also holds an integer only a whole parse reads
+    added = {2: {"future": [1, 2]}, 5: {"future": 2**70}}
+    for log, sample_id in [(first, 2), (second, 5)]:
+        name = f"samples/{sample_id}_epoch_1.json"
+        with zipfile.ZipFile(local_path(log.location)) as zf:
+            sample = json.loads(zf.read(name))
+        sample["future_optional"] = added[sample_id]
+        _replace_member(log.location, name, json.dumps(sample).encode())
+
+    def merged_fields() -> dict[int, Any]:
+        with zipfile.ZipFile(local_path(merged)) as zf:
+            return {
+                i: json.loads(zf.read(f"samples/{i}_epoch_1.json")).get(
+                    "future_optional"
+                )
+                for i in range(1, 7)
+            }
+
+    expected = {i: added.get(i) for i in range(1, 7)}
+    result = merge_eval_log_shards(merged, _task())
+    assert result.written and merged_fields() == expected
+    assert result.log.results is not None
+    accuracy = result.log.results.scores[0].metrics["accuracy"].value
+    # shard 1 is run again: sample 2 is carried from the merged log
+    _run(shards, "1", sample_id=[4, 5, 6])
+    result = merge_eval_log_shards(merged, _task())
+    assert result.written
+    assert merged_fields() == {**expected, 5: None}
+    assert result.log.results is not None
+    assert result.log.results.scores[0].metrics["accuracy"].value == accuracy
+
+
+def test_a_sample_member_that_does_not_match_its_crc_fails_the_merge(
+    tmp_path: Path,
+) -> None:
+    merged, shards = _paths(tmp_path)
+    _run(shards, "0", sample_id=[1, 2, 3])
+    log = _run(shards, "1", sample_id=[4, 5, 6])
+    name = "samples/5_epoch_1.json"
+    path = local_path(log.location)
+    with zipfile.ZipFile(path) as zf:
+        sample = json.loads(zf.read(name))
+    sample["future_optional"] = "a" * 64
+    _replace_member(log.location, name, json.dumps(sample).encode())
+    # rewrite it stored, then change its bytes after the CRC was recorded
+    with zipfile.ZipFile(path) as src:
+        members = [(i.filename, src.read(i)) for i in src.infolist()]
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_STORED) as dst:
+        for member, data in members:
+            dst.writestr(member, data)
+    content = Path(path).read_bytes()
+    assert content.count(b"a" * 64) == 1
+    Path(path).write_bytes(content.replace(b"a" * 64, b"b" * 64))
+    with pytest.raises(ZipCrcError, match="samples/5_epoch_1.json"):
+        merge_eval_log_shards(merged, _task())
+    assert not os.path.exists(merged)
