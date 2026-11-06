@@ -4,7 +4,7 @@ import functools
 import json
 import zipfile
 import zlib
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
 from typing import IO, TYPE_CHECKING, Any, BinaryIO, NamedTuple
 
 import anyio
@@ -347,6 +347,38 @@ event of a piece together, which takes several times the piece's size when
 its JSON holds many small values."""
 
 
+class _MemberPieces:
+    """Takes a sample member's decompressed pieces as they arrive.
+
+    Each piece is added to the CRC-32, written to the merged member and
+    parsed. It holds nothing that feeds it, so the decompressor writing to
+    it forms no reference cycle. Blocking: each call runs in a worker thread.
+    """
+
+    def __init__(self, zf: zipfile.ZipFile, name: str) -> None:
+        self._zf = zf
+        self._name = name
+        self.writer: IO[bytes] | None = None
+        self.parse: _SampleParse | None = _SampleParse()
+        self.crc = 0
+
+    def take(self, piece: bytes) -> None:
+        self.crc = zlib.crc32(piece, self.crc)
+        self.open().write(piece)
+        if self.parse is not None:
+            try:
+                self.parse.feed(piece)
+            except Exception as ex:
+                if not _takes_whole_parse(ex):
+                    raise
+                self.parse = None
+
+    def open(self) -> IO[bytes]:
+        if self.writer is None:
+            self.writer = self._zf.open(self._name, "w", force_zip64=True)
+        return self.writer
+
+
 class _SampleCopy:
     """Writes a sample member to the merged zip, parsing it as it passes.
 
@@ -356,14 +388,10 @@ class _SampleCopy:
     """
 
     def __init__(self, zf: zipfile.ZipFile, name: str, member: SampleMember) -> None:
-        self._zf = zf
-        self._name = name
         self._member = member
-        self._writer: IO[bytes] | None = None
-        self._parse: _SampleParse | None = _SampleParse()
-        self._crc = 0
+        self._pieces = _MemberPieces(zf, name)
         self._decompressor = PieceDecompressor(
-            member.entry.compression_method, self._piece, _PIECE_SIZE
+            member.entry.compression_method, self._pieces.take, _PIECE_SIZE
         )
 
     def write(self, data: bytes) -> None:
@@ -372,44 +400,22 @@ class _SampleCopy:
 
     def finish(self) -> _ParsedSample | None:
         """Finish the member; None when it must be parsed whole."""
-        _check_crc(self._member.location, self._member.entry, self._crc)
-        self._open().close()
-        if self._parse is None:
+        _check_crc(self._member.location, self._member.entry, self._pieces.crc)
+        self._pieces.open().close()
+        parse = self._pieces.parse
+        if parse is None:
             return None
         try:
-            return self._parse.finish()
+            return parse.finish()
         except Exception as ex:
             if not _takes_whole_parse(ex):
                 raise
             return None
 
     def close(self) -> None:
-        """Close the member if `finish` did not, so the zip can close.
-
-        Also releases the decompressor, whose zstd writer holds this copy in
-        a cycle that garbage collection cannot break; the copy holds the
-        member's writer and its compressor's threads.
-        """
-        self._decompressor.close()
-        if self._writer is not None:
-            self._writer.close()
-            self._writer = None
-
-    def _piece(self, piece: bytes) -> None:
-        self._crc = zlib.crc32(piece, self._crc)
-        self._open().write(piece)
-        if self._parse is not None:
-            try:
-                self._parse.feed(piece)
-            except Exception as ex:
-                if not _takes_whole_parse(ex):
-                    raise
-                self._parse = None
-
-    def _open(self) -> IO[bytes]:
-        if self._writer is None:
-            self._writer = self._zf.open(self._name, "w", force_zip64=True)
-        return self._writer
+        """Close the member if `finish` did not, so the zip can close."""
+        if self._pieces.writer is not None:
+            self._pieces.writer.close()
 
 
 async def _copy_sample(
@@ -426,17 +432,19 @@ async def _copy_sample(
     """
     member = await read_member(key)
     copy = _SampleCopy(zf, _sample_filename(key.sample_id, key.epoch), member)
-    raw = await member.reader.open_member_raw(member.entry)
-    chunks = raw.__aiter__()
+    chunks: AsyncGenerator[bytes, None] | None = None
     try:
+        raw = await member.reader.open_member_raw(member.entry)
+        chunks = raw.__aiter__()
         async for chunk in chunks:
             await run_owned(functools.partial(copy.write, chunk))
         parsed = await run_owned(copy.finish)
     finally:
         try:
-            # closes the member's input, which a loop left early does not
-            with anyio.CancelScope(shield=True):
-                await chunks.aclose()
+            if chunks is not None:
+                # closes the member's input, which a loop left early does not
+                with anyio.CancelScope(shield=True):
+                    await chunks.aclose()
         finally:
             # worker threads have finished (run_owned), so this cannot race them
             copy.close()

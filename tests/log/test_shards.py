@@ -4598,20 +4598,74 @@ def test_sample_copies_are_released_after_the_merge(
         monkeypatch.setattr(_write, "_check_crc", torn)
         with pytest.raises(ZipCrcError):
             merge_eval_log_shards(merged, _task())
-    else:
-        merge_eval_log_shards(merged, _task())
-    gc.collect()
-    assert copies
-    if crc == "matches":
-        assert all(copy() is None for copy in copies)
-    else:
+        gc.collect()
+        assert copies
         # the error's traceback holds the frame holding a copy for as long as
-        # anything holds the error; the copy has released its resources
+        # anything holds the error; the copy has closed its member
         for ref in copies:
             copy = ref()
-            assert copy is None or (
-                copy._writer is None and copy._decompressor._zstd is None
-            )
+            assert copy is None or copy._pieces.writer.closed
+    else:
+        # with no reference cycle, reference counting alone frees each copy,
+        # with or without an explicit close
+        monkeypatch.setattr(_write._SampleCopy, "close", lambda self: None)
+        gc.disable()
+        try:
+            merge_eval_log_shards(merged, _task())
+            freed = [copy() is None for copy in copies]
+        finally:
+            gc.enable()
+        assert freed and all(freed)
+
+
+@pytest.mark.parametrize("stop", ["error", "cancelled"])
+async def test_a_sample_copy_whose_input_fails_to_open_is_freed(
+    two_shards: tuple[str, str], monkeypatch: pytest.MonkeyPatch, stop: str
+) -> None:
+    import gc
+    import weakref
+
+    from inspect_ai.log import merge_eval_log_shards_async
+    from inspect_ai.log._shards import _write
+
+    merged, shards = two_shards
+    copies: list[weakref.ref[Any]] = []
+    init = _write._SampleCopy.__init__
+
+    def spy(self: Any, *args: Any) -> None:
+        init(self, *args)
+        copies.append(weakref.ref(self))
+
+    monkeypatch.setattr(_write._SampleCopy, "__init__", spy)
+    # collection must not depend on an explicit close
+    monkeypatch.setattr(_write._SampleCopy, "close", lambda self: None)
+
+    cancelled: list[bool] = []
+
+    async def merge() -> None:
+        # run as a task of its own, which drops the error that stopped the merge
+        with anyio.CancelScope() as scope:
+
+            async def open_member_raw(self: AsyncZipReader, member: Any) -> Any:
+                if stop == "error":
+                    raise OSError("open failed")
+                scope.cancel()
+                await anyio.lowlevel.checkpoint()
+
+            monkeypatch.setattr(AsyncZipReader, "open_member_raw", open_member_raw)
+            if stop == "error":
+                with pytest.raises(OSError, match="open failed"):
+                    await merge_eval_log_shards_async(merged, _task())
+            else:
+                await merge_eval_log_shards_async(merged, _task())
+        cancelled.append(scope.cancelled_caught)
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(merge)
+    assert cancelled == [stop == "cancelled"]
+    gc.collect()
+    assert copies and all(copy() is None for copy in copies)
+    assert not os.path.exists(merged)
 
 
 @pytest.mark.parametrize("stop", ["error", "cancelled"])

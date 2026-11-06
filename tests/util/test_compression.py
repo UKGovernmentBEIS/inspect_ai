@@ -52,23 +52,3 @@ def test_piece_decompressor_ignores_data_after_a_deflate_stream() -> None:
     decompressor.write(compressed)
     decompressor.write(b"more")
     assert b"".join(pieces) == data
-
-
-def test_piece_decompressor_releases_its_sink_when_closed() -> None:
-    import gc
-    import weakref
-
-    class Owner:
-        def __init__(self) -> None:
-            self.decompressor = PieceDecompressor(ZipCompressionMethod.ZSTD, self.take)
-
-        def take(self, piece: bytes) -> None:
-            pass
-
-    owner = Owner()
-    owner.decompressor.write(_compress(b"x" * 1024, ZipCompressionMethod.ZSTD))
-    owner.decompressor.close()
-    ref = weakref.ref(owner)
-    del owner
-    gc.collect()
-    assert ref() is None

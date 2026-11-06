@@ -116,8 +116,8 @@ class PieceDecompressor:
     as it arrives holds only one at a time. Multi-frame zstd data is read
     across its frames. Data after the end of a deflate stream is ignored, as
     `zlib.decompress` ignores it. Blocking (CPU-bound): run it in a worker
-    thread from async code. Call `close` when done: the zstd stream writer
-    holds `sink` in a reference cycle that garbage collection cannot see.
+    thread from async code. `sink` must not refer back to the decompressor:
+    garbage collection cannot see into the native zstd writer.
     """
 
     def __init__(
@@ -158,16 +158,6 @@ class PieceDecompressor:
         else:
             for start in range(0, len(data), self._piece_size):
                 self._sink(data[start : start + self._piece_size])
-
-    def close(self) -> None:
-        """Release the decompressor and `sink`."""
-        self._zstd = None
-        self._deflate = None
-        self._sink = _discard
-
-
-def _discard(data: bytes) -> None:
-    pass
 
 
 class _SinkWriter:
