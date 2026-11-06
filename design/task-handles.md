@@ -442,8 +442,10 @@ they are awaited, and ports opened, only from a sample's own code (see
   attributes, from a thread other than the run's event loop, including an
   `anyio.to_thread.run_sync()` worker whose copied context passes the
   sample-code check: `RuntimeError`, before that check and before any
-  record, loan, wake or port changes. A worker calls them through
-  `anyio.from_thread.run_sync()`, which runs the call on the loop with the
+  record, loan, wake or port changes. A worker calls `enqueue_task()`,
+  `cancel()` and `close()` through `anyio.from_thread.run_sync()`, and
+  awaits `started()`, `result()` and `enqueue_sample()` through
+  `anyio.from_thread.run()`; each runs the call on the run's loop with the
   worker's copied context, so the sample-code check then applies as for
   any task the sample started.
 
@@ -552,7 +554,8 @@ _sample_code: ContextVar[SampleCode | None]   # in enqueue.py, default None
   target's loan, which the attempt it ran in (`SampleCode.attempt`)
   justifies by holding a slot; that attempt belongs to the task, not the
   sample, so it keeps its slot while the task's other samples run, and when
-  it ends its waits leave the loan (see "Slot lending", Lifetime). An
+  it gives the slot back its waits leave the loan (see "Slot lending",
+  Lifetime). An
   attempt already started on the loan runs to its end, as for any wait
   that returned, so the bound on borrowed slots holds. The wait itself
   settles when its target ends, as every wait does ("Terminal outcomes"
@@ -1045,10 +1048,20 @@ class Loan:
   it and the loan stays unused.
 - **Lifetime.** The loan lives while `waiters` counts a wait or an
   attempt is running on it. A wait leaves `waiters` when it returns or is
-  cancelled, and when the attempt it ran in ends: at the two places that
-  close the ports an attempt created (beside `finalize_eval()`, and when
-  `run_one` returns for an attempt that ended without reaching it), the
-  attempt removes its entry from every loan in the queue. A wait still
+  cancelled, and when the attempt it ran in releases its slot: in the
+  same synchronous step in which `run_one` gives the slot back (today's
+  `in_flight -= 1`, at `src/inspect_ai/_eval/run.py:884` for a retry
+  abandoned before it registered and `:1034` otherwise, or clearing
+  `loan.started` for an attempt that ran on a loan), the attempt removes
+  its entry from every loan in the queue. When `_run_task` raises,
+  `run_one` re-raises without giving the slot back (`:862-868`), the run
+  ends, and `RunQueue.end` clears every loan. That is later than finalization on purpose: after
+  `finalize_eval()`, `task_run` still awaits legacy telemetry and
+  `TaskSource.task_complete` (`task/run.py:2105-2137`) while the attempt
+  holds its slot, and code there may join a task its solver started
+  without awaiting, still blocked on a wait; while the slot is held the
+  wait keeps lending, so the target's retry, or its first attempt once
+  its setup settles, can still start on the loan. A wait still
   blocked then, which only a detached task can hold (see "Creator and
   sample code"), keeps waiting until its target ends but no longer lends;
   when it returns it finds no entry and changes nothing. When `waiters` is
@@ -1373,13 +1386,16 @@ test touched), with mockllm models:
   - `started()`, `result()`, `cancel()` queued and running, `close()`,
     `enqueue_sample()` results per epoch;
   - off the loop: from an `anyio.to_thread.run_sync()` worker in the
-    parent's solver, `enqueue_task(..., send_samples=True)`, `started()`,
-    `result()`, `enqueue_sample()`, `cancel()` (of a queued, an admitted
-    and a running child) and `close()` each raise `RuntimeError` and leave
-    the record's phase, loan, port and requests and the queue's wake as
-    they were (the admitted child stays `admitted`, with no finalizer
-    started); the same calls through `anyio.from_thread.run_sync()` from
-    that worker succeed; on asyncio and trio;
+    parent's solver, `enqueue_task(..., send_samples=True)`, `cancel()` (of
+    a queued, an admitted and a running child) and `close()` called
+    directly, and `started()`, `result()` and `enqueue_sample()` run to
+    completion in the worker's own event loop (`anyio.run()`), each raise
+    `RuntimeError` and leave the record's phase, loan, port and requests
+    and the queue's wake as they were (the admitted child stays
+    `admitted`, with no finalizer started); from that worker, the
+    synchronous calls through `anyio.from_thread.run_sync()` and the
+    awaitable ones through `anyio.from_thread.run()` succeed and return
+    their results; on asyncio and trio;
   - the terminal-outcome table, row by row: a target whose setup fails
     (stub provider) — `started()` returns, `result()` returns the error
     log, an unresolved request raises `TaskEndedError(log=<that log>)`; a
@@ -1540,12 +1556,25 @@ test touched), with mockllm models:
   - a detached wait: at `max_tasks=1`, a raw `asyncio.create_task()` in
     the parent's solver begins `result()` on a child added without
     `send_samples`, and the solver returns without awaiting it; the wait's
-    loan starts the child; when the parent's attempt ends, its entry
-    leaves the loan's `waiters` (with a second waiter from a sibling
-    sample still blocked, `waiters` falls by one and the loan stays), the
-    loan is dropped once the child's borrowed attempt ends and no waiter
-    remains, and the detached `result()` returns the child's log when the
-    child ends;
+    loan starts the child; when the parent's attempt gives its slot back,
+    its entry leaves the loan's `waiters`, the loan is dropped once the
+    child's borrowed attempt ends and no waiter remains, and the detached
+    `result()` returns the child's log when the child ends; with a second
+    parent at `max_tasks=2` still blocked on the same handle in its
+    solver, `waiters` loses only the first parent's entry and the loan
+    stays;
+  - a detached wait joined after finalization: the parent is driven by a
+    `TaskSource` at `max_tasks=1` whose `task_complete` awaits the
+    detached task; the child fails its first attempt under
+    `retry_on_error=1`, so its retry is pending after the parent's
+    `EvalState` is terminal: the loan still counts the parent's entry
+    while `task_complete` runs, the retry starts on it, the detached
+    `result()` returns the retry's log, `task_complete` returns, and the
+    entry leaves with the parent's slot; the same with the child's setup
+    held on an event (stub provider) until the parent is in
+    `task_complete`, where the child's first attempt starts on the loan
+    once the setup settles; each bounded with `fail_after`, on asyncio and
+    trio;
   - inside the parent's solver at `max_tasks=1`, and from a scorer, the
     same three waits lend, so the child starts and each wait completes
     (`started()` and `enqueue_sample()` on a sample-sending child with its
@@ -1653,12 +1682,14 @@ companion change in Steward (step 6):
    the attempt `ContextVar`, the `SampleCode` per sample run, set around
    the solver plan and the scorer loop in `task_run_sample` and marked not
    `live` when the sample's own code ends, the close of the ports the attempt created beside
-   `finalize_eval()` and the removal of its entries from loans there, the `send_samples` check in
+   `finalize_eval()`, the `send_samples` check in
    `eval_log_sample_source()`), `_eval/task/log.py` (the `send_samples`
    argument to `TaskLogger`, set on the spec), `log/_log.py`
    (`EvalSpec.send_samples`), `_eval/task/sample_source.py` (docstrings),
    `_eval/run.py` (the retry decision reads `SamplePort.delivered`, port
-   close and loan-entry removal when an attempt ends without finishing, `SamplePort.stop()` from
+   close when an attempt ends without finishing, the removal of the
+   attempt's loan entries in each of `run_one`'s slot releases,
+   `SamplePort.stop()` from
    the `cancel_task` callback for drain, score and error, loans in the dispatcher, the
    `next_tasks()` scope, `admit_task()` passing `send_samples`),
    `_eval/eval.py` (the `eval_retry()` refusal, `max_tasks`, `max_samples`

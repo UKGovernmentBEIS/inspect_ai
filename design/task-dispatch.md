@@ -382,10 +382,14 @@ calls `_require_run_loop(queue)` in `enqueue.py`. It reads
 `NoEventLoopError`, taken as a mismatch) and compares it with `queue.loop`;
 on a mismatch, including another event loop in another thread, it raises
 `RuntimeError` ("enqueue_task() and task handles must be called from the
-eval's event loop; from a worker thread, call them through
-anyio.from_thread.run_sync()") before resolving tasks or changing any
-record, wake, job, loan or port. A worker that calls through
-`anyio.from_thread.run_sync()` runs the call on the loop with its copied
+eval's event loop; from a worker thread, call enqueue_task(), cancel() and
+close() through anyio.from_thread.run_sync() and await started(), result()
+and enqueue_sample() through anyio.from_thread.run()") before resolving
+tasks or changing any record, wake, job, loan or port. The awaitable
+methods check when their coroutine runs, so a worker that runs one in an
+event loop of its own (`anyio.run()`) is refused the same way. A worker
+that calls through `anyio.from_thread.run_sync()` or
+`anyio.from_thread.run()` runs the call on the run's loop with its copied
 context, so it passes. The queue stays loop-only with no lock.
 
 `RunQueue.add` is synchronous. It orders the addition sequence-major (the
@@ -528,8 +532,8 @@ never returns (the source contract allows one,
   [task-handles.md](task-handles.md#creator-and-sample-code) lets handle
   waits and sample ports begin only while a sample's own code runs, which
   every abort of its task reaches (a wait a detached task carries past its
-  sample stops lending when its attempt ends and settles when its target
-  ends);
+  sample stops lending when its attempt gives its slot back and settles
+  when its target ends);
 - `admitting_cancelled`, `starting_cancelled`, `finalizing`, `ended`: a
   cancel is already in hand or the record has ended, so it does nothing.
 
