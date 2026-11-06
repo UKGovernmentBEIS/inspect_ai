@@ -93,3 +93,34 @@ def test_textual_input_screen_shows_prompt_inside_capture(
     assert "before the screen" in capture.get()
     assert "after the screen" in capture.get()
     assert ("prompt" in capture.get()) != changed
+
+
+@pytest.mark.parametrize("record_event", [True, False])
+@pytest.mark.parametrize("changed", [True, False])
+def test_textual_input_screen_keeps_recording(
+    fresh_display: None,
+    monkeypatch: pytest.MonkeyPatch,
+    changed: bool,
+    record_event: bool,
+) -> None:
+    from contextlib import nullcontext
+    from types import SimpleNamespace
+    from typing import Any, cast
+
+    from inspect_ai._display.textual.app import TextualTaskScreen
+
+    # after a display type change a caller's recording is kept; without one
+    # the input screen ends it, as before
+    monkeypatch.setattr(display_rich, "_reconfigure_in_place", changed)
+    app = cast(Any, SimpleNamespace(suspend_app=nullcontext))
+    console = rich.get_console()
+    console.record = True
+    console.print("earlier")
+    screen = TextualTaskScreen[None](app)
+    with screen.input_screen(record_event=record_event) as screen_console:
+        screen_console.print("prompt")
+
+    assert console.record == changed
+    if changed:
+        recorded = console.export_text()
+        assert "earlier" in recorded and "prompt" in recorded

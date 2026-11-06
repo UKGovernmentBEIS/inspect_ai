@@ -499,6 +499,59 @@ def test_eval_display_change_shows_input_screen_inside_capture(
     assert ("PROMPT" in capture.get()) != changed
 
 
+@pytest.mark.parametrize("record_event", [True, False])
+@pytest.mark.parametrize("first,second", [("plain", "rich"), ("rich", "rich")])
+def test_eval_display_change_keeps_recording_through_input_screen(
+    fresh_display: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    first: DisplayType,
+    second: DisplayType,
+    record_event: bool,
+) -> None:
+    import rich
+
+    import inspect_ai._display.core.rich as display_rich
+    from inspect_ai.util import input_screen
+
+    monkeypatch.setattr(display_rich, "is_running_in_vscode", lambda: False)
+
+    @solver
+    def ask() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            with input_screen(record_event=record_event) as console:
+                console.print("PROMPT")
+            return state
+
+        return solve
+
+    task = Task(dataset=[Sample(input="hi", target="hi")], solver=ask())
+    eval(task, model="mockllm/model", display=first, log_dir=str(tmp_path))
+
+    console = rich.get_console()
+    console.record = True
+    console.print("EARLIER")
+    [log] = eval(task, model="mockllm/model", display=second, log_dir=str(tmp_path))
+
+    if first == second:
+        # without a change the input screen ends the recording, as before
+        assert not console.record
+        return
+
+    # the recording kept across the change keeps its contents and gains the
+    # interaction, which the event holds on its own
+    assert console.record
+    recorded = console.export_text()
+    assert "EARLIER" in recorded and "PROMPT" in recorded
+    assert log.samples
+    inputs = [e for e in log.samples[0].events if e.event == "input"]
+    if record_event:
+        assert len(inputs) == 1
+        assert "PROMPT" in inputs[0].input and "EARLIER" not in inputs[0].input
+    else:
+        assert not inputs
+
+
 def test_eval_display_change_after_log_display_keeps_console(
     fresh_display: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

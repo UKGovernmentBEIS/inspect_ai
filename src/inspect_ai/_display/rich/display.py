@@ -14,8 +14,6 @@ from typing_extensions import override
 from inspect_ai._util._async import run_coroutine, run_main
 from inspect_ai._util.constants import CONSOLE_DISPLAY_WIDTH
 from inspect_ai._util.platform import running_in_notebook
-from inspect_ai.event._input import InputEvent
-from inspect_ai.log._transcript import transcript
 from inspect_ai.util._display import display_type
 from inspect_ai.util._throttle import throttle
 
@@ -45,6 +43,7 @@ from ..core.progress import (
 from ..core.results import task_metric, tasks_results
 from ..core.rich import (
     input_screen_capture_suspended,
+    input_screen_recording,
     is_vscode_notebook,
     record_console_input,
     rich_initialise,
@@ -229,30 +228,22 @@ class RichTaskScreen(TaskScreen):
                 old_width = self.live.console.width
                 self.live.console.width = min(old_width, width)
 
-            # record console activity for event
-            self.live.console.record = True
-
             try:
-                # print header if requested
-                if header:
-                    style = f"{rich_theme().meta} bold"
-                    self.live.console.rule(
-                        f"[{style}]{header}[/{style}]", style="black"
-                    )
-                    self.live.console.print("")
+                # record console activity for event
+                with input_screen_recording(self.live.console, record_event):
+                    # print header if requested
+                    if header:
+                        style = f"{rich_theme().meta} bold"
+                        self.live.console.rule(
+                            f"[{style}]{header}[/{style}]", style="black"
+                        )
+                        self.live.console.print("")
 
-                # yield the console
-                with record_console_input():
-                    yield self.live.console
+                    # yield the console
+                    with record_console_input():
+                        yield self.live.console
 
             finally:
-                # capture recording then yield input event
-                input = self.live.console.export_text(clear=False, styles=False)
-                input_ansi = self.live.console.export_text(clear=True, styles=True)
-                self.live.console.record = False
-                if record_event:
-                    transcript()._event(InputEvent(input=input, input_ansi=input_ansi))
-
                 # print one blank line
                 self.live.console.print("")
 

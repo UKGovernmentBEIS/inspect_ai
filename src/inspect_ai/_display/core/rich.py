@@ -254,6 +254,46 @@ def input_screen_capture_suspended(console: Console) -> Iterator[None]:
 
 
 @contextmanager
+def input_screen_recording(console: Console, record_event: bool) -> Iterator[None]:
+    """Record an input screen's output and input, as an `InputEvent` if requested.
+
+    After a display type change the console is kept with any recording the
+    caller started, so the screen records to a buffer of its own and the
+    caller's recording is restored afterwards, with the interaction added if
+    it was on. Without a change, the screen records to the console's buffer
+    and ends the recording, as before.
+    """
+    from inspect_ai.event._input import InputEvent
+    from inspect_ai.log._transcript import transcript
+
+    isolate = _reconfigure_in_place
+    with console._record_buffer_lock:
+        caller_record, caller_buffer = console.record, console._record_buffer
+        if isolate:
+            console._record_buffer = []
+    console.record = True
+    try:
+        yield
+    finally:
+        if isolate:
+            with console._record_buffer_lock:
+                interaction = list(console._record_buffer)
+            input = console.export_text(clear=False, styles=False)
+            input_ansi = console.export_text(clear=False, styles=True)
+            with console._record_buffer_lock:
+                if caller_record:
+                    caller_buffer.extend(interaction)
+                console._record_buffer = caller_buffer
+            console.record = caller_record
+        else:
+            input = console.export_text(clear=False, styles=False)
+            input_ansi = console.export_text(clear=True, styles=True)
+            console.record = False
+        if record_event:
+            transcript()._event(InputEvent(input=input, input_ansi=input_ansi))
+
+
+@contextmanager
 def record_console_input() -> Iterator[None]:
     # monkey patch .input method to record inputs
     input_original = Console.input
