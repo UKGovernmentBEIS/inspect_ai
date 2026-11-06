@@ -65,7 +65,7 @@ def init_display_type(display: str | None = None) -> DisplayType:
             # from a scorer on a worker thread) isn't a change
             if requested != _display_type:
                 logger.warning(
-                    f"Ignoring display type '{new_display_type}' while {running} "
+                    f"Ignoring display type '{requested}' while {running} "
                     f"is running with display type '{_display_type}'."
                 )
             return _display_type

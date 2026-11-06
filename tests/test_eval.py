@@ -513,7 +513,7 @@ def test_display_type_change_during_eval_keeps_running_display(
     assert "Ignoring display type 'log'" in caplog.text
 
 
-@pytest.mark.parametrize("inner_display", ["plain", None])
+@pytest.mark.parametrize("inner_display", ["plain", "full", None])
 def test_display_type_change_during_score_keeps_running_display(
     fresh_display: None,
     monkeypatch: pytest.MonkeyPatch,
@@ -544,9 +544,12 @@ def test_display_type_change_during_score_keeps_running_display(
     assert scored.results is not None
     assert scored.results.scores[-1].name == "nested_score"
     assert display_type() == "rich"
-    # without a display argument the worker thread asks for the current type
-    warned = "Ignoring display type 'plain'" in caplog.text
-    assert warned == (inner_display is not None)
+    # the warning names the requested type (not the worker thread's "plain"),
+    # and without a display argument the worker thread asks for the current type
+    if inner_display is None:
+        assert "Ignoring display type" not in caplog.text
+    else:
+        assert f"Ignoring display type '{inner_display}'" in caplog.text
 
 
 def test_max_tasks_bounds_concurrent_models_single_task():
