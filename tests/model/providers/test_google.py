@@ -4574,3 +4574,59 @@ def test_google_explicit_use_adc_overrides_api_key(
 
     assert api._oauth is True
     assert api._credentials is credentials
+
+
+def _sdk_api_version(api: GoogleGenAIAPI) -> str | None:
+    client = api.model_client(api._http_options())
+    return client._api_client._http_options.api_version
+
+
+def test_google_api_version_defaults_to_v1beta(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("GOOGLE_GENAI_API_VERSION", raising=False)
+    api = GoogleGenAIAPI(
+        model_name="gemini-2.0-flash", base_url=None, api_key="test-key"
+    )
+    assert _sdk_api_version(api) == "v1beta"
+    assert api.model_client()._api_client._http_options.api_version == "v1beta"
+
+
+def test_google_api_version_explicit(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("GOOGLE_GENAI_API_VERSION", "v1alpha")
+    api = GoogleGenAIAPI(
+        model_name="gemini-2.0-flash",
+        base_url=None,
+        api_key="test-key",
+        api_version="v1",
+    )
+    assert _sdk_api_version(api) == "v1"
+
+
+@pytest.mark.parametrize("env_value,expected", [("v1", "v1"), ("beta", "v1beta")])
+def test_google_api_version_from_env(
+    monkeypatch: pytest.MonkeyPatch, env_value: str, expected: str
+) -> None:
+    monkeypatch.setenv("GOOGLE_GENAI_API_VERSION", env_value)
+    api = GoogleGenAIAPI(
+        model_name="gemini-2.0-flash", base_url=None, api_key="test-key"
+    )
+    assert _sdk_api_version(api) == expected
+
+
+def test_google_api_version_vertex_uses_sdk_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("GOOGLE_GENAI_API_VERSION", raising=False)
+    monkeypatch.delenv("VERTEX_API_KEY", raising=False)
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    api = GoogleGenAIAPI(
+        model_name="vertex/gemini-2.0-flash",
+        base_url=None,
+        api_key=None,
+        project="test-project",
+        location="us-central1",
+    )
+    assert api.is_vertex()
+    assert _sdk_api_version(api) == "v1beta1"
