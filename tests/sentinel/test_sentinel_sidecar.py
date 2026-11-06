@@ -2313,6 +2313,31 @@ def test_a_refused_turn_past_the_token_limit_is_counted_once() -> None:
     assert sample.limit is not None and sample.limit.type == "token"
 
 
+def test_a_reply_past_the_token_limit_keeps_what_the_sidecar_decided() -> None:
+    # the sidecar judged the reply before Inspect counted its tokens
+    step = {"stage": "model_output", "decision": {"action": "proceed"}}
+    stand_in = StandInSidecar(
+        turns=[Turn(judgment={"outcome": "proceed", "steps": [step]})]
+    )
+    task = Task(
+        dataset=[Sample(input="What's the weather?")],
+        solver=generate(),
+        token_limit=6,
+    )
+
+    [log] = eval(task, model=_model(stand_in), display="none")
+
+    # the sample ends on the limit, counting the reply once, and the
+    # transcript shows what the sidecar decided of it
+    assert log.samples is not None
+    [sample] = log.samples
+    assert sample.limit is not None and sample.limit.type == "token"
+    assert _total_tokens(sample) == 7
+    [call] = stand_in.model_calls
+    assert _looked_up(stand_in) == [call.headers["x-irid"]]
+    assert [e.stage for e in _sentinel_events(sample)] == ["model_output"]
+
+
 def test_a_bridged_agent_is_never_handed_a_rejected_call() -> None:
     withheld = {
         "message": _turn_json(("call_1", "Tokyo")),
