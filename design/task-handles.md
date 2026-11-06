@@ -1578,6 +1578,8 @@ companion change in Steward (step 6):
    `_eval/eval.py` (the `eval_retry()` refusal, `max_tasks`, `max_samples`
    and `max_sandboxes` docstrings), `_eval/evalset.py` (such a log is
    incomplete in `list_latest_eval_logs()`; docstrings),
+   `hooks/_hooks.py` (`hook_call()` around every call into a `Hooks`
+   object), `model/_model.py` (the `enabled()` scan under `hook_call()`),
    `__init__.py` (exports), `docs/task-source.qmd`, `docs/parallelism.qmd`
    and `docs/reference`. No recorder or log-copy code changes. The new
    `EvalSpec` field changes the viewer's OpenAPI schema and generated
