@@ -765,7 +765,7 @@ class ExecRemoteProcess:
         timed-out request is logged, not raised. After a failed request,
         iteration raises the error of a poll that was in flight when kill()
         was called; with no poll in flight, it ends without raising. A no-op
-        once the process has completed.
+        once a poll has reported that the process completed.
         """
         if self._pid is None:
             return
