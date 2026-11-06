@@ -135,6 +135,7 @@ from inspect_ai.log._recorders.streaming import (
     materialize_streaming_sample,
 )
 from inspect_ai.log._samples import (
+    SampleCancelAction,
     active_sample,
 )
 from inspect_ai.log._transcript import (
@@ -2897,6 +2898,9 @@ async def _task_run_sample_attempt(
             scoring_finished = False
             monitor_state_copied = False
             operator_cancelled = False
+            # the interrupt the solver phase handled; one stamped later (the
+            # run task group already exited) only stamps the sample
+            handled_interrupt: SampleCancelAction | None = None
             results: ScoresByScorer = {}
             limit: EvalSampleLimit | None = None
             sample_summary: EvalSampleSummary | None = None
@@ -3070,7 +3074,7 @@ async def _task_run_sample_attempt(
                                 # access to state, limit, and errors
                                 nonlocal state, limit, error, raise_error
                                 nonlocal cancelled_error, operator_cancelled
-                                nonlocal solver_cancel
+                                nonlocal solver_cancel, handled_interrupt
 
                                 try:
                                     # start the sample
@@ -3143,6 +3147,7 @@ async def _task_run_sample_attempt(
                                 # so they can continue on and be scored.
                                 except anyio.get_cancelled_exc_class() as ex:
                                     if active.interrupt_action:
+                                        handled_interrupt = active.interrupt_action
                                         # record event
                                         interrupt_reason = (
                                             "Sample completed: interrupted by operator"
@@ -3461,7 +3466,7 @@ async def _task_run_sample_attempt(
                                 transcript()._event(ErrorEvent(error=error))
 
                         except Exception as ex:
-                            if active.interrupt_action is not None:
+                            if handled_interrupt is not None:
                                 # Operator-interrupted: log to transcript but
                                 # don't propagate to error/retry. The operator
                                 # EvalSampleLimit is set in the run() handler.

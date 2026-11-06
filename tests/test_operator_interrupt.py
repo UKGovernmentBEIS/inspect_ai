@@ -48,3 +48,35 @@ def test_operator_interrupt_with_scorer_error():
     assert sample.limit is not None
     assert sample.limit.type == "operator"
     assert sample.error_retries == []
+
+
+@scorer(metrics=[accuracy()])
+def interrupted_while_scoring_scorer() -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
+        # an operator cancel (per-sample, or the task-level score/error sweep)
+        # landing after the solver finished: the run task group has exited,
+        # so the interrupt only stamps the sample
+        active = sample_active()
+        assert active is not None, "expected an active sample"
+        active.interrupt("score")
+        raise RuntimeError("buggy scorer")
+
+    return score
+
+
+def test_interrupt_stamped_during_scoring_keeps_scorer_error():
+    """An interrupt the solver never saw does not hide a scorer error."""
+    log = eval(
+        Task(
+            dataset=MemoryDataset([Sample(id=1, input="hi", target="hi")]),
+            scorer=interrupted_while_scoring_scorer(),
+        ),
+        model="mockllm/model",
+        fail_on_error=False,
+    )[0]
+
+    assert log.samples is not None
+    sample = log.samples[0]
+    assert sample.limit is None
+    assert sample.error is not None
+    assert "buggy scorer" in sample.error.message
