@@ -1810,6 +1810,64 @@ async def test_equal_host_result_after_its_earlier_answer_record_is_dropped(
         assert later_event.message_id == ids[2]
 
 
+@pytest.mark.parametrize("regenerated", [False, True])
+async def test_copied_answer_stays_unlinked_when_its_record_is_dropped_in_the_same_request(
+    regenerated: bool,
+) -> None:
+    """A later call's copy of an earlier answer isn't linked when a later result in the request drops the earlier answer's record."""
+    first_id, second_id, returned_id = (
+        ("toolu_1", "toolu_2", "call_read_1")
+        if regenerated
+        else ("reuse", "reuse", "reuse")
+    )
+    first = ChatMessageAssistant(content="Reading.", tool_calls=[_read(first_id, "a")])
+    second = ChatMessageAssistant(content="Again.", tool_calls=[_read(second_id, "a")])
+    first_back = _transported(first, returned_id) if regenerated else first
+    second_back = _transported(second, returned_id) if regenerated else second
+    task = ChatMessageUser(content="Start")
+    bridge = AgentBridge(AgentState(messages=[task]))
+    scaffold = _Scaffold(bridge)
+    await scaffold.request([task], first)
+    if regenerated:
+        bridge._record_transported_reply(first, [first_back])
+    _awaiting(bridge, first, result="A")
+    window: list[ChatMessage] = [task, first_back, _result(returned_id, "A")]
+    earlier = (await scaffold.request(window))[2]
+    records = bridge._answer_records
+    for n in range(bridge_types._MAX_ANSWER_RECORDS // records - 1):
+        filler = ChatMessageAssistant(content="", tool_calls=[_read(f"f{n}", f"{n}")])
+        await scaffold.request(window, filler)
+        _awaiting(bridge, filler, result=f"{n}")
+        window = [
+            ChatMessageUser(content=f"Summary {n}"),
+            filler,
+            _result(f"f{n}", f"{n}"),
+        ]
+        await scaffold.request(window)
+    assert bridge._answer_records == bridge_types._MAX_ANSWER_RECORDS
+    assert earlier in bridge._answers and first.id not in bridge._awaited_results
+    await scaffold.request(window, second)
+    if regenerated:
+        bridge._record_transported_reply(second, [second_back])
+    [second_event] = _awaiting(bridge, second, result="B")
+    last = ChatMessageAssistant(content="", tool_calls=[_read("last", "last")])
+    summary = ChatMessageUser(content="New summary")
+    window = [summary, second_back, _result(returned_id, "A")]
+    await scaffold.request(window, last)
+    [last_event] = _awaiting(bridge, last, result="C")
+
+    window = [*window, last, _result("last", "C")]
+    ids = await scaffold.request(window)
+    next_ids = await scaffold.request([*window, ChatMessageUser(content="Thanks.")])
+
+    assert earlier not in bridge._answers
+    assert bridge._answer_records <= bridge_types._MAX_ANSWER_RECORDS
+    assert ids[2] == earlier
+    assert second_event.message_id is None
+    assert last_event.message_id == ids[4]
+    assert next_ids[:5] == ids
+
+
 def _read(call_id: str, path: str) -> ToolCall:
     return ToolCall(id=call_id, function="read", arguments={"path": path})
 

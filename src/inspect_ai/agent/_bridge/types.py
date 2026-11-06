@@ -236,7 +236,7 @@ class _ReplyAnswers(NamedTuple):
 
 
 _MAX_ANSWER_RECORDS = 4096
-"""Answer records (`_ReplyAnswers` message ids and occurrences) kept, beyond which the oldest replies' are dropped."""
+"""Answer records (`_ReplyAnswers` message ids and occurrences) kept between requests, beyond which the oldest replies' are dropped."""
 
 
 class DispatchedCall(NamedTuple):
@@ -895,6 +895,9 @@ class AgentBridge:
                 for call in message.tool_calls:
                     reply_calls.setdefault(call.id, []).append(call)
         self._link_result_messages(messages, recognized, unattributed)
+        # only after linking, so the request's ownership checks all see the
+        # records it started with
+        self._drop_answer_records()
 
     def _result_occurrence(
         self,
@@ -978,9 +981,10 @@ class AgentBridge:
     def _record_answer(self, message_id: str, answered: _AnsweredCall) -> None:
         """Record a new tool message as an answer to its reply.
 
-        At most `_MAX_ANSWER_RECORDS` records are kept; the oldest replies' are
-        dropped beyond that, so a later message equal to one of their answers
-        keeps that answer's id and isn't linked.
+        At most `_MAX_ANSWER_RECORDS` records are kept between requests: once a
+        request is linked, the oldest replies' are dropped beyond that, so a
+        later message equal to one of their answers keeps that answer's id and
+        isn't linked. A request's own records may exceed the bound until then.
         """
         if message_id in self._answers:
             return
@@ -993,7 +997,6 @@ class AgentBridge:
         )
         self._reply_answer_records(answered.reply_id).message_ids.append(message_id)
         self._answer_records += 1
-        self._drop_answer_records()
 
     def _record_occurrence(
         self, keys: list[str], message_id: str, answered: _AnsweredCall
@@ -1006,7 +1009,6 @@ class AgentBridge:
             if key not in occurrences:
                 occurrences[key] = message_id
                 self._answer_records += 1
-        self._drop_answer_records()
 
     def _reply_answer_records(self, reply_id: str) -> _ReplyAnswers:
         return self._reply_answers.setdefault(reply_id, _ReplyAnswers([], {}))
