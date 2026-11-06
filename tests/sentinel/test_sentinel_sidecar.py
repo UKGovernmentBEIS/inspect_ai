@@ -19,6 +19,7 @@ from inspect_ai import score as score_log
 from inspect_ai._sentinel._sidecar._endpoint import (
     SentinelProxyError,
     Sidecar,
+    SidecarCallError,
     probe,
     proxy_client,
 )
@@ -526,6 +527,71 @@ def test_every_reply_through_a_sidecar_is_looked_up() -> None:
     # a reply never carries what was decided, so it is always asked for
     [call] = stand_in.model_calls
     assert _looked_up(stand_in) == [call.headers["x-irid"]]
+
+
+async def test_a_call_sent_with_a_token_since_replaced_goes_again() -> None:
+    # Another sample registers the eval again while this call is on its way,
+    # as after a restart, so the sidecar keeps the new token by the time the
+    # call reaches it.
+    sidecars = TaskSidecars("auto", _FACTS)
+
+    def ends(params: dict[str, Any]) -> dict[str, Any]:
+        if params["token"] != "token-2":
+            assert sidecar is not None and sidecar.access is not None
+            sidecar.access.token = "token-2"
+            return _UNAUTHORIZED
+        return {"sample_uuid": params["sample_uuid"], "state": "ended"}
+
+    stand_in = StandInSidecar(methods={"end_sample": ends})
+    sidecar = await sidecars.sidecar(_model(stand_in).api)
+    assert sidecar is not None
+
+    ended = await sidecar.eval_call("end_sample", {"sample_uuid": "sample_123"})
+
+    assert ended["state"] == "ended"
+    assert [params["token"] for params in _registered(stand_in, "end_sample")] == [
+        "token-1",
+        "token-2",
+    ]
+
+
+async def test_a_call_refused_with_the_token_it_still_holds_is_not_sent_again() -> None:
+    stand_in = StandInSidecar(methods={"end_sample": lambda _: _UNAUTHORIZED})
+    sidecars = TaskSidecars("auto", _FACTS)
+    sidecar = await sidecars.sidecar(_model(stand_in).api)
+    assert sidecar is not None
+
+    with pytest.raises(SidecarCallError):
+        await sidecar.eval_call("end_sample", {"sample_uuid": "sample_123"})
+
+    assert len(_registered(stand_in, "end_sample")) == 1
+
+
+def test_a_refusal_the_sample_fails_on_is_looked_up_first() -> None:
+    # the judgment is recorded before the sample fails on the refusal
+    stand_in = StandInSidecar(
+        turns=[
+            Turn(
+                text="I can't help.",
+                stop_reason="refusal",
+                judgment={"outcome": "proceed", "steps": []},
+            )
+        ]
+    )
+
+    [log] = eval(
+        Task(dataset=[Sample(input="Hi.")], solver=generate()),
+        model=_model(stand_in),
+        display="none",
+        fail_on_refusal=True,
+    )
+
+    [call] = stand_in.model_calls
+    assert _looked_up(stand_in) == [call.headers["x-irid"]]
+    assert log.samples is not None
+    error = log.samples[0].error
+    assert error is not None
+    assert "refus" in error.message.lower()
 
 
 async def test_a_task_the_sidecar_forgets_again_is_an_error() -> None:

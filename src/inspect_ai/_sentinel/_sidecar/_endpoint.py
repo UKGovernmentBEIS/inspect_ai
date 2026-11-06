@@ -65,14 +65,25 @@ class Sidecar:
         Raises:
             SidecarCallError: If the call failed, or was answered with an error, including `unauthorized` when the sidecar keeps another token for the eval.
         """
-        if self.access is None or self.access.token is None:
+        access = self.access
+        if access is None or access.token is None:
             raise SidecarCallError(
                 method, "the eval hasn't registered with the sidecar"
             )
-        return await self.call(
-            method,
-            {**params, "eval_id": self.access.eval_id, "token": self.access.token},
-        )
+        presented = access.token
+        try:
+            return await self.call(
+                method, {**params, "eval_id": access.eval_id, "token": presented}
+            )
+        except SidecarCallError as ex:
+            # Another sample registered the eval again while this call was on
+            # its way, as after a restart, and the sidecar now keeps the token
+            # it was given: the call goes again with that one.
+            if ex.code != UNAUTHORIZED or access.token in (None, presented):
+                raise
+            return await self.call(
+                method, {**params, "eval_id": access.eval_id, "token": access.token}
+            )
 
     async def call(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
         """Call a method of the endpoint for evals, and return its result."""

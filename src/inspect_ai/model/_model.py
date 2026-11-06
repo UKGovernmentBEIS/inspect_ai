@@ -1097,6 +1097,9 @@ class Model:
         # enforce concurrency limits
         start_time = datetime.now(timezone.utc)
         working_start = sample_working_time()
+        # a refusal the sample fails on, which a call through a sidecar raises
+        # only once the sidecar's judgment of it is in
+        refused = False
         async with self._connection_concurrency(config) as connection:
             # generate
             with (
@@ -1176,11 +1179,12 @@ class Model:
             # fail the sample on a refusal if requested. Raised here, after the
             # ModelEvent is complete (so the transcript shows the refusal and
             # then the error) and after usage/refusal accounting has run.
-            if (
+            refused = bool(
                 config.fail_on_refusal
                 and not output.empty
                 and output.stop_reason == "content_filter"
-            ):
+            )
+            if refused and through_sidecar is None:
                 raise ModelRefusalError(output, str(self), self.role)
 
         # what the sidecar decided of the call, which a reply never carries:
@@ -1217,6 +1221,11 @@ class Model:
                 generate_id,
             )
             end_if_terminated(judgment, output, _bridged())
+
+        # a call through a sidecar fails on its refusal once the judgment is
+        # recorded and acted on, so a sentinel's terminate comes first
+        if refused:
+            raise ModelRefusalError(output, str(self), self.role)
 
         if generate_step is not None:
             from inspect_ai._sentinel._dispatch import sentinel_after_generate
