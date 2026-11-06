@@ -1071,6 +1071,89 @@ def test_google_compaction_keeps_the_latest_replys_id(tmp_path: Path) -> None:
     assert retained.id == edited_id(second.output.message.id, retained)
 
 
+@pytest.mark.parametrize(
+    "arguments",
+    ["1: one\nname: value", '{"data": {"1": "one", "name": "value"}}'],
+    ids=["yaml-mixed-keys", "json-string-keys"],
+)
+def test_google_reply_with_non_string_argument_keys_keeps_its_id(
+    arguments: str, tmp_path: Path
+) -> None:
+    """A reply whose parsed arguments have integer keys is sent and recognized as JSON."""
+    info = ToolInfo(
+        name="read",
+        description="Read data.",
+        parameters=ToolParams(properties={"data": ToolParam(type="object")}),
+    )
+    call = parse_tool_call("call", "read", arguments, [info])
+    assert call.parse_error is None
+    sent_args: list[dict[str, Any]] = []
+
+    @agent
+    def scaffold() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            async with agent_bridge(state) as bridge:
+                from google.genai import types
+
+                client = genai.Client(api_key="inspect")
+                config = types.GenerateContentConfig(
+                    automatic_function_calling=types.AutomaticFunctionCallingConfig(
+                        disable=True
+                    )
+                )
+                contents: list[dict[str, Any]] = [
+                    {"role": "user", "parts": [{"text": PROMPT}]}
+                ]
+                response = await client.aio.models.generate_content(
+                    model="inspect", contents=contents, config=config
+                )
+                assert response.candidates and response.candidates[0].content
+                reply = response.candidates[0].content
+                assert reply.parts and reply.parts[0].function_call
+                sent_args.append(reply.parts[0].function_call.args or {})
+                contents += [
+                    reply.model_dump(exclude_none=True, by_alias=True),
+                    {
+                        "role": "user",
+                        "parts": [
+                            {
+                                "functionResponse": {
+                                    "name": "read",
+                                    "response": {"output": "ok"},
+                                }
+                            }
+                        ],
+                    },
+                ]
+                await client.aio.models.generate_content(
+                    model="inspect", contents=contents, config=config
+                )
+                return bridge.state
+
+        return execute
+
+    log = eval(
+        Task(dataset=[Sample(input=PROMPT)], solver=scaffold()),
+        model=get_model(
+            "mockllm/model",
+            custom_outputs=[
+                ModelOutput.from_message(
+                    ChatMessageAssistant(content="", tool_calls=[call])
+                ),
+                ModelOutput.from_content("mockllm/model", "Done."),
+            ],
+        ),
+        log_dir=str(tmp_path),
+    )[0]
+
+    assert log.status == "success", log.error
+    assert sent_args == [{"data": {"1": "one", "name": "value"}}]
+    assert log.samples
+    first, second = [e for e in log.samples[0].events if isinstance(e, ModelEvent)]
+    returned = second.input[1]
+    assert returned.id == edited_id(first.output.message.id, returned)
+
+
 async def test_resumed_bridge_keeps_the_main_threads_id() -> None:
     """A side call's equal output recorded first doesn't take the main thread's id after a resume."""
     task = ChatMessageUser(content="List the files.")
