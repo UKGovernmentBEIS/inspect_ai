@@ -84,8 +84,8 @@ class TaskCancel:
 
     can_retry: bool
     apply: Callable[[CancelType], None]
-    """Carries out a newly accepted stamp (wakes pause waiters; abort and retry
-    cancel the task's scope)."""
+    """Carries out a stamp: wakes pause waiters; abort and retry cancel the
+    task's scope (or, during the error-log write, take effect when it ends)."""
     log_write_scope: anyio.CancelScope | None = None
     """The scope around the task's error-log write while it runs. An abort or
     retry request made then bounds the write and takes effect when it ends

@@ -43,6 +43,7 @@ from inspect_ai.util import (
         ("error", "retry", "retry"),
         ("retry", "abort", "abort"),
         ("abort", "retry", "abort"),
+        ("abort", "abort", "abort"),
         ("abort", "drain", "abort"),
         ("drain", None, "drain"),
     ],

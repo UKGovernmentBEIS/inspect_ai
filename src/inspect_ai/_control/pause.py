@@ -761,8 +761,8 @@ def fire_dispatch_wakers() -> None:
 def wake_pause_waiters() -> None:
     """Wake every gate waiter so escape predicates get re-checked.
 
-    Called when a cancel stamp is accepted (``TaskCancel.request``, via the
-    ``apply_cancel`` closure in ``_eval/run.py``): a sample parked at the pause gate must observe a
+    Called from ``TaskCancel.apply`` (the ``apply_cancel`` closure in
+    ``_eval/run.py``): a sample parked at the pause gate must observe a
     graceful (score/error) resolution and proceed to the queue-exit abandon
     check — the gate holds starts, not terminal transitions. Waking on
     abort/retry too is harmless (the task scope's cancellation reaps the
