@@ -4235,17 +4235,14 @@ def async_client_kwargs(
 ) -> dict[str, Any]:
     """Kwargs genai passes to its async HTTP client, once per genai HTTP backend.
 
-    google-genai 3.x defaults to httpx2; older versions may have only httpx.
+    google-genai defaults to httpx2 and keeps httpx as an opt-in backend.
     """
     from google.genai import _api_client
 
-    client_cls = getattr(
-        _api_client,
-        {"httpx": "AsyncHttpxClient", "httpx2": "AsyncHttpx2Client"}[request.param],
-        None,
-    )
-    if client_cls is None:
-        pytest.skip(f"this google-genai has no {request.param} backend")
+    client_cls: type[Any] = {
+        "httpx": _api_client.AsyncHttpxClient,
+        "httpx2": _api_client.AsyncHttpx2Client,
+    }[request.param]
     monkeypatch.setenv("GOOGLE_GENAI_HTTP_CLIENT", request.param)
 
     captured: dict[str, Any] = {}
