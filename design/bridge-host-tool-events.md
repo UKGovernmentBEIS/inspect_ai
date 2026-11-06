@@ -246,8 +246,10 @@ After #5428 (the tree this design targets, head `e5e3cab8f`):
   and an object `Arguments`), denoting that tool with the inner `Arguments`.
   The name gate is what stops an ordinary call whose arguments happen to
   carry those fields from minting a grant for, or borrowing the approval
-  policy of, a bridged tool; approval and grant resolution share the one
-  function so they cannot disagree. Tools that cannot be told apart (a
+  policy of, a bridged tool. Approval reviews each call through the same
+  `_proposed_call` resolution (`SandboxAgentBridge.reviewed_calls`), under
+  the name of each bridged tool it denotes, so approval and grants cannot
+  disagree about what a call runs. Tools that cannot be told apart (a
   shared description, whatever their schemas; `warn_indistinct_tools` names
   them at setup) each get a grant bound to the call's arguments, so one
   proposal authorises one execution of each of them.
