@@ -51,11 +51,11 @@ _console_settings: _ConsoleSettings | None = None
 _reconfigure_in_place = False
 """Whether rich_initialise sets display settings on the existing console.
 
-Set after a display type change. Replacing the console there (as
-`rich.reconfigure()` does) would also drop console state from after the first
-display started, such as an open theme, capture or live display, a recording,
-or options set by the user between evals. A process without a display type
-change is unaffected.
+Set by a display type change after a display was built. Replacing the console
+there (as `rich.reconfigure()` does) would also drop console state from after
+that display started, such as an open theme, capture
+or live display, a recording, or options set by the user between evals. A
+process without such a change is unaffected.
 """
 
 
@@ -142,11 +142,17 @@ def _reconfigure(**kwargs: Any) -> None:
         rich.reconfigure(**kwargs)
 
 
-def rich_display_type_changed() -> None:
-    """Prepare the console for a display rebuilt after a display type change."""
+def rich_display_type_changed(display_built: bool) -> None:
+    """Prepare the console for a display rebuilt after a display type change.
+
+    Args:
+       display_built: Whether a display was built for the previous type (and
+          not only the type queried, e.g. by `get_model().generate()`).
+    """
     global _reconfigure_in_place
+    if display_built:
+        _reconfigure_in_place = True
     rich_restore_defaults()
-    _reconfigure_in_place = True
 
 
 def rich_restore_defaults() -> None:
@@ -217,6 +223,28 @@ def rich_theme() -> RichTheme:
 
 
 _theme: RichTheme | None = None
+
+
+@contextmanager
+def input_screen_capture_suspended(console: Console) -> Iterator[None]:
+    """Show an input screen inside a caller's `console.capture()`.
+
+    Only after a display type change, when the console (with a capture opened
+    before the change) is kept rather than replaced, so the capture would hide
+    the screen's prompt. Output the capture holds is set aside for the screen
+    and restored after it. Without a change, a capture behaves as before.
+    """
+    if not _reconfigure_in_place:
+        yield
+        return
+
+    thread_locals = console._thread_locals
+    pending, pending_index = thread_locals.buffer, thread_locals.buffer_index
+    thread_locals.buffer, thread_locals.buffer_index = [], 0
+    try:
+        yield
+    finally:
+        thread_locals.buffer, thread_locals.buffer_index = pending, pending_index
 
 
 @contextmanager

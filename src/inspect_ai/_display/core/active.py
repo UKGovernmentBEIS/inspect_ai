@@ -23,8 +23,8 @@ def active_display() -> Display | None:
 def clear_active_display() -> None:
     """Drop the active display and the console settings it applied."""
     global _active_display
+    rich_display_type_changed(display_built=_active_display is not None)
     _active_display = None
-    rich_display_type_changed()
 
 
 def display() -> Display:

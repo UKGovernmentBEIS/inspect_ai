@@ -62,3 +62,34 @@ def test_restore_after_repeated_initialise_removes_display_settings(
 
     rich_restore_defaults()
     assert not rich.get_console().no_color
+
+
+@pytest.mark.parametrize("changed", [True, False])
+def test_textual_input_screen_shows_prompt_inside_capture(
+    fresh_display: None,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    changed: bool,
+) -> None:
+    from contextlib import nullcontext
+    from types import SimpleNamespace
+    from typing import Any, cast
+
+    from inspect_ai._display.textual.app import TextualTaskScreen
+
+    # after a display type change a caller's capture is kept (e.g. a change to
+    # "full" inside `console.capture()`); without one it behaves as before
+    monkeypatch.setattr(display_rich, "_reconfigure_in_place", changed)
+    app = cast(Any, SimpleNamespace(suspend_app=nullcontext))
+    console = rich.get_console()
+    with console.capture() as capture:
+        console.print("before the screen")
+        screen = TextualTaskScreen[None](app)
+        with screen.input_screen(record_event=False) as screen_console:
+            screen_console.print("prompt")
+            assert ("prompt" in capsys.readouterr().out) == changed
+        console.print("after the screen")
+
+    assert "before the screen" in capture.get()
+    assert "after the screen" in capture.get()
+    assert ("prompt" in capture.get()) != changed

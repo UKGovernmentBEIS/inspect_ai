@@ -439,6 +439,85 @@ def test_eval_display_change_keeps_console_replaced_between_evals(
     assert not console.is_interactive
 
 
+def test_eval_first_display_after_display_type_query_replaces_console(
+    fresh_display: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import rich
+
+    import inspect_ai._display.core.rich as display_rich
+    from inspect_ai.util._display import display_type
+
+    monkeypatch.setattr(display_rich, "is_running_in_vscode", lambda: False)
+
+    # as get_model().generate() does outside an eval, without building a display
+    display_type()
+    rich.get_console().record = True
+    task = Task(dataset=[Sample(input="hi", target="hi")], scorer=match())
+    eval(task, model="mockllm/model", display="rich", log_dir=str(tmp_path))
+
+    # the first display replaces the console, as in a process with no query
+    assert not rich.get_console().record
+
+
+@pytest.mark.parametrize(
+    "first,second", [("plain", "rich"), ("rich", "plain"), ("rich", "rich")]
+)
+def test_eval_display_change_shows_input_screen_inside_capture(
+    fresh_display: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    first: DisplayType,
+    second: DisplayType,
+) -> None:
+    import rich
+
+    import inspect_ai._display.core.rich as display_rich
+    from inspect_ai.util import input_screen
+
+    monkeypatch.setattr(display_rich, "is_running_in_vscode", lambda: False)
+
+    @solver
+    def ask() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            with input_screen() as console:
+                console.print("PROMPT")
+            return state
+
+        return solve
+
+    task = Task(dataset=[Sample(input="hi", target="hi")], solver=ask())
+    eval(task, model="mockllm/model", display=first, log_dir=str(tmp_path))
+    capsys.readouterr()
+
+    # a capture kept across a display type change doesn't hide the prompt;
+    # without a change it behaves as before
+    with rich.get_console().capture() as capture:
+        eval(task, model="mockllm/model", display=second, log_dir=str(tmp_path))
+    changed = first != second
+    assert ("PROMPT" in capsys.readouterr().out) == changed
+    assert ("PROMPT" in capture.get()) != changed
+
+
+def test_eval_display_change_after_log_display_keeps_console(
+    fresh_display: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import rich
+
+    import inspect_ai._display.core.rich as display_rich
+
+    monkeypatch.setattr(display_rich, "is_running_in_vscode", lambda: False)
+    task = Task(dataset=[Sample(input="hi", target="hi")], scorer=match())
+
+    # the log display doesn't set the console up, the plain display after it
+    # sets only its display settings
+    eval(task, model="mockllm/model", display="log", log_dir=str(tmp_path))
+    rich.get_console().record = True
+    eval(task, model="mockllm/model", display="plain", log_dir=str(tmp_path))
+
+    assert rich.get_console().record
+
+
 def test_eval_display_change_detects_settings_for_the_console_output(
     fresh_display: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

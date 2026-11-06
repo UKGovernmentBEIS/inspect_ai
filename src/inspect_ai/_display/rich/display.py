@@ -44,6 +44,7 @@ from ..core.progress import (
 )
 from ..core.results import task_metric, tasks_results
 from ..core.rich import (
+    input_screen_capture_suspended,
     is_vscode_notebook,
     record_console_input,
     rich_initialise,
@@ -221,55 +222,58 @@ class RichTaskScreen(TaskScreen):
         # show cursor for input
         self.live.console.show_cursor(True)
 
-        # set width
-        old_width: int | None = None
-        if width:
-            old_width = self.live.console.width
-            self.live.console.width = min(old_width, width)
+        with input_screen_capture_suspended(self.live.console):
+            # set width
+            old_width: int | None = None
+            if width:
+                old_width = self.live.console.width
+                self.live.console.width = min(old_width, width)
 
-        # record console activity for event
-        self.live.console.record = True
+            # record console activity for event
+            self.live.console.record = True
 
-        try:
-            # print header if requested
-            if header:
-                style = f"{rich_theme().meta} bold"
-                self.live.console.rule(f"[{style}]{header}[/{style}]", style="black")
+            try:
+                # print header if requested
+                if header:
+                    style = f"{rich_theme().meta} bold"
+                    self.live.console.rule(
+                        f"[{style}]{header}[/{style}]", style="black"
+                    )
+                    self.live.console.print("")
+
+                # yield the console
+                with record_console_input():
+                    yield self.live.console
+
+            finally:
+                # capture recording then yield input event
+                input = self.live.console.export_text(clear=False, styles=False)
+                input_ansi = self.live.console.export_text(clear=True, styles=True)
+                self.live.console.record = False
+                if record_event:
+                    transcript()._event(InputEvent(input=input, input_ansi=input_ansi))
+
+                # print one blank line
                 self.live.console.print("")
 
-            # yield the console
-            with record_console_input():
-                yield self.live.console
+                # reset width
+                if old_width:
+                    self.live.console.width = old_width
 
-        finally:
-            # capture recording then yield input event
-            input = self.live.console.export_text(clear=False, styles=False)
-            input_ansi = self.live.console.export_text(clear=True, styles=True)
-            self.live.console.record = False
-            if record_event:
-                transcript()._event(InputEvent(input=input, input_ansi=input_ansi))
+                # disable cursor while not collecting input
+                self.live.console.show_cursor(False)
 
-            # print one blank line
-            self.live.console.print("")
+                # if transient then disable live updates entirely
+                if transient is False and self.live.is_started:
+                    self.live.stop()
 
-            # reset width
-            if old_width:
-                self.live.console.width = old_width
+                # otherwise make sure they are enabled
+                elif transient is True and not self.live.is_started:
+                    self.live.start()
 
-            # disable cursor while not collecting input
-            self.live.console.show_cursor(False)
-
-            # if transient then disable live updates entirely
-            if transient is False and self.live.is_started:
-                self.live.stop()
-
-            # otherwise make sure they are enabled
-            elif transient is True and not self.live.is_started:
-                self.live.start()
-
-            # if not transient then display mini-status
-            if not transient:
-                self.status.start()
+                # if not transient then display mini-status
+                if not transient:
+                    self.status.start()
 
 
 class RichTaskDisplay(TaskDisplay):
