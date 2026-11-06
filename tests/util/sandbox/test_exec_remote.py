@@ -675,7 +675,7 @@ class TestKill:
         retries, and the timeout is logged like a failed kill.
         """
         monkeypatch.setattr(exec_remote_module, "KILL_TIMEOUT", 0.2)
-        caplog.set_level(logging.DEBUG)
+        caplog.set_level(logging.DEBUG, logger=exec_remote_module.__name__)
 
         async def kill_hangs(params: dict[str, Any]) -> str:
             await anyio.sleep_forever()

@@ -75,9 +75,7 @@ def _rpc(result: dict[str, object]) -> str:
 
 
 def _running_poll() -> str:
-    return _rpc(
-        {"state": "running", "exit_code": None, "seq": 0, "stdout": "", "stderr": ""}
-    )
+    return _rpc({"state": "running", "exit_code": None, "chunks": []})
 
 
 @contextlib.contextmanager
@@ -106,7 +104,7 @@ def _use_proxy_sandbox(
         elif method == "exec_remote_poll":
             stdout = answer_poll(kwargs["timeout"])
         else:
-            stdout = _rpc({"seq": 0, "stdout": "", "stderr": ""})
+            stdout = _rpc({"chunks": []})
         return ExecResult(success=True, returncode=0, stdout=stdout, stderr="")
 
     async def exec_remote(
