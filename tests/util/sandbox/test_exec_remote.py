@@ -11,7 +11,7 @@ import itertools
 import json
 import logging
 import warnings
-from collections.abc import Iterator
+from collections.abc import Awaitable, Callable, Iterator
 from typing import Any, Literal
 from unittest.mock import AsyncMock, patch
 
@@ -1016,9 +1016,51 @@ class TestStopRaces:
                 finally:
                     kill_answer.set()
 
+        assert first_scope.cancelled_caught
+        assert joined_scope.cancelled_caught
         assert second_returned.is_set()
         assert events == [ExecStdout(data="bye")]
         assert guest.methods == ["exec_remote_start", "exec_remote_kill"]
+
+    async def test_anyio_timeout_on_kill_raises_after_the_kill_request(
+        self,
+    ) -> None:
+        async def kill(proc: ExecRemoteProcess) -> None:
+            with anyio.fail_after(0.01):
+                await proc.kill()
+
+        await self._assert_timed_out_kill_raises_after_the_kill_request(kill)
+
+    @skip_if_trio
+    async def test_asyncio_timeout_on_kill_raises_after_the_kill_request(
+        self,
+    ) -> None:
+        async def kill(proc: ExecRemoteProcess) -> None:
+            async with asyncio.timeout(0.01):
+                await proc.kill()
+
+        await self._assert_timed_out_kill_raises_after_the_kill_request(kill)
+
+    async def _assert_timed_out_kill_raises_after_the_kill_request(
+        self, kill: Callable[[ExecRemoteProcess], Awaitable[None]]
+    ) -> None:
+        """The kill request outlives the timeout; the timeout then raises."""
+        kill_answered = anyio.Event()
+
+        async def slow_kill(params: dict[str, Any]) -> str:
+            await anyio.sleep(0.1)
+            kill_answered.set()
+            return _chunks_response((1, "bye"))
+
+        guest = _RaceGuest({"exec_remote_kill": slow_kill})
+        proc = await exec_remote_streaming(guest.sandbox, ["cmd"], 5)
+
+        with pytest.raises(TimeoutError):
+            await kill(proc)
+
+        assert kill_answered.is_set()
+        assert guest.methods == ["exec_remote_start", "exec_remote_kill"]
+        assert [event async for event in proc] == [ExecStdout(data="bye")]
 
 
 class TestOutputRaces:

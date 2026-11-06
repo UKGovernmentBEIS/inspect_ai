@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, ClassVar, Literal, TypeVar, Union, cast
 
 import anyio
+import anyio.lowlevel
 from pydantic import BaseModel
 from tenacity import (
     retry,
@@ -258,22 +259,22 @@ async def _complete_before_cancelling(
     `work` runs in its own task and the caller waits for it. `work` shields
     itself from AnyIO cancellation.
     """
-    if current_async_backend() != "asyncio":
+    if current_async_backend() == "asyncio":
+        task = asyncio.ensure_future(work())
+        cancelled: asyncio.CancelledError | None = None
+        # the shield stops AnyIO from re-delivering its own cancellation
+        with anyio.CancelScope(shield=True):
+            while not task.done():
+                try:
+                    await asyncio.shield(task)
+                except asyncio.CancelledError as ex:
+                    cancelled = ex
+        task.result()
+        if cancelled is not None:
+            raise cancelled
+    else:
         await work()
-        return
-
-    task = asyncio.ensure_future(work())
-    cancelled: asyncio.CancelledError | None = None
-    # the shield stops AnyIO from re-delivering its own cancellation
-    with anyio.CancelScope(shield=True):
-        while not task.done():
-            try:
-                await asyncio.shield(task)
-            except asyncio.CancelledError as ex:
-                cancelled = ex
-    task.result()
-    if cancelled is not None:
-        raise cancelled
+    await anyio.lowlevel.checkpoint_if_cancelled()
 
 
 class ExecRemoteProcess:
