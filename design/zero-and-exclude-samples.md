@@ -33,8 +33,8 @@ samples and run with the log's recorded models and with the run settings
 eval-retry restores from a log (epochs, approval, review and sentinel
 policies, sample limits, generate config), through a helper the two share.
 Zero refuses, before the scratch eval runs, when the task declares a
-generate option, sample limit or policy with a value other than the one
-the log recorded (the task changed since the log), when a
+generate option, sample limit, policy or model with a value other than
+the one the log recorded (the task changed since the log), when a
 sample's limits were retuned while it ran, and when a retry carried the
 sample's record over from an earlier attempt, since the log does not record
 the settings that attempt ran under. Otherwise it copies the verdicts in.
@@ -115,7 +115,7 @@ Non-goals:
   them before the scratch eval or before any edit, with a message that names
   the cause and suggests exclusion, which accepts them all (decision:
   Ransom, 2026-11-06): a task that changed since the log in its scorers
-  or in a generate option, limit or policy it declares;
+  or in a generate option, limit, policy or model it declares;
   integer ids and sample sources; dict and list verdicts; a sample whose
   limits were retuned while it ran; a record a retry carried over from an
   earlier attempt; and a log written before Inspect recorded per-sample
@@ -419,7 +419,7 @@ The design therefore supports:
   have scorers, run with the log's recorded models; static datasets; samples
   with string ids that the task's dataset still holds; tasks whose scorers
   are the ones the log records, and that declare no generate option, sample
-  limit or policy with a value other than the log's; scorers whose empty-attempt verdict is a
+  limit, policy or model with a value other than the log's; scorers whose empty-attempt verdict is a
   single `str`, `int`, `float` or `bool`; and samples whose scores all come
   from those scorers;
 - exclusion for any landed log, for a sample that holds a score or of a log
@@ -1086,6 +1086,30 @@ the task may have changed since the log was written".
      `config_from_review_policies`, `sentinel_config`), must equal the
      header's, compared as JSON. A header `None` therefore differs from any
      declared policy.
+   - **Primary model.** When the task pins a model (`task.model` is not
+     `None`), it takes precedence over the recorded model in the scratch eval
+     (`src/inspect_ai/_eval/loader.py:119`), so its own generate config,
+     which `task.config` does not hold, would reach `Task.setup` and the
+     scorers. `model_to_model_config(task.model)` (the serializer the log's
+     model roles use, `src/inspect_ai/model/_model_config.py`) must equal
+     `ModelConfig(model=log.eval.model, config=log.eval.model_generate_config,
+     base_url=log.eval.model_base_url, args=log.eval.model_args)`, the fields
+     the runner records from the model in effect
+     (`src/inspect_ai/_eval/task/log.py:301-304`), compared as JSON. A
+     changed model name, base URL, model argument or generate option of the
+     pinned model is refused, newly declared ones included.
+   - **Model roles.** The runner merges the task's roles with the eval's,
+     the eval's winning (`_merge_model_roles`, `loader.py:66`, `:120`), and
+     records the merged roles in `log.eval.model_roles`. For each role the
+     task declares, the log must record that role, and
+     `model_roles_to_model_roles_config()` of the task's value must equal the
+     recorded one, compared as JSON, a list (an ensemble) in its recorded
+     order. A role the task added since the log is refused, because the
+     recorded roles do not override it and it would reach the scratch eval;
+     a role recorded only at eval level is replayed as before. A recorded
+     role that wins over a changed task role is refused too: task code that
+     holds the factory's role models (a `Task.setup` closure) would still
+     see the changed ones.
 
    Any name listed refuses the zero: "the task's <names> differ from the
    log's (the task may have changed since the log was written); zero
@@ -1094,12 +1118,19 @@ the task may have changed since the log was written".
    `mockllm` task declaring `max_tokens=20, temperature=0.0`,
    `message_limit=10`, `token_limit=500` and an `auto_approver()` policy:
    after the log was written and read back, every declared option, limit
-   and the serialized approval policy compared equal to the header's.
+   and the serialized approval policy compared equal to the header's. A
+   task pinning `mockllm/model` with `temperature=0.0` and declaring a
+   `grader` role and a two-model `panel` ensemble, each with its own
+   generate config, run with an eval-level primary and an extra eval-level
+   role, likewise compared equal for its pinned model and both roles after
+   a read back; changing the pinned temperature to `0.7` made the primary
+   differ.
 
    The comparison is conservative where the log cannot say where a value
    came from. A log written with an eval-level value over a different
    value of the task's own (`eval(task, message_limit=1)` on a task that
-   declares `message_limit=5`) is refused, although the task may be
+   declares `message_limit=5`, or an eval-level role over a task's role of
+   the same name) is refused, although the task may be
    unchanged: the header records only the value in effect. A setting the
    task does not declare is not compared, so a log written with an
    eval-level limit or option on a task that leaves it unset (`inspect eval
@@ -1468,8 +1499,8 @@ inspect log zero    LOG_FILE --sample ID [--sample ID ...] [--epoch N]
   per-sample limits, are refused in step 5, and nothing is edited.
   Exclusion accepts all three.
 - **Edited task file.** A task file edited since the log was written to
-  declare a generate option, sample limit or policy with a value other
-  than the log's is refused in step 5, before the scratch eval, and nothing is edited.
+  declare a generate option, sample limit, policy or model with a value
+  other than the log's is refused in step 5, before the scratch eval, and nothing is edited.
   Otherwise it runs as edited, as eval-retry does, provided its scorers'
   names and options are unchanged (step 8). The scratch log is not kept, but the zero edits record
   the scorer's answer and explanation for the empty attempt. A verdict whose
@@ -1676,8 +1707,8 @@ No migration required.
   that an eval-set retry carried over from an earlier attempt is refused by
   zero (step 5), where Steward's side run zeroes it under the current task;
   it can be excluded. Likewise, zero refuses a task that declares a
-  generate option, limit or policy with a value other than its log's,
-  including a log that Steward's eval-set ran with an eval-level value
+  generate option, limit, policy or model with a value other than its
+  log's, including a log that Steward's eval-set ran with an eval-level value
   over a task's own; Steward's side run would zero it under the current
   task.
 
@@ -1964,6 +1995,17 @@ backends; run the zero tests with `--runtrio` locally.
       made against the log as read back from disk; and a log written with
       `eval(task, message_limit=3, temperature=0.5)` on a task that sets
       neither zeroes, with the scratch eval's header recording both;
+    - task-declared models: a file-backed task pinning a model with
+      `temperature=0.0`, a `grader` role and a two-model `panel` ensemble
+      (`[0.0, 0.2]`), each read by a `Task.setup` closure that records the
+      factory's models' configs and a scorer that scores 0 only for the
+      original ones. Unchanged since the log (run with an eval-level
+      primary and an extra eval-level role), it zeroes. Each change is
+      refused before any scratch sample runs, with the log unchanged and the
+      message naming the setting: the pinned temperature changed to `0.7`;
+      a pinned model that newly declares `max_tokens`; the `grader` role's
+      config changed; the ensemble changed to `[0.7, 0.2]`, and reordered;
+      and a role the log does not record added to the task;
     - a log with no task scorers;
     - a task edited to return a scalar under a name whose logged metrics
       expect a dict: the `TypeError` is re-raised and the samples, results
@@ -2102,8 +2144,8 @@ additions later:
   policies on each sample, or the settings of every attempt in the header,
   would let zero replay a carried-over record's own settings.
 - **Zero with a changed task, or over eval-level overrides.** Zero refuses
-  a task that declares a generate option, sample limit or policy with a
-  value other than its log's. Recording in the log which settings came
+  a task that declares a generate option, sample limit, policy or model
+  with a value other than its log's. Recording in the log which settings came
   from the eval and which from the task would let zero accept an unchanged
   task run with eval-level overrides, and replaying a changed task would
   need the recorded values applied wherever the task's own code reads
