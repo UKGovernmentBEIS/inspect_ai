@@ -3520,7 +3520,7 @@ def test_ctl_task_cancel_before_final_log_write_stays_abandoned(
             assert me.task_cancel is not None
             # the attempt requests its own re-run (as the TUI's retry action
             # does) and the operator's cancel lands before it has torn down
-            me.task_cancel.cancel_task("retry")
+            me.task_cancel.request("retry")
             observed["result"] = cancel_task(me.task_id)
             # the retry stamp cancelled the task's scope; deliver it here
             await anyio.sleep(10)
@@ -3591,7 +3591,7 @@ def test_retry_request_after_ctl_cancel_does_not_retry(
             assert me.task_cancel is not None
             observed["result"] = cancel_task(me.task_id)
             # the cancel dialog's retry choice, made before the abort lands
-            me.task_cancel.cancel_task("retry")
+            me.task_cancel.request("retry")
             observed["stamp"] = me.task_cancel.cancel_type
             await anyio.sleep(10)
             return state

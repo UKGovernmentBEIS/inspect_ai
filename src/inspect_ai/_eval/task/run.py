@@ -812,7 +812,7 @@ def abort_bounded_write(task_cancel: TaskCancel | None) -> Iterator[None]:
             "seconds of the task's cancel request"
         )
     if not pending and task_cancel.cancel_type in ("abort", "retry"):
-        task_cancel.cancel_task(task_cancel.cancel_type)
+        task_cancel.apply(task_cancel.cancel_type)
 
 
 def _enqueue_source_samples(samples: list[Sample] | None) -> None:

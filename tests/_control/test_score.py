@@ -958,8 +958,8 @@ def test_pass_superseded_by_cancel_stamp(
     async def summaries() -> list[EvalSampleSummary]:
         return []
 
-    handle = TaskCancel(can_retry=False, cancel_task=lambda _t: None)
-    handle.cancel_type = cancel_type
+    handle = TaskCancel(can_retry=False, apply=lambda _t: None)
+    handle.request(cancel_type)
     register_eval(
         "e1",
         1,
