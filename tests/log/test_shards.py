@@ -4,6 +4,7 @@ import functools
 import json
 import os
 import zipfile
+import zlib
 from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any, BinaryIO, cast
@@ -4616,6 +4617,70 @@ def test_sample_copies_are_released_after_the_merge(
         finally:
             gc.enable()
         assert freed and all(freed)
+
+
+def test_a_sample_member_with_an_incomplete_deflate_stream_fails_the_merge(
+    tmp_path: Path,
+) -> None:
+    merged, shards = _paths(tmp_path)
+    _run(shards, "0", sample_id=[1, 2, 3])
+    log = _run(shards, "1", sample_id=[4, 5, 6])
+    name = "samples/5_epoch_1.json"
+    path = local_path(log.location)
+    # rewrite the shard deflated, then clear the member's final-block bit: its
+    # output and CRC-32 are unchanged, but the stream never ends
+    with zipfile.ZipFile(path) as zf:
+        sample = zf.read(name)
+    _replace_member(log.location, name, sample)
+    with zipfile.ZipFile(path) as zf:
+        info = zf.getinfo(name)
+    content = bytearray(Path(path).read_bytes())
+    header = info.header_offset
+    name_length = int.from_bytes(content[header + 26 : header + 28], "little")
+    extra_length = int.from_bytes(content[header + 28 : header + 30], "little")
+    data = header + 30 + name_length + extra_length
+    assert content[data] & 1
+    content[data] &= 0xFE
+    Path(path).write_bytes(bytes(content))
+    with pytest.raises(zlib.error, match="incomplete or truncated stream"):
+        merge_eval_log_shards(merged, _task())
+    assert not os.path.exists(merged)
+
+
+async def test_a_cancelled_read_still_closes_the_sample_input(
+    two_shards: tuple[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from inspect_ai._util import asyncfiles
+    from inspect_ai.log import merge_eval_log_shards_async
+
+    merged, shards = two_shards
+    stream_class = asyncfiles._AnyIOFileByteReceiveStream
+    streams: list[Any] = []
+    receive = stream_class.receive
+    cancelled: list[bool] = []
+
+    async def merge() -> None:
+        with anyio.CancelScope() as scope:
+
+            async def cancelled_receive(self: Any, max_bytes: int = 65536) -> bytes:
+                chunk = await receive(self, max_bytes)
+                if self._filename.startswith(local_path(shards)):
+                    # the file is open: cancel the read that opened it
+                    streams.append(self)
+                    scope.cancel()
+                    await anyio.lowlevel.checkpoint()
+                return chunk
+
+            monkeypatch.setattr(stream_class, "receive", cancelled_receive)
+            await merge_eval_log_shards_async(merged, _task())
+        cancelled.append(scope.cancelled_caught)
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(merge)
+    assert cancelled == [True]
+    # the close completed: the stream let go of its file
+    assert streams and all(stream._file is None for stream in streams)
+    assert not os.path.exists(merged)
 
 
 @pytest.mark.parametrize("stop", ["error", "cancelled"])

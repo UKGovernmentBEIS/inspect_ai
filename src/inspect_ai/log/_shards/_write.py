@@ -168,6 +168,7 @@ async def write_merged_zip(
             were scored and others ran without scoring.
         pydantic.ValidationError: A sample member does not parse.
         ZipCrcError: A sample member's bytes do not match its CRC-32.
+        zlib.error: A sample member's deflate stream is incomplete.
     """
     with zipfile.ZipFile(out, "w", **zipfile_compress_kwargs) as zf:
         inputs: list[_SampleInputs] = []
@@ -400,6 +401,7 @@ class _SampleCopy:
 
     def finish(self) -> _ParsedSample | None:
         """Finish the member; None when it must be parsed whole."""
+        self._decompressor.finish()
         _check_crc(self._member.location, self._member.entry, self._pieces.crc)
         self._pieces.open().close()
         parse = self._pieces.parse

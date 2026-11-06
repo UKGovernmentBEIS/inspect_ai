@@ -51,4 +51,18 @@ def test_piece_decompressor_ignores_data_after_a_deflate_stream() -> None:
     )
     decompressor.write(compressed)
     decompressor.write(b"more")
+    decompressor.finish()
     assert b"".join(pieces) == data
+
+
+def test_piece_decompressor_refuses_a_deflate_stream_without_its_final_block() -> None:
+    data = b"abc" * 4096
+    compressed = bytearray(_compress(data, ZipCompressionMethod.DEFLATE))
+    # clear the final-block bit: the output is complete, the stream is not
+    compressed[0] &= 0xFE
+    pieces: list[bytes] = []
+    decompressor = PieceDecompressor(ZipCompressionMethod.DEFLATE, pieces.append)
+    decompressor.write(bytes(compressed))
+    assert b"".join(pieces) == data
+    with pytest.raises(zlib.error, match="incomplete or truncated stream"):
+        decompressor.finish()

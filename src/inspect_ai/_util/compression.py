@@ -159,6 +159,18 @@ class PieceDecompressor:
             for start in range(0, len(data), self._piece_size):
                 self._sink(data[start : start + self._piece_size])
 
+    def finish(self) -> None:
+        """Check that the data held a complete stream.
+
+        Raises:
+            zlib.error: A deflate stream ended before its final block, as
+                `zlib.decompress` raises.
+        """
+        if self._deflate is not None and not self._deflate.eof:
+            raise zlib.error(
+                "Error -5 while decompressing data: incomplete or truncated stream"
+            )
+
 
 class _SinkWriter:
     """The file-like writer `zstandard`'s stream writer passes its output to."""
