@@ -32,9 +32,9 @@ attempts in a scratch eval of the same task, restricted to the targeted
 samples and run with the log's recorded models and with the run settings
 eval-retry restores from a log (epochs, approval, review and sentinel
 policies, sample limits, generate config), through a helper the two share.
-Zero refuses, before the scratch eval runs, when the task has changed since
-the log in a way that would change those settings (it now declares a
-generate option, sample limit or policy the log ran without), when a
+Zero refuses, before the scratch eval runs, when the task declares a
+generate option, sample limit or policy with a value other than the one
+the log recorded (the task changed since the log), when a
 sample's limits were retuned while it ran, and when a retry carried the
 sample's record over from an earlier attempt, since the log does not record
 the settings that attempt ran under. Otherwise it copies the verdicts in.
@@ -114,8 +114,8 @@ Non-goals:
   run under or how its verdict maps onto the sample. Zero refuses each of
   them before the scratch eval or before any edit, with a message that names
   the cause and suggests exclusion, which accepts them all (decision:
-  Ransom, 2026-11-06): a task that changed since the log in its scorers or
-  by declaring a generate option, limit or policy the log ran without;
+  Ransom, 2026-11-06): a task that changed since the log in its scorers
+  or in a generate option, limit or policy it declares;
   integer ids and sample sources; dict and list verdicts; a sample whose
   limits were retuned while it ran; a record a retry carried over from an
   earlier attempt; and a log written before Inspect recorded per-sample
@@ -419,7 +419,7 @@ The design therefore supports:
   have scorers, run with the log's recorded models; static datasets; samples
   with string ids that the task's dataset still holds; tasks whose scorers
   are the ones the log records, and that declare no generate option, sample
-  limit or policy the log ran without; scorers whose empty-attempt verdict is a
+  limit or policy with a value other than the log's; scorers whose empty-attempt verdict is a
   single `str`, `int`, `float` or `bool`; and samples whose scores all come
   from those scorers;
 - exclusion for any landed log, for a sample that holds a score or of a log
@@ -1040,52 +1040,76 @@ the task may have changed since the log was written".
        `ensure_unique_ids`): "the task's dataset holds more than one sample
        with the id <id>".
 
-   **Task settings.** The scratch eval passes the log's recorded generate
-   config, sample limits and policies as eval-level arguments (step 6). A
-   recorded value therefore wins over whatever the reloaded task declares,
-   but a recorded `None` falls back to the task's own value (see "Effective
-   settings" above). A task edited since the log was written to declare a
-   generate option, limit or policy that the log ran without would apply it
-   to the scratch eval, and a `Task.setup` or scorer that reads it would
-   give a verdict the original attempt could not have had: a `temperature`
-   or `max_tokens` changes what a generating `Task.setup` produces (the
-   reviewer reproduced a verdict of 1 instead of 0 this way), and a scorer
-   that reads `state.message_limit` sees a limit that was never there. Zero
-   refuses such a task, comparing the settings the scratch eval would run
-   under with those the log recorded, once for the whole task:
+   **Task settings.** Zero refuses a task whose own settings differ from
+   those the log recorded (decision: Ransom, 2026-11-06). The scratch eval
+   passes the recorded generate config, sample limits and policies as
+   eval-level arguments (step 6), so a recorded value wins over the task's
+   for the runner's effective settings, but that is not enough:
+
+   - a recorded `None` falls back to the task's own value (see "Effective
+     settings" above), so a task edited to declare a `temperature` or
+     `max_tokens` changes what a generating `Task.setup` produces (the
+     reviewer reproduced a verdict of 1 instead of 0 this way), and a scorer
+     that reads `state.message_limit` sees a limit that was never there;
+   - the runner applies an eval-level value to its own shallow copy of the
+     task (`src/inspect_ai/_eval/run.py:261`), so task code holding the
+     factory's `Task` (a `Task.setup` closure that reads
+     `task.message_limit` or `task.config.temperature`) still sees the
+     edited value. The reviewer reproduced a verdict of 1 instead of 0 with
+     a task edited from `message_limit=10, temperature=0.0` to `20, 0.7`,
+     although the scratch eval's effective limit and config were the
+     recorded ones.
+
+   Zero therefore compares every setting the reloaded task declares with
+   the recorded one, once for the whole task, before the scratch eval:
 
    ```python
    # src/inspect_ai/_eval/zero.py
    def changed_task_settings(task: Task, log: EvalLog) -> list[str]:
-       """Names of the settings the task now declares where the log recorded none."""
+       """Names of the settings the task declares with a value other than the log's."""
    ```
 
-   - **Generate config.** `task.config.merge(log.plan.config)` must equal
-     `log.plan.config`, compared option by option; this is the merge the
-     runner applies to the scratch eval (`src/inspect_ai/_eval/task/run.py:849`),
-     so an option differs exactly when the log recorded `None` for it and
-     the task now sets it.
-   - **Sample limits.** For each of `message_limit`, `token_limit`,
-     `turn_limit`, `time_limit`, `working_limit` and `cost_limit`: the
-     header's value is `None` and the task's is not.
-   - **Policies.** For each of `approval`, `review` and `sentinel`: the
-     header's value is `None` and the task declares one, by the runner's own
-     test (`src/inspect_ai/_eval/run.py:388-404`).
+   - **Generate config.** Each option that `task.config` sets (not `None`)
+     must equal the same option of `log.plan.config`, compared as JSON
+     (`model_dump(mode="json")`), so that a value read back from the log
+     compares with the one the task builds.
+   - **Sample limits.** For each of `message_limit`, `turn_limit`,
+     `time_limit`, `working_limit` and `cost_limit` that the task sets, the
+     header's value must be equal. A task `token_limit` must equal the
+     header's `token_limit`, and the task's `token_limit_type` the header's,
+     the two read as one (count, type) pair with type `"all"` for an unset
+     type, as the runner moves them as a unit (`run.py:338-344`).
+   - **Policies.** For each of `approval`, `review` and `sentinel` that the
+     task declares, by the runner's own test (`run.py:388-404`), the config
+     the runner would record for it, built with the runner's own
+     serializers (`config_from_approval_policies`,
+     `config_from_review_policies`, `sentinel_config`), must equal the
+     header's, compared as JSON. A header `None` therefore differs from any
+     declared policy.
 
-   Any name listed refuses the zero: "the task now declares <names>, which
-   the log ran without (the task changed since the log was written); zero
+   Any name listed refuses the zero: "the task's <names> differ from the
+   log's (the task may have changed since the log was written); zero
    replays the log's settings only: exclude the samples instead". Nothing
-   runs and the log is unchanged.
+   runs and the log is unchanged. I verified the comparison's inputs on a
+   `mockllm` task declaring `max_tokens=20, temperature=0.0`,
+   `message_limit=10`, `token_limit=500` and an `auto_approver()` policy:
+   after the log was written and read back, every declared option, limit
+   and the serialized approval policy compared equal to the header's.
 
-   A recorded value the task now declares differently is not refused. The
-   recorded value is passed at eval level and wins, so the scratch eval runs
-   under it as the original did, and the log cannot tell a changed task from
-   an original run that set the value at eval level (`eval(...,
-   message_limit=1)` on a task with a limit of its own, or none). Refusing
-   it would refuse every log written with eval-level overrides of a task's
-   own settings. The comparison covers the settings the log records and
-   the scratch eval replays; a changed solver, `Task.setup` or scorer runs
-   as edited, as for eval-retry, with the scorers checked in step 8.
+   The comparison is conservative where the log cannot say where a value
+   came from. A log written with an eval-level value over a different
+   value of the task's own (`eval(task, message_limit=1)` on a task that
+   declares `message_limit=5`) is refused, although the task may be
+   unchanged: the header records only the value in effect. A setting the
+   task does not declare is not compared, so a log written with an
+   eval-level limit or option on a task that leaves it unset (`inspect eval
+   --message-limit 10`, the usual way to set one) is accepted; the replay
+   applies the recorded value at eval level as the original run did, and
+   the task has no value of its own for its code to read. The one change
+   this lets through is a task edited to drop a declaration the log
+   recorded; the scratch eval still runs under the recorded value. A
+   changed solver, `Task.setup` or scorer runs as edited, as for
+   eval-retry, with the scorers checked in step 8.
 
    **Records of this attempt.** The scratch eval replays the log's header
    (step 6): its generate config, limits and policies. The header describes
@@ -1198,8 +1222,8 @@ the task may have changed since the log was written".
      passed as eval-level policies, as eval-retry passes them. The runner
      records a task's own policy in the same fields when no eval-level one
      overrode it (`src/inspect_ai/_eval/run.py:388-408`), and step 5 has
-     refused a task that now declares a policy the log recorded as `None`,
-     so the scratch eval's `Task.setup` runs under the policies the
+     refused a task that declares a policy other than the recorded one
+     (including any policy where the log recorded `None`), so the scratch eval's `Task.setup` runs under the policies the
      original attempt ran under, and under none where it ran under none.
      Omitting them would let a setup tool call that the recorded
      approver rejected, or that the recorded reviewer or sentinel stopped,
@@ -1214,7 +1238,7 @@ the task may have changed since the log was written".
      turn, time, working and cost limits are passed. The runner records a
      task's own limits there when no eval-level limit overrides them
      (`src/inspect_ai/_eval/run.py:333-368`). Step 5 has refused a task
-     that now declares a limit the log recorded as `None`, and every target
+     that declares a limit other than the recorded one, and every target
      that a retune moved off the recorded limits, so they are the limits
      each target ran under. An omitted limit would fall back to the task's
      default, which is none for a limit that was given only to `eval()`; a
@@ -1223,9 +1247,9 @@ the task may have changed since the log was written".
      have hit the limit.
    - **Generate config.** `log.plan.config` is passed as the eval-level
      generate options, as eval-retry passes it, and the runner merges it
-     over the task's own config. Step 5 has refused a task that now sets an
-     option the log recorded as `None`, so the merged config is the
-     recorded one.
+     over the task's own config. Step 5 has refused a task that sets an
+     option to a value other than the recorded one, so the merged config is
+     the recorded one.
    - **Cost prices.** A log records its cost ceiling, not the prices it was
      computed with (`set_model_cost()`, `set_model_info()` or
      `--model-cost-config` are not persisted). With a recorded `cost_limit`,
@@ -1444,8 +1468,8 @@ inspect log zero    LOG_FILE --sample ID [--sample ID ...] [--epoch N]
   per-sample limits, are refused in step 5, and nothing is edited.
   Exclusion accepts all three.
 - **Edited task file.** A task file edited since the log was written to
-  declare a generate option, sample limit or policy the log ran without is
-  refused in step 5, before the scratch eval, and nothing is edited.
+  declare a generate option, sample limit or policy with a value other
+  than the log's is refused in step 5, before the scratch eval, and nothing is edited.
   Otherwise it runs as edited, as eval-retry does, provided its scorers'
   names and options are unchanged (step 8). The scratch log is not kept, but the zero edits record
   the scorer's answer and explanation for the empty attempt. A verdict whose
@@ -1552,12 +1576,18 @@ inspect log zero    LOG_FILE --sample ID [--sample ID ...] [--epoch N]
   comparison against the log, refusing a changed task before anything runs,
   covers them together, and an operator learns that the task changed
   (decision: Ransom, 2026-11-06).
-- **Refuse any task setting that differs from the recorded value.** Stricter
-  than refusing only values the log recorded as `None`, but the log does not
-  say whether a recorded value came from the task or from the eval, so it
-  would refuse every log written with an eval-level limit or generate option
-  over a task's own, although the scratch eval replays the recorded value in
-  both cases.
+- **Refuse only settings the log recorded as `None`.** It would accept a
+  log written with an eval-level value over the task's own, which the
+  stricter comparison refuses. But the replayed eval-level value reaches
+  only the runner's copy of the task, so task code holding the factory's
+  `Task` would see an edited value (10 changed to 20) and could give a
+  verdict the original attempt could not have had. Refusing every declared
+  difference fails loudly instead.
+- **Compare the settings the task leaves unset too.** Refusing a recorded
+  value where the task now declares none would also catch a task edited to
+  drop a declaration, but it would refuse every log written with an
+  eval-level limit or option on a task that does not set one, the usual way
+  of setting them, although nothing of the task's own could differ there.
 - **Attribute each held key to a scorer when the scorer list was appended
   to.** Zero could compare options and score-event attribution per key, and
   refuse only ambiguous cases. Refusing any log whose scorer list differs
@@ -1645,9 +1675,11 @@ No migration required.
   its record is the latest attempt's and zero accepts it. A clean sample
   that an eval-set retry carried over from an earlier attempt is refused by
   zero (step 5), where Steward's side run zeroes it under the current task;
-  it can be excluded. Likewise, zero refuses a task whose definition now
-  declares a generate option, limit or policy its log ran without, which
-  Steward's side run would zero under the new setting.
+  it can be excluded. Likewise, zero refuses a task that declares a
+  generate option, limit or policy with a value other than its log's,
+  including a log that Steward's eval-set ran with an eval-level value
+  over a task's own; Steward's side run would zero it under the current
+  task.
 
 ## Security
 
@@ -1916,12 +1948,22 @@ backends; run the zero tests with `--runtrio` locally.
       `approval`, `temperature` and `max_tokens`, no scratch sample runs, and
       the log is unchanged. Each of the four alone is refused the same way,
       and a `review` and a `sentinel` declared alone likewise;
-    - a task whose own settings differ from recorded values that were set:
-      a log written with `eval(..., message_limit=1, temperature=0.0)` on a
-      task declaring `message_limit=5` and `temperature=0.5` is accepted,
-      and the scratch eval's header records `message_limit=1` and
-      `temperature=0.0`; so is a task unchanged since its log, whose own
-      limits and generate options the log recorded;
+    - a changed populated setting: a log of a task declaring
+      `message_limit=10` and `temperature=0.0`, with a `Task.setup` closure
+      that records the factory task's `message_limit` and
+      `config.temperature` and a scorer that scores 0 only for `[10, 0.0]`,
+      zeroed after the factory was edited to `20` and `0.7`: refused naming
+      both before any scratch sample runs, with the log unchanged. Likewise
+      a changed `token_limit_type`, approval policy (another approver) and
+      review policy; and a log written with `eval(task, message_limit=1)`
+      over a task declaring `message_limit=5`, unchanged since, is refused
+      as documented;
+    - accepted comparisons: a task unchanged since its log, declaring
+      `max_tokens`, `temperature`, `message_limit`, a `token_limit` with an
+      `"output"` type and an approval policy, zeroes, with the comparison
+      made against the log as read back from disk; and a log written with
+      `eval(task, message_limit=3, temperature=0.5)` on a task that sets
+      neither zeroes, with the scratch eval's header recording both;
     - a log with no task scorers;
     - a task edited to return a scalar under a name whose logged metrics
       expect a dict: the `TypeError` is re-raised and the samples, results
@@ -2059,11 +2101,13 @@ additions later:
   attempt's settings. Recording the turn, working and cost limits and the
   policies on each sample, or the settings of every attempt in the header,
   would let zero replay a carried-over record's own settings.
-- **Zero with a changed task.** Zero refuses a task that now declares a
-  generate option, sample limit or policy its log ran without. Clearing
-  those settings on zero's copy of the task, from one runner helper that
-  says which task attributes the recorded settings come from, would let
-  such a task be zeroed under the original settings.
+- **Zero with a changed task, or over eval-level overrides.** Zero refuses
+  a task that declares a generate option, sample limit or policy with a
+  value other than its log's. Recording in the log which settings came
+  from the eval and which from the task would let zero accept an unchanged
+  task run with eval-level overrides, and replaying a changed task would
+  need the recorded values applied wherever the task's own code reads
+  them.
 
 ## Not this design
 
