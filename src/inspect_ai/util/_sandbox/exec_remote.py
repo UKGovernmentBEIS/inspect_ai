@@ -149,10 +149,11 @@ class ExecRemoteCommonOptions:
     re-issued poll replays any output the lost response carried; if the command
     ended during the stall, its exit status is lost and `RuntimeError` is raised.
     Only polls are re-issued, and none once `kill()` has been called: iteration
-    then ends with the kill's output once the kill request finishes. If the kill
-    request failed (for example, it also timed out), the error of a poll in
-    flight at the kill is raised; with no poll in flight, iteration ends without
-    raising.
+    then ends with the kill's output once the kill request finishes. A poll in
+    flight at the kill can still report that the command exited, and iteration
+    then yields its ExecCompleted. If the kill request failed (for example, it
+    also timed out), the error of a poll in flight at the kill is raised; with
+    no poll in flight, iteration ends without raising.
     A caller's `timeout` (awaitable mode) or cancellation still ends the wait at
     once. Raises `ValueError` with `poll_timeout_retry=False`, which asks for
     timed-out requests not to be retried.
@@ -509,7 +510,9 @@ class ExecRemoteProcess:
         then a final ExecCompleted event when the process exits on its own.
 
         After `kill()`, iteration yields any output returned by the kill
-        request and then ends without an ExecCompleted event.
+        request and then ends without an ExecCompleted event. A poll in flight
+        at the kill can still report that the process exited, and iteration
+        then yields its ExecCompleted.
 
         Note: After the ExecCompleted event is yielded, the job is automatically
         cleaned up on the server side.

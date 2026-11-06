@@ -1022,6 +1022,39 @@ class TestStopRaces:
         assert events == [ExecStdout(data="bye")]
         assert guest.methods == ["exec_remote_start", "exec_remote_kill"]
 
+    async def test_poll_in_flight_at_kill_can_still_yield_completed(self) -> None:
+        """A poll in flight at the kill reports the exit; iteration yields it."""
+        poll_started = anyio.Event()
+        kill_requested = anyio.Event()
+
+        async def poll(params: dict[str, Any]) -> str:
+            poll_started.set()
+            await kill_requested.wait()
+            return _chunks_response((1, "done"), state="completed", exit_code=3)
+
+        async def kill(params: dict[str, Any]) -> str:
+            kill_requested.set()
+            return _chunks_response(**_RUNNING_CHUNKS)
+
+        guest = _RaceGuest({"exec_remote_poll": poll, "exec_remote_kill": kill})
+        proc = await exec_remote_streaming(guest.sandbox, ["cmd"], 5)
+
+        async def kill_during_poll() -> None:
+            await poll_started.wait()
+            await proc.kill()
+
+        with anyio.fail_after(5):
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(kill_during_poll)
+                events = [event async for event in proc]
+
+        assert events == [ExecStdout(data="done"), ExecCompleted(exit_code=3)]
+        assert guest.methods == [
+            "exec_remote_start",
+            "exec_remote_poll",
+            "exec_remote_kill",
+        ]
+
     async def test_anyio_timeout_on_kill_raises_after_the_kill_request(
         self,
     ) -> None:
