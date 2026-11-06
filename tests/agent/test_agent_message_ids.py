@@ -1723,6 +1723,93 @@ def test_tracked_host_calls_keep_no_unexecuted_calls() -> None:
     assert unexecuted() is None
 
 
+async def test_answer_records_are_bounded() -> None:
+    """A long run of host calls under compaction keeps a bounded number of answer records and no calls."""
+    task = ChatMessageUser(content="Start")
+    scaffold = _Scaffold(AgentBridge(AgentState(messages=[task])))
+    window: list[ChatMessage] = [task]
+    sent_calls: list[weakref.ref[ToolCall]] = []
+    events: list[ToolEvent] = []
+    calls = 3000
+    for n in range(calls):
+        call = ToolCall(
+            id=f"call_{n}",
+            function="read",
+            arguments={"path": f"{n}", "data": "x" * 10_000},
+        )
+        reply = ChatMessageAssistant(content=f"Reading {n}", tool_calls=[call])
+        await scaffold.request(window, reply)
+        events += _awaiting(scaffold.bridge, reply, result="contents")
+        copy = reply.model_copy(deep=True)
+        assert copy.tool_calls
+        sent_calls.append(weakref.ref(copy.tool_calls[0]))
+        window = [
+            ChatMessageUser(content=f"Summary {n}"),
+            copy,
+            _result(call.id, "contents"),
+        ]
+        del call, reply, copy
+    ids = await scaffold.request(window)
+
+    bridge = scaffold.bridge
+    assert all(event.message_id is not None for event in events)
+    assert events[-1].message_id == ids[2]
+    records = sum(
+        len(answers.message_ids) + len(answers.occurrences)
+        for answers in bridge._reply_answers.values()
+    )
+    assert records == bridge._answer_records <= bridge_types._MAX_ANSWER_RECORDS
+    assert len(bridge._answers) < calls
+    del window, scaffold.sent
+    gc.collect()
+    assert sum(ref() is not None for ref in sent_calls) == 0
+
+
+@pytest.mark.parametrize("dropped", [False, True])
+async def test_equal_host_result_after_its_earlier_answer_record_is_dropped(
+    dropped: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A later host call's result equal to an earlier answer is fresh while the earlier answer's record is kept; once dropped it is taken for the earlier answer and links nothing.
+
+    The earlier reply is no longer tracked for its result in either case.
+    """
+    monkeypatch.setattr(bridge_types, "_MAX_AWAITED_RESULTS", 1)
+    if dropped:
+        monkeypatch.setattr(bridge_types, "_MAX_ANSWER_RECORDS", 8)
+    task = ChatMessageUser(content="Start")
+    scaffold = _Scaffold(AgentBridge(AgentState(messages=[task])))
+    first = _call("call_1")
+    await scaffold.request([task], first)
+    [first_event] = _awaiting(scaffold.bridge, first, result="A")
+    window: list[ChatMessage] = [task, first, _result("call_1", "A")]
+    earlier = ""
+    for n in range(3):
+        side = _call(f"side_{n}")
+        ids = await scaffold.request(window, side)
+        earlier = earlier or ids[2]
+        window = [
+            ChatMessageUser(content=f"Summary {n}"),
+            side,
+            _result(f"side_{n}", f"{n}"),
+        ]
+    assert first_event.message_id == earlier
+    # the provider reuses the call id
+    later = _call("call_1").model_copy(update={"content": "Again."})
+    await scaffold.request(window, later)
+    [later_event] = _awaiting(scaffold.bridge, later, result="A")
+
+    window = [ChatMessageUser(content="Summary"), later, _result("call_1", "A")]
+    ids = await scaffold.request(window)
+    next_ids = await scaffold.request([*window, ChatMessageUser(content="Thanks.")])
+
+    assert next_ids[2] == ids[2]
+    if dropped:
+        assert (ids[2], later_event.message_id) == (earlier, None)
+    else:
+        assert ids[2] != earlier
+        assert later_event.message_id == ids[2]
+
+
 def _read(call_id: str, path: str) -> ToolCall:
     return ToolCall(id=call_id, function="read", arguments={"path": path})
 

@@ -192,25 +192,51 @@ def _settle(
         transcript()._event_updated(event)
 
 
+class _CallDigest(NamedTuple):
+    id: str
+    function: str
+    arguments: str
+    """Digest of the call's arguments (`_arguments_digest`)."""
+
+
 class _AnsweredCall(NamedTuple):
     """The call a tool message answers, as the scaffold sent the reply holding it."""
 
     reply_id: str
     """Id of the reply (of the handed reply, for a copy the bridge recognized)."""
 
-    call: ToolCall | None
+    call: _CallDigest | None
     """The reply's call with the message's call id, or `None` if it has none or differing ones."""
-
-    outcomes: frozenset[str] = frozenset()
-    """Outcomes of the call's host executions when the message was first sent as its answer."""
 
 
 def _answered_call(reply_id: str, copies: list[ToolCall]) -> _AnsweredCall:
-    same = all(
-        c.function == copies[0].function and c.arguments == copies[0].arguments
-        for c in copies
-    )
-    return _AnsweredCall(reply_id, copies[0] if copies and same else None)
+    digests = {
+        _CallDigest(c.id, c.function, _arguments_digest(c.arguments)) for c in copies
+    }
+    return _AnsweredCall(reply_id, digests.pop() if len(digests) == 1 else None)
+
+
+class _Answer(NamedTuple):
+    """The reply a tool message was first sent as an answer to."""
+
+    reply_id: str
+
+    outcomes: frozenset[str]
+    """Outcomes of the call's host executions when the message was first sent."""
+
+
+class _ReplyAnswers(NamedTuple):
+    """The answer records kept for a reply."""
+
+    message_ids: list[str]
+    """Tool messages first sent as its answers (keys of `_answers`)."""
+
+    occurrences: dict[str, str]
+    """Per message key, the id its answer was first given."""
+
+
+_MAX_ANSWER_RECORDS = 4096
+"""Answer records (`_ReplyAnswers` message ids and occurrences) kept, beyond which the oldest replies' are dropped."""
 
 
 class DispatchedCall(NamedTuple):
@@ -352,8 +378,9 @@ class AgentBridge:
         self._pending_operator = 0
         self._awaited_results: dict[str, dict[int, _AwaitedResult]] = {}
         self._result_edit_parent: dict[str, str] = {}
-        self._answers: dict[str, _AnsweredCall] = {}
-        self._reply_answers: dict[tuple[str, str], str] = {}
+        self._answers: dict[str, _Answer] = {}
+        self._reply_answers: dict[str, _ReplyAnswers] = {}
+        self._answer_records = 0
         self._operator_keys: set[str] = set()
         self._warned_request_settings: set[str] = set()
 
@@ -544,7 +571,10 @@ class AgentBridge:
         )
 
     def _link_result_messages(
-        self, messages: list[ChatMessage], recognized: list[str | None]
+        self,
+        messages: list[ChatMessage],
+        recognized: list[str | None],
+        unattributed: Collection[str] = (),
     ) -> None:
         """Link awaited host tool events to their result messages in a request.
 
@@ -556,9 +586,9 @@ class AgentBridge:
         and with an id unique in the copy. Its result is a tool message before
         the next assistant message with tool calls: exactly one links it, more
         than one settles it unlinked. A message already linked to a tracked call,
-        or first sent as another reply's answer (`_result_occurrence`), isn't
-        linked, and a kept id another tracked reply also handed
-        doesn't link while that reply's call is unlinked (`_tracked_call_ids`).
+        or first sent as another reply's answer (`_result_occurrence`) or as an
+        answer whose record was dropped (`unattributed`), isn't linked, and a
+        kept id another tracked reply also handed doesn't link while that reply's call is unlinked (`_tracked_call_ids`).
         No call links while another tracked reply keeps no handed ids: any id
         in the copy could be one of that reply's unexecuted calls. A call
         matched by function and arguments doesn't take the id of a call
@@ -640,6 +670,7 @@ class AgentBridge:
                 matches = [r for r in results if r.tool_call_id == copy_call.id]
                 if len(matches) == 1 and (
                     linked_result(matches[0].id)
+                    or matches[0].id in unattributed
                     or self._answers_other_reply(matches[0].id, reply_id)
                     or any(
                         linked is None
@@ -763,7 +794,9 @@ class AgentBridge:
         request, so the k-th repeat of a message gets the k-th id.
 
         A tool message after a reply is an answer to that reply
-        (`_result_occurrence`).
+        (`_result_occurrence`). One seen before without an answer record (its
+        record was dropped, see `_record_answer`, or it first came after no
+        reply) answered an unknown reply: it isn't recorded or linked.
         """
         keys = [_message_id_keys(message) for message in messages]
         aligned = self._align_with_tracked(messages, keys)
@@ -791,6 +824,7 @@ class AgentBridge:
             )
 
         recognized: list[str | None] = []
+        unattributed: set[str] = set()
         preceding_reply_id: str | None = None
         preceding_reply_key: str | None = None
         reply_calls: dict[str, list[ToolCall]] = {}
@@ -833,16 +867,23 @@ class AgentBridge:
                         partial(available, index=index),
                     )
             recognized.append(message_id)
+            known = False
             if message_id is None:
                 message.id = uuid()
                 self._content_by_id[message.id] = content_hash(message)
             else:
                 used.add(message_id)
                 message.id = self._version_id(message_id, message)
+                known = message.id in self._keys_by_id
             used.add(message.id)
             self._record_message_id(message_keys, message.id)
             if answered is not None:
-                self._record_answer(message_keys, message.id, answered)
+                if not known:
+                    self._record_answer(message.id, answered)
+                if self._answer_of(message.id) is None:
+                    unattributed.add(message.id)
+                else:
+                    self._record_occurrence(message_keys, message.id, answered)
             if isinstance(message, ChatMessageAssistant) and message.tool_calls:
                 preceding_reply_id = (
                     self._awaited_reply_id(message_id, message)
@@ -853,7 +894,7 @@ class AgentBridge:
                 reply_calls = {}
                 for call in message.tool_calls:
                     reply_calls.setdefault(call.id, []).append(call)
-        self._link_result_messages(messages, recognized)
+        self._link_result_messages(messages, recognized, unattributed)
 
     def _result_occurrence(
         self,
@@ -877,8 +918,9 @@ class AgentBridge:
         earlier = self._answer_of(candidate) if candidate is not None else None
         if earlier is not None and earlier.reply_id == answered.reply_id:
             return candidate
+        reply_answers = self._reply_answers.get(answered.reply_id)
         for key in keys:
-            occurrence = self._reply_answers.get((answered.reply_id, key))
+            occurrence = reply_answers.occurrences.get(key) if reply_answers else None
             if occurrence is not None and available(occurrence):
                 return occurrence
         if candidate is None or earlier is None:
@@ -908,15 +950,21 @@ class AgentBridge:
         if answered.call is None:
             return []
         call = answered.call
+
+        def is_handed(handed: _HandedCall) -> bool:
+            return (call.function, call.arguments) == (
+                handed.function,
+                handed.arguments,
+            )
+
         entries = self._awaited_results.get(answered.reply_id, {}).values()
         by_id = [entry for entry in entries if entry.handed.call_id == call.id]
         if by_id:
-            return [entry for entry in by_id if _is_handed(call, entry.handed)]
+            return [entry for entry in by_id if is_handed(entry.handed)]
         return [
             entry
             for entry in entries
-            if (identical or entry.handed.identical == 1)
-            and _is_handed(call, entry.handed)
+            if (identical or entry.handed.identical == 1) and is_handed(entry.handed)
         ]
 
     def _result_root(self, message_id: str) -> str:
@@ -924,23 +972,51 @@ class AgentBridge:
             message_id = self._result_edit_parent[message_id]
         return message_id
 
-    def _answer_of(self, message_id: str) -> _AnsweredCall | None:
+    def _answer_of(self, message_id: str) -> _Answer | None:
         return self._answers.get(self._result_root(message_id))
 
-    def _record_answer(
+    def _record_answer(self, message_id: str, answered: _AnsweredCall) -> None:
+        """Record a new tool message as an answer to its reply.
+
+        At most `_MAX_ANSWER_RECORDS` records are kept; the oldest replies' are
+        dropped beyond that, so a later message equal to one of their answers
+        keeps that answer's id and isn't linked.
+        """
+        if message_id in self._answers:
+            return
+        self._answers[message_id] = _Answer(
+            answered.reply_id,
+            frozenset(
+                entry.outcome
+                for entry in self._answered_entries(answered, identical=True)
+            ),
+        )
+        self._reply_answer_records(answered.reply_id).message_ids.append(message_id)
+        self._answer_records += 1
+        self._drop_answer_records()
+
+    def _record_occurrence(
         self, keys: list[str], message_id: str, answered: _AnsweredCall
     ) -> None:
-        if message_id not in self._answers:
-            self._answers[message_id] = answered._replace(
-                outcomes=frozenset(
-                    entry.outcome
-                    for entry in self._answered_entries(answered, identical=True)
-                )
-            )
         first = self._answer_of(message_id)
-        if first is not None and first.reply_id == answered.reply_id:
-            for key in keys:
-                self._reply_answers.setdefault((answered.reply_id, key), message_id)
+        if first is None or first.reply_id != answered.reply_id:
+            return
+        occurrences = self._reply_answer_records(answered.reply_id).occurrences
+        for key in keys:
+            if key not in occurrences:
+                occurrences[key] = message_id
+                self._answer_records += 1
+        self._drop_answer_records()
+
+    def _reply_answer_records(self, reply_id: str) -> _ReplyAnswers:
+        return self._reply_answers.setdefault(reply_id, _ReplyAnswers([], {}))
+
+    def _drop_answer_records(self) -> None:
+        while self._answer_records > _MAX_ANSWER_RECORDS:
+            dropped = self._reply_answers.pop(next(iter(self._reply_answers)))
+            for message_id in dropped.message_ids:
+                del self._answers[message_id]
+            self._answer_records -= len(dropped.message_ids) + len(dropped.occurrences)
 
     def _version_id(self, message_id: str, message: ChatMessage) -> str:
         """`message_id`, or the id of an edited version if `message`'s content differs.
