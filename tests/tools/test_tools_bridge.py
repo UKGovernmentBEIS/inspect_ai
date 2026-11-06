@@ -1491,7 +1491,9 @@ async def test_bridged_termination_survives_the_scaffold_exiting_on_its_reply(
         async def exec_remote(self, cmd: list[str], options: object) -> _IdleProxy:
             return _IdleProxy()
 
-    async def sandbox_with_injected_tools(*, sandbox_name: str | None = None) -> object:
+    async def sandbox_with_injected_tools(
+        *, sandbox_name: str | None = None, concurrency: bool = True
+    ) -> object:
         return FakeSandbox()
 
     monkeypatch.setattr(bridge_module, "run_model_service", run_model_service)

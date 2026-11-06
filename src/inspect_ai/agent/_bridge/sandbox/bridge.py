@@ -257,10 +257,12 @@ async def sandbox_agent_bridge(
     # instance id for this bridge
     instance = f"proxy_{uuid()}"
 
-    # resolve sandbox. Its tools are now verified, so exec_remote() need not
-    # check again inside the proxy's bounded launch, where that check would
-    # wait for sandbox capacity.
-    sandbox_env = await sandbox_with_injected_tools(sandbox_name=sandbox)
+    # resolve sandbox. Its tools are verified outside the sandbox's concurrency
+    # limits, like the bridge's other control commands, and only once:
+    # exec_remote() need not check again inside the proxy's bounded launch.
+    sandbox_env = await sandbox_with_injected_tools(
+        sandbox_name=sandbox, concurrency=False
+    )
     sandbox_env._tools_injected = True
 
     # inside an identity scope the proxy mints a token for the scope's user

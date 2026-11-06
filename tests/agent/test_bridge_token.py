@@ -33,6 +33,7 @@ from inspect_ai.solver import Generate, Solver, TaskState, solver
 from inspect_ai.tool._mcp._tools_bridge import BridgedToolsSpec
 from inspect_ai.tool._tool import Tool, tool
 from inspect_ai.util import LimitExceededError, SandboxEnvironment, sandbox, time_limit
+from inspect_ai.util._sandbox._cli import SANDBOX_TOOLS_DIR
 from inspect_ai.util._sandbox._framework_directory import (
     _MISSING_MARKER,
     _VERIFIED_MARKER,
@@ -159,7 +160,19 @@ class _BridgeSandbox(CannedSandbox):
             if self.token_dir == "planted" and "wc -c" in cmd[2]:
                 # an unverified size check finds the planted file
                 return ExecResult(True, 0, "64\n", "")
+            if "CapEff" in cmd[2]:  # the root probe
+                status = "Uid: 0 0 0 0\nCapEff: 000001ffffffffff\nsetgroups: allow\n"
+                return ExecResult(True, 0, status, "")
+            if "HOME_SET" in cmd[2]:  # the default user
+                status = (
+                    "Uid: 1000\nGid: 1000\nGroups: 1000\nHOME: /home/u\nHOME_SET: 1\n"
+                )
+                return ExecResult(True, 0, status, "")
             raise AssertionError(f"unexpected exec {cmd}")
+        if verified.directory == SANDBOX_TOOLS_DIR:
+            # an installed launcher: a regular file
+            assert (verified.expected_uid, verified.mode) == ("0", "700")
+            return ExecResult(True, 0, "81ed\n", f"{_VERIFIED_MARKER}\n")
         assert verified.directory == BRIDGE_TOKEN_DIR
         check = "wc -c" in verified.cmd[2] if verified.cmd[0] == "sh" else False
         if check:
@@ -189,7 +202,7 @@ class _BridgeSandbox(CannedSandbox):
 def _sandbox(
     monkeypatch: pytest.MonkeyPatch, sandbox: _BridgeSandbox
 ) -> Iterator[None]:
-    async def sandbox_with_injected_tools(*, sandbox_name: str | None = None) -> Any:
+    async def sandbox_with_injected_tools(**kwargs: Any) -> Any:
         return sandbox
 
     async def run_model_service(*args: Any) -> None:
@@ -379,6 +392,36 @@ async def test_bridge_refuses_a_token_directory_another_user_created(
     assert sandbox.proxy.killed.is_set()
     # the removal is refused too, rather than run in that directory
     assert len(sandbox.removed) == 1
+
+
+async def test_bridge_verifies_the_sandbox_tools_without_waiting_for_capacity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The bridge's own tools check bypasses capacity, as its other commands do.
+
+    The real check runs on a sandbox with no recorded tools user or root
+    access, so it probes root, checks the installation and reads the default
+    user, while other commands hold the capacity.
+    """
+    sandbox = _BridgeSandbox(publish_after=0)
+    sandbox._tools_user = None
+    sandbox.saturated = True
+    with _sandbox(monkeypatch, sandbox), sandbox_identity("w-1"):
+        monkeypatch.setattr(
+            bridge_module,
+            "sandbox_with_injected_tools",
+            tools_module.sandbox_with_injected_tools,
+        )
+        with anyio.fail_after(10):
+            async with sandbox_agent_bridge():
+                pass
+
+    assert sandbox._tools_user == "root"
+    assert sandbox._root_access is not None
+    assert sandbox._root_access.state == "usable"
+    assert sandbox._tools_default_user is not None
+    assert sandbox.launches and sandbox.proxy.killed.is_set()
+    assert not any(sandbox.concurrency)
 
 
 async def test_token_directory_commands_record_no_events() -> None:
