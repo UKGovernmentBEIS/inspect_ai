@@ -10,7 +10,7 @@ from ..plain.display import PlainDisplay
 from ..rich.display import RichDisplay
 from ..textual.display import TextualDisplay
 from .display import Display, TaskScreen
-from .rich import rich_display_type_changed
+from .rich import rich_display_type_changed, rich_record_settings
 
 _active_display: Display | None = None
 
@@ -30,6 +30,9 @@ def clear_active_display() -> None:
 def display() -> Display:
     global _active_display
     if _active_display is None:
+        # for displays that don't set the console up (e.g. log, or full showing
+        # only progress), so a display type change can detect settings again
+        rich_record_settings()
         if display_type() == "plain":
             _active_display = PlainDisplay()
         elif (

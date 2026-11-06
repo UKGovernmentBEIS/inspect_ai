@@ -79,10 +79,11 @@ def _detected_names(console: Console, settings: dict[str, Any]) -> frozenset[str
 
 
 def rich_record_settings() -> None:
-    """Record the console's display settings for a display that keeps them.
+    """Record the console's display settings as they are.
 
-    As rich_initialise does, so that after a display type change, settings
-    the console had detected are detected again for its current output.
+    As rich_initialise does (and replaces), so that after a display type change
+    from a display that never set the console up, settings the console had
+    detected are detected again for its current output.
     """
     global _console_settings
     console = rich.get_console()

@@ -28,12 +28,10 @@ from ..core.display import (
 from ..core.footer import task_http_retries_str, task_refusals_str
 from ..core.panel import task_title
 from ..core.results import task_metric
-from ..core.rich import rich_record_settings
 
 
 class LogDisplay(Display):
     def __init__(self) -> None:
-        rich_record_settings()
         self.total_tasks: int = 0
         self.tasks: list[TaskWithResult] = []
         self.parallel = False

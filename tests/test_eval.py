@@ -499,6 +499,56 @@ def test_eval_display_change_shows_input_screen_inside_capture(
     assert ("PROMPT" in capture.get()) != changed
 
 
+@pytest.mark.parametrize("vscode,second", [(False, "log"), (True, "rich")])
+def test_display_change_after_full_scoring_detects_settings_for_redirected_stdout(
+    fresh_display: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    vscode: bool,
+    second: DisplayType,
+) -> None:
+    import io
+    import sys
+
+    import rich
+    from rich.console import Console
+
+    import inspect_ai._display.core.rich as display_rich
+    from inspect_ai import score
+    from inspect_ai._display.core import active
+    from inspect_ai._display.textual.display import TextualDisplay
+    from inspect_ai.util import _display
+
+    class TerminalOutput(io.StringIO):
+        def isatty(self) -> bool:
+            return True
+
+    monkeypatch.setattr(display_rich, "is_running_in_vscode", lambda: vscode)
+    monkeypatch.setenv("TERM", "xterm-256color")
+    for name in ["TTY_COMPATIBLE", "TTY_INTERACTIVE", "FORCE_COLOR", "NO_COLOR"]:
+        monkeypatch.delenv(name, raising=False)
+    task = Task(dataset=[Sample(input="hi", target="hi")])
+    [log] = eval(task, model="mockllm/model", display="none", log_dir=str(tmp_path))
+
+    # a new process on a terminal scores with the full display, which shows
+    # progress without setting the console up, then redirects stdout
+    monkeypatch.setattr(active, "_active_display", None)
+    monkeypatch.setattr(_display, "_display_type", None)
+    monkeypatch.setattr(display_rich, "_console_settings", None)
+    monkeypatch.setattr(display_rich, "_reconfigure_in_place", False)
+    monkeypatch.setattr(sys, "stdout", TerminalOutput())
+    monkeypatch.setattr(rich.get_console(), "__dict__", Console().__dict__)
+    score(log, match(), display="full")
+    assert isinstance(active.active_display(), TextualDisplay)
+
+    monkeypatch.setattr(sys, "stdout", io.StringIO())
+    eval(task, model="mockllm/model", display=second, log_dir=str(tmp_path))
+
+    console = rich.get_console()
+    assert console.color_system is None
+    assert not console.is_interactive
+
+
 @pytest.mark.parametrize("to_terminal", [False, True])
 @pytest.mark.parametrize(
     "first,vscode,second",
