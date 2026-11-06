@@ -7,7 +7,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 import anyio
-from openai import APIConnectionError, APIStatusError
+from openai import APIConnectionError, APIStatusError, AsyncOpenAI
 from tenacity.wait import WaitBaseT, wait_fixed
 from typing_extensions import override
 
@@ -305,6 +305,17 @@ class VLLMAPI(OpenAICompatibleAPI):
             async with self._server._init_lock:
                 await anyio.to_thread.run_sync(self._resolve_server)
         await self._register_context_window()
+
+    @override
+    def proxy_endpoint(self) -> tuple[AsyncOpenAI, str] | None:
+        # An existing server someone named may sit behind a proxy; a server this
+        # process starts never does. Resolving with a named server builds the
+        # client and starts nothing.
+        url = self._init_base_url or os.environ.get("VLLM_BASE_URL")
+        if not url:
+            return None
+        self._resolve_server()
+        return self.client, url
 
     def _server_root(self) -> str:
         """Base URL with any trailing ``/v1`` removed.

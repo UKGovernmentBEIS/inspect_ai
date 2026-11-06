@@ -154,18 +154,19 @@ def proxy_client(api: "ModelAPI") -> _Client | None:
             if model_base_url(api.base_url, "OPENAI_BASE_URL") is not None:
                 return _Client(api.client, str(api.client.base_url))
     else:
-        # the provider recorded whether its base URL was set, or is the
-        # service's own; the openai SDK may be absent for other providers
+        # the provider knows whether its base URL was set or is the service's
+        # own; the openai SDK may be absent for other providers
         try:
             from inspect_ai.model._providers.openai_compatible import (
                 OpenAICompatibleAPI,
             )
         except ImportError:
             return None
-        if isinstance(api, OpenAICompatibleAPI) and getattr(
-            api, "_explicit_base_url", False
-        ):
-            return _Client(api.client, str(api.client.base_url))
+        if isinstance(api, OpenAICompatibleAPI):
+            found = api.proxy_endpoint()
+            if found is not None:
+                sdk, _ = found
+                return _Client(sdk, str(sdk.base_url))
     return None
 
 
