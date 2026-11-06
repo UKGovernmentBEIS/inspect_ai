@@ -499,6 +499,48 @@ def test_eval_display_change_shows_input_screen_inside_capture(
     assert ("PROMPT" in capture.get()) != changed
 
 
+def test_eval_display_change_shows_input_cursor_inside_capture(
+    fresh_display: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import io
+
+    import rich
+
+    import inspect_ai._display.core.rich as display_rich
+    from inspect_ai.util import input_screen
+
+    class TerminalOutput(io.StringIO):
+        def isatty(self) -> bool:
+            return True
+
+    monkeypatch.setattr(display_rich, "is_running_in_vscode", lambda: False)
+    monkeypatch.setenv("TERM", "xterm-256color")
+    for name in ["TTY_COMPATIBLE", "TTY_INTERACTIVE", "FORCE_COLOR", "NO_COLOR"]:
+        monkeypatch.delenv(name, raising=False)
+
+    @solver
+    def ask() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            with rich.get_console().capture():
+                with input_screen() as console:
+                    console.print("PROMPT")
+            return state
+
+        return solve
+
+    task = Task(dataset=[Sample(input="hi", target="hi")], solver=ask())
+    eval(task, model="mockllm/model", display="plain", log_dir=str(tmp_path))
+
+    output = TerminalOutput()
+    rich.reconfigure(file=output)
+    eval(task, model="mockllm/model", display="rich", log_dir=str(tmp_path))
+
+    # the progress display hides the cursor, and the input screen shows it
+    # again on the terminal before its prompt
+    shown = output.getvalue().split("PROMPT")[0]
+    assert shown.rfind("\x1b[?25h") > shown.rfind("\x1b[?25l")
+
+
 @pytest.mark.parametrize("record_event", [True, False])
 @pytest.mark.parametrize("first,second", [("plain", "rich"), ("rich", "rich")])
 def test_eval_display_change_keeps_recording_through_input_screen(

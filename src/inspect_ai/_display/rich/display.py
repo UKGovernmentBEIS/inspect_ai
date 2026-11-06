@@ -218,10 +218,10 @@ class RichTaskScreen(TaskScreen):
         self.live.update("", refresh=True)
         self.status.stop()
 
-        # show cursor for input
-        self.live.console.show_cursor(True)
-
         with input_screen_capture_suspended(self.live.console):
+            # show cursor for input
+            self.live.console.show_cursor(True)
+
             # set width
             old_width: int | None = None
             if width:
