@@ -676,6 +676,24 @@ class _SampleRetry:
 
 
 @dataclass(frozen=True)
+class _AttemptError:
+    """A sample error recorded during an attempt (see ``handle_error``)."""
+
+    error: EvalError
+
+    raise_error: BaseException | None
+    """Set when the error fails the eval (``fail_on_error``)."""
+
+
+@dataclass(frozen=True)
+class _AttemptCancel:
+    """A cancellation that ended an attempt, also recorded as its error."""
+
+    cancel: BaseException
+    error: EvalError
+
+
+@dataclass(frozen=True)
 class _AttemptRetry:
     """Errored with retries remaining: not logged, re-queued."""
 
@@ -727,9 +745,7 @@ _AttemptOutcome = (
 
 def _attempt_outcome(
     *,
-    error: EvalError | None,
-    raise_error: BaseException | None,
-    cancelled_error: BaseException | None,
+    failure: _AttemptError | _AttemptCancel | None,
     handled_interrupt: SampleCancelAction | None,
     retries_remaining: int,
     interrupt_stamped: bool,
@@ -737,24 +753,26 @@ def _attempt_outcome(
     """Resolve an attempt's outcome once its scoring and cleanup have finished.
 
     Args:
-        error: The attempt's error (a cancellation also records one).
-        raise_error: The exception to raise when the error fails the eval.
-        cancelled_error: The cancellation that ended the attempt, if any.
+        failure: The attempt's recorded error or cancellation, if any.
         handled_interrupt: The interrupt the solver phase handled.
         retries_remaining: Sample-level retries left after this attempt.
         interrupt_stamped: Whether an interrupt is stamped on the sample now.
             Read after the sample's events are drained, so an interrupt landing
             during the drain abandons a retry.
     """
-    if cancelled_error is not None:
-        return _AttemptCancelled(
-            cancel=cancelled_error, sample_scoped=handled_interrupt == "cancel"
-        )
-    if error is None:
-        return _AttemptCompleted()
-    if retries_remaining > 0:
-        return _AttemptAbandoned() if interrupt_stamped else _AttemptRetry(error)
-    return _AttemptErrored(raise_error=raise_error)
+    match failure:
+        case None:
+            return _AttemptCompleted()
+        case _AttemptCancel(cancel=cancel):
+            return _AttemptCancelled(
+                cancel=cancel, sample_scoped=handled_interrupt == "cancel"
+            )
+        case _AttemptError() if retries_remaining > 0:
+            if interrupt_stamped:
+                return _AttemptAbandoned()
+            return _AttemptRetry(failure.error)
+        case _AttemptError(raise_error=raise_error):
+            return _AttemptErrored(raise_error=raise_error)
 
 
 def _sample_transcript_config(
@@ -2860,7 +2878,7 @@ async def _task_run_sample_attempt(
                 sandboxenv_context(
                     task_name, sandbox, max_sandboxes, sandbox_cleanup, sample
                 ),
-                lambda: cancelled_error is not None,
+                lambda: isinstance(failure, _AttemptCancel),
             )
             if sandbox or sample.sandbox is not None
             else contextlib.nullcontext()
@@ -2878,16 +2896,16 @@ async def _task_run_sample_attempt(
         )
 
         # helper to handle exceptions (will throw if we've exceeded the limit)
-        def handle_error(ex: BaseException) -> tuple[EvalError, BaseException | None]:
+        def handle_error(ex: BaseException) -> _AttemptError:
             nonlocal attempt, score_on_error
 
             # report the sentinel's own error, from the solver or scorers
-            failure = inner_exception(ex) if isinstance(ex, Exception) else ex
-            if isinstance(failure, SentinelFailure):
-                ex = decisive_sentinel_exception(failure.error)
+            inner = inner_exception(ex) if isinstance(ex, Exception) else ex
+            if isinstance(inner, SentinelFailure):
+                ex = decisive_sentinel_exception(inner.error)
 
             # a refused sample would be refused again, and never ran
-            if isinstance(failure, SampleRefusedError):
+            if isinstance(inner, SampleRefusedError):
                 attempt = replace(attempt, retry_limit=len(attempt.errors))
                 score_on_error = False
 
@@ -2909,7 +2927,9 @@ async def _task_run_sample_attempt(
             # if we have retries left then return EvalError
             if attempt.retries_remaining > 0:
                 log_sample_error()
-                return eval_error(ex, type(ex), ex, ex.__traceback__), None
+                return _AttemptError(
+                    eval_error(ex, type(ex), ex, ex.__traceback__), None
+                )
             else:
                 err = sample_error(ex)
                 # with score_on_error, suppress the raise so we can score the
@@ -2919,12 +2939,12 @@ async def _task_run_sample_attempt(
                 if score_on_error:
                     log_sample_error()
                     transcript()._event(ErrorEvent(error=err[0]))
-                    return err[0], None
+                    return _AttemptError(err[0], None)
                 # if we aren't raising the error then print a warning
                 if err[1] is None:
                     log_sample_error()
                 transcript()._event(ErrorEvent(error=err[0]))
-                return err
+                return _AttemptError(*err)
 
         # Derive agent name for the ACP picker / TUI meta row.
         agent_name = plan_agent_name(plan)
@@ -2973,9 +2993,7 @@ async def _task_run_sample_attempt(
                     return early_stop
 
             start_time: float | None = None
-            error: EvalError | None = None
-            raise_error: BaseException | None = None
-            cancelled_error: BaseException | None = None
+            failure: _AttemptError | _AttemptCancel | None = None
             solver_cancel: BaseException | None = None
             scoring_finished = False
             monitor_state_copied = False
@@ -3008,6 +3026,23 @@ async def _task_run_sample_attempt(
                     started_at=sample_admitted_at.isoformat(),
                 )
 
+            def record_error(ex: BaseException) -> None:
+                """Record a sample error; a recorded cancellation stays the outcome."""
+                nonlocal failure
+                recorded = handle_error(ex)
+                if isinstance(failure, _AttemptCancel):
+                    failure = _AttemptCancel(
+                        cancel=failure.cancel, error=recorded.error
+                    )
+                else:
+                    failure = recorded
+
+            def record_cancel(ex: BaseException) -> None:
+                nonlocal failure
+                error = eval_error(ex, type(ex), ex, ex.__traceback__)
+                transcript()._event(ErrorEvent(error=error))
+                failure = _AttemptCancel(cancel=ex, error=error)
+
             async def emit_attempt_end(will_retry: bool) -> None:
                 if sample_summary is None or not attempt_started:
                     return
@@ -3018,7 +3053,7 @@ async def _task_run_sample_attempt(
                     state.uuid,
                     summary=sample_summary,
                     attempt=attempt.number,
-                    error=error,
+                    error=failure.error if failure else None,
                     will_retry=will_retry,
                 )
 
@@ -3153,8 +3188,7 @@ async def _task_run_sample_attempt(
 
                             async def run(tg: TaskGroup) -> None:
                                 # access to state, limit, and errors
-                                nonlocal state, limit, error, raise_error
-                                nonlocal cancelled_error, solver_cancel
+                                nonlocal state, limit, solver_cancel
                                 nonlocal handled_interrupt
 
                                 try:
@@ -3266,22 +3300,14 @@ async def _task_run_sample_attempt(
                                                     "Sample errored: interrupted by operator"
                                                 )
                                                 operator_error.__cause__ = ex
-                                                error, raise_error = handle_error(
-                                                    operator_error
-                                                )
+                                                record_error(operator_error)
                                             case "cancel":
                                                 # resolve as an external cancel
                                                 # would: transcript preserved,
                                                 # no scoring, and not counted
                                                 # as a genuine error (bypasses
                                                 # handle_error / fail_on_error)
-                                                cancelled_error = ex
-                                                error = eval_error(
-                                                    ex, type(ex), ex, ex.__traceback__
-                                                )
-                                                transcript()._event(
-                                                    ErrorEvent(error=error)
-                                                )
+                                                record_cancel(ex)
 
                                     elif active.limit_exceeded_error:
                                         err = active.limit_exceeded_error
@@ -3406,13 +3432,10 @@ async def _task_run_sample_attempt(
 
                     except anyio.get_cancelled_exc_class() as ex:
                         with anyio.CancelScope(shield=True):
-                            cancelled_error = ex
-                            # convert to standard error
-                            error = eval_error(ex, type(ex), ex, ex.__traceback__)
-                            transcript()._event(ErrorEvent(error=error))
+                            record_cancel(ex)
 
                     except Exception as ex:
-                        error, raise_error = handle_error(ex)
+                        record_error(ex)
 
                     # mark completed
                     state.completed = True
@@ -3431,7 +3454,7 @@ async def _task_run_sample_attempt(
                     solver_score_names = [*state.scores]
 
                     # scoring
-                    with anyio.CancelScope(shield=cancelled_error is not None):
+                    with anyio.CancelScope(shield=isinstance(failure, _AttemptCancel)):
                         await emit_sample_scoring(
                             eval_set_id,
                             run_id,
@@ -3443,10 +3466,10 @@ async def _task_run_sample_attempt(
                             with create_time_limit(scoring_time_limit):
                                 # score on success, or when score_on_error is on
                                 # for the final attempt (no retries left, not cancelled)
-                                if error is None or (
+                                if failure is None or (
                                     score_on_error
                                     and attempt.retries_remaining == 0
-                                    and cancelled_error is None
+                                    and isinstance(failure, _AttemptError)
                                 ):
                                     # once, even when the copy fails the sample
                                     monitor_state_copied = True
@@ -3532,7 +3555,6 @@ async def _task_run_sample_attempt(
 
                         except anyio.get_cancelled_exc_class() as ex:
                             with anyio.CancelScope(shield=True):
-                                cancelled_error = ex
                                 if active.interrupt_action:
                                     transcript()._event(
                                         SampleLimitEvent(
@@ -3541,9 +3563,7 @@ async def _task_run_sample_attempt(
                                         )
                                     )
 
-                                # convert to standard error
-                                error = eval_error(ex, type(ex), ex, ex.__traceback__)
-                                transcript()._event(ErrorEvent(error=error))
+                                record_cancel(ex)
 
                         except Exception as ex:
                             if handled_interrupt is not None:
@@ -3555,7 +3575,7 @@ async def _task_run_sample_attempt(
                                 )
                                 transcript()._event(ErrorEvent(error=scorer_error))
                             else:
-                                error, raise_error = handle_error(ex)
+                                record_error(ex)
                         finally:
                             scoring_finished = True
 
@@ -3574,16 +3594,14 @@ async def _task_run_sample_attempt(
                 if not scoring_finished:
                     raise
                 with anyio.CancelScope(shield=True):
-                    cancelled_error = ex
-                    error = eval_error(ex, type(ex), ex, ex.__traceback__)
-                    transcript()._event(ErrorEvent(error=error))
+                    record_cancel(ex)
 
             except Exception as ex:
-                error, raise_error = handle_error(ex)
+                record_error(ex)
             finally:
                 # cleanup the task init span if required
                 if cleanup_span is not None:
-                    with anyio.CancelScope(shield=cancelled_error is not None):
+                    with anyio.CancelScope(shield=isinstance(failure, _AttemptCancel)):
                         await cleanup_span.__aexit__(None, None, None)
 
             # the sample to deliver to the run's sources (SampleSource /
@@ -3591,14 +3609,12 @@ async def _task_run_sample_attempt(
             source_sample: EvalSample | None = None
 
             # complete the sample if there is no error or if there is no retry_on_error in play
-            with anyio.CancelScope(shield=cancelled_error is not None):
+            with anyio.CancelScope(shield=isinstance(failure, _AttemptCancel)):
                 # drain sample events for both completion and retry paths
                 await drain_sample_events()
 
                 outcome = _attempt_outcome(
-                    error=error,
-                    raise_error=raise_error,
-                    cancelled_error=cancelled_error,
+                    failure=failure,
                     handled_interrupt=handled_interrupt,
                     retries_remaining=attempt.retries_remaining,
                     interrupt_stamped=active.interrupt_action is not None,
@@ -3611,7 +3627,7 @@ async def _task_run_sample_attempt(
                     # state too, as in process, for `inspect score` to read
                     if not monitor_state_copied:
                         await save_sidecar_monitor_state(
-                            state, cancelled=cancelled_error is not None
+                            state, cancelled=isinstance(outcome, _AttemptCancelled)
                         )
 
                     # ensure there are no base64 images in sample or messages
@@ -3640,7 +3656,7 @@ async def _task_run_sample_attempt(
                             sample=sample,
                             state=state,
                             scores=results,
-                            error=error,
+                            error=failure.error if failure else None,
                             limit=limit,
                             # the logged sample carries the full retry history:
                             # prior task attempts followed by this eval's
@@ -3704,7 +3720,7 @@ async def _task_run_sample_attempt(
                             eval_set_id, run_id, task_id, state.uuid, eval_sample
                         )
                         await end_sidecar_sample(
-                            state.uuid, cancelled=cancelled_error is not None
+                            state.uuid, cancelled=isinstance(outcome, _AttemptCancelled)
                         )
                     # deliver the sample to the run's sources (below) unless
                     # the TASK is unwinding (abort/retry cancel, ^C,

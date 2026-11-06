@@ -7,6 +7,7 @@ from inspect_ai.dataset import MemoryDataset, Sample
 from inspect_ai.log._samples import sample_active
 from inspect_ai.scorer import Score, Scorer, Target, accuracy, scorer
 from inspect_ai.solver import Generate, TaskState, solver
+from inspect_ai.util import background
 
 
 @solver
@@ -80,3 +81,47 @@ def test_interrupt_stamped_during_scoring_keeps_scorer_error():
     assert sample.limit is None
     assert sample.error is not None
     assert "buggy scorer" in sample.error.message
+
+
+@solver
+def operator_cancel_then_background_failure():
+    async def solve(state: TaskState, generate: Generate):
+        started = anyio.Event()
+
+        async def cleanup_fails() -> None:
+            try:
+                started.set()
+                await anyio.sleep_forever()
+            finally:
+                raise RuntimeError("background cleanup failed")
+
+        background(cleanup_fails)
+        await started.wait()
+        active = sample_active()
+        assert active is not None, "expected an active sample"
+        active.interrupt("cancel")
+        await anyio.sleep_forever()
+        return state
+
+    return solve
+
+
+def test_operator_cancel_stays_cancelled_when_an_error_follows():
+    """An error after an operator cancel neither fails the eval nor retries."""
+    log = eval(
+        Task(
+            dataset=MemoryDataset([Sample(id=1, input="hi", target="hi")]),
+            solver=operator_cancel_then_background_failure(),
+            scorer=buggy_scorer(),
+        ),
+        model="mockllm/model",
+        retry_on_error=1,
+    )[0]
+
+    assert log.status == "success"
+    assert log.samples is not None
+    sample = log.samples[0]
+    assert sample.error is not None
+    assert "background cleanup failed" in sample.error.message
+    assert sample.error_retries == []
+    assert sample.scores is None or sample.scores == {}

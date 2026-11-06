@@ -24,8 +24,10 @@ from inspect_ai._eval.task.run import (
     SampleTerminalReporter,
     _attempt_outcome,
     _AttemptAbandoned,
+    _AttemptCancel,
     _AttemptCancelled,
     _AttemptCompleted,
+    _AttemptError,
     _AttemptErrored,
     _AttemptOutcome,
     _AttemptRetry,
@@ -335,44 +337,42 @@ def test_sample_attempt_advance_does_not_mutate() -> None:
 _ERROR = EvalError(message="boom", traceback="", traceback_ansi="")
 _RAISE = RuntimeError("fails the eval")
 _CANCEL = BaseException("cancelled")
+_ERRORED = _AttemptError(_ERROR, None)
+_RAISED = _AttemptError(_ERROR, _RAISE)
+_CANCELLED = _AttemptCancel(_CANCEL, _ERROR)
 
 
 @pytest.mark.parametrize(
-    "error,raise_error,cancelled,handled_interrupt,retries,stamped,expected",
+    "failure,handled_interrupt,retries,stamped,expected",
     [
         # no error
-        (None, None, False, None, 0, False, _AttemptCompleted()),
-        (None, None, False, None, 2, True, _AttemptCompleted()),
-        (None, None, False, "score", 1, True, _AttemptCompleted()),
+        (None, None, 0, False, _AttemptCompleted()),
+        (None, None, 2, True, _AttemptCompleted()),
+        (None, "score", 1, True, _AttemptCompleted()),
         # error with retries remaining: retried unless an interrupt is stamped
-        (_ERROR, None, False, None, 1, False, _AttemptRetry(_ERROR)),
-        (_ERROR, None, False, None, 1, True, _AttemptAbandoned()),
-        (_ERROR, None, False, "error", 1, True, _AttemptAbandoned()),
+        (_ERRORED, None, 1, False, _AttemptRetry(_ERROR)),
+        (_ERRORED, None, 1, True, _AttemptAbandoned()),
+        (_ERRORED, "error", 1, True, _AttemptAbandoned()),
         # error on the final attempt: returned, or raised under fail_on_error
-        (_ERROR, None, False, None, 0, False, _AttemptErrored(None)),
-        (_ERROR, None, False, None, 0, True, _AttemptErrored(None)),
-        (_ERROR, _RAISE, False, None, 0, False, _AttemptErrored(_RAISE)),
-        # cancelled: wins over retries and any recorded raise
-        (_ERROR, None, True, None, 1, False, _AttemptCancelled(_CANCEL, False)),
-        (_ERROR, _RAISE, True, None, 0, False, _AttemptCancelled(_CANCEL, False)),
-        (_ERROR, None, True, "score", 0, True, _AttemptCancelled(_CANCEL, False)),
+        (_ERRORED, None, 0, False, _AttemptErrored(None)),
+        (_ERRORED, None, 0, True, _AttemptErrored(None)),
+        (_RAISED, None, 0, False, _AttemptErrored(_RAISE)),
+        # cancelled: wins over retries
+        (_CANCELLED, None, 1, False, _AttemptCancelled(_CANCEL, False)),
+        (_CANCELLED, "score", 0, True, _AttemptCancelled(_CANCEL, False)),
         # an operator 'cancel' the solver phase handled is sample-scoped
-        (_ERROR, None, True, "cancel", 1, True, _AttemptCancelled(_CANCEL, True)),
+        (_CANCELLED, "cancel", 1, True, _AttemptCancelled(_CANCEL, True)),
     ],
 )
 def test_attempt_outcome(
-    error: EvalError | None,
-    raise_error: BaseException | None,
-    cancelled: bool,
+    failure: _AttemptError | _AttemptCancel | None,
     handled_interrupt: SampleCancelAction | None,
     retries: int,
     stamped: bool,
     expected: _AttemptOutcome,
 ) -> None:
     outcome = _attempt_outcome(
-        error=error,
-        raise_error=raise_error,
-        cancelled_error=_CANCEL if cancelled else None,
+        failure=failure,
         handled_interrupt=handled_interrupt,
         retries_remaining=retries,
         interrupt_stamped=stamped,
