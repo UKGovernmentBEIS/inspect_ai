@@ -19,8 +19,10 @@ from inspect_ai.model import (
     ChatMessageTool,
     ChatMessageUser,
     GenerateConfig,
+    ModelUsage,
 )
 from inspect_ai.model._compaction._compaction import _CompactionState, compaction
+from inspect_ai.model._compaction.auto import CompactionAuto
 from inspect_ai.model._compaction.edit import CompactionEdit
 from inspect_ai.model._compaction.memory import MEMORY_TOOL
 from inspect_ai.model._compaction.summary import CompactionSummary
@@ -1733,3 +1735,120 @@ async def test_third_party_delegating_wrapper_still_unpacks_two_values() -> None
 
     assert [m.id for m in outcome.input] == ["u1"]
     assert outcome.applied == "_Wrapper"
+
+
+# ==============================================================================
+# reset()
+# ==============================================================================
+
+
+def _recording_summarizer(inputs: list[str]) -> Model:
+    """A mockllm model that records the text of each generate input."""
+
+    def generate(
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: object,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        inputs.append("\n".join(m.text for m in input))
+        return ModelOutput.from_content(model="mockllm/model", content="SUMMARY")
+
+    return get_model("mockllm/model", custom_outputs=generate)
+
+
+def _summary_strategy(
+    name: Literal["summary", "auto"], threshold: int
+) -> CompactionStrategy:
+    # mockllm has no native compaction, so auto takes its summary fallback
+    if name == "summary":
+        return CompactionSummary(threshold=threshold)
+    return CompactionAuto(threshold=threshold)
+
+
+@pytest.mark.parametrize("strategy_name", ["summary", "auto"])
+@pytest.mark.parametrize("force", [True, False], ids=["forced", "threshold"])
+async def test_reset_compacts_only_the_conversation_given_after_it(
+    strategy_name: Literal["summary", "auto"], force: bool
+) -> None:
+    inputs: list[str] = []
+    model = _recording_summarizer(inputs)
+    prefix: list[ChatMessage] = [
+        system_msg("System", "sys1"),
+        user_msg("Input", "input1", source="input"),
+    ]
+    compact = compaction(
+        _summary_strategy(strategy_name, threshold=400),
+        prefix=prefix,
+        tools=None,
+        model=model,
+    )
+
+    # below the threshold, so the handler keeps these as its input
+    before: list[ChatMessage] = [
+        *prefix,
+        assistant_msg("OLD-REPLACED", "a1"),
+        user_msg("OLD-DELETED", "u1"),
+    ]
+    await compact.compact_input(before)
+    assert inputs == []
+
+    # a rewrite: a1 replaced under its id, u1 deleted, new messages that
+    # push the conversation over the threshold
+    after: list[ChatMessage] = [
+        *prefix,
+        assistant_msg("NEW-REPLACED", "a1"),
+        user_msg("NEW " + "lorem ipsum dolor " * 300, "u2"),
+    ]
+    await compact.reset([*prefix])
+    await compact.compact_input(after, force=force)
+
+    assert len(inputs) == 1
+    assert "NEW-REPLACED" in inputs[0]
+    assert "OLD-REPLACED" not in inputs[0]
+    assert "OLD-DELETED" not in inputs[0]
+
+
+async def test_reset_below_threshold_sends_the_new_conversation() -> None:
+    model = get_model("mockllm/model")
+    prefix: list[ChatMessage] = [user_msg("Input", "input1", source="input")]
+    compact = compaction(
+        CompactionTrim(threshold=10_000), prefix=prefix, tools=None, model=model
+    )
+    await compact.compact_input([*prefix, assistant_msg("old", "a1")])
+
+    after: list[ChatMessage] = [*prefix, assistant_msg("new", "a1")]
+    await compact.reset([*prefix])
+    result, _ = await compact.compact_input(after)
+
+    assert [m.text for m in result] == ["Input", "new"]
+
+
+async def test_reset_clears_tracked_state_in_place() -> None:
+    model = get_model("mockllm/model")
+    prefix: list[ChatMessage] = [user_msg("Input", "input1", source="input")]
+    cp = RecordingCheckpointer()
+    compact = compaction(
+        CompactionTrim(threshold=10_000),
+        prefix=prefix,
+        tools=None,
+        model=model,
+        checkpointer=cp,
+    )
+    messages: list[ChatMessage] = [*prefix, assistant_msg("old", "a1")]
+    await compact.compact_input(messages)
+    await compact.record_output(
+        messages,
+        ModelOutput.from_content(model="mockllm/model", content="x").model_copy(
+            update={"usage": ModelUsage(input_tokens=10, output_tokens=1)}
+        ),
+    )
+    tracked = cp.callbacks["compaction"]()
+    assert isinstance(tracked, _CompactionState)
+    tracked.memory_warning_issued = True
+
+    await compact.reset([*prefix])
+
+    # the checkpointer still sees the live state, now cleared
+    assert cp.callbacks["compaction"]() is tracked
+    assert tracked == _CompactionState()

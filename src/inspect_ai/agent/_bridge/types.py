@@ -52,6 +52,20 @@ class DispatchedCall(NamedTuple):
     """Arguments for the dispatcher call that make the target call with the given ones."""
 
 
+class ReviewedCalls(NamedTuple):
+    """The calls approval reviews for one tool call in a bridged response."""
+
+    calls: list[ToolCall]
+    """The calls approvers see, under the tool call's id: one per bridged tool it would run."""
+
+    dispatch: Callable[[dict[str, Any]], dict[str, Any]]
+    """Arguments for the tool call that make a reviewed call with the given ones."""
+
+
+def _unchanged(arguments: dict[str, Any]) -> dict[str, Any]:
+    return arguments
+
+
 class AgentBridge:
     """Agent bridge."""
 
@@ -290,6 +304,23 @@ class AgentBridge:
         dispatched; `SandboxAgentBridge` overrides this.
         """
         return None
+
+    def reviewed_calls(
+        self, call: ToolCall, tools: Sequence[ToolInfo | Tool]
+    ) -> ReviewedCalls:
+        """The calls approval reviews `call` as.
+
+        Approval must review a call as the tool it will run, so policies match
+        that tool's name and approvers see its arguments. Here that is the
+        target of a dispatcher call (`dispatched_call`), else the call itself.
+        `tools` are the declarations the scaffold made to the model in the
+        request that produced `call`. `SandboxAgentBridge` overrides this to
+        resolve a call the same way its execution grants do.
+        """
+        dispatched = self.dispatched_call(call)
+        if dispatched is not None:
+            return ReviewedCalls([dispatched.target], dispatched.dispatch)
+        return ReviewedCalls([call], _unchanged)
 
     def compaction(
         self, tools: Sequence[ToolInfo | Tool], model: Model
