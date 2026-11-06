@@ -962,6 +962,51 @@ async def test_fresh_compacted_result_is_not_an_edit_of_earlier_answer(
     assert second_event.message_id == ids[2]
 
 
+@pytest.mark.parametrize("copied", [False, True])
+@pytest.mark.parametrize("regenerated", [False, True])
+async def test_equal_compacted_result_is_fresh_unless_copied(
+    regenerated: bool, copied: bool
+) -> None:
+    """A later call's equal answer gets its own ID; a copy of the earlier answer keeps its ID."""
+    task = ChatMessageUser(content="Read the file twice.")
+    first_id, second_id, returned_id = (
+        ("toolu_1", "toolu_2", "call_bash_1")
+        if regenerated
+        else ("reused", "reused", "reused")
+    )
+    first, second = _call(first_id), _call(second_id)
+    first_back = _transported(first, returned_id) if regenerated else first
+    second_back = _transported(second, returned_id) if regenerated else second
+    bridge = AgentBridge(AgentState(messages=[task]))
+    scaffold = _Scaffold(bridge)
+    await scaffold.request([task], first)
+    if regenerated:
+        bridge._record_transported_reply(first, [first_back])
+    [first_event] = _awaiting(bridge, first, result="contents")
+    first_ids = await scaffold.request(
+        [task, first_back, _result(returned_id, "contents")], second
+    )
+    assert first_event.message_id == first_ids[2]
+    if regenerated:
+        bridge._record_transported_reply(second, [second_back])
+    [second_event] = _awaiting(
+        bridge, second, result="changed" if copied else "contents"
+    )
+    summary = ChatMessageUser(content="Summary: read once.")
+
+    ids = await scaffold.request(
+        [summary, second_back, _result(returned_id, "contents")]
+    )
+
+    assert first_event.message_id == first_ids[2]
+    if copied:
+        assert ids[2] == first_ids[2]
+        assert second_event.message_id is None
+    else:
+        assert ids[2] != first_ids[2]
+        assert second_event.message_id == ids[2]
+
+
 @pytest.mark.parametrize("regenerated", [False, True])
 async def test_edited_reply_gets_fresh_result_after_compaction(
     regenerated: bool,
@@ -1484,12 +1529,15 @@ def _awaiting(
     reply: ChatMessageAssistant,
     executions: int = 1,
     index: int = 0,
+    result: str = "",
 ) -> list[ToolEvent]:
     """Host tool events for call `index` of `reply`, as executing a granted call records them."""
     assert reply.id is not None and reply.tool_calls is not None
     call = reply.tool_calls[index]
     events = [
-        ToolEvent(id=call.id, function=call.function, arguments=call.arguments)
+        ToolEvent(
+            id=call.id, function=call.function, arguments=call.arguments, result=result
+        )
         for _ in range(executions)
     ]
     for event in events:

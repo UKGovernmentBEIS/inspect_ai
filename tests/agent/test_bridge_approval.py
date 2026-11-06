@@ -6414,3 +6414,88 @@ def test_identical_google_host_calls_stay_unlinked(
     events = [e for e in sample.events if isinstance(e, ToolEvent)]
     assert len(events) == (executed or count)
     assert all(e.message_id is None for e in events)
+
+
+@agent
+def compacting_host_scaffold(dialect: HostDialect, copied: bool) -> Agent:
+    """A scaffold reading a file twice as a host tool, then compacting to the latest reply and result.
+
+    The tool returns the same text both times unless `copied`; then the
+    scaffold sends the first result again in place of the second.
+    """
+
+    async def execute(state: AgentState) -> AgentState:
+        tool = AsyncMock(side_effect=["contents", "changed" if copied else "contents"])
+        bridge = SandboxAgentBridge(
+            state=state,
+            filter=None,
+            retry_refusals=None,
+            compaction=None,
+            port=13131,
+            model=None,
+            bridged_tools={"host": {"read_file": read_file(tool)}},
+        )
+        [info] = declare("mcp__host__read_file")
+        conversation = _HostConversation(dialect, state.messages[0].text, info)
+        sent: JsonValue = None
+        for _ in range(2):
+            calls = await conversation.request(bridge)
+            [(_, arguments)] = calls
+            output = await call_host_tool(bridge)("host", "read_file", arguments)
+            sent = output if sent is None or not copied else sent
+            conversation.results(calls, [sent])
+        summary = "Summary: read a once."
+        conversation.history = [
+            {"role": "user", "parts": [{"text": summary}]}
+            if dialect == "google"
+            else {"role": "user", "content": summary},
+            *conversation.history[-2:],
+        ]
+        await conversation.request(bridge)
+        return bridge.state
+
+    return execute
+
+
+@pytest.mark.parametrize("copied", [False, True], ids=["equal result", "copied"])
+@pytest.mark.parametrize("dialect", ["google", "completions"])
+def test_compacted_equal_host_result_links_to_its_own_message(
+    dialect: HostDialect, copied: bool, tmp_path: Path
+) -> None:
+    """After compaction, an equal result of a later call links to its own message; a copied earlier result links nothing."""
+    name = "mcp__host__read_file"
+    log = eval(
+        Task(
+            dataset=[Sample(input="Read a twice.")],
+            solver=compacting_host_scaffold(dialect, copied),
+        ),
+        model=get_model(
+            "mockllm/model",
+            custom_outputs=[
+                *[
+                    # the provider reuses the call id
+                    tool_calls_output(
+                        ToolCall(id="call_1", function=name, arguments={"path": "a"})
+                    )
+                    for _ in range(2)
+                ],
+                ModelOutput.from_content("mockllm/model", "done"),
+            ],
+        ),
+        log_dir=str(tmp_path),
+    )[0]
+    assert log.status == "success", log.error
+    read = read_eval_log(log.location)
+    assert read.samples
+    sample = resolve_sample_attachments(read.samples[0], "full")
+
+    model_events = [e for e in sample.events if isinstance(e, ModelEvent)]
+    first_result, latest_result = model_events[1].input[-1], model_events[2].input[-1]
+    assert first_result.role == "tool" and latest_result.role == "tool"
+    events = [e for e in sample.events if isinstance(e, ToolEvent)]
+    if copied:
+        assert latest_result.id == first_result.id
+        assert [e.message_id for e in events] == [first_result.id, None]
+    else:
+        assert latest_result.id != first_result.id
+        assert [e.message_id for e in events] == [first_result.id, latest_result.id]
