@@ -8,8 +8,8 @@ sample's own code (its solver, scorers or tools) with `send_samples=True`,
 for a task whose dataset is a `SampleSource`, it also sends that task
 samples and returns each sample's logged result, keeping the task open
 until the handle is closed or its creator's attempt ends. A handle is
-awaited, and a sample port opened, only from a sample's own code, which
-every abort of its task reaches; task-level callbacks and hooks can still
+awaited, and a sample port opened, only while a sample's own code runs
+(the tasks it starts included); task-level callbacks and hooks can still
 add tasks and cancel or close handles. A task that a running sample is
 waiting on borrows a slot when every slot is taken, so a search that drives
 a rollout task works at the default `max_tasks=1`:
@@ -180,7 +180,11 @@ Non-goals:
   sample's task group. The solver runs in a task started in the sample's
   task group (`task/run.py:3003-3004`), which `background()` also uses
   (`src/inspect_ai/util/_background.py`); the group is cancelled when the
-  solver returns (`:2976`) and exits before scoring.
+  solver returns (`:2976`) and exits before scoring. Every way of starting
+  a task copies the starting task's context, so a `ContextVar` set around
+  the solver is seen by every task the solver starts: AnyIO task groups,
+  `asyncio.create_task()`, and through it `asyncio.gather()` of coroutines
+  and `asyncio.TaskGroup`.
 - Inspect calls into `Hooks` objects in four places: `_emit_to_all`
   (`src/inspect_ai/hooks/_hooks.py:1166`), through which every async hook
   is awaited, including the streamed `on_sample_event` (`:812`) and the
@@ -191,7 +195,13 @@ Non-goals:
   `any_hook_needs_full_sample()` (`hooks/_hooks.py:1151`); and the
   `enabled()` scan in `Model.generate` (`model/_model.py:1471`). A hook a
   solver's or scorer's model call triggers runs in that solver's or
-  scorer's context.
+  scorer's context. The deprecated environment-variable hooks bypass all
+  four: `send_telemetry_legacy()` awaits its subscriber directly
+  (`hooks/_legacy.py:42`), and `Model.generate` awaits it after the usage
+  hooks (`model/_model.py:1782`), as `task_run` does for the log
+  (`task/run.py:2122`, `:2127`); `override_api_key_legacy()` calls its
+  subscriber directly (`hooks/_legacy.py:63-66`) and is the fallback the
+  `override_api_key` dispatch returns (`hooks/_hooks.py:1104`).
 - The sites that report a sample to the source are `task/run.py:1480`,
   `:1619` and `:3372` (`sample_complete`, and `sample_abandoned` for a
   sample cancelled before it was logged); the `TaskSource` calls, at
@@ -401,14 +411,13 @@ they are awaited, and ports opened, only from a sample's own code (see
   `SampleSource`'s `next_samples()`, `sample_complete` or
   `sample_abandoned`; in `TaskSource.sample_complete`, `sample_abandoned`
   or `task_complete`; in early-stopping callbacks; in any hook
-  (`on_task_start`, `on_task_end`, the sample hooks, and the model hooks
-  and `override_api_key` even when a solver's or scorer's model call runs
-  them); in a task the sample does not own (a raw `asyncio.create_task()`,
-  or a task group another component owns), even while the sample runs and
-  even though it copied the sample's context; or in code the run did not
-  start inside a sample: `RuntimeError` ("a task handle can be awaited
-  only from a sample's solver, scorer or tools, or tasks they start in
-  their own task groups; wait for it there"). The check runs before the call blocks, so it never waits and
+  (`on_task_start`, `on_task_end`, the sample hooks, and the model hooks,
+  `override_api_key` and the legacy telemetry and API-key hooks even when a solver's or scorer's model call runs
+  them); in a task started from a sample's code once that code has ended
+  (a detached `asyncio.create_task()` still running after its sample); or
+  in code the run did not start inside a sample: `RuntimeError` ("a task
+  handle can be awaited only from a sample's solver, scorer or tools, or
+  tasks they start, while the sample runs; wait for it there"). The check runs before the call blocks, so it never waits and
   never creates a loan; it applies to every handle, whether
   `enqueue_task()` returned it there or a sample kept it. Still allowed
   there, and everywhere in a running eval as today: `enqueue_task()`
@@ -451,8 +460,8 @@ ordinary count excluding attempts running on a loan:
 
 One fact decides where handle work may begin: **a sample of the calling
 task is running its own code**: its solver, with the tools and subtasks the
-solver runs, or its scorers, but not a hook either of them triggers and not
-a task the sample does not own. Only there may code call
+solver runs, or its scorers, and the tasks they start while that code
+runs, but not a hook either of them triggers. Only there may code call
 `enqueue_task(..., send_samples=True)`, `TaskHandle.started()`, `result()`
 and `enqueue_sample()`; the creator is the attempt the sample belongs to.
 `enqueue_task()` called anywhere else has no creator.
@@ -461,7 +470,6 @@ and `enqueue_sample()`; the creator is the attempt the sample belongs to.
 @dataclass(eq=False)
 class SampleCode:
     attempt: TaskAttempt             # the attempt the sample belongs to
-    owner: int                       # anyio task id of the task running this sample's task_run_sample
     live: bool = True                # cleared when the sample's own code has ended
 
 _sample_code: ContextVar[SampleCode | None]   # in enqueue.py, default None
@@ -469,8 +477,7 @@ _sample_code: ContextVar[SampleCode | None]   # in enqueue.py, default None
 
 - **Setting it.** `_run_task` sets a `ContextVar` per attempt to its
   `TaskAttempt`. For each run of a sample (a sample-level retry is a new
-  run), `task_run_sample` creates a `SampleCode` with
-  `owner=anyio.get_current_task().id` before the solver, and sets
+  run), `task_run_sample` creates a `SampleCode` before the solver, and sets
   `_sample_code` to it around the solver plan (`task/run.py:2873`) and
   around the scorer loop (`:3101`), resetting it after each. A `finally`
   that ends the sample's own code (after the scorer loop, or when the run
@@ -486,48 +493,53 @@ _sample_code: ContextVar[SampleCode | None]   # in enqueue.py, default None
   usage, cache usage, retry) and the streamed `on_sample_event`; the
   synchronous `override_api_key` dispatch (`:1092`), which a model
   constructed inside a solver reaches; `any_hook_needs_full_sample()`
-  (`:1151`); and the `enabled()` scan in `Model.generate`
-  (`src/inspect_ai/model/_model.py:1471`). These are all the places
-  Inspect calls into a `Hooks` object (see "Current behaviour"). A hook
+  (`:1151`); the `enabled()` scan in `Model.generate`
+  (`src/inspect_ai/model/_model.py:1471`); and, inside each of the two
+  legacy hook functions around its subscriber's call,
+  `send_telemetry_legacy()` (`hooks/_legacy.py:42`, which `Model.generate`
+  awaits after the usage hooks) and `override_api_key_legacy()`
+  (`hooks/_legacy.py:63-66`, the `override_api_key` dispatch's fallback).
+  These are all the places Inspect calls hook code, whether a `Hooks`
+  object or a legacy subscriber (see "Current behaviour"). A hook
   can therefore add tasks and cancel or close handles, but cannot open a
   port or wait, wherever it is called from.
-- **Ownership.** The guard (`_eligible() -> SampleCode | None` in
-  `enqueue.py`) reads `_sample_code`; it allows the call only when the
-  value is set, `live` is true, and the calling task descends from
-  `owner`: starting at `anyio.get_current_task()`, it follows `parent_id`
-  through `anyio.get_running_tasks()` until it reaches `owner` (allowed)
-  or a task with no running parent (refused). Tasks started in any AnyIO
-  task group inside the sample descend from `owner`: the solver itself
-  (started in the sample's group, `:3003-3004`), its subtasks
-  (`tg_collect()`, `collect()`, agent and tool task groups), work started
-  with `background()` (the sample's group) and the scorers' own groups. A
-  task the sample did not start in a group it owns does not: a raw
-  `asyncio.create_task()`, or a task started in a group another component
-  owns (an ACP connection's workers), although each copies the
-  `ContextVar`: AnyIO gives a task started in a task group the group's
-  owning task as `parent_id` on asyncio and trio, so children and
-  grandchildren reach their owner, while a raw `asyncio.create_task()`
-  child has no AnyIO parent. A task that a foreign group's
-  `TaskGroup.start()` launches from inside the sample descends from the
-  sample until it reports readiness and from the foreign group afterwards;
-  a handle wait begun before that point is not ended by the sample's end.
-  No caller waits on a handle before reporting readiness, so that handoff
-  is left unsupported rather than given its own cancel path.
-  `live` covers anyio's reuse of a finished task's id: the owner runs
-  until after `live` is cleared, so a `live` code's `owner` names the
-  sample's own task. The walk reads every running task, which costs one
-  pass over the event loop's tasks per handle call that waits or opens a
-  port.
-- **Lifetime.** Every allowed call therefore runs in a task the sample
-  joins before its own code ends: the solver's group is cancelled when the
-  solver returns (`:2976`, which also ends `background()` work) and exits
-  before scoring, and each scorer's groups exit before it returns. A
-  wait blocked there ends with its sample (an abort, through the handle,
-  the control channel or a run-level cancellation, cancels the sample's
-  group, and no shield covers the solver or the scorers; see "Current
-  behaviour"), and no allowed wait outlives the sample, so nothing new
-  needs a cancel path. A port the attempt opened closes as "Keeping the
-  task open" says.
+- **Tasks started from sample code.** The guard (`_eligible() ->
+  SampleCode | None` in `enqueue.py`) reads `_sample_code` and allows the
+  call only when the value is set and `live` is true. A task started from
+  sample code inherits the value however it was started, because it copies
+  its starter's context: in an AnyIO task group (the solver itself, started
+  in the sample's group at `:3003-3004`; its subtasks through `tg_collect()`
+  and `collect()`; agent and tool task groups; the scorers' own groups),
+  with `background()`, under `asyncio.gather()` or `asyncio.TaskGroup`, with
+  a raw `asyncio.create_task()`, or in a group another component owns. Each
+  may open a port and wait while the sample's code is live, so a batch such
+  as `await asyncio.gather(*(rollouts.enqueue_sample(s) for s in batch))`,
+  the form `docs/parallelism.qmd` recommends for concurrent work in a
+  solver, works as written. Once the sample's own code has ended, `live` is
+  false for every copy, so a task that outlives it (a detached
+  `asyncio.create_task()`) begins nothing new: each later
+  `send_samples=True`, `started()`, `result()` or `enqueue_sample()` call is
+  refused.
+- **Lifetime.** A wait begun in a task the sample joins ends with the
+  sample: the solver's group is cancelled when the solver returns (`:2976`,
+  which also ends `background()` work) and exits before scoring, each
+  scorer's groups exit before it returns, and an awaited `asyncio.gather()`
+  or `asyncio.TaskGroup` cancels its children when its caller is
+  cancelled; an abort, through the handle, the control channel or a
+  run-level cancellation, cancels the sample's group, and no shield covers
+  the solver or the scorers (see "Current behaviour"). A wait that a
+  detached task began while the sample's code was live is not cancelled
+  when the sample ends, as nothing else a detached task does is today, and
+  needs no cancel path of its own. What a wait holds is its share of its
+  target's loan, which the attempt it ran in (`SampleCode.attempt`)
+  justifies by holding a slot; that attempt belongs to the task, not the
+  sample, so it keeps its slot while the task's other samples run, and when
+  it ends its waits leave the loan (see "Slot lending", Lifetime). An
+  attempt already started on the loan runs to its end, as for any wait
+  that returned, so the bound on borrowed slots holds. The wait itself
+  settles when its target ends, as every wait does ("Terminal outcomes"
+  under "The handle API"). A port the attempt opened closes as "Keeping
+  the task open" says, whichever task opened it.
 
 Everything else is outside it and refused as "Run shapes and what is
 refused" lists, including the source callbacks, which run after the
@@ -539,11 +551,9 @@ or a retry-pending teardown whose cancel only abandons the retry; see
 "Current behaviour"), and hooks such as `on_sample_scoring` can run under
 a shield. Refusing there needs neither a list of those regions nor a
 cancel path for them, and the use case never waits there: a search waits
-on its rollouts from its solver. A detached task is refused rather than
-given a cancel path of its own: no use waits from one. The guard reads
-`_sample_code`, the running tasks (and, for its own message, the
-dispatcher's `next_tasks()` `ContextVar`) and changes nothing in the
-control channel's registry: the existing timestamps and cancellation
+on its rollouts from its solver. The guard reads `_sample_code` (and,
+for its own message, the dispatcher's `next_tasks()` `ContextVar`) and
+changes nothing in the control channel's registry: the existing timestamps and cancellation
 behaviour stay as they are. `RunQueue.end` also clears `loan` and closes
 the port, releasing its requests.
 
@@ -972,17 +982,19 @@ batch size: the creator holds the only slot while it waits for its rollout.
 @dataclass(eq=False)
 class Loan:
     target: TaskRecord              # the only record this loan can start
-    waiters: int = 0                # lending waits on the target that are blocked now
+    waiters: dict[TaskAttempt, int] = field(default_factory=dict)
+                                    # lending waits on the target blocked now, by the attempt each ran in
     started: bool = False           # an attempt of the target is running on this loan
 ```
 
 - **Who lends.** Every wait the guard allows lends: it comes from a
   sample's own code (its solver, scorers or tools, in a task the dispatcher
   started, including a task that is itself running on a loan), whose
-  attempt holds a slot while it waits. It lends on a target record that
+  attempt (`SampleCode.attempt`) holds a slot until it ends. It lends on a target record that
   has not ended, whatever its phase: `started()`, `result()` or
-  `enqueue_sample()`. It counts in the target's loan from the moment it
-  blocks until it returns or is cancelled. A wait anywhere else is refused
+  `enqueue_sample()`. It counts in the target's loan, under its attempt,
+  from the moment it blocks until it returns, is cancelled or its attempt
+  ends. A wait anywhere else is refused
   before it blocks (see "Creator and sample code").
   Lending is held from the moment of the wait, not from admission:
   `RunQueue.add` returns the record in `waiting`, and its admission cannot
@@ -1013,10 +1025,16 @@ class Loan:
   child C, P's wait starts C, and U waits for an ordinary slot. If an
   ordinary slot is free when the target becomes startable, the target takes
   it and the loan stays unused.
-- **Lifetime.** The loan lives while `waiters > 0` or an attempt is
-  running on it. When every waiter stops waiting (it returned, it was
-  cancelled, or the attempt it ran in ended) and no attempt runs on the
-  loan, the loan is dropped, in whatever phase the target is; a later wait
+- **Lifetime.** The loan lives while `waiters` counts a wait or an
+  attempt is running on it. A wait leaves `waiters` when it returns or is
+  cancelled, and when the attempt it ran in ends: at the two places that
+  close the ports an attempt created (beside `finalize_eval()`, and when
+  `run_one` returns for an attempt that ended without reaching it), the
+  attempt removes its entry from every loan in the queue. A wait still
+  blocked then, which only a detached task can hold (see "Creator and
+  sample code"), keeps waiting until its target ends but no longer lends;
+  when it returns it finds no entry and changes nothing. When `waiters` is
+  empty and no attempt runs on the loan, the loan is dropped, in whatever phase the target is; a later wait
   creates a new one. An attempt that started on the loan keeps its extra
   slot until it ends, whatever its waiters do; `started` is cleared then,
   and the loan is dropped if no waiter remains. A retry of the target is
@@ -1194,11 +1212,28 @@ under "The handle API" are unchanged.
   `on_task_end` and early-stopping callbacks, a task with no samples'
   `on_task_start`, and the `on_task_end` hooks of a retry-pending teardown,
   whose cancel abandons the retry and clears `retry_pending` while
-  `completed_at` stays unset (see "Current behaviour"). Allowing handle
-  work only in a sample's own code, which every abort reaches, needs no
+  `completed_at` stays unset (see "Current behaviour"). Letting handle
+  work begin only while a sample's own code runs, which every abort
+  reaches, needs no
   such list; it gives up waits in `sample_complete`, which the use case
   does not need, while the source's own `enqueue_sample()` keeps working
   there (decision: Ransom, 2026-11-06).
+- **Refusing tasks the sample does not own**, by walking `parent_id`
+  through `anyio.get_running_tasks()` to the task running the sample. It
+  refuses awaited `asyncio.gather()` and `asyncio.TaskGroup` children,
+  which have no AnyIO parent, although `docs/parallelism.qmd` recommends
+  gather in solvers; a task that a foreign group's `TaskGroup.start()`
+  takes over after readiness escapes it anyway; and it scans every running
+  task on each call. What it guarded against, a detached wait outliving
+  its sample, holds nothing once its attempt ends: its loan share leaves
+  then, and the wait settles with its target (decision: Ransom,
+  2026-11-06).
+- **Cancelling a sample's blocked waits when its code ends**, through a
+  register of waits on `SampleCode`. It would end detached waits with
+  their sample, but adds bookkeeping for the user's own unjoined tasks,
+  which Inspect does not cancel for anything else they do, and the loan's
+  attempt-based lifetime already bounds what such a wait holds (decision:
+  Ransom, 2026-11-06).
 - **Slot lending counted globally** (raise the limit by the number of
   waits and pick as usual). An earlier unrelated queued task takes the
   borrowed slot and can hold it while the awaited task and its creator stay
@@ -1228,7 +1263,9 @@ Public API (additive):
   returns, as today.
 - The `TaskHandle` and `enqueue_task()` docstrings and the handle docs in
   `docs/task-source.qmd`: handles are awaited, and `send_samples=True`
-  used, only from a sample's solver, scorers or tools; callbacks and hooks
+  used, only from a sample's solver, scorers or tools and the tasks they
+  start, while the sample runs (a detached task's later calls are
+  refused); callbacks and hooks
   can add tasks and cancel or close handles, and the task's own
   `enqueue_sample()` works where it does today.
 - `max_sandboxes` and `max_samples` docstrings: the headroom a run that
@@ -1458,14 +1495,31 @@ test touched), with mockllm models:
     is still allowed; the same from `enabled()` and `needs_full_sample()`;
     on asyncio and trio. A table in the test lists every public `Hooks`
     method with the dispatcher that calls it, and the test fails when
-    `Hooks` gains a method the table lacks;
-  - ownership: work started in the solver with `background()`, with
-    `tg_collect()` and in a nested task group, and a scorer's own task
-    group, can each open a port and wait; a raw `asyncio.create_task()`
-    started in the solver (asyncio only) is refused for all four calls
-    while the sample runs, and again after the sample has ended with
-    another task keeping the eval alive; a task started in a task group
-    owned outside the sample is refused the same way;
+    `Hooks` gains a method the table lacks; the same four calls are
+    refused from a legacy telemetry subscriber that a solver's `generate`
+    reaches and from a legacy API-key subscriber that constructing a model
+    in a solver reaches (each installed by setting the module's subscriber,
+    as `init_legacy_hooks()` does), and the solver's own wait after each is
+    still allowed;
+  - tasks started from sample code: work started in the solver with
+    `background()`, with `tg_collect()` and in a nested task group, and a
+    scorer's own task group, can each open a port and wait; a batch of
+    `enqueue_sample()` calls to one rollout handle under `asyncio.gather()`
+    and under `asyncio.TaskGroup` in a solver (asyncio only) each succeed
+    and return every sample's result; a raw `asyncio.create_task()` started
+    in the solver (asyncio only) and still running after its sample's code
+    has ended, with another task keeping the eval alive, is refused for
+    `send_samples=True`, `started()`, `result()` and `enqueue_sample()`,
+    without blocking and leaving no loan;
+  - a detached wait: at `max_tasks=1`, a raw `asyncio.create_task()` in
+    the parent's solver begins `result()` on a child added without
+    `send_samples`, and the solver returns without awaiting it; the wait's
+    loan starts the child; when the parent's attempt ends, its entry
+    leaves the loan's `waiters` (with a second waiter from a sibling
+    sample still blocked, `waiters` falls by one and the loan stays), the
+    loan is dropped once the child's borrowed attempt ends and no waiter
+    remains, and the detached `result()` returns the child's log when the
+    child ends;
   - inside the parent's solver at `max_tasks=1`, and from a scorer, the
     same three waits lend, so the child starts and each wait completes
     (`started()` and `enqueue_sample()` on a sample-sending child with its
@@ -1564,7 +1618,7 @@ companion change in Steward (step 6):
 5. **Task handles.** `_eval/task/enqueue.py` (`TaskHandle`, `SamplePort`,
    `PortRequest`, the errors, `Loan`, `SampleCode`, the `next_tasks()` and
    outside-a-sample refusals with their shared `_eligible()` check (the
-   `ContextVar`, `live` and the task-ancestry walk), the headroom
+   `ContextVar` and `live`), the headroom
    warning; `enqueue_task()` returns handles and checks
    `send_samples=True`), `_eval/task/run.py`
    (port attach, the two delivery steps and `SamplePort.delivered`, the
@@ -1572,19 +1626,20 @@ companion change in Steward (step 6):
    the attempt `ContextVar`, the `SampleCode` per sample run, set around
    the solver plan and the scorer loop in `task_run_sample` and marked not
    `live` when the sample's own code ends, the close of the ports the attempt created beside
-   `finalize_eval()`, the `send_samples` check in
+   `finalize_eval()` and the removal of its entries from loans there, the `send_samples` check in
    `eval_log_sample_source()`), `_eval/task/log.py` (the `send_samples`
    argument to `TaskLogger`, set on the spec), `log/_log.py`
    (`EvalSpec.send_samples`), `_eval/task/sample_source.py` (docstrings),
    `_eval/run.py` (the retry decision reads `SamplePort.delivered`, port
-   close when an attempt ends without finishing, `SamplePort.stop()` from
+   close and loan-entry removal when an attempt ends without finishing, `SamplePort.stop()` from
    the `cancel_task` callback for drain, score and error, loans in the dispatcher, the
    `next_tasks()` scope, `admit_task()` passing `send_samples`),
    `_eval/eval.py` (the `eval_retry()` refusal, `max_tasks`, `max_samples`
    and `max_sandboxes` docstrings), `_eval/evalset.py` (such a log is
    incomplete in `list_latest_eval_logs()`; docstrings),
    `hooks/_hooks.py` (`hook_call()` around every call into a `Hooks`
-   object), `model/_model.py` (the `enabled()` scan under `hook_call()`),
+   object), `hooks/_legacy.py` (`hook_call()` around each legacy
+   subscriber's call), `model/_model.py` (the `enabled()` scan under `hook_call()`),
    `__init__.py` (exports), `docs/task-source.qmd`, `docs/parallelism.qmd`
    and `docs/reference`. No recorder or log-copy code changes. The new
    `EvalSpec` field changes the viewer's OpenAPI schema and generated

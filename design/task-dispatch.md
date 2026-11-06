@@ -501,9 +501,11 @@ never returns (the source contract allows one,
   task's `on_task_end` hooks) that cancel answers "task already finished",
   and while a retry is pending it only abandons the retry, as today; no
   handle work begins there to be cancelled, because
-  [task-handles.md](task-handles.md#creator-and-sample-code) allows handle
-  waits and sample ports only in a sample's own code, which every abort of
-  its task reaches;
+  [task-handles.md](task-handles.md#creator-and-sample-code) lets handle
+  waits and sample ports begin only while a sample's own code runs, which
+  every abort of its task reaches (a wait a detached task carries past its
+  sample stops lending when its attempt ends and settles when its target
+  ends);
 - `admitting_cancelled`, `starting_cancelled`, `finalizing`, `ended`: a
   cancel is already in hand or the record has ended, so it does nothing.
 
