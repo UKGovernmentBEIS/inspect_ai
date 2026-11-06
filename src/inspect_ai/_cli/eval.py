@@ -411,7 +411,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         type=click.Choice(["auto", "required", "off"]),
         envvar="INSPECT_EVAL_SENTINEL_PROXY",
         hidden=True,
-        help="Whether to look for a sentinel sidecar behind each model's proxy: off (the default) never looks, auto uses one it finds, and required fails a task unless one is found. Only a model whose base URL was set is probed.",
+        help="Whether to look for a sentinel sidecar behind each model's proxy: off (the default) never looks, auto uses one it finds, and required fails a task unless one is found. Only an Anthropic, OpenAI or OpenAI-compatible model whose base URL was set is probed.",
     )
     @click.option(
         "--notification",

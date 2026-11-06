@@ -479,7 +479,7 @@ def eval_set(
         sentinel: Monitors and protocols that watch the agent's steps (requires the `inspect_sentinel` package). Experimental: not yet a stable API; may change without notice.
             A protocol, a list or mapping of monitors and protocols with at least one protocol, a config file path or registered protocol name, or a parsed configuration. Monitors alone are an error: wrap them in `observe_only()` to record without acting.
             Overrides the task's sentinel. Defaults to no sentinel.
-        sentinel_proxy: Whether to look for a sentinel sidecar behind each model's proxy, which then judges the agent's model calls. Off unless set: `off` (the default) never looks, `auto` uses a sidecar it finds, and `required` fails a task unless one is found. Only a model whose base URL was set is probed. Experimental: not yet a stable API; may change without notice.
+        sentinel_proxy: Whether to look for a sentinel sidecar behind each model's proxy, which then judges the agent's model calls. Off unless set: `off` (the default) never looks, `auto` uses a sidecar it finds, and `required` fails a task unless one is found. Only an Anthropic, OpenAI or OpenAI-compatible model whose base URL was set is probed. Experimental: not yet a stable API; may change without notice.
         **kwargs: Model generation options.
 
     Returns:

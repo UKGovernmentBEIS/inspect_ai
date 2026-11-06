@@ -72,6 +72,8 @@ _MODELS = {
     "anthropic": "anthropic/claude-haiku-4-5",
     # no reasoning options, so no side request to check for reasoning summaries
     "openai": "openai/gpt-4.1-mini",
+    # the generic OpenAI-compatible provider, which has no address of its own
+    "openai-api": "openai-api/together/meta-llama-3",
 }
 
 
@@ -89,6 +91,7 @@ def _nothing_from_the_environment(monkeypatch: pytest.MonkeyPatch) -> None:
         "ANTHROPIC_BASE_URL",
         "ANTHROPIC_AUTH_TOKEN",
         "OPENAI_BASE_URL",
+        "TOGETHER_BASE_URL",
         "INSPECT_EVAL_MODEL_BASE_URL",
     ]:
         monkeypatch.delenv(name, raising=False)
@@ -134,11 +137,28 @@ async def test_a_sidecar_behind_the_models_base_url_is_found(
     assert asked.headers["authorization"] == "Bearer test-key"
 
 
+async def test_a_sidecar_behind_an_openai_compatible_models_base_url_is_found() -> None:
+    stand_in = StandInSidecar()
+
+    found = await _probed(_model(stand_in, "openai-api", "http://proxy.test/v1"))
+
+    assert isinstance(found, Sidecar)
+    [asked] = stand_in.probes
+    assert str(asked.url) == "http://proxy.test/sentinel/info"
+
+
 @pytest.mark.parametrize("provider", ["anthropic", "openai"])
 def test_a_model_whose_base_url_was_not_set_is_not_probed(provider: str) -> None:
     stand_in = StandInSidecar()
 
     assert proxy_client(_model(stand_in, provider, base_url=None).api) is None
+
+
+def test_a_named_provider_at_its_own_address_is_not_probed() -> None:
+    # a service's own default address is no proxy, only a URL someone set is
+    model = get_model("together/meta-llama-3", api_key="test-key", memoize=False)
+
+    assert proxy_client(model.api) is None
 
 
 @pytest.mark.parametrize(

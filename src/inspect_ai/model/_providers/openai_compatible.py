@@ -136,8 +136,13 @@ class OpenAICompatibleAPI(ModelAPI):
                 )
 
         # use service prefix to lookup base_url
+        base_url_var = f"{service_env_name}_BASE_URL"
+        # a sentinel sidecar is looked for only behind a URL someone set, as
+        # an argument or in the environment, never the service's own address
+        self._explicit_base_url: bool = (
+            model_base_url(base_url, [base_url_var]) is not None
+        )
         if not self.base_url:
-            base_url_var = f"{service_env_name}_BASE_URL"
             self.base_url = model_base_url(base_url, [base_url_var]) or service_base_url
             if not self.base_url:
                 raise environment_prerequisite_error(
