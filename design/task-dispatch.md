@@ -305,9 +305,9 @@ control channel. Everything else is refused with a clear error:
 
 - `TaskSource` passed to `eval_set()`, `eval_retry()` or `score()`: rejected
   as today.
-- Handle misuse (for example awaiting a handle inside
-  `TaskSource.next_tasks()`, or after the calling task's `EvalState` is
-  terminal): see
+- Handle misuse (for example awaiting a handle anywhere outside a sample's
+  solver, scorers or tools, such as `TaskSource.next_tasks()` or
+  `sample_complete`): see
   [task-handles.md](task-handles.md#run-shapes-and-what-is-refused).
 - `enqueue_task()` outside a running eval or with a mismatched `run_id`:
   `RuntimeError`, as today.
@@ -499,9 +499,11 @@ never returns (the source contract allows one,
   the queue. Once the attempt's `EvalState` is terminal (`completed_at`
   set; for example during `TaskSource.task_complete`, or a fixed-dataset
   task's `on_task_end` hooks) that cancel answers "task already finished",
-  as today; no handle work begins there to be cancelled, because
-  [task-handles.md](task-handles.md#creator-and-running-attempt) refuses
-  handle waits and sample ports past that point;
+  and while a retry is pending it only abandons the retry, as today; no
+  handle work begins there to be cancelled, because
+  [task-handles.md](task-handles.md#creator-and-sample-code) allows handle
+  waits and sample ports only in a sample's own code, which every abort of
+  its task reaches;
 - `admitting_cancelled`, `starting_cancelled`, `finalizing`, `ended`: a
   cancel is already in hand or the record has ended, so it does nothing.
 
@@ -1146,14 +1148,14 @@ design depends on it.
 
 ### Interactions with related changes
 
-- Recording which task added a task: `TaskRecord.creator` is the running
-  attempt that owns the record's sample port, not its full origin. A task
-  added after the adding task's `EvalState` is terminal (for example in
-  `TaskSource.task_complete`) has no creator although a task added it, so
-  that change must
+- Recording which task added a task: `TaskRecord.creator` is the attempt
+  whose sample called `enqueue_task()`, which owns the record's sample
+  port, not its full origin. A task added outside a sample (for example in
+  `TaskSource.task_complete` or `sample_complete`) has no creator although
+  a task added it, so that change must
   record the origin itself rather than read this field. Slot lending does
-  not use the creator: a loan is held by whichever running attempt waits on
-  the target, creator or not
+  not use the creator: a loan is held by whichever sample waits on the
+  target, creator or not
   ([task-handles.md](task-handles.md#slot-lending)).
 - Added tasks under `eval_set()` using their creator's model: it changes
   `_resolve_enqueued_tasks`, which this design calls unchanged; with it, a

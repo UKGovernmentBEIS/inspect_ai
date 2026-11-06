@@ -4,12 +4,15 @@
 
 `enqueue_task()` returns one `TaskHandle` per task and model it added. A
 handle waits for its task to start or end and cancels it. Called from a
-running task with `send_samples=True`, for a task whose dataset is a
-`SampleSource`, it also sends that task samples and returns each sample's
-logged result, keeping the task open until the handle is closed or its
-creator's attempt ends. A task that a running task is waiting on borrows a
-slot when every slot is taken, so a search that drives a rollout task works
-at the default `max_tasks=1`:
+sample's own code (its solver, scorers or tools) with `send_samples=True`,
+for a task whose dataset is a `SampleSource`, it also sends that task
+samples and returns each sample's logged result, keeping the task open
+until the handle is closed or its creator's attempt ends. A handle is
+awaited, and a sample port opened, only from a sample's own code, which
+every abort of its task reaches; task-level callbacks and hooks can still
+add tasks and cancel or close handles. A task that a running sample is
+waiting on borrows a slot when every slot is taken, so a search that drives
+a rollout task works at the default `max_tasks=1`:
 
 ```python
 @solver
@@ -167,33 +170,43 @@ Non-goals:
   whether a task needs running (`:507`) and whether a log in its reuse
   store can be imported (`_store/match.py:74`); attempts are cached in a
   file versioned by `CACHE_VERSION` (`_evalset/cache.py:25`).
+- A sample's own code runs in its task inside `task_run_sample`: the
+  solver plan at `task/run.py:2873` (with the tools and subtasks it runs)
+  and the scorers at `:3101`. Scorers run only for a sample with no
+  cancellation error, so the shield at `:3084`, which is raised only after
+  one, never covers them. An abort of the task (a handle-level or
+  `inspect ctl task cancel`, or a run-level cancellation) cancels the
+  task's scope (`src/inspect_ai/_eval/run.py:620-639`), and with it every
+  sample's task group.
 - The sites that report a sample to the source are `task/run.py:1480`,
   `:1619` and `:3372` (`sample_complete`, and `sample_abandoned` for a
   sample cancelled before it was logged); the `TaskSource` calls, at
-  `:1623` and `:3376`, run inside the attempt's sample task group.
-- The control channel stops reaching a task once its `EvalState` is
-  terminal: with `completed_at` set, a cancel or drain answers
-  `changed: false, reason: "task already finished"`
-  (`src/inspect_ai/_control/cancel.py:311-332`), although `run_one` has not
-  returned and the task still holds its slot. Where `completed_at` is
-  stamped depends on the task:
-  - an `EvalState` registered as `dynamic` (a `SampleSource` dataset, or
-    any task run under a `TaskSource`, `task/run.py:1210`) is stamped only
-    by `finalize_eval()`, which `task_run` calls in its `finally` after
-    every sample task has exited (`task/run.py:2105`,
-    `src/inspect_ai/_control/eval_state.py:1022`); the source's
-    `sample_complete` and `sample_abandoned` therefore fire before the
-    stamp, and `TaskSource.task_complete` after it (`task/run.py:2137`);
-  - a fixed dataset is stamped by the last terminal sample report
-    (`_maybe_mark_finished`, `eval_state.py:1069`), so the last sample's
-    metrics and early-stopping `complete_sample` callback
-    (`task/run.py:535`, `:1312`), early-stopping `complete_task` (`:1951`)
-    and the `on_task_end` hooks (`:1995`) all run after it;
-  - a task with no samples is stamped at registration
-    (`eval_state.py:500`), so its `on_task_start` hooks (`task/run.py:1216`)
-    already run after it.
-  An attempt with `run_samples=False` returns before registering
-  (`task/run.py:1131`) and runs none of these callbacks.
+  `:1623` and `:3376`, run inside the attempt's sample task group. The
+  `:3372` call runs after the sample's scoring but still inside its
+  `active_sample()` context, so `sample_active()`
+  (`src/inspect_ai/log/_samples.py:599`) is set there; the other two run in
+  the task's own code.
+- Outside a sample, a task's code can run where the control channel no
+  longer reaches it:
+  - once its `EvalState` is terminal, a cancel or drain answers
+    `changed: false, reason: "task already finished"`
+    (`src/inspect_ai/_control/cancel.py:311-332`), although `run_one` has
+    not returned and the task still holds its slot. A dynamic `EvalState`
+    (a `SampleSource` dataset, or any task under a `TaskSource`,
+    `task/run.py:1210`) is stamped by `finalize_eval()` (`:2105`), before
+    `TaskSource.task_complete` (`:2137`); a fixed dataset at its last
+    terminal sample report (`_maybe_mark_finished`,
+    `src/inspect_ai/_control/eval_state.py:1069`), before the early-stopping
+    callbacks (`task/run.py:1312`, `:1951`) and the `on_task_end` hooks
+    (`:1995`); a task with no samples at registration
+    (`eval_state.py:500`), before its `on_task_start` hooks
+    (`task/run.py:1216`);
+  - when an attempt that can be retried ends in error, `finish_task_log`
+    marks the retry pending before the `on_task_end` hooks run
+    (`task/run.py:894-901`, `:1995`), with `completed_at` still unset; a
+    cancel or drain then only abandons the retry and never calls the
+    attempt's cancel callback (`cancel.py:296-332`), and abandoning clears
+    `retry_pending` (`eval_state.py:897-919`).
 - The dispatcher awaits `TaskSource.next_tasks()` inline, only when nothing
   is queued or running (`src/inspect_ai/_eval/run.py:1103`), so a task
   enqueued inside it starts only after it returns. Verified on this
@@ -230,11 +243,11 @@ that ignores the return value and waits for its child to finish (for
 example on its `TaskSource.task_complete` event) still sees it finish.
 `send_samples=True` checks, at the call and for every task it resolves:
 
-- that it is called from a running task attempt, which becomes the
-  creator: otherwise `RuntimeError` (the port would close at once), the
-  same error in `TaskSource.next_tasks()` and in any callback or hook that
-  runs after the calling task's `EvalState` is terminal (see "Creator and
-  running attempt");
+- that it is called from a sample's own code, whose attempt becomes the
+  creator: otherwise `RuntimeError`, the error a call outside a running
+  task attempt raises (its port would close at once), raised the same way
+  in `TaskSource.next_tasks()` and in every task-level callback and hook
+  (see "Creator and sample code");
 - that the dataset is a `SampleSource`: otherwise `TypeError` naming the
   task;
 - that the resolved task carries no prior state
@@ -345,14 +358,15 @@ runs and its result is dropped.
 ### Run shapes and what is refused
 
 Handles are returned to `enqueue_task()` callers in a solver, scorer, tool
-or `TaskSource` callback, under `eval()`, `eval_set()` and selection mode.
-Everything else is refused with a clear error:
+or `TaskSource` callback, under `eval()`, `eval_set()` and selection mode;
+they are awaited, and ports opened, only from a sample's own code (see
+"Creator and sample code"). Everything else is refused with a clear error:
 
-- `enqueue_task(..., send_samples=True)` outside a running task attempt
-  (for example in `TaskSource.next_tasks()`, or past the calling task's
-  terminal `EvalState`, such as `TaskSource.task_complete`), for a task whose dataset is not a `SampleSource`, for a task with prior
-  state, or in a run that logs in the `.json` format: the errors under "The
-  handle API".
+- `enqueue_task(..., send_samples=True)` outside a sample's own code (for
+  example in `TaskSource.next_tasks()`, `sample_complete` or
+  `task_complete`), for a task whose dataset is not a `SampleSource`, for a
+  task with prior state, or in a run that logs in the `.json` format: the
+  errors under "The handle API".
 - `TaskHandle.enqueue_sample()` on a handle created with
   `send_samples=False`, or after `close()`: `RuntimeError`.
 - `TaskHandle.enqueue_sample()` after a drain, or a `score` or `error`
@@ -369,19 +383,25 @@ Everything else is refused with a clear error:
   dispatcher sets a `ContextVar` around that await, and the handle checks
   it before waiting. Calling `enqueue_task()` there, and `cancel()` or
   `close()` on its handles, stays allowed.
-- Awaiting `started()`, `result()` or `enqueue_sample()` in an attempt
-  that is no longer running (its `EvalState` is terminal; see "Creator and
-  running attempt"), whichever callback or hook the call comes from:
-  `RuntimeError` ("a task handle cannot be awaited after the calling task
-  has finished; wait for it from a running task, for example its solver").
-  The check runs before the call blocks, so it never waits and never
-  creates a loan; it applies to every handle, whether `enqueue_task()`
-  returned it there or the task's solver kept it. `enqueue_task()` without
-  `send_samples` stays allowed there and its tasks run as today, and so do
-  the non-blocking calls on any handle: `cancel()`, `close()`, `state` and
-  the `task_id`, `task` and `model` attributes. No handle work therefore
-  begins after the point where the control channel stops reaching the
-  task, and nothing new needs a cancel path there.
+- Awaiting `started()`, `result()` or `enqueue_sample()` anywhere else
+  outside a sample's own code (see "Creator and sample code"): in a
+  `SampleSource`'s `next_samples()`, `sample_complete` or
+  `sample_abandoned`; in `TaskSource.sample_complete`, `sample_abandoned`
+  or `task_complete`; in early-stopping callbacks; in any hook
+  (`on_task_start`, `on_task_end`, the sample hooks); or in code the run
+  did not start inside a sample: `RuntimeError` ("a task handle can be
+  awaited only from a sample's solver, scorer or tools; wait for it
+  there"). The check runs before the call blocks, so it never waits and
+  never creates a loan; it applies to every handle, whether
+  `enqueue_task()` returned it there or a sample kept it. Still allowed
+  there, and everywhere in a running eval as today: `enqueue_task()`
+  without `send_samples`, whose tasks run as today; the non-blocking calls
+  on any handle, `cancel()`, `close()`, `state` and the `task_id`, `task`
+  and `model` attributes; and the task's own `enqueue_sample()`
+  (`sample_source.py:267`), which is not a handle call: it buffers a
+  sample in the calling task's own source without waiting, and stays
+  usable from `sample_complete` and the other source callbacks exactly as
+  today.
 - `eval_retry()` of a log whose task could receive samples through a
   handle: `PrerequisiteError` (see "Logs of tasks that can receive
   samples").
@@ -392,7 +412,7 @@ Everything else is refused with a clear error:
 `RunQueue`, admission and the dispatch loop. This design adds to the record:
 
 ```python
-    creator: TaskAttempt | None      # the running task attempt that called enqueue_task(), if any
+    creator: TaskAttempt | None      # the attempt whose sample called enqueue_task(), if any
     port: SamplePort | None = None   # only when the dataset is a SampleSource
     loan: Loan | None = None         # see "Slot lending"
 ```
@@ -410,40 +430,41 @@ ordinary count excluding attempts running on a loan:
         set loan.started; start run_one(entry, on_loan=True)
 ```
 
-#### Creator and running attempt
+#### Creator and sample code
 
-One rule decides where handle work may begin: **an attempt is running until
-its `EvalState` is terminal**, the same check by which cancel and drain
-answer "task already finished" (see "Current behaviour"). `_run_task` sets a
-`ContextVar` per attempt to its `TaskAttempt`, and `task_run` records the
-attempt's `eval_id` on it when it calls `register_eval()`. Code in that
-context is inside a running attempt unless `eval_id` is set and
-`get_eval_state(eval_id)` is missing or has `completed_at` set; an attempt
-that has not registered yet is running (a cancel reaches it through the
-retry-abandon stamp; see "Cancelling a record" in
-[task-dispatch.md](task-dispatch.md#the-run-queue)). The guard reads
-the registry and changes nothing in it: the existing timestamps and
-cancellation behaviour stay as they are.
+One fact decides where handle work may begin: **a sample of the calling
+task is running its own code**, its solver (with the tools and subtasks
+the solver runs) or its scorers. `_run_task` sets a `ContextVar` per
+attempt to its `TaskAttempt`, and `task_run_sample` sets a second one,
+`_sample_code`, to that attempt around the solver plan
+(`task/run.py:2873`) and around the scorer loop (`:3101`), resetting it
+after each; tasks the solver or a tool starts copy it. Only where it is set
+may code call `enqueue_task(..., send_samples=True)`,
+`TaskHandle.started()`, `result()` and `enqueue_sample()`; the creator is
+the attempt it names. `enqueue_task()` called anywhere else has no
+creator.
 
-The creator is the running attempt whose context `enqueue_task()` was
-called in. Past the boundary, whatever the callback or hook (for example
-`TaskSource.task_complete`, `on_task_end` and early-stopping
-`complete_task` of a fixed-dataset task, or `on_task_start` of a task with
-no samples), an `enqueue_task()` has no creator and the refusals under "Run
-shapes and what is refused" apply. Handle work there would hold the task's
-slot, and ports and loans with it, where neither `TaskHandle.cancel()` nor
-the control channel reaches it, and the use case never waits there: a
-search waits on its rollouts from its solver. A dynamic source's
-`sample_complete` and `sample_abandoned` fire before the stamp, so they run
-inside the attempt and count as that task.
+That code is always reached by its task's cancel: an abort, through the
+handle, the control channel or a run-level cancellation, cancels the
+sample's task group, and no shield covers the solver or the scorers (see
+"Current behaviour"). A wait blocked there therefore ends with its sample,
+and a port the attempt opened closes as "Keeping the task open" says.
 
-The check runs when a call begins. A wait already blocked when the stamp
-lands (a fixed-dataset task's early-stopping `complete_sample` for one
-sample, still waiting when the last sample's report stamps the state)
-keeps waiting and settles as the table under "The handle API" says; its
-target stays cancellable through its own handle or the control channel.
-`RunQueue.end` also clears `loan` and closes the port, releasing its
-requests.
+Everything else is outside it and refused as "Run shapes and what is
+refused" lists, including the source callbacks, which run after the
+sample's scoring (`sample_complete` runs inside the sample's
+`active_sample()` context, which is why the check reads `_sample_code`
+rather than `sample_active()`). Outside a sample, the control channel can
+stop reaching a task while its code still runs (a terminal `EvalState`,
+or a retry-pending teardown whose cancel only abandons the retry; see
+"Current behaviour"), and hooks such as `on_sample_scoring` can run under
+a shield. Refusing there needs neither a list of those regions nor a
+cancel path for them, and the use case never waits there: a search waits
+on its rollouts from its solver. The guard reads `_sample_code` (and,
+for its own message, the dispatcher's `next_tasks()` `ContextVar`) and
+changes nothing in the control channel's registry: the existing
+timestamps and cancellation behaviour stay as they are. `RunQueue.end`
+also clears `loan` and closes the port, releasing its requests.
 
 ### Sending samples
 
@@ -874,16 +895,14 @@ class Loan:
     started: bool = False           # an attempt of the target is running on this loan
 ```
 
-- **Who lends.** A wait lends when it is made from inside a running task
-  attempt (a sample, scorer or tool of a task the dispatcher started, or
-  its `sample_complete` or `sample_abandoned` callback, including a task
-  that is itself running on a loan) on a target
-  record that has not ended, whatever its phase: `started()`, `result()` or
+- **Who lends.** Every wait the guard allows lends: it comes from a
+  sample's own code (its solver, scorers or tools, in a task the dispatcher
+  started, including a task that is itself running on a loan), whose
+  attempt holds a slot while it waits. It lends on a target record that
+  has not ended, whatever its phase: `started()`, `result()` or
   `enqueue_sample()`. It counts in the target's loan from the moment it
-  blocks until it returns or is cancelled. A wait from outside any running
-  attempt lends nothing, because nothing is holding a slot while it waits;
-  a wait past the calling attempt's terminal `EvalState` is refused
-  before it blocks (see "Creator and running attempt").
+  blocks until it returns or is cancelled. A wait anywhere else is refused
+  before it blocks (see "Creator and sample code").
   Lending is held from the moment of the wait, not from admission:
   `RunQueue.add` returns the record in `waiting`, and its admission cannot
   run until the creator next awaits ("Sample selection waits for admission"
@@ -1080,18 +1099,25 @@ under "The handle API" are unchanged.
   waits that were live into a cycle, and the graph would then have to pick
   an existing wait to fail. Documented headroom and a warning cover the
   configurations the use case needs.
-- **Handle work after the attempt's `EvalState` is terminal, with its own
-  abort path.** There the control channel's cancel and drain already
-  answer "task already finished", so ports and lending waits would need a
-  new cancellation route, ownership rules and a drain outcome for work no
-  caller needs. Refusing the waits and ports there is simpler; a plain
-  `enqueue_task()` there still works (decision: Ransom, 2026-11-05).
-- **The boundary at `finalize_eval()`, or a list of named callbacks.**
-  For a fixed dataset the state is terminal at the last sample's report,
-  and for a task with no samples at registration, so `on_task_end`,
-  early-stopping `complete_task` and `on_task_start` would count as a
-  running attempt with no cancel reaching them. The terminal-state check
-  covers every such region with one rule (decision: Ransom, 2026-11-06).
+- **Handle work in task-level callbacks after the control channel stops
+  reaching the task, with its own abort path.** There cancel and drain
+  answer "task already finished", or only abandon a pending retry, so ports
+  and lending waits would need a new cancellation route, ownership rules
+  and a drain outcome for work no caller needs. Refusing the waits and
+  ports there is simpler; a plain `enqueue_task()` there still works
+  (decision: Ransom, 2026-11-05).
+- **Allowing handle work in task-level code while the attempt is
+  "running"**, with the boundary at `finalize_eval()`, at a list of named
+  callbacks, or at the terminal `EvalState`. Each leaves task-level code
+  the guard admits where cancel no longer reaches: a fixed dataset's
+  `on_task_end` and early-stopping callbacks, a task with no samples'
+  `on_task_start`, and the `on_task_end` hooks of a retry-pending teardown,
+  whose cancel abandons the retry and clears `retry_pending` while
+  `completed_at` stays unset (see "Current behaviour"). Allowing handle
+  work only in a sample's own code, which every abort reaches, needs no
+  such list; it gives up waits in `sample_complete`, which the use case
+  does not need, while the source's own `enqueue_sample()` keeps working
+  there (decision: Ransom, 2026-11-06).
 - **Slot lending counted globally** (raise the limit by the number of
   waits and pick as usual). An earlier unrelated queued task takes the
   borrowed slot and can hold it while the awaited task and its creator stay
@@ -1119,6 +1145,11 @@ Public API (additive):
   `next_samples()` is awaiting, and their callbacks may fire meanwhile;
   everything the source adds during a pull is admitted after the batch it
   returns, as today.
+- The `TaskHandle` and `enqueue_task()` docstrings and the handle docs in
+  `docs/task-source.qmd`: handles are awaited, and `send_samples=True`
+  used, only from a sample's solver, scorers or tools; callbacks and hooks
+  can add tasks and cancel or close handles, and the task's own
+  `enqueue_sample()` works where it does today.
 - `max_sandboxes` and `max_samples` docstrings: the headroom a run that
   waits through handles needs.
 
@@ -1312,29 +1343,36 @@ test touched), with mockllm models:
     `SampleSource` child, ignores the return value and awaits the child's
     `task_complete` event: the child ends when its source is done and the
     parent completes (bounded with `fail_after`);
-  - past the parent's terminal `EvalState`, at `max_tasks=1` and `2`, in
-    each of: `TaskSource.task_complete`; an `on_task_end` hook of a
-    fixed-dataset parent run without a `TaskSource`; early-stopping
-    `complete_task` of such a parent; and an `on_task_start` hook of a
-    parent with no samples (each asserting, before the call, that a ctl
-    cancel of the parent answers "task already finished"):
-    `enqueue_task(..., send_samples=True)` raises `RuntimeError` and
-    enqueues nothing; each of `started()`, `result()` and
-    `enqueue_sample()`, on a handle `enqueue_task()` returned there and on
-    one the parent's solver kept (where it has one), raises `RuntimeError`
-    without blocking (bounded with `fail_after`) and leaves no loan;
-    `cancel()`, `close()` and `state` work there; a plain `enqueue_task()`
-    there returns handles whose tasks run to completion after the parent
-    ends; control-channel timestamps and cancel answers are unchanged from
-    a run without handles; the same three
-    waits inside the parent's `sample_complete` lend at `max_tasks=1`, so
-    the child starts and each wait completes (`started()` and
-    `enqueue_sample()` on a sample-sending child with its port open,
-    `result()` after `close()` on that handle, and `result()` on a child
-    added without `send_samples`); a port the parent's solver
+  - outside the parent's samples, at `max_tasks=1` and `2`, in each of:
+    the parent `SampleSource`'s own `sample_complete` and
+    `sample_abandoned`; `TaskSource.sample_complete`, `sample_abandoned`
+    and `task_complete`; an `on_task_end` hook of a fixed-dataset parent run
+    without a `TaskSource`; early-stopping `complete_task` of such a parent;
+    an `on_task_start` hook of a parent with no samples; and an
+    `on_task_end` hook of a `SampleSource` parent under `eval_set()` with
+    retry budget left whose attempt fails its fractional `fail_on_error`
+    threshold, checked both while the retry is pending and after a ctl
+    cancel has abandoned it: `enqueue_task(..., send_samples=True)` raises
+    `RuntimeError` and enqueues nothing; each of `started()`, `result()`
+    and `enqueue_sample()`, on a handle `enqueue_task()` returned there and
+    on one the parent's solver kept (where it has one), raises
+    `RuntimeError` without blocking (bounded with `fail_after`) and leaves
+    no loan; `cancel()`, `close()` and `state` work there; a plain
+    `enqueue_task()` there returns handles whose tasks run to completion;
+    control-channel timestamps and cancel answers are unchanged from a run
+    without handles;
+  - the parent `SampleSource`'s own `enqueue_sample()` called inside its
+    `sample_complete` still admits that sample, which runs and is logged in
+    the parent, as today;
+  - inside the parent's solver at `max_tasks=1`, and from a scorer, the
+    same three waits lend, so the child starts and each wait completes
+    (`started()` and `enqueue_sample()` on a sample-sending child with its
+    port open, `result()` after `close()` on that handle, and `result()` on
+    a child added without `send_samples`); an abort of the parent while a
+    solver wait is blocked cancels that wait; a port the parent's solver
     opened closes when the parent's attempt finishes, before
     `task_complete` runs;
-  - `send_samples=True` outside a running attempt, for a non-`SampleSource`
+  - `send_samples=True` outside a sample's own code, for a non-`SampleSource`
     dataset, for a `PreviousTask`, a list of them, a mixed
     `PreviousTask`/`ResolvedTask` list, and a `ResolvedTask` with a
     `sample_source` each raise and enqueue nothing; the same inputs without
@@ -1423,14 +1461,13 @@ companion change in Steward (step 6):
 
 5. **Task handles.** `_eval/task/enqueue.py` (`TaskHandle`, `SamplePort`,
    `PortRequest`, the errors, `Loan`, the `next_tasks()` and
-   terminal-attempt wait refusals with their shared running-attempt check
-   (`TaskAttempt.eval_id` read against `get_eval_state()`), the
+   outside-a-sample refusals with their shared `_sample_code` check, the
    headroom warning; `enqueue_task()` returns handles and checks
    `send_samples=True`), `_eval/task/run.py`
    (port attach, the two delivery steps and `SamplePort.delivered`, the
    result sites, the feeder's owned pull and held buffer, the open port,
-   the attempt `ContextVar`, `TaskAttempt.eval_id` set at
-   `register_eval()`, the close of the ports the attempt created beside
+   the attempt `ContextVar`, `_sample_code` set around the solver plan and
+   the scorer loop in `task_run_sample`, the close of the ports the attempt created beside
    `finalize_eval()`, the `send_samples` check in
    `eval_log_sample_source()`), `_eval/task/log.py` (the `send_samples`
    argument to `TaskLogger`, set on the spec), `log/_log.py`
