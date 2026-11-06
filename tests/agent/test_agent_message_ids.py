@@ -659,6 +659,126 @@ def test_repeated_exchanges_keep_ids_through_dialect(
     assert events[2].input[3].id == events[1].output.message.id
 
 
+class _TextConversation:
+    """A text-only scaffold conversation in a bridge dialect, as wire turns."""
+
+    def __init__(self, dialect: Dialect) -> None:
+        self.dialect = dialect
+        self.turns: list[list[dict[str, Any]]] = []
+
+    def user_turn(self, text: str) -> list[dict[str, Any]]:
+        if self.dialect == "google":
+            return [{"role": "user", "parts": [{"text": text}]}]
+        return [{"role": "user", "content": text}]
+
+    def user(self, text: str) -> None:
+        self.turns.append(self.user_turn(text))
+
+    async def generate(self) -> None:
+        wire = [item for turn in self.turns for item in turn]
+        if self.dialect == "completions":
+            async with AsyncOpenAI(api_key="inspect") as client:
+                completion = await client.chat.completions.create(
+                    model="inspect", messages=cast(Any, wire)
+                )
+                reply = [completion.choices[0].message.model_dump(exclude_none=True)]
+        elif self.dialect == "responses":
+            async with AsyncOpenAI(api_key="inspect") as client:
+                response = await client.responses.create(
+                    model="inspect", input=cast(Any, wire)
+                )
+                reply = [item.model_dump(exclude_none=True) for item in response.output]
+        elif self.dialect == "anthropic":
+            async with AsyncAnthropic(api_key="inspect") as anthropic_client:
+                message = await anthropic_client.messages.create(
+                    model="inspect", max_tokens=32, messages=cast(Any, wire)
+                )
+                reply = [
+                    {
+                        "role": "assistant",
+                        "content": [
+                            block.model_dump(exclude_none=True)
+                            for block in message.content
+                        ],
+                    }
+                ]
+        else:
+            google_response = await genai.Client(
+                api_key="inspect"
+            ).aio.models.generate_content(model="inspect", contents=cast(Any, wire))
+            assert google_response.candidates and google_response.candidates[0].content
+            reply = [
+                google_response.candidates[0].content.model_dump(
+                    exclude_none=True, by_alias=True
+                )
+            ]
+        self.turns.append(reply)
+
+
+@pytest.mark.parametrize(
+    "case", ["compacted", "full_history", "distinct_replies", "single_tail"]
+)
+@pytest.mark.parametrize("dialect", DIALECTS)
+def test_compacted_identical_replies_keep_their_own_ids(
+    dialect: Dialect, case: str, tmp_path: Path
+) -> None:
+    """Identical replies retained by compaction keep their own ids, in order.
+
+    Two `OK` replies follow different user messages. Compaction replaces the
+    prompt with a summary and keeps both exchanges (or only the latest reply,
+    followed by a message equal to the earlier exchange's), and a further call
+    makes the compacted thread the bridge's conversation.
+    """
+
+    @agent
+    def scaffold() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            async with agent_bridge(state) as bridge:
+                conversation = _TextConversation(dialect)
+                conversation.user("Say OK.")
+                await conversation.generate()
+                conversation.user("Say it again.")
+                await conversation.generate()
+                summary = conversation.user_turn("Summary: said it twice.")
+                follow_up = "Once more."
+                if case in ("compacted", "distinct_replies"):
+                    conversation.turns = [summary, *conversation.turns[1:]]
+                elif case == "single_tail":
+                    conversation.turns = [summary, conversation.turns[-1]]
+                    follow_up = "Say it again."
+                for text in (follow_up, "Thanks."):
+                    conversation.user(text)
+                    await conversation.generate()
+                return bridge.state
+
+        return execute
+
+    replies = ["OK", "Fine" if case == "distinct_replies" else "OK", "Done", "Bye"]
+    log = eval(
+        Task(dataset=[Sample(input="Say OK.")], solver=scaffold()),
+        model=get_model(
+            "mockllm/model",
+            custom_outputs=[
+                ModelOutput.from_content("mockllm/model", text) for text in replies
+            ],
+        ),
+        log_dir=str(tmp_path),
+    )[0]
+
+    assert log.status == "success", log.error
+    assert log.samples
+    sample = log.samples[0]
+    events = [e for e in sample.events if isinstance(e, ModelEvent)]
+    reply_ids = [event.output.message.id for event in events]
+    assert None not in reply_ids and len(set(reply_ids)) == 4
+    retained = reply_ids[1:2] if case == "single_tail" else reply_ids[:2]
+    assert [m.id for m in events[2].input if m.role == "assistant"] == retained
+    assert [m.id for m in sample.messages if m.role == "assistant"] == [
+        *retained,
+        *reply_ids[2:],
+    ]
+
+
 def test_completions_non_primary_choice_keeps_generated_id(tmp_path: Path) -> None:
     """A scaffold can continue with an unchanged alternate choice."""
 

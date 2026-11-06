@@ -1088,9 +1088,12 @@ class AgentBridge:
         A request containing the entire tracked history keeps that alignment.
         Otherwise, each run of consecutive matches starts at the tracked message
         sharing the strongest key, then the longest run (one that reaches the end
-        of the tracked thread continues it), then the latest position (scaffold
-        compaction keeps the tail). A same-role message between two runs, at the
-        same offset in both, is an edit of the tracked one.
+        of the tracked thread continues it, so counts as the rest of the request,
+        and wins a tie with one that doesn't), then, among runs reaching the end,
+        the most messages matched (a compacted request keeping several equal
+        replies), then the latest position (scaffold compaction keeps the tail).
+        A same-role message between two runs, at the same offset in both, is an
+        edit of the tracked one.
 
         Only the position continuing the last run and the latest
         `_MAX_ALIGN_CANDIDATES` positions per key are considered, and runs are
@@ -1127,6 +1130,10 @@ class AgentBridge:
                 length += 1
             return length
 
+        def rank(i: int, j: int, length: int) -> tuple[int, bool, int, int]:
+            ends = j + length == len(tracked)
+            return (len(messages) - i if ends else length, ends, length, j)
+
         aligned: dict[int, str] = {}
         i, next_j = 0, 0
         last: tuple[int, int] | None = None
@@ -1146,13 +1153,7 @@ class AgentBridge:
             strengths = {j: strength(i, j) for j in candidates}
             strongest = max(strengths.values())
             runs = {j: run(i, j) for j in candidates if strengths[j] == strongest}
-            j = max(
-                runs,
-                key=lambda j: (
-                    len(messages) - i if j + runs[j] == len(tracked) else runs[j],
-                    j,
-                ),
-            )
+            j = max(runs, key=lambda j: rank(i, j, runs[j]))
             if last is not None and i - last[0] == j - last[1]:
                 for offset in range(i - last[0]):
                     gap_id, gap_role = tracked[last[1] + offset]
