@@ -3018,6 +3018,50 @@ def test_a_decision_is_recovered_once_inspect_stops_retrying() -> None:
     assert (sample.limit.type, sample.limit.reason) == ("operator", "Too far.")
 
 
+def test_a_limit_tripped_before_a_retry_dispatches_looks_nothing_up(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # the first attempt is refused and retried; a limit then trips before the
+    # retry is dispatched, so there is no request of this attempt to look up,
+    # and the first attempt's id must not be looked up in its place
+    from inspect_ai.model import _model as model_module
+
+    checked = model_module._check_limits_before_dispatch
+    checks = 0
+
+    def check_limits() -> None:
+        nonlocal checks
+        checks += 1
+        # an attempt checks twice before dispatching: the third check is the
+        # retry's first
+        if checks == 3:
+            raise LimitExceededError("token", value=7, limit=7)
+        checked()
+
+    monkeypatch.setattr(model_module, "_check_limits_before_dispatch", check_limits)
+    stand_in = StandInSidecar(
+        # refused on each of the SDK's own tries, so Inspect's attempt fails
+        turns=[Turn(status=503)] * 3,
+        methods={
+            "request_result": _answers(
+                {"records": "held", "state": "not_judged", "reason": "error"}
+            )
+        },
+    )
+
+    [log] = eval(
+        Task(dataset=[Sample(input="Hi.")], solver=generate()),
+        model=_model(stand_in),
+        max_retries=1,
+        display="none",
+    )
+
+    assert log.samples is not None
+    [sample] = log.samples
+    assert sample.limit is not None and sample.limit.type == "token"
+    assert _looked_up(stand_in) == []
+
+
 def test_a_failed_copy_of_monitor_state_still_cleans_up() -> None:
     cleaned: list[str] = []
 

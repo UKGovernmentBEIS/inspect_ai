@@ -1661,6 +1661,9 @@ class Model:
             )
         )
         async def generate() -> tuple[ModelOutput, BaseModel]:
+            # the last attempt's sidecar request is forgotten before anything
+            # can end this one, so a limit tripped here looks up no stale id
+            begin_attempt()
             await wait_generate_dispatch(self, connection)
 
             # type-checker can't see that we made sure tool_choice is not none in the outer frame
@@ -1825,7 +1828,6 @@ class Model:
                         model_stream_observer(stream_observer),
                     ):
                         with timeout_cm, idle_cm:
-                            begin_attempt()
                             result = await self.api.generate(
                                 input=input,
                                 tools=call_tools,
