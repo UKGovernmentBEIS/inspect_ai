@@ -1,13 +1,16 @@
 import contextlib
+import posixpath
 from collections.abc import Mapping, Sequence
 from logging import getLogger
 from typing import TYPE_CHECKING, AsyncIterator
 
 import anyio
+import semver
 from shortuuid import uuid
 
 from inspect_ai._sentinel._context import warn_sentinel_bridged
 from inspect_ai._util._async import raise_unwrapped
+from inspect_ai._util._json_rpc import exec_scalar_request
 from inspect_ai._util.working import untracked_sandbox_execs
 from inspect_ai.model._compaction.types import CompactionStrategy
 from inspect_ai.model._model import (
@@ -19,6 +22,7 @@ from inspect_ai.model._model import (
 )
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._mcp._tools_bridge import BridgedToolsSpec
+from inspect_ai.tool._sandbox_tools_utils._error_mapper import SandboxToolsErrorMapper
 from inspect_ai.tool._sandbox_tools_utils.sandbox import sandbox_with_injected_tools
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
@@ -28,13 +32,26 @@ from inspect_ai.tool._tools._web_search._web_search import (
 from inspect_ai.util._anyio import inner_exception
 from inspect_ai.util._checkpoint.checkpointer import Checkpointer
 from inspect_ai.util._sandbox._cli import SANDBOX_CLI
+from inspect_ai.util._sandbox._framework_directory import (
+    FrameworkDirectoryNotFoundError,
+    exec_in_framework_directory,
+    expected_uid_for,
+)
+from inspect_ai.util._sandbox._json_rpc_transport import SandboxJSONRPCTransport
+from inspect_ai.util._sandbox.environment import SandboxEnvironment
+from inspect_ai.util._sandbox.events import without_sandbox_events
 from inspect_ai.util._sandbox.exec_remote import (
     ExecCompleted,
     ExecRemoteProcess,
     ExecRemoteStreamingOptions,
     ExecStderr,
 )
+from inspect_ai.util._sandbox.identity import (
+    SandboxIdentityError,
+    sandbox_identity_scope,
+)
 from inspect_ai.util._sandbox.service import find_control_flow
+from inspect_ai.util._subprocess import ExecResult
 
 from ..._agent import AgentState
 from ..util import resolve_bridge_code_execution, resolve_bridge_web_search
@@ -48,6 +65,33 @@ if TYPE_CHECKING:
     from inspect_ai.approval._policy import ApprovalPolicy
 
 logger = getLogger(__name__)
+
+BRIDGE_TOKEN_DIR = "/var/tmp/.inspect-bridge"
+"""Directory of bridge token files in the sandbox (see `SandboxAgentBridge.token_file`)."""
+
+BRIDGE_TOKEN_ENV = "INSPECT_BRIDGE_TOKEN"
+"""Variable a client sets to the bridge token for the MCP configs' header placeholder."""
+
+BRIDGE_TOKEN_LENGTH = 64
+"""Characters in a bridge token (256 random bits, hex-encoded)."""
+
+BRIDGE_TOKEN_TIMEOUT = 60
+"""Seconds to wait for a token-minting model proxy to start, and then to publish its token."""
+
+BRIDGE_TOKEN_TOOLS_VERSION = semver.Version(1, 5, 0)
+"""First inspect-sandbox-tools version whose model proxy mints a bridge token."""
+
+_TOKEN_DIR_MODE = 0o711
+"""Mode of `BRIDGE_TOKEN_DIR`, as the proxy creates it (bridge_token.py)."""
+
+_TOKEN_EXEC_TIMEOUT = 30
+
+_TOKEN_SIZE = 'test -f "$1" || exit 1\nwc -c < "$1"'
+"""Prints the size of the file named `$1`, or fails when there is none."""
+
+# Read by the model proxy (inspect_sandbox_tools/_agent_bridge/bridge_token.py).
+_TOKEN_FILE_ENV = f"{MODEL_SERVICE.upper()}_TOKEN_FILE"
+_TOKEN_USER_ENV = f"{MODEL_SERVICE.upper()}_TOKEN_USER"
 
 
 @contextlib.asynccontextmanager
@@ -98,6 +142,10 @@ async def sandbox_agent_bridge(
     model retry) is in progress. Otherwise their time counts as working, as
     any time does. The agent's model requests and bridged tool calls are
     known work.
+
+    Inside a sandbox identity scope for its sandbox, the proxy requires a token
+    on every request; see `SandboxAgentBridge.token_file`. Send it to
+    `127.0.0.1`, not `localhost`. Outside a scope the proxy accepts any request.
 
     Args:
         state: Initial state for agent bridge. Used as a basis for yielding
@@ -209,8 +257,26 @@ async def sandbox_agent_bridge(
     # instance id for this bridge
     instance = f"proxy_{uuid()}"
 
-    # resolve sandbox
-    sandbox_env = await sandbox_with_injected_tools(sandbox_name=sandbox)
+    # resolve sandbox. Its tools are verified outside the sandbox's concurrency
+    # limits, like the bridge's other control commands, and only once:
+    # exec_remote() need not check again inside the proxy's bounded launch.
+    sandbox_env = await sandbox_with_injected_tools(
+        sandbox_name=sandbox, concurrency=False
+    )
+    sandbox_env._tools_injected = True
+
+    # inside an identity scope the proxy mints a token for the scope's user
+    proxy_env = {
+        f"{MODEL_SERVICE.upper()}_PORT": str(port),
+        f"{MODEL_SERVICE.upper()}_INSTANCE": instance,
+    }
+    token_file: str | None = None
+    scope = sandbox_identity_scope(sandbox_env)
+    if scope is not None:
+        await _check_tools_mint_tokens(sandbox_env, scope.user)
+        token_file = f"{BRIDGE_TOKEN_DIR}/{instance}"
+        proxy_env[_TOKEN_FILE_ENV] = token_file
+        proxy_env[_TOKEN_USER_ENV] = scope.user
 
     # resolve granted capabilities. These default to withheld: the sandboxed agent
     # can otherwise obtain them just by naming the native tool in a request, which
@@ -231,7 +297,10 @@ async def sandbox_agent_bridge(
 
     bridge: SandboxAgentBridge | None = None
     try:
-        async with anyio.create_task_group() as tg:
+        async with (
+            _token_file_removed(sandbox_env, token_file),
+            anyio.create_task_group() as tg,
+        ):
             # event to signal startup of model service
             started = anyio.Event()
 
@@ -252,6 +321,7 @@ async def sandbox_agent_bridge(
                 allow_remote_mcp=allow_remote_mcp,
                 forward_client_headers=forward_client_headers,
                 response_filter=response_filter,
+                token_file=token_file,
             )
 
             # register bridged tools with the bridge
@@ -263,7 +333,9 @@ async def sandbox_agent_bridge(
                         "Each BridgedToolsSpec must have a unique name."
                     )
                 seen_names.add(spec.name)
-                config = _register_bridged_tools(bridge, spec, port)
+                config = _register_bridged_tools(
+                    bridge, spec, port, token=token_file is not None
+                )
                 bridge.mcp_server_configs.append(config)
             bridge.warn_indistinct_tools()
 
@@ -281,23 +353,36 @@ async def sandbox_agent_bridge(
             # wait for model service to start
             await started.wait()
 
-            # proxy server that runs in container and forwards to sandbox service
-            proxy = await sandbox_env.exec_remote(
-                cmd=[SANDBOX_CLI, "model_proxy"],
-                options=ExecRemoteStreamingOptions(
-                    concurrency=False,
-                    user=sandbox_env._tools_user,
-                    env={
-                        f"{MODEL_SERVICE.upper()}_PORT": str(port),
-                        f"{MODEL_SERVICE.upper()}_INSTANCE": instance,
-                    },
-                    poll_timeout=600,
-                    poll_timeout_recovery=poll_timeout_recovery,
-                ),
-            )
+            # proxy server that runs in container and forwards to sandbox service.
+            # A proxy minting a token must be owned (killed below) before a
+            # cancellation ends the bridge, or it could publish after the token
+            # is removed, so its launch is shielded, for a bounded time. A launch
+            # that times out first kills the proxy by its job key (exec_remote).
+            with anyio.move_on_after(
+                BRIDGE_TOKEN_TIMEOUT if token_file is not None else None,
+                shield=token_file is not None,
+            ) as launch:
+                proxy = await sandbox_env.exec_remote(
+                    cmd=[SANDBOX_CLI, "model_proxy"],
+                    options=ExecRemoteStreamingOptions(
+                        concurrency=False,
+                        user=sandbox_env._tools_user,
+                        env=proxy_env,
+                        poll_timeout=600,
+                        poll_timeout_recovery=poll_timeout_recovery,
+                    ),
+                )
+            if launch.cancelled_caught:
+                # a limit or cancellation that arrived meanwhile takes precedence
+                await _deliver_enclosing_cancellation()
+                raise RuntimeError(
+                    "The sandbox agent bridge's model proxy did not start within "
+                    f"{BRIDGE_TOKEN_TIMEOUT} seconds."
+                )
 
             # monitor proxy for unexpected death
-            tg.start_soon(_monitor_proxy, proxy)
+            proxy_stderr: list[str] = []
+            tg.start_soon(_monitor_proxy, proxy, proxy_stderr)
 
             # monitor for a sample failure requested from the service task
             # (fail_on_refusal, a response filter failure, an invalid approver
@@ -307,6 +392,8 @@ async def sandbox_agent_bridge(
 
             # main agent
             try:
+                if token_file is not None:
+                    await _wait_for_token_file(sandbox_env, token_file, proxy_stderr)
                 with untracked_sandbox_execs():
                     yield bridge
                 agent_completed = True
@@ -387,13 +474,160 @@ async def _deliver_enclosing_cancellation() -> None:
     await anyio.lowlevel.checkpoint_if_cancelled()
 
 
+async def _check_tools_mint_tokens(sandbox_env: SandboxEnvironment, user: str) -> None:
+    """Refuse sandbox tools whose model proxy would ignore a token request.
+
+    Such a proxy would serve without a token and never publish one. The check
+    runs outside the sandbox's concurrency limits, as the bridge's other
+    control commands do.
+    """
+    version = await exec_scalar_request(
+        method="version",
+        params={},
+        result_type=str,
+        transport=SandboxJSONRPCTransport(sandbox_env),
+        error_mapper=SandboxToolsErrorMapper,
+        timeout=_TOKEN_EXEC_TIMEOUT,
+        user=sandbox_env._tools_user,
+        concurrency=False,
+    )
+    if semver.Version.parse(version) < BRIDGE_TOKEN_TOOLS_VERSION:
+        raise SandboxIdentityError(
+            f"The sandbox has inspect-sandbox-tools {version}, but "
+            f"sandbox_agent_bridge() in the sandbox identity scope for '{user}' "
+            f"needs version {BRIDGE_TOKEN_TOOLS_VERSION} or later."
+        )
+
+
+async def _wait_for_token_file(
+    sandbox_env: SandboxEnvironment, token_file: str, proxy_stderr: list[str]
+) -> None:
+    """Wait until the model proxy has published its complete token file.
+
+    The proxy process exists before it serves, and it publishes the token only
+    once its listener is bound. Each check verifies the token directory first
+    (owned by the tools user, mode `0711`) and reads the file's size from
+    inside it, so a directory another user created, and a file they put in it,
+    is refused rather than taken for the proxy's. The check runs as the tools
+    user and reads only the size, so the token never leaves the sandbox. It
+    runs outside the sandbox's concurrency limits, as the proxy launch does:
+    waiting there for capacity could time out a proxy that has already
+    published. A proxy that exits first is reported by `_monitor_proxy`, which
+    cancels this wait.
+
+    Raises:
+        RuntimeError: The token file did not appear within `BRIDGE_TOKEN_TIMEOUT`.
+        FrameworkDirectoryError: The token directory cannot be trusted.
+    """
+    directory, name = posixpath.split(token_file)
+    delay = 0.1
+    try:
+        with anyio.fail_after(BRIDGE_TOKEN_TIMEOUT):
+            while True:
+                try:
+                    result = await _exec_in_token_dir(
+                        sandbox_env,
+                        directory,
+                        ["sh", "-c", _TOKEN_SIZE, "sh", name],
+                    )
+                    if result.success and result.stdout.strip() == str(
+                        BRIDGE_TOKEN_LENGTH
+                    ):
+                        return
+                except FrameworkDirectoryNotFoundError:
+                    pass
+                await anyio.sleep(delay)
+                delay = min(delay * 2, 1.0)
+    except TimeoutError:
+        raise RuntimeError(
+            f"Model proxy did not publish its bridge token within "
+            f"{BRIDGE_TOKEN_TIMEOUT} seconds: {''.join(proxy_stderr)}"
+        ) from None
+
+
+@contextlib.asynccontextmanager
+async def _token_file_removed(
+    sandbox_env: SandboxEnvironment, token_file: str | None
+) -> AsyncIterator[None]:
+    """Remove the token file on exit, once the proxy has stopped.
+
+    Entered outside the task group that holds the proxy's monitor, so the
+    removal follows the monitor's own kill of the proxy, which a cancellation
+    can start before the bridge's: a proxy still publishing could otherwise
+    create the file after it was removed.
+    """
+    try:
+        yield
+    finally:
+        if token_file is not None:
+            with anyio.CancelScope(shield=True):
+                await _remove_token_file(sandbox_env, token_file)
+
+
+async def _remove_token_file(sandbox_env: SandboxEnvironment, token_file: str) -> None:
+    """Remove the token file and its temporary file after the proxy has stopped.
+
+    A proxy killed outright (SIGKILL, out of memory) cannot remove them itself,
+    and one killed while publishing can leave the temporary file holding the
+    whole token. They are removed by name inside the verified token directory;
+    a missing directory holds nothing to remove. The command runs outside the
+    sandbox's concurrency limits: cleanup is shielded, so waiting there for
+    capacity could stall shutdown.
+    """
+    directory, name = posixpath.split(token_file)
+    try:
+        result = await _exec_in_token_dir(
+            sandbox_env, directory, ["rm", "-f", "--", name, f".{name}.tmp"]
+        )
+        if not result.success:
+            logger.warning(
+                f"Error removing bridge token file {token_file}: {result.stderr}"
+            )
+    except FrameworkDirectoryNotFoundError:
+        pass
+    except Exception as ex:
+        logger.warning(f"Error removing bridge token file {token_file}: {ex}")
+
+
+async def _exec_in_token_dir(
+    sandbox_env: SandboxEnvironment, directory: str, cmd: list[str]
+) -> ExecResult[str]:
+    """Run `cmd` as the tools user inside the verified token directory.
+
+    The directory must be owned by the tools user (the proxy's user) with mode
+    `0711`; the command runs outside the sandbox's concurrency limits. Like
+    the bridge's other plumbing, it records no transcript event and is not
+    known work.
+
+    Raises:
+        FrameworkDirectoryNotFoundError: The directory does not exist yet.
+        FrameworkDirectoryError: The directory cannot be trusted.
+    """
+    user = sandbox_env._tools_user
+    with without_sandbox_events(sandbox_env):
+        return await exec_in_framework_directory(
+            sandbox_env,
+            directory,
+            cmd,
+            user=user,
+            expected_uid=expected_uid_for(user),
+            mode=_TOKEN_DIR_MODE,
+            timeout=_TOKEN_EXEC_TIMEOUT,
+            concurrency=False,
+        )
+
+
 def _register_bridged_tools(
-    bridge: SandboxAgentBridge, spec: BridgedToolsSpec, port: int
+    bridge: SandboxAgentBridge, spec: BridgedToolsSpec, port: int, *, token: bool
 ) -> MCPServerConfigHTTP:
     """Register bridged tools with the bridge and return MCP config.
 
     Tools are registered in bridge.bridged_tools for execution by the service.
     Returns an MCPServerConfigHTTP with URL pointing to the MCP HTTP endpoint.
+    With `token`, the config sends the bridge token through a placeholder the
+    client expands from its environment, to `127.0.0.1`: the proxy listens only
+    there, and `localhost` can resolve to `::1`, where another user may listen
+    on the same port.
     """
     bridge.register_bridged_tools(
         spec.name,
@@ -405,7 +639,10 @@ def _register_bridged_tools(
     return MCPServerConfigHTTP(
         name=spec.name,
         type="http",
-        url=f"http://localhost:{port}/mcp/{spec.name}",
+        url=f"http://{'127.0.0.1' if token else 'localhost'}:{port}/mcp/{spec.name}",
+        headers=(
+            {"Authorization": f"Bearer ${{{BRIDGE_TOKEN_ENV}}}"} if token else None
+        ),
         tools="all",
     )
 
@@ -424,9 +661,14 @@ async def _monitor_failure(bridge: SandboxAgentBridge) -> None:
     raise bridge._failure
 
 
-async def _monitor_proxy(proxy: ExecRemoteProcess) -> None:
-    """Monitor the proxy process event stream and raise if it dies unexpectedly."""
-    stderr: list[str] = []
+async def _monitor_proxy(
+    proxy: ExecRemoteProcess, stderr: list[str] | None = None
+) -> None:
+    """Monitor the proxy process event stream and raise if it dies unexpectedly.
+
+    The proxy's stderr is collected in `stderr`, when given.
+    """
+    stderr = [] if stderr is None else stderr
     async for event in proxy:
         if isinstance(event, ExecStderr):
             stderr.append(event.data)

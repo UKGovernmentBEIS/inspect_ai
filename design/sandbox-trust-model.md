@@ -319,6 +319,34 @@ comes from the scope as well as from tool construction:
   scope only if it was created under the same user and sandbox; outside any
   scope a saved shell can still be used and keeps running as the user it was
   created as. Nested scopes raise.
+- **Bridge token.** A sandbox agent bridge whose sandbox is the scope's
+  requires a token on every request to its model proxy, including bridged
+  tools' MCP endpoints. The host passes the proxy only the scope's user and a
+  file name; the proxy mints the token, publishes it readable only by that
+  user (and root) once it is listening, and removes it when it exits, and
+  the host removes it and its temporary file after killing the proxy, in
+  case the proxy was killed outright. The host waits for the file and
+  removes it only inside the token directory verified as the tools user's,
+  mode `0711`, so a directory another user created first, and a file they
+  put there, is refused. The token does not
+  cross the host channel: the host waits for the file by its size alone, and
+  the proxy drops the key headers before forwarding a request. Clients send
+  the token to `127.0.0.1`, the only address the proxy listens on: another
+  user can listen on `[::1]` at the same port, so `localhost` could deliver
+  it to them. The proxy forwards through the bridge's sandbox service, whose
+  queue belongs to the tools user, so the sandbox's default user cannot
+  submit requests to it directly. Outside a scope the proxy accepts any request, and the queue
+  belongs to the default user.
+  The bridge's own control commands run outside the sandbox's concurrency
+  limits, so other commands holding capacity cannot time out its bounded
+  launch or stall its shielded cleanup. These are the initial tools check
+  (root probe, installation check, default user), the version check, the
+  proxy start, the readiness check, the kill, the kill by job key, the
+  token removal and the service queue's commands. Installing missing tools
+  is shared with every other tool and keeps the normal limits. It runs
+  before the launch deadline starts, so a busy sandbox can delay it but
+  cannot make it time out. This is a liveness trade-off, not a security
+  boundary (decision: Ransom, 2026-11-06).
 - **Sandbox operations.** `SandboxEnvironment.exec()`, `read_file()` and
   `write_file()` calls on the scope's sandbox that name no user run as the
   scope's user; a call that names a user keeps it. The sample's sandbox proxy
@@ -625,7 +653,8 @@ directory instead (`ai/util/_sandbox/local.py:67-71`, `:96-101`).
 
 `ensure_private_server_dir` (`server_dir.py:60-135`):
 
-- creates the directory with mode `0700` under `umask 077`;
+- creates the directory with mode `0700` under `umask 077` (or `0711`, for
+  the bridge token directory below);
 - opens it with `O_NOFOLLOW | O_DIRECTORY` and checks the descriptor with
   `fstat`: a symbolic link, a non-directory, or an owner other than the
   effective uid is refused with an error telling the user to remove it;
@@ -656,6 +685,14 @@ Further guest-side state follows the same contract:
   regular file (`guest/_in_process_tools/_text_editor/text_editor.py:290-347`).
   Its directory view passes the path to `find` as one argument, never through
   a shell (`text_editor.py:39-41`).
+- A model proxy started inside a sandbox identity scope publishes its bridge
+  token in `/var/tmp/.inspect-bridge`, a directory owned by the tools user
+  with mode `0711` and adopted with no repair, so other users can open a file
+  whose name they know but cannot list, create or replace entries. The token
+  is written to a temporary file created with `O_EXCL | O_NOFOLLOW`, set to
+  `0400` and given to the scope's user through its descriptor, then linked to
+  its final name; an existing entry at either name is refused
+  (`guest/_agent_bridge/bridge_token.py`).
 - `exec_remote`'s `kill()` signals a job's process group only after checking,
   through a handle taken at spawn that records creation time, that the group
   leader is still the process the job started

@@ -835,6 +835,7 @@ async def stat_in_framework_directory(
     expected_uid: int | None = None,
     mode: int = DEFAULT_MODE,
     timeout: int | None = None,
+    concurrency: bool = True,
 ) -> int | None:
     """Return the raw ``st_mode`` of ``name`` inside the verified ``path``.
 
@@ -855,6 +856,7 @@ async def stat_in_framework_directory(
         mode: Permission bits the directory must have (see
             :func:`ensure_framework_directory`).
         timeout: Optional timeout for the sandbox command.
+        concurrency: As for :func:`ensure_framework_directory`.
 
     Raises:
         RuntimeError: ``stat`` failed on an existing entry, or printed something
@@ -874,6 +876,7 @@ async def stat_in_framework_directory(
         expected_uid=expected_uid,
         mode=mode,
         timeout=timeout,
+        concurrency=concurrency,
     )
     if not result.success:
         raise RuntimeError(f"Cannot stat {path}/{name}: {result.stderr.strip()}")

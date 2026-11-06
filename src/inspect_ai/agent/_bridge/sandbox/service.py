@@ -248,6 +248,13 @@ async def run_model_service(
     instance: str,
     started: anyio.Event,
 ) -> None:
+    """Serve the bridge's model service to its proxy.
+
+    A bridge that requires a token (`bridge.token_file`) keeps the service's
+    request queue private to the tools user, the user its proxy runs as, so no
+    other user (the sandbox's default user included) can submit requests
+    without the token.
+    """
     await sandbox_service(
         name=MODEL_SERVICE,
         methods={
@@ -268,6 +275,7 @@ async def run_model_service(
         },
         until=lambda: False,
         sandbox=sandbox,
+        user=sandbox._tools_user if bridge.token_file is not None else None,
         instance=instance,
         polling_interval=2,
         started=started,
