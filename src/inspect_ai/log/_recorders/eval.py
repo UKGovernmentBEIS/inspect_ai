@@ -774,6 +774,7 @@ async def _write_eval_log_with_recorder(
         invalidated=log.invalidated,
         log_updates=log.log_updates,
         config_updates=log.config_updates,
+        total_samples=log.total_samples,
     )
     return result.etag
 

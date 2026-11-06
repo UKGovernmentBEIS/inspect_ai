@@ -19,7 +19,14 @@ from typing_extensions import override
 from inspect_ai import SampleSource, Task, enqueue_sample, eval, eval_set, task
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.dataset import Sample
-from inspect_ai.log import EvalLog, EvalSample, read_eval_log, read_eval_log_samples
+from inspect_ai.log import (
+    EvalLog,
+    EvalSample,
+    list_eval_logs,
+    read_eval_log,
+    read_eval_log_samples,
+    write_eval_log,
+)
 from inspect_ai.scorer import (
     CORRECT,
     SampleScore,
@@ -129,6 +136,109 @@ def test_sample_source_error_log_keeps_total_samples() -> None:
     assert log.results is None
     assert log.eval.dataset.sample_ids == ["seed0", "seed1"]
     assert log.total_samples == 20
+
+
+def test_sample_source_error_log_keeps_total_samples_through_rewrite() -> None:
+    """Rewriting an errored log preserves the denominator (#5814).
+
+    `write_eval_log` rebuilds the header through `log_finish`; without
+    passing the count along, a rewritten log (and the same path used by
+    `inspect log convert` and streaming `inspect score`) silently drops it
+    back to `None`.
+    """
+    log = eval(
+        Task(dataset=_GrowThenFailSource(), solver=[_fail_on_extra2(), generate()]),
+        model="mockllm/model",
+        max_samples=1,
+        fail_on_error=True,
+        retry_on_error=0,
+    )[0]
+    log = read_eval_log(log.location)
+    assert log.total_samples == 20
+
+    with tempfile.TemporaryDirectory() as tmp:
+        rewritten = Path(tmp) / "rewritten.eval"
+        write_eval_log(log, str(rewritten))
+        reread = read_eval_log(str(rewritten))
+        assert reread.status == "error"
+        assert reread.total_samples == 20
+
+
+class _GrowThenParkSource(SampleSource):
+    """Seeds 1 sample; after both generations are accepted, parks the feed."""
+
+    def __init__(self) -> None:
+        self.added = False
+
+    def initial_samples(self) -> list[Sample]:
+        return [Sample(id="seed0", input="q")]
+
+    async def next_samples(self) -> list[Sample] | None:
+        if self.added:
+            # park: keep the feed alive but produce nothing more, so the
+            # eval sits idle with both accepted runs and can be interrupted
+            await anyio.sleep(30)
+            return None
+        self.added = True
+        return [Sample(id="next0", input="q")]
+
+
+def test_sample_source_cancelled_log_keeps_total_samples(
+    tmp_path: Path,
+) -> None:
+    """A cancelled eval keeps its accepted-run count on the log (#5814)."""
+    import os
+    import signal
+    import threading
+    import time
+
+    from inspect_ai import eval as inspect_eval
+
+    seen: set[str] = set()
+    both_parked = threading.Event()
+    eval_returned = threading.Event()
+
+    @solver(name="park_until_interrupted")
+    def park_until_interrupted() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            seen.add(str(state.sample_id))
+            # only interrupt once both accepted runs (seed + injected) are
+            # parked, so the count reflects the feed's growth
+            if len(seen) >= 2:
+                both_parked.set()
+            await anyio.sleep(30)
+            return state
+
+        return solve
+
+    def send_sigint() -> None:
+        both_parked.wait(60)
+        time.sleep(0.5)
+        while not eval_returned.is_set():
+            os.kill(os.getpid(), signal.SIGINT)
+            eval_returned.wait(3)
+
+    sigint_thread = threading.Thread(target=send_sigint, daemon=True)
+    sigint_thread.start()
+
+    try:
+        inspect_eval(
+            Task(dataset=_GrowThenParkSource(), solver=[park_until_interrupted()]),
+            model="mockllm/model",
+            max_samples=2,
+            log_dir=str(tmp_path),
+        )
+    except KeyboardInterrupt:
+        pass
+    finally:
+        eval_returned.set()
+    sigint_thread.join(timeout=5)
+
+    log_files = list_eval_logs(str(tmp_path))
+    assert len(log_files) == 1
+    reread = read_eval_log(log_files[0].name)
+    assert reread.status == "cancelled"
+    assert reread.total_samples == 2
 
 
 def test_sample_source_seed_only_when_next_is_none() -> None:
