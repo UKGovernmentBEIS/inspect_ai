@@ -70,6 +70,28 @@ _DETECTED_SETTINGS = ("_color_system", "is_interactive")
 """Display settings the console detects for its output, unless set explicitly."""
 
 
+def _detected_names(console: Console, settings: dict[str, Any]) -> frozenset[str]:
+    """Names of the settings in `settings` that match detection for the output."""
+    detected = _detected_settings(console)
+    return frozenset(
+        name for name, value in detected.items() if settings[name] == value
+    )
+
+
+def rich_record_settings() -> None:
+    """Record the console's display settings for a display that keeps them.
+
+    As rich_initialise does, so that after a display type change, settings
+    the console had detected are detected again for its current output.
+    """
+    global _console_settings
+    console = rich.get_console()
+    settings = _display_settings(console)
+    _console_settings = _ConsoleSettings(
+        console.__dict__, settings, settings, _detected_names(console, settings)
+    )
+
+
 def _detected_settings(console: Console) -> dict[str, Any]:
     """The detected settings for the console's current output and options."""
     detected = Console(
@@ -98,11 +120,7 @@ def rich_initialise(
     rich_restore_defaults()
     console = rich.get_console()
     before = _display_settings(console)
-    detected = frozenset(
-        name
-        for name, value in _detected_settings(console).items()
-        if before[name] == value
-    )
+    detected = _detected_names(console, before)
 
     # reflect ansi prefs
     if plain:

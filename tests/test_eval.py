@@ -500,11 +500,20 @@ def test_eval_display_change_shows_input_screen_inside_capture(
 
 
 @pytest.mark.parametrize("to_terminal", [False, True])
-@pytest.mark.parametrize("vscode,second", [(False, "log"), (True, "rich")])
+@pytest.mark.parametrize(
+    "first,vscode,second",
+    [
+        ("plain", False, "log"),
+        ("plain", True, "rich"),
+        ("log", True, "rich"),
+        ("log", True, "conversation"),
+    ],
+)
 def test_eval_display_change_detects_settings_for_redirected_stdout(
     fresh_display: None,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
+    first: DisplayType,
     vscode: bool,
     second: DisplayType,
     to_terminal: bool,
@@ -526,14 +535,14 @@ def test_eval_display_change_detects_settings_for_redirected_stdout(
         monkeypatch.delenv(name, raising=False)
     task = Task(dataset=[Sample(input="hi", target="hi")])
 
-    # a plain eval with stdout on a terminal (or a buffer), then stdout
-    # redirected to a buffer (or a terminal) for a display that keeps the
-    # console's color and interactive settings
+    # an eval with stdout on a terminal (or a buffer), then stdout redirected
+    # to a buffer (or a terminal) for a display that keeps the console's color
+    # and interactive settings
     first_output = io.StringIO() if to_terminal else TerminalOutput()
     second_output = TerminalOutput() if to_terminal else io.StringIO()
     monkeypatch.setattr(sys, "stdout", first_output)
     rich.reconfigure()
-    eval(task, model="mockllm/model", display="plain", log_dir=str(tmp_path))
+    eval(task, model="mockllm/model", display=first, log_dir=str(tmp_path))
     monkeypatch.setattr(sys, "stdout", second_output)
     eval(task, model="mockllm/model", display=second, log_dir=str(tmp_path))
 
