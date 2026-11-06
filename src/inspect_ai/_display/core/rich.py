@@ -199,8 +199,7 @@ def rich_restore_defaults() -> None:
         restore = [
             name
             for name in _DISPLAY_SETTINGS
-            if settings.before[name] != settings.applied[name]
-            and getattr(console, name) == settings.applied[name]
+            if getattr(console, name) == settings.applied[name]
         ]
         for name in restore:
             setattr(console, name, settings.before[name])
