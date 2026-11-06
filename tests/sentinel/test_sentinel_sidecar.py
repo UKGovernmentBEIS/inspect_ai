@@ -1903,6 +1903,51 @@ def test_a_failed_sample_is_saved_with_its_monitor_state() -> None:
     assert _ended(stand_in) == [sample.uuid]
 
 
+@solver
+def _calls_and_fails() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        await generate(state)
+        raise RuntimeError("The sample fails.")
+
+    return solve
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [{"store": []}, {"store": "Tally"}, {"store": None}, {}],
+    ids=["a list", "a string", "null", "no store"],
+)
+def test_a_failed_sample_saved_with_a_malformed_store_fails_only_its_copy(
+    answer: dict[str, Any],
+) -> None:
+    stand_in = StandInSidecar(
+        methods={
+            "sample_result": lambda params: {
+                "sample_uuid": params["sample_uuid"],
+                "outcome": "proceed",
+                **answer,
+            }
+        }
+    )
+    task = Task(
+        dataset=[Sample(input="Hi."), Sample(input="Hello.")],
+        solver=_calls_and_fails(),
+        scorer=_reads_monitor_state(),
+    )
+
+    [log] = eval(task, model=_model(stand_in), display="none", fail_on_error=False)
+
+    # each sample fails on its own error and is saved, and the eval goes on
+    assert log.error is None
+    assert log.samples is not None and len(log.samples) == 2
+    for sample in log.samples:
+        assert sample.error is not None
+        assert "The sample fails." in sample.error.message
+        marker = sample.store[MONITOR_STATE_COPY]
+        assert marker["copied"] is False
+        assert "answered without the sample's store" in marker["reason"]
+
+
 def _two_models(first: StandInSidecar, second: StandInSidecar) -> tuple[Model, Model]:
     return (
         _model(first, base_url="http://proxy-a.test"),

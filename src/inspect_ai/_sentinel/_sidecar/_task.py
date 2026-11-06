@@ -251,7 +251,15 @@ class TaskSidecars:
                 except SidecarCallError as ex:
                     failed = _copy_failure(sidecar, ex)
                     continue
-                for key, value in (result.get("store") or {}).items():
+
+                # the answer always holds the store, if only an empty one: an
+                # answer without one is a failed copy, never an empty store
+                kept = result.get("store")
+                if not isinstance(kept, dict):
+                    failed = f"the sentinel sidecar at {sidecar.origin} answered without the sample's store"
+                    continue
+
+                for key, value in kept.items():
                     # which sentinel a scorer reads can't be told, and a
                     # sentinel inside Inspect would carry on from the copy
                     conflict = None
