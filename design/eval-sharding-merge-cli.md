@@ -45,7 +45,10 @@ Goals:
 
 Non-goals:
 
-- Any change to what the merge does, checks or writes. The command's
+- Any change to what the merge does, checks or writes, with one
+  exception: an id selection is recorded in `eval.dataset.sample_ids` in
+  its given order with the held samples' typed ids, and an id no shard
+  holds as given ("The command", `--sample-id`). The command's
   guarantees are the API's: it compares the task's names with the shards,
   not its options ([implementation plan, "Matching the task"](eval-sharding-implementation.md#matching-the-task)).
 - Rebuilding the task, its model or its roles from a log (decision:
@@ -258,9 +261,14 @@ needed, above); a run config's `task` and its arguments, `model` with
 its arguments and base URL, `model_roles`, and the `epochs` and
 `epochs_reducer` of its `eval_config` as `--task`, `-T`, `--model`, `-M`,
 `--model-base-url`, `--model-role`, `--epochs` and `--epochs-reducer`.
-An empty `epochs_reducer` (`[]`, reduction disabled) is `--epochs N
---no-epochs-reducer`: `--epochs-reducer` takes reducer names, and an empty
-value is not one, while leaving the flag out keeps the task's own
+A run config overrides epochs only when its `eval_config` holds an
+`epochs` count: `RunConfigInput.to_params()` drops `epochs_reducer`
+without one (`_cli/eval.py:1804-1811`), so such a config translates to
+neither `--epochs` nor `--epochs-reducer`, and the task's own epochs and
+reducer stand. With a count, a non-empty `epochs_reducer` is `--epochs N
+--epochs-reducer R`, and an empty one (`[]`, reduction disabled) is
+`--epochs N --no-epochs-reducer`: `--epochs-reducer` takes reducer names,
+an empty value is not one, and leaving the flag out keeps the task's own
 reducer. The values are the ones the launcher gave its workers, taken from its own
 command line or the original spec or run config, including the model
 roles it passed. `inspect log export-config` of a shard log is not a
