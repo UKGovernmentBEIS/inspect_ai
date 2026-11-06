@@ -555,6 +555,47 @@ async def test_a_call_sent_with_a_token_since_replaced_goes_again() -> None:
     ]
 
 
+async def test_a_call_refused_while_the_eval_registers_again_waits_for_it() -> None:
+    # Another sample is registering the eval again, as after a restart: the
+    # sidecar already keeps the new token, but its reply hasn't arrived when
+    # this call is refused.
+    def ends(params: dict[str, Any]) -> dict[str, Any]:
+        if params["token"] != "token-2":
+            return _UNAUTHORIZED
+        return {"sample_uuid": params["sample_uuid"], "state": "ended"}
+
+    stand_in = StandInSidecar(methods={"end_sample": ends})
+    sidecars = TaskSidecars("auto", _FACTS)
+    sidecar = await sidecars.sidecar(_model(stand_in).api)
+    assert sidecar is not None and sidecar.access is not None
+    access = sidecar.access
+    ended: dict[str, Any] = {}
+
+    async def end() -> None:
+        ended.update(
+            await sidecar.eval_call("end_sample", {"sample_uuid": "sample_123"})
+        )
+
+    async with anyio.create_task_group() as tg:
+        # the registration holds the lock until its reply arrives
+        await access.lock.acquire()
+        tg.start_soon(end)
+
+        # the refused call waits for it
+        with anyio.fail_after(5):
+            while access.lock.statistics().tasks_waiting == 0:
+                await anyio.sleep(0.01)
+
+        access.token = "token-2"
+        access.lock.release()
+
+    assert ended["state"] == "ended"
+    assert [params["token"] for params in _registered(stand_in, "end_sample")] == [
+        "token-1",
+        "token-2",
+    ]
+
+
 async def test_a_call_refused_with_the_token_it_still_holds_is_not_sent_again() -> None:
     stand_in = StandInSidecar(methods={"end_sample": lambda _: _UNAUTHORIZED})
     sidecars = TaskSidecars("auto", _FACTS)

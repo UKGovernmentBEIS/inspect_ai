@@ -76,10 +76,18 @@ class Sidecar:
                 method, {**params, "eval_id": access.eval_id, "token": presented}
             )
         except SidecarCallError as ex:
-            # Another sample registered the eval again while this call was on
-            # its way, as after a restart, and the sidecar now keeps the token
-            # it was given: the call goes again with that one.
-            if ex.code != UNAUTHORIZED or access.token in (None, presented):
+            if ex.code != UNAUTHORIZED:
+                raise
+
+            # Another sample may be registering the eval again, as after a
+            # restart, with the sidecar already keeping the new token while
+            # its reply is on its way: that registration finishes first.
+            async with access.lock:
+                pass
+
+            # The call goes again with the token the eval now holds, when
+            # that changed since it was sent.
+            if access.token in (None, presented):
                 raise
             return await self.call(
                 method, {**params, "eval_id": access.eval_id, "token": access.token}
