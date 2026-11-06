@@ -675,6 +675,88 @@ class _SampleRetry:
     """The attempt's sample uuid, carried to the retry."""
 
 
+@dataclass(frozen=True)
+class _AttemptRetry:
+    """Errored with retries remaining: not logged, re-queued."""
+
+    error: EvalError
+
+
+@dataclass(frozen=True)
+class _AttemptAbandoned:
+    """Errored with retries remaining, but an interrupt is stamped.
+
+    The interrupt landed after the attempt's task group exited, so it only
+    stamped the sample. Not logged, counted cancelled — as the interrupt would
+    have resolved the retry at its queue check.
+    """
+
+
+@dataclass(frozen=True)
+class _AttemptCancelled:
+    """Cancelled: logged, counted cancelled."""
+
+    cancel: BaseException
+    """The cancellation, re-raised unless ``sample_scoped``."""
+
+    sample_scoped: bool
+    """An operator ``cancel`` interrupt, absorbed by the sample's own task group."""
+
+
+@dataclass(frozen=True)
+class _AttemptCompleted:
+    """No error: logged, counted completed."""
+
+
+@dataclass(frozen=True)
+class _AttemptErrored:
+    """Errored on the final attempt: logged, counted errored."""
+
+    raise_error: BaseException | None
+    """Set when the error fails the eval (``fail_on_error``)."""
+
+
+_AttemptOutcome = (
+    _AttemptRetry
+    | _AttemptAbandoned
+    | _AttemptCancelled
+    | _AttemptCompleted
+    | _AttemptErrored
+)
+
+
+def _attempt_outcome(
+    *,
+    error: EvalError | None,
+    raise_error: BaseException | None,
+    cancelled_error: BaseException | None,
+    handled_interrupt: SampleCancelAction | None,
+    retries_remaining: int,
+    interrupt_stamped: bool,
+) -> _AttemptOutcome:
+    """Resolve an attempt's outcome once its scoring and cleanup have finished.
+
+    Args:
+        error: The attempt's error (a cancellation also records one).
+        raise_error: The exception to raise when the error fails the eval.
+        cancelled_error: The cancellation that ended the attempt, if any.
+        handled_interrupt: The interrupt the solver phase handled.
+        retries_remaining: Sample-level retries left after this attempt.
+        interrupt_stamped: Whether an interrupt is stamped on the sample now.
+            Read after the sample's events are drained, so an interrupt landing
+            during the drain abandons a retry.
+    """
+    if cancelled_error is not None:
+        return _AttemptCancelled(
+            cancel=cancelled_error, sample_scoped=handled_interrupt == "cancel"
+        )
+    if error is None:
+        return _AttemptCompleted()
+    if retries_remaining > 0:
+        return _AttemptAbandoned() if interrupt_stamped else _AttemptRetry(error)
+    return _AttemptErrored(raise_error=raise_error)
+
+
 def _sample_transcript_config(
     logger: TaskLogger | None, sample_id: str | int, epoch: int
 ) -> tuple[bool, TranscriptHistoryProvider | None]:
@@ -2897,7 +2979,6 @@ async def _task_run_sample_attempt(
             solver_cancel: BaseException | None = None
             scoring_finished = False
             monitor_state_copied = False
-            operator_cancelled = False
             # the interrupt the solver phase handled; one stamped later (the
             # run task group already exited) only stamps the sample
             handled_interrupt: SampleCancelAction | None = None
@@ -3073,8 +3154,8 @@ async def _task_run_sample_attempt(
                             async def run(tg: TaskGroup) -> None:
                                 # access to state, limit, and errors
                                 nonlocal state, limit, error, raise_error
-                                nonlocal cancelled_error, operator_cancelled
-                                nonlocal solver_cancel, handled_interrupt
+                                nonlocal cancelled_error, solver_cancel
+                                nonlocal handled_interrupt
 
                                 try:
                                     # start the sample
@@ -3194,7 +3275,6 @@ async def _task_run_sample_attempt(
                                                 # no scoring, and not counted
                                                 # as a genuine error (bypasses
                                                 # handle_error / fail_on_error)
-                                                operator_cancelled = True
                                                 cancelled_error = ex
                                                 error = eval_error(
                                                     ex, type(ex), ex, ex.__traceback__
@@ -3515,11 +3595,16 @@ async def _task_run_sample_attempt(
                 # drain sample events for both completion and retry paths
                 await drain_sample_events()
 
-                if (
-                    not error
-                    or (attempt.retries_remaining == 0)
-                    or (cancelled_error is not None)
-                ):
+                outcome = _attempt_outcome(
+                    error=error,
+                    raise_error=raise_error,
+                    cancelled_error=cancelled_error,
+                    handled_interrupt=handled_interrupt,
+                    retries_remaining=attempt.retries_remaining,
+                    interrupt_stamped=active.interrupt_action is not None,
+                )
+
+                if not isinstance(outcome, _AttemptRetry | _AttemptAbandoned):
                     reporter.progress()
 
                     # a sample saved without being scored keeps its monitor
@@ -3568,7 +3653,7 @@ async def _task_run_sample_attempt(
                         )
 
                     with anyio.CancelScope(
-                        shield=error is not None or cancelled_error is not None
+                        shield=not isinstance(outcome, _AttemptCompleted)
                     ):
                         if logger:
                             # When the full event history is still resident in
@@ -3634,8 +3719,8 @@ async def _task_run_sample_attempt(
                     task_unwinding = task_cancel is not None and (
                         task_cancel.cancel_type in ("abort", "retry")
                     )
-                    if cancelled_error is None or (
-                        operator_cancelled and not task_unwinding
+                    if not isinstance(outcome, _AttemptCancelled) or (
+                        outcome.sample_scoped and not task_unwinding
                     ):
                         source_sample = eval_sample
 
@@ -3659,114 +3744,94 @@ async def _task_run_sample_attempt(
                         await task_source.sample_complete(source_sample, task)
                     )
 
-    # error that should be retried (we return the retry signal outside of the
-    # semaphore scope above so the retry re-acquires the semaphore -- it will
-    # therefore go to the back of the sample queue)
-    if (
-        error
-        and attempt.retries_remaining > 0
-        and cancelled_error is None
-        and active.interrupt_action is None
-    ):
-        await emit_attempt_end(will_retry=True)
+    match outcome:
+        # returned outside the semaphore scope above so the retry re-acquires
+        # the semaphore (it goes to the back of the sample queue)
+        case _AttemptRetry(error=retry_cause):
+            await emit_attempt_end(will_retry=True)
 
-        retry_error = _eval_retry_error(error, logger, state.sample_id, state.epoch)
+            retry_error = _eval_retry_error(
+                retry_cause, logger, state.sample_id, state.epoch
+            )
 
-        # remove any buffered sample events
-        if logger is not None:
-            logger.remove_sample(state.sample_id, state.epoch)
+            # remove any buffered sample events
+            if logger is not None:
+                logger.remove_sample(state.sample_id, state.epoch)
 
-        # hand the error back to the task_run_sample loop, which advances the
-        # attempt (appending the error, carrying the uuid) and re-enters
-        return _SampleRetry(error=retry_error, sample_uuid=state.uuid)
+            # hand the error back to the task_run_sample loop, which advances
+            # the attempt (appending the error, carrying the uuid) and re-enters
+            return _SampleRetry(error=retry_error, sample_uuid=state.uuid)
 
-    # an interrupt (task-cancel sweep or per-sample cancel) landed in the
-    # drain window between this attempt's task-group exit and the retry
-    # decision above: its cancel-scope fire was a no-op (the group had
-    # already exited), so it only stamped `interrupt_action`, rightly
-    # suppressing the retry. The sample was never logged (the logging block
-    # skips errored samples with retries remaining), so counting it errored
-    # would leave an errored count with no log record and leak its buffered
-    # events — resolve it instead exactly as the interrupt landing a moment
-    # later (at the retry attempt's queue check) would: abandoned as
-    # cancelled, absent from the log, buffered events removed.
-    elif error and attempt.retries_remaining > 0 and cancelled_error is None:
-        await emit_attempt_end(will_retry=False)
+        case _AttemptAbandoned():
+            await emit_attempt_end(will_retry=False)
 
-        # remove any buffered sample events
-        if logger is not None:
-            logger.remove_sample(state.sample_id, state.epoch)
+            # remove any buffered sample events
+            if logger is not None:
+                logger.remove_sample(state.sample_id, state.epoch)
 
-        # mark the key cancelled: this attempt was never logged, so without
-        # the stamp no read surface would ever see the outcome (the departed
-        # key would read "initializing" forever)
-        if queue_hooks is not None:
-            queue_hooks.abandon()
-        reporter.cancelled(started=_sample_started(), usage=_sample_usage(state))
-        # DISCARDED (not None): the attempt was never logged, so a re-run
-        # abandoned here must not clobber its prior attempt's keyed score
-        # dict in the results
-        return DISCARDED
+            # mark the key cancelled: this attempt was never logged, so without
+            # the stamp no read surface would ever see the outcome (the departed
+            # key would read "initializing" forever)
+            if queue_hooks is not None:
+                queue_hooks.abandon()
+            reporter.cancelled(started=_sample_started(), usage=_sample_usage(state))
+            # DISCARDED (not None): the attempt was never logged, so a re-run
+            # abandoned here must not clobber its prior attempt's keyed score
+            # dict in the results
+            return DISCARDED
 
-    # re-raise cancellation after logging to preserve structured concurrency
-    elif cancelled_error is not None:
-        # a cancelled sample is terminal but not a genuine error — count it so
-        # the eval can reach `total` and be marked finished (eg. a final-attempt
-        # failure that cancels an in-flight sibling)
-        reporter.cancelled(started=_sample_started(), usage=_sample_usage(state))
-        # an operator 'cancel' interrupt is sample-scoped: the cancellation
-        # came from this sample's own task group (already absorbed at its
-        # exit), so there is nothing to re-raise — re-raising here would tear
-        # down the whole task. Keyed on the disposition captured when the
-        # interrupt was handled, not the live `active.interrupt_action`, which
-        # a later cancel directive could overwrite while this sample is still
-        # inside its (shielded) logging window.
-        if operator_cancelled:
-            return None
-        raise cancelled_error
+        case _AttemptCancelled(cancel=cancel, sample_scoped=sample_scoped):
+            # a cancelled sample is terminal but not a genuine error — count it
+            # so the eval can reach `total` and be marked finished (eg. a
+            # final-attempt failure that cancels an in-flight sibling)
+            reporter.cancelled(started=_sample_started(), usage=_sample_usage(state))
+            # re-raise to preserve structured concurrency, unless the
+            # cancellation came from this sample's own (already exited) task
+            # group: re-raising that would tear down the whole task
+            if sample_scoped:
+                return None
+            raise cancel
 
-    # no error
-    elif error is None:
-        await reporter.completed(
-            state.sample_id,
-            state.epoch,
-            results,
-            started=_sample_started(),
-            usage=_sample_usage(state),
-        )
-        return results
+        case _AttemptCompleted():
+            await reporter.completed(
+                state.sample_id,
+                state.epoch,
+                results,
+                started=_sample_started(),
+                usage=_sample_usage(state),
+            )
+            return results
 
-    # we have an error and should raise it
-    elif raise_error is not None:
-        # no scores reported even if the sample was scored: raising fails
-        # the whole eval, whose log finishes with results=None (metrics are
-        # never computed), so there is nothing for the scores to contribute
-        # to — and notifying early stopping/progress for a dying task would
-        # mislead. the scores are still in the sample log written above.
-        await reporter.errored(
-            state.sample_id,
-            state.epoch,
-            started=_sample_started(),
-            usage=_sample_usage(state),
-        )
-        raise raise_error
+        case _AttemptErrored(raise_error=propagate) if propagate is not None:
+            # no scores reported even if the sample was scored: raising fails
+            # the whole eval, whose log finishes with results=None (metrics are
+            # never computed), so there is nothing for the scores to contribute
+            # to — and notifying early stopping/progress for a dying task would
+            # mislead. the scores are still in the sample log written above.
+            await reporter.errored(
+                state.sample_id,
+                state.epoch,
+                started=_sample_started(),
+                usage=_sample_usage(state),
+            )
+            raise propagate
 
-    # we have an error and should not raise it
-    else:
-        # the sample may have scores despite the error: score_on_error scoring
-        # of its partial state, scores a solver wrote to state.scores before a
-        # later error, or scores from scorers that completed before another
-        # raised. those scores are already in the sample log, so surface them
-        # here too — the log and metrics should never diverge (mirrors the
-        # `error is None` branch above and matches docs/handling-errors.qmd)
-        await reporter.errored(
-            state.sample_id,
-            state.epoch,
-            results or None,
-            started=_sample_started(),
-            usage=_sample_usage(state),
-        )
-        return results if results else None
+        case _AttemptErrored():
+            # the sample may have scores despite the error: score_on_error
+            # scoring of its partial state, scores a solver wrote to
+            # state.scores before a later error, or scores from scorers that
+            # completed before another raised. those scores are already in the
+            # sample log, so surface them here too — the log and metrics should
+            # never diverge (mirrors _AttemptCompleted and matches
+            # docs/handling-errors.qmd)
+            await reporter.errored(
+                state.sample_id,
+                state.epoch,
+                results or None,
+                started=_sample_started(),
+                usage=_sample_usage(state),
+            )
+            return results if results else None
 
 
 def create_eval_sample(
