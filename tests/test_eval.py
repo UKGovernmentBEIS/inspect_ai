@@ -673,6 +673,57 @@ def test_display_type_change_during_eval_keeps_running_display(
     assert "Ignoring display type 'log'" in caplog.text
 
 
+def test_display_type_change_after_display_type_query_inside_status(
+    fresh_display: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import rich
+
+    import inspect_ai._display.core.rich as display_rich
+    from inspect_ai.util._display import display_type
+
+    # a VS Code terminal, where the rich display keeps the console
+    monkeypatch.setattr(display_rich, "is_running_in_vscode", lambda: True)
+    monkeypatch.setenv("INSPECT_DISPLAY", "plain")
+
+    # as get_model().generate() does outside an eval, without building a display
+    display_type()
+    task = Task(dataset=[Sample(input="hi", target="hi")])
+    with rich.get_console().status("working"):
+        log = eval(task, model="mockllm/model", display="rich", log_dir=str(tmp_path))
+    assert log[0].status == "success"
+    assert display_type() == "rich"
+
+
+@pytest.mark.parametrize("second", ["plain", "none"])
+def test_display_type_change_inside_screen_keeps_terminal_cleanup(
+    fresh_display: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    second: DisplayType,
+) -> None:
+    import io
+
+    import rich
+
+    import inspect_ai._display.core.rich as display_rich
+    from inspect_ai.util._display import display_type
+
+    monkeypatch.setattr(display_rich, "is_running_in_vscode", lambda: False)
+    task = Task(dataset=[Sample(input="hi", target="hi")])
+    eval(task, model="mockllm/model", display="rich", log_dir=str(tmp_path))
+
+    output = io.StringIO()
+    rich.reconfigure(file=output, force_terminal=True)
+    with rich.get_console().screen():
+        eval(task, model="mockllm/model", display=second, log_dir=str(tmp_path))
+
+    # the screen leaves the alternate screen and shows the cursor on exit
+    assert output.getvalue().endswith("\x1b[?1049l\x1b[?25h")
+    assert display_type() == "rich"
+    assert f"Ignoring display type '{second}'" in caplog.text
+
+
 def test_display_type_change_warning_names_requested_type_on_trio(
     fresh_display: None,
     monkeypatch: pytest.MonkeyPatch,

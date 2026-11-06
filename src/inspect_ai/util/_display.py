@@ -47,14 +47,19 @@ def init_display_type(display: str | None = None) -> DisplayType:
             new_display_type = "full"
 
     if _display_type is not None and new_display_type != _display_type:
-        from inspect_ai._display.core.active import clear_active_display
-        from inspect_ai._display.core.rich import rich_live_display_open
+        from inspect_ai._display.core.active import (
+            active_display,
+            clear_active_display,
+        )
+        from inspect_ai._display.core.rich import rich_console_in_use
         from inspect_ai._eval import eval as eval_module
 
-        # a running eval or an open live display (e.g. progress for score() or
-        # a log conversion on another thread) is using the display, so keep
-        # it and the type it is rendering with
-        if eval_module._eval_async_running or rich_live_display_open():
+        # a running eval, or a built display while the console has a live
+        # display (e.g. progress for score() or a log conversion on another
+        # thread) or the alternate screen open, keeps the display and the type
+        # it is rendering with (a type that was only queried has no display)
+        in_use = active_display() is not None and rich_console_in_use()
+        if eval_module._eval_async_running or in_use:
             # a request for the current type that only differs because of the
             # background thread throttle (e.g. score() with no display called
             # from a scorer on a worker thread) isn't a change

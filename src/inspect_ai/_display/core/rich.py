@@ -173,13 +173,19 @@ def rich_restore_defaults() -> None:
     _console_settings = None
 
 
-def rich_live_display_open() -> bool:
-    """Is a Rich live display (e.g. progress or a status) open on the global console?"""
+def rich_console_in_use() -> bool:
+    """Is a live display (e.g. progress or a status) or the alternate screen open?
+
+    Changing the global console's display settings under either would change
+    how it renders, or (for the alternate screen) stop it restoring the
+    terminal when it closes.
+    """
     console = rich.get_console()
     # rich >= 14.1 keeps a stack of live displays, earlier versions a single one
-    return bool(getattr(console, "_live_stack", None)) or (
+    live = bool(getattr(console, "_live_stack", None)) or (
         getattr(console, "_live", None) is not None
     )
+    return live or console.is_alt_screen
 
 
 def _dumb_terminal_size_kwargs() -> dict[str, int]:
