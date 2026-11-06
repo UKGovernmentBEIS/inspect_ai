@@ -341,7 +341,8 @@ ignoring `--epochs-reducer` without `--epochs`.
 ### Building the task
 
 After the common options are processed and `platform_init()` has run (as
-in `recover`; it loads hooks, such as one that supplies API keys):
+in `recover`; it loads hooks, such as one that supplies API keys), both
+inside the `--json` boundary ("Output"):
 
 1. **Check the merge arguments first.** The first checks of
    `merge_eval_log_shards_async` after the `TypeError` check (`merge_paths`,
@@ -417,12 +418,23 @@ With `--json`, one JSON object on stdout and nothing else:
 
 `location`, `status`, `task`, `task_id` and `eval_id` are the fields of a
 log entry in `inspect eval --json`'s `done` record, taken from the
-returned header; `written` and `shards` are the merge's. The command runs
-everything (task import, factory, model construction, merge) inside
-`_stdout_owned_for_json` from `_cli/eval.py`, so a factory's `print`, a
-warning or a subprocess writes to stderr, and the object is written to
-the saved stdout. The display is set to `none`, as `inspect eval --json`
-sets it.
+returned header; `written` and `shards` are the merge's.
+
+Under `--json` the first statement of the command body enters
+`_stdout_owned_for_json` from `_cli/eval.py`, and `_merge_failures`
+("Errors") inside it, so everything after click has parsed the command
+line runs in one boundary: `process_common_options`, `platform_init()`,
+the task import, the factory, model construction and the merge. Inside
+it a `print`, a warning or a subprocess writes to stderr, and the object
+or the envelope is written to the saved stdout. `platform_init()` must be
+inside: `init_hooks()` prints its `inspect_ai vX` / `hooks enabled: N`
+banner through Rich's `print` to stdout whenever a registry or legacy
+hook is enabled (`hooks/_startup.py:31-37`), and the display type does
+not quiet Rich at that point (`init_display_type` only records it).
+Before `process_common_options` runs, the command sets `display` to
+`none` and `no_ansi` to `None` in the common options, as `inspect eval
+--json` does (`_cli/eval.py:1257-1260`). Without `--json` the command
+body runs in `_merge_failures` alone and stdout is not redirected.
 
 ### Errors
 
@@ -475,8 +487,10 @@ The incomplete message the API raises names the Python argument; it
 becomes "Pass allow_incomplete (--allow-incomplete on the command line) to
 write an incomplete merged log." so the same text serves both callers.
 
-The whole command body runs inside one context manager,
-`_merge_failures(json_output)`, that does the classification and printing,
+The whole command body, from before `process_common_options`, runs
+inside one context manager, `_merge_failures(json_output, stdout)` (with
+`stdout` the saved stdout under `--json`, `sys.stdout` otherwise), that
+does the classification and printing,
 and the module raises no `click.exceptions.Exit`, `ClickException` or
 `SystemExit` of its own; a test pins that (as
 `test_no_bare_click_exit_in_ctl_error_sites` does for ctl).
@@ -661,8 +675,11 @@ network, Docker or provider keys. Each test writes a task file to
   shard is `incomplete` with exit 1 and its `missing` ids; with
   `--allow-incomplete` the command writes a `started` log and exits 0. A
   pattern (`--sample-id 'a*'`) is refused as `outside_selection`.
-- **Setup errors.** A patched `platform_init` that raises is `setup`, with
-  one JSON object on stdout under `--json` and the task file not imported.
+- **Setup errors.** A patched `platform_init` that prints to stdout and
+  then raises, and `INSPECT_API_KEY_OVERRIDE` naming a module that does
+  not exist (with `_override_api_key` reset as below), are each `setup`,
+  with exactly one JSON object on stdout under `--json` (the print on
+  stderr) and the task file not imported.
 - **Task errors.** A file with two tasks, a spec with no task, a missing
   file, a factory that raises, `--model a,b`, and `--model openai/gpt-4o`
   with no `OPENAI_API_KEY` are each `task`, with every file in the log
@@ -684,9 +701,14 @@ network, Docker or provider keys. Each test writes a task file to
   `written: false`. The publication boundary itself stays covered by that
   API test on asyncio; the S3 path's unknown outcome is the existing
   `write_file_conditional` contract and is not re-tested here.
-- **`--json` owns stdout.** With a factory that prints and a metric that
+- **`--json` owns stdout.** With a hook that prints its startup banner
+  (`INSPECT_API_KEY_OVERRIDE` naming a function in a test module, and
+  `hooks._legacy._override_api_key` reset with `monkeypatch` so
+  `init_hooks` loads it again), a factory that prints and a metric that
   logs a warning, stdout parses as exactly one JSON object, on success and
-  on each error kind above; stderr holds the print and the warning.
+  on each error kind above, `setup` included; stderr holds the banner,
+  the print and the warning. Without `--json` the banner is on stdout,
+  which shows the hook was enabled.
 - **Storage.** One `s3://` merge through the `mock_s3` fixture (moto, no
   network).
 - **Trio.** The equality test is parametrized over `INSPECT_ASYNC_BACKEND`
