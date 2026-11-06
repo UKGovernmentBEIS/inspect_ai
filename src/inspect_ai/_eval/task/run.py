@@ -704,9 +704,9 @@ class _AttemptRetry:
 class _AttemptAbandoned:
     """Errored with retries remaining, but an interrupt is stamped.
 
-    The interrupt landed after the attempt's task group exited, so it only
-    stamped the sample. Not logged, counted cancelled — as the interrupt would
-    have resolved the retry at its queue check.
+    Usually the interrupt landed after the attempt's task group exited, so it
+    only stamped the sample. Not logged, counted cancelled — as the interrupt
+    would have resolved the retry at its queue check.
     """
 
 
