@@ -112,17 +112,20 @@ def csv_dataset(
         # reject ragged rows, filter out rows with empty values
         valid_data = []
         reader = csv_dataset_reader(f, dialect, fieldnames, delimiter)
-        # Reject duplicate column names (DictReader would silently overwrite)
+        # Reject duplicate column names (DictReader would silently overwrite).
+        # Empty names (e.g. trailing commas in Excel exports) are skipped so
+        # those files keep loading as before.
         if reader.fieldnames:
             seen = set()
             duplicates = []
             for name in reader.fieldnames:
+                if not name:
+                    continue
                 if name in seen and name not in duplicates:
                     duplicates.append(name)
                 seen.add(name)
             if duplicates:
-                # Represent empty names clearly (e.g. trailing commas in header)
-                display = [f"'{name}'" if name else "(empty)" for name in duplicates]
+                display = [f"'{name}'" for name in duplicates]
                 raise ValueError(
                     f"Duplicate column names in {csv_file}: {', '.join(display)}"
                 )

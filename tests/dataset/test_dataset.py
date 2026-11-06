@@ -1344,11 +1344,14 @@ def test_csv_dataset_rejects_duplicate_column_names(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="Duplicate column names"):
         csv_dataset(str(csv_file2), fieldnames=["input", "target", "target"])
 
-    # trailing commas produce empty column names, which are duplicates
+    # trailing commas produce empty column names; those should still load
+    # (common in Excel exports) and not be treated as duplicates.
     csv_file3 = tmp_path / "trailing.csv"
     csv_file3.write_text(
         "input,target,,\nQuestion,correct,extra,extra2\n",
         encoding="utf-8",
     )
-    with pytest.raises(ValueError, match=r"Duplicate column names.*\(empty\)"):
-        csv_dataset(str(csv_file3))
+    ds = csv_dataset(str(csv_file3))
+    assert len(ds) == 1
+    assert ds[0].input == "Question"
+    assert ds[0].target == "correct"
