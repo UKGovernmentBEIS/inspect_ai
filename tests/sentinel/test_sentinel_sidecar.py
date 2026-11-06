@@ -66,7 +66,7 @@ from inspect_ai.scorer import (
 )
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver, use_tools
 from inspect_ai.tool import Tool, ToolCall, tool
-from inspect_ai.util import Store, StoreModel
+from inspect_ai.util import LimitExceededError, Store, StoreModel
 
 _MODELS = {
     "anthropic": "anthropic/claude-haiku-4-5",
@@ -2291,26 +2291,42 @@ def test_a_refused_turn_counts_the_usage_the_provider_billed() -> None:
     assert sample.limit is not None and sample.limit.type == "token"
 
 
-def test_a_refused_turn_past_the_token_limit_is_counted_once() -> None:
+# a refusal Inspect doesn't retry (400), or one it would retry (503) once no
+# retries are left: each is looked up inside the model call
+@pytest.mark.parametrize("status", [400, 503], ids=["not retried", "retries spent"])
+def test_a_refused_turn_past_the_token_limit_is_counted_once(status: int) -> None:
     withheld = {
         "message": _turn_json(("call_1", "Tokyo")),
         "results": {"call_1": "Tokyo is not allowed."},
     }
-    refused = {"outcome": "reject", "withheld": withheld, "usage": _BILLED}
-    stand_in = StandInSidecar(turns=[Turn(status=400, judgment=refused)])
+    step = {
+        "stage": "tool_call",
+        "call": "call_1",
+        "decision": {"action": "reject", "message": "Tokyo is not allowed."},
+    }
+    refused = {
+        "outcome": "reject",
+        "steps": [step],
+        "withheld": withheld,
+        "usage": _BILLED,
+    }
+    stand_in = StandInSidecar(turns=[Turn(status=status, judgment=refused)])
     task = Task(
         dataset=[Sample(input="What's the weather?")],
         solver=[use_tools(weather()), generate()],
         token_limit=6,
     )
 
-    [log] = eval(task, model=_model(stand_in), display="none")
+    [log] = eval(task, model=_model(stand_in), max_retries=0, display="none")
 
-    # the limit stops the sample at the refused reply, whose tokens count once
+    # the limit stops the sample at the refused reply, whose tokens count
+    # once, and the rejection is still recorded
     assert log.samples is not None
     [sample] = log.samples
     assert _total_tokens(sample) == 7
     assert sample.limit is not None and sample.limit.type == "token"
+    [event] = _sentinel_events(sample)
+    assert (event.step_id, event.action) == ("call_1", "reject")
 
 
 def test_a_reply_past_the_token_limit_keeps_what_the_sidecar_decided() -> None:
@@ -2375,6 +2391,49 @@ def test_a_bridged_agent_is_never_handed_a_rejected_call() -> None:
     assert (event.step_id, event.action) == ("call_1", "reject")
     # the refused reply was billed, and counts
     assert _total_tokens(log.samples[0]) == 7
+
+
+def test_a_bridged_rejection_past_the_token_limit_is_recorded_and_counted_once() -> (
+    None
+):
+    withheld = {
+        "message": _turn_json(("call_1", "Tokyo")),
+        "results": {"call_1": "Tokyo is not allowed."},
+    }
+    step = {
+        "stage": "tool_call",
+        "call": "call_1",
+        "decision": {"action": "reject", "message": "Tokyo is not allowed."},
+    }
+    stand_in = StandInSidecar(
+        turns=[
+            Turn(
+                status=400,
+                judgment={
+                    "outcome": "reject",
+                    "steps": [step],
+                    "withheld": withheld,
+                    "usage": _BILLED,
+                },
+            )
+        ]
+    )
+    seen: list[ModelOutput | Exception] = []
+    task = Task(
+        dataset=[Sample(input="Hi.")], solver=_bridged_turn(seen), token_limit=6
+    )
+
+    [log] = eval(task, model=_model(stand_in), display="none")
+
+    # the refused reply's billed tokens take the sample past its limit, and
+    # count once; the rejection is in the transcript all the same
+    [handed] = seen
+    assert isinstance(handed, LimitExceededError)
+    assert log.samples is not None
+    [sample] = log.samples
+    assert _total_tokens(sample) == 7
+    [event] = _sentinel_events(sample)
+    assert (event.step_id, event.action) == ("call_1", "reject")
 
 
 def test_a_bridged_agent_ends_at_the_model_call_for_a_terminate_at_a_call() -> None:

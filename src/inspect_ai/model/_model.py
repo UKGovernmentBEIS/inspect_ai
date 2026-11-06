@@ -1146,17 +1146,27 @@ class Model:
                     )
                     # the reply the sidecar refused was billed: its usage
                     # counts, as a model call's does in process
+                    from inspect_ai._sentinel._sidecar._events import (
+                        record_refusal_reports,
+                    )
+
                     billed = refused_usage(receiving)
                     if billed is not None:
-                        record_and_check_model_usage(self, billed, role=self.role)
+                        try:
+                            record_and_check_model_usage(self, billed, role=self.role)
+                        except LimitExceededError:
+                            # the usage that ends the sample on a limit is
+                            # counted, and what the sidecar decided of the
+                            # call is recorded before it ends
+                            if through_sidecar is not None:
+                                record_refusal_reports(
+                                    receiving, through_sidecar.sidecar, generate_id
+                                )
+                            raise
                     if recovered is None:
                         # a refusal that stands as the error, as a bridged
                         # agent's does, still has its decisions recorded
                         if through_sidecar is not None:
-                            from inspect_ai._sentinel._sidecar._events import (
-                                record_refusal_reports,
-                            )
-
                             record_refusal_reports(
                                 receiving, through_sidecar.sidecar, generate_id
                             )
