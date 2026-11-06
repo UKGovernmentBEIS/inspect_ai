@@ -28,6 +28,7 @@ from test_helpers.service_dispatch import (
 )
 
 import inspect_ai._util.logger as inspect_logger
+import inspect_ai.agent._bridge.types as bridge_types
 from inspect_ai import Task, eval
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.content import ContentImage, ContentText, ContentToolUse
@@ -6622,19 +6623,32 @@ def _user_turn(dialect: HostDialect, text: str) -> dict[str, Any]:
 
 
 @pytest.mark.parametrize(
-    "parallel,copied",
-    [(False, False), (False, True), (True, False)],
-    ids=["equal result", "copied", "parallel then single"],
+    "parallel,copied,evicted",
+    [
+        (False, False, False),
+        (False, True, False),
+        (True, False, False),
+        (False, False, True),
+    ],
+    ids=["equal result", "copied", "parallel then single", "earlier reply evicted"],
 )
 @pytest.mark.parametrize("dialect", ["google", "completions", "responses", "anthropic"])
 def test_compacted_equal_host_result_links_to_its_own_message(
-    dialect: HostDialect, parallel: bool, copied: bool, tmp_path: Path
+    dialect: HostDialect,
+    parallel: bool,
+    copied: bool,
+    evicted: bool,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """After compaction, an equal result of a later call links to its own message, also in the next request; a copied earlier result links nothing.
 
     With `parallel`, the first turn makes two identical calls (in Google they
-    can't be told apart and stay unlinked).
+    can't be told apart and stay unlinked). With `evicted`, the bridge no
+    longer tracks the first reply when the compacted result arrives.
     """
+    if evicted:
+        monkeypatch.setattr(bridge_types, "_MAX_AWAITED_RESULTS", 1)
     name = "mcp__host__read_file"
     first_calls = [
         # the provider reuses the call id

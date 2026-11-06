@@ -201,6 +201,9 @@ class _AnsweredCall(NamedTuple):
     call: ToolCall | None
     """The reply's call with the message's call id, or `None` if it has none or differing ones."""
 
+    outcomes: frozenset[str] = frozenset()
+    """Outcomes of the call's host executions when the message was first sent as its answer."""
+
 
 def _answered_call(reply_id: str, copies: list[ToolCall]) -> _AnsweredCall:
     same = all(
@@ -866,8 +869,8 @@ class AgentBridge:
         given under one of the message's keys. A candidate first given to
         another reply's answer is that earlier answer: the message is a fresh
         answer (`None`) if it matched it only by call id, or if the call has
-        one pending host execution that returned what each execution that may
-        have produced the earlier answer did. Otherwise the message is a copy
+        one pending host execution that returned what each execution of the
+        earlier call did when the earlier answer was first sent. Otherwise the message is a copy
         of the earlier answer and keeps its id, which `_link_result_messages`
         doesn't link to this reply's call.
         """
@@ -889,17 +892,7 @@ class AgentBridge:
         pending = [
             entry for entry in self._answered_entries(answered) if not entry.settled
         ]
-        producers = self._answered_entries(earlier, identical=True)
-        root = self._result_root(candidate)
-        linked = [
-            entry
-            for entry in producers
-            if entry.message_id is not None
-            and self._result_root(entry.message_id) == root
-        ]
-        if len(pending) == 1 and {e.outcome for e in linked or producers} == {
-            pending[0].outcome
-        }:
+        if len(pending) == 1 and earlier.outcomes == {pending[0].outcome}:
             return None
         return candidate
 
@@ -937,7 +930,13 @@ class AgentBridge:
     def _record_answer(
         self, keys: list[str], message_id: str, answered: _AnsweredCall
     ) -> None:
-        self._answers.setdefault(message_id, answered)
+        if message_id not in self._answers:
+            self._answers[message_id] = answered._replace(
+                outcomes=frozenset(
+                    entry.outcome
+                    for entry in self._answered_entries(answered, identical=True)
+                )
+            )
         first = self._answer_of(message_id)
         if first is not None and first.reply_id == answered.reply_id:
             for key in keys:
