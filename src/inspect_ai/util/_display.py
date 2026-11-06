@@ -20,6 +20,7 @@ def init_display_type(display: str | None = None) -> DisplayType:
     display = (
         display or os.environ.get("INSPECT_DISPLAY", DEFAULT_DISPLAY).lower().strip()
     )
+    display_name = display
 
     # if trio is configured as the backend then throttle down to "rich"
     # (as textual uses asyncio directly so is not compatible with trio)
@@ -59,7 +60,7 @@ def init_display_type(display: str | None = None) -> DisplayType:
             # from a scorer on a worker thread) isn't a change
             if requested != _display_type:
                 logger.warning(
-                    f"Ignoring display type '{requested}' while the "
+                    f"Ignoring display type '{display_name}' while the "
                     f"'{_display_type}' display is in use."
                 )
             return _display_type

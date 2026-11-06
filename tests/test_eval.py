@@ -673,6 +673,28 @@ def test_display_type_change_during_eval_keeps_running_display(
     assert "Ignoring display type 'log'" in caplog.text
 
 
+def test_display_type_change_warning_names_requested_type_on_trio(
+    fresh_display: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    import rich
+
+    from inspect_ai.util import _display
+
+    task = Task(dataset=[Sample(input="hi", target="hi")])
+    eval(task, model="mockllm/model", display="plain", log_dir=str(tmp_path))
+
+    # trio runs "full" as "rich", which the warning shouldn't name instead
+    monkeypatch.setattr(_display, "configured_async_backend", lambda: "trio")
+    with rich.get_console().status("working"):
+        _display.init_display_type("full")
+
+    assert _display.display_type() == "plain"
+    assert "Ignoring display type 'full'" in caplog.text
+
+
 @pytest.mark.parametrize("inner_display", ["plain", "full", None])
 def test_display_type_change_during_score_keeps_running_display(
     fresh_display: None,
