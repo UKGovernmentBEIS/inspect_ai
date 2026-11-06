@@ -20,6 +20,7 @@ from inspect_ai._sentinel._sidecar._endpoint import (
     SentinelProxyError,
     Sidecar,
     SidecarCallError,
+    _origin,
     probe,
     proxy_client,
 )
@@ -92,6 +93,8 @@ def _nothing_from_the_environment(monkeypatch: pytest.MonkeyPatch) -> None:
         "ANTHROPIC_AUTH_TOKEN",
         "OPENAI_BASE_URL",
         "TOGETHER_BASE_URL",
+        "HF_INFERENCE_PROVIDERS_BASE_URL",
+        "VLLM_BASE_URL",
         "INSPECT_EVAL_MODEL_BASE_URL",
     ]:
         monkeypatch.delenv(name, raising=False)
@@ -159,6 +162,47 @@ def test_a_named_provider_at_its_own_address_is_not_probed() -> None:
     model = get_model("together/meta-llama-3", api_key="test-key", memoize=False)
 
     assert proxy_client(model.api) is None
+
+
+def test_a_provider_that_passes_its_own_address_as_the_base_url_is_not_probed() -> None:
+    # this provider hands its own default to the base class as the base_url
+    # argument, which must not count as a URL someone set
+    model = get_model(
+        "hf-inference-providers/meta-llama/Llama-3.1-8B-Instruct",
+        api_key="test-key",
+        memoize=False,
+    )
+
+    assert proxy_client(model.api) is None
+
+
+def test_a_vllm_server_someone_named_is_probed_without_starting_one() -> None:
+    # the client is built lazily, on the first generate; naming a server
+    # resolves it with no server started, so the probe has a client to use
+    model = get_model(
+        "vllm/meta-llama/Llama-3.1-8B-Instruct",
+        base_url="http://proxy.test/v1",
+        api_key="test-key",
+        memoize=False,
+    )
+
+    client = proxy_client(model.api)
+
+    assert client is not None
+    assert str(client.base_url).rstrip("/") == "http://proxy.test/v1"
+    assert _origin(client.sdk.base_url) == "http://proxy.test"
+
+
+def test_a_vllm_server_this_process_would_start_is_not_probed() -> None:
+    # its own base model: vLLM models sharing one are one server entry, and
+    # the named-server test above resolves that entry
+    model = get_model(
+        "vllm/meta-llama/Llama-3.1-70B-Instruct", api_key="test-key", memoize=False
+    )
+
+    assert proxy_client(model.api) is None
+    # nothing was resolved, so no server was started
+    assert not hasattr(model.api, "client")
 
 
 @pytest.mark.parametrize(
