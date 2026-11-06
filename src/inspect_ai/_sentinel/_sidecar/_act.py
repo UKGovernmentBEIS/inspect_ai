@@ -161,12 +161,19 @@ def act_on_judgment(
     if turn is not None:
         for id, told in turn.results.items():
             decisions[id] = CallDecision("reject", message=told)
-    for step in judgment.steps:
-        if step.stage != "tool_call" or step.call is None:
-            continue
-        if step.decision.get("action") == "modify" and step.decision.get("modified"):
-            modified = _TOOL_CALL.validate_python(step.decision["modified"])
-            decisions[step.call] = CallDecision("modify", modified=modified)
+    # A turn refused whole ran nothing, whatever each call's step decided: a
+    # call a step changed is among those the sidecar says didn't run, when it
+    # couldn't write the change and refused the turn instead. Only a turn the
+    # agent was handed runs its changed calls.
+    if judgment.outcome == "proceed":
+        for step in judgment.steps:
+            if step.stage != "tool_call" or step.call is None:
+                continue
+            if step.decision.get("action") == "modify" and step.decision.get(
+                "modified"
+            ):
+                modified = _TOOL_CALL.validate_python(step.decision["modified"])
+                decisions[step.call] = CallDecision("modify", modified=modified)
 
     _decide(decisions)
     if judgment.outcome == "proceed" and output.choices and turn is not None:
