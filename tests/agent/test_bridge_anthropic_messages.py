@@ -449,3 +449,31 @@ def test_bridge_unknown_web_search_version_uses_provider_choice(
         "web_fetch_20260209",
         "web_search_20260209",
     ]
+
+
+@pytest.mark.parametrize("as_list", [False, True])
+async def test_assistant_multiple_internal_blocks(as_list: bool) -> None:
+    from anthropic.types import MessageParam
+
+    from inspect_ai._util.content import ContentText
+    from inspect_ai.model._internal import content_internal_tag
+
+    text = (
+        "first"
+        + content_internal_tag({"a": 1})
+        + content_internal_tag({"b": 2})
+        + "last"
+    )
+    item = cast(
+        MessageParam,
+        {
+            "role": "assistant",
+            "content": [{"type": "text", "text": text}] if as_list else text,
+        },
+    )
+    [message] = await messages_from_anthropic_input([item], tools=[])
+    assert message.content == [
+        ContentText(text="first", internal={"a": 1}),
+        ContentText(text="", internal={"b": 2}),
+        ContentText(text="last"),
+    ]
