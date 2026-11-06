@@ -2,7 +2,8 @@ from pathlib import Path
 from typing import Any, cast
 
 import pytest
-from anthropic.types import ThinkingBlockParam
+from anthropic.types import TextBlockParam, ThinkingBlockParam
+from openai.types.chat import ChatCompletionMessageParam
 
 from inspect_ai._util.constants import NO_CONTENT
 from inspect_ai._util.content import ContentDocument, ContentReasoning, ContentText
@@ -474,22 +475,25 @@ async def test_bridge_round_trip_tool_turn_no_trailing_text() -> None:
     # the conversation exactly as the bridged OpenAI client replays it: a
     # tool-call-only assistant turn (empty content, reasoning carried in the
     # OpenAI-compatible reasoning_content field)
-    openai_messages = [
-        {"role": "user", "content": "list the items"},
-        {
-            "role": "assistant",
-            "content": "",
-            "reasoning_content": "I should call list_items first.",
-            "tool_calls": [
-                {
-                    "id": "toolu_1",
-                    "type": "function",
-                    "function": {"name": "list_items", "arguments": "{}"},
-                }
-            ],
-        },
-        {"role": "tool", "tool_call_id": "toolu_1", "content": '["a1", "b2"]'},
-    ]
+    openai_messages = cast(
+        "list[ChatCompletionMessageParam]",
+        [
+            {"role": "user", "content": "list the items"},
+            {
+                "role": "assistant",
+                "content": "",
+                "reasoning_content": "I should call list_items first.",
+                "tool_calls": [
+                    {
+                        "id": "toolu_1",
+                        "type": "function",
+                        "function": {"name": "list_items", "arguments": "{}"},
+                    }
+                ],
+            },
+            {"role": "tool", "tool_call_id": "toolu_1", "content": '["a1", "b2"]'},
+        ],
+    )
     messages = await messages_from_openai(openai_messages, "claude-sonnet-5-5")
     turns = [
         message
@@ -497,18 +501,20 @@ async def test_bridge_round_trip_tool_turn_no_trailing_text() -> None:
         if isinstance(message, ChatMessageAssistant) and message.tool_calls
     ]
     assert len(turns) == 1
+    turn = turns[0]
+    assert turn.tool_calls is not None
 
     # stand in for the provider-side state recorded when anthropic generated
     # this turn during the bridge loop: the verbatim thinking block (keyed by
     # content hash) and the wire position of the client tool call
     init_sample_anthropic_assistant_internal()
     internal = assistant_internal()
-    reasoning = turns[0].content[0]
+    reasoning = turn.content[0]
     assert isinstance(reasoning, ContentReasoning)
     internal.thinking_blocks[mm3_hash(reasoning.reasoning)] = ThinkingBlockParam(
         type="thinking", thinking=reasoning.reasoning, signature="sig-original"
     )
-    internal.client_tool_call_positions[turns[0].tool_calls[0].id] = 1
+    internal.client_tool_call_positions[turn.tool_calls[0].id] = 1
 
     blocks = await assistant_message_block_params(turns[0])
     assert [block["type"] for block in blocks] == ["thinking", "tool_use"]
@@ -529,7 +535,8 @@ async def test_assistant_empty_text_only_content_replays_placeholder() -> None:
     turn = ChatMessageAssistant(content=[ContentText(text="")])
     blocks = await assistant_message_block_params(turn)
     assert [block["type"] for block in blocks] == ["text"]
-    assert blocks[0]["text"] == NO_CONTENT
+    text_block = cast("TextBlockParam", blocks[0])
+    assert text_block["text"] == NO_CONTENT
 
 
 @pytest.mark.anyio
