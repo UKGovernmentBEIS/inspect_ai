@@ -1,4 +1,5 @@
 import json
+from collections import OrderedDict
 from enum import IntEnum
 from functools import lru_cache, partial
 from typing import (
@@ -379,7 +380,7 @@ class AgentBridge:
         self._awaited_results: dict[str, dict[int, _AwaitedResult]] = {}
         self._result_edit_parent: dict[str, str] = {}
         self._answers: dict[str, _Answer] = {}
-        self._reply_answers: dict[str, _ReplyAnswers] = {}
+        self._reply_answers: OrderedDict[str, _ReplyAnswers] = OrderedDict()
         self._answer_records = 0
         self._operator_keys: set[str] = set()
         self._warned_request_settings: set[str] = set()
@@ -827,6 +828,8 @@ class AgentBridge:
         unattributed: set[str] = set()
         preceding_reply_id: str | None = None
         preceding_reply_key: str | None = None
+        preceding_reply_keys: list[str] = []
+        preceding_reply_ambiguous: bool | None = None
         reply_calls: dict[str, list[ToolCall]] = {}
         for index, (message, message_keys) in enumerate(zip(messages, keys)):
             aligned_id = aligned.get(index)
@@ -879,7 +882,14 @@ class AgentBridge:
             self._record_message_id(message_keys, message.id)
             if answered is not None:
                 if not known:
-                    self._record_answer(message.id, answered)
+                    if preceding_reply_ambiguous is None:
+                        preceding_reply_ambiguous = (
+                            preceding_reply_id is not None
+                            and self._ambiguous_reply(
+                                preceding_reply_id, preceding_reply_keys
+                            )
+                        )
+                    self._record_answer(message.id, answered, preceding_reply_ambiguous)
                 if self._answer_of(message.id) is None:
                     unattributed.add(message.id)
                 else:
@@ -891,6 +901,8 @@ class AgentBridge:
                     else None
                 )
                 preceding_reply_key = preceding_reply_id or message.id
+                preceding_reply_keys = message_keys
+                preceding_reply_ambiguous = None
                 reply_calls = {}
                 for call in message.tool_calls:
                     reply_calls.setdefault(call.id, []).append(call)
@@ -978,8 +990,15 @@ class AgentBridge:
     def _answer_of(self, message_id: str) -> _Answer | None:
         return self._answers.get(self._result_root(message_id))
 
-    def _record_answer(self, message_id: str, answered: _AnsweredCall) -> None:
+    def _record_answer(
+        self, message_id: str, answered: _AnsweredCall, ambiguous: bool = False
+    ) -> None:
         """Record a new tool message as an answer to its reply.
+
+        The record keeps no outcomes when the reply was `ambiguous`: another
+        awaited reply matches its copy as strongly (identical replies), so
+        recognition may have picked the other's executions, and a later equal
+        message must not be taken for a fresh answer on their basis.
 
         At most `_MAX_ANSWER_RECORDS` records are kept between requests: once a
         request is linked, the oldest replies' are dropped beyond that, so a
@@ -990,13 +1009,35 @@ class AgentBridge:
             return
         self._answers[message_id] = _Answer(
             answered.reply_id,
-            frozenset(
+            frozenset()
+            if ambiguous
+            else frozenset(
                 entry.outcome
                 for entry in self._answered_entries(answered, identical=True)
             ),
         )
         self._reply_answer_records(answered.reply_id).message_ids.append(message_id)
         self._answer_records += 1
+
+    def _ambiguous_reply(self, reply_id: str, keys: list[str]) -> bool:
+        def strength(original: str) -> int:
+            calls = self._awaited_results[original]
+            ids = (original, *next(iter(calls.values())).reply_versions)
+            return max(
+                (
+                    _key_strength(key)
+                    for id in ids
+                    for key in keys
+                    if key in self._keys_by_id.get(id, ())
+                ),
+                default=0,
+            )
+
+        recognized = max(strength(reply_id), 1)
+        return any(
+            other != reply_id and strength(other) >= recognized
+            for other in self._awaited_results
+        )
 
     def _record_occurrence(
         self, keys: list[str], message_id: str, answered: _AnsweredCall
@@ -1015,7 +1056,7 @@ class AgentBridge:
 
     def _drop_answer_records(self) -> None:
         while self._answer_records > _MAX_ANSWER_RECORDS:
-            dropped = self._reply_answers.pop(next(iter(self._reply_answers)))
+            _, dropped = self._reply_answers.popitem(last=False)
             for message_id in dropped.message_ids:
                 del self._answers[message_id]
             self._answer_records -= len(dropped.message_ids) + len(dropped.occurrences)

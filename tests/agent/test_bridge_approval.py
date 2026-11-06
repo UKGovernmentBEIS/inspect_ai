@@ -6689,3 +6689,87 @@ def test_compacted_equal_host_result_links_to_its_own_message(
     else:
         assert latest_result not in first_results
         assert [e.message_id for e in events] == [*first_links, latest_result]
+
+
+@agent
+def identical_replies_compacting_scaffold() -> Agent:
+    """A Google scaffold reading a file in two identical turns (results `A`, `B`), compacting to both, then to a third turn and the `B` result."""
+
+    async def execute(state: AgentState) -> AgentState:
+        bridge = SandboxAgentBridge(
+            state=state,
+            filter=None,
+            retry_refusals=None,
+            compaction=None,
+            port=13131,
+            model=None,
+            bridged_tools={
+                "host": {"read_file": read_file(AsyncMock(side_effect=["A", "B", "A"]))}
+            },
+        )
+        [info] = declare("mcp__host__read_file")
+        conversation = _HostConversation("google", state.messages[0].text, info)
+        for _ in range(2):
+            [(_, arguments)] = calls = await conversation.request(bridge)
+            result = await call_host_tool(bridge)("host", "read_file", arguments)
+            conversation.results(calls, [result])
+        earlier_b = conversation.history[-1]
+        conversation.history = [
+            _user_turn("google", "Summary: read twice."),
+            *conversation.history[1:],
+        ]
+        [(_, arguments)] = await conversation.request(bridge)
+        await call_host_tool(bridge)("host", "read_file", arguments)
+        conversation.history = [
+            _user_turn("google", "Summary: checking."),
+            conversation.history[-1],
+            earlier_b,
+        ]
+        await conversation.request(bridge)
+        return bridge.state
+
+    return execute
+
+
+def test_answer_after_identical_replies_gives_no_later_link(tmp_path: Path) -> None:
+    """An answer following a reply identical to another isn't evidence that a later equal message answers a later call.
+
+    Compacting two identical Google replies can recognize each as the other,
+    so the `B` answer may be taken for the first reply's (whose execution
+    returned `A`). A later call that returned `A` must not link to that `B`
+    message sent again.
+    """
+    name = "mcp__host__read_file"
+    log = eval(
+        Task(
+            dataset=[Sample(input="Read a three times.")],
+            solver=identical_replies_compacting_scaffold(),
+        ),
+        model=get_model(
+            "mockllm/model",
+            custom_outputs=[
+                *[
+                    tool_calls_output(
+                        ToolCall(
+                            id=f"call_{n}", function=name, arguments={"path": "a"}
+                        ),
+                        content="On it." if n < 2 else "Checking again.",
+                    )
+                    for n in range(3)
+                ],
+                ModelOutput.from_content("mockllm/model", "done"),
+            ],
+        ),
+        log_dir=str(tmp_path),
+    )[0]
+    assert log.status == "success", log.error
+    read = read_eval_log(log.location)
+    assert read.samples
+    sample = resolve_sample_attachments(read.samples[0], "full")
+
+    events = [e for e in sample.events if isinstance(e, ToolEvent)]
+    assert [e.result for e in events] == ["A", "B", "A"]
+    model_events = [e for e in sample.events if isinstance(e, ModelEvent)]
+    [resent_b] = [m for m in model_events[-1].input if m.role == "tool"]
+    assert "B" in resent_b.text
+    assert events[2].message_id is None
