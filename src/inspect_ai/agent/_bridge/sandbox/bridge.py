@@ -32,8 +32,12 @@ from inspect_ai.tool._tools._web_search._web_search import (
 from inspect_ai.util._anyio import inner_exception
 from inspect_ai.util._checkpoint.checkpointer import Checkpointer
 from inspect_ai.util._sandbox._cli import SANDBOX_CLI
+from inspect_ai.util._sandbox._framework_directory import (
+    FrameworkDirectoryNotFoundError,
+    exec_in_framework_directory,
+    expected_uid_for,
+)
 from inspect_ai.util._sandbox._json_rpc_transport import SandboxJSONRPCTransport
-from inspect_ai.util._sandbox._privileged import privileged_exec, privileged_shell
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
 from inspect_ai.util._sandbox.exec_remote import (
     ExecCompleted,
@@ -46,6 +50,7 @@ from inspect_ai.util._sandbox.identity import (
     sandbox_identity_scope,
 )
 from inspect_ai.util._sandbox.service import find_control_flow
+from inspect_ai.util._subprocess import ExecResult
 
 from ..._agent import AgentState
 from ..util import resolve_bridge_code_execution, resolve_bridge_web_search
@@ -75,7 +80,13 @@ BRIDGE_TOKEN_TIMEOUT = 60
 BRIDGE_TOKEN_TOOLS_VERSION = semver.Version(1, 5, 0)
 """First inspect-sandbox-tools version whose model proxy mints a bridge token."""
 
+_TOKEN_DIR_MODE = 0o711
+"""Mode of `BRIDGE_TOKEN_DIR`, as the proxy creates it (bridge_token.py)."""
+
 _TOKEN_EXEC_TIMEOUT = 30
+
+_TOKEN_SIZE = 'test -f "$1" || exit 1\nwc -c < "$1"'
+"""Prints the size of the file named `$1`, or fails when there is none."""
 
 # Read by the model proxy (inspect_sandbox_tools/_agent_bridge/bridge_token.py).
 _TOKEN_FILE_ENV = f"{MODEL_SERVICE.upper()}_TOKEN_FILE"
@@ -463,7 +474,9 @@ async def _deliver_enclosing_cancellation() -> None:
 async def _check_tools_mint_tokens(sandbox_env: SandboxEnvironment, user: str) -> None:
     """Refuse sandbox tools whose model proxy would ignore a token request.
 
-    Such a proxy would serve without a token and never publish one.
+    Such a proxy would serve without a token and never publish one. The check
+    runs outside the sandbox's concurrency limits, as the bridge's other
+    control commands do.
     """
     version = await exec_scalar_request(
         method="version",
@@ -473,6 +486,7 @@ async def _check_tools_mint_tokens(sandbox_env: SandboxEnvironment, user: str) -
         error_mapper=SandboxToolsErrorMapper,
         timeout=_TOKEN_EXEC_TIMEOUT,
         user=sandbox_env._tools_user,
+        concurrency=False,
     )
     if semver.Version.parse(version) < BRIDGE_TOKEN_TOOLS_VERSION:
         raise SandboxIdentityError(
@@ -488,29 +502,37 @@ async def _wait_for_token_file(
     """Wait until the model proxy has published its complete token file.
 
     The proxy process exists before it serves, and it publishes the token only
-    once its listener is bound. The check runs as the tools user and reads only
-    the file's size, so the token never leaves the sandbox. It runs outside the
-    sandbox's concurrency limits, as the proxy launch does: waiting there for
-    capacity could time out a proxy that has already published. A proxy that
-    exits first is reported by `_monitor_proxy`, which cancels this wait.
+    once its listener is bound. Each check verifies the token directory first
+    (owned by the tools user, mode `0711`) and reads the file's size from
+    inside it, so a directory another user created, and a file they put in it,
+    is refused rather than taken for the proxy's. The check runs as the tools
+    user and reads only the size, so the token never leaves the sandbox. It
+    runs outside the sandbox's concurrency limits, as the proxy launch does:
+    waiting there for capacity could time out a proxy that has already
+    published. A proxy that exits first is reported by `_monitor_proxy`, which
+    cancels this wait.
 
     Raises:
         RuntimeError: The token file did not appear within `BRIDGE_TOKEN_TIMEOUT`.
+        FrameworkDirectoryError: The token directory cannot be trusted.
     """
+    directory, name = posixpath.split(token_file)
     delay = 0.1
     try:
         with anyio.fail_after(BRIDGE_TOKEN_TIMEOUT):
             while True:
-                result = await privileged_shell(
-                    sandbox_env,
-                    'test -f "$1" || exit 1\nwc -c < "$1"',
-                    token_file,
-                    user=sandbox_env._tools_user,
-                    timeout=_TOKEN_EXEC_TIMEOUT,
-                    concurrency=False,
-                )
-                if result.success and result.stdout.strip() == str(BRIDGE_TOKEN_LENGTH):
-                    return
+                try:
+                    result = await _exec_in_token_dir(
+                        sandbox_env,
+                        directory,
+                        ["sh", "-c", _TOKEN_SIZE, "sh", name],
+                    )
+                    if result.success and result.stdout.strip() == str(
+                        BRIDGE_TOKEN_LENGTH
+                    ):
+                        return
+                except FrameworkDirectoryNotFoundError:
+                    pass
                 await anyio.sleep(delay)
                 delay = min(delay * 2, 1.0)
     except TimeoutError:
@@ -544,24 +566,49 @@ async def _remove_token_file(sandbox_env: SandboxEnvironment, token_file: str) -
 
     A proxy killed outright (SIGKILL, out of memory) cannot remove them itself,
     and one killed while publishing can leave the temporary file holding the
-    whole token. The command runs outside the sandbox's concurrency limits:
-    cleanup is shielded, so waiting there for capacity could stall shutdown.
+    whole token. They are removed by name inside the verified token directory;
+    a missing directory holds nothing to remove. The command runs outside the
+    sandbox's concurrency limits: cleanup is shielded, so waiting there for
+    capacity could stall shutdown.
     """
     directory, name = posixpath.split(token_file)
     try:
-        result = await privileged_exec(
-            sandbox_env,
-            ["rm", "-f", "--", token_file, posixpath.join(directory, f".{name}.tmp")],
-            user=sandbox_env._tools_user,
-            timeout=_TOKEN_EXEC_TIMEOUT,
-            concurrency=False,
+        result = await _exec_in_token_dir(
+            sandbox_env, directory, ["rm", "-f", "--", name, f".{name}.tmp"]
         )
         if not result.success:
             logger.warning(
                 f"Error removing bridge token file {token_file}: {result.stderr}"
             )
+    except FrameworkDirectoryNotFoundError:
+        pass
     except Exception as ex:
         logger.warning(f"Error removing bridge token file {token_file}: {ex}")
+
+
+async def _exec_in_token_dir(
+    sandbox_env: SandboxEnvironment, directory: str, cmd: list[str]
+) -> ExecResult[str]:
+    """Run `cmd` as the tools user inside the verified token directory.
+
+    The directory must be owned by the tools user (the proxy's user) with mode
+    `0711`; the command runs outside the sandbox's concurrency limits.
+
+    Raises:
+        FrameworkDirectoryNotFoundError: The directory does not exist yet.
+        FrameworkDirectoryError: The directory cannot be trusted.
+    """
+    user = sandbox_env._tools_user
+    return await exec_in_framework_directory(
+        sandbox_env,
+        directory,
+        cmd,
+        user=user,
+        expected_uid=expected_uid_for(user),
+        mode=_TOKEN_DIR_MODE,
+        timeout=_TOKEN_EXEC_TIMEOUT,
+        concurrency=False,
+    )
 
 
 def _register_bridged_tools(

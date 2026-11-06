@@ -7,7 +7,7 @@ from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import AbstractContextManager, contextmanager, nullcontext
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, cast
+from typing import Any, Literal, NamedTuple, cast
 
 import anyio
 import pytest
@@ -30,6 +30,13 @@ from inspect_ai.solver import Generate, Solver, TaskState, solver
 from inspect_ai.tool._mcp._tools_bridge import BridgedToolsSpec
 from inspect_ai.tool._tool import Tool, tool
 from inspect_ai.util import LimitExceededError, SandboxEnvironment, sandbox, time_limit
+from inspect_ai.util._sandbox._framework_directory import (
+    _MISSING_MARKER,
+    _VERIFIED_MARKER,
+    _VIOLATION_MARKER,
+    FrameworkDirectoryError,
+)
+from inspect_ai.util._sandbox._privileged import SHELL_PATH
 from inspect_ai.util._sandbox.context import (
     sandbox_default_context_var,
     sandbox_environments_context_var,
@@ -71,8 +78,29 @@ class _FakeProxy:
         self.killed.set()
 
 
+class _Verified(NamedTuple):
+    """A command run inside a verified framework directory."""
+
+    directory: str
+    expected_uid: str
+    mode: str
+    cmd: list[str]
+
+
+def _verified(cmd: list[str]) -> _Verified | None:
+    """The directory and wrapped command of a verified-directory exec, if any."""
+    if cmd[:2] != [SHELL_PATH, "-c"] or _VERIFIED_MARKER not in cmd[2]:
+        return None
+    return _Verified(posixpath.join(cmd[8], cmd[9]), cmd[4], cmd[7], cmd[10:])
+
+
 class _BridgeSandbox(CannedSandbox):
-    """A sandbox whose proxy publishes its token after `publish_after` checks."""
+    """A sandbox whose proxy publishes its token after `publish_after` checks.
+
+    The token directory is missing at the first check and created by the
+    proxy before the second, unless `token_dir` is "planted": another user
+    created it, so it fails verification, and put a 64-byte file in it.
+    """
 
     def __init__(
         self,
@@ -80,11 +108,13 @@ class _BridgeSandbox(CannedSandbox):
         tools_version: str = "1.5.0",
         publish_after: int | None = 2,
         exit_stderr: str | None = None,
+        token_dir: Literal["proxy", "planted"] = "proxy",
     ) -> None:
         super().__init__(self._answer)
         self._tools_user = "root"
         self.tools_version = tools_version
         self.publish_after = publish_after
+        self.token_dir = token_dir
         self.checks = 0
         self.proxy = _FakeProxy(exit_stderr)
         self.launches: list[ExecRemoteStreamingOptions] = []
@@ -120,17 +150,29 @@ class _BridgeSandbox(CannedSandbox):
                 {"jsonrpc": "2.0", "result": self.tools_version, "id": 1}
             )
             return ExecResult(True, 0, result, "")
-        if "wc -c" in cmd[2]:
-            self.checks += 1
-            if self.publish_after is not None and self.checks > self.publish_after:
+        verified = _verified(cmd)
+        if verified is None:
+            if self.token_dir == "planted" and "wc -c" in cmd[2]:
+                # an unverified size check finds the planted file
                 return ExecResult(True, 0, "64\n", "")
-            return ExecResult(False, 1, "", "")
-        if "rm" in cmd:
-            start = cmd.index("rm")
-            assert cmd[start : start + 3] == ["rm", "-f", "--"]
-            self.removed.append((tuple(cmd[start + 3 :]), user))
-            return ExecResult(True, 0, "", "")
-        raise AssertionError(f"unexpected exec {cmd}")
+            raise AssertionError(f"unexpected exec {cmd}")
+        assert verified.directory == BRIDGE_TOKEN_DIR
+        check = "wc -c" in verified.cmd[2] if verified.cmd[0] == "sh" else False
+        if check:
+            self.checks += 1
+        else:
+            assert verified.cmd[:3] == ["rm", "-f", "--"]
+            self.removed.append((tuple(verified.cmd[3:]), user))
+        if self.token_dir == "planted":
+            return ExecResult(
+                False, 3, "", f"{_VIOLATION_MARKER}: it is owned by uid 61000\n"
+            )
+        published = self.publish_after is not None and self.checks > self.publish_after
+        if self.checks < 2 and not published:
+            return ExecResult(False, 4, "", f"{_MISSING_MARKER}: no such directory\n")
+        if check and published:
+            return ExecResult(True, 0, "64\n", f"{_VERIFIED_MARKER}\n")
+        return ExecResult(not check, int(check), "", f"{_VERIFIED_MARKER}\n")
 
     async def fake_exec_remote(
         self, cmd: list[str], options: ExecRemoteStreamingOptions
@@ -205,12 +247,18 @@ async def test_bridge_in_a_scope_waits_for_its_token_and_removes_it(
     assert config.headers == {"Authorization": "Bearer ${INSPECT_BRIDGE_TOKEN}"}
     # the proxy listens only on IPv4; `localhost` could reach another user on ::1
     assert config.url == f"http://127.0.0.1:{bridge.port}/mcp/tools"
-    checks = [cmd for cmd, _ in sandbox.exec_calls if "wc -c" in " ".join(cmd)]
-    assert all(cmd[-1] == token_file for cmd in checks)
+    # the checks and the removal run in the verified token directory, owned
+    # by the tools user (uid 0) with mode 0711
+    name = posixpath.basename(token_file)
+    verified = [_verified(cmd) for cmd, _ in sandbox.exec_calls[1:]]
+    assert len(verified) == 4
+    for call in verified:
+        assert call is not None
+        assert (call.expected_uid, call.mode) == ("0", "711")
+    assert all(call is not None and call.cmd[-1] == name for call in verified[:3])
     assert {user for cmd, user in sandbox.exec_calls} == {"root"}
     assert sandbox.proxy.killed.is_set()
-    temp_file = f"{BRIDGE_TOKEN_DIR}/.{token_file.rsplit('/', 1)[1]}.tmp"
-    assert sandbox.removed == [((token_file, temp_file), "root")]
+    assert sandbox.removed == [((name, f".{name}.tmp"), "root")]
 
 
 async def test_bridge_outside_a_scope_asks_for_no_token(
@@ -294,27 +342,38 @@ async def test_token_removal_does_not_wait_for_sandbox_capacity(
     assert len(sandbox.removed) == 1
 
 
-async def test_token_wait_does_not_wait_for_sandbox_capacity(
+async def test_scoped_bridge_control_does_not_wait_for_sandbox_capacity(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A published token is found while other commands hold the capacity."""
+    """The bridge starts while other commands hold the capacity.
+
+    Its version check, token wait and token removal run outside the limits.
+    """
     sandbox = _BridgeSandbox(publish_after=0)
-    launch = sandbox.fake_exec_remote
-
-    async def launch_then_saturate(
-        cmd: list[str], options: ExecRemoteStreamingOptions
-    ) -> _FakeProxy:
-        proxy = await launch(cmd, options)
-        sandbox.saturated = True
-        return proxy
-
+    sandbox.saturated = True
     with _sandbox(monkeypatch, sandbox), sandbox_identity("w-1"):
-        monkeypatch.setattr(sandbox, "exec_remote", launch_then_saturate)
         with anyio.fail_after(10):
             async with sandbox_agent_bridge():
                 assert sandbox.checks == 1
 
     assert sandbox.proxy.killed.is_set()
+    assert len(sandbox.removed) == 1
+
+
+async def test_bridge_refuses_a_token_directory_another_user_created(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A file planted in a directory the tools user does not own is not the token."""
+    sandbox = _BridgeSandbox(token_dir="planted")
+    with _sandbox(monkeypatch, sandbox), sandbox_identity("w-1"):
+        with pytest.raises(FrameworkDirectoryError, match="cannot be trusted"):
+            with anyio.fail_after(10):
+                async with sandbox_agent_bridge():
+                    raise AssertionError("bridge yielded")
+
+    assert sandbox.checks == 1
+    assert sandbox.proxy.killed.is_set()
+    # the removal is refused too, rather than run in that directory
     assert len(sandbox.removed) == 1
 
 
@@ -694,6 +753,62 @@ def test_scoped_bridge_in_docker_requires_its_token() -> None:
     task = Task(
         dataset=[Sample(input="x")],
         solver=_scoped_bridge_in_docker(),
+        sandbox=("docker", _NONROOT_COMPOSE),
+    )
+    log = eval(task, model=get_model("mockllm/model"))[0]
+    assert log.status == "success", log.error
+
+
+@solver
+def _planted_token_dir_in_docker() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        sb = sandbox()
+        for user in ("w1", "w2"):
+            created = await sb.exec(["useradd", "-m", user], user="root")
+            assert created.success, created.stderr
+        # a peer creates the token directory and puts a 64-byte file in it
+        # under the bridge's instance name (fixed by the test)
+        planted = await sb.exec(
+            [
+                "sh",
+                "-c",
+                'mkdir -m 711 "$1" && printf "%064d" 0 > "$1/$2" && chmod 444 "$1/$2"',
+                "sh",
+                BRIDGE_TOKEN_DIR,
+                "proxy_planted",
+            ],
+            user="w2",
+        )
+        assert planted.success, planted.stderr
+        # the host's wait refuses it, whatever the proxy does
+        tools_sandbox = await tools_module.sandbox_with_injected_tools()
+        with pytest.raises(FrameworkDirectoryError, match="cannot be trusted"):
+            await bridge_module._wait_for_token_file(
+                tools_sandbox, f"{BRIDGE_TOKEN_DIR}/proxy_planted", []
+            )
+        # and the bridge never yields: the host or the proxy refuses first
+        yielded = False
+        with sandbox_identity("w1", cwd="/home/w1"):
+            with pytest.raises(RuntimeError, match="inspect-bridge"):
+                async with sandbox_agent_bridge():
+                    yielded = True
+        assert not yielded
+        listing = await sb.exec(["ls", "-A", BRIDGE_TOKEN_DIR], user="root")
+        assert listing.stdout.split() == ["proxy_planted"]
+        return state
+
+    return solve
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+def test_scoped_bridge_in_docker_refuses_a_planted_token_directory(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(bridge_module, "uuid", lambda: "planted")
+    task = Task(
+        dataset=[Sample(input="x")],
+        solver=_planted_token_dir_in_docker(),
         sandbox=("docker", _NONROOT_COMPOSE),
     )
     log = eval(task, model=get_model("mockllm/model"))[0]

@@ -325,7 +325,10 @@ comes from the scope as well as from tool construction:
   file name; the proxy mints the token, publishes it readable only by that
   user (and root) once it is listening, and removes it when it exits, and
   the host removes it and its temporary file after killing the proxy, in
-  case the proxy was killed outright. The token does not
+  case the proxy was killed outright. The host waits for the file and
+  removes it only inside the token directory verified as the tools user's,
+  mode `0711`, so a directory another user created first, and a file they
+  put there, is refused. The token does not
   cross the host channel: the host waits for the file by its size alone, and
   the proxy drops the key headers before forwarding a request. Clients send
   the token to `127.0.0.1`, the only address the proxy listens on: another
