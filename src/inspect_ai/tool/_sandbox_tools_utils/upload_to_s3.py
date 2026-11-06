@@ -1,9 +1,15 @@
 #!/usr/bin/env python3
 """Upload sandbox tools executables to S3 for a given version.
 
-Single writer of the vendored ``SHA256SUMS`` file: computes digests of the
-four local artifacts, refuses to overwrite a published version with different
-bytes, rewrites ``SHA256SUMS`` before uploading, and round-trip verifies each
+Normally runs in the ``sandbox-tools-publish.yml`` CI job (which holds the S3
+credentials); locally with ``--dry-run`` (no credentials, no upload), or for
+real only as the emergency admin path in
+``src/inspect_sandbox_tools/design/RELEASING.md``. It
+is the single writer of the vendored ``SHA256SUMS`` file: computes digests of
+the four local artifacts, refuses to overwrite a published version with
+different bytes, skips objects already published with matching bytes, rewrites
+``SHA256SUMS``, uploads the rest with ``aws s3api put-object
+--if-none-match '*'`` (so a put never overwrites), and round-trip verifies each
 uploaded object. The rewritten sums file must be committed to the release PR
 alongside the version bump. See
 ``src/inspect_sandbox_tools/design/BINARY_INTEGRITY.md``.
@@ -48,7 +54,7 @@ else:
 
 BINARIES_DIR = Path(__file__).parent.parent.parent / "binaries"
 VERSION_FILE = Path(__file__).parent / "sandbox_tools_version.txt"
-S3_BUCKET = "s3://inspect-sandbox-tools/"  # Region: us-east-2
+S3_BUCKET_NAME = "inspect-sandbox-tools"  # Region: us-east-2
 BUCKET_BASE_URL = "https://inspect-sandbox-tools.s3.us-east-2.amazonaws.com"
 ARCHS: tuple[SandboxToolsArch, ...] = ("amd64", "arm64")
 
@@ -129,14 +135,19 @@ def main() -> None:
         print(f"Hashing {filename}...")
         digests[filename] = _sha256_of_file(filepath)
 
-    # Immutability guard: a published version's bytes must never change —
-    # released wheels vendor its digests forever. Re-uploading identical bytes
-    # is fine (idempotent retry after a partial upload). Deliberately no
-    # --force escape hatch.
+    # Immutability guard and idempotency, all before any upload so a mismatch
+    # can't leave a partial publish: a published version's bytes must never
+    # change (released wheels vendor its digests forever), so different bytes
+    # abort; matching bytes are already published and skipped; missing objects
+    # are queued for upload. Re-running after a complete publish uploads
+    # nothing. Deliberately no --force escape hatch.
+    to_upload: list[str] = []
     for filename in filenames:
         print(f"Checking S3 for existing {filename}...")
         existing = _sha256_of_s3_object(filename)
-        if existing is not None and existing != digests[filename]:
+        if existing is None:
+            to_upload.append(filename)
+        elif existing != digests[filename]:
             print(
                 f"Error: {filename} is already published with different bytes "
                 f"(published {existing}, local {digests[filename]}). Published "
@@ -145,6 +156,8 @@ def main() -> None:
                 file=sys.stderr,
             )
             sys.exit(1)
+        else:
+            print(f"  {filename} already published with matching bytes; skipping.")
 
     # Write the sums file before uploading: a crash mid-upload then leaves a
     # correct committable file, and the CI release gate stays red until the
@@ -153,26 +166,50 @@ def main() -> None:
     print(f"Wrote {SHA256SUMS_PATH}")
 
     if args.dry_run:
-        print("Dry run: skipping upload and round-trip verify. Not committable")
-        print("until a real upload publishes these artifacts.")
+        if to_upload:
+            print(
+                f"Dry run: {len(to_upload)} of {len(filenames)} artifacts are not "
+                f"yet published. SHA256SUMS was written but is not committable "
+                f"until a real upload publishes them."
+            )
+        else:
+            print(
+                "Dry run: all four artifacts are already published with matching "
+                "bytes. SHA256SUMS was written and is committable."
+            )
         return
 
-    for filename in filenames:
+    if not to_upload:
+        print(
+            "All four artifacts already published with matching bytes; nothing to upload."
+        )
+        return
+
+    for filename in to_upload:
+        # --if-none-match '*' makes the put fail rather than overwrite if the
+        # object appeared since the check above (e.g. a concurrent publish).
         cmd = [
             "aws",
-            "s3",
-            "cp",
+            "s3api",
+            "put-object",
+            "--bucket",
+            S3_BUCKET_NAME,
+            "--key",
+            filename,
+            "--body",
             str(BINARIES_DIR / filename),
-            S3_BUCKET,
             "--acl",
             "public-read",
+            "--if-none-match",
+            "*",
         ]
         print(f"Uploading {filename}...")
         subprocess.run(cmd, check=True)
 
-    # Round-trip verify: catches truncation and eventual-consistency surprises
-    # before the operator walks away.
-    for filename in filenames:
+    # Round-trip verify the just-uploaded objects: catches truncation and
+    # eventual-consistency surprises. Skipped objects were already confirmed to
+    # match above.
+    for filename in to_upload:
         print(f"Verifying uploaded {filename}...")
         uploaded = _sha256_of_s3_object(filename)
         if uploaded != digests[filename]:
@@ -184,9 +221,7 @@ def main() -> None:
             )
             sys.exit(1)
 
-    print("Done. Now commit the rewritten digest file to the release PR branch:")
-    print(f"  git add {SHA256SUMS_PATH}")
-    print(f'  git commit -m "Update SHA256SUMS for v{args.version}"')
+    print(f"Done. Published {len(to_upload)} artifact(s) to s3://{S3_BUCKET_NAME}/.")
 
 
 if __name__ == "__main__":

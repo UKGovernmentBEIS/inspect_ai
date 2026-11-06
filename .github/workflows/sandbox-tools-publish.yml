@@ -1,0 +1,151 @@
+name: Publish sandbox tools binaries
+run-name: Publish sandbox tools v${{ inputs.version }} from run ${{ inputs.run_id }}
+
+# Uploads the four non-dev inspect-sandbox-tools binaries (amd64/arm64 x
+# glibc/musl) built and attested by a sandbox-tools-build.yml run to S3. The
+# maintainer starts this by hand via scripts/release-sandbox-tools.sh, which
+# passes the build run id and the version. This is the only workflow that holds
+# AWS credentials and the only path that publishes to the bucket.
+#
+# Trust model: nothing here builds or signs binaries. It re-establishes the
+# build's provenance before it touches credentials: it checks the build run
+# succeeded on its first attempt from main, takes the built commit from the
+# run title, confirms that commit's version file equals the requested version,
+# and verifies each artifact's attestation names this build run (the same check
+# the wizard and the release gate run). The S3 role is assumed only in the last
+# step, right before upload, behind the sandbox-tools-s3 environment, whose
+# required reviewers approve each run. The role's trust policy restricts it to
+# this repo's sandbox-tools-s3 environment, and its permission policy requires
+# every put to carry If-None-Match, so even a compromised run cannot overwrite
+# a published object. See design/release-process.md for the AWS setup and
+# src/inspect_sandbox_tools/design/RELEASING.md for the release flow.
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: The sandbox-tools-build.yml run id that built the artifacts
+        required: true
+        type: string
+      version:
+        description: The sandbox-tools version to publish (a positive integer)
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: sandbox-tools-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: sandbox-tools-s3
+    permissions:
+      id-token: write # assume the S3 upload role via OIDC
+      actions: read # read the build run and download its artifact
+      attestations: read # verify the build-provenance attestations
+      contents: read # check out this repo and the built commit's version file
+    steps:
+      - name: Validate inputs
+        env:
+          RUN_ID: ${{ inputs.run_id }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          [[ "$RUN_ID" =~ ^[0-9]+$ ]] || { echo "::error::run_id must be digits"; exit 1; }
+          [[ "$VERSION" =~ ^[1-9][0-9]{0,8}$ ]] || { echo "::error::version must be a positive integer of up to 9 digits"; exit 1; }
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check the build run
+        id: build
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ inputs.run_id }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          run=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID")
+          check() {
+            local field="$1" want="$2" got
+            got=$(jq -r ".$field" <<<"$run")
+            [[ "$got" == "$want" ]] || { echo "::error::build run $field is '$got', expected '$want'"; exit 1; }
+          }
+          check path ".github/workflows/sandbox-tools-build.yml"
+          check event workflow_dispatch
+          check head_branch main
+          check conclusion success
+          check run_attempt 1
+          title=$(jq -r .display_title <<<"$run")
+          sha=${title#Build sandbox tools at }
+          [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::can't read a 40-hex built commit from run title '$title'"; exit 1; }
+          echo "built_sha=$sha" >> "$GITHUB_OUTPUT"
+
+      # The built commit (the PR head) carries the version being published; main
+      # carries a different one. Sparse-checkout just its version file so the
+      # upload script's version guard checks against it, like the attest job.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.build.outputs.built_sha }}
+          persist-credentials: false
+          sparse-checkout: src/inspect_ai/tool/_sandbox_tools_utils/sandbox_tools_version.txt
+          sparse-checkout-cone-mode: false
+          path: built-commit
+
+      - name: Place the built commit's version file
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          src=built-commit/src/inspect_ai/tool/_sandbox_tools_utils/sandbox_tools_version.txt
+          built_v=$(tr -d '[:space:]' < "$src")
+          [[ "$built_v" == "$VERSION" ]] || { echo "::error::built commit version v$built_v does not match the requested v$VERSION"; exit 1; }
+          cp "$src" src/inspect_ai/tool/_sandbox_tools_utils/sandbox_tools_version.txt
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: sandbox-tools-v${{ inputs.version }}
+          path: src/inspect_ai/binaries
+          run-id: ${{ inputs.run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Check the four expected artifacts are present
+        working-directory: src/inspect_ai/binaries
+        env:
+          VERSION: ${{ inputs.version }}
+          LC_ALL: C
+        run: |
+          expected=$(printf 'inspect-sandbox-tools-%s-v%s\n' amd64 "$VERSION" amd64-musl "$VERSION" arm64 "$VERSION" arm64-musl "$VERSION" | sort)
+          # Glob only the artifacts; the build artifact also carries a SHA256SUMS,
+          # which upload_to_s3.py ignores and rewrites.
+          actual=$(ls inspect-sandbox-tools-* | sort)
+          if [[ "$actual" != "$expected" ]]; then
+            echo "::error::Expected exactly:"$'\n'"$expected"$'\n'"Got:"$'\n'"$actual"
+            exit 1
+          fi
+
+      - name: Verify attestations
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ inputs.run_id }}
+          VERSION: ${{ inputs.version }}
+        run: bash scripts/verify-sandbox-tools-attestations.sh "$RUN_ID" "$VERSION" src/inspect_ai/binaries
+
+      # Credentials are assumed as late as possible so nothing above runs with
+      # them. The role trusts only this repo's sandbox-tools-s3 environment.
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          # TODO(admin setup): replace <AWS_ACCOUNT_ID_PLACEHOLDER> with the real
+          # account id when the inspect-sandbox-tools-upload role is created.
+          role-to-assume: arn:aws:iam::<AWS_ACCOUNT_ID_PLACEHOLDER>:role/inspect-sandbox-tools-upload
+          role-duration-seconds: 900
+          aws-region: us-east-2
+
+      # Runs with the runner's stdlib python3: no setup-python, no install, no
+      # cache (upload_to_s3.py and its _digests/_build_config imports are
+      # stdlib-only). Keeps the credentialed step dependency-free.
+      - name: Upload to S3
+        env:
+          VERSION: ${{ inputs.version }}
+        run: python3 src/inspect_ai/tool/_sandbox_tools_utils/upload_to_s3.py "$VERSION"

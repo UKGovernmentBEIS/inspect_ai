@@ -13,14 +13,21 @@ and the recovery steps; those two point here rather than repeat them.
 
 - `scripts/release-sandbox-tools.sh`, the wizard. Six stages: preconditions,
   CI build, S3 upload, digest commit, public verify, get CI green. Run from a
-  checkout of the PR head, by a maintainer with S3 credentials.
+  checkout of the PR head, by a maintainer. It holds no S3 credentials; it
+  starts the publish workflow and waits for it.
 - `.github/workflows/sandbox-tools-build.yml`, the build. Builds the four
   binaries on `main` at a given `sha`, writes `SHA256SUMS`, attests the
   artifacts, then validates them. Holds no AWS credentials and publishes
   nothing.
+- `.github/workflows/sandbox-tools-publish.yml`, the publish. Dispatched by the
+  wizard with the build run id and the version. Re-checks the build run and its
+  attestations, then assumes the S3 role and uploads, in its last step, behind
+  the `sandbox-tools-s3` environment (a required reviewer approves each run).
+  The only path that holds AWS credentials or writes to the bucket.
 - `src/inspect_ai/tool/_sandbox_tools_utils/upload_to_s3.py`, the uploader and
-  the only writer of `SHA256SUMS`. Guards the version and immutability, then
-  round-trips each object.
+  the only writer of `SHA256SUMS`. Runs inside the publish workflow (and
+  locally with `--dry-run`). Guards the version and immutability, skips objects
+  already published with matching bytes, then round-trips each uploaded object.
 - `check-version-bump` and `slow-tool-tests-release` in
   `.github/workflows/build.yml`, the PR gates. The first is fast and cheap; the
   second proves the published bytes were built in CI from the PR's inputs.
@@ -53,7 +60,7 @@ flowchart TD
   E --> F["build, attest SHA256SUMS, validate"]
   F --> D
   D --> G["Download 4 artifacts, verify each attestation names this run attempt 1"]
-  G --> H["upload_to_s3.py: version guard, immutability guard, write SHA256SUMS, upload, round-trip"]
+  G --> H["Dispatch sandbox-tools-publish.yml; reviewer approves sandbox-tools-s3; CI re-checks and uploads; wizard writes SHA256SUMS from the verified artifacts"]
   H --> I["Commit and push SHA256SUMS to the PR branch"]
   I --> J["Public verify 4 objects against SHA256SUMS"]
   J --> K["Digest push triggers a fresh build.yml run"]
@@ -80,10 +87,17 @@ Step by step:
    signing. The run is titled `Build sandbox tools at {SHA}`.
 4. Download and verify (stage 2): the wizard downloads the four artifacts and
    checks that each one's attestation names this run's first attempt.
-5. Upload (stage 3): `upload_to_s3.py` checks the version matches the committed
-   file, hashes the four local artifacts, refuses any already published with
-   different bytes, rewrites `SHA256SUMS`, uploads, and round-trip verifies
-   each object.
+5. Upload (stage 3): the wizard re-checks main, then dispatches
+   `sandbox-tools-publish.yml` with the build run id and the version and prints
+   the run URL as the approval link. A required reviewer approves the
+   `sandbox-tools-s3` deployment; CI then re-checks the build run and its
+   attestations and runs `upload_to_s3.py` to upload. The uploader checks the
+   version matches the committed file, hashes the four local artifacts, skips
+   any already published with matching bytes, refuses any published with
+   different bytes, rewrites `SHA256SUMS`, uploads the rest with
+   `--if-none-match '*'`, and round-trip verifies each. After the run succeeds
+   the wizard runs the uploader with `--dry-run` locally to write the
+   committable `SHA256SUMS` from the same artifacts.
 6. Digest commit (stage 4): the wizard commits `SHA256SUMS` as
    `Pin sandbox-tools v{V} artifact digests` and pushes it to the PR branch.
 7. Public verify (stage 5): downloads the four public objects and checks them
@@ -195,14 +209,17 @@ The tables below reference these.
 | Built commit unreadable from the run title (gate) | "Can't read the built commit from run" | R2 |
 | Symlink in the build inputs (gate) | "Symlinks in the sandbox tools build inputs ... aren't allowed" | Replace it with a regular file (R4); if bytes were already published, also R2 |
 
-### Upload and publish (wizard stage 3, upload_to_s3.py)
+### Upload and publish (wizard stage 3, sandbox-tools-publish.yml, upload_to_s3.py)
+
+The upload runs in CI, so these appear as a failed publish run (the wizard's
+`gh run watch` exits non-zero) unless noted otherwise.
 
 | Trigger | What you see | Recovery |
 |---|---|---|
-| Object already published with different bytes | upload "is already published with different bytes", wizard "If it hit the immutability guard" | If a build input changed, R2. If the bytes are from another valid CI run of these same inputs, keep the published bytes, no bump, and finish from that run (see More than one matching build) |
-| Upload interrupted part way (crash or Ctrl-C) | some objects on S3, `SHA256SUMS` rewritten but uncommitted; the gate later 404s on the missing object | Re-run the wizard; re-upload is idempotent for identical bytes and finishes the rest (R1) |
-| Round-trip verify mismatch | "does not match the local digest" | Transient (the just-uploaded object read back short); re-run the upload (R1). A pre-existing wrong object cannot reach here, it trips the immutability guard above |
-| Local artifact missing | "not found" | Re-run the wizard so the download repopulates `binaries/` (R1) |
+| Object already published with different bytes | publish run fails at the upload step with "is already published with different bytes" | If a build input changed, R2. If the bytes are from another valid CI run of these same inputs, keep the published bytes, no bump, and finish from that run (see More than one matching build) |
+| Publish run failed or was interrupted (crash, cancelled, or approval expired) | the wizard "Publish run failed"; perhaps some objects on S3 | Re-run the wizard; it waits on an in-progress publish run or dispatches a new one, and the uploader re-uploads idempotently for identical bytes and skips what is already published (R1) |
+| Round-trip verify mismatch (in CI) | publish run fails with "does not match the local digest" | Transient (the just-uploaded object read back short); re-run the wizard (R1). A pre-existing wrong object cannot reach here, it trips the immutability guard above |
+| Build run check fails in the publish workflow (not success, not first attempt, wrong branch/event, or version file mismatch) | publish run fails before any upload | R3 for a build-run problem; fix the version if the message names a version mismatch (R4) |
 
 ### Digests, verify, and the gate (wizard stages 4-6, slow-tool-tests-release)
 
@@ -224,7 +241,7 @@ leaves, and what a re-run does:
 |---|---|---|
 | Stage 1, preconditions | nothing | starts over |
 | Stage 2, build | perhaps a dispatched build run on `main`; nothing published | reuses the run if it finished successfully, waits on it if still running, or dispatches one if none exists |
-| Stage 3, upload | some or all objects on S3; `SHA256SUMS` rewritten locally, uncommitted | reuses the build, re-uploads idempotently, round-trip verifies |
+| Stage 3, upload | perhaps a publish run in progress or finished; perhaps some or all objects on S3; `SHA256SUMS` not yet written locally (the wizard writes it only after the run succeeds) | reuses the build, waits on an in-progress publish run or dispatches one, re-uploads idempotently in CI, then writes `SHA256SUMS` locally |
 | Stage 4, after the digest commit but before the push | a local digest commit sits ahead of the PR head | stage 1's head check fails ("This checkout is at ... but PR #N's head is"); push the existing commit, then re-run |
 | Stage 4, after the digest commit is pushed | `SHA256SUMS` committed and pushed; HEAD is now the digest commit | reuse still matches, since `SHA256SUMS` is not a build input; stage 3 re-upload is idempotent; stage 4 reports "digests are already committed" |
 | Stage 5-6 | published and committed | idempotent; re-verifies and watches the gate |

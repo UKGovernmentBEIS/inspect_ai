@@ -43,6 +43,8 @@ CREDENTIAL_JOBS = [
     ("sandbox-tools-build.yml", "build"),
     ("sandbox-tools-build.yml", "attest"),
     ("sandbox-tools-build.yml", "validate"),
+    # Holds the S3 upload credentials.
+    ("sandbox-tools-publish.yml", "publish"),
 ]
 
 # The cache-mode each job that does not save to the Actions cache must declare.

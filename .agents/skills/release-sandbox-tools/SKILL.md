@@ -23,14 +23,16 @@ scripts/release-sandbox-tools.sh [--dry-run] [--auto]
 ```
 
 **Agents: run it with `--auto`.** In auto mode every confirmation resolves to
-a safe default, and anything that needs a human mid-run (`aws sso login`)
-aborts with instructions instead of waiting. Without
-`--auto` the prompts need a terminal, so a run from your shell exits
-immediately. Before starting, check `aws sts get-caller-identity`; if
-credentials are stale, ask the user to run `aws sso login` first — the upload
-uses their ambient AWS session. The wizard also needs `gh` authenticated as
-someone who can dispatch workflows upstream. Run it in the background and
-monitor it: the CI build takes about 10 minutes.
+a safe default. Without `--auto` the prompts need a terminal, so a run from
+your shell exits immediately. The wizard holds no AWS credentials: the upload
+runs in the `sandbox-tools-publish.yml` workflow, which it dispatches and waits
+on. That workflow uploads only after a required reviewer (jjallaire,
+dragonstyle, or epatey) approves its `sandbox-tools-s3` deployment, so the
+wizard prints the run URL as the approval link and then blocks on the run: a
+reviewer must approve it in GitHub for the run to finish. The wizard needs `gh`
+authenticated as someone who can dispatch workflows upstream. Run it in the
+background and monitor it: the CI build takes about 10 minutes, then the
+publish run waits for approval.
 
 Run by a maintainer, for either kind of PR:
 
@@ -72,9 +74,11 @@ Running earlier wastes builds if review rounds change the injectable source.
    merging upstream main as of its last fetch leaves the build inputs
    unchanged), dispatches
    `sandbox-tools-build.yml` at the head commit and waits for it, downloads
-   and attestation-checks the artifacts, uploads to S3, commits and pushes
-   the rewritten `SHA256SUMS`, and verifies the published bytes — don't redo
-   those steps around it. It also resumes: a successful build run for the
+   and attestation-checks the artifacts, dispatches `sandbox-tools-publish.yml`
+   to upload them in CI (after a required reviewer approves the
+   `sandbox-tools-s3` deployment, with the wizard printing the run URL and
+   waiting), commits and pushes the rewritten `SHA256SUMS`, and verifies the
+   published bytes; don't redo those steps around it. It also resumes: a successful build run for the
    same commit is reused, so stopping and re-running (or dry-run then real
    run) is cheap. If the build fails on a flake, re-run the wizard, which
    dispatches a new build; don't use GitHub's re-run buttons, since only a
