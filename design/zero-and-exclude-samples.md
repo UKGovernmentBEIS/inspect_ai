@@ -33,7 +33,8 @@ samples and run with the log's recorded models and with the run settings
 eval-retry restores from a log (epochs, approval, review and sentinel
 policies, sample limits, generate config), through a helper the two share.
 Zero refuses a sample whose limits were retuned while it ran, and one whose
-record cannot show the limits it ran under. It copies the verdicts in.
+record a retry carried over from an earlier attempt, since the log does not
+record the settings that attempt ran under. It copies the verdicts in.
 Neither applies to a log that is still being written.
 
 ## Why
@@ -451,7 +452,13 @@ epoch=...)`:
   explanation=provenance.reason, provenance=provenance)`. `answer` and
   `metadata` are `UNCHANGED`. The scorer's answer and grader metadata are
   evidence about the sample; the exclusion is a decision about it. A score
-  created by the edit has `answer` and `metadata` `None`.
+  created by the edit has `answer` and `metadata` `None`. One metadata key
+  is not kept: because the edit sets `reason`, `edit_score()` drops a
+  legacy `metadata["unscored_reason"]` from the current score
+  (`src/inspect_ai/log/_score.py:137-143`), so that an older log's reason
+  does not override `"excluded"` when it is read again. The original
+  metadata, that key included, stays in `history[0]`. Zero replaces the
+  metadata with the verdict's, so the same applies to it.
 - **Zero:** `ScoreEdit(value=v.value, answer=v.answer,
   explanation=v.explanation, reason="zeroed", metadata=v.metadata or {},
   provenance=provenance)`, where `v` is the empty attempt's score of the same
@@ -981,8 +988,8 @@ the task may have changed since the log was written".
    `eval_resolve_tasks()` must return exactly one task; the scratch eval
    reuses it, so the task file is executed once.
 5. Establishes that each target id names the same sample it named in the
-   original run, and that it ran under the limits the scratch eval
-   replays, and refuses otherwise. Three checks, all before the scratch
+   original run, and that it ran under the settings the scratch eval
+   replays, and refuses otherwise. Four checks, all before the scratch
    eval:
 
    **Static dataset.** Zero refuses a task whose samples come from a
@@ -1021,70 +1028,71 @@ the task may have changed since the log was written".
        `ensure_unique_ids`): "the task's dataset holds more than one sample
        with the id <id>".
 
-   **Recorded limits.** The scratch eval replays the log's header limits
-   (step 6), which are not the limits a sample ran under when an operator
-   retuned it with `inspect ctl config` (see "Per-sample effective limits"
-   above). Zero does not replay a retune; it refuses the target instead:
+   **Records of this attempt.** The scratch eval replays the log's header
+   (step 6): its limits and policies, and step 4 pins them on the task copy.
+   The header describes the attempt that wrote the log, and only that
+   attempt's records ran under it. eval-retry and eval-set retries copy a
+   clean record from the earlier log into the new one unchanged
+   (`src/inspect_ai/_eval/task/run.py:1518-1525`), with its earlier
+   `started_at` and `uuid` (verified with a retried `mockllm` log), under a
+   header the new attempt writes from its own run: the retry rebuilds the
+   eval-level settings from the earlier log, but a setting that log recorded
+   as `None` falls back to the reloaded task's default
+   (`src/inspect_ai/_eval/run.py:333-408`), so a task edited between the
+   attempts gives the new header turn, working or cost limits, or policies,
+   that the carried record never ran under, and none of those is recorded
+   per sample. The new header also carries the new attempt's Inspect
+   version (`src/inspect_ai/_eval/task/log.py:225-227`). Zero therefore
+   accepts only records the log's own attempt wrote:
 
-   For every targeted record (each targeted epoch):
+   - the record's `started_at` is present and not earlier than
+     `log.stats.started_at` (also present). Otherwise: "sample <id> epoch
+     <n> was carried over from an earlier attempt of this log (by
+     eval-retry or an eval-set retry), whose settings the log does not
+     record; zero replays only the settings of the attempt that wrote the
+     log: exclude the sample instead". The comparison spans attempts, so it
+     assumes their clocks agree, as seeded retry already does
+     ([Retry seeded attempt log](retry-seeded-attempt-log.md)).
+     `stats.started_at` is recorded to the second, so a record that started
+     in the same second as the attempt counts as the attempt's own.
 
-   - **Token limit.** The record's (`token_limit`, `token_limit_type`) must
-     equal the header's, normalized to (count, type) with type `"all"` for a
-     plain count and (`None`, `None`) for no limit. Every Inspect that can
-     retune records the sample's token limit (the field predates retunes,
-     and 0.3.260 already reads it through the override,
-     `src/inspect_ai/util/_limit_overrides.py:150`), so a missing field means
-     the sample had no token limit.
-   - **Message and time limits, header set.** When the header sets
-     `message_limit` (or `time_limit`), the record's field must equal it. A
-     record without the field (written before 0.3.261, or carried over from
-     such an attempt) does not equal it and is refused.
-   - **Message and time limits, header unset.** When the header's value is
-     `None`, the record's must be `None` too, and that alone is no
-     evidence: the writer omits `None` fields, and a record written before
-     0.3.261 omits these fields whatever the sample ran under (a 0.3.260
-     retune from no limit, or a task-level limit the task has since
-     dropped). Zero accepts the pair only when the record was written by
-     this log's own attempt and that attempt's Inspect records these
-     fields:
-     - the record's `started_at` is present and not earlier than
-       `log.stats.started_at` (also present). eval-retry and eval-set retries
-       copy a clean prior record into the new log unchanged
-       (`src/inspect_ai/_eval/task/run.py:1518-1525`), with its earlier
-       `started_at`, under a header the new attempt writes with its own
-       Inspect version (`src/inspect_ai/_eval/task/log.py:225-227`); I verified
-       with a retried `mockllm` log that the carried record keeps its
-       original `started_at` and `uuid`. `stats.started_at` is recorded to
-       the second, so a carried record that started in the same second as
-       the new attempt counts as the attempt's own; the two attempts then
-       ran within one second of each other.
-     - `log.eval.packages["inspect_ai"]` is present and at least 0.3.261,
-       compared with the PEP 440 ordering `_installed_version()` already
-       applies (`src/inspect_ai/_util/version.py`; its parsing moves into a
-       `parse_version(raw)` helper beside it), so a development build before
-       that release counts as older.
-
-   Otherwise zero refuses the target: "sample <id> epoch <n> ran under
-   <field> <recorded>, not the log's <replayed> (it was retuned while it
-   ran)" for a differing value, or "sample <id> epoch <n> does not show the
-   <field> it ran under (<carried over from an earlier attempt | the log was
-   written by Inspect <version>, which does not record it>), so zero cannot
-   tell whether it was retuned", each ending "zero replays the log's limits
-   only: exclude the sample instead". A missing field is never read as an
-   equal limit. A carried-over record in a log that sets no message or time
-   limit is therefore refused even when its attempt was recent; it can be
+   This refuses every carried-over record, including a clean one from a
+   recent attempt; an errored sample that a retry re-ran is the new
+   attempt's own record and can be zeroed. A carried-over record can be
    excluded.
 
-   The turn, working and cost limits cannot be retuned, so the header holds
-   the values every record of this attempt ran under; a record carried over
-   from an earlier attempt ran under that attempt's header, which a retry
-   rebuilds from the earlier log with the same values (for cost, with the
-   helper of step 3). Targets may differ among themselves only
-   through a retune, and each retuned one is refused by name, so every target
-   that passes ran under the limits the scratch eval passes. A record holds
-   the ceilings in force when the sample ended, so a retune that was set and
-   then cleared while a sample ran leaves no trace on it, and zero cannot
-   detect that one.
+   **Recorded limits.** A record of this attempt ran under the header's
+   limits unless an operator retuned it with `inspect ctl config` (see
+   "Per-sample effective limits" above). Zero does not replay a retune; it
+   refuses the target instead. For every targeted record (each targeted
+   epoch):
+
+   - `log.eval.packages["inspect_ai"]` is present and at least 0.3.261,
+     compared with the PEP 440 ordering `_installed_version()` already
+     applies (`src/inspect_ai/_util/version.py`; its parsing moves into a
+     `parse_version(raw)` helper beside it), so a development build before
+     that release counts as older. Since the record is the attempt's own,
+     that version wrote it. An older writer omits the per-sample message
+     and time limits, and the writer omits `None` fields, so their absence
+     would not tell "no limit" from "not recorded": "the log was written by
+     Inspect <version or 'an unknown version'>, which does not record the
+     limits each sample ran under, so zero cannot tell whether they were
+     retuned".
+   - The record's `message_limit` and `time_limit` equal the header's, and
+     its (`token_limit`, `token_limit_type`) equals the header's,
+     normalized to (count, type) with type `"all"` for a plain count and
+     (`None`, `None`) for no limit. Otherwise: "sample <id> epoch <n> ran
+     under <field> <recorded>, not the log's <replayed> (it was retuned
+     while it ran)".
+
+   Both refusals end "zero replays the log's limits only: exclude the
+   sample instead". The turn, working and cost limits cannot be retuned, so
+   every record of this attempt ran under the header's. Records of this
+   attempt differ among themselves only through a retune, and each retuned
+   one is refused by name, so every target that passes ran under the limits
+   the scratch eval passes. A record holds the ceilings in force when the
+   sample ended, so a retune that was set and then cleared while a sample
+   ran leaves no trace on it, and zero cannot detect that one.
 
    Steward's datasets are static and use string ids (see "Who uses which
    shapes"). Exclusion needs none of this: it edits the logged record and
@@ -1354,10 +1362,10 @@ inspect log zero    LOG_FILE --sample ID [--sample ID ...] [--epoch N]
   is edited.
 - **Retuned limits and older records.** A target whose recorded limits
   differ from the log's header, because an operator retuned them while it
-  ran, and a target whose record cannot show the message or time limit it
-  ran under (written before Inspect recorded them, or carried over by a
-  retry into a log that sets neither), are refused in step 5, and nothing is
-  edited. Exclusion accepts both.
+  ran, a target whose record was carried over from an earlier attempt by a
+  retry, and every target of a log written before Inspect recorded
+  per-sample limits, are refused in step 5, and nothing is edited.
+  Exclusion accepts all three.
 - **Edited task file.** A task file edited since the log was written runs as
   edited, as eval-retry does, provided its scorers' names and options are
   unchanged (step 8). The scratch log is not kept, but the zero edits record
@@ -1535,7 +1543,14 @@ No migration required.
 - **Steward.** Its edits keep working. Its `"excluded"` / `"zeroed"` strings
   are the new standard reasons, so its logs read the same as Inspect's. A
   Steward zero that copied a `NaN` verdict is not treated as zeroed: zeroing
-  it again runs an empty attempt.
+  it again runs an empty attempt. Steward zeroes errored samples and clean
+  ones it rules on, such as a successful sandbox escape
+  (`docs/scanners.qmd:56` of meridianlabs-ai/inspect_steward). An errored
+  sample is never carried over by a retry (reuse needs `error is None`), so
+  its record is the latest attempt's and zero accepts it. A clean sample
+  that an eval-set retry carried over from an earlier attempt is refused by
+  zero (step 5), where Steward's side run zeroes it under the current task;
+  it can be excluded.
 
 ## Security
 
@@ -1585,7 +1600,9 @@ backends; run the zero tests with `--runtrio` locally.
   - `exclude_samples`, on a multi-scorer sample with a deduplicated name
     (`match1`), an appended one and a solver-written one: every score
     becomes `NaN` with reason, explanation and provenance. `history[0]` is
-    the original, and `answer` and `metadata` are unchanged.
+    the original, and `answer` and `metadata` are unchanged, except that a
+    legacy `metadata["unscored_reason"]` on one score is removed from the
+    current score and kept in `history[0]`, also after a write and read.
   - `exclude_samples` on an errored sample with no scores, in a log with
     scorers `[match(), includes()]`: it gets one excluded score, under
     `match`, and none under `includes`; `match`'s `unscored_samples` counts
@@ -1771,16 +1788,19 @@ backends; run the zero tests with `--runtrio` locally.
       second succeeds; zeroing both is refused and nothing is edited. A
       plain-count token limit (`token_limit_type` absent in the header,
       `"all"` on the sample) passes;
-    - an older log with no message or time limit: the same log with
-      `eval.packages["inspect_ai"]` set to `0.3.260`, to `0.3.261.dev3`, and
-      removed, is refused as not recording per-sample limits; `0.3.261`
-      passes. With a header `message_limit` and a record that lacks the
-      field, the target is refused whatever the version;
-    - a carried-over record: a log with no message or time limit in which
-      one sample errored and was retried with eval-retry. Zeroing the
-      re-run sample succeeds; zeroing the carried-over clean sample is
-      refused as carried over. A record edited to look 0.3.260-written
-      (fields removed) and carried the same way is refused too;
+    - an older log: the same log with `eval.packages["inspect_ai"]` set to
+      `0.3.260`, to `0.3.261.dev3`, and removed, is refused as not
+      recording per-sample limits; `0.3.261` passes;
+    - carried-over records: a log written with message and time limits and
+      no turn limit, in which one sample errored, retried with eval-retry
+      after the task factory was edited to declare `turn_limit=1`, with a
+      `Task.setup` that would hit that limit. The retried header records the
+      turn limit, and the carried-over clean sample's message, time and
+      token fields still match it. Zeroing the re-run sample runs under the
+      new header; zeroing the carried-over sample is refused as carried
+      over, before any scratch sample runs, and the log is unchanged. The
+      carried record's `started_at` is taken from the real earlier run, not
+      set by hand;
     - a task edited after the log was written to declare `message_limit=20`
       and an approval policy, where the log ran without either, and whose
       scorer returns 1 when `state.message_limit` is `None`: the scratch eval
@@ -1917,6 +1937,11 @@ additions later:
   through the zero edit. Beyond what live exclusion needs, it needs a
   disposition carried across `retry_on_error` re-parks, and the zero
   refusals applied at scoring time.
+- **Zero records carried over by a retry.** Zero refuses a record copied
+  from an earlier attempt, because the log records only the latest
+  attempt's settings. Recording the turn, working and cost limits and the
+  policies on each sample, or the settings of every attempt in the header,
+  would let zero replay a carried-over record's own settings.
 
 ## Not this design
 
