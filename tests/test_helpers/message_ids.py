@@ -43,7 +43,7 @@ def shown(message: ChatMessage) -> str:
     view: dict[str, Any] = {"role": message.role, "content": content}
     if isinstance(message, ChatMessageAssistant):
         view["calls"] = [
-            [call.id, call.type, call.function, call.arguments]
+            [call.id, call.type, call.function, _json_value(call.arguments)]
             for call in message.tool_calls or []
         ]
     if isinstance(message, ChatMessageTool):
@@ -52,6 +52,17 @@ def shown(message: ChatMessage) -> str:
             [message.error.type, message.error.message] if message.error else None,
         ]
     return json.dumps(view, sort_keys=True, default=str)
+
+
+def _json_value(value: Any) -> Any:
+    """`value` as JSON shows it, where 5.0 and 5 are the same number."""
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    if isinstance(value, dict):
+        return {k: _json_value(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_json_value(v) for v in value]
+    return value
 
 
 def sample_messages(sample: EvalSample) -> list[tuple[str, ChatMessage]]:

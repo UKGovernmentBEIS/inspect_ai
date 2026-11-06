@@ -11,7 +11,7 @@ from shortuuid import uuid as shortuuid
 
 from inspect_ai._util.content import ContentReasoning, ContentText
 from inspect_ai._util.hash import mm3_hash
-from inspect_ai._util.json import jsonable_python
+from inspect_ai._util.json import json_normalize_numbers, jsonable_python
 from inspect_ai.model._assistant_internal import copy_assistant_internal
 
 from ._chat_message import (
@@ -137,8 +137,14 @@ def edit_id(source_id: str, content: str) -> str:
 
 
 def canonical_tool_arguments(arguments: dict[str, Any]) -> str:
-    """Serialize tool arguments consistently after JSON-safe key normalization."""
-    return json.dumps(jsonable_python(arguments), sort_keys=True, default=str)
+    """Serialize tool arguments so that `json_equal` arguments serialize alike.
+
+    A scaffold's JSON round-trip (5.0 sent back as 5) then leaves its copy of a
+    call unchanged, as the sandbox bridge's execution grants already treat it.
+    """
+    return json.dumps(
+        json_normalize_numbers(jsonable_python(arguments)), sort_keys=True, default=str
+    )
 
 
 def content_hash(message: ChatMessage) -> str:

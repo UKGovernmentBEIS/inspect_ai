@@ -2309,23 +2309,6 @@ async def test_scaffold_local_tool_calls_are_not_stored() -> None:
     assert len(bridge._tool_execution_grants) == 0
 
 
-async def test_host_tool_grant_matches_numeric_reserialization() -> None:
-    """A JS scaffold's JSON round-trip coerces 5.0 to 5; both must match."""
-    tool = AsyncMock(return_value="contents")
-    bridge = sandbox_bridge_with_tool(
-        tool, [ApprovalPolicy(auto_approver("approve"), "*")]
-    )
-    call = ToolCall(id="approved", function="read_file", arguments={"offset": 5.0})
-
-    await run_bridge(
-        [tool_calls_output(call)], bridge=bridge, tools=declare(call.function)
-    )
-
-    result = await call_host_tool(bridge)("host", "read_file", {"offset": 5})
-
-    assert result == "contents"
-
-
 async def test_host_tool_grant_normalizes_non_json_arguments() -> None:
     """Approver `modify` can inject non-JSON values.
 
@@ -5398,6 +5381,48 @@ async def test_reused_call_id_pairs_again() -> None:
     assert [e.id for e in recorded.tool_events] == ["same", "same"]
 
 
+@pytest.mark.parametrize("consumed", [False, True])
+async def test_host_result_is_not_claimed_through_an_unexecuted_proposals_id(
+    consumed: bool,
+) -> None:
+    """A copy carrying an earlier, never-executed proposal's id and answer isn't the executed call.
+
+    Once that proposal executes, its reply is tracked and excludes the id too.
+    """
+    bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)
+    earlier = ToolCall(id="earlier", function="read_file", arguments={"path": "a"})
+    current = ToolCall(id="current", function="read_file", arguments={"path": "b"})
+
+    with recorded_transcript() as recorded:
+        await propose(bridge, earlier)
+        run = await run_bridge(
+            [tool_calls_output(current)], bridge=bridge, tools=declare("read_file")
+        )
+        reply = run.output.message
+        await call_host_tool(bridge)("host", "read_file", {"path": "b"})
+        if consumed:
+            await call_host_tool(bridge)("host", "read_file", {"path": "a"})
+        copy = reply.model_copy(
+            update={
+                "tool_calls": [
+                    ToolCall(
+                        id="earlier", function="read_file", arguments={"path": "b"}
+                    )
+                ]
+            }
+        )
+        cancelled = ChatMessageTool(
+            id="cancelled",
+            content="Cancelled.",
+            tool_call_id="earlier",
+            function="read_file",
+        )
+        bridge._link_result_messages([copy, cancelled], [reply.id, None])
+
+    event = next(e for e in recorded.tool_events if e.id == "current")
+    assert event.message_id is None
+
+
 async def test_large_arguments_on_a_denied_call_are_condensed() -> None:
     bridge = sandbox_bridge_with_tool(AsyncMock(), None)
     path = "x" * (1024 * 1024)
@@ -5842,7 +5867,9 @@ async def _suffix_filter(
 
 
 HostDialect = Literal["completions", "responses", "anthropic", "google"]
-HostMode = Literal["plain", "filter", "approval", "request_copy", "request_edit"]
+HostMode = Literal[
+    "plain", "filter", "approval", "request_copy", "request_edit", "javascript"
+]
 
 
 def _generating_request_filter(edit: bool) -> Callable[..., Awaitable[ModelOutput]]:
@@ -5869,9 +5896,16 @@ def _generating_request_filter(edit: bool) -> Callable[..., Awaitable[ModelOutpu
 class _HostConversation:
     """One dialect's wire conversation, for a scaffold running every call as a host tool."""
 
-    def __init__(self, dialect: HostDialect, prompt: str, info: ToolInfo) -> None:
+    def __init__(
+        self,
+        dialect: HostDialect,
+        prompt: str,
+        info: ToolInfo,
+        javascript: bool = False,
+    ) -> None:
         self.dialect = dialect
         self.info = info
+        self.javascript = javascript
         self.history: list[dict[str, Any]] = (
             [{"role": "user", "parts": [{"text": prompt}]}]
             if dialect == "google"
@@ -5881,7 +5915,21 @@ class _HostConversation:
     async def request(
         self, bridge: SandboxAgentBridge
     ) -> list[tuple[str, dict[str, Any]]]:
-        """Send the conversation; append the reply and return its (call id or name, arguments)."""
+        """Send the conversation; append the reply and return its (call id or name, arguments).
+
+        With `javascript`, the reply and its arguments are kept as a JavaScript
+        scaffold's JSON round-trip leaves them.
+        """
+        start = len(self.history)
+        calls = await self._request(bridge)
+        if self.javascript:
+            self.history[start:] = _javascript_json(self.history[start:])
+            calls = [(id, _javascript_json(arguments)) for id, arguments in calls]
+        return calls
+
+    async def _request(
+        self, bridge: SandboxAgentBridge
+    ) -> list[tuple[str, dict[str, Any]]]:
         info = self.info
         parameters = info.parameters.model_dump(exclude_none=True)
         match self.dialect:
@@ -6028,6 +6076,19 @@ class _HostConversation:
                 )
 
 
+def _javascript_json(value: Any, key: str | None = None) -> Any:
+    """`value` after a JavaScript JSON round-trip, which writes 5.0 as 5."""
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    if isinstance(value, str) and key == "arguments":
+        return json.dumps(_javascript_json(json.loads(value)))
+    if isinstance(value, dict):
+        return {k: _javascript_json(v, k) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_javascript_json(v) for v in value]
+    return value
+
+
 def _numbered_results() -> AsyncMock:
     """A host tool mock whose every result is different."""
     count = 0
@@ -6061,7 +6122,9 @@ def host_scaffold(mode: HostMode, dialect: HostDialect = "completions") -> Agent
             else None,
         )
         [info] = declare("mcp__host__read_file")
-        conversation = _HostConversation(dialect, state.messages[0].text, info)
+        conversation = _HostConversation(
+            dialect, state.messages[0].text, info, javascript=mode == "javascript"
+        )
         while True:
             calls = await conversation.request(bridge)
             if not calls:
@@ -6091,14 +6154,17 @@ def _host_outputs() -> list[ModelOutput]:
 
 
 def _run_host_scaffold(
-    mode: HostMode, dialect: HostDialect, tmp_path: Path
+    mode: HostMode,
+    dialect: HostDialect,
+    tmp_path: Path,
+    outputs: list[ModelOutput] | None = None,
 ) -> EvalSample:
     log = eval(
         Task(
             dataset=[Sample(input="Read both files twice.")],
             solver=host_scaffold(mode, dialect),
         ),
-        model=get_model("mockllm/model", custom_outputs=_host_outputs()),
+        model=get_model("mockllm/model", custom_outputs=outputs or _host_outputs()),
         log_dir=str(tmp_path),
     )[0]
     assert log.status == "success", log.error
@@ -6181,6 +6247,34 @@ def test_host_tool_events_name_their_result_message(
         # leaves them unlinked
         assert all(e.message_id is None for e in events)
         return
+    _assert_linked(sample, events)
+
+
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+def test_host_tool_grant_matches_numeric_reserialization(
+    dialect: HostDialect, tmp_path: Path
+) -> None:
+    """A JavaScript scaffold sends 5.0 back as 5: the call still runs and links its result."""
+    call = ToolCall(
+        id="call",
+        function="mcp__host__read_file",
+        arguments={"path": "a", "offset": 5.0},
+    )
+    sample = _run_host_scaffold(
+        "javascript",
+        dialect,
+        tmp_path,
+        [tool_calls_output(call), ModelOutput.from_content("mockllm/model", "done")],
+    )
+
+    [reply] = [
+        m
+        for m in sample.messages
+        if isinstance(m, ChatMessageAssistant) and m.tool_calls
+    ]
+    assert reply.tool_calls and type(reply.tool_calls[0].arguments["offset"]) is int
+    events = [e for e in sample.events if isinstance(e, ToolEvent)]
+    assert len(events) == 1 and events[0].error is None
     _assert_linked(sample, events)
 
 

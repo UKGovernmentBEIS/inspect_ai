@@ -13,9 +13,13 @@ from inspect_ai.model import (
     ModelOutput,
     get_model,
 )
-from inspect_ai.model._message_ids import edited_message, stable_message_ids
+from inspect_ai.model._message_ids import (
+    canonical_tool_arguments,
+    edited_message,
+    stable_message_ids,
+)
 from inspect_ai.model._model import resolve_reasoning_history, resolve_tool_model_input
-from inspect_ai.tool import ToolDef
+from inspect_ai.tool import ToolCall, ToolDef
 
 
 class TestStableMessageIds:
@@ -325,6 +329,25 @@ def test_reasoning_summary_edit_gets_a_new_id() -> None:
 
     assert edited.id != reply.id
     assert shown(edited) != shown(reply)
+
+
+def test_tool_arguments_compare_by_json_numbers() -> None:
+    """5.0 and 5 are one JSON number, but a bool is not a number."""
+    assert canonical_tool_arguments({"n": [5.0, {"m": -0.0}]}) == (
+        canonical_tool_arguments({"n": [5, {"m": 0}]})
+    )
+    assert canonical_tool_arguments({"n": 5.5}) != canonical_tool_arguments({"n": 5})
+    assert canonical_tool_arguments({"n": True}) != canonical_tool_arguments({"n": 1})
+    assert canonical_tool_arguments({"n": 1.0}) != canonical_tool_arguments({"n": True})
+
+    def reply(arguments: dict[str, object]) -> ChatMessageAssistant:
+        call = ToolCall(id="c1", function="read", arguments=arguments)
+        return ChatMessageAssistant(id="reply", content="", tool_calls=[call])
+
+    assert (
+        edited_message(reply({"n": 5.0}), tool_calls=reply({"n": 5}).tool_calls).id
+        == "reply"
+    )
 
 
 def test_tool_model_input_derives_ids() -> None:

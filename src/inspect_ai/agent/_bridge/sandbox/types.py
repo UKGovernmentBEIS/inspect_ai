@@ -269,6 +269,9 @@ class SandboxAgentBridge(AgentBridge):
                     "them distinct docstrings to restore one-to-one matching."
                 )
 
+    def _unexecuted_call_ids(self) -> set[str]:
+        return {grant.proposal.call.id for grant in self._tool_execution_grants}
+
     def consume_tool_execution_grant(
         self, server: str, tool: str, arguments: dict[str, Any]
     ) -> "_ToolExecutionGrant | None":

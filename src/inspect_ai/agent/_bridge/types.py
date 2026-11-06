@@ -149,7 +149,7 @@ def _is_handed(copy_call: ToolCall, handed: _HandedCall) -> bool:
 
 
 def _copy_calls(
-    handed: _HandedCall, copy_calls: list[ToolCall], tracked_ids: Collection[str]
+    handed: _HandedCall, copy_calls: list[ToolCall], excluded_ids: Collection[str]
 ) -> list[ToolCall]:
     """The calls in a scaffold's copy of a reply that may be `handed`.
 
@@ -157,9 +157,9 @@ def _copy_calls(
     can't be told apart. Otherwise the one with its id, function and arguments.
     When no copy call has its id (Google re-derives call ids), the ones with
     its function and arguments and an id the bridge handed in no tracked reply
-    (`tracked_ids`), but only if `handed` is the reply's only call with that
-    function and arguments and its handed ids are known. Identical calls can't
-    be told apart, so they are never paired.
+    and no unexecuted proposal (`excluded_ids`), but only if `handed` is the
+    reply's only call with that function and arguments and its handed ids are
+    known. Identical calls can't be told apart, so they are never paired.
     """
     if handed.id_shared:
         return []
@@ -169,7 +169,7 @@ def _copy_calls(
         ]
     if handed.identical != 1 or handed.handed_ids is None:
         return []
-    return [c for c in copy_calls if c.id not in tracked_ids and _is_handed(c, handed)]
+    return [c for c in copy_calls if c.id not in excluded_ids and _is_handed(c, handed)]
 
 
 def _settle(
@@ -529,7 +529,9 @@ class AgentBridge:
         isn't linked again, and a kept id another tracked reply also handed
         doesn't link while that reply's call is unlinked (`_tracked_call_ids`).
         No call links while another tracked reply keeps no handed ids: any id
-        in the copy could be one of that reply's unexecuted calls.
+        in the copy could be one of that reply's unexecuted calls. A call
+        matched by function and arguments doesn't take the id of a call
+        proposed but not executed (`_unexecuted_call_ids`).
 
         Each call settles on its own. One the copy can't identify, or with no
         result yet, keeps waiting: results sent in separate requests, after
@@ -546,6 +548,7 @@ class AgentBridge:
             if next(iter(calls.values())).handed.handed_ids is None
         }
         linked_ids: set[str] = set()
+        excluded_ids: set[str] = set()
 
         def linked_result(message_id: str | None) -> bool:
             while message_id is not None:
@@ -579,6 +582,7 @@ class AgentBridge:
             copy_calls = message.tool_calls or []
             if tracked_ids is None:
                 tracked_ids = self._tracked_call_ids()
+                excluded_ids = tracked_ids.keys() | self._unexecuted_call_ids()
                 linked_ids = {
                     linked
                     for ids in tracked_ids.values()
@@ -587,7 +591,7 @@ class AgentBridge:
                 }
             tracked = tracked_ids
             candidates = {
-                call_index: _copy_calls(entry.handed, copy_calls, tracked_ids)
+                call_index: _copy_calls(entry.handed, copy_calls, excluded_ids)
                 for call_index, entry in awaited.items()
                 if not entry.settled
             }
@@ -617,6 +621,9 @@ class AgentBridge:
                     linked = awaited[call_index].message_id
                     if linked is not None:
                         linked_ids.add(linked)
+
+    def _unexecuted_call_ids(self) -> set[str]:
+        return set()
 
     def _tracked_call_ids(self) -> dict[str, list[tuple[str, str | None]]]:
         """Ids the bridge handed in the replies it still tracks.
