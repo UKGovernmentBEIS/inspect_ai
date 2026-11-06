@@ -35,8 +35,8 @@ it with, as `eval()` and `inspect eval` take them, and runs its empty
 attempts in a scratch eval of that task restricted to the targeted samples.
 Exclusion may take the task to recompute the log's metrics with; without
 it, the metrics are rebuilt from the registry as an untrusted recompute does
-today. A task is refused when its name, scorer names, metric names, epochs or
-epoch reducer names differ from the log's, but its options, code and
+today. A task is refused when its name or its scorer names differ from the
+log's, but its options, metrics, epochs, code and
 settings are the caller's responsibility: the verdict reflects the task and
 settings passed. Otherwise zero copies the verdicts in. Neither applies to a
 log that is still being written.
@@ -296,15 +296,13 @@ counted.
   `src/inspect_ai/model/_generate_config.py:379`). The log records only the
   values in effect, so it does not say which came from the eval and which
   from the task.
-- **The shard merge's task.** The merge computes a merged log's results only
-  with the `Task` its caller passes, imports nothing a log names and builds
-  no model from log values; it refuses a task whose name, scorer names,
-  metric names, epochs or epoch reducer names differ from what the shards
-  recorded, without comparing options (`check_task_matches`,
-  `src/inspect_ai/log/_shards/_write.py:64`;
-  [Eval sharding](eval-sharding.md), "Trust"; decisions: Ransom,
-  2026-11-03 and 2026-11-04). It computes results with `eval_results()` and
-  the task's scorers, metrics and reducer, as a native run does.
+- **Model prices.** `eval_async()` applies `model_cost_config` with
+  `set_model_cost()` before it initializes models and resolves tasks
+  (`src/inspect_ai/_eval/eval.py:808-815`, then `eval_init()` at `:823` and
+  `eval_resolve_tasks()` at `:845`), so a task factory that reads model info
+  while it constructs the task sees the configured prices. It also expands
+  `model_args` and `task_args` given as file names with `resolve_args()`
+  first (`:805-806`).
 - **Task resolution.** `eval_resolve_tasks()` (`src/inspect_ai/_eval/eval.py:2086`)
   installs the model roles and then, per model, the active model before it
   constructs tasks (`:2104-2119`), so a task factory can call `get_model()`
@@ -377,8 +375,7 @@ metrics read, so zero supports single-value verdicts only.
 The design therefore supports:
 
 - zero with a task the caller passes (a built `Task` or a task spec) that
-  has scorers and the log's task, scorer, metric and reducer names and
-  epochs, run with the models and settings the caller passes; static
+  has scorers and the log's task name and scorer names, run with the models and settings the caller passes; static
   datasets; samples with string ids that the task's dataset holds; scorers
   whose empty-attempt verdict is a
   single `str`, `int`, `float` or `bool`; and samples whose scores all come
@@ -748,9 +745,9 @@ for the original run, and the empty attempt runs with exactly that.
 Both functions edit `log` in place, like `edit_score()`, and leave writing
 to the caller. Neither imports anything the log names, and neither builds a
 model, metric or reducer from what the log records: the task, its code and
-the settings to run it with come from the caller, as for the shard merge
-([Eval sharding](eval-sharding.md), "Trust"; decisions: Ransom, 2026-11-03,
-2026-11-04 and 2026-11-06). These rules are checked before anything changes:
+the settings to run it with come from the caller, the rule Ransom set for
+the shard merge's results (decisions: Ransom, 2026-11-03, 2026-11-04 and
+2026-11-06). These rules are checked before anything changes:
 
 - `log.samples` must be present (a log read whole). A header-only read is a
   `ValueError`.
@@ -773,42 +770,40 @@ the settings to run it with come from the caller, as for the shard merge
 - Metrics are resolved before the first edit. A log whose metrics cannot be
   built is therefore left unchanged.
 
-**Matching the task.** The shard merge already compares a caller's task
-with what a log recorded, by name only: `check_task_matches()`
-(`src/inspect_ai/log/_shards/_write.py:64`) compares the task name
-(`Task.name` against `eval.task`), the scorer names in order (as the task
-logger records them, against `eval.scorers`), the metric names of each
-scorer and of the task (options dropped), the number of epochs and the epoch
-reducer names (decision: Ransom, 2026-11-03). Its comparison moves into a
-shared helper that returns the first difference, and the merge keeps
-raising its `ShardSetError` from it:
+**Matching the task.** A task passed to either function is compared with
+the log by name only (decision: Ransom, 2026-11-06), by a new helper:
 
 ```python
 # src/inspect_ai/log/_task_match.py
 class TaskDifference(NamedTuple):
-    field: str      # "task name", "scorers", "scorer metrics", "task metrics", "epochs", "epoch reducers"
+    field: str      # "task name" or "scorers"
     given: Any
     ran: Any
 
-def task_difference(task: Task, header: EvalLog) -> TaskDifference | None: ...
+def task_difference(task: Task, header: EvalLog) -> TaskDifference | None:
+    """The first difference between the task's name and scorer names and the log's."""
 ```
+
+- **Task name.** `task.name` must equal `header.eval.task`.
+- **Scorer names.** The task's scorer names, in order, as the task logger
+  records them (`resolve_eval_scorers([as_scorer_spec(s) for s in
+  task.scorer])`, `src/inspect_ai/_eval/task/log.py:1351`), must equal
+  `[s.name for s in header.eval.scorers or []]`.
 
 The dispositions raise `ValueError` on a difference: "the task passed
 differs from the one <log> ran in its <field> (<given>, not <ran>); pass
-the task the log ran". Options are not compared: passing the task the log
-ran, with the same options, is the caller's responsibility, as for the
-merge, and the docs say so. The name, the scorer names and the metric names
-are what the dispositions depend on: zero writes the task's verdicts under
-the task's scorer keys (see "Which score names a disposition covers"), and
-both recompute the log's results with the task's metrics and reducer. The
-epoch count must match too, because zero's scratch eval runs the task's
-epochs and every targeted epoch must be among them.
-
-Zero compares a shallow copy of the task with the caller's `epochs` applied
-to it as the runner applies an eval-level `epochs` (`epochs` and
-`epochs_reducer`, `src/inspect_ai/_eval/run.py:311-325`), so a log written
-with `eval(task, epochs=5)` matches a task declaring one epoch when zero is
-given `epochs=5`, as it was given to `eval()`.
+the task the log ran". These are what the dispositions depend on: zero
+writes the task's verdicts under the task's scorer keys (see "Which score
+names a disposition covers"). Nothing else is compared: the options of the
+task's scorers, its metrics, its epochs and epoch reducer, its code and the
+run settings are the caller's responsibility, and the docs say so. In
+particular, the results are recomputed with the task's metrics and epoch
+reducer as passed, so a run given `epochs` (with a reducer) at eval level
+is recomputed faithfully only when the caller passes the same: to zero as
+its `epochs` argument, as it was given to `eval()`, and to exclusion as a
+task with the epochs applied (`task_with(task, epochs=Epochs(5,
+"pass_at_5"))`, or `--epochs` and `--epochs-reducer` beside `--task` on
+the command line).
 
 **Metrics from the task.** With a task, results are computed with the
 task's own metrics and reducer, as a native run computes them, through a
@@ -886,7 +881,7 @@ in a copy of the caller's context:
 ```python
 # src/inspect_ai/log/_disposition.py
 def prepare_task(task: Task | str, task_args, model, model_base_url, model_args,
-                 model_roles, sandbox, config: GenerateConfig) -> ResolvedTask:
+                 model_roles, model_cost_config, sandbox, config: GenerateConfig) -> ResolvedTask:
     def prepare() -> ResolvedTask:
         models = eval_init(model=model, model_base_url=model_base_url,
                            model_args=model_args, **config.model_dump(exclude_none=True))
@@ -899,6 +894,8 @@ def prepare_task(task: Task | str, task_args, model, model_base_url, model_args,
 
     if eval_async_running():
         raise RuntimeError("cannot run while an eval is running in this process")
+    model_args, task_args = resolve_args(model_args), resolve_args(task_args)
+    apply_model_cost_config(model_cost_config)
     prepared = contextvars.copy_context().run(prepare)
     return replace(prepared, task=copy(prepared.task))
 ```
@@ -911,6 +908,19 @@ def prepare_task(task: Task | str, task_args, model, model_base_url, model_args,
   evaluation at module scope (an `eval_set()` definition script) runs it
   when imported, as it does under `inspect eval`; such definitions are
   passed as a built `Task`.
+- **Prices and argument files.** Before any model or task is built,
+  `prepare_task` expands `model_args` and `task_args` given as file names
+  and applies the caller's `model_cost_config`, in the order `eval_async()`
+  does (see "Model prices" above). The price loading moves out of
+  `eval_async()` into `apply_model_cost_config(model_cost_config)` in
+  `src/inspect_ai/_eval/eval.py`, which both call; it accepts the same
+  forms (a file name or a dict of `ModelCost`) and does nothing for
+  `None`. A task factory that reads model info while it constructs the
+  task, for the primary model, a role or an ensemble member, therefore
+  sees the caller's prices, as under `eval()`. The scratch eval receives
+  `model_cost_config` too and applies it again, which changes nothing.
+  `set_model_cost()` is process-wide, as it is for `eval()`, so the prices
+  stay registered after zero returns or refuses.
 - **Models.** The models are the caller's, resolved by `eval_init()` as for
   `eval()`: `model=NOT_GIVEN` reads `INSPECT_EVAL_MODEL`, and a list of
   models is refused because the scratch eval runs one task once. A task that
@@ -965,12 +975,19 @@ def prepare_task(task: Task | str, task_args, model, model_base_url, model_args,
    attempt has no verdict; exclude the samples instead".
 2. Selects the targets that are not already zeroed. When none are left it
    returns without preparing the task.
-3. Prepares the task with `prepare_task()` and the caller's task, models,
-   sandbox and generate config, applies the caller's `epochs` to its copy,
+3. Prepares the task with `prepare_task()` and the caller's task, task
+   arguments, models, prices, sandbox and generate config, applies the
+   caller's `epochs` to its copy as the runner applies an eval-level
+   `epochs` (`epochs` and `epochs_reducer`, `src/inspect_ai/_eval/run.py:311-325`),
    checks it with `task_difference()`, and takes its metrics from
-   `task_log_metrics()`.
-4. Establishes that each target id names a sample of the task's dataset,
-   and refuses otherwise. Two checks, both before the scratch eval:
+   `task_log_metrics()` of that copy.
+4. Establishes that each target can be run by the task, and refuses
+   otherwise. Three checks, all before the scratch eval:
+
+   **Epochs.** Every targeted epoch must be at most the copy's epoch count
+   (`epochs`, default 1): "sample <id> epoch <n> is beyond the <count>
+   epochs the task runs; pass the epochs the log ran (the log ran
+   <log.eval.config.epochs>)".
 
    **Static dataset.** Zero refuses a task whose samples come from a
    `SampleSource` (`prepared.task.sample_source is not None`). Its dataset
@@ -1085,9 +1102,8 @@ def prepare_task(task: Task | str, task_args, model, model_base_url, model_args,
      filtering to `a` and `case[1]` ran exactly those two, over two epochs,
      and the original task's dataset still held all four.
    - **Epochs.** The scratch eval runs the task's epochs, with the caller's
-     `epochs` applied, which step 3 matched with the log's count and
-     reducers. A smaller count would not cover every targeted epoch, and the
-     runner refuses `pass_at_k`, `pass_k_k` and `at_least_k` reducers with
+     `epochs` applied (step 3). Step 4 has refused a target whose epoch is
+     beyond that count. The runner refuses `pass_at_k`, `pass_k_k` and `at_least_k` reducers with
      fewer than `k` epochs (`validate_reducer`,
      `src/inspect_ai/scorer/_reducer/registry.py:176`). `epochs` is global,
      so every targeted id runs every epoch. Zeroing a sample by bare id
@@ -1186,8 +1202,8 @@ inspect log zero    LOG_FILE TASK --sample ID [--sample ID ...] [--epoch N]
   the same sample. A targeted sample the dataset no longer holds, an integer
   id, and a task fed by a `SampleSource` are refused in step 4, and nothing
   is edited.
-- **Another task.** A task whose name, scorer names, metric names, epochs or
-  epoch reducer names differ from the log's is refused before anything runs
+- **Another task.** A task whose name or scorer names differ from the log's
+  is refused before anything runs
   (step 3 for zero, step 1 for exclusion with a task). A log with appended
   scores names scorers the task does not have, so it is refused this way.
 - **Different settings or code.** Anything else about the task or its
@@ -1482,10 +1498,15 @@ backends; run the zero tests with `--runtrio` locally.
     (asserted by patching `load_module`). The same log without a task is
     refused with the untrusted resolver's `LookupError`, whose advice names
     the `task` argument, and is unchanged.
-  - Task match for exclusion: a task with another name, another scorer
-    name, another metric name, another epoch count and another reducer name
-    are each refused naming the field, with the log unchanged; a task whose
-    scorer's options differ is accepted.
+  - Task match for exclusion: a task with another name, and one with another
+    scorer name, are each refused naming the field, with the log unchanged;
+    a task whose scorer's options or metric differ is accepted.
+  - Eval-level epochs: for each of `pass_at(5)`, `pass_k(5)` and
+    `at_least(5)`, a log written with `eval(task, epochs=Epochs(5, r))` on a
+    task declaring one epoch, excluded with `task_with(task, epochs=Epochs(5,
+    r))`: the recomputed results and reductions over the remaining epochs
+    equal those of a native run over the same scores, and the caller's
+    `task` still declares one epoch.
   - Refusals that raise and leave the log unchanged: unknown selectors, a
     `started` log, an empty reason, the reason `"UNCHANGED"` (for both
     functions, on a sample whose score has an explanation), and, without a
@@ -1544,10 +1565,12 @@ backends; run the zero tests with `--runtrio` locally.
     name; an errored target and a scored neighbour, after `inspect score
     --action append` of a differently configured instance of the task's
     scorer, which wrote under the target's vacant key; a task that added a
-    scorer, and one that reordered two; another metric name; another epoch
-    count; another reducer name. A task whose scorer's options differ is
-    accepted, and its verdicts are copied (options are the caller's
-    responsibility).
+    scorer, and one that reordered two. A task whose scorer's options or
+    metric differ is accepted, and its verdicts are copied and its metrics
+    used (they are the caller's responsibility).
+  - Targeted epochs: zeroing epoch 3 of a three-epoch log with a one-epoch
+    task and no `epochs` is refused before the scratch eval, naming the
+    epochs the log ran.
   - Appended log with matching headers (accepted): the same append, then the
     task updated to `[probe(0), probe(1)]`. Zeroing the errored target
     writes `probe(0)`'s verdict under `probe`, with the appended `probe(1)`
@@ -1561,10 +1584,17 @@ backends; run the zero tests with `--runtrio` locally.
     both empty attempts and zeroes both, and the task's own
     `early_stopping` object and the log are otherwise unchanged.
   - Task names: a task named `benchmark:variant` whose dataset holds `a`
-    and `benchmark:variant:a`, zeroing `a`; and a log of task `old` with a
-    target `a`, zeroed after the task file renames the task to `new` and
-    adds a sample `old:a`. In both only `a` runs in the scratch eval, and
-    the factory's task keeps its whole dataset.
+    and `benchmark:variant:a`, zeroing `a`: only `a` runs in the scratch
+    eval, and the factory's task keeps its whole dataset. A log of task
+    `old`, zeroed with the task renamed to `new`, is refused for its task
+    name before the scratch eval, with the log and the task's dataset
+    unchanged.
+  - Prices before preparation: a registered task factory that reads
+    `get_model_info()` cost for the primary model, a `grader` role and both
+    members of a `panel` ensemble while it constructs a scorer, with
+    `model_cost_config` given as a dict and, separately, as a JSON file:
+    the factory sees the configured prices, as under `eval()` with the same
+    arguments.
   - Scratch aggregation: seven samples, two epochs, `max_samples=1`, and a
     reducer that writes the epoch mean into its first input, plus a metric
     that mutates its inputs and succeeds: the zeroed scores equal each
@@ -1661,10 +1691,10 @@ path.
 
    Tests: the reducer tests.
 2. **Exclude.**
-   - `task_difference()` and `TaskDifference` in
-     `src/inspect_ai/log/_task_match.py`, factored out of the merge's
-     `check_task_matches()` (`src/inspect_ai/log/_shards/_write.py`), which
-     keeps its `ShardSetError` and messages.
+   - `task_difference()` and `TaskDifference`, new in
+     `src/inspect_ai/log/_task_match.py`.
+   - `apply_model_cost_config()` in `src/inspect_ai/_eval/eval.py`, factored
+     out of `eval_async()`.
    - `task_log_metrics()` in `src/inspect_ai/log/_metric.py`.
    - `src/inspect_ai/log/_disposition.py`: `SampleSelector`,
      `DispositionResult`, `prepare_task()`, and `exclude_samples` with its
