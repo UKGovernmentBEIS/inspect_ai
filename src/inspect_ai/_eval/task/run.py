@@ -3,7 +3,7 @@ import sys
 import time
 from contextvars import Token
 from copy import copy, deepcopy
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from logging import getLogger
 from pathlib import PurePath
@@ -46,9 +46,15 @@ from inspect_ai._display import (
 )
 from inspect_ai._display.core.display import TaskCancel, TaskDisplayMetric
 from inspect_ai._eval.task.scan import Scanners
-from inspect_ai._sentinel._config import SentinelRoot
+from inspect_ai._sentinel._config import SentinelProxy, SentinelRoot
 from inspect_ai._sentinel._context import SentinelFailure
 from inspect_ai._sentinel._scope import sentinel_scope, sentinel_solving
+from inspect_ai._sentinel._sidecar._call import end_sidecar_sample
+from inspect_ai._sentinel._sidecar._state import (
+    copy_sidecar_monitor_state,
+    save_sidecar_monitor_state,
+)
+from inspect_ai._sentinel._sidecar._task import TaskFacts, init_task_sidecars
 from inspect_ai._util._async import Wake, aexit_shielded_when, raise_unwrapped
 from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.asyncfiles import AsyncFilesystem, get_async_filesystem
@@ -63,6 +69,7 @@ from inspect_ai._util.error import (
     is_cancellation_message,
 )
 from inspect_ai._util.exception import (
+    SampleRefusedError,
     TaskRetryAbandonedError,
     TerminateSampleError,
     TerminateTaskError,
@@ -648,6 +655,7 @@ class TaskRunOptions:
     eval_wd: str
     config: EvalConfig = field(default_factory=EvalConfig)
     sentinel: "SentinelRoot | None" = field(default=None)
+    sentinel_proxy: SentinelProxy | None = field(default=None)
     """Resolved root protocol of the task's sentinel."""
     solver: Solver | None = field(default=None)
     scanner: "Scanners | None" = field(default=None)
@@ -1346,6 +1354,20 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                     metrics=task.metrics,
                     score_on_error=config.score_on_error or False,
                 ),
+            )
+
+            await init_task_sidecars(
+                options.sentinel_proxy,
+                model,
+                TaskFacts(
+                    eval_id=logger.eval.eval_id,
+                    task=task.name,
+                    task_description=task.description,
+                    metadata=task.metadata or {},
+                    sample_ids=sample_ids,
+                    epochs=epochs,
+                ),
+                in_process_sentinel=options.sentinel is not None,
             )
 
             # call early stopping if we have it
@@ -2694,10 +2716,17 @@ async def _task_run_sample_attempt(
 
         # helper to handle exceptions (will throw if we've exceeded the limit)
         def handle_error(ex: BaseException) -> tuple[EvalError, BaseException | None]:
+            nonlocal attempt, score_on_error
+
             # report the sentinel's own error, from the solver or scorers
             failure = inner_exception(ex) if isinstance(ex, Exception) else ex
             if isinstance(failure, SentinelFailure):
                 ex = decisive_sentinel_exception(failure.error)
+
+            # a refused sample would be refused again, and never ran
+            if isinstance(failure, SampleRefusedError):
+                attempt = replace(attempt, retry_limit=len(attempt.errors))
+                score_on_error = False
 
             # helper to log sample error
             def log_sample_error() -> None:
@@ -2786,6 +2815,7 @@ async def _task_run_sample_attempt(
             cancelled_error: BaseException | None = None
             solver_cancel: BaseException | None = None
             scoring_finished = False
+            monitor_state_copied = False
             operator_cancelled = False
             results: ScoresByScorer = {}
             limit: EvalSampleLimit | None = None
@@ -3253,6 +3283,9 @@ async def _task_run_sample_attempt(
                                     and attempt.retries_remaining == 0
                                     and cancelled_error is None
                                 ):
+                                    # once, even when the copy fails the sample
+                                    monitor_state_copied = True
+                                    await copy_sidecar_monitor_state(state)
                                     async with span(name="scorers"):
                                         for scorer_idx, scorer in enumerate(
                                             scorers or []
@@ -3404,6 +3437,13 @@ async def _task_run_sample_attempt(
                 ):
                     reporter.progress()
 
+                    # a sample saved without being scored keeps its monitor
+                    # state too, as in process, for `inspect score` to read
+                    if not monitor_state_copied:
+                        await save_sidecar_monitor_state(
+                            state, cancelled=cancelled_error is not None
+                        )
+
                     # ensure there are no base64 images in sample or messages
                     if not log_images:
                         sample = sample_without_base64_content(sample)
@@ -3492,6 +3532,9 @@ async def _task_run_sample_attempt(
                         await emit_attempt_end(will_retry=False)
                         await emit_sample_end(
                             eval_set_id, run_id, task_id, state.uuid, eval_sample
+                        )
+                        await end_sidecar_sample(
+                            state.uuid, cancelled=cancelled_error is not None
                         )
                     # deliver the sample to the run's sources (below) unless
                     # the TASK is unwinding (abort/retry cancel, ^C,

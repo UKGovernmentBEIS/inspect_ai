@@ -5,6 +5,7 @@ import anyio
 from pydantic import JsonValue
 
 from inspect_ai._sentinel._scope import solving
+from inspect_ai._sentinel._sidecar._lookup import SAMPLE_FAILURES
 from inspect_ai.model._call_tools import get_tools_info
 from inspect_ai.model._model import ModelRefusalError, _check_limits_before_dispatch
 from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
@@ -62,6 +63,11 @@ def _forward_provider_errors(
     sample, but the dispatcher would turn a re-raise into an RPC error, so they
     are signalled through `bridge.request_fail` (raised on the agent's side by
     the bridge's monitor task) while the scaffold still gets an error reply.
+    So are the errors a call through a sentinel sidecar raises to fail its
+    sample (`SAMPLE_FAILURES`): a sample the sidecar refused, a call it couldn't
+    judge, including one of a sample it lost, which a sample retry registers
+    again, and a registration that failed. Their types are kept, so the sample
+    runner retries or refuses the sample as it does a native agent's.
 
     A `LimitExceededError` (message, token, cost or turn limit), bare or in an
     exception group such as a filter's task group, is returned as an error
@@ -119,7 +125,9 @@ def _forward_provider_errors(
                 _warn_other_errors(ex)
                 return {PROVIDER_ERROR_KEY: cast(JsonValue, provider_error_payload(ex))}
             failure = control or ex
-            if isinstance(failure, (ModelRefusalError, ResponseFilterError)):
+            if isinstance(
+                failure, (ModelRefusalError, ResponseFilterError, *SAMPLE_FAILURES)
+            ):
                 bridge.request_fail(failure)
                 # no non-provider-error warning: the failure is reported once,
                 # by the sample error the monitor task raises
