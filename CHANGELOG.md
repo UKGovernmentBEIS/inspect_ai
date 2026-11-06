@@ -3,7 +3,7 @@
 ## [0.3.288](https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.287...0.3.288) (2026-11-06)
 
 
-### ⚠ BREAKING CHANGES
+### Breaking Changes
 
 * environments with `google-genai` `2.x` fail the `validate_google_client` version check. Install `google-genai>=3.0.0`.
 * Evaluations using the automatically generated Docker sandbox must provide an explicit image if they need the `nonroot` account, `pipx`, or Playwright browser dependencies.
