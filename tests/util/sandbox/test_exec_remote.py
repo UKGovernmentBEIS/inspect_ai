@@ -739,6 +739,25 @@ class TestKill:
             "exec_remote_kill",
         ]
 
+    async def test_failed_kill_with_no_poll_in_flight_ends_iteration_quietly(
+        self,
+    ) -> None:
+        """With no poll in flight, a failed kill ends iteration without raising."""
+
+        async def kill(params: dict[str, Any]) -> str:
+            raise ConnectionError("sandbox connection lost")
+
+        guest = _RaceGuest({"exec_remote_kill": kill})
+        proc = await exec_remote_streaming(guest.sandbox, ["cmd"], 5)
+
+        await proc.kill()
+        with anyio.fail_after(5):
+            events = [event async for event in proc]
+
+        assert events == []
+        assert not proc._killed
+        assert guest.methods == ["exec_remote_start", "exec_remote_kill"]
+
 
 # ============================================================================
 # Cancellation

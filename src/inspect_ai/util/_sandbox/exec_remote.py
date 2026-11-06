@@ -148,9 +148,10 @@ class ExecRemoteCommonOptions:
     re-issued poll replays any output the lost response carried; if the command
     ended during the stall, its exit status is lost and `RuntimeError` is raised.
     Only polls are re-issued, and none once `kill()` has been called: iteration
-    then ends with the kill's output once the kill request finishes, or, if the
-    kill request failed (for example, it also timed out), the poll's error is
-    raised.
+    then ends with the kill's output once the kill request finishes. If the kill
+    request failed (for example, it also timed out), the error of a poll in
+    flight at the kill is raised; with no poll in flight, iteration ends without
+    raising.
     A caller's `timeout` (awaitable mode) or cancellation still ends the wait at
     once. Raises `ValueError` with `poll_timeout_retry=False`, which asks for
     timed-out requests not to be retried.
@@ -504,7 +505,10 @@ class ExecRemoteProcess:
         """Return the next event from the process.
 
         Yields ExecStdout and ExecStderr events as output becomes available,
-        then yields a final ExecCompleted event when the process terminates.
+        then a final ExecCompleted event when the process exits on its own.
+
+        After `kill()`, iteration yields any output returned by the kill
+        request and then ends without an ExecCompleted event.
 
         Note: After the ExecCompleted event is yielded, the job is automatically
         cleaned up on the server side.
@@ -512,7 +516,8 @@ class ExecRemoteProcess:
         If cancelled, the process will be killed before re-raising the exception.
 
         Raises:
-            StopAsyncIteration: When the process has completed or been killed.
+            StopAsyncIteration: After ExecCompleted has been yielded, or after
+                `kill()` once the kill's output has been yielded.
             RuntimeError: If the process has not been submitted yet.
         """
         if self._pid is None:
@@ -753,8 +758,10 @@ class ExecRemoteProcess:
         request runs to completion even if the calling task is cancelled (the
         first caller's cancellation is raised once it finishes), bounded by
         `KILL_TIMEOUT`, and outside sandbox concurrency limits. A failed or
-        timed-out request is logged, not raised. A no-op once the process has
-        completed.
+        timed-out request is logged, not raised. After a failed request,
+        iteration raises the error of a poll that was in flight when kill()
+        was called; with no poll in flight, it ends without raising. A no-op
+        once the process has completed.
         """
         if self._pid is None:
             return
@@ -785,7 +792,7 @@ class ExecRemoteProcess:
                     return
                 except Exception as ex:
                     error = ex
-            logging.debug(
+            logger.debug(
                 "exec_remote kill RPC failed for pid %s (%s)",
                 self._pid,
                 error or f"timed out after {KILL_TIMEOUT}s",
@@ -856,10 +863,14 @@ async def exec_remote_awaitable(
         options: Execution options.
 
     Returns:
-        ExecResult[str] with success, returncode, stdout, and stderr.
+        ExecResult[str] with success, returncode, stdout, and stderr. If the
+        process is killed (iteration ends without ExecCompleted), returns
+        `success=False` and `returncode=-1`; `-1` is a sentinel for the kill,
+        not an exit code reported by the process.
 
     Raises:
         TimeoutError: If options.timeout is set and the command exceeds it.
+            The process is killed before the error is raised.
     """
     from .._subprocess import CircularByteBuffer
     from .._subprocess import ExecResult as ExecResultClass
