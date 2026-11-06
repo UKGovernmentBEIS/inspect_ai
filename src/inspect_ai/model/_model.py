@@ -1118,7 +1118,21 @@ class Model:
                         on_stream=on_stream,
                         event_uuid=generate_id,
                     )
-                except (LimitExceededError, TerminateSampleError, ModelRefusalError):
+                except LimitExceededError:
+                    # The sidecar judged the reply before Inspect counted its
+                    # usage, and keeps what it saw, so what it decided is
+                    # recorded, though the sample ends on the limit before
+                    # any of it is acted on. Its usage was counted already.
+                    if receiving is not None and through_sidecar is not None:
+                        from inspect_ai._sentinel._sidecar._events import (
+                            record_reports_past_limit,
+                        )
+
+                        await record_reports_past_limit(
+                            receiving, through_sidecar.sidecar, generate_id
+                        )
+                    raise
+                except (TerminateSampleError, ModelRefusalError):
                     # Inspect's own outcomes, never a provider's error: a
                     # refusal that reached one was acted on and counted there
                     raise

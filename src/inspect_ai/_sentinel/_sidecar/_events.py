@@ -119,6 +119,30 @@ def record_refusal_reports(
         )
 
 
+async def record_reports_past_limit(
+    received: ReceivedCall, sidecar: Sidecar, generate_id: str
+) -> None:
+    """Write the reports of a call whose reply took the sample past a limit into the transcript.
+
+    The sidecar judged the reply before Inspect counted its usage, and the monitor state it keeps, which is copied before scoring, already holds what it saw. So the transcript shows what it decided, though the sample ends on the limit before any decision is acted on. A lookup that fails records nothing, since the sample's outcome is the limit either way.
+    """
+    from ._lookup import request_result
+
+    looked = received.looked
+    if looked is None:
+        try:
+            looked = await request_result(received, replied=True)
+        except Exception as ex:
+            logger.debug(
+                f"The sentinel sidecar at {sidecar.origin} couldn't be asked about a call past a limit: {ex}"
+            )
+            return
+    if looked.state == "decided" and looked.judgment is not None:
+        record_sidecar_reports(
+            looked.judgment, sidecar, received.request_id, generate_id
+        )
+
+
 def _report(record: dict[str, Any]) -> dict[str, Any]:
     kind = record.get("kind")
     if kind == "failed":
