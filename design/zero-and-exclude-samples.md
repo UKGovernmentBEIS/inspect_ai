@@ -801,9 +801,11 @@ particular, the results are recomputed with the task's metrics and epoch
 reducer as passed, so a run given `epochs` (with a reducer) at eval level
 is recomputed faithfully only when the caller passes the same: to zero as
 its `epochs` argument, as it was given to `eval()`, and to exclusion as a
-task with the epochs applied (`task_with(task, epochs=Epochs(5,
-"pass_at_5"))`, or `--epochs` and `--epochs-reducer` beside `--task` on
-the command line).
+task with the epochs applied (`task_with(copy(task), epochs=Epochs(5,
+"pass_at_5"))`; `task_with()` changes and returns the task it is given,
+`src/inspect_ai/_eval/task/task.py:496-499`, `:536`, so the copy keeps the
+caller's own task as it was), or `--epochs` and `--epochs-reducer` beside
+`--task` on the command line.
 
 **Metrics from the task.** With a task, results are computed with the
 task's own metrics and reducer, as a native run computes them, through a
@@ -1042,6 +1044,7 @@ def prepare_task(task: Task | str, task_args, model, model_base_url, model_args,
        solver=empty_attempt(),
        **run_args,                   # the caller's run arguments, as given
        sandbox_cleanup=True,
+       ctl_server=False,
        fail_on_error=False,
        log_format="eval",
        log_buffer=1,
@@ -1071,6 +1074,14 @@ def prepare_task(task: Task | str, task_args, model, model_base_url, model_args,
      run once per environment model.
    - **Sandbox cleanup.** Zero always cleans up its sandboxes, because
      nothing reads them afterwards.
+   - **No control server.** `ctl_server=False` is passed explicitly. When it
+     is omitted, `resolve_ctl_server(None)` reads `INSPECT_EVAL_CTL_SERVER`
+     (`src/inspect_ai/_control/server.py:149-196`), and with `keep` the
+     eval parks after scoring until released
+     (`src/inspect_ai/_eval/eval.py:1240-1249`;
+     [Control Channel](../docs/control-channel.qmd)), so zero would wait
+     indefinitely before reading the verdicts. The scratch eval is internal
+     to zero, so nothing needs to reach it over the control channel.
    - **Hooks.** The scratch eval is an ordinary eval, so installed hooks
      receive its run, task and sample events, with the solver
      `inspect_ai/empty_attempt` and the empty-attempt verdicts. A hook that
@@ -1503,8 +1514,8 @@ backends; run the zero tests with `--runtrio` locally.
     a task whose scorer's options or metric differ is accepted.
   - Eval-level epochs: for each of `pass_at(5)`, `pass_k(5)` and
     `at_least(5)`, a log written with `eval(task, epochs=Epochs(5, r))` on a
-    task declaring one epoch, excluded with `task_with(task, epochs=Epochs(5,
-    r))`: the recomputed results and reductions over the remaining epochs
+    task declaring one epoch, excluded with `task_with(copy(task),
+    epochs=Epochs(5, r))`: the recomputed results and reductions over the remaining epochs
     equal those of a native run over the same scores, and the caller's
     `task` still declares one epoch.
   - Refusals that raise and leave the log unchanged: unknown selectors, a
@@ -1662,6 +1673,10 @@ backends; run the zero tests with `--runtrio` locally.
     in `history[0]`.
   - A scorer that needs a sandbox, using the `local` sandbox, sees files from
     `Sample.files` and nothing the original attempt wrote.
+  - Control server: with `INSPECT_EVAL_CTL_SERVER=keep` set (via
+    `monkeypatch`), zero completes and commits its edits; the scratch eval
+    binds no control server and never enters the post-scoring park
+    (asserted by patching the server start and the release wait).
 - `tests/_cli/`: `inspect log exclude|zero` parse `--sample`, `--epoch`,
   `--reason` and `--author`, write in place, and print the per-sample lines
   and the `--json` envelope. `inspect log zero LOG TASK` passes `-T`,
