@@ -4535,6 +4535,37 @@ def test_a_sample_member_with_a_deprecated_field_is_refused(
     assert not os.path.exists(merged) and _files(shards) == before
 
 
+@pytest.mark.parametrize("where", ["sample", "event", "sample, parsed whole"])
+def test_a_sample_member_with_a_dotted_key_where_events_are_read_is_refused(
+    tmp_path: Path, where: str
+) -> None:
+    merged, shards = _paths(tmp_path)
+    _run(shards, "0", sample_id=[1, 2, 3])
+    log = _run(shards, "1", sample_id=[4, 5, 6])
+    name = "samples/5_epoch_1.json"
+    with zipfile.ZipFile(local_path(log.location)) as zf:
+        sample = json.loads(zf.read(name))
+    # each key's events would read as false initial metadata
+    poison = {"metadata": {"poison": 1}}
+    if where == "event":
+        init = next(e for e in sample["events"] if e["event"] == "sample_init")
+        key = "sample.metadata"
+        init[key] = poison["metadata"]
+    else:
+        key = "events.item"
+        sample[key] = {"event": "sample_init", "sample": poison}
+        if where == "sample, parsed whole":
+            # an integer only a whole parse reads
+            sample["future_optional"] = 2**70
+    _replace_member(log.location, name, json.dumps(sample).encode())
+    before = _files(shards)
+    with pytest.raises(
+        ShardSetError, match=rf"samples/5_epoch_1.json has the keys \['{key}'\]"
+    ):
+        merge_eval_log_shards(merged, _task())
+    assert not os.path.exists(merged) and _files(shards) == before
+
+
 def test_sample_fields_a_later_inspect_adds_are_skipped_and_kept(
     tmp_path: Path,
 ) -> None:
@@ -4773,6 +4804,62 @@ async def test_a_sample_copy_that_stops_closes_its_input_first(
             await merge_eval_log_shards_async(merged, _task())
     assert scope.cancelled_caught == (stop == "cancelled")
     assert inputs and all(state["closed"] for state in inputs)
+    assert not os.path.exists(merged)
+
+
+@pytest.mark.parametrize("stop", ["error", "cancelled"])
+async def test_a_sample_copy_that_stops_closes_its_output_in_a_worker(
+    two_shards: tuple[str, str], monkeypatch: pytest.MonkeyPatch, stop: str
+) -> None:
+    import threading
+
+    from inspect_ai.log import merge_eval_log_shards_async
+    from inspect_ai.log._shards import _write
+
+    merged, shards = two_shards
+    loop_thread = threading.get_ident()
+    copies: list[Any] = []
+    closes: list[int] = []
+    init = _write._SampleCopy.__init__
+    close = _write._SampleCopy.close
+
+    def init_spy(self: Any, *args: Any) -> None:
+        init(self, *args)
+        copies.append(self)
+
+    def output_open(copy: Any) -> bool:
+        writer = copy._pieces.writer
+        return writer is not None and not writer.closed
+
+    def close_spy(self: Any) -> None:
+        if output_open(self):
+            closes.append(threading.get_ident())
+        close(self)
+
+    monkeypatch.setattr(_write._SampleCopy, "__init__", init_spy)
+    monkeypatch.setattr(_write._SampleCopy, "close", close_spy)
+    with anyio.CancelScope() as scope:
+        if stop == "error":
+
+            def torn(*args: Any) -> None:
+                raise ZipCrcError("torn")
+
+            monkeypatch.setattr(_write, "_check_crc", torn)
+            with pytest.raises(ZipCrcError):
+                await merge_eval_log_shards_async(merged, _task())
+        else:
+            write = _write._SampleCopy.write
+
+            def cancelling_write(self: Any, data: bytes) -> None:
+                write(self, data)
+                anyio.from_thread.run_sync(scope.cancel)
+
+            monkeypatch.setattr(_write._SampleCopy, "write", cancelling_write)
+            await merge_eval_log_shards_async(merged, _task())
+    assert scope.cancelled_caught == (stop == "cancelled")
+    # the copy that stopped had opened its output member and closed it
+    assert len(copies) == 1 and not output_open(copies[0])
+    assert closes and loop_thread not in closes
     assert not os.path.exists(merged)
 
 

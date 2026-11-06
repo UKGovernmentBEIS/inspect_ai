@@ -163,7 +163,8 @@ async def write_merged_zip(
 
     Raises:
         ShardSetError: A sample member's id or epoch does not match its name,
-            it has a deprecated field (`score`, `transcript`), a sample
+            it has a deprecated field (`score`, `transcript`) or a key holding
+            "." where the merge reads events (Inspect writes none), a sample
             with a declared score has no `SampleInitEvent`, or some samples
             were scored and others ran without scoring.
         pydantic.ValidationError: A sample member does not parse.
@@ -209,6 +210,11 @@ _EVENT = "events.item"
 _EVENT_FIELDS = {"events.item.event": "event", "events.item.type": "type"}
 _INIT_METADATA = "events.item.sample.metadata"
 _INIT_METADATA_CHILD = f"{_INIT_METADATA}."
+_READ_OBJECTS = frozenset({"", _EVENT, "events.item.sample"})
+"""Prefixes of the objects whose keys the parse reads by prefix: the sample,
+each event and each event's sample. ijson joins keys with ".", so a key
+holding "." in one of them could pose as an event field. Inspect writes none
+there, and the merge refuses them."""
 
 
 class _ScoringFields(BaseModel):
@@ -227,6 +233,8 @@ class _ParsedSample(NamedTuple):
     """The kept top-level fields."""
     deprecated: list[str]
     """The deprecated top-level fields present."""
+    dotted: list[str]
+    """Keys holding "." in the objects of `_READ_OBJECTS`."""
     initialized: bool
     initial_metadata: Any
     scoring_ran: bool
@@ -246,6 +254,7 @@ class _SampleParse:
         self._parser = JSONPushParser()
         self._fields = ExcludingObjectBuilder(set(), include_fields=_KEPT_FIELDS)
         self._deprecated: list[str] = []
+        self._dotted: list[str] = []
         self._event: dict[str, Any] = {}
         self._metadata: ExcludingObjectBuilder | None = None
         self._initialized = False
@@ -260,6 +269,7 @@ class _SampleParse:
         return _ParsedSample(
             fields=self._fields.data,
             deprecated=self._deprecated,
+            dotted=self._dotted,
             initialized=self._initialized,
             initial_metadata=self._initial_metadata,
             scoring_ran=self._scoring_ran,
@@ -268,8 +278,11 @@ class _SampleParse:
     def _take(self, events: list[tuple[str, str, Any]]) -> None:
         for prefix, event, value in events:
             self._fields.event(event, value)
-            if prefix == "" and event == "map_key" and value in _DEPRECATED_FIELDS:
-                self._deprecated.append(value)
+            if event == "map_key" and prefix in _READ_OBJECTS:
+                if "." in value:
+                    self._dotted.append(value)
+                elif prefix == "" and value in _DEPRECATED_FIELDS:
+                    self._deprecated.append(value)
             if prefix.startswith(_EVENT):
                 self._sample_event(prefix, event, value)
 
@@ -313,6 +326,7 @@ def _parse_whole(data: bytes) -> _ParsedSample:
         return _ParsedSample(
             fields={},
             deprecated=[],
+            dotted=[],
             initialized=False,
             initial_metadata=None,
             scoring_ran=False,
@@ -320,9 +334,14 @@ def _parse_whole(data: bytes) -> _ParsedSample:
     events = [e for e in sample.get("events") or [] if isinstance(e, dict)]
     init = next((e for e in events if e.get("event") == "sample_init"), None)
     init_sample = init.get("sample") if init is not None else None
+    read_objects = [sample, *events]
+    read_objects.extend(
+        e["sample"] for e in events if isinstance(e.get("sample"), dict)
+    )
     return _ParsedSample(
         fields={k: v for k, v in sample.items() if k in _KEPT_FIELDS},
         deprecated=[k for k in sample if k in _DEPRECATED_FIELDS],
+        dotted=[k for obj in read_objects for k in obj if "." in k],
         initialized=init is not None,
         initial_metadata=(
             init_sample.get("metadata") if isinstance(init_sample, dict) else None
@@ -414,6 +433,11 @@ class _SampleCopy:
                 raise
             return None
 
+    @property
+    def closed(self) -> bool:
+        """Whether the member is closed, or was never opened."""
+        return self._pieces.writer is None or self._pieces.writer.closed
+
     def close(self) -> None:
         """Close the member if `finish` did not, so the zip can close."""
         if self._pieces.writer is not None:
@@ -442,14 +466,20 @@ async def _copy_sample(
             await run_owned(functools.partial(copy.write, chunk))
         parsed = await run_owned(copy.finish)
     finally:
-        try:
-            if chunks is not None:
-                # closes the member's input, which a loop left early does not
-                with anyio.CancelScope(shield=True):
+        with anyio.CancelScope(shield=True):
+            try:
+                if chunks is not None:
+                    # closes the member's input, which a loop left early does not
                     await chunks.aclose()
-        finally:
-            # worker threads have finished (run_owned), so this cannot race them
-            copy.close()
+            finally:
+                if not copy.closed:
+                    # the close can flush much compressed output, so it runs in
+                    # a worker; closing again here is a no-op unless the
+                    # worker never ran (a native cancellation)
+                    try:
+                        await run_owned(copy.close)
+                    finally:
+                        copy.close()
     if parsed is None:
         data = await member.reader.read_member_fully(member.entry)
         parsed = await run_owned(functools.partial(_parse_whole, data))
@@ -462,6 +492,11 @@ def _sample_inputs(key: SampleRecordKey, parsed: _ParsedSample) -> _SampleInputs
         raise ShardSetError(
             f"Sample member {name} has the deprecated fields {parsed.deprecated}, "
             "which only logs from before shards hold. Re-run the shard holding it."
+        )
+    if parsed.dotted:
+        raise ShardSetError(
+            f"Sample member {name} has the keys {parsed.dotted}, which Inspect "
+            "does not write in a sample, its events or their samples."
         )
     sample = _ScoringFields.model_validate(
         {**parsed.fields, "initial_metadata": parsed.initial_metadata},
