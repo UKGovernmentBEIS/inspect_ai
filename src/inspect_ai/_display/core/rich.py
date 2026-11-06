@@ -45,6 +45,9 @@ class _ConsoleSettings:
     applied: dict[str, Any]
     """Display settings as rich_initialise last left them."""
 
+    detected: frozenset[str]
+    """Settings in `before` that the console detected for its output."""
+
 
 _console_settings: _ConsoleSettings | None = None
 
@@ -63,6 +66,23 @@ def _display_settings(console: Console) -> dict[str, Any]:
     return {name: getattr(console, name) for name in _DISPLAY_SETTINGS}
 
 
+_DETECTED_SETTINGS = ("_color_system", "is_interactive")
+"""Display settings the console detects for its output, unless set explicitly."""
+
+
+def _detected_settings(console: Console) -> dict[str, Any]:
+    """The detected settings for the console's current output and options."""
+    detected = Console(
+        file=console._file,
+        stderr=console.stderr,
+        force_terminal=console._force_terminal,
+        force_jupyter=console.is_jupyter,
+        legacy_windows=console.legacy_windows,
+        _environ=console._environ,
+    )
+    return {name: getattr(detected, name) for name in _DETECTED_SETTINGS}
+
+
 def rich_initialise(
     display: DisplayType | None = None, plain: bool | None = None
 ) -> None:
@@ -76,7 +96,13 @@ def rich_initialise(
     # undo an earlier call first (textual calls this for each eval), so the
     # snapshot holds the user's settings rather than ours
     rich_restore_defaults()
-    before = _display_settings(rich.get_console())
+    console = rich.get_console()
+    before = _display_settings(console)
+    detected = frozenset(
+        name
+        for name, value in _detected_settings(console).items()
+        if before[name] == value
+    )
 
     # reflect ansi prefs
     if plain:
@@ -97,7 +123,7 @@ def rich_initialise(
 
     console = rich.get_console()
     _console_settings = _ConsoleSettings(
-        console.__dict__, before, _display_settings(console)
+        console.__dict__, before, _display_settings(console), detected
     )
 
     # consistent markdown code bock background
@@ -162,14 +188,26 @@ def rich_restore_defaults() -> None:
     for an earlier type (e.g. quiet for "none", or plain's terminal detection)
     would otherwise carry over to the next one. Settings changed since
     rich_initialise (e.g. by the user between evals) are left as they are, as
-    is a console replaced by `rich.reconfigure()`.
+    is a console replaced by `rich.reconfigure()`. Settings the console had
+    detected are detected again, as its output may have changed since (e.g.
+    stdout redirected to a file).
     """
     global _console_settings
     console = rich.get_console()
-    if _console_settings and _console_settings.console_state is console.__dict__:
-        for name, value in _console_settings.before.items():
-            if getattr(console, name) == _console_settings.applied[name]:
-                setattr(console, name, value)
+    settings = _console_settings
+    if settings and settings.console_state is console.__dict__:
+        restore = [
+            name
+            for name in _DISPLAY_SETTINGS
+            if settings.before[name] != settings.applied[name]
+            and getattr(console, name) == settings.applied[name]
+        ]
+        for name in restore:
+            setattr(console, name, settings.before[name])
+        detected = _detected_settings(console)
+        for name in restore:
+            if name in settings.detected:
+                setattr(console, name, detected[name])
     _console_settings = None
 
 

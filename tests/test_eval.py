@@ -499,6 +499,91 @@ def test_eval_display_change_shows_input_screen_inside_capture(
     assert ("PROMPT" in capture.get()) != changed
 
 
+@pytest.mark.parametrize("vscode,second", [(False, "log"), (True, "rich")])
+def test_eval_display_change_detects_settings_for_redirected_stdout(
+    fresh_display: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    vscode: bool,
+    second: DisplayType,
+) -> None:
+    import io
+    import sys
+
+    import rich
+
+    import inspect_ai._display.core.rich as display_rich
+
+    class TerminalOutput(io.StringIO):
+        def isatty(self) -> bool:
+            return True
+
+    monkeypatch.setattr(display_rich, "is_running_in_vscode", lambda: vscode)
+    monkeypatch.setenv("TERM", "xterm-256color")
+    for name in ["TTY_COMPATIBLE", "TTY_INTERACTIVE", "FORCE_COLOR", "NO_COLOR"]:
+        monkeypatch.delenv(name, raising=False)
+    task = Task(dataset=[Sample(input="hi", target="hi")])
+
+    # a plain eval on a terminal, then stdout redirected to a buffer for a
+    # display that keeps the console's color and interactive settings
+    monkeypatch.setattr(sys, "stdout", TerminalOutput())
+    rich.reconfigure()
+    eval(task, model="mockllm/model", display="plain", log_dir=str(tmp_path))
+    monkeypatch.setattr(sys, "stdout", io.StringIO())
+    eval(task, model="mockllm/model", display=second, log_dir=str(tmp_path))
+
+    console = rich.get_console()
+    assert console.color_system is None
+    assert not console.is_interactive
+
+
+@pytest.mark.parametrize("second", ["rich", "conversation"])
+def test_eval_display_change_restores_cursor_after_captured_eval(
+    fresh_display: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    second: DisplayType,
+) -> None:
+    import io
+
+    import rich
+
+    import inspect_ai._display.core.rich as display_rich
+    from inspect_ai.util import input_screen
+
+    class TerminalOutput(io.StringIO):
+        def isatty(self) -> bool:
+            return True
+
+    monkeypatch.setattr(display_rich, "is_running_in_vscode", lambda: False)
+    monkeypatch.setenv("TERM", "xterm-256color")
+    for name in ["TTY_COMPATIBLE", "TTY_INTERACTIVE", "FORCE_COLOR", "NO_COLOR"]:
+        monkeypatch.delenv(name, raising=False)
+
+    @solver
+    def ask() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            with input_screen() as console:
+                console.print("PROMPT")
+            return state
+
+        return solve
+
+    task = Task(dataset=[Sample(input="hi", target="hi")], solver=ask())
+    eval(task, model="mockllm/model", display="plain", log_dir=str(tmp_path))
+
+    output = TerminalOutput()
+    rich.reconfigure(file=output)
+    with rich.get_console().capture():
+        eval(task, model="mockllm/model", display=second, log_dir=str(tmp_path))
+
+    # whatever the terminal saw leaves the cursor visible
+    shown = output.getvalue()
+    assert shown.rfind("\x1b[?25l") < shown.rfind("\x1b[?25h") or (
+        "\x1b[?25l" not in shown
+    )
+
+
 def test_eval_display_change_shows_input_cursor_inside_capture(
     fresh_display: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

@@ -218,53 +218,56 @@ class RichTaskScreen(TaskScreen):
         self.live.update("", refresh=True)
         self.status.stop()
 
-        with input_screen_capture_suspended(self.live.console):
-            # show cursor for input
-            self.live.console.show_cursor(True)
+        try:
+            with input_screen_capture_suspended(self.live.console):
+                # show cursor for input
+                self.live.console.show_cursor(True)
 
-            # set width
-            old_width: int | None = None
-            if width:
-                old_width = self.live.console.width
-                self.live.console.width = min(old_width, width)
+                # set width
+                old_width: int | None = None
+                if width:
+                    old_width = self.live.console.width
+                    self.live.console.width = min(old_width, width)
 
-            try:
-                # record console activity for event
-                with input_screen_recording(self.live.console, record_event):
-                    # print header if requested
-                    if header:
-                        style = f"{rich_theme().meta} bold"
-                        self.live.console.rule(
-                            f"[{style}]{header}[/{style}]", style="black"
-                        )
-                        self.live.console.print("")
+                try:
+                    # record console activity for event
+                    with input_screen_recording(self.live.console, record_event):
+                        # print header if requested
+                        if header:
+                            style = f"{rich_theme().meta} bold"
+                            self.live.console.rule(
+                                f"[{style}]{header}[/{style}]", style="black"
+                            )
+                            self.live.console.print("")
 
-                    # yield the console
-                    with record_console_input():
-                        yield self.live.console
+                        # yield the console
+                        with record_console_input():
+                            yield self.live.console
 
-            finally:
-                # print one blank line
-                self.live.console.print("")
+                finally:
+                    # print one blank line
+                    self.live.console.print("")
 
-                # reset width
-                if old_width:
-                    self.live.console.width = old_width
+                    # reset width
+                    if old_width:
+                        self.live.console.width = old_width
 
-                # disable cursor while not collecting input
-                self.live.console.show_cursor(False)
+        finally:
+            # disable cursor while not collecting input (on the same output as
+            # the live display, which shows it again when it stops)
+            self.live.console.show_cursor(False)
 
-                # if transient then disable live updates entirely
-                if transient is False and self.live.is_started:
-                    self.live.stop()
+            # if transient then disable live updates entirely
+            if transient is False and self.live.is_started:
+                self.live.stop()
 
-                # otherwise make sure they are enabled
-                elif transient is True and not self.live.is_started:
-                    self.live.start()
+            # otherwise make sure they are enabled
+            elif transient is True and not self.live.is_started:
+                self.live.start()
 
-                # if not transient then display mini-status
-                if not transient:
-                    self.status.start()
+            # if not transient then display mini-status
+            if not transient:
+                self.status.start()
 
 
 class RichTaskDisplay(TaskDisplay):

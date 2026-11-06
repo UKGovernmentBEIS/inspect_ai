@@ -124,3 +124,63 @@ def test_textual_input_screen_keeps_recording(
     if changed:
         recorded = console.export_text()
         assert "earlier" in recorded and "prompt" in recorded
+
+
+class _TerminalOutput:
+    """A stand-in stdout that reports a terminal."""
+
+    def __init__(self) -> None:
+        import io
+
+        self.buffer = io.StringIO()
+
+    def write(self, text: str) -> int:
+        return self.buffer.write(text)
+
+    def flush(self) -> None:
+        pass
+
+    def isatty(self) -> bool:
+        return True
+
+
+@pytest.fixture
+def terminal_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(display_rich, "is_running_in_vscode", lambda: False)
+    monkeypatch.setenv("TERM", "xterm-256color")
+    for name in ["TTY_COMPATIBLE", "TTY_INTERACTIVE", "FORCE_COLOR", "NO_COLOR"]:
+        monkeypatch.delenv(name, raising=False)
+
+
+def test_restore_detects_settings_for_redirected_output(
+    fresh_display: None, terminal_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import io
+    import sys
+
+    # a plain display set up on a terminal, then stdout redirected
+    monkeypatch.setattr(sys, "stdout", _TerminalOutput())
+    rich.reconfigure()
+    rich_initialise("plain", plain=True)
+    monkeypatch.setattr(sys, "stdout", io.StringIO())
+
+    display_rich.rich_display_type_changed(display_built=True)
+    console = rich.get_console()
+    assert console.color_system is None
+    assert not console.is_interactive
+
+
+def test_restore_keeps_explicit_settings_for_redirected_output(
+    fresh_display: None, terminal_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import io
+    import sys
+
+    monkeypatch.setattr(sys, "stdout", io.StringIO())
+    rich.reconfigure(color_system="truecolor", force_interactive=True)
+    rich_initialise("plain", plain=True)
+
+    display_rich.rich_display_type_changed(display_built=True)
+    console = rich.get_console()
+    assert console.color_system == "truecolor"
+    assert console.is_interactive
