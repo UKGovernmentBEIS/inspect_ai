@@ -870,7 +870,19 @@ the task may have changed since the log was written".
    and the staged commit, read the caller's `log`, which nothing zero runs
    holds. The samples and reductions are left out of the copy because no
    replay step reads them, so detaching costs the size of the header.
-3. Reconstructs the task spec as eval-retry does, from `replay`. The task-spec resolution
+
+   The copy isolates only what is built from it. `get_model()` memoizes by
+   default and returns a cached `Model` for the same name, config, base URL
+   and arguments, ignoring the config it was given
+   (`src/inspect_ai/model/_model.py:2529-2545`); an earlier eval-retry of
+   the same `EvalLog` in the process caches a primary whose config is the
+   caller's own `log.eval.model_generate_config`. Zero therefore constructs
+   its primary with `memoize=False` (step 3), as role reconstruction
+   already does for every role and ensemble member
+   (`src/inspect_ai/model/_model_config.py:70`), so every model zero
+   builds is new and holds only `replay`'s configs.
+3. Reconstructs the task spec as eval-retry does, from `replay`, with
+   `log_task_spec(replay, memoize=False)`; eval-retry keeps the default. The task-spec resolution
    (`src/inspect_ai/_eval/eval.py:1781-1803`) and the model and model-role
    construction (`:1817-1825`) move into a helper that both call:
 
@@ -884,7 +896,8 @@ the task may have changed since the log was written".
        model_roles: dict[str, Model | list[Model]] | None
        config: GenerateConfig        # log.plan.config, as eval-retry passes it
 
-   def log_task_spec(eval_log: EvalLog) -> LogTaskSpec: ...
+   def log_task_spec(eval_log: EvalLog, *, memoize: bool = True) -> LogTaskSpec:
+       """`memoize` is passed to the primary's `get_model()`; zero passes False."""
    ```
 
    The run settings eval-retry reads from `log.eval.config` move into a
@@ -1932,7 +1945,11 @@ backends; run the zero tests with `--runtrio` locally.
     - with a `Task.setup` that sets the same fields again and then raises,
       so zero refuses after the scratch eval.
 
-    In both, `log.model_dump()` before and after the call is equal, which
+    - as the first, with the primary on a provider that memoizes (`none`,
+      which `mockllm` is not), after a native `eval_retry(log)` of the same
+      caller-owned `EvalLog` in the process has cached that primary.
+
+    In each, `log.model_dump()` before and after the call is equal, which
     covers `eval.model_generate_config`, the nested role and ensemble
     configs, `plan.config`, the metric options, samples and results.
   - A scorer that needs a sandbox, using the `local` sandbox, sees files from
