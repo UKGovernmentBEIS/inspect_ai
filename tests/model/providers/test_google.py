@@ -4229,8 +4229,38 @@ def test_model_client_reuses_ssl_context_with_client_args(
     )
 
 
+@pytest.fixture(params=["httpx", "httpx2"])
+def async_client_kwargs(
+    request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch
+) -> dict[str, Any]:
+    """Kwargs genai passes to its async HTTP client, once per genai HTTP backend.
+
+    google-genai 3.x defaults to httpx2; older versions may have only httpx.
+    """
+    from google.genai import _api_client
+
+    client_cls = getattr(
+        _api_client,
+        {"httpx": "AsyncHttpxClient", "httpx2": "AsyncHttpx2Client"}[request.param],
+        None,
+    )
+    if client_cls is None:
+        pytest.skip(f"this google-genai has no {request.param} backend")
+    monkeypatch.setenv("GOOGLE_GENAI_HTTP_CLIENT", request.param)
+
+    captured: dict[str, Any] = {}
+    real_init = client_cls.__init__
+
+    def capturing_init(self: Any, **kwargs: Any) -> None:
+        captured.update(kwargs)
+        real_init(self, **kwargs)
+
+    monkeypatch.setattr(client_cls, "__init__", capturing_init)
+    return captured
+
+
 def test_model_client_preserves_custom_verify_for_async(
-    monkeypatch: pytest.MonkeyPatch,
+    async_client_kwargs: dict[str, Any],
 ) -> None:
     """A caller-supplied CA/SSLContext on `client_args` must reach async requests too.
 
@@ -4241,23 +4271,12 @@ def test_model_client_preserves_custom_verify_for_async(
     requests stayed correctly validated against it.
     """
     import ssl as ssl_module
-    from typing import Any
 
-    from google.genai._api_client import AsyncHttpxClient
     from google.genai.types import HttpOptions
 
     from inspect_ai.model._providers.google import GoogleGenAIAPI
 
     custom_context = ssl_module.create_default_context()
-
-    captured: dict[str, Any] = {}
-    real_init = AsyncHttpxClient.__init__
-
-    def capturing_init(self: Any, **kwargs: Any) -> None:
-        captured.update(kwargs)
-        real_init(self, **kwargs)
-
-    monkeypatch.setattr(AsyncHttpxClient, "__init__", capturing_init)
 
     api = GoogleGenAIAPI(
         model_name="gemini-2.0-flash",
@@ -4267,13 +4286,13 @@ def test_model_client_preserves_custom_verify_for_async(
     GoogleGenAIAPI._ssl_context.cache_clear()
     api.model_client(HttpOptions(client_args={"verify": custom_context}))
 
-    assert captured["verify"] is custom_context, (
+    assert async_client_kwargs["verify"] is custom_context, (
         "async httpx client did not receive the caller-supplied custom verify"
     )
 
 
 def test_model_client_converts_str_verify_for_aiohttp(
-    monkeypatch: pytest.MonkeyPatch,
+    async_client_kwargs: dict[str, Any],
 ) -> None:
     """A caller-supplied CA-bundle *path* must not reach aiohttp's `ssl` param.
 
@@ -4286,21 +4305,11 @@ def test_model_client_converts_str_verify_for_aiohttp(
     import ssl as ssl_module
 
     import certifi
-    from google.genai._api_client import AsyncHttpxClient
     from google.genai.types import HttpOptions
 
     from inspect_ai.model._providers.google import GoogleGenAIAPI
 
     ca_path = str(certifi.where())
-
-    captured: dict[str, Any] = {}
-    real_init = AsyncHttpxClient.__init__
-
-    def capturing_init(self: Any, **kwargs: Any) -> None:
-        captured.update(kwargs)
-        real_init(self, **kwargs)
-
-    monkeypatch.setattr(AsyncHttpxClient, "__init__", capturing_init)
 
     api = GoogleGenAIAPI(
         model_name="gemini-2.0-flash",
@@ -4312,7 +4321,7 @@ def test_model_client_converts_str_verify_for_aiohttp(
     client = api.model_client(HttpOptions(client_args={"verify": ca_path}))
 
     # httpx's async client keeps the original path -- that's a legal httpx `verify`.
-    assert captured["verify"] == ca_path
+    assert async_client_kwargs["verify"] == ca_path
 
     # aiohttp's `ssl` param only accepts SSLContext | bool | Fingerprint | None; the
     # resolved verify value must be converted, not copied verbatim.
