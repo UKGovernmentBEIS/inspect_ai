@@ -503,8 +503,11 @@ logs/<name>.eval --task mytask.py -T ...` with the task options it gave
 its workers, minus each worker's `--sample-id` or `--limit` and
 `--log-dir`. The page says which options are accepted and that they mean
 what they mean to `inspect eval`; that `--sample-id` takes exact ids, not
-patterns; that `--model` and `--model-role` are needed only if the task
-reads them when built, and need credentials; how to translate a run
+patterns; that the model options (`--model`, `--model-base-url`, `-M`,
+`--model-config`, `--model-role`) are needed when the task reads them when
+built or when a metric or reducer reads the model when the merge runs it
+(the merge runs them in the command's model context), that passing the
+workers' values is the safe default, and that they need credentials; how to translate a run
 launched with `--model-spec` or `--run-config` into flags, and that the
 command refuses their environment variables; that generate config options
 are not taken; the exit codes; and the `--json` object and envelope with
