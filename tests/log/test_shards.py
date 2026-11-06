@@ -4601,8 +4601,60 @@ def test_sample_copies_are_released_after_the_merge(
     else:
         merge_eval_log_shards(merged, _task())
     gc.collect()
-    # each copy holds its member's zstd writer, which holds compressor threads
-    assert copies and all(copy() is None for copy in copies)
+    assert copies
+    if crc == "matches":
+        assert all(copy() is None for copy in copies)
+    else:
+        # the error's traceback holds the frame holding a copy for as long as
+        # anything holds the error; the copy has released its resources
+        for ref in copies:
+            copy = ref()
+            assert copy is None or (
+                copy._writer is None and copy._decompressor._zstd is None
+            )
+
+
+@pytest.mark.parametrize("stop", ["error", "cancelled"])
+async def test_a_sample_copy_that_stops_closes_its_input_first(
+    two_shards: tuple[str, str], monkeypatch: pytest.MonkeyPatch, stop: str
+) -> None:
+    from inspect_ai.log import merge_eval_log_shards_async
+    from inspect_ai.log._shards import _write
+
+    merged, shards = two_shards
+    inputs: list[dict[str, bool]] = []
+    read_file_bytes = AsyncFilesystem.read_file_bytes
+
+    async def spy(self: AsyncFilesystem, *args: Any, **kwargs: Any) -> Any:
+        stream = await read_file_bytes(self, *args, **kwargs)
+        state = {"closed": False}
+        aclose = stream.aclose
+
+        async def close() -> None:
+            state["closed"] = True
+            await aclose()
+
+        monkeypatch.setattr(stream, "aclose", close)
+        inputs.append(state)
+        return stream
+
+    monkeypatch.setattr(AsyncFilesystem, "read_file_bytes", spy)
+    with anyio.CancelScope() as scope:
+
+        def write(self: Any, data: bytes) -> None:
+            if stop == "error":
+                raise RuntimeError("write failed")
+            anyio.from_thread.run_sync(scope.cancel)
+
+        monkeypatch.setattr(_write._SampleCopy, "write", write)
+        if stop == "error":
+            with pytest.raises(RuntimeError, match="write failed"):
+                await merge_eval_log_shards_async(merged, _task())
+        else:
+            await merge_eval_log_shards_async(merged, _task())
+    assert scope.cancelled_caught == (stop == "cancelled")
+    assert inputs and all(state["closed"] for state in inputs)
+    assert not os.path.exists(merged)
 
 
 def test_a_sample_member_that_does_not_match_its_crc_fails_the_merge(

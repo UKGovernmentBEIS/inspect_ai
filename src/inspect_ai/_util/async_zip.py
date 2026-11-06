@@ -6,7 +6,7 @@ stored locally or remotely (e.g., S3) using async range requests.
 
 import struct
 import zlib
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -323,7 +323,7 @@ class _ZipMemberBytes:
         self._verify = None if raw else verify
         self._active_streams: set[CompressedToUncompressedStream] = set()
 
-    async def __aiter__(self) -> AsyncIterator[bytes]:
+    async def __aiter__(self) -> AsyncGenerator[bytes, None]:
         byte_stream = await self._filesystem.read_file_bytes(
             self._filename, self._offset, self._end
         )

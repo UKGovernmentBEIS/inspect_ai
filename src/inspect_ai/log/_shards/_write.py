@@ -7,6 +7,7 @@ import zlib
 from collections.abc import Awaitable, Callable, Sequence
 from typing import IO, TYPE_CHECKING, Any, BinaryIO, NamedTuple
 
+import anyio
 from pydantic import BaseModel
 
 from inspect_ai._util.async_zip import AsyncZipReader, _check_crc
@@ -425,14 +426,20 @@ async def _copy_sample(
     """
     member = await read_member(key)
     copy = _SampleCopy(zf, _sample_filename(key.sample_id, key.epoch), member)
+    raw = await member.reader.open_member_raw(member.entry)
+    chunks = raw.__aiter__()
     try:
-        async with await member.reader.open_member_raw(member.entry) as chunks:
-            async for chunk in chunks:
-                await run_owned(functools.partial(copy.write, chunk))
+        async for chunk in chunks:
+            await run_owned(functools.partial(copy.write, chunk))
         parsed = await run_owned(copy.finish)
     finally:
-        # worker threads have finished (run_owned), so this cannot race them
-        copy.close()
+        try:
+            # closes the member's input, which a loop left early does not
+            with anyio.CancelScope(shield=True):
+                await chunks.aclose()
+        finally:
+            # worker threads have finished (run_owned), so this cannot race them
+            copy.close()
     if parsed is None:
         data = await member.reader.read_member_fully(member.entry)
         parsed = await run_owned(functools.partial(_parse_whole, data))
