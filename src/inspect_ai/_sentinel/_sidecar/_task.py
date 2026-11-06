@@ -73,9 +73,13 @@ class TaskSidecars:
     Models are shared between tasks, so what is found lives with the task, not with the model.
     """
 
-    def __init__(self, mode: SentinelProxy, facts: TaskFacts) -> None:
+    def __init__(
+        self, mode: SentinelProxy, facts: TaskFacts, in_process_sentinel: bool = False
+    ) -> None:
         self.mode: SentinelProxy = mode
         self.facts = facts
+        self.in_process_sentinel = in_process_sentinel
+        """Whether the task also has a sentinel inside Inspect, whose monitor state a copy must never overwrite."""
         self._found = _Once[Sidecar | str]()
         self._completed = _Once[bool]()
         # the eval's id and token for each sidecar, by its origin: models with
@@ -212,6 +216,8 @@ class TaskSidecars:
         A sidecar only an earlier attempt called is left out: it still keeps that attempt's monitor state, and a retry starts with an empty sample store, as in Inspect's own process.
 
         An attempt whose sample a sidecar lost partway through, as on a restart, isn't copied: the marker says its monitor state was lost, since what the sidecar holds began afresh.
+
+        Two sentinels keeping one key fail the sample, since which one a scorer reads can't be told: two sidecars, or a sidecar and a sentinel inside Inspect. A key is taken for the sentinel inside Inspect's only when the task has one. A scorer that reads monitor state with `store_as()` before the sidecar has written any puts the model's defaults into the sample store, which the copy would otherwise take for another sentinel's state. With both kinds of sentinel on one task, such a key the sentinel inside Inspect doesn't keep still fails the sample.
         """
         through = self._attempt_sidecars(sample_uuid, attempt_number)
         if not through:
@@ -265,7 +271,9 @@ class TaskSidecars:
                     conflict = None
                     if key in written_by:
                         conflict = f"The sentinels in the sidecars at {written_by[key]} and {sidecar.origin} both keep {key!r} for the sample."
-                    elif key in store and key not in copies:
+                    elif (
+                        self.in_process_sentinel and key in store and key not in copies
+                    ):
                         conflict = f"The sentinel inside Inspect and the one in the sidecar at {sidecar.origin} both keep {key!r} for the sample."
                     if conflict is not None:
                         store.set(
@@ -429,9 +437,18 @@ _eval_sidecars: "WeakValueDictionary[str, TaskSidecars]" = WeakValueDictionary()
 
 
 async def init_task_sidecars(
-    mode: SentinelProxy | None, model: Model, facts: TaskFacts
+    mode: SentinelProxy | None,
+    model: Model,
+    facts: TaskFacts,
+    in_process_sentinel: bool = False,
 ) -> None:
     """Find the sidecar behind the task's assigned model, and register the task with it, for the samples the task runs.
+
+    Args:
+        mode: Whether to look for a sidecar, and whether one is required.
+        model: The task's assigned model.
+        facts: What the task registers with each sidecar.
+        in_process_sentinel: Whether the task also has a sentinel inside Inspect, whose monitor state a copy from a sidecar must never overwrite.
 
     Raises:
         SentinelProxyError: If the task can't run with the sidecars it finds.
@@ -441,7 +458,7 @@ async def init_task_sidecars(
     if mode is None or mode == "off":
         _task_sidecars.set(None)
         return
-    sidecars = TaskSidecars(mode, facts)
+    sidecars = TaskSidecars(mode, facts, in_process_sentinel)
     await sidecars.start(model)
     _task_sidecars.set(sidecars)
     _eval_sidecars[facts.eval_id] = sidecars

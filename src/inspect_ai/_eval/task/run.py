@@ -1367,6 +1367,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                     sample_ids=sample_ids,
                     epochs=epochs,
                 ),
+                in_process_sentinel=options.sentinel is not None,
             )
 
             # call early stopping if we have it
