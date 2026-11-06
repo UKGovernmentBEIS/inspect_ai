@@ -16,6 +16,7 @@ from shortuuid import uuid
 from inspect_ai._util.content import ContentReasoning, ContentText, ContentToolUse
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.hash import mm3_hash
+from inspect_ai._util.json import to_json_str_safe
 from inspect_ai.agent._agent import AgentState
 from inspect_ai.log._condense import ATTACHMENT_PROTOCOL
 from inspect_ai.model._assistant_internal import copy_assistant_internal
@@ -489,14 +490,13 @@ class AgentBridge:
         calls are tracked; the oldest replies' calls are dropped (left unlinked)
         beyond that.
         """
+        outcome = mm3_hash(
+            to_json_str_safe({"result": event.result, "error": event.error})
+        )
         calls = self._awaited_results.setdefault(handed.reply_id, {})
         tracked = calls.get(handed.position)
         if tracked is None:
-            calls[handed.position] = _AwaitedResult(
-                handed,
-                event,
-                mm3_hash(event.model_dump_json(include={"result", "error"})),
-            )
+            calls[handed.position] = _AwaitedResult(handed, event, outcome)
         elif not tracked.settled:
             calls[handed.position] = tracked._replace(event=None, settled=True)
         tracked_calls = sum(len(calls) for calls in self._awaited_results.values())

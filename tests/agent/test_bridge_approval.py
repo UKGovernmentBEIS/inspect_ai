@@ -6457,6 +6457,86 @@ def compacting_host_scaffold(dialect: HostDialect, copied: bool) -> Agent:
     return execute
 
 
+@agent
+def surrogate_host_scaffold(outcome: Literal["result", "error"]) -> Agent:
+    """A Completions scaffold reading two files whose host results, or errors, hold a lone surrogate."""
+
+    async def execute(state: AgentState) -> AgentState:
+        tool = (
+            AsyncMock(return_value=SURROGATE_TEXT)
+            if outcome == "result"
+            else AsyncMock(side_effect=ToolError(SURROGATE_TEXT))
+        )
+        bridge = SandboxAgentBridge(
+            state=state,
+            filter=None,
+            retry_refusals=None,
+            compaction=None,
+            port=13131,
+            model=None,
+            bridged_tools={"host": {"read_file": read_file(tool)}},
+        )
+        [info] = declare("mcp__host__read_file")
+        conversation = _HostConversation("completions", state.messages[0].text, info)
+        while True:
+            calls = await conversation.request(bridge)
+            if not calls:
+                return bridge.state
+            [(_, arguments)] = calls
+            try:
+                await call_host_tool(bridge)("host", "read_file", arguments)
+            except ToolError:
+                assert outcome == "error"
+            # the surrogate's escaped form, as the scaffold's JSON round-trip leaves it
+            conversation.results(
+                calls, [SURROGATE_TEXT.encode(errors="backslashreplace").decode()]
+            )
+
+    return execute
+
+
+SURROGATE_TEXT = "decoded \ud800 text"
+
+
+@pytest.mark.parametrize("outcome", ["result", "error"])
+def test_host_outcome_with_a_lone_surrogate_links_its_result(
+    outcome: Literal["result", "error"], tmp_path: Path
+) -> None:
+    """A lone surrogate in a host result or mapped error doesn't break linking, then or in the next request."""
+    name = "mcp__host__read_file"
+    log = eval(
+        Task(
+            dataset=[Sample(input="Read a and b.")],
+            solver=surrogate_host_scaffold(outcome),
+        ),
+        model=get_model(
+            "mockllm/model",
+            custom_outputs=[
+                *[
+                    tool_calls_output(
+                        ToolCall(
+                            id=f"call_{path}", function=name, arguments={"path": path}
+                        )
+                    )
+                    for path in ["a", "b"]
+                ],
+                ModelOutput.from_content("mockllm/model", "done"),
+            ],
+        ),
+        log_dir=str(tmp_path),
+    )[0]
+    assert log.status == "success", log.error
+    read = read_eval_log(log.location)
+    assert read.samples
+    sample = resolve_sample_attachments(read.samples[0], "full")
+
+    final_input = [e for e in sample.events if isinstance(e, ModelEvent)][-1].input
+    results = [m.id for m in final_input if m.role == "tool"]
+    events = [e for e in sample.events if isinstance(e, ToolEvent)]
+    assert len(results) == 2
+    assert [e.message_id for e in events] == results
+
+
 @pytest.mark.parametrize("copied", [False, True], ids=["equal result", "copied"])
 @pytest.mark.parametrize("dialect", ["google", "completions"])
 def test_compacted_equal_host_result_links_to_its_own_message(
