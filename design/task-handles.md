@@ -109,8 +109,8 @@ Non-goals:
   waits while samples are in flight, and when fully idle awaits
   `next_samples()` inline (`:1854`). Nothing buffered starts while that call
   blocks, and the source may block indefinitely (`sample_source.py:63`).
-  Verified on this branch's base: a sample enqueued while `next_samples()`
-  blocks does not run until it returns. A control-channel rerun
+  A sample enqueued while `next_samples()` blocks does not run until it
+  returns. A control-channel rerun
   (`inspect ctl` requeue) is the one thing that does start during the pull:
   the feeder's hold keeps `SampleScheduler.open`
   (`src/inspect_ai/_eval/task/scheduler.py:209`) true, and the rerun starts
@@ -223,8 +223,7 @@ Non-goals:
     `retry_pending` (`eval_state.py:897-919`).
 - The dispatcher awaits `TaskSource.next_tasks()` inline, only when nothing
   is queued or running (`src/inspect_ai/_eval/run.py:1103`), so a task
-  enqueued inside it starts only after it returns. Verified on this
-  branch's base on asyncio and trio at `max_tasks=2`.
+  enqueued inside it starts only after it returns.
 - A sample's sandboxes are counted by a process-wide limiter per provider,
   `sandboxes/<provider>` (`max_sandboxes`, or the provider's
   `default_concurrency()`), which `sandboxenv_context` holds from before
@@ -505,9 +504,15 @@ _sample_code: ContextVar[SampleCode | None]   # in enqueue.py, default None
   task the sample did not start in a group it owns does not: a raw
   `asyncio.create_task()`, or a task started in a group another component
   owns (an ACP connection's workers), although each copies the
-  `ContextVar`. Verified on this branch's base with AnyIO 4.15.1: children
-  and grandchildren of a task group reach their owner through `parent_id`
-  on asyncio and trio, and a raw `asyncio.create_task()` child does not.
+  `ContextVar`: AnyIO gives a task started in a task group the group's
+  owning task as `parent_id` on asyncio and trio, so children and
+  grandchildren reach their owner, while a raw `asyncio.create_task()`
+  child has no AnyIO parent. A task that a foreign group's
+  `TaskGroup.start()` launches from inside the sample descends from the
+  sample until it reports readiness and from the foreign group afterwards;
+  a handle wait begun before that point is not ended by the sample's end.
+  No caller waits on a handle before reporting readiness, so that handoff
+  is left unsupported rather than given its own cancel path.
   `live` covers anyio's reuse of a finished task's id: the owner runs
   until after `live` is cleared, so a `live` code's `owner` names the
   sample's own task. The walk reads every running task, which costs one
@@ -660,9 +665,9 @@ request is then `done` and leaves the port (see "Retention").
 
 `SampleSource.next_samples()` may block indefinitely
 (`sample_source.py:63`), and today the feeder awaits it inline
-(`task/run.py:1854`), so nothing buffered starts until it returns (verified
-on this branch's base: a sample enqueued while `next_samples()` blocks does
-not run until it returns). `feed_samples` changes so that a pull never
+(`task/run.py:1854`), so nothing buffered starts until it returns: a
+sample enqueued while `next_samples()` blocks does not run until it
+returns. `feed_samples` changes so that a pull never
 blocks the port, while everything the source adds keeps today's order:
 
 ```
@@ -720,7 +725,7 @@ async with task group tg:                  # owned by the feeder
   So `--limit` and `--sample-id` select exactly the samples they select
   today, and ids are assigned in today's producer order: explicit ids as
   today, anonymous ones by the unique-id rule this design builds on (see
-  "Logs of tasks that can receive samples"). Verified on this branch's base: with an empty
+  "Logs of tasks that can receive samples"). Today, with an empty
   seed and `limit=1`, a `next_samples()` that enqueues A and returns `[B]`
   runs B; with one seed at `limit=2`, a rerun of the seed during a blocked
   pull whose `sample_complete` returns A, while the pull later returns B,
@@ -739,7 +744,7 @@ async with task group tg:                  # owned by the feeder
   `port_during_pull` the requests delivered while the pull was outstanding,
   so the pull's `None` cannot erase them. That is today's rule for a late
   enqueue during a terminal call (`task/run.py:1855-1860`,
-  `sample_source.py:69`); verified on this branch's base: a `next_samples()`
+  `sample_source.py:69`): today a `next_samples()`
   that enqueues a sample and returns `None` is called again and its next
   batch runs.
 - **An exhausted limit ends the task only when nothing more can start.**
