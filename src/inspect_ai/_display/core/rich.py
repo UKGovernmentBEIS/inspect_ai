@@ -48,6 +48,16 @@ class _ConsoleSettings:
 
 _console_settings: _ConsoleSettings | None = None
 
+_reconfigure_in_place = False
+"""Whether rich_initialise sets display settings on the existing console.
+
+Set after a display type change. Replacing the console there (as
+`rich.reconfigure()` does) would also drop console state from after the first
+display started, such as an open theme, capture or live display, a recording,
+or options set by the user between evals. A process without a display type
+change is unaffected.
+"""
+
 
 def _display_settings(console: Console) -> dict[str, Any]:
     return {name: getattr(console, name) for name in _DISPLAY_SETTINGS}
@@ -70,20 +80,20 @@ def rich_initialise(
 
     # reflect ansi prefs
     if plain:
-        rich.reconfigure(
+        _reconfigure(
             no_color=True,
             force_terminal=False,
             force_interactive=False,
             **size_kwargs,
         )
     elif rich_no_color(plain):
-        rich.reconfigure(no_color=True, **size_kwargs)
+        _reconfigure(no_color=True, **size_kwargs)
     elif size_kwargs:
-        rich.reconfigure(**size_kwargs)
+        _reconfigure(**size_kwargs)
 
     # reflect display == none
     if display == "none":
-        rich.reconfigure(quiet=True)
+        _reconfigure(quiet=True)
 
     console = rich.get_console()
     _console_settings = _ConsoleSettings(
@@ -113,6 +123,32 @@ def rich_initialise(
     Markdown.elements["code_block"] = CustomCodeBlock
 
 
+def _reconfigure(**kwargs: Any) -> None:
+    if _reconfigure_in_place:
+        # the display settings rich.reconfigure() would give, detected for the
+        # existing console's output and set on it
+        console = rich.get_console()
+        configured = Console(
+            file=console._file,
+            stderr=console.stderr,
+            force_jupyter=console.is_jupyter,
+            legacy_windows=console.legacy_windows,
+            _environ=console._environ,
+            **kwargs,
+        )
+        for name in _DISPLAY_SETTINGS:
+            setattr(console, name, getattr(configured, name))
+    else:
+        rich.reconfigure(**kwargs)
+
+
+def rich_display_type_changed() -> None:
+    """Prepare the console for a display rebuilt after a display type change."""
+    global _reconfigure_in_place
+    rich_restore_defaults()
+    _reconfigure_in_place = True
+
+
 def rich_restore_defaults() -> None:
     """Undo the global console display settings made by rich_initialise.
 
@@ -132,12 +168,7 @@ def rich_restore_defaults() -> None:
 
 
 def rich_live_display_open() -> bool:
-    """Is a Rich live display (e.g. progress or a status) open on the global console?
-
-    Starting a display can replace the console's state (`rich.reconfigure()`),
-    which drops an open live display, and the live display then fails when it
-    stops.
-    """
+    """Is a Rich live display (e.g. progress or a status) open on the global console?"""
     console = rich.get_console()
     # rich >= 14.1 keeps a stack of live displays, earlier versions a single one
     return bool(getattr(console, "_live_stack", None)) or (

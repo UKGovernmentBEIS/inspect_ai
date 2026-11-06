@@ -353,23 +353,44 @@ def test_eval_display_none_then_log_shows_log_output(
     assert "Running 1 tasks" in capsys.readouterr().out
 
 
+@pytest.mark.parametrize(
+    "first,second",
+    [("rich", "plain"), ("plain", "rich"), ("plain", "none"), ("rich", "log")],
+)
 def test_eval_display_change_keeps_console_contexts(
-    fresh_display: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    fresh_display: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    first: DisplayType,
+    second: DisplayType,
 ) -> None:
     import rich
+    from rich.theme import Theme
 
     import inspect_ai._display.core.rich as display_rich
 
     monkeypatch.setattr(display_rich, "is_running_in_vscode", lambda: False)
     task = Task(dataset=[Sample(input="hi", target="hi")], scorer=match())
-    eval(task, model="mockllm/model", display="rich", log_dir=str(tmp_path))
+    eval(task, model="mockllm/model", display=first, log_dir=str(tmp_path))
 
     console = rich.get_console()
-    with console.capture() as capture:
-        console.print("before the change")
-        with console.status("working"):
-            eval(task, model="mockllm/model", display="log", log_dir=str(tmp_path))
-    assert "before the change" in capture.get()
+    console.record = True
+    with console.use_theme(Theme({"note": "bold"})):
+        console.print("recorded before the change")
+        with console.capture() as capture:
+            console.print("captured before the change")
+            eval(task, model="mockllm/model", display=second, log_dir=str(tmp_path))
+    # the "none" display's quiet console drops captured output, as it does in
+    # a fresh process
+    shown = second != "none"
+    assert ("captured before the change" in capture.get()) == shown
+    assert "recorded before the change" in console.export_text()
+
+    # the capture no longer holds output back
+    capsys.readouterr()
+    console.print("after the change")
+    assert ("after the change" in capsys.readouterr().out) == shown
 
 
 def test_eval_display_change_keeps_console_settings_made_between_evals(
@@ -418,6 +439,64 @@ def test_eval_display_change_keeps_console_replaced_between_evals(
     assert not console.is_interactive
 
 
+def test_eval_display_change_detects_settings_for_the_console_output(
+    fresh_display: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import io
+
+    import rich
+
+    import inspect_ai._display.core.rich as display_rich
+
+    class TerminalOutput(io.StringIO):
+        def isatty(self) -> bool:
+            return True
+
+    monkeypatch.setattr(display_rich, "is_running_in_vscode", lambda: False)
+    monkeypatch.setenv("TERM", "xterm-256color")
+    for name in ["TTY_COMPATIBLE", "TTY_INTERACTIVE", "FORCE_COLOR", "NO_COLOR"]:
+        monkeypatch.delenv(name, raising=False)
+    task = Task(dataset=[Sample(input="hi", target="hi")], scorer=match())
+    eval(task, model="mockllm/model", display="rich", log_dir=str(tmp_path))
+
+    # a terminal of the user's own, while stdout is pytest's capture
+    rich.reconfigure(file=TerminalOutput())
+    eval(task, model="mockllm/model", display="conversation", log_dir=str(tmp_path))
+
+    console = rich.get_console()
+    assert console.is_interactive
+    assert console.color_system is not None
+
+
+@pytest.mark.parametrize("first,second", [("rich", "plain"), ("plain", "none")])
+def test_eval_display_change_keeps_console_options_set_between_evals(
+    fresh_display: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    first: DisplayType,
+    second: DisplayType,
+) -> None:
+    import io
+
+    import rich
+    from rich.theme import Theme
+
+    import inspect_ai._display.core.rich as display_rich
+
+    monkeypatch.setattr(display_rich, "is_running_in_vscode", lambda: False)
+    task = Task(dataset=[Sample(input="hi", target="hi")], scorer=match())
+    eval(task, model="mockllm/model", display=first, log_dir=str(tmp_path))
+
+    output = io.StringIO()
+    rich.reconfigure(file=output, theme=Theme({"note": "bold"}), soft_wrap=True)
+    eval(task, model="mockllm/model", display=second, log_dir=str(tmp_path))
+
+    console = rich.get_console()
+    assert console.file is output
+    assert console.soft_wrap
+    assert str(console.get_style("note")) == "bold"
+
+
 def _display_state() -> dict[str, Any]:
     import rich
 
@@ -463,6 +542,7 @@ def test_eval_display_change_matches_fresh_display(
     monkeypatch.setattr(active, "_active_display", None)
     monkeypatch.setattr(_display, "_display_type", None)
     monkeypatch.setattr(display_rich, "_console_settings", None)
+    monkeypatch.setattr(display_rich, "_reconfigure_in_place", False)
     monkeypatch.setattr(rich.get_console(), "__dict__", Console().__dict__)
     eval(task, model="mockllm/model", display=first, log_dir=str(tmp_path))
     eval(task, model="mockllm/model", display=second, log_dir=str(tmp_path))

@@ -52,7 +52,7 @@ def init_display_type(display: str | None = None) -> DisplayType:
 
         # a running eval or an open live display (e.g. progress for score() or
         # a log conversion on another thread) is using the display, so keep
-        # the type it is rendering with
+        # it and the type it is rendering with
         if eval_module._eval_async_running or rich_live_display_open():
             # a request for the current type that only differs because of the
             # background thread throttle (e.g. score() with no display called

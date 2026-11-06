@@ -442,6 +442,7 @@ def fresh_display(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(active, "_active_display", None)
     monkeypatch.setattr(_display, "_display_type", None)
     monkeypatch.setattr(display_rich, "_console_settings", None)
+    monkeypatch.setattr(display_rich, "_reconfigure_in_place", False)
     monkeypatch.setenv("COLUMNS", "1000")
     monkeypatch.setattr(rich.get_console(), "__dict__", Console().__dict__)
 
