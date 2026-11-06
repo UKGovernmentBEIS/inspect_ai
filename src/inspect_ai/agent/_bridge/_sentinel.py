@@ -726,15 +726,20 @@ async def _tool_result(
 async def _guarded(bridge: AgentBridge, run: Callable[[], Awaitable[T]]) -> T:
     # outcomes that end the sample go through the bridge, since a sandbox
     # bridge's service task can't raise them to the sample runner
+    limit: LimitExceededError | None = None
     try:
         return await run()
     except TerminateSampleError as ex:
         bridge.request_terminate(str(ex))
     except SentinelFailure as ex:
         inner = decisive_sentinel_exception(ex.error)
-        if isinstance(inner, LimitExceededError):
-            raise inner from ex
-        if isinstance(inner, TerminateSampleError):
-            bridge.request_terminate(str(inner))
-        bridge.request_fail(ex)
-        raise
+        if not isinstance(inner, LimitExceededError):
+            if isinstance(inner, TerminateSampleError):
+                bridge.request_terminate(str(inner))
+            bridge.request_fail(ex)
+            raise
+        limit = inner
+    # raised outside the handler: the failure's cause is the limit, so linking
+    # the limit back to it (as a cause or context) would make a cycle
+    if limit is not None:
+        raise limit

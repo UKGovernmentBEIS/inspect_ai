@@ -14,7 +14,7 @@ from checkpoint.test_checkpointer import (
     _fake_hydration,
     _patch_sample_runtime,
 )
-from pydantic import TypeAdapter
+from pydantic import JsonValue, TypeAdapter
 from pydantic_core import to_json
 from test_helpers.checkpoint import RecordingCheckpointer
 
@@ -31,6 +31,8 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.agent import Agent, AgentState, agent, agent_bridge
+from inspect_ai.agent._bridge._errors import PROVIDER_ERROR_KEY
+from inspect_ai.agent._bridge.sandbox.service import _forward_provider_errors
 from inspect_ai.agent._bridge.sandbox.service import call_tool as call_host_tool
 from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
 from inspect_ai.agent._bridge.types import AgentBridge
@@ -57,6 +59,8 @@ from inspect_ai.model import (
     get_model,
 )
 from inspect_ai.model._model import GenerateFilter, GenerateInput
+from inspect_ai.model._model_data.model_data import ModelCost, ModelInfo
+from inspect_ai.model._model_info import clear_model_info_cache, set_model_info
 from inspect_ai.model._model_output import ChatCompletionChoice
 from inspect_ai.solver import Generate, Solver, TaskState, solver
 from inspect_ai.tool import (
@@ -75,7 +79,7 @@ from inspect_ai.util._checkpoint import Manual
 from inspect_ai.util._checkpoint._layout.host_context import read as read_host_context
 from inspect_ai.util._checkpoint.checkpointer import Checkpointer, ResumeCheckpoint
 from inspect_ai.util._checkpoint.config import ResolvedCheckpointConfig
-from inspect_ai.util._limit import LimitExceededError
+from inspect_ai.util._limit import LimitExceededError, cost_limit
 from inspect_ai.util._span import span
 
 # mypy checks the tests against inspect_sentinel's API; they run on the fake
@@ -1212,6 +1216,59 @@ async def test_grouped_bridge_sentinel_defect_fails_in_both_leaf_orders(
         if sandbox:
             assert isinstance(bridge, SandboxAgentBridge)
             assert isinstance(bridge._failure, SentinelFailure)
+
+
+@pytest.fixture
+def priced_model() -> Iterator[None]:
+    cost = ModelCost(
+        input=1000.0, output=1000.0, input_cache_write=0.0, input_cache_read=0.0
+    )
+    set_model_info("model", ModelInfo(cost=cost))
+    yield
+    clear_model_info_cache()
+
+
+@pytest.mark.timeout(30)
+@pytest.mark.usefixtures("priced_model")
+async def test_a_result_monitor_crossing_a_cost_limit_is_forwarded_once() -> None:
+    # the limit is unwrapped from its SentinelFailure without a cause back to
+    # it, so forwarding it (which walks causes) ends
+    checks: list[AfterToolCall] = []
+    judge = Scripted(calls_output())
+    model = Scripted(calls_output())
+    bridge = sandbox_bridge()
+
+    @protocol
+    def judging() -> Protocol:
+        async def after(
+            context: Context, step: AfterToolCall, escalations: Escalations
+        ) -> Decision | None:
+            checks.append(step)
+            await judge.model.generate("Judge the tool result.")
+            return None
+
+        return after
+
+    async def request(
+        json_data: dict[str, JsonValue], headers: dict[str, str] | None = None
+    ) -> dict[str, JsonValue]:
+        await generate(bridge, model, conversation("result"))
+        return {}
+
+    forward = _forward_provider_errors(request, bridge)
+    with cost_limit(0.001), active(judging()):
+        first = await forward({})
+        second = await forward({})
+
+    assert PROVIDER_ERROR_KEY in first
+    assert second == first
+    assert bridge.generation_limit is not None
+    assert bridge.generation_limit.type == "cost"
+    assert bridge.generation_limit.__cause__ is None
+    assert not isinstance(bridge.generation_limit.__context__, SentinelFailure)
+    assert len(checks) == 1
+    assert len(judge.inputs) == 1
+    assert model.inputs == []
 
 
 async def test_cancellation_during_the_tool_call_stage_propagates() -> None:
