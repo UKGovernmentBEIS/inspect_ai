@@ -213,7 +213,17 @@ inside the command function, as in `recover`.
   `task:` prefix; a pattern is merged as a literal id, so the merge refuses
   it (the shards hold ids outside the selection, or the selection's id is
   missing). An empty id (`1,,2`, or an empty value) is refused before the
-  task is built. `--sample-count N`: the intended selection as a number of
+  task is built. The ids arrive as text (`parse_sample_id`), but the merged
+  log records the shards' typed ids: `build_header` (`_plan.py`) maps each
+  id of an id selection to the id of the merged sample with the same text,
+  as it already does for a count or no selection, and keeps an id no shard
+  holds (an `--allow-incomplete` merge) as given until a later merge holds
+  it. A dataset with integer ids therefore records `eval.dataset.sample_ids`
+  as `[1, 2]`, as a native run and an API merge given `[1, 2]` do, not
+  `["1", "2"]`, so typed readers (the `dataset_sample_ids` dataframe
+  column, `KnownKey.sample_id` in `_control/log_dir/select.py`) see the
+  same type. The change is in the API, so a Python caller that passes text
+  ids gets the same header. `--sample-count N`: the intended selection as a number of
   samples. Neither reads an environment variable (below):
   `INSPECT_EVAL_SAMPLE_ID` is a worker's own selection, not the run's. Both
   given, or a count below 1, is refused by the API's own check (below).
@@ -248,7 +258,10 @@ needed, above); a run config's `task` and its arguments, `model` with
 its arguments and base URL, `model_roles`, and the `epochs` and
 `epochs_reducer` of its `eval_config` as `--task`, `-T`, `--model`, `-M`,
 `--model-base-url`, `--model-role`, `--epochs` and `--epochs-reducer`.
-The values are the ones the launcher gave its workers, taken from its own
+An empty `epochs_reducer` (`[]`, reduction disabled) is `--epochs N
+--no-epochs-reducer`: `--epochs-reducer` takes reducer names, and an empty
+value is not one, while leaving the flag out keeps the task's own
+reducer. The values are the ones the launcher gave its workers, taken from its own
 command line or the original spec or run config, including the model
 roles it passed. `inspect log export-config` of a shard log is not a
 substitute: it exports the model, arguments and roles recorded after
@@ -424,6 +437,7 @@ so an error from the task's own code never reads as a merge refusal:
 
 | `kind` | Raised by | Extra field |
 |---|---|---|
+| `setup` | the command's setup before step 1, `process_common_options` and `platform_init()`: an `--env` value that cannot be parsed, a debugger that cannot listen, a hook that fails to load | |
 | `invalid_arguments` | `check_merge_arguments` (`ValueError`), an empty `--sample-id` entry, `--log-dir` on the command line, `INSPECT_EVAL_RUN_CONFIG` or `INSPECT_EVAL_MODEL_SPEC` in the environment | |
 | `task` | steps 2 to 5: an unreadable `--task-config` or `--model-config`, a task spec not found, a factory that raises, a model or role that cannot be constructed (a missing API key's `PrerequisiteError`), no task, several tasks, several models, a `TaskSource` | |
 | `not_found` | the merge's `FileNotFoundError`: a file the merge needed was missing. Either neither the merged log nor any shard attempt exists, or an attempt the merge listed was removed before it was read (a worker's retry cleanup removing a superseded attempt); the message says which. In the second case running the merge again, once the workers have exited, reads the attempt that replaced it | |
@@ -550,6 +564,11 @@ No migration required.
 - `merge_eval_log_shards()`: same signature, checks and errors; its
   argument checks run through `check_merge_arguments`, in the same order.
   The incomplete message's last sentence names `--allow-incomplete` too.
+  An id selection given as text for samples whose ids are integers is now
+  recorded in `eval.dataset.sample_ids` with the shards' integer ids
+  (before, as given); matching and the stored selection's comparison, both
+  by text, are unchanged. A merged log already written keeps its text ids
+  until a merge next writes it.
 - No stored format, schema or viewer type changes.
 
 ## Security
@@ -586,7 +605,12 @@ network, Docker or provider keys. Each test writes a task file to
 - **The command equals the API.** Two shards of a sample-id selection:
   the command's merged results and reductions equal a native unsharded
   run's, and equal the API's merge of the same shards with the same task;
-  a second run prints "No changes" with `written: false`.
+  a second run prints "No changes" with `written: false`. The dataset has
+  integer ids, and the command's `eval.dataset.sample_ids` equals the API
+  merge's given the same ids as integers, in the same order, and holds the
+  native run's ids with their types. An API merge given the ids as text
+  records integers too; with `allow_incomplete` and one id no shard holds,
+  that id stays as given.
 - **The construction context reaches the factory.** A factory that picks
   its metric by `get_model().name` merges with `--model mockllm/model`
   and is refused (`refused`, metric names) without it; one that reads
@@ -629,6 +653,8 @@ network, Docker or provider keys. Each test writes a task file to
   shard is `incomplete` with exit 1 and its `missing` ids; with
   `--allow-incomplete` the command writes a `started` log and exits 0. A
   pattern (`--sample-id 'a*'`) is refused as `outside_selection`.
+- **Setup errors.** A patched `platform_init` that raises is `setup`, with
+  one JSON object on stdout under `--json` and the task file not imported.
 - **Task errors.** A file with two tasks, a spec with no task, a missing
   file, a factory that raises, `--model a,b`, and `--model openai/gpt-4o`
   with no `OPENAI_API_KEY` are each `task`, with every file in the log
@@ -671,14 +697,16 @@ One PR, after PR 5 and before PR 6 of the
 titled as a `feat:` (the title is the changelog line; no CHANGELOG edit),
 in three commits:
 
-1. **Shared pieces, no behaviour change.** `model_options`,
+1. **Shared pieces and typed ids.** `model_options`,
    `model_role_option`, `task_args_options`, `epochs_options` and
    `parse_epochs_options` in `src/inspect_ai/_cli/eval.py`, used by
    `eval_options` and `eval_exec`; `check_merge_arguments` in
    `src/inspect_ai/log/_shards/_api.py`, used by
    `merge_eval_log_shards_async`; the incomplete message names
-   `--allow-incomplete`. Files: those two, `tests/log/test_shards.py` (the
-   message assertion, if one matches it).
+   `--allow-incomplete`; `build_header` in
+   `src/inspect_ai/log/_shards/_plan.py` records an id selection with the
+   merged samples' typed ids. Files: those three, `tests/log/test_shards.py`
+   (the typed-id assertions; the message assertion, if one matches it).
 2. **The command.** `src/inspect_ai/_cli/log_merge_shards.py`
    (`merge_shards_command`, `_merge_failures`), registered in
    `src/inspect_ai/_cli/log.py`; the tests above in
