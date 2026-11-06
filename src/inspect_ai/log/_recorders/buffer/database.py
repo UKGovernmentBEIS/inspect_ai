@@ -7,6 +7,7 @@ import sqlite3
 import threading
 import time
 from contextlib import contextmanager
+from enum import Enum
 from logging import getLogger
 from pathlib import Path
 from sqlite3 import Connection, OperationalError
@@ -98,6 +99,67 @@ SampleKey: TypeAlias = tuple[str, int]
 
 if TYPE_CHECKING:
     from .types import TranscriptEventSink
+
+
+class DbPhase(Enum):
+    """Lifecycle of a :class:`SampleBufferDatabase`'s connections and files.
+
+    Written under ``_lease_lock``. A close or cleanup waits while a sample
+    reader holds a lease; once none does it enters ``CLOSING``, which refuses
+    new readers while the connections are closed (possibly on a worker thread).
+    """
+
+    OPEN = "open"
+    CLOSE_DEFERRED = "close_deferred"
+    """close() waits for the last sample reader."""
+    CLEANUP_DEFERRED = "cleanup_deferred"
+    """cleanup() waits for the last sample reader (supersedes a deferred close)."""
+    CLOSING = "closing"
+    """Closing the connections; new sample readers are refused."""
+    CLOSED = "closed"
+    """Connections closed; the database can no longer be used."""
+
+    def admits_readers(self) -> bool:
+        """Whether a sample reader may take a lease."""
+        return self in (
+            DbPhase.OPEN,
+            DbPhase.CLOSE_DEFERRED,
+            DbPhase.CLEANUP_DEFERRED,
+        )
+
+    def accepts_connections(self) -> bool:
+        """Whether a thread may use (or open) its connection.
+
+        Still true while ``CLOSING``: writes reach the buffer only through
+        ``TaskLogger``, which drops its reference before tearing down, so only
+        sample readers need refusing during the close.
+        """
+        return self is not DbPhase.CLOSED
+
+
+class SyncPhase(Enum):
+    """State of the shared filestore sync worker. Written under ``_sync_lock``."""
+
+    IDLE = "idle"
+    """No upload requested."""
+    REQUESTED = "requested"
+    """A write requested an upload; the worker runs it once the interval is due."""
+    DRAINING = "draining"
+    """close() stopped syncing with an upload requested; the worker runs it now, then stops."""
+    STOPPED = "stopped"
+    """close() or cleanup() stopped syncing; no further uploads."""
+
+    def accepts_requests(self) -> bool:
+        """Whether a write may request an upload."""
+        return self in (SyncPhase.IDLE, SyncPhase.REQUESTED)
+
+    def request_taken(self) -> "SyncPhase":
+        """This phase once the worker has taken (or abandoned) the requested upload."""
+        if self is SyncPhase.REQUESTED:
+            return SyncPhase.IDLE
+        if self is SyncPhase.DRAINING:
+            return SyncPhase.STOPPED
+        return self
 
 
 class TaskData(BaseModel):
@@ -222,10 +284,14 @@ class SampleBufferDatabase(SampleBuffer):
         # task can interleave a statement onto the shared connection mid-txn.
         # check_same_thread=False is set purely so cleanup can close a (dead)
         # thread's handle, not to enable concurrent use.
+        #
+        # Lifecycle (see DbPhase). Set before _connections: __del__ closes
+        # connections under _lease_lock even after a partial __init__.
+        self._lease_lock = threading.Lock()
+        self._db_phase = DbPhase.OPEN
         self._local = threading.local()
         self._connections: list[Connection] = []
         self._connections_lock = threading.Lock()
-        self._closed = False
 
         # location subdir and file
         dir, file = location_dir_and_file(self.location)
@@ -234,10 +300,9 @@ class SampleBufferDatabase(SampleBuffer):
         db_dir = resolve_db_dir(db_dir)
         log_subdir = db_dir / dir
 
-        # if we are creating then create dirs, use filename w/pid,
-        # and create the database as required
+        # if we are creating then use filename w/pid, and create the
+        # database (and its dirs) as required
         if create:
-            log_subdir.mkdir(parents=True, exist_ok=True)
             self.db_path = log_subdir / f"{file}.{os.getpid()}.db"
 
             # initialize the database schema
@@ -283,15 +348,6 @@ class SampleBufferDatabase(SampleBuffer):
         self._removed_since_sync: set[SampleKey] = set()
         self._track_removals = False
         self._removed_since_sync_lock = threading.Lock()
-        self._cleanup_pending = False
-        self._close_pending = False
-        # set under _lease_lock the moment a close or cleanup decides to
-        # proceed (no reader holds a lease): from then on lease admission is
-        # refused, so no read can start between that decision and the
-        # connections closing — which may now happen on a worker thread
-        # (aclose/acleanup) while the event loop keeps serving readers
-        self._closing = False
-        self._lease_lock = threading.Lock()
 
         # create sync filestore if log_shared
         self._sync_filestore = (
@@ -303,13 +359,7 @@ class SampleBufferDatabase(SampleBuffer):
         self._sync_lock = threading.Lock()
         self._sync_wakeup = threading.Condition(self._sync_lock)
         self._sync_thread: threading.Thread | None = None
-        self._sync_pending = False
-        self._sync_closed = False
-        self._sync_requested = False
-        # whether the sync worker performs a requested-but-not-yet-due upload
-        # before it stops (close preserves recovery data, so it drains;
-        # cleanup deletes it, so it does not)
-        self._sync_drain = False
+        self._sync_phase = SyncPhase.IDLE
 
     def start_sample(self, sample: EvalSampleSummary) -> None:
         with self._get_connection(write=True) as conn:
@@ -576,23 +626,18 @@ class SampleBufferDatabase(SampleBuffer):
         """Stop syncing and close connections while preserving recovery files.
 
         A requested shared-buffer upload that is not yet due is performed
-        before the worker stops: the buffer may hold completed samples that
-        never reached the destination, and the shared copy is how another
-        host recovers them. Active sample readers retain their connections
-        until their leases end. SQLite data and shared buffer files remain
-        available for recovery.
+        before the worker stops (unless an earlier cleanup dropped it): the
+        buffer may hold completed samples that never reached the destination,
+        and the shared copy is how another host recovers them. Active sample
+        readers retain their connections until their leases end. SQLite data
+        and shared buffer files remain available for recovery.
         """
         _unfinished_shutdowns.add(self)
         if not self._close_sync_worker_for_cleanup(drain=True):
             return
 
-        with self._lease_lock:
-            if self._sample_read_leases:
-                self._close_pending = True
-                return
-            self._closing = True
-
-        self._close_all_connections()
+        if self._begin_closing(DbPhase.CLOSE_DEFERRED):
+            self._close_all_connections()
 
     @override
     def cleanup(self) -> None:
@@ -610,14 +655,32 @@ class SampleBufferDatabase(SampleBuffer):
         if not self._close_sync_worker_for_cleanup():
             return False
 
-        with self._lease_lock:
-            if self._sample_read_leases:
-                self._cleanup_pending = True
-                return False
-            self._closing = True
+        if not self._begin_closing(DbPhase.CLEANUP_DEFERRED):
+            return False
 
         self._delete_local_files()
         return True
+
+    def _begin_closing(self, deferred: DbPhase) -> bool:
+        """Enter ``CLOSING``, or ``deferred`` while a sample reader holds a lease.
+
+        Atomic with lease admission, so no reader starts between this decision
+        and the connections closing. A deferred cleanup is never downgraded to
+        a deferred close, and a closed database never reopens.
+
+        Returns:
+            True when the caller should close now; False when the last lease's
+            release will.
+        """
+        with self._lease_lock:
+            if self._db_phase is DbPhase.CLOSED:
+                return True
+            if self._sample_read_leases:
+                if self._db_phase is not DbPhase.CLEANUP_DEFERRED:
+                    self._db_phase = deferred
+                return False
+            self._db_phase = DbPhase.CLOSING
+            return True
 
     def _close_sync_worker_for_cleanup(self, *, drain: bool = False) -> bool:
         """Stop the sync worker before closing or cleaning up.
@@ -631,8 +694,12 @@ class SampleBufferDatabase(SampleBuffer):
         """
         sync_thread: threading.Thread | None = None
         with self._sync_lock:
-            self._sync_drain = drain
-            self._sync_closed = True
+            self._sync_phase = (
+                SyncPhase.DRAINING
+                if drain
+                and self._sync_phase in (SyncPhase.REQUESTED, SyncPhase.DRAINING)
+                else SyncPhase.STOPPED
+            )
             self._sync_wakeup.notify_all()
             sync_thread = self._sync_thread
 
@@ -1106,19 +1173,18 @@ class SampleBufferDatabase(SampleBuffer):
     ) -> Iterator[None]:
         key = (str(id), epoch)
         with self._lease_lock:
-            # atomic with a close's no-leases decision (see _closing): a read
-            # is admitted before that decision, deferring the close until it
-            # ends, or refused after it — never started against connections
+            # atomic with a close's no-leases decision (see _begin_closing): a
+            # read is admitted before that decision, deferring the close until
+            # it ends, or refused after it — never started against connections
             # that a worker thread is about to close
-            if self._closing or self._closed:
+            if not self._db_phase.admits_readers():
                 raise RuntimeError("SampleBufferDatabase used after cleanup")
             self._sample_read_leases[key] = self._sample_read_leases.get(key, 0) + 1
         try:
             yield
         finally:
             ready_remove = False
-            cleanup_ready = False
-            close_ready = False
+            deferred: DbPhase | None = None
             with self._lease_lock:
                 lease_count = self._sample_read_leases[key] - 1
                 if lease_count > 0:
@@ -1128,19 +1194,17 @@ class SampleBufferDatabase(SampleBuffer):
                     if key in self._pending_sample_removals:
                         self._pending_sample_removals.remove(key)
                         ready_remove = True
-                    if self._cleanup_pending and not self._sample_read_leases:
-                        self._cleanup_pending = False
-                        cleanup_ready = True
-                    if self._close_pending and not self._sample_read_leases:
-                        self._close_pending = False
-                        close_ready = True
-                    if cleanup_ready or close_ready:
-                        self._closing = True
+                    if not self._sample_read_leases and self._db_phase in (
+                        DbPhase.CLOSE_DEFERRED,
+                        DbPhase.CLEANUP_DEFERRED,
+                    ):
+                        deferred = self._db_phase
+                        self._db_phase = DbPhase.CLOSING
             if ready_remove:
                 self._remove_samples_now([key])
-            if cleanup_ready:
+            if deferred is DbPhase.CLEANUP_DEFERRED:
                 self._cleanup_now()
-            elif close_ready:
+            elif deferred is DbPhase.CLOSE_DEFERRED:
                 self._close_all_connections()
 
     def _open_connection(self) -> Connection:
@@ -1247,6 +1311,13 @@ class SampleBufferDatabase(SampleBuffer):
                     time.sleep(retry_delay * (2**attempt))
                     continue
                 raise
+            except FileExistsError:
+                # mkdir(exist_ok=True) raises this when a sibling rmdir's the
+                # directory between mkdir's EEXIST and its is_dir() check;
+                # the next mkdir re-creates it, so retry without backoff
+                if attempt < max_retries - 1:
+                    continue
+                raise
             except BaseException:
                 # close any half-open connection before propagating a
                 # non-retryable error raised during connect/PRAGMA setup
@@ -1260,7 +1331,7 @@ class SampleBufferDatabase(SampleBuffer):
 
     def _thread_connection(self) -> Connection:
         """Return this thread's persistent connection, opening one if needed."""
-        if self._closed:
+        if not self._db_phase.accepts_connections():
             raise RuntimeError("SampleBufferDatabase used after cleanup")
         conn: Connection | None = getattr(self._local, "conn", None)
         if conn is None:
@@ -1269,7 +1340,7 @@ class SampleBufferDatabase(SampleBuffer):
                 # re-check under the lock: if cleanup() won the race while we
                 # were opening, discard this connection rather than tracking and
                 # using a handle to an already-unlinked database
-                if self._closed:
+                if not self._db_phase.accepts_connections():
                     conn.close()
                     raise RuntimeError("SampleBufferDatabase used after cleanup")
                 self._local.conn = conn
@@ -1298,17 +1369,18 @@ class SampleBufferDatabase(SampleBuffer):
         thread is undefined even with check_same_thread=False). This holds
         because callers (a) join the filestore sync worker first
         (_close_sync_worker_for_cleanup, which aborts if the join times out)
-        and (b) decide to proceed only when no reader holds a lease, setting
-        _closing under _lease_lock in the same step so no leased read is
+        and (b) decide to proceed only when no reader holds a lease, entering
+        CLOSING in the same step (_begin_closing) so no leased read is
         admitted afterwards — which matters now that aclose/acleanup run
         this on a worker thread while the event loop keeps serving readers.
         Non-leased operations reach the buffer only through TaskLogger, which
-        drops its reference before tearing down. The _closed flag (set here,
-        re-checked under the lock in _thread_connection) closes the remaining
-        "open racing with close" window.
+        drops its reference before tearing down. Entering CLOSED here, under
+        _connections_lock as well as _lease_lock (re-checked under the former
+        in _thread_connection), closes the remaining "open racing with close"
+        window.
         """
-        with self._connections_lock:
-            self._closed = True
+        with self._lease_lock, self._connections_lock:
+            self._db_phase = DbPhase.CLOSED
             conns, self._connections = self._connections, []
         for conn in conns:
             try:
@@ -1417,11 +1489,10 @@ class SampleBufferDatabase(SampleBuffer):
             return
 
         with self._sync_lock:
-            if self._sync_closed:
+            if not self._sync_phase.accepts_requests():
                 return
 
-            self._sync_requested = True
-            self._sync_pending = True
+            self._sync_phase = SyncPhase.REQUESTED
 
             if self._sync_thread is None or not self._sync_thread.is_alive():
                 self._sync_thread = threading.Thread(
@@ -1438,23 +1509,23 @@ class SampleBufferDatabase(SampleBuffer):
         while True:
             with self._sync_lock:
                 while True:
-                    # a draining close runs a requested upload at once instead
-                    # of waiting out the interval, then stops
-                    drain = (
-                        self._sync_closed and self._sync_drain and self._sync_requested
-                    )
-                    if self._sync_closed and not drain:
+                    phase = self._sync_phase
+                    if phase is SyncPhase.STOPPED:
                         self._sync_thread = None
                         return
                     assert self.log_shared is not None
                     remaining = self.log_shared - (time.monotonic() - self._sync_time)
-                    if self._sync_requested and (remaining <= 0 or drain):
-                        self._sync_requested = False
-                        self._sync_pending = False
+                    # a draining close runs its upload at once instead of
+                    # waiting out the interval, then stops
+                    if phase is SyncPhase.DRAINING or (
+                        phase is SyncPhase.REQUESTED and remaining <= 0
+                    ):
+                        self._sync_phase = phase.request_taken()
                         self._sync_time = time.monotonic()
                         break
 
-                    timeout = max(remaining, 0) if self._sync_requested else None
+                    requested = phase is SyncPhase.REQUESTED
+                    timeout = max(remaining, 0) if requested else None
                     self._sync_wakeup.wait(timeout=timeout)
 
             try:
@@ -1464,8 +1535,7 @@ class SampleBufferDatabase(SampleBuffer):
                 logger.exception("Log Sync failed for %s", self.location)
             except BaseException:
                 with self._sync_lock:
-                    self._sync_requested = False
-                    self._sync_pending = False
+                    self._sync_phase = self._sync_phase.request_taken()
                     self._sync_thread = None
                 raise
 

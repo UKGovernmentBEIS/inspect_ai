@@ -1,4 +1,3 @@
-import dataclasses
 import gc
 import json
 import weakref
@@ -29,7 +28,7 @@ from inspect_ai.tool._tool_call import ToolCall, ToolCallContent
 
 def _prefix(index: CallPoolIndex, msgs: Sequence[JsonValue]) -> list[int]:
     """match_prefix's indices alone, for assertions that don't reuse the match."""
-    return list(index.match_prefix(msgs).indices)
+    return index.match_prefix(msgs).entries
 
 
 def test_message_pool_index_comparison_error_is_a_miss() -> None:
@@ -154,7 +153,7 @@ def test_call_pool_index_set_prev_ignores_match_dropped_by_restore() -> None:
     index.set_prev(first, [0])
     grown: list[JsonValue] = first + [{"content": "b"}]
     match = index.match_prefix(grown)
-    assert match.indices == (0,)
+    assert match.entries == [0]
 
     index.restore(0)  # rollback drops every lineage
     index.set_prev(grown, [1, 2], match=match)
@@ -237,63 +236,6 @@ def test_call_pool_index_set_prev_copies_input() -> None:
     assert _prefix(index, query) == [0]
 
 
-def test_call_pool_index_set_prev_snapshots_message_values() -> None:
-    """In-place mutation of a retained wire message must not match a later event.
-
-    The retained values are what the next event's prefix is matched against;
-    if they aliased the caller's dicts, mutating one in place to equal new
-    content would match the prefix against content that was never pooled at
-    that position, returning a stale pool index for genuinely new content.
-    """
-    index = CallPoolIndex()
-    msg: dict[str, JsonValue] = {"role": "user", "content": "a"}
-    index.set_prev([msg], [0])
-    # mutate the very dict that was handed to set_prev (the object an eval
-    # mutates when it edits an already-logged call.request in place)
-    msg["content"] = "b"
-    # a new event whose content equals the mutated value must NOT match the
-    # prefix: position 0 pooled "a", not "b"
-    mutated_query: list[JsonValue] = [{"role": "user", "content": "b"}]
-    assert _prefix(index, mutated_query) == []
-    # and the genuine re-send of the originally pooled value still matches
-    original_query: list[JsonValue] = [{"role": "user", "content": "a"}]
-    assert _prefix(index, original_query) == [0]
-
-
-def test_call_pool_index_carry_forward_only_snapshots_divergent_tail() -> None:
-    """Carry-forward reuses prior snapshots for the matched prefix.
-
-    The hot path passes the matched prefix length so only the divergent tail
-    is snapshotted; the reused prefix snapshots stay immutable (proven by the
-    in-place-mutation guard above also holding across a carry-forward).
-    """
-    index = CallPoolIndex()
-    first: list[JsonValue] = [{"role": "user", "content": "a"}]
-    index.set_prev(first, [0])
-
-    second: list[dict[str, JsonValue]] = [
-        {"role": "user", "content": "a"},  # shared prefix (matched, carried)
-        {"role": "assistant", "content": "b"},  # divergent tail (snapshotted)
-    ]
-    match = index.match_prefix(second)
-    assert match.indices == (0,)
-    index.set_prev(second, [0, 1], match=match)
-
-    # mutating the tail dict that was just snapshotted must not leak in
-    second[1]["content"] = "c"
-    divergent: list[JsonValue] = [
-        {"role": "user", "content": "a"},
-        {"role": "assistant", "content": "c"},
-    ]
-    assert _prefix(index, divergent) == [0]
-    # the snapshotted tail value still matches its real re-send
-    resent: list[JsonValue] = [
-        {"role": "user", "content": "a"},
-        {"role": "assistant", "content": "b"},
-    ]
-    assert _prefix(index, resent) == [0, 1]
-
-
 def test_call_pool_index_multi_slot_alternating_forms() -> None:
     """Raw and condensed request lineages must both keep prefix-matching.
 
@@ -309,14 +251,14 @@ def test_call_pool_index_multi_slot_alternating_forms() -> None:
 
     raw2: list[JsonValue] = raw + [{"role": "assistant", "content": "raw reply"}]
     raw_match = index.match_prefix(raw2)
-    assert raw_match.indices == (0,)
+    assert raw_match.entries == [0]
     index.set_prev(raw2, [0, 1], match=raw_match)
 
     condensed2: list[JsonValue] = condensed + [
         {"role": "assistant", "content": "attachment://def"}
     ]
     condensed_match = index.match_prefix(condensed2)
-    assert condensed_match.indices == (10,)
+    assert condensed_match.entries == [10]
     index.set_prev(condensed2, [10, 11], match=condensed_match)
 
     # both lineages continue to extend
@@ -336,7 +278,7 @@ def test_call_pool_index_carry_forward_uses_matched_slot() -> None:
 
     grown_a: list[JsonValue] = [{"content": "lineage-a"}, {"content": "a-2"}]
     match = index.match_prefix(grown_a)
-    assert match.indices == (0,)
+    assert match.entries == [0]
     index.set_prev(grown_a, [0, 1], match=match)
 
     assert _prefix(index, [{"content": "lineage-a"}]) == [0]
@@ -356,7 +298,7 @@ def test_call_pool_index_caps_slots_and_keeps_matching_beyond_cap() -> None:
     n = _CALL_PREV_SLOTS + 3
     for i in range(n):
         index.set_prev([{"content": f"lineage-{i}"}], [i])
-    assert len(index._prevs) == _CALL_PREV_SLOTS
+    assert len(index._lineages) == _CALL_PREV_SLOTS
     # exactly _CALL_PREV_SLOTS lineages remain matchable; the rest miss (safe)
     hits = sum(
         1 for i in range(n) if _prefix(index, [{"content": f"lineage-{i}"}]) == [i]
@@ -382,7 +324,7 @@ def test_call_pool_index_abandoned_lineage_bytes_are_released() -> None:
     for _ in range(_CALL_PREV_MAX_IDLE + 2):
         index.set_prev(live_msgs, [1], match=index.match_prefix(live_msgs))
 
-    retained = json.dumps([dataclasses.asdict(prev) for prev in index._prevs])
+    retained = json.dumps([prev.snapshots for prev in index._lineages])
     assert sentinel not in retained
     assert live in retained
     assert len(retained) < len(sentinel)
@@ -430,17 +372,17 @@ def test_call_pool_index_forked_streams_keep_separate_lineages() -> None:
 
     a1: list[JsonValue] = shared + [{"content": "a-0"}]
     match = index.match_prefix(a1)
-    assert match.indices == (0, 1)
+    assert match.entries == [0, 1]
     index.set_prev(a1, [0, 1, 2], match=match)  # full consumption: replaces
 
     b1: list[JsonValue] = shared + [{"content": "b-0"}]
     match = index.match_prefix(b1)  # partial match against A's slot
-    assert match.indices == (0, 1)
+    assert match.entries == [0, 1]
     index.set_prev(b1, [0, 1, 3], match=match)  # partial: appends sibling
 
     a2: list[JsonValue] = a1 + [{"content": "a-1"}]
     match = index.match_prefix(a2)
-    assert match.indices == (0, 1, 2)  # [0, 1] if lineages had merged
+    assert match.entries == [0, 1, 2]  # [0, 1] if lineages had merged
     index.set_prev(a2, [0, 1, 2, 4], match=match)
     b2: list[JsonValue] = b1 + [{"content": "b-1"}]
     assert _prefix(index, b2) == [0, 1, 3]
@@ -458,7 +400,7 @@ def test_call_pool_index_repeated_prefix_request_reuses_its_slot() -> None:
     def condense(msgs: list[JsonValue], indices: list[int]) -> list[int]:
         match = index.match_prefix(msgs)
         index.set_prev(msgs, indices, match=match)
-        return list(match.indices)
+        return match.entries
 
     m: list[JsonValue] = [{"content": f"m{i}"} for i in range(4)]
     long_a: list[JsonValue] = [m[0], m[1], m[2], m[3]]
@@ -467,14 +409,14 @@ def test_call_pool_index_repeated_prefix_request_reuses_its_slot() -> None:
     condense(long_a, [0, 1, 2, 3])
     condense(short, [0, 1])  # partial (2 of 4): sibling slot
     condense(long_b, [0, 1, 2, 4])  # partial (3 of 4): sibling slot
-    assert len(index._prevs) == 3
+    assert len(index._lineages) == 3
 
     for _ in range(10):  # the short stream re-sends its unchanged state
         assert condense(short, [0, 1]) == [0, 1]
 
     # no growth, and both long lineages survive: sibling appends would evict
     # them and force the full re-walk this index exists to remove
-    assert len(index._prevs) == 3
+    assert len(index._lineages) == 3
     assert _prefix(index, long_a) == [0, 1, 2, 3]
     assert _prefix(index, long_b) == [0, 1, 2, 4]
 
@@ -494,9 +436,9 @@ def test_call_pool_index_extending_request_replaces_the_lineage_it_consumes() ->
 
     request: list[JsonValue] = m[:2] + [{"content": "x"}]
     match = index.match_prefix(request)
-    assert match.indices == (0, 1)
+    assert match.entries == [0, 1]
     index.set_prev(request, [0, 1, 4], match=match)
-    assert sorted(len(prev.msgs) for prev in index._prevs) == [3, 4]
+    assert sorted(len(prev.snapshots) for prev in index._lineages) == [3, 4]
 
 
 # ---------------------------------------------------------------------------

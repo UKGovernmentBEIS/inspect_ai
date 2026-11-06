@@ -1,15 +1,8 @@
-name: Build and Push Image to Docker Hub
+name: Build and Push Computer Tool Image to Docker Hub
 
 on:
   workflow_dispatch:
     inputs:
-      image:
-        description: Image to build
-        required: true
-        type: choice
-        options:
-          - inspect-computer-tool
-          - inspect-tool-support
       tag:
         description: Tag to assign to the image
         required: true
@@ -41,27 +34,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Set build context path and image name
-        # The input reaches the shell only through IMAGE, never by expression
-        # interpolation into the script, and only the two supported images
-        # map to a build context. Anything else stops the job here, before
-        # the Docker login and build steps.
-        env:
-          IMAGE: ${{ github.event.inputs.image }}
-        run: |
-          case "$IMAGE" in
-            inspect-computer-tool)
-              BUILD_CONTEXT=src/inspect_ai/tool/_tools/_computer/_resources
-              ;;
-            inspect-tool-support)
-              BUILD_CONTEXT=src/inspect_ai/util/_sandbox/docker
-              ;;
-            *)
-              printf 'Invalid image name: %q\n' "$IMAGE" >&2
-              exit 1
-              ;;
-          esac
-          echo "BUILD_CONTEXT=$BUILD_CONTEXT" >> "$GITHUB_ENV"
       - name: Login to DockerHub
         uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
@@ -83,10 +55,10 @@ jobs:
       - name: Build and (optionally) push multi-arch image
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
-          context: ${{ env.BUILD_CONTEXT }}
+          context: src/inspect_ai/tool/_tools/_computer/_resources
           push: ${{ github.event.inputs.push }}
           platforms: ${{ github.event.inputs.platforms }}
-          tags: ${{ github.event.inputs.org }}/${{ github.event.inputs.image }}:${{ github.event.inputs.tag }}
+          tags: ${{ github.event.inputs.org }}/inspect-computer-tool:${{ github.event.inputs.tag }}
           # Release images are built from scratch: no layers are reused from
           # earlier builds and none are exported for later ones.
           no-cache: true

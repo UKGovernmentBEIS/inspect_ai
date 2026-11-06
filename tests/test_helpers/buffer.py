@@ -1,14 +1,32 @@
-"""Test helpers for sample-buffer database recovery flows."""
+"""Test helpers for sample-buffer database lifecycle and recovery flows."""
 
 import os
 import shutil
 from pathlib import Path
 
-from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
+from inspect_ai.log._recorders.buffer.database import (
+    DbPhase,
+    SampleBufferDatabase,
+    SyncPhase,
+)
 
 # A PID that does not correspond to a live process, so the recovery flow treats
 # the snapshot as belonging to a crashed (not running) eval.
 DEAD_PID = 99999999
+
+
+def db_phase(buffer: SampleBufferDatabase) -> DbPhase:
+    """The buffer's current ``DbPhase``.
+
+    Read through a call so mypy does not keep a phase narrowed by an earlier
+    assert across the close or lease release that changes it.
+    """
+    return buffer._db_phase
+
+
+def sync_phase(buffer: SampleBufferDatabase) -> SyncPhase:
+    """The buffer's current ``SyncPhase`` (see :func:`db_phase`)."""
+    return buffer._sync_phase
 
 
 def simulate_crashed_buffer_db(
