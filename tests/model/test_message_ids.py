@@ -1,14 +1,25 @@
 """Tests for stable_message_ids and message ID stability."""
 
+from test_helpers.message_ids import edited_id, shown
+
+from inspect_ai._util.content import ContentReasoning, ContentText
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.model import (
     ChatMessage,
     ChatMessageAssistant,
+    ChatMessageTool,
     ChatMessageUser,
     GenerateConfig,
     ModelOutput,
+    get_model,
 )
-from inspect_ai.model._message_ids import stable_message_ids
+from inspect_ai.model._message_ids import (
+    canonical_tool_arguments,
+    edited_message,
+    stable_message_ids,
+)
+from inspect_ai.model._model import resolve_reasoning_history, resolve_tool_model_input
+from inspect_ai.tool import ToolCall, ToolDef
 
 
 class TestStableMessageIds:
@@ -271,3 +282,96 @@ class TestStableMessageIdsWithModelEvent:
 
         # Input should still have IDs
         assert list(event.input)[0].id is not None
+
+
+def test_reasoning_history_stripping_derives_ids() -> None:
+    messages: list[ChatMessage] = [
+        ChatMessageUser(content="Question"),
+        ChatMessageAssistant(
+            content=[ContentReasoning(reasoning="hmm"), ContentText(text="Answer")]
+        ),
+    ]
+    resolved = resolve_reasoning_history(
+        messages,
+        GenerateConfig(reasoning_history="none"),
+        get_model("mockllm/model").api,
+    )
+
+    again = resolve_reasoning_history(
+        messages,
+        GenerateConfig(reasoning_history="none"),
+        get_model("mockllm/model").api,
+    )
+
+    assert resolved[1].content == [ContentText(text="Answer")]
+    assert resolved[0] is messages[0]
+    assert resolved[1].id == edited_id(messages[1].id, resolved[1])
+    assert [m.id for m in again] == [m.id for m in resolved]
+
+
+def test_reasoning_summary_edit_gets_a_new_id() -> None:
+    """A changed summary is a changed message, even with the same reasoning payload."""
+    reply = ChatMessageAssistant(
+        id="reply",
+        content=[
+            ContentReasoning(reasoning="signature", summary="First.", redacted=True),
+            ContentText(text="Answer"),
+        ],
+    )
+
+    edited = edited_message(
+        reply,
+        content=[
+            ContentReasoning(reasoning="signature", summary="Second.", redacted=True),
+            ContentText(text="Answer"),
+        ],
+    )
+
+    assert edited.id != reply.id
+    assert shown(edited) != shown(reply)
+
+
+def test_tool_arguments_compare_by_json_numbers() -> None:
+    """5.0 and 5 are one JSON number, but a bool is not a number."""
+    assert canonical_tool_arguments({"n": [5.0, {"m": -0.0}]}) == (
+        canonical_tool_arguments({"n": [5, {"m": 0}]})
+    )
+    assert canonical_tool_arguments({"n": 5.5}) != canonical_tool_arguments({"n": 5})
+    assert canonical_tool_arguments({"n": True}) != canonical_tool_arguments({"n": 1})
+    assert canonical_tool_arguments({"n": 1.0}) != canonical_tool_arguments({"n": True})
+
+    def reply(arguments: dict[str, object]) -> ChatMessageAssistant:
+        call = ToolCall(id="c1", function="read", arguments=arguments)
+        return ChatMessageAssistant(id="reply", content="", tool_calls=[call])
+
+    assert (
+        edited_message(reply({"n": 5.0}), tool_calls=reply({"n": 5}).tool_calls).id
+        == "reply"
+    )
+
+
+def test_tool_model_input_derives_ids() -> None:
+    async def lookup(query: str) -> str:
+        """Look up a query.
+
+        Args:
+          query: The query.
+        """
+        return query
+
+    tdef = ToolDef(lookup, model_input=lambda index, total, content, hints: "(removed)")
+    messages: list[ChatMessage] = [
+        ChatMessageTool(content="result", tool_call_id="c1", function="lookup")
+    ]
+    resolved = resolve_tool_model_input(
+        [tdef], messages, {"disable_computer_screenshot_truncation": False}
+    )
+
+    again = resolve_tool_model_input(
+        [tdef], messages, {"disable_computer_screenshot_truncation": False}
+    )
+
+    assert resolved[0].content == "(removed)"
+    assert resolved[0].id == edited_id(messages[0].id, resolved[0])
+    assert again[0].id == resolved[0].id
+    assert messages[0].content == "result"

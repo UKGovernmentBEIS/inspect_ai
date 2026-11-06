@@ -24,6 +24,7 @@ from inspect_ai._sentinel._integration import (
 )
 from inspect_ai._sentinel._steps import ListView, PoolView
 from inspect_ai._util._async import tg_collect
+from inspect_ai._util.content import ContentImage, ContentText
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.agent import (
     Agent,
@@ -233,13 +234,6 @@ def replayed(log: EvalLog, **kwargs: Any) -> list["ReplayStep"]:
     )
 
 
-# the fields whose messages come from the log's pool, which keeps the first id
-# stored for each content: a message sent again under a new id reads back with
-# the first, and equal messages in one history are one row, so one id and one
-# object (a known difference)
-POOLED = {"input", "history"}
-
-
 def comparable(value: Any, ids: bool = True) -> Any:
     """A value as data, with message ids left out unless `ids`."""
     if isinstance(value, BaseModel) and hasattr(value, "role"):
@@ -328,8 +322,7 @@ def assert_logged_replay_equals_live(
                 continue
             if f.name == "view":
                 ours, theirs = ours.call, theirs.call
-            ids = f.name not in POOLED
-            assert comparable(ours, ids) == comparable(theirs, ids), f"{key} {f.name}"
+            assert comparable(ours) == comparable(theirs), f"{key} {f.name}"
     assert_inferred(log, replay, inferred)
     return replay
 
@@ -530,6 +523,55 @@ def test_a_truncated_result_replays_as_it_ran() -> None:
     )
     [after] = [step for step in replay if step.stage == "tool_result"]
     assert isinstance(after.step, AfterToolCall) and after.step.truncated
+
+
+def test_a_media_result_moved_out_of_the_tool_message_replays_as_it_ran() -> None:
+    # mockllm takes no images in tool results, so the model's input holds an
+    # edited copy of the tool message under its id
+    image = ContentImage(image="data:image/png;base64,iVBORw0KGgo=")
+    replay = assert_replay_equals_live(
+        tool_loop(returns([ContentText(text="look"), image])),
+        outputs(call("returns"), done()),
+    )
+    [after] = [step for step in replay if step.stage == "tool_result"]
+    assert isinstance(after.step, AfterToolCall)
+    assert image in after.step.result.content
+
+
+@solver
+def clears_the_result() -> Solver:
+    """Run a tool, then clear its result in the conversation under the same id."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        model = get_model()
+        tools = [returns("original result")]
+        for turn in range(3):
+            if turn == 2:
+                [index] = [
+                    i
+                    for i, message in enumerate(state.messages)
+                    if isinstance(message, ChatMessageTool)
+                ]
+                state.messages[index] = state.messages[index].model_copy(
+                    update={"content": "[cleared]"}
+                )
+            output = await model.generate(state.messages, tools)
+            state.messages.append(output.message)
+            if output.message.tool_calls:
+                messages, _ = await execute_tools(state.messages, tools)
+                state.messages.extend(messages)
+        return state
+
+    return solve
+
+
+def test_a_result_cleared_later_replays_as_it_ran() -> None:
+    replay = assert_replay_equals_live(
+        clears_the_result(), outputs(call("returns"), done(), done())
+    )
+    [after] = [step for step in replay if step.stage == "tool_result"]
+    assert isinstance(after.step, AfterToolCall)
+    assert after.step.result.text == "original result"
 
 
 def helper(model: Any) -> Agent:
@@ -3809,12 +3851,12 @@ def r7_generates_the_same_input_twice_at_once() -> Solver:
     return solve
 
 
-def test_overlapping_equal_generates_with_interleaved_retries_are_a_known_difference() -> (
+def test_overlapping_equal_generates_with_interleaved_retries_replay_by_message_id() -> (
     None
 ):
-    # known difference (P4-F2): a generate's later attempts carry no id, so
-    # replay groups them by inference, and two overlapping generates with equal
-    # input whose retries interleave are grouped wrongly
+    # a generate's later attempts carry no id, so replay groups them by their
+    # input; two overlapping generates with equal content but their own
+    # messages keep those messages' ids through the log, which tells them apart
     _Interleaved.requests = 0
     _Interleaved.second = anyio.Event()
     seen: dict[str, Step] = {}
@@ -3833,7 +3875,7 @@ def test_overlapping_equal_generates_with_interleaved_retries_are_a_known_differ
     ]
     assert {id for _, id in live} == set(first_attempts)
     assert len(replay) == len(live) == 4
-    assert replay != live
+    assert replay == live
 
 
 def test_views_read_as_the_lists_they_cut() -> None:

@@ -17,6 +17,8 @@ from inspect_ai.agent._bridge.types import (
     AgentBridge,
     DispatchedCall,
     ReviewedCalls,
+    _handed_calls,
+    _HandedCall,
     _unchanged,
 )
 from inspect_ai.model._call_tools import get_tools_info
@@ -181,7 +183,14 @@ class SandboxAgentBridge(AgentBridge):
         exact proposed action.
         """
         declared = _declarations_by_name(tools)
-        for call in calls:
+        handed = (
+            _handed_calls(self._proposing_reply_id, calls)
+            if self._proposing_reply_id is not None
+            else None
+        )
+        for index, call in enumerate(calls):
+            verified = self._proposing_call_verified
+            retained = verified is None or verified[index]
             targets, arguments, _ = _proposed_call(
                 self.bridged_tools, self.served_tools, call, declared
             )
@@ -193,7 +202,12 @@ class SandboxAgentBridge(AgentBridge):
                     + ", ".join(f"{t.server}/{t.tool}" for t in targets)
                     + "); an execution grant was registered for each of them.",
                 )
-            proposal = _Proposal(call, span_id)
+            proposal = _Proposal(
+                call,
+                span_id if retained else None,
+                self._proposing_message_ids.get(call.id) if retained else None,
+                handed[index] if handed is not None else None,
+            )
             for target in targets:
                 if (
                     len(self._tool_execution_grants)
@@ -254,6 +268,9 @@ class SandboxAgentBridge(AgentBridge):
                     "for one of them grants each of them one execution. Give "
                     "them distinct docstrings to restore one-to-one matching."
                 )
+
+    def _unexecuted_call_ids(self) -> set[str]:
+        return {grant.proposal.call.id for grant in self._tool_execution_grants}
 
     def consume_tool_execution_grant(
         self, server: str, tool: str, arguments: dict[str, Any]
@@ -385,14 +402,26 @@ class _Proposal:
     and no pairing state outlives the bounded grant store.
     """
 
-    __slots__ = ("call", "span_id", "paired")
+    __slots__ = ("call", "span_id", "message_id", "reply", "paired")
 
-    def __init__(self, call: ToolCall, span_id: str | None) -> None:
+    def __init__(
+        self,
+        call: ToolCall,
+        span_id: str | None,
+        message_id: str | None,
+        reply: _HandedCall | None,
+    ) -> None:
         self.call = call
         """The proposing call, with the function name as the model saw it."""
 
         self.span_id = span_id
         """Span to record executions under, or `None` for the span current then."""
+
+        self.message_id = message_id
+        """Id of the assistant message the call is in, or `None` if unknown."""
+
+        self.reply = reply
+        """The call in the reply handed to the scaffold, or `None` if unknown."""
 
         self.paired = False
         """Whether an execution has already taken `call.id`."""

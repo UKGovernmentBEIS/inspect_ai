@@ -4,12 +4,21 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable, Sequence
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 import mmh3
 from shortuuid import uuid as shortuuid
 
-from ._chat_message import ChatMessage
+from inspect_ai._util.content import ContentReasoning, ContentText
+from inspect_ai._util.hash import mm3_hash
+from inspect_ai._util.json import json_normalize_numbers, jsonable_python
+from inspect_ai.model._assistant_internal import copy_assistant_internal
+
+from ._chat_message import (
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageTool,
+)
 from ._model_output import ModelOutput
 
 if TYPE_CHECKING:
@@ -37,7 +46,7 @@ def stable_message_ids() -> Callable[[Sequence[ChatMessage] | ModelEvent], None]
     def hash_message(message: ChatMessage) -> str:
         """Hash message content using mmh3 (fast 128-bit hash)."""
         msg_dict = message.model_dump(exclude={"id"}, exclude_none=True)
-        json_str = json.dumps(msg_dict, sort_keys=True)
+        json_str = json.dumps(jsonable_python(msg_dict), sort_keys=True)
         hash_bytes = mmh3.hash_bytes(json_str.encode())
         return hash_bytes.hex()
 
@@ -84,3 +93,105 @@ def stable_message_ids() -> Callable[[Sequence[ChatMessage] | ModelEvent], None]
             apply_ids_to_messages(target)  # type: ignore[arg-type]
 
     return apply_ids
+
+
+EditedT = TypeVar("EditedT", bound=ChatMessage)
+
+
+def edited_message(source: EditedT, **update: Any) -> EditedT:
+    """A copy of `source` with `update` applied, under its own id (`with_edited_id`)."""
+    return with_edited_id(source, cast(EditedT, source.model_copy(update=update)))
+
+
+def with_edited_id(
+    source: ChatMessage, edited: EditedT, keep_provider_state: bool = True
+) -> EditedT:
+    """`edited` under an id of its own, derived from `source`'s id and its content.
+
+    Different content never shares an id. The same edit of a message on every
+    model call is one message, and an edit of an edit is derived from the edit
+    it was made from. An edit that leaves the content unchanged keeps the
+    source's id. An edit of an assistant message keeps the provider state
+    recorded under the source's id (Anthropic's pending server work) unless
+    `keep_provider_state` is False.
+    """
+    content = content_hash(edited)
+    if source.id is None:
+        edited.id = shortuuid()
+    elif content == content_hash(source):
+        edited.id = source.id
+    else:
+        edited.id = edit_id(source.id, content)
+        if keep_provider_state and isinstance(source, ChatMessageAssistant):
+            copy_assistant_internal(source.id, edited.id)
+    return edited
+
+
+def edit_id(source_id: str, content: str) -> str:
+    """Id of an edit of message `source_id` whose `content_hash` is `content`.
+
+    Shared by every producer of edits, so an edit made in one place (a response
+    filter) is recognized as one where it returns (the agent bridge).
+    """
+    return shortuuid(name=f"inspect-edit:{json.dumps([source_id, content])}")
+
+
+def canonical_tool_arguments(arguments: dict[str, Any]) -> str:
+    """Serialize tool arguments so that `json_equal` arguments serialize alike.
+
+    A scaffold's JSON round-trip (5.0 sent back as 5) then leaves its copy of a
+    call unchanged, as the sandbox bridge's execution grants already treat it.
+    """
+    return json.dumps(
+        json_normalize_numbers(jsonable_python(arguments)), sort_keys=True, default=str
+    )
+
+
+def content_hash(message: ChatMessage) -> str:
+    """Hash of what a message shows: versions that differ here are different messages.
+
+    Provider-internal fields (reasoning signatures, `internal`, citations), a cache
+    breakpoint, the `refusal` flag (not every dialect sends it back), the
+    `model` and `source`, metadata and the id are left out, and string content
+    equals the same text as a content list.
+    """
+    items = (
+        [ContentText(text=message.content)]
+        if isinstance(message.content, str)
+        else message.content
+    )
+    return mm3_hash(
+        json.dumps(
+            [
+                message.role,
+                [
+                    ["text", item.text]
+                    if isinstance(item, ContentText)
+                    else ["reasoning", item.reasoning, item.summary, item.redacted]
+                    if isinstance(item, ContentReasoning)
+                    else item.model_dump(exclude_none=True, exclude={"internal"})
+                    for item in items
+                ],
+                [
+                    [
+                        call.id,
+                        call.type,
+                        call.function,
+                        canonical_tool_arguments(call.arguments),
+                    ]
+                    for call in message.tool_calls or []
+                ]
+                if isinstance(message, ChatMessageAssistant)
+                else None,
+                [
+                    message.tool_call_id,
+                    [message.error.type, message.error.message]
+                    if message.error
+                    else None,
+                ]
+                if isinstance(message, ChatMessageTool)
+                else None,
+            ],
+            default=str,
+        )
+    )

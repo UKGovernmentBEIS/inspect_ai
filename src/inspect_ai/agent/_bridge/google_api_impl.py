@@ -28,6 +28,7 @@ from inspect_ai.model._providers._google_computer_use import (
     gemini_action_from_tool_call,
 )
 from inspect_ai.model._reasoning import (
+    ReasoningCapsule,
     parse_content_with_reasoning,
     reasoning_to_think_tag,
 )
@@ -171,6 +172,11 @@ async def inspect_google_api_request_impl(
     # translate response to Gemini format
     response = gemini_response_from_output(output, model.api.model_name)
     debug_log("SCAFFOLD RESPONSE", response)
+    # re-parse the JSON the client receives (e.g. integer argument keys become strings)
+    wire_content = json.loads(json.dumps(response["candidates"][0]["content"]))
+    bridge._record_transported_reply(
+        output.message, messages_from_google_contents([wire_content], None)
+    )
 
     return response
 
@@ -591,6 +597,50 @@ def _extract_user_parts(
     return None, tool_messages
 
 
+def _decode_base64(value: str | bytes) -> bytes | None:
+    if isinstance(value, bytes):
+        return value
+    try:
+        return base64.b64decode(
+            value + "=" * (-len(value) % 4), altchars=b"-_", validate=True
+        )
+    except ValueError:
+        return None
+
+
+def _canonical_thought_signature(signature: str | bytes) -> str:
+    """Return standard base64 for a Google thought signature.
+
+    The SDK uses URL-safe base64 for bytes, while other Google clients send
+    standard base64. Either form may omit padding. A string that doesn't
+    decode is not a signature and is returned unchanged.
+    """
+    if isinstance(signature, bytes):
+        return base64.b64encode(signature).decode()
+    decoded = _decode_base64(signature)
+    return signature if decoded is None else base64.b64encode(decoded).decode()
+
+
+# Google signatures are redacted reasoning with no provider signature and are
+# canonicalized. Other capsules (readable reasoning, other providers' tokens) keep
+# their own spelling and match verbatim or by decoded bytes, since the SDK
+# re-encodes thoughtSignature as URL-safe base64.
+def _capsule_signature_reasoning(
+    signature: str | bytes, capsule: ReasoningCapsule
+) -> str | None:
+    if capsule.redacted and capsule.signature is None:
+        canonical = _canonical_thought_signature(signature)
+        if _canonical_thought_signature(capsule.reasoning) == canonical:
+            return canonical
+        return None
+    if capsule.reasoning == signature:
+        return capsule.reasoning
+    decoded = _decode_base64(signature)
+    if decoded is not None and decoded == _decode_base64(capsule.reasoning):
+        return capsule.reasoning
+    return None
+
+
 def _extract_model_parts(
     parts: list[dict[str, Any]],
 ) -> tuple[list[Content] | None, list[ToolCall]]:
@@ -645,15 +695,15 @@ def _extract_model_parts(
                     thought_sig = embedded_capsule.reasoning
 
             if thought_sig and not first_fc_signature_captured:
-                if isinstance(thought_sig, str):
-                    sig_str = thought_sig
-                else:
-                    sig_str = base64.b64encode(thought_sig).decode()
-
-                if embedded_capsule and embedded_capsule.reasoning == sig_str:
+                capsule_reasoning = (
+                    _capsule_signature_reasoning(thought_sig, embedded_capsule)
+                    if embedded_capsule
+                    else None
+                )
+                if embedded_capsule and capsule_reasoning is not None:
                     content_parts.append(
                         ContentReasoning(
-                            reasoning=embedded_capsule.reasoning,
+                            reasoning=capsule_reasoning,
                             signature=embedded_capsule.signature,
                             redacted=embedded_capsule.redacted,
                             summary=embedded_capsule.summary,
@@ -662,7 +712,7 @@ def _extract_model_parts(
                 else:
                     content_parts.append(
                         ContentReasoning(
-                            reasoning=sig_str,
+                            reasoning=_canonical_thought_signature(thought_sig),
                             redacted=True,
                         )
                     )

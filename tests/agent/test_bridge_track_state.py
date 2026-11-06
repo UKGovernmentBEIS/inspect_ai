@@ -1422,8 +1422,8 @@ async def test_completions_handler_tracks_main_thread_end_to_end() -> None:
     """The opencode scenario through the real OpenAI completions handler.
 
     Exercises message conversion, system-prompt handling and message-id
-    assignment together with `_track_state`: `apply_message_ids` gives every
-    request fresh ids, so thread continuity must survive the full request
+    assignment together with `_track_state`: every request is rebuilt from
+    the scaffold's JSON, so thread continuity must survive the full request
     path, not just hand-constructed messages.
     """
     model = scenario_model(

@@ -2,12 +2,22 @@ import json
 import re
 import traceback
 from pathlib import Path
-from typing import Any, Callable, Literal, NamedTuple, NoReturn, cast, get_args
+from typing import (
+    Any,
+    Callable,
+    Literal,
+    NamedTuple,
+    NoReturn,
+    Sequence,
+    cast,
+    get_args,
+)
 from unittest.mock import AsyncMock
 
 import anyio
 import pytest
 from pydantic import JsonValue
+from test_helpers.message_ids import edited_id
 from test_helpers.service_dispatch import (
     REQUEST_FILE,
     REQUEST_ID,
@@ -44,7 +54,12 @@ from inspect_ai.agent._bridge.sandbox.service import (
 )
 from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
 from inspect_ai.agent._bridge.types import AgentBridge
-from inspect_ai.agent._bridge.util import _apply_response_filter, bridge_generate
+from inspect_ai.agent._bridge.util import (
+    _apply_response_filter,
+    _settle_message_ids,
+    apply_message_ids,
+    bridge_generate,
+)
 from inspect_ai.approval import Approval, ApprovalPolicy, Approver, approver
 from inspect_ai.event import ModelEvent
 from inspect_ai.log import EvalLog
@@ -55,6 +70,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageUser,
 )
 from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._message_ids import edited_message
 from inspect_ai.model._model import (
     GenerateFilter,
     GenerateInput,
@@ -73,6 +89,7 @@ from inspect_ai.model._providers.anthropic import (
     init_sample_anthropic_assistant_internal,
 )
 from inspect_ai.model._providers.mockllm import MockLLM
+from inspect_ai.tool._tool import Tool
 from inspect_ai.tool._tool_call import ToolCall, ToolCallView
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
@@ -1919,7 +1936,11 @@ async def test_response_filter_replacement_drops_pending_server_work(
             ("text", REPLACED_SENTINEL)
         ]
         assert state_output.message.content == [ContentText(text=REPLACED_SENTINEL)]
+        assert state_output.message.id == edited_id(
+            provider_output.message.id, state_output.message
+        )
     else:
+        assert state_output.message.id == provider_output.message.id
         assert PENDING_CODE in json.dumps(blocks)
         assert [b["type"] for b in blocks] == [b["type"] for b in original_blocks]
     # the provider's output and its replay record are untouched
@@ -2127,6 +2148,220 @@ async def test_response_filter_keeps_pending_work_with_its_server_items(
     if keep != "unchanged":
         assert REPLACED_SENTINEL in [b.get("text") for b in replayed_blocks]
     # the provider's output and its replay record are untouched
+    assert await _render_anthropic(provider_output.message) == original_blocks
+    assert _pending_container_for_input([provider_output.message]) == CONTAINER_ID
+
+
+@approver
+def _modifying_approver() -> Approver:
+    async def approve(
+        message: str, call: ToolCall, view: ToolCallView, history: list[ChatMessage]
+    ) -> Approval:
+        return Approval(
+            decision="modify",
+            modified=ToolCall(id=call.id, function=call.function, arguments={"q": "y"}),
+        )
+
+    return approve
+
+
+async def _pending_container_output() -> ModelOutput:
+    """A turn ending on a client tool call while a code execution is pending."""
+    return await _anthropic_output(
+        [
+            {"type": "text", "text": "Checking."},
+            {
+                "type": "server_tool_use",
+                "id": "srvtoolu_pending",
+                "name": "code_execution",
+                "input": {"code": PENDING_CODE},
+                "caller": {"type": "direct"},
+            },
+            {
+                "type": "tool_use",
+                "id": "toolu_client",
+                "name": "lookup",
+                "input": {"q": "x"},
+            },
+        ],
+        [ToolInfo(name="lookup", description="Look something up.")],
+        stop_reason="tool_use",
+        container=CONTAINER_ID,
+    )
+
+
+@pytest.mark.parametrize("path", get_args(BridgePath))
+async def test_modified_arguments_keep_pending_server_work(path: BridgePath) -> None:
+    """An approver's rewrite of a client call is an edit that keeps the turn's pending work."""
+    from inspect_ai.model._providers.anthropic import _pending_container_for_input
+
+    init_sample_anthropic_assistant_internal()
+    provider_output = await _pending_container_output()
+    original_blocks = await _render_anthropic(provider_output.message)
+    model = get_model("mockllm/model", custom_outputs=[provider_output])
+    approval = [ApprovalPolicy(_modifying_approver(), "lookup")]
+
+    match path:
+        case "in_process":
+            bridge = AgentBridge(AgentState(messages=[]), approval=approval)
+            output, _ = await bridge_generate(
+                bridge,
+                model,
+                [ChatMessageUser(content="hi")],
+                [],
+                None,
+                GenerateConfig(),
+                requested_model=None,
+            )
+            handed = output.message
+        case "sandbox":
+            sandbox_bridge = SandboxAgentBridge(
+                state=AgentState(messages=[]),
+                filter=None,
+                retry_refusals=None,
+                compaction=None,
+                port=13131,
+                model=None,
+                model_aliases={"inspect": model},
+                approval=approval,
+            )
+            reply = await _forward_provider_errors(
+                generate_anthropic(None, None, sandbox_bridge), sandbox_bridge
+            )(
+                {
+                    "model": "inspect",
+                    "max_tokens": 1024,
+                    "messages": CHAT_REQUEST["messages"],
+                }
+            )
+            assert PROVIDER_ERROR_KEY not in reply
+            content = cast(list[dict[str, Any]], reply["content"])
+            assert [b["type"] for b in content] == [b["type"] for b in original_blocks]
+            handed = sandbox_bridge.state.output.message
+        case _:
+            assert_never(path)
+
+    assert handed.id == edited_id(provider_output.message.id, handed)
+    assert handed.tool_calls and handed.tool_calls[0].arguments == {"q": "y"}
+    blocks = await _render_anthropic(handed)
+    assert [b["type"] for b in blocks] == [b["type"] for b in original_blocks]
+    assert _pending_container_for_input([handed]) == CONTAINER_ID
+    # the model's output keeps its own record
+    assert await _render_anthropic(provider_output.message) == original_blocks
+    assert _pending_container_for_input([provider_output.message]) == CONTAINER_ID
+
+
+@pytest.mark.parametrize("edit", ["native", "scaffold"])
+async def test_edits_of_a_pending_turn_keep_its_work(edit: str) -> None:
+    """An edit of the turn (Inspect's, or a scaffold's changed copy) keeps its pending work."""
+    from inspect_ai.model._providers.anthropic import _pending_container_for_input
+
+    init_sample_anthropic_assistant_internal()
+    provider_output = await _pending_container_output()
+    original_blocks = await _render_anthropic(provider_output.message)
+    content = [ContentText(text="Checking.  ")]
+    if edit == "native":
+        edited = edited_message(provider_output.message, content=content)
+    else:
+        task = ChatMessageUser(content="hi")
+        bridge = AgentBridge(AgentState(messages=[task]))
+        await bridge._track_state([task], provider_output)
+        edited = provider_output.message.model_copy(
+            update={"id": "wire", "content": content}
+        )
+        apply_message_ids(bridge, [task.model_copy(update={"id": "wire-task"}), edited])
+
+    assert edited.id == edited_id(provider_output.message.id, edited)
+    blocks = await _render_anthropic(edited)
+    assert [b["type"] for b in blocks] == [b["type"] for b in original_blocks]
+    assert _pending_container_for_input([edited]) == CONTAINER_ID
+
+
+class _GrantRecordingBridge(AgentBridge):
+    """Records the proposing ids and call verification of each grant registration."""
+
+    registered: list[tuple[dict[str, str], list[bool] | None]]
+
+    def register_tool_execution_grants(
+        self,
+        calls: Sequence[ToolCall],
+        tools: Sequence[ToolInfo | Tool],
+        *,
+        span_id: str | None = None,
+    ) -> None:
+        self.registered.append(
+            (dict(self._proposing_message_ids), self._proposing_call_verified)
+        )
+
+
+@pytest.mark.parametrize("edit", ["text", "text_and_call"])
+@pytest.mark.parametrize("turn", ["pending", "nested"])
+async def test_request_filter_text_edit_keeps_pending_work(
+    turn: str, edit: str
+) -> None:
+    """A request filter's edit of its generation keeps the turn's pending work.
+
+    The edit gets its own id and its calls are not verified against the
+    generation. A text edit, or an edit keeping the turn's server items, still
+    replays the pending code execution in the turn's container; an edit of the
+    calls of a turn with no server items drops it, as a response filter's does.
+    """
+    from inspect_ai.model._providers.anthropic import _pending_container_for_input
+
+    init_sample_anthropic_assistant_internal()
+    provider_output = await (
+        _pending_container_output() if turn == "pending" else _nested_pending_output()
+    )
+    original_blocks = await _render_anthropic(provider_output.message)
+
+    async def generate(
+        model: Model,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        output = await model.generate(
+            input=input, tools=tools, tool_choice=tool_choice, config=config
+        )
+        output = output.model_copy(deep=True)
+        await _text_edit_filter(
+            model, output, GenerateInput(input, tools, tool_choice, config)
+        )
+        if edit == "text_and_call":
+            assert output.message.tool_calls
+            output.message.tool_calls[0].arguments = {"q": "y"}
+        return output
+
+    bridge = _GrantRecordingBridge(AgentState(messages=[]), filter=generate)
+    bridge.registered = []
+    output, _ = await bridge_generate(
+        bridge,
+        get_model("mockllm/model", custom_outputs=[provider_output]),
+        [ChatMessageUser(content="hi")],
+        [],
+        None,
+        GenerateConfig(),
+        requested_model=None,
+    )
+
+    handed = output.message
+    assert REPLACED_SENTINEL in handed.text
+    assert handed.id == edited_id(provider_output.message.id, handed)
+    # the calls are not verified against the generation
+    assert bridge.registered == [({}, None)]
+    blocks = await _render_anthropic(handed)
+    if edit == "text" or turn == "nested":
+        assert [b["type"] for b in blocks] == [b["type"] for b in original_blocks]
+        assert _pending_container_for_input([handed]) == CONTAINER_ID
+    else:
+        assert PENDING_CODE not in json.dumps(blocks)
+        assert _pending_container_for_input([handed]) is None
+    if edit == "text":
+        assert [b for b in blocks if b["type"] != "text"] == [
+            b for b in original_blocks if b["type"] != "text"
+        ]
+    # the model's output keeps its own record
     assert await _render_anthropic(provider_output.message) == original_blocks
     assert _pending_container_for_input([provider_output.message]) == CONTAINER_ID
 
@@ -2670,3 +2905,48 @@ def test_live_response_filter_anthropic_native_content(
             assert first_reply_types == []
         case _:
             assert_never(mode)
+
+
+def test_settle_message_ids_derives_a_replacement_from_what_it_replaces() -> None:
+    """A fresh replacement is an edit of the original at its index; an unchanged choice keeps its id."""
+    original = ModelOutput(
+        model="mockllm/model",
+        choices=[
+            ChatCompletionChoice(message=ChatMessageAssistant(content=text))
+            for text in ["one", "two"]
+        ],
+    )
+    replaced = ModelOutput(
+        model="mockllm/model",
+        choices=[
+            ChatCompletionChoice(message=ChatMessageAssistant(content="replacement")),
+            original.choices[1].model_copy(),
+            ChatCompletionChoice(message=ChatMessageAssistant(content="extra")),
+        ],
+    )
+
+    extra_id = replaced.choices[2].message.id
+    _settle_message_ids(original, replaced)
+
+    first = replaced.choices[0].message
+    assert first.id == edited_id(original.choices[0].message.id, first)
+    assert replaced.choices[1].message.id == original.choices[1].message.id
+    assert replaced.choices[2].message.id == extra_id
+    assert all(choice.message.metadata is None for choice in replaced.choices)
+
+
+def test_settle_message_ids_gives_the_same_edit_the_same_id() -> None:
+    """Filtering the same output the same way (e.g. a cache hit) is the same message."""
+    original = ModelOutput.from_content("mockllm/model", "before")
+
+    def edited(text: str) -> ModelOutput:
+        copy = original.model_copy(deep=True)
+        copy.message.content = text
+        _settle_message_ids(original, copy)
+        return copy
+
+    first, second, other = edited("after"), edited("after"), edited("other")
+
+    assert first.message.id == second.message.id != original.message.id
+    assert other.message.id not in {first.message.id, original.message.id}
+    assert first.message.id == edited_id(original.message.id, first.message)

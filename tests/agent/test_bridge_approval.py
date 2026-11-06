@@ -12,7 +12,8 @@ import logging
 import re
 from collections import deque
 from contextlib import contextmanager
-from pathlib import PurePosixPath
+from functools import partial
+from pathlib import Path, PurePosixPath
 from typing import Any, Awaitable, Callable, Iterator, Literal, NamedTuple, cast
 from unittest.mock import AsyncMock, MagicMock
 
@@ -20,14 +21,17 @@ import anyio
 import pytest
 from acp.schema import SessionNotification, ToolCallProgress, ToolCallStart
 from pydantic import JsonValue
+from test_helpers.message_ids import assert_message_ids, edited_id, tool_event_producers
 from test_helpers.service_dispatch import (
     dispatching_service,
     serve_beside_failure_monitor,
 )
 
 import inspect_ai._util.logger as inspect_logger
+import inspect_ai.agent._bridge.types as bridge_types
 from inspect_ai import Task, eval
-from inspect_ai._util.content import ContentImage, ContentText
+from inspect_ai._util._async import tg_collect
+from inspect_ai._util.content import ContentImage, ContentText, ContentToolUse
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.agent._acp.event_mapping import _AcpEventRouter, replay_transcript
 from inspect_ai.agent._acp.transport import AcpUpdate
@@ -71,6 +75,7 @@ from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._span import SpanBeginEvent, SpanEndEvent
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.event._tree import EventTreeSpan, event_tree
+from inspect_ai.log import read_eval_log, resolve_sample_attachments
 from inspect_ai.log._condense import condense_sample
 from inspect_ai.log._log import EvalSample
 from inspect_ai.log._samples import _sample_active
@@ -87,7 +92,12 @@ from inspect_ai.model._generate_config import (
     GenerateConfig,
     active_generate_config_context_var,
 )
-from inspect_ai.model._model import GenerateInput, Model, get_model
+from inspect_ai.model._model import (
+    GenerateInput,
+    Model,
+    ModelResponseFilter,
+    get_model,
+)
 from inspect_ai.model._model_output import ChatCompletionChoice, ModelOutput
 from inspect_ai.model._openai_responses import (
     TOOL_SEARCH_NAME,
@@ -251,6 +261,7 @@ async def run_bridge(
     bridge: AgentBridge | None = None,
     input: list[ChatMessage] | None = None,
     tools: list[ToolInfo] | None = None,
+    config: GenerateConfig | None = None,
 ) -> BridgeRun:
     """Drive `bridge_generate`, recording the input each generation saw.
 
@@ -283,7 +294,7 @@ async def run_bridge(
         list(messages),
         list(tools or []),
         None,
-        GenerateConfig(),
+        config or GenerateConfig(),
         requested_model=None,
     )
     return BridgeRun(output, inputs)
@@ -2299,23 +2310,6 @@ async def test_scaffold_local_tool_calls_are_not_stored() -> None:
     assert len(bridge._tool_execution_grants) == 0
 
 
-async def test_host_tool_grant_matches_numeric_reserialization() -> None:
-    """A JS scaffold's JSON round-trip coerces 5.0 to 5; both must match."""
-    tool = AsyncMock(return_value="contents")
-    bridge = sandbox_bridge_with_tool(
-        tool, [ApprovalPolicy(auto_approver("approve"), "*")]
-    )
-    call = ToolCall(id="approved", function="read_file", arguments={"offset": 5.0})
-
-    await run_bridge(
-        [tool_calls_output(call)], bridge=bridge, tools=declare(call.function)
-    )
-
-    result = await call_host_tool(bridge)("host", "read_file", {"offset": 5})
-
-    assert result == "contents"
-
-
 async def test_host_tool_grant_normalizes_non_json_arguments() -> None:
     """Approver `modify` can inject non-JSON values.
 
@@ -3937,7 +3931,310 @@ async def test_proposed_host_tool_call_is_recorded_with_the_proposing_id(
         "proposal_id": "proposed",
         "grant": "consumed",
     }
+    [proposing] = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    assert event.call_message_id == proposing.output.message.id
+    assert event.call_message_id is not None
     assert recorded.completions(event) == 1
+
+
+async def test_alternate_selected_by_response_filter_names_its_model_choice() -> None:
+    """A selected alternate host call names the choice that proposed it."""
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(tool, None)
+    call = ToolCall(id="alternate", function="read_file", arguments={"path": "a"})
+    generated = ModelOutput(
+        model="mockllm/model",
+        choices=[
+            ChatCompletionChoice(message=ChatMessageAssistant(content="first")),
+            ChatCompletionChoice(
+                message=ChatMessageAssistant(content="alternate", tool_calls=[call]),
+                stop_reason="tool_calls",
+            ),
+        ],
+    )
+
+    async def select_alternate(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput:
+        return output.model_copy(update={"choices": output.choices[::-1]})
+
+    bridge.response_filter = select_alternate
+    with recorded_transcript() as recorded:
+        await run_bridge([generated], bridge=bridge, tools=declare("read_file"))
+        await call_host_tool(bridge)("host", "read_file", {"path": "a"})
+
+    [event] = recorded.tool_events
+    [generation] = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    assert event.call_message_id == generation.output.choices[1].message.id
+
+
+@pytest.mark.parametrize(
+    ("same_arguments", "response_filter"),
+    [
+        (False, None),
+        (True, None),
+        (False, "edit_text"),
+        (False, "returns_none"),
+        (False, "returns_unchanged"),
+    ],
+)
+async def test_reused_call_id_across_choices_keeps_selected_producer(
+    same_arguments: bool,
+    response_filter: str | None,
+) -> None:
+    """The selected choice wins, whatever the filter returns; indistinguishable proposals stay unlinked."""
+    bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)
+    first = ToolCall(id="same", function="read_file", arguments={"path": "a"})
+    second = ToolCall(
+        id="same",
+        function="read_file",
+        arguments={"path": "a" if same_arguments else "b"},
+    )
+    generated = ModelOutput(
+        model="mockllm/model",
+        choices=[
+            ChatCompletionChoice(
+                message=ChatMessageAssistant(content="first", tool_calls=[first]),
+                stop_reason="tool_calls",
+            ),
+            ChatCompletionChoice(
+                message=ChatMessageAssistant(content="second", tool_calls=[second]),
+                stop_reason="tool_calls",
+            ),
+        ],
+    )
+
+    async def edit_text(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput:
+        output.message.content = "filtered first"
+        return output
+
+    async def returns_none(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> None:
+        return None
+
+    async def returns_unchanged(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput:
+        return output
+
+    filters: dict[str, ModelResponseFilter] = {
+        "edit_text": edit_text,
+        "returns_none": returns_none,
+        "returns_unchanged": returns_unchanged,
+    }
+    if response_filter is not None:
+        bridge.response_filter = filters[response_filter]
+
+    with recorded_transcript() as recorded:
+        await run_bridge([generated], bridge=bridge, tools=declare("read_file"))
+        await call_host_tool(bridge)("host", "read_file", {"path": "a"})
+
+    [event] = recorded.tool_events
+    [generation] = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    assert event.call_message_id == (
+        None if same_arguments else generation.output.choices[0].message.id
+    )
+
+
+async def test_duplicate_call_ids_in_one_reply_keep_proposing_message() -> None:
+    """Two calls in one reply share one unambiguous proposing message."""
+    bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)
+    calls = [
+        ToolCall(id="unknown", function="read_file", arguments={"path": path})
+        for path in ("a", "b")
+    ]
+    generated = tool_calls_output(*calls)
+
+    with recorded_transcript() as recorded:
+        await run_bridge([generated], bridge=bridge, tools=declare("read_file"))
+        for path in ("a", "b"):
+            await call_host_tool(bridge)("host", "read_file", {"path": path})
+
+    [generation] = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    assert len(recorded.tool_events) == 2
+    assert [e.call_message_id for e in recorded.tool_events] == [
+        generation.output.message.id
+    ] * 2
+
+
+async def test_identical_duplicate_calls_have_no_unique_producer() -> None:
+    """Identical duplicate calls cannot each name one generated call."""
+    bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)
+    calls = [
+        ToolCall(id="same", function="read_file", arguments={"path": "a"})
+        for _ in range(2)
+    ]
+    with recorded_transcript() as recorded:
+        await run_bridge(
+            [tool_calls_output(*calls)], bridge=bridge, tools=declare("read_file")
+        )
+        for _ in calls:
+            await call_host_tool(bridge)("host", "read_file", {"path": "a"})
+
+    assert len(recorded.tool_events) == 2
+    assert all(event.call_message_id is None for event in recorded.tool_events)
+
+
+async def test_recovered_refusal_keeps_host_call_provenance() -> None:
+    """A response filter can recover a refusal without losing its producer."""
+    bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)
+    call = ToolCall(id="recovered", function="read_file", arguments={"path": "a"})
+    generated = tool_calls_output(call)
+    generated.choices[0].stop_reason = "content_filter"
+
+    async def recover(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput:
+        output.choices[0].stop_reason = "tool_calls"
+        return output
+
+    bridge.response_filter = recover
+    with recorded_transcript() as recorded:
+        await run_bridge(
+            [generated],
+            bridge=bridge,
+            tools=declare("read_file"),
+            config=GenerateConfig(fail_on_refusal=True),
+        )
+        await call_host_tool(bridge)("host", "read_file", {"path": "a"})
+
+    [generation] = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    [event] = recorded.tool_events
+    assert event.call_message_id == generation.output.message.id
+
+
+async def test_synthetic_request_filter_call_has_no_proposing_message() -> None:
+    """A request filter's call has no producer when it did not generate."""
+    tool = AsyncMock(return_value="contents")
+
+    async def synthetic(
+        model: Model,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        return tool_calls_output(
+            ToolCall(id="synthetic", function="read_file", arguments={"path": "a"})
+        )
+
+    bridge = sandbox_bridge_with_tool(tool, None)
+    bridge.filter = synthetic
+    with recorded_transcript() as recorded:
+        await run_bridge(
+            [ModelOutput.from_content("mockllm/model", "unused")],
+            bridge=bridge,
+            tools=declare("read_file"),
+        )
+        await call_host_tool(bridge)("host", "read_file", {"path": "a"})
+
+    assert not any(isinstance(e, ModelEvent) for e in recorded.events)
+    [event] = recorded.tool_events
+    assert event.call_message_id is None
+
+
+async def test_generating_request_filter_keeps_proposing_message() -> None:
+    """A filter that calls the model still links its host call to that generation."""
+    tool = AsyncMock(return_value="contents")
+
+    async def generate_in_filter(
+        model: Model,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        return await model.generate(
+            input=input, tools=tools, tool_choice=tool_choice, config=config
+        )
+
+    bridge = sandbox_bridge_with_tool(tool, None)
+    bridge.filter = generate_in_filter
+    call = ToolCall(id="generated", function="read_file", arguments={"path": "a"})
+    with recorded_transcript() as recorded:
+        await run_bridge(
+            [tool_calls_output(call)], bridge=bridge, tools=declare("read_file")
+        )
+        await call_host_tool(bridge)("host", "read_file", {"path": "a"})
+
+    [event] = recorded.tool_events
+    [generation] = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    assert event.call_message_id == generation.output.message.id
+
+
+@pytest.mark.parametrize("path", ["a", "b"])
+async def test_generating_request_filter_rewritten_call_is_verified(path: str) -> None:
+    """A filter's copy of a generated call links only if its arguments are unchanged."""
+    bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)
+
+    async def generate_and_rewrite(
+        model: Model,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        output = await model.generate(
+            input=input, tools=tools, tool_choice=tool_choice, config=config
+        )
+        output = output.model_copy(deep=True)
+        assert output.message.tool_calls
+        output.message.tool_calls[0].arguments = {"path": path}
+        return output
+
+    bridge.filter = generate_and_rewrite
+    call = ToolCall(id="generated", function="read_file", arguments={"path": "a"})
+    with recorded_transcript() as recorded:
+        await run_bridge(
+            [tool_calls_output(call)], bridge=bridge, tools=declare("read_file")
+        )
+        await call_host_tool(bridge)("host", "read_file", {"path": path})
+
+    [event] = recorded.tool_events
+    [generation] = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    assert event.call_message_id == (
+        generation.output.message.id if path == "a" else None
+    )
+
+
+async def test_generating_request_filter_reordered_choice_keeps_provenance() -> None:
+    """A filter's selected alternate links to its recorded generated choice."""
+    bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)
+    call = ToolCall(id="alternate", function="read_file", arguments={"path": "a"})
+    generated = ModelOutput(
+        model="mockllm/model",
+        choices=[
+            ChatCompletionChoice(message=ChatMessageAssistant(content="first")),
+            ChatCompletionChoice(
+                message=ChatMessageAssistant(content="alternate", tool_calls=[call]),
+                stop_reason="tool_calls",
+            ),
+        ],
+    )
+
+    async def generate_and_select(
+        model: Model,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        output = await model.generate(
+            input=input, tools=tools, tool_choice=tool_choice, config=config
+        )
+        return output.model_copy(update={"choices": output.choices[::-1]})
+
+    bridge.filter = generate_and_select
+    with recorded_transcript() as recorded:
+        await run_bridge([generated], bridge=bridge, tools=declare("read_file"))
+        await call_host_tool(bridge)("host", "read_file", {"path": "a"})
+
+    [event] = recorded.tool_events
+    [generation] = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    assert event.call_message_id == generation.output.choices[1].message.id
 
 
 async def test_host_tool_event_has_the_native_span_layout() -> None:
@@ -4003,6 +4300,7 @@ async def test_denied_host_tool_call_is_recorded_in_its_own_tool_span() -> None:
     assert bridge_metadata(event)["grant"] == "denied"
     assert bridge_metadata(event)["function"] is None
     assert bridge_metadata(event)["proposal_id"] is None
+    assert event.call_message_id is None
     assert recorded.completions(event) == 1
 
 
@@ -4092,6 +4390,312 @@ SINKS = {
     "on-start": StartingStampingSink,
     "on-start-current": CurrentStartingSink,
 }
+
+
+@pytest.mark.parametrize("replacement", ["returned", "choices", "message"])
+@pytest.mark.parametrize("reuse_id", [False, True])
+@pytest.mark.parametrize("same_arguments", [False, True])
+async def test_response_filter_replacement_does_not_claim_initial_proposal(
+    replacement: str, reuse_id: bool, same_arguments: bool
+) -> None:
+    """A separately generated replacement cannot claim the initial proposal."""
+    bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)
+    bridge.model_event_sink = StartingStampingSink({"stamp", "open"})
+
+    async def replace(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput:
+        generated = await model.generate(
+            input=generate_input.input,
+            tools=generate_input.tools,
+            tool_choice=generate_input.tool_choice,
+            config=generate_input.config,
+        )
+        if replacement == "returned":
+            return generated
+        if replacement == "choices":
+            output.choices = generated.choices
+        else:
+            output.choices[0].message = generated.message
+        return output
+
+    bridge.response_filter = replace
+    first = ToolCall(id="same", function="read_file", arguments={"path": "a"})
+    second = ToolCall(
+        id="same" if reuse_id else "other",
+        function="read_file",
+        arguments={"path": "a" if same_arguments else "b"},
+    )
+    with recorded_transcript() as recorded:
+        async with span("outer"):
+            outer = current_span_id()
+            await run_bridge(
+                [tool_calls_output(first), tool_calls_output(second)],
+                bridge=bridge,
+                tools=declare("read_file"),
+            )
+            await call_host_tool(bridge)(
+                "host", "read_file", {"path": "a" if same_arguments else "b"}
+            )
+
+    generations = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    [event] = recorded.tool_events
+    assert len(generations) == 2
+    assert generations[0].span_id == "agent-sub"
+    assert generations[1].span_id == outer
+    assert event.call_message_id is None
+    assert event.span_id == outer
+
+
+@pytest.mark.parametrize(
+    "edit", ["arguments", "append", "append-duplicate", "parallel-edit"]
+)
+async def test_response_filter_keeps_each_original_call_attribution(edit: str) -> None:
+    """Only unchanged call signatures retain their link and span."""
+    bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)
+    bridge.model_event_sink = StartingStampingSink({"stamp", "open"})
+
+    async def change(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput:
+        tool_calls = output.message.tool_calls
+        assert tool_calls is not None
+        if edit == "arguments":
+            tool_calls[0].arguments = {"path": "b"}
+        elif edit.startswith("append"):
+            tool_calls.append(
+                ToolCall(
+                    id="original" if edit == "append-duplicate" else "added",
+                    function="read_file",
+                    arguments={"path": "b"},
+                )
+            )
+        else:
+            tool_calls[1].arguments = {"path": "c"}
+        return output
+
+    bridge.response_filter = change
+    calls = [ToolCall(id="original", function="read_file", arguments={"path": "a"})]
+    if edit == "parallel-edit":
+        calls.append(
+            ToolCall(id="second", function="read_file", arguments={"path": "b"})
+        )
+    with recorded_transcript() as recorded:
+        async with span("outer"):
+            outer = current_span_id()
+            await run_bridge(
+                [tool_calls_output(*calls)], bridge=bridge, tools=declare("read_file")
+            )
+            await call_host_tool(bridge)(
+                "host", "read_file", {"path": "b" if edit == "arguments" else "a"}
+            )
+            if edit.startswith("append"):
+                await call_host_tool(bridge)("host", "read_file", {"path": "b"})
+            elif edit == "parallel-edit":
+                await call_host_tool(bridge)("host", "read_file", {"path": "c"})
+
+    [generation] = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    first, *rest = recorded.tool_events
+    assert first.call_message_id == (
+        None if edit == "arguments" else generation.output.message.id
+    )
+    assert first.span_id == (outer if edit == "arguments" else "agent-sub")
+    if rest:
+        [second] = rest
+        assert second.call_message_id is None
+        assert second.span_id == outer
+
+
+@pytest.mark.parametrize("edit", ["unchanged", "changed_id", "missing_id", "rebuilt"])
+async def test_response_filter_kept_server_item_does_not_infer_call_attribution(
+    edit: str,
+) -> None:
+    """Replay ownership does not by itself prove a host-call producer."""
+    bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)
+    bridge.model_event_sink = StartingStampingSink({"stamp", "open"})
+
+    async def change(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput:
+        if edit == "changed_id":
+            output.message.id = "filter-chosen-id"
+        elif edit == "missing_id":
+            output.message.id = None
+        elif edit == "rebuilt":
+            output.choices[0].message = ChatMessageAssistant.model_validate(
+                output.message.model_dump(exclude={"id"})
+            )
+        return output
+
+    bridge.response_filter = change
+    call = ToolCall(id="original", function="read_file", arguments={"path": "a"})
+    initial = tool_calls_output(call)
+    initial.message.content = [
+        ContentText(text="Searched; now reading."),
+        ContentToolUse(
+            id="server-search",
+            tool_type="web_search",
+            name="web_search",
+            arguments='{"query":"test"}',
+            result="found",
+        ),
+    ]
+    with recorded_transcript() as recorded:
+        async with span("outer"):
+            outer = current_span_id()
+            run = await run_bridge([initial], bridge=bridge, tools=declare("read_file"))
+            await call_host_tool(bridge)("host", "read_file", {"path": "a"})
+
+    [generation] = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    [event] = recorded.tool_events
+    assert run.output.message.id == generation.output.message.id
+    assert run.output.message.tool_calls == generation.output.message.tool_calls
+    assert event.call_message_id == (
+        generation.output.message.id if edit == "unchanged" else None
+    )
+    assert event.span_id == ("agent-sub" if edit == "unchanged" else outer)
+
+
+async def test_filter_generated_replacement_with_server_item_stays_unlinked() -> None:
+    """Replay ownership cannot establish a replacement host call's producer."""
+    bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)
+    bridge.model_event_sink = StartingStampingSink({"stamp", "open"})
+
+    async def replace(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput:
+        generated = await model.generate(
+            input=generate_input.input,
+            tools=generate_input.tools,
+            tool_choice=generate_input.tool_choice,
+            config=generate_input.config,
+        )
+        replacement = generated.model_copy(deep=True)
+        replacement.message.content = output.message.content
+        return replacement
+
+    bridge.response_filter = replace
+    original = ToolCall(id="same", function="read_file", arguments={"path": "original"})
+    replacement = ToolCall(
+        id="same", function="read_file", arguments={"path": "replacement"}
+    )
+    first = tool_calls_output(original)
+    first.message.content = [
+        ContentText(text="Searched."),
+        ContentToolUse(
+            id="server-search",
+            tool_type="web_search",
+            name="web_search",
+            arguments='{"query":"test"}',
+            result="found",
+        ),
+    ]
+    with recorded_transcript() as recorded:
+        async with span("outer"):
+            outer = current_span_id()
+            run = await run_bridge(
+                [first, tool_calls_output(replacement)],
+                bridge=bridge,
+                tools=declare("read_file"),
+            )
+            await call_host_tool(bridge)("host", "read_file", {"path": "replacement"})
+
+    first_event, second_event = [
+        event for event in recorded.events if isinstance(event, ModelEvent)
+    ]
+    [event] = recorded.tool_events
+    assert run.output.message.id == first_event.output.message.id
+    assert second_event.output.message.id != first_event.output.message.id
+    assert event.call_message_id is None
+    assert event.span_id == outer
+
+
+async def test_filter_retained_server_item_does_not_replace_verified_call_source() -> (
+    None
+):
+    """Replay ownership cannot replace a different choice's verified producer."""
+    bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)
+    bridge.model_event_sink = StartingStampingSink({"stamp", "open"})
+
+    async def select_second(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput:
+        output.choices[1].message.content = output.choices[0].message.content
+        return output.model_copy(update={"choices": [output.choices[1]]})
+
+    bridge.response_filter = select_second
+    first = tool_calls_output(
+        ToolCall(id="same", function="read_file", arguments={"path": "a"})
+    )
+    first.message.content = [
+        ContentText(text="Searched."),
+        ContentToolUse(
+            id="server-search",
+            tool_type="web_search",
+            name="web_search",
+            arguments='{"query":"test"}',
+            result="found",
+        ),
+    ]
+    second = tool_calls_output(
+        ToolCall(id="same", function="read_file", arguments={"path": "b"})
+    )
+    generated = ModelOutput(
+        model=first.model,
+        choices=[first.choices[0], second.choices[0]],
+    )
+    with recorded_transcript() as recorded:
+        async with span("outer"):
+            await run_bridge([generated], bridge=bridge, tools=declare("read_file"))
+            await call_host_tool(bridge)("host", "read_file", {"path": "b"})
+
+    [generation] = [event for event in recorded.events if isinstance(event, ModelEvent)]
+    [event] = recorded.tool_events
+    assert event.call_message_id == generation.output.choices[1].message.id
+    assert event.span_id == "agent-sub"
+
+
+async def test_filter_prepended_duplicate_id_does_not_claim_original() -> None:
+    """Duplicate IDs are matched by their arguments across reordered calls."""
+    bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)
+    bridge.model_event_sink = StartingStampingSink({"stamp", "open"})
+
+    async def prepend(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput:
+        calls = output.message.tool_calls
+        assert calls is not None
+        calls[:] = [
+            ToolCall(id="same", function="read_file", arguments={"path": "synthetic"}),
+            calls[1],
+            calls[0],
+        ]
+        return output
+
+    bridge.response_filter = prepend
+    original_calls = [
+        ToolCall(id="same", function="read_file", arguments={"path": path})
+        for path in ("a", "b")
+    ]
+    with recorded_transcript() as recorded:
+        async with span("outer"):
+            outer = current_span_id()
+            await run_bridge(
+                [tool_calls_output(*original_calls)],
+                bridge=bridge,
+                tools=declare("read_file"),
+            )
+            for path in ("synthetic", "b", "a"):
+                await call_host_tool(bridge)("host", "read_file", {"path": path})
+
+    [generation] = [event for event in recorded.events if isinstance(event, ModelEvent)]
+    synthetic, second, first = recorded.tool_events
+    assert synthetic.call_message_id is None
+    assert synthetic.span_id == outer
+    assert [second.call_message_id, first.call_message_id] == [
+        generation.output.message.id
+    ] * 2
+    assert second.span_id == first.span_id == "agent-sub"
 
 
 def sandbox_bridge_with_sink(tool: AsyncMock, sink: StampingSink) -> SandboxAgentBridge:
@@ -4778,6 +5382,48 @@ async def test_reused_call_id_pairs_again() -> None:
     assert [e.id for e in recorded.tool_events] == ["same", "same"]
 
 
+@pytest.mark.parametrize("consumed", [False, True])
+async def test_host_result_is_not_claimed_through_an_unexecuted_proposals_id(
+    consumed: bool,
+) -> None:
+    """A copy carrying an earlier, never-executed proposal's id and answer isn't the executed call.
+
+    Once that proposal executes, its reply is tracked and excludes the id too.
+    """
+    bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)
+    earlier = ToolCall(id="earlier", function="read_file", arguments={"path": "a"})
+    current = ToolCall(id="current", function="read_file", arguments={"path": "b"})
+
+    with recorded_transcript() as recorded:
+        await propose(bridge, earlier)
+        run = await run_bridge(
+            [tool_calls_output(current)], bridge=bridge, tools=declare("read_file")
+        )
+        reply = run.output.message
+        await call_host_tool(bridge)("host", "read_file", {"path": "b"})
+        if consumed:
+            await call_host_tool(bridge)("host", "read_file", {"path": "a"})
+        copy = reply.model_copy(
+            update={
+                "tool_calls": [
+                    ToolCall(
+                        id="earlier", function="read_file", arguments={"path": "b"}
+                    )
+                ]
+            }
+        )
+        cancelled = ChatMessageTool(
+            id="cancelled",
+            content="Cancelled.",
+            tool_call_id="earlier",
+            function="read_file",
+        )
+        bridge._link_result_messages([copy, cancelled], [reply.id, None])
+
+    event = next(e for e in recorded.tool_events if e.id == "current")
+    assert event.message_id is None
+
+
 async def test_large_arguments_on_a_denied_call_are_condensed() -> None:
     bridge = sandbox_bridge_with_tool(AsyncMock(), None)
     path = "x" * (1024 * 1024)
@@ -5212,3 +5858,918 @@ async def test_a_rejection_is_recorded_when_its_span_cannot_be_allocated(
     else:
         assert raised == []
         assert not bridge._failure_requested.is_set()
+
+
+async def _suffix_filter(
+    model: Model, output: ModelOutput, generate_input: GenerateInput
+) -> ModelOutput:
+    output.message.content = output.message.text + " FILTERED"
+    return output
+
+
+HostDialect = Literal["completions", "responses", "anthropic", "google"]
+HostMode = Literal[
+    "plain", "filter", "approval", "request_copy", "request_edit", "javascript"
+]
+
+
+def _generating_request_filter(edit: bool) -> Callable[..., Awaitable[ModelOutput]]:
+    """A request filter returning a copy of its own generation, with `edit` its text changed."""
+
+    async def generate(
+        model: Model,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        output = await model.generate(
+            input=input, tools=tools, tool_choice=tool_choice, config=config
+        )
+        output = output.model_copy(deep=True)
+        if edit:
+            output.message.content = output.message.text + " EDITED"
+        return output
+
+    return generate
+
+
+class _HostConversation:
+    """One dialect's wire conversation, for a scaffold running every call as a host tool."""
+
+    def __init__(
+        self,
+        dialect: HostDialect,
+        prompt: str,
+        info: ToolInfo,
+        javascript: bool = False,
+    ) -> None:
+        self.dialect = dialect
+        self.info = info
+        self.javascript = javascript
+        self.history: list[dict[str, Any]] = (
+            [{"role": "user", "parts": [{"text": prompt}]}]
+            if dialect == "google"
+            else [{"role": "user", "content": prompt}]
+        )
+
+    async def request(
+        self, bridge: SandboxAgentBridge
+    ) -> list[tuple[str, dict[str, Any]]]:
+        """Send the conversation; append the reply and return its (call id or name, arguments).
+
+        With `javascript`, the reply and its arguments are kept as a JavaScript
+        scaffold's JSON round-trip leaves them.
+        """
+        start = len(self.history)
+        calls = await self._request(bridge)
+        if self.javascript:
+            self.history[start:] = _javascript_json(self.history[start:])
+            calls = [(id, _javascript_json(arguments)) for id, arguments in calls]
+        return calls
+
+    async def _request(
+        self, bridge: SandboxAgentBridge
+    ) -> list[tuple[str, dict[str, Any]]]:
+        info = self.info
+        parameters = info.parameters.model_dump(exclude_none=True)
+        match self.dialect:
+            case "completions":
+                tool: dict[str, Any] = {
+                    "type": "function",
+                    "function": info.model_dump(exclude_none=True),
+                }
+                completion = await inspect_completions_api_request(
+                    {"model": "inspect", "messages": self.history, "tools": [tool]},
+                    None,
+                    bridge,
+                )
+                reply = completion.choices[0].message
+                self.history.append(reply.model_dump(exclude_none=True))
+                return [
+                    (call.id, json.loads(call.function.arguments))
+                    for call in reply.tool_calls or []
+                    if call.type == "function"
+                ]
+            case "responses":
+                tool = {
+                    "type": "function",
+                    "name": info.name,
+                    "description": info.description,
+                    "parameters": parameters,
+                }
+                response = await inspect_responses_api_request(
+                    {"model": "inspect", "input": self.history, "tools": [tool]},
+                    None,
+                    internal_web_search_providers(),
+                    default_code_execution_providers(),
+                    bridge,
+                )
+                self.history.extend(
+                    item.model_dump(exclude_none=True) for item in response.output
+                )
+                return [
+                    (item.call_id, json.loads(item.arguments))
+                    for item in response.output
+                    if item.type == "function_call"
+                ]
+            case "anthropic":
+                tool = {
+                    "name": info.name,
+                    "description": info.description,
+                    "input_schema": parameters,
+                }
+                message = await inspect_anthropic_api_request(
+                    {
+                        "model": "inspect",
+                        "max_tokens": 1024,
+                        "messages": self.history,
+                        "tools": [tool],
+                    },
+                    None,
+                    internal_web_search_providers(),
+                    default_code_execution_providers(),
+                    bridge,
+                )
+                self.history.append(
+                    {
+                        "role": "assistant",
+                        "content": [
+                            block.model_dump(exclude_none=True)
+                            for block in message.content
+                        ],
+                    }
+                )
+                return [
+                    (block.id, cast(dict[str, Any], block.input))
+                    for block in message.content
+                    if block.type == "tool_use"
+                ]
+            case "google":
+                tool = {
+                    "functionDeclarations": [
+                        {
+                            "name": info.name,
+                            "description": info.description,
+                            "parametersJsonSchema": parameters,
+                        }
+                    ]
+                }
+                gemini = await inspect_google_api_request(
+                    {"contents": self.history, "tools": [tool]},
+                    internal_web_search_providers(),
+                    default_code_execution_providers(),
+                    bridge,
+                )
+                content = gemini["candidates"][0]["content"]
+                self.history.append(content)
+                return [
+                    (part["functionCall"]["name"], part["functionCall"]["args"])
+                    for part in content["parts"]
+                    if "functionCall" in part
+                ]
+
+    def results(self, calls: list[tuple[str, Any]], outputs: list[JsonValue]) -> None:
+        """Append the results of `calls` the way the dialect sends them."""
+        match self.dialect:
+            case "completions":
+                self.history.extend(
+                    {"role": "tool", "tool_call_id": id, "content": str(output)}
+                    for (id, _), output in zip(calls, outputs)
+                )
+            case "responses":
+                self.history.extend(
+                    {
+                        "type": "function_call_output",
+                        "call_id": id,
+                        "output": str(output),
+                    }
+                    for (id, _), output in zip(calls, outputs)
+                )
+            case "anthropic":
+                self.history.append(
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": id,
+                                "content": str(output),
+                            }
+                            for (id, _), output in zip(calls, outputs)
+                        ],
+                    }
+                )
+            case "google":
+                self.history.append(
+                    {
+                        "role": "user",
+                        "parts": [
+                            {
+                                "functionResponse": {
+                                    "name": name,
+                                    "response": {"output": str(output)},
+                                }
+                            }
+                            for (name, _), output in zip(calls, outputs)
+                        ],
+                    }
+                )
+
+
+def _javascript_json(value: Any, key: str | None = None) -> Any:
+    """`value` after a JavaScript JSON round-trip, which writes 5.0 as 5."""
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    if isinstance(value, str) and key == "arguments":
+        return json.dumps(_javascript_json(json.loads(value)))
+    if isinstance(value, dict):
+        return {k: _javascript_json(v, k) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_javascript_json(v) for v in value]
+    return value
+
+
+def _numbered_results() -> AsyncMock:
+    """A host tool mock whose every result is different."""
+    count = 0
+
+    async def read(**arguments: Any) -> str:
+        nonlocal count
+        count += 1
+        return f"{arguments.get('path')} result {count}"
+
+    return AsyncMock(side_effect=read)
+
+
+@agent
+def host_scaffold(mode: HostMode, dialect: HostDialect = "completions") -> Agent:
+    """A scaffold running every call it gets as a bridged host tool, in parallel."""
+
+    async def execute(state: AgentState) -> AgentState:
+        bridge = SandboxAgentBridge(
+            state=state,
+            filter=_generating_request_filter(mode == "request_edit")
+            if mode in ("request_copy", "request_edit")
+            else None,
+            retry_refusals=None,
+            compaction=None,
+            port=13131,
+            model=None,
+            bridged_tools={"host": {"read_file": read_file(_numbered_results())}},
+            response_filter=_suffix_filter if mode == "filter" else None,
+            approval=[ApprovalPolicy(modifying_approver({"path": "safe"}), "*")]
+            if mode == "approval"
+            else None,
+        )
+        [info] = declare("mcp__host__read_file")
+        conversation = _HostConversation(
+            dialect, state.messages[0].text, info, javascript=mode == "javascript"
+        )
+        while True:
+            calls = await conversation.request(bridge)
+            if not calls:
+                return bridge.state
+            outputs = await tg_collect(
+                [
+                    partial(call_host_tool(bridge), "host", "read_file", arguments)
+                    for _, arguments in calls
+                ]
+            )
+            conversation.results(calls, outputs)
+
+    return execute
+
+
+def _host_outputs() -> list[ModelOutput]:
+    """Two rounds of two parallel calls (the first call's id repeats), then an answer."""
+    name = "mcp__host__read_file"
+    return [
+        tool_calls_output(
+            ToolCall(id="repeat", function=name, arguments={"path": "a"}),
+            ToolCall(id="parallel", function=name, arguments={"path": "b"}),
+            content=f"round {n}",
+        )
+        for n in range(2)
+    ] + [ModelOutput.from_content("mockllm/model", "done")]
+
+
+def _run_host_scaffold(
+    mode: HostMode,
+    dialect: HostDialect,
+    tmp_path: Path,
+    outputs: list[ModelOutput] | None = None,
+) -> EvalSample:
+    log = eval(
+        Task(
+            dataset=[Sample(input="Read both files twice.")],
+            solver=host_scaffold(mode, dialect),
+        ),
+        model=get_model("mockllm/model", custom_outputs=outputs or _host_outputs()),
+        log_dir=str(tmp_path),
+    )[0]
+    assert log.status == "success", log.error
+    read = read_eval_log(log.location)
+    assert read.samples
+    sample = resolve_sample_attachments(read.samples[0], "full")
+    assert_message_ids(sample)
+    return sample
+
+
+@pytest.mark.parametrize("mode", ["plain", "filter", "approval"])
+def test_host_tool_events_name_the_generated_output(
+    mode: Literal["plain", "filter", "approval"], tmp_path: Path
+) -> None:
+    """Each host tool event names exactly one model event's output, whatever changed the reply."""
+    sample = _run_host_scaffold(mode, "completions", tmp_path)
+    assert tool_event_producers(sample) == [1, 1, 1, 1]
+    replies = [
+        m
+        for m in sample.messages
+        if isinstance(m, ChatMessageAssistant) and m.tool_calls
+    ]
+    outputs_by_id = {
+        e.output.message.id: e.output.message
+        for e in sample.events
+        if isinstance(e, ModelEvent)
+    }
+    for reply in replies:
+        if mode == "plain":
+            assert reply.id in outputs_by_id
+        else:
+            assert any(reply.id == edited_id(source, reply) for source in outputs_by_id)
+    if mode == "approval":
+        assert {
+            call.arguments["path"] for r in replies for call in r.tool_calls or []
+        } == {"safe"}
+
+
+@pytest.mark.parametrize("edit", [False, True])
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+def test_generating_request_filter_text_edit_is_unverified(
+    dialect: HostDialect, edit: bool, tmp_path: Path
+) -> None:
+    """A request filter's copy of its generation keeps the generated id only if unchanged."""
+    sample = _run_host_scaffold(
+        "request_edit" if edit else "request_copy", dialect, tmp_path
+    )
+
+    generated = {
+        e.output.message.id for e in sample.events if isinstance(e, ModelEvent)
+    }
+    replies = [
+        m
+        for m in sample.messages
+        if isinstance(m, ChatMessageAssistant) and m.tool_calls
+    ]
+    events = [e for e in sample.events if isinstance(e, ToolEvent)]
+    assert len(replies) == 2 and len(events) == 4
+    if edit:
+        assert all(r.text.endswith(" EDITED") for r in replies)
+        assert not any(r.id in generated for r in replies)
+        assert all(e.call_message_id is None for e in events)
+    else:
+        assert tool_event_producers(sample) == [1, 1, 1, 1]
+
+
+@pytest.mark.parametrize("mode", ["plain", "filter", "approval"])
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+def test_host_tool_events_name_their_result_message(
+    dialect: HostDialect, mode: HostMode, tmp_path: Path
+) -> None:
+    """Each host tool event's `message_id` is the tool message the scaffold sent its result in."""
+    sample = _run_host_scaffold(mode, dialect, tmp_path)
+
+    events = [e for e in sample.events if isinstance(e, ToolEvent)]
+    assert len(events) == 4
+    if dialect == "google" and mode == "approval":
+        # the approver makes each round's calls identical, and their results
+        # differ, so Google (which tells identical calls apart only by position)
+        # leaves them unlinked
+        assert all(e.message_id is None for e in events)
+        return
+    _assert_linked(sample, events)
+
+
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+def test_host_tool_grant_matches_numeric_reserialization(
+    dialect: HostDialect, tmp_path: Path
+) -> None:
+    """A JavaScript scaffold sends 5.0 back as 5: the call still runs and links its result."""
+    call = ToolCall(
+        id="call",
+        function="mcp__host__read_file",
+        arguments={"path": "a", "offset": 5.0},
+    )
+    sample = _run_host_scaffold(
+        "javascript",
+        dialect,
+        tmp_path,
+        [tool_calls_output(call), ModelOutput.from_content("mockllm/model", "done")],
+    )
+
+    [reply] = [
+        m
+        for m in sample.messages
+        if isinstance(m, ChatMessageAssistant) and m.tool_calls
+    ]
+    assert reply.tool_calls and type(reply.tool_calls[0].arguments["offset"]) is int
+    events = [e for e in sample.events if isinstance(e, ToolEvent)]
+    assert len(events) == 1 and events[0].error is None
+    _assert_linked(sample, events)
+
+
+def _assert_linked(sample: EvalSample, events: list[ToolEvent]) -> None:
+    """Each event names a distinct tool message, answering its proposing reply, that holds its result."""
+    positions = {m.id: i for i, m in enumerate(sample.messages)}
+    for event in events:
+        assert event.message_id is not None
+        result = sample.messages[positions[event.message_id]]
+        assert isinstance(result, ChatMessageTool)
+        assert str(event.result) in result.text
+        proposing = next(
+            m
+            for m in reversed(sample.messages[: positions[event.message_id]])
+            if isinstance(m, ChatMessageAssistant)
+        )
+        assert result.tool_call_id in [c.id for c in proposing.tool_calls or []]
+    assert len({e.message_id for e in events}) == len(events)
+
+
+@agent
+def identical_host_scaffold(
+    results: Literal["equal", "numbered"],
+    reorder: bool,
+    executed: int | None,
+    edited: Literal["none", "one", "both"] = "none",
+) -> Agent:
+    """A Google scaffold running identical parallel calls as host tools.
+
+    It runs the first `executed` calls (all when `None`), with `reorder` sends
+    the calls back, and their results, in reverse order, and replaces the last
+    result it sends, or every result, with other text as `edited` says.
+    """
+
+    async def execute(state: AgentState) -> AgentState:
+        tool = (
+            AsyncMock(return_value="same contents")
+            if results == "equal"
+            else _numbered_results()
+        )
+        bridge = SandboxAgentBridge(
+            state=state,
+            filter=None,
+            retry_refusals=None,
+            compaction=None,
+            port=13131,
+            model=None,
+            bridged_tools={"host": {"read_file": read_file(tool)}},
+        )
+        [info] = declare("mcp__host__read_file")
+        conversation = _HostConversation("google", state.messages[0].text, info)
+        while True:
+            calls = await conversation.request(bridge)
+            if not calls:
+                return bridge.state
+            run = calls if executed is None else calls[:executed]
+            outputs: list[JsonValue] = list(
+                await tg_collect(
+                    [
+                        partial(call_host_tool(bridge), "host", "read_file", arguments)
+                        for _, arguments in run
+                    ]
+                )
+            )
+            outputs += ["not run"] * (len(calls) - len(run))
+            if edited == "one":
+                outputs[-1] = "edited"
+            elif edited == "both":
+                outputs = ["edited"] * len(outputs)
+            if reorder:
+                parts = conversation.history[-1]["parts"]
+                conversation.history[-1]["parts"] = [
+                    p for p in parts if "functionCall" not in p
+                ] + [p for p in reversed(parts) if "functionCall" in p]
+                calls, outputs = calls[::-1], outputs[::-1]
+            conversation.results(calls, outputs)
+
+    return execute
+
+
+@pytest.mark.parametrize(
+    "results,reorder,count,executed,edited",
+    [
+        ("equal", False, 2, None, "none"),
+        ("equal", True, 2, None, "none"),
+        ("numbered", False, 2, None, "none"),
+        ("numbered", True, 2, None, "none"),
+        ("equal", False, 3, 2, "none"),
+        ("equal", False, 2, None, "one"),
+        ("equal", False, 2, None, "both"),
+    ],
+    ids=[
+        "equal results",
+        "equal results, reordered",
+        "different results",
+        "different results, reordered",
+        "one of three not executed",
+        "one tool message edited",
+        "both tool messages edited identically",
+    ],
+)
+def test_identical_google_host_calls_stay_unlinked(
+    results: Literal["equal", "numbered"],
+    reorder: bool,
+    count: int,
+    executed: int | None,
+    edited: Literal["none", "one", "both"],
+    tmp_path: Path,
+) -> None:
+    """Google calls with the same function and arguments can't be told apart, whatever their results."""
+    name = "mcp__host__read_file"
+    log = eval(
+        Task(
+            dataset=[Sample(input="Read a twice.")],
+            solver=identical_host_scaffold(results, reorder, executed, edited),
+        ),
+        model=get_model(
+            "mockllm/model",
+            custom_outputs=[
+                tool_calls_output(
+                    *[
+                        ToolCall(id=f"call_{n}", function=name, arguments={"path": "a"})
+                        for n in range(count)
+                    ]
+                ),
+                ModelOutput.from_content("mockllm/model", "done"),
+            ],
+        ),
+        log_dir=str(tmp_path),
+    )[0]
+    assert log.status == "success", log.error
+    read = read_eval_log(log.location)
+    assert read.samples
+    sample = resolve_sample_attachments(read.samples[0], "full")
+    assert_message_ids(sample)
+
+    events = [e for e in sample.events if isinstance(e, ToolEvent)]
+    assert len(events) == (executed or count)
+    assert all(e.message_id is None for e in events)
+
+
+@agent
+def cancelled_then_reused_scaffold(dialect: HostDialect) -> Agent:
+    """A scaffold that cancels a proposed call, executes a later one under the same id, then sends the cancellation as its result."""
+
+    async def execute(state: AgentState) -> AgentState:
+        bridge = SandboxAgentBridge(
+            state=state,
+            filter=None,
+            retry_refusals=None,
+            compaction=None,
+            port=13131,
+            model=None,
+            bridged_tools={"host": {"read_file": read_file(_numbered_results())}},
+        )
+        [info] = declare("mcp__host__read_file")
+        conversation = _HostConversation(dialect, state.messages[0].text, info)
+        cancelled = await conversation.request(bridge)
+        conversation.results(cancelled, ["Cancelled."])
+        cancellation = conversation.history[-1]
+        calls = await conversation.request(bridge)
+        [(_, arguments)] = calls
+        await call_host_tool(bridge)("host", "read_file", arguments)
+        conversation.history = [
+            conversation.history[0],
+            conversation.history[-1],
+            cancellation,
+        ]
+        await conversation.request(bridge)
+        return bridge.state
+
+    return execute
+
+
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic"])
+def test_earlier_cancellation_under_a_reused_id_is_not_the_later_calls_result(
+    dialect: HostDialect, tmp_path: Path
+) -> None:
+    """A cancellation already sent for an unexecuted call doesn't link to a later call under its id."""
+    name = "mcp__host__read_file"
+    log = eval(
+        Task(
+            dataset=[Sample(input="Read a, then b.")],
+            solver=cancelled_then_reused_scaffold(dialect),
+        ),
+        model=get_model(
+            "mockllm/model",
+            custom_outputs=[
+                *[
+                    tool_calls_output(
+                        ToolCall(id="same", function=name, arguments={"path": path})
+                    )
+                    for path in ["a", "b"]
+                ],
+                ModelOutput.from_content("mockllm/model", "done"),
+            ],
+        ),
+        log_dir=str(tmp_path),
+    )[0]
+    assert log.status == "success", log.error
+    read = read_eval_log(log.location)
+    assert read.samples
+    sample = resolve_sample_attachments(read.samples[0], "full")
+
+    model_events = [e for e in sample.events if isinstance(e, ModelEvent)]
+    [sent] = [m for m in model_events[1].input if m.role == "tool"]
+    [returned] = [m for m in model_events[2].input if m.role == "tool"]
+    assert returned.id == sent.id
+    [event] = [e for e in sample.events if isinstance(e, ToolEvent)]
+    assert event.arguments == {"path": "b"}
+    assert event.message_id is None
+
+
+@agent
+def surrogate_host_scaffold(outcome: Literal["result", "error"]) -> Agent:
+    """A Completions scaffold reading two files whose host results, or errors, hold a lone surrogate."""
+
+    async def execute(state: AgentState) -> AgentState:
+        tool = (
+            AsyncMock(return_value=SURROGATE_TEXT)
+            if outcome == "result"
+            else AsyncMock(side_effect=ToolError(SURROGATE_TEXT))
+        )
+        bridge = SandboxAgentBridge(
+            state=state,
+            filter=None,
+            retry_refusals=None,
+            compaction=None,
+            port=13131,
+            model=None,
+            bridged_tools={"host": {"read_file": read_file(tool)}},
+        )
+        [info] = declare("mcp__host__read_file")
+        conversation = _HostConversation("completions", state.messages[0].text, info)
+        while True:
+            calls = await conversation.request(bridge)
+            if not calls:
+                return bridge.state
+            [(_, arguments)] = calls
+            try:
+                await call_host_tool(bridge)("host", "read_file", arguments)
+            except ToolError:
+                assert outcome == "error"
+            # the surrogate's escaped form, as the scaffold's JSON round-trip leaves it
+            conversation.results(
+                calls, [SURROGATE_TEXT.encode(errors="backslashreplace").decode()]
+            )
+
+    return execute
+
+
+SURROGATE_TEXT = "decoded \ud800 text"
+
+
+@pytest.mark.parametrize("outcome", ["result", "error"])
+def test_host_outcome_with_a_lone_surrogate_links_its_result(
+    outcome: Literal["result", "error"], tmp_path: Path
+) -> None:
+    """A lone surrogate in a host result or mapped error doesn't break linking, then or in the next request."""
+    name = "mcp__host__read_file"
+    log = eval(
+        Task(
+            dataset=[Sample(input="Read a and b.")],
+            solver=surrogate_host_scaffold(outcome),
+        ),
+        model=get_model(
+            "mockllm/model",
+            custom_outputs=[
+                *[
+                    tool_calls_output(
+                        ToolCall(
+                            id=f"call_{path}", function=name, arguments={"path": path}
+                        )
+                    )
+                    for path in ["a", "b"]
+                ],
+                ModelOutput.from_content("mockllm/model", "done"),
+            ],
+        ),
+        log_dir=str(tmp_path),
+    )[0]
+    assert log.status == "success", log.error
+    read = read_eval_log(log.location)
+    assert read.samples
+    sample = resolve_sample_attachments(read.samples[0], "full")
+
+    final_input = [e for e in sample.events if isinstance(e, ModelEvent)][-1].input
+    results = [m.id for m in final_input if m.role == "tool"]
+    events = [e for e in sample.events if isinstance(e, ToolEvent)]
+    assert len(results) == 2
+    assert [e.message_id for e in events] == results
+
+
+@agent
+def compacting_host_scaffold(dialect: HostDialect, copied: bool) -> Agent:
+    """A scaffold reading a file in two turns as a host tool, compacting to the latest reply and result, then continuing.
+
+    The tool returns the same text every time unless `copied`; then the
+    scaffold sends the first result again in place of the latest.
+    """
+
+    async def execute(state: AgentState) -> AgentState:
+        tool = AsyncMock(return_value="contents")
+        if copied:
+            tool.side_effect = ["contents", "changed"]
+        bridge = SandboxAgentBridge(
+            state=state,
+            filter=None,
+            retry_refusals=None,
+            compaction=None,
+            port=13131,
+            model=None,
+            bridged_tools={"host": {"read_file": read_file(tool)}},
+        )
+        [info] = declare("mcp__host__read_file")
+        conversation = _HostConversation(dialect, state.messages[0].text, info)
+        sent: JsonValue = None
+        for _ in range(2):
+            calls = await conversation.request(bridge)
+            outputs = [
+                await call_host_tool(bridge)("host", "read_file", arguments)
+                for _, arguments in calls
+            ]
+            sent = outputs[0] if sent is None or not copied else sent
+            conversation.results(calls, [sent] * len(calls))
+        summary = "Summary: read a once."
+        conversation.history = [
+            _user_turn(dialect, summary),
+            *conversation.history[-2:],
+        ]
+        await conversation.request(bridge)
+        conversation.history.append(_user_turn(dialect, "Thanks."))
+        await conversation.request(bridge)
+        return bridge.state
+
+    return execute
+
+
+def _user_turn(dialect: HostDialect, text: str) -> dict[str, Any]:
+    return (
+        {"role": "user", "parts": [{"text": text}]}
+        if dialect == "google"
+        else {"role": "user", "content": text}
+    )
+
+
+@pytest.mark.parametrize(
+    "parallel,copied,evicted",
+    [
+        (False, False, False),
+        (False, True, False),
+        (True, False, False),
+        (False, False, True),
+    ],
+    ids=["equal result", "copied", "parallel then single", "earlier reply evicted"],
+)
+@pytest.mark.parametrize("dialect", ["google", "completions", "responses", "anthropic"])
+def test_compacted_equal_host_result_links_to_its_own_message(
+    dialect: HostDialect,
+    parallel: bool,
+    copied: bool,
+    evicted: bool,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """After compaction, an equal result of a later call links to its own message, also in the next request; a copied earlier result links nothing.
+
+    With `parallel`, the first turn makes two identical calls (in Google they
+    can't be told apart and stay unlinked). With `evicted`, the bridge no
+    longer tracks the first reply when the compacted result arrives.
+    """
+    if evicted:
+        monkeypatch.setattr(bridge_types, "_MAX_AWAITED_RESULTS", 1)
+    name = "mcp__host__read_file"
+    first_calls = [
+        # the provider reuses the call id
+        ToolCall(id=f"call_{n + 1}", function=name, arguments={"path": "a"})
+        for n in range(2 if parallel else 1)
+    ]
+    log = eval(
+        Task(
+            dataset=[Sample(input="Read a twice.")],
+            solver=compacting_host_scaffold(dialect, copied),
+        ),
+        model=get_model(
+            "mockllm/model",
+            custom_outputs=[
+                tool_calls_output(*first_calls),
+                tool_calls_output(first_calls[0]),
+                *[ModelOutput.from_content("mockllm/model", "done")] * 2,
+            ],
+        ),
+        log_dir=str(tmp_path),
+    )[0]
+    assert log.status == "success", log.error
+    read = read_eval_log(log.location)
+    assert read.samples
+    sample = resolve_sample_attachments(read.samples[0], "full")
+
+    model_events = [e for e in sample.events if isinstance(e, ModelEvent)]
+    assert len(model_events) == 4
+    first_results = [m.id for m in model_events[1].input if m.role == "tool"]
+    [latest_result] = [m.id for m in model_events[2].input if m.role == "tool"]
+    [next_result] = [m.id for m in model_events[3].input if m.role == "tool"]
+    assert next_result == latest_result
+    events = [e for e in sample.events if isinstance(e, ToolEvent)]
+    first_links = [None, None] if parallel and dialect == "google" else first_results
+    if copied:
+        assert latest_result == first_results[0]
+        assert [e.message_id for e in events] == [*first_links, None]
+    else:
+        assert latest_result not in first_results
+        assert [e.message_id for e in events] == [*first_links, latest_result]
+
+
+@agent
+def identical_replies_compacting_scaffold() -> Agent:
+    """A Google scaffold reading a file in two identical turns (results `A`, `B`), compacting to both, then to a third turn and the `B` result."""
+
+    async def execute(state: AgentState) -> AgentState:
+        bridge = SandboxAgentBridge(
+            state=state,
+            filter=None,
+            retry_refusals=None,
+            compaction=None,
+            port=13131,
+            model=None,
+            bridged_tools={
+                "host": {"read_file": read_file(AsyncMock(side_effect=["A", "B", "A"]))}
+            },
+        )
+        [info] = declare("mcp__host__read_file")
+        conversation = _HostConversation("google", state.messages[0].text, info)
+        for _ in range(2):
+            [(_, arguments)] = calls = await conversation.request(bridge)
+            result = await call_host_tool(bridge)("host", "read_file", arguments)
+            conversation.results(calls, [result])
+        earlier_b = conversation.history[-1]
+        conversation.history = [
+            _user_turn("google", "Summary: read twice."),
+            *conversation.history[1:],
+        ]
+        [(_, arguments)] = await conversation.request(bridge)
+        await call_host_tool(bridge)("host", "read_file", arguments)
+        conversation.history = [
+            _user_turn("google", "Summary: checking."),
+            conversation.history[-1],
+            earlier_b,
+        ]
+        await conversation.request(bridge)
+        return bridge.state
+
+    return execute
+
+
+def test_answer_after_identical_replies_gives_no_later_link(tmp_path: Path) -> None:
+    """An answer following a reply identical to another isn't evidence that a later equal message answers a later call.
+
+    Compacting two identical Google replies can recognize each as the other,
+    so the `B` answer may be taken for the first reply's (whose execution
+    returned `A`). A later call that returned `A` must not link to that `B`
+    message sent again.
+    """
+    name = "mcp__host__read_file"
+    log = eval(
+        Task(
+            dataset=[Sample(input="Read a three times.")],
+            solver=identical_replies_compacting_scaffold(),
+        ),
+        model=get_model(
+            "mockllm/model",
+            custom_outputs=[
+                *[
+                    tool_calls_output(
+                        ToolCall(
+                            id=f"call_{n}", function=name, arguments={"path": "a"}
+                        ),
+                        content="On it." if n < 2 else "Checking again.",
+                    )
+                    for n in range(3)
+                ],
+                ModelOutput.from_content("mockllm/model", "done"),
+            ],
+        ),
+        log_dir=str(tmp_path),
+    )[0]
+    assert log.status == "success", log.error
+    read = read_eval_log(log.location)
+    assert read.samples
+    sample = resolve_sample_attachments(read.samples[0], "full")
+
+    events = [e for e in sample.events if isinstance(e, ToolEvent)]
+    assert [e.result for e in events] == ["A", "B", "A"]
+    model_events = [e for e in sample.events if isinstance(e, ModelEvent)]
+    [resent_b] = [m for m in model_events[-1].input if m.role == "tool"]
+    assert "B" in resent_b.text
+    assert events[2].message_id is None

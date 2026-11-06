@@ -1,21 +1,43 @@
+import json
+from collections import OrderedDict
 from enum import IntEnum
-from functools import lru_cache
-from typing import TYPE_CHECKING, Any, Callable, NamedTuple, NoReturn, Sequence, Set
+from functools import lru_cache, partial
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Collection,
+    NamedTuple,
+    NoReturn,
+    Sequence,
+)
 
 from shortuuid import uuid
 
+from inspect_ai._util.content import ContentReasoning, ContentText, ContentToolUse
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai.agent._agent import AgentState
 from inspect_ai.log._condense import ATTACHMENT_PROTOCOL
-from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
+from inspect_ai.model._assistant_internal import copy_assistant_internal
+from inspect_ai.model._chat_message import (
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageTool,
+    ChatMessageUser,
+)
 from inspect_ai.model._compaction import (
     Compact,
     CompactionStrategy,
 )
 from inspect_ai.model._compaction import (
     compaction as create_compaction,
+)
+from inspect_ai.model._message_ids import (
+    canonical_tool_arguments,
+    content_hash,
+    edit_id,
 )
 from inspect_ai.model._model import (
     GenerateFilter,
@@ -37,6 +59,185 @@ if TYPE_CHECKING:
     # cycles back through partially-initialized modules). Same reason
     # `model/_call_tools.py` defers it.
     from inspect_ai.approval._policy import ApprovalPolicy
+    from inspect_ai.event._tool import ToolEvent
+
+
+_MAX_AWAITED_RESULTS = 256
+"""Host tool calls tracked for their result message, beyond which the oldest replies' are dropped."""
+
+_MAX_REPLY_EDIT_VERSIONS = 16
+"""Recent edited reply ids retained while their calls await results."""
+
+
+class _HandedCall(NamedTuple):
+    """A call in a reply handed to the scaffold, as much of it as matching needs."""
+
+    reply_id: str
+    """Id of the reply."""
+
+    position: int
+    """The call's index in the reply."""
+
+    call_id: str
+    """The call's id."""
+
+    function: str
+    """The call's function."""
+
+    arguments: str
+    """Digest of the call's arguments (`_arguments_digest`)."""
+
+    identical: int
+    """Calls in the reply with this function and arguments, this one included."""
+
+    handed_ids: frozenset[str] | None
+    """Ids of every call in the reply (one set shared by its calls), or `None` for a reply of more than `_MAX_HANDED_IDS` calls."""
+
+    id_shared: bool
+    """Whether another call in the reply has this call's id."""
+
+
+_MAX_HANDED_IDS = 256
+"""Calls in a reply beyond which its handed ids aren't kept (its calls match only by kept id, and other replies' calls don't link while it is tracked)."""
+
+
+def _arguments_digest(arguments: dict[str, Any]) -> str:
+    return mm3_hash(canonical_tool_arguments(arguments))
+
+
+def _handed_calls(reply_id: str, calls: Sequence[ToolCall]) -> list[_HandedCall]:
+    """The calls of a reply handed to the scaffold, for `_await_result_message`."""
+    keys = [(call.function, _arguments_digest(call.arguments)) for call in calls]
+    ids = [call.id for call in calls]
+    handed_ids = frozenset(ids) if len(calls) <= _MAX_HANDED_IDS else None
+    return [
+        _HandedCall(
+            reply_id,
+            position,
+            call.id,
+            *key,
+            keys.count(key),
+            handed_ids,
+            ids.count(call.id) > 1,
+        )
+        for position, (call, key) in enumerate(zip(calls, keys))
+    ]
+
+
+class _AwaitedResult(NamedTuple):
+    """A host tool call waiting for the tool message that holds its result."""
+
+    handed: _HandedCall
+    """The call, as handed to the scaffold."""
+
+    event: "ToolEvent | None"
+    """The call's execution, or `None` once settled."""
+
+    outcome: str
+    """Digest of the execution's result and error."""
+
+    settled: bool = False
+    """Whether the call was linked or found ambiguous, so later results and executions are ignored."""
+
+    message_id: str | None = None
+    """Id of the tool message the call was linked to, once settled."""
+
+    reply_versions: tuple[str, ...] = ()
+    """Recent edits of the handed reply, kept on one call per pending reply."""
+
+
+def _is_handed(copy_call: ToolCall, handed: _HandedCall) -> bool:
+    return (
+        copy_call.function == handed.function
+        and _arguments_digest(copy_call.arguments) == handed.arguments
+    )
+
+
+def _copy_calls(
+    handed: _HandedCall, copy_calls: list[ToolCall], excluded_ids: Collection[str]
+) -> list[ToolCall]:
+    """The calls in a scaffold's copy of a reply that may be `handed`.
+
+    None if another call in the reply has its id: an answer under that id
+    can't be told apart. Otherwise the one with its id, function and arguments.
+    When no copy call has its id (Google re-derives call ids), the ones with
+    its function and arguments and an id the bridge handed in no tracked reply
+    and no unexecuted proposal (`excluded_ids`), but only if `handed` is the
+    reply's only call with that function and arguments and its handed ids are
+    known. Identical calls can't be told apart, so they are never paired.
+    """
+    if handed.id_shared:
+        return []
+    if any(c.id == handed.call_id for c in copy_calls):
+        return [
+            c for c in copy_calls if c.id == handed.call_id and _is_handed(c, handed)
+        ]
+    if handed.identical != 1 or handed.handed_ids is None:
+        return []
+    return [c for c in copy_calls if c.id not in excluded_ids and _is_handed(c, handed)]
+
+
+def _settle(
+    awaited: dict[int, _AwaitedResult], call_index: int, matches: list[ChatMessageTool]
+) -> None:
+    """Settle a call answered by `matches`, linking its event if exactly one answers it."""
+    from inspect_ai.log._transcript import transcript
+
+    event = awaited[call_index].event
+    linked = matches[0].id if len(matches) == 1 and event is not None else None
+    awaited[call_index] = awaited[call_index]._replace(
+        event=None, settled=True, message_id=linked
+    )
+    if event is not None and linked is not None:
+        event.message_id = linked
+        transcript()._event_updated(event)
+
+
+class _CallDigest(NamedTuple):
+    id: str
+    function: str
+    arguments: str
+    """Digest of the call's arguments (`_arguments_digest`)."""
+
+
+class _AnsweredCall(NamedTuple):
+    """The call a tool message answers, as the scaffold sent the reply holding it."""
+
+    reply_id: str
+    """Id of the reply (of the handed reply, for a copy the bridge recognized)."""
+
+    call: _CallDigest | None
+    """The reply's call with the message's call id, or `None` if it has none or differing ones."""
+
+
+def _answered_call(reply_id: str, copies: list[ToolCall]) -> _AnsweredCall:
+    digests = {
+        _CallDigest(c.id, c.function, _arguments_digest(c.arguments)) for c in copies
+    }
+    return _AnsweredCall(reply_id, digests.pop() if len(digests) == 1 else None)
+
+
+class _Answer(NamedTuple):
+    """The reply a tool message was first sent as an answer to."""
+
+    reply_id: str
+
+    outcomes: frozenset[str]
+    """Outcomes of the call's host executions when the message was first sent."""
+
+
+class _ReplyAnswers(NamedTuple):
+    """The answer records kept for a reply."""
+
+    message_ids: list[str]
+    """Tool messages first sent as its answers (keys of `_answers`)."""
+
+    occurrences: dict[str, str]
+    """Per message key, the id its answer was first given."""
+
+
+_MAX_ANSWER_RECORDS = 4096
+"""Answer records (`_ReplyAnswers` message ids and occurrences) kept between requests, beyond which the oldest replies' are dropped."""
 
 
 class DispatchedCall(NamedTuple):
@@ -132,6 +333,24 @@ class AgentBridge:
             state.messages.copy(),
             value_type=list[ChatMessage],
         )
+        # checkpointed hashes: changing `content_hash` or `edit_id` changes what a
+        # resumed sample matches against
+        self._content_by_id = self._cp.track(
+            "bridge_message_content",
+            lambda: self._content_by_id,
+            {},
+            value_type=dict[str, str],
+        )
+        self._keys_by_id: dict[str, set[str]] = {}
+        for key, ids in self._message_ids.items():
+            for id in ids:
+                self._keys_by_id.setdefault(id, set()).add(key)
+        self._record_input_message_ids(self._compaction_prefix)
+        # the tracked thread's ids, from the checkpoint on resume (which isn't
+        # handed back to the scaffold, see above)
+        self._tracked_ids = [
+            (m.id, m.role) for m in restored_messages if m.id is not None
+        ]
         self.filter = filter
         self.response_filter = response_filter
         self.retry_refusals = retry_refusals
@@ -158,6 +377,11 @@ class AgentBridge:
         self._tracked_descends: _Descent | None = None
         self._candidate_fps: list[_MessageFingerprint] | None = None
         self._pending_operator = 0
+        self._awaited_results: dict[str, dict[int, _AwaitedResult]] = {}
+        self._result_edit_parent: dict[str, str] = {}
+        self._answers: dict[str, _Answer] = {}
+        self._reply_answers: OrderedDict[str, _ReplyAnswers] = OrderedDict()
+        self._answer_records = 0
         self._operator_keys: set[str] = set()
         self._warned_request_settings: set[str] = set()
 
@@ -294,6 +518,206 @@ class AgentBridge:
         bind later service requests to the calls the model actually made.
         """
 
+    _proposing_message_ids: dict[str, str] = {}
+    """Generated output message id by call id, for the calls `register_tool_execution_grants` is registering.
+
+    Set by `bridge_generate` around the call (the hook's signature is public). A
+    call a response filter added has none.
+    """
+
+    _proposing_reply_id: str | None = None
+    """Id of the reply handed to the scaffold, while `register_tool_execution_grants` registers its calls."""
+
+    _proposing_call_verified: list[bool] | None = None
+    """Per-call filter verification, aligned with the calls being registered."""
+
+    def _await_result_message(self, handed: _HandedCall, event: "ToolEvent") -> None:
+        """Set `event.message_id` when the scaffold first sends the result of `handed`.
+
+        The result reaches the bridge only when the scaffold sends it back in a
+        later request (`_link_result_messages`). A second execution of the call
+        settles it unlinked (which execution the result holds is unknown), and
+        one after the call settled stays unlinked. At most `_MAX_AWAITED_RESULTS`
+        calls are tracked; the oldest replies' calls are dropped (left unlinked)
+        beyond that.
+        """
+        outcome = mm3_hash(
+            to_json_str_safe({"result": event.result, "error": event.error})
+        )
+        calls = self._awaited_results.setdefault(handed.reply_id, {})
+        tracked = calls.get(handed.position)
+        if tracked is None:
+            calls[handed.position] = _AwaitedResult(handed, event, outcome)
+        elif not tracked.settled:
+            calls[handed.position] = tracked._replace(event=None, settled=True)
+        tracked_calls = sum(len(calls) for calls in self._awaited_results.values())
+        while tracked_calls > _MAX_AWAITED_RESULTS:
+            oldest = next(iter(self._awaited_results))
+            tracked_calls -= len(self._awaited_results.pop(oldest))
+
+    def _awaited_reply_id(
+        self, reply_id: str, message: ChatMessageAssistant
+    ) -> str | None:
+        """Find the handed reply represented by a recognized or edited copy."""
+        if reply_id in self._awaited_results:
+            return reply_id
+        return next(
+            (
+                original
+                for original, calls in self._awaited_results.items()
+                if any(reply_id in entry.reply_versions for entry in calls.values())
+                or edit_id(original, content_hash(message)) == reply_id
+            ),
+            None,
+        )
+
+    def _link_result_messages(
+        self,
+        messages: list[ChatMessage],
+        recognized: list[str | None],
+        unattributed: Collection[str] = (),
+    ) -> None:
+        """Link awaited host tool events to their result messages in a request.
+
+        `recognized` is the id each message was recognized by (before an edit
+        versioned it). A reply handed to the scaffold comes back as the assistant
+        message recognized by its id or an edited version of it. In that copy,
+        a call is the one with its id,
+        function and arguments (`_copy_calls`), picked by no other awaited call
+        and with an id unique in the copy. Its result is a tool message before
+        the next assistant message with tool calls: exactly one links it, more
+        than one settles it unlinked. A message already linked to a tracked call,
+        or first sent as another reply's answer (`_result_occurrence`) or as an
+        answer whose record was dropped (`unattributed`), isn't linked, and a
+        kept id another tracked reply also handed doesn't link while that reply's call is unlinked (`_tracked_call_ids`).
+        No call links while another tracked reply keeps no handed ids: any id
+        in the copy could be one of that reply's unexecuted calls. A call
+        matched by function and arguments doesn't take the id of a call
+        proposed but not executed (`_unexecuted_call_ids`).
+
+        Each call settles on its own. One the copy can't identify, or with no
+        result yet, keeps waiting: results sent in separate requests, after
+        another assistant message, or after a side call without them still link.
+        A missing result is never taken as abandoned; `_MAX_AWAITED_RESULTS`
+        bounds calls whose results never come.
+        """
+        if not self._awaited_results:
+            return
+        tracked_ids: dict[str, list[tuple[str, str | None]]] | None = None
+        ids_unknown = {
+            reply_id
+            for reply_id, calls in self._awaited_results.items()
+            if next(iter(calls.values())).handed.handed_ids is None
+        }
+        linked_ids: set[str] = set()
+        excluded_ids: set[str] = set()
+
+        def linked_result(message_id: str | None) -> bool:
+            while message_id is not None:
+                if message_id in linked_ids:
+                    return True
+                message_id = self._result_edit_parent.get(message_id)
+            return False
+
+        for index, (message, reply_id) in enumerate(zip(messages, recognized)):
+            if reply_id is None or not isinstance(message, ChatMessageAssistant):
+                continue
+            original = self._awaited_reply_id(reply_id, message)
+            if original is None:
+                continue
+            reply_id = original
+            awaited = self._awaited_results[reply_id]
+            first_call = next(iter(awaited))
+            versions = awaited[first_call].reply_versions
+            if message.id is not None and message.id != reply_id:
+                awaited[first_call] = awaited[first_call]._replace(
+                    reply_versions=(*versions, message.id)[-_MAX_REPLY_EDIT_VERSIONS:]
+                )
+            if ids_unknown - {reply_id}:
+                continue
+            results: list[ChatMessageTool] = []
+            for following in messages[index + 1 :]:
+                if isinstance(following, ChatMessageAssistant) and following.tool_calls:
+                    break
+                if isinstance(following, ChatMessageTool):
+                    results.append(following)
+            copy_calls = message.tool_calls or []
+            if tracked_ids is None:
+                tracked_ids = self._tracked_call_ids()
+                excluded_ids = tracked_ids.keys() | self._unexecuted_call_ids()
+                linked_ids = {
+                    linked
+                    for ids in tracked_ids.values()
+                    for _, linked in ids
+                    if linked
+                }
+            tracked = tracked_ids
+            candidates = {
+                call_index: _copy_calls(entry.handed, copy_calls, excluded_ids)
+                for call_index, entry in awaited.items()
+                if not entry.settled
+            }
+            identified = {
+                call_index: same[0]
+                for call_index, same in candidates.items()
+                if len(same) == 1
+            }
+            for call_index, copy_call in identified.items():
+                if (
+                    sum(c is copy_call for c in identified.values()) != 1
+                    or [c.id for c in copy_calls].count(copy_call.id) != 1
+                ):
+                    continue
+                matches = [r for r in results if r.tool_call_id == copy_call.id]
+                if len(matches) == 1 and (
+                    linked_result(matches[0].id)
+                    or matches[0].id in unattributed
+                    or self._answers_other_reply(matches[0].id, reply_id)
+                    or any(
+                        linked is None
+                        for other, linked in tracked.get(copy_call.id, [])
+                        if other != reply_id
+                    )
+                ):
+                    continue
+                if matches:
+                    _settle(awaited, call_index, matches)
+                    linked = awaited[call_index].message_id
+                    if linked is not None:
+                        linked_ids.add(linked)
+
+    def _answers_other_reply(self, message_id: str | None, reply_id: str) -> bool:
+        if message_id is None:
+            return False
+        answered = self._answer_of(message_id)
+        return answered is not None and answered.reply_id != reply_id
+
+    def _unexecuted_call_ids(self) -> set[str]:
+        return set()
+
+    def _tracked_call_ids(self) -> dict[str, list[tuple[str, str | None]]]:
+        """Ids the bridge handed in the replies it still tracks.
+
+        Each id maps to the replies that handed it, with the tool message that
+        reply's call under it was linked to (`None` if it isn't linked). An id
+        another tracked reply handed is ambiguous while that reply's call is
+        unlinked. A reply that keeps no handed ids contributes its tracked
+        calls' ids (`_link_result_messages` links no other reply's calls while
+        it is tracked). Ids from replies dropped by `_MAX_AWAITED_RESULTS`
+        aren't known, so a scaffold that copies an
+        earlier call and its answer into a later reply can still be taken for
+        that reply's call.
+        """
+        ids: dict[str, list[tuple[str, str | None]]] = {}
+        for reply_id, calls in self._awaited_results.items():
+            linked = {
+                entry.handed.call_id: entry.message_id for entry in calls.values()
+            }
+            handed_ids = next(iter(calls.values())).handed.handed_ids
+            for call_id in handed_ids if handed_ids is not None else linked:
+                ids.setdefault(call_id, []).append((reply_id, linked.get(call_id)))
+        return ids
+
     def dispatched_call(self, call: ToolCall) -> DispatchedCall | None:
         """The bridged tool call that `call` makes through a dispatcher, if any.
 
@@ -362,31 +786,423 @@ class AgentBridge:
         """
         self._pending_operator += 1
 
-    def _id_for_message(
-        self, message: ChatMessage, conversation: list[ChatMessage]
-    ) -> str:
-        # message_id we will return
-        message_id: str | None = None
+    def _assign_message_ids(self, messages: list[ChatMessage]) -> None:
+        """Give each message of a request the id the bridge knows it by, or a new one.
 
-        # turn message into a hash so it can be a dictionary key
-        message_key = message_json_hash(to_json_str_safe(message))
+        Messages that line up with the tracked thread (`_align_with_tracked`) take
+        its ids unless a recorded id matches a stronger key. Others take the
+        first id recorded for their strongest key that isn't already used in the
+        request, so the k-th repeat of a message gets the k-th id.
 
-        # do we already have an id for this message that isn't in the conversation?
-        conversation_ids: Set[str] = {m.id for m in conversation if m.id is not None}
-        message_ids = self._message_ids.get(message_key, [])
-        for id in message_ids:
-            if id not in conversation_ids:
-                message_id = id
-                break
+        A tool message after a reply is an answer to that reply
+        (`_result_occurrence`). One seen before without an answer record (its
+        record was dropped, see `_record_answer`, or it first came after no
+        reply) answered an unknown reply: it isn't recorded or linked.
+        """
+        keys = [_message_id_keys(message) for message in messages]
+        aligned = self._align_with_tracked(messages, keys)
+        reserved = set(aligned.values())
+        used: set[str] = set()
+        # per key, the first recorded id not yet taken (ids only become taken)
+        cursors: dict[str, int] = {}
 
-        # if we didn't find an id then generate a new one and update our record
-        if message_id is None:
-            message_id = uuid()
-            message_ids.append(message_id)
-            self._message_ids[message_key] = message_ids
+        def recorded_id(message_keys: list[str]) -> str | None:
+            for key in message_keys:
+                ids = self._message_ids.get(key, [])
+                cursor = cursors.get(key, 0)
+                while cursor < len(ids) and (
+                    ids[cursor] in used or ids[cursor] in reserved
+                ):
+                    cursor += 1
+                cursors[key] = cursor
+                if cursor < len(ids):
+                    return ids[cursor]
+            return None
 
-        # return the id
+        def available(message_id: str, index: int) -> bool:
+            return message_id not in used and (
+                message_id not in reserved or aligned.get(index) == message_id
+            )
+
+        recognized: list[str | None] = []
+        unattributed: set[str] = set()
+        preceding_reply_id: str | None = None
+        preceding_reply_key: str | None = None
+        preceding_reply_keys: list[str] = []
+        preceding_reply_ambiguous: bool | None = None
+        reply_calls: dict[str, list[ToolCall]] = {}
+        for index, (message, message_keys) in enumerate(zip(messages, keys)):
+            aligned_id = aligned.get(index)
+            message_id = aligned_id
+            if aligned_id is None:
+                message_id = recorded_id(message_keys)
+            else:
+                aligned_keys = self._keys_by_id.get(aligned_id, set())
+                aligned_strength = max(
+                    (_key_strength(key) for key in message_keys if key in aligned_keys),
+                    default=0,
+                )
+                if aligned_strength < 3:
+                    candidate_id = recorded_id(message_keys)
+                    if candidate_id is not None:
+                        candidate_keys = self._keys_by_id.get(candidate_id, set())
+                        candidate_strength = max(
+                            (
+                                _key_strength(key)
+                                for key in message_keys
+                                if key in candidate_keys
+                            ),
+                            default=0,
+                        )
+                        if candidate_strength > aligned_strength:
+                            message_id = candidate_id
+            answered: _AnsweredCall | None = None
+            if isinstance(message, ChatMessageTool) and preceding_reply_key is not None:
+                answered = _answered_call(
+                    preceding_reply_key,
+                    reply_calls.get(message.tool_call_id or "", []),
+                )
+                if preceding_reply_id is not None:
+                    message_id = self._result_occurrence(
+                        message_keys,
+                        message_id,
+                        answered,
+                        partial(available, index=index),
+                    )
+            recognized.append(message_id)
+            known = False
+            if message_id is None:
+                message.id = uuid()
+                self._content_by_id[message.id] = content_hash(message)
+            else:
+                used.add(message_id)
+                message.id = self._version_id(message_id, message)
+                known = message.id in self._keys_by_id
+            used.add(message.id)
+            self._record_message_id(message_keys, message.id)
+            if answered is not None:
+                if not known:
+                    if preceding_reply_ambiguous is None:
+                        preceding_reply_ambiguous = (
+                            preceding_reply_id is not None
+                            and self._ambiguous_reply(
+                                preceding_reply_id, preceding_reply_keys
+                            )
+                        )
+                    self._record_answer(message.id, answered, preceding_reply_ambiguous)
+                if self._answer_of(message.id) is None:
+                    unattributed.add(message.id)
+                else:
+                    self._record_occurrence(message_keys, message.id, answered)
+            if isinstance(message, ChatMessageAssistant) and message.tool_calls:
+                preceding_reply_id = (
+                    self._awaited_reply_id(message_id, message)
+                    if message_id is not None
+                    else None
+                )
+                preceding_reply_key = preceding_reply_id or message.id
+                preceding_reply_keys = message_keys
+                preceding_reply_ambiguous = None
+                reply_calls = {}
+                for call in message.tool_calls:
+                    reply_calls.setdefault(call.id, []).append(call)
+        self._link_result_messages(messages, recognized, unattributed)
+        # only after linking, so the request's ownership checks all see the
+        # records it started with
+        self._drop_answer_records()
+
+    def _result_occurrence(
+        self,
+        keys: list[str],
+        candidate: str | None,
+        answered: _AnsweredCall,
+        available: Callable[[str], bool],
+    ) -> str | None:
+        """The id of a tool message answering a call of an awaited reply.
+
+        The message is the reply's answer to the call: `candidate` if that was
+        first an answer to this reply, else the id the reply's answer was first
+        given under one of the message's keys. A candidate first given to
+        another reply's answer is that earlier answer: the message is a fresh
+        answer (`None`) if it matched it only by call id, or if the call has
+        one pending host execution that returned what each execution of the
+        earlier call did when the earlier answer was first sent. Otherwise the message is a copy
+        of the earlier answer and keeps its id, which `_link_result_messages`
+        doesn't link to this reply's call.
+        """
+        earlier = self._answer_of(candidate) if candidate is not None else None
+        if earlier is not None and earlier.reply_id == answered.reply_id:
+            return candidate
+        reply_answers = self._reply_answers.get(answered.reply_id)
+        for key in keys:
+            occurrence = reply_answers.occurrences.get(key) if reply_answers else None
+            if occurrence is not None and available(occurrence):
+                return occurrence
+        if candidate is None or earlier is None:
+            return candidate
+        if not any(
+            key.startswith(("content:", "loose:"))
+            and key in self._keys_by_id.get(candidate, set())
+            for key in keys
+        ):
+            return None
+        pending = [
+            entry for entry in self._answered_entries(answered) if not entry.settled
+        ]
+        if len(pending) == 1 and earlier.outcomes == {pending[0].outcome}:
+            return None
+        return candidate
+
+    def _answered_entries(
+        self, answered: _AnsweredCall, identical: bool = False
+    ) -> list[_AwaitedResult]:
+        """The awaited executions of the call a tool message answers.
+
+        Matched by call id, else (Google re-derives call ids) by function and
+        arguments: only a call no other call in its reply is identical to,
+        unless `identical`.
+        """
+        if answered.call is None:
+            return []
+        call = answered.call
+
+        def is_handed(handed: _HandedCall) -> bool:
+            return (call.function, call.arguments) == (
+                handed.function,
+                handed.arguments,
+            )
+
+        entries = self._awaited_results.get(answered.reply_id, {}).values()
+        by_id = [entry for entry in entries if entry.handed.call_id == call.id]
+        if by_id:
+            return [entry for entry in by_id if is_handed(entry.handed)]
+        return [
+            entry
+            for entry in entries
+            if (identical or entry.handed.identical == 1) and is_handed(entry.handed)
+        ]
+
+    def _result_root(self, message_id: str) -> str:
+        while message_id in self._result_edit_parent:
+            message_id = self._result_edit_parent[message_id]
         return message_id
+
+    def _answer_of(self, message_id: str) -> _Answer | None:
+        return self._answers.get(self._result_root(message_id))
+
+    def _record_answer(
+        self, message_id: str, answered: _AnsweredCall, ambiguous: bool = False
+    ) -> None:
+        """Record a new tool message as an answer to its reply.
+
+        The record keeps no outcomes when the reply was `ambiguous`: another
+        awaited reply matches its copy as strongly (identical replies), so
+        recognition may have picked the other's executions, and a later equal
+        message must not be taken for a fresh answer on their basis.
+
+        At most `_MAX_ANSWER_RECORDS` records are kept between requests: once a
+        request is linked, the oldest replies' are dropped beyond that, so a
+        later message equal to one of their answers keeps that answer's id and
+        isn't linked. A request's own records may exceed the bound until then.
+        """
+        if message_id in self._answers:
+            return
+        self._answers[message_id] = _Answer(
+            answered.reply_id,
+            frozenset()
+            if ambiguous
+            else frozenset(
+                entry.outcome
+                for entry in self._answered_entries(answered, identical=True)
+            ),
+        )
+        self._reply_answer_records(answered.reply_id).message_ids.append(message_id)
+        self._answer_records += 1
+
+    def _ambiguous_reply(self, reply_id: str, keys: list[str]) -> bool:
+        def strength(original: str) -> int:
+            calls = self._awaited_results[original]
+            ids = (original, *next(iter(calls.values())).reply_versions)
+            return max(
+                (
+                    _key_strength(key)
+                    for id in ids
+                    for key in keys
+                    if key in self._keys_by_id.get(id, ())
+                ),
+                default=0,
+            )
+
+        recognized = max(strength(reply_id), 1)
+        return any(
+            other != reply_id and strength(other) >= recognized
+            for other in self._awaited_results
+        )
+
+    def _record_occurrence(
+        self, keys: list[str], message_id: str, answered: _AnsweredCall
+    ) -> None:
+        first = self._answer_of(message_id)
+        if first is None or first.reply_id != answered.reply_id:
+            return
+        occurrences = self._reply_answer_records(answered.reply_id).occurrences
+        for key in keys:
+            if key not in occurrences:
+                occurrences[key] = message_id
+                self._answer_records += 1
+
+    def _reply_answer_records(self, reply_id: str) -> _ReplyAnswers:
+        return self._reply_answers.setdefault(reply_id, _ReplyAnswers([], {}))
+
+    def _drop_answer_records(self) -> None:
+        while self._answer_records > _MAX_ANSWER_RECORDS:
+            _, dropped = self._reply_answers.popitem(last=False)
+            for message_id in dropped.message_ids:
+                del self._answers[message_id]
+            self._answer_records -= len(dropped.message_ids) + len(dropped.occurrences)
+
+    def _version_id(self, message_id: str, message: ChatMessage) -> str:
+        """`message_id`, or the id of an edited version if `message`'s content differs.
+
+        Different content never shares an id. A scaffold that sends a message back
+        changed (even in whitespace) has edited it: the edit gets an id derived
+        from the id it was recognized by and its content, and an edited reply keeps
+        the provider state recorded under that id.
+        """
+        content = content_hash(message)
+        if self._content_by_id.setdefault(message_id, content) == content:
+            return message_id
+        edited_id = edit_id(message_id, content)
+        self._content_by_id.setdefault(edited_id, content)
+        if isinstance(message, ChatMessageAssistant):
+            copy_assistant_internal(message_id, edited_id)
+        elif isinstance(message, ChatMessageTool):
+            self._result_edit_parent[edited_id] = message_id
+        return edited_id
+
+    def _align_with_tracked(
+        self, messages: list[ChatMessage], keys: list[list[str]]
+    ) -> dict[int, str]:
+        """Pair request messages with the tracked thread's, in order.
+
+        A request containing the entire tracked history keeps that alignment.
+        Otherwise, each run of consecutive matches starts at the tracked message
+        sharing the strongest key, then the longest run (one that reaches the end
+        of the tracked thread continues it), then the latest position (scaffold
+        compaction keeps the tail). A same-role message between two runs, at the
+        same offset in both, is an edit of the tracked one.
+
+        Only the position continuing the last run and the latest
+        `_MAX_ALIGN_CANDIDATES` positions per key are considered, and runs are
+        measured only for the strongest, so the cost stays linear in the length
+        of a conversation that repeats the same messages.
+        """
+        tracked = self._tracked_ids
+        tracked_keys = [self._keys_by_id.get(id, set()) for id, _ in tracked]
+        positions: dict[str, list[int]] = {}
+        for position, position_keys in enumerate(tracked_keys):
+            for key in position_keys:
+                positions.setdefault(key, []).append(position)
+
+        def strength(i: int, j: int) -> int:
+            return max(
+                (_key_strength(key) for key in keys[i] if key in tracked_keys[j]),
+                default=0,
+            )
+
+        if (
+            tracked
+            and len(messages) >= len(tracked)
+            and all(strength(i, i) for i in range(len(tracked)))
+        ):
+            return {i: tracked[i][0] for i in range(len(tracked))}
+
+        def run(i: int, j: int) -> int:
+            length = 0
+            while (
+                i + length < len(messages)
+                and j + length < len(tracked)
+                and strength(i + length, j + length)
+            ):
+                length += 1
+            return length
+
+        aligned: dict[int, str] = {}
+        i, next_j = 0, 0
+        last: tuple[int, int] | None = None
+        while i < len(messages):
+            diagonal = next_j + (i - last[0]) if last is not None else i
+            candidates = {
+                j
+                for key in keys[i]
+                for j in positions.get(key, [])[-_MAX_ALIGN_CANDIDATES:]
+                if j >= next_j
+            }
+            if diagonal < len(tracked) and strength(i, diagonal):
+                candidates.add(diagonal)
+            if not candidates:
+                i += 1
+                continue
+            strengths = {j: strength(i, j) for j in candidates}
+            strongest = max(strengths.values())
+            runs = {j: run(i, j) for j in candidates if strengths[j] == strongest}
+            j = max(
+                runs,
+                key=lambda j: (
+                    len(messages) - i if j + runs[j] == len(tracked) else runs[j],
+                    j,
+                ),
+            )
+            if last is not None and i - last[0] == j - last[1]:
+                for offset in range(i - last[0]):
+                    gap_id, gap_role = tracked[last[1] + offset]
+                    if messages[last[0] + offset].role == gap_role:
+                        aligned[last[0] + offset] = gap_id
+            length = runs[j]
+            for offset in range(length):
+                aligned[i + offset] = tracked[j + offset][0]
+            i, next_j = i + length, j + length
+            last = (i, next_j)
+        return aligned
+
+    def _record_message_id(self, keys: list[str], message_id: str) -> None:
+        # `_keys_by_id` mirrors `_message_ids`, so membership is a set lookup
+        known = self._keys_by_id.setdefault(message_id, set())
+        for key in keys:
+            if key not in known:
+                self._message_ids.setdefault(key, []).append(message_id)
+                known.add(key)
+
+    def _record_transported_reply(
+        self, reply: ChatMessageAssistant, transported: list[ChatMessage]
+    ) -> None:
+        """Recognize `reply` by the form a dialect that re-derives call ids hands back.
+
+        Google derives call ids from function and arguments, so a reply equal to
+        an earlier one comes back as that one's copy did; recording its own copy's
+        keys lets alignment weigh both.
+        """
+        if reply.id is None:
+            return
+        for message in transported:
+            if isinstance(message, ChatMessageAssistant):
+                self._record_message_id(_message_id_keys(message), reply.id)
+
+    def _record_input_message_ids(self, messages: list[ChatMessage]) -> None:
+        """Record the input's ids, including the condensed and quoted forms `_position_descent` accepts."""
+        for message in messages:
+            if message.id is None:
+                continue
+            keys = _message_id_keys(message)
+            if message.role == "user" and message.text:
+                text = message.text.strip()
+                for variant in (
+                    f"{ATTACHMENT_PROTOCOL}{mm3_hash(message.text)}",
+                    f'"{text}"',
+                ):
+                    keys.append(_loose_message_key(message, variant))
+            self._record_message_id(keys, message.id)
+            self._content_by_id.setdefault(message.id, content_hash(message))
 
     _message_ids: dict[str, list[str]]
 
@@ -439,6 +1255,15 @@ class AgentBridge:
           further calls (candidate promotion) or by the longer-descending-call
           displacement above when it makes only one.
         """
+        for choice in output.choices:
+            if choice.message.id is not None:
+                self._record_message_id(
+                    _message_id_keys(choice.message), choice.message.id
+                )
+                self._content_by_id.setdefault(
+                    choice.message.id, content_hash(choice.message)
+                )
+
         messages = input + [output.message]
         fps = [_message_fingerprint(m) for m in messages]
 
@@ -503,6 +1328,7 @@ class AgentBridge:
         """
         self.state.messages = messages
         self.state.output = output
+        self._tracked_ids = [(m.id, m.role) for m in messages if m.id is not None]
         self._tracked_fps = fps
         self._tracked_calls = calls
         self._tracked_descends = self._descends_from_initial(messages, fps)
@@ -573,6 +1399,64 @@ class AgentBridge:
 @lru_cache(maxsize=100)
 def message_json_hash(message_json: str) -> str:
     return mm3_hash(message_json)
+
+
+def _message_id_keys(message: ChatMessage) -> list[str]:
+    """Keys a message sent back by a scaffold is recognized by, strongest first.
+
+    Scaffolds don't echo message ids. Besides the displayed content, an assistant
+    message keeps its tool call ids (every dialect but Google), a tool message
+    its call id, and the loose key
+    ignores whitespace, JSON key order, call ids and reasoning.
+    """
+    keys = ["content:" + content_hash(message)]
+    if isinstance(message, ChatMessageAssistant) and message.tool_calls:
+        keys.append("calls:" + "\n".join(call.id for call in message.tool_calls))
+    if isinstance(message, ChatMessageTool) and message.tool_call_id:
+        keys.append(f"result:{message.tool_call_id}")
+    keys.append(_loose_message_key(message, message.text))
+    return keys
+
+
+_MAX_ALIGN_CANDIDATES = 8
+
+
+def _key_strength(key: str) -> int:
+    if key.startswith("loose:"):
+        return 1
+    if key.startswith(("calls:", "result:")):
+        return 2
+    return 3
+
+
+def _loose_message_key(message: ChatMessage, text: str) -> str:
+    content = [] if isinstance(message.content, str) else message.content
+    return "loose:" + mm3_hash(
+        json.dumps(
+            [
+                message.role,
+                " ".join(text.split()),
+                message.tool_call_id if isinstance(message, ChatMessageTool) else None,
+                [
+                    [
+                        call.function,
+                        canonical_tool_arguments(call.arguments),
+                    ]
+                    for call in message.tool_calls or []
+                ]
+                if isinstance(message, ChatMessageAssistant)
+                else None,
+                [
+                    c.id
+                    if isinstance(c, ContentToolUse)
+                    else c.model_dump_json(exclude_none=True)
+                    for c in content
+                    if not isinstance(c, ContentText | ContentReasoning)
+                ],
+            ],
+            default=str,
+        )
+    )
 
 
 class _MessageFingerprint(NamedTuple):

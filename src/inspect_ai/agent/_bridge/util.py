@@ -1,6 +1,7 @@
 import inspect
 import json
 import warnings
+from collections import Counter
 from contextlib import AbstractContextManager, contextmanager, nullcontext
 from contextvars import ContextVar
 from logging import getLogger
@@ -19,7 +20,6 @@ from typing import (
 
 from pydantic import ValidationError
 from pydantic_core import PydanticSerializationError
-from shortuuid import uuid
 from typing_extensions import TypeIs
 
 from inspect_ai._sentinel._agent_state import bridge_request
@@ -47,13 +47,25 @@ from inspect_ai.agent._bridge._approval import (
 )
 from inspect_ai.agent._bridge._errors import BridgePolicyError, ResponseFilterError
 from inspect_ai.agent._bridge.types import AgentBridge, message_json_hash
+from inspect_ai.event._model import ModelEvent
+from inspect_ai.log._transcript import transcript
 from inspect_ai.model._agent_message import validate_agent_message
 from inspect_ai.model._call_tools import get_tools_info
-from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
+from inspect_ai.model._chat_message import (
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageUser,
+)
 from inspect_ai.model._generate_config import (
     GenerateConfig,
     ResponseSchema,
     active_generate_config,
+)
+from inspect_ai.model._message_ids import (
+    canonical_tool_arguments,
+    content_hash,
+    edit_id,
+    with_edited_id,
 )
 from inspect_ai.model._model import (
     GenerateFilter,
@@ -75,6 +87,7 @@ from inspect_ai.model._model import (
 )
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool._tool import Tool
+from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolChoice, ToolFunction
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.tool._tool_util import tool_to_tool_info
@@ -443,6 +456,7 @@ async def _apply_response_filter(
     model: Model,
     output: ModelOutput,
     generate_input: GenerateInput,
+    on_filtered_output: Callable[[ModelOutput], None] | None = None,
 ) -> ModelOutput:
     """Apply `response_filter` under the `ModelResponseFilter` contract.
 
@@ -520,6 +534,8 @@ async def _apply_response_filter(
         # text continued across requests is joined with no separator)
         filtered.completion = output.completion
     _check_provider_owned_content(output, filtered)
+    if on_filtered_output is not None:
+        on_filtered_output(filtered)
     _settle_message_ids(output, filtered)
     return filtered
 
@@ -536,6 +552,11 @@ def _settle_message_ids(original: ModelOutput, filtered: ModelOutput) -> None:
     gets a new id if it still has an original one, and drops the work.
     Content-keyed replay state (kept server tool items, signed thinking) does not
     depend on the message id.
+
+    A changed or new message that keeps none replaces the original whose id it
+    had, else the original choice at its index: it gets an id derived from that
+    original's and its own content (`with_edited_id`), so the same edit is the
+    same message.
     """
     owners = {
         content.id: choice.message.id
@@ -545,8 +566,7 @@ def _settle_message_ids(original: ModelOutput, filtered: ModelOutput) -> None:
         if isinstance(content, ContentToolUse)
     }
     original_messages = [choice.message for choice in original.choices]
-    original_ids = {message.id for message in original_messages if message.id}
-    for choice in filtered.choices:
+    for index, choice in enumerate(filtered.choices):
         message = choice.message
         kept_owners = (
             {
@@ -566,8 +586,131 @@ def _settle_message_ids(original: ModelOutput, filtered: ModelOutput) -> None:
             owner = next(iter(kept_owners))
             if owner is not None:
                 message.id = owner
-        elif message.id in original_ids and message not in original_messages:
-            message.id = uuid()
+        if not kept_owners and message not in original_messages:
+            source = next(
+                (m for m in original_messages if m.id == message.id),
+                original_messages[index] if index < len(original_messages) else None,
+            )
+            if source is not None:
+                with_edited_id(source, message, keep_provider_state=False)
+
+
+def _request_filter_edits(generated: ModelOutput, output: ModelOutput) -> ModelOutput:
+    """Give a returned reply sharing a generated reply's id but not its content an edit id.
+
+    The edit keeps the generated reply's provider state (Anthropic's pending
+    server work and its container) when only its text changed, since its calls
+    and server items are still the turn's, or when it keeps server tool items of
+    the generated reply, as a response filter's reply does (`_settle_message_ids`).
+    """
+    sources: dict[str | None, ChatMessageAssistant] = {
+        choice.message.id: choice.message
+        for choice in generated.choices
+        if choice.message.id is not None
+    }
+    choices = [
+        choice.model_copy(
+            update={
+                "message": with_edited_id(
+                    source,
+                    choice.message.model_copy(),
+                    keep_provider_state=_keeps_provider_state(source, choice.message),
+                )
+            }
+        )
+        if (source := sources.get(choice.message.id)) is not None
+        and content_hash(source) != content_hash(choice.message)
+        else choice
+        for choice in output.choices
+    ]
+    return output.model_copy(update={"choices": choices})
+
+
+def _keeps_provider_state(source: ChatMessageAssistant, edited: ChatMessage) -> bool:
+    def items(message: ChatMessage) -> list[Content]:
+        return [] if isinstance(message.content, str) else message.content
+
+    non_text = [item for item in items(source) if not isinstance(item, ContentText)]
+    server_ids = {item.id for item in non_text if isinstance(item, ContentToolUse)}
+    return isinstance(edited, ChatMessageAssistant) and (
+        (
+            non_text
+            == [item for item in items(edited) if not isinstance(item, ContentText)]
+            and source.tool_calls == edited.tool_calls
+        )
+        or any(
+            isinstance(item, ContentToolUse) and item.id in server_ids
+            for item in items(edited)
+        )
+    )
+
+
+def _selected_generated_message_id(
+    generated: ModelOutput | None, output: ModelOutput
+) -> str | None:
+    """Identify the generated choice selected by a response filter before approval.
+
+    A text edit gives the selected reply an id derived from its source choice.
+    Approval may edit the reply again, so recover the source while this id is
+    still available. Ambiguous or synthetic choices have no known source.
+    """
+    if generated is None or output.message.id is None:
+        return None
+    selected_id = output.message.id
+    exact = [
+        choice.message.id
+        for choice in generated.choices
+        if choice.message.id == selected_id
+    ]
+    if exact:
+        return exact[0] if len(exact) == 1 else None
+    selected_content = content_hash(output.message)
+    matches = [
+        choice.message.id
+        for choice in generated.choices
+        if choice.message.id is not None
+        and (
+            choice.message.id == selected_id
+            or edit_id(choice.message.id, selected_content) == selected_id
+        )
+    ]
+    return matches[0] if len(matches) == 1 else None
+
+
+def _verified_generated_calls(
+    generated: ModelOutput, filtered: ModelOutput
+) -> list[bool]:
+    """Match each returned call to one recorded call before ID settlement."""
+    calls = filtered.message.tool_calls or []
+    source_id = _selected_generated_message_id(generated, filtered)
+    if source_id is None:
+        return [False] * len(calls)
+    sources = [
+        choice.message for choice in generated.choices if choice.message.id == source_id
+    ]
+    if len(sources) != 1:
+        return [False] * len(calls)
+
+    def key(call: ToolCall) -> tuple[str, str, str]:
+        return (
+            call.id,
+            call.function,
+            canonical_tool_arguments(call.arguments),
+        )
+
+    generated_counts = Counter(
+        key(call)
+        for choice in generated.choices
+        for call in choice.message.tool_calls or []
+    )
+    filtered_counts = Counter(key(call) for call in calls)
+    source_keys = {key(call) for call in sources[0].tool_calls or []}
+    return [
+        key(call) in source_keys
+        and generated_counts[key(call)] == 1
+        and filtered_counts[key(call)] == 1
+        for call in calls
+    ]
 
 
 def _check_provider_owned_content(original: ModelOutput, filtered: ModelOutput) -> None:
@@ -974,7 +1117,10 @@ async def _bridge_generate_impl(
         with _routing_context(routing):
             # Apply filter if we have it (can either return output or alternate inputs)
             output: ModelOutput | None = None
+            generated_output: ModelOutput | None = None
             if bridge.filter:
+                history = transcript().history
+                events_before_filter = history.event_count
                 # get_tools_info (via ToolDef) preserves `options` — including the
                 # INTERNAL_TOOL_TYPE marker — so the filter sees the same ToolInfo
                 # the model provider would. parse_tool_info re-derives from the
@@ -1002,7 +1148,31 @@ async def _bridge_generate_impl(
                             raise
                         result = ex.output
                 if isinstance(result, ModelOutput):
-                    output = result
+                    generated_output = next(
+                        (
+                            event.output
+                            for event in reversed(
+                                history.recent_events(
+                                    history.event_count - events_before_filter
+                                )
+                            )
+                            if isinstance(event, ModelEvent)
+                            and any(
+                                choice.message.id == result.message.id
+                                for choice in event.output.choices
+                            )
+                        ),
+                        None,
+                    )
+                    output = (
+                        _request_filter_edits(generated_output, result)
+                        if generated_output is not None
+                        else result
+                    )
+                    # the calls of a reply whose text the filter edited are
+                    # not verified against the generation
+                    if output.message.id != result.message.id:
+                        generated_output = None
                 elif isinstance(result, GenerateInput):
                     # Update the inputs that will be used for generation
                     input_messages, tools, tool_choice, config = result
@@ -1031,9 +1201,11 @@ async def _bridge_generate_impl(
                             if finalize_config is not None
                             else config,
                         )
+                        generated_output = output
                     except ModelRefusalError as ex:
                         if bridge.response_filter is not None:
                             output = ex.output
+                            generated_output = ex.output
                         elif (
                             bridge.retry_refusals is not None
                             and refusals < bridge.retry_refusals
@@ -1043,6 +1215,8 @@ async def _bridge_generate_impl(
                         else:
                             raise
 
+        generated = generated_output
+
         # Update the compaction baseline with the actual input token count
         # from the generate call (most accurate source of truth). Record it
         # before the response filter: a replacement (e.g.
@@ -1051,7 +1225,20 @@ async def _bridge_generate_impl(
             await compact.record_output(input_messages, output)
 
         # Inside the refusal-retry loop so a content_filter replacement is retried.
+        verified_calls: list[bool] | None = None
+        verified_source_id: str | None = None
         if bridge.response_filter is not None:
+
+            def check_proposal(
+                filtered: ModelOutput, source: ModelOutput | None = generated
+            ) -> None:
+                nonlocal verified_calls, verified_source_id
+                if source is not None and filtered.message.tool_calls:
+                    verified_source_id = _selected_generated_message_id(
+                        source, filtered
+                    )
+                    verified_calls = _verified_generated_calls(source, filtered)
+
             # under the bridge's approval policies, as a filter may generate
             with bridge_approval_scope(bridge.approval):
                 output = await _apply_response_filter(
@@ -1061,7 +1248,11 @@ async def _bridge_generate_impl(
                     GenerateInput(
                         input_messages, get_tools_info(tools), tool_choice, config
                     ),
+                    on_filtered_output=check_proposal,
                 )
+        if verified_calls is None and generated is not None:
+            verified_calls = _verified_generated_calls(generated, output)
+            verified_source_id = _selected_generated_message_id(generated, output)
 
         # Check for refusal and retry if needed
         if not output.empty and output.stop_reason == "content_filter":
@@ -1094,11 +1285,56 @@ async def _bridge_generate_impl(
         if reviewed.rejection is None:
             # executions are placed in the proposing ModelEvent's span; only one
             # a sink chose is stored, so a rotating checkpoint span is followed
-            bridge.register_tool_execution_grants(
-                reviewed.output.message.tool_calls or [],
-                declarations,
-                span_id=sink.span_id if sink is not None else None,
-            )
+            # a call the model proposed names its output, though a response
+            # filter or an approver may have changed the message handed over
+            proposing: dict[str, str] = {}
+            if generated is not None:
+                for selected_call in reviewed.output.message.tool_calls or []:
+                    proposals = [
+                        (choice.message.id, call)
+                        for choice in generated.choices
+                        for call in choice.message.tool_calls or []
+                        if call.id == selected_call.id
+                        and call.function == selected_call.function
+                    ]
+                    selected = [
+                        proposal
+                        for proposal in proposals
+                        if proposal[0] == verified_source_id
+                    ]
+                    if selected:
+                        selected_args = {
+                            canonical_tool_arguments(call.arguments)
+                            for _, call in selected
+                        }
+                        matching_sources = {
+                            source_id
+                            for source_id, call in proposals
+                            if canonical_tool_arguments(call.arguments) in selected_args
+                        }
+                        if verified_source_id is not None and matching_sources == {
+                            verified_source_id
+                        }:
+                            proposing[selected_call.id] = verified_source_id
+                    else:
+                        sources = {source_id for source_id, _ in proposals}
+                        if len(sources) == 1:
+                            [source_id] = sources
+                            if source_id is not None:
+                                proposing[selected_call.id] = source_id
+            bridge._proposing_message_ids = proposing
+            bridge._proposing_reply_id = reviewed.output.message.id
+            bridge._proposing_call_verified = verified_calls
+            try:
+                bridge.register_tool_execution_grants(
+                    reviewed.output.message.tool_calls or [],
+                    declarations,
+                    span_id=sink.span_id if sink is not None else None,
+                )
+            finally:
+                bridge._proposing_message_ids = {}
+                bridge._proposing_reply_id = None
+                bridge._proposing_call_verified = None
             return reviewed.output, c_message
 
         rejections += 1
@@ -1595,11 +1831,5 @@ async def validate_bridge_media(
 
 
 def apply_message_ids(bridge: AgentBridge, messages: list[ChatMessage]) -> None:
-    # clear the ids so we can apply new ones
-    for message in messages:
-        message.id = None
-
-    # allocate ids based on message content (re-applying the same id for the same
-    # content, but also ensuring that if an id is already used we generate a new one)
-    for message in messages:
-        message.id = bridge._id_for_message(message, messages)
+    """Replace the ids made up while rebuilding a request with the ids the bridge knows."""
+    bridge._assign_message_ids(messages)
