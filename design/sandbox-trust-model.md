@@ -337,6 +337,16 @@ comes from the scope as well as from tool construction:
   queue belongs to the tools user, so the sandbox's default user cannot
   submit requests to it directly. Outside a scope the proxy accepts any request, and the queue
   belongs to the default user.
+  The bridge's own control commands run outside the sandbox's concurrency
+  limits, so other commands holding capacity cannot time out its bounded
+  launch or stall its shielded cleanup. These are the initial tools check
+  (root probe, installation check, default user), the version check, the
+  proxy start, the readiness check, the kill, the kill by job key, the
+  token removal and the service queue's commands. Installing missing tools
+  is shared with every other tool and keeps the normal limits. It runs
+  before the launch deadline starts, so a busy sandbox can delay it but
+  cannot make it time out. This is a liveness trade-off, not a security
+  boundary (decision: Ransom, 2026-11-06).
 - **Sandbox operations.** `SandboxEnvironment.exec()`, `read_file()` and
   `write_file()` calls on the scope's sandbox that name no user run as the
   scope's user; a call that names a user keeps it. The sample's sandbox proxy
