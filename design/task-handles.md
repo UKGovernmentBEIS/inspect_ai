@@ -345,7 +345,14 @@ class SampleAbandonedError(RuntimeError):
     epoch: int
 ```
 
-`cancel()` and `close()` are synchronous requests and idempotent. Each
+`cancel()` and `close()` are synchronous requests and idempotent.
+`started()`, `result()`, `enqueue_sample()`, `cancel()` and `close()` each
+first check that they run on the run's event loop, as `enqueue_task()`
+does ("Only the run's event loop changes the queue" in
+[task-dispatch.md](task-dispatch.md#the-run-queue)), and raise
+`RuntimeError` there before any other check and without changing a record,
+loan, wake or port; `state` and the attributes are plain reads and work
+anywhere. Each
 record has at most one handle per `enqueue_task()` call; under a run with
 two models, `enqueue_task(task)` returns two handles, each addressing one
 task × model.
@@ -431,6 +438,14 @@ they are awaited, and ports opened, only from a sample's own code (see
 - `eval_retry()` of a log whose task could receive samples through a
   handle: `PrerequisiteError` (see "Logs of tasks that can receive
   samples").
+- `enqueue_task()` or any handle method other than `state` and the
+  attributes, from a thread other than the run's event loop, including an
+  `anyio.to_thread.run_sync()` worker whose copied context passes the
+  sample-code check: `RuntimeError`, before that check and before any
+  record, loan, wake or port changes. A worker calls them through
+  `anyio.from_thread.run_sync()`, which runs the call on the loop with the
+  worker's copied context, so the sample-code check then applies as for
+  any task the sample started.
 
 ### What the handles add to the run queue
 
@@ -519,7 +534,10 @@ _sample_code: ContextVar[SampleCode | None]   # in enqueue.py, default None
   false for every copy, so a task that outlives it (a detached
   `asyncio.create_task()`) begins nothing new: each later
   `send_samples=True`, `started()`, `result()` or `enqueue_sample()` call is
-  refused.
+  refused. A worker thread started from sample code
+  (`anyio.to_thread.run_sync()`) copies the value too, but is not on the
+  run's event loop; the loop check, which runs first, refuses it (see "Run
+  shapes and what is refused").
 - **Lifetime.** A wait begun in a task the sample joins ends with the
   sample: the solver's group is cancelled when the solver returns (`:2976`,
   which also ends `background()` work) and exits before scoring, each
@@ -1354,6 +1372,14 @@ test touched), with mockllm models:
     `eval_set()` and eval-set selection mode in-process;
   - `started()`, `result()`, `cancel()` queued and running, `close()`,
     `enqueue_sample()` results per epoch;
+  - off the loop: from an `anyio.to_thread.run_sync()` worker in the
+    parent's solver, `enqueue_task(..., send_samples=True)`, `started()`,
+    `result()`, `enqueue_sample()`, `cancel()` (of a queued, an admitted
+    and a running child) and `close()` each raise `RuntimeError` and leave
+    the record's phase, loan, port and requests and the queue's wake as
+    they were (the admitted child stays `admitted`, with no finalizer
+    started); the same calls through `anyio.from_thread.run_sync()` from
+    that worker succeed; on asyncio and trio;
   - the terminal-outcome table, row by row: a target whose setup fails
     (stub provider) — `started()` returns, `result()` returns the error
     log, an unresolved request raises `TaskEndedError(log=<that log>)`; a
@@ -1618,7 +1644,8 @@ companion change in Steward (step 6):
 5. **Task handles.** `_eval/task/enqueue.py` (`TaskHandle`, `SamplePort`,
    `PortRequest`, the errors, `Loan`, `SampleCode`, the `next_tasks()` and
    outside-a-sample refusals with their shared `_eligible()` check (the
-   `ContextVar` and `live`), the headroom
+   `ContextVar` and `live`), `_require_run_loop()` in every handle method
+   but `state`, the headroom
    warning; `enqueue_task()` returns handles and checks
    `send_samples=True`), `_eval/task/run.py`
    (port attach, the two delivery steps and `SamplePort.delivered`, the

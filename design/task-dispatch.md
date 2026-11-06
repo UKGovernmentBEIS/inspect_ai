@@ -311,6 +311,10 @@ control channel. Everything else is refused with a clear error:
   [task-handles.md](task-handles.md#run-shapes-and-what-is-refused).
 - `enqueue_task()` outside a running eval or with a mismatched `run_id`:
   `RuntimeError`, as today.
+- `enqueue_task()` from a thread other than the run's event loop (a worker
+  started with `anyio.to_thread.run_sync()` copies the context that finds
+  the run): `RuntimeError` before anything is resolved or queued; see
+  "The run queue".
 
 ### The run queue
 
@@ -353,6 +357,7 @@ class TaskRecord:
 
 class RunQueue:
     run_id: str
+    loop: EventLoopToken             # the run's event loop: anyio.lowlevel.current_token() when eval_run creates the queue
     def add(self, resolved: list[ResolvedTask], *, ahead: bool = False) -> list[TaskRecord]
     def find(self, task_id: str) -> TaskRecord | None
     def cancel(self, record: TaskRecord) -> None
@@ -363,6 +368,25 @@ class RunQueue:
 [task-handles.md](task-handles.md#what-the-handles-add-to-the-run-queue)
 adds `creator`, `port` and `loan` fields to the record and a loaned-start
 step to the dispatch loop.
+
+**Only the run's event loop changes the queue.** A worker thread started
+with `anyio.to_thread.run_sync()` copies its caller's context, so it finds
+the queue through the `ContextVar` as a solver does, but a phase move made
+there races the loop and cannot start the jobs and groups that follow it
+(a cancel moves an admitted record to `finalizing` and then starts its
+finalizer, which raises `NoEventLoopError` off the loop). So every public
+entry point that can change the queue, `enqueue_task()` here and the
+handle methods in [task-handles.md](task-handles.md#the-handle-api), first
+calls `_require_run_loop(queue)` in `enqueue.py`. It reads
+`anyio.lowlevel.current_token()` (a thread with no event loop raises
+`NoEventLoopError`, taken as a mismatch) and compares it with `queue.loop`;
+on a mismatch, including another event loop in another thread, it raises
+`RuntimeError` ("enqueue_task() and task handles must be called from the
+eval's event loop; from a worker thread, call them through
+anyio.from_thread.run_sync()") before resolving tasks or changing any
+record, wake, job, loan or port. A worker that calls through
+`anyio.from_thread.run_sync()` runs the call on the loop with its copied
+context, so it passes. The queue stays loop-only with no lock.
 
 `RunQueue.add` is synchronous. It orders the addition sequence-major (the
 order `run_batches` uses at `max_tasks == 1` today), adds the tasks' names to
@@ -1260,7 +1284,14 @@ Public API (additive):
 
 - `enqueue_task()`'s docstring and `docs/task-source.qmd` say added tasks
   always start when there is room (its return value changes in
-  [task-handles.md](task-handles.md)).
+  [task-handles.md](task-handles.md)), and that it must be called from the
+  eval's event loop.
+- `enqueue_task()` from a worker thread raises `RuntimeError`. Today such a
+  call buffers under the `TaskEnqueuer` lock and, in a `TaskSource` run,
+  sets the feeder's `anyio.Event` from the wrong thread
+  (`src/inspect_ai/_eval/task/enqueue.py:51-58`, `task/run.py:1658`); no
+  caller in Inspect, its tests or its docs calls it from a thread, and a
+  worker can call it through `anyio.from_thread.run_sync()`.
 - New `inspect_ai.util.SandboxSetup` (with `print()`), `sandbox_setup()`;
   new class attribute
   `SandboxEnvironment.supports_sandbox_setup` (default `False`).
@@ -1430,7 +1461,11 @@ does (a new list per call):
   `tests/util/sandbox/test_docker_compatibility.py` cases still pass). One
   `--runslow` real-Docker test builds a Dockerfile task loaded from another
   directory.
-- `tests/test_enqueue_task.py`: `RunQueue._move` accepts every row of the
+- `tests/test_enqueue_task.py`: `enqueue_task()` called from an
+  `anyio.to_thread.run_sync()` worker in a solver raises `RuntimeError` and
+  leaves the queue as it was (no record, no wake), and the same call through
+  `anyio.from_thread.run_sync()` from that worker queues the task and it
+  runs; on asyncio and trio. `RunQueue._move` accepts every row of the
   "Task phases" transition table and raises on every other pair, and a
   run's records pass only through listed moves (a spy on `_move`, over a
   run with an admission failure, a queued cancel, a cancel in `starting`, a
@@ -1584,7 +1619,7 @@ batch has its own `eval_run` and cleans up its own state).
    release. Independent of step 1.
 3. **One queue, one dispatcher, queued tasks in the control channel.**
    `_eval/task/enqueue.py` (`RunQueue`, `TaskRecord` and `TaskPhase` with
-   the checked transitions; `enqueue_task()` still
+   the checked transitions; `_require_run_loop()`; `enqueue_task()` still
    returns `None`), `_eval/run.py` (`configure_task()`, `admit_task()` with
    sample selection and logger construction, and no model-controller or
    setup startup under `run_samples=False`; `dispatch_tasks()` with
