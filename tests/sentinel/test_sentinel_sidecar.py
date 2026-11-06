@@ -1026,6 +1026,55 @@ def test_a_turn_the_sidecar_rejected_whole_goes_on_as_the_models_turn() -> None:
     assert _turns(sample)[-1].text == "I can't look that up."
 
 
+def test_a_turn_rejected_whole_runs_none_of_its_calls_even_one_a_step_changed() -> None:
+    # The sidecar changed call_2 and rejected call_1, couldn't write the
+    # change, and refused the turn whole: nothing ran, and the judgment's
+    # steps still carry the change.
+    withheld = {
+        "message": _turn_json(("call_1", None), ("call_2", "Oslo")),
+        "results": {
+            "call_1": "Tokyo is not allowed.",
+            "call_2": "This call was not run.",
+        },
+        "redacted": ["call_1"],
+    }
+    changed = {"id": "call_2", "function": "weather", "arguments": {"city": "Lima"}}
+    steps = [
+        {
+            "stage": "tool_call",
+            "call": "call_1",
+            "decision": {"action": "reject", "message": "Tokyo is not allowed."},
+        },
+        {
+            "stage": "tool_call",
+            "call": "call_2",
+            "decision": {"action": "modify", "modified": changed},
+        },
+    ]
+    stand_in = StandInSidecar(
+        turns=[
+            Turn(
+                status=400,
+                judgment={"outcome": "reject", "steps": steps, "withheld": withheld},
+            ),
+            Turn(text="Neither ran."),
+        ]
+    )
+
+    sample = _run_agent(stand_in)
+
+    # the refusal stands for every call: the changed one never runs either
+    assert sample.error is None
+    assert _LOOKED_UP == []
+    results = _tool_messages(sample)
+    assert {id: m.error.type if m.error else None for id, m in results.items()} == {
+        "call_1": "approval",
+        "call_2": "approval",
+    }
+    assert results["call_2"].error is not None
+    assert results["call_2"].error.message == "This call was not run."
+
+
 def _ends(stage: str, call: str | None = None) -> dict[str, Any]:
     # a sentinel's terminate, as the judgment reports it
     return {
