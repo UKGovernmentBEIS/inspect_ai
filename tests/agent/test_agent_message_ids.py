@@ -1725,14 +1725,21 @@ def test_yaml_mixed_keys_are_accepted_by_message_identity(operation: str) -> Non
         assert reply.id is not None
 
 
-def test_responses_dedupe_tells_a_lone_surrogate_from_its_escaped_text() -> None:
+@pytest.mark.parametrize("with_ids", [False, True])
+def test_responses_dedupe_tells_a_lone_surrogate_from_its_escaped_text(
+    with_ids: bool,
+) -> None:
     """Assistant text whose `internal` holds a lone surrogate isn't a duplicate of one holding its escaped text."""
 
     def text(internal_id: str) -> ContentText:
         return ContentText(text="same", internal={"id": internal_id})
 
     content: list[Content] = [text("msg \ud800"), text("msg \\ud800")]
-    assert filter_duplicate_assistant_content([*content, content[1]]) == content
+    groups = [
+        (f"item_{index}" if with_ids else None, [block])
+        for index, block in enumerate(content)
+    ]
+    assert filter_duplicate_assistant_content(groups * 2) == content
 
 
 def _compacted_to(reply: ChatMessageAssistant) -> list[ChatMessage]:

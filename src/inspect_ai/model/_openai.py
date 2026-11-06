@@ -71,7 +71,7 @@ from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._internal import (
     CONTENT_INTERNAL_TAG,
     content_internal_tag,
-    parse_content_with_internal,
+    parse_content_with_internal_blocks,
 )
 from inspect_ai.model._model_output import (
     ChatCompletionChoice,
@@ -855,8 +855,19 @@ async def messages_from_openai(
                 if smuggled_content is not None:
                     content = smuggled_content
                 else:
-                    content, _ = parse_content_with_internal(
+                    internal_blocks = parse_content_with_internal_blocks(
                         asst_content, CONTENT_INTERNAL_TAG
+                    )
+                    text_content: list[Content] = [
+                        ContentText(text=block.text, internal=block.internal)
+                        for block in internal_blocks
+                        if block.text or block.internal is not None
+                    ]
+                    block = internal_blocks[0]
+                    content = (
+                        block.text
+                        if len(internal_blocks) == 1 and block.internal is None
+                        else text_content
                     )
             elif asst_content is None:
                 content = message.get("refusal", None) or ""
@@ -874,7 +885,11 @@ async def messages_from_openai(
                     content = [
                         c
                         for c in content
-                        if not (isinstance(c, ContentText) and c.text == "")
+                        if not (
+                            isinstance(c, ContentText)
+                            and c.text == ""
+                            and c.internal is None
+                        )
                     ]
 
             # resolve reasoning (OpenAI doesn't suport this however OpenAI-compatible
@@ -1020,13 +1035,13 @@ def content_from_smuggled_reasoning(text: str) -> list[Content] | None:
                 )
             )
         else:
-            segment_text, segment_internal = parse_content_with_internal(
+            for block in parse_content_with_internal_blocks(
                 segment, CONTENT_INTERNAL_TAG
-            )
-            if segment_text:
-                content.append(
-                    ContentText(text=segment_text, internal=segment_internal)
-                )
+            ):
+                if block.text or block.internal is not None:
+                    content.append(
+                        ContentText(text=block.text, internal=block.internal)
+                    )
     return content
 
 
@@ -1043,8 +1058,10 @@ def content_from_openai(
             smuggled_content = content_from_smuggled_reasoning(text)
             if smuggled_content is not None:
                 return smuggled_content
-        text, content_internal = parse_content_with_internal(text, CONTENT_INTERNAL_TAG)
-        return [ContentText(text=text, internal=content_internal)]
+        return [
+            ContentText(text=block.text, internal=block.internal)
+            for block in parse_content_with_internal_blocks(text, CONTENT_INTERNAL_TAG)
+        ]
     elif content["type"] == "reasoning":  # type: ignore[comparison-overlap]
         return [ContentReasoning(reasoning=content["reasoning"])]
     elif content["type"] == "image_url":
