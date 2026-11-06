@@ -437,22 +437,21 @@ def _content_key(result: ChatMessageTool) -> str:
     paths and instructions), so any difference is a different result, checked
     again; so is the function it is reported under, which a provider can send
     the model (Google's `FunctionResponse.name`); so is a text part's
-    `internal`, which a provider can send in its text (Anthropic). Other parts'
-    `internal` never reaches a model and is left out; a string and a single
-    text part are the same content.
+    `internal`, which a provider can send in its text (Anthropic), serialized
+    as it is sent there (`content_internal_tag()`), in its key order. Other
+    parts' `internal` never reaches a model and is left out; a string and a
+    single text part are the same content.
     """
     content = (
         [ContentText(text=result.content)]
         if isinstance(result.content, str)
         else result.content
     )
-    parts = [
-        part.model_dump(
-            exclude=None if isinstance(part, ContentText) else {"internal"},
-            exclude_none=True,
-        )
-        for part in content
-    ]
+    parts: list[dict[str, Any]] = []
+    for part in content:
+        parts.append(part.model_dump(exclude={"internal"}, exclude_none=True))
+        if isinstance(part, ContentText) and part.internal is not None:
+            parts[-1]["internal"] = json.dumps(part.internal)
     error = (
         [result.error.type, result.error.message] if result.error is not None else None
     )

@@ -2983,6 +2983,75 @@ async def test_a_result_changed_only_in_its_text_internal_is_checked_again(
     assert len(model.inputs) == 2
 
 
+# the same payload in two key orders, which `content_internal_tag()` sends as
+# different text
+REORDERED_INTERNAL: dict[str, tuple[JsonValue, JsonValue]] = {
+    "top": ({"a": 1, "b": 2}, {"b": 2, "a": 1}),
+    "nested": ({"n": {"a": 1, "b": 2}}, {"n": {"b": 2, "a": 1}}),
+}
+
+
+@protocol
+def terminate_on_the_reordered_internal() -> Protocol:
+    async def after(
+        context: Context, step: AfterToolCall, escalations: Escalations
+    ) -> Decision | None:
+        content = step.result.content
+        if not isinstance(content, str) and any(
+            isinstance(part, ContentText)
+            and json.dumps(part.internal)
+            in (json.dumps(pair[1]) for pair in REORDERED_INTERNAL.values())
+            for part in content
+        ):
+            return Decision.terminate("blocked reordered internal")
+        return None
+
+    return after
+
+
+@pytest.mark.parametrize("sandbox", [False, True], ids=["agent", "sandbox"])
+@pytest.mark.parametrize("shape", list(REORDERED_INTERNAL))
+@pytest.mark.parametrize("dialect", ["anthropic", "completions"])
+async def test_a_result_changed_only_in_its_internal_key_order_is_checked_again(
+    dialect: str, shape: str, sandbox: bool
+) -> None:
+    from inspect_ai.model._internal import content_internal_tag
+
+    model = Scripted(calls_output(READ), calls_output(), calls_output())
+    bridge = started_with(sandbox, model.model, AgentState(messages=[]))
+    results = [
+        [{"type": "text", "text": f"x\n{content_internal_tag(internal)}"}]
+        for internal in REORDERED_INTERNAL[shape]
+    ]
+
+    with active(terminate_on_the_reordered_internal()):
+        with pytest.raises(TerminateSampleError, match="blocked reordered internal"):
+            await dialect_round_trip(dialect, bridge, results=results)
+
+    assert len(model.inputs) == 2
+
+
+@pytest.mark.parametrize("shape", list(REORDERED_INTERNAL))
+@pytest.mark.parametrize("dialect", ["responses", "google"])
+async def test_a_result_text_tag_changed_only_in_key_order_is_checked_again(
+    dialect: str, shape: str
+) -> None:
+    # these dialects keep the tagged payload in the result's text
+    from inspect_ai.model._internal import content_internal_tag
+
+    seen: Steps = []
+    model = Scripted(calls_output(READ), calls_output(), calls_output())
+    bridge = started_with(False, model.model, AgentState(messages=[]))
+    results = [
+        f"x\n{content_internal_tag(internal)}" for internal in REORDERED_INTERNAL[shape]
+    ]
+
+    with active([bridge_recording(seen)]):
+        await dialect_round_trip(dialect, bridge, results=results)
+
+    assert len([step for step in seen if isinstance(step, AfterToolCall)]) == 2
+
+
 @protocol
 def terminate_on_a_secret_function() -> Protocol:
     async def after(
