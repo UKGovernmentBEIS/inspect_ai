@@ -4572,6 +4572,39 @@ def test_sample_fields_a_later_inspect_adds_are_skipped_and_kept(
     assert result.log.results.scores[0].metrics["accuracy"].value == accuracy
 
 
+@pytest.mark.parametrize("crc", ["matches", "differs"])
+def test_sample_copies_are_released_after_the_merge(
+    two_shards: tuple[str, str], monkeypatch: pytest.MonkeyPatch, crc: str
+) -> None:
+    import gc
+    import weakref
+
+    from inspect_ai.log._shards import _write
+
+    merged, shards = two_shards
+    copies: list[weakref.ref[Any]] = []
+    init = _write._SampleCopy.__init__
+
+    def spy(self: Any, *args: Any) -> None:
+        init(self, *args)
+        copies.append(weakref.ref(self))
+
+    monkeypatch.setattr(_write._SampleCopy, "__init__", spy)
+    if crc == "differs":
+
+        def torn(*args: Any) -> None:
+            raise ZipCrcError("torn")
+
+        monkeypatch.setattr(_write, "_check_crc", torn)
+        with pytest.raises(ZipCrcError):
+            merge_eval_log_shards(merged, _task())
+    else:
+        merge_eval_log_shards(merged, _task())
+    gc.collect()
+    # each copy holds its member's zstd writer, which holds compressor threads
+    assert copies and all(copy() is None for copy in copies)
+
+
 def test_a_sample_member_that_does_not_match_its_crc_fails_the_merge(
     tmp_path: Path,
 ) -> None:

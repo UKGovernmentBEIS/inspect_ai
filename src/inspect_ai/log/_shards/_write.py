@@ -383,9 +383,16 @@ class _SampleCopy:
             return None
 
     def close(self) -> None:
-        """Close the member if `finish` did not, so the zip can close."""
+        """Close the member if `finish` did not, so the zip can close.
+
+        Also releases the decompressor, whose zstd writer holds this copy in
+        a cycle that garbage collection cannot break; the copy holds the
+        member's writer and its compressor's threads.
+        """
+        self._decompressor.close()
         if self._writer is not None:
             self._writer.close()
+            self._writer = None
 
     def _piece(self, piece: bytes) -> None:
         self._crc = zlib.crc32(piece, self._crc)

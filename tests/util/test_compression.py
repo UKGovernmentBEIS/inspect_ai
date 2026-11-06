@@ -38,3 +38,37 @@ def test_piece_decompressor_bounds_each_piece(method: ZipCompressionMethod) -> N
         decompressor.write(compressed[start : start + 1024 * 1024])
     assert b"".join(pieces) == data
     assert max(len(piece) for piece in pieces) <= 64 * 1024
+
+
+@pytest.mark.timeout(10)
+def test_piece_decompressor_ignores_data_after_a_deflate_stream() -> None:
+    # output spanning several pieces, then bytes past the end of the stream
+    data = os.urandom(200 * 1024)
+    compressed = _compress(data, ZipCompressionMethod.DEFLATE) + b"TAIL"
+    pieces: list[bytes] = []
+    decompressor = PieceDecompressor(
+        ZipCompressionMethod.DEFLATE, pieces.append, piece_size=64 * 1024
+    )
+    decompressor.write(compressed)
+    decompressor.write(b"more")
+    assert b"".join(pieces) == data
+
+
+def test_piece_decompressor_releases_its_sink_when_closed() -> None:
+    import gc
+    import weakref
+
+    class Owner:
+        def __init__(self) -> None:
+            self.decompressor = PieceDecompressor(ZipCompressionMethod.ZSTD, self.take)
+
+        def take(self, piece: bytes) -> None:
+            pass
+
+    owner = Owner()
+    owner.decompressor.write(_compress(b"x" * 1024, ZipCompressionMethod.ZSTD))
+    owner.decompressor.close()
+    ref = weakref.ref(owner)
+    del owner
+    gc.collect()
+    assert ref() is None
