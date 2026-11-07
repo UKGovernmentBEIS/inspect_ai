@@ -23,6 +23,7 @@ from .util.file_batcher import FileBatcher
 
 class CompletedBatchInfo(TypedDict):
     result_uris: list[str]
+    status: str
 
 
 ResponseT = TypeVar("ResponseT", bound=BaseModel)
@@ -226,7 +227,11 @@ class OpenAIBatcher(FileBatcher[ResponseT, CompletedBatchInfo], Generic[Response
             completed_count=completed,
             failed_count=failed,
             created_at=batch_info.created_at,
-            completion_info={"result_uris": batch_file_ids} if batch_file_ids else None,
+            completion_info=(
+                {"result_uris": batch_file_ids, "status": batch_info.status}
+                if batch_file_ids
+                else None
+            ),
         )
 
     # Protected - subclasses can override
