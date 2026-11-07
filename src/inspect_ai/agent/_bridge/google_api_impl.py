@@ -65,6 +65,14 @@ from .util import (
 
 logger = getLogger(__name__)
 
+# Gemini's documented placeholder signatures, which skip signature validation.
+# gemini-cli puts one on the first function call of a model turn in its history
+# that has no signature; the real signature, when the turn came from the
+# bridge, is in the <think> tag gemini_response_from_output embeds in its text.
+_PLACEHOLDER_THOUGHT_SIGNATURES = frozenset(
+    ["skip_thought_signature_validator", "context_engineering_is_the_way_to_go"]
+)
+
 
 async def inspect_google_api_request_impl(
     json_data: dict[str, Any],
@@ -640,7 +648,9 @@ def _extract_model_parts(
 
             thought_sig = part.get("thoughtSignature", part.get("thought_signature"))
 
-            if not thought_sig and not first_fc_signature_captured:
+            if (
+                not thought_sig or thought_sig in _PLACEHOLDER_THOUGHT_SIGNATURES
+            ) and not first_fc_signature_captured:
                 if embedded_capsule:
                     thought_sig = embedded_capsule.reasoning
 

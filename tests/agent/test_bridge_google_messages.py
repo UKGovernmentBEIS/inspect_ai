@@ -17,13 +17,18 @@ turn structure and tool name, and the think-body/thoughtSignature strings still 
 
 from __future__ import annotations
 
+import base64
 import json
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
+from unittest.mock import MagicMock
 
 import pytest
 
+from inspect_ai._util.content import ContentReasoning
 from inspect_ai.agent._bridge._errors import BridgePolicyError
 from inspect_ai.agent._bridge.google_api_impl import (
+    _PLACEHOLDER_THOUGHT_SIGNATURES,
     gemini_response_from_output,
     messages_from_google_contents,
 )
@@ -31,7 +36,17 @@ from inspect_ai.model._chat_message import (
     ChatMessageAssistant,
     ChatMessageTool,
 )
-from inspect_ai.model._model_output import Logprob, Logprobs, ModelOutput, TopLogprob
+from inspect_ai.model._model_output import (
+    ChatCompletionChoice,
+    Logprob,
+    Logprobs,
+    ModelOutput,
+    TopLogprob,
+)
+from inspect_ai.tool._tool_call import ToolCall
+
+if TYPE_CHECKING:
+    from google.genai.types import Part
 
 _FIXTURE = json.loads(
     (
@@ -150,3 +165,83 @@ def test_google_response_without_logprobs_is_unchanged(
     assert response == expected
     assert "logprobsResult" not in response["candidates"][0]
     assert "avgLogprobs" not in response["candidates"][0]
+
+
+async def _model_turn_function_call(contents: list[dict[str, Any]]) -> Part:
+    from inspect_ai.model._providers.google import as_chat_messages
+
+    messages = messages_from_google_contents(contents, None)
+    model_turn = (await as_chat_messages(MagicMock(), messages))[1]
+    assert model_turn.parts is not None
+    return next(part for part in model_turn.parts if part.function_call)
+
+
+@pytest.mark.parametrize("placeholder", sorted(_PLACEHOLDER_THOUGHT_SIGNATURES))
+async def test_placeholder_signature_uses_signature_embedded_by_bridge(
+    placeholder: str,
+) -> None:
+    pytest.importorskip("google.genai")
+    signature = b"\xfbreal-gemini-signature\xff"
+    output = ModelOutput(
+        model="model",
+        choices=[
+            ChatCompletionChoice(
+                message=ChatMessageAssistant(
+                    content=[
+                        ContentReasoning(
+                            reasoning=base64.b64encode(signature).decode(),
+                            redacted=True,
+                        )
+                    ],
+                    tool_calls=[
+                        ToolCall(id="call_1", function="ls", arguments={"path": "."})
+                    ],
+                ),
+                stop_reason="tool_calls",
+            )
+        ],
+    )
+    parts = gemini_response_from_output(output, "model")["candidates"][0]["content"][
+        "parts"
+    ]
+    # gemini-cli replays the turn with its placeholder in place of the signature
+    for part in parts:
+        if "thoughtSignature" in part:
+            part["thoughtSignature"] = placeholder
+    contents: list[dict[str, Any]] = [
+        {"role": "user", "parts": [{"text": "list files"}]},
+        {"role": "model", "parts": parts},
+        {
+            "role": "user",
+            "parts": [{"functionResponse": {"name": "ls", "response": {"out": "a"}}}],
+        },
+    ]
+
+    assert (await _model_turn_function_call(contents)).thought_signature == signature
+
+
+@pytest.mark.parametrize("placeholder", sorted(_PLACEHOLDER_THOUGHT_SIGNATURES))
+async def test_placeholder_signature_reaches_gemini_unchanged(placeholder: str) -> None:
+    pytest.importorskip("google.genai")
+    contents: list[dict[str, Any]] = [
+        {"role": "user", "parts": [{"text": "list files"}]},
+        {
+            "role": "model",
+            "parts": [
+                {
+                    "functionCall": {"name": "ls", "args": {}},
+                    "thoughtSignature": placeholder,
+                }
+            ],
+        },
+        {
+            "role": "user",
+            "parts": [{"functionResponse": {"name": "ls", "response": {"out": "a"}}}],
+        },
+    ]
+
+    part = await _model_turn_function_call(contents)
+
+    # google-genai sends request bytes as URL-safe base64
+    assert part.thought_signature is not None
+    assert base64.urlsafe_b64encode(part.thought_signature).decode() == placeholder
