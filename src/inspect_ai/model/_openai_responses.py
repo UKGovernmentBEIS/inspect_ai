@@ -859,10 +859,13 @@ def alias_openai_tool_call(
     param = internal.tool_calls.get(call_id)
     if param is not None:
         # the replayed item carries the call's id (`call_id`, and `id` when the
-        # call has no separate item id)
+        # call has no separate item id). A separate item id is left out: it
+        # names the model's item, which a stored response resolves to the
+        # model's call id.
         aliased: dict[str, Any] = {
             key: alias if key in ("call_id", "id") and value == call_id else value
             for key, value in param.items()
+            if key != "id" or value == call_id
         }
         if modified is not None:
             aliased = _with_tool_call_arguments(aliased, modified)

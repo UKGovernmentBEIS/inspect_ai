@@ -1,9 +1,10 @@
 import json
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from copy import deepcopy
 from dataclasses import replace
 from pathlib import Path
+from tempfile import mkdtemp
 from typing import TYPE_CHECKING, Any, cast
 from unittest.mock import AsyncMock, patch
 
@@ -6322,6 +6323,8 @@ async def test_a_repeated_responses_native_call_stays_native(kind: str) -> None:
         for param in replayed
         if "call_id" in param
     ] == [(item.type, call["call_id"]), (result["type"], call["call_id"])]
+    # the model's item id names its stored item, whose call id is the model's
+    assert item.id not in [param.get("id") for param in replayed]
 
 
 def _responses_modified_call(kind: str) -> tuple[Any, Any, Any, dict[str, Any]]:
@@ -6502,6 +6505,7 @@ async def test_a_modified_responses_call_continues_as_approved(
     replayed: list[Any] = await openai_responses_inputs(model.inputs[len(outputs)])
     [replayed_call] = [param for param in replayed if param["type"] == item.type]
     assert replayed_call["call_id"] == call["call_id"]
+    assert "id" not in replayed_call
     assert _responses_native_arguments(replayed_call) == _responses_native_arguments(
         call
     )
@@ -6566,7 +6570,7 @@ def test_a_modified_responses_alias_carries_the_approved_arguments(
 
     aliased = cast(dict[str, Any], assistant_internal().tool_calls["token"])
     assert aliased == {
-        **{key: value for key, value in param.items() if key != "action"},
+        **{key: value for key, value in param.items() if key not in ("action", "id")},
         "call_id": "token",
         **expected,
     }
@@ -6574,19 +6578,29 @@ def test_a_modified_responses_alias_carries_the_approved_arguments(
 
 
 @pytest.fixture
-def isolated_cache(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """A model output cache only this test uses, so its first request misses."""
-    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path))
+def isolated_cache(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> Callable[[], None]:
+    """Gives the test a new empty model output cache, so its first request misses.
+
+    Call it at the start of each attempt: a flaky retry runs the test again with
+    the same fixtures.
+    """
+
+    def isolate() -> None:
+        monkeypatch.setenv("INSPECT_CACHE_DIR", mkdtemp(dir=tmp_path))
+
+    return isolate
 
 
 @skip_if_no_anthropic
-@pytest.mark.usefixtures("isolated_cache")
-async def test_live_anthropic_cached_retries_with_interleaved_thinking_continue() -> (
-    None
-):
+async def test_live_anthropic_cached_retries_with_interleaved_thinking_continue(
+    isolated_cache: Callable[[], None],
+) -> None:
     from inspect_ai.agent._bridge.anthropic_api import inspect_anthropic_api_request
     from inspect_ai.model._assistant_internal import init_sample_assistant_internal
 
+    isolated_cache()
     # a flaky retry runs the test again in the same transcript
     init_transcript(Transcript())
     init_sample_assistant_internal()
@@ -6707,14 +6721,14 @@ def modifies_retries(arguments: dict[str, Any]) -> Protocol:
 
 
 @skip_if_no_openai
-@pytest.mark.usefixtures("isolated_cache")
 @pytest.mark.parametrize("kind", ["custom", "computer"])
 async def test_live_responses_cached_retry_with_native_call_continues(
-    kind: str,
+    kind: str, isolated_cache: Callable[[], None]
 ) -> None:
     from inspect_ai.agent._bridge.responses import inspect_responses_api_request
     from inspect_ai.model._assistant_internal import init_sample_assistant_internal
 
+    isolated_cache()
     # a flaky retry runs the test again in the same transcript
     init_transcript(Transcript())
     init_sample_assistant_internal()
