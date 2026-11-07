@@ -5758,3 +5758,162 @@ async def test_a_repeated_gemini_computer_action_keeps_its_name(
     calls = [part.function_call.name for part in parts if part.function_call]
     results = [part.function_response.name for part in parts if part.function_response]
     assert (calls, results) == ([action], [action])
+
+
+@monitor
+def generation_only() -> MonitorGroup:
+    async def model_input(context: Context, step: BeforeGenerate) -> Observation | None:
+        return None
+
+    return MonitorGroup(model_input)
+
+
+@pytest.mark.parametrize("proposed", [False, True])
+async def test_without_a_tool_stage_host_content_is_delivered_unchanged(
+    proposed: bool,
+) -> None:
+    result = [
+        ContentText(text="caption", internal={"marker": "expected"}),
+        ContentImage(image=PNG),
+    ]
+    bridge = sandbox_bridge(AsyncMock(return_value=result))
+    if not proposed:
+        bridge.proposal_exempt_servers.add("host")
+
+    with active([generation_only()]):
+        if proposed:
+            await generate(
+                bridge,
+                Scripted(calls_output(replace(READ, function="mcp__host__read_file"))),
+                [ChatMessageUser(content=TASK)],
+                declare_read_file(),
+            )
+        delivered = await call_host_tool(bridge)("host", "read_file", READ.arguments)
+
+    assert delivered == [
+        {"internal": {"marker": "expected"}, "type": "text", "text": "caption"},
+        {"type": "image", "data": "iVBORw0KGgo=", "mimeType": "image/png"},
+    ]
+    assert not [e for e in sentinel_events() if e.stage in ("tool_call", "tool_result")]
+
+
+@monitor
+def tool_stages(seen: Any) -> MonitorGroup:
+    async def before(context: Context, step: BeforeToolCall) -> Observation | None:
+        seen.append(step)
+        return None
+
+    async def after(context: Context, step: AfterToolCall) -> Observation | None:
+        seen.append(step)
+        return None
+
+    return MonitorGroup(before, after)
+
+
+class DialectScaffold:
+    """A scaffold keeping its conversation in `dialect` and answering each call."""
+
+    def __init__(self, dialect: str, bridge: AgentBridge) -> None:
+        self.dialect = dialect
+        self.bridge = bridge
+        self.history: list[Any] = [{"role": "user", "content": TASK}]
+
+    async def request(self) -> str | None:
+        """Send the conversation; returns the id the scaffold was handed, if any."""
+        if self.dialect == "completions":
+            from inspect_ai.agent._bridge.completions import (
+                inspect_completions_api_request,
+            )
+
+            completion = await inspect_completions_api_request(
+                {"model": "inspect", "messages": self.history}, None, self.bridge
+            )
+            message = completion.choices[0].message
+            if not message.tool_calls:
+                return None
+            self.history.append(message.model_dump(exclude_none=True))
+            return message.tool_calls[0].id
+        from inspect_ai.agent._bridge.responses import inspect_responses_api_request
+
+        response = await inspect_responses_api_request(
+            {"model": "inspect", "input": self.history}, None, None, None, self.bridge
+        )
+        items = [item.model_dump(exclude_none=True) for item in response.output]
+        calls = [item["call_id"] for item in items if item["type"] == "function_call"]
+        self.history += items
+        return calls[0] if calls else None
+
+    def answer(self, call_id: str, result: str) -> None:
+        self.history.append(
+            {"role": "tool", "tool_call_id": call_id, "content": result}
+            if self.dialect == "completions"
+            else {"type": "function_call_output", "call_id": call_id, "output": result}
+        )
+
+
+def checked_results(seen: Steps) -> list[tuple[Any, Any]]:
+    return [
+        (step.output, step.call.arguments["path"])
+        for step in seen
+        if isinstance(step, AfterToolCall)
+    ]
+
+
+@pytest.mark.parametrize("dialect", ["completions", "responses"])
+async def test_a_generate_only_interval_never_reuses_a_handed_out_id(
+    dialect: str,
+) -> None:
+    seen: Steps = []
+    old = replace(READ, arguments={"path": "old.txt"})
+    new = replace(READ, arguments={"path": "new.txt"})
+    model = Scripted(calls_output(old), calls_output(new), calls_output())
+    scaffold = DialectScaffold(
+        dialect,
+        AgentBridge(AgentState(messages=[]), model_aliases={"inspect": model.model}),
+    )
+
+    with active([tool_stages(seen)]):
+        old_id = await scaffold.request()
+    assert old_id is not None
+    scaffold.answer(old_id, "old result")
+    with active([generation_only()]):
+        new_id = await scaffold.request()
+    assert new_id not in (None, old_id)
+    scaffold.answer(new_id, "new result")
+    with active([tool_stages(seen)]):
+        await scaffold.request()
+
+    assert checked_results(seen) == [("new result", "new.txt")]
+
+
+@pytest.mark.parametrize("dialect", ["completions", "responses"])
+async def test_a_generate_only_interval_keeps_a_repeated_result_checked(
+    dialect: str,
+) -> None:
+    seen: Steps = []
+    old = replace(READ, arguments={"path": "old.txt"})
+    new = replace(READ, arguments={"path": "new.txt"})
+    model = Scripted(
+        calls_output(old), calls_output(), calls_output(new), calls_output()
+    )
+    scaffold = DialectScaffold(
+        dialect,
+        AgentBridge(AgentState(messages=[]), model_aliases={"inspect": model.model}),
+    )
+
+    with active([tool_stages(seen)]):
+        old_id = await scaffold.request()
+        assert old_id is not None
+        scaffold.answer(old_id, "same result")
+        await scaffold.request()
+    with active([generation_only()]):
+        new_id = await scaffold.request()
+    assert new_id not in (None, old_id)
+    scaffold.answer(new_id, "same result")
+    with active([tool_stages(seen)]):
+        await scaffold.request()
+
+    assert checked_results(seen) == [
+        ("same result", "old.txt"),
+        ("same result", "new.txt"),
+    ]

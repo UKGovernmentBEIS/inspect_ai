@@ -38,6 +38,7 @@ from inspect_ai.util._span import parent_span, span
 
 from .._sentinel import (
     SentinelCheck,
+    checks_bridged_results,
     sentinel_host_tool_result,
     sentinel_unproposed_host_check,
 )
@@ -323,6 +324,7 @@ async def _execute_granted(
     else:
         check = grant.check
         candidates = []
+    trim = check is not None and checks_bridged_results()
 
     event = ToolEvent(
         id=event_id,
@@ -358,7 +360,7 @@ async def _execute_granted(
                         outcome = _Outcome(
                             output,
                             truncated,
-                            reply=_reply(output, result, check is not None),
+                            reply=_reply(output, result, trim),
                             output=result,
                         )
                 except Exception as ex:

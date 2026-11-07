@@ -301,6 +301,10 @@ def _watches(stage: type[Step]) -> bool:
     return root is not None and stage in watched_stages(root)
 
 
+def watches_tool_results() -> bool:
+    return _watches(AfterToolCall)
+
+
 async def _run(step: Step, step_id: str, *, bridge: bool = False) -> Decision | None:
     root = active_sentinel()
     if root is None or type(step) not in watched_stages(root):

@@ -552,6 +552,15 @@ def _wire_names(call: ToolCall) -> set[str]:
     return names
 
 
+def checks_bridged_results() -> bool:
+    """Whether the sentinel checks the result of a bridged call made here."""
+    if not checks_tool_calls():
+        return False
+    from inspect_ai._sentinel._dispatch import watches_tool_results
+
+    return watches_tool_results()
+
+
 def _result_checks(bridge: AgentBridge) -> _ResultChecks:
     if bridge._sentinel_results is None:
         bridge._sentinel_results = _ResultChecks(
