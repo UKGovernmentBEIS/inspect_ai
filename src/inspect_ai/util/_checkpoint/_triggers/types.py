@@ -12,9 +12,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import timedelta
-from typing import Literal, Protocol
+from numbers import Number
+from typing import Annotated, Any, Literal, Protocol, cast
 
-from pydantic import JsonValue
+from pydantic import (
+    BeforeValidator,
+    Discriminator,
+    JsonValue,
+    TypeAdapter,
+    ValidationError,
+)
 
 
 @dataclass(frozen=True)
@@ -24,6 +31,10 @@ class Manual:
     The engine's ``tick()`` always returns ``None`` for this spec —
     fires happen only through explicit ``cp.checkpoint()`` calls.
     """
+
+    kind: Literal["manual"] = "manual"
+    """Discriminator identifying this trigger in serialized form. See
+    :data:`CheckpointTrigger`."""
 
 
 @dataclass(frozen=True)
@@ -40,6 +51,10 @@ class TurnInterval:
 
     every: int
 
+    kind: Literal["turn"] = "turn"
+    """Discriminator identifying this trigger in serialized form. See
+    :data:`CheckpointTrigger`."""
+
 
 @dataclass(frozen=True)
 class TimeInterval:
@@ -50,6 +65,10 @@ class TimeInterval:
     """
 
     every: timedelta
+
+    kind: Literal["time"] = "time"
+    """Discriminator identifying this trigger in serialized form. See
+    :data:`CheckpointTrigger`."""
 
 
 @dataclass(frozen=True)
@@ -64,6 +83,10 @@ class TokenInterval:
 
     every: int
 
+    kind: Literal["token"] = "token"
+    """Discriminator identifying this trigger in serialized form. See
+    :data:`CheckpointTrigger`."""
+
 
 @dataclass(frozen=True)
 class CostInterval:
@@ -76,6 +99,10 @@ class CostInterval:
     """
 
     every: float
+
+    kind: Literal["cost"] = "cost"
+    """Discriminator identifying this trigger in serialized form. See
+    :data:`CheckpointTrigger`."""
 
 
 BudgetKind = Literal["token", "cost", "time", "working"]
@@ -94,6 +121,10 @@ class BudgetPercent:
     budget: BudgetKind
     percent: float
 
+    kind: Literal["budget"] = "budget"
+    """Discriminator identifying this trigger in serialized form. See
+    :data:`CheckpointTrigger`."""
+
 
 CheckpointTriggerKind = Literal[
     "time", "turn", "manual", "token", "cost", "budget", "agent_complete"
@@ -107,11 +138,104 @@ public :class:`Trigger` spec's ``tick()``; users cannot configure it
 from :class:`CheckpointConfig`.
 """
 
-CheckpointTrigger = (
-    Manual | TurnInterval | TimeInterval | TokenInterval | CostInterval | BudgetPercent
+
+_NUMERIC_KINDS: tuple[tuple[type, str], ...] = (
+    (int, "turn"),
+    (float, "cost"),
+    (timedelta, "time"),
 )
+"""How a lone ``every`` is read when nothing names its kind, in the
+order the undiscriminated union resolved it: whole number = turns,
+fractional = dollars, anything left that is a duration = time. Applied
+to a string as well, since a serialized ``every`` may be quoted."""
+
+
+def _untagged_every_kind(every: Any) -> str | None:
+    """Which kind a lone, untagged ``every`` value used to mean.
+
+    A ``bool`` is an ``int`` and so was coerced to turns. A real that
+    is neither ``int`` nor ``float`` — a ``Decimal`` from a loader told
+    to parse JSON floats as one — was coerced to dollars.
+    """
+    if isinstance(every, bool):
+        return "turn"
+    for target, kind in _NUMERIC_KINDS:
+        if isinstance(every, target):
+            return kind
+        if isinstance(every, str):
+            try:
+                TypeAdapter(target).validate_python(every)
+            except ValidationError:
+                continue
+            return kind
+    if isinstance(every, Number):
+        return "cost"
+    return None
+
+
+def _tag_untagged_trigger(value: Any) -> Any:
+    """Name the kind of a trigger payload that does not name its own.
+
+    Triggers were serialized without a discriminator before there was
+    one, so a payload already on disk — a JSON dataset, a recorded
+    sample — carries only its fields. Its kind is inferred from their
+    shape, so that such a payload keeps loading as the undiscriminated
+    union loaded it.
+
+    The one kind the shape cannot recover is ``token``, which is the
+    defect the discriminator exists to fix: a lone ``every`` written
+    by a ``token`` trigger is indistinguishable from one written by a
+    ``turn`` trigger, and ``turn`` is what it loaded as, so ``turn``
+    is what it still loads as. Only a payload naming ``kind`` can say
+    ``token``.
+
+    Not every shape the union used to accept is inferred. One that
+    matches no trigger — ``{"every": [1]}``, or a ``budget`` missing
+    its ``percent`` — is left for the discriminator to reject, where
+    before it validated as ``Manual`` (the first arm, and dataclasses
+    ignore extra fields) and silently meant "never checkpoint".
+    """
+    if not isinstance(value, dict) or "kind" in value:
+        return value
+    fields = cast(dict[str, Any], value)
+    kind: str | None
+    if "budget" in fields or "percent" in fields:
+        kind = "budget"
+    elif "every" not in fields:
+        kind = "manual"
+    else:
+        kind = _untagged_every_kind(fields["every"])
+    return {**fields, "kind": kind} if kind is not None else value
+
+
+CheckpointTrigger = Annotated[
+    Annotated[
+        Manual
+        | TurnInterval
+        | TimeInterval
+        | TokenInterval
+        | CostInterval
+        | BudgetPercent,
+        Discriminator("kind"),
+    ],
+    BeforeValidator(_tag_untagged_trigger),
+]
 """User-facing checkpoint trigger spec — a union of frozen dataclass
-config types. See :mod:`._engine` for the runtime dispatch."""
+config types. See :mod:`._engine` for the runtime dispatch.
+
+Discriminated on ``kind``, because ``TurnInterval`` and
+``TokenInterval`` are both a lone integer ``every`` and so serialize
+identically (as does a hand-written ``CostInterval`` whose ``every``
+is written without a decimal point). Undiscriminated, each of those
+came back from a JSON round-trip as ``TurnInterval``, the first arm
+that fits — including ``DEFAULT_CHECKPOINT_TRIGGER``, a
+``TokenInterval``, which came back as a checkpoint every 500,000
+*turns*, so nothing shorter than that checkpointed at all.
+
+A payload written before the discriminator existed does not name its
+kind; :func:`_tag_untagged_trigger` names it from the field shape so
+that such payloads keep loading as they did.
+"""
 
 
 @dataclass(frozen=True)
