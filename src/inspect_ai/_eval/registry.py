@@ -1,8 +1,9 @@
 import inspect
 import logging
+import os
 from functools import wraps
 from pathlib import Path
-from typing import Any, Callable, TypeVar, cast, overload
+from typing import Any, Callable, NamedTuple, TypeVar, cast, overload
 
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.package import get_installed_package_name
@@ -10,6 +11,7 @@ from inspect_ai._util.registry import (
     RegistryInfo,
     create_registry_object,
     extract_named_params,
+    instantiate_registry_object,
     registry_add,
     registry_info,
     registry_lookup,
@@ -61,6 +63,72 @@ def task_register(
     return task
 
 
+class _TaskDefinition(NamedTuple):
+    file: str
+    qualname: str
+
+    @property
+    def nested(self) -> bool:
+        """Defined inside a function, so reloading the file doesn't register it."""
+        return "<locals>" in self.qualname
+
+
+def _task_definition(factory: object) -> _TaskDefinition | None:
+    """Source file and qualified name of a task function or class.
+
+    A file loaded twice (e.g. imported and also loaded by path) registers two
+    objects with the same definition, which this treats as the same task.
+    Returns None when the source isn't a file on disk (e.g. a notebook cell).
+    """
+    obj = inspect.unwrap(cast(Callable[..., Any], factory))
+    qualname = getattr(obj, "__qualname__", "")
+    try:
+        file = inspect.getsourcefile(obj)
+    except (TypeError, OSError):
+        return None
+    if not qualname or not file or not os.path.isfile(file):
+        return None
+    return _TaskDefinition(os.path.realpath(file), qualname)
+
+
+def _local_task_file(task_type: object) -> Path | None:
+    """File recorded as a task's `task_file` (None for installed packages)."""
+    if get_installed_package_name(task_type) is not None:
+        return None
+    module = inspect.getmodule(task_type)
+    file = getattr(module, "__file__", None)
+    return Path(file) if file else None
+
+
+def _check_retry_identity(factory: object, name: str) -> None:
+    """Raise if `eval_retry()` could rebuild a different task than `factory`.
+
+    Retry reloads the task's `task_file` and looks the name up there, or,
+    without a `task_file`, looks the name up in the registry. Not caught: a
+    file that registers the name twice when another file registers it last.
+    """
+    registered = registry_lookup("task", name)
+    if registered is None or registered is factory:
+        return
+    factory_def = _task_definition(factory)
+    registered_def = _task_definition(registered)
+    if (
+        factory_def is None
+        or registered_def is None
+        or factory_def == registered_def
+        or registered_def.nested
+    ):
+        return
+    if _local_task_file(factory) is None or factory_def.file == registered_def.file:
+        raise PrerequisiteError(
+            f"Task name '{name}' is registered more than once "
+            f"({factory_def.file}: {factory_def.qualname}, "
+            f"{registered_def.file}: {registered_def.qualname}), so "
+            "eval_retry() would run a different task. Give each @task a "
+            "unique name."
+        )
+
+
 def _has_var_keyword(factory: object) -> bool:
     """Whether a registered factory declares a variadic keyword parameter.
 
@@ -89,15 +157,42 @@ def task_create(name: str, /, **kwargs: Any) -> Task:
     Returns:
         Task with registry info attribute
     """
-    # match kwargs params to signature (warn if param not found)
-    # (note that we always pass the 'model' param but tasks aren't
-    # required to consume it, so we don't warn for 'model')
     task = registry_lookup("task", name)
     if not task:
         raise PrerequisiteError(f"Task named '{name}' not found.")
-    task_info = registry_info(task)
+    return task_create_from_factory(task, **kwargs)
+
+
+def task_create_from_factory(factory: object, /, **kwargs: Any) -> Task:
+    """Create a Task from a registered task function or class.
+
+    Unlike `task_create()`, this does not look the task up by name, so a task
+    registered later under the same name cannot replace `factory`.
+
+    Args:
+        factory: Registered task function or class.
+        **kwargs: Optional creation arguments for the task.
+
+    Returns:
+        Task with registry info attribute
+
+    Raises:
+        PrerequisiteError: If `factory` is not a task, or if another task
+            registered under the same name means `eval_retry()` could run
+            that task instead.
+    """
+    task_info = registry_info(factory)
+    name = task_info.name
+    if task_info.type != "task":
+        raise PrerequisiteError(f"'{name}' is a {task_info.type}, not a task.")
+
+    _check_retry_identity(factory, name)
+
+    # match kwargs params to signature (warn if param not found)
+    # (note that we always pass the 'model' param but tasks aren't
+    # required to consume it, so we don't warn for 'model')
     task_params: list[str] = task_info.metadata["params"]
-    has_var_keyword = _has_var_keyword(task)
+    has_var_keyword = _has_var_keyword(factory)
     task_args: dict[str, Any] = {}
     for param in kwargs.keys():
         if param in task_params or has_var_keyword:
@@ -105,10 +200,10 @@ def task_create(name: str, /, **kwargs: Any) -> Task:
         else:
             logger.warning(f"param '{param}' not used by task '{name}'")
 
-    # create_registry_object takes creation args as a dict, so a task arg
-    # named `name`/`type` cannot collide with registry_create's own
-    # leading parameters on replay.
-    return cast(Task, create_registry_object("task", name, task_args))
+    return cast(
+        Task,
+        instantiate_registry_object(cast(Callable[..., Task], factory), task_args),
+    )
 
 
 @overload
@@ -158,12 +253,10 @@ def task(*args: Any, name: str | None = None, **attribs: Any) -> Any:
 
             # if its not from an installed package then it is a "local"
             # module import, so set its task file and run dir
-            if get_installed_package_name(task_type) is None:
-                module = inspect.getmodule(task_type)
-                if module and hasattr(module, "__file__") and module.__file__:
-                    file = Path(getattr(module, "__file__"))
-                    setattr(task_instance, TASK_FILE_ATTR, file.as_posix())
-                    setattr(task_instance, TASK_RUN_DIR_ATTR, file.parent.as_posix())
+            file = _local_task_file(task_type)
+            if file is not None:
+                setattr(task_instance, TASK_FILE_ATTR, file.as_posix())
+                setattr(task_instance, TASK_RUN_DIR_ATTR, file.parent.as_posix())
 
             return task_instance
 

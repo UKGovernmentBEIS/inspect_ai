@@ -1,11 +1,15 @@
 import functools
+import importlib.util
+import linecache
 import logging
+import sys
 import tempfile
 import traceback
 from collections.abc import Iterator
 from contextlib import contextmanager
 from copy import deepcopy
 from pathlib import Path
+from types import ModuleType
 from typing import Any, Callable, Literal, NoReturn, cast
 from unittest import mock
 
@@ -19,6 +23,7 @@ from inspect_ai import (
     TaskSource,
     eval,
     eval_async,
+    eval_retry,
     eval_set,
     task,
     task_source,
@@ -26,6 +31,8 @@ from inspect_ai import (
 from inspect_ai._eval.task.log import TaskLogger
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.dateutil import datetime_from_iso_format_safe, datetime_now_utc
+from inspect_ai._util.error import PrerequisiteError
+from inspect_ai._util.module import load_module
 from inspect_ai.approval._policy import ApprovalPolicyConfig, ApproverPolicyConfig
 from inspect_ai.dataset import Sample
 from inspect_ai.hooks._hooks import Hooks
@@ -581,6 +588,296 @@ def test_eval_set_task_instance_warns_once(caplog) -> None:
     assert len(records) == 1, (
         f"expected exactly one unconsumed task_args warning, got {len(records)}"
     )
+
+
+_TASK_MODULE_HEADER = """
+from pathlib import Path
+
+from inspect_ai import Task, task
+from inspect_ai.dataset import Sample
+from inspect_ai.solver import Generate, TaskState, generate, solver
+
+
+@solver
+def fail_once():
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        marker = Path(__file__).parent / "failed_once"
+        if not marker.exists():
+            marker.touch()
+            raise RuntimeError("first attempt fails")
+        return state
+
+    return solve
+"""
+
+_SAME_NAME_TASK = """
+@task(name="{name}")
+def {fn}(prefix: str = "default", fail: bool = False) -> Task:
+    return Task(
+        dataset=[Sample(input=f"{{prefix}}: {fn}")],
+        solver=[fail_once(), generate()] if fail else generate(),
+    )
+"""
+
+
+def _write_task_module(path: Path, name: str, *fns: str) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        _TASK_MODULE_HEADER
+        + "".join(_SAME_NAME_TASK.format(name=name, fn=fn) for fn in fns)
+    )
+    return path
+
+
+def _import_task_module(
+    monkeypatch: pytest.MonkeyPatch, path: Path, module_name: str
+) -> ModuleType:
+    # in sys.modules (unlike load_module), so @task records the task_file
+    spec = importlib.util.spec_from_file_location(module_name, path)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    monkeypatch.setitem(sys.modules, module_name, module)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_eval_task_function_not_replaced_by_same_name_task_in_other_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    name = "eval_task_function_same_name"
+    first = _import_task_module(
+        monkeypatch,
+        _write_task_module(tmp_path / "a" / "tasks.py", name, "first"),
+        "eval_same_name_first",
+    )
+    _import_task_module(
+        monkeypatch,
+        _write_task_module(tmp_path / "b" / "tasks.py", name, "second"),
+        "eval_same_name_second",
+    )
+
+    log = eval(
+        first.first,
+        task_args={"prefix": "custom"},
+        model="mockllm/model",
+        log_dir=str(tmp_path / "logs"),
+    )[0]
+    assert log.status == "success"
+    assert log.samples and log.samples[0].input == "custom: first"
+    assert log.eval.task == name
+    assert log.eval.task_args["prefix"] == "custom"
+
+
+def test_eval_retry_task_function_same_name_in_other_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    name = "eval_retry_task_function_same_name"
+    first = _import_task_module(
+        monkeypatch,
+        _write_task_module(tmp_path / "a" / "tasks.py", name, "first"),
+        "eval_retry_same_name_first",
+    )
+    _import_task_module(
+        monkeypatch,
+        _write_task_module(tmp_path / "b" / "tasks.py", name, "second"),
+        "eval_retry_same_name_second",
+    )
+
+    log_dir = str(tmp_path / "logs")
+    log = eval(
+        first.first, task_args={"fail": True}, model="mockllm/model", log_dir=log_dir
+    )[0]
+    assert log.status == "error"
+
+    retried = eval_retry(log, log_dir=log_dir)[0]
+    assert retried.status == "success"
+    assert retried.samples and retried.samples[0].input == "default: first"
+
+
+def test_eval_task_function_same_name_twice_in_one_file_raises(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    tasks = _import_task_module(
+        monkeypatch,
+        _write_task_module(
+            tmp_path / "tasks.py", "eval_task_function_dup_in_file", "first", "second"
+        ),
+        "eval_dup_in_file",
+    )
+    with pytest.raises(PrerequisiteError, match="registered more than once"):
+        eval(tasks.first, model="mockllm/model")
+
+
+def test_eval_task_function_same_name_without_task_file_raises(
+    tmp_path: Path,
+) -> None:
+    # load_module doesn't add to sys.modules, so no task_file is recorded and
+    # eval_retry() would look the task up by name
+    name = "eval_task_function_same_name_no_task_file"
+    first = load_module(_write_task_module(tmp_path / "a" / "tasks.py", name, "first"))
+    load_module(_write_task_module(tmp_path / "b" / "tasks.py", name, "second"))
+
+    with pytest.raises(PrerequisiteError, match="registered more than once"):
+        eval(first.first, model="mockllm/model")
+
+
+def test_eval_task_function_from_file_loaded_twice(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = _write_task_module(
+        tmp_path / "tasks.py", "eval_task_function_file_loaded_twice", "first"
+    )
+    tasks = _import_task_module(monkeypatch, path, "eval_file_loaded_twice")
+    load_module(path)
+
+    log = eval(tasks.first, model="mockllm/model", log_dir=str(tmp_path / "logs"))[0]
+    assert log.status == "success"
+    assert log.samples and log.samples[0].input == "default: first"
+
+
+def test_eval_task_function_same_name_nested_task_ignored(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # reloading the file registers only module-level tasks, so a nested task
+    # with the same name can't change what eval_retry() runs
+    path = _write_task_module(
+        tmp_path / "tasks.py", "eval_task_function_nested_same_name", "first"
+    )
+    path.write_text(
+        path.read_text()
+        + """
+
+def make_nested():
+    @task(name="eval_task_function_nested_same_name")
+    def nested() -> Task:
+        return Task(dataset=[Sample(input="nested")])
+
+    return nested
+"""
+    )
+    tasks = _import_task_module(monkeypatch, path, "eval_nested_same_name")
+    tasks.make_nested()
+
+    log = eval(tasks.first, model="mockllm/model", log_dir=str(tmp_path / "logs"))[0]
+    assert log.status == "success"
+    assert log.samples and log.samples[0].input == "default: first"
+
+
+def test_eval_nested_task_function_before_same_name_module_task_raises(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # eval_retry() reloads the file, which registers the module-level task
+    name = "eval_nested_before_module_same_name"
+    path = tmp_path / "tasks.py"
+    path.write_text(
+        _TASK_MODULE_HEADER
+        + f"""
+
+def make_nested():
+    @task(name="{name}")
+    def nested() -> Task:
+        return Task(dataset=[Sample(input="nested")])
+
+    return nested
+
+
+NESTED = make_nested()
+"""
+        + _SAME_NAME_TASK.format(name=name, fn="first")
+    )
+    tasks = _import_task_module(monkeypatch, path, "eval_nested_before_module")
+    with pytest.raises(PrerequisiteError, match="registered more than once"):
+        eval(tasks.NESTED, model="mockllm/model")
+
+
+def test_eval_task_function_redefined_in_interactive_cell(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # notebook cells have no source file and can't be retried from one, so a
+    # redefinition must not be treated as a duplicate
+    source = """
+@task(name="eval_task_function_interactive_cell")
+def cell_task() -> Task:
+    return Task(dataset=[Sample(input="{input}")])
+"""
+    namespace: dict[str, Any] = {
+        "__name__": "eval_interactive_cells",
+        "task": task,
+        "Task": Task,
+        "Sample": Sample,
+    }
+
+    def run_cell(cell: str, input: str) -> Any:
+        code = source.format(input=input)
+        # IPython registers each cell's source in linecache under its name
+        monkeypatch.setitem(
+            linecache.cache, cell, (len(code), None, code.splitlines(True), cell)
+        )
+        exec(compile(code, cell, "exec"), namespace)
+        return namespace["cell_task"]
+
+    first = run_cell("<cell-1>", "first")
+    run_cell("<cell-2>", "second")
+
+    log = eval(first, model="mockllm/model", log_dir=str(tmp_path / "logs"))[0]
+    assert log.status == "success"
+    assert log.samples and log.samples[0].input == "first"
+
+
+def test_eval_list_with_task_function_then_task_instance(caplog) -> None:
+    # `Tasks` has no mixed-list member, but eval() has always run this list
+    logs = eval(
+        cast(
+            Any,
+            [task_args_warning_check, task_args_warning_check(task_arg="instance")],
+        ),
+        task_args={"task_arg": "function"},
+        model="mockllm/model",
+    )
+    assert [log.status for log in logs] == ["success", "success"]
+    assert [log.eval.task_args["task_arg"] for log in logs] == [
+        "function",
+        "instance",
+    ]
+    records = _task_args_warnings(caplog)
+    assert len(records) == 1, "expected exactly one unconsumed task_args warning"
+    assert "task_arg" in records[0].message
+
+
+def test_eval_list_with_task_function_then_task_instance_no_args_no_warning(
+    caplog,
+) -> None:
+    logs = eval(
+        cast(Any, [task_args_warning_check, task_args_warning_check()]),
+        model="mockllm/model",
+    )
+    assert [log.status for log in logs] == ["success", "success"]
+    assert not _task_args_warnings(caplog)
+
+
+def test_eval_task_function_list_with_task_args_no_warning(caplog) -> None:
+    logs = eval(
+        [task_args_warning_check, task_args_warning_check],
+        task_args={"task_arg": "function"},
+        model="mockllm/model",
+    )
+    assert [log.eval.task_args["task_arg"] for log in logs] == [
+        "function",
+        "function",
+    ]
+    assert not _task_args_warnings(caplog)
+
+
+def test_eval_registered_non_task_function_raises() -> None:
+    @solver(name="eval_non_task_function")
+    def not_a_task() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            return state
+
+        return solve
+
+    with pytest.raises(PrerequisiteError, match="is a solver, not a task"):
+        eval(cast(Any, not_a_task), model="mockllm/model")
 
 
 class _SeedTasks(TaskSource):
