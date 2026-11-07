@@ -54,6 +54,7 @@ from inspect_ai.model._call_tools import get_tools_info
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
+    ChatMessageTool,
     ChatMessageUser,
 )
 from inspect_ai.model._generate_config import (
@@ -1830,6 +1831,14 @@ async def validate_bridge_media(
             )
 
 
-def apply_message_ids(bridge: AgentBridge, messages: list[ChatMessage]) -> None:
-    """Replace the ids made up while rebuilding a request with the ids the bridge knows."""
-    bridge._assign_message_ids(messages)
+def apply_message_ids(
+    bridge: AgentBridge,
+    messages: list[ChatMessage],
+    inferred_results: Sequence[ChatMessageTool] = (),
+) -> None:
+    """Replace the ids made up while rebuilding a request with the ids the bridge knows.
+
+    `inferred_results` are tool messages whose call id the dialect inferred
+    from order rather than read from the request.
+    """
+    bridge._assign_message_ids(messages, inferred_results)

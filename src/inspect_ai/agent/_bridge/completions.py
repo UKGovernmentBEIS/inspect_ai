@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from logging import getLogger
 from time import time
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from shortuuid import uuid
 
@@ -34,6 +34,7 @@ from .util import (
 if TYPE_CHECKING:
     from openai.types.chat import (
         ChatCompletion,
+        ChatCompletionMessageParam,
         ChatCompletionToolParam,
     )
 
@@ -50,7 +51,6 @@ async def inspect_completions_api_request(
 
     from openai.types.chat import (
         ChatCompletion,
-        ChatCompletionMessageParam,
     )
 
     from inspect_ai.model._openai import (
@@ -116,11 +116,25 @@ async def inspect_completions_api_request(
     await bridge._track_state(messages, output)
 
     # inspect completion to openai completion
+    choices = openai_chat_choices(output.choices)
+    for choice, wire in zip(output.choices, choices):
+        bridge._record_transported_reply(
+            choice.message,
+            await messages_from_openai(
+                [
+                    cast(
+                        "ChatCompletionMessageParam",
+                        wire.message.model_dump(mode="json", exclude_none=True),
+                    )
+                ],
+                model_name,
+            ),
+        )
     return ChatCompletion(
         id=uuid(),
         created=int(time()),
         object="chat.completion",
-        choices=openai_chat_choices(output.choices),
+        choices=choices,
         model=model_name,
         usage=openai_completion_usage(output.usage) if output.usage else None,
     )

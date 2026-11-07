@@ -220,6 +220,24 @@ async def inspect_anthropic_api_request_impl(
         usage=anthropic_usage(output.usage or ModelUsage(), beta=beta),
     )
     debug_log("SCAFFOLD RESPONSE", message)
+    bridge._record_transported_reply(
+        output.message,
+        await messages_from_anthropic_input(
+            [
+                cast(
+                    MessageParam,
+                    {
+                        "role": "assistant",
+                        "content": [
+                            block.model_dump(mode="json", exclude_none=True)
+                            for block in message.content
+                        ],
+                    },
+                )
+            ],
+            tools,
+        ),
+    )
 
     return message
 

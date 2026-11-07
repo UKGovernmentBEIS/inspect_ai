@@ -4,7 +4,7 @@ import base64
 import hashlib
 import json
 from logging import getLogger
-from typing import Any, Literal
+from typing import Any, Literal, NamedTuple
 
 from shortuuid import uuid
 
@@ -132,7 +132,10 @@ async def inspect_google_api_request_impl(
     )
 
     # translate messages
-    messages = messages_from_google_contents(contents, system_instruction)
+    inferred_results: list[ChatMessageTool] = []
+    messages = messages_from_google_contents(
+        contents, system_instruction, inferred_results
+    )
     await validate_bridge_media(bridge, messages)
     debug_log("INSPECT MESSAGES", messages)
 
@@ -143,7 +146,7 @@ async def inspect_google_api_request_impl(
     validate_client_config(config)
 
     # try to maintain id stability
-    apply_message_ids(bridge, messages)
+    apply_message_ids(bridge, messages, inferred_results)
 
     # give inspect-level config priority over agent default config
     config = resolve_generate_config(model, config)
@@ -370,7 +373,15 @@ def tool_choice_from_google_tool_config(
 def messages_from_google_contents(
     contents: list[dict[str, Any]],
     system_instruction: dict[str, Any] | list[Any] | None,
+    inferred_results: list[ChatMessageTool] | None = None,
 ) -> list[ChatMessage]:
+    """Inspect messages for Google contents.
+
+    A `functionResponse` names its function but not its call, so it takes
+    the id of the next pending call of the previous model turn with that
+    name. Where that turn had several such calls the id is inferred from
+    order, and the tool message is appended to `inferred_results`.
+    """
     messages: list[ChatMessage] = []
 
     # track system prompt text so we can strip duplicate prefixes from user messages
@@ -421,14 +432,16 @@ def messages_from_google_contents(
                 )
 
     # track tool call IDs by function name for matching with tool results
-    pending_tool_calls: dict[str, list[str]] = {}
+    pending_tool_calls: dict[str, _PendingCalls] = {}
 
     for content in contents:
         role = content.get("role", "user")
         parts = content.get("parts", [])
 
         if role == "user":
-            user_content, tool_messages = _extract_user_parts(parts, pending_tool_calls)
+            user_content, tool_messages = _extract_user_parts(
+                parts, pending_tool_calls, inferred_results
+            )
             if user_content:
                 # strip duplicate system prompt prefix
                 user_content = _strip_system_prompt_prefix(
@@ -449,7 +462,7 @@ def messages_from_google_contents(
             func_response_parts = [p for p in parts if _is_function_response_part(p)]
             if func_response_parts:
                 _, tool_messages = _extract_user_parts(
-                    func_response_parts, pending_tool_calls
+                    func_response_parts, pending_tool_calls, inferred_results
                 )
                 messages.extend(tool_messages)
 
@@ -458,10 +471,12 @@ def messages_from_google_contents(
 
             if tool_calls:
                 pending_tool_calls.clear()
+                functions = [tc.function for tc in tool_calls]
                 for tc in tool_calls:
-                    if tc.function not in pending_tool_calls:
-                        pending_tool_calls[tc.function] = []
-                    pending_tool_calls[tc.function].append(tc.id)
+                    pending_tool_calls.setdefault(
+                        tc.function,
+                        _PendingCalls([], functions.count(tc.function) > 1),
+                    ).ids.append(tc.id)
 
             # Only emit an assistant turn when it carries real content or tool calls;
             # a pure-functionResponse model turn must NOT add an empty assistant (that
@@ -529,11 +544,21 @@ def _is_function_response_part(part: Any) -> bool:
     )
 
 
+class _PendingCalls(NamedTuple):
+    """The calls of the previous model turn with one function name, not yet answered."""
+
+    ids: list[str]
+
+    shared: bool
+    """Whether the turn had more than one call with the name."""
+
+
 def _extract_user_parts(
     parts: list[dict[str, Any]],
-    pending_tool_calls: dict[str, list[str]],
+    pending_tool_calls: dict[str, _PendingCalls],
+    inferred_results: list[ChatMessageTool] | None,
 ) -> tuple[list[Content] | str | None, list[ChatMessageTool]]:
-    # pending_tool_calls maps function_name -> list of call_ids from the previous
+    # pending_tool_calls maps function_name -> call_ids from the previous
     # model message, used to match functionResponse with the correct tool_use_id.
     content_parts: list[Content] = []
     tool_messages: list[ChatMessageTool] = []
@@ -569,8 +594,10 @@ def _extract_user_parts(
             func_name = func_response.get("name", "")
             response = func_response.get("response", {})
 
-            if func_name in pending_tool_calls and pending_tool_calls[func_name]:
-                call_id = pending_tool_calls[func_name].pop(0)
+            pending = pending_tool_calls.get(func_name)
+            inferred = pending is not None and bool(pending.ids) and pending.shared
+            if pending is not None and pending.ids:
+                call_id = pending.ids.pop(0)
             else:
                 call_id = f"call_{func_name}_{uuid()[:8]}"
                 logger.warning(
@@ -582,13 +609,12 @@ def _extract_user_parts(
                 json.dumps(response) if isinstance(response, dict) else str(response)
             )
 
-            tool_messages.append(
-                ChatMessageTool(
-                    tool_call_id=call_id,
-                    function=func_name,
-                    content=response_content,
-                )
+            tool_message = ChatMessageTool(
+                tool_call_id=call_id, function=func_name, content=response_content
             )
+            tool_messages.append(tool_message)
+            if inferred and inferred_results is not None:
+                inferred_results.append(tool_message)
 
     if len(content_parts) == 1 and isinstance(content_parts[0], ContentText):
         return content_parts[0].text, tool_messages

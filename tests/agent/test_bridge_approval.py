@@ -53,7 +53,7 @@ from inspect_ai.agent._bridge.sandbox.types import (
     _MAX_TOOL_EXECUTION_GRANTS,
     SandboxAgentBridge,
 )
-from inspect_ai.agent._bridge.types import AgentBridge
+from inspect_ai.agent._bridge.types import AgentBridge, _handed_calls
 from inspect_ai.agent._bridge.util import (
     bridge_generate,
     default_code_execution_providers,
@@ -6242,10 +6242,9 @@ def test_host_tool_events_name_their_result_message(
 
     events = [e for e in sample.events if isinstance(e, ToolEvent)]
     assert len(events) == 4
-    if dialect == "google" and mode == "approval":
-        # the approver makes each round's calls identical, and their results
-        # differ, so Google (which tells identical calls apart only by position)
-        # leaves them unlinked
+    if dialect == "google":
+        # each round's calls share a function, and a Google result names only
+        # its function, so which call it answers is unknown
         assert all(e.message_id is None for e in events)
         return
     _assert_linked(sample, events)
@@ -6725,9 +6724,7 @@ async def test_repeated_scaffold_result_never_takes_an_earlier_executions_id(
     call ids (Google re-derives them; the other providers reuse them) with
     the same results. The later results answer a different reply, so they
     get new ids, which they keep. With `same_reply_kept`, compaction keeps the
-    first reply and its result, which keeps its id, except in Google: there
-    the reply's key is recorded for the reply and its re-derived copy, so the
-    retained reply and its result get new ids.
+    first reply and its result, which keep their ids.
     """
     paths = ["a", "b"] if shape == "parallel_reordered" else ["a"]
 
@@ -6774,10 +6771,130 @@ async def test_repeated_scaffold_result_never_takes_an_earlier_executions_id(
     retained = [m.id for m in events[-2].input if m.role == "tool"]
     assert [m.id for m in events[-1].input if m.role == "tool"] == retained
     assert len(retained) == len(paths)
-    if shape == "same_reply_kept" and dialect != "google":
+    if shape == "same_reply_kept":
         assert set(retained) == first_results
     else:
         assert not set(retained) & first_results
+
+
+@pytest.mark.parametrize("dialect", ["google", "completions", "responses", "anthropic"])
+async def test_empty_text_tool_reply_never_takes_an_earlier_replys_id(
+    dialect: HostDialect,
+) -> None:
+    """A tool-only reply equal to an earlier one never takes that reply's ids, or its result's.
+
+    Responses and Anthropic send a reply with empty text back without the
+    text, so the first reply's copy is recorded under a form only it has been
+    sent back in. The second reply, generated after compaction, comes back in
+    that form too, and must keep its own ids or get new ones.
+    """
+
+    def calls() -> ModelOutput:
+        return tool_calls_output(
+            ToolCall(id="reused", function="read_file", arguments={"path": "a"}),
+            content="",
+        )
+
+    outputs = [
+        calls(),
+        ModelOutput.from_content("mockllm/model", "Read it."),
+        calls(),
+        *[ModelOutput.from_content("mockllm/model", "Done.")] * 2,
+    ]
+    bridge = AgentBridge(
+        AgentState(messages=[ChatMessageUser(content="Read twice.")]),
+        model_aliases={"inspect": get_model("mockllm/model", custom_outputs=outputs)},
+    )
+    [info] = declare("read_file")
+    conversation = _HostConversation(dialect, "Read twice.", info)
+    with recorded_transcript() as recorded:
+        first = await conversation.request(cast(SandboxAgentBridge, bridge))
+        conversation.results(first, ["same"])
+        await conversation.request(cast(SandboxAgentBridge, bridge))
+        conversation.history = [_user_turn(dialect, "Summary: read once.")]
+        second = await conversation.request(cast(SandboxAgentBridge, bridge))
+        conversation.results(second, ["same"])
+        await conversation.request(cast(SandboxAgentBridge, bridge))
+        conversation.history.append(_user_turn(dialect, "Thanks."))
+        await conversation.request(cast(SandboxAgentBridge, bridge))
+
+    events = [e for e in recorded.events if isinstance(e, ModelEvent)]
+
+    def ids(event: ModelEvent) -> list[str | None]:
+        return [m.id for m in event.input if m.role in ("assistant", "tool")]
+
+    first_ids = {events[0].output.message.id, *ids(events[1])}
+    assert len(ids(events[3])) == 2
+    assert not set(ids(events[3])) & first_ids
+    assert ids(events[4])[:2] == ids(events[3])
+
+
+@pytest.mark.parametrize("functions", ["same", "different"])
+@pytest.mark.parametrize("order", ["proposed", "reversed"])
+async def test_google_results_link_only_when_their_function_names_one_call(
+    order: str, functions: str
+) -> None:
+    """A Google result names its function but not its call, so it isn't linked when several calls share the name.
+
+    The bridge assigns such results the reply's call ids in proposal order,
+    which is wrong when the scaffold sends them in completion order. Results
+    of calls with different functions link in either order.
+    """
+    paths = ["a", "b"]
+    names = ["read_file", "read_file" if functions == "same" else "list_dir"]
+    reply = tool_calls_output(
+        *[
+            ToolCall(id=f"call_{p}", function=name, arguments={"path": p})
+            for p, name in zip(paths, names)
+        ],
+        content="Reading.",
+    )
+    outputs = [reply, *[ModelOutput.from_content("mockllm/model", "Done.")] * 2]
+    bridge = AgentBridge(
+        AgentState(messages=[ChatMessageUser(content="Read both.")]),
+        model_aliases={"inspect": get_model("mockllm/model", custom_outputs=outputs)},
+    )
+    [info] = declare("read_file")
+    conversation = _HostConversation("google", "Read both.", info)
+    with recorded_transcript():
+        handed = await conversation.request(cast(SandboxAgentBridge, bridge))
+        [message] = [m for m in bridge.state.messages if m.role == "assistant"]
+        assert isinstance(message, ChatMessageAssistant) and message.tool_calls
+        events = []
+        for index, path in enumerate(paths):
+            call = message.tool_calls[index]
+            event = ToolEvent(
+                id=call.id,
+                function=call.function,
+                arguments=call.arguments,
+                result=f"contents {path}",
+            )
+            bridge._await_result_message(
+                _handed_calls(cast(str, message.id), message.tool_calls)[index], event
+            )
+            events.append(event)
+        results = [f"contents {p}" for p in paths]
+        if order == "reversed":
+            handed, results = handed[::-1], results[::-1]
+        conversation.results(handed, cast(list[JsonValue], results))
+        await conversation.request(cast(SandboxAgentBridge, bridge))
+        conversation.history.append(_user_turn("google", "Thanks."))
+        await conversation.request(cast(SandboxAgentBridge, bridge))
+
+    assert not any(entry.event for entry in _awaited_entries(bridge))
+    if functions == "same":
+        assert [e.message_id for e in events] == [None, None]
+    else:
+        texts = {m.id: m.text for m in bridge.state.messages if m.role == "tool"}
+        for event, path in zip(events, paths):
+            assert event.message_id is not None
+            assert f"contents {path}" in texts[event.message_id]
+
+
+def _awaited_entries(bridge: AgentBridge) -> list[Any]:
+    return [
+        entry for calls in bridge._awaited_results.values() for entry in calls.values()
+    ]
 
 
 @agent

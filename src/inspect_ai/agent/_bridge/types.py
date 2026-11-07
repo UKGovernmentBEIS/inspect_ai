@@ -210,7 +210,13 @@ class _AnsweredCall(NamedTuple):
     """Id of the reply (of the handed reply, for a copy the bridge recognized)."""
 
     call: _CallDigest | None
-    """The reply's call with the message's call id, or `None` if it has none or differing ones."""
+    """The reply's call with the message's call id, or `None` if it has none or differing ones, or the id was inferred."""
+
+    function: str | None = None
+    """For an inferred call id, the function of the calls the message may answer."""
+
+    calls: int = 0
+    """For an inferred call id, how many calls in the reply have `function`."""
 
 
 def _answered_call(reply_id: str, copies: list[ToolCall]) -> _AnsweredCall:
@@ -357,9 +363,15 @@ class AgentBridge:
             value_type=dict[str, str],
         )
         self._keys_by_id: dict[str, set[str]] = {}
+        self._edit_parent: dict[str, str] = {}
+        self._edit_roots: dict[str, str] = {}
+        """Per edited id, the id its chain of edits starts from."""
+        self._key_roots: dict[str, str | None] = {}
+        """Per key, the edit root of every id recorded under it, or `None` if they have several."""
         for key, ids in self._message_ids.items():
             for id in ids:
                 self._keys_by_id.setdefault(id, set()).add(key)
+                self._record_key_root(key, id)
         self._record_input_message_ids(self._compaction_prefix)
         # the tracked thread's ids, from the checkpoint on resume (which isn't
         # handed back to the scaffold, see above)
@@ -403,7 +415,6 @@ class AgentBridge:
         self._candidate_fps: list[_MessageFingerprint] | None = None
         self._pending_operator = 0
         self._awaited_results: dict[str, dict[int, _AwaitedResult]] = {}
-        self._edit_parent: dict[str, str] = {}
         self._answers: dict[str, _Answer] = {}
         self._reply_answers: OrderedDict[str, _ReplyAnswers] = OrderedDict()
         self._answer_records = 0
@@ -601,6 +612,7 @@ class AgentBridge:
         messages: list[ChatMessage],
         recognized: list[str | None],
         unattributed: Collection[str] = (),
+        inferred: Collection[str] = (),
     ) -> None:
         """Link awaited host tool events to their result messages in a request.
 
@@ -613,7 +625,8 @@ class AgentBridge:
         the next assistant message with tool calls: exactly one links it, more
         than one settles it unlinked. A message already linked to a tracked call,
         or first sent as another reply's answer (`_result_occurrence`) or as an
-        answer without a linkable record (`unattributed`), isn't linked, and a
+        answer without a linkable record (`unattributed`), isn't linked. A call
+        whose result has an `inferred` call id settles unlinked. A
         kept id another tracked reply also handed doesn't link while that reply's call is unlinked (`_tracked_call_ids`).
         No call links while another tracked reply keeps no handed ids: any id
         in the copy could be one of that reply's unexecuted calls. A call
@@ -694,6 +707,9 @@ class AgentBridge:
                 ):
                     continue
                 matches = [r for r in results if r.tool_call_id == copy_call.id]
+                if any(r.id in inferred for r in matches):
+                    _settle(awaited, call_index, [])
+                    continue
                 if len(matches) == 1 and (
                     linked_result(matches[0].id)
                     or matches[0].id in unattributed
@@ -811,7 +827,11 @@ class AgentBridge:
         """
         self._pending_operator += 1
 
-    def _assign_message_ids(self, messages: list[ChatMessage]) -> None:
+    def _assign_message_ids(
+        self,
+        messages: list[ChatMessage],
+        inferred_results: Sequence[ChatMessageTool] = (),
+    ) -> None:
         """Give each message of a request the id the bridge knows it by, or a new one.
 
         Messages in the prefix of a thread the request continues
@@ -826,28 +846,44 @@ class AgentBridge:
         id only as that reply's answer (`_result_occurrence`). One answering a
         reply given a new id for repeated content gets a new id and no answer
         record, since which reply it answers can't be told; it isn't linked.
+
+        `inferred_results` are tool messages whose call id the dialect
+        inferred rather than read (Google names only a result's function, so
+        among calls sharing it the id follows order). Such a message is
+        recognized only by its exact content, records no call it answers, and
+        isn't linked.
         """
-        keys = [_message_id_keys(message) for message in messages]
+        inferred = {id(message) for message in inferred_results}
+        keys = [
+            _message_id_keys(message)[:1]
+            if id(message) in inferred
+            else _message_id_keys(message)
+            for message in messages
+        ]
         aligned = self._align_with_tracked(keys)
         key_counts = Counter(key for message_keys in keys for key in set(message_keys))
         unique: list[str | None] = []
         for message_keys in keys:
             key = next((key for key in message_keys if self._message_ids.get(key)), "")
-            ids = self._message_ids.get(key, [])
-            unique.append(ids[0] if len(ids) == 1 and key_counts[key] == 1 else None)
-        reserved = set(aligned.values())
-        claimed = Counter([*unique, *reserved])
+            unique.append(self._named_id(key) if key_counts[key] == 1 else None)
+        reserved = {self._edit_root(id) for id in aligned.values()}
+        claimed = Counter(
+            self._edit_root(id) for id in [*unique, *aligned.values()] if id is not None
+        )
         used: set[str] = set()
+        """Edit roots of the ids given so far."""
 
         def recorded_id(index: int) -> str | None:
             id = unique[index]
-            return (
-                id if id is not None and claimed[id] == 1 and id not in used else None
-            )
+            if id is None:
+                return None
+            root = self._edit_root(id)
+            return id if claimed[root] == 1 and root not in used else None
 
         def available(message_id: str, index: int) -> bool:
-            return message_id not in used and (
-                message_id not in reserved or aligned.get(index) == message_id
+            root = self._edit_root(message_id)
+            return root not in used and (
+                root not in reserved or self._edit_root(aligned.get(index, "")) == root
             )
 
         recognized: list[str | None] = []
@@ -889,9 +925,22 @@ class AgentBridge:
             answered: _AnsweredCall | None = None
             linkable = True
             if isinstance(message, ChatMessageTool) and preceding_reply_key is not None:
-                answered = _answered_call(
-                    preceding_reply_key,
-                    reply_calls.get(message.tool_call_id or "", []),
+                answered = (
+                    _AnsweredCall(
+                        preceding_reply_key,
+                        None,
+                        message.function,
+                        sum(
+                            call.function == message.function
+                            for calls in reply_calls.values()
+                            for call in calls
+                        ),
+                    )
+                    if id(message) in inferred
+                    else _answered_call(
+                        preceding_reply_key,
+                        reply_calls.get(message.tool_call_id or "", []),
+                    )
                 )
                 message_id, linkable = self._result_occurrence(
                     message_keys,
@@ -900,6 +949,7 @@ class AgentBridge:
                     answered,
                     partial(available, index=index),
                 )
+                linkable = linkable and id(message) not in inferred
             recognized.append(message_id)
             repeated = message_id is None and any(
                 key in self._message_ids for key in message_keys
@@ -909,10 +959,9 @@ class AgentBridge:
                 message.id = uuid()
                 self._content_by_id[message.id] = content_hash(message)
             else:
-                used.add(message_id)
                 message.id = self._version_id(message_id, message)
                 known = message.id in self._keys_by_id
-            used.add(message.id)
+            used.add(self._edit_root(message.id))
             self._record_message_id(message_keys, message.id)
             if answered is not None:
                 if not known and not preceding_reply_repeated:
@@ -927,7 +976,7 @@ class AgentBridge:
                         message.id, answered, preceding_reply_ambiguous, linkable
                     )
                 answer = self._answer_of(message.id)
-                if answer is None or not answer.linkable:
+                if answer is None or not answer.linkable or id(message) in inferred:
                     unattributed.add(message.id)
                 if answer is not None:
                     self._record_occurrence(message_keys, message.id, answered)
@@ -947,7 +996,12 @@ class AgentBridge:
         request: list[tuple[str, str]] = [(m.id, m.role) for m in messages if m.id]
         self._latest_request = request
         self._remember_thread(request)
-        self._link_result_messages(messages, recognized, unattributed)
+        self._link_result_messages(
+            messages,
+            recognized,
+            unattributed,
+            {m.id for m in messages if id(m) in inferred and m.id is not None},
+        )
         # only after linking, so the request's ownership checks all see the
         # records it started with
         self._drop_answer_records()
@@ -1009,10 +1063,18 @@ class AgentBridge:
 
         Matched by call id, else (Google re-derives call ids) by function and
         arguments: only a call no other call in its reply is identical to,
-        unless `identical`.
+        unless `identical`. For an inferred call id, every call with the
+        message's function, or none unless each such call was executed.
         """
+        entries = self._awaited_results.get(answered.reply_id, {}).values()
         if answered.call is None:
-            return []
+            candidates = [
+                entry
+                for entry in entries
+                if answered.function is not None
+                and entry.handed.function == answered.function
+            ]
+            return candidates if len(candidates) == answered.calls else []
         call = answered.call
 
         def is_handed(handed: _HandedCall) -> bool:
@@ -1021,7 +1083,6 @@ class AgentBridge:
                 handed.arguments,
             )
 
-        entries = self._awaited_results.get(answered.reply_id, {}).values()
         by_id = [entry for entry in entries if entry.handed.call_id == call.id]
         if by_id:
             return [entry for entry in by_id if is_handed(entry.handed)]
@@ -1032,9 +1093,7 @@ class AgentBridge:
         ]
 
     def _edit_root(self, message_id: str) -> str:
-        while message_id in self._edit_parent:
-            message_id = self._edit_parent[message_id]
-        return message_id
+        return self._edit_roots.get(message_id, message_id)
 
     def _answer_of(self, message_id: str) -> _Answer | None:
         return self._answers.get(self._edit_root(message_id))
@@ -1131,6 +1190,7 @@ class AgentBridge:
         if isinstance(message, ChatMessageAssistant):
             copy_assistant_internal(message_id, edited_id)
         self._edit_parent[edited_id] = message_id
+        self._edit_roots[edited_id] = self._edit_root(message_id)
         return edited_id
 
     def _align_with_tracked(self, keys: list[list[str]]) -> dict[int, str]:
@@ -1284,15 +1344,30 @@ class AgentBridge:
             if key not in known:
                 self._message_ids.setdefault(key, []).append(message_id)
                 known.add(key)
+                self._record_key_root(key, message_id)
+
+    def _record_key_root(self, key: str, message_id: str) -> None:
+        root = self._edit_root(message_id)
+        if self._key_roots.setdefault(key, root) != root:
+            self._key_roots[key] = None
+
+    def _named_id(self, key: str) -> str | None:
+        """The id of the one message recorded under `key` (its edits count as it), if there is one."""
+        root = self._key_roots.get(key)
+        if root is None:
+            return None
+        ids = self._message_ids[key]
+        return ids[0] if len(ids) == 1 else root
 
     def _record_transported_reply(
         self, reply: ChatMessageAssistant, transported: list[ChatMessage]
     ) -> None:
-        """Recognize `reply` by the form a dialect that re-derives call ids hands back.
+        """Recognize `reply` by the form its dialect hands it back in.
 
-        Google derives call ids from function and arguments, so a reply equal to
-        an earlier one comes back as that one's copy did; recording its own copy's
-        keys lets alignment weigh both.
+        A dialect's wire form can drop parts of a reply (Responses and
+        Anthropic an empty text, Google call ids), so a reply equal to an
+        earlier one in that form comes back as that one's copy did. Recording
+        each reply's form means a key the copies share names both replies.
         """
         if reply.id is None:
             return

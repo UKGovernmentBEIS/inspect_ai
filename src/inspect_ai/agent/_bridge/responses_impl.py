@@ -436,6 +436,20 @@ async def inspect_responses_api_request_impl(
         usage=responses_model_usage(output.usage),
     )
     debug_log("SCAFFOLD RESPONSE", response)
+    bridge._record_transported_reply(
+        output.message,
+        messages_from_responses_input(
+            [
+                cast(
+                    ResponseInputItemParam,
+                    item.model_dump(mode="json", exclude_none=True),
+                )
+                for item in response.output
+            ],
+            tools,
+            model_name,
+        ),
+    )
 
     return response
 
