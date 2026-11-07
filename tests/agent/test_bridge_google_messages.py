@@ -28,6 +28,7 @@ import pytest
 from inspect_ai._util.content import ContentReasoning
 from inspect_ai.agent._bridge._errors import BridgePolicyError
 from inspect_ai.agent._bridge.google_api_impl import (
+    _PLACEHOLDER_THOUGHT_SIGNATURES,
     gemini_response_from_output,
     messages_from_google_contents,
 )
@@ -166,9 +167,6 @@ def test_google_response_without_logprobs_is_unchanged(
     assert "avgLogprobs" not in response["candidates"][0]
 
 
-_GEMINI_CLI_PLACEHOLDER_SIGNATURE = "skip_thought_signature_validator"
-
-
 async def _model_turn_function_call(contents: list[dict[str, Any]]) -> Part:
     from inspect_ai.model._providers.google import as_chat_messages
 
@@ -178,7 +176,10 @@ async def _model_turn_function_call(contents: list[dict[str, Any]]) -> Part:
     return next(part for part in model_turn.parts if part.function_call)
 
 
-async def test_placeholder_signature_uses_signature_embedded_by_bridge() -> None:
+@pytest.mark.parametrize("placeholder", sorted(_PLACEHOLDER_THOUGHT_SIGNATURES))
+async def test_placeholder_signature_uses_signature_embedded_by_bridge(
+    placeholder: str,
+) -> None:
     pytest.importorskip("google.genai")
     signature = b"\xfbreal-gemini-signature\xff"
     output = ModelOutput(
@@ -206,7 +207,7 @@ async def test_placeholder_signature_uses_signature_embedded_by_bridge() -> None
     # gemini-cli replays the turn with its placeholder in place of the signature
     for part in parts:
         if "thoughtSignature" in part:
-            part["thoughtSignature"] = _GEMINI_CLI_PLACEHOLDER_SIGNATURE
+            part["thoughtSignature"] = placeholder
     contents: list[dict[str, Any]] = [
         {"role": "user", "parts": [{"text": "list files"}]},
         {"role": "model", "parts": parts},
@@ -219,10 +220,7 @@ async def test_placeholder_signature_uses_signature_embedded_by_bridge() -> None
     assert (await _model_turn_function_call(contents)).thought_signature == signature
 
 
-@pytest.mark.parametrize(
-    "placeholder",
-    [_GEMINI_CLI_PLACEHOLDER_SIGNATURE, "context_engineering_is_the_way_to_go"],
-)
+@pytest.mark.parametrize("placeholder", sorted(_PLACEHOLDER_THOUGHT_SIGNATURES))
 async def test_placeholder_signature_reaches_gemini_unchanged(placeholder: str) -> None:
     pytest.importorskip("google.genai")
     contents: list[dict[str, Any]] = [

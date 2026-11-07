@@ -2174,6 +2174,9 @@ def gemini_native_tool_combination_config(tool_choice: ToolChoice) -> ToolConfig
     )
 
 
+_URLSAFE_TO_STANDARD = str.maketrans("-_", "+/")
+
+
 def _thought_signature_bytes(reasoning: str) -> bytes:
     """Decode a thought signature stored as base64 in a `ContentReasoning`.
 
@@ -2181,10 +2184,12 @@ def _thought_signature_bytes(reasoning: str) -> bytes:
     the agent bridge can also send Gemini's documented placeholder signatures
     (gemini-cli sends `skip_thought_signature_validator` for a function call
     whose signature it lost), which are only valid in the URL-safe alphabet.
-    URL-safe decoding accepts both, and google-genai encodes request bytes as
-    URL-safe base64, so a placeholder reaches Gemini unchanged.
+    Mapping the URL-safe characters onto the standard ones decodes both (the
+    standard decoder's handling of `-_` alongside `+/` is deprecated in Python
+    3.15), and google-genai encodes request bytes as URL-safe base64, so a
+    placeholder reaches Gemini unchanged.
     """
-    return base64.urlsafe_b64decode(reasoning.encode())
+    return base64.b64decode(reasoning.translate(_URLSAFE_TO_STANDARD))
 
 
 def _consolidate_thought_signature(
