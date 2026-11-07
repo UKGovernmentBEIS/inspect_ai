@@ -759,6 +759,60 @@ def _scoped_shell_across_a_server_restart() -> Solver:
     return solve
 
 
+# Trees an older release left in a reused container: one from before per-version
+# directories and one from an older version, each with a launcher that fails.
+_OLD_TOOLS_TREES = ["/var/tmp/.da7be258e003d428", "/var/tmp/.da7be258e003d428-v1"]
+_FAILING_LAUNCHER = "#!/bin/sh\nexit 99\n"
+
+
+@solver
+def _tools_from_other_releases_are_left_alone() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        sb = sandbox()
+        for tree in _OLD_TOOLS_TREES:
+            planted = await sb.exec(
+                [
+                    "sh",
+                    "-c",
+                    'mkdir -m 700 "$1" "$1/.server" && printf "$2" > "$1/$3" && '
+                    'chmod 700 "$1/$3"',
+                    "sh",
+                    tree,
+                    _FAILING_LAUNCHER,
+                    "inspect-sandbox-tools",
+                ],
+                user="root",
+            )
+            assert planted.success, planted.stderr
+
+        out = str(await bash_session()(action="type_submit", input="id -un"))
+        assert "nonroot" in out, out
+
+        for tree in _OLD_TOOLS_TREES:
+            listing = await sb.exec(["ls", "-A", tree], user="root")
+            assert listing.stdout.split() == [".server", "inspect-sandbox-tools"]
+            launcher = await sb.exec(
+                ["cat", f"{tree}/inspect-sandbox-tools"], user="root"
+            )
+            assert launcher.stdout == "#!/bin/sh\nexit 99\n"
+        return state
+
+    return solve
+
+
+# A reused container may hold trees other releases installed. This release installs
+# and uses its own version's tree and leaves theirs alone.
+@pytest.mark.slow
+def test_tools_from_other_releases_are_left_alone() -> None:
+    task = Task(
+        dataset=[Sample(input="x")],
+        solver=_tools_from_other_releases_are_left_alone(),
+        sandbox=("docker", NONROOT_COMPOSE),
+    )
+    log = eval(task, model=get_model("mockllm/model"))[0]
+    assert log.status == "success", log.error
+
+
 # A scoped shell is bound to its tools server: after the server is replaced
 # mid-sample, the shell is refused (never reaching the new server's first shell)
 # and `restart` opens a new one.
@@ -855,6 +909,65 @@ def test_two_scoped_users_share_one_bash_session() -> None:
     task = Task(
         dataset=[Sample(input="x")],
         solver=_two_scoped_users_share_one_bash_session(),
+        sandbox=("docker", NONROOT_COMPOSE),
+    )
+    log = eval(task, model=get_model("mockllm/model"))[0]
+    assert log.status == "success", log.error
+
+
+@solver
+def _custom_tools_run_as_the_scope_user() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        sb = sandbox()
+        default_uid = (await sb.exec(["id", "-u"])).stdout.strip()
+        for user in ("w1", "w2"):
+            created = await sb.exec(
+                [
+                    "sh",
+                    "-c",
+                    f"useradd -m {user} && chmod 700 /home/{user} && "
+                    f"echo {user} > /home/{user}/secret && "
+                    f"chown {user} /home/{user}/secret",
+                ],
+                user="root",
+            )
+            assert created.success, created.stderr
+
+        # what a custom tool does: sandbox operations with no user
+        async def custom_tool(user: str, other: str) -> None:
+            assert (await sandbox().exec(["id", "-un"])).stdout.strip() == user
+            await sandbox().write_file(f"/home/{user}/note", user)
+            assert await sandbox().read_file(f"/home/{user}/secret") == f"{user}\n"
+            with pytest.raises(PermissionError):
+                await sandbox().read_file(f"/home/{other}/secret")
+
+        for user, other in (("w1", "w2"), ("w2", "w1")):
+            with sandbox_identity(user):
+                await custom_tool(user, other)
+                # injects the sandbox tools inside the first scope
+                result = await sandbox().exec_remote(["id", "-un"], stream=False)
+                assert result.stdout.strip() == user, result
+        for user in ("w1", "w2"):
+            owner = await sb.exec(
+                ["stat", "-c", "%U", f"/home/{user}/note"], user="root"
+            )
+            assert owner.stdout.strip() == user, owner
+        assert sb._tools_default_user is not None
+        assert str(sb._tools_default_user.uid) == default_uid
+        assert (await sb.exec(["id", "-u"])).stdout.strip() == default_uid
+        return state
+
+    return solve
+
+
+# A custom tool's exec(), read_file() and write_file() with no user run as the
+# scope's user; injection first triggered inside a scope still records the
+# sandbox's default identity.
+@pytest.mark.slow
+def test_custom_tools_run_as_the_scope_user() -> None:
+    task = Task(
+        dataset=[Sample(input="x")],
+        solver=_custom_tools_run_as_the_scope_user(),
         sandbox=("docker", NONROOT_COMPOSE),
     )
     log = eval(task, model=get_model("mockllm/model"))[0]

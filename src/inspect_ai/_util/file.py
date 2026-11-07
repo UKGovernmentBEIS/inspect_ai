@@ -254,6 +254,16 @@ def basename(file: str) -> str:
     return name
 
 
+def url_protocol(url: str) -> str | None:
+    """The protocol fsspec reads in `url`, or None for a local path.
+
+    fsspec reads ``data:`` as a protocol without slashes, and a one-letter
+    scheme (``C://``) as a Windows drive. A chained URL is not split.
+    """
+    protocol: str | None = split_protocol(url)[0]
+    return protocol
+
+
 def dirname(file: str) -> str:
     base = basename(file)
     return file[: -(len(base) + 1)]
