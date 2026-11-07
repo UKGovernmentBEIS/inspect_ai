@@ -9,11 +9,19 @@ from pathlib import Path
 
 import ijson  # type: ignore
 import pytest
+import zstandard
+from botocore.exceptions import ClientError
+from pydantic import BaseModel, ValidationError
 from test_helpers.utils import skip_if_trio
 
 from inspect_ai._util.async_bytes_reader import adapt_to_reader
-from inspect_ai._util.async_zip import AsyncZipReader, CentralDirectory, ZipCrcError
-from inspect_ai._util.asyncfiles import AsyncFilesystem
+from inspect_ai._util.async_zip import (
+    AsyncZipReader,
+    CentralDirectory,
+    ZipCrcError,
+    is_torn_read,
+)
+from inspect_ai._util.asyncfiles import AsyncFilesystem, ObjectChangedError
 from inspect_ai._util.compression_transcoding import _DeflateCompressStream
 from inspect_ai._util.zip_common import ZipCompressionMethod, ZipEntry
 
@@ -851,3 +859,44 @@ async def test_reader_reuses_a_given_central_directory(
         reader = AsyncZipReader(fs, str(crc_zip), central_directory=cd)
         assert await reader.entries() is cd
         assert json.loads(await reader.read_member_fully("member.json"))["value"]
+
+
+def _client_error(code: str) -> ClientError:
+    return ClientError({"Error": {"Code": code}}, "GetObject")
+
+
+def _validation_error() -> ValidationError:
+    class Model(BaseModel):
+        x: int
+
+    try:
+        Model.model_validate({"x": "not an int"})
+    except ValidationError as ex:
+        return ex
+    raise AssertionError("expected a ValidationError")
+
+
+@pytest.mark.parametrize(
+    "ex,torn",
+    [
+        (ZipCrcError("crc"), True),
+        (ObjectChangedError("f", "etag"), True),
+        (zlib.error("bad stream"), True),
+        (zstandard.ZstdError("bad frame"), True),
+        (struct.error("short header"), True),
+        (EOFError(), True),
+        (ijson.JSONError("bad json"), True),
+        (json.JSONDecodeError("bad json", "", 0), True),
+        (ValueError("Bad signature in central directory"), True),
+        (_client_error("InvalidRange"), True),
+        (_validation_error(), False),
+        (_client_error("AccessDenied"), False),
+        (_client_error("SlowDown"), False),
+        (FileNotFoundError(), False),
+        (KeyError("_journal/start.json"), False),
+        (RuntimeError(), False),
+    ],
+    ids=lambda v: type(v).__name__ if isinstance(v, BaseException) else str(v),
+)
+def test_is_torn_read(ex: BaseException, torn: bool) -> None:
+    assert is_torn_read(ex) is torn
