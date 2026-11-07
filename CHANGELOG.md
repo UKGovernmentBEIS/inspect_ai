@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.3.289](https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.288...0.3.289) (2026-11-07)
+
+
+### Bug Fixes
+
+* inspect score --stream replacing its input log with a partial log ([#6174](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6174)) ([18982e3](https://github.com/UKGovernmentBEIS/inspect_ai/commit/18982e35a68d4aebfff7f351e2c029067014ed8c))
+* **openrouter:** preserve max reasoning effort ([#6185](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6185)) ([4a7d219](https://github.com/UKGovernmentBEIS/inspect_ai/commit/4a7d219c642fa20c07fdd8c19b5fa3f9d19478cb))
+* score compound Chinese large units such as 一万亿 correctly ([#6179](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6179)) ([d92ad2e](https://github.com/UKGovernmentBEIS/inspect_ai/commit/d92ad2edbba7565814fd433f760b6e14c773074d))
+* task listing and evaluation with absolute paths ([#5268](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5268)) ([da64cc6](https://github.com/UKGovernmentBEIS/inspect_ai/commit/da64cc6475734b3b4873de6c1957d727c86ba192))
+* Type sandboxenv and hooks so decorated classes keep their own type ([#6009](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6009)) ([b30ad16](https://github.com/UKGovernmentBEIS/inspect_ai/commit/b30ad16c2eaa7d6c7051759bd5ec253d2b0d09d5))
+
 ## [0.3.288](https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.287...0.3.288) (2026-11-06)
 
 
