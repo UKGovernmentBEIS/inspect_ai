@@ -1054,13 +1054,16 @@ class _IdsSource(SampleSource):
         return None
 
 
-def test_sample_source_sample_id_filters_produced_samples() -> None:
+@pytest.mark.parametrize("sample_id", [[1, 3], "[13]"])
+def test_sample_source_sample_id_filters_produced_samples(
+    sample_id: list[int] | str,
+) -> None:
     # --sample-id filters samples the source produces, not just the seed
     logs = eval(
         Task(dataset=_IdsSource(), solver=[generate()]),
         model="mockllm/model",
         display="none",
-        sample_id=[1, 3],
+        sample_id=sample_id,
     )
     log = logs[0]
     assert log.status == "success"
