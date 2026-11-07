@@ -1,5 +1,5 @@
 import json
-from collections import OrderedDict
+from collections import Counter, OrderedDict, deque
 from enum import IntEnum
 from functools import lru_cache, partial
 from typing import (
@@ -67,6 +67,9 @@ _MAX_AWAITED_RESULTS = 256
 
 _MAX_REPLY_EDIT_VERSIONS = 16
 """Recent edited reply ids retained while their calls await results."""
+
+_MAX_RECENT_THREADS = 16
+"""Latest requests and generations whose threads a request is recognized as continuing (see `_align_with_tracked`)."""
 
 
 class _HandedCall(NamedTuple):
@@ -348,9 +351,12 @@ class AgentBridge:
         self._record_input_message_ids(self._compaction_prefix)
         # the tracked thread's ids, from the checkpoint on resume (which isn't
         # handed back to the scaffold, see above)
-        self._tracked_ids = [
+        self._tracked_ids: list[tuple[str, str]] = [
             (m.id, m.role) for m in restored_messages if m.id is not None
         ]
+        self._recent_threads: deque[list[tuple[str, str]]] = deque(
+            maxlen=_MAX_RECENT_THREADS
+        )
         self.filter = filter
         self.response_filter = response_filter
         self.retry_refusals = retry_refusals
@@ -789,10 +795,12 @@ class AgentBridge:
     def _assign_message_ids(self, messages: list[ChatMessage]) -> None:
         """Give each message of a request the id the bridge knows it by, or a new one.
 
-        Messages that line up with the tracked thread (`_align_with_tracked`) take
-        its ids unless a recorded id matches a stronger key. Others take the
-        first id recorded for their strongest key that isn't already used in the
-        request, so the k-th repeat of a message gets the k-th id.
+        Messages that line up with a known thread (`_align_with_tracked`) take
+        its ids unless a recorded id matches a stronger key. Others take the id
+        recorded for their strongest recorded key if it is the only one and
+        isn't already used in the request. Content recorded under several ids
+        that alignment doesn't place gets a new id: which occurrence it is
+        can't be told.
 
         A tool message after a reply is an answer to that reply
         (`_result_occurrence`). One seen before without an answer record (its
@@ -803,20 +811,13 @@ class AgentBridge:
         aligned = self._align_with_tracked(messages, keys)
         reserved = set(aligned.values())
         used: set[str] = set()
-        # per key, the first recorded id not yet taken (ids only become taken)
-        cursors: dict[str, int] = {}
 
         def recorded_id(message_keys: list[str]) -> str | None:
             for key in message_keys:
-                ids = self._message_ids.get(key, [])
-                cursor = cursors.get(key, 0)
-                while cursor < len(ids) and (
-                    ids[cursor] in used or ids[cursor] in reserved
-                ):
-                    cursor += 1
-                cursors[key] = cursor
-                if cursor < len(ids):
-                    return ids[cursor]
+                ids = self._message_ids.get(key)
+                if ids:
+                    unused = ids[0] not in used and ids[0] not in reserved
+                    return ids[0] if len(ids) == 1 and unused else None
             return None
 
         def available(message_id: str, index: int) -> bool:
@@ -830,12 +831,16 @@ class AgentBridge:
         preceding_reply_key: str | None = None
         preceding_reply_keys: list[str] = []
         preceding_reply_ambiguous: bool | None = None
+        preceding_reply_repeated = False
         reply_calls: dict[str, list[ToolCall]] = {}
         for index, (message, message_keys) in enumerate(zip(messages, keys)):
             aligned_id = aligned.get(index)
             message_id = aligned_id
             if aligned_id is None:
-                message_id = recorded_id(message_keys)
+                if not (
+                    isinstance(message, ChatMessageTool) and preceding_reply_repeated
+                ):
+                    message_id = recorded_id(message_keys)
             else:
                 aligned_keys = self._keys_by_id.get(aligned_id, set())
                 aligned_strength = max(
@@ -870,6 +875,9 @@ class AgentBridge:
                         partial(available, index=index),
                     )
             recognized.append(message_id)
+            repeated = message_id is None and any(
+                key in self._message_ids for key in message_keys
+            )
             known = False
             if message_id is None:
                 message.id = uuid()
@@ -902,10 +910,12 @@ class AgentBridge:
                 )
                 preceding_reply_key = preceding_reply_id or message.id
                 preceding_reply_keys = message_keys
+                preceding_reply_repeated = repeated
                 preceding_reply_ambiguous = None
                 reply_calls = {}
                 for call in message.tool_calls:
                     reply_calls.setdefault(call.id, []).append(call)
+        self._recent_threads.append([(m.id, m.role) for m in messages if m.id])
         self._link_result_messages(messages, recognized, unattributed)
         # only after linking, so the request's ownership checks all see the
         # records it started with
@@ -1083,88 +1093,170 @@ class AgentBridge:
     def _align_with_tracked(
         self, messages: list[ChatMessage], keys: list[list[str]]
     ) -> dict[int, str]:
-        """Pair request messages with the tracked thread's, in order.
+        """Pair request messages with those of a thread the bridge knows, in order.
 
-        A request containing the entire tracked history keeps that alignment.
-        Otherwise, each run of consecutive matches starts at the tracked message
-        sharing the strongest key, then the longest run (one that reaches the end
-        of the tracked thread continues it, so counts as the rest of the request,
-        and wins a tie with one that doesn't), then, among runs reaching the end,
-        the most messages matched (a compacted request keeping several equal
-        replies), then the latest position (scaffold compaction keeps the tail).
-        A same-role message between two runs, at the same offset in both, is an
-        edit of the tracked one.
+        A request containing the entire tracked thread keeps that alignment.
+        Otherwise a request containing the entire thread of one of the latest
+        `_MAX_RECENT_THREADS` requests (a retry) or generations (input and
+        output) keeps that one's: it continues it, and `_track_state` may not
+        track it yet (a compacted thread, until a further call extends it).
+        Positions where equally long such threads differ are left unaligned.
 
-        Only the position continuing the last run and the latest
-        `_MAX_ALIGN_CANDIDATES` positions per key are considered, and runs are
-        measured only for the strongest, so the cost stays linear in the length
-        of a conversation that repeats the same messages.
+        Other messages are placed by unique content only, in the tracked thread
+        and those recent ones (`_anchored_alignment`). Only a message
+        before the request's last assistant message is an anchor: a later one
+        may be new, equal to an earlier message by chance (a repeated tool
+        result). A message placed differently in two threads, or two messages
+        placed at one id, are left unaligned.
         """
         tracked = self._tracked_ids
-        tracked_keys = [self._keys_by_id.get(id, set()) for id, _ in tracked]
-        positions: dict[str, list[int]] = {}
-        for position, position_keys in enumerate(tracked_keys):
-            for key in position_keys:
-                positions.setdefault(key, []).append(position)
+        if self._contains(keys, tracked):
+            return {i: tracked[i][0] for i in range(len(tracked))}
+        continued = [
+            thread for thread in self._recent_threads if self._contains(keys, thread)
+        ]
+        aligned: dict[int, str] = {}
+        if continued:
+            longest = max(len(thread) for thread in continued)
+            at_position = [
+                {thread[i][0] for thread in continued if len(thread) == longest}
+                for i in range(longest)
+            ]
+            aligned = {
+                i: min(same) for i, same in enumerate(at_position) if len(same) == 1
+            }
 
-        def strength(i: int, j: int) -> int:
-            return max(
-                (_key_strength(key) for key in keys[i] if key in tracked_keys[j]),
-                default=0,
+        last_reply = max(
+            (i for i, message in enumerate(messages) if message.role == "assistant"),
+            default=-1,
+        )
+        unique = [
+            self._unique_id(message_keys) if i < last_reply else None
+            for i, message_keys in enumerate(keys)
+        ]
+        anchors = Counter(unique)
+        unique = [id if anchors[id] == 1 else None for id in unique]
+        threads: list[list[tuple[str, str]]] = []
+        for thread in sorted([tracked, *self._recent_threads], key=len, reverse=True):
+            if not any(other[: len(thread)] == thread for other in threads):
+                threads.append(thread)
+        placements: dict[int, set[str]] = {}
+        for thread in threads:
+            placed = self._anchored_alignment(messages, keys, thread, unique)
+            for i, message_id in placed.items():
+                placements.setdefault(i, set()).add(message_id)
+        for i, ids in placements.items():
+            if i not in aligned and len(ids) == 1:
+                aligned[i] = min(ids)
+        placed_ids = Counter(aligned.values())
+        return {i: id for i, id in aligned.items() if placed_ids[id] == 1}
+
+    def _unique_id(self, message_keys: list[str]) -> str | None:
+        """The id recorded for a message's strongest recorded key, if it is the only one."""
+        for key in message_keys:
+            ids = self._message_ids.get(key)
+            if ids:
+                return ids[0] if len(ids) == 1 else None
+        return None
+
+    def _contains(
+        self, keys: list[list[str]], thread: Sequence[tuple[str, str]]
+    ) -> bool:
+        return (
+            bool(thread)
+            and len(keys) >= len(thread)
+            and all(self._strength(keys[i], thread[i][0]) for i in range(len(thread)))
+        )
+
+    def _strength(self, message_keys: list[str], message_id: str) -> int:
+        id_keys = self._keys_by_id.get(message_id, ())
+        return max(
+            (_key_strength(key) for key in message_keys if key in id_keys),
+            default=0,
+        )
+
+    def _anchored_alignment(
+        self,
+        messages: list[ChatMessage],
+        keys: list[list[str]],
+        thread: Sequence[tuple[str, str]],
+        unique: list[str | None],
+    ) -> dict[int, str]:
+        """Place request messages in `thread` by content that identifies one message.
+
+        An anchor is a request message with a `unique` id, which is in
+        `thread`. Each anchor, in request order and after the last run in the
+        thread, places the run of consecutive matching messages around it.
+        Messages the run before it extended forward over, and this run could
+        extend back over, are left unaligned: which run kept them can't be
+        told. Messages between two runs at the same offset in both, and after
+        the last run up to its last match at its offset, keep the thread's
+        message there if they have its role (an edit). Repeated content outside
+        such runs stays unaligned.
+
+        Runs extend over disjoint stretches of the request, so the cost is
+        linear in the length of the request and the thread.
+        """
+        position = {message_id: j for j, (message_id, _) in enumerate(thread)}
+        anchors = [position.get(id) if id is not None else None for id in unique]
+
+        def matches(i: int, j: int) -> bool:
+            return (
+                i < len(messages)
+                and 0 <= j < len(thread)
+                and anchors[i] in (None, j)
+                and self._strength(keys[i], thread[j][0]) > 0
             )
 
-        if (
-            tracked
-            and len(messages) >= len(tracked)
-            and all(strength(i, i) for i in range(len(tracked)))
-        ):
-            return {i: tracked[i][0] for i in range(len(tracked))}
-
-        def run(i: int, j: int) -> int:
-            length = 0
-            while (
-                i + length < len(messages)
-                and j + length < len(tracked)
-                and strength(i + length, j + length)
-            ):
-                length += 1
-            return length
-
-        def rank(i: int, j: int, length: int) -> tuple[int, bool, int, int]:
-            ends = j + length == len(tracked)
-            return (len(messages) - i if ends else length, ends, length, j)
-
-        aligned: dict[int, str] = {}
-        i, next_j = 0, 0
-        last: tuple[int, int] | None = None
-        while i < len(messages):
-            diagonal = next_j + (i - last[0]) if last is not None else i
-            candidates = {
-                j
-                for key in keys[i]
-                for j in positions.get(key, [])[-_MAX_ALIGN_CANDIDATES:]
-                if j >= next_j
-            }
-            if diagonal < len(tracked) and strength(i, diagonal):
-                candidates.add(diagonal)
-            if not candidates:
-                i += 1
+        aligned: dict[int, int] = {}
+        runs: list[tuple[int, int, int]] = []
+        # request index of the last accepted anchor, and the end of its run
+        last = -1
+        end_i, end_j = 0, 0
+        for i, j in enumerate(anchors):
+            if j is None or i < end_i or j < end_j:
                 continue
-            strengths = {j: strength(i, j) for j in candidates}
-            strongest = max(strengths.values())
-            runs = {j: run(i, j) for j in candidates if strengths[j] == strongest}
-            j = max(runs, key=lambda j: rank(i, j, runs[j]))
-            if last is not None and i - last[0] == j - last[1]:
-                for offset in range(i - last[0]):
-                    gap_id, gap_role = tracked[last[1] + offset]
-                    if messages[last[0] + offset].role == gap_role:
-                        aligned[last[0] + offset] = gap_id
-            length = runs[j]
-            for offset in range(length):
-                aligned[i + offset] = tracked[j + offset][0]
-            i, next_j = i + length, j + length
-            last = (i, next_j)
-        return aligned
+            offset = j - i
+            start = i
+            while start > end_i and start - 1 + offset >= end_j:
+                if not matches(start - 1, start - 1 + offset):
+                    break
+                start -= 1
+            contested = start
+            while contested - 1 > last and matches(
+                contested - 1, contested - 1 + offset
+            ):
+                contested -= 1
+            for k in range(contested, start):
+                aligned.pop(k, None)
+            stop = i
+            while matches(stop, stop + offset):
+                stop += 1
+            for k in range(start, stop):
+                aligned[k] = k + offset
+            runs.append((start, stop, offset))
+            last, end_i, end_j = i, stop, stop + offset
+        for (_, stop, offset), following in zip(runs, [*runs[1:], None]):
+            if following is not None:
+                if following[2] != offset:
+                    continue
+                gap_end = following[0]
+            else:
+                gap_end = max(
+                    (
+                        k + 1
+                        for k in range(stop, min(len(messages), len(thread) - offset))
+                        if matches(k, k + offset)
+                    ),
+                    default=stop,
+                )
+            for k in range(stop, gap_end):
+                if (
+                    anchors[k] in (None, k + offset)
+                    and messages[k].role == thread[k + offset][1]
+                ):
+                    aligned[k] = k + offset
+        return {i: thread[j][0] for i, j in aligned.items()}
 
     def _record_message_id(self, keys: list[str], message_id: str) -> None:
         # `_keys_by_id` mirrors `_message_ids`, so membership is a set lookup
@@ -1266,6 +1358,9 @@ class AgentBridge:
                 )
 
         messages = input + [output.message]
+        self._recent_threads.append(
+            [(m.id, m.role) for m in messages if m.id is not None]
+        )
         fps = [_message_fingerprint(m) for m in messages]
 
         if self._tracked_fps is None:
@@ -1417,9 +1512,6 @@ def _message_id_keys(message: ChatMessage) -> list[str]:
         keys.append(f"result:{message.tool_call_id}")
     keys.append(_loose_message_key(message, message.text))
     return keys
-
-
-_MAX_ALIGN_CANDIDATES = 8
 
 
 def _key_strength(key: str) -> int:

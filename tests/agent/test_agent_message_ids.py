@@ -716,7 +716,8 @@ class _TextConversation:
 
 
 @pytest.mark.parametrize(
-    "case", ["compacted", "full_history", "distinct_replies", "single_tail"]
+    "case",
+    ["compacted", "full_history", "distinct_replies", "single_tail", "same_reply_next"],
 )
 @pytest.mark.parametrize("dialect", DIALECTS)
 def test_compacted_identical_replies_keep_their_own_ids(
@@ -725,9 +726,11 @@ def test_compacted_identical_replies_keep_their_own_ids(
     """Identical replies retained by compaction keep their own ids, in order.
 
     Two `OK` replies follow different user messages. Compaction replaces the
-    prompt with a summary and keeps both exchanges (or only the latest reply,
-    followed by a message equal to the earlier exchange's), and a further call
-    makes the compacted thread the bridge's conversation.
+    prompt with a summary and keeps both exchanges, placed by the user message
+    between them, and a further call makes the compacted thread the bridge's
+    conversation. Keeping only the latest reply leaves nothing to tell it from
+    the earlier one: it gets a new id, which it keeps. A reply generated after
+    that compaction keeps its own id even when it is `OK` too.
     """
 
     @agent
@@ -746,6 +749,8 @@ def test_compacted_identical_replies_keep_their_own_ids(
                 elif case == "single_tail":
                     conversation.turns = [summary, conversation.turns[-1]]
                     follow_up = "Say it again."
+                elif case == "same_reply_next":
+                    conversation.turns = [summary, conversation.turns[-1]]
                 for text in (follow_up, "Thanks."):
                     conversation.user(text)
                     await conversation.generate()
@@ -753,7 +758,12 @@ def test_compacted_identical_replies_keep_their_own_ids(
 
         return execute
 
-    replies = ["OK", "Fine" if case == "distinct_replies" else "OK", "Done", "Bye"]
+    replies = [
+        "OK",
+        "Fine" if case == "distinct_replies" else "OK",
+        "OK" if case == "same_reply_next" else "Done",
+        "Bye",
+    ]
     log = eval(
         Task(dataset=[Sample(input="Say OK.")], solver=scaffold()),
         model=get_model(
@@ -771,12 +781,199 @@ def test_compacted_identical_replies_keep_their_own_ids(
     events = [e for e in sample.events if isinstance(e, ModelEvent)]
     reply_ids = [event.output.message.id for event in events]
     assert None not in reply_ids and len(set(reply_ids)) == 4
-    retained = reply_ids[1:2] if case == "single_tail" else reply_ids[:2]
-    assert [m.id for m in events[2].input if m.role == "assistant"] == retained
+    compacted = [m.id for m in events[2].input if m.role == "assistant"]
+    if case in ("single_tail", "same_reply_next"):
+        assert len(compacted) == 1 and compacted[0] not in reply_ids
+        assert [m.id for m in events[3].input if m.role == "assistant"] == [
+            *compacted,
+            reply_ids[2],
+        ]
+        retained = compacted
+    else:
+        retained = reply_ids[:2]
+        assert compacted == retained
     assert [m.id for m in sample.messages if m.role == "assistant"] == [
         *retained,
         *reply_ids[2:],
     ]
+
+
+def _reply_events(
+    scaffold: Callable[[], Agent], replies: list[str], tmp_path: Path
+) -> tuple[list[ModelEvent], EvalSample]:
+    log = eval(
+        Task(dataset=[Sample(input="Start.")], solver=scaffold()),
+        model=get_model(
+            "mockllm/model",
+            custom_outputs=[
+                ModelOutput.from_content("mockllm/model", text) for text in replies
+            ],
+        ),
+        log_dir=str(tmp_path),
+    )[0]
+    assert log.status == "success", log.error
+    assert log.samples
+    sample = log.samples[0]
+    return [e for e in sample.events if isinstance(e, ModelEvent)], sample
+
+
+@pytest.mark.parametrize("users", ["distinct", "identical"])
+@pytest.mark.parametrize("dialect", DIALECTS)
+def test_compacted_repeated_replies_never_take_another_replys_id(
+    dialect: Dialect, users: str, tmp_path: Path
+) -> None:
+    """Ten `OK` replies, compacted to the last nine, keep their ids or get new ones.
+
+    Distinct user messages between them place each retained reply; with
+    identical ones nothing does, so each gets a new id. None takes the dropped
+    reply's id or another reply's.
+    """
+
+    @agent
+    def scaffold() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            async with agent_bridge(state) as bridge:
+                conversation = _TextConversation(dialect)
+                for i in range(10):
+                    conversation.user(f"Step {i}." if users == "distinct" else "Next.")
+                    await conversation.generate()
+                summary = conversation.user_turn("Summary: earlier steps done.")
+                conversation.turns = [summary, *conversation.turns[3:]]
+                for text in ("Finish now.", "Thanks."):
+                    conversation.user(text)
+                    await conversation.generate()
+                return bridge.state
+
+        return execute
+
+    events, sample = _reply_events(scaffold, ["OK"] * 10 + ["Done", "Bye"], tmp_path)
+    reply_ids = [event.output.message.id for event in events]
+    compacted = [m.id for m in events[10].input if m.role == "assistant"]
+    if users == "distinct":
+        assert compacted == reply_ids[1:10]
+    else:
+        assert len(set(compacted)) == 9 and not set(compacted) & set(reply_ids)
+    assert [m.id for m in sample.messages if m.role == "assistant"] == [
+        *compacted,
+        *reply_ids[10:],
+    ]
+
+
+@pytest.mark.parametrize("dialect", DIALECTS)
+def test_repeated_compaction_never_revives_a_dropped_replys_id(
+    dialect: Dialect, tmp_path: Path
+) -> None:
+    """A reply kept by a second compaction, equal to the first compaction's dropped reply, never takes its id."""
+
+    @agent
+    def scaffold() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            async with agent_bridge(state) as bridge:
+                conversation = _TextConversation(dialect)
+                conversation.user("Say OK.")
+                await conversation.generate()
+                for summary in ("Summary one.", "Summary two."):
+                    conversation.turns = [
+                        conversation.user_turn(summary),
+                        conversation.turns[-1],
+                    ]
+                    conversation.user("Again.")
+                    await conversation.generate()
+                conversation.user("Thanks.")
+                await conversation.generate()
+                return bridge.state
+
+        return execute
+
+    events, sample = _reply_events(scaffold, ["OK", "OK", "Done", "Bye"], tmp_path)
+    reply_ids = [event.output.message.id for event in events]
+    [retained] = [m.id for m in events[2].input if m.role == "assistant"]
+    assert retained not in reply_ids
+    assert [m.id for m in sample.messages if m.role == "assistant"] == [
+        retained,
+        *reply_ids[2:],
+    ]
+
+
+def test_compacted_identical_google_calls_never_link_another_calls_result(
+    tmp_path: Path,
+) -> None:
+    """Ten equal Google calls with equal results, compacted to the last nine, link no wrong result.
+
+    Google re-derives equal call ids, so nothing places the retained calls:
+    they get new ids, and the latest call's host result stays unlinked.
+    """
+    host_events: list[ToolEvent] = []
+
+    @agent
+    def scaffold() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            from google.genai import types
+
+            async with agent_bridge(state) as bridge:
+                client = genai.Client(api_key="inspect")
+                config = types.GenerateContentConfig(
+                    automatic_function_calling=types.AutomaticFunctionCallingConfig(
+                        disable=True
+                    )
+                )
+                contents: list[dict[str, Any]] = [
+                    {"role": "user", "parts": [{"text": "Poll the job."}]}
+                ]
+                for _ in range(10):
+                    response = await client.aio.models.generate_content(
+                        model="inspect", contents=contents, config=config
+                    )
+                    host_events.extend(
+                        _awaiting(bridge, bridge.state.output.message, result="pending")
+                    )
+                    assert response.candidates and response.candidates[0].content
+                    reply = response.candidates[0].content.model_dump(
+                        exclude_none=True, by_alias=True
+                    )
+                    answer = {
+                        "role": "user",
+                        "parts": [
+                            {
+                                "functionResponse": {
+                                    "name": "echo",
+                                    "response": {"output": "pending"},
+                                }
+                            }
+                        ],
+                    }
+                    contents += [reply, answer]
+                summary = {"role": "user", "parts": [{"text": "Summary: pending."}]}
+                await client.aio.models.generate_content(
+                    model="inspect", contents=[summary, *contents[3:]], config=config
+                )
+                return bridge.state
+
+        return execute
+
+    log = eval(
+        Task(dataset=[Sample(input="Poll the job.")], solver=scaffold()),
+        model=get_model(
+            "mockllm/model",
+            custom_outputs=[
+                *[
+                    ModelOutput.for_tool_call("mockllm/model", "echo", {"text": "s"})
+                    for _ in range(10)
+                ],
+                ModelOutput.from_content("mockllm/model", "Done."),
+            ],
+        ),
+        log_dir=str(tmp_path),
+    )[0]
+
+    assert log.status == "success", log.error
+    assert log.samples
+    events = [e for e in log.samples[0].events if isinstance(e, ModelEvent)]
+    reply_ids = {event.output.message.id for event in events[:10]}
+    compacted = events[10].input
+    assert not {m.id for m in compacted if m.role == "assistant"} & reply_ids
+    assert host_events[-1].message_id is None
+    assert all(event.message_id is not None for event in host_events[:-1])
 
 
 def test_completions_non_primary_choice_keeps_generated_id(tmp_path: Path) -> None:
@@ -959,7 +1156,11 @@ def test_yaml_mixed_keys_are_accepted_by_message_identity(operation: str) -> Non
 async def test_compacted_history_keeps_the_ids_of_the_retained_messages(
     call_ids: tuple[str, str],
 ) -> None:
-    """After scaffold compaction the retained tail keeps its ids, by call id or by position."""
+    """After scaffold compaction the retained tail keeps its ids by call id.
+
+    Equal calls under one id leave nothing to tell the retained one from the
+    dropped one: it gets a new id.
+    """
     task = ChatMessageUser(content="List the files twice.")
     first, second = _call(call_ids[0]), _call(call_ids[1])
     result_1, result_2 = _result(call_ids[0]), _result(call_ids[1])
@@ -970,7 +1171,10 @@ async def test_compacted_history_keeps_the_ids_of_the_retained_messages(
 
     ids = await scaffold.request([summary, second, result_2])
 
-    assert ids[1] == second.id
+    if call_ids[0] != call_ids[1]:
+        assert ids[1] == second.id
+    else:
+        assert ids[1] not in (first.id, second.id)
 
 
 def _transported(reply: ChatMessageAssistant, call_id: str) -> ChatMessageAssistant:
@@ -982,9 +1186,17 @@ def _transported(reply: ChatMessageAssistant, call_id: str) -> ChatMessageAssist
     )
 
 
-async def test_compaction_after_re_derived_ids_keeps_the_latest_replys_id() -> None:
-    """A retained latest reply equal to an earlier one is the latest, once both came back transported."""
+@pytest.mark.parametrize("placed", [True, False])
+async def test_compaction_after_re_derived_ids_keeps_the_latest_replys_id(
+    placed: bool,
+) -> None:
+    """A retained latest reply equal to an earlier one, once both came back transported.
+
+    A retained message before it places it; without one it gets a new id and
+    its host result stays unlinked.
+    """
     task = ChatMessageUser(content="List the files twice.")
+    between = [ChatMessageUser(content="Once more.")] if placed else []
     first, second = _call("toolu_1"), _call("toolu_2")
     # Google derives the call id from the function and arguments, so both
     # replies come back with the same one
@@ -996,16 +1208,27 @@ async def test_compaction_after_re_derived_ids_keeps_the_latest_replys_id() -> N
     scaffold = _Scaffold(bridge)
     await scaffold.request([task], first)
     bridge._record_transported_reply(first, [first_back])
-    await scaffold.request([task, first_back, _result("call_bash_1", "OLD")], second)
+    await scaffold.request(
+        [task, first_back, _result("call_bash_1", "OLD"), *between], second
+    )
     bridge._record_transported_reply(second, [second_back])
     [event] = _awaiting(bridge, second)
     summary = ChatMessageUser(content="Summary: listed the files once.")
 
-    ids = await scaffold.request([summary, second_back, _result("call_bash_1", "NEW")])
+    ids = await scaffold.request(
+        [summary, *between, second_back, _result("call_bash_1", "NEW")]
+    )
 
-    assert second.id is not None
-    assert ids[1] == edited_id(second.id, scaffold.sent[1])
-    assert event.message_id == ids[2]
+    assert first.id is not None and second.id is not None
+    reply, result = ids[-2], ids[-1]
+    if placed:
+        assert reply == edited_id(second.id, scaffold.sent[-2])
+        assert event.message_id == result
+    else:
+        assert reply not in (
+            edited_id(id, scaffold.sent[-2]) for id in (first.id, second.id)
+        )
+        assert event.message_id is None
 
 
 @pytest.mark.parametrize(
@@ -1051,7 +1274,7 @@ async def test_non_content_fields_do_not_override_aligned_reply(field: str) -> N
 async def test_fresh_compacted_result_is_not_an_edit_of_earlier_answer(
     regenerated: bool,
 ) -> None:
-    """A later equal call receives its own result ID after compaction."""
+    """A later equal call, placed by a retained message, receives its own result ID after compaction."""
     task = ChatMessageUser(content="List the files twice.")
     first_id, second_id, returned_id = (
         ("toolu_1", "toolu_2", "call_bash_1")
@@ -1067,8 +1290,9 @@ async def test_fresh_compacted_result_is_not_an_edit_of_earlier_answer(
     if regenerated:
         bridge._record_transported_reply(first, [first_back])
     [first_event] = _awaiting(bridge, first)
+    between = ChatMessageUser(content="Once more.")
     first_ids = await scaffold.request(
-        [task, first_back, _result(returned_id, "OLD")], second
+        [task, first_back, _result(returned_id, "OLD"), between], second
     )
     assert first_event.message_id == first_ids[2]
     if regenerated:
@@ -1076,10 +1300,12 @@ async def test_fresh_compacted_result_is_not_an_edit_of_earlier_answer(
     [second_event] = _awaiting(bridge, second)
     summary = ChatMessageUser(content="Summary: listed once.")
 
-    ids = await scaffold.request([summary, second_back, _result(returned_id, "NEW")])
+    ids = await scaffold.request(
+        [summary, between, second_back, _result(returned_id, "NEW")]
+    )
 
-    assert ids[2] != first_ids[2]
-    assert second_event.message_id == ids[2]
+    assert ids[3] != first_ids[2]
+    assert second_event.message_id == ids[3]
 
 
 @pytest.mark.parametrize("copied", [False, True])
@@ -1087,7 +1313,10 @@ async def test_fresh_compacted_result_is_not_an_edit_of_earlier_answer(
 async def test_equal_compacted_result_is_fresh_unless_copied(
     regenerated: bool, copied: bool
 ) -> None:
-    """A later call's equal answer gets its own ID; a copy of the earlier answer keeps its ID."""
+    """A later call's equal answer gets its own ID; a copy of the earlier answer keeps its ID.
+
+    A retained message places the later call.
+    """
     task = ChatMessageUser(content="Read the file twice.")
     first_id, second_id, returned_id = (
         ("toolu_1", "toolu_2", "call_bash_1")
@@ -1103,8 +1332,9 @@ async def test_equal_compacted_result_is_fresh_unless_copied(
     if regenerated:
         bridge._record_transported_reply(first, [first_back])
     [first_event] = _awaiting(bridge, first, result="contents")
+    between = ChatMessageUser(content="Once more.")
     first_ids = await scaffold.request(
-        [task, first_back, _result(returned_id, "contents")], second
+        [task, first_back, _result(returned_id, "contents"), between], second
     )
     assert first_event.message_id == first_ids[2]
     if regenerated:
@@ -1115,16 +1345,16 @@ async def test_equal_compacted_result_is_fresh_unless_copied(
     summary = ChatMessageUser(content="Summary: read once.")
 
     ids = await scaffold.request(
-        [summary, second_back, _result(returned_id, "contents")]
+        [summary, between, second_back, _result(returned_id, "contents")]
     )
 
     assert first_event.message_id == first_ids[2]
     if copied:
-        assert ids[2] == first_ids[2]
+        assert ids[3] == first_ids[2]
         assert second_event.message_id is None
     else:
-        assert ids[2] != first_ids[2]
-        assert second_event.message_id == ids[2]
+        assert ids[3] != first_ids[2]
+        assert second_event.message_id == ids[3]
 
 
 @pytest.mark.parametrize("regenerated", [False, True])
@@ -1201,7 +1431,9 @@ async def _google_compacting() -> None:
     )
 
 
-def test_google_compaction_keeps_the_latest_replys_id(tmp_path: Path) -> None:
+def test_google_compaction_of_an_equal_call_gives_it_a_new_id(tmp_path: Path) -> None:
+    """Google re-derives equal call ids, so a retained call equal to a dropped one isn't placed."""
+
     @agent
     def compacting() -> Agent:
         async def execute(state: AgentState) -> AgentState:
@@ -1232,8 +1464,9 @@ def test_google_compaction_keeps_the_latest_replys_id(tmp_path: Path) -> None:
         e for e in log.samples[0].events if isinstance(e, ModelEvent)
     ]
     retained = compacted.input[1]
-    assert second.output.message.id not in (None, first.output.message.id)
-    assert retained.id == edited_id(second.output.message.id, retained)
+    generated = [first.output.message.id, second.output.message.id]
+    assert None not in generated and generated[0] != generated[1]
+    assert retained.id not in [edited_id(id, retained) for id in generated]
 
 
 @pytest.mark.parametrize(

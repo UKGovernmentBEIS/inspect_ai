@@ -6570,11 +6570,12 @@ def test_host_outcome_with_a_lone_surrogate_links_its_result(
 
 
 @agent
-def compacting_host_scaffold(dialect: HostDialect, copied: bool) -> Agent:
+def compacting_host_scaffold(dialect: HostDialect, copied: bool, placed: bool) -> Agent:
     """A scaffold reading a file in two turns as a host tool, compacting to the latest reply and result, then continuing.
 
     The tool returns the same text every time unless `copied`; then the
-    scaffold sends the first result again in place of the latest.
+    scaffold sends the first result again in place of the latest. With
+    `placed`, a user message asks for the second turn and compaction keeps it.
     """
 
     async def execute(state: AgentState) -> AgentState:
@@ -6593,7 +6594,11 @@ def compacting_host_scaffold(dialect: HostDialect, copied: bool) -> Agent:
         [info] = declare("mcp__host__read_file")
         conversation = _HostConversation(dialect, state.messages[0].text, info)
         sent: JsonValue = None
-        for _ in range(2):
+        kept = 0
+        for turn in range(2):
+            kept = len(conversation.history)
+            if turn and placed:
+                conversation.history.append(_user_turn(dialect, "Read it again."))
             calls = await conversation.request(bridge)
             outputs = [
                 await call_host_tool(bridge)("host", "read_file", arguments)
@@ -6604,7 +6609,7 @@ def compacting_host_scaffold(dialect: HostDialect, copied: bool) -> Agent:
         summary = "Summary: read a once."
         conversation.history = [
             _user_turn(dialect, summary),
-            *conversation.history[-2:],
+            *conversation.history[kept:],
         ]
         await conversation.request(bridge)
         conversation.history.append(_user_turn(dialect, "Thanks."))
@@ -6632,9 +6637,11 @@ def _user_turn(dialect: HostDialect, text: str) -> dict[str, Any]:
     ],
     ids=["equal result", "copied", "parallel then single", "earlier reply evicted"],
 )
+@pytest.mark.parametrize("placed", [True, False], ids=["placed", "unplaced"])
 @pytest.mark.parametrize("dialect", ["google", "completions", "responses", "anthropic"])
 def test_compacted_equal_host_result_links_to_its_own_message(
     dialect: HostDialect,
+    placed: bool,
     parallel: bool,
     copied: bool,
     evicted: bool,
@@ -6645,7 +6652,10 @@ def test_compacted_equal_host_result_links_to_its_own_message(
 
     With `parallel`, the first turn makes two identical calls (in Google they
     can't be told apart and stay unlinked). With `evicted`, the bridge no
-    longer tracks the first reply when the compacted result arrives.
+    longer tracks the first reply when the compacted result arrives. Unless
+    `placed` by a retained message, a latest reply equal to the first (the
+    provider reuses the call id) can't be told from it: it and its result
+    get new ids, and the result links nothing.
     """
     if evicted:
         monkeypatch.setattr(bridge_types, "_MAX_AWAITED_RESULTS", 1)
@@ -6658,7 +6668,7 @@ def test_compacted_equal_host_result_links_to_its_own_message(
     log = eval(
         Task(
             dataset=[Sample(input="Read a twice.")],
-            solver=compacting_host_scaffold(dialect, copied),
+            solver=compacting_host_scaffold(dialect, copied, placed),
         ),
         model=get_model(
             "mockllm/model",
@@ -6683,7 +6693,10 @@ def test_compacted_equal_host_result_links_to_its_own_message(
     assert next_result == latest_result
     events = [e for e in sample.events if isinstance(e, ToolEvent)]
     first_links = [None, None] if parallel and dialect == "google" else first_results
-    if copied:
+    if not placed and not parallel:
+        assert latest_result not in first_results
+        assert [e.message_id for e in events] == [*first_links, None]
+    elif copied:
         assert latest_result == first_results[0]
         assert [e.message_id for e in events] == [*first_links, None]
     else:
