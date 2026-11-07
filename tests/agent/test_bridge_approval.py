@@ -6582,8 +6582,8 @@ def compacting_host_scaffold(dialect: HostDialect, copied: bool, placed: bool) -
 
     The tool returns the same text every time unless `copied`; then the
     scaffold sends the first result again in place of the latest. With
-    `placed`, the scaffold sends the first result, then compacts before the
-    second turn, whose reply is then the latest generation's.
+    `placed`, the scaffold sends the first result, then compacts to the reply
+    to it before the second turn, whose reply is then the latest generation's.
     """
 
     async def execute(state: AgentState) -> AgentState:
@@ -6608,7 +6608,11 @@ def compacting_host_scaffold(dialect: HostDialect, copied: bool, placed: bool) -
             kept = len(conversation.history)
             if turn and placed:
                 await conversation.request(bridge)
-                conversation.history = [summary]
+                conversation.history = [
+                    summary,
+                    conversation.history[-1],
+                    _user_turn(dialect, "Read it again."),
+                ]
             calls = await conversation.request(bridge)
             outputs = [
                 await call_host_tool(bridge)("host", "read_file", arguments)
@@ -6660,9 +6664,10 @@ def test_compacted_equal_host_result_links_to_its_own_message(
     With `parallel`, the first turn makes two identical calls (in Google they
     can't be told apart and stay unlinked). With `evicted`, the bridge no
     longer tracks the first reply when the compacted result arrives. Unless
-    `placed` (generated after compaction), a latest reply equal to the first
-    (the provider reuses the call id) can't be told from it: it and its
-    result get new ids, and the result links nothing.
+    `placed` (generated after a compaction that kept a later reply, which the
+    first conversation can't hold before an equal call), a latest reply equal
+    to the first (the provider reuses the call id) can't be told from it: it
+    and its result get new ids, and the result links nothing.
     """
     if evicted:
         monkeypatch.setattr(bridge_types, "_MAX_AWAITED_RESULTS", 1)

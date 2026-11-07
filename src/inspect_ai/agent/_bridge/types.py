@@ -69,7 +69,7 @@ _MAX_REPLY_EDIT_VERSIONS = 16
 """Recent edited reply ids retained while their calls await results."""
 
 _MAX_RECENT_THREADS = 16
-"""Latest requests and generations a request or generation can be a branch of (see `_branches`)."""
+"""Recent requests and generations kept, each in place of the kept ones it extends, whose replies can contest a thread's placement (see `_contested`)."""
 
 
 class _HandedCall(NamedTuple):
@@ -354,15 +354,16 @@ class AgentBridge:
         self._tracked_ids: list[tuple[str, str]] = [
             (m.id, m.role) for m in restored_messages if m.id is not None
         ]
-        self._tracked_stale = False
         self._latest_generation: list[tuple[str, str]] = []
-        self._latest_generation_places = True
         self._latest_request: list[tuple[str, str]] = []
-        self._latest_request_places = True
-        self._recent_threads: deque[list[tuple[str, str]]] = deque(
-            maxlen=_MAX_RECENT_THREADS
-        )
-        self._outputs_since_request: list[str] = []
+        self._recent_threads: deque[list[tuple[str, str]]] = deque()
+        self._held: Counter[str] = Counter()
+        """Kept threads (the tracked thread and recent ones) holding each reply id."""
+        self._held_replies: dict[str, int] = {}
+        """Per reply id, the most replies a kept thread holding it had."""
+        self._dropped_reach: dict[str, int] = {}
+        """Per key, the most replies a dropped thread had that held a reply with the key no kept thread holds."""
+        self._keep(self._tracked_ids)
         self.filter = filter
         self.response_filter = response_filter
         self.retry_refusals = retry_refusals
@@ -390,7 +391,7 @@ class AgentBridge:
         self._candidate_fps: list[_MessageFingerprint] | None = None
         self._pending_operator = 0
         self._awaited_results: dict[str, dict[int, _AwaitedResult]] = {}
-        self._result_edit_parent: dict[str, str] = {}
+        self._edit_parent: dict[str, str] = {}
         self._answers: dict[str, _Answer] = {}
         self._reply_answers: OrderedDict[str, _ReplyAnswers] = OrderedDict()
         self._answer_records = 0
@@ -628,7 +629,7 @@ class AgentBridge:
             while message_id is not None:
                 if message_id in linked_ids:
                     return True
-                message_id = self._result_edit_parent.get(message_id)
+                message_id = self._edit_parent.get(message_id)
             return False
 
         for index, (message, reply_id) in enumerate(zip(messages, recognized)):
@@ -810,7 +811,9 @@ class AgentBridge:
         be told, and neither position nor neighbouring messages decide it.
 
         A tool message after a reply is an answer to that reply
-        (`_result_occurrence`). One seen before without an answer record (its
+        (`_result_occurrence`). One answering a reply given a new id for
+        repeated content gets a new id and no answer record, since which reply
+        it answers can't be told. One seen before without an answer record (its
         record was dropped, see `_record_answer`, or it first came after no
         reply) answered an unknown reply: it isn't recorded or linked.
         """
@@ -901,7 +904,7 @@ class AgentBridge:
             used.add(message.id)
             self._record_message_id(message_keys, message.id)
             if answered is not None:
-                if not known:
+                if not known and not preceding_reply_repeated:
                     if preceding_reply_ambiguous is None:
                         preceding_reply_ambiguous = (
                             preceding_reply_id is not None
@@ -928,14 +931,8 @@ class AgentBridge:
                 for call in message.tool_calls:
                     reply_calls.setdefault(call.id, []).append(call)
         request: list[tuple[str, str]] = [(m.id, m.role) for m in messages if m.id]
-        replies = [message_id for message_id, role in request if role == "assistant"]
-        self._latest_request_places = not any(
-            self._branches(keys, replies, thread)
-            for thread in (self._tracked_ids, *self._recent_threads)
-        )
         self._latest_request = request
-        self._recent_threads.append(request)
-        self._outputs_since_request = []
+        self._remember_thread(request)
         self._link_result_messages(messages, recognized, unattributed)
         # only after linking, so the request's ownership checks all see the
         # records it started with
@@ -1012,13 +1009,13 @@ class AgentBridge:
             if (identical or entry.handed.identical == 1) and is_handed(entry.handed)
         ]
 
-    def _result_root(self, message_id: str) -> str:
-        while message_id in self._result_edit_parent:
-            message_id = self._result_edit_parent[message_id]
+    def _edit_root(self, message_id: str) -> str:
+        while message_id in self._edit_parent:
+            message_id = self._edit_parent[message_id]
         return message_id
 
     def _answer_of(self, message_id: str) -> _Answer | None:
-        return self._answers.get(self._result_root(message_id))
+        return self._answers.get(self._edit_root(message_id))
 
     def _record_answer(
         self, message_id: str, answered: _AnsweredCall, ambiguous: bool = False
@@ -1106,8 +1103,7 @@ class AgentBridge:
         self._content_by_id.setdefault(edited_id, content)
         if isinstance(message, ChatMessageAssistant):
             copy_assistant_internal(message_id, edited_id)
-        elif isinstance(message, ChatMessageTool):
-            self._result_edit_parent[edited_id] = message_id
+        self._edit_parent[edited_id] = message_id
         return edited_id
 
     def _align_with_tracked(self, keys: list[list[str]]) -> dict[int, str]:
@@ -1115,51 +1111,128 @@ class AgentBridge:
 
         A request that starts with the whole tracked thread, the latest
         generation's thread (input and output) or the latest request (a retry)
-        continues it: the scaffold can't invent assistant messages. Older
+        may continue it: the scaffold can't invent assistant messages. Older
         threads don't count, since a request after drops can repeat one by
-        chance. A thread doesn't place messages when another reply could stand
-        in for one of its own:
-
-        - the tracked thread, once a generation it didn't adopt returned one
-          of its replies (a retry, rewind or side call);
-        - the latest request, if an output generated since matches one of its
-          last replies (a sliding window over repeated replies);
-        - the latest generation or request, if it is a branch of a known
-          thread (`_branches`).
-
-        Positions where two contained threads, placing or not, have different
-        ids are left unaligned.
+        chance. The longest such thread places the request's messages unless
+        another conversation could hold the request's replies with a different
+        reply in place of one of its own: one a kept thread holds
+        (`_contested`), or one whose threads are no longer kept
+        (`_dropped_holds`). That covers retries, rewinds, sliding windows and
+        side calls whose replies repeat the thread's.
         """
-        outputs = self._outputs_since_request
-        replies = [
-            i for i, (_, role) in enumerate(self._latest_request) if role == "assistant"
-        ]
-        retry = self._latest_request_places and not (
-            outputs
-            and any(
-                self._strength(keys[i], output)
-                for i in replies[-len(outputs) :]
-                if i < len(keys)
-                for output in outputs
-            )
-        )
-        at_position: dict[int, set[str]] = {}
-        placed = 0
-        for thread, places in (
-            (self._tracked_ids, not self._tracked_stale),
-            (self._latest_generation, self._latest_generation_places),
-            (self._latest_request, retry),
+        for thread in sorted(
+            (self._tracked_ids, self._latest_generation, self._latest_request),
+            key=len,
+            reverse=True,
         ):
-            if self._contains(keys, thread):
-                for i, (message_id, _) in enumerate(thread):
-                    at_position.setdefault(i, set()).add(message_id)
-                if places:
-                    placed = max(placed, len(thread))
-        return {
-            i: min(ids)
-            for i, ids in at_position.items()
-            if i < placed and len(ids) == 1
-        }
+            if (
+                self._contains(keys, thread)
+                and not self._contested(keys, thread)
+                and not self._dropped_holds(keys, thread)
+            ):
+                return {i: message_id for i, (message_id, _) in enumerate(thread)}
+        return {}
+
+    def _contested(
+        self, keys: list[list[str]], thread: Sequence[tuple[str, str]]
+    ) -> bool:
+        """Whether a kept thread could hold the request's replies placed by `thread` with another reply in place of one of its own.
+
+        A request comes from a conversation holding its replies in order,
+        whatever compaction dropped around them. If the tracked thread or a
+        recent request or generation holds the replies `thread` would place in
+        more than one way, or as different messages (edits aside), the request
+        may continue that conversation instead.
+        """
+        replies = [
+            (keys[i], message_id)
+            for i, (message_id, role) in enumerate(thread)
+            if role == "assistant"
+        ]
+        roots = [self._edit_root(message_id) for _, message_id in replies]
+        for other in (self._tracked_ids, *self._recent_threads):
+            if other is thread:
+                continue
+            other_ids = [
+                message_id for message_id, role in other if role == "assistant"
+            ]
+            if len(other_ids) < len(replies):
+                continue
+            first = self._embedding(replies, other_ids)
+            if first is not None and (
+                first != roots
+                or self._embedding(replies[::-1], other_ids[::-1]) != roots[::-1]
+            ):
+                return True
+        return False
+
+    def _remember_thread(self, thread: list[tuple[str, str]]) -> None:
+        """Keep `thread` for `_contested`, in place of the kept threads it extends.
+
+        A thread that starts with a kept one holds its replies in the same
+        order, so it contests whatever that one would.
+        """
+        self._keep(thread)
+        for kept in [
+            kept for kept in self._recent_threads if thread[: len(kept)] == kept
+        ]:
+            self._recent_threads.remove(kept)
+            self._drop(kept)
+        self._recent_threads.append(thread)
+        if len(self._recent_threads) > _MAX_RECENT_THREADS:
+            self._drop(self._recent_threads.popleft())
+
+    def _keep(self, thread: list[tuple[str, str]]) -> None:
+        replies = sum(role == "assistant" for _, role in thread)
+        for message_id, role in thread:
+            if role == "assistant":
+                self._held[message_id] += 1
+                self._held_replies[message_id] = max(
+                    self._held_replies.get(message_id, 0), replies
+                )
+
+    def _drop(self, thread: list[tuple[str, str]]) -> None:
+        for message_id, role in thread:
+            if role != "assistant":
+                continue
+            self._held[message_id] -= 1
+            if self._held[message_id]:
+                continue
+            del self._held[message_id]
+            for key in self._keys_by_id.get(message_id, ()):
+                self._dropped_reach[key] = max(
+                    self._dropped_reach.get(key, 0), self._held_replies[message_id]
+                )
+
+    def _dropped_holds(
+        self, keys: list[list[str]], thread: Sequence[tuple[str, str]]
+    ) -> bool:
+        """Whether a conversation whose threads are no longer kept may hold the replies `thread` would place.
+
+        It may if one of its threads held a reply equal to one of them, which
+        no kept thread holds, and at least as many replies.
+        """
+        replies = [i for i, (_, role) in enumerate(thread) if role == "assistant"]
+        return any(
+            self._dropped_reach.get(key, 0) >= len(replies)
+            for i in replies
+            for key in keys[i]
+        )
+
+    def _embedding(
+        self, replies: list[tuple[list[str], str]], ids: list[str]
+    ) -> list[str] | None:
+        """The edit roots of the earliest of `ids` holding `replies` in order, or `None` if they don't."""
+        remaining = iter(ids)
+        matched: list[str] = []
+        for message_keys, _ in replies:
+            match = next(
+                (id for id in remaining if self._strength(message_keys, id)), None
+            )
+            if match is None:
+                return None
+            matched.append(self._edit_root(match))
+        return matched
 
     def _contains(
         self, keys: list[list[str]], thread: Sequence[tuple[str, str]]
@@ -1280,11 +1353,8 @@ class AgentBridge:
         generation: list[tuple[str, str]] = [
             (m.id, m.role) for m in messages if m.id is not None
         ]
-        known = [self._tracked_ids, *self._recent_threads]
         self._latest_generation = generation
-        self._recent_threads.append(generation)
-        if output.message.id is not None:
-            self._outputs_since_request.append(output.message.id)
+        self._remember_thread(generation)
         fps = [_message_fingerprint(m) for m in messages]
 
         if self._tracked_fps is None:
@@ -1329,21 +1399,6 @@ class AgentBridge:
                 self._candidate_fps = fps
 
         self._last_message_count = len(messages)
-        output_id = output.message.id or ""
-        longer = [thread for thread in known if len(thread) >= len(generation)]
-        if longer:
-            input_keys = [_message_id_keys(m) for m in input if m.id is not None]
-            longer = [
-                thread
-                for thread in longer
-                if self._branches(input_keys, [output_id], thread)
-            ]
-        self._latest_generation_places = not longer
-        adopted = self._tracked_ids == generation
-        if (adopted and longer) or (
-            not adopted and self._repeats_reply(output_id, self._tracked_ids)
-        ):
-            self._tracked_stale = True
 
         # tick the checkpointer
         await self._cp.tick()
@@ -1363,47 +1418,16 @@ class AgentBridge:
         """
         self.state.messages = messages
         self.state.output = output
-        self._tracked_ids = [(m.id, m.role) for m in messages if m.id is not None]
+        tracked: list[tuple[str, str]] = [
+            (m.id, m.role) for m in messages if m.id is not None
+        ]
+        self._keep(tracked)
+        self._drop(self._tracked_ids)
+        self._tracked_ids = tracked
         self._tracked_fps = fps
         self._tracked_calls = calls
         self._tracked_descends = self._descends_from_initial(messages, fps)
         self._candidate_fps = None
-        self._tracked_stale = False
-
-    def _repeats_reply(
-        self, output_id: str | None, thread: Sequence[tuple[str, str]]
-    ) -> bool:
-        keys = self._keys_by_id.get(output_id or "", set())
-        return any(
-            keys & self._keys_by_id.get(message_id, set())
-            for message_id, role in thread
-            if role == "assistant"
-        )
-
-    def _branches(
-        self,
-        keys: list[list[str]],
-        reply_ids: list[str],
-        thread: Sequence[tuple[str, str]],
-    ) -> bool:
-        """Whether a request or generation is a branch of `thread` that can't be told from it.
-
-        `thread` starts with the request (a generation's input) by content and
-        goes on to a reply equal to one of `reply_ids` (a generation's output,
-        or a request's replies): a later request holding the branch whole may
-        continue `thread` instead, with that reply in place of the branch's (a
-        retry, a rewind, or a side call on the conversation's prefix).
-        """
-        if len(thread) <= len(keys) or not all(
-            self._strength(message_keys, thread[i][0])
-            for i, message_keys in enumerate(keys)
-        ):
-            return False
-        later: set[str] = set()
-        for message_id, role in thread[len(keys) :]:
-            if role == "assistant":
-                later |= self._keys_by_id.get(message_id, set())
-        return any(later & self._keys_by_id.get(id, set()) for id in reply_ids)
 
     def _descends_from_initial(
         self, messages: list[ChatMessage], fps: list["_MessageFingerprint"]
