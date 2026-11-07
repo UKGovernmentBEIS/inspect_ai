@@ -477,6 +477,14 @@ def _parse_chinese_number(s: str) -> Optional[float]:
 
 
 def _parse_chinese_integer_with_units(s: str) -> Optional[int]:
+    """Parse an integer written with Chinese place-value units.
+
+    A unit flushes the pending number, so digits on either side of one are
+    separate runs: `1万2千` is 12000. Digits outside the Chinese digit set are
+    read positionally as a run (`12万` is 120000), matching how the
+    digits-only path joins its digits. Mixing Chinese digit characters with
+    positional digits in one run is not supported.
+    """
     total = 0
     section = 0
     number = 0
@@ -513,7 +521,8 @@ def _parse_chinese_integer_with_units(s: str) -> Optional[int]:
 
         d = _char_to_ascii_digit(ch)
         if d is not None:
-            number = int(d)
+            # Non-Chinese digits form a run: 12万 is 12×10⁴, not 2×10⁴.
+            number = number * 10 + int(d)
             continue
 
         if ch in _CH_SMALL_UNITS:
