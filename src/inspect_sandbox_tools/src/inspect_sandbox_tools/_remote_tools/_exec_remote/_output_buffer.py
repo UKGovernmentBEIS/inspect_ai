@@ -24,6 +24,10 @@ class BoundedByteBuffer:
         self._has_space = asyncio.Event()
         self._has_space.set()
 
+    def __len__(self) -> int:
+        """Return the number of buffered bytes."""
+        return len(self._buf)
+
     async def put(self, data: bytes) -> None:
         """Append data, awaiting if the buffer is full."""
         if not data:
