@@ -2,8 +2,10 @@ import json
 from io import TextIOWrapper
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 import jsonlines
+from fsspec.core import split_protocol  # type: ignore
 
 from inspect_ai._util.asyncfiles import is_s3_filename
 from inspect_ai._util.file import absolute_file_path, file
@@ -74,10 +76,13 @@ def json_dataset(
     # resolve data_to_sample function
     data_to_sample = record_to_sample_fn(sample_fields)
 
-    # pick the right reader for the file extension
+    # take the extension from the URL's path so a query string or fragment
+    # cannot hide it; a local path is used as given
+    protocol, _ = split_protocol(json_file)
+    json_path = urlparse(json_file).path if protocol else json_file
     dataset_reader = (
         jsonlines_dataset_reader
-        if json_file.lower().endswith(".jsonl")
+        if json_path.lower().endswith(".jsonl")
         else json_dataset_reader
     )
 
