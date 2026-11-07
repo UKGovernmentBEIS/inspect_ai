@@ -5,6 +5,7 @@ import signal
 import tempfile
 import threading
 import time
+import traceback
 from collections.abc import Awaitable, Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -1452,8 +1453,16 @@ def _on_log_finalized(
         await action(eval_id)
 
     if where == "task_end_hook":
+        from inspect_ai.hooks import _hooks
 
-        async def emit_task_end(logger: TaskLogger, log: EvalLog) -> None:
+        original_emit_task_end = _hooks.emit_task_end
+
+        async def emit_task_end(
+            logger: TaskLogger, log: EvalLog, pending: list[Any], *, raise_limits: bool
+        ) -> None:
+            await original_emit_task_end(
+                logger, log, pending, raise_limits=raise_limits
+            )
             if log.eval.task == "a" and not fired:
                 await fire(log.eval.eval_id)
 
@@ -2035,15 +2044,20 @@ async def test_cancel_after_task_finished_does_not_rerun_it(
 
 
 @pytest.mark.anyio
-async def test_task_complete_error_ends_run_and_keeps_task_log(
-    tmp_path: Path,
+@pytest.mark.parametrize("debug_errors", [False, True])
+async def test_task_complete_error_keeps_task_log(
+    tmp_path: Path, debug_errors: bool, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """An exception from `task_complete` ends the run and names `task_complete`.
+    """An exception from `task_complete` is logged, and the task keeps its log.
 
     It is not reported as a failure of the task's log write: the task's
-    success log stays as written and the task is not retried.
+    success log stays as written, is returned, and the task is not retried.
+    With `debug_errors` the exception ends the run, naming `task_complete`.
+    The logged error keeps the callback's traceback.
     """
     from inspect_ai import eval_async
+
+    caplog.set_level("ERROR", logger="inspect_ai._eval.task.run")
 
     class _RaisingSource(TaskSource):
         def initial_tasks(self) -> list[Task]:
@@ -2053,14 +2067,32 @@ async def test_task_complete_error_ends_run_and_keeps_task_log(
             raise RuntimeError("task_complete failed")
 
     runs: list[str] = []
-    with pytest.raises(RuntimeError, match="task_complete failed") as raised:
-        await eval_async(
-            _RaisingSource(),
-            model="mockllm/model",
-            log_dir=str(tmp_path),
-            task_retry_attempts=1,
+    kwargs: dict[str, Any] = dict(
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        task_retry_attempts=1,
+        debug_errors=debug_errors,
+    )
+    if debug_errors:
+        with pytest.raises(RuntimeError, match="task_complete failed") as raised:
+            await eval_async(_RaisingSource(), **kwargs)
+        assert "TaskSource.task_complete() for task 'a'" in "".join(
+            raised.value.__notes__
+        )
+    else:
+        logs = await eval_async(_RaisingSource(), **kwargs)
+        assert [log.status for log in logs] == ["success"]
+        assert logs[0].error is None
+        (record,) = [
+            r for r in caplog.records if "task_complete() raised" in r.getMessage()
+        ]
+        assert record.exc_info is not None
+        assert record.exc_info[1] is not None
+        assert str(record.exc_info[1]) == "task_complete failed"
+        assert any(
+            frame.name == "task_complete"
+            for frame in traceback.extract_tb(record.exc_info[2])
         )
 
-    assert "TaskSource.task_complete() for task 'a'" in "".join(raised.value.__notes__)
     assert runs == ["a"]
     assert await _disk_statuses(tmp_path) == [("a", "success")]

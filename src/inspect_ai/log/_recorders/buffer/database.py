@@ -300,10 +300,9 @@ class SampleBufferDatabase(SampleBuffer):
         db_dir = resolve_db_dir(db_dir)
         log_subdir = db_dir / dir
 
-        # if we are creating then create dirs, use filename w/pid,
-        # and create the database as required
+        # if we are creating then use filename w/pid, and create the
+        # database (and its dirs) as required
         if create:
-            log_subdir.mkdir(parents=True, exist_ok=True)
             self.db_path = log_subdir / f"{file}.{os.getpid()}.db"
 
             # initialize the database schema
@@ -1310,6 +1309,13 @@ class SampleBufferDatabase(SampleBuffer):
                 )
                 if retryable and attempt < max_retries - 1:
                     time.sleep(retry_delay * (2**attempt))
+                    continue
+                raise
+            except FileExistsError:
+                # mkdir(exist_ok=True) raises this when a sibling rmdir's the
+                # directory between mkdir's EEXIST and its is_dir() check;
+                # the next mkdir re-creates it, so retry without backoff
+                if attempt < max_retries - 1:
                     continue
                 raise
             except BaseException:
