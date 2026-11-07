@@ -475,6 +475,8 @@ Reading, viewing, editing, recomputing and recovering a log do not import any fi
 
 If you trust a log, pass `trust_log=True` to `edit_score()`, `recompute_metrics()` or `recover_eval_log()` (`--trust-log` for `inspect log recover`). This imports the task file the log records for metrics that are not registered, and rebuilds metric options as recorded. It runs the task file's code, so use it only for logs you trust.
 
+Retrying a log (`inspect eval-retry`) and rescoring it (`inspect score`) are different: they run code and use settings named by the log. Only run them on logs you trust (see [Eval Retries](#eval-retries) and [Scoring Workflow](scoring-workflow.qmd)).
+
 ### Score Edit Events
 
 When you edit a score, a `ScoreEditEvent` is automatically added to the sample's event log. This provides a complete audit trail of all score modifications that can be viewed in the log viewer.
