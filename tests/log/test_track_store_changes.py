@@ -20,29 +20,33 @@ Store is used in practice) and assert that the emitted
 from __future__ import annotations
 
 import json
+import logging
 import math
 from contextlib import contextmanager
 from copy import deepcopy
 from typing import Any, Callable, ContextManager
 
+import anyio
 import pytest
 from pydantic import BaseModel, Field
 
 from inspect_ai._util.json import JsonChange
 from inspect_ai.agent._human.state import HumanAgentState, IntermediateScoring
-from inspect_ai.event import Event, StoreEvent
+from inspect_ai.event import Event, SpanEndEvent, StoreEvent
 from inspect_ai.log import EvalSample
 from inspect_ai.log._transcript import Transcript, init_transcript, track_store_changes
 from inspect_ai.model import ChatMessageAssistant, ChatMessageUser
 from inspect_ai.scorer import Score
-from inspect_ai.util import StoreModel
+from inspect_ai.util import StoreModel, current_span_id, span, subtask
 from inspect_ai.util._store import (
     Store,
     dict_jsonable,
     init_subtask_store,
+    store,
     store_changes,
     store_from_events,
     store_jsonable,
+    suspend_store_events,
 )
 
 NAN = float("nan")
@@ -402,3 +406,357 @@ def test_track_store_changes_nested_spans() -> None:
     opt_nested = _run_nested_spans(track_store_changes)
 
     assert baseline_nested == opt_nested
+
+
+# ---------------------------------------------------------------------------
+# Spans whose body raises
+# ---------------------------------------------------------------------------
+
+
+def _init_span_test() -> Transcript:
+    init_subtask_store(Store())
+    transcript = Transcript()
+    init_transcript(transcript)
+    return transcript
+
+
+def _assert_store_event_inside_span(
+    events: list[Event], span_id: str | None, changes: list[tuple[str, str, Any]]
+) -> None:
+    store_events = [e for e in events if isinstance(e, StoreEvent)]
+    assert len(store_events) == 1
+    assert store_events[0].span_id == span_id
+    assert [(c.op, c.path, c.value) for c in store_events[0].changes] == changes
+    end_index = next(
+        i
+        for i, e in enumerate(events)
+        if isinstance(e, SpanEndEvent) and e.id == span_id
+    )
+    assert events.index(store_events[0]) < end_index
+
+
+async def test_span_that_raises_logs_store_changes() -> None:
+    transcript = _init_span_test()
+    error = RuntimeError("boom")
+    span_id: str | None = None
+
+    with pytest.raises(RuntimeError) as raised:
+        async with span("failing"):
+            span_id = current_span_id()
+            store().set("key", "value")
+            raise error
+
+    assert raised.value is error
+    _assert_store_event_inside_span(
+        list(transcript.events), span_id, [("add", "/key", "value")]
+    )
+
+
+async def test_cancelled_span_logs_store_changes() -> None:
+    transcript = _init_span_test()
+    span_id: str | None = None
+
+    with anyio.CancelScope() as scope:
+        async with span("cancelled"):
+            span_id = current_span_id()
+            store().set("key", "value")
+            scope.cancel()
+            await anyio.sleep(10)
+
+    assert scope.cancelled_caught
+    _assert_store_event_inside_span(
+        list(transcript.events), span_id, [("add", "/key", "value")]
+    )
+
+
+async def test_span_that_raises_without_changes_logs_no_store_event() -> None:
+    transcript = _init_span_test()
+
+    with pytest.raises(RuntimeError):
+        async with span("failing"):
+            raise RuntimeError("boom")
+
+    assert not any(isinstance(e, StoreEvent) for e in transcript.events)
+    assert any(isinstance(e, SpanEndEvent) for e in transcript.events)
+
+
+async def test_span_store_diff_failure_does_not_mask_exception(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    transcript = _init_span_test()
+    error = RuntimeError("boom")
+
+    def failing_store_changes(*args: Any) -> None:
+        raise ValueError("diff failed")
+
+    monkeypatch.setattr(
+        "inspect_ai.log._transcript.store_changes", failing_store_changes
+    )
+
+    with pytest.raises(RuntimeError) as raised:
+        async with span("failing"):
+            store().set("key", "value")
+            raise error
+
+    assert raised.value is error
+    assert "diff failed" in caplog.text
+    assert not any(isinstance(e, StoreEvent) for e in transcript.events)
+    assert any(isinstance(e, SpanEndEvent) for e in transcript.events)
+
+
+class _CleanupInterrupt(BaseException):
+    pass
+
+
+class _FailingHandler(logging.Handler):
+    def __init__(self, error: BaseException) -> None:
+        super().__init__()
+        self.error = error
+        self.emits = 0
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.emits += 1
+        raise self.error
+
+
+@pytest.mark.parametrize(
+    "diff_error,handler_error",
+    [
+        (ValueError("diff failed"), ValueError("handler failed")),
+        (_CleanupInterrupt("diff failed"), None),
+        (ValueError("diff failed"), _CleanupInterrupt("handler failed")),
+    ],
+    ids=["handler", "diff-base-exception", "handler-base-exception"],
+)
+@pytest.mark.parametrize("exit", ["raise", "cancel"])
+async def test_span_cleanup_failure_does_not_mask_exception(
+    exit: str,
+    diff_error: BaseException,
+    handler_error: BaseException | None,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    transcript = _init_span_test()
+    error = RuntimeError("boom")
+    diff_calls = 0
+
+    def failing_store_changes(*args: Any) -> None:
+        nonlocal diff_calls
+        diff_calls += 1
+        raise diff_error
+
+    monkeypatch.setattr(
+        "inspect_ai.log._transcript.store_changes", failing_store_changes
+    )
+    logger = logging.getLogger("inspect_ai.log._transcript")
+    handler = _FailingHandler(handler_error) if handler_error else None
+    if handler is not None:
+        logger.addHandler(handler)
+    try:
+        if exit == "raise":
+            with pytest.raises(RuntimeError) as raised:
+                async with span("failing"):
+                    store().set("key", "value")
+                    raise error
+            assert raised.value is error
+        else:
+            with anyio.CancelScope() as scope:
+                async with span("cancelled"):
+                    store().set("key", "value")
+                    scope.cancel()
+                    await anyio.sleep(10)
+            assert scope.cancelled_caught
+    finally:
+        if handler is not None:
+            logger.removeHandler(handler)
+
+    assert diff_calls == 1
+    if handler is not None:
+        assert handler.emits == 1
+    else:
+        assert "Unable to log store changes for span" in caplog.text
+    assert any(isinstance(e, SpanEndEvent) for e in transcript.events)
+
+
+@pytest.mark.parametrize("interrupt", [KeyboardInterrupt, SystemExit])
+@pytest.mark.parametrize("stage", ["diff", "handler"])
+def test_store_changes_interrupt_during_cleanup_propagates(
+    stage: str,
+    interrupt: type[BaseException],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # synchronous: a KeyboardInterrupt escaping an event loop task would
+    # stop the test run rather than reach pytest.raises
+    _init_span_test()
+    error = RuntimeError("boom")
+    raised_interrupt = interrupt()
+
+    def failing_store_changes(*args: Any) -> None:
+        raise raised_interrupt if stage == "diff" else ValueError("diff failed")
+
+    monkeypatch.setattr(
+        "inspect_ai.log._transcript.store_changes", failing_store_changes
+    )
+    logger = logging.getLogger("inspect_ai.log._transcript")
+    handler = _FailingHandler(raised_interrupt) if stage == "handler" else None
+    if handler is not None:
+        logger.addHandler(handler)
+    try:
+        with pytest.raises(interrupt) as raised:
+            with track_store_changes():
+                store().set("key", "value")
+                raise error
+    finally:
+        if handler is not None:
+            logger.removeHandler(handler)
+
+    assert raised.value is raised_interrupt
+    if handler is not None:
+        assert handler.emits == 1
+
+
+async def test_span_finalized_in_another_context_logs_no_store_event() -> None:
+    _init_span_test()
+    span_cm = span("abandoned")
+    await span_cm.__aenter__()
+    store().set("key", "value")
+
+    # an abandoned span generator finalized where another store and
+    # transcript are current
+    other = _init_span_test()
+    store().set("other", "value")
+    await span_cm.gen.aclose()
+
+    assert not any(isinstance(e, StoreEvent) for e in other.events)
+
+
+# ---------------------------------------------------------------------------
+# suspend_store_events()
+# ---------------------------------------------------------------------------
+
+
+def _fresh_transcript() -> Transcript:
+    init_subtask_store(Store())
+    transcript = Transcript()
+    init_transcript(transcript)
+    return transcript
+
+
+def _store_events(transcript: Transcript) -> list[StoreEvent]:
+    return [e for e in transcript.events if isinstance(e, StoreEvent)]
+
+
+async def test_suspend_store_events_enclosing_span_records_net_change_once() -> None:
+    """Spans inside the switch log nothing; the enclosing span logs the net change."""
+    transcript = _fresh_transcript()
+
+    async def member(name: str) -> None:
+        async with span(name):
+            store().set(name, True)
+
+    async with span("team"):
+        team_id = current_span_id()
+        with suspend_store_events():
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(member, "a")
+                tg.start_soon(member, "b")
+
+    store_events = _store_events(transcript)
+    assert len(store_events) == 1
+    assert store_events[0].span_id == team_id
+    assert store_from_events(list(transcript.events))._data == {"a": True, "b": True}
+
+
+async def test_suspend_store_events_subtask_store_has_no_store_events() -> None:
+    """A subtask's own store logs nothing; the enclosing span logs only its store."""
+    transcript = _fresh_transcript()
+
+    @subtask("child")
+    async def child() -> None:
+        store().set("child", 1)
+
+    async with span("parent"):
+        parent_id = current_span_id()
+        with suspend_store_events():
+            store().set("parent", 1)
+            await child()
+
+    store_events = _store_events(transcript)
+    assert [[c.path for c in e.changes] for e in store_events] == [["/parent"]]
+    assert store_events[0].span_id == parent_id
+    assert store_from_events(list(transcript.events))._data == {"parent": 1}
+
+
+async def test_suspend_store_events_skips_store_snapshots(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Spans entered inside the switch never serialize the store."""
+    _fresh_transcript()
+    calls: list[None] = []
+
+    def counting_store_jsonable(s: Store) -> dict[str, Any]:
+        calls.append(None)
+        return store_jsonable(s)
+
+    monkeypatch.setattr(
+        "inspect_ai.log._transcript.store_jsonable", counting_store_jsonable
+    )
+
+    with suspend_store_events():
+        async with span("inner"):
+            store().set("key", 1)
+    assert calls == []
+
+    async with span("outer"):
+        pass
+    assert len(calls) == 2
+
+
+async def test_suspend_store_events_inherited_by_tasks_started_inside() -> None:
+    """Tasks started inside the switch inherit it; tasks started before do not."""
+    transcript = _fresh_transcript()
+    suspended = anyio.Event()
+
+    async def started_outside() -> None:
+        await suspended.wait()
+        async with span("outside"):
+            store().set("outside", 1)
+
+    async def started_inside() -> None:
+        async with span("inside"):
+            store().set("inside", 1)
+
+    async with anyio.create_task_group() as outer_tg:
+        outer_tg.start_soon(started_outside)
+        with suspend_store_events():
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(started_inside)
+            suspended.set()
+
+    store_events = _store_events(transcript)
+    assert [[c.path for c in e.changes] for e in store_events] == [["/outside"]]
+
+
+async def test_suspend_store_events_nesting_and_exit_restore_tracking() -> None:
+    """Exiting a nested switch keeps tracking off; exiting the outer one restores it."""
+    transcript = _fresh_transcript()
+
+    with suspend_store_events():
+        with suspend_store_events():
+            pass
+        async with span("still suspended"):
+            store().set("suspended", 1)
+    async with span("tracked"):
+        store().set("tracked", 1)
+
+    with pytest.raises(RuntimeError):
+        with suspend_store_events():
+            raise RuntimeError()
+    async with span("tracked after error"):
+        store().set("after_error", 1)
+
+    store_events = _store_events(transcript)
+    assert [[c.path for c in e.changes] for e in store_events] == [
+        ["/tracked"],
+        ["/after_error"],
+    ]

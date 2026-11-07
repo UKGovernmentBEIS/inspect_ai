@@ -129,7 +129,18 @@ async def generate_responses(
     model_family: str | None = None,
     streaming: bool = False,
     supports_explicit_prompt_cache: bool = False,
+    extra_body: dict[str, Any] | None = None,
+    process_response: Callable[[Response], Response] | None = None,
 ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
+    """Generate a model output through the Responses API.
+
+    `extra_body` adds fields to the request body as given, except those that
+    Inspect sets itself (see `_raw_extra_body()`). `process_response`
+    receives each successful response after it is recorded on the model call
+    and before it is converted to model output, so a compatible service can
+    consume output items or usage fields that the OpenAI conversion does not
+    understand.
+    """
     # background in extra_body should be applied
     if background is None and config.extra_body:
         background = config.extra_body.get("background", None)
@@ -230,6 +241,9 @@ async def generate_responses(
         # matches the wire request (batched and background requests can't stream)
         if streaming and not background and batcher is None:
             request["stream"] = True
+        raw_extra_body = _raw_extra_body(extra_body or {}, request)
+        if raw_extra_body:
+            request["extra_body"] = raw_extra_body
 
         model_call = set_active_model_event_call(
             request=request,
@@ -276,6 +290,8 @@ async def generate_responses(
                 model_response.model_dump(warnings=False),
                 http_hooks.end_request(request_id),
             )
+            if process_response is not None:
+                model_response = process_response(model_response)
 
             # parse out choices
             choices = openai_responses_chat_choices(model_name, model_response, tools)
@@ -474,6 +490,33 @@ async def wait_for_background_response(
 _GENERATE_CONFIG_REASONING_FIELDS = frozenset(
     ["effort", "mode", "summary", "generate_summary"]
 )
+
+
+# `config.extra_body` fields that the request reads, besides
+# `responses_extra_body_fields()`.
+_REQUEST_EXTRA_BODY_FIELDS = frozenset(["background", "reasoning"])
+
+
+def _raw_extra_body(
+    extra_body: dict[str, Any], request: dict[str, Any]
+) -> dict[str, Any]:
+    """Fields of `extra_body` to send as given.
+
+    The SDK merges `extra_body` over the request with its fields winning, so a
+    field the request already reads or sets (`reasoning`, `include`, `text`)
+    would replace Inspect's value. Those fields are left out, with a warning
+    for the ones Inspect sets from `GenerateConfig` or the input.
+    """
+    read = _REQUEST_EXTRA_BODY_FIELDS.union(responses_extra_body_fields())
+    built = {k for k, v in request.items() if not isinstance(v, NotGiven)}
+    built.add("stream")
+    ignored = sorted(k for k in extra_body if k in built and k not in read)
+    if ignored:
+        warn_once(
+            logger,
+            f"extra_body fields {ignored} are set by Inspect and are not sent as given.",
+        )
+    return {k: v for k, v in extra_body.items() if k not in read and k not in built}
 
 
 def completion_params_responses(

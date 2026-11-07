@@ -62,8 +62,8 @@ _TEMP_SUFFIX = ".writing"
 _TEMP_TRIES = 100
 
 
-def _create_local_tempfile(target_dir: str) -> tuple[int, str]:
-    """Create a unique temp file in ``target_dir`` with ``mode=0o666``.
+def _create_local_tempfile(target_dir: str, mode: int = 0o666) -> tuple[int, str]:
+    """Create a unique temp file in ``target_dir`` with ``mode`` (default ``0o666``).
 
     The kernel applies the current process umask atomically at creation
     (``mode & ~umask``), so the resulting permission bits match what
@@ -89,7 +89,7 @@ def _create_local_tempfile(target_dir: str) -> tuple[int, str]:
         name = f"{_TEMP_PREFIX}{secrets.token_urlsafe(8)}{_TEMP_SUFFIX}"
         temp_path = os.path.join(target_dir, name)
         try:
-            return os.open(temp_path, flags, 0o666), temp_path
+            return os.open(temp_path, flags, mode), temp_path
         except FileExistsError:
             continue
     raise OSError(f"Could not create unique temp file in {target_dir!r}")
@@ -99,6 +99,9 @@ def _create_local_tempfile(target_dir: str) -> tuple[int, str]:
 def atomic_write(
     target_path: str,
     fsync: bool = True,
+    *,
+    mode: int | None = None,
+    make_parents: bool = True,
 ) -> Iterator[BinaryIO]:
     """Context manager for atomic local-file writes with durability guarantees.
 
@@ -114,6 +117,10 @@ def atomic_write(
             :class:`~inspect_ai._util.asyncfiles.AsyncFilesystem` for
             remote writes.
         fsync: Whether to ``fsync()`` the temp file before renaming.
+        mode: Permission bits to create the file with (capped by the umask),
+            in place of the umask default or an existing target's mode.
+        make_parents: Whether to create missing parent directories. When
+            ``False``, a missing parent raises ``FileNotFoundError``.
 
     Yields:
         A binary file handle (opened ``"wb"``). Writes go to the temporary
@@ -172,7 +179,8 @@ def atomic_write(
 
     # Match fsspec's LocalFileSystem.open behaviour: auto-create missing
     # parent directories.
-    os.makedirs(target_dir, exist_ok=True)
+    if make_parents:
+        os.makedirs(target_dir, exist_ok=True)
 
     # Capture the existing target's mode before we create the temp file,
     # so we can restore it after the rename. For new targets the temp
@@ -180,15 +188,17 @@ def atomic_write(
     # is needed (matches what `open(..., "wb")` would have produced via
     # the previous fsspec local path). On Windows os.chmod only honours
     # the read-only bit, so this is harmless cross-platform.
-    try:
-        target_mode_existing: int | None = os.stat(target).st_mode & 0o777
-    except FileNotFoundError:
-        target_mode_existing = None
+    target_mode_existing: int | None = None
+    if mode is None:
+        try:
+            target_mode_existing = os.stat(target).st_mode & 0o777
+        except FileNotFoundError:
+            pass
 
-    # Create the temp file with mode=0o666 so the kernel applies the
-    # current process umask atomically at creation — no thread-unsafe
+    # Create the temp file with mode=0o666 (or ``mode``) so the kernel
+    # applies the current process umask atomically at creation — no thread-unsafe
     # `os.umask(0); os.umask(prev)` mutation.
-    fd, temp_path = _create_local_tempfile(target_dir)
+    fd, temp_path = _create_local_tempfile(target_dir, 0o666 if mode is None else mode)
 
     try:
         with os.fdopen(fd, "wb") as tmp_file:
@@ -236,6 +246,9 @@ def atomic_write_bytes(
     target_path: str,
     data: bytes,
     fsync: bool = True,
+    *,
+    mode: int | None = None,
+    make_parents: bool = True,
 ) -> None:
     """Atomically write bytes to a local file.
 
@@ -247,6 +260,8 @@ def atomic_write_bytes(
             ``ValueError`` (see :func:`atomic_write`).
         data: Bytes to write.
         fsync: Whether to ``fsync()`` before renaming.
+        mode: As for :func:`atomic_write`.
+        make_parents: As for :func:`atomic_write`.
 
     Raises:
         ValueError: If ``target_path`` does not resolve to a local
@@ -257,5 +272,7 @@ def atomic_write_bytes(
         atomic_write_bytes("logs/eval.json", json_bytes)
         ```
     """
-    with atomic_write(target_path, fsync=fsync) as f:
+    with atomic_write(
+        target_path, fsync=fsync, mode=mode, make_parents=make_parents
+    ) as f:
         f.write(data)

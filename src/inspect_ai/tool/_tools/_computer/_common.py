@@ -11,6 +11,7 @@ from inspect_ai.tool import ToolError, ToolResult
 from inspect_ai.tool._tool import ToolParsingError
 from inspect_ai.util._sandbox.context import sandbox_with
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
+from inspect_ai.util._sandbox.identity import check_sandbox_identity_supported
 
 
 class ToolExecResult(BaseModel):
@@ -353,6 +354,7 @@ def _normalize_key_text(text: str) -> str:
 async def computer_sandbox() -> SandboxEnvironment:
     sb = await sandbox_with("/opt/inspect/tool/computer_tool.py")
     if sb:
+        check_sandbox_identity_supported(sb, "computer")
         return sb
     else:
         raise PrerequisiteError(

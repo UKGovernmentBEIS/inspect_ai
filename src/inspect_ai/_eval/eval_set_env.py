@@ -68,6 +68,7 @@ from typing import Any, NamedTuple
 import click
 import yaml
 
+from inspect_ai._sentinel._config import SentinelConfig, sentinel_with_args
 from inspect_ai._util.constants import (
     ALL_LOG_LEVELS,
     DEFAULT_BATCH_SIZE,
@@ -413,7 +414,8 @@ here so that the exhaustiveness test still accounts for it, rather than the
 table quietly having a hole the shape of whatever is complicated.
 
 (`epochs` stays in the table: two further variables adjust its reducers, but
-`INSPECT_EVAL_EPOCHS` is the one that carries the value.)
+`INSPECT_EVAL_EPOCHS` is the one that carries the value. Likewise `sentinel`,
+which `INSPECT_EVAL_SENTINEL_ARGS` gives params.)
 """
 
 
@@ -445,6 +447,9 @@ seven into a seven-day `CachePolicy` and `"1x2"` into an `AdaptiveConcurrency`.
 Skipping the first was tried: `INSPECT_EVAL_CACHE=7` reached the second as the
 string `"7"`, which it read as the name of a policy file.
 """
+
+SENTINEL_ARGS = "INSPECT_EVAL_SENTINEL_ARGS"
+"""`key=value` arguments for a registered sentinel, as `--sentinel-arg` takes."""
 
 GENERATE_CONFIG = "INSPECT_EVAL_GENERATE_CONFIG"
 """A YAML or JSON file of generate-config values, as `--generate-config` takes."""
@@ -486,6 +491,8 @@ def resolve_eval_env(environ: Mapping[str, str]) -> EvalSetOverrides | None:
 
     if (epochs := _epochs(environ, values.pop("epochs", None))) is not None:
         values["epochs"] = epochs
+    if (sentinel := _sentinel(environ, values.pop("sentinel", None))) is not None:
+        values["sentinel"] = sentinel
     if (config := _generate_config(environ)) is not None:
         values["generate_config"] = config
 
@@ -544,6 +551,24 @@ def _epochs(
     if (found := _first(environ, ("INSPECT_EVAL_EPOCHS_REDUCER",))) is not None:
         return EvalSetOverridesEpochs(epochs=count, reducer=found[1].split(","))
     return count
+
+
+def _sentinel(
+    environ: Mapping[str, str], sentinel: str | None
+) -> str | SentinelConfig | None:
+    """A sentinel with its arguments, which the CLI assembles from two variables."""
+    found = _first(environ, (SENTINEL_ARGS,))
+    # click splits a `multiple` option's variable on whitespace
+    args = found[1].split() if found is not None else None
+    try:
+        return sentinel_with_args(
+            sentinel,
+            args,
+            sentinel_source=ENV_VARIABLES["sentinel"].names[0],
+            args_source=SENTINEL_ARGS,
+        )
+    except PrerequisiteError as ex:
+        raise PrerequisiteError(f"ERROR: {ex.message}") from None
 
 
 def _generate_config(environ: Mapping[str, str]) -> dict[str, Any] | None:

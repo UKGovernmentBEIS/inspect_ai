@@ -6,9 +6,10 @@ The read runners live in ``_sample_read``.
 from __future__ import annotations
 
 import json as json_lib
+import shlex
 import time
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any, NamedTuple, cast
+from typing import TYPE_CHECKING, Any, Literal, NamedTuple, cast
 
 import click
 
@@ -17,6 +18,7 @@ from inspect_ai._control.cancel import (
     SAMPLE_CANCEL_OUTCOME,
 )
 from inspect_ai._control.state import DEFAULT_SAMPLE_LIST_LIMIT, SAMPLE_STATUSES
+from inspect_ai._util.file import file, local_path
 
 # Patch seam: tests monkeypatch functions on their defining module
 # (e.g. `inspect_ai._cli.ctl._http._request_json`), so cross-module
@@ -24,7 +26,13 @@ from inspect_ai._control.state import DEFAULT_SAMPLE_LIST_LIMIT, SAMPLE_STATUSES
 # "simplify" to `from ._http import _request_json` (see
 # design/ctl/cli-refactor.md).
 from . import _http
-from ._failure import _CtlFailure, _envelope_failures, _fail, _structured_failures
+from ._failure import (
+    _CtlFailure,
+    _envelope_failures,
+    _exception_name,
+    _fail,
+    _structured_failures,
+)
 from ._fetch import _fetch_sample_summaries, _resolve_target_eval
 from ._group import (
     _MUTATION_ENVELOPE_HELP,
@@ -42,7 +50,13 @@ from ._group import (
 )
 from ._http import _failure_prefix
 from ._mutate import _CANCEL_ROUTE_MISSING, _mutation_envelope, _mutation_outcome
-from ._render import _echo, _echo_raw, _sanitize_line, _task_header
+from ._render import (
+    _echo,
+    _echo_raw,
+    _render_table,
+    _sanitize_line,
+    _task_header,
+)
 from ._sample_read import (
     _DEFAULT_EVENTS_TAIL,
     _DEFAULT_MESSAGES_TAIL,
@@ -675,6 +689,165 @@ def sample_cancel_tool_call_command(
     )
 
 
+@sample_group.group("agent")
+def sample_agent_group() -> None:
+    """List a sample's addressable agents and act on them.
+
+    Code running in a sample, such as a multi-agent framework, can make
+    named agents, and named groups of them, addressable here. `list` shows
+    them and the actions each takes now; `message`, `pause`, `resume` and
+    `stop` act on one agent (`--agent`) or a whole group (`--group`).
+
+    Each action is sent once and never retried, since a repeat could apply
+    it twice. If its response is lost, the outcome is reported as unknown:
+    check with `list` before sending it again.
+    """
+
+
+@sample_agent_group.command("list")
+@click.argument("task")
+@click.argument("sample_id")
+@click.argument("epoch", required=False, type=int, default=1)
+@_json_option("the `{task_id, task, sample_id, epoch, as_of, groups}` envelope")
+def sample_agent_list_command(
+    task: str, sample_id: str, epoch: int, as_json: bool
+) -> None:
+    """List a sample's addressable agents.
+
+    One row per agent: its group, name, state, status, activity, whether a
+    pause is in effect, and the actions it takes now. `--json` also gives,
+    for each action it does not take now, the reason. EPOCH defaults to 1.
+    """
+    _run_sample_agent_list(task, sample_id, epoch, as_json=as_json)
+
+
+@sample_agent_group.command("message")
+@click.argument("task")
+@click.argument("sample_id")
+@click.argument("epoch", required=False, type=int, default=None)
+@click.option(
+    "--agent", required=True, help="The agent to message (a name from `list`)."
+)
+@click.option("--text", default=None, help="The message text.")
+@click.option(
+    "--file",
+    "text_file",
+    metavar="PATH",
+    default=None,
+    help="Read the message text from a file or URL (`-` for stdin).",
+)
+@click.option(
+    "--interrupt",
+    is_flag=True,
+    default=False,
+    help=(
+        "Cancel the agent's current turn (its model call, tool calls and "
+        "subagents) so it takes the message now, not at its next turn."
+    ),
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    default=False,
+    help="Report what would happen without sending the message.",
+)
+@_json_option(_MUTATION_ENVELOPE_HELP)
+@_terse_option()
+def sample_agent_message_command(
+    task: str,
+    sample_id: str,
+    epoch: int | None,
+    agent: str,
+    text: str | None,
+    text_file: str | None,
+    interrupt: bool,
+    dry_run: bool,
+    as_json: bool,
+    terse: bool | None,
+) -> None:
+    """Send an operator message to one agent.
+
+    The agent takes it as a user message at its next turn. With
+    `--interrupt` its current turn is cancelled and it continues with the
+    message now. EPOCH defaults to 1 but is required whenever the task runs
+    more than one epoch.
+    """
+    if (text is None) == (text_file is None):
+        raise click.UsageError("Pass exactly one of --text and --file.")
+    _run_sample_agent_action(
+        task,
+        sample_id,
+        epoch,
+        action="message",
+        agent=agent,
+        group=None,
+        text=text,
+        text_file=text_file,
+        interrupt=interrupt,
+        dry_run=dry_run,
+        as_json=as_json,
+        terse=terse,
+    )
+
+
+def _add_agent_action_command(
+    action: Literal["pause", "resume", "stop"], summary: str
+) -> None:
+    """Add the `pause`, `resume` or `stop` verb, which share their options."""
+
+    @sample_agent_group.command(
+        action,
+        help=(
+            f"{summary}\n\nTarget one agent (`--agent`) or a whole group "
+            "(`--group`). EPOCH defaults to 1 but is required whenever the "
+            "task runs more than one epoch."
+        ),
+    )
+    @click.argument("task")
+    @click.argument("sample_id")
+    @click.argument("epoch", required=False, type=int, default=None)
+    @click.option("--agent", default=None, help="The agent (a name from `list`).")
+    @click.option("--group", default=None, help="The group (a name from `list`).")
+    @click.option(
+        "--dry-run",
+        is_flag=True,
+        default=False,
+        help=f"Report what the {action} would do without doing it.",
+    )
+    @_json_option(_MUTATION_ENVELOPE_HELP)
+    @_terse_option()
+    def command(
+        task: str,
+        sample_id: str,
+        epoch: int | None,
+        agent: str | None,
+        group: str | None,
+        dry_run: bool,
+        as_json: bool,
+        terse: bool | None,
+    ) -> None:
+        if (agent is None) == (group is None):
+            raise click.UsageError("Pass exactly one of --agent and --group.")
+        _run_sample_agent_action(
+            task,
+            sample_id,
+            epoch,
+            action=action,
+            agent=agent,
+            group=group,
+            text=None,
+            interrupt=False,
+            dry_run=dry_run,
+            as_json=as_json,
+            terse=terse,
+        )
+
+
+_add_agent_action_command("pause", "Pause one agent or a whole group.")
+_add_agent_action_command("resume", "Resume one agent or a whole group.")
+_add_agent_action_command("stop", "Stop one agent or a whole group.")
+
+
 @sample_group.command("requeue")
 @click.argument("task")
 @click.argument(
@@ -872,8 +1045,14 @@ def _run_sample_mutation(
     terse_changed: Callable[[dict[str, Any]], str],
     terse_noop: Callable[[dict[str, Any]], str],
     model: str | None = None,
+    route: str | None = None,
+    what: str | None = None,
+    json_body: dict[str, Any] | None = None,
+    retry_mutation: bool = True,
+    handler_not_found: bool = False,
+    unknown_outcome: Callable[[str, int], str] | None = None,
 ) -> None:
-    """Shared scaffold for the sample mutations (cancel, cancel-tool-call, requeue).
+    """Shared scaffold for the sample mutations (cancel, cancel-tool-call, requeue, agent).
 
     Fetches summaries, resolves the target eval, applies the required-EPOCH
     gate, posts ``/evals/{eval_id}/sample/{verb}``, and renders the uniform
@@ -885,6 +1064,16 @@ def _run_sample_mutation(
     server's response, the terse callbacks just the response (the scaffold
     prefixes the target itself, so every terse line names it — the full
     no-op messages don't have to).
+
+    ``route`` is the path segment after ``sample/`` when it differs from
+    ``verb``, and ``what`` replaces the default ``<verb> of sample <id>`` in
+    failure messages. ``json_body`` is sent as the request's body.
+    ``retry_mutation=False`` sends the request once, for a mutation that a
+    repeat could apply twice. ``handler_not_found`` shows a handler 404's own
+    error (which names what was missing) rather than "sample not found".
+    ``unknown_outcome`` builds, from the resolved task and epoch, what a
+    single-attempt mutation whose response was lost tells the operator to
+    check before sending again (see ``_request_json``).
     """
     resolved = _resolve_sample_target(
         task, epoch, verb_phrase=f"apply the {verb} to", as_json=as_json, model=model
@@ -902,16 +1091,26 @@ def _run_sample_mutation(
         params["dry_run"] = True
     result = _http._request_json(
         str(target["socket_path"]),
-        f"/evals/{target['eval_id']}/sample/{verb}",
+        f"/evals/{target['eval_id']}/sample/{route or verb}",
         params=params,
-        what=f"{verb} of sample {sample_id}",
+        json_body=json_body,
+        what=what or f"{verb} of sample {sample_id}",
         not_found=(
-            f"Sample '{sample_id}' (epoch {epoch}) not found in task "
-            f"'{target.get('task') or '?'}'."
+            None
+            if handler_not_found
+            else (
+                f"Sample '{sample_id}' (epoch {epoch}) not found in task "
+                f"'{target.get('task') or '?'}'."
+            )
         ),
         not_found_missing_route=route_missing,
         mutate="post",
-        retry_mutation=True,
+        retry_mutation=retry_mutation,
+        unknown_outcome=(
+            unknown_outcome(str(target.get("task_id") or task), epoch)
+            if unknown_outcome is not None
+            else None
+        ),
         pid=target.get("pid"),
     )
 
@@ -1113,6 +1312,186 @@ def _run_sample_cancel_tool_call(
         noop_message=noop_message,
         terse_changed=terse_changed,
         terse_noop=terse_noop,
+    )
+
+
+_AGENT_ROUTE_MISSING = (
+    "This process is running an older inspect without the `sample agent` "
+    "endpoints; restart the eval to pick up the current version."
+)
+
+
+@_envelope_failures
+def _run_sample_agent_list(
+    task: str, sample_id: str, epoch: int, *, as_json: bool
+) -> None:
+    fetched = _fetch_sample_summaries(task)
+    if not fetched.summaries:
+        if as_json:
+            empty_page: dict[str, Any] = {
+                "task_id": None,
+                "task": None,
+                "sample_id": sample_id,
+                "epoch": epoch,
+                "as_of": None,
+                "groups": [],
+            }
+            _echo_raw(json_lib.dumps(empty_page, indent=2))
+            return
+        _echo_no_running_evals()
+        return
+
+    target = _resolve_target_eval(fetched.summaries, task, busy_pids=fetched.busy_pids)
+    page = _http._request_json(
+        str(target["socket_path"]),
+        f"/evals/{target['eval_id']}/sample/agents",
+        params={"sample_id": sample_id, "epoch": epoch},
+        what=f"agents of sample {sample_id}",
+        not_found=None,
+        not_found_missing_route=_AGENT_ROUTE_MISSING,
+        pid=target.get("pid"),
+    )
+    page = {"task_id": target.get("task_id"), "task": target.get("task"), **page}
+    if as_json:
+        _echo_raw(json_lib.dumps(page, indent=2))
+        return
+
+    _echo(_task_header(target))
+    _echo()
+    label = _sanitize_line(
+        f"sample {page.get('sample_id', sample_id)} (epoch {page.get('epoch', epoch)})"
+    )
+    groups = page.get("groups") or []
+    if not groups:
+        _echo(f"No addressable agents in {label}.")
+        return
+    for group in groups:
+        state = str(group.get("state"))
+        if group.get("stop"):
+            state += f" ({group['stop']})"
+        if group.get("paused"):
+            state += ", paused"
+        _echo(_sanitize_line(f"Group {group.get('name')}: {state}"))
+    _echo()
+    rows: list[tuple[str, ...]] = []
+    for group in groups:
+        for agent in group.get("agents") or []:
+            actions = agent.get("actions") or {}
+            available = [name for name, reason in actions.items() if reason is None]
+            rows.append(
+                (
+                    str(group.get("name")),
+                    str(agent.get("name")),
+                    str(agent.get("state")),
+                    str(agent.get("status") or ""),
+                    str(agent.get("activity")),
+                    "yes" if agent.get("paused") else "no",
+                    ", ".join(available) or "none",
+                )
+            )
+    _render_table(
+        ("group", "agent", "state", "status", "activity", "paused", "actions"), rows
+    )
+
+
+def _read_message_file(path: str) -> str:
+    """Read `--file` as UTF-8 text: stdin for `-`, else a path or URL.
+
+    Any failure is reported as `invalid_request`, naming the path and the
+    original exception. The catch is broad on purpose: the read happens
+    before any request is sent, so nothing is half done, and the failure is
+    reported rather than swallowed. Opening and reading a path or URL can
+    fail in many ways (`OSError`, decoding, fsspec's `ValueError` for an
+    unknown protocol or a bucket-only S3 URL, botocore's credential and
+    endpoint errors), and listing them one by one misses some.
+    """
+    try:
+        if path == "-":
+            with click.open_file("-", encoding="utf-8") as stdin:
+                text: str = stdin.read()
+            return text
+        with file(local_path(path), "r", encoding="utf-8") as f:
+            return f.read()
+    except Exception as ex:
+        _fail(
+            "invalid_request",
+            f"Could not read --file {_sanitize_line(path)}: {ex}",
+            exception=_exception_name(ex),
+        )
+
+
+@_envelope_failures
+def _run_sample_agent_action(
+    task: str,
+    sample_id: str,
+    epoch: int | None,
+    *,
+    action: Literal["message", "pause", "resume", "stop"],
+    agent: str | None,
+    group: str | None,
+    text: str | None,
+    interrupt: bool,
+    dry_run: bool,
+    as_json: bool,
+    terse: bool | None = None,
+    text_file: str | None = None,
+) -> None:
+    if text_file is not None:
+        text = _read_message_file(text_file)
+    who = _sanitize_line(
+        f"agent '{agent}'" if agent is not None else f"group '{group}'"
+    )
+
+    def detail(result: dict[str, Any]) -> str:
+        return _sanitize_line(str(result.get("detail") or ""))
+
+    def changed_message(label: str, result: dict[str, Any]) -> str:
+        if dry_run:
+            return f"Would {action} {who} of {label} — {detail(result)}"
+        return f"{action.capitalize()} accepted for {who} of {label} — {detail(result)}"
+
+    def noop_message(label: str, result: dict[str, Any]) -> str:
+        return f"Nothing to do — {who} of {label}: {detail(result)}"
+
+    def terse_changed(result: dict[str, Any]) -> str:
+        status = "dry-run" if dry_run else "accepted"
+        return f"{status} — {who}: {detail(result)}"
+
+    def terse_noop(result: dict[str, Any]) -> str:
+        return f"no-op — {who}: {detail(result)}"
+
+    def unknown_outcome(task_id: str, resolved_epoch: int) -> str:
+        command = shlex.join(
+            ["inspect", "ctl", "sample", "agent", "list", task_id, sample_id]
+            + [str(resolved_epoch)]
+        )
+        return f"Check with `{command}` before sending it again."
+
+    extra_params: dict[str, Any] = (
+        {"agent": agent} if agent is not None else {"group": group}
+    )
+    if interrupt:
+        extra_params["interrupt"] = True
+    _run_sample_mutation(
+        task,
+        sample_id,
+        epoch,
+        verb=f"agent {action}",
+        route=f"agent/{action}",
+        what=f"{action} of {who} in sample {sample_id}",
+        extra_params=extra_params,
+        json_body={"text": text} if action == "message" else None,
+        route_missing=_AGENT_ROUTE_MISSING,
+        dry_run=dry_run,
+        as_json=as_json,
+        terse=terse,
+        changed_message=changed_message,
+        noop_message=noop_message,
+        terse_changed=terse_changed,
+        terse_noop=terse_noop,
+        retry_mutation=False,
+        handler_not_found=True,
+        unknown_outcome=unknown_outcome,
     )
 
 

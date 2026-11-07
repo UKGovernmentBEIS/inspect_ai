@@ -1,7 +1,7 @@
 import os
 from collections.abc import AsyncIterable
 from logging import getLogger
-from typing import Any, Literal, cast
+from typing import Any, Literal, NamedTuple, cast
 
 import httpx2
 from openai import (
@@ -13,7 +13,7 @@ from openai import (
     PermissionDeniedError,
     UnprocessableEntityError,
 )
-from openai._types import NOT_GIVEN
+from openai._types import NOT_GIVEN, NotGiven
 from openai.types.chat import (
     ChatCompletion,
     ChatCompletionChunk,
@@ -73,6 +73,13 @@ from .util import (
 )
 
 logger = getLogger(__name__)
+
+
+class PromptCacheParams(NamedTuple):
+    """`prompt_cache_key` and `prompt_cache_retention` for a Responses request."""
+
+    key: str | NotGiven
+    retention: str | NotGiven
 
 
 class OpenAICompatibleAPI(ModelAPI):
@@ -228,8 +235,7 @@ class OpenAICompatibleAPI(ModelAPI):
         tools, tool_choice, config = self.resolve_tools(tools, tool_choice, config)
 
         if self.uses_responses_api(tools, config):
-            # supports_explicit_prompt_cache intentionally left False: other
-            # OpenAI-compatible providers' support for these fields is unverified.
+            prompt_cache = self.prompt_cache_params(config)
             return await generate_responses(
                 client=self.client,
                 http_hooks=self._http_hooks,
@@ -241,8 +247,8 @@ class OpenAICompatibleAPI(ModelAPI):
                 config=config,
                 background=None,
                 service_tier=None,
-                prompt_cache_key=NOT_GIVEN,
-                prompt_cache_retention=NOT_GIVEN,
+                prompt_cache_key=prompt_cache.key,
+                prompt_cache_retention=prompt_cache.retention,
                 safety_identifier=NOT_GIVEN,
                 responses_store=self.responses_store,
                 synthesize_phase=self.responses_phase,
@@ -472,6 +478,16 @@ class OpenAICompatibleAPI(ModelAPI):
             params["max_completion_tokens"] = params.pop("max_tokens")
 
         return params
+
+    def prompt_cache_params(self, config: GenerateConfig) -> PromptCacheParams:
+        """`prompt_cache_key` and `prompt_cache_retention` for a Responses request.
+
+        Not sent by default: other OpenAI-compatible providers' support for
+        these fields is unverified. A provider that documents them overrides
+        this. Explicit cache breakpoints (`supports_explicit_prompt_cache`) are
+        not enabled for any OpenAI-compatible provider.
+        """
+        return PromptCacheParams(key=NOT_GIVEN, retention=NOT_GIVEN)
 
     def request_headers(self, config: GenerateConfig) -> dict[str, str]:
         """Provider-specific headers to send with this request.

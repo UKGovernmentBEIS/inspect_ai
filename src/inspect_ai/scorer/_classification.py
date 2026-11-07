@@ -142,7 +142,9 @@ def _remove_punc(text: str) -> str:
     # from the finite-number check above — strip the boundary and re-check
     stripped = strip_punctuation(text)
     if is_finite_number(stripped):
-        return stripped
+        # a minus directly before the number is its sign, not punctuation
+        leading = text[: text.index(stripped)]
+        return f"-{stripped}" if leading.endswith("-") else stripped
     return "".join(ch for ch in text if ch not in string.punctuation)
 
 
@@ -158,7 +160,28 @@ def _normalize_number(text: str) -> str:
 
 
 def _tokenize(text: str) -> List[str]:
-    return re.split(" |-", text)
+    # split on spaces and hyphens, except a minus sign that opens a number
+    # ("-5", "(-5)", "((-5))"); a minus after a word and any run of opening
+    # brackets ("f(-1)", "f([-1])") still splits, as before
+    tokens = []
+    start = 0
+    for match in re.finditer(r"[ -]", text):
+        index = match.start()
+        if text[index] == "-" and _is_minus_sign(text, index):
+            continue
+        tokens.append(text[start:index])
+        start = index + 1
+    tokens.append(text[start:])
+    return tokens
+
+
+def _is_minus_sign(text: str, index: int) -> bool:
+    if not re.match(r"-\.?\d", text[index:]):
+        return False
+    before = index
+    while before > 0 and text[before - 1] in "([{":
+        before -= 1
+    return before == 0 or text[before - 1] == " "
 
 
 def _normalize(text: str, stop_words: list[str] | None = None) -> str:

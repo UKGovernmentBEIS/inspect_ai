@@ -1,0 +1,6 @@
+# Build tools for the PyInstaller builders; the runtime deps come from
+# src/inspect_sandbox_tools/pyproject.toml. See RELEASING.md to regenerate
+# requirements.txt.
+pyinstaller
+setuptools>=64
+wheel

@@ -92,6 +92,7 @@ Example:
 ```
 
 ## Build/Lint/Test Commands
+- Set up the environment: `uv sync` (installs from `uv.lock`; don't `pip install` the project). See CONTRIBUTING.md for the 7-day dependency cooldown and how to adopt a newer release
 - Run all tests: `pytest`
 - Run a single test: `pytest tests/path/to/test_file.py::test_function_name -v`
 - Format code: `ruff format`
@@ -136,11 +137,12 @@ limitations, and validation.
 
 ## Suppression gate
 
-- Do NOT suppress lint or type errors (`# noqa`, `# type: ignore`,
-  `# pyright: ignore`, or the file-wide `# ruff: noqa` /
-  `# mypy: ignore-errors`). Fix the code. A deterministic gate enforces
-  this (`make suppressions-check` against `suppressions.json`); maintainers
-  reject suppressions that just make an error go away.
+- Do NOT suppress lint or type errors (`# noqa`, `# ruff: ignore[...]`,
+  `# type: ignore`, `# pyright: ignore`, the range `# ruff: disable[...]`,
+  or the file-wide `# ruff: noqa` / `# mypy: ignore-errors`). Fix the
+  code. A deterministic gate enforces this (`make suppressions-check`
+  against `suppressions.json`); maintainers reject suppressions that just
+  make an error go away.
 - In the rare case a suppression is correct, it requires both: a reason in
   a trailing hash comment segment on the same line, the only style mypy
   accepts (e.g. `x = f()  # type: ignore[assignment]  # stub is wrong

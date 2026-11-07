@@ -12,12 +12,14 @@ from test_helpers.utils import (
 
 from inspect_ai._util.content import ContentImage, ContentText
 from inspect_ai.model import (
+    ChatMessageTool,
     ChatMessageUser,
     GenerateConfig,
     ModelOutput,
     get_model,
 )
 from inspect_ai.tool import (
+    ToolCallError,
     ToolInfo,
     ToolParam,
     ToolParams,
@@ -1077,3 +1079,34 @@ async def test_mistral_conversation_output_records_conversation_id() -> None:
 
     assert isinstance(output, ModelOutput)
     assert output.response_id == "conv_response"
+
+
+@skip_if_no_mistral_package
+@pytest.mark.parametrize(
+    "error,expected",
+    [
+        (None, "result text"),
+        (ToolCallError("unknown", "boom"), "Error: boom"),
+    ],
+)
+async def test_mistral_tool_message_error(
+    error: ToolCallError | None, expected: str
+) -> None:
+    from mistralai.client.models import FunctionResultEntry
+
+    from inspect_ai.model._providers.mistral import mistral_chat_message
+    from inspect_ai.model._providers.mistral_conversation import (
+        mistral_conversation_inputs,
+    )
+
+    message = ChatMessageTool(
+        content="result text", tool_call_id="call_1", function="f", error=error
+    )
+
+    chat = await mistral_chat_message(message)
+    assert chat.content == expected
+
+    _, inputs = await mistral_conversation_inputs([message], GenerateConfig())
+    assert len(inputs) == 1
+    assert isinstance(inputs[0], FunctionResultEntry)
+    assert inputs[0].result == expected

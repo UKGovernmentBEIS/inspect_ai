@@ -39,7 +39,7 @@ def web_surfer() -> Agent:
         state.messages.append(
             ChatMessageSystem(
                 content="You are a tenacious web researcher that is "
-                + "expert at using a web browser to answer questions."
+                + "expert at using web search to answer questions."
             )
         )
 
@@ -196,6 +196,10 @@ def my_agent(tools: Sequence[Tool | ToolDef | ToolSource]):
 
 To recover from a context window overflow (`stop_reason == "model_length"`), call `compact_input()` with `force=True`, which compacts regardless of the threshold, and generate again. The handler does not check that a forced compaction reduced the input. If the retry also overflows, truncate the messages or stop rather than forcing compaction again.
 
+The handler adds only messages it has not seen before. If your agent changes, removes or reorders messages already in the history, call `reset()` with the new prefix before the next `compact_input()`, so that the next input is built from the changed history.
+
+`reset()` clears the handler's state but does not remove summaries from your messages. A summary compaction (including `CompactionAuto`'s summary fallback) starts from the latest summary in the conversation, so before resetting, remove any summaries that the changed history invalidated.
+
 ::: {.callout-note}
 The returned `compact` handler maintains internal state for a single growing conversation history. Concurrent calls within the same conversation are safe, but do not share one handler across divergent message histories — the compacted result mixes them.
 :::
@@ -294,7 +298,7 @@ async def run_worker(name: str, worker: Agent, state: AgentState) -> AgentState:
         return await worker(state)
 ```
 
-Inside the scope, `memory()`, `bash_session()`, `web_browser()` and `skill()` use the scope as their default instance (`"@<name>"`), so each agent gets its own memory, shell, browser and skills. A tool given an explicit instance, such as `memory(instance="team")`, is still shared between agents. Nested scopes join their names with "/" (`"@outer/inner"`). Instances that start with "@" are reserved for scopes, so an explicit instance never shares state with a scope by accident. Tasks started inside the scope inherit it. Outside any scope, tools behave as before. Skill files are the exception: they live in the sandbox, so `skill()` tools that install into the same directory share them. A skill file that already exists with the same contents is not written again, and one that exists with different contents raises an error.
+Inside the scope, `memory()`, `bash_session()` and `skill()` use the scope as their default instance (`"@<name>"`), so each agent gets its own memory, shell and skills. A tool given an explicit instance, such as `memory(instance="team")`, is still shared between agents. Nested scopes join their names with "/" (`"@outer/inner"`). Instances that start with "@" are reserved for scopes, so an explicit instance never shares state with a scope by accident. Tasks started inside the scope inherit it. Outside any scope, tools behave as before. Skill files are the exception: they live in the sandbox, so `skill()` tools that install into the same directory share them. A skill file that already exists with the same contents is not written again, and one that exists with different contents raises an error.
 
 Custom tools and agents can follow the scope by passing `tool_state_instance(instance)` to `store_as()`. Library code that picks an instance name itself and wants it kept private to the scope can use `private_tool_instance(name)`, which returns `"<scope>#<name>"` inside a scope (for example `"@w-1#general"`) and `name` outside one.
 
@@ -350,7 +354,7 @@ supervisor = react(
     tools=[
         addition(), 
         handoff(web_surfer()), 
-        handoff(critic(model="openai/gpt-5-mini"))
+        handoff(critic(model="openai/gpt-6-luna"))
     ]
 )
 ```
@@ -423,6 +427,33 @@ There are two reasons that you might want to create spans:
 2.  The Inspect log viewer will create a visual delineation for the span, which will make it easier to see the flow of activity within the transcript.
 
 Spans are automatically created for sample initialisation, solvers, scorers, subtasks, tool calls, and agent execution.
+
+### Model Call Origins
+
+Each `ModelEvent` records where the call was made in its `origin` field. During the solve a call is `"agent"`, one of its conversation's agent turns, unless it is made by a tool, a compaction, an approver, a reviewer, MCP sampling, a sentinel or a scorer, which Inspect marks itself (`"tool"`, `"compaction"`, `"approval"`, `"review"`, `"sampling"`, `"sentinel"`, `"scorer"`). A scorer's calls are `"scorer"`, including those of an agent run inside it, and a sentinel does not check a scorer's tool calls. Any other call outside the solve, such as one made at sample init, is `"setup"`. A sentinel checks only agent turns at its generate stages, and the transcript timeline shows other calls as utility.
+
+When replaying an older log without `origin`, Inspect infers turns from the event span tree. A stored timeline passed to sentinel replay can group the resulting steps into conversations, but its branches and spans do not change which calls are inferred as turns. Recorded sentinel checks and human decisions are used only where the step id pairs with a model call's exact id. Checks without a matching call are skipped with a warning. Inference may differ from the turns observed by a sentinel that ran before origins were recorded; reproducing that sentinel's live steps is outside the replay contract.
+
+Replay reconstructs approval-derived human decisions only for logs from Inspect 0.3.277 onward; older or unversioned logs omit them and warn once when a selected human approver appears. A log is refused where the call an approval approved (its modified call, else the call it records) is not the call its `ToolEvent` records, unless a recorded sentinel modify changed the call again to the one the `ToolEvent` records. Inspect before 0.3.277 wrote such logs, including for a call an approver changed in place and approved without a modified call, and they are refused whatever version the header records, since a retried eval keeps its completed samples under a newer header. This includes an approved call whose tool records other arguments than it was given, such as `memory()` resolving a path. Replay such a transcript from its messages instead. Where such a call has no recorded step and its `ToolEvent` has a parsing or approval error, it may have been refused before it ran or raised the error after running, so replay skips its tool steps with a warning naming the call instead of refusing the log.
+
+Inspect logs have `origin` on every model call or on none. For a mixed-origin transcript, replay uses recorded classifications where present and infers calls without origins. It does not promise continuity across the mixed sequence.
+
+If two calls continue the same turn and no later call resolves the fork, replay leaves both calls to the existing prompt rules. The sample's final messages do not select a fork head.
+
+Without recorded origins, a failed call's input may leave an earlier fork unresolved, and a custom solver's own calls may be inferred as agent turns when its only agent is unwrapped.
+
+Sentinel event replay requires a log written by Inspect 0.3.100 or later. Earlier logs lack the `solvers` and `scorers` spans that separate the agent's work from scoring (and, before 0.3.94, native tool spans), so `steps_from_events()` raises an error rather than replaying them incorrectly. This includes samples that a retried eval carried over from such a log, whatever version its header records. Replay those logs from their messages instead. In supported logs, a spanless tool event can mark a call halted before execution and does not create tool steps.
+
+If your agent makes model calls that are part of the solve but are not the evaluated agent's turns, mark them with `model_origin()`. Use `"environment"` for the setup being evaluated against, such as an auditor model or a simulated user, and `"helper"` for a scaffold's own helper calls, such as its own summarizer:
+
+``` python
+from inspect_ai.model import get_model, model_origin
+
+with model_origin("environment"):
+    reply = await get_model(role="user").generate(messages)
+```
+
+An agent run inside the block keeps the block's kind, and a sentinel does not check the tool calls made within it. The marker is a context variable, so it reaches the calls made in the task that entered the block and in tasks that task starts while inside it, and no others. If the evaluated agent's calls are made from inside an environment block (for example, by an auditor's tool that generates the target's turn), they are marked as environment too, so make them outside the block.
 
 ## Parallelism
 
