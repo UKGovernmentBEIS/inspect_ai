@@ -32,6 +32,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageTool,
 )
 from inspect_ai.model._model_output import Logprob, Logprobs, ModelOutput, TopLogprob
+from inspect_ai.tool._tool_info import ToolInfo
 
 _FIXTURE = json.loads(
     (
@@ -150,3 +151,117 @@ def test_google_response_without_logprobs_is_unchanged(
     assert response == expected
     assert "logprobsResult" not in response["candidates"][0]
     assert "avgLogprobs" not in response["candidates"][0]
+
+
+# The second-turn request litellm 1.91.5 (mini-swe-agent 2.2.3's client) sends for
+# `gemini/<model>`: tools, functionCall and functionResponse are snake_case.
+_LITELLM_REQUEST: dict[str, object] = {
+    "contents": [
+        {"role": "user", "parts": [{"text": "List files."}]},
+        {
+            "role": "model",
+            "parts": [
+                {
+                    "function_call": {"name": "bash", "args": {"command": "ls"}},
+                    "thoughtSignature": "c2lnLTE=",
+                }
+            ],
+        },
+        {
+            "role": "user",
+            "parts": [
+                {
+                    "function_response": {
+                        "name": "bash",
+                        "response": {"content": "a.txt\nb.txt"},
+                    }
+                }
+            ],
+        },
+    ],
+    "tools": [
+        {
+            "function_declarations": [
+                {
+                    "name": "bash",
+                    "description": "Execute a bash command",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "command": {
+                                "type": "string",
+                                "description": "The bash command to execute",
+                            }
+                        },
+                        "required": ["command"],
+                    },
+                }
+            ]
+        }
+    ],
+}
+
+
+@pytest.mark.anyio
+async def test_google_bridge_reads_snake_case_litellm_request() -> None:
+    from inspect_ai.agent._agent import AgentState
+    from inspect_ai.agent._bridge.google_api_impl import (
+        inspect_google_api_request_impl,
+    )
+    from inspect_ai.agent._bridge.types import AgentBridge
+    from inspect_ai.model._chat_message import ChatMessageUser
+    from inspect_ai.model._model import get_model
+
+    calls: list[dict[str, object]] = []
+
+    def _capture(input, tools, tool_choice, config):
+        calls.append({"input": input, "tools": tools})
+        return ModelOutput.from_content(model="mockllm/model", content="done")
+
+    model = get_model("mockllm/model", custom_outputs=_capture)
+    bridge = AgentBridge(
+        state=AgentState(messages=[ChatMessageUser(content="hi")]),
+        model=str(model),
+    )
+    bridge.model_aliases = {"inspect": model}
+
+    await inspect_google_api_request_impl(
+        json_data={"model": "inspect", **_LITELLM_REQUEST},
+        web_search_providers=None,
+        code_execution_providers=None,
+        bridge=bridge,
+    )
+
+    assert len(calls) == 1
+    call = calls[0]
+    tools = call["tools"]
+    assert isinstance(tools, list)
+    assert [tool.name for tool in tools] == ["bash"]
+    assert tools[0].parameters.required == ["command"]
+
+    input = call["input"]
+    assert isinstance(input, list)
+    assistant = next(m for m in input if isinstance(m, ChatMessageAssistant))
+    assert assistant.tool_calls is not None
+    assert assistant.tool_calls[0].function == "bash"
+    tool_message = input[-1]
+    assert isinstance(tool_message, ChatMessageTool)
+    assert tool_message.tool_call_id == assistant.tool_calls[0].id
+
+
+@pytest.mark.parametrize("google_tool", [{"codeExecution": {}}, {"code_execution": {}}])
+def test_google_bridge_reads_code_execution_tool(
+    google_tool: dict[str, object],
+) -> None:
+    from inspect_ai.agent._bridge.google_api_impl import tools_from_google_tools
+    from inspect_ai.tool._tool_def import ToolDef
+
+    tools = tools_from_google_tools(
+        [google_tool],
+        web_search_providers=None,
+        code_execution_providers={"google": True},
+    )
+    assert len(tools) == 1
+    tool = tools[0]
+    assert not isinstance(tool, ToolInfo)
+    assert ToolDef(tool).name == "code_execution"
