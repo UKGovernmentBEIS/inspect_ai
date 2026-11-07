@@ -12,7 +12,7 @@ from typing import (
     overload,
 )
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing_extensions import override
 
 from inspect_ai._util.answer import answer_character, answer_index
@@ -72,7 +72,7 @@ class Sample(BaseModel):
             id=id,
             description=description,
             metadata=metadata,
-            sandbox=resolve_sandbox_environment(sandbox),
+            sandbox=sandbox,
             files=files,
             setup=setup,
             checkpoint=checkpoint,
@@ -112,6 +112,22 @@ class Sample(BaseModel):
 
     sandbox: SandboxEnvironmentSpec | None = Field(default=None)
     """Sandbox environment type and optional config file."""
+
+    @field_validator("sandbox", mode="before")
+    @classmethod
+    def _resolve_sandbox(cls, sandbox: Any) -> Any:
+        """Resolve the str and tuple shorthands for the sandbox.
+
+        A list is the form logs written before `SandboxEnvironmentSpec` became
+        a model store it in, so it is read like a tuple. Other values,
+        including the dict form a `Sample` serializes to, are left for pydantic
+        to validate as a `SandboxEnvironmentSpec`.
+        """
+        if isinstance(sandbox, list):
+            sandbox = tuple(sandbox)
+        if isinstance(sandbox, (str, tuple)):
+            return resolve_sandbox_environment(sandbox)
+        return sandbox
 
     files: dict[str, str] | None = Field(default=None)
     """Files that go along with the sample (copied to SandboxEnvironment)"""
