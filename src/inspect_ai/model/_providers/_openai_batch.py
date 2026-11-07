@@ -167,9 +167,14 @@ class OpenAIBatcher(FileBatcher[ResponseT, CompletedBatchInfo], Generic[Response
             response_body = result["response"]["body"]
             return request_id, self._response_cls.model_validate(response_body)
         else:
+            status_code = int(error["code"])
             return request_id, (
                 self._openai_client._make_status_error_from_response(  # pyright: ignore[reportPrivateUsage]
-                    httpx2.Response(status_code=error["code"], text=error["message"])
+                    httpx2.Response(
+                        status_code=status_code,
+                        text=error["message"],
+                        request=httpx2.Request("POST", self.endpoint),
+                    )
                 )
             )
 
