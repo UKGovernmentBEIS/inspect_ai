@@ -87,11 +87,13 @@ from inspect_ai.model import (
     ModelRoles,
 )
 from inspect_ai.model._model import (
+    active_model,
     get_model,
     init_active_model,
     init_model_roles,
     resolve_models,
 )
+from inspect_ai.model._providers.none import NoModel
 from inspect_ai.review._apply import init_tool_review
 from inspect_ai.review._policy import (
     ReviewPolicy,
@@ -1305,7 +1307,23 @@ def _resolve_enqueued_tasks(
     sandbox, then handed to the :class:`TaskEnqueuer` so additions resolve
     consistently with the run. Raises ``ValueError`` if the tasks can't be
     resolved.
+
+    A run with no model (``none``) has no model to give an added task. This is
+    the case for the eval run by ``eval_set()``, which attaches its models to
+    each task instead. There, an added task that sets no model of its own uses
+    the model of the task that added it: the active model where
+    ``enqueue_task()`` is called. Outside a running task the active model is
+    the run's own, so the added task resolves to ``none`` like any other task
+    in the run. Model roles always come from the run (``eval_set()`` passes
+    its roles through to it).
     """
+    creator_model = active_model()
+    if (
+        creator_model is not None
+        and len(models) == 1
+        and isinstance(models[0].api, NoModel)
+    ):
+        models = [creator_model]
 
     def resolve() -> list[ResolvedTask]:
         resolved_roles = resolve_model_roles(model_roles)
