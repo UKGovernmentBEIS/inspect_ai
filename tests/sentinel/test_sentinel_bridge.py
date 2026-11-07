@@ -17,6 +17,11 @@ from checkpoint.test_checkpointer import (
 from pydantic import JsonValue, TypeAdapter
 from pydantic_core import to_json
 from test_helpers.checkpoint import RecordingCheckpointer
+from test_helpers.utils import (
+    skip_if_no_anthropic,
+    skip_if_no_google,
+    skip_if_no_openai,
+)
 
 from inspect_ai import Task, eval
 from inspect_ai._sentinel._config import resolve_sentinel_root, resolve_sentinel_spec
@@ -6317,3 +6322,260 @@ async def test_a_repeated_responses_native_call_stays_native(kind: str) -> None:
         for param in replayed
         if "call_id" in param
     ] == [(item.type, call["call_id"]), (result["type"], call["call_id"])]
+
+
+@pytest.fixture
+def isolated_cache(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A model output cache only this test uses, so its first request misses."""
+    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path))
+
+
+@skip_if_no_anthropic
+@pytest.mark.usefixtures("isolated_cache")
+async def test_live_anthropic_cached_retries_with_interleaved_thinking_continue() -> (
+    None
+):
+    from inspect_ai.agent._bridge.anthropic_api import inspect_anthropic_api_request
+    from inspect_ai.model._assistant_internal import init_sample_assistant_internal
+
+    # a flaky retry runs the test again in the same transcript
+    init_transcript(Transcript())
+    init_sample_assistant_internal()
+    model = get_model(
+        "anthropic/claude-sonnet-4-5",
+        config=GenerateConfig(cache=True, reasoning_tokens=1024),
+    )
+    bridge = AgentBridge(AgentState(messages=[]), model_aliases={"inspect": model})
+    files = {"a.txt": "Now read b.txt.", "b.txt": "That is all."}
+    turns: list[Any] = [
+        {
+            "role": "user",
+            "content": "Read a.txt with read_file and follow its instructions.",
+        }
+    ]
+
+    def request() -> dict[str, Any]:
+        return {
+            "model": "inspect",
+            "max_tokens": 4096,
+            "messages": turns,
+            "tools": [
+                {
+                    "name": "read_file",
+                    "description": "Read a file.",
+                    "input_schema": PATH_SCHEMA,
+                }
+            ],
+        }
+
+    # each step's response is retried, as a scaffold retrying a request; the
+    # retry is a cache hit, handed over under new IDs
+    with active([bridge_recording([])]):
+        for _ in files:
+            first = await inspect_anthropic_api_request(
+                request(), None, None, None, bridge
+            )
+            retry = await inspect_anthropic_api_request(
+                request(), None, None, None, bridge
+            )
+            assert [block.type for block in retry.content] == [
+                block.type for block in first.content
+            ]
+            assert "thinking" in [block.type for block in retry.content]
+            content = [block.model_dump(exclude_none=True) for block in retry.content]
+            uses = [block for block in content if block["type"] == "tool_use"]
+            assert uses and not {use["id"] for use in uses} & {
+                block.id for block in first.content if block.type == "tool_use"
+            }
+            turns += [
+                {"role": "assistant", "content": content},
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": use["id"],
+                            "content": files.get(use["input"].get("path"), "None."),
+                        }
+                        for use in uses
+                    ],
+                },
+            ]
+        continuation = await inspect_anthropic_api_request(
+            request(), None, None, None, bridge
+        )
+
+    # a generation and a cache hit per step, and the continuation
+    assert [e.cache for e in transcript().events if isinstance(e, ModelEvent)] == [
+        "write",
+        "read",
+        "write",
+        "read",
+        "write",
+    ]
+    assert continuation.content
+
+
+LIVE_RESPONSES_CALLS: dict[str, tuple[str, Any, Any]] = {
+    "custom": (
+        "openai/gpt-5",
+        {
+            "type": "custom",
+            "name": "apply_patch",
+            "description": "Apply a patch in the V4A diff format.",
+            "format": {"type": "text"},
+        },
+        {"type": "custom_tool_call_output", "output": "Done."},
+    ),
+    "computer": (
+        "openai/gpt-5.4",
+        {"type": "computer"},
+        {
+            "type": "computer_call_output",
+            "output": {"type": "computer_screenshot", "image_url": PNG_DATA_URI},
+        },
+    ),
+}
+
+
+@skip_if_no_openai
+@pytest.mark.usefixtures("isolated_cache")
+@pytest.mark.parametrize("kind", ["custom", "computer"])
+async def test_live_responses_cached_retry_with_native_call_continues(
+    kind: str,
+) -> None:
+    from inspect_ai.agent._bridge.responses import inspect_responses_api_request
+    from inspect_ai.model._assistant_internal import init_sample_assistant_internal
+
+    # a flaky retry runs the test again in the same transcript
+    init_transcript(Transcript())
+    init_sample_assistant_internal()
+    name, tool, result = LIVE_RESPONSES_CALLS[kind]
+    model = get_model(name, config=GenerateConfig(cache=True))
+    bridge = AgentBridge(AgentState(messages=[]), model_aliases={"inspect": model})
+    task = (
+        "Use apply_patch to add a file hello.txt containing 'hi'."
+        if kind == "custom"
+        else "Take a screenshot of the screen."
+    )
+    items: list[Any] = [{"role": "user", "content": task}]
+
+    def request(input: list[Any]) -> dict[str, Any]:
+        return {"model": "inspect", "input": input, "tools": [tool]}
+
+    with active([bridge_recording([])]):
+        first = await inspect_responses_api_request(
+            request(items), None, None, None, bridge
+        )
+        retry = await inspect_responses_api_request(
+            request(items), None, None, None, bridge
+        )
+        handed = [item.model_dump(exclude_none=True) for item in retry.output]
+        [call] = [item for item in handed if "call_id" in item]
+        await inspect_responses_api_request(
+            request([*items, *handed, {**result, "call_id": call["call_id"]}]),
+            None,
+            None,
+            None,
+            bridge,
+        )
+
+    [original] = [item for item in first.output if hasattr(item, "call_id")]
+    assert call["type"] == original.type and call["call_id"] != original.call_id
+    assert [e.cache for e in transcript().events if isinstance(e, ModelEvent)] == [
+        "write",
+        "read",
+        "write",
+    ]
+
+
+@skip_if_no_google
+async def test_live_modified_gemini_computer_action_continues() -> None:
+    from unittest.mock import MagicMock
+
+    from inspect_ai.agent._bridge.completions import inspect_completions_api_request
+    from inspect_ai.model._providers.google import as_chat_messages
+    from inspect_ai.tool import ToolDef
+    from inspect_ai.tool._tools._computer._computer import computer
+
+    init_transcript(Transcript())
+    model = get_model(
+        "google/gemini-3-flash-preview",
+        config=GenerateConfig(max_retries=2, timeout=120),
+    )
+    bridge = AgentBridge(AgentState(messages=[]), model_aliases={"inspect": model})
+    parameters = ToolDef(computer()).parameters
+    tools: Any = [
+        {
+            "type": "function",
+            "function": {
+                "name": "computer",
+                "description": "Use the computer.",
+                "parameters": parameters.model_dump(exclude_none=True),
+            },
+        }
+    ]
+    messages: list[Any] = [
+        {
+            "role": "user",
+            "content": "The browser is open. Click the center of the screen.",
+        }
+    ]
+    modified: list[dict[str, Any]] = []
+
+    @protocol
+    def change_action() -> Protocol:
+        async def rewrite(
+            context: Context, step: BeforeToolCall, escalations: Escalations
+        ) -> Decision | None:
+            arguments = WAIT if step.call.arguments.get("action") != "wait" else CLICK
+            modified.append(arguments)
+            return Decision(
+                action="modify",
+                modified=replace(step.call, arguments=arguments),
+                explanation="changed",
+            )
+
+        return rewrite
+
+    with active([change_action()]):
+        completion = await inspect_completions_api_request(
+            {"model": "inspect", "messages": messages, "tools": tools}, None, bridge
+        )
+        message = completion.choices[0].message
+        assert message.tool_calls
+        await inspect_completions_api_request(
+            {
+                "model": "inspect",
+                "messages": [
+                    *messages,
+                    message.model_dump(exclude_none=True),
+                    *[
+                        {
+                            "role": "tool",
+                            "tool_call_id": call.id,
+                            "content": [
+                                {"type": "text", "text": "done"},
+                                {
+                                    "type": "image_url",
+                                    "image_url": {"url": PNG_DATA_URI},
+                                },
+                            ],
+                        }
+                        for call in message.tool_calls
+                    ],
+                ],
+                "tools": tools,
+            },
+            None,
+            bridge,
+        )
+
+    events = [e for e in transcript().events if isinstance(e, ModelEvent)]
+    assert len(events) == 2 and events[1].error is None
+    replayed = await as_chat_messages(MagicMock(), events[1].input)
+    parts = [part for content in replayed for part in content.parts or []]
+    calls = [part.function_call.name for part in parts if part.function_call]
+    results = [part.function_response.name for part in parts if part.function_response]
+    expected = gemini_computer_action_name(modified[0])
+    assert calls[0] == results[0] == expected
