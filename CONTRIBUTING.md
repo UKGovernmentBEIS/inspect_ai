@@ -119,6 +119,8 @@ In an emergency, for example a security fix, you can adopt a release that is les
 3. If `src/inspect_ai/model/_model_data/sync_models.py` locks the package, add the same entry to its inline script metadata. Then run `uv lock --script src/inspect_ai/model/_model_data/sync_models.py --no-config --upgrade-package <package>`. Its workflow runs uv with `--no-config`, so it does not read `pyproject.toml`.
 4. Within seven days, when the normal cooldown includes the release, delete the entry and run `uv lock --upgrade-package <package>`. A plain `uv lock` doesn't reliably remove the entry from `uv.lock`, and CI then fails. If you added the entry to `sync_models.py`, delete it there too and run its `uv lock --script` command from step 3 again. A test fails when a dated entry is seven days old or older.
 
+When a major or breaking model provider SDK release breaks Inspect, raise the minimum supported version instead of adding compatibility code for both versions. Update the SDK's floor in the `pyproject.toml` `dev` extra, the provider's runtime minimum (`MIN_VERSION`, usually in `src/inspect_ai/model/_providers/providers.py`), and `uv.lock` together.
+
 uv is the supported way to set up Inspect. Installing with pip (`pip install -e ".[dev]"`) gets neither `uv.lock` nor the repository's cooldown.
 
 Create a branch with a short, descriptive name, then start working on the issue. You may find it helpful to install the pre-commit hooks:
