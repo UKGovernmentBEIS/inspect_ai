@@ -251,9 +251,10 @@ class SandboxEnvironment(abc.ABC):
           env: Environment variables for execution.
           user: Optional username or UID to run the command as.
           timeout: Optional execution timeout (seconds).
-          timeout_retry: Retry the command in the case that it times out.
-            Commands will be retried up to twice, with a timeout of no greater
-            than 60 seconds for the first retry and 30 for the second.
+          timeout_retry: Allow provider-specific retries for sandbox operation
+            timeouts. Docker does not retry a known command timeout; host
+            operations may be retried up to twice, with timeouts of at most
+            60 seconds for the first retry and 30 for the second.
           concurrency: For sandboxes that run locally, request that the `concurrency()`
             function be used to throttle concurrent subprocesses.
 
@@ -267,8 +268,14 @@ class SandboxEnvironment(abc.ABC):
             request because the sandbox is not running or provider-injected
             execution machinery is unavailable. A missing caller-specified
             executable is returned as an ordinary failed `ExecResult`.
-          TimeoutError: If the specified `timeout` expires
-            (and `timeout_retry` attempts also timeout).
+          SandboxCommandTimeoutError: If the command exceeds its execution
+            timeout and the provider can distinguish this from a sandbox
+            operation timing out. This is a subclass of SandboxTimeoutError
+            and TimeoutError.
+          SandboxTimeoutError: If a sandbox operation times out, or the provider
+            cannot distinguish a command timeout from a sandbox timeout.
+            Providers may also raise TimeoutError, which sandbox() wraps as
+            SandboxTimeoutError.
           UnicodeDecodeError: May be raised if the sandbox provider
             cannot decode the command output to UTF-8 and does not
             support using the UTF-8 replacement character for
