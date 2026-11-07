@@ -1,10 +1,15 @@
+from unittest.mock import MagicMock
+
+import pytest
 from google.genai.types import FunctionCall
 
+from inspect_ai.model._chat_message import ChatMessageAssistant, ChatMessageTool
 from inspect_ai.model._providers._google_computer_use import (
     _parse_gemini_action,
     gemini_action_from_tool_call,
     tool_call_from_gemini_computer_action,
 )
+from inspect_ai.model._providers.google import content as google_content
 from inspect_ai.tool._tool_call import ToolCall
 
 
@@ -284,3 +289,75 @@ def test_scroll_at_default_magnitude():
     assert parsed["action"] == "scroll"
     # Default magnitude is 800, so scroll_amount = 800 // 100 = 8
     assert parsed["scroll_amount"] == 8
+
+
+# Calls in the argument schemas of Google's legacy computer-use actions. Each
+# coordinate maps to a screen pixel and back to itself.
+GEMINI_COMPUTER_CALLS: list[tuple[str, dict[str, object]]] = [
+    ("open_web_browser", {}),
+    ("wait_5_seconds", {}),
+    ("go_back", {}),
+    ("go_forward", {}),
+    ("search", {}),
+    ("search", {"query": "inspect ai framework"}),
+    ("navigate", {"url": "https://example.com"}),
+    ("click_at", {"x": 500, "y": 500}),
+    ("hover_at", {"x": 200, "y": 250}),
+    ("type_text_at", {"x": 500, "y": 500, "text": "hello", "press_enter": True}),
+    ("type_text_at", {"x": 500, "y": 500, "text": "hello", "press_enter": False}),
+    ("key_combination", {"keys": "control+c"}),
+    ("key_combination", {"keys": "enter"}),
+    ("scroll_document", {"direction": "down"}),
+    ("scroll_at", {"x": 500, "y": 500, "direction": "up", "magnitude": 400}),
+    (
+        "drag_and_drop",
+        {"x": 100, "y": 250, "destination_x": 800, "destination_y": 500},
+    ),
+]
+
+
+async def _replay(tool_call: ToolCall) -> FunctionCall:
+    content = await google_content(
+        MagicMock(),
+        ChatMessageAssistant(content="", tool_calls=[tool_call]),
+    )
+    assert content.parts is not None
+    function_calls = [p.function_call for p in content.parts if p.function_call]
+    assert len(function_calls) == 1
+    return function_calls[0]
+
+
+@pytest.mark.parametrize(
+    "name,args",
+    GEMINI_COMPUTER_CALLS,
+    ids=[f"{name}-{i}" for i, (name, _) in enumerate(GEMINI_COMPUTER_CALLS)],
+)
+async def test_unmodified_gemini_computer_call_replays_as_sent(
+    name: str, args: dict[str, object]
+) -> None:
+    tool_call = tool_call_from_gemini_computer_action(
+        FunctionCall(name=name, args=args)
+    )
+
+    replayed = await _replay(tool_call)
+
+    assert replayed.id == tool_call.id
+    assert replayed.name == name
+    assert replayed.args == args
+
+
+async def test_gemini_computer_call_and_result_use_the_same_name() -> None:
+    tool_call = tool_call_from_gemini_computer_action(
+        FunctionCall(name="search", args={})
+    )
+
+    replayed = await _replay(tool_call)
+    result = await google_content(
+        MagicMock(),
+        ChatMessageTool(content="ok", tool_call_id=tool_call.id, function="computer"),
+    )
+
+    assert result.parts is not None
+    function_response = result.parts[0].function_response
+    assert function_response is not None
+    assert function_response.name == replayed.name == "search"
