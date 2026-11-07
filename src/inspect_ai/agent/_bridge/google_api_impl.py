@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+from collections import Counter, deque
 from logging import getLogger
 from typing import Any, Literal, NamedTuple
 
@@ -471,11 +472,10 @@ def messages_from_google_contents(
 
             if tool_calls:
                 pending_tool_calls.clear()
-                functions = [tc.function for tc in tool_calls]
+                functions = Counter(tc.function for tc in tool_calls)
                 for tc in tool_calls:
                     pending_tool_calls.setdefault(
-                        tc.function,
-                        _PendingCalls([], functions.count(tc.function) > 1),
+                        tc.function, _PendingCalls(deque(), functions[tc.function] > 1)
                     ).ids.append(tc.id)
 
             # Only emit an assistant turn when it carries real content or tool calls;
@@ -547,7 +547,7 @@ def _is_function_response_part(part: Any) -> bool:
 class _PendingCalls(NamedTuple):
     """The calls of the previous model turn with one function name, not yet answered."""
 
-    ids: list[str]
+    ids: deque[str]
 
     shared: bool
     """Whether the turn had more than one call with the name."""
@@ -597,7 +597,7 @@ def _extract_user_parts(
             pending = pending_tool_calls.get(func_name)
             inferred = pending is not None and bool(pending.ids) and pending.shared
             if pending is not None and pending.ids:
-                call_id = pending.ids.pop(0)
+                call_id = pending.ids.popleft()
             else:
                 call_id = f"call_{func_name}_{uuid()[:8]}"
                 logger.warning(

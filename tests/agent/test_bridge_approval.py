@@ -6769,7 +6769,12 @@ async def test_repeated_scaffold_result_never_takes_an_earlier_executions_id(
     events = [e for e in recorded.events if isinstance(e, ModelEvent)]
     first_results = {m.id for m in events[1].input if m.role == "tool"}
     retained = [m.id for m in events[-2].input if m.role == "tool"]
-    assert [m.id for m in events[-1].input if m.role == "tool"] == retained
+    later = [m.id for m in events[-1].input if m.role == "tool"]
+    if dialect == "google" and shape == "parallel_reordered":
+        # equal results of calls sharing a function can't be told apart
+        assert not set(later) & {*retained, *first_results}
+    else:
+        assert later == retained
     assert len(retained) == len(paths)
     if shape == "same_reply_kept":
         assert set(retained) == first_results
@@ -6889,6 +6894,200 @@ async def test_google_results_link_only_when_their_function_names_one_call(
         for event, path in zip(events, paths):
             assert event.message_id is not None
             assert f"contents {path}" in texts[event.message_id]
+
+
+@pytest.mark.parametrize("compacted", [False, True], ids=["full", "compacted"])
+@pytest.mark.parametrize(
+    "outputs", [["OK", "OK"], ["A", "B"]], ids=["equal", "distinct"]
+)
+async def test_reordered_google_results_never_take_each_others_ids(
+    outputs: list[str], compacted: bool
+) -> None:
+    """Google results of calls sharing a function, sent again in another order, keep their own ids or get new ones.
+
+    The bridge infers their call ids from order, so a result sent at another
+    position carries the other call's id: it can't keep an id by that.
+    """
+    reply = tool_calls_output(
+        *[
+            ToolCall(id=path, function="read_file", arguments={"path": path})
+            for path in ["a", "b"]
+        ],
+        content="Read both.",
+    )
+    done = ModelOutput.from_content("mockllm/model", "Done.")
+    bridge = AgentBridge(
+        AgentState(messages=[ChatMessageUser(content="Read files.")]),
+        model_aliases={
+            "inspect": get_model("mockllm/model", custom_outputs=[reply, *[done] * 3])
+        },
+    )
+    [info] = declare("read_file")
+    conversation = _HostConversation("google", "Read files.", info)
+    with recorded_transcript() as recorded:
+        calls = await conversation.request(cast(SandboxAgentBridge, bridge))
+        [message] = [m for m in bridge.state.messages if m.role == "assistant"]
+        assert isinstance(message, ChatMessageAssistant) and message.tool_calls
+        events = []
+        for handed, output in zip(
+            _handed_calls(cast(str, message.id), message.tool_calls), outputs
+        ):
+            event = ToolEvent(
+                id=handed.call_id,
+                function=handed.function,
+                arguments={},
+                result=output,
+            )
+            bridge._await_result_message(handed, event)
+            events.append(event)
+        conversation.results(calls, cast(list[JsonValue], outputs))
+        bundle = conversation.history[-1]
+        await conversation.request(cast(SandboxAgentBridge, bridge))
+        model_events = [e for e in recorded.events if isinstance(e, ModelEvent)]
+        own_a, own_b = [m.id for m in model_events[-1].input if m.role == "tool"]
+        bundle["parts"] = bundle["parts"][::-1]
+        if compacted:
+            conversation.history = [
+                _user_turn("google", "Summary."),
+                *conversation.history[1:3],
+            ]
+        conversation.history.append(_user_turn("google", "Continue."))
+        await conversation.request(cast(SandboxAgentBridge, bridge))
+        conversation.history.append(_user_turn("google", "Thanks."))
+        await conversation.request(cast(SandboxAgentBridge, bridge))
+
+    model_events = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    reordered = [m.id for m in model_events[-2].input if m.role == "tool"]
+    sent_b, sent_a = reordered
+    assert sent_b != own_a and sent_a != own_b, (own_a, own_b, reordered)
+    assert len(set(reordered)) == 2
+    assert [e.message_id for e in events] == [None, None]
+    if outputs[0] != outputs[1]:
+        # distinct content at the same position stays forced
+        assert [m.id for m in model_events[-1].input if m.role == "tool"] == reordered
+
+
+async def test_google_result_without_its_batch_gets_a_new_id() -> None:
+    """A Google result sent without the other results of calls sharing its function doesn't keep an id by position.
+
+    Here `b`'s result, edited to `a`'s content, is sent alone, so it takes
+    `a`'s position and call id.
+    """
+    reply = tool_calls_output(
+        *[
+            ToolCall(id=path, function="read_file", arguments={"path": path})
+            for path in ["a", "b"]
+        ],
+        content="Read both.",
+    )
+    done = ModelOutput.from_content("mockllm/model", "Done.")
+    bridge = AgentBridge(
+        AgentState(messages=[ChatMessageUser(content="Read files.")]),
+        model_aliases={
+            "inspect": get_model("mockllm/model", custom_outputs=[reply, *[done] * 2])
+        },
+    )
+    [info] = declare("read_file")
+    conversation = _HostConversation("google", "Read files.", info)
+    with recorded_transcript() as recorded:
+        calls = await conversation.request(cast(SandboxAgentBridge, bridge))
+        conversation.results(calls, ["A", "B"])
+        bundle = conversation.history[-1]
+        await conversation.request(cast(SandboxAgentBridge, bridge))
+        own_a, _ = [
+            m.id
+            for m in [e for e in recorded.events if isinstance(e, ModelEvent)][-1].input
+            if m.role == "tool"
+        ]
+        part_b = bundle["parts"][1]
+        bundle["parts"] = [
+            {
+                "functionResponse": {
+                    **part_b["functionResponse"],
+                    "response": {"output": "A"},
+                }
+            }
+        ]
+        conversation.history.append(_user_turn("google", "Continue."))
+        await conversation.request(cast(SandboxAgentBridge, bridge))
+
+    latest = [e for e in recorded.events if isinstance(e, ModelEvent)][-1]
+    [sent_b] = [m.id for m in latest.input if m.role == "tool"]
+    assert sent_b != own_a
+
+
+@pytest.mark.parametrize("host", [False, True], ids=["scaffold", "host"])
+def test_matching_same_name_google_results_is_linear(host: bool) -> None:
+    """Matching a batch of results of calls sharing a function is linear in the batch."""
+    import sys
+
+    from inspect_ai.agent._bridge.google_api_impl import (
+        messages_from_google_contents,
+    )
+
+    def work(n: int) -> int:
+        calls = [
+            ToolCall(id=f"call_{i}", function="read_file", arguments={"path": str(i)})
+            for i in range(n)
+        ]
+        reply = ChatMessageAssistant(content="", tool_calls=calls)
+        bridge = AgentBridge(AgentState(messages=[ChatMessageUser(content="Read.")]))
+        bridge._assign_message_ids([ChatMessageUser(content="Read."), reply])
+        contents = [
+            {"role": "user", "parts": [{"text": "Read."}]},
+            {
+                "role": "model",
+                "parts": [
+                    {"functionCall": {"name": "read_file", "args": {"path": str(i)}}}
+                    for i in range(n)
+                ],
+            },
+            {
+                "role": "user",
+                "parts": [
+                    {
+                        "functionResponse": {
+                            "name": "read_file",
+                            "response": {"output": "OK" if i % 2 else str(i)},
+                        }
+                    }
+                    for i in range(n)
+                ],
+            },
+        ]
+        lines = 0
+
+        def trace(frame: Any, event: str, arg: Any) -> Any:
+            nonlocal lines
+            if event == "line" and "inspect_ai" in frame.f_code.co_filename:
+                lines += 1
+            return trace
+
+        sys.settrace(trace)
+        try:
+            if host:
+                assert reply.id is not None
+                for handed in _handed_calls(reply.id, calls):
+                    bridge._await_result_message(
+                        handed,
+                        ToolEvent(
+                            id=handed.call_id,
+                            function="read_file",
+                            arguments={},
+                            result="OK",
+                        ),
+                    )
+            inferred: list[ChatMessageTool] = []
+            messages = messages_from_google_contents(contents, None, inferred)
+            assert len(inferred) == n
+            bridge._assign_message_ids(messages, inferred)
+        finally:
+            sys.settrace(None)
+        return lines
+
+    small, large = work(16), work(128)
+    # linear is 8x; comparing each result with each call is 64x
+    assert large <= 12 * small, (small, large)
 
 
 def _awaited_entries(bridge: AgentBridge) -> list[Any]:

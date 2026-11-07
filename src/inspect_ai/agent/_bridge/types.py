@@ -111,17 +111,18 @@ def _arguments_digest(arguments: dict[str, Any]) -> str:
 def _handed_calls(reply_id: str, calls: Sequence[ToolCall]) -> list[_HandedCall]:
     """The calls of a reply handed to the scaffold, for `_await_result_message`."""
     keys = [(call.function, _arguments_digest(call.arguments)) for call in calls]
-    ids = [call.id for call in calls]
-    handed_ids = frozenset(ids) if len(calls) <= _MAX_HANDED_IDS else None
+    key_counts = Counter(keys)
+    id_counts = Counter(call.id for call in calls)
+    handed_ids = frozenset(id_counts) if len(calls) <= _MAX_HANDED_IDS else None
     return [
         _HandedCall(
             reply_id,
             position,
             call.id,
             *key,
-            keys.count(key),
+            key_counts[key],
             handed_ids,
-            ids.count(call.id) > 1,
+            id_counts[call.id] > 1,
         )
         for position, (call, key) in enumerate(zip(calls, keys))
     ]
@@ -149,15 +150,27 @@ class _AwaitedResult(NamedTuple):
     """Recent edits of the handed reply, kept on one call per pending reply."""
 
 
-def _is_handed(copy_call: ToolCall, handed: _HandedCall) -> bool:
-    return (
-        copy_call.function == handed.function
-        and _arguments_digest(copy_call.arguments) == handed.arguments
-    )
+class _CopyCalls(NamedTuple):
+    """The calls of a scaffold's copy of a reply."""
+
+    by_id: dict[str, list[tuple[ToolCall, tuple[str, str]]]]
+    """Calls with each id, with their function and arguments digest."""
+
+    by_call: dict[tuple[str, str], list[ToolCall]]
+    """Calls with each function and arguments digest."""
+
+
+def _index_copy_calls(calls: Sequence[ToolCall]) -> _CopyCalls:
+    copies = _CopyCalls({}, {})
+    for call in calls:
+        key = (call.function, _arguments_digest(call.arguments))
+        copies.by_id.setdefault(call.id, []).append((call, key))
+        copies.by_call.setdefault(key, []).append(call)
+    return copies
 
 
 def _copy_calls(
-    handed: _HandedCall, copy_calls: list[ToolCall], excluded_ids: Collection[str]
+    handed: _HandedCall, copies: _CopyCalls, excluded_ids: Collection[str]
 ) -> list[ToolCall]:
     """The calls in a scaffold's copy of a reply that may be `handed`.
 
@@ -171,13 +184,13 @@ def _copy_calls(
     """
     if handed.id_shared:
         return []
-    if any(c.id == handed.call_id for c in copy_calls):
-        return [
-            c for c in copy_calls if c.id == handed.call_id and _is_handed(c, handed)
-        ]
+    key = (handed.function, handed.arguments)
+    same_id = copies.by_id.get(handed.call_id)
+    if same_id:
+        return [call for call, call_key in same_id if call_key == key]
     if handed.identical != 1 or handed.handed_ids is None:
         return []
-    return [c for c in copy_calls if c.id not in excluded_ids and _is_handed(c, handed)]
+    return [c for c in copies.by_call.get(key, []) if c.id not in excluded_ids]
 
 
 def _settle(
@@ -245,6 +258,29 @@ class _ResultId(NamedTuple):
 
     linkable: bool
     """Whether a new id may be linked to the call's host execution (see `_Answer`)."""
+
+
+class _Executions(NamedTuple):
+    """The awaited executions of the call a tool message answers (`AgentBridge._executions`)."""
+
+    found: bool
+
+    outcomes: frozenset[str]
+
+    pending: tuple[str, ...]
+    """Outcomes of the executions not yet settled."""
+
+
+class _AwaitedIndex(NamedTuple):
+    """A reply's awaited executions by call id, function and call, for one request."""
+
+    by_id: dict[str, list[_AwaitedResult]]
+
+    by_function: dict[str, list[_AwaitedResult]]
+
+    by_call: dict[tuple[str, str], list[_AwaitedResult]]
+
+    executions: dict[tuple[str | int | bool | None, ...], _Executions]
 
 
 class _ReplyAnswers(NamedTuple):
@@ -415,6 +451,7 @@ class AgentBridge:
         self._candidate_fps: list[_MessageFingerprint] | None = None
         self._pending_operator = 0
         self._awaited_results: dict[str, dict[int, _AwaitedResult]] = {}
+        self._executions_memo: dict[str, _AwaitedIndex] = {}
         self._answers: dict[str, _Answer] = {}
         self._reply_answers: OrderedDict[str, _ReplyAnswers] = OrderedDict()
         self._answer_records = 0
@@ -673,13 +710,13 @@ class AgentBridge:
                 )
             if ids_unknown - {reply_id}:
                 continue
-            results: list[ChatMessageTool] = []
+            results: dict[str | None, list[ChatMessageTool]] = {}
             for following in messages[index + 1 :]:
                 if isinstance(following, ChatMessageAssistant) and following.tool_calls:
                     break
                 if isinstance(following, ChatMessageTool):
-                    results.append(following)
-            copy_calls = message.tool_calls or []
+                    results.setdefault(following.tool_call_id, []).append(following)
+            copies = _index_copy_calls(message.tool_calls or [])
             if tracked_ids is None:
                 tracked_ids = self._tracked_call_ids()
                 excluded_ids = tracked_ids.keys() | self._unexecuted_call_ids()
@@ -691,7 +728,7 @@ class AgentBridge:
                 }
             tracked = tracked_ids
             candidates = {
-                call_index: _copy_calls(entry.handed, copy_calls, excluded_ids)
+                call_index: _copy_calls(entry.handed, copies, excluded_ids)
                 for call_index, entry in awaited.items()
                 if not entry.settled
             }
@@ -700,13 +737,11 @@ class AgentBridge:
                 for call_index, same in candidates.items()
                 if len(same) == 1
             }
+            picked = Counter(id(c) for c in identified.values())
             for call_index, copy_call in identified.items():
-                if (
-                    sum(c is copy_call for c in identified.values()) != 1
-                    or [c.id for c in copy_calls].count(copy_call.id) != 1
-                ):
+                if picked[id(copy_call)] != 1 or len(copies.by_id[copy_call.id]) != 1:
                     continue
-                matches = [r for r in results if r.tool_call_id == copy_call.id]
+                matches = results.get(copy_call.id, [])
                 if any(r.id in inferred for r in matches):
                     _settle(awaited, call_index, [])
                     continue
@@ -850,23 +885,32 @@ class AgentBridge:
         `inferred_results` are tool messages whose call id the dialect
         inferred rather than read (Google names only a result's function, so
         among calls sharing it the id follows order). Such a message is
-        recognized only by its exact content, records no call it answers, and
-        isn't linked.
+        recognized only by its exact content, and not at all when that doesn't
+        identify its call (`_unforced_results`). It records no call it answers
+        and isn't linked.
         """
+        self._executions_memo = {}
         inferred = {id(message) for message in inferred_results}
+        inferred_indexes = {i for i, m in enumerate(messages) if id(m) in inferred}
+        unforced = _unforced_results(messages, inferred_indexes)
         keys = [
-            _message_id_keys(message)[:1]
-            if id(message) in inferred
+            []
+            if index in unforced
+            else _message_id_keys(message)[:1]
+            if index in inferred_indexes
             else _message_id_keys(message)
-            for message in messages
+            for index, message in enumerate(messages)
         ]
-        aligned = self._align_with_tracked(keys)
+        aligned = self._align_with_tracked(keys, inferred_indexes)
+        reserved = {self._edit_root(id) for id in aligned.values()}
+        for index in inferred_indexes & aligned.keys():
+            if not self._strength(keys[index], aligned[index]):
+                del aligned[index]
         key_counts = Counter(key for message_keys in keys for key in set(message_keys))
         unique: list[str | None] = []
         for message_keys in keys:
             key = next((key for key in message_keys if self._message_ids.get(key)), "")
             unique.append(self._named_id(key) if key_counts[key] == 1 else None)
-        reserved = {self._edit_root(id) for id in aligned.values()}
         claimed = Counter(
             self._edit_root(id) for id in [*unique, *aligned.values()] if id is not None
         )
@@ -894,6 +938,7 @@ class AgentBridge:
         preceding_reply_ambiguous: bool | None = None
         preceding_reply_repeated = False
         reply_calls: dict[str, list[ToolCall]] = {}
+        reply_functions: Counter[str] = Counter()
         for index, (message, message_keys) in enumerate(zip(messages, keys)):
             aligned_id = aligned.get(index)
             message_id = aligned_id
@@ -930,13 +975,9 @@ class AgentBridge:
                         preceding_reply_key,
                         None,
                         message.function,
-                        sum(
-                            call.function == message.function
-                            for calls in reply_calls.values()
-                            for call in calls
-                        ),
+                        reply_functions[message.function or ""],
                     )
-                    if id(message) in inferred
+                    if index in inferred_indexes
                     else _answered_call(
                         preceding_reply_key,
                         reply_calls.get(message.tool_call_id or "", []),
@@ -949,7 +990,7 @@ class AgentBridge:
                     answered,
                     partial(available, index=index),
                 )
-                linkable = linkable and id(message) not in inferred
+                linkable = linkable and index not in inferred_indexes
             recognized.append(message_id)
             repeated = message_id is None and any(
                 key in self._message_ids for key in message_keys
@@ -976,7 +1017,7 @@ class AgentBridge:
                         message.id, answered, preceding_reply_ambiguous, linkable
                     )
                 answer = self._answer_of(message.id)
-                if answer is None or not answer.linkable or id(message) in inferred:
+                if answer is None or not answer.linkable or index in inferred_indexes:
                     unattributed.add(message.id)
                 if answer is not None:
                     self._record_occurrence(message_keys, message.id, answered)
@@ -993,6 +1034,7 @@ class AgentBridge:
                 reply_calls = {}
                 for call in message.tool_calls:
                     reply_calls.setdefault(call.id, []).append(call)
+                reply_functions = Counter(call.function for call in message.tool_calls)
         request: list[tuple[str, str]] = [(m.id, m.role) for m in messages if m.id]
         self._latest_request = request
         self._remember_thread(request)
@@ -1000,7 +1042,11 @@ class AgentBridge:
             messages,
             recognized,
             unattributed,
-            {m.id for m in messages if id(m) in inferred and m.id is not None},
+            {
+                message_id
+                for index in inferred_indexes
+                if (message_id := messages[index].id) is not None
+            },
         )
         # only after linking, so the request's ownership checks all see the
         # records it started with
@@ -1045,52 +1091,73 @@ class AgentBridge:
             for key in keys
         ):
             return _ResultId(None, True)
-        entries = self._answered_entries(answered)
-        if not entries:
+        executions = self._executions(answered)
+        if not executions.found:
             return _ResultId(None, True)
-        pending = [entry for entry in entries if not entry.settled]
         return _ResultId(
             None,
             earlier is not None
-            and len(pending) == 1
-            and earlier.outcomes == {pending[0].outcome},
+            and len(executions.pending) == 1
+            and earlier.outcomes == set(executions.pending),
         )
 
-    def _answered_entries(
+    def _executions(
         self, answered: _AnsweredCall, identical: bool = False
-    ) -> list[_AwaitedResult]:
+    ) -> "_Executions":
         """The awaited executions of the call a tool message answers.
 
         Matched by call id, else (Google re-derives call ids) by function and
         arguments: only a call no other call in its reply is identical to,
         unless `identical`. For an inferred call id, every call with the
         message's function, or none unless each such call was executed.
+        Memoized for the request, so a reply's answers index its calls once.
         """
-        entries = self._awaited_results.get(answered.reply_id, {}).values()
-        if answered.call is None:
-            candidates = [
-                entry
-                for entry in entries
-                if answered.function is not None
-                and entry.handed.function == answered.function
-            ]
-            return candidates if len(candidates) == answered.calls else []
+        index = self._executions_memo.get(answered.reply_id)
+        if index is None:
+            index = _AwaitedIndex({}, {}, {}, {})
+            for entry in self._awaited_results.get(answered.reply_id, {}).values():
+                handed = entry.handed
+                index.by_id.setdefault(handed.call_id, []).append(entry)
+                index.by_function.setdefault(handed.function, []).append(entry)
+                index.by_call.setdefault(
+                    (handed.function, handed.arguments), []
+                ).append(entry)
+            self._executions_memo[answered.reply_id] = index
         call = answered.call
-
-        def is_handed(handed: _HandedCall) -> bool:
-            return (call.function, call.arguments) == (
-                handed.function,
-                handed.arguments,
-            )
-
-        by_id = [entry for entry in entries if entry.handed.call_id == call.id]
-        if by_id:
-            return [entry for entry in by_id if is_handed(entry.handed)]
-        return [
-            entry
-            for entry in entries
-            if (identical or entry.handed.identical == 1) and is_handed(entry.handed)
-        ]
+        memo_key: tuple[str | int | bool | None, ...]
+        if call is None:
+            memo_key = ("function", answered.function, answered.calls)
+        elif call.id in index.by_id:
+            memo_key = ("id", call.id, call.function, call.arguments)
+        else:
+            memo_key = ("call", call.function, call.arguments, identical)
+        executions = index.executions.get(memo_key)
+        if executions is not None:
+            return executions
+        if call is None:
+            entries = index.by_function.get(answered.function or "", [])
+            if answered.function is None or len(entries) != answered.calls:
+                entries = []
+        elif call.id in index.by_id:
+            entries = [
+                entry
+                for entry in index.by_id[call.id]
+                if (entry.handed.function, entry.handed.arguments)
+                == (call.function, call.arguments)
+            ]
+        else:
+            entries = [
+                entry
+                for entry in index.by_call.get((call.function, call.arguments), [])
+                if identical or entry.handed.identical == 1
+            ]
+        executions = _Executions(
+            bool(entries),
+            frozenset(entry.outcome for entry in entries),
+            tuple(entry.outcome for entry in entries if not entry.settled),
+        )
+        index.executions[memo_key] = executions
+        return executions
 
     def _edit_root(self, message_id: str) -> str:
         return self._edit_roots.get(message_id, message_id)
@@ -1123,10 +1190,7 @@ class AgentBridge:
             answered.reply_id,
             frozenset()
             if ambiguous
-            else frozenset(
-                entry.outcome
-                for entry in self._answered_entries(answered, identical=True)
-            ),
+            else self._executions(answered, identical=True).outcomes,
             linkable,
         )
         self._reply_answer_records(answered.reply_id).message_ids.append(message_id)
@@ -1193,7 +1257,9 @@ class AgentBridge:
         self._edit_roots[edited_id] = self._edit_root(message_id)
         return edited_id
 
-    def _align_with_tracked(self, keys: list[list[str]]) -> dict[int, str]:
+    def _align_with_tracked(
+        self, keys: list[list[str]], wildcards: Collection[int] = ()
+    ) -> dict[int, str]:
         """Pair the request's leading messages with a thread it continues.
 
         A request that starts with the whole tracked thread, the latest
@@ -1205,7 +1271,9 @@ class AgentBridge:
         reply in place of one of its own: one a kept thread holds
         (`_contested`), or one whose threads are no longer kept
         (`_dropped_holds`). That covers retries, rewinds, sliding windows and
-        side calls whose replies repeat the thread's.
+        side calls whose replies repeat the thread's. A tool message at a
+        `wildcards` index (a result whose call id was inferred) fits any tool
+        message of the thread.
         """
         for thread in sorted(
             (self._tracked_ids, self._latest_generation, self._latest_request),
@@ -1213,7 +1281,7 @@ class AgentBridge:
             reverse=True,
         ):
             if (
-                self._contains(keys, thread)
+                self._contains(keys, thread, wildcards)
                 and not self._contested(keys, thread)
                 and not self._dropped_holds(keys, thread)
             ):
@@ -1322,12 +1390,19 @@ class AgentBridge:
         return matched
 
     def _contains(
-        self, keys: list[list[str]], thread: Sequence[tuple[str, str]]
+        self,
+        keys: list[list[str]],
+        thread: Sequence[tuple[str, str]],
+        wildcards: Collection[int],
     ) -> bool:
         return (
             bool(thread)
             and len(keys) >= len(thread)
-            and all(self._strength(keys[i], thread[i][0]) for i in range(len(thread)))
+            and all(
+                (i in wildcards and role == "tool")
+                or self._strength(keys[i], message_id)
+                for i, (message_id, role) in enumerate(thread)
+            )
         )
 
     def _strength(self, message_keys: list[str], message_id: str) -> int:
@@ -1595,6 +1670,37 @@ class AgentBridge:
         if contained:
             return _Descent.CONTAINED
         return _Descent.QUOTED if quoted else _Descent.EXACT
+
+
+def _unforced_results(
+    messages: list[ChatMessage], inferred: Collection[int]
+) -> set[int]:
+    """Indexes of `inferred` results that don't identify their call.
+
+    One doesn't when another result of its function after the same reply has
+    its content but for the call id, or when not every call of the reply with
+    that function has a result in the request.
+    """
+    groups: dict[tuple[int, str | None], dict[str, list[int]]] = {}
+    calls: dict[tuple[int, str | None], int] = {}
+    reply = -1
+    functions: Counter[str] = Counter()
+    for index, message in enumerate(messages):
+        if isinstance(message, ChatMessageAssistant) and message.tool_calls:
+            reply = index
+            functions = Counter(call.function for call in message.tool_calls)
+        elif index in inferred and isinstance(message, ChatMessageTool):
+            group = (reply, message.function)
+            content = content_hash(message.model_copy(update={"tool_call_id": None}))
+            groups.setdefault(group, {}).setdefault(content, []).append(index)
+            calls[group] = functions[message.function or ""]
+    unforced: set[int] = set()
+    for group, by_content in groups.items():
+        complete = sum(map(len, by_content.values())) == calls[group]
+        for indexes in by_content.values():
+            if len(indexes) > 1 or not complete:
+                unforced.update(indexes)
+    return unforced
 
 
 @lru_cache(maxsize=100)
