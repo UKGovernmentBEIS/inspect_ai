@@ -53,6 +53,7 @@ from ._reconstruct import (
     in_progress_sample_error,
     recovered_sample_limit,
     recovered_sample_scores,
+    recovered_sample_store,
     resolve_output_attachments,
 )
 
@@ -335,8 +336,12 @@ def _write_sample_streaming(
             write_json_field(stream, "choices", dataset_sample.choices, comma=True)
             write_json_field(stream, "target", dataset_sample.target, comma=True)
 
-            # Store: parity with DB recovery path (defaults to {}).
-            write_json_field(stream, "store", {}, comma=True)
+            write_json_field(
+                stream,
+                "store",
+                recovered_sample_store(summary, raw_events, attachments),
+                comma=True,
+            )
 
             write_json_field(stream, "model_usage", summary.model_usage, comma=True)
             write_json_field(stream, "role_usage", summary.role_usage, comma=True)
