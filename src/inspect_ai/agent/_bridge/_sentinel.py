@@ -37,7 +37,10 @@ from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.logger import warn_once
 from inspect_ai.agent._bridge.types import AgentBridge
-from inspect_ai.model._assistant_internal import alias_assistant_internal_call
+from inspect_ai.model._assistant_internal import (
+    alias_assistant_internal_call,
+    has_assistant_internal_call_arguments,
+)
 from inspect_ai.model._call_tools import decisive_sentinel_exception
 from inspect_ai.model._chat_message import (
     ChatMessage,
@@ -121,6 +124,9 @@ class SentinelCheck(NamedTuple):
     alternatives: tuple["SentinelCheck", ...] = ()
     """Checks for other host tools denoted by the same handed call."""
 
+    modified: bool = False
+    """Whether approval changed the arguments the model proposed."""
+
 
 class _Identity(NamedTuple):
     """What the bridge keeps for every token it has handed out, for good."""
@@ -161,8 +167,10 @@ class _ResultChecks:
     Each call handed to the scaffold gets a token, unique for the bridge, as
     its id (`sentinel_tokens`): the model's own id when it is absent from the
     incoming history, the bridge has not handed it out before, it is at most
-    `_MAX_TOKEN_LENGTH` characters and it names no Gemini computer action other
-    than the approved one (`_names_another_action`); otherwise a fresh token
+    `_MAX_TOKEN_LENGTH` characters, it names no Gemini computer action other
+    than the approved one (`_names_another_action`) and, for a call approval
+    modified, the provider does not replay the model's arguments under it
+    (`has_assistant_internal_call_arguments`); otherwise a fresh token
     (`_token_prefix`). A result
     reported under a token is the result of that execution, however the
     scaffold has rewritten, compacted or reformatted the rest of its
@@ -224,6 +232,11 @@ class _ResultChecks:
                 or len(token) > _MAX_TOKEN_LENGTH
                 or self._ambiguous_token(token, names)
                 or _names_another_action(token, check.handed)
+                or (
+                    check.modified
+                    and token == check.handed.id
+                    and has_assistant_internal_call_arguments(token)
+                )
             ):
                 token = f"{_token_prefix(check.handed)}_{uuid()}"
             self.identities[token] = _Identity(
@@ -638,7 +651,9 @@ def sentinel_tokens(
         token = check.token or call.id
         tokens.setdefault(call.id, deque()).append(token)
         if token != call.id:
-            alias_assistant_internal_call(call.id, token)
+            alias_assistant_internal_call(
+                call.id, token, call if check.modified else None
+            )
         call.id = token
     _retarget_anchors(output.message.content, tokens)
     return output, issued

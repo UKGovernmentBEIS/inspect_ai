@@ -6324,6 +6324,255 @@ async def test_a_repeated_responses_native_call_stays_native(kind: str) -> None:
     ] == [(item.type, call["call_id"]), (result["type"], call["call_id"])]
 
 
+def _responses_modified_call(kind: str) -> tuple[Any, Any, Any, dict[str, Any]]:
+    """A native Responses call, its tool, its result and approved arguments."""
+    from openai.types.responses import (
+        ResponseComputerToolCall,
+        ResponseCustomToolCall,
+        ResponseFunctionToolCall,
+        ResponseToolSearchCall,
+    )
+    from openai.types.responses.computer_action import Click
+
+    if kind == "custom":
+        return (
+            ResponseCustomToolCall(
+                id="ctc_1",
+                type="custom_tool_call",
+                call_id="call_patch",
+                name="apply_patch",
+                input="*** Begin Patch\n*** Delete File: notes.txt\n*** End Patch",
+            ),
+            {
+                "type": "custom",
+                "name": "apply_patch",
+                "description": "Patch.",
+                "format": {"type": "text"},
+            },
+            {"type": "custom_tool_call_output", "output": "Done."},
+            {"input": "*** Begin Patch\n*** End Patch"},
+        )
+    elif kind == "function":
+        return (
+            ResponseFunctionToolCall(
+                id="fc_1",
+                type="function_call",
+                call_id="call_read",
+                name="read_file",
+                arguments='{"path": "notes.txt"}',
+            ),
+            {
+                "type": "function",
+                "name": "read_file",
+                "description": "Read a file.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"path": {"type": "string"}},
+                },
+            },
+            {"type": "function_call_output", "output": "contents"},
+            {"path": "safe.txt"},
+        )
+    elif kind == "computer":
+        return (
+            ResponseComputerToolCall(
+                id="cu_1",
+                type="computer_call",
+                call_id="call_computer",
+                actions=[Click(type="click", button="left", x=10, y=20)],
+                pending_safety_checks=[],
+                status="completed",
+            ),
+            {
+                "type": "computer_use_preview",
+                "display_width": 1024,
+                "display_height": 768,
+                "environment": "linux",
+            },
+            {
+                "type": "computer_call_output",
+                "output": {"type": "computer_screenshot", "image_url": PNG_DATA_URI},
+            },
+            {"actions": [{"action": "wait"}]},
+        )
+    else:
+        return (
+            ResponseToolSearchCall(
+                id="ts_1",
+                type="tool_search_call",
+                call_id="call_search",
+                arguments={"query": "file tools"},
+                execution="client",
+                status="completed",
+            ),
+            {
+                "type": "tool_search",
+                "description": "Search for available tools",
+                "execution": "client",
+                "parameters": {"type": "object", "properties": {}},
+            },
+            {
+                "type": "tool_search_output",
+                "tools": [],
+                "execution": "client",
+                "status": "completed",
+            },
+            {"query": "approved tools"},
+        )
+
+
+def _responses_native_arguments(param: Any) -> Any:
+    """What a native Responses call item carries as its arguments."""
+    match param["type"]:
+        case "custom_tool_call":
+            return param["input"]
+        case "function_call":
+            return json.loads(param["arguments"])
+        case "computer_call":
+            return [dict(action) for action in param["actions"]]
+        case _:
+            return param["arguments"]
+
+
+@pytest.mark.parametrize("repeated", [False, True])
+@pytest.mark.parametrize("kind", ["custom", "function", "computer", "tool_search"])
+async def test_a_modified_responses_call_continues_as_approved(
+    kind: str, repeated: bool
+) -> None:
+    from inspect_ai.agent._bridge.responses import inspect_responses_api_request
+    from inspect_ai.model._assistant_internal import init_sample_assistant_internal
+    from inspect_ai.model._openai_responses import (
+        _process_response_output_items,
+        assistant_internal,
+        openai_responses_inputs,
+    )
+
+    init_sample_assistant_internal()
+    item, tool, result, approved = _responses_modified_call(kind)
+    content, calls, _, _ = _process_response_output_items([item], [])
+    original = deepcopy(assistant_internal().tool_calls[item.call_id])
+    output = ModelOutput(
+        model="mockllm/model",
+        choices=[
+            ChatCompletionChoice(
+                message=ChatMessageAssistant(content=content, tool_calls=calls),
+                stop_reason="tool_calls",
+            )
+        ],
+    )
+    # a cache hit returns the same output, parsed once
+    outputs = [output, output] if repeated else [output]
+    model = Scripted(*outputs, calls_output())
+    bridge = AgentBridge(
+        AgentState(messages=[]), model_aliases={"inspect": model.model}
+    )
+    items: list[Any] = [{"role": "user", "content": TASK}]
+
+    def request(input: list[Any]) -> dict[str, Any]:
+        return {"model": "inspect", "input": input, "tools": [tool]}
+
+    with (
+        patch(
+            "inspect_ai.agent._bridge.responses_impl._is_openai_responses_provider",
+            return_value=True,
+        ),
+        active([bridge_modify_action(approved)]),
+    ):
+        response = await inspect_responses_api_request(
+            request(items), None, None, None, bridge
+        )
+        if repeated:
+            response = await inspect_responses_api_request(
+                request(items), None, None, None, bridge
+            )
+        handed = [item.model_dump(exclude_none=True) for item in response.output]
+        [call] = [item for item in handed if "call_id" in item]
+        # the model's id replays its cached item, so the call is handed over
+        # under a fresh one
+        assert call["call_id"] != item.call_id
+        await inspect_responses_api_request(
+            request([*items, *handed, {**result, "call_id": call["call_id"]}]),
+            None,
+            None,
+            None,
+            bridge,
+        )
+
+    # the continuation replays the approved call natively, under the handed id
+    replayed: list[Any] = await openai_responses_inputs(model.inputs[len(outputs)])
+    [replayed_call] = [param for param in replayed if param["type"] == item.type]
+    assert replayed_call["call_id"] == call["call_id"]
+    assert _responses_native_arguments(replayed_call) == _responses_native_arguments(
+        call
+    )
+    assert _responses_native_arguments(call) != _responses_native_arguments(original)
+    # the model's own item stays as it was generated
+    assert assistant_internal().tool_calls[item.call_id] == original
+
+
+@pytest.mark.parametrize(
+    ("param", "modified", "expected"),
+    [
+        (
+            {
+                "type": "function_call",
+                "id": "fc_1",
+                "call_id": "call_plan",
+                "name": "update_plan",
+                "arguments": '{"plan": []}',
+            },
+            ToolCall(
+                id="call_plan",
+                function="todo_write",
+                arguments={"todos": [{"content": "Tidy", "status": "pending"}]},
+            ),
+            {
+                "arguments": json.dumps(
+                    {"plan": [{"step": "Tidy", "status": "pending"}]}
+                )
+            },
+        ),
+        (
+            {
+                "type": "computer_call",
+                "id": "cu_1",
+                "call_id": "call_computer",
+                "action": {"type": "click", "button": "left", "x": 1, "y": 2},
+                "pending_safety_checks": [],
+                "status": "completed",
+            },
+            ToolCall(
+                id="call_computer",
+                function="computer",
+                arguments={"actions": [{"action": "wait"}]},
+            ),
+            {"actions": [{"type": "wait"}]},
+        ),
+    ],
+    ids=["update_plan", "legacy_computer_action"],
+)
+def test_a_modified_responses_alias_carries_the_approved_arguments(
+    param: dict[str, Any], modified: ToolCall, expected: dict[str, Any]
+) -> None:
+    from inspect_ai.model._assistant_internal import init_sample_assistant_internal
+    from inspect_ai.model._openai_responses import (
+        alias_openai_tool_call,
+        assistant_internal,
+    )
+
+    init_sample_assistant_internal()
+    assistant_internal().tool_calls[param["call_id"]] = cast(Any, deepcopy(param))
+    alias_openai_tool_call(param["call_id"], "token", modified)
+
+    aliased = cast(dict[str, Any], assistant_internal().tool_calls["token"])
+    assert aliased == {
+        **{key: value for key, value in param.items() if key != "action"},
+        "call_id": "token",
+        **expected,
+    }
+    assert assistant_internal().tool_calls[param["call_id"]] == param
+
+
 @pytest.fixture
 def isolated_cache(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """A model output cache only this test uses, so its first request misses."""
@@ -6416,7 +6665,7 @@ async def test_live_anthropic_cached_retries_with_interleaved_thinking_continue(
     assert continuation.content
 
 
-LIVE_RESPONSES_CALLS: dict[str, tuple[str, Any, Any]] = {
+LIVE_RESPONSES_CALLS: dict[str, tuple[str, Any, Any, dict[str, Any]]] = {
     "custom": (
         "openai/gpt-5",
         {
@@ -6426,6 +6675,7 @@ LIVE_RESPONSES_CALLS: dict[str, tuple[str, Any, Any]] = {
             "format": {"type": "text"},
         },
         {"type": "custom_tool_call_output", "output": "Done."},
+        {"input": "*** Begin Patch\n*** Add File: hello.txt\n+approved\n*** End Patch"},
     ),
     "computer": (
         "openai/gpt-5.4",
@@ -6434,8 +6684,26 @@ LIVE_RESPONSES_CALLS: dict[str, tuple[str, Any, Any]] = {
             "type": "computer_call_output",
             "output": {"type": "computer_screenshot", "image_url": PNG_DATA_URI},
         },
+        {"actions": [{"action": "wait"}]},
     ),
 }
+
+
+@protocol
+def modifies_retries(arguments: dict[str, Any]) -> Protocol:
+    """Approves a call the first time it is proposed and modifies it after."""
+    proposals: list[ToolCall] = []
+
+    async def rewrite(
+        context: Context, step: BeforeToolCall, escalations: Escalations
+    ) -> Decision | None:
+        proposals.append(step.call)
+        if len(proposals) == 1:
+            return None
+        modified = replace(step.call, arguments=arguments)
+        return Decision(action="modify", modified=modified, explanation="changed")
+
+    return rewrite
 
 
 @skip_if_no_openai
@@ -6450,7 +6718,7 @@ async def test_live_responses_cached_retry_with_native_call_continues(
     # a flaky retry runs the test again in the same transcript
     init_transcript(Transcript())
     init_sample_assistant_internal()
-    name, tool, result = LIVE_RESPONSES_CALLS[kind]
+    name, tool, result, approved = LIVE_RESPONSES_CALLS[kind]
     model = get_model(name, config=GenerateConfig(cache=True))
     bridge = AgentBridge(AgentState(messages=[]), model_aliases={"inspect": model})
     task = (
@@ -6463,7 +6731,9 @@ async def test_live_responses_cached_retry_with_native_call_continues(
     def request(input: list[Any]) -> dict[str, Any]:
         return {"model": "inspect", "input": input, "tools": [tool]}
 
-    with active([bridge_recording([])]):
+    # the retry is modified, so it is handed over under a fresh ID with the
+    # approved arguments
+    with active([modifies_retries(approved)]):
         first = await inspect_responses_api_request(
             request(items), None, None, None, bridge
         )
@@ -6482,11 +6752,20 @@ async def test_live_responses_cached_retry_with_native_call_continues(
 
     [original] = [item for item in first.output if hasattr(item, "call_id")]
     assert call["type"] == original.type and call["call_id"] != original.call_id
-    assert [e.cache for e in transcript().events if isinstance(e, ModelEvent)] == [
-        "write",
-        "read",
-        "write",
+    events = [e for e in transcript().events if isinstance(e, ModelEvent)]
+    assert [e.cache for e in events] == ["write", "read", "write"]
+    # the continuation sent the model the approved call
+    assert events[-1].call is not None
+    sent_input: list[Any] = cast(list[Any], events[-1].call.request["input"])
+    [sent] = [
+        item
+        for item in sent_input
+        if item.get("call_id") == call["call_id"] and item.get("type") == call["type"]
     ]
+    assert _responses_native_arguments(sent) == _responses_native_arguments(call)
+    assert _responses_native_arguments(call) != _responses_native_arguments(
+        original.model_dump(exclude_none=True)
+    )
 
 
 @skip_if_no_google

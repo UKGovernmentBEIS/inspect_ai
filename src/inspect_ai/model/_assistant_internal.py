@@ -11,8 +11,12 @@ resume.
 from __future__ import annotations
 
 import importlib.util
+from typing import TYPE_CHECKING
 
 from pydantic import JsonValue
+
+if TYPE_CHECKING:
+    from inspect_ai.tool._tool_call import ToolCall
 
 # `importlib.util.find_spec` walks importer paths (~3 ms per call). Cache
 # at module load — package installation can't change during a process
@@ -92,17 +96,38 @@ def dump_sample_assistant_internal() -> JsonValue | None:
     return dump or None
 
 
-def alias_assistant_internal_call(call_id: str, alias: str) -> None:
+def has_assistant_internal_call_arguments(call_id: str) -> bool:
+    """Whether a provider replays the call's generated arguments from its own state.
+
+    Such a call, handed on with other arguments, replays as generated under its
+    own ID; under another ID (`alias_assistant_internal_call`) it replays as
+    handed on. The OpenAI Responses provider replays a call's cached item.
+    """
+    if _HAS_OPENAI:
+        try:
+            from inspect_ai.model._openai_responses import has_openai_tool_call
+
+            return has_openai_tool_call(call_id)
+        except ImportError:
+            pass
+    return False
+
+
+def alias_assistant_internal_call(
+    call_id: str, alias: str, modified: ToolCall | None = None
+) -> None:
     """Record a tool call's per-call replay state under another ID too.
 
     For a call handed on under a new ID, so it replays to the model as it was
-    generated (native call type, position among the turn's content).
+    generated (native call type, position among the turn's content), with the
+    `modified` call's arguments when approval changed them. The state recorded
+    under `call_id` is unchanged.
     """
     if _HAS_OPENAI:
         try:
             from inspect_ai.model._openai_responses import alias_openai_tool_call
 
-            alias_openai_tool_call(call_id, alias)
+            alias_openai_tool_call(call_id, alias, modified)
         except ImportError:
             pass
 

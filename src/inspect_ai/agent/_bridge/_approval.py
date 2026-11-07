@@ -346,6 +346,8 @@ async def apply_bridge_tool_approval(
                             message_id=output.message.id,
                             history=sentinel_history,
                             producer=producer,
+                            modified=modified.get(index, call.arguments)
+                            != call.arguments,
                         )
                     )
                 checks.append(

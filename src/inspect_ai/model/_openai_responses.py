@@ -198,6 +198,7 @@ from ._openai import _cache_breakpoint
 from ._providers._openai_computer_use import (
     computer_call_output,
     maybe_computer_use_tool,
+    tool_call_arguments_to_actions,
     tool_call_from_openai_computer_tool_call,
 )
 from ._providers._openai_web_search import maybe_web_search_tool
@@ -847,19 +848,52 @@ def dump_openai_assistant_internal() -> JsonValue | None:
     )
 
 
-def alias_openai_tool_call(call_id: str, alias: str) -> None:
+def has_openai_tool_call(call_id: str) -> bool:
+    return call_id in assistant_internal().tool_calls
+
+
+def alias_openai_tool_call(
+    call_id: str, alias: str, modified: ToolCall | None = None
+) -> None:
     internal = assistant_internal()
     param = internal.tool_calls.get(call_id)
     if param is not None:
         # the replayed item carries the call's id (`call_id`, and `id` when the
         # call has no separate item id)
-        internal.tool_calls[alias] = cast(
-            Any,
-            {
-                key: alias if key in ("call_id", "id") and value == call_id else value
-                for key, value in param.items()
-            },
-        )
+        aliased: dict[str, Any] = {
+            key: alias if key in ("call_id", "id") and value == call_id else value
+            for key, value in param.items()
+        }
+        if modified is not None:
+            aliased = _with_tool_call_arguments(aliased, modified)
+        internal.tool_calls[alias] = cast(Any, aliased)
+
+
+def _with_tool_call_arguments(param: dict[str, Any], call: ToolCall) -> dict[str, Any]:
+    match param["type"]:
+        case "custom_tool_call":
+            return {**param, "input": next(iter(call.arguments.values()))}
+        case "computer_call":
+            actions = tool_call_arguments_to_actions(call.arguments)
+            return {
+                **{key: value for key, value in param.items() if key != "action"},
+                "actions": [action.model_dump(exclude_none=True) for action in actions],
+            }
+        case "tool_search_call":
+            return {**param, "arguments": call.arguments}
+        case "function_call":
+            arguments = (
+                _update_plan_args_from_inspect(call.arguments)
+                if param.get("name") == UPDATE_PLAN_NAME
+                and call.function == TODO_WRITE_NAME
+                else call.arguments
+            )
+            return {
+                **param,
+                "arguments": _limit_function_call_arguments(json.dumps(arguments)),
+            }
+        case _:
+            return param
 
 
 _openai_assistant_internal: ContextVar[_AssistantInternal] = ContextVar(
