@@ -51,7 +51,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageTool,
     ChatMessageUser,
 )
-from inspect_ai.tool._tool_call import ToolCallError
+from inspect_ai.tool._tool_call import ToolCall, ToolCallError
 
 from .exceptions import AgentInterrupted
 from .items import Cancel, CancelReason, ChannelItem, UserMessage, coalesce
@@ -419,18 +419,23 @@ class AgentChannel:
         ``reason`` selects the per-call error sentinel stamped on
         synthesized :class:`ToolCallError` instances. Defaults to
         ``"user_cancel"``.
+
+        Each repair's ``function`` is the name of the call it answers:
+        Bedrock refuses a tool result without one, and Google needs it
+        to match the call.
         """
-        repair_ids = _unanswered_tool_call_ids(messages)
-        if not repair_ids:
+        unanswered = _unanswered_tool_calls(messages)
+        if not unanswered:
             return []
         message_text = _REPAIR_MESSAGE_FOR_REASON[reason]
         return [
             ChatMessageTool(
-                tool_call_id=tool_call_id,
+                tool_call_id=call.id,
+                function=call.function,
                 content=message_text,
                 error=ToolCallError(type="cancelled", message=message_text),
             )
-            for tool_call_id in repair_ids
+            for call in unanswered
         ]
 
     # ------------------------------------------------------------------
@@ -509,11 +514,11 @@ class AgentChannel:
         return [*repair_msgs, *coalesce(items)]
 
 
-def _unanswered_tool_call_ids(messages: Sequence[ChatMessage]) -> list[str]:
-    """Return tool_call ids from the last assistant message that lack a result.
+def _unanswered_tool_calls(messages: Sequence[ChatMessage]) -> list[ToolCall]:
+    """Return tool calls from the last assistant message that lack a result.
 
     Scans ``messages`` backwards to find the last
-    :class:`ChatMessageAssistant`; collects every tool_call id from
+    :class:`ChatMessageAssistant`; collects every tool call from
     that message that does not have a matching
     :class:`ChatMessageTool` (by ``tool_call_id``) appearing later in
     the list.
@@ -533,4 +538,4 @@ def _unanswered_tool_call_ids(messages: Sequence[ChatMessage]) -> list[str]:
     for m in messages[last_assistant_idx + 1 :]:
         if isinstance(m, ChatMessageTool) and m.tool_call_id:
             answered.add(m.tool_call_id)
-    return [tc.id for tc in last_assistant.tool_calls if tc.id not in answered]
+    return [tc for tc in last_assistant.tool_calls if tc.id not in answered]

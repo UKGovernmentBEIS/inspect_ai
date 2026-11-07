@@ -22,6 +22,7 @@ import os
 from pathlib import Path
 from typing import NamedTuple
 
+from inspect_ai.util._sandbox._framework_operation import framework_sandbox_operation
 from inspect_ai.util._sandbox._privileged import privileged_shell
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
 from inspect_ai.util._sandbox.limits import override_max_read_file_size
@@ -135,7 +136,10 @@ async def copy_out(
                 result = await privileged_shell(env, script, user="root")
                 if not result.success:
                     raise RuntimeError(f"{label}: chunk copy failed: {result.stderr}")
-                with override_max_read_file_size(chunk_size * 2):
+                with (
+                    override_max_read_file_size(chunk_size * 2),
+                    framework_sandbox_operation(),
+                ):
                     data = await env.read_file(chunk_path, text=False, **read_params)
                 if not data:
                     raise RuntimeError(
