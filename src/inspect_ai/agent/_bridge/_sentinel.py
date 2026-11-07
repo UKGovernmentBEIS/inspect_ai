@@ -231,14 +231,14 @@ class _ResultChecks:
                 not token
                 or len(token) > _MAX_TOKEN_LENGTH
                 or self._ambiguous_token(token, names)
-                or _names_another_action(token, check.handed)
+                or _names_another_action(token, check)
                 or (
                     check.modified
                     and token == check.handed.id
                     and has_assistant_internal_call_arguments(token)
                 )
             ):
-                token = f"{_token_prefix(check.handed)}_{uuid()}"
+                token = f"{_token_prefix(check)}_{uuid()}"
             self.identities[token] = _Identity(
                 check.call.id, check.handed.function, _call_key(check.handed)
             )
@@ -550,15 +550,16 @@ def _aliases(call_id: str) -> Iterator[str]:
         index = call_id.find("__", index + 1)
 
 
-def _token_prefix(call: ToolCall) -> str:
+def _token_prefix(check: SentinelCheck) -> str:
     """The prefix of a fresh token for the call.
 
     Google names a computer call's action by its ID's prefix (`click_at_<id>`),
     which a fresh token keeps, or, for an action approval changed, the name of
     the approved action.
     """
+    call = check.handed
     if call.function == "computer":
-        if _names_another_action(call.id, call):
+        if _names_another_action(call.id, check):
             return gemini_computer_action_name(call.arguments)
         prefix = call.id.rpartition("_")[0]
         if prefix and len(prefix) <= _MAX_TOKEN_LENGTH // 2:
@@ -566,14 +567,19 @@ def _token_prefix(call: ToolCall) -> str:
     return "call"
 
 
-def _names_another_action(token: str, call: ToolCall) -> bool:
-    """Whether the token names a Gemini computer action other than the call's."""
+def _names_another_action(token: str, check: SentinelCheck) -> bool:
+    """Whether the token names a Gemini computer action other than the approved one.
+
+    Only an unmodified call keeps an action it was parsed from (`search` parses
+    as navigation, so a modified navigation is not a search).
+    """
+    call = check.handed
     prefix = token.rpartition("_")[0]
-    return (
-        call.function == "computer"
-        and prefix in GEMINI_COMPUTER_ACTIONS
-        and prefix not in gemini_computer_action_names(call.arguments)
-    )
+    if call.function != "computer" or prefix not in GEMINI_COMPUTER_ACTIONS:
+        return False
+    if check.modified:
+        return prefix != gemini_computer_action_name(call.arguments)
+    return prefix not in gemini_computer_action_names(call.arguments)
 
 
 def _wire_names(call: ToolCall) -> set[str]:

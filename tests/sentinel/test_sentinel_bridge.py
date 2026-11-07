@@ -5782,6 +5782,7 @@ def bridge_modify_action(arguments: dict[str, Any]) -> Protocol:
 
 CLICK: dict[str, Any] = {"action": "left_click", "coordinate": [100, 200]}
 WAIT: dict[str, Any] = {"action": "wait"}
+NAVIGATE: dict[str, Any] = {"action": "navigate", "text": "https://example.com"}
 SCROLL_AT: dict[str, Any] = {
     "action": "scroll",
     "coordinate": [100, 200],
@@ -5801,6 +5802,9 @@ ACTION_CHANGES: list[tuple[str, dict[str, Any], dict[str, Any]]] = [
     ],
     ("scroll_at", {"x": 10, "y": 20, "direction": "down"}, SCROLL_DOCUMENT),
     ("scroll_document", {"direction": "down"}, SCROLL_AT),
+    ("search", {"query": "inspect"}, NAVIGATE),
+    ("go_back", {}, {"action": "key", "text": "alt+Right"}),
+    ("go_forward", {}, {"action": "key", "text": "alt+Left"}),
     (
         "scroll_at",
         {"x": 10, "y": 20, "direction": "down"},
