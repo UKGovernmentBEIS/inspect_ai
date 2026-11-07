@@ -6,6 +6,7 @@ too (see the "Small-sample monolith threshold" amendment in
 ``design/large-samples.md``). See ``format.py`` for the zip layout.
 """
 
+import json
 import os
 import re
 import shutil
@@ -47,12 +48,14 @@ from ..eval import (
     HEADER_JSON,
     JOURNAL_DIR,
     REDUCTIONS_JSON,
+    START_JSON,
     SUMMARIES_JSON,
     EvalRecorder,
 )
 from .format import (
     ATTACHMENTS_SEQUENCE,
     CALLS_SEQUENCE,
+    CHUNKED_LOG_VERSION,
     DEFAULT_ATTACHMENTS_CHUNK_BYTES,
     DEFAULT_CHUNK_SIZE,
     EVENTS_SEQUENCE,
@@ -151,6 +154,13 @@ def convert_eval_logs_to_chunked(
                 p.update()
 
 
+def _stamp_version(data: bytes) -> bytes:
+    """Set `version` to `CHUNKED_LOG_VERSION` in a header/start JSON payload."""
+    payload = json.loads(data)
+    payload["version"] = CHUNKED_LOG_VERSION
+    return to_json_safe(payload, indent=None)
+
+
 async def _convert_log_file(
     input_file: str, output_file: str, chunk_size: int, attachments_chunk_bytes: int
 ) -> None:
@@ -161,7 +171,9 @@ async def _convert_log_file(
         directory = await reader.entries()
         with tempfile.TemporaryFile() as temp:
             with ZipFile(temp, mode="w", **zipfile_compress_kwargs) as zip:
-                # top-level entries (and _journal/) pass through unchanged
+                # top-level entries (and _journal/) pass through unchanged,
+                # except the two version-bearing entries, which are stamped
+                # with the chunked format version
                 top_level = [
                     name
                     for name in (HEADER_JSON, SUMMARIES_JSON, REDUCTIONS_JSON)
@@ -172,8 +184,12 @@ async def _convert_log_file(
                     for entry in directory.entries
                     if entry.filename.startswith(f"{JOURNAL_DIR}/")
                 ]
+                versioned = {HEADER_JSON, f"{JOURNAL_DIR}/{START_JSON}"}
                 for name in top_level + journal:
-                    zip.writestr(name, await reader.read_member_fully(name))
+                    data = await reader.read_member_fully(name)
+                    if name in versioned:
+                        data = _stamp_version(data)
+                    zip.writestr(name, data)
 
                 for id, epoch in sample_ids:
                     sample = await EvalRecorder.read_log_sample(
