@@ -6,4 +6,4 @@ ANSWER_PATTERN_LETTER = r"(?is)ANSWER\s*:\s*([A-Za-z])(?:[^\w]|\n|$)(?!.*ANSWER\
 ANSWER_PATTERN_WORD = (
     r"(?is)ANSWER\s*:\s*(\S+?)(?=[.,;:!?]?\s*(?:\n|$))(?!.*ANSWER\s*:)"
 )
-ANSWER_PATTERN_LINE = r"(?i)ANSWER\s*:\s*([^\n]+)\s*\Z"
+ANSWER_PATTERN_LINE = r"(?i)ANSWER\s*:\s*([^\n]+?)\s*\Z"
