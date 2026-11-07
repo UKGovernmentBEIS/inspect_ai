@@ -12,6 +12,7 @@ from inspect_ai.model._generate_config import BatchConfig
 from inspect_ai.model._retry import ModelRetryConfig
 
 from .batch import Batch, Batcher, BatchRequest, pop_batch_headers
+from .batch_log import log_batch
 
 ResponseT = TypeVar("ResponseT")
 CompletedBatchInfoT = TypeVar("CompletedBatchInfoT")
@@ -195,14 +196,37 @@ class FileBatcher(Batcher[ResponseT, CompletedBatchInfoT]):
         Returns:
             Dictionary mapping request IDs to their responses or exceptions
         """
-        return {
-            request_id: response_or_exception
-            for line in (await self._download_result_file(file_uri))
-            .decode()
-            .splitlines()
-            if line.strip()
-            for request_id, response_or_exception in [
-                self._parse_jsonl_line(json.loads(line))
-            ]
-            if request_id
-        }
+        results: dict[str, ResponseT | Exception] = {}
+        for line in (await self._download_result_file(file_uri)).split(b"\n"):
+            if not line.strip():
+                continue
+            line_data: dict[str, pydantic.JsonValue] | None = None
+            try:
+                parsed = json.loads(line)
+                if not isinstance(parsed, dict):
+                    raise ValueError("Batch result is not a JSON object")
+                line_data = parsed
+                request_id, response_or_exception = self._parse_jsonl_line(line_data)
+            except Exception as exc:
+                request_id = (
+                    self._request_id_from_jsonl_line(line_data)
+                    if line_data is not None
+                    else ""
+                )
+                if not request_id:
+                    log_batch(f"Unable to identify a batch result in {file_uri}: {exc}")
+                    continue
+                response_or_exception = exc
+            if request_id:
+                results[request_id] = response_or_exception
+        return results
+
+    def _request_id_from_jsonl_line(
+        self, line_data: dict[str, pydantic.JsonValue]
+    ) -> str:
+        """Recover a request ID when parsing a result line fails."""
+        for key in ("custom_id", "key"):
+            value = line_data.get(key)
+            if isinstance(value, str):
+                return value
+        return ""
