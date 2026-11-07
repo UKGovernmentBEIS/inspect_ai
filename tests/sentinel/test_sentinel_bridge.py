@@ -62,6 +62,9 @@ from inspect_ai.model._model import GenerateFilter, GenerateInput
 from inspect_ai.model._model_data.model_data import ModelCost, ModelInfo
 from inspect_ai.model._model_info import clear_model_info_cache, set_model_info
 from inspect_ai.model._model_output import ChatCompletionChoice
+from inspect_ai.model._providers._google_computer_use_name import (
+    gemini_computer_action_name,
+)
 from inspect_ai.solver import Generate, Solver, TaskState, solver
 from inspect_ai.tool import (
     Tool,
@@ -5758,6 +5761,235 @@ async def test_a_repeated_gemini_computer_action_keeps_its_name(
     calls = [part.function_call.name for part in parts if part.function_call]
     results = [part.function_response.name for part in parts if part.function_response]
     assert (calls, results) == ([action], [action])
+
+
+@protocol
+def bridge_modify_action(arguments: dict[str, Any]) -> Protocol:
+    async def rewrite(
+        context: Context, step: BeforeToolCall, escalations: Escalations
+    ) -> Decision | None:
+        modified = replace(step.call, arguments=arguments)
+        return Decision(action="modify", modified=modified, explanation="changed")
+
+    return rewrite
+
+
+CLICK: dict[str, Any] = {"action": "left_click", "coordinate": [100, 200]}
+WAIT: dict[str, Any] = {"action": "wait"}
+SCROLL_AT: dict[str, Any] = {
+    "action": "scroll",
+    "coordinate": [100, 200],
+    "scroll_direction": "down",
+    "scroll_amount": 3,
+}
+SCROLL_DOCUMENT: dict[str, Any] = {
+    "action": "scroll",
+    "scroll_direction": "down",
+    "scroll_amount": 3,
+}
+
+ACTION_CHANGES: list[tuple[str, dict[str, Any], dict[str, Any]]] = [
+    *[
+        (action, args, CLICK if action == "wait_5_seconds" else WAIT)
+        for action, args in GEMINI_ACTIONS
+    ],
+    ("scroll_at", {"x": 10, "y": 20, "direction": "down"}, SCROLL_DOCUMENT),
+    ("scroll_document", {"direction": "down"}, SCROLL_AT),
+    (
+        "scroll_at",
+        {"x": 10, "y": 20, "direction": "down"},
+        {k: v for k, v in SCROLL_AT.items() if k != "coordinate"},
+    ),
+]
+
+
+async def computer_continuation(dialect: str, bridge: AgentBridge) -> None:
+    """A scaffold in `dialect` running the computer call it is handed and sending its result."""
+    schema: dict[str, Any] = {
+        "type": "object",
+        "properties": {"action": {"type": "string"}},
+    }
+    if dialect == "completions":
+        from inspect_ai.agent._bridge.completions import (
+            inspect_completions_api_request,
+        )
+
+        messages: list[Any] = [{"role": "user", "content": TASK}]
+        tools: Any = [
+            {
+                "type": "function",
+                "function": {
+                    "name": "computer",
+                    "description": "Use the computer.",
+                    "parameters": schema,
+                },
+            }
+        ]
+        completion = await inspect_completions_api_request(
+            {"model": "inspect", "messages": messages, "tools": tools}, None, bridge
+        )
+        message = completion.choices[0].message
+        assert message.tool_calls
+        call_id = message.tool_calls[0].id
+        await inspect_completions_api_request(
+            {
+                "model": "inspect",
+                "messages": [
+                    *messages,
+                    message.model_dump(exclude_none=True),
+                    {"role": "tool", "tool_call_id": call_id, "content": "done"},
+                ],
+                "tools": tools,
+            },
+            None,
+            bridge,
+        )
+    elif dialect == "anthropic":
+        from inspect_ai.agent._bridge.anthropic_api import (
+            inspect_anthropic_api_request,
+        )
+
+        turns: list[Any] = [{"role": "user", "content": TASK}]
+        anthropic_tools: Any = [
+            {
+                "name": "computer",
+                "description": "Use the computer.",
+                "input_schema": schema,
+            }
+        ]
+
+        def request() -> dict[str, Any]:
+            return {
+                "model": "inspect",
+                "max_tokens": 100,
+                "messages": turns,
+                "tools": anthropic_tools,
+            }
+
+        response = await inspect_anthropic_api_request(
+            request(), None, None, None, bridge
+        )
+        content = [block.model_dump(exclude_none=True) for block in response.content]
+        [use] = [block for block in content if block["type"] == "tool_use"]
+        turns += [
+            {"role": "assistant", "content": content},
+            {
+                "role": "user",
+                "content": [
+                    {"type": "tool_result", "tool_use_id": use["id"], "content": "done"}
+                ],
+            },
+        ]
+        await inspect_anthropic_api_request(request(), None, None, None, bridge)
+    else:
+        from inspect_ai.agent._bridge.google_api import inspect_google_api_request
+
+        contents: list[Any] = [{"role": "user", "parts": [{"text": TASK}]}]
+        google_tools: Any = [
+            {
+                "functionDeclarations": [
+                    {
+                        "name": "computer",
+                        "description": "Use the computer.",
+                        "parameters": schema,
+                    }
+                ]
+            }
+        ]
+
+        def google_request() -> dict[str, Any]:
+            return {"model": "inspect", "contents": contents, "tools": google_tools}
+
+        first: Any = await inspect_google_api_request(
+            google_request(), None, None, bridge
+        )
+        parts = first["candidates"][0]["content"]["parts"]
+        [function_call] = [p["functionCall"] for p in parts if "functionCall" in p]
+        contents += [
+            {"role": "model", "parts": parts},
+            {
+                "role": "user",
+                "parts": [
+                    {
+                        "functionResponse": {
+                            "id": function_call.get("id"),
+                            "name": function_call["name"],
+                            "response": {"output": "done"},
+                        }
+                    }
+                ],
+            },
+        ]
+        await inspect_google_api_request(google_request(), None, None, bridge)
+
+
+@pytest.mark.parametrize(
+    ("action", "args", "modified"),
+    ACTION_CHANGES,
+    ids=[
+        f"{action}-{gemini_computer_action_name(modified)}{'-partial' if index == len(ACTION_CHANGES) - 1 else ''}"
+        for index, (action, _, modified) in enumerate(ACTION_CHANGES)
+    ],
+)
+@pytest.mark.parametrize("dialect", ["completions", "anthropic", "google"])
+async def test_a_modified_gemini_computer_action_continues_as_the_modified_action(
+    dialect: str, action: str, args: dict[str, Any], modified: dict[str, Any]
+) -> None:
+    from unittest.mock import MagicMock
+
+    from google.genai.types import FunctionCall
+
+    from inspect_ai.model._providers._google_computer_use import (
+        gemini_action_from_tool_call,
+        tool_call_from_gemini_computer_action,
+    )
+    from inspect_ai.model._providers.google import as_chat_messages
+
+    call = tool_call_from_gemini_computer_action(FunctionCall(name=action, args=args))
+    model = Scripted(calls_output(call), calls_output())
+    bridge = AgentBridge(
+        AgentState(messages=[]), model_aliases={"inspect": model.model}
+    )
+
+    with active([bridge_modify_action(modified)]):
+        await computer_continuation(dialect, bridge)
+
+    expected, expected_args = gemini_action_from_tool_call(
+        ToolCall(id="", function="computer", arguments=modified)
+    )
+    replayed = await as_chat_messages(MagicMock(), model.inputs[1])
+    parts = [part for content in replayed for part in content.parts or []]
+    calls = [
+        (part.function_call.name, part.function_call.args)
+        for part in parts
+        if part.function_call
+    ]
+    results = [part.function_response.name for part in parts if part.function_response]
+    assert (calls, results) == ([(expected, expected_args)], [expected])
+
+
+@pytest.mark.parametrize(
+    ("action", "args"),
+    [("go_back", {}), ("go_forward", {}), ("search", {"query": "inspect"})],
+)
+async def test_a_gemini_computer_action_parsed_as_another_keeps_its_id(
+    action: str, args: dict[str, Any]
+) -> None:
+    from google.genai.types import FunctionCall
+
+    from inspect_ai.model._providers._google_computer_use import (
+        tool_call_from_gemini_computer_action,
+    )
+
+    call = tool_call_from_gemini_computer_action(FunctionCall(name=action, args=args))
+    model = Scripted(calls_output(call))
+
+    with active([bridge_recording([])]):
+        output = await generate(
+            in_process_bridge([]), model, [ChatMessageUser(content=TASK)]
+        )
+
+    assert [handed.id for handed in output.message.tool_calls or []] == [call.id]
 
 
 @monitor

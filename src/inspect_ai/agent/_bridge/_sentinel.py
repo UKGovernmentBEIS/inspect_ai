@@ -46,7 +46,9 @@ from inspect_ai.model._chat_message import (
 )
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.model._providers._google_computer_use_name import (
+    GEMINI_COMPUTER_ACTIONS,
     gemini_computer_action_name,
+    gemini_computer_action_names,
 )
 from inspect_ai.tool._tool import Tool, ToolResult
 from inspect_ai.tool._tool_call import (
@@ -158,8 +160,10 @@ class _ResultChecks:
 
     Each call handed to the scaffold gets a token, unique for the bridge, as
     its id (`sentinel_tokens`): the model's own id when it is absent from the
-    incoming history, the bridge has not handed it out before, and it is at
-    most `_MAX_TOKEN_LENGTH` characters; otherwise a fresh token. A result
+    incoming history, the bridge has not handed it out before, it is at most
+    `_MAX_TOKEN_LENGTH` characters and it names no Gemini computer action other
+    than the approved one (`_names_another_action`); otherwise a fresh token
+    (`_token_prefix`). A result
     reported under a token is the result of that execution, however the
     scaffold has rewritten, compacted or reformatted the rest of its
     conversation. Tokens and observed history ids are kept for the life of
@@ -219,6 +223,7 @@ class _ResultChecks:
                 not token
                 or len(token) > _MAX_TOKEN_LENGTH
                 or self._ambiguous_token(token, names)
+                or _names_another_action(token, check.handed)
             ):
                 token = f"{_token_prefix(check.handed)}_{uuid()}"
             self.identities[token] = _Identity(
@@ -536,13 +541,26 @@ def _token_prefix(call: ToolCall) -> str:
     """The prefix of a fresh token for the call.
 
     Google names a computer call's action by its ID's prefix (`click_at_<id>`),
-    which a fresh token keeps.
+    which a fresh token keeps, or, for an action approval changed, the name of
+    the approved action.
     """
     if call.function == "computer":
+        if _names_another_action(call.id, call):
+            return gemini_computer_action_name(call.arguments)
         prefix = call.id.rpartition("_")[0]
         if prefix and len(prefix) <= _MAX_TOKEN_LENGTH // 2:
             return prefix
     return "call"
+
+
+def _names_another_action(token: str, call: ToolCall) -> bool:
+    """Whether the token names a Gemini computer action other than the call's."""
+    prefix = token.rpartition("_")[0]
+    return (
+        call.function == "computer"
+        and prefix in GEMINI_COMPUTER_ACTIONS
+        and prefix not in gemini_computer_action_names(call.arguments)
+    )
 
 
 def _wire_names(call: ToolCall) -> set[str]:
