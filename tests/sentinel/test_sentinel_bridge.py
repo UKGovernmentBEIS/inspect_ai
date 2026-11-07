@@ -5917,3 +5917,61 @@ async def test_a_generate_only_interval_keeps_a_repeated_result_checked(
         ("same result", "old.txt"),
         ("same result", "new.txt"),
     ]
+
+
+async def test_a_repeated_anthropic_response_keeps_its_interleaved_calls() -> None:
+    from inspect_ai.agent._bridge.anthropic_api import inspect_anthropic_api_request
+    from inspect_ai.model._assistant_internal import init_sample_assistant_internal
+    from inspect_ai.model._providers.anthropic import (
+        content_and_tool_calls_from_assistant_content_blocks,
+    )
+
+    init_sample_assistant_internal()
+    # as the provider parses a turn interleaving thinking with calls, recording
+    # each call's position under the model's ID
+    blocks: Any = [
+        {"type": "thinking", "thinking": "first", "signature": "c2ln"},
+        {"type": "tool_use", "id": "toolu_a", "name": "read_file", "input": {}},
+        {"type": "thinking", "thinking": "second", "signature": "c2lnMg=="},
+        {"type": "tool_use", "id": "toolu_b", "name": "read_file", "input": {}},
+    ]
+    tools = [ToolInfo(name="read_file", description="Read a file.")]
+    content, calls = content_and_tool_calls_from_assistant_content_blocks(blocks, tools)
+    output = ModelOutput(
+        model="mockllm/model",
+        choices=[
+            ChatCompletionChoice(
+                message=ChatMessageAssistant(content=content, tool_calls=calls),
+                stop_reason="tool_calls",
+            )
+        ],
+    )
+    # a cache hit returns the same output, parsed once
+    model = Scripted(output, output)
+    bridge = AgentBridge(
+        AgentState(messages=[]), model_aliases={"inspect": model.model}
+    )
+    request: Any = {
+        "model": "inspect",
+        "max_tokens": 100,
+        "messages": [{"role": "user", "content": TASK}],
+        "tools": [
+            {"name": "read_file", "description": "Read a file.", "input_schema": {}}
+        ],
+    }
+
+    with active([bridge_recording([])]):
+        first = await inspect_anthropic_api_request(request, None, None, None, bridge)
+        second = await inspect_anthropic_api_request(request, None, None, None, bridge)
+
+    order = ["thinking", "tool_use", "thinking", "tool_use"]
+    assert [block.type for block in first.content] == order
+    assert [block.type for block in second.content] == order
+    uses = [block for block in second.content if block.type == "tool_use"]
+    assert not {"toolu_a", "toolu_b"} & {block.id for block in uses}
+    # the model's output stays on the record as it was generated
+    recorded = [e.output for e in transcript().events if isinstance(e, ModelEvent)]
+    assert [call.id for call in recorded[1].message.tool_calls or []] == [
+        "toolu_a",
+        "toolu_b",
+    ]

@@ -37,6 +37,7 @@ from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.logger import warn_once
 from inspect_ai.agent._bridge.types import AgentBridge
+from inspect_ai.model._assistant_internal import alias_assistant_internal_call
 from inspect_ai.model._call_tools import decisive_sentinel_exception
 from inspect_ai.model._chat_message import (
     ChatMessage,
@@ -602,6 +603,9 @@ def sentinel_tokens(
 ) -> tuple[ModelOutput, list[SentinelCheck]]:
     """Give each call handed to the scaffold its token as its id.
 
+    A call's provider replay state (`alias_assistant_internal_call`) and Google
+    reasoning anchors follow it to its token.
+
     `checks` are the `tool_result` checks for the calls in `output`, in order.
     Returns the output to hand to the scaffold (a copy, when any id changes),
     and the checks with their tokens.
@@ -613,8 +617,11 @@ def sentinel_tokens(
     output = output.model_copy(deep=True)
     tokens: dict[str, deque[str]] = {}
     for call, check in zip(output.message.tool_calls or [], issued):
-        tokens.setdefault(call.id, deque()).append(check.token or call.id)
-        call.id = check.token or call.id
+        token = check.token or call.id
+        tokens.setdefault(call.id, deque()).append(token)
+        if token != call.id:
+            alias_assistant_internal_call(call.id, token)
+        call.id = token
     _retarget_anchors(output.message.content, tokens)
     return output, issued
 
