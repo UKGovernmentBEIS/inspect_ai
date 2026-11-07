@@ -12,6 +12,7 @@ from inspect_ai.model._generate_config import BatchConfig
 from inspect_ai.model._retry import ModelRetryConfig
 
 from .batch import Batch, Batcher, BatchRequest, pop_batch_headers
+from .batch_log import log_batch
 
 ResponseT = TypeVar("ResponseT")
 CompletedBatchInfoT = TypeVar("CompletedBatchInfoT")
@@ -93,7 +94,12 @@ class FileBatcher(Batcher[ResponseT, CompletedBatchInfoT]):
         for file_result in results:
             combined_results.update(file_result)
 
-        return combined_results
+        return {
+            request_id: combined_results.get(
+                request_id, RuntimeError("Batch result missing or unparseable")
+            )
+            for request_id in batch.requests
+        }
 
     # Abstract methods for provider-specific behavior
 
@@ -196,16 +202,25 @@ class FileBatcher(Batcher[ResponseT, CompletedBatchInfoT]):
             Dictionary mapping request IDs to their responses or exceptions
         """
         results: dict[str, ResponseT | Exception] = {}
-        for line in (await self._download_result_file(file_uri)).decode().splitlines():
+        for line in (await self._download_result_file(file_uri)).split(b"\n"):
             if not line.strip():
                 continue
-            line_data = json.loads(line)
+            line_data: dict[str, pydantic.JsonValue] | None = None
             try:
+                parsed = json.loads(line)
+                if not isinstance(parsed, dict):
+                    raise ValueError("Batch result is not a JSON object")
+                line_data = parsed
                 request_id, response_or_exception = self._parse_jsonl_line(line_data)
             except Exception as exc:
-                request_id = self._request_id_from_jsonl_line(line_data)
+                request_id = (
+                    self._request_id_from_jsonl_line(line_data)
+                    if line_data is not None
+                    else ""
+                )
                 if not request_id:
-                    raise
+                    log_batch(f"Unable to identify a batch result in {file_uri}: {exc}")
+                    continue
                 response_or_exception = exc
             if request_id:
                 results[request_id] = response_or_exception

@@ -1,12 +1,14 @@
 from __future__ import annotations
 
-from unittest.mock import MagicMock
-
+import anyio
 import pytest
+from openai import APIStatusError, AsyncOpenAI
 from pydantic import BaseModel
 
 from inspect_ai.model._generate_config import BatchConfig
+from inspect_ai.model._openai import openai_classify_retry
 from inspect_ai.model._providers._openai_batch import OpenAIBatcher
+from inspect_ai.model._providers.util.batch import Batch, BatchRequest
 from inspect_ai.model._providers.util.file_batcher import FileBatcher
 from inspect_ai.model._retry import model_retry_config
 
@@ -69,8 +71,7 @@ async def test_file_batcher_uses_key_when_malformed_row_has_no_custom_id():
 def test_openai_batcher_recognizes_error_embedded_in_response_body():
     from openai.types.chat import ChatCompletion
 
-    client = MagicMock()
-    client._make_status_error_from_response.side_effect = lambda response: response
+    client = AsyncOpenAI(api_key="test")
     batcher = OpenAIBatcher(client, BatchConfig(), _retry_config(), ChatCompletion)
 
     request_id, error = batcher._parse_jsonl_line(
@@ -84,24 +85,62 @@ def test_openai_batcher_recognizes_error_embedded_in_response_body():
     )
 
     assert request_id == "req-1"
-    assert getattr(error, "status_code", None) == 503
+    assert isinstance(error, APIStatusError)
+    assert error.status_code == 503
+    assert error.request.method == "POST"
+    assert openai_classify_retry(error) is not None
 
 
 def test_openai_batcher_recognizes_error_in_error_field() -> None:
     from openai.types.chat import ChatCompletion
 
-    client = MagicMock()
-    client._make_status_error_from_response.side_effect = lambda response: response
+    client = AsyncOpenAI(api_key="test")
     batcher = OpenAIBatcher(client, BatchConfig(), _retry_config(), ChatCompletion)
 
     request_id, error = batcher._parse_jsonl_line(
         {
             "custom_id": "req-2",
-            "error": {"code": 429, "message": "rate limit"},
+            "error": {"code": "batch_expired", "message": "expired"},
         }
     )
 
     assert request_id == "req-2"
-    assert getattr(error, "status_code", None) == 429
-    assert getattr(error, "text", None) == "rate limit"
-    client._make_status_error_from_response.assert_called_once()
+    assert isinstance(error, RuntimeError)
+    assert "batch_expired" in str(error)
+    assert "expired" in str(error)
+
+
+@pytest.mark.anyio
+async def test_unidentified_rows_do_not_discard_results_or_leave_requests_pending():
+    class _BrokenRowsBatcher(_FileBatcher):
+        async def _download_result_file(self, file_uri: str) -> bytes:
+            return (
+                '{"custom_id":"ok","response":{"value":"a\u2029b"}}\n'
+                '{"custom_id":"missing"\n'
+                '{"response":{}}\n'
+            ).encode()
+
+    batcher = _BrokenRowsBatcher(BatchConfig(), _retry_config(), 10, 1)
+    streams = {
+        key: anyio.create_memory_object_stream[_Result | Exception](1)
+        for key in ("ok", "missing")
+    }
+    batch = Batch(
+        id="batch",
+        requests={
+            key: BatchRequest(request={}, result_stream=streams[key][0], custom_id=key)
+            for key in ("ok", "missing")
+        },
+    )
+
+    results = await batcher._handle_batch_result(batch, {"result_uris": ["file"]})
+
+    assert results["ok"] == _Result(value="a\u2029b")
+    assert isinstance(results["missing"], RuntimeError)
+    batcher._inflight_batches[batch.id] = batch
+    await batcher._resolve_inflight_batch(batch, results)
+    assert await streams["ok"][1].receive() == _Result(value="a\u2029b")
+    assert isinstance(await streams["missing"][1].receive(), RuntimeError)
+    for send, receive in streams.values():
+        await send.aclose()
+        await receive.aclose()

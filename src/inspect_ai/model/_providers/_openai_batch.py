@@ -159,11 +159,18 @@ class OpenAIBatcher(FileBatcher[ResponseT, CompletedBatchInfo], Generic[Response
                 return request_id, self._response_cls.model_validate(response_body)
         else:
             assert isinstance(error, dict)
-            status_code = error["code"]
-            message = error["message"]
+            return request_id, _batch_error_to_exception(
+                BatchError.model_validate(error)
+            )
 
         return request_id, self._openai_client._make_status_error_from_response(  # pyright: ignore[reportPrivateUsage]
-            httpx2.Response(status_code=status_code, text=message)
+            httpx2.Response(
+                status_code=status_code,
+                text=message,
+                request=httpx2.Request(
+                    "POST", self._openai_client.base_url.join(self.endpoint)
+                ),
+            )
         )
 
     # Batcher overrides
