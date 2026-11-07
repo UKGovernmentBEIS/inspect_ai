@@ -317,6 +317,11 @@ class EvalRecorder(FileRecorder):
         await log.flush(fsync=False)
 
     @override
+    async def write_buffered_samples(self, eval: EvalSpec) -> None:
+        log = self.data[self._log_file_key(eval)]
+        await log.write_buffered_samples()
+
+    @override
     async def log_finish(
         self,
         eval: EvalSpec,
