@@ -31,6 +31,7 @@ from typing import TYPE_CHECKING, Any, NamedTuple, NoReturn, Sequence
 
 from inspect_ai._sentinel._context import checks_tool_calls
 from inspect_ai._util.format import format_function_call
+from inspect_ai._util.json import json_equal
 from inspect_ai._util.logger import warn_once
 from inspect_ai.agent._bridge._sentinel import (
     Produced,
@@ -346,8 +347,9 @@ async def apply_bridge_tool_approval(
                             message_id=output.message.id,
                             history=sentinel_history,
                             producer=producer,
-                            modified=modified.get(index, call.arguments)
-                            != call.arguments,
+                            modified=not json_equal(
+                                modified.get(index, call.arguments), call.arguments
+                            ),
                         )
                     )
                 checks.append(

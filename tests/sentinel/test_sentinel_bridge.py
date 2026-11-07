@@ -6327,7 +6327,14 @@ async def test_a_repeated_responses_native_call_stays_native(kind: str) -> None:
     assert item.id not in [param.get("id") for param in replayed]
 
 
-def _responses_modified_call(kind: str) -> tuple[Any, Any, Any, dict[str, Any]]:
+# Python `==` takes these for the proposed arguments, JSON does not
+_PROPOSED_NUMBERS = {"payload": {"enabled": 1, "flags": [0]}}
+_APPROVED_BOOLEANS = {"payload": {"enabled": True, "flags": [False]}}
+
+
+def _responses_modified_call(
+    kind: str, change: str = "edit"
+) -> tuple[Any, Any, Any, dict[str, Any]]:
     """A native Responses call, its tool, its result and approved arguments."""
     from openai.types.responses import (
         ResponseComputerToolCall,
@@ -6337,7 +6344,15 @@ def _responses_modified_call(kind: str) -> tuple[Any, Any, Any, dict[str, Any]]:
     )
     from openai.types.responses.computer_action import Click
 
-    if kind == "custom":
+    if change == "booleans":
+        item, tool, result, _ = _responses_modified_call(kind)
+        if kind == "function":
+            item.arguments = json.dumps(_PROPOSED_NUMBERS)
+            tool["parameters"]["properties"] = {"payload": {"type": "object"}}
+        else:
+            item.arguments = _PROPOSED_NUMBERS
+        return item, tool, result, _APPROVED_BOOLEANS
+    elif kind == "custom":
         return (
             ResponseCustomToolCall(
                 id="ctc_1",
@@ -6438,9 +6453,19 @@ def _responses_native_arguments(param: Any) -> Any:
 
 
 @pytest.mark.parametrize("repeated", [False, True])
-@pytest.mark.parametrize("kind", ["custom", "function", "computer", "tool_search"])
+@pytest.mark.parametrize(
+    ("kind", "change"),
+    [
+        ("custom", "edit"),
+        ("function", "edit"),
+        ("computer", "edit"),
+        ("tool_search", "edit"),
+        ("function", "booleans"),
+        ("tool_search", "booleans"),
+    ],
+)
 async def test_a_modified_responses_call_continues_as_approved(
-    kind: str, repeated: bool
+    kind: str, change: str, repeated: bool
 ) -> None:
     from inspect_ai.agent._bridge.responses import inspect_responses_api_request
     from inspect_ai.model._assistant_internal import init_sample_assistant_internal
@@ -6451,7 +6476,7 @@ async def test_a_modified_responses_call_continues_as_approved(
     )
 
     init_sample_assistant_internal()
-    item, tool, result, approved = _responses_modified_call(kind)
+    item, tool, result, approved = _responses_modified_call(kind, change)
     content, calls, _, _ = _process_response_output_items([item], [])
     original = deepcopy(assistant_internal().tool_calls[item.call_id])
     output = ModelOutput(
@@ -6506,10 +6531,15 @@ async def test_a_modified_responses_call_continues_as_approved(
     [replayed_call] = [param for param in replayed if param["type"] == item.type]
     assert replayed_call["call_id"] == call["call_id"]
     assert "id" not in replayed_call
-    assert _responses_native_arguments(replayed_call) == _responses_native_arguments(
-        call
+    # as JSON, which tells `true` from `1`
+    assert json.dumps(_responses_native_arguments(replayed_call)) == json.dumps(
+        _responses_native_arguments(call)
     )
-    assert _responses_native_arguments(call) != _responses_native_arguments(original)
+    assert json.dumps(_responses_native_arguments(call)) != json.dumps(
+        _responses_native_arguments(original)
+    )
+    if change == "booleans":
+        assert json.dumps(_responses_native_arguments(call)) == json.dumps(approved)
     # the model's own item stays as it was generated
     assert assistant_internal().tool_calls[item.call_id] == original
 
