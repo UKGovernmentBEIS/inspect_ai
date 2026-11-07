@@ -65,6 +65,7 @@ from inspect_ai.model._model import (
     ModelRefusalError,
     ModelResolver,
     ModelResponseFilter,
+    _check_limits_before_dispatch,
     _StartingModelEventSink,
     active_model,
     get_model,
@@ -514,6 +515,10 @@ async def _apply_response_filter(
         raise ResponseFilterError(
             "response_filter returned a ModelOutput with no choices"
         )
+    if output.choices and filtered.choices[0].message == output.choices[0].message:
+        # the provider's completion can differ from message.text (e.g. Gemini
+        # text continued across requests is joined with no separator)
+        filtered.completion = output.completion
     _check_provider_owned_content(output, filtered)
     _settle_message_ids(output, filtered)
     return filtered
@@ -882,6 +887,11 @@ async def bridge_generate(
     `finalize_config` adjusts the config of the bridge's own generation call for
     the model, tools, tool choice and config it is made with, after any filter
     rewrite. It is not applied to a generation the filter makes itself.
+
+    A request is refused once a token or cost limit has been reached, before
+    compaction (which can make its own model call), the filter and the
+    generation's cache lookup, so a scaffold that retries after a limit's
+    error reply makes no further model call.
     """
     if routing is not None and routing.redirected:
         _warn_redirect(routing, bridge.model)
@@ -921,6 +931,8 @@ async def _bridge_generate_impl(
     # before compaction/recording so the restored source persists in both the
     # ModelEvent input and state.messages (and thus the eval log).
     _restore_operator_message_source(bridge, input)
+
+    _check_limits_before_dispatch()
 
     # get compaction function and run compaction once before retry loop
     compact = bridge.compaction(tools, model)
