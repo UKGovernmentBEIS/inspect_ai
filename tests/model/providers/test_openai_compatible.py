@@ -1059,6 +1059,73 @@ async def test_together_batch_sends_each_header_set_separately() -> None:
     ]
 
 
+def test_together_batcher_base_url_matches_together_sdk_major() -> None:
+    """TogetherBatcher passes the Together SDK a base URL that builds correct resource URLs.
+
+    Together SDK 3.x prefixes resource paths with /v1, so a base URL ending
+    in /v1 produces .../v1/v1/files and every batch fails at creation.
+    SDK 2.x builds paths relative to the base URL, so it needs the /v1
+    suffix. (issue #6300)
+    """
+    from unittest.mock import MagicMock, patch
+
+    import together
+    from openai import AsyncOpenAI
+
+    from inspect_ai.model._generate_config import BatchConfig
+    from inspect_ai.model._providers._together_batch import TogetherBatcher
+    from inspect_ai.model._retry import model_retry_config
+
+    captured: dict[str, str] = {}
+
+    def fake_together(api_key: str, base_url: str) -> MagicMock:
+        captured["sync"] = base_url
+        return MagicMock()
+
+    with patch("together.Together", side_effect=fake_together):
+        TogetherBatcher(
+            AsyncOpenAI(api_key="test", base_url="https://api.together.xyz/v1"),
+            BatchConfig(size=10, send_delay=0.02, tick=0.001),
+            model_retry_config(
+                "test", 3, None, lambda e: True, lambda ex: None, lambda m, s: None
+            ),
+        )
+
+    client = together.Together(api_key="test", base_url=captured["sync"])
+    if int(together.__version__.split(".")[0]) >= 3:
+        assert client._prepare_url("/v1/files") == "https://api.together.xyz/v1/files"
+        assert (
+            client._prepare_url("/v1/batches") == "https://api.together.xyz/v1/batches"
+        )
+    else:
+        assert client._prepare_url("files") == "https://api.together.xyz/v1/files"
+
+
+@pytest.mark.parametrize(
+    ("is_v3", "base_url", "expected"),
+    [
+        (True, "https://api.together.xyz/v1", "https://api.together.xyz"),
+        (True, "https://api.together.xyz/v1/", "https://api.together.xyz"),
+        (True, "https://api.together.xyz", "https://api.together.xyz"),
+        (True, "https://proxy.example.com/v1", "https://proxy.example.com"),
+        (False, "https://api.together.xyz/v1", "https://api.together.xyz/v1"),
+        (False, "https://api.together.xyz/v1/", "https://api.together.xyz/v1/"),
+    ],
+)
+def test_together_sdk_base_url(
+    monkeypatch: pytest.MonkeyPatch, is_v3: bool, base_url: str, expected: str
+) -> None:
+    """The Together SDK base URL keeps /v1 on together 2.x and strips it on 3.x."""
+    from inspect_ai.model._providers import _together_batch
+
+    monkeypatch.setattr(
+        _together_batch,
+        "has_required_version",
+        lambda package, version: is_v3,
+    )
+    assert _together_batch._together_sdk_base_url(base_url) == expected
+
+
 def test_together_resolve_stream_declines_logprobs() -> None:
     """Auto mode declines to stream when logprobs is requested.
 
