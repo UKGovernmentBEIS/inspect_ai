@@ -110,8 +110,6 @@ class SentinelCheck(NamedTuple):
     message_id: str | None
     """The id of the assistant message that made the call."""
 
-    history: list[ChatMessage]
-
     producer: Produced | None = None
     """The generation that produced the call, if the bridge knows it; the steps
     take what the model was sent from it, and its conversation, and without it
@@ -280,8 +278,8 @@ class _ResultChecks:
     def claim(self, input: list[ChatMessage]) -> _Claimed:
         claimed = _Claimed([], [])
         keys: set[str] = set()
-        for index, message, found in _answers(input):
-            result = self._result(input, index, message, found)
+        for message, found in _answers(input):
+            result = self._result(input, message, found)
             key = result.keys[0]
             if key in keys or key in self.checked:
                 continue
@@ -301,7 +299,6 @@ class _ResultChecks:
     def _result(
         self,
         input: list[ChatMessage],
-        index: int,
         message: ChatMessageTool,
         found: _Call | None,
     ) -> _Result:
@@ -326,16 +323,12 @@ class _ResultChecks:
         else:
             call, key = _unissued(message, found)
             keys = [key]
-        # the history ends with the call's assistant message, as on the native
-        # path; a result answering no call in the request has none
-        history = input[: found.position + 1 if found is not None else index]
         check = SentinelCheck(
             call,
             call,
             None,
             found.text if found is not None else "",
             input[found.position].id if found is not None else _NO_MESSAGE_ID,
-            history,
         )
         return _Result(keys, (check,), message)
 
@@ -394,8 +387,8 @@ class _ResultChecks:
 
 def _answers(
     input: Sequence[ChatMessage],
-) -> Iterator[tuple[int, ChatMessageTool, _Call | None]]:
-    """Each result in a request, with its position and the call it answers in the request, if any."""
+) -> Iterator[tuple[ChatMessageTool, _Call | None]]:
+    """Each result in a request, with the call it answers in the request, if any."""
     calls: dict[str, _Call] = {}
     unanswered: dict[str, list[_Call]] = {}
     for index, message in enumerate(input):
@@ -411,7 +404,7 @@ def _answers(
                 if unanswered.get(result_id)
                 else calls.get(result_id)
             )
-            yield index, message, found
+            yield message, found
 
 
 def _unissued(message: ChatMessageTool, found: _Call | None) -> tuple[ToolCall, str]:
@@ -500,9 +493,7 @@ def inherited_result_keys(input: Sequence[ChatMessage]) -> frozenset[str]:
     then, and restored from its checkpoint on resume: a result later changed
     in place has a different key and is checked.
     """
-    return frozenset(
-        _unissued(message, found)[1] for _, message, found in _answers(input)
-    )
+    return frozenset(_unissued(message, found)[1] for message, found in _answers(input))
 
 
 def history_ids(input: Sequence[ChatMessage]) -> frozenset[str]:
@@ -617,7 +608,6 @@ async def sentinel_tool_call(
     message_id: str | None,
     call: ToolCall,
     viewer: ToolCallViewer | None,
-    history: list[ChatMessage],
     producer: Produced | None,
 ) -> "Decision | None":
     from inspect_ai._sentinel._dispatch import sentinel_before_tool_call
@@ -631,9 +621,8 @@ async def sentinel_tool_call(
                 message_id,
                 call,
                 viewer,
-                history,
-                producer.event if producer is not None else None,
-                find_producer=False,
+                history=None,
+                producer=producer.event if producer is not None else None,
                 bridge=True,
             ),
         )
@@ -704,7 +693,6 @@ def sentinel_unproposed_host_check(
         ToolDef(tool_fn).viewer,
         "",
         _NO_MESSAGE_ID,
-        list(bridge.state.messages),
     )
 
 
@@ -822,9 +810,8 @@ async def _tool_result(
                     output,
                     truncated,
                     check.viewer,
-                    check.history,
-                    producer.event if producer is not None else None,
-                    find_producer=False,
+                    history=None,
+                    producer=producer.event if producer is not None else None,
                     reject_on_viewer_error=reject_on_viewer_error,
                     bridge=True,
                 ),

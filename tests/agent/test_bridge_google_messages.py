@@ -272,7 +272,6 @@ def test_google_computer_action_ids_round_trip_in_both_issuance_orders(
             viewer=None,
             message="",
             message_id=None,
-            history=[],
         )
         for call in calls
     ]

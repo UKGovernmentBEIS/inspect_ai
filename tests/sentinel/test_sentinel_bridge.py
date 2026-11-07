@@ -1723,7 +1723,7 @@ def test_dropping_old_proposals_warns_once(
     monkeypatch.setattr(inspect_logger, "_warned", [])
     bridge = in_process_bridge([])
     checks = [
-        _sentinel.SentinelCheck(call, call, None, "", "message_1", [])
+        _sentinel.SentinelCheck(call, call, None, "", "message_1")
         for call in [replace(READ, id=f"read_{i}") for i in range(4)]
     ]
 
@@ -1737,6 +1737,32 @@ def test_dropping_old_proposals_warns_once(
     assert len(warnings) == 1
     proposals = _sentinel._result_checks(bridge).proposals.values()
     assert [p.handed.id for p in proposals] == ["read_2", "read_3"]
+
+
+def test_claiming_a_requests_results_takes_memory_linear_in_its_results() -> None:
+    import tracemalloc
+
+    from inspect_ai.agent._bridge._sentinel import _ResultChecks
+
+    def claimed_bytes(results: int) -> int:
+        input: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+        for index in range(results):
+            call = replace(READ, id=f"read_{index}", arguments={"path": f"{index}"})
+            input += [
+                ChatMessageAssistant(content="", tool_calls=[call]),
+                ChatMessageTool(content=f"{index}", tool_call_id=call.id),
+            ]
+        tracemalloc.start()
+        try:
+            claimed = _ResultChecks(frozenset(), frozenset()).claim(input)
+            retained, _ = tracemalloc.get_traced_memory()
+        finally:
+            tracemalloc.stop()
+        assert len(claimed.owned) == results
+        return retained
+
+    # linear is about 4x; copying each result's conversation is about 16x
+    assert claimed_bytes(4000) < 6 * claimed_bytes(1000)
 
 
 async def test_a_result_whose_proposal_was_dropped_is_still_checked(

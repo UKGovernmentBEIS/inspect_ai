@@ -1123,7 +1123,6 @@ async def _bridge_generate_impl(
                 bridge,
                 output,
                 input_messages,
-                input + replayed,
                 declarations,
                 producer=generations.producer(produced),
             )
