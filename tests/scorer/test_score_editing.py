@@ -9,7 +9,11 @@ from inspect_ai import Task, eval_async, task
 from inspect_ai._util.constants import get_deserializing_context
 from inspect_ai.dataset import MemoryDataset, Sample
 from inspect_ai.event._score_edit import ScoreEditEvent
-from inspect_ai.log import read_eval_log_sample_async, write_eval_log_async
+from inspect_ai.log import (
+    read_eval_log_async,
+    read_eval_log_sample_async,
+    write_eval_log_async,
+)
 from inspect_ai.log._edit import ProvenanceData
 from inspect_ai.log._metric import recompute_metrics
 from inspect_ai.log._score import edit_score
@@ -89,6 +93,54 @@ def dict_metric_scorer() -> Scorer:
         return Score(value={"one": 1, "two": 2, "three": 3})
 
     return score
+
+
+@scorer(metrics={"*": [mean()]})
+def repeated_dict_metric_scorer(value: float) -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
+        return Score(value={"quality": value})
+
+    return score
+
+
+@pytest.mark.parametrize("persisted", [False, True])
+async def test_edit_preserves_repeated_dict_scorer_results(
+    tmp_path: Path, persisted: bool
+) -> None:
+    log = (
+        await eval_async(
+            Task(
+                dataset=[Sample(input="x")],
+                solver=[],
+                scorer=[
+                    repeated_dict_metric_scorer(0.0),
+                    repeated_dict_metric_scorer(1.0),
+                ],
+            ),
+            model="mockllm/model",
+            log_dir=str(tmp_path),
+        )
+    )[0]
+    assert log.status == "success"
+    assert log.results is not None
+    before = log.results.scores
+    assert [(s.scorer, s.metrics["mean"].value) for s in before] == [
+        ("repeated_dict_metric_scorer", 0.0),
+        ("repeated_dict_metric_scorer1", 1.0),
+    ]
+    if persisted:
+        path = tmp_path / "roundtrip.eval"
+        await write_eval_log_async(log, str(path))
+        log = await read_eval_log_async(str(path))
+
+    edit_score(
+        log,
+        1,
+        "repeated_dict_metric_scorer1",
+        ScoreEdit(explanation="Clarified explanation; value unchanged."),
+    )
+    assert log.results is not None
+    assert log.results.scores == before
 
 
 @task
