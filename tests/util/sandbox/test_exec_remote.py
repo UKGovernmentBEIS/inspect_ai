@@ -7,13 +7,16 @@ Docker container to verify the full host-to-container path.
 
 import asyncio
 import contextlib
+import itertools
 import json
+import logging
 import warnings
-from collections.abc import Iterator
+from collections.abc import Awaitable, Callable, Iterator
 from typing import Any, Literal
 from unittest.mock import AsyncMock, patch
 
 import anyio
+import anyio.lowlevel
 import pytest
 import tenacity
 from tenacity.wait import wait_none
@@ -36,6 +39,7 @@ from inspect_ai.util._sandbox.events import (
 )
 from inspect_ai.util._sandbox.exec_remote import (
     ExecCompleted,
+    ExecOutput,
     ExecRemoteAwaitableOptions,
     ExecRemoteCommonOptions,
     ExecRemoteProcess,
@@ -63,38 +67,45 @@ def _start_response(pid: int = 42) -> str:
     return _rpc({"pid": pid})
 
 
+_chunk_seqs = itertools.count(1)
+
+
+def _chunks(stdout: str, stderr: str, seq: int | None) -> list[dict[str, Any]]:
+    """One output chunk, or none when there is no output.
+
+    Without an explicit `seq`, the chunk takes the next number of a counter
+    shared by every response, so responses built in reply order carry
+    increasing seqs.
+    """
+    if not (stdout or stderr):
+        return []
+    seq = next(_chunk_seqs) + 1000 if seq is None else seq
+    return [{"seq": seq, "stdout": stdout, "stderr": stderr}]
+
+
 def _poll_response(
     state: str = "completed",
     exit_code: int | None = 0,
     stdout: str = "",
     stderr: str = "",
-    seq: int = 0,
+    seq: int | None = None,
 ) -> str:
     """Create a JSON-RPC poll response."""
     return _rpc(
         {
             "state": state,
             "exit_code": exit_code,
-            "seq": seq,
-            "stdout": stdout,
-            "stderr": stderr,
+            "chunks": _chunks(stdout, stderr, seq),
         }
     )
 
 
-def _kill_response(stdout: str = "", stderr: str = "", seq: int = 0) -> str:
-    """Create a JSON-RPC kill response."""
-    return _rpc({"seq": seq, "stdout": stdout, "stderr": stderr})
+def _output_response(stdout: str = "", stderr: str = "", seq: int | None = None) -> str:
+    """Create a JSON-RPC kill, write_stdin or close_stdin response."""
+    return _rpc({"chunks": _chunks(stdout, stderr, seq)})
 
 
-def _write_stdin_response(stdout: str = "", stderr: str = "", seq: int = 0) -> str:
-    """Create a JSON-RPC write_stdin response."""
-    return _rpc({"seq": seq, "stdout": stdout, "stderr": stderr})
-
-
-def _close_stdin_response(stdout: str = "", stderr: str = "", seq: int = 0) -> str:
-    """Create a JSON-RPC close_stdin response."""
-    return _rpc({"seq": seq, "stdout": stdout, "stderr": stderr})
+_kill_response = _write_stdin_response = _close_stdin_response = _output_response
 
 
 @contextlib.contextmanager
@@ -438,13 +449,16 @@ class TestPollTimeoutRecovery:
     @pytest.mark.parametrize(
         ("kill_during", "kill_reaches_sandbox", "raised", "match"),
         [
-            ("pause", True, SandboxTimeoutError, "not answering"),
+            # a timed-out poll ends through a kill that reached the sandbox...
+            ("pause", True, None, ""),
+            # ...and is raised when the kill request failed too
             ("pause", False, SandboxTimeoutError, "not answering"),
-            # the server's own error: the caller killed the process
-            ("repoll", True, RuntimeError, r"^No job found with pid 42$"),
+            # the server's own error after the kill ends iteration
+            ("repoll", True, None, ""),
             ("repoll", False, SandboxTimeoutError, "not answering"),
-            # the re-poll's own error, not the answer to a poll sent after the kill
-            ("backoff", True, RuntimeError, "exit code 137"),
+            # a RuntimeError after the kill is not retried; it ends iteration
+            # through a kill that reached the sandbox, and is raised otherwise
+            ("backoff", True, None, ""),
             ("backoff", False, RuntimeError, "exit code 137"),
         ],
         ids=[
@@ -461,7 +475,7 @@ class TestPollTimeoutRecovery:
         monkeypatch: pytest.MonkeyPatch,
         kill_during: str,
         kill_reaches_sandbox: bool,
-        raised: type[Exception],
+        raised: type[Exception] | None,
         match: str,
     ) -> None:
         """kill() during recovery stops it, even when the kill request itself timed out.
@@ -469,7 +483,9 @@ class TestPollTimeoutRecovery:
         The kill comes during the pause before a re-poll, while a re-poll is in
         flight, or during the backoff after a re-poll failed with a `RuntimeError`.
         An in-flight re-poll then gets the server's `No job found` (the kill reached
-        the sandbox) or times out (it did not), and is not retried.
+        the sandbox) or times out (it did not), and is not retried. Iteration ends
+        through the kill, except that the poll's error is raised when the kill
+        request failed.
         """
         monkeypatch.setattr(
             exec_remote_module, "POLL_TIMEOUT_RECOVERY_WAIT_SECONDS", 0.2
@@ -544,7 +560,11 @@ class TestPollTimeoutRecovery:
             with anyio.fail_after(10):
                 async with anyio.create_task_group() as tg:
                     tg.start_soon(kill_at_the_chosen_moment)
-                    with pytest.raises(raised, match=match):
+                    with (
+                        pytest.raises(raised, match=match)
+                        if raised is not None
+                        else contextlib.nullcontext()
+                    ):
                         _ = [event async for event in proc]
 
         assert requests[-1] == "exec_remote_kill"
@@ -642,8 +662,101 @@ class TestKill:
         # Should not raise
         await proc.kill()
 
-        # Should still be marked as killed
-        assert proc._killed is True
+        # The stop finished, so the process no longer accepts stdin or polls
+        assert proc._stop is not None and proc._stop.is_set()
+        assert proc._terminated
+
+    async def test_kill_request_is_bounded(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """A kill request that gets no reply is given up after `KILL_TIMEOUT`.
+
+        It is sent outside sandbox concurrency limits and without transport
+        retries, and the timeout is logged like a failed kill.
+        """
+        monkeypatch.setattr(exec_remote_module, "KILL_TIMEOUT", 0.2)
+        caplog.set_level(logging.DEBUG, logger=exec_remote_module.__name__)
+
+        async def kill_hangs(params: dict[str, Any]) -> str:
+            await anyio.sleep_forever()
+            raise AssertionError("unreachable")
+
+        guest = _RaceGuest({"exec_remote_kill": kill_hangs})
+        proc = await exec_remote_streaming(guest.sandbox, ["cmd"], 5)
+
+        with anyio.fail_after(5):
+            await proc.kill()
+
+        assert proc._stop is not None and proc._stop.is_set()
+        assert not proc._killed
+        kill_kwargs = guest.sandbox.exec.call_args_list[-1].kwargs
+        assert kill_kwargs["timeout"] == 0.2
+        assert kill_kwargs["timeout_retry"] is False
+        assert kill_kwargs["concurrency"] is False
+        assert "timed out after 0.2s" in caplog.text
+
+    @pytest.mark.parametrize(
+        "poll_error",
+        [
+            SandboxTimeoutError("the pod is not answering."),
+            RuntimeError("command terminated with exit code 137"),
+        ],
+        ids=["timeout", "runtime_error"],
+    )
+    async def test_poll_error_after_kill_is_raised_when_the_kill_fails(
+        self, poll_error: Exception
+    ) -> None:
+        """A poll that fails after kill() ends iteration only if the kill succeeded."""
+        poll_started = anyio.Event()
+        kill_requested = anyio.Event()
+
+        async def poll(params: dict[str, Any]) -> str:
+            poll_started.set()
+            await kill_requested.wait()
+            raise poll_error
+
+        async def kill(params: dict[str, Any]) -> str:
+            kill_requested.set()
+            raise ConnectionError("sandbox connection lost")
+
+        guest = _RaceGuest({"exec_remote_poll": poll, "exec_remote_kill": kill})
+        proc = await exec_remote_streaming(guest.sandbox, ["cmd"], 5)
+
+        async def kill_during_poll() -> None:
+            await poll_started.wait()
+            await proc.kill()
+
+        with anyio.fail_after(5):
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(kill_during_poll)
+                with pytest.raises(type(poll_error), match=str(poll_error)):
+                    _ = [event async for event in proc]
+
+        assert not proc._killed
+        assert guest.methods == [
+            "exec_remote_start",
+            "exec_remote_poll",
+            "exec_remote_kill",
+        ]
+
+    async def test_failed_kill_with_no_poll_in_flight_ends_iteration_quietly(
+        self,
+    ) -> None:
+        """With no poll in flight, a failed kill ends iteration without raising."""
+
+        async def kill(params: dict[str, Any]) -> str:
+            raise ConnectionError("sandbox connection lost")
+
+        guest = _RaceGuest({"exec_remote_kill": kill})
+        proc = await exec_remote_streaming(guest.sandbox, ["cmd"], 5)
+
+        await proc.kill()
+        with anyio.fail_after(5):
+            events = [event async for event in proc]
+
+        assert events == []
+        assert not proc._killed
+        assert guest.methods == ["exec_remote_start", "exec_remote_kill"]
 
 
 # ============================================================================
@@ -677,6 +790,410 @@ class TestCancellation:
                 tg.cancel_scope.cancel()
 
         assert kill_called
+
+
+# ============================================================================
+# Concurrent kill, poll and stdin (the TLA+ model in
+# src/inspect_sandbox_tools/design/exec_remote/ names each race)
+# ============================================================================
+
+
+class _RaceGuest:
+    """A fake tool server that answers each method with a test-supplied coroutine.
+
+    A handler receives the request params and returns the JSON-RPC response.
+    After a kill has been answered, a poll gets the server's `No job found`.
+    Every request's method and params are recorded in `requests`.
+    """
+
+    def __init__(
+        self,
+        handlers: dict[str, Any],
+        start: str = _start_response(42),
+    ) -> None:
+        self.handlers = {"exec_remote_start": self._answer(start), **handlers}
+        self.requests: list[tuple[str, dict[str, Any]]] = []
+        self.killed = False
+        self.sandbox = _mock_sandbox()
+        self.sandbox.no_events = _no_events_context
+        self.sandbox.exec = AsyncMock(side_effect=self._exec)
+
+    @staticmethod
+    def _answer(response: str) -> Any:
+        async def answer(params: dict[str, Any]) -> str:
+            return response
+
+        return answer
+
+    @property
+    def methods(self) -> list[str]:
+        return [method for method, _ in self.requests]
+
+    async def _exec(self, *args: Any, **kwargs: Any) -> ExecResult[str]:
+        # yield, so a client that polls in a loop can still be cancelled
+        await anyio.lowlevel.checkpoint()
+        request = json.loads(kwargs["input"])
+        method, params = request["method"], request.get("params", {})
+        self.requests.append((method, params))
+        if method == "exec_remote_poll" and self.killed:
+            response = _rpc_error("No job found with pid 42")
+        else:
+            response = await self.handlers[method](params)
+        if method == "exec_remote_kill":
+            self.killed = True
+        return ExecResult(success=True, returncode=0, stdout=response, stderr="")
+
+
+def _chunks_response(*chunks: tuple[int, str], **result: Any) -> str:
+    """A response carrying `(seq, stdout)` chunks."""
+    return _rpc(
+        {
+            **result,
+            "chunks": [
+                {"seq": seq, "stdout": stdout, "stderr": ""} for seq, stdout in chunks
+            ],
+        }
+    )
+
+
+_RUNNING_CHUNKS = {"state": "running", "exit_code": None}
+
+
+class TestStopRaces:
+    @pytest.mark.parametrize("kill_fails", [False, True], ids=["answered", "failed"])
+    async def test_kill_during_idle_sleep_sends_no_poll_and_yields_its_output(
+        self, monkeypatch: pytest.MonkeyPatch, kill_fails: bool
+    ) -> None:
+        """Race 1: a kill while the iterator sleeps between polls.
+
+        The iterator neither polls again, even when the kill request failed,
+        nor drops the kill's output.
+        """
+        sleeping = anyio.Event()
+        kill_returned = anyio.Event()
+
+        async def sleep_until_killed(delay: float) -> None:
+            sleeping.set()
+            await kill_returned.wait()
+
+        async def kill(params: dict[str, Any]) -> str:
+            if kill_fails:
+                raise SandboxTimeoutError("the pod is not answering.")
+            return _chunks_response((1, "bye"))
+
+        monkeypatch.setattr(anyio, "sleep", sleep_until_killed)
+        guest = _RaceGuest(
+            {"exec_remote_poll": _RaceGuest._answer(_RUNNING), "exec_remote_kill": kill}
+        )
+        proc = await exec_remote_streaming(guest.sandbox, ["cmd"], 5)
+
+        async def kill_while_sleeping() -> None:
+            await sleeping.wait()
+            await proc.kill()
+            kill_returned.set()
+
+        with anyio.fail_after(5):
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(kill_while_sleeping)
+                events = [event async for event in proc]
+
+        assert events == ([] if kill_fails else [ExecStdout(data="bye")])
+        assert guest.methods == [
+            "exec_remote_start",
+            "exec_remote_poll",
+            "exec_remote_kill",
+        ]
+
+    async def test_kill_during_retry_backoff_ends_without_a_retry(self) -> None:
+        """Race 1: a kill during the backoff after a failed poll sends no retry."""
+        kill_returned = anyio.Event()
+        backing_off = anyio.Event()
+        guest = _RaceGuest(
+            {"exec_remote_kill": _RaceGuest._answer(_chunks_response((1, "bye")))}
+        )
+
+        async def failing_poll(params: dict[str, Any]) -> str:
+            raise RuntimeError("command terminated with exit code 137")
+
+        guest.handlers["exec_remote_poll"] = failing_poll
+        proc = await exec_remote_streaming(guest.sandbox, ["cmd"], 5)
+
+        async def backoff_until_killed(seconds: float) -> None:
+            backing_off.set()
+            await kill_returned.wait()
+
+        def retry_backing_off_until_killed(**kwargs: Any) -> Any:
+            return tenacity.retry(sleep=backoff_until_killed, **kwargs)
+
+        async def kill_during_backoff() -> None:
+            await backing_off.wait()
+            await proc.kill()
+            kill_returned.set()
+
+        with patch(
+            "inspect_ai.util._sandbox.exec_remote.retry",
+            new=retry_backing_off_until_killed,
+        ):
+            with anyio.fail_after(5):
+                async with anyio.create_task_group() as tg:
+                    tg.start_soon(kill_during_backoff)
+                    events = [event async for event in proc]
+
+        assert events == [ExecStdout(data="bye")]
+        assert guest.methods == [
+            "exec_remote_start",
+            "exec_remote_poll",
+            "exec_remote_kill",
+        ]
+
+    async def test_kills_share_one_request_that_cancelling_a_caller_keeps(
+        self,
+    ) -> None:
+        """Race 2: concurrent kills, and cancelling the first, during its request.
+
+        Later kills and the iterator wait for the one kill request, which the
+        first caller's cancellation does not abandon. The iterator then yields
+        the kill's output.
+        """
+        kill_received = anyio.Event()
+        kill_answer = anyio.Event()
+        kill_cancelled = False
+
+        async def held_kill(params: dict[str, Any]) -> str:
+            nonlocal kill_cancelled
+            kill_received.set()
+            try:
+                await kill_answer.wait()
+            except anyio.get_cancelled_exc_class():
+                kill_cancelled = True
+                raise
+            return _chunks_response((1, "bye"))
+
+        guest = _RaceGuest({"exec_remote_kill": held_kill})
+        proc = await exec_remote_streaming(guest.sandbox, ["cmd"], 5)
+        first_scope = anyio.CancelScope()
+        joined_scope = anyio.CancelScope()
+        second_returned = anyio.Event()
+        events: list[ExecOutput] = []
+        iteration_ended = anyio.Event()
+
+        async def first_kill() -> None:
+            with first_scope:
+                await proc.kill()
+
+        async def joined_kill() -> None:
+            with joined_scope:
+                await proc.kill()
+
+        async def second_kill() -> None:
+            await proc.kill()
+            second_returned.set()
+
+        async def iterate() -> None:
+            events.extend([event async for event in proc])
+            iteration_ended.set()
+
+        with anyio.fail_after(5):
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(first_kill)
+                await kill_received.wait()
+                tg.start_soon(second_kill)
+                tg.start_soon(joined_kill)
+                tg.start_soon(iterate)
+                # the kill request runs to completion, so answer it even when
+                # an assertion fails
+                try:
+                    await anyio.wait_all_tasks_blocked()
+                    assert not second_returned.is_set()
+                    assert not iteration_ended.is_set()
+
+                    first_scope.cancel()
+                    joined_scope.cancel()
+                    await anyio.wait_all_tasks_blocked()
+                    assert not kill_cancelled
+                    assert not second_returned.is_set()
+                    assert not iteration_ended.is_set()
+                finally:
+                    kill_answer.set()
+
+        assert first_scope.cancelled_caught
+        assert joined_scope.cancelled_caught
+        assert second_returned.is_set()
+        assert events == [ExecStdout(data="bye")]
+        assert guest.methods == ["exec_remote_start", "exec_remote_kill"]
+
+    async def test_poll_in_flight_at_kill_can_still_yield_completed(self) -> None:
+        """A poll in flight at the kill reports the exit; iteration yields it."""
+        poll_started = anyio.Event()
+        kill_requested = anyio.Event()
+
+        async def poll(params: dict[str, Any]) -> str:
+            poll_started.set()
+            await kill_requested.wait()
+            return _chunks_response((1, "done"), state="completed", exit_code=3)
+
+        async def kill(params: dict[str, Any]) -> str:
+            kill_requested.set()
+            return _chunks_response(**_RUNNING_CHUNKS)
+
+        guest = _RaceGuest({"exec_remote_poll": poll, "exec_remote_kill": kill})
+        proc = await exec_remote_streaming(guest.sandbox, ["cmd"], 5)
+
+        async def kill_during_poll() -> None:
+            await poll_started.wait()
+            await proc.kill()
+
+        with anyio.fail_after(5):
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(kill_during_poll)
+                events = [event async for event in proc]
+
+        assert events == [ExecStdout(data="done"), ExecCompleted(exit_code=3)]
+        assert guest.methods == [
+            "exec_remote_start",
+            "exec_remote_poll",
+            "exec_remote_kill",
+        ]
+
+    async def test_anyio_timeout_on_kill_raises_after_the_kill_request(
+        self,
+    ) -> None:
+        async def kill(proc: ExecRemoteProcess) -> None:
+            with anyio.fail_after(0.01):
+                await proc.kill()
+
+        await self._assert_timed_out_kill_raises_after_the_kill_request(kill)
+
+    @skip_if_trio
+    async def test_asyncio_timeout_on_kill_raises_after_the_kill_request(
+        self,
+    ) -> None:
+        async def kill(proc: ExecRemoteProcess) -> None:
+            async with asyncio.timeout(0.01):
+                await proc.kill()
+
+        await self._assert_timed_out_kill_raises_after_the_kill_request(kill)
+
+    async def _assert_timed_out_kill_raises_after_the_kill_request(
+        self, kill: Callable[[ExecRemoteProcess], Awaitable[None]]
+    ) -> None:
+        """The kill request outlives the timeout; the timeout then raises."""
+        kill_answered = anyio.Event()
+
+        async def slow_kill(params: dict[str, Any]) -> str:
+            await anyio.sleep(0.1)
+            kill_answered.set()
+            return _chunks_response((1, "bye"))
+
+        guest = _RaceGuest({"exec_remote_kill": slow_kill})
+        proc = await exec_remote_streaming(guest.sandbox, ["cmd"], 5)
+
+        with pytest.raises(TimeoutError):
+            await kill(proc)
+
+        assert kill_answered.is_set()
+        assert guest.methods == ["exec_remote_start", "exec_remote_kill"]
+        assert [event async for event in proc] == [ExecStdout(data="bye")]
+
+
+class TestOutputRaces:
+    async def test_overlapping_replies_deliver_each_chunk_once_in_order(self) -> None:
+        """Race 4: a poll and a stdin write with the same ack_seq.
+
+        The poll's reply (chunks 1 and 2) arrives before the stdin reply
+        (chunk 1). Chunk 1 is delivered once and `_last_seq` stays at 2.
+        """
+        stdin_received = anyio.Event()
+        stdin_answer = anyio.Event()
+
+        async def held_stdin(params: dict[str, Any]) -> str:
+            stdin_received.set()
+            await stdin_answer.wait()
+            return _chunks_response((1, "A"))
+
+        polls = iter(
+            [
+                _chunks_response((1, "A"), (2, "B"), **_RUNNING_CHUNKS),
+                _chunks_response(state="completed", exit_code=0),
+            ]
+        )
+
+        async def poll(params: dict[str, Any]) -> str:
+            return next(polls)
+
+        guest = _RaceGuest(
+            {"exec_remote_write_stdin": held_stdin, "exec_remote_poll": poll}
+        )
+        proc = await exec_remote_streaming(
+            guest.sandbox, ["cat"], 5, ExecRemoteStreamingOptions(stdin_open=True)
+        )
+
+        with anyio.fail_after(5):
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(proc.write_stdin, "x")
+                await stdin_received.wait()
+                iterator = proc.__aiter__()
+                first = await iterator.__anext__()
+                stdin_answer.set()
+            second = await iterator.__anext__()
+            with pytest.raises(StopAsyncIteration):
+                await iterator.__anext__()
+
+        assert [first, second] == [ExecStdout(data="AB"), ExecCompleted(exit_code=0)]
+        assert [p["ack_seq"] for m, p in guest.requests if m == "exec_remote_poll"] == [
+            0,
+            2,
+        ]
+
+    async def test_poll_reply_keeps_output_queued_while_it_was_in_flight(
+        self,
+    ) -> None:
+        """Race 5: a stdin reply queues output while a poll is in flight.
+
+        The poll's reply (chunk 1) arrives after the stdin reply (chunks 1 and
+        2). The queued output is kept, not replaced by the poll's.
+        """
+        poll_received = anyio.Event()
+        poll_answer = anyio.Event()
+        polls = 0
+
+        async def poll(params: dict[str, Any]) -> str:
+            nonlocal polls
+            polls += 1
+            if polls == 1:
+                poll_received.set()
+                await poll_answer.wait()
+                return _chunks_response((1, "A"), **_RUNNING_CHUNKS)
+            return _chunks_response(state="completed", exit_code=0)
+
+        guest = _RaceGuest(
+            {
+                "exec_remote_poll": poll,
+                "exec_remote_write_stdin": _RaceGuest._answer(
+                    _chunks_response((1, "A"), (2, "B"))
+                ),
+            }
+        )
+        proc = await exec_remote_streaming(
+            guest.sandbox, ["cat"], 5, ExecRemoteStreamingOptions(stdin_open=True)
+        )
+        events: list[ExecOutput] = []
+
+        async def iterate() -> None:
+            events.extend([event async for event in proc])
+
+        with anyio.fail_after(5):
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(iterate)
+                await poll_received.wait()
+                await proc.write_stdin("x")
+                poll_answer.set()
+
+        assert events == [ExecStdout(data="AB"), ExecCompleted(exit_code=0)]
+        assert [p["ack_seq"] for m, p in guest.requests if m == "exec_remote_poll"] == [
+            0,
+            2,
+        ]
 
 
 # ============================================================================
@@ -1812,22 +2329,24 @@ async def test_ack_seq_retransmit(docker_sandbox) -> None:
         docker_sandbox, ["cat"], docker_sandbox.default_polling_interval(), opts
     )
 
+    async def stdout_until(text: str) -> str:
+        """Poll until the queued stdout holds `text`; return and clear it."""
+        stdout = ""
+        for _ in range(20):
+            stdout += "".join(
+                e.data for e in proc._pending_events if isinstance(e, ExecStdout)
+            )
+            proc._pending_events.clear()
+            if text in stdout:
+                break
+            proc._merge_output((await proc._poll()).chunks)
+            await anyio.sleep(0.1)
+        return stdout
+
     # Write and poll until cat echoes back, so the server has output to track
     await proc.write_stdin("hello\n")
-    collected: list[ExecStdout | ExecStderr | ExecCompleted] = list(
-        proc._pending_events
-    )
-    proc._pending_events.clear()
-    for _ in range(20):
-        result = await proc._poll()
-        if result.stdout:
-            collected.append(ExecStdout(data=result.stdout))
-            break
-        await anyio.sleep(0.1)
-
-    assert any(isinstance(e, ExecStdout) and "hello" in e.data for e in collected), (
-        f"Expected 'hello' in output, got {collected}"
-    )
+    first_stdout = await stdout_until("hello")
+    assert "hello" in first_stdout, f"Expected 'hello' in output, got {first_stdout!r}"
     seq_after_first = proc._last_seq
     assert seq_after_first > 0
 
@@ -1836,18 +2355,7 @@ async def test_ack_seq_retransmit(docker_sandbox) -> None:
 
     # Next write — server retransmits "hello" (unacked) plus new "world"
     await proc.write_stdin("world\n")
-    retransmit_events = list(proc._pending_events)
-    proc._pending_events.clear()
-    for _ in range(20):
-        result = await proc._poll()
-        if result.stdout:
-            retransmit_events.append(ExecStdout(data=result.stdout))
-            break
-        await anyio.sleep(0.1)
-
-    retransmit_stdout = "".join(
-        e.data for e in retransmit_events if isinstance(e, ExecStdout)
-    )
+    retransmit_stdout = await stdout_until("world")
     assert "hello" in retransmit_stdout, (
         f"Expected retransmit of unacked 'hello', got: {retransmit_stdout!r}"
     )

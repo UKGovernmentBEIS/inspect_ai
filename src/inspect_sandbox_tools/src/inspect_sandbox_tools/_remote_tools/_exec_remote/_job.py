@@ -3,7 +3,7 @@ import os
 import signal
 import time
 from asyncio.subprocess import Process as AsyncIOProcess
-from typing import Literal, NamedTuple
+from typing import Literal
 
 import psutil
 
@@ -21,16 +21,7 @@ from inspect_sandbox_tools._util.user_switch import (
 
 from ._acked_chunk_buffer import AckedChunkBuffer
 from ._output_buffer import BoundedByteBuffer, DecodingBuffer
-from .tool_types import PollResult
-
-
-class OutputChunk(NamedTuple):
-    """Sequence number and incremental stdout/stderr from a job operation."""
-
-    seq: int
-    stdout: str
-    stderr: str
-
+from .tool_types import OutputChunk, PollResult
 
 _BACKPRESSURE_BUFFER_SIZE = 100 * 1024 * 1024  # 100 MiB
 _MAX_POLL_OUTPUT_BYTES = 1 * 1024 * 1024  # 1 MiB per poll response
@@ -229,6 +220,9 @@ class Job:
                 replying (see `_wait_while_idle`).
         """
         await self._wait_while_idle(wait)
+        # A kill that started termination marks the job killed while the group
+        # may still run, so wait for it before draining and reporting the end.
+        await self.await_termination()
 
         # Drain the readers whenever the job is no longer running. A poll
         # cancelled here leaves the state terminal with the readers unfinished;
@@ -253,16 +247,10 @@ class Job:
             stderr += tail_stderr
         reported_exit_code = None if reported_state == "running" else self._exit_code
 
-        self._acked_buffer.push((stdout, stderr))
-        seq, chunks = self._acked_buffer.collect(ack_seq)
-        combined_out, combined_err = self._combine_chunks(chunks)
-
         return PollResult(
             state=reported_state,
             exit_code=reported_exit_code,
-            seq=seq,
-            stdout=combined_out,
-            stderr=combined_err,
+            chunks=self._collect(stdout, stderr, ack_seq),
         )
 
     async def _wait_while_idle(self, wait: float) -> None:
@@ -281,7 +269,7 @@ class Job:
                 deadline = min(deadline, now + _OUTPUT_EXIT_WAIT_SECONDS)
             await asyncio.sleep(min(_WAIT_CHECK_INTERVAL_SECONDS, deadline - now))
 
-    async def kill(self, ack_seq: int, timeout: int = 5) -> OutputChunk:
+    async def kill(self, ack_seq: int, timeout: int = 5) -> list[OutputChunk]:
         """Terminate the process and return any remaining buffered output.
 
         Since the subprocess was started with start_new_session=True, it is the
@@ -301,19 +289,14 @@ class Job:
         """
         if self._killed and self._termination is None:
             # shutdown() already terminated it
-            self._acked_buffer.push(("", ""))
-            seq, chunks = self._acked_buffer.collect(ack_seq)
-            return OutputChunk(seq, *self._combine_chunks(chunks))
+            return self._collect("", "", ack_seq)
 
         if self._termination is None:
             self._termination = asyncio.create_task(self._terminate_group(timeout))
         await asyncio.shield(self._termination)
         await self._wait_for_readers()
 
-        stdout, stderr = self._drain_buffers(final=True)
-        self._acked_buffer.push((stdout, stderr))
-        seq, chunks = self._acked_buffer.collect(ack_seq)
-        return OutputChunk(seq, *self._combine_chunks(chunks))
+        return self._collect(*self._drain_buffers(final=True), ack_seq)
 
     async def await_termination(self) -> None:
         """Wait for an in-progress kill to finish, if one exists."""
@@ -419,7 +402,7 @@ class Job:
             self._stderr_output.drain(final, max_bytes),
         )
 
-    async def write_stdin(self, data: str, ack_seq: int) -> OutputChunk:
+    async def write_stdin(self, data: str, ack_seq: int) -> list[OutputChunk]:
         """Write data to the process's stdin and return buffered output.
 
         Raises:
@@ -436,12 +419,9 @@ class Job:
 
         self._process.stdin.write(data.encode("utf-8"))
         await self._process.stdin.drain()
-        stdout, stderr = self._drain_buffers()
-        self._acked_buffer.push((stdout, stderr))
-        seq, chunks = self._acked_buffer.collect(ack_seq)
-        return OutputChunk(seq, *self._combine_chunks(chunks))
+        return self._collect(*self._drain_buffers(), ack_seq)
 
-    async def close_stdin(self, ack_seq: int) -> OutputChunk:
+    async def close_stdin(self, ack_seq: int) -> list[OutputChunk]:
         """Close the process's stdin pipe to signal EOF and return buffered output.
 
         This is idempotent — calling it when stdin is already closed is a no-op.
@@ -453,24 +433,22 @@ class Job:
             raise ToolException(
                 "stdin is not available (process started without stdin_open=True)"
             )
-        if self._process.stdin.is_closing():
-            stdout, stderr = self._drain_buffers()
-        else:
+        if not self._process.stdin.is_closing():
             self._process.stdin.close()
             await self._process.stdin.wait_closed()
-            stdout, stderr = self._drain_buffers()
+        return self._collect(*self._drain_buffers(), ack_seq)
 
-        self._acked_buffer.push((stdout, stderr))
-        seq, chunks = self._acked_buffer.collect(ack_seq)
-        return OutputChunk(seq, *self._combine_chunks(chunks))
+    def _collect(self, stdout: str, stderr: str, ack_seq: int) -> list[OutputChunk]:
+        """Hold any new output as a chunk, then return every unacked chunk.
 
-    @staticmethod
-    def _combine_chunks(chunks: list[tuple[str, str]]) -> tuple[str, str]:
-        """Concatenate a list of (stdout, stderr) chunks."""
-        return (
-            "".join(c[0] for c in chunks),
-            "".join(c[1] for c in chunks),
-        )
+        Empty output gets no chunk, so it does not advance the sequence.
+        """
+        if stdout or stderr:
+            self._acked_buffer.push((stdout, stderr))
+        return [
+            OutputChunk(seq=seq, stdout=out, stderr=err)
+            for seq, (out, err) in self._acked_buffer.collect(ack_seq)
+        ]
 
     async def cleanup(self) -> None:
         """Clean up resources. Called after job is removed from controller."""

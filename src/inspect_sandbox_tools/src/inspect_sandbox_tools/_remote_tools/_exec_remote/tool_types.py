@@ -74,33 +74,36 @@ class SubmitResult(BaseModel):
     """The server supports PollParams.wait."""
 
 
-class PollResult(BaseModel):
-    """Result from exec_remote_poll.
+class OutputChunk(BaseModel):
+    """Output that the job buffered for one request, with its sequence number."""
 
-    Fields:
-        state: Job lifecycle state - "running", "completed", or "killed"
-        exit_code: Process exit code (only present when state is "completed")
-        stdout: Standard output since last poll (incremental)
-        stderr: Standard error since last poll (incremental)
-    """
-
-    state: Literal["running", "completed", "killed"]
-    exit_code: int | None = None
     seq: int
     stdout: str
     stderr: str
 
 
 class OutputResult(BaseModel):
-    """Base result containing incremental stdout/stderr since the last read.
+    """Base result carrying every output chunk the host has not acknowledged.
 
-    Used by kill, write_stdin, and close_stdin results so that every
-    round-trip also delivers any buffered output.
+    Used by poll, kill, write_stdin, and close_stdin results so that every
+    round-trip also delivers any buffered output. Each chunk keeps its own
+    sequence number, so a host that gets overlapping replies in any order can
+    take each chunk once.
     """
 
-    seq: int
-    stdout: str
-    stderr: str
+    chunks: list[OutputChunk]
+
+
+class PollResult(OutputResult):
+    """Result from exec_remote_poll.
+
+    Fields:
+        state: Job lifecycle state - "running", "completed", or "killed"
+        exit_code: Process exit code (only present when state is "completed")
+    """
+
+    state: Literal["running", "completed", "killed"]
+    exit_code: int | None = None
 
 
 class KillResult(OutputResult):
