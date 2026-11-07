@@ -36,6 +36,16 @@ KIMI_FIXED_SAMPLING_WARNING = (
     "fixed sampling) and will be ignored."
 )
 
+KIMI_K3_REASONING_NONE_WARNING = (
+    "Reasoning cannot be disabled for {model} (Kimi K3 always reasons); the "
+    "model default effort will be used instead."
+)
+
+KIMI_K3_REASONING_MEDIUM_WARNING = (
+    'reasoning_effort="medium" is not supported by {model} (Kimi K3 accepts '
+    '"low", "high", and "max") and will be submitted as "high".'
+)
+
 KIMI_TOOL_CHOICE_WARNING = (
     "Forcing use of the {name!r} tool is not supported by {model} (a named "
     "tool_choice is incompatible with thinking, which is enabled by default) "
@@ -189,8 +199,28 @@ class MoonshotAPI(OpenAICompatibleAPI):
                             parameter=param, model=self.service_model_name()
                         ),
                     )
-        if self.is_kimi_k3():
-            effort = params.get("reasoning_effort")
-            if effort is not None and effort != "max":
-                params["reasoning_effort"] = "max"
+        if self.is_kimi_k3() and "reasoning_effort" in params:
+            params = self.k3_reasoning_effort_params(params)
+        return params
+
+    def k3_reasoning_effort_params(self, params: dict[str, Any]) -> dict[str, Any]:
+        """Map `reasoning_effort` onto the levels Kimi K3 accepts.
+
+        K3 accepts `low`, `high`, and `max` (the default). `minimal` and
+        `xhigh` map silently to the nearest level; `medium` has no nearest
+        level so it rounds up to `high` with a warning. K3 can't disable
+        reasoning, so `none` is omitted (the default applies) with a warning.
+        """
+        model = self.service_model_name()
+        effort = params["reasoning_effort"]
+        if effort == "none":
+            warn_once(logger, KIMI_K3_REASONING_NONE_WARNING.format(model=model))
+            del params["reasoning_effort"]
+        elif effort == "minimal":
+            params["reasoning_effort"] = "low"
+        elif effort == "medium":
+            warn_once(logger, KIMI_K3_REASONING_MEDIUM_WARNING.format(model=model))
+            params["reasoning_effort"] = "high"
+        elif effort == "xhigh":
+            params["reasoning_effort"] = "max"
         return params
