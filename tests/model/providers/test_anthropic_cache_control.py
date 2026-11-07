@@ -1645,6 +1645,10 @@ def _ordinary_expected_request(cache_control: dict[str, Any] | None) -> dict[str
     system block, on the tool definition, and on the lookback-tagged
     tool-result block -- or `None` for the disabled case, where no block or
     top-level key carries `cache_control` at all.
+
+    Updated for the empty-text drop in the assistant replay path (#6294):
+    the tool-call-only turn with empty str content no longer materializes a
+    `"(no content)"` placeholder before its `tool_use` block.
     """
     tool_result_block: dict[str, Any] = {
         "tool_use_id": "t1",
@@ -1677,7 +1681,6 @@ def _ordinary_expected_request(cache_control: dict[str, Any] | None) -> dict[str
             {
                 "role": "assistant",
                 "content": [
-                    {"type": "text", "text": "(no content)"},
                     {
                         "type": "tool_use",
                         "id": "t1",
