@@ -6456,9 +6456,8 @@ def test_earlier_cancellation_under_a_reused_id_is_not_the_later_calls_result(
 ) -> None:
     """A cancellation already sent for an unexecuted call doesn't link to a later call under its id.
 
-    It keeps its id, except in Responses: the scaffold keeps only the later
-    reply's call item, equal to the earlier reply's, so the reply and its
-    result get new ids.
+    Sent again after the later reply, it answers that reply, so it gets a new
+    id: it can't be told from the later call's result.
     """
     name = "mcp__host__read_file"
     log = eval(
@@ -6488,9 +6487,7 @@ def test_earlier_cancellation_under_a_reused_id_is_not_the_later_calls_result(
     model_events = [e for e in sample.events if isinstance(e, ModelEvent)]
     [sent] = [m for m in model_events[1].input if m.role == "tool"]
     [returned] = [m for m in model_events[2].input if m.role == "tool"]
-    assert (
-        (returned.id != sent.id) if dialect == "responses" else returned.id == sent.id
-    )
+    assert returned.id != sent.id
     [event] = [e for e in sample.events if isinstance(e, ToolEvent)]
     assert event.arguments == {"path": "b"}
     assert event.message_id is None
@@ -6659,7 +6656,7 @@ def test_compacted_equal_host_result_links_to_its_own_message(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """After compaction, an equal result of a later call links to its own message, also in the next request; a copied earlier result links nothing.
+    """After compaction, an equal result of a later call links to its own message, also in the next request; a copied earlier result gets a new id and links nothing.
 
     With `parallel`, the first turn makes two identical calls (in Google they
     can't be told apart and stay unlinked). With `evicted`, the bridge no
@@ -6710,11 +6707,77 @@ def test_compacted_equal_host_result_links_to_its_own_message(
         assert latest_result not in first_results
         assert [e.message_id for e in events] == [*first_links, None]
     elif copied:
-        assert latest_result == first_results[0]
+        assert latest_result not in first_results
         assert [e.message_id for e in events] == [*first_links, None]
     else:
         assert latest_result not in first_results
         assert [e.message_id for e in events] == [*first_links, latest_result]
+
+
+@pytest.mark.parametrize("shape", ["single", "parallel_reordered", "same_reply_kept"])
+@pytest.mark.parametrize("dialect", ["google", "completions", "responses", "anthropic"])
+async def test_repeated_scaffold_result_never_takes_an_earlier_executions_id(
+    dialect: HostDialect, shape: str
+) -> None:
+    """A scaffold tool's result answering a later reply never takes an earlier execution's result id.
+
+    The scaffold runs `read_file`, compacts, and runs it again under the same
+    call ids (Google re-derives them; the other providers reuse them) with
+    the same results. The later results answer a different reply, so they
+    get new ids, which they keep. With `same_reply_kept`, compaction keeps the
+    first reply and its result, which keeps its id, except in Google: there
+    the reply's key is recorded for the reply and its re-derived copy, so the
+    retained reply and its result get new ids.
+    """
+    paths = ["a", "b"] if shape == "parallel_reordered" else ["a"]
+
+    def calls(text: str) -> ModelOutput:
+        return tool_calls_output(
+            *[
+                ToolCall(
+                    id=f"reused_{path}", function="read_file", arguments={"path": path}
+                )
+                for path in paths
+            ],
+            content=text,
+        )
+
+    outputs = [
+        calls("First call."),
+        ModelOutput.from_content("mockllm/model", "Read it."),
+        calls("Second call."),
+        *[ModelOutput.from_content("mockllm/model", "Done.")] * 2,
+    ]
+    bridge = AgentBridge(
+        AgentState(messages=[ChatMessageUser(content="Read twice.")]),
+        model_aliases={"inspect": get_model("mockllm/model", custom_outputs=outputs)},
+    )
+    [info] = declare("read_file")
+    conversation = _HostConversation(dialect, "Read twice.", info)
+    summary = _user_turn(dialect, "Summary: read once.")
+    with recorded_transcript() as recorded:
+        first = await conversation.request(cast(SandboxAgentBridge, bridge))
+        conversation.results(first, ["same"] * len(first))
+        await conversation.request(cast(SandboxAgentBridge, bridge))
+        if shape == "same_reply_kept":
+            conversation.history = [summary, *conversation.history[1:]]
+        else:
+            conversation.history = [summary]
+            second = await conversation.request(cast(SandboxAgentBridge, bridge))
+            conversation.results(second[::-1], ["same"] * len(second))
+        await conversation.request(cast(SandboxAgentBridge, bridge))
+        conversation.history.append(_user_turn(dialect, "Thanks."))
+        await conversation.request(cast(SandboxAgentBridge, bridge))
+
+    events = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    first_results = {m.id for m in events[1].input if m.role == "tool"}
+    retained = [m.id for m in events[-2].input if m.role == "tool"]
+    assert [m.id for m in events[-1].input if m.role == "tool"] == retained
+    assert len(retained) == len(paths)
+    if shape == "same_reply_kept" and dialect != "google":
+        assert set(retained) == first_results
+    else:
+        assert not set(retained) & first_results
 
 
 @agent

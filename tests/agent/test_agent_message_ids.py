@@ -1297,8 +1297,15 @@ def test_compacted_identical_google_calls_never_link_another_calls_result(
     assert all(event.message_id is not None for event in host_events[:-1])
 
 
-def test_completions_non_primary_choice_keeps_generated_id(tmp_path: Path) -> None:
-    """A scaffold can continue with an unchanged alternate choice."""
+@pytest.mark.parametrize("identical", [False, True], ids=["distinct", "identical"])
+def test_completions_non_primary_choice_keeps_generated_id(
+    identical: bool, tmp_path: Path
+) -> None:
+    """A scaffold can continue with an unchanged alternate choice.
+
+    It keeps its generated id. When it equals the primary choice, it can't be
+    told from it, so it gets a new id, never the primary's.
+    """
 
     @agent
     def choose_alternate() -> Agent:
@@ -1326,7 +1333,11 @@ def test_completions_non_primary_choice_keeps_generated_id(tmp_path: Path) -> No
         model="mockllm/model",
         choices=[
             ChatCompletionChoice(message=ChatMessageAssistant(content="choice-zero")),
-            ChatCompletionChoice(message=ChatMessageAssistant(content="choice-one")),
+            ChatCompletionChoice(
+                message=ChatMessageAssistant(
+                    content="choice-zero" if identical else "choice-one"
+                )
+            ),
         ],
     )
     log = eval(
@@ -1342,7 +1353,11 @@ def test_completions_non_primary_choice_keeps_generated_id(tmp_path: Path) -> No
     first_event, second_event = [
         event for event in log.samples[0].events if isinstance(event, ModelEvent)
     ]
-    assert second_event.input[1].id == first_event.output.choices[1].message.id
+    choice_ids = [choice.message.id for choice in first_event.output.choices]
+    if identical:
+        assert second_event.input[1].id not in choice_ids
+    else:
+        assert second_event.input[1].id == choice_ids[1]
 
 
 @pytest.mark.parametrize("dialect", DIALECTS)
@@ -1656,10 +1671,10 @@ async def test_fresh_compacted_result_is_not_an_edit_of_earlier_answer(
 
 @pytest.mark.parametrize("copied", [False, True])
 @pytest.mark.parametrize("regenerated", [False, True])
-async def test_equal_compacted_result_is_fresh_unless_copied(
+async def test_equal_compacted_result_is_fresh_and_links_unless_copied(
     regenerated: bool, copied: bool
 ) -> None:
-    """A later call's equal answer gets its own ID; a copy of the earlier answer keeps its ID.
+    """A later call's equal answer gets a new id and links; a copy of the earlier answer gets a new id and links nothing.
 
     The later call is generated after a compaction that kept a later reply,
     which places it.
@@ -1695,12 +1710,8 @@ async def test_equal_compacted_result_is_fresh_unless_copied(
     ids = await scaffold.request([*kept, second_back, _result(returned_id, "contents")])
 
     assert first_event.message_id == first_ids[2]
-    if copied:
-        assert ids[4] == first_ids[2]
-        assert second_event.message_id is None
-    else:
-        assert ids[4] != first_ids[2]
-        assert second_event.message_id == ids[4]
+    assert ids[4] != first_ids[2]
+    assert second_event.message_id == (None if copied else ids[4])
 
 
 @pytest.mark.parametrize("regenerated", [False, True])
@@ -2546,7 +2557,7 @@ async def test_answer_records_are_bounded() -> None:
 async def test_equal_host_result_after_its_earlier_answer_record_is_dropped(
     dropped: bool, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A later host call's result equal to an earlier answer is fresh while the earlier answer's record is kept; once dropped it is taken for the earlier answer and links nothing.
+    """A later host call's result equal to an earlier answer is fresh, and links while the earlier answer's record is kept; once dropped it links nothing.
 
     The earlier reply is no longer tracked for its result in either case.
     """
@@ -2579,19 +2590,15 @@ async def test_equal_host_result_after_its_earlier_answer_record_is_dropped(
     ids = await scaffold.request(window)
     next_ids = await scaffold.request([*window, ChatMessageUser(content="Thanks.")])
 
-    assert next_ids[2] == ids[2]
-    if dropped:
-        assert (ids[2], later_event.message_id) == (earlier, None)
-    else:
-        assert ids[2] != earlier
-        assert later_event.message_id == ids[2]
+    assert next_ids[2] == ids[2] != earlier
+    assert later_event.message_id == (None if dropped else ids[2])
 
 
 @pytest.mark.parametrize("regenerated", [False, True])
 async def test_copied_answer_stays_unlinked_when_its_record_is_dropped_in_the_same_request(
     regenerated: bool,
 ) -> None:
-    """A later call's copy of an earlier answer isn't linked when a later result in the request drops the earlier answer's record."""
+    """A later call's copy of an earlier answer gets a new id and isn't linked when a later result in the request drops the earlier answer's record."""
     first_id, second_id, returned_id = (
         ("toolu_1", "toolu_2", "call_read_1")
         if regenerated
@@ -2639,7 +2646,7 @@ async def test_copied_answer_stays_unlinked_when_its_record_is_dropped_in_the_sa
 
     assert earlier not in bridge._answers
     assert bridge._answer_records <= bridge_types._MAX_ANSWER_RECORDS
-    assert ids[2] == earlier
+    assert ids[2] != earlier
     assert second_event.message_id is None
     assert last_event.message_id == ids[4]
     assert next_ids[:5] == ids

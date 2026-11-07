@@ -228,6 +228,18 @@ class _Answer(NamedTuple):
     outcomes: frozenset[str]
     """Outcomes of the call's host executions when the message was first sent."""
 
+    linkable: bool = True
+    """Whether the message may be linked to the call's host execution (not when it may be a copy of an earlier answer)."""
+
+
+class _ResultId(NamedTuple):
+    """The id a tool message answering a reply keeps (`None` for a new one)."""
+
+    id: str | None
+
+    linkable: bool
+    """Whether a new id may be linked to the call's host execution (see `_Answer`)."""
+
 
 class _ReplyAnswers(NamedTuple):
     """The answer records kept for a reply."""
@@ -601,7 +613,7 @@ class AgentBridge:
         the next assistant message with tool calls: exactly one links it, more
         than one settles it unlinked. A message already linked to a tracked call,
         or first sent as another reply's answer (`_result_occurrence`) or as an
-        answer whose record was dropped (`unattributed`), isn't linked, and a
+        answer without a linkable record (`unattributed`), isn't linked, and a
         kept id another tracked reply also handed doesn't link while that reply's call is unlinked (`_tracked_call_ids`).
         No call links while another tracked reply keeps no handed ids: any id
         in the copy could be one of that reply's unexecuted calls. A call
@@ -810,12 +822,10 @@ class AgentBridge:
         message gets a new id: which occurrence of repeated content it is can't
         be told, and neither position nor neighbouring messages decide it.
 
-        A tool message after a reply is an answer to that reply
-        (`_result_occurrence`). One answering a reply given a new id for
-        repeated content gets a new id and no answer record, since which reply
-        it answers can't be told. One seen before without an answer record (its
-        record was dropped, see `_record_answer`, or it first came after no
-        reply) answered an unknown reply: it isn't recorded or linked.
+        A tool message after a reply is an answer to that reply, and keeps an
+        id only as that reply's answer (`_result_occurrence`). One answering a
+        reply given a new id for repeated content gets a new id and no answer
+        record, since which reply it answers can't be told; it isn't linked.
         """
         keys = [_message_id_keys(message) for message in messages]
         aligned = self._align_with_tracked(keys)
@@ -877,18 +887,19 @@ class AgentBridge:
                         if candidate_strength > aligned_strength:
                             message_id = candidate_id
             answered: _AnsweredCall | None = None
+            linkable = True
             if isinstance(message, ChatMessageTool) and preceding_reply_key is not None:
                 answered = _answered_call(
                     preceding_reply_key,
                     reply_calls.get(message.tool_call_id or "", []),
                 )
-                if preceding_reply_id is not None:
-                    message_id = self._result_occurrence(
-                        message_keys,
-                        message_id,
-                        answered,
-                        partial(available, index=index),
-                    )
+                message_id, linkable = self._result_occurrence(
+                    message_keys,
+                    message_id,
+                    aligned_id is not None and message_id == aligned_id,
+                    answered,
+                    partial(available, index=index),
+                )
             recognized.append(message_id)
             repeated = message_id is None and any(
                 key in self._message_ids for key in message_keys
@@ -912,10 +923,13 @@ class AgentBridge:
                                 preceding_reply_id, preceding_reply_keys
                             )
                         )
-                    self._record_answer(message.id, answered, preceding_reply_ambiguous)
-                if self._answer_of(message.id) is None:
+                    self._record_answer(
+                        message.id, answered, preceding_reply_ambiguous, linkable
+                    )
+                answer = self._answer_of(message.id)
+                if answer is None or not answer.linkable:
                     unattributed.add(message.id)
-                else:
+                if answer is not None:
                     self._record_occurrence(message_keys, message.id, answered)
             if isinstance(message, ChatMessageAssistant) and message.tool_calls:
                 preceding_reply_id = (
@@ -923,7 +937,7 @@ class AgentBridge:
                     if message_id is not None
                     else None
                 )
-                preceding_reply_key = preceding_reply_id or message.id
+                preceding_reply_key = preceding_reply_id or self._edit_root(message.id)
                 preceding_reply_keys = message_keys
                 preceding_reply_repeated = repeated
                 preceding_reply_ambiguous = None
@@ -942,43 +956,51 @@ class AgentBridge:
         self,
         keys: list[str],
         candidate: str | None,
+        placed: bool,
         answered: _AnsweredCall,
         available: Callable[[str], bool],
-    ) -> str | None:
-        """The id of a tool message answering a call of an awaited reply.
+    ) -> "_ResultId":
+        """The id of a tool message answering a call of the reply before it.
 
-        The message is the reply's answer to the call: `candidate` if that was
-        first an answer to this reply, else the id the reply's answer was first
-        given under one of the message's keys. A candidate first given to
-        another reply's answer is that earlier answer: the message is a fresh
-        answer (`None`) if it matched it only by call id, or if the call has
-        one pending host execution that returned what each execution of the
-        earlier call did when the earlier answer was first sent. Otherwise the message is a copy
-        of the earlier answer and keeps its id, which `_link_result_messages`
-        doesn't link to this reply's call.
+        The message keeps `candidate` if that was first an answer to this
+        reply, or if placement (`placed`) gave it and its first answer isn't
+        recorded. Else it takes the id this reply's answer was first given
+        under one of its keys. Any other message gets a new id: an equal
+        message answering another reply, or whose reply is unknown, may be a
+        later execution's result or a copy of the earlier one. A new id isn't
+        linkable if it could be such a copy and the call has host executions:
+        unless the message equals no earlier answer other than by call id, the
+        call's one pending execution must have returned what the earlier
+        call's did.
         """
         earlier = self._answer_of(candidate) if candidate is not None else None
         if earlier is not None and earlier.reply_id == answered.reply_id:
-            return candidate
+            return _ResultId(candidate, True)
         reply_answers = self._reply_answers.get(answered.reply_id)
         for key in keys:
             occurrence = reply_answers.occurrences.get(key) if reply_answers else None
             if occurrence is not None and available(occurrence):
-                return occurrence
-        if candidate is None or earlier is None:
-            return candidate
+                return _ResultId(occurrence, True)
+        if candidate is None:
+            return _ResultId(None, True)
+        if earlier is None and placed:
+            return _ResultId(candidate, True)
         if not any(
             key.startswith(("content:", "loose:"))
             and key in self._keys_by_id.get(candidate, set())
             for key in keys
         ):
-            return None
-        pending = [
-            entry for entry in self._answered_entries(answered) if not entry.settled
-        ]
-        if len(pending) == 1 and earlier.outcomes == {pending[0].outcome}:
-            return None
-        return candidate
+            return _ResultId(None, True)
+        entries = self._answered_entries(answered)
+        if not entries:
+            return _ResultId(None, True)
+        pending = [entry for entry in entries if not entry.settled]
+        return _ResultId(
+            None,
+            earlier is not None
+            and len(pending) == 1
+            and earlier.outcomes == {pending[0].outcome},
+        )
 
     def _answered_entries(
         self, answered: _AnsweredCall, identical: bool = False
@@ -1018,7 +1040,11 @@ class AgentBridge:
         return self._answers.get(self._edit_root(message_id))
 
     def _record_answer(
-        self, message_id: str, answered: _AnsweredCall, ambiguous: bool = False
+        self,
+        message_id: str,
+        answered: _AnsweredCall,
+        ambiguous: bool = False,
+        linkable: bool = True,
     ) -> None:
         """Record a new tool message as an answer to its reply.
 
@@ -1029,8 +1055,8 @@ class AgentBridge:
 
         At most `_MAX_ANSWER_RECORDS` records are kept between requests: once a
         request is linked, the oldest replies' are dropped beyond that, so a
-        later message equal to one of their answers keeps that answer's id and
-        isn't linked. A request's own records may exceed the bound until then.
+        later message equal to one of their answers gets a new id and isn't
+        linked. A request's own records may exceed the bound until then.
         """
         if message_id in self._answers:
             return
@@ -1042,6 +1068,7 @@ class AgentBridge:
                 entry.outcome
                 for entry in self._answered_entries(answered, identical=True)
             ),
+            linkable,
         )
         self._reply_answer_records(answered.reply_id).message_ids.append(message_id)
         self._answer_records += 1
@@ -1349,12 +1376,16 @@ class AgentBridge:
                     choice.message.id, content_hash(choice.message)
                 )
 
-        messages = input + [output.message]
-        generation: list[tuple[str, str]] = [
-            (m.id, m.role) for m in messages if m.id is not None
+        # every choice's thread, since the scaffold may continue any of them;
+        # the primary's last, so it stays kept when the window is full
+        threads: list[list[tuple[str, str]]] = [
+            [(m.id, m.role) for m in [*input, choice.message] if m.id is not None]
+            for choice in output.choices
         ]
-        self._latest_generation = generation
-        self._remember_thread(generation)
+        for thread in [*threads[1:], threads[0]]:
+            self._remember_thread(thread)
+        self._latest_generation = threads[0]
+        messages = input + [output.message]
         fps = [_message_fingerprint(m) for m in messages]
 
         if self._tracked_fps is None:
