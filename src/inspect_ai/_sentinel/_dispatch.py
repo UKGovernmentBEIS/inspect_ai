@@ -106,7 +106,7 @@ from ._context import (
     active_task_metadata,
 )
 from ._conversation import current_conversation
-from ._scope import sentinel_scope
+from ._scope import BRIDGE_CHECK_SPAN, sentinel_scope
 from ._steps import (
     ConversationRecord,
     after_generate,
@@ -131,6 +131,10 @@ async def sentinel_before_tool_call(
     call: ToolCall,
     viewer: ToolCallViewer | None,
     history: list[ChatMessage],
+    producer: ModelEvent | None = None,
+    *,
+    find_producer: bool = True,
+    bridge: bool = False,
 ) -> Decision | None:
     if not _watches(BeforeToolCall):
         return None
@@ -139,6 +143,8 @@ async def sentinel_before_tool_call(
         view = resolve_tool_call_view(call, viewer, reject_on_error=True)
     except ToolCallViewError as ex:
         raise ToolApprovalError(str(ex)) from ex
+    if producer is None and find_producer:
+        producer = _producing_event(call, history)
     conversation = current_conversation()
     step = before_tool_call(
         conversation=conversation,
@@ -146,11 +152,11 @@ async def sentinel_before_tool_call(
         message_id=_message_id(message_id),
         call=call,
         view=view,
-        producer=producer_of(_producing_event(call, history)),
+        producer=producer_of(producer),
         agent_messages=agent_messages(conversation),
         record=_record(conversation),
     )
-    return await _run(step, call.id)
+    return await _run(step, call.id, bridge=bridge)
 
 
 def apply_sentinel_decision(decision: Decision | None, call: ToolCall) -> ToolCall:
@@ -177,28 +183,38 @@ async def sentinel_after_tool_call(
     call: ToolCall,
     result: ChatMessageTool,
     output: ToolResult,
-    truncated: tuple[int, int] | None,
+    truncated: tuple[int, int] | Literal[False] | None,
     viewer: ToolCallViewer | None,
     history: list[ChatMessage],
+    producer: ModelEvent | None = None,
+    *,
+    find_producer: bool = True,
+    reject_on_viewer_error: bool = False,
+    bridge: bool = False,
 ) -> None:
     if not _watches(AfterToolCall):
         return
     _require_message_id()
+    if producer is None and find_producer:
+        producer = _producing_event(call, history)
     conversation = current_conversation()
     step = after_tool_call(
         conversation=conversation,
         message=message,
         message_id=_message_id(message_id),
         call=call,
-        view=resolve_tool_call_view(call, viewer),
+        view=resolve_tool_call_view(
+            call, viewer, reject_on_error=reject_on_viewer_error
+        ),
         result=result,
         output=output,
-        truncated=Truncation(*truncated) if truncated is not None else False,
-        producer=producer_of(_producing_event(call, history)),
+        # None when the host cannot tell (a scaffold-run tool under a bridge)
+        truncated=Truncation(*truncated) if truncated else truncated,
+        producer=producer_of(producer),
         agent_messages=agent_messages(conversation),
         record=_record(conversation),
     )
-    decision = await _run(step, call.id)
+    decision = await _run(step, call.id, bridge=bridge)
     if decision is not None and decision.action == "terminate":
         raise TerminateSampleError(
             decision.explanation or "Sentinel requested termination."
@@ -285,14 +301,20 @@ def _watches(stage: type[Step]) -> bool:
     return root is not None and stage in watched_stages(root)
 
 
-async def _run(step: Step, step_id: str) -> Decision | None:
+def watches_tool_results() -> bool:
+    return _watches(AfterToolCall)
+
+
+async def _run(step: Step, step_id: str, *, bridge: bool = False) -> Decision | None:
     root = active_sentinel()
     if root is None or type(step) not in watched_stages(root):
         return None
     recorder = _Recorder(step_id)
     try:
         try:
-            async with span(name="sentinel", type="sentinel"):
+            async with span(
+                name=BRIDGE_CHECK_SPAN if bridge else "sentinel", type="sentinel"
+            ):
                 try:
                     with (
                         suspend_token_limit(),

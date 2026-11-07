@@ -26,7 +26,7 @@ from inspect_ai.model._model import (
 )
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool._tool import Tool
-from inspect_ai.tool._tool_call import ToolCall
+from inspect_ai.tool._tool_call import ToolCall, ToolCallViewer
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.util._checkpoint.checkpointer import Checkpointer
 from inspect_ai.util._checkpoint.checkpointer_noop import _NoopCheckpointer
@@ -37,6 +37,8 @@ if TYPE_CHECKING:
     # cycles back through partially-initialized modules). Same reason
     # `model/_call_tools.py` defers it.
     from inspect_ai.approval._policy import ApprovalPolicy
+
+    from ._sentinel import SentinelCheck, _ResultChecks
 
 
 class DispatchedCall(NamedTuple):
@@ -60,6 +62,9 @@ class ReviewedCalls(NamedTuple):
 
     dispatch: Callable[[dict[str, Any]], dict[str, Any]]
     """Arguments for the tool call that make a reviewed call with the given ones."""
+
+    viewers: list[ToolCallViewer | None]
+    """The registered viewer for each reviewed target, in the same order."""
 
 
 def _unchanged(arguments: dict[str, Any]) -> dict[str, Any]:
@@ -160,6 +165,30 @@ class AgentBridge:
         self._pending_operator = 0
         self._operator_keys: set[str] = set()
         self._warned_request_settings: set[str] = set()
+        self._sentinel_results: "_ResultChecks | None" = None
+        # deferred: `_sentinel` imports this module
+        from ._sentinel import history_ids, inherited_result_keys
+
+        # a checkpoint written without the keys exempts nothing
+        self._inherited_results = frozenset(
+            self._cp.track(
+                "bridge_inherited_results",
+                lambda: sorted(self._inherited_results),
+                sorted(inherited_result_keys(state.messages))
+                if self._cp.attempt == "initial"
+                else [],
+                value_type=list[str],
+            )
+        )
+        # one written without the reservations reserves its prefix's ids
+        self._reserved_ids = frozenset(
+            self._cp.track(
+                "bridge_reserved_ids",
+                lambda: sorted(self._reserved_ids),
+                sorted(history_ids(self._compaction_prefix)),
+                value_type=list[str],
+            )
+        )
 
     state: AgentState
     """State updated from messages traveling over the bridge."""
@@ -294,6 +323,17 @@ class AgentBridge:
         bind later service requests to the calls the model actually made.
         """
 
+    def _register_tool_execution_grants(
+        self,
+        calls: Sequence[ToolCall],
+        tools: Sequence[ToolInfo | Tool],
+        checks: Sequence["SentinelCheck"] | None,
+        *,
+        span_id: str | None = None,
+    ) -> None:
+        # a sandbox bridge holds each call's sentinel check (if any) with its grants
+        self.register_tool_execution_grants(calls, tools, span_id=span_id)
+
     def dispatched_call(self, call: ToolCall) -> DispatchedCall | None:
         """The bridged tool call that `call` makes through a dispatcher, if any.
 
@@ -303,6 +343,11 @@ class AgentBridge:
         arguments. In-process bridges have no bridged tools, so nothing is
         dispatched; `SandboxAgentBridge` overrides this.
         """
+        return None
+
+    def _host_tool_viewer(
+        self, call: ToolCall, tools: Sequence[ToolInfo | Tool]
+    ) -> ToolCallViewer | None:
         return None
 
     def reviewed_calls(
@@ -319,8 +364,12 @@ class AgentBridge:
         """
         dispatched = self.dispatched_call(call)
         if dispatched is not None:
-            return ReviewedCalls([dispatched.target], dispatched.dispatch)
-        return ReviewedCalls([call], _unchanged)
+            return ReviewedCalls(
+                [dispatched.target],
+                dispatched.dispatch,
+                [self._host_tool_viewer(call, tools)],
+            )
+        return ReviewedCalls([call], _unchanged, [self._host_tool_viewer(call, tools)])
 
     def compaction(
         self, tools: Sequence[ToolInfo | Tool], model: Model

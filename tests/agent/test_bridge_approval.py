@@ -12,8 +12,18 @@ import logging
 import re
 from collections import deque
 from contextlib import contextmanager
+from dataclasses import replace
 from pathlib import PurePosixPath
-from typing import Any, Awaitable, Callable, Iterator, Literal, NamedTuple, cast
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Awaitable,
+    Callable,
+    Iterator,
+    Literal,
+    NamedTuple,
+    cast,
+)
 from unittest.mock import AsyncMock, MagicMock
 
 import anyio
@@ -27,6 +37,8 @@ from test_helpers.service_dispatch import (
 
 import inspect_ai._util.logger as inspect_logger
 from inspect_ai import Task, eval
+from inspect_ai._sentinel._config import resolve_sentinel_root, resolve_sentinel_spec
+from inspect_ai._sentinel._context import init_sentinel
 from inspect_ai._util.content import ContentImage, ContentText
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.agent._acp.event_mapping import _AcpEventRouter, replay_transcript
@@ -95,7 +107,13 @@ from inspect_ai.model._openai_responses import (
 )
 from inspect_ai.tool import Tool, ToolError, tool
 from inspect_ai.tool._tool import ToolParsingError, ToolResult
-from inspect_ai.tool._tool_call import ToolCall, ToolCallError, ToolCallView
+from inspect_ai.tool._tool_call import (
+    ToolCall,
+    ToolCallContent,
+    ToolCallError,
+    ToolCallView,
+    ToolCallViewError,
+)
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tool_info import ToolInfo
@@ -110,6 +128,29 @@ from inspect_ai.util._span import (
     span_id_provider,
 )
 from inspect_ai.util._store import Store, _subtask_store
+
+if TYPE_CHECKING:
+    from inspect_sentinel import (
+        AfterToolCall,
+        BeforeToolCall,
+        Context,
+        Decision,
+        Escalations,
+        Protocol,
+        ProtocolGroup,
+        protocol,
+    )
+else:
+    from test_helpers.fake_sentinel import (
+        AfterToolCall,
+        BeforeToolCall,
+        Context,
+        Decision,
+        Escalations,
+        Protocol,
+        ProtocolGroup,
+        protocol,
+    )
 
 TASK = "Tidy up the working directory."
 
@@ -415,6 +456,23 @@ async def test_modify_rewrites_arguments_handed_to_the_scaffold() -> None:
     assert run.generations == 1
     assert run.output.message.tool_calls is not None
     assert run.output.message.tool_calls[0].arguments == {"cmd": "ls"}
+
+
+async def test_modify_rewrites_only_its_call_when_ids_are_shared() -> None:
+    risky = ToolCall(id="1", function="bash", arguments={"cmd": "rm -rf /"})
+    read = ToolCall(id="1", function="read_file", arguments={"path": "a.txt"})
+    run = await run_bridge(
+        [tool_calls_output(risky, read)],
+        approval=[
+            ApprovalPolicy(modifying_approver({"cmd": "ls"}), "bash"),
+            ApprovalPolicy(auto_approver(), "*"),
+        ],
+    )
+
+    assert run.output.message.tool_calls == [
+        ToolCall(id="1", function="bash", arguments={"cmd": "ls"}),
+        read,
+    ]
 
 
 async def test_modify_preserves_the_original_call_in_the_transcript() -> None:
@@ -786,7 +844,11 @@ async def test_sandbox_approver_termination_ends_the_sample_once(
 
     assert [type(ex) for ex in unwound] == [TerminateSampleError]
     reason = cast(TerminateSampleError, unwound[0]).reason
-    assert reason.startswith("Tool call approver ")
+    assert reason.startswith(
+        f"Tool call approval or the sentinel rejected {MAX_CONSECUTIVE_REJECTIONS} "
+        if repeated
+        else "Tool call approver requested termination"
+    )
     assert replies == [f"Terminating: {reason}"]
     assert not bridge._failure_requested.is_set()
 
@@ -1134,6 +1196,306 @@ def indistinct_read_and_delete(
     )
     bridge.approval = approval
     return bridge, read, delete
+
+
+def indistinct_tools_with_viewers(
+    *, raising: str | None = None
+) -> tuple[SandboxAgentBridge, list[str]]:
+    """Serve two tools with one description and separately registered viewers."""
+    viewed: list[str] = []
+    tools: dict[str, dict[str, Tool]] = {}
+    for server, name in (("one", "read_file"), ("two", "delete_file")):
+
+        def viewer(call: ToolCall, target: str = name) -> ToolCallView:
+            viewed.append(target)
+            if target == raising:
+                raise ValueError(f"{target} viewer failed")
+            return ToolCallView(
+                call=ToolCallContent(format="text", content=f"view of {target}")
+            )
+
+        async def execute(path: str) -> str:
+            return path
+
+        tools[server] = {
+            name: ToolDef(
+                execute,
+                name=name,
+                description=READ_FILE,
+                parameters=params("path"),
+                viewer=viewer,
+            ).as_tool()
+        }
+    return sandbox_bridge_with_servers(tools), viewed
+
+
+@contextmanager
+def active_test_sentinel(sentinel: Any) -> Iterator[None]:
+    init_sentinel(resolve_sentinel_root(resolve_sentinel_spec(sentinel)))
+    try:
+        yield
+    finally:
+        init_sentinel(None)
+
+
+@protocol
+def reject_indistinct_delete() -> Protocol:
+    async def decide(
+        context: Context, step: BeforeToolCall, escalations: Escalations
+    ) -> Decision | None:
+        if step.call.function == "delete_file":
+            return Decision.reject("No deleting.")
+        return None
+
+    return decide
+
+
+@protocol
+def track_indistinct_targets(seen: list[tuple[str, str]]) -> ProtocolGroup:
+    async def before(
+        context: Context, step: BeforeToolCall, escalations: Escalations
+    ) -> Decision | None:
+        seen.append(("before", step.call.function))
+        return None
+
+    async def after(
+        context: Context, step: AfterToolCall, escalations: Escalations
+    ) -> Decision | None:
+        seen.append(("after", step.call.function))
+        return None
+
+    return ProtocolGroup(before, after)
+
+
+@protocol
+def modify_indistinct_read() -> Protocol:
+    async def decide(
+        context: Context, step: BeforeToolCall, escalations: Escalations
+    ) -> Decision | None:
+        if step.call.function == "read_file":
+            return Decision(
+                action="modify",
+                modified=replace(step.call, arguments={"path": "safe.txt"}),
+            )
+        return None
+
+    return decide
+
+
+@pytest.mark.usefixtures("fake_sentinel")
+async def test_sentinel_rejects_indistinct_delete_target() -> None:
+    bridge, read, delete = indistinct_read_and_delete([])
+    call = ToolCall(id="proposed", function="summarize", arguments={"path": "x"})
+
+    with active_test_sentinel(reject_indistinct_delete()):
+        run = await run_bridge(
+            [
+                tool_calls_output(call),
+                ModelOutput.from_content(model="mockllm/model", content="Done."),
+            ],
+            bridge=bridge,
+            tools=declare("summarize"),
+        )
+
+    assert run.generations == 2
+    assert not bridge._tool_execution_grants
+    read.assert_not_awaited()
+    delete.assert_not_awaited()
+
+
+@pytest.mark.usefixtures("fake_sentinel")
+async def test_sentinel_refuses_indistinct_modification() -> None:
+    bridge, _, _ = indistinct_read_and_delete([])
+    call = ToolCall(id="proposed", function="summarize", arguments={"path": "x"})
+
+    with active_test_sentinel(modify_indistinct_read()):
+        with pytest.raises(RuntimeError, match="several bridged tools"):
+            await run_bridge(
+                [tool_calls_output(call)], bridge=bridge, tools=declare("summarize")
+            )
+
+    assert isinstance(bridge._failure, RuntimeError)
+    assert not bridge._tool_execution_grants
+
+
+@pytest.mark.usefixtures("fake_sentinel")
+async def test_sentinel_result_names_executed_indistinct_target() -> None:
+    bridge, read, delete = indistinct_read_and_delete([])
+    call = ToolCall(id="proposed", function="summarize", arguments={"path": "x"})
+    seen: list[tuple[str, str]] = []
+
+    with active_test_sentinel(track_indistinct_targets(seen)):
+        await run_bridge(
+            [tool_calls_output(call)], bridge=bridge, tools=declare("summarize")
+        )
+        await call_host_tool(bridge)("two", "delete_file", {"path": "x"})
+
+    assert [name for stage, name in seen if stage == "after"] == ["delete_file"]
+    assert [name for stage, name in seen if stage == "before"] == [
+        "read_file",
+        "delete_file",
+    ]
+    read.assert_not_awaited()
+    delete.assert_awaited_once_with(path="x")
+
+
+@protocol
+def capture_indistinct_views(seen: list[tuple[str, str, str]]) -> ProtocolGroup:
+    async def before(
+        context: Context, step: BeforeToolCall, escalations: Escalations
+    ) -> Decision | None:
+        assert step.view.call is not None
+        seen.append(("before", step.call.function, step.view.call.content))
+        return None
+
+    async def after(
+        context: Context, step: AfterToolCall, escalations: Escalations
+    ) -> Decision | None:
+        assert step.view.call is not None
+        seen.append(("after", step.call.function, step.view.call.content))
+        return None
+
+    return ProtocolGroup(before, after)
+
+
+@pytest.mark.usefixtures("fake_sentinel")
+async def test_indistinct_targets_use_their_own_viewers() -> None:
+    bridge, viewed = indistinct_tools_with_viewers()
+    seen: list[tuple[str, str, str]] = []
+    with active_test_sentinel(capture_indistinct_views(seen)):
+        await run_bridge(
+            [
+                tool_calls_output(
+                    ToolCall(
+                        id="proposed", function="summarize", arguments={"path": "x"}
+                    )
+                )
+            ],
+            bridge=bridge,
+            tools=declare("summarize"),
+        )
+        await call_host_tool(bridge)("two", "delete_file", {"path": "x"})
+    assert seen == [
+        ("before", "read_file", "view of read_file"),
+        ("before", "delete_file", "view of delete_file"),
+        ("after", "delete_file", "view of delete_file"),
+    ]
+    assert viewed == ["read_file", "delete_file", "delete_file"]
+
+
+@pytest.mark.usefixtures("fake_sentinel")
+async def test_indistinct_target_viewer_failure_rejects_all_grants() -> None:
+    bridge, viewed = indistinct_tools_with_viewers(raising="delete_file")
+    with active_test_sentinel(track_indistinct_targets([])):
+        run = await run_bridge(
+            [
+                tool_calls_output(
+                    ToolCall(
+                        id="proposed", function="summarize", arguments={"path": "x"}
+                    )
+                ),
+                ModelOutput.from_content(model="mockllm/model", content="Done."),
+            ],
+            bridge=bridge,
+            tools=declare("summarize"),
+        )
+    assert run.generations == 2
+    assert viewed == ["read_file", "delete_file"]
+    assert not bridge._tool_execution_grants
+
+
+@protocol
+def stop_secret_delete_result(seen: list[tuple[str, str, str]]) -> Protocol:
+    async def after(
+        context: Context, step: AfterToolCall, escalations: Escalations
+    ) -> Decision | None:
+        assert step.view.call is not None
+        seen.append((step.call.function, step.result.text, step.view.call.content))
+        if step.call.function == "delete_file" and step.result.text == "secret":
+            return Decision.terminate("secret delete result")
+        return None
+
+    return after
+
+
+@pytest.mark.usefixtures("fake_sentinel")
+async def test_changed_scaffold_result_checks_every_indistinct_host_target() -> None:
+    bridge, _ = indistinct_tools_with_viewers()
+    seen: list[tuple[str, str, str]] = []
+    with active_test_sentinel(stop_secret_delete_result(seen)):
+        first = await run_bridge(
+            [
+                tool_calls_output(
+                    ToolCall(
+                        id="proposed", function="summarize", arguments={"path": "x"}
+                    )
+                )
+            ],
+            bridge=bridge,
+            tools=declare("summarize"),
+        )
+        [handed] = first.output.message.tool_calls or []
+        assert await call_host_tool(bridge)("two", "delete_file", {"path": "x"}) == "x"
+        with pytest.raises(TerminateSampleError, match="secret delete result"):
+            await run_bridge(
+                [ModelOutput.from_content(model="mockllm/model", content="Done.")],
+                bridge=bridge,
+                input=[
+                    ChatMessageUser(content=TASK),
+                    first.output.message,
+                    ChatMessageTool(
+                        content="secret",
+                        tool_call_id=handed.id,
+                        function="summarize",
+                    ),
+                ],
+                tools=declare("summarize"),
+            )
+
+    assert seen == [
+        ("delete_file", "x", "view of delete_file"),
+        ("read_file", "secret", "view of read_file"),
+        ("delete_file", "secret", "view of delete_file"),
+    ]
+
+
+@pytest.mark.usefixtures("fake_sentinel")
+async def test_changed_scaffold_result_rejects_raising_alternative_viewer() -> None:
+    bridge, _ = indistinct_tools_with_viewers(raising="delete_file")
+    seen: list[tuple[str, str, str]] = []
+    with active_test_sentinel(stop_secret_delete_result(seen)):
+        first = await run_bridge(
+            [
+                tool_calls_output(
+                    ToolCall(
+                        id="proposed", function="summarize", arguments={"path": "x"}
+                    )
+                )
+            ],
+            bridge=bridge,
+            tools=declare("summarize"),
+        )
+        [handed] = first.output.message.tool_calls or []
+        assert await call_host_tool(bridge)("one", "read_file", {"path": "x"}) == "x"
+        with pytest.raises(ToolCallViewError, match="delete_file"):
+            await run_bridge(
+                [ModelOutput.from_content(model="mockllm/model", content="Done.")],
+                bridge=bridge,
+                input=[
+                    ChatMessageUser(content=TASK),
+                    first.output.message,
+                    ChatMessageTool(
+                        content="secret",
+                        tool_call_id=handed.id,
+                        function="summarize",
+                    ),
+                ],
+                tools=declare("summarize"),
+            )
+    assert seen == [
+        ("read_file", "x", "view of read_file"),
+        ("read_file", "secret", "view of read_file"),
+    ]
 
 
 async def test_call_denoting_indistinct_tools_is_approved_as_each_of_them() -> None:

@@ -90,3 +90,28 @@ def dump_sample_assistant_internal() -> JsonValue | None:
             pass
 
     return dump or None
+
+
+def alias_assistant_internal_call(call_id: str, alias: str) -> None:
+    """Record a tool call's per-call replay state under another ID too.
+
+    For a call handed on under a new ID, so it replays to the model as it was
+    generated (native call type, position among the turn's content).
+    """
+    if _HAS_OPENAI:
+        try:
+            from inspect_ai.model._openai_responses import alias_openai_tool_call
+
+            alias_openai_tool_call(call_id, alias)
+        except ImportError:
+            pass
+
+    if _HAS_ANTHROPIC:
+        try:
+            from inspect_ai.model._providers.anthropic import (
+                alias_anthropic_tool_call,
+            )
+
+            alias_anthropic_tool_call(call_id, alias)
+        except ImportError:
+            pass

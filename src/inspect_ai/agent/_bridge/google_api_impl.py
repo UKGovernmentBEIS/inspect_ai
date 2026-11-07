@@ -8,6 +8,7 @@ from typing import Any, Literal
 
 from shortuuid import uuid
 
+from inspect_ai._sentinel._context import active_sentinel
 from inspect_ai._util.content import (
     Content,
     ContentImage,
@@ -130,8 +131,19 @@ async def inspect_google_api_request_impl(
         tool_choice_from_google_tool_config(tool_config), tools
     )
 
+    # with a sentinel, calls are handed over and read back under the ids the
+    # bridge gives them, which identify each execution's result
+    call_ids = active_sentinel() is not None
+
     # translate messages
-    messages = messages_from_google_contents(contents, system_instruction)
+    issued_ids = (
+        set(bridge._sentinel_results.identities)
+        if call_ids and bridge._sentinel_results is not None
+        else set()
+    )
+    messages = messages_from_google_contents(
+        contents, system_instruction, call_ids=call_ids, issued_ids=issued_ids
+    )
     await validate_bridge_media(bridge, messages)
     debug_log("INSPECT MESSAGES", messages)
 
@@ -169,7 +181,9 @@ async def inspect_google_api_request_impl(
     await bridge._track_state(messages, output)
 
     # translate response to Gemini format
-    response = gemini_response_from_output(output, model.api.model_name)
+    response = gemini_response_from_output(
+        output, model.api.model_name, call_ids=call_ids
+    )
     debug_log("SCAFFOLD RESPONSE", response)
 
     return response
@@ -364,7 +378,18 @@ def tool_choice_from_google_tool_config(
 def messages_from_google_contents(
     contents: list[dict[str, Any]],
     system_instruction: dict[str, Any] | list[Any] | None,
+    *,
+    call_ids: bool = False,
+    issued_ids: set[str] | None = None,
 ) -> list[ChatMessage]:
+    """Inspect messages for a Gemini request's contents.
+
+    With `call_ids` (a sentinel is active), a call takes the id its
+    `functionCall` carries and a result the id its `functionResponse` carries
+    (`_function_part_id`). Without it, ids the parts carry are ignored: a call
+    gets an id derived from itself, and a result the id of the oldest
+    unanswered call to its function.
+    """
     messages: list[ChatMessage] = []
 
     # track system prompt text so we can strip duplicate prefixes from user messages
@@ -422,7 +447,9 @@ def messages_from_google_contents(
         parts = content.get("parts", [])
 
         if role == "user":
-            user_content, tool_messages = _extract_user_parts(parts, pending_tool_calls)
+            user_content, tool_messages = _extract_user_parts(
+                parts, pending_tool_calls, call_ids, issued_ids
+            )
             if user_content:
                 # strip duplicate system prompt prefix
                 user_content = _strip_system_prompt_prefix(
@@ -443,12 +470,14 @@ def messages_from_google_contents(
             func_response_parts = [p for p in parts if _is_function_response_part(p)]
             if func_response_parts:
                 _, tool_messages = _extract_user_parts(
-                    func_response_parts, pending_tool_calls
+                    func_response_parts, pending_tool_calls, call_ids, issued_ids
                 )
                 messages.extend(tool_messages)
 
             other_parts = [p for p in parts if not _is_function_response_part(p)]
-            assistant_content, tool_calls = _extract_model_parts(other_parts)
+            assistant_content, tool_calls = _extract_model_parts(
+                other_parts, call_ids, issued_ids
+            )
 
             if tool_calls:
                 pending_tool_calls.clear()
@@ -517,6 +546,27 @@ def _strip_system_prompt_prefix(
     return user_content
 
 
+def _function_part_id(
+    part: dict[str, Any], name: str, issued_ids: set[str] | None = None
+) -> str | None:
+    """The id a functionCall or functionResponse carries, as the bridge handed it over.
+
+    An exact issued id takes precedence over the prefix gemini-cli may add.
+    """
+    part_id = part.get("id")
+    if not isinstance(part_id, str) or not part_id:
+        return None
+    prefix = f"{name.strip() or 'generic_tool'}__"
+    if issued_ids is None:
+        return part_id.removeprefix(prefix) or None
+    if issued_ids is not None and part_id in issued_ids:
+        return part_id
+    stripped = part_id.removeprefix(prefix)
+    if issued_ids is not None and stripped in issued_ids:
+        return stripped
+    return part_id
+
+
 def _is_function_response_part(part: Any) -> bool:
     return isinstance(part, dict) and (
         "functionResponse" in part or "function_response" in part
@@ -526,6 +576,8 @@ def _is_function_response_part(part: Any) -> bool:
 def _extract_user_parts(
     parts: list[dict[str, Any]],
     pending_tool_calls: dict[str, list[str]],
+    call_ids: bool = False,
+    issued_ids: set[str] | None = None,
 ) -> tuple[list[Content] | str | None, list[ChatMessageTool]]:
     # pending_tool_calls maps function_name -> list of call_ids from the previous
     # model message, used to match functionResponse with the correct tool_use_id.
@@ -563,8 +615,19 @@ def _extract_user_parts(
             func_name = func_response.get("name", "")
             response = func_response.get("response", {})
 
-            if func_name in pending_tool_calls and pending_tool_calls[func_name]:
-                call_id = pending_tool_calls[func_name].pop(0)
+            response_id = (
+                _function_part_id(func_response, func_name, issued_ids)
+                if call_ids
+                else None
+            )
+            pending = pending_tool_calls.get(func_name, [])
+            if response_id is not None:
+                # the id of the call it answers, as the bridge handed it over
+                call_id = response_id
+                if call_id in pending:
+                    pending.remove(call_id)
+            elif pending:
+                call_id = pending.pop(0)
             else:
                 call_id = f"call_{func_name}_{uuid()[:8]}"
                 logger.warning(
@@ -593,6 +656,8 @@ def _extract_user_parts(
 
 def _extract_model_parts(
     parts: list[dict[str, Any]],
+    call_ids: bool = False,
+    issued_ids: set[str] | None = None,
 ) -> tuple[list[Content] | None, list[ToolCall]]:
     """Extract assistant content and function calls from model parts.
 
@@ -671,12 +736,20 @@ def _extract_model_parts(
             if not isinstance(args, dict):
                 args = {"value": args}
 
-            # deterministic call ID for message ID stability
-            args_str = json.dumps(args, sort_keys=True) if args else ""
-            call_hash = hashlib.md5(
-                f"{func_name}:{args_str}:{part_idx}".encode()
-            ).hexdigest()[:8]
-            call_id = f"call_{func_name}_{call_hash}"
+            # with call ids, the id the bridge handed over, which the scaffold
+            # sends back; otherwise (or failing that), deterministic for
+            # message ID stability
+            call_id = (
+                _function_part_id(func_call, func_name, issued_ids)
+                if call_ids
+                else None
+            ) or ""
+            if not call_id:
+                args_str = json.dumps(args, sort_keys=True) if args else ""
+                call_hash = hashlib.md5(
+                    f"{func_name}:{args_str}:{part_idx}".encode()
+                ).hexdigest()[:8]
+                call_id = f"call_{func_name}_{call_hash}"
 
             tool_calls.append(
                 ToolCall(
@@ -692,7 +765,9 @@ def _extract_model_parts(
     return None, tool_calls
 
 
-def gemini_response_from_output(output: ModelOutput, model_name: str) -> dict[str, Any]:
+def gemini_response_from_output(
+    output: ModelOutput, model_name: str, *, call_ids: bool = False
+) -> dict[str, Any]:
     parts: list[dict[str, Any]] = []
     working_reasoning_block: ContentReasoning | None = None
 
@@ -712,9 +787,14 @@ def gemini_response_from_output(output: ModelOutput, model_name: str) -> dict[st
         for idx, tc in enumerate(output.message.tool_calls):
             if tc.function == "computer":
                 name, args = gemini_action_from_tool_call(tc)
-                fc_part: dict[str, Any] = {"functionCall": {"name": name, "args": args}}
             else:
-                fc_part = {"functionCall": {"name": tc.function, "args": tc.arguments}}
+                name, args = tc.function, tc.arguments
+            # with call ids, with its id, which a scaffold that keeps it
+            # (gemini-cli) sends back with the call and its response
+            function_call: dict[str, Any] = {"name": name, "args": args}
+            if call_ids and tc.id:
+                function_call = {"id": tc.id, **function_call}
+            fc_part: dict[str, Any] = {"functionCall": function_call}
 
             if idx == 0 and working_reasoning_block is not None:
                 fc_part["thoughtSignature"] = working_reasoning_block.reasoning

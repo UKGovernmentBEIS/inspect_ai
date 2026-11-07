@@ -847,6 +847,21 @@ def dump_openai_assistant_internal() -> JsonValue | None:
     )
 
 
+def alias_openai_tool_call(call_id: str, alias: str) -> None:
+    internal = assistant_internal()
+    param = internal.tool_calls.get(call_id)
+    if param is not None:
+        # the replayed item carries the call's id (`call_id`, and `id` when the
+        # call has no separate item id)
+        internal.tool_calls[alias] = cast(
+            Any,
+            {
+                key: alias if key in ("call_id", "id") and value == call_id else value
+                for key, value in param.items()
+            },
+        )
+
+
 _openai_assistant_internal: ContextVar[_AssistantInternal] = ContextVar(
     "opanai_assistant_internal", default=_AssistantInternal()
 )

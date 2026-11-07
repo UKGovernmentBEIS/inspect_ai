@@ -4206,6 +4206,18 @@ def dump_anthropic_assistant_internal() -> JsonValue | None:
     )
 
 
+def alias_anthropic_tool_call(call_id: str, alias: str) -> None:
+    internal = assistant_internal()
+    if call_id in internal.tool_call_internal_names:
+        internal.tool_call_internal_names[alias] = internal.tool_call_internal_names[
+            call_id
+        ]
+    if call_id in internal.client_tool_call_positions:
+        internal.client_tool_call_positions[alias] = (
+            internal.client_tool_call_positions[call_id]
+        )
+
+
 _anthropic_assistant_internal: ContextVar[_AssistantInternal] = ContextVar(
     "anthropic_assistant_internal", default=_AssistantInternal()
 )

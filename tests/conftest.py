@@ -952,6 +952,23 @@ def _report_oom_kills(exitstatus: int) -> None:
         return
 
 
+@pytest.fixture
+def fake_sentinel(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    """Install `test_helpers.fake_sentinel` as `inspect_sentinel` for the test, reporting `SENTINEL_MIN_VERSION`."""
+    from test_helpers import fake_sentinel as fake
+
+    import inspect_ai._sentinel
+
+    monkeypatch.setitem(sys.modules, "inspect_sentinel", fake)
+    monkeypatch.setitem(sys.modules, "inspect_sentinel._integration", fake)
+    fake.report_version(monkeypatch)
+    yield
+    # _dispatch binds the fake's names when it is imported, so forget it: a
+    # later import meets the block on inspect_sentinel again
+    sys.modules.pop("inspect_ai._sentinel._dispatch", None)
+    vars(inspect_ai._sentinel).pop("_dispatch", None)
+
+
 def pytest_configure(config):
     # inspect_ai must never load inspect_sentinel for a user who configures no
     # sentinel, so any import of it in a test raises ImportError. Tests of the
