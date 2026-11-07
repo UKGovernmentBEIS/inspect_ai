@@ -234,6 +234,12 @@
   author: "[Runtime](https://github.com/withruntime/runtime)"
   categories: ["Sandboxes"]
 
+- name: "[briq Sandbox](https://github.com/briq-cloud/inspect-briq)"
+  description: |
+    Runs each sample in its own briq microVM, destroyed when the sample ends.
+  author: "[briq](https://github.com/briq-cloud/inspect-briq)"
+  categories: ["Sandboxes"]
+
 
 - name: "[Inspect Costs Plugin](https://github.com/jasongwartz/inspect_costs_plugin/)"
   description: |
