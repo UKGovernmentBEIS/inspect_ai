@@ -15,7 +15,7 @@ from typing import Any, Callable, Literal, cast
 from unittest.mock import patch
 
 import pytest
-from anthropic import AsyncAnthropic
+from anthropic import AsyncAnthropic, omit
 from google import genai
 from openai import AsyncOpenAI
 from shortuuid import uuid
@@ -504,8 +504,13 @@ def _list_files() -> ChatMessageAssistant:
     )
 
 
-async def test_repeated_message_keeps_the_main_threads_id() -> None:
-    """A side call that repeats a main-thread message can't lend it its id."""
+@pytest.mark.parametrize("side_first", [True, False])
+async def test_repeated_message_keeps_the_main_threads_id(side_first: bool) -> None:
+    """A side call that repeats a main-thread reply can't lend it its id.
+
+    After the main reply, the side reply could stand in for it, so the main
+    reply keeps its own id or gets a new one.
+    """
     task = ChatMessageUser(content="List the files twice.")
     result = ChatMessageTool(
         content="a.txt", tool_call_id="call_bash_1", function="bash"
@@ -518,15 +523,23 @@ async def test_repeated_message_keeps_the_main_threads_id() -> None:
         return [m.id or "" for m in messages]
 
     first, side, second = _list_files(), _list_files(), _list_files()
+    side_question = ChatMessageUser(content="Is ls safe?")
+    if side_first:
+        await request(_rebuilt(side_question), side)
     await request(_rebuilt(task), first)
-    await request(_rebuilt(ChatMessageUser(content="Is ls safe?")), side)
+    if not side_first:
+        await request(_rebuilt(side_question), side)
     ids = await request(_rebuilt(task, first, result), second)
     final = await request(
         _rebuilt(task, first, result, second, result),
         ChatMessageAssistant(content="done"),
     )
 
-    assert final[:4] == [task.id, first.id, ids[2], second.id]
+    if side_first:
+        assert ids[1] == first.id
+    else:
+        assert ids[1] not in (side.id, second.id)
+    assert final[:4] == [task.id, ids[1], ids[2], second.id]
     assert len(set(final)) == len(final)
 
 
@@ -662,8 +675,9 @@ def test_repeated_exchanges_keep_ids_through_dialect(
 class _TextConversation:
     """A text-only scaffold conversation in a bridge dialect, as wire turns."""
 
-    def __init__(self, dialect: Dialect) -> None:
+    def __init__(self, dialect: Dialect, system: str | None = None) -> None:
         self.dialect = dialect
+        self.system = system
         self.turns: list[list[dict[str, Any]]] = []
 
     def user_turn(self, text: str) -> list[dict[str, Any]]:
@@ -676,6 +690,8 @@ class _TextConversation:
 
     async def generate(self) -> None:
         wire = [item for turn in self.turns for item in turn]
+        if self.system is not None and self.dialect in ("completions", "responses"):
+            wire = [{"role": "system", "content": self.system}, *wire]
         if self.dialect == "completions":
             async with AsyncOpenAI(api_key="inspect") as client:
                 completion = await client.chat.completions.create(
@@ -691,7 +707,10 @@ class _TextConversation:
         elif self.dialect == "anthropic":
             async with AsyncAnthropic(api_key="inspect") as anthropic_client:
                 message = await anthropic_client.messages.create(
-                    model="inspect", max_tokens=32, messages=cast(Any, wire)
+                    model="inspect",
+                    max_tokens=32,
+                    messages=cast(Any, wire),
+                    system=self.system if self.system is not None else omit,
                 )
                 reply = [
                     {
@@ -705,7 +724,11 @@ class _TextConversation:
         else:
             google_response = await genai.Client(
                 api_key="inspect"
-            ).aio.models.generate_content(model="inspect", contents=cast(Any, wire))
+            ).aio.models.generate_content(
+                model="inspect",
+                contents=cast(Any, wire),
+                config={"system_instruction": self.system} if self.system else None,
+            )
             assert google_response.candidates and google_response.candidates[0].content
             reply = [
                 google_response.candidates[0].content.model_dump(
@@ -723,14 +746,13 @@ class _TextConversation:
 def test_compacted_identical_replies_keep_their_own_ids(
     dialect: Dialect, case: str, tmp_path: Path
 ) -> None:
-    """Identical replies retained by compaction keep their own ids, in order.
+    """Identical replies retained by compaction never take each other's ids.
 
     Two `OK` replies follow different user messages. Compaction replaces the
-    prompt with a summary and keeps both exchanges, placed by the user message
-    between them, and a further call makes the compacted thread the bridge's
-    conversation. Keeping only the latest reply leaves nothing to tell it from
-    the earlier one: it gets a new id, which it keeps. A reply generated after
-    that compaction keeps its own id even when it is `OK` too.
+    prompt with a summary and keeps both exchanges, or only the latest. The
+    request no longer contains a thread the bridge knows, and `OK` was recorded
+    twice, so each retained reply gets a new id, which it keeps. A reply
+    generated after that compaction keeps its own id even when it is `OK` too.
     """
 
     @agent
@@ -789,6 +811,9 @@ def test_compacted_identical_replies_keep_their_own_ids(
             reply_ids[2],
         ]
         retained = compacted
+    elif case == "compacted":
+        _assert_own_or_fresh(compacted, reply_ids[:2], reply_ids)
+        retained = compacted
     else:
         retained = reply_ids[:2]
         assert compacted == retained
@@ -796,6 +821,15 @@ def test_compacted_identical_replies_keep_their_own_ids(
         *retained,
         *reply_ids[2:],
     ]
+
+
+def _assert_own_or_fresh(
+    ids: list[str | None], own: list[str | None], generated: list[str | None]
+) -> None:
+    """Each id is its message's own, or one no generated message has."""
+    assert None not in ids and len(set(ids)) == len(ids)
+    for message_id, own_id in zip(ids, own, strict=True):
+        assert message_id == own_id or message_id not in generated
 
 
 def _reply_events(
@@ -822,11 +856,11 @@ def _reply_events(
 def test_compacted_repeated_replies_never_take_another_replys_id(
     dialect: Dialect, users: str, tmp_path: Path
 ) -> None:
-    """Ten `OK` replies, compacted to the last nine, keep their ids or get new ones.
+    """Ten `OK` replies, compacted to the last nine, never take another reply's id.
 
-    Distinct user messages between them place each retained reply; with
-    identical ones nothing does, so each gets a new id. None takes the dropped
-    reply's id or another reply's.
+    Neither distinct nor identical user messages between them place a
+    repeated reply, so each gets a new id or keeps its own. None takes the
+    dropped reply's id or another reply's.
     """
 
     @agent
@@ -849,14 +883,138 @@ def test_compacted_repeated_replies_never_take_another_replys_id(
     events, sample = _reply_events(scaffold, ["OK"] * 10 + ["Done", "Bye"], tmp_path)
     reply_ids = [event.output.message.id for event in events]
     compacted = [m.id for m in events[10].input if m.role == "assistant"]
-    if users == "distinct":
-        assert compacted == reply_ids[1:10]
-    else:
-        assert len(set(compacted)) == 9 and not set(compacted) & set(reply_ids)
+    _assert_own_or_fresh(compacted, reply_ids[1:10], reply_ids)
     assert [m.id for m in sample.messages if m.role == "assistant"] == [
         *compacted,
         *reply_ids[10:],
     ]
+
+
+@pytest.mark.parametrize("shape", ["middle_dropped", "sliding_window", "kept_prefix"])
+@pytest.mark.parametrize("dialect", DIALECTS)
+def test_compacted_repeated_exchanges_never_shift_ids(
+    dialect: Dialect, shape: str, tmp_path: Path
+) -> None:
+    """Retained `OK` replies keep their own ids or get new ones, never another's.
+
+    Nothing places a reply equal to a dropped one: not a unique message next
+    to it (a dropped middle exchange), not an earlier request with the same
+    content (a sliding window), not a kept system and task prefix.
+    """
+    replies = 3 if shape == "middle_dropped" else 4
+
+    @agent
+    def scaffold() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            async with agent_bridge(state) as bridge:
+                conversation = _TextConversation(
+                    dialect, system="Be brief." if shape == "kept_prefix" else None
+                )
+                if shape == "middle_dropped":
+                    for text in ("Start.", "Check step one.", "Check step two."):
+                        conversation.user(text)
+                        await conversation.generate()
+                    conversation.turns = [
+                        conversation.user_turn("Summary: earlier checks done."),
+                        conversation.turns[1],
+                        *conversation.turns[4:],
+                    ]
+                    conversation.user("Finish.")
+                else:
+                    if shape == "kept_prefix":
+                        conversation.user("Task: keep going.")
+                    for _ in range(4):
+                        conversation.user("Continue.")
+                        await conversation.generate()
+                    if shape == "sliding_window":
+                        del conversation.turns[:2]
+                    else:
+                        del conversation.turns[3:5]
+                    conversation.user("Continue.")
+                await conversation.generate()
+                conversation.user("Thanks.")
+                await conversation.generate()
+                return bridge.state
+
+        return execute
+
+    events, sample = _reply_events(
+        scaffold, ["OK"] * replies + ["Done", "Bye"], tmp_path
+    )
+    reply_ids = [event.output.message.id for event in events]
+    retained = {"middle_dropped": [0, 2], "sliding_window": [1, 2, 3]}.get(
+        shape, [0, 2, 3]
+    )
+    compacted = [m.id for m in events[replies].input if m.role == "assistant"]
+    _assert_own_or_fresh(compacted, [reply_ids[i] for i in retained], reply_ids)
+    assert [m.id for m in events[-1].input if m.role == "assistant"] == [
+        *compacted,
+        reply_ids[replies],
+    ]
+    assert [m.id for m in sample.messages if m.role == "assistant"] == [
+        *compacted,
+        *reply_ids[replies:],
+    ]
+
+
+@pytest.mark.parametrize("case", ["retry", "rewind", "side", "compacted_side"])
+@pytest.mark.parametrize("dialect", DIALECTS)
+def test_retry_rewind_and_side_call_never_take_another_replys_id(
+    dialect: Dialect, case: str, tmp_path: Path
+) -> None:
+    """`OK` replies keep their own ids or get new ones after a retry or a rewind, or beside a side call that returns `OK` too.
+
+    A request after the retry could continue the retried request or the
+    discarded reply's, so even the retry's own reply may get a new id.
+    """
+
+    @agent
+    def scaffold() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            async with agent_bridge(state) as bridge:
+                conversation = _TextConversation(dialect)
+                conversation.user("Start.")
+                await conversation.generate()
+                if case in ("side", "compacted_side"):
+                    side = _TextConversation(dialect)
+                    side.user("Side task.")
+                    await side.generate()
+                conversation.user("Next step.")
+                await conversation.generate()
+                if case == "retry":
+                    del conversation.turns[-1]
+                    await conversation.generate()
+                elif case == "rewind":
+                    conversation.turns = conversation.turns[:2]
+                elif case == "compacted_side":
+                    conversation.turns = [
+                        conversation.user_turn("Summary."),
+                        *conversation.turns[-2:],
+                    ]
+                conversation.user("Finish.")
+                await conversation.generate()
+                return bridge.state
+
+        return execute
+
+    events, sample = _reply_events(scaffold, ["OK", "OK", "OK", "Done"], tmp_path)
+    reply_ids = [event.output.message.id for event in events]
+    own = {
+        "retry": [0, 2],
+        "rewind": [0],
+        "side": [0, 2],
+        "compacted_side": [2],
+    }[case]
+    final = [m.id for m in events[-1].input if m.role == "assistant"]
+    _assert_own_or_fresh(final, [reply_ids[i] for i in own], reply_ids)
+    if case == "retry":
+        retried = [m.id for m in events[2].input if m.role == "assistant"]
+        _assert_own_or_fresh(retried, reply_ids[:1], reply_ids)
+    if case in ("retry", "side"):
+        assert [m.id for m in sample.messages if m.role == "assistant"] == [
+            *final,
+            reply_ids[-1],
+        ]
 
 
 @pytest.mark.parametrize("dialect", DIALECTS)
@@ -1192,11 +1350,11 @@ async def test_compaction_after_re_derived_ids_keeps_the_latest_replys_id(
 ) -> None:
     """A retained latest reply equal to an earlier one, once both came back transported.
 
-    A retained message before it places it; without one it gets a new id and
-    its host result stays unlinked.
+    Generated after compaction, it is the latest generation's reply and keeps
+    its id. Generated before, nothing tells it from the earlier one: it gets
+    a new id and its host result stays unlinked.
     """
     task = ChatMessageUser(content="List the files twice.")
-    between = [ChatMessageUser(content="Once more.")] if placed else []
     first, second = _call("toolu_1"), _call("toolu_2")
     # Google derives the call id from the function and arguments, so both
     # replies come back with the same one
@@ -1208,16 +1366,17 @@ async def test_compaction_after_re_derived_ids_keeps_the_latest_replys_id(
     scaffold = _Scaffold(bridge)
     await scaffold.request([task], first)
     bridge._record_transported_reply(first, [first_back])
-    await scaffold.request(
-        [task, first_back, _result("call_bash_1", "OLD"), *between], second
-    )
+    summary = ChatMessageUser(content="Summary: listed the files once.")
+    old_result = _result("call_bash_1", "OLD")
+    if placed:
+        await scaffold.request([task, first_back, old_result])
+        await scaffold.request([summary], second)
+    else:
+        await scaffold.request([task, first_back, old_result], second)
     bridge._record_transported_reply(second, [second_back])
     [event] = _awaiting(bridge, second)
-    summary = ChatMessageUser(content="Summary: listed the files once.")
 
-    ids = await scaffold.request(
-        [summary, *between, second_back, _result("call_bash_1", "NEW")]
-    )
+    ids = await scaffold.request([summary, second_back, _result("call_bash_1", "NEW")])
 
     assert first.id is not None and second.id is not None
     reply, result = ids[-2], ids[-1]
@@ -1231,11 +1390,18 @@ async def test_compaction_after_re_derived_ids_keeps_the_latest_replys_id(
         assert event.message_id is None
 
 
+@pytest.mark.parametrize("side_first", [True, False])
 @pytest.mark.parametrize(
     "field", ["metadata", "model", "source", "text_form", "reasoning_signature"]
 )
-async def test_non_content_fields_do_not_override_aligned_reply(field: str) -> None:
-    """A side reply's serialized form cannot take an aligned main reply's ID."""
+async def test_non_content_fields_do_not_override_aligned_reply(
+    field: str, side_first: bool
+) -> None:
+    """A side reply's serialized form cannot take an aligned main reply's ID.
+
+    After the main reply, the side reply could stand in for it, so the main
+    reply keeps its own id or gets a new one.
+    """
     task = ChatMessageUser(content="Keep the main reply.")
     if field == "metadata":
         main = ChatMessageAssistant(content="same", metadata={"origin": "main"})
@@ -1261,20 +1427,27 @@ async def test_non_content_fields_do_not_override_aligned_reply(field: str) -> N
     side = returned.model_copy(deep=True)
     side.id = uuid()
     scaffold = _Scaffold(AgentBridge(AgentState(messages=[task])))
+    side_question = ChatMessageUser(content="Side question")
+    if side_first:
+        await scaffold.request([side_question], side)
     await scaffold.request([task], main)
-    await scaffold.request([ChatMessageUser(content="Side question")], side)
+    if not side_first:
+        await scaffold.request([side_question], side)
     assert main.id is not None and side.id is not None and main.id != side.id
 
     ids = await scaffold.request([task, returned])
 
-    assert ids[1] == main.id
+    if side_first:
+        assert ids[1] == main.id
+    else:
+        assert ids[1] != side.id
 
 
 @pytest.mark.parametrize("regenerated", [False, True])
 async def test_fresh_compacted_result_is_not_an_edit_of_earlier_answer(
     regenerated: bool,
 ) -> None:
-    """A later equal call, placed by a retained message, receives its own result ID after compaction."""
+    """A later equal call, generated after compaction, receives its own result ID."""
     task = ChatMessageUser(content="List the files twice.")
     first_id, second_id, returned_id = (
         ("toolu_1", "toolu_2", "call_bash_1")
@@ -1290,22 +1463,18 @@ async def test_fresh_compacted_result_is_not_an_edit_of_earlier_answer(
     if regenerated:
         bridge._record_transported_reply(first, [first_back])
     [first_event] = _awaiting(bridge, first)
-    between = ChatMessageUser(content="Once more.")
-    first_ids = await scaffold.request(
-        [task, first_back, _result(returned_id, "OLD"), between], second
-    )
+    first_ids = await scaffold.request([task, first_back, _result(returned_id, "OLD")])
     assert first_event.message_id == first_ids[2]
+    summary = ChatMessageUser(content="Summary: listed once.")
+    await scaffold.request([summary], second)
     if regenerated:
         bridge._record_transported_reply(second, [second_back])
     [second_event] = _awaiting(bridge, second)
-    summary = ChatMessageUser(content="Summary: listed once.")
 
-    ids = await scaffold.request(
-        [summary, between, second_back, _result(returned_id, "NEW")]
-    )
+    ids = await scaffold.request([summary, second_back, _result(returned_id, "NEW")])
 
-    assert ids[3] != first_ids[2]
-    assert second_event.message_id == ids[3]
+    assert ids[2] != first_ids[2]
+    assert second_event.message_id == ids[2]
 
 
 @pytest.mark.parametrize("copied", [False, True])
@@ -1315,7 +1484,7 @@ async def test_equal_compacted_result_is_fresh_unless_copied(
 ) -> None:
     """A later call's equal answer gets its own ID; a copy of the earlier answer keeps its ID.
 
-    A retained message places the later call.
+    The later call is generated after compaction, which places it.
     """
     task = ChatMessageUser(content="Read the file twice.")
     first_id, second_id, returned_id = (
@@ -1332,29 +1501,29 @@ async def test_equal_compacted_result_is_fresh_unless_copied(
     if regenerated:
         bridge._record_transported_reply(first, [first_back])
     [first_event] = _awaiting(bridge, first, result="contents")
-    between = ChatMessageUser(content="Once more.")
     first_ids = await scaffold.request(
-        [task, first_back, _result(returned_id, "contents"), between], second
+        [task, first_back, _result(returned_id, "contents")]
     )
     assert first_event.message_id == first_ids[2]
+    summary = ChatMessageUser(content="Summary: read once.")
+    await scaffold.request([summary], second)
     if regenerated:
         bridge._record_transported_reply(second, [second_back])
     [second_event] = _awaiting(
         bridge, second, result="changed" if copied else "contents"
     )
-    summary = ChatMessageUser(content="Summary: read once.")
 
     ids = await scaffold.request(
-        [summary, between, second_back, _result(returned_id, "contents")]
+        [summary, second_back, _result(returned_id, "contents")]
     )
 
     assert first_event.message_id == first_ids[2]
     if copied:
-        assert ids[3] == first_ids[2]
+        assert ids[2] == first_ids[2]
         assert second_event.message_id is None
     else:
-        assert ids[3] != first_ids[2]
-        assert second_event.message_id == ids[3]
+        assert ids[2] != first_ids[2]
+        assert second_event.message_id == ids[2]
 
 
 @pytest.mark.parametrize("regenerated", [False, True])
@@ -1580,7 +1749,11 @@ async def test_resumed_bridge_keeps_the_main_threads_id() -> None:
 
 
 async def test_scaffold_edits_get_ids_derived_from_the_originals() -> None:
-    """A tool result and a user message the scaffold edits are new messages with derived ids."""
+    """A tool result the scaffold edits gets an id derived from the original's.
+
+    Its call id identifies the original. An edited user message has nothing
+    but its position to identify it, so it gets a new id.
+    """
     task = ChatMessageUser(content="List the files.")
     first, second = _call("call_1"), ChatMessageAssistant(content="Anything else?")
     result = _result("call_1", "a very long listing")
@@ -1605,9 +1778,9 @@ async def test_scaffold_edits_get_ids_derived_from_the_originals() -> None:
 
     assert [edited[i] for i in (0, 1, 3)] == [ids[i] for i in (0, 1, 3)]
     assert edited[5] == final.id
-    for i in (2, 4):
-        assert edited[i] == edited_id(ids[i], sent[i]) != ids[i]
-        assert sent[i].metadata is None
+    assert edited[2] == edited_id(ids[2], sent[2]) != ids[2]
+    assert sent[2].metadata is None
+    assert edited[4] not in (ids[4], edited_id(ids[4], sent[4]))
     assert again == edited
 
 

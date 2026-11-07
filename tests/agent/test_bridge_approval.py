@@ -6454,7 +6454,12 @@ def cancelled_then_reused_scaffold(dialect: HostDialect) -> Agent:
 def test_earlier_cancellation_under_a_reused_id_is_not_the_later_calls_result(
     dialect: HostDialect, tmp_path: Path
 ) -> None:
-    """A cancellation already sent for an unexecuted call doesn't link to a later call under its id."""
+    """A cancellation already sent for an unexecuted call doesn't link to a later call under its id.
+
+    It keeps its id, except in Responses: the scaffold keeps only the later
+    reply's call item, equal to the earlier reply's, so the reply and its
+    result get new ids.
+    """
     name = "mcp__host__read_file"
     log = eval(
         Task(
@@ -6483,7 +6488,9 @@ def test_earlier_cancellation_under_a_reused_id_is_not_the_later_calls_result(
     model_events = [e for e in sample.events if isinstance(e, ModelEvent)]
     [sent] = [m for m in model_events[1].input if m.role == "tool"]
     [returned] = [m for m in model_events[2].input if m.role == "tool"]
-    assert returned.id == sent.id
+    assert (
+        (returned.id != sent.id) if dialect == "responses" else returned.id == sent.id
+    )
     [event] = [e for e in sample.events if isinstance(e, ToolEvent)]
     assert event.arguments == {"path": "b"}
     assert event.message_id is None
@@ -6575,7 +6582,8 @@ def compacting_host_scaffold(dialect: HostDialect, copied: bool, placed: bool) -
 
     The tool returns the same text every time unless `copied`; then the
     scaffold sends the first result again in place of the latest. With
-    `placed`, a user message asks for the second turn and compaction keeps it.
+    `placed`, the scaffold sends the first result, then compacts before the
+    second turn, whose reply is then the latest generation's.
     """
 
     async def execute(state: AgentState) -> AgentState:
@@ -6593,12 +6601,14 @@ def compacting_host_scaffold(dialect: HostDialect, copied: bool, placed: bool) -
         )
         [info] = declare("mcp__host__read_file")
         conversation = _HostConversation(dialect, state.messages[0].text, info)
+        summary = _user_turn(dialect, "Summary: read a once.")
         sent: JsonValue = None
         kept = 0
         for turn in range(2):
             kept = len(conversation.history)
             if turn and placed:
-                conversation.history.append(_user_turn(dialect, "Read it again."))
+                await conversation.request(bridge)
+                conversation.history = [summary]
             calls = await conversation.request(bridge)
             outputs = [
                 await call_host_tool(bridge)("host", "read_file", arguments)
@@ -6606,11 +6616,8 @@ def compacting_host_scaffold(dialect: HostDialect, copied: bool, placed: bool) -
             ]
             sent = outputs[0] if sent is None or not copied else sent
             conversation.results(calls, [sent] * len(calls))
-        summary = "Summary: read a once."
-        conversation.history = [
-            _user_turn(dialect, summary),
-            *conversation.history[kept:],
-        ]
+        if not placed:
+            conversation.history = [summary, *conversation.history[kept:]]
         await conversation.request(bridge)
         conversation.history.append(_user_turn(dialect, "Thanks."))
         await conversation.request(bridge)
@@ -6653,9 +6660,9 @@ def test_compacted_equal_host_result_links_to_its_own_message(
     With `parallel`, the first turn makes two identical calls (in Google they
     can't be told apart and stay unlinked). With `evicted`, the bridge no
     longer tracks the first reply when the compacted result arrives. Unless
-    `placed` by a retained message, a latest reply equal to the first (the
-    provider reuses the call id) can't be told from it: it and its result
-    get new ids, and the result links nothing.
+    `placed` (generated after compaction), a latest reply equal to the first
+    (the provider reuses the call id) can't be told from it: it and its
+    result get new ids, and the result links nothing.
     """
     if evicted:
         monkeypatch.setattr(bridge_types, "_MAX_AWAITED_RESULTS", 1)
@@ -6674,6 +6681,7 @@ def test_compacted_equal_host_result_links_to_its_own_message(
             "mockllm/model",
             custom_outputs=[
                 tool_calls_output(*first_calls),
+                *([ModelOutput.from_content("mockllm/model", "noted")] * placed),
                 tool_calls_output(first_calls[0]),
                 *[ModelOutput.from_content("mockllm/model", "done")] * 2,
             ],
@@ -6686,10 +6694,10 @@ def test_compacted_equal_host_result_links_to_its_own_message(
     sample = resolve_sample_attachments(read.samples[0], "full")
 
     model_events = [e for e in sample.events if isinstance(e, ModelEvent)]
-    assert len(model_events) == 4
+    assert len(model_events) == 4 + placed
     first_results = [m.id for m in model_events[1].input if m.role == "tool"]
-    [latest_result] = [m.id for m in model_events[2].input if m.role == "tool"]
-    [next_result] = [m.id for m in model_events[3].input if m.role == "tool"]
+    [latest_result] = [m.id for m in model_events[-2].input if m.role == "tool"]
+    [next_result] = [m.id for m in model_events[-1].input if m.role == "tool"]
     assert next_result == latest_result
     events = [e for e in sample.events if isinstance(e, ToolEvent)]
     first_links = [None, None] if parallel and dialect == "google" else first_results
