@@ -94,9 +94,15 @@ class FileBatcher(Batcher[ResponseT, CompletedBatchInfoT]):
         for file_result in results:
             combined_results.update(file_result)
 
+        status = (
+            completion_info.get("status", "unknown")
+            if isinstance(completion_info, dict)
+            else "unknown"
+        )
         return {
             request_id: combined_results.get(
-                request_id, RuntimeError("Batch result missing or unparseable")
+                request_id,
+                RuntimeError(f"Batch result missing or unparseable ({status})"),
             )
             for request_id in batch.requests
         }
