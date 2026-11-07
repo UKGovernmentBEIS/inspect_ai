@@ -68,6 +68,10 @@ T = TypeVar("T")
 
 _MAX_PROPOSALS = 1000
 
+# a model id longer than this is replaced by a fresh token, so the aliases of a
+# history id that need reserving are those up to this length
+_MAX_TOKEN_LENGTH = 128
+
 # a result no assistant message in the request accounts for, or a host call no
 # proposal does, has no message that made the call
 _NO_MESSAGE_ID = ""
@@ -152,10 +156,11 @@ class _ResultChecks:
 
     Each call handed to the scaffold gets a token, unique for the bridge, as
     its id (`sentinel_tokens`): the model's own id when it is absent from the
-    incoming history and the bridge has not handed it out before; otherwise a
-    fresh token. A result reported under a token is the result of that execution,
-    however the scaffold has rewritten, compacted or reformatted the rest of
-    its conversation. Tokens and observed history ids are kept for the life of
+    incoming history, the bridge has not handed it out before, and it is at
+    most `_MAX_TOKEN_LENGTH` characters; otherwise a fresh token. A result
+    reported under a token is the result of that execution, however the
+    scaffold has rewritten, compacted or reformatted the rest of its
+    conversation. Tokens and observed history ids are kept for the life of
     the bridge, apart from the proposals (bounded), so
     an evicted proposal can never make an older execution match a newer one.
 
@@ -208,7 +213,11 @@ class _ResultChecks:
         for check in checks:
             token = check.handed.id
             names = _wire_names(check.handed)
-            while not token or self._ambiguous_token(token, names):
+            while (
+                not token
+                or len(token) > _MAX_TOKEN_LENGTH
+                or self._ambiguous_token(token, names)
+            ):
                 token = f"call_{uuid()}"
             self.identities[token] = _Identity(
                 check.call.id, check.handed.function, _call_key(check.handed)
@@ -246,11 +255,7 @@ class _ResultChecks:
 
     def _echoes_reserved_id(self, token: str) -> bool:
         """Whether stripping one or more wire prefixes reveals a history ID."""
-        while "__" in token:
-            token = token.partition("__")[2]
-            if token in self.reserved_ids:
-                return True
-        return False
+        return any(alias in self.reserved_ids for alias in _aliases(token))
 
     def claim(self, input: list[ChatMessage]) -> _Claimed:
         claimed = _Claimed([], [])
@@ -506,13 +511,23 @@ def _reserve_id(reserved: set[str], call_id: str, names: set[str]) -> None:
     reserved.add(call_id)
     for name in names:
         stripped = call_id.removeprefix(f"{name}__")
-        if stripped and stripped != call_id:
+        if stripped and stripped != call_id and len(stripped) <= _MAX_TOKEN_LENGTH:
             reserved.add(stripped)
     if not names:
-        while "__" in call_id:
-            call_id = call_id.partition("__")[2]
-            if call_id:
-                reserved.add(call_id)
+        reserved.update(_aliases(call_id))
+
+
+def _aliases(call_id: str) -> Iterator[str]:
+    """What stripping an unknown `name__` prefix from an ID can leave, up to the longest token.
+
+    Bounded by `_MAX_TOKEN_LENGTH`, so an ID's aliases take space independent
+    of its length.
+    """
+    index = call_id.find("__", max(len(call_id) - _MAX_TOKEN_LENGTH - 2, 0))
+    while index != -1:
+        if index + 2 < len(call_id):
+            yield call_id[index + 2 :]
+        index = call_id.find("__", index + 1)
 
 
 def _wire_names(call: ToolCall) -> set[str]:

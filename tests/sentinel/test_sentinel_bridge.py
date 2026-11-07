@@ -5469,3 +5469,82 @@ async def test_a_bridge_whose_result_check_failed_is_collectable(
     bridge = await failed_bridge()
     gc.collect()
     assert bridge() is None
+
+
+async def dialect_orphan_result(dialect: str, bridge: AgentBridge, id: str) -> None:
+    """A scaffold sending a result that answers no call in its request."""
+    if dialect == "completions":
+        from inspect_ai.agent._bridge.completions import (
+            inspect_completions_api_request,
+        )
+
+        await inspect_completions_api_request(
+            {
+                "model": "inspect",
+                "messages": [
+                    {"role": "user", "content": TASK},
+                    {"role": "tool", "tool_call_id": id, "content": "x"},
+                ],
+            },
+            None,
+            bridge,
+        )
+    else:
+        from inspect_ai.agent._bridge.responses import inspect_responses_api_request
+
+        await inspect_responses_api_request(
+            {
+                "model": "inspect",
+                "input": [
+                    {"role": "user", "content": TASK},
+                    {"type": "function_call_output", "call_id": id, "output": "x"},
+                ],
+            },
+            None,
+            None,
+            None,
+            bridge,
+        )
+
+
+@pytest.mark.parametrize("dialect", ["completions", "responses"])
+async def test_a_long_result_id_reserves_a_bounded_set_of_aliases(
+    dialect: str,
+) -> None:
+    long_id = "a__" * 5000 + "end"
+    model = Scripted(calls_output())
+    bridge = AgentBridge(
+        AgentState(messages=[]), model_aliases={"inspect": model.model}
+    )
+
+    with active([bridge_recording([])]):
+        await dialect_orphan_result(dialect, bridge, long_id)
+
+    results = bridge._sentinel_results
+    assert results is not None
+    assert long_id in results.reserved_ids
+    assert sum(len(id) for id in results.reserved_ids) < 2 * len(long_id)
+
+
+@pytest.mark.parametrize(
+    ("history_id", "model_id"),
+    [("x" * 500 + "__read_1", "read_1"), ("x__" + "y" * 200, "y" * 200)],
+    ids=["short_alias", "long_model_id"],
+)
+async def test_a_long_history_ids_alias_is_never_issued(
+    history_id: str, model_id: str
+) -> None:
+    history: list[ChatMessage] = [
+        ChatMessageUser(content=TASK),
+        ChatMessageTool(content="old", tool_call_id=history_id),
+    ]
+    bridge = in_process_bridge(history)
+
+    with active([bridge_recording([])]):
+        output = await generate(
+            bridge, Scripted(calls_output(replace(READ, id=model_id))), history
+        )
+
+    [handed] = output.message.tool_calls or []
+    assert handed.id != model_id
+    assert not history_id.endswith("__" + handed.id)
