@@ -1843,8 +1843,8 @@ async def content(
             if not reasoning_block.reasoning:
                 return
             if reasoning_block.redacted:
-                part.thought_signature = base64.b64decode(
-                    reasoning_block.reasoning.encode()
+                part.thought_signature = _thought_signature_bytes(
+                    reasoning_block.reasoning
                 )
             else:
                 logger.warning(
@@ -1953,8 +1953,10 @@ async def content(
                             working_reasoning_block.reasoning is not None
                             and working_reasoning_block.redacted
                         ):
-                            parts_to_append[0].thought_signature = base64.b64decode(
-                                working_reasoning_block.reasoning.encode()
+                            parts_to_append[
+                                0
+                            ].thought_signature = _thought_signature_bytes(
+                                working_reasoning_block.reasoning
                             )
                         else:
                             logger.warning(
@@ -2170,6 +2172,19 @@ def gemini_native_tool_combination_config(tool_choice: ToolChoice) -> ToolConfig
         include_server_side_tool_invocations=True,
         function_calling_config=function_calling_config,
     )
+
+
+def _thought_signature_bytes(reasoning: str) -> bytes:
+    """Decode a thought signature stored as base64 in a `ContentReasoning`.
+
+    Signatures Gemini returns are stored with the standard alphabet. Clients of
+    the agent bridge can also send Gemini's documented placeholder signatures
+    (gemini-cli sends `skip_thought_signature_validator` for a function call
+    whose signature it lost), which are only valid in the URL-safe alphabet.
+    URL-safe decoding accepts both, and google-genai encodes request bytes as
+    URL-safe base64, so a placeholder reaches Gemini unchanged.
+    """
+    return base64.urlsafe_b64decode(reasoning.encode())
 
 
 def _consolidate_thought_signature(
