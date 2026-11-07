@@ -9295,3 +9295,242 @@ def test_a_native_helper_in_a_bridge_request_filter_keeps_its_tool_steps(
         assert step.step.input and step.step.input[-1].text == "helper task"
         assert [tool.name for tool in step.step.tools or []] == ["addition"]
         assert step.step.tool_choice is not None
+
+
+@approver
+def rejects_first_call() -> Approver:
+    decided: list[str] = []
+
+    async def approve(
+        message: str, call: ToolCall, view: ToolCallView, history: list[ChatMessage]
+    ) -> Approval:
+        decided.append(call.id)
+        return Approval(decision="reject" if len(decided) == 1 else "approve")
+
+    return approve
+
+
+def test_an_approver_refused_call_leaves_a_later_same_id_call_its_result_check(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # after Ransom's review 5810823986: the refused call took the result check
+    # of the later call that ran under its id
+    Panel("approve", "the sum is right").install(monkeypatch)
+    proposed = ModelOutput.for_tool_call(
+        "mockllm/model",
+        tool_name="addition",
+        tool_arguments={"x": 1, "y": 1},
+        tool_call_id="call_0",
+    )
+    seen: dict[str, Step] = {}
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=[use_tools(addition()), generate()],
+        approval=[ApprovalPolicy(rejects_first_call(), "*")],
+        sentinel=[
+            r7_probe(seen, copies=True),
+            h_ask("tool_result", ["approve"]),
+        ],
+    )
+    log = eval(
+        task,
+        model=outputs(proposed, proposed, done()),
+        log_format="json",
+        log_dir=str(tmp_path),
+    )[0]
+    assert log.status == "success", log.error
+    assert log.location and log.location.endswith(".json")
+    refused, ran = [e for e in logged_sample(log).events if isinstance(e, ToolEvent)]
+    assert refused.error is not None and refused.error.type == "approval"
+    assert ran.error is None
+
+    replay = assert_logged_replay_equals_live(log, seen)
+    [result] = [step for step in replay if step.stage == "tool_result"]
+    assert dict(result.recorded_answers) == {
+        "human": HumanAnswer(decision="approve", reason="the sum is right")
+    }
+
+
+@pytest.mark.parametrize("error", [ToolParsingError, ToolApprovalError])
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_a_concurrent_agent_s_refused_same_id_call_leaves_a_call_its_result_check(
+    error: type[Exception],
+    backend: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # agent B's approver-refused call under A's id ends before A's result
+    # check begins, and must leave it to A
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    a_started, b_done = anyio.Event(), anyio.Event()
+
+    @tool
+    def rendezvous() -> Tool:
+        async def execute(kind: str) -> str:
+            """Fail once agent B's call was refused.
+
+            Args:
+                kind: The agent making the call.
+            """
+            a_started.set()
+            await b_done.wait()
+            raise error(f"refused inside {kind}'s tool")
+
+        return execute
+
+    @solver
+    def two_agents() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            async def agent_a() -> None:
+                await run(react(tools=[rendezvous()], submit=False), "agent A")
+
+            async def agent_b() -> None:
+                await a_started.wait()
+                await run(
+                    react(
+                        tools=[rendezvous()],
+                        submit=False,
+                        approval=[ApprovalPolicy(r7_decides("reject"), "*")],
+                    ),
+                    "agent B",
+                )
+                b_done.set()
+
+            await tg_collect([agent_a, agent_b])
+            return state
+
+        return solve
+
+    proposed = [
+        ModelOutput.for_tool_call(
+            "mockllm/model",
+            tool_name="rendezvous",
+            tool_arguments={"kind": kind},
+            tool_call_id="tool_call_0_0",
+        )
+        for kind in ("A", "B")
+    ]
+    seen: dict[str, Step] = {}
+    log = eval(
+        Task(
+            dataset=[Sample(input="run two agents")],
+            solver=two_agents(),
+            sentinel=[r7_probe(seen, copies=True)],
+        ),
+        model=outputs(*proposed, done(), done()),
+        log_format="json",
+        log_dir=str(tmp_path),
+    )[0]
+    assert log.status == "success", log.error
+    a, b = [e for e in logged_sample(log).events if isinstance(e, ToolEvent)]
+    assert a.arguments == {"kind": "A"} and b.arguments == {"kind": "B"}
+    assert a.error is not None and b.error is not None
+    assert b.error.type == "approval"
+
+    replay = assert_logged_replay_equals_live(log, seen)
+    assert [(stage, arguments) for stage, _, arguments in tool_step_calls(replay)] == [
+        ("tool_call", {"kind": "A"}),
+        ("tool_result", {"kind": "A"}),
+    ]
+
+
+@reviewer
+def checks_with_a_same_id_call(invalid: bool) -> Reviewer:
+    async def check(
+        message: str,
+        call: ToolCall,
+        result: ChatMessageTool,
+        output: ToolResult,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Review:
+        helper = get_model(
+            "mockllm/review-helper",
+            custom_outputs=[
+                ModelOutput.for_tool_call(
+                    "mockllm/review-helper",
+                    tool_name="addition",
+                    tool_arguments={"x": "one" if invalid else 1, "y": 1},
+                    tool_call_id="tool_call_0_0",
+                )
+            ],
+            memoize=False,
+        )
+        messages: list[ChatMessage] = [ChatMessageUser(content="Check the result")]
+        tools = [addition()]
+        proposed = await helper.generate(messages, tools=tools)
+        await execute_tools([*messages, proposed.message], tools)
+        return Review(decision="continue")
+
+    return check
+
+
+@pytest.mark.parametrize("invalid", [False, True])
+@pytest.mark.parametrize("error", [ToolParsingError, ToolApprovalError])
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_a_result_reviewer_s_same_id_call_leaves_the_reviewed_call_its_result_check(
+    invalid: bool,
+    error: type[Exception],
+    backend: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # after the pre-push review of 059291126: the reviewer's call under the
+    # reviewed call's id runs between that call's tool span and its result
+    # check, and took that check
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    Panel("approve", "reviewed the tool error").install(monkeypatch)
+
+    @tool
+    def fails_after_running() -> Tool:
+        async def execute() -> str:
+            """Raise an error after running."""
+            raise error("could not interpret the tool output")
+
+        return execute
+
+    seen: dict[str, Step] = {}
+    log = eval(
+        Task(
+            dataset=[Sample(input="Run the tool")],
+            solver=[use_tools(fails_after_running()), generate()],
+            review=[
+                ReviewPolicy(checks_with_a_same_id_call(invalid), "fails_after_running")
+            ],
+            sentinel=[
+                r7_probe(seen, copies=True),
+                h_ask("tool_result", ["approve"]),
+            ],
+        ),
+        model=outputs(
+            ModelOutput.for_tool_call(
+                "mockllm/model",
+                tool_name="fails_after_running",
+                tool_arguments={},
+                tool_call_id="tool_call_0_0",
+            ),
+            done(),
+        ),
+        log_format="json",
+        log_dir=str(tmp_path),
+    )[0]
+    assert log.status == "success", log.error
+    events = [e for e in logged_sample(log).events if isinstance(e, ToolEvent)]
+    assert [e.function for e in events] == ["fails_after_running", "addition"]
+    assert events[0].error is not None
+    assert (events[1].error is not None) == invalid
+
+    # without origins, the reviewer's call reads as an agent call under the
+    # same id, so only the replay with origins is compared
+    live = live_steps(logged_sample(log), seen)
+    replay = replayed(log)
+    rebuilt: dict[tuple[str, str], ReplayStep] = {
+        (step.stage, step.id): step for step in replay
+    }
+    assert len(rebuilt) == len(replay) and set(rebuilt) == set(live)
+    for key, step in live.items():
+        assert_step_equals_live(key, rebuilt[key], step)
+    [result] = [step for step in replay if step.stage == "tool_result"]
+    assert dict(result.recorded_answers) == {
+        "human": HumanAnswer(decision="approve", reason="reviewed the tool error")
+    }

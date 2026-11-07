@@ -964,7 +964,10 @@ class _Driver:
         )
 
     def _take_checks(self, call: _Call) -> None:
-        """Pair a native call with the first of its recorded checks no earlier call took, in log order."""
+        """Pair a native call with the first of its recorded checks no earlier call took, in log order.
+
+        A call its approver refused never ran, so takes no result check.
+        """
         event = call.event
         if _bridged(event):
             return
@@ -976,7 +979,7 @@ class _Driver:
         call.before_span = self._tool_span_of(
             ("tool_call", event.id), call.produced_at, begin
         )
-        if end is not None:
+        if end is not None and not _approval_refused(call.approval):
             call.after_span = self._tool_span_of(
                 ("tool_result", event.id), end, ending=event.failed is True
             )
@@ -1700,3 +1703,11 @@ def _check_span_tree(events: Sequence[Event]) -> None:
 def _bridged(event: ToolEvent) -> bool:
     """Whether a sandbox bridge ran the call on the host."""
     return event.metadata is not None and "bridge" in event.metadata
+
+
+def _approval_refused(approval: ApprovalEvent | None) -> bool:
+    """Whether the approver's recorded decision kept the call from running (`apply_tool_approval`)."""
+    return approval is not None and not (
+        approval.decision == "approve"
+        or (approval.decision == "modify" and approval.modified is not None)
+    )
