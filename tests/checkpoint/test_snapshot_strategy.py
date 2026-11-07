@@ -80,8 +80,13 @@ from inspect_ai.util._checkpoint.sandbox_paths import SandboxBackupPaths
 from inspect_ai.util._sandbox import _privileged as privileged
 from inspect_ai.util._sandbox._framework_directory import FrameworkDirectoryError
 from inspect_ai.util._sandbox._privileged import pinned_shell_command
+from inspect_ai.util._sandbox.context import (
+    sandbox_default_context_var,
+    sandbox_environments_context_var,
+)
 from inspect_ai.util._sandbox.environment import SandboxUserUnsupportedError
 from inspect_ai.util._sandbox.events import SandboxEnvironmentProxy
+from inspect_ai.util._sandbox.identity import sandbox_identity
 from inspect_ai.util._subprocess import ExecResult
 
 
@@ -1443,6 +1448,50 @@ async def test_copy_out_file_user_compatibility(
         else:
             await copy()
         assert dest.read_bytes() == b"checkpoint"
+    assert calls == ["root" if modern else None]
+
+
+@pytest.mark.parametrize("modern", [False, True])
+async def test_copy_out_inside_a_scope_keeps_the_chunk_reader(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, modern: bool
+) -> None:
+    """A checkpoint taken inside a member's scope reads chunks as before."""
+    env = LocalShellSandbox()
+    calls: list[str | None] = []
+
+    async def legacy_read(file: str, text: bool = True) -> bytes:
+        calls.append(None)
+        return Path(file).read_bytes()
+
+    async def modern_read(
+        file: str, text: bool = True, *, user: str | None = None
+    ) -> bytes:
+        calls.append(user)
+        return Path(file).read_bytes()
+
+    monkeypatch.setattr(env, "read_file", modern_read if modern else legacy_read)
+    proxy = SandboxEnvironmentProxy(env)
+    src = tmp_path / "source"
+    src.write_bytes(b"checkpoint")
+    dest = tmp_path / "destination"
+    envs_token = sandbox_environments_context_var.set({"default": proxy})
+    default_token = sandbox_default_context_var.set("default")
+    try:
+        with sandbox_identity("w-1"), proxy.no_events():
+            await copy_out(
+                proxy,
+                src=str(src),
+                chunk_path=str(tmp_path / "chunk"),
+                size=src.stat().st_size,
+                dest=dest,
+                max_bytes=100,
+                label="test",
+                chunk_size=100,
+            )
+    finally:
+        sandbox_default_context_var.reset(default_token)
+        sandbox_environments_context_var.reset(envs_token)
+    assert dest.read_bytes() == b"checkpoint"
     assert calls == ["root" if modern else None]
 
 

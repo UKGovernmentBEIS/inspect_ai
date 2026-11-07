@@ -53,6 +53,17 @@ description: List, read, write, and analyse logs.
 ### RecoveryNotAvailable
 ### RecoveryThresholdExceeded
 
+## Sharding
+
+### merge_eval_log_shards
+### merge_eval_log_shards_async
+### ShardMergeResult
+### ShardSetError
+### ShardSelectionError
+### ShardSetIncomplete
+### EvalShards
+### EvalShardEntry
+
 ## Eval Log API
 
 ### EvalStatus
