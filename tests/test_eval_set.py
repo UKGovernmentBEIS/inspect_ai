@@ -3831,3 +3831,305 @@ def test_eval_set_grown_dataset_without_stable_ids_still_reruns() -> None:
         final = read_eval_log(logs[0].location)
         assert final.status == "success"
         assert final.eval.dataset.samples == 4
+
+
+# --- log_dir_multi_writer ----------------------------------------------------
+
+
+@task
+def multi_writer_task() -> Task:
+    return Task(
+        dataset=[Sample(input="Say hello", target="hello")],
+        solver=generate(),
+        scorer=includes(),
+    )
+
+
+def test_eval_set_multi_writer_requires_eval_set_id(tmp_path: Path) -> None:
+    with pytest.raises(PrerequisiteError, match="explicit eval_set_id"):
+        eval_set(
+            multi_writer_task(),
+            log_dir=str(tmp_path),
+            model="mockllm/a",
+            log_dir_multi_writer=True,
+        )
+    assert not (tmp_path / ".eval-set-id").exists()
+
+
+@pytest.mark.parametrize(
+    "option",
+    [{"bundle_dir": "bundle"}, {"embed_viewer": True}, {"scanner": object()}],
+    ids=["bundle_dir", "embed_viewer", "scanner"],
+)
+def test_eval_set_multi_writer_refuses_set_level_outputs(
+    tmp_path: Path, option: dict[str, Any]
+) -> None:
+    with pytest.raises(PrerequisiteError, match=f"{next(iter(option))} can't be used"):
+        eval_set(
+            multi_writer_task(),
+            log_dir=str(tmp_path / "logs"),
+            model="mockllm/a",
+            eval_set_id="shared",
+            log_dir_multi_writer=True,
+            **option,
+        )
+    assert not (tmp_path / "logs" / ".eval-set-id").exists()
+
+
+@pytest.mark.parametrize("foreign", [None, "other", "matching"])
+def test_eval_set_multi_writer_refuses_foreign_logs_unless_allow_dirty(
+    tmp_path: Path, foreign: str | None
+) -> None:
+    foreign_dir, log_dir = tmp_path / "foreign", tmp_path / "logs"
+    foreign_model = "mockllm/a" if foreign == "matching" else "mockllm/b"
+    if foreign is None:
+        eval(multi_writer_task(), model=foreign_model, log_dir=str(foreign_dir))
+    else:
+        eval_set(
+            multi_writer_task(),
+            model=foreign_model,
+            log_dir=str(foreign_dir),
+            eval_set_id="other",
+        )
+    log_dir.mkdir()
+    for log in foreign_dir.glob("*.eval"):
+        shutil.copy(log, log_dir)
+
+    def run(allow_dirty: bool, model: str = "mockllm/a") -> tuple[bool, list[EvalLog]]:
+        return eval_set(
+            multi_writer_task(),
+            model=model,
+            log_dir=str(log_dir),
+            eval_set_id="shared",
+            log_dir_multi_writer=True,
+            log_dir_allow_dirty=allow_dirty,
+        )
+
+    if foreign == "matching":
+        # judged by task identifier, as without the flag: adopted by its task's writer
+        (foreign_log,) = log_dir.glob("*.eval")
+        success, logs = run(allow_dirty=False)
+        assert success
+        assert [basename(log.location) for log in logs] == [foreign_log.name]
+        with pytest.raises(PrerequisiteError, match="not associated with a task"):
+            run(allow_dirty=False, model="mockllm/b")
+        return
+    with pytest.raises(PrerequisiteError, match="not associated with a task"):
+        run(allow_dirty=False)
+    success, logs = run(allow_dirty=True)
+    assert success
+    assert [str(log.eval.model) for log in logs] == ["mockllm/a"]
+
+
+def test_eval_set_multi_writer_adopts_own_logs_and_leaves_siblings(
+    tmp_path: Path,
+) -> None:
+    # a normal eval set wrote the whole directory
+    success, logs = eval_set(
+        multi_writer_task(),
+        model=["mockllm/a", "mockllm/b"],
+        log_dir=str(tmp_path),
+        eval_set_id="shared",
+    )
+    assert success
+    own = next(log for log in logs if str(log.eval.model) == "mockllm/a")
+    sibling = next(log for log in logs if str(log.eval.model) == "mockllm/b")
+    # an older log of the sibling's task, which cleanup for that task would remove
+    older = tmp_path / "older-sibling-attempt.eval"
+    shutil.copy(local_path(sibling.location), older)
+    os.utime(older, (time.time() - 3600, time.time() - 3600))
+    files = sorted(path.name for path in tmp_path.iterdir())
+    metadata = {
+        name: (tmp_path / name).read_bytes() for name in ("eval-set.json", "logs.json")
+    }
+
+    success, logs = eval_set(
+        multi_writer_task(),
+        model="mockllm/a",
+        log_dir=str(tmp_path),
+        eval_set_id="shared",
+        log_dir_multi_writer=True,
+    )
+
+    assert success
+    assert [basename(log.location) for log in logs] == [basename(own.location)]
+    assert sorted(path.name for path in tmp_path.iterdir()) == files
+    assert {
+        name: (tmp_path / name).read_bytes() for name in ("eval-set.json", "logs.json")
+    } == metadata
+
+
+def test_eval_set_multi_writer_concurrent_writers(tmp_path: Path) -> None:
+    """Two writers share one directory at once, then a normal eval set adopts it.
+
+    Real processes, as for the selection-mode equivalent. The second writer
+    starts only once the first one's log exists, and each writer's sample waits
+    for the other's log, so each writer both starts and finishes with the
+    other's log in the directory.
+    """
+    import subprocess
+    import sys
+    import textwrap
+
+    definition = tmp_path / "definition.py"
+    definition.write_text(
+        textwrap.dedent(
+            """
+            import os
+            import sys
+            import time
+            from pathlib import Path
+
+            import anyio
+
+            from inspect_ai import Task, eval_set, task
+            from inspect_ai.dataset import Sample
+            from inspect_ai.scorer import includes
+            from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
+
+
+            @solver
+            def wait_for_sibling() -> Solver:
+                async def solve(state: TaskState, generate: Generate) -> TaskState:
+                    deadline = time.monotonic() + 60
+                    while len(list(Path("logs").glob("*.eval"))) < 2:
+                        if time.monotonic() > deadline:
+                            raise RuntimeError("the other writer never started")
+                        await anyio.sleep(0.1)
+                    return state
+
+                return solve
+
+
+            @task
+            def hello() -> Task:
+                return Task(
+                    dataset=[Sample(input="Say hello", target="hello")],
+                    solver=[wait_for_sibling(), generate()],
+                    scorer=includes(),
+                )
+
+
+            success, _ = eval_set(
+                tasks=[hello()],
+                model=os.environ["MODELS"].split(","),
+                log_dir="logs",
+                eval_set_id="shared",
+                log_dir_multi_writer=os.environ["MULTI"] == "1",
+                retry_attempts=0,
+            )
+            sys.exit(0 if success else 1)
+            """
+        )
+    )
+    log_dir = tmp_path / "logs"
+
+    def start(models: str, multi: bool) -> subprocess.Popen[str]:
+        return subprocess.Popen(
+            [sys.executable, str(definition)],
+            cwd=tmp_path,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            env={
+                **os.environ,
+                "MODELS": models,
+                "MULTI": "1" if multi else "0",
+                "INSPECT_DISPLAY": "plain",
+            },
+        )
+
+    def finish(process: subprocess.Popen[str]) -> None:
+        _, stderr = process.communicate(timeout=300)
+        assert process.returncode == 0, stderr
+
+    first = start("mockllm/a", multi=True)
+    deadline = time.monotonic() + 60
+    while not list(log_dir.glob("*.eval")):
+        assert first.poll() is None, first.communicate()[1]
+        assert time.monotonic() < deadline
+        time.sleep(0.1)
+    second = start("mockllm/b", multi=True)
+    finish(first)
+    finish(second)
+
+    headers = [
+        read_eval_log(info.name, header_only=True)
+        for info in list_eval_logs(str(log_dir))
+    ]
+    assert sorted(str(header.eval.model) for header in headers) == [
+        "mockllm/a",
+        "mockllm/b",
+    ]
+    assert all(header.status == "success" for header in headers)
+    assert all(header.eval.eval_set_id == "shared" for header in headers)
+    assert {path.name for path in log_dir.iterdir() if path.suffix != ".eval"} == {
+        ".eval-set-id"
+    }
+
+    # a normal eval set over the whole set reruns nothing and writes both files
+    logs = sorted(path.name for path in log_dir.glob("*.eval"))
+    finish(start("mockllm/a,mockllm/b", multi=False))
+    assert sorted(path.name for path in log_dir.glob("*.eval")) == logs
+    info = read_eval_set_info(str(log_dir))
+    assert info is not None
+    assert sorted(task.task_id for task in info.tasks) == sorted(
+        header.eval.task_id for header in headers
+    )
+    assert len(json.loads((log_dir / "logs.json").read_text())) == 2
+
+
+@pytest.mark.parametrize("from_env", [False, True])
+def test_eval_set_multi_writer_cli(tmp_path: Path, from_env: bool) -> None:
+    from click.testing import CliRunner
+
+    from inspect_ai._cli.main import inspect as inspect_cli
+
+    args = ["eval-set", "nonexistent.py", "--model", "mockllm/a"]
+    args += ["--log-dir", str(tmp_path)]
+    result = CliRunner().invoke(
+        inspect_cli,
+        args if from_env else [*args, "--log-dir-multi-writer"],
+        env={"INSPECT_EVAL_SET_LOG_DIR_MULTI_WRITER": "1"} if from_env else {},
+        auto_envvar_prefix="INSPECT",
+    )
+    assert isinstance(result.exception, PrerequisiteError)
+    assert "explicit eval_set_id" in str(result.exception)
+
+
+def test_eval_set_multi_writer_lists_again_when_a_sibling_removes_its_log(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from inspect_ai._eval import evalset
+
+    log_dir = str(tmp_path)
+    for model in ("mockllm/a", "mockllm/b"):
+        success, _ = eval_set(
+            [Task(dataset=[Sample(input="hi", target="x")], name="a")],
+            log_dir=log_dir,
+            model=model,
+            eval_set_id="shared",
+            log_dir_multi_writer=True,
+        )
+        assert success
+
+    from inspect_ai.log import list_eval_logs
+
+    listings = 0
+
+    def sibling_removes_a_log_after_the_first_listing(*args: Any, **kwargs: Any) -> Any:
+        nonlocal listings
+        listings += 1
+        infos = list_eval_logs(*args, **kwargs)
+        if listings == 1:
+            os.remove(infos[-1].name.removeprefix("file://"))
+        return infos
+
+    monkeypatch.setattr(
+        "inspect_ai._eval.evalset.list_eval_logs",
+        sibling_removes_a_log_after_the_first_listing,
+    )
+    logs = evalset.list_all_eval_logs(log_dir)
+
+    assert listings == 2
+    assert len(logs) == 1

@@ -64,8 +64,8 @@ judgement about the field.
 Fields the rule admits but selection mode has already decided are excluded
 with their reason recorded in `NOT_OVERRIDABLE`: `fail_on_error` is forced
 `False` for a worker, task retry is disabled, and the eval-set orchestration
-arguments (`retry_*`, `bundle_*`, `log_dir_allow_dirty`, `embed_viewer`) never
-reach a worker at all.
+arguments (`retry_*`, `bundle_*`, `log_dir_allow_dirty`, `log_dir_multi_writer`,
+`embed_viewer`) never reach a worker at all.
 
 ## Versioning
 
@@ -460,6 +460,7 @@ NOT_OVERRIDABLE: dict[str, str] = {
     "bundle_dir": "eval-set bundling, which a worker skips",
     "bundle_overwrite": "eval-set bundling, which a worker skips",
     "embed_viewer": "eval-set bundling, which a worker skips",
+    "log_dir_multi_writer": "eval-set log directory bookkeeping, which a worker skips",
     "log_dir_allow_dirty": "eval-set log directory bookkeeping, which a worker skips",
 }
 """Every `eval_set()` parameter that is deliberately not overridable, and why.
