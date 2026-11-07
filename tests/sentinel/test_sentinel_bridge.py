@@ -5975,3 +5975,113 @@ async def test_a_repeated_anthropic_response_keeps_its_interleaved_calls() -> No
         "toolu_a",
         "toolu_b",
     ]
+
+
+PNG_DATA_URI = (
+    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlE"
+    "QVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+)
+
+
+@pytest.mark.parametrize("kind", ["custom", "computer"])
+async def test_a_repeated_responses_native_call_stays_native(kind: str) -> None:
+    from openai.types.responses import (
+        ResponseComputerToolCall,
+        ResponseCustomToolCall,
+    )
+    from openai.types.responses.computer_action import Screenshot
+
+    from inspect_ai.agent._bridge.responses import inspect_responses_api_request
+    from inspect_ai.model._assistant_internal import init_sample_assistant_internal
+    from inspect_ai.model._openai_responses import (
+        _process_response_output_items,
+        openai_responses_inputs,
+    )
+
+    init_sample_assistant_internal()
+    # as the provider parses the call, caching its native item under its ID
+    item: Any
+    tool: Any
+    if kind == "custom":
+        item = ResponseCustomToolCall(
+            id="ctc_1",
+            type="custom_tool_call",
+            call_id="call_patch",
+            name="apply_patch",
+            input="*** Begin Patch\n*** End Patch",
+        )
+        tool = {
+            "type": "custom",
+            "name": "apply_patch",
+            "description": "Patch.",
+            "format": {"type": "text"},
+        }
+        result: Any = {"type": "custom_tool_call_output", "output": "Done."}
+    else:
+        item = ResponseComputerToolCall(
+            id="cu_1",
+            type="computer_call",
+            call_id="call_computer",
+            actions=[Screenshot(type="screenshot")],
+            pending_safety_checks=[],
+            status="completed",
+        )
+        tool = {
+            "type": "computer_use_preview",
+            "display_width": 1024,
+            "display_height": 768,
+            "environment": "linux",
+        }
+        result = {
+            "type": "computer_call_output",
+            "output": {"type": "computer_screenshot", "image_url": PNG_DATA_URI},
+        }
+    content, calls, _, _ = _process_response_output_items([item], [])
+    output = ModelOutput(
+        model="mockllm/model",
+        choices=[
+            ChatCompletionChoice(
+                message=ChatMessageAssistant(content=content, tool_calls=calls),
+                stop_reason="tool_calls",
+            )
+        ],
+    )
+    # a cache hit returns the same output, parsed once
+    model = Scripted(output, output, calls_output())
+    bridge = AgentBridge(
+        AgentState(messages=[]), model_aliases={"inspect": model.model}
+    )
+    items: list[Any] = [{"role": "user", "content": TASK}]
+
+    def request(input: list[Any]) -> dict[str, Any]:
+        return {"model": "inspect", "input": input, "tools": [tool]}
+
+    with (
+        patch(
+            "inspect_ai.agent._bridge.responses_impl._is_openai_responses_provider",
+            return_value=True,
+        ),
+        active([bridge_recording([])]),
+    ):
+        await inspect_responses_api_request(request(items), None, None, None, bridge)
+        response = await inspect_responses_api_request(
+            request(items), None, None, None, bridge
+        )
+        handed = [item.model_dump(exclude_none=True) for item in response.output]
+        [call] = [item for item in handed if "call_id" in item]
+        assert call["type"] == item.type and call["call_id"] != item.call_id
+        await inspect_responses_api_request(
+            request([*items, *handed, {**result, "call_id": call["call_id"]}]),
+            None,
+            None,
+            None,
+            bridge,
+        )
+
+    # the continuation replays to the model natively, under the handed id
+    replayed = await openai_responses_inputs(model.inputs[2])
+    assert [
+        (param["type"], param.get("call_id"))
+        for param in replayed
+        if "call_id" in param
+    ] == [(item.type, call["call_id"]), (result["type"], call["call_id"])]
