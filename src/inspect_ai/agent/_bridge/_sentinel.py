@@ -1,5 +1,5 @@
 import json
-from collections import OrderedDict
+from collections import OrderedDict, deque
 from contextlib import AbstractContextManager, nullcontext
 from copy import deepcopy
 from dataclasses import replace
@@ -29,6 +29,7 @@ from inspect_ai._util.content import (
     ContentAudio,
     ContentDocument,
     ContentImage,
+    ContentReasoning,
     ContentText,
     ContentVideo,
 )
@@ -588,9 +589,33 @@ def sentinel_tokens(
         return output, issued
     # a copy, as `output` may be the object the ModelEvent recorded
     output = output.model_copy(deep=True)
+    tokens: dict[str, deque[str]] = {}
     for call, check in zip(output.message.tool_calls or [], issued):
+        tokens.setdefault(call.id, deque()).append(check.token or call.id)
         call.id = check.token or call.id
+    _retarget_anchors(output.message.content, tokens)
     return output, issued
+
+
+def _retarget_anchors(
+    content: str | list[Content], tokens: dict[str, deque[str]]
+) -> None:
+    """Point Google's reasoning anchors at the calls' tokens.
+
+    Google replays a call's thought signature at the call its anchor names
+    (`gemini_function_call_id`). `tokens` maps each model ID to the tokens of
+    its calls, in order; anchors are in call order.
+    """
+    if isinstance(content, str):
+        return
+    for part in content:
+        if isinstance(part, ContentReasoning) and isinstance(part.internal, dict):
+            call_id = part.internal.get("gemini_function_call_id")
+            if isinstance(call_id, str) and tokens.get(call_id):
+                part.internal = {
+                    **part.internal,
+                    "gemini_function_call_id": tokens[call_id].popleft(),
+                }
 
 
 def sentinel_unproposed_host_check(

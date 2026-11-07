@@ -5548,3 +5548,155 @@ async def test_a_long_history_ids_alias_is_never_issued(
     [handed] = output.message.tool_calls or []
     assert handed.id != model_id
     assert not history_id.endswith("__" + handed.id)
+
+
+def signed_parallel_output() -> ModelOutput:
+    """A Gemini response: a signed call, then an unsigned parallel sibling."""
+    first = replace(READ, id="read_a", arguments={"path": "a.txt"})
+    second = replace(READ, id="read_b", arguments={"path": "b.txt"})
+    return ModelOutput(
+        model="mockllm/model",
+        choices=[
+            ChatCompletionChoice(
+                message=ChatMessageAssistant(
+                    content=[
+                        ContentReasoning(
+                            reasoning="c2lnbmF0dXJl",
+                            redacted=True,
+                            internal={"gemini_function_call_id": first.id},
+                        ),
+                        ContentReasoning(
+                            reasoning="",
+                            redacted=True,
+                            internal={"gemini_function_call_id": second.id},
+                        ),
+                    ],
+                    tool_calls=[first, second],
+                ),
+                stop_reason="tool_calls",
+            )
+        ],
+    )
+
+
+async def dialect_repeated_parallel_calls(
+    dialect: str, bridge: AgentBridge
+) -> list[str]:
+    """A scaffold sending one request twice, then answering the second response's calls.
+
+    Returns the ids the second response handed over.
+    """
+    if dialect == "completions":
+        from inspect_ai.agent._bridge.completions import (
+            inspect_completions_api_request,
+        )
+
+        messages: list[Any] = [{"role": "user", "content": TASK}]
+        tools: Any = [
+            {
+                "type": "function",
+                "function": {
+                    "name": "read_file",
+                    "description": "Read a file.",
+                    "parameters": PATH_SCHEMA,
+                },
+            }
+        ]
+        request = {"model": "inspect", "messages": messages, "tools": tools}
+        await inspect_completions_api_request(request, None, bridge)
+        completion = await inspect_completions_api_request(request, None, bridge)
+        message = completion.choices[0].message
+        ids = [call.id for call in message.tool_calls or []]
+        await inspect_completions_api_request(
+            {
+                "model": "inspect",
+                "messages": [
+                    *messages,
+                    message.model_dump(exclude_none=True),
+                    *[
+                        {"role": "tool", "tool_call_id": id, "content": "x"}
+                        for id in ids
+                    ],
+                ],
+                "tools": tools,
+            },
+            None,
+            bridge,
+        )
+        return ids
+    else:
+        from inspect_ai.agent._bridge.responses import inspect_responses_api_request
+
+        items: list[Any] = [{"role": "user", "content": TASK}]
+        responses_tools: Any = [
+            {
+                "type": "function",
+                "name": "read_file",
+                "description": "Read a file.",
+                "parameters": PATH_SCHEMA,
+            }
+        ]
+        responses_request = {
+            "model": "inspect",
+            "input": items,
+            "tools": responses_tools,
+        }
+        await inspect_responses_api_request(responses_request, None, None, None, bridge)
+        result = await inspect_responses_api_request(
+            responses_request, None, None, None, bridge
+        )
+        output = [item.model_dump(exclude_none=True) for item in result.output]
+        ids = [item["call_id"] for item in output if item["type"] == "function_call"]
+        await inspect_responses_api_request(
+            {
+                "model": "inspect",
+                "input": [
+                    *items,
+                    *output,
+                    *[
+                        {"type": "function_call_output", "call_id": id, "output": "x"}
+                        for id in ids
+                    ],
+                ],
+                "tools": responses_tools,
+            },
+            None,
+            None,
+            None,
+            bridge,
+        )
+        return ids
+
+
+@pytest.mark.parametrize("dialect", ["completions", "responses"])
+async def test_a_repeated_gemini_response_keeps_its_signatures_on_its_calls(
+    dialect: str,
+) -> None:
+    from unittest.mock import MagicMock
+
+    from inspect_ai.model._providers.google import content as google_content
+
+    output = signed_parallel_output()
+    model = Scripted(output, output, calls_output())
+    bridge = AgentBridge(
+        AgentState(messages=[]), model_aliases={"inspect": model.model}
+    )
+
+    with active([bridge_recording([])]):
+        ids = await dialect_repeated_parallel_calls(dialect, bridge)
+
+    # the second response was handed over under fresh tokens
+    assert len(ids) == 2 and not {"read_a", "read_b"} & set(ids)
+    [assistant] = [m for m in model.inputs[2] if isinstance(m, ChatMessageAssistant)]
+    assert [call.id for call in assistant.tool_calls or []] == ids
+    replayed = await google_content(MagicMock(), assistant)
+    calls = [part for part in replayed.parts or [] if part.function_call]
+    assert [part.function_call.id for part in calls if part.function_call] == ids
+    assert [part.thought_signature is not None for part in calls] == [True, False]
+    # the model's output stays on the record as it was generated
+    recorded = [e.output for e in transcript().events if isinstance(e, ModelEvent)]
+    assert [
+        content.internal
+        for content in recorded[1].message.content
+        if isinstance(content, ContentReasoning)
+    ] == [{"gemini_function_call_id": "read_a"}, {"gemini_function_call_id": "read_b"}]
