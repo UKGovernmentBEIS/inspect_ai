@@ -227,7 +227,9 @@ class SandboxAgentBridge(AgentBridge):
                     + ", ".join(f"{t.server}/{t.tool}" for t in targets)
                     + "); an execution grant was registered for each of them.",
                 )
-            proposal = _Proposal(call, span_id)
+            proposal = _Proposal(
+                call, check.handed.id if check is not None else call.id, span_id
+            )
             for target_index, target in enumerate(targets):
                 target_check = (
                     target_checks[target_index]._replace(token=check.token)
@@ -463,11 +465,14 @@ class _Proposal:
     and no pairing state outlives the bounded grant store.
     """
 
-    __slots__ = ("call", "span_id", "paired")
+    __slots__ = ("call", "proposal_id", "span_id", "paired")
 
-    def __init__(self, call: ToolCall, span_id: str | None) -> None:
+    def __init__(self, call: ToolCall, proposal_id: str, span_id: str | None) -> None:
         self.call = call
-        """The proposing call, with the function name as the model saw it."""
+        """The proposing call as handed to the scaffold, with the function name as the model saw it."""
+
+        self.proposal_id = proposal_id
+        """The model's id for the call, which `call.id` replaces when the call is handed over under a new id (`sentinel_tokens`)."""
 
         self.span_id = span_id
         """Span to record executions under, or `None` for the span current then."""

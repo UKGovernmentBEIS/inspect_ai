@@ -5,7 +5,7 @@ from copy import deepcopy
 from dataclasses import replace
 from pathlib import Path
 from tempfile import mkdtemp
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, NamedTuple, cast
 from unittest.mock import AsyncMock, patch
 
 import anyio
@@ -51,7 +51,15 @@ from inspect_ai.approval import (
     auto_approver,
 )
 from inspect_ai.dataset import Sample
-from inspect_ai.event import ModelEvent, SentinelEvent, SpanBeginEvent, SpanEndEvent
+from inspect_ai.event import (
+    Event,
+    ModelEvent,
+    SentinelEvent,
+    SpanBeginEvent,
+    SpanEndEvent,
+    ToolEvent,
+)
+from inspect_ai.log import read_eval_log
 from inspect_ai.log._transcript import Transcript, init_transcript, transcript
 from inspect_ai.model import (
     ChatMessage,
@@ -1831,6 +1839,151 @@ async def test_repeated_calls_are_checked_with_their_own_results(
     assert [(s.call.id, s.output) for s in seen if isinstance(s, AfterToolCall)] == [
         (call.id, f"output {index}") for index, call in enumerate(calls)
     ]
+
+
+@monitor
+def reporting_results() -> MonitorGroup:
+    async def before(context: Context, step: BeforeToolCall) -> Observation | None:
+        return Observation.score(0.1, "looked")
+
+    async def after(context: Context, step: AfterToolCall) -> Observation | None:
+        return Observation.score(0.2, f"saw {step.result.text}")
+
+    return MonitorGroup(before, after)
+
+
+class HostPairing(NamedTuple):
+    execution: ToolEvent
+    proposal: ModelEvent | None
+    before: SentinelEvent | None
+    after: SentinelEvent | None
+
+
+def pair_host_executions(events: Sequence[Event]) -> list[HostPairing]:
+    """Pair each host execution as the viewer does, by its `proposal_id`.
+
+    The proposal is the latest model output before the execution proposing that
+    id, its `tool_call` step the latest before it, and its `tool_result` step
+    the first after it.
+    """
+    pairings: list[HostPairing] = []
+    for position, event in enumerate(events):
+        if not isinstance(event, ToolEvent) or not event.metadata:
+            continue
+        key = event.metadata["bridge"]["proposal_id"]
+        earlier, later = events[:position], events[position + 1 :]
+        proposal = next(
+            (
+                e
+                for e in reversed(earlier)
+                if isinstance(e, ModelEvent)
+                and key in {call.id for call in e.output.message.tool_calls or []}
+            ),
+            None,
+        )
+        before = next(
+            (
+                e
+                for e in reversed(earlier)
+                if isinstance(e, SentinelEvent)
+                and e.kind == "observation"
+                and e.stage == "tool_call"
+                and e.step_id == key
+            ),
+            None,
+        )
+        after = next(
+            (
+                e
+                for e in later
+                if isinstance(e, SentinelEvent)
+                and e.kind == "observation"
+                and e.stage == "tool_result"
+                and e.step_id == key
+            ),
+            None,
+        )
+        pairings.append(HostPairing(event, proposal, before, after))
+    return pairings
+
+
+@solver
+def repeated_host_call(cached: bool) -> Solver:
+    """A sandbox scaffold the model hands the same host call twice.
+
+    Repeated output proposes it again on the next turn; with the model output
+    cache, the scaffold sends the same request again (a sub-agent given the
+    same prompt) and the cache hit returns the call again.
+    """
+    bridged = generate
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        read = ToolCall(
+            id="host_1", function="mcp__host__read_file", arguments=READ.arguments
+        )
+        model = Scripted(
+            calls_output(read),
+            calls_output(read) if not cached else calls_output(),
+            calls_output(),
+            config=GenerateConfig(cache=True) if cached else None,
+        )
+        bridge = sandbox_bridge(AsyncMock(side_effect=["contents 1", "contents 2"]))
+        history: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+        for _ in range(2):
+            output = await bridged(
+                bridge, model, history[:1] if cached else history, declare_read_file()
+            )
+            [handed] = output.message.tool_calls or []
+            result = await call_host_tool(bridge)("host", "read_file", READ.arguments)
+            history += [
+                output.message,
+                ChatMessageTool(
+                    content=str(result),
+                    tool_call_id=handed.id,
+                    function=handed.function,
+                ),
+            ]
+        await bridged(bridge, model, history, declare_read_file())
+        return state
+
+    return solve
+
+
+@pytest.mark.parametrize("cached", [False, True])
+def test_a_host_call_handed_over_under_a_new_id_pairs_with_its_proposal_and_steps(
+    cached: bool, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path / "cache"))
+    [log] = eval(
+        Task(
+            dataset=[Sample(input=TASK)],
+            solver=repeated_host_call(cached),
+            sentinel=[reporting_results()],
+        ),
+        model="mockllm/model",
+        log_format="json",
+        log_dir=str(tmp_path / "logs"),
+    )
+    assert log.status == "success", log.error
+    [sample] = read_eval_log(log.location).samples or []
+    events = sample.events
+
+    proposals = [e for e in events if isinstance(e, ModelEvent)][:2]
+    if cached:
+        assert [e.cache for e in proposals] == ["write", "read"]
+    pairings = pair_host_executions(events)
+    # each execution keeps its own id
+    first, second = (pairing.execution.id for pairing in pairings)
+    assert first == "host_1" and second not in ("host_1", "")
+    for index, pairing in enumerate(pairings):
+        assert pairing.proposal is proposals[index]
+        assert pairing.before is not None and pairing.after is not None
+        assert (
+            events.index(pairing.proposal)
+            < events.index(pairing.before)
+            < events.index(pairing.execution)
+        )
+        assert pairing.after.explanation == f"saw contents {index + 1}"
 
 
 async def google_round_trips(
