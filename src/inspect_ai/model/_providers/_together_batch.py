@@ -12,7 +12,7 @@ from typing_extensions import TypedDict, override
 
 from inspect_ai._util.dateutil import datetime_from_iso_format_safe
 from inspect_ai._util.error import pip_dependency_error
-from inspect_ai._util.version import has_required_version, verify_required_version
+from inspect_ai._util.version import verify_required_version
 from inspect_ai.model._generate_config import BatchConfig
 from inspect_ai.model._providers._openai_batch import OpenAIBatcher
 from inspect_ai.model._retry import ModelRetryConfig
@@ -26,18 +26,15 @@ def _together_sdk_base_url(openai_base_url: str) -> str:
     """Return the base URL to pass to the Together SDK.
 
     The OpenAI client base URL ends in ``/v1`` (e.g.
-    ``https://api.together.xyz/v1``). Together SDK 2.x builds resource
-    paths relative to that base URL (``files``), so the ``/v1`` suffix
-    is required. Together SDK 3.x builds paths that already include
-    ``/v1`` (``/v1/files``), so passing the same base URL produces
-    ``.../v1/v1/files`` and every batch fails at creation. Strip one
-    trailing ``/v1`` on 3.x; leave the URL unchanged on 2.x. This
-    applies to the default base URL and to a user-set TOGETHER_BASE_URL
-    alike, since both flow through the OpenAI client base URL.
+    ``https://api.together.xyz/v1``). Together SDK 3.x builds resource
+    paths that already include ``/v1`` (``/v1/files``), so passing the
+    same base URL produces ``.../v1/v1/files`` and every batch fails at
+    creation. Strip one trailing ``/v1``. This applies to the default
+    base URL and to a user-set TOGETHER_BASE_URL alike, since both flow
+    through the OpenAI client base URL. Together 3.0.0 is the minimum
+    supported SDK version, so no older-version branch is kept.
     """
-    if has_required_version("together", "3.0.0"):
-        return openai_base_url.rstrip("/").removesuffix("/v1") or openai_base_url
-    return openai_base_url
+    return openai_base_url.rstrip("/").removesuffix("/v1") or openai_base_url
 
 
 class TogetherBatcher(OpenAIBatcher[ChatCompletion]):
@@ -49,7 +46,7 @@ class TogetherBatcher(OpenAIBatcher[ChatCompletion]):
     ):
         FEATURE = "Together Batch API"
         PACKAGE = "together"
-        MIN_VERSION = "2.0.0"
+        MIN_VERSION = "3.0.0"
 
         try:
             from together import Together
