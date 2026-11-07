@@ -219,7 +219,7 @@ class _ResultChecks:
                 or len(token) > _MAX_TOKEN_LENGTH
                 or self._ambiguous_token(token, names)
             ):
-                token = f"call_{uuid()}"
+                token = f"{_token_prefix(check.handed)}_{uuid()}"
             self.identities[token] = _Identity(
                 check.call.id, check.handed.function, _call_key(check.handed)
             )
@@ -529,6 +529,19 @@ def _aliases(call_id: str) -> Iterator[str]:
         if index + 2 < len(call_id):
             yield call_id[index + 2 :]
         index = call_id.find("__", index + 1)
+
+
+def _token_prefix(call: ToolCall) -> str:
+    """The prefix of a fresh token for the call.
+
+    Google names a computer call's action by its ID's prefix (`click_at_<id>`),
+    which a fresh token keeps.
+    """
+    if call.function == "computer":
+        prefix = call.id.rpartition("_")[0]
+        if prefix and len(prefix) <= _MAX_TOKEN_LENGTH // 2:
+            return prefix
+    return "call"
 
 
 def _wire_names(call: ToolCall) -> set[str]:

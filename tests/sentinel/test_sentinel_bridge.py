@@ -5700,3 +5700,61 @@ async def test_a_repeated_gemini_response_keeps_its_signatures_on_its_calls(
         for content in recorded[1].message.content
         if isinstance(content, ContentReasoning)
     ] == [{"gemini_function_call_id": "read_a"}, {"gemini_function_call_id": "read_b"}]
+
+
+GEMINI_ACTIONS: list[tuple[str, dict[str, Any]]] = [
+    ("click_at", {"x": 10, "y": 20}),
+    ("hover_at", {"x": 10, "y": 20}),
+    ("key_combination", {"keys": "control+c"}),
+    ("type_text_at", {"x": 10, "y": 20, "text": "hi"}),
+    ("scroll_document", {"direction": "down"}),
+    ("scroll_at", {"x": 10, "y": 20, "direction": "up", "magnitude": 300}),
+    ("drag_and_drop", {"x": 1, "y": 2, "destination_x": 3, "destination_y": 4}),
+    ("wait_5_seconds", {}),
+    ("open_web_browser", {}),
+    ("navigate", {"url": "https://example.invalid"}),
+]
+
+
+@pytest.mark.parametrize(
+    ("action", "args"), GEMINI_ACTIONS, ids=[a for a, _ in GEMINI_ACTIONS]
+)
+async def test_a_repeated_gemini_computer_action_keeps_its_name(
+    action: str, args: dict[str, Any]
+) -> None:
+    from unittest.mock import MagicMock
+
+    from google.genai.types import FunctionCall
+
+    from inspect_ai.model._providers._google_computer_use import (
+        tool_call_from_gemini_computer_action,
+    )
+    from inspect_ai.model._providers.google import as_chat_messages
+
+    call = tool_call_from_gemini_computer_action(FunctionCall(name=action, args=args))
+    model = Scripted(calls_output(call), calls_output(call), calls_output())
+    bridge = in_process_bridge([])
+    history: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+
+    with active([bridge_recording([])]):
+        await generate(bridge, model, history)
+        output = await generate(bridge, model, history)
+        [handed] = output.message.tool_calls or []
+        await generate(
+            bridge,
+            model,
+            [
+                *history,
+                output.message,
+                ChatMessageTool(
+                    content="done", tool_call_id=handed.id, function="computer"
+                ),
+            ],
+        )
+
+    assert handed.id != call.id
+    replayed = await as_chat_messages(MagicMock(), model.inputs[2])
+    parts = [part for content in replayed for part in content.parts or []]
+    calls = [part.function_call.name for part in parts if part.function_call]
+    results = [part.function_response.name for part in parts if part.function_response]
+    assert (calls, results) == ([action], [action])
