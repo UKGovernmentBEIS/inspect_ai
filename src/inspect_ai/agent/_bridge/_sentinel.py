@@ -1,3 +1,4 @@
+import hashlib
 import json
 from collections import OrderedDict, deque
 from contextlib import AbstractContextManager, nullcontext
@@ -34,7 +35,6 @@ from inspect_ai._util.content import (
     ContentVideo,
 )
 from inspect_ai._util.exception import TerminateSampleError
-from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.logger import warn_once
 from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.model._assistant_internal import (
@@ -310,8 +310,8 @@ class _ResultChecks:
             content = _content_key(message)
             token = message.tool_call_id or ""
             keys = [
-                mm3_hash(f"token:{token}:{content}"),
-                mm3_hash(f"call:{identity.call_key}:{content}"),
+                _digest(["token", token, content]),
+                _digest(["call", identity.call_key, content]),
             ]
             proposal = self.proposals.get(token)
             if proposal is not None:
@@ -426,7 +426,7 @@ def _unissued(message: ChatMessageTool, found: _Call | None) -> tuple[ToolCall, 
         )
     )
     orphan = None if found is not None else message.function or ""
-    return call, mm3_hash(f"call:{_call_key(call, orphan)}:{_content_key(message)}")
+    return call, _digest(["call", _call_key(call, orphan), _content_key(message)])
 
 
 def _call_key(call: ToolCall, orphan: str | None = None) -> str:
@@ -440,7 +440,7 @@ def _call_key(call: ToolCall, orphan: str | None = None) -> str:
         if orphan is not None
         else [call.function, _json_canonical(call.arguments)]
     )
-    return mm3_hash(json.dumps(identity, sort_keys=True))
+    return _digest(identity)
 
 
 def _json_canonical(value: Any) -> Any:
@@ -480,13 +480,17 @@ def _content_key(result: ChatMessageTool) -> str:
     error = (
         [result.error.type, result.error.message] if result.error is not None else None
     )
-    return mm3_hash(
-        json.dumps(
-            # a provider sends no function as an empty name
-            to_jsonable_python([result.function or "", parts, error], fallback=str),
-            sort_keys=True,
-        )
+    # a provider sends no function as an empty name
+    return _digest(
+        to_jsonable_python([result.function or "", parts, error], fallback=str)
     )
+
+
+def _digest(value: Any) -> str:
+    # the agent controls its results, so a key standing for a checked result
+    # must be collision-resistant
+    encoded = json.dumps(value, sort_keys=True).encode()
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def inherited_result_keys(input: Sequence[ChatMessage]) -> frozenset[str]:
@@ -739,8 +743,8 @@ async def sentinel_host_tool_result(
             result.model_copy(update={"function": execution.handed.function})
         )
         keys += [
-            mm3_hash(f"token:{execution.token}:{content_key}"),
-            mm3_hash(f"call:{_call_key(execution.handed)}:{content_key}"),
+            _digest(["token", execution.token, content_key]),
+            _digest(["call", _call_key(execution.handed), content_key]),
         ]
     keys = keys or [f"unproposed:{uuid()}"]
     with bridge_request():

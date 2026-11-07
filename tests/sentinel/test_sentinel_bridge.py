@@ -2952,6 +2952,136 @@ async def test_a_result_changed_only_in_whitespace_is_checked_again(
     assert len(model.inputs) == 2
 
 
+# pairs of results a murmur3 result key cannot tell apart: under `read_file`
+# as sent, under `read_file` as Google's `{"output": ...}` response, and under
+# the host tool's name
+COLLIDING = (
+    "public0000000000000000.................",
+    "secret00000000023eb3dc.gYu6Lo|zUGobXv|!",
+)
+GOOGLE_COLLIDING = (
+    "public00................................",
+    "secret00:Y2;ICd)e)te-'3sV[W%aA.ih[iJCu4M",
+)
+HOST_COLLIDING = (
+    "public000000................................",
+    "secret000000AQaQ:.eE5OJ~//7+~;_Z+G'}b(W(yet;",
+)
+
+
+def colliding(dialect: str) -> tuple[str, str]:
+    return GOOGLE_COLLIDING if dialect == "google" else COLLIDING
+
+
+@pytest.mark.parametrize("secret_first", [False, True])
+@pytest.mark.parametrize("dialect", DIALECTS)
+async def test_a_result_colliding_with_a_checked_result_is_checked(
+    dialect: str, secret_first: bool
+) -> None:
+    public, secret = colliding(dialect)
+    model = Scripted(calls_output(READ), calls_output(), calls_output())
+    bridge = AgentBridge(
+        AgentState(messages=[]), model_aliases={"inspect": model.model}
+    )
+
+    with active(terminate_on_secret()):
+        with pytest.raises(TerminateSampleError, match="blocked secret"):
+            await dialect_round_trip(
+                dialect,
+                bridge,
+                results=[secret, public] if secret_first else [public, secret],
+            )
+
+    assert len(model.inputs) == (1 if secret_first else 2)
+
+
+@pytest.mark.parametrize("sandbox", [False, True])
+@pytest.mark.parametrize("dialect", DIALECTS)
+async def test_a_result_colliding_with_one_the_bridge_started_with_is_checked(
+    dialect: str, sandbox: bool
+) -> None:
+    public, secret = colliding(dialect)
+    seen: Steps = []
+    model = Scripted(calls_output())
+    state = AgentState(
+        messages=[
+            ChatMessageUser(content=TASK),
+            ChatMessageAssistant(content="Reading.", tool_calls=[READ]),
+            ChatMessageTool(
+                content=as_handed(dialect, public),
+                tool_call_id=READ.id,
+                function=READ.function,
+            ),
+        ]
+    )
+    bridge = started_with(sandbox, model.model, state)
+
+    with active([bridge_recording(seen)]):
+        await dialect_history_request(dialect, bridge, READ, secret)
+
+    assert [
+        (step.call, step.result.text)
+        for step in seen
+        if isinstance(step, AfterToolCall)
+    ] == [(READ, as_handed(dialect, secret))]
+
+
+async def test_a_colliding_result_of_a_call_never_handed_over_is_checked() -> None:
+    public, secret = COLLIDING
+    seen: Steps = []
+    model = Scripted(calls_output(), calls_output())
+    bridge = in_process_bridge([])
+    history: list[ChatMessage] = [
+        ChatMessageUser(content=TASK),
+        ChatMessageAssistant(content="Reading.", tool_calls=[READ]),
+    ]
+
+    with active([bridge_recording(seen)]):
+        for text in (public, secret):
+            result = ChatMessageTool(
+                content=text, tool_call_id=READ.id, function=READ.function
+            )
+            await generate(bridge, model, [*history, result])
+
+    assert [step.result.text for step in seen if isinstance(step, AfterToolCall)] == [
+        public,
+        secret,
+    ]
+
+
+async def test_a_result_colliding_with_a_checked_host_result_is_checked() -> None:
+    public, secret = HOST_COLLIDING
+    seen: Steps = []
+    read = ToolCall(
+        id="host_1", function="mcp__host__read_file", arguments=READ.arguments
+    )
+    model = Scripted(calls_output(read), calls_output())
+    bridge = sandbox_bridge(AsyncMock(return_value=public))
+
+    with active([bridge_recording(seen)]):
+        output = await generate(
+            bridge, model, [ChatMessageUser(content=TASK)], declare_read_file()
+        )
+        await call_host_tool(bridge)("host", "read_file", READ.arguments)
+        await generate(
+            bridge,
+            model,
+            [
+                ChatMessageUser(content=TASK),
+                output.message,
+                ChatMessageTool(
+                    content=secret, tool_call_id=read.id, function=read.function
+                ),
+            ],
+            declare_read_file(),
+        )
+
+    assert [step.result.text for step in seen if isinstance(step, AfterToolCall)] == [
+        public,
+        secret,
+    ]
+
+
 @protocol
 def terminate_on_secret_internal() -> Protocol:
     async def after(
