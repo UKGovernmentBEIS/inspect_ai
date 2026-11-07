@@ -99,6 +99,60 @@ def test_reasoning_capable_nova_models_emit_reasoning_config(model_name: str):
 
 
 @pytest.mark.parametrize(
+    "effort,expected",
+    [
+        ("minimal", "low"),
+        ("low", "low"),
+        ("medium", "medium"),
+        ("high", "high"),
+        ("xhigh", "high"),
+        ("max", "high"),
+    ],
+)
+def test_nova_reasoning_effort_clamped_to_low_medium_high(
+    effort: Literal["minimal", "low", "medium", "high", "xhigh", "max"],
+    expected: str,
+):
+    """Nova 2 accepts only low/medium/high (#5933)."""
+    api = _make_nova_api()
+    assert api.reasoning_config(GenerateConfig(reasoning_effort=effort)) == {
+        "reasoningConfig": {"type": "enabled", "maxReasoningEffort": expected}
+    }
+
+
+def test_nova_reasoning_effort_none_omits_reasoning_config():
+    """reasoning_effort='none' must not enable Nova reasoning (#5933)."""
+    api = _make_nova_api()
+    config = GenerateConfig(reasoning_effort="none", max_tokens=2048)
+    assert api.reasoning_config(config) == {}
+    assert _nova_high_effort_reasoning(api, config) is False
+
+
+@pytest.mark.parametrize("effort", ["xhigh", "max"])
+def test_nova_effort_above_high_drops_max_tokens(
+    effort: Literal["xhigh", "max"],
+):
+    """xhigh/max are sent as high, so they also require maxTokens to be unset."""
+    api = _make_nova_api()
+    config = GenerateConfig(reasoning_effort=effort, max_tokens=2048)
+    assert _nova_high_effort_reasoning(api, config) is True
+
+
+def test_unsupported_nova_reasoning_effort_none_does_not_warn(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    warnings: list[str] = []
+    monkeypatch.setattr(
+        "inspect_ai.model._providers.bedrock.warn_once",
+        lambda _logger, message: warnings.append(message),
+    )
+    api = _make_nova_api("us.amazon.nova-pro-v1:0")
+
+    assert api.reasoning_config(GenerateConfig(reasoning_effort="none")) == {}
+    assert warnings == []
+
+
+@pytest.mark.parametrize(
     "model_name",
     [
         "amazon.nova-lite-v1:0",
@@ -186,6 +240,10 @@ def test_adaptive_thinking_model_omits_top_k():
         ("custom-nova-test", "medium", True, 2048),
         ("amazon.nova-future-test-v1:0", "medium", True, 2048),
         ("amazon.nova-pro-v2:0", "high", True, None),
+        ("amazon.nova-2-lite-v1:0", "minimal", "low", 2048),
+        ("amazon.nova-2-lite-v1:0", "xhigh", "high", None),
+        ("amazon.nova-2-lite-v1:0", "max", "high", None),
+        ("amazon.nova-2-lite-v1:0", "none", False, 2048),
         (
             "arn:aws:bedrock:us-east-1::foundation-model/amazon.nova-2-lite-v1:0",
             "medium",
@@ -205,8 +263,8 @@ async def test_nova_generate_request(
     request: pytest.FixtureRequest,
     monkeypatch: pytest.MonkeyPatch,
     model_name: str,
-    effort: Literal["low", "medium", "high"],
-    expected_reasoning: bool,
+    effort: Literal["none", "minimal", "low", "medium", "high", "xhigh", "max"],
+    expected_reasoning: bool | str,
     expected_max_tokens: int | None,
 ) -> None:
     captured: dict[str, Any] = {}
@@ -249,7 +307,9 @@ async def test_nova_generate_request(
     if expected_reasoning:
         assert fields["reasoningConfig"] == {
             "type": "enabled",
-            "maxReasoningEffort": effort,
+            "maxReasoningEffort": effort
+            if expected_reasoning is True
+            else expected_reasoning,
         }
     else:
         assert "reasoningConfig" not in fields
