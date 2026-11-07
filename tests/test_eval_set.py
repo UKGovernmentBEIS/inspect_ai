@@ -42,6 +42,7 @@ from inspect_ai._eval.evalset import (
     eval_set,
     latest_completed_task_eval_logs,
     list_all_eval_logs,
+    log_samples_complete,
     read_eval_set_info,
     task_identifier,
     validate_eval_set_prerequisites,
@@ -67,6 +68,7 @@ from inspect_ai.log._file import (
     write_log_listing,
 )
 from inspect_ai.log._log import EvalConfig, EvalLog, EvalSampleSummary
+from inspect_ai.log._metric import recompute_metrics
 from inspect_ai.log._recorders.buffer import database as database_module
 from inspect_ai.log._recorders.buffer.database import (
     SampleBufferDatabase,
@@ -75,7 +77,7 @@ from inspect_ai.log._recorders.buffer.database import (
 )
 from inspect_ai.log._recorders.eval import LogStart, ZipLogFile
 from inspect_ai.log._recorders.types import SampleEvent
-from inspect_ai.model import CachePolicy, Model, get_model
+from inspect_ai.model import CachePolicy, Model, ModelOutput, get_model
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.scorer import (
     Metric,
@@ -2169,6 +2171,159 @@ def test_eval_set_limit_changed():
         assert result
         # reducing limit does not remove samples
         verify_logs(logs, log_dir, samples=10)
+
+
+@pytest.mark.parametrize("epochs", [1, 2])
+@pytest.mark.parametrize(
+    "initial_selection,selection,expected_ids,new_ids",
+    [
+        ({"sample_id": ["A"]}, {"sample_id": ["B"]}, ["B"], ["B"]),
+        ({"sample_id": ["A", "C"]}, {"sample_id": ["B"]}, ["B"], ["B"]),
+        ({"sample_id": ["A"]}, {"sample_id": ["A", "B"]}, ["A", "B"], ["B"]),
+        ({}, {"sample_id": ["B"]}, ["A", "B", "C"], []),
+        ({"limit": (0, 1)}, {"limit": (1, 2)}, ["B"], ["B"]),
+        ({"limit": 2}, {"limit": (1, 3)}, ["B", "C"], ["C"]),
+        (
+            {"sample_id": ["selection:A"]},
+            {"sample_id": ["selection:B*"]},
+            ["B"],
+            ["B"],
+        ),
+    ],
+)
+def test_eval_set_selection_coverage(
+    tmp_path: Path,
+    epochs: int,
+    initial_selection: dict[str, Any],
+    selection: dict[str, Any],
+    expected_ids: list[str],
+    new_ids: list[str],
+) -> None:
+    calls: list[str | int] = []
+
+    @solver
+    def record_selection() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            calls.append(state.sample_id)
+            state.output = ModelOutput.from_content("mockllm/model", "ok")
+            return state
+
+        return solve
+
+    test_task = Task(
+        name="selection",
+        dataset=[
+            Sample(id=id, input=id, target="no" if id == "B" else "ok")
+            for id in ["A", "B", "C"]
+        ],
+        solver=record_selection(),
+        scorer=exact(),
+    )
+    success, first_logs = eval_set(
+        test_task,
+        log_dir=str(tmp_path),
+        model="mockllm/model",
+        epochs=epochs,
+        **initial_selection,
+    )
+    assert success
+    calls.clear()
+    success, logs = eval_set(
+        test_task,
+        log_dir=str(tmp_path),
+        model="mockllm/model",
+        epochs=epochs,
+        **selection,
+    )
+    assert success
+    log = read_eval_log(logs[0].location)
+    assert log.samples is not None and log.results is not None
+    assert {sample.id for sample in log.samples} == set(expected_ids)
+    assert len(log.samples) == len(expected_ids) * epochs
+    assert sorted(calls) == sorted(new_ids * epochs)
+    assert log.results.scores[0].metrics["mean"].value == pytest.approx(
+        sum(id != "B" for id in expected_ids) / len(expected_ids)
+    )
+    if not new_ids:
+        assert basename(logs[0].location) == basename(first_logs[0].location)
+
+
+@pytest.mark.parametrize("log_samples", [True, False])
+def test_eval_set_selection_coverage_with_auto_ids(
+    tmp_path: Path, log_samples: bool
+) -> None:
+    for requested in [1, 2]:
+        success, logs = eval_set(
+            hello_world(samples=3),
+            log_dir=str(tmp_path),
+            model="mockllm/model",
+            sample_id=str(requested),
+            epochs=2,
+            log_samples=log_samples,
+        )
+        assert success
+        assert logs[0].eval.dataset.sample_ids == [requested]
+        assert logs[0].results is not None
+        assert logs[0].results.completed_samples == 2
+
+
+def test_eval_set_selection_coverage_partial_and_legacy_logs(tmp_path: Path) -> None:
+    test_task = hello_world(samples=3)
+    model = get_model("mockllm/model")
+    success, _ = eval_set(test_task, log_dir=str(tmp_path), model=model, epochs=2)
+    assert success
+    [log] = list_all_eval_logs(str(tmp_path))
+    [resolved] = resolve_tasks([test_task], {}, model, None, None, None)
+    all_tasks = [(log.task_identifier, resolved)]
+
+    def complete() -> bool:
+        return log_samples_complete(
+            log, all_tasks, [test_task.name], Epochs(2), None, sample_id=2
+        )
+
+    assert complete()
+    assert log.header.results is not None
+    # A tolerated sample error does not make a successful log incomplete.
+    log.header.results.completed_samples = 4
+    assert complete()
+    # A graceful resolution reports actual completions separately. Enough
+    # completions for the new count do not prove the requested id ran.
+    log.header.results.logged_samples = 2
+    assert not complete()
+    with patch("inspect_ai._eval.evalset.task_gracefully_resolved", return_value=True):
+        assert complete()
+    log.header.results.logged_samples = 6
+    assert complete()
+    # Legacy headers without the selection cannot prove identity coverage.
+    log.header.eval.dataset.sample_ids = None
+    assert not complete()
+
+
+def test_eval_set_selection_coverage_after_partial_log_recompute(
+    tmp_path: Path,
+) -> None:
+    test_task = hello_world(samples=3)
+    model = get_model("mockllm/model")
+    success, _ = eval_set(test_task, log_dir=str(tmp_path), model=model, epochs=2)
+    assert success
+    [log] = list_all_eval_logs(str(tmp_path))
+    partial = read_eval_log(log.info.name)
+    assert partial.samples is not None and partial.results is not None
+    partial.samples = [sample for sample in partial.samples if sample.id == 1]
+    partial.results.logged_samples = len(partial.samples)
+    recompute_metrics(partial)
+    assert partial.results.total_samples == 2
+    write_eval_log(partial, log.info.name)
+    [log] = list_all_eval_logs(str(tmp_path))
+    [resolved] = resolve_tasks([test_task], {}, model, None, None, None)
+    assert not log_samples_complete(
+        log,
+        [(log.task_identifier, resolved)],
+        [test_task.name],
+        Epochs(2),
+        None,
+        sample_id=2,
+    )
 
 
 def test_eval_set_limit_slices():
