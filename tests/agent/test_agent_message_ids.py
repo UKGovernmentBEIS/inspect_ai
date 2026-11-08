@@ -833,6 +833,70 @@ def test_compacted_identical_replies_keep_their_own_ids(
     ]
 
 
+def _stripped(value: Any) -> Any:
+    """A wire reply turn with its text stripped of surrounding whitespace."""
+    if isinstance(value, dict):
+        return {
+            key: item.strip()
+            if key in ("text", "content") and isinstance(item, str)
+            else _stripped(item)
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [_stripped(item) for item in value]
+    return value
+
+
+@pytest.mark.parametrize("case", ["edited", "intact"])
+@pytest.mark.parametrize("dialect", DIALECTS)
+def test_edited_retained_reply_never_takes_a_dropped_replys_id(
+    dialect: Dialect, case: str, tmp_path: Path
+) -> None:
+    """A retained reply edited to equal a dropped one gets its own edit's id or a new one, never the dropped reply's.
+
+    The replies are `OK` and `OK ` (a trailing space). Compaction keeps only
+    the second and trims it to `OK`, which either reply could have become
+    through a whitespace edit, so it doesn't take the first reply's id. With
+    the history intact, both replies keep their ids.
+    """
+    sent: _Sent = []
+
+    @agent
+    def scaffold() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            async with agent_bridge(state) as bridge:
+                conversation = _TextConversation(dialect, sent=sent)
+                conversation.user("Say OK.")
+                await conversation.generate()
+                conversation.user("Say it again.")
+                await conversation.generate()
+                if case == "edited":
+                    conversation.turns = [
+                        conversation.user_turn("Summary: said it twice."),
+                        _stripped(conversation.turns[-1]),
+                    ]
+                for text in ("Once more.", "Thanks."):
+                    conversation.user(text)
+                    await conversation.generate()
+                return bridge.state
+
+        return execute
+
+    events, sample = _reply_events(scaffold, ["OK", "OK ", "Done", "Bye"], tmp_path)
+    reply_ids = [event.output.message.id for event in events]
+    _assert_owned(events, sent)
+    final = [m.id for m in events[3].input if m.role == "assistant"]
+    if case == "intact":
+        assert final == reply_ids[:3]
+    else:
+        assert final[0] not in reply_ids
+        assert final[1] == reply_ids[2]
+    assert [m.id for m in sample.messages if m.role == "assistant"] == [
+        *final,
+        reply_ids[3],
+    ]
+
+
 def _assert_owned(events: list[ModelEvent], sent: _Sent) -> None:
     """No reply is given an id another reply was given first.
 
@@ -1721,7 +1785,13 @@ async def test_equal_compacted_result_is_fresh_and_links_unless_copied(
 async def test_edited_reply_gets_fresh_result_after_compaction(
     regenerated: bool,
 ) -> None:
-    """An edited pending reply still owns a fresh result with a repeated call ID."""
+    """A compacted reply edited the way either of two equal replies could be gets new ids for it and its result.
+
+    The two replies share a call id. Once compaction drops the first, the
+    second's edit could be the first edited the same way, so the edit gets a
+    new id, and its result gets a new one too, unlinked: never the first
+    reply's answer.
+    """
     task = ChatMessageUser(content="List twice.")
     first_id, second_id, returned_id = (
         ("toolu_1", "toolu_2", "call_bash_1")
@@ -1756,8 +1826,9 @@ async def test_edited_reply_gets_fresh_result_after_compaction(
         ]
     )
 
+    assert ids[1] not in (first.id, second.id, observed[3])
     assert ids[3] != first_ids[2]
-    assert second_event.message_id == ids[3]
+    assert second_event.message_id is None
     assert ids[3] not in bridge._edit_parent
 
 

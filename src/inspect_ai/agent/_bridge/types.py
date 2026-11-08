@@ -954,9 +954,14 @@ class AgentBridge:
                 del aligned[index]
         key_counts = Counter(key for message_keys in keys for key in set(message_keys))
         unique: list[str | None] = []
-        for message_keys in keys:
+        for message, message_keys in zip(messages, keys):
             key = next((key for key in message_keys if self._message_ids.get(key)), "")
-            unique.append(self._named_id(key) if key_counts[key] == 1 else None)
+            named = self._named_id(key) if key_counts[key] == 1 else None
+            if named is not None and not self._sole_source(
+                message, message_keys, named
+            ):
+                named = None
+            unique.append(named)
         claimed = Counter(
             self._edit_root(id) for id in [*unique, *aligned.values()] if id is not None
         )
@@ -1499,6 +1504,26 @@ class AgentBridge:
             return None
         ids = self._message_ids[key]
         return ids[0] if len(ids) == 1 else root
+
+    def _sole_source(
+        self, message: ChatMessage, message_keys: list[str], message_id: str
+    ) -> bool:
+        """Whether `message_id` is the only recorded message `message` could be an edit of.
+
+        A scaffold may edit a message in any way its loose key ignores, so
+        another message recorded under that key could have become `message`,
+        however strong the key `message_id` was recognized by. Only call ids
+        no other message was recorded with show which one it was: an edit
+        doesn't give a message another one's call ids.
+        """
+        root = self._edit_root(message_id)
+        if any(
+            _key_strength(key) == 2 and self._key_roots.get(key) == root
+            for key in message_keys
+        ):
+            return True
+        loose = _message_id_keys(message)[-1]
+        return self._key_roots.get(loose, root) == root
 
     def _record_transported_reply(
         self, reply: ChatMessageAssistant, transported: list[ChatMessage]
