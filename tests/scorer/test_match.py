@@ -402,3 +402,27 @@ async def test_numeric_match_exact_still_matches_clean_number():
 
     assert result is not None
     assert result.text == CORRECT
+
+
+@pytest.mark.anyio
+async def test_numeric_long_repeated_chinese_units_malformed_no_crash():
+    # Long repeated-unit output previously raised RecursionError in the
+    # compound-unit parser instead of returning a score; malformed output
+    # scores INCORRECT, as it did before the compound-unit change.
+    scorer = match(numeric=True)
+    state = simple_task_state(model_output="万" * 1100 + "x")
+    result = await scorer(state, Target(["42"]))
+
+    assert result is not None
+    assert result.text == INCORRECT
+
+
+@pytest.mark.anyio
+async def test_numeric_long_repeated_chinese_units_scores():
+    # A long repeated-unit numeral still parses (to 0.0) and can match.
+    scorer = match(numeric=True)
+    state = simple_task_state(model_output="万" * 1100)
+    result = await scorer(state, Target(["0"]))
+
+    assert result is not None
+    assert result.text == CORRECT
