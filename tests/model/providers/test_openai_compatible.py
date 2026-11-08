@@ -1059,13 +1059,70 @@ async def test_together_batch_sends_each_header_set_separately() -> None:
     ]
 
 
-def test_together_batcher_base_url_matches_together_sdk_major() -> None:
+@skip_if_no_together
+@pytest.mark.slow
+async def test_together_batch_live_round_trip() -> None:
+    """Live Together batch round trip through the real SDK (issue #6300).
+
+    Uploads a batch file with the sync Together client, creates the batch
+    with the async Together client, and polls to a completed result. On
+    main with together 3.x this fails at file upload: the SDK builds
+    /v1-prefixed paths, so the uncorrected base URL requests
+    .../v1/v1/files and the upload returns a non-JSON 409.
+    """
+    import functools
+    import os
+
+    import anyio
+    from openai import AsyncOpenAI
+
+    from inspect_ai._util._async import tg_collect
+    from inspect_ai._util.background import set_background_task_group
+    from inspect_ai.model._generate_config import BatchConfig
+    from inspect_ai.model._providers._together_batch import TogetherBatcher
+    from inspect_ai.model._retry import model_retry_config
+
+    batcher = TogetherBatcher(
+        AsyncOpenAI(
+            api_key=os.environ["TOGETHER_API_KEY"],
+            base_url="https://api.together.xyz/v1",
+        ),
+        BatchConfig(size=1, send_delay=0.02, tick=5),
+        model_retry_config(
+            "test", 3, None, lambda e: True, lambda ex: None, lambda m, s: None
+        ),
+    )
+    request: dict[str, Any] = {
+        "model": "meta-llama/Llama-3.1-8B-Instruct-Turbo",
+        "messages": [{"role": "user", "content": "Reply with the single word apple."}],
+        "max_tokens": 8,
+        "temperature": 0.0,
+    }
+
+    async with anyio.create_task_group() as tg:
+        set_background_task_group(tg)
+        try:
+            results = await tg_collect(
+                [functools.partial(batcher.generate_for_request, request)]
+            )
+        finally:
+            set_background_task_group(None)
+
+    completion = results[0]
+    assert completion.choices, "batch completed without any choices"
+    content = completion.choices[0].message.content
+    assert content, "batch completed with empty content"
+    assert "apple" in content.lower()
+
+
+@skip_if_no_together
+def test_together_batcher_base_url_matches_together_sdk_v3() -> None:
     """TogetherBatcher passes the Together SDK a base URL that builds correct resource URLs.
 
     Together SDK 3.x prefixes resource paths with /v1, so a base URL ending
     in /v1 produces .../v1/v1/files and every batch fails at creation.
-    SDK 2.x builds paths relative to the base URL, so it needs the /v1
-    suffix. (issue #6300)
+    The batcher strips one trailing /v1 before constructing SDK clients.
+    (issue #6300)
     """
     from unittest.mock import MagicMock, patch
 
@@ -1092,38 +1149,25 @@ def test_together_batcher_base_url_matches_together_sdk_major() -> None:
         )
 
     client = together.Together(api_key="test", base_url=captured["sync"])
-    if int(together.__version__.split(".")[0]) >= 3:
-        assert client._prepare_url("/v1/files") == "https://api.together.xyz/v1/files"
-        assert (
-            client._prepare_url("/v1/batches") == "https://api.together.xyz/v1/batches"
-        )
-    else:
-        assert client._prepare_url("files") == "https://api.together.xyz/v1/files"
+    assert client._prepare_url("/v1/files") == "https://api.together.xyz/v1/files"
+    assert client._prepare_url("/v1/batches") == "https://api.together.xyz/v1/batches"
 
 
 @pytest.mark.parametrize(
-    ("is_v3", "base_url", "expected"),
+    ("base_url", "expected"),
     [
-        (True, "https://api.together.xyz/v1", "https://api.together.xyz"),
-        (True, "https://api.together.xyz/v1/", "https://api.together.xyz"),
-        (True, "https://api.together.xyz", "https://api.together.xyz"),
-        (True, "https://proxy.example.com/v1", "https://proxy.example.com"),
-        (False, "https://api.together.xyz/v1", "https://api.together.xyz/v1"),
-        (False, "https://api.together.xyz/v1/", "https://api.together.xyz/v1/"),
+        ("https://api.together.xyz/v1", "https://api.together.xyz"),
+        ("https://api.together.xyz/v1/", "https://api.together.xyz"),
+        ("https://api.together.xyz", "https://api.together.xyz"),
+        ("https://proxy.example.com/v1", "https://proxy.example.com"),
+        ("https://proxy.example.com/together/v1", "https://proxy.example.com/together"),
     ],
 )
-def test_together_sdk_base_url(
-    monkeypatch: pytest.MonkeyPatch, is_v3: bool, base_url: str, expected: str
-) -> None:
-    """The Together SDK base URL keeps /v1 on together 2.x and strips it on 3.x."""
-    from inspect_ai.model._providers import _together_batch
+def test_together_sdk_base_url(base_url: str, expected: str) -> None:
+    """The Together SDK base URL strips one trailing /v1 (together >= 3.0.0)."""
+    from inspect_ai.model._providers._together_batch import _together_sdk_base_url
 
-    monkeypatch.setattr(
-        _together_batch,
-        "has_required_version",
-        lambda package, version: is_v3,
-    )
-    assert _together_batch._together_sdk_base_url(base_url) == expected
+    assert _together_sdk_base_url(base_url) == expected
 
 
 def test_together_resolve_stream_declines_logprobs() -> None:
