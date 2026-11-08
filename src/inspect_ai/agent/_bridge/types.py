@@ -303,10 +303,10 @@ class _CopiedAnswers:
     """How many of the key's ids `outcomes` and `unrecorded` cover."""
 
     outcomes: Counter[frozenset[str]] = field(default_factory=Counter)
-    """Per outcomes, how many of those ids' edit roots have an answer record with them (see `AgentBridge._copy_keys`)."""
+    """Per outcomes, how many of those ids have an answer record with them (see `AgentBridge._copy_keys`)."""
 
     unrecorded: list[str] = field(default_factory=list)
-    """Edit roots of those ids not yet found with an answer record, or whose record was dropped."""
+    """Those ids not yet found with an answer record, or whose record was dropped."""
 
 
 _MAX_ANSWER_RECORDS = 4096
@@ -541,7 +541,7 @@ class AgentBridge:
         )
         self._copied_answers: dict[str, _CopiedAnswers] = {}
         self._copy_keys: dict[str, set[str]] = {}
-        """Per edit root with an answer record, the keys whose `_CopiedAnswers.outcomes` count it."""
+        """Per id with an answer record, the keys whose `_CopiedAnswers.outcomes` count it."""
         self._operator_keys: set[str] = set()
         self._warned_request_settings: set[str] = set()
 
@@ -1291,20 +1291,24 @@ class AgentBridge:
     def _copies_answered(self, key: str, outcomes: frozenset[str]) -> bool:
         """Whether every message recorded under `key` has an answer record with `outcomes`.
 
+        Each message's own record, not its edit root's: an edit sent after the
+        call ran again may hold that execution's result. An edit without a
+        record of its own doesn't count as an answer.
+
         Kept per key and updated as ids are recorded and records dropped, so
         repeated results don't each rescan the ids recorded under their keys.
         """
         ids = self._message_ids.get(key, [])
         copied = self._copied_answers.setdefault(key, _CopiedAnswers())
-        copied.unrecorded.extend(self._edit_root(id) for id in ids[copied.counted :])
+        copied.unrecorded.extend(ids[copied.counted :])
         copied.counted = len(ids)
         while copied.unrecorded:
-            root = copied.unrecorded[-1]
-            answer = self._answers.get(root)
+            message_id = copied.unrecorded[-1]
+            answer = self._answers.get(message_id)
             if answer is None:
                 return False
             copied.unrecorded.pop()
-            counted = self._copy_keys.setdefault(root, set())
+            counted = self._copy_keys.setdefault(message_id, set())
             if key not in counted:
                 counted.add(key)
                 copied.outcomes[answer.outcomes] += 1

@@ -7041,25 +7041,53 @@ async def test_copy_of_an_answer_to_several_executions_links_nothing(
     assert tool_events[-1].message_id == (None if copied or shadowed else answer)
 
 
-async def test_answer_sent_after_a_later_execution_holds_its_outcome() -> None:
-    """An answer first sent after the call executed again, once settled, counts that execution's outcome too.
+@pytest.mark.parametrize("resumed", [False, True], ids=["live", "resumed"])
+@pytest.mark.parametrize("sent", ["copy", "own"])
+@pytest.mark.parametrize("rerun", [True, False], ids=["X then Y", "X only"])
+@pytest.mark.parametrize(
+    "dialect,call_ids,answer",
+    [
+        ("google", "reused", "edited"),
+        *[
+            (dialect, call_ids, answer)
+            for call_ids in ["reused", "distinct"]
+            for dialect in ["completions", "responses", "anthropic"]
+            for answer in ["added", "edited"]
+        ],
+    ],
+)
+async def test_answer_sent_after_a_later_execution_holds_its_outcome(
+    dialect: HostDialect,
+    call_ids: str,
+    rerun: bool,
+    answer: str,
+    sent: str,
+    resumed: bool,
+) -> None:
+    """An answer, or an edit of one, first sent after the call executed again counts that execution's outcome too.
 
-    The call runs on `a` ("X") and its answer links; it then runs on `b`
-    ("Y"), and the scaffold sends a second answer "Y". A copy of that answer
-    to a later equal call returning "X", made to a bridge resumed from a
-    checkpoint, links nothing.
+    The call runs on `a` ("X") and its answer "X" links; with `rerun` it then
+    runs on `b` ("Y"). The scaffold sends "Y" as a second answer (`added`) or
+    in place of its "X" answer (`edited`), compacts that exchange away, and
+    runs an equal call on `a` returning "X", answering it with a copy of the
+    "Y" answer (or, as a control, its own "X"). With `resumed`, the later call
+    is made to a bridge resumed from a checkpoint taken after the "Y" answer.
+    A copy of an answer to both executions links nothing; after one
+    execution, "Y" is the scaffold's rendering of "X" and a copy links.
+    Google sends a second result under another call's derived id, so it has
+    no `added` case.
     """
 
-    def calls(text: str) -> ModelOutput:
+    def calls(text: str, call_id: str = "call_1") -> ModelOutput:
         return tool_calls_output(
-            ToolCall(id="call_1", function="read_file", arguments={"path": "p"}),
+            ToolCall(id=call_id, function="read_file", arguments={"path": "p"}),
             content=text,
         )
 
     outputs = [
         calls("Reading p."),
         *[ModelOutput.from_content("mockllm/model", "Noted.")] * 2,
-        calls("Reading p again."),
+        calls("Reading p again.", "call_1" if call_ids == "reused" else "call_2"),
         ModelOutput.from_content("mockllm/model", "Done."),
     ]
     model = get_model("mockllm/model", custom_outputs=outputs)
@@ -7088,33 +7116,49 @@ async def test_answer_sent_after_a_later_execution_holds_its_outcome() -> None:
     checkpointer = RecordingCheckpointer()
     bridge = host_bridge(checkpointer)
     [info] = declare("read_file")
-    conversation = _HostConversation("completions", "Read p.", info)
+    conversation = _HostConversation(dialect, "Read p.", info)
     with recorded_transcript() as recorded:
         first = await conversation.request(bridge)
         await call_host_tool(bridge)("a", "read_file", first[0][1])
+        answer_index = len(conversation.history)
         conversation.results(first, ["X"])
         await conversation.request(bridge)
-        await call_host_tool(bridge)("b", "read_file", first[0][1])
-        conversation.history.insert(
-            3, {"role": "tool", "tool_call_id": "call_1", "content": "Y"}
-        )
+        if rerun:
+            await call_host_tool(bridge)("b", "read_file", first[0][1])
+        conversation.results(first, ["Y"])
+        if answer == "edited":
+            conversation.history[answer_index] = conversation.history.pop()
+        else:
+            conversation.history.insert(answer_index + 1, conversation.history.pop())
         await conversation.request(bridge)
-        bridge = host_bridge(
-            RecordingCheckpointer(
-                restored=json.loads(json.dumps(checkpointer.snapshot())),
-                serialized=True,
+        model_events = [e for e in recorded.events if isinstance(e, ModelEvent)]
+        [y_answer] = [
+            m for m in model_events[-1].input if m.role == "tool" and "Y" in m.text
+        ]
+        assert y_answer.id is not None
+        record = bridge._answers[y_answer.id]
+        assert len(record.outcomes) == (2 if rerun else 1)
+        if resumed:
+            bridge = host_bridge(
+                RecordingCheckpointer(
+                    restored=json.loads(json.dumps(checkpointer.snapshot())),
+                    serialized=True,
+                )
             )
-        )
-        conversation.history = [_user_turn("completions", "Summary: p reads Y.")]
+            assert bridge._answers[y_answer.id] == record
+        conversation.history = [_user_turn(dialect, "Summary: p reads Y.")]
         second = await conversation.request(bridge)
         await call_host_tool(bridge)("a", "read_file", second[0][1])
-        conversation.results(second, ["Y"])
+        conversation.results(second, ["Y" if sent == "copy" else "X"])
         await conversation.request(bridge)
 
+    model_events = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    [latest] = [m.id for m in model_events[-1].input if m.role == "tool"]
     tool_events = [e for e in recorded.events if isinstance(e, ToolEvent)]
-    assert [e.result for e in tool_events] == ["X", "Y", "X"]
+    assert [e.result for e in tool_events] == ["X", *(["Y"] if rerun else []), "X"]
     assert tool_events[0].message_id is not None
-    assert tool_events[-1].message_id is None
+    copied = sent == "copy" and call_ids == "reused" and rerun
+    assert tool_events[-1].message_id == (None if copied else latest)
 
 
 @agent
