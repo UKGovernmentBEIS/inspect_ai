@@ -1984,9 +1984,10 @@ def one_log_per_task_identifier(
     Logs are ranked by the run that started most recently (`eval.created`,
     which survives rewrites and copies of the file; file mtime breaks ties
     within a second). A complete log recorded for the requested `limit` and
-    `sample_id` is reused even when a newer incomplete log exists. Otherwise
-    the newest log wins, since a complete log for another selection may hold
-    different samples. Logs not chosen are left on disk.
+    `sample_id` is reused even when a newer incomplete log exists, unless
+    that newer log was invalidated. Otherwise the newest log wins, since a
+    complete log for another selection may hold different samples. Logs not
+    chosen are left on disk.
     """
     requested = _selection(limit, sample_id)
 
@@ -2008,8 +2009,13 @@ def one_log_per_task_identifier(
     complete = best(complete_logs, lambda log: (matches(log), started(log)))
     incomplete = best(incomplete_logs, started)
     for identifier in set(complete) & set(incomplete):
-        reuse = complete[identifier]
-        if matches(reuse) or started(reuse) > started(incomplete[identifier]):
+        reuse, retry = complete[identifier], incomplete[identifier]
+        newer_retry = started(retry) > started(reuse)
+        # invalidated samples are retried (see invalidate_samples), so an
+        # older complete run never stands in for a newer invalidated one
+        if (matches(reuse) or not newer_retry) and not (
+            newer_retry and retry.header.invalidated
+        ):
             del incomplete[identifier]
         else:
             del complete[identifier]

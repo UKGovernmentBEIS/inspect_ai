@@ -2558,11 +2558,9 @@ def test_eval_set_cross_run_partial_run_does_not_shadow_complete(tmp_path: Path)
     assert logs[0].eval.eval_id == full.eval.eval_id
 
 
-def test_eval_set_cross_run_complete_preferred_over_newer_invalidated(
-    tmp_path: Path,
-):
-    # a complete log is reused before an incomplete one is retried, so an
-    # older complete run wins over a newer run whose samples were invalidated
+def test_eval_set_cross_run_newer_invalidated_log_is_retried(tmp_path: Path):
+    # invalidated samples are retried (see invalidate_samples): an older
+    # complete run must not stand in for a newer run that was invalidated
     log_dir = str(tmp_path)
     older = _cross_run_eval(cross_run_a(), log_dir, fail=False)
     newer = _cross_run_eval(cross_run_a(), log_dir, fail=False)
@@ -2577,9 +2575,15 @@ def test_eval_set_cross_run_complete_preferred_over_newer_invalidated(
 
     ok, logs = _cross_run_eval_set([cross_run_a()], log_dir)
     assert ok
+    assert _CROSS_RUN_RUNS["cross_run_a"] == 1  # only the invalidated sample
+    assert _cross_run_per_task(logs) == {"cross_run_a": 1}
+    assert logs[0].eval.task_id == newer.eval.task_id
+    assert logs[0].eval.task_id != older.eval.task_id
+
+    ok, logs = _cross_run_eval_set([cross_run_a()], log_dir)
+    assert ok
     assert _CROSS_RUN_RUNS["cross_run_a"] == 0
     assert _cross_run_per_task(logs) == {"cross_run_a": 1}
-    assert logs[0].eval.eval_id == older.eval.eval_id
 
 
 def test_eval_set_cross_run_distinct_tasks_kept_apart(tmp_path: Path):
