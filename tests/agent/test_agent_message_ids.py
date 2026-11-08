@@ -2785,6 +2785,9 @@ async def test_host_results_of_calls_sharing_an_id_stay_unlinked() -> None:
         "rewritten",
         "distinct_ids",
         "intact",
+        "reversed",
+        "reversed_rewritten",
+        "distinct_reversed",
         "both_retained",
     ],
 )
@@ -2797,17 +2800,26 @@ async def test_retained_result_of_calls_sharing_an_id_never_takes_the_others_id(
     results). Equal results can't be told apart, so they get new ids, as does
     a result `rewritten` to equal neither: the call id they share doesn't say
     which it was. Unequal results, results under distinct call ids and an
-    intact history keep their own ids, and a whitespace edit an id derived
-    from its own. The host results stay unlinked.
+    intact history keep their own ids, also when a retry sends the unequal
+    results `reversed` (the other, `reversed_rewritten` to equal neither,
+    gets a new id), and a whitespace edit an id derived from its own. The
+    host results stay unlinked.
     """
     task = ChatMessageUser(content="Read a.txt twice.")
     reply = _same_calls(
-        *(("call_a", "call_b") if case == "distinct_ids" else ("unknown", "unknown"))
+        *(
+            ("call_a", "call_b")
+            if case.startswith("distinct")
+            else ("unknown", "unknown")
+        )
     )
     assert reply.tool_calls
     call_ids = [call.id for call in reply.tool_calls]
     contents = (
-        ("A", "B") if case in ("unequal", "edited", "rewritten") else ("a.txt", "a.txt")
+        ("A", "B")
+        if case in ("unequal", "edited", "rewritten")
+        or case.startswith(("reversed", "distinct_reversed"))
+        else ("a.txt", "a.txt")
     )
     results = [_result(id, content) for id, content in zip(call_ids, contents)]
     scaffold = _Scaffold(AgentBridge(AgentState(messages=[task])))
@@ -2824,6 +2836,13 @@ async def test_retained_result_of_calls_sharing_an_id_never_takes_the_others_id(
     if case == "intact":
         ids = await scaffold.request([task, reply, *results])
         assert ids[2:4] == full[2:4]
+    elif case.endswith("reversed"):
+        ids = await scaffold.request([task, reply, *results[::-1]])
+        assert ids[2:4] == [full[3], full[2]]
+    elif case == "reversed_rewritten":
+        ids = await scaffold.request([task, reply, results[1], _result("unknown", "C")])
+        assert ids[2] == full[3]
+        assert scaffold.bridge._edit_root(ids[3]) not in (full[2], full[3])
     else:
         summary = ChatMessageUser(content="Summary: read it twice.")
         retained = (
@@ -2841,8 +2860,30 @@ async def test_retained_result_of_calls_sharing_an_id_never_takes_the_others_id(
         else:
             roots = {scaffold.bridge._edit_root(id) for id in ids[2:]}
             assert not roots & {full[2], full[3]}
-    if case != "distinct_ids":
+    if not case.startswith("distinct"):
         assert [event.message_id for event in events] == [None, None]
+
+
+async def test_placed_edit_keeps_its_id_beside_a_later_copy_of_its_original() -> None:
+    """A copy after the thread a request continues doesn't take the id of the thread's edited message."""
+    task = ChatMessageUser(content="Hi")
+    hello = ChatMessageAssistant(content="Hello.")
+    scaffold = _Scaffold(AgentBridge(AgentState(messages=[task])))
+    full = await scaffold.request(
+        [task, hello, ChatMessageUser(content="Thanks.")],
+        ChatMessageAssistant(content="Ok."),
+    )
+    ids = await scaffold.request(
+        [
+            task,
+            hello,
+            ChatMessageUser(content="Thanks. "),
+            ChatMessageAssistant(content="Ok."),
+            ChatMessageUser(content="Thanks."),
+        ]
+    )
+    assert scaffold.bridge._edit_root(ids[2]) == full[2]
+    assert scaffold.bridge._edit_root(ids[4]) != full[2]
 
 
 async def test_host_results_with_changed_arguments_stay_unlinked() -> None:

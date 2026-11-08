@@ -7031,6 +7031,8 @@ async def test_repeated_scaffold_result_never_takes_an_earlier_executions_id(
         "shared_unequal",
         "distinct_equal",
         "shared_equal_intact",
+        "shared_unequal_reversed",
+        "distinct_unequal_reversed",
     ],
 )
 @pytest.mark.parametrize("dialect", ["google", "completions", "responses", "anthropic"])
@@ -7043,9 +7045,10 @@ async def test_retained_result_of_calls_sharing_an_id_never_takes_the_others_id(
     parser gives calls it can't parse ids for. Compaction keeps the reply and
     only its second result. Equal results can't be told apart, so the
     retained one gets a new id; unequal results, or results under distinct
-    call ids, keep their own. With the history intact both keep their ids.
-    Google re-derives call ids and infers which call a result answers: a
-    result equal to, or sent without, the other call's gets a new id.
+    call ids, keep their own. With the history intact both keep their ids,
+    also when a retry sends unequal results `reversed`. Google re-derives
+    call ids and infers which call a result answers: a result equal to, or
+    sent without, the other call's gets a new id.
     """
     shared = case.startswith("shared")
     outputs = [
@@ -7079,6 +7082,9 @@ async def test_retained_result_of_calls_sharing_an_id_never_takes_the_others_id(
         await conversation.request(cast(SandboxAgentBridge, bridge))
         if case.endswith("intact"):
             conversation.history.append(_user_turn(dialect, "Thanks."))
+        elif case.endswith("reversed"):
+            conversation.history = conversation.history[: start + len(reply)]
+            conversation.results(calls[::-1], results[::-1])
         else:
             conversation.history = [
                 _user_turn(dialect, "Summary: read a and b."),
@@ -7095,6 +7101,8 @@ async def test_retained_result_of_calls_sharing_an_id_never_takes_the_others_id(
         assert not set(retained) & {first, second}
     elif case.endswith("intact"):
         assert retained == [first, second]
+    elif case.endswith("reversed"):
+        assert retained == [second, first]
     elif case == "shared_equal":
         assert retained[0] not in (first, second)
     else:

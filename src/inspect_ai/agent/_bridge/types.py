@@ -981,6 +981,7 @@ class AgentBridge:
             ):
                 named = None
             unique.append(named)
+        self._drop_contradicted_placements(keys, unique, aligned)
         claimed = Counter(
             self._edit_root(id) for id in [*unique, *aligned.values()] if id is not None
         )
@@ -1122,6 +1123,36 @@ class AgentBridge:
         # only after linking, so the request's ownership checks all see the
         # records it started with
         self._drop_answer_records()
+
+    def _drop_contradicted_placements(
+        self, keys: list[list[str]], unique: list[str | None], aligned: dict[int, str]
+    ) -> None:
+        """Drop placements a placed message's exact content contradicts.
+
+        A message whose content key names one recorded message, which no other
+        message of the request is recognized as, is that message's unchanged
+        copy. Placed elsewhere by weaker keys (a call id calls can share), it
+        keeps its own id, and the message placed as the one it copies doesn't
+        take that id. A copy outside the placed messages leaves placement as
+        it is: it may be a new message equal to a placed one before an edit.
+        """
+        roots = [self._edit_root(id) if id is not None else None for id in unique]
+        counts = Counter(root for root in roots if root is not None)
+        contradicted: set[str] = set()
+        for index, message_id in list(aligned.items()):
+            id, root = unique[index], roots[index]
+            if (
+                id is not None
+                and root is not None
+                and counts[root] == 1
+                and root != self._edit_root(message_id)
+                and self._strength(keys[index], id) == 3
+            ):
+                contradicted.add(root)
+                del aligned[index]
+        for index, message_id in list(aligned.items()):
+            if self._edit_root(message_id) in contradicted:
+                del aligned[index]
 
     def _result_occurrence(
         self,
