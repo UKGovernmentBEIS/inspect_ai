@@ -126,13 +126,15 @@ class AgentBridge:
             state.messages = restored_messages
             state.output = restored_output
         self.state = state
-        self._message_ids = self._cp.track(
-            "bridge_message_ids",
-            lambda: self._message_ids,
-            {},
-            value_type=dict[str, list[str]],
+        self._message_ids = _rekey_legacy_message_ids(
+            self._cp.track(
+                "bridge_message_ids",
+                lambda: self._message_ids,
+                {},
+                value_type=dict[str, list[str]],
+            ),
+            restored_messages,
         )
-        self._legacy_message_ids = any(len(key) == 32 for key in self._message_ids)
         self._compaction_prefix = self._cp.track(
             "bridge_compaction_prefix",
             lambda: self._compaction_prefix,
@@ -422,14 +424,7 @@ class AgentBridge:
         # turn message into a hash so it can be a dictionary key
         message_json = to_json_str_safe(message)
         message_key = message_json_hash(message_json)
-        message_ids = self._message_ids.get(message_key)
-        if message_ids is None and self._legacy_message_ids:
-            # restored from a checkpoint keyed by Murmur3: rekey on first use
-            message_ids = self._message_ids.pop(mm3_hash(message_json), None)
-            if message_ids is not None:
-                self._message_ids[message_key] = message_ids
-        if message_ids is None:
-            message_ids = []
+        message_ids = self._message_ids.get(message_key, [])
 
         # do we already have an id for this message that isn't in the conversation?
         conversation_ids: Set[str] = {m.id for m in conversation if m.id is not None}
@@ -635,6 +630,27 @@ def message_json_hash(message_json: str) -> str:
     # agent controls its messages, so it must be collision-resistant
     encoded = message_json.encode("utf-8", errors="backslashreplace")
     return hashlib.sha256(encoded).hexdigest()
+
+
+def _rekey_legacy_message_ids(
+    message_ids: dict[str, list[str]], restored: list[ChatMessage]
+) -> dict[str, list[str]]:
+    # checkpoints written before message keys were SHA-256 have 32-hex Murmur3
+    # keys. an id keeps its place only when a restored message carried it and
+    # that message's content has the Murmur3 key; other legacy ids are dropped
+    legacy = {key: ids for key, ids in message_ids.items() if len(key) == 32}
+    if not legacy:
+        return message_ids
+    rekeyed = {key: ids for key, ids in message_ids.items() if len(key) != 32}
+    for message in restored:
+        if message.id is None:
+            continue
+        message_json = to_json_str_safe(message.model_copy(update={"id": None}))
+        if message.id in legacy.get(mm3_hash(message_json), []):
+            ids = rekeyed.setdefault(message_json_hash(message_json), [])
+            if message.id not in ids:
+                ids.append(message.id)
+    return rekeyed
 
 
 class _MessageFingerprint(NamedTuple):
