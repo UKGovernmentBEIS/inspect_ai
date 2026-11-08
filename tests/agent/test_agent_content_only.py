@@ -1,3 +1,5 @@
+from copy import copy
+
 from inspect_ai._util.content import (
     Content,
     ContentImage,
@@ -5,6 +7,7 @@ from inspect_ai._util.content import (
     ContentText,
     ContentToolUse,
 )
+from inspect_ai.agent import Agent, AgentState, agent, handoff
 from inspect_ai.agent._filter import content_only
 from inspect_ai.model import (
     ChatMessage,
@@ -13,6 +16,7 @@ from inspect_ai.model import (
     ChatMessageTool,
     ChatMessageUser,
 )
+from inspect_ai.model._call_tools import execute_tools
 from inspect_ai.tool import ToolCall
 
 
@@ -314,3 +318,80 @@ async def test_handles_tool_use_with_error() -> None:
     assert isinstance(filtered_content[0], ContentText)
     assert "database_query" in filtered_content[0].text
     assert "SELECT * FROM users" in filtered_content[0].text
+
+
+def _assistant_with_list_content_and_tool_call() -> ChatMessageAssistant:
+    return ChatMessageAssistant(
+        content=[
+            ContentReasoning(reasoning="I should calculate"),
+            ContentText(text="Let me calculate."),
+        ],
+        tool_calls=[ToolCall(id="call-001", function="calculate", arguments={"x": 5})],
+    )
+
+
+async def test_does_not_modify_input_messages() -> None:
+    assistant_msg = _assistant_with_list_content_and_tool_call()
+    original_content = list(assistant_msg.content)
+    messages: list[ChatMessage] = [assistant_msg]
+
+    first = await content_only(messages)
+    second = await content_only(messages)
+
+    assert assistant_msg.content == original_content
+    assert first == second
+    filtered_content = first[0].content
+    assert isinstance(filtered_content, list)
+    assert len(filtered_content) == 2
+    assert isinstance(filtered_content[0], ContentText)
+    assert filtered_content[0].text == "Let me calculate."
+    assert isinstance(filtered_content[1], ContentText)
+    assert "calculate" in filtered_content[1].text
+
+
+@agent
+def recorder(seen: list[list[ChatMessage]]) -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        """Record the conversation handed off to this agent.
+
+        Args:
+            state: Input state (conversation)
+        """
+        seen.append(copy(state.messages))
+        return state
+
+    return execute
+
+
+async def test_handoff_input_filter_does_not_modify_conversation() -> None:
+    seen: list[list[ChatMessage]] = []
+    tool = handoff(recorder(seen), input_filter=content_only)
+    earlier = _assistant_with_list_content_and_tool_call()
+    earlier_content = list(earlier.content)
+    transfer = ChatMessageAssistant(
+        content=[ContentText(text="Handing off.")],
+        tool_calls=[
+            ToolCall(id="call-002", function="transfer_to_recorder", arguments={})
+        ],
+    )
+    transfer_content = list(transfer.content)
+    conversation: list[ChatMessage] = [
+        ChatMessageUser(content="Calculate something."),
+        earlier,
+        ChatMessageTool(content="10", tool_call_id="call-001", function="calculate"),
+        transfer,
+    ]
+
+    await execute_tools(conversation, [tool])
+    await execute_tools(conversation, [tool])
+
+    assert earlier.content == earlier_content
+    assert transfer.content == transfer_content
+    assert len(seen) == 2
+    # the transfer boundary messages at the end get fresh ids each handoff
+    assert seen[0][:4] == seen[1][:4]
+    handed_off = seen[0][1].content
+    assert isinstance(handed_off, list)
+    assert len(handed_off) == 2
+    assert isinstance(handed_off[1], ContentText)
+    assert "calculate" in handed_off[1].text

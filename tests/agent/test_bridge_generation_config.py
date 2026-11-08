@@ -217,6 +217,8 @@ def test_responses_requests_detected_from_provider_request_selection() -> None:
         base_url=_COMPATIBLE_URL,
         responses_api=True,
     )
+    # Perplexity sends every request to the Agent API's Responses endpoint
+    assert sends("perplexity/sonar")
     assert not sends("mockllm/model")
 
 
@@ -550,6 +552,33 @@ async def test_bridged_reasoning_reaches_compatible_responses_routes() -> None:
     await _bridged_responses_request(model, {"reasoning": _CLIENT_REASONING})
 
     assert requests[0]["reasoning"] == _CLIENT_REASONING
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "forward,model_config,expected",
+    [
+        (True, GenerateConfig(), _CLIENT_REASONING),
+        (False, GenerateConfig(), {"summary": "auto"}),
+        (
+            True,
+            GenerateConfig(reasoning_effort="high", reasoning_summary="none"),
+            {"effort": "high", "context": "all_turns"},
+        ),
+    ],
+)
+async def test_bridged_reasoning_reaches_perplexity(
+    forward: bool, model_config: GenerateConfig, expected: dict[str, Any]
+) -> None:
+    # Perplexity always sends Responses requests, without responses_api=True
+    model, requests = _capturing_model("perplexity/sonar", config=model_config)
+
+    await _bridged_responses_request(
+        model, {"reasoning": _CLIENT_REASONING}, forward_generation_config=forward
+    )
+
+    assert requests[0]["reasoning"] == expected
+    assert "reasoning" not in (requests[0].get("extra_body") or {})
 
 
 @pytest.mark.anyio

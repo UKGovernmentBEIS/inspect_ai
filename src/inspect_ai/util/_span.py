@@ -3,11 +3,14 @@ import inspect
 from collections.abc import Awaitable, Callable, Iterator
 from contextvars import ContextVar, Token
 from logging import getLogger
-from typing import Any, AsyncIterator
+from typing import TYPE_CHECKING, Any, AsyncIterator, NamedTuple
 
 from shortuuid import uuid as shortuuid
 
-from inspect_ai._sentinel._scope import AgentScope, enter_scope, exit_scope
+from inspect_ai._sentinel._scope import enter_scope, exit_scope
+
+if TYPE_CHECKING:
+    from inspect_ai.event._span import SpanBeginEvent
 
 logger = getLogger(__name__)
 
@@ -88,7 +91,7 @@ async def span(
     token = _current_span_id.set(id)
     is_agent = (type or name) == AGENT_SPAN_TYPE
     agent_token = _current_agent_span_id.set(id) if is_agent else None
-    scope_token = enter_scope(AgentScope.ON) if is_agent else None
+    scope_token = enter_scope("agent") if is_agent else None
 
     # run the span
     try:
@@ -142,6 +145,49 @@ def current_agent_span_id() -> str | None:
 
 
 @contextlib.contextmanager
+def parent_span(parent_id: str | None) -> Iterator[None]:
+    """Make `parent_id` the current span for the block (no-op when `None`).
+
+    Events constructed in the block are stamped with `parent_id`, and a `span()`
+    opened in it gets `parent_id` as its parent. For recording work under a span
+    other than the one current in this task (no begin or end event is emitted).
+    """
+    if parent_id is None:
+        yield
+        return
+    token = _current_span_id.set(parent_id)
+    try:
+        yield
+    finally:
+        _current_span_id.reset(token)
+
+
+@contextlib.contextmanager
+def in_span(span_id: str, agent_span_id: str | None) -> Iterator[None]:
+    """Make `span_id` the current span and `agent_span_id` the current agent span for the block.
+
+    As `parent_span()`, for running work under a span other than the one current in this task (no begin or end event is emitted), where the work's agent span must follow it too.
+    """
+    token = _current_span_id.set(span_id)
+    agent_token = _current_agent_span_id.set(agent_span_id)
+    try:
+        yield
+    finally:
+        _current_agent_span_id.reset(agent_token)
+        _current_span_id.reset(token)
+
+
+@contextlib.contextmanager
+def in_agent_span(agent_span_id: str | None) -> Iterator[None]:
+    """Make `agent_span_id` the current agent span for the block, leaving the current span as it is."""
+    token = _current_agent_span_id.set(agent_span_id)
+    try:
+        yield
+    finally:
+        _current_agent_span_id.reset(token)
+
+
+@contextlib.contextmanager
 def span_id_provider(provider: SpanIdProvider | None) -> Iterator[None]:
     """Set the span-ID provider for the duration of the context.
 
@@ -186,6 +232,9 @@ class SpanRotationScope:
     in the same task. ``end_span()`` and ``begin_span()`` may run in any task:
     they emit span/store events and mutate the shared cell, never touching
     the ContextVar.
+
+    Whether the scope's spans track store changes is fixed at ``open()``
+    (see `suspend_store_events`), so rotations in other tasks follow it.
     """
 
     def __init__(self, *, type: str) -> None:
@@ -195,6 +244,7 @@ class SpanRotationScope:
         self._parent_id: str | None = None
         self._span_open = False
         self._store_before: dict[str, Any] = {}
+        self._track_store = True
 
     @property
     def is_open(self) -> bool:
@@ -204,7 +254,10 @@ class SpanRotationScope:
     async def open(self, name: str) -> None:
         """Enter the scope and begin its first span (entry task only)."""
         assert self._cell is None, "SpanRotationScope already open"
+        from inspect_ai.util._store import store_events_suspended
+
         self._parent_id = current_span_id()
+        self._track_store = not store_events_suspended()
         id = await self._span_id(name)
         self._cell = _SpanCell(id)
         self._token = _current_span_id.set(self._cell)
@@ -270,6 +323,8 @@ class SpanRotationScope:
     def _snapshot_store(self) -> None:
         from inspect_ai.util._store import store, store_jsonable
 
+        if not self._track_store:
+            return
         self._store_before = store_jsonable(store())
 
     def _emit_store_changes(self) -> None:
@@ -277,6 +332,8 @@ class SpanRotationScope:
         from inspect_ai.log._transcript import transcript
         from inspect_ai.util._store import store, store_changes, store_jsonable
 
+        if not self._track_store:
+            return
         changes = store_changes(self._store_before, store_jsonable(store()))
         if changes:
             transcript()._event(StoreEvent(changes=changes))
@@ -293,3 +350,110 @@ _current_agent_span_id: ContextVar[str | None] = ContextVar(
 _span_id_provider: ContextVar[SpanIdProvider | None] = ContextVar(
     "_span_id_provider", default=None
 )
+
+
+class _Ancestry(NamedTuple):
+    parent_id: str | None
+    is_agent: bool
+
+
+class _Waiting:
+    """The spans whose agent span is not known yet: their walk reached `missing`, a span not yet added.
+
+    A union-find node. Once `missing` is added, the first lookup that reaches this node resolves it from `missing`: to an agent span (or None), or by linking it (`next`) to the node that walk reached in turn.
+    """
+
+    __slots__ = ("missing", "next", "resolved", "answer")
+
+    def __init__(self, missing: str) -> None:
+        self.missing = missing
+        self.next: _Waiting | None = None
+        self.resolved = False
+        self.answer: str | None = None
+
+
+class AgentSpans:
+    """The innermost agent span of each span, from the `SpanBeginEvent`s added.
+
+    A span's agent span is the innermost span of type `agent` reached from it through `parent_id`, or None when there is none. Spans are added in log order. A span whose ancestor is not added yet has no agent span until the ancestor is added, so a span whose begin is added later still counts.
+
+    Each lookup's answer is kept for every span it walks, including an answer that waits on a missing ancestor (a `_Waiting` node, resolved once when that ancestor is added), so adding a span and looking spans up is amortized constant work. Only each span's id, parent and whether it is an agent span are kept, not the event, so a transcript that evicts its span begins can release them.
+    """
+
+    def __init__(self) -> None:
+        self._spans: dict[str, _Ancestry] = {}
+        self._agent_spans: dict[str, str | None | _Waiting] = {}
+        self._waiting: dict[str, _Waiting] = {}
+
+    def add(self, begin: "SpanBeginEvent") -> None:
+        self._spans[begin.id] = _Ancestry(
+            begin.parent_id, begin.type == AGENT_SPAN_TYPE
+        )
+
+    def __contains__(self, span_id: object) -> bool:
+        return span_id in self._spans
+
+    def agent_span(self, span_id: str | None) -> str | None:
+        """The agent span of an event in the span `span_id`.
+
+        Raises:
+            ValueError: The span tree has a `parent_id` cycle.
+        """
+        found = self._walk(span_id)
+        resolving: dict[int, _Waiting] = {}
+        while (
+            isinstance(found, _Waiting)
+            and not found.resolved
+            and found.missing in self._spans
+        ):
+            if id(found) in resolving:
+                raise ValueError(
+                    f"The span tree has a parent_id cycle at {found.missing}."
+                )
+            resolving[id(found)] = found
+            self._waiting.pop(found.missing, None)
+            found = self._walk(found.missing)
+        for node in resolving.values():
+            if isinstance(found, _Waiting):
+                node.next = found
+            else:
+                node.resolved, node.answer = True, found
+        return None if isinstance(found, _Waiting) else found
+
+    def _walk(self, span_id: str | None) -> str | None | _Waiting:
+        # the agent span reached from `span_id`, or the unresolved node it waits on
+        walked: list[str] = []
+        seen: set[str] = set()
+        found: str | None | _Waiting = None
+        while span_id is not None:
+            if span_id in self._agent_spans:
+                found = self._known(self._agent_spans[span_id])
+                break
+            if span_id in seen:
+                raise ValueError(f"The span tree has a parent_id cycle at {span_id}.")
+            ancestry = self._spans.get(span_id)
+            if ancestry is None:
+                found = self._waiting.get(span_id)
+                if found is None:
+                    found = self._waiting[span_id] = _Waiting(span_id)
+                break
+            seen.add(span_id)
+            walked.append(span_id)
+            if ancestry.is_agent:
+                found = span_id
+                break
+            span_id = ancestry.parent_id
+        for walked_id in walked:
+            self._agent_spans[walked_id] = found
+        return found
+
+    @staticmethod
+    def _known(memo: str | None | _Waiting) -> str | None | _Waiting:
+        if not isinstance(memo, _Waiting):
+            return memo
+        root = memo
+        while root.next is not None:
+            root = root.next
+        while memo.next is not None and memo.next is not root:
+            memo.next, memo = root, memo.next
+        return root.answer if root.resolved else root

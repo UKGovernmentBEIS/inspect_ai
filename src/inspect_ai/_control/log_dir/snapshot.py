@@ -33,6 +33,7 @@ from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.constants import get_deserializing_context
 from inspect_ai._util.file import local_path
+from inspect_ai._util.log_layout import merged_log_task_id
 from inspect_ai.log._file import _try_parse_filename
 from inspect_ai.log._log import EvalLog, EvalSampleSummary
 from inspect_ai.log._recorders.eval import (
@@ -41,14 +42,17 @@ from inspect_ai.log._recorders.eval import (
     LogStart,
     _journal_path,
     _read_all_summaries_async,
+    _read_journal_summaries,
     _read_member_json,
 )
 from inspect_ai.log._shards._walk import AttemptSortKey, StrayFile
 
 from .buffer import read_manifest
+from .cache import JournalCache, active_cache
 from .consistency import (
     LogChangedError,
     LogUnparseableError,
+    listed_version,
     log_version,
     read_consistently,
     read_version,
@@ -371,18 +375,43 @@ async def _add_shard_sets(
     def run_of(shard_set: ShardSetFiles) -> LogPlan | Unreadable | None:
         return merged[shard_set.merged[0].location] if shard_set.merged else None
 
-    def key_of(shard_set: ShardSetFiles) -> str:
+    def merged_task_id(shard_set: ShardSetFiles) -> str | None:
         run = run_of(shard_set)
         if isinstance(run, LogPlan) and run.header.eval.task_id:
             return run.header.eval.task_id
-        return _set_key(shard_set.location)
+        return None
+
+    # without a merged task id, the first shard's header gives the task and
+    # model that the merge's task id is derived with
+    first_members = [
+        s.members[0] for s in shard_sets if merged_task_id(s) is None and s.members
+    ]
+    results: dict[str, LogPlan | Unreadable] = dict(
+        zip(
+            (f.location for f in first_members),
+            await tg_collect(
+                [functools.partial(plan_or_failure, f) for f in first_members]
+            ),
+        )
+    )
+
+    def key_of(shard_set: ShardSetFiles) -> str:
+        task_id = merged_task_id(shard_set)
+        if task_id is not None:
+            return task_id
+        shard = (
+            results.get(shard_set.members[0].location) if shard_set.members else None
+        )
+        return _set_key(shard_set.location, shard)
 
     first: dict[str, ShardSetFiles] = {}
     for shard_set in shard_sets:
         first.setdefault(key_of(shard_set), shard_set)
     current = {key: s for key, s in first.items() if key not in tasks}
-    members = [f for s in current.values() for f in s.members]
-    results = dict(
+    members = [
+        f for s in current.values() for f in s.members if f.location not in results
+    ]
+    results.update(
         zip(
             (f.location for f in members),
             await tg_collect([functools.partial(plan_or_failure, f) for f in members]),
@@ -450,15 +479,20 @@ def _stray(stray: StrayFile) -> Unreadable:
     )
 
 
-def _set_key(companion: str) -> str:
+def _set_key(companion: str, shard: LogPlan | Unreadable | None) -> str:
     """The task id of a shard set with no readable merged log.
 
-    ``{id}`` parsed from ``<name>``, else ``<name>``: the merged log's
-    ``task_id`` under a file name pattern with ``{id}``. The shared
-    ``merged_log_task_id`` (sharding implementation PR 5) replaces this.
+    The task id the merge gives its merged log (:func:`merged_log_task_id`),
+    from the task and model in ``shard``, the set's first shard. Without a
+    readable shard, ``{id}`` parsed from ``<name>``, else ``<name>``.
     """
+    name = basename(companion).rsplit(".", 1)[0]
+    if isinstance(shard, LogPlan):
+        return merged_log_task_id(
+            name, task=shard.header.eval.task, model=shard.header.eval.model
+        )
     _, task_id = _file_identity(companion)
-    return task_id or basename(companion).rsplit(".", 1)[0]
+    return task_id or name
 
 
 def _created(task: LogicalTask) -> str:
@@ -467,12 +501,26 @@ def _created(task: LogicalTask) -> str:
 
 
 async def read_plan(fs: AsyncFilesystem, file: LogFile) -> LogPlan:
-    """Read one log's central directory and header (or journal start record)."""
+    """Read one log's central directory and header (or journal start record).
+
+    With the cache active, a finished log's cached plan is used while the log
+    has the version it was read from. A running log's central directory is
+    always read; its cached plan spares re-reading an unchanged start record.
+    """
+    cache = active_cache()
+    if cache is not None:
+        cached = cache.finished_plan(file)
+        if cached is not None and cached.version == await listed_version(fs, file):
+            return cached
+    prior = cache.running_plan(file) if cache is not None else None
 
     async def read(reader: AsyncZipReader, fresh: bool) -> LogPlan:
-        return await _plan_from(fs, reader, file)
+        return await _plan_from(fs, reader, file, prior)
 
-    return await read_consistently(fs, file.location, read)
+    plan = await read_consistently(fs, file.location, read)
+    if cache is not None:
+        cache.store_plan(plan)
+    return plan
 
 
 async def _plan_from(
@@ -484,25 +532,36 @@ async def _plan_from(
     """Read the plan through ``reader``'s (fresh) central directory.
 
     A ``prior`` plan of the same log that is still running supplies the
-    header while the log has no ``header.json``: ``_journal/start.json`` is
-    written once, at the start, so it is not read again.
+    header while the log has no ``header.json`` and its
+    ``_journal/start.json`` has the CRC-32 the prior was read from: that
+    member is written once, at the start, so it is not read again.
     """
     cd, version = await read_version(fs, file.location, reader.entries)
-    if cd.entry(HEADER_JSON) is None and prior is not None and not prior.finished:
+    header_entry = cd.entry(HEADER_JSON)
+    start_entry = cd.entry(_journal_path(START_JSON))
+    if (
+        header_entry is None
+        and start_entry is not None
+        and prior is not None
+        and not prior.finished
+        and prior.header_crc == start_entry.crc32
+    ):
         return replace(prior, central_directory=cd, version=version)
-    if cd.entry(HEADER_JSON) is not None:
+    if header_entry is not None:
         header = EvalLog.model_validate(
             await _read_member_json(reader, HEADER_JSON),
             context=get_deserializing_context(),
         )
         finished = True
-    elif cd.entry(_journal_path(START_JSON)) is not None:
+        header_crc = header_entry.crc32
+    elif start_entry is not None:
         start = LogStart.model_validate(
             await _read_member_json(reader, _journal_path(START_JSON)),
             context=get_deserializing_context(),
         )
         header = EvalLog(version=start.version, eval=start.eval, plan=start.plan)
         finished = False
+        header_crc = start_entry.crc32
     else:
         raise LogUnparseableError(
             file.location,
@@ -515,6 +574,7 @@ async def _plan_from(
         header=header,
         finished=finished,
         version=version,
+        header_crc=header_crc,
     )
 
 
@@ -523,23 +583,36 @@ async def read_snapshot(
 ) -> MemberSnapshot:
     """Read a member's sample summaries through the central directory its plan used.
 
-    With ``fresh``, or on a re-read after a torn read, the central directory
-    is read again, and so is ``header.json`` when the log now has one: it may
-    have finished in between.
+    With ``fresh``, for a plan with no central directory (one from the cache),
+    or on a re-read after a torn read, the central directory is read again,
+    and so is ``header.json`` when the log now has one: it may have finished
+    in between.
+
+    With the cache active, a finished log's summaries cached for the plan's
+    version are used instead, and a snapshot read here is stored.
     """
+    cache = active_cache()
+    if cache is not None and not fresh:
+        cached = cache.snapshot(plan)
+        if cached is not None:
+            return cached
+    journal = cache.journal(plan.file) if cache is not None else None
 
     async def read(reader: AsyncZipReader, fresh: bool) -> MemberSnapshot:
         current = await _plan_from(fs, reader, plan.file, plan) if fresh else plan
         return MemberSnapshot(
-            plan=current, summaries=await read_summaries(reader, plan.file)
+            plan=current, summaries=await read_summaries(reader, plan.file, journal)
         )
 
-    return await read_consistently(
+    snapshot = await read_consistently(
         fs,
         plan.file.location,
         read,
         central_directory=None if fresh else plan.central_directory,
     )
+    if cache is not None and journal is not None:
+        cache.store_snapshot(snapshot, journal)
+    return snapshot
 
 
 async def read_member(fs: AsyncFilesystem, plan: LogPlan) -> MemberSnapshot:
@@ -566,16 +639,20 @@ async def read_member(fs: AsyncFilesystem, plan: LogPlan) -> MemberSnapshot:
 
 
 async def read_summaries(
-    reader: AsyncZipReader, file: LogFile
+    reader: AsyncZipReader, file: LogFile, journal: JournalCache | None = None
 ) -> dict[SampleKey, EvalSampleSummary]:
     """A log's sample summaries by key (last row wins), through ``reader``.
+
+    ``journal`` serves a running log's unchanged journal members from the
+    cache.
 
     Raises :class:`LogUnparseableError` for a log whose journal is missing a
     summary member (``2.json`` without ``1.json``): journal members are
     append-only, so a central directory without one is malformed, not torn.
     """
+    read_journal = journal.read if journal is not None else _read_journal_summaries
     try:
-        summaries, _ = await _read_all_summaries_async(reader)
+        summaries, _ = await _read_all_summaries_async(reader, read_journal)
     except KeyError as ex:
         raise LogUnparseableError(
             file.location, f"its journal is missing member {ex}"

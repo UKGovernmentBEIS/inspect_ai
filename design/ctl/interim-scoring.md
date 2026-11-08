@@ -224,7 +224,8 @@ review, meridianlabs-ai/inspect_ai#94):
    awaited at generate-attempt start (`wait_generate_dispatch`, gating
    `Model.compact()` too), held-sample accounting (`task_held_count`,
    surfaced as the `held` count on `GET /tasks` rows), incremental
-   waiting-time crediting so a held span never burns `working_limit`, and
+   waiting-time crediting so a held span burns `working_limit` only while
+   other known work runs in the sample, and
    cancel escalating over the hold via the gate's escape check. A sample
    parked at that gate mutates its `TaskState` only from its own coroutine,
    so the live state is stable while held — and the compact gate means the

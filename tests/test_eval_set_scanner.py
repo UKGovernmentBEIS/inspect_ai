@@ -20,6 +20,7 @@ from inspect_ai import Task, eval_set, task
 from inspect_ai.dataset import Sample
 from inspect_ai.solver import Generate, TaskState, generate, solver
 from inspect_ai.solver._solver import Solver
+from inspect_ai.viewer import ViewerConfig
 
 # inspect_scout is an optional runtime dep; skip these tests if unavailable.
 inspect_scout = pytest.importorskip("inspect_scout")
@@ -322,6 +323,39 @@ def test_scanner_writes_parquet_per_sample() -> None:
         # value column reflects scanner output
         for tid, val in zip(ids, values):
             assert val == f"scanned:{tid}"
+
+
+@pytest.mark.parametrize(
+    ("viewer", "expected"),
+    [
+        (None, None),
+        (ViewerConfig(), None),
+        (ViewerConfig(trust_content=True), True),
+        (ViewerConfig(trust_content=False), False),
+    ],
+)
+def test_scanner_results_record_the_tasks_trust_content(
+    viewer: ViewerConfig | None, expected: bool | None
+) -> None:
+    """Scout renders untrusted tasks' scan results as plain text from this column."""
+    with tempfile.TemporaryDirectory() as log_dir:
+        success, _ = eval_set(
+            tasks=Task(
+                dataset=[Sample(input=f"question {i}") for i in range(2)],
+                solver=generate(),
+                viewer=viewer,
+            ),
+            log_dir=log_dir,
+            scanner=[echo_scanner()],
+            model="mockllm/model",
+            retry_attempts=0,
+            display="none",
+        )
+        assert success
+
+        pf = _read_parquet(_scan_dir(log_dir) / "echo_scanner.parquet")
+        trust = pf.read(columns=["transcript_trust_content"]).column(0).to_pylist()
+        assert trust == [expected, expected]
 
 
 def test_scanner_summary_accurate_under_concurrency() -> None:
@@ -648,6 +682,50 @@ def test_scanner_resume_accumulates_summary_and_only_scans_rerun_samples(
         assert ss["scans"] == 2 * n, (
             f"expected accumulated scans across both runs ({2 * n}), got {ss['scans']}"
         )
+
+
+def test_scanner_results_on_retry_keep_the_previous_runs_untrusted_content() -> None:
+    """A retried task without a viewer config still records the log's `False`.
+
+    The retry reloads the task, losing `task_with(viewer=...)`; the rescanned
+    samples must not be recorded as trusted.
+    """
+    n = 2
+    fails_first_time = _first_attempt_fails()
+
+    def make_task(viewer: ViewerConfig | None) -> Task:
+        return Task(
+            dataset=[Sample(input=f"q{i}", target=str(i)) for i in range(n)],
+            solver=[fails_first_time, generate()],
+            viewer=viewer,
+        )
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        success_1, _ = eval_set(
+            tasks=make_task(ViewerConfig(trust_content=False)),
+            log_dir=log_dir,
+            scanner=[echo_scanner()],
+            model="mockllm/model",
+            retry_attempts=0,
+            continue_on_fail=True,
+            display="none",
+        )
+        assert not success_1
+
+        success_2, _ = eval_set(
+            tasks=make_task(None),
+            log_dir=log_dir,
+            scanner=[echo_scanner()],
+            model="mockllm/model",
+            retry_attempts=0,
+            continue_on_fail=True,
+            display="none",
+        )
+        assert success_2
+
+        pf = _read_parquet(_scan_dir(log_dir) / "echo_scanner.parquet")
+        trust = pf.read(columns=["transcript_trust_content"]).column(0).to_pylist()
+        assert trust == [False] * n
 
 
 def test_eval_set_resume_only_rescans_rerun_samples_keeps_run1_errors() -> None:

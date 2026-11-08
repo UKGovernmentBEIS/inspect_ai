@@ -1,6 +1,7 @@
 from typing import Any
 
 from inspect_ai.log._log import EvalLog
+from inspect_ai.model._generate_config import generate_config_dict
 from inspect_ai.model._model_config import ModelConfig
 
 # EvalConfig fields that control logging, display, and parallelism — not the
@@ -48,7 +49,7 @@ def eval_log_to_run_config_dict(log: EvalLog) -> dict[str, Any]:
         model_entry["base_url"] = spec.model_base_url
     if spec.model_args:
         model_entry["args"] = spec.model_args
-    model_gc = spec.model_generate_config.model_dump(exclude_none=True)
+    model_gc = generate_config_dict(spec.model_generate_config)
     if model_gc:
         model_entry["config"] = model_gc
     out["model"] = model_entry
@@ -60,7 +61,7 @@ def eval_log_to_run_config_dict(log: EvalLog) -> dict[str, Any]:
             entry: dict[str, Any] = {"model": mc.model}
             if mc.base_url:
                 entry["base_url"] = mc.base_url
-            role_gc = mc.config.model_dump(exclude_none=True)
+            role_gc = generate_config_dict(mc.config)
             if role_gc:
                 entry["config"] = role_gc
             if mc.args:
@@ -77,7 +78,7 @@ def eval_log_to_run_config_dict(log: EvalLog) -> dict[str, Any]:
 
     # Generate config (plan-level)
     if plan is not None:
-        gc = plan.config.model_dump(exclude_none=True)
+        gc = generate_config_dict(plan.config)
         if gc:
             out["generate_config"] = gc
 

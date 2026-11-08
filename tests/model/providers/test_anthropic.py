@@ -9,6 +9,7 @@ from test_helpers.utils import (
     setenv_if_unset,
     skip_if_no_anthropic,
     skip_if_no_bedrock,
+    skip_if_no_vertex,
 )
 
 from inspect_ai import Task, eval
@@ -235,6 +236,39 @@ async def test_anthropic_count_tokens_passes_extra_headers() -> None:
     assert mock_count.call_args.kwargs["extra_headers"]["anthropic-beta"] == (
         "oauth-2025-04-20,context-1m-2025-08-07"
     )
+
+
+@pytest.mark.anyio
+async def test_anthropic_bedrock_count_tokens_uses_local_estimate(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Bedrock has no count_tokens endpoint; use the local estimate.
+
+    The Anthropic SDK raises ``Token counting is not supported in Bedrock yet``
+    from ``AsyncAnthropicBedrock.messages.count_tokens``. Compaction estimates
+    tokens before generate, so that error fires locally with dummy AWS
+    credentials (issue #6144).
+    """
+    config = tmp_path / "config"
+    config.write_text(
+        "[profile offline]\nregion=us-east-1\n"
+        "aws_access_key_id=offline\naws_secret_access_key=offline\n"
+    )
+    monkeypatch.setenv("AWS_CONFIG_FILE", str(config))
+    monkeypatch.setenv("AWS_REGION", "us-east-1")
+
+    model = get_model(
+        "anthropic/bedrock/us.anthropic.claude-sonnet-4-6",
+        aws_profile="offline",
+        streaming=False,
+        memoize=False,
+    )
+    assert isinstance(model.api, AnthropicAPI)
+    assert model.api.is_bedrock()
+
+    count = await model.count_tokens("hello")
+    assert isinstance(count, int)
+    assert count >= 1
 
 
 _FULL_THINKING_BETA = "dev-full-thinking-2025-05-14"
@@ -1394,6 +1428,29 @@ async def test_anthropic_top_level_cache_control_skipped_on_bedrock_vertex(
 
 
 @pytest.mark.anyio
+@pytest.mark.parametrize(
+    "model_name,anthropic_version",
+    [
+        ("claude-sonnet-4-6", None),
+        ("bedrock/us.anthropic.claude-sonnet-4-6", "bedrock-2023-05-31"),
+        ("vertex/claude-sonnet-4-6@20250929", None),
+    ],
+)
+async def test_anthropic_bedrock_api_version(
+    model_name: str, anthropic_version: str | None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Bedrock requests carry the Bedrock `anthropic_version` in the body."""
+    monkeypatch.setenv("AWS_REGION", "us-east-1")
+    monkeypatch.setenv("ANTHROPIC_VERTEX_PROJECT_ID", "fake")
+    monkeypatch.setenv("ANTHROPIC_VERTEX_REGION", "us-east5")
+
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
+    _, extra_body, _, _ = api.completion_config(GenerateConfig(max_tokens=16))
+
+    assert extra_body.get("anthropic_version") == anthropic_version
+
+
+@pytest.mark.anyio
 @skip_if_no_anthropic
 async def test_anthropic_prompt_caching_changing_suffix() -> None:
     """Verify caching when only the last content block changes.
@@ -1494,7 +1551,7 @@ def test_anthropic_reasoning_effort_returns_none_for_old_models() -> None:
 
 
 # ---------------------------------------------------------------------------
-# sampling param stripping for Claude 4.7+ (adaptive-thinking-only)
+# sampling param stripping
 # ---------------------------------------------------------------------------
 
 
@@ -1509,75 +1566,33 @@ def _cfg(**kwargs: Any) -> GenerateConfig:
     return GenerateConfig(max_tokens=64, **kwargs)
 
 
-@pytest.mark.parametrize("param,value", list(_SAMPLING_PARAMS.items()))
-def test_anthropic_claude_4_7_strips_sampling_params(
-    param: str, value: float | int
-) -> None:
-    """Claude 4.7+ rejects temperature/top_p/top_k outright; the provider must omit them."""
-    api = AnthropicAPI(model_name="claude-opus-4-7", api_key="test-key")
-    params, extra_body, _headers, _betas = api.completion_config(_cfg(**{param: value}))
-    assert param not in params
-    assert param not in extra_body
-
-
-@pytest.mark.parametrize("param,value", list(_SAMPLING_PARAMS.items()))
-def test_anthropic_claude_4_7_strips_sampling_params_with_reasoning_effort_none(
-    param: str, value: float | int
-) -> None:
-    """reasoning_effort='none' must not re-enable sending sampling params on 4.7."""
-    api = AnthropicAPI(model_name="claude-opus-4-7", api_key="test-key")
-    params, extra_body, _headers, _betas = api.completion_config(
-        _cfg(reasoning_effort="none", **{param: value})
-    )
-    assert param not in params
-    assert param not in extra_body
-
-
-@pytest.mark.parametrize(
-    "model_name", ["claude-opus-4-6", "claude-sonnet-4-6", "claude-haiku-4-5-20251001"]
-)
-@pytest.mark.parametrize("param,value", list(_SAMPLING_PARAMS.items()))
-def test_anthropic_pre_4_7_keeps_sampling_params_without_thinking(
-    model_name: str, param: str, value: float | int
-) -> None:
-    """Pre-4.7 models still send sampling params when thinking is off.
-
-    anthropic >= 1.0 removed them from the method signatures, so they are
-    routed via extra_body rather than params.
-    """
-    api = AnthropicAPI(model_name=model_name, api_key="test-key")
-    params, extra_body, _headers, _betas = api.completion_config(_cfg(**{param: value}))
-    assert param not in params
-    assert extra_body[param] == value
-
-
 @pytest.mark.parametrize(
     "model_name",
     [
-        "claude-opus-4-8",
-        "claude-fable-5",
-        "claude-opus-5-0",
-        "claude-opus-5-5",
+        "claude-haiku-4-5-20251001",
+        "claude-sonnet-4-6",
+        "claude-opus-4-6",
+        "claude-opus-4-7",
         "claude-sonnet-5-5",
-        "claude-haiku-5-5",
-        "claude-sonnet-4-7",
-        "claude-sonnet-5-0",
     ],
 )
+@pytest.mark.parametrize("reasoning_effort", [None, "none", "low"])
 @pytest.mark.parametrize("param,value", list(_SAMPLING_PARAMS.items()))
-def test_anthropic_future_4_7_plus_strips_sampling_params(
-    model_name: str, param: str, value: float | int
+def test_anthropic_strips_sampling_params(
+    model_name: str, reasoning_effort: str | None, param: str, value: float | int
 ) -> None:
-    """All 4.7+ models inherit the adaptive-thinking restriction."""
+    """API version 2026-10-21 rejects temperature/top_p/top_k on every model."""
     api = AnthropicAPI(model_name=model_name, api_key="test-key")
-    params, extra_body, _headers, _betas = api.completion_config(_cfg(**{param: value}))
+    params, extra_body, _headers, _betas = api.completion_config(
+        _cfg(reasoning_effort=reasoning_effort, **{param: value})
+    )
     assert param not in params
     assert param not in extra_body
 
 
 @pytest.mark.anyio
 async def test_anthropic_batch_merges_extra_body_into_params() -> None:
-    """The Batches API has no extra_body — its fields (e.g. sampling params) must land directly in each request's params."""
+    """The Batches API has no extra_body — its fields must land directly in each request's params."""
     from unittest.mock import AsyncMock, MagicMock
 
     import anyio
@@ -1603,7 +1618,7 @@ async def test_anthropic_batch_merges_extra_body_into_params() -> None:
             "max_tokens": 64,
             "messages": [{"role": "user", "content": "hi"}],
             "extra_headers": {"x-header": "y"},
-            "extra_body": {"temperature": 0.5, "top_k": 10},
+            "extra_body": {"fallbacks": [{"model": "claude-opus-4-6"}]},
         },
         result_stream=send_stream,
     )
@@ -1611,8 +1626,7 @@ async def test_anthropic_batch_merges_extra_body_into_params() -> None:
     assert batch_id == "batch_1"
     (call,) = client.messages.batches.create.call_args_list
     params = call.kwargs["requests"][0]["params"]
-    assert params["temperature"] == 0.5
-    assert params["top_k"] == 10
+    assert params["fallbacks"] == [{"model": "claude-opus-4-6"}]
     assert "extra_body" not in params
     assert call.kwargs["extra_headers"] == {"x-header": "y"}
 
@@ -1716,27 +1730,16 @@ def _warn_once_messages() -> Any:
     _inspect_logger._warned.clear()
 
 
-def test_anthropic_claude_4_7_emits_adaptive_only_warning(
-    _warn_once_messages: list[str],
+@pytest.mark.parametrize("model_name", ["claude-opus-4-7", "claude-sonnet-4-6"])
+def test_anthropic_sampling_param_warning(
+    _warn_once_messages: list[str], model_name: str
 ) -> None:
-    """Claude 4.7+ should emit the adaptive-only message, not the extended-thinking one."""
-    api = AnthropicAPI(model_name="claude-opus-4-7", api_key="test-key")
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
     api.completion_config(_cfg(temperature=0.0))
     assert any(
-        "adaptive thinking only" in m and "claude-opus-4-7" in m
+        "'temperature'" in m and "API version 2026-10-21" in m
         for m in _warn_once_messages
     )
-    assert not any("when using extended thinking" in m for m in _warn_once_messages)
-
-
-def test_anthropic_thinking_model_emits_extended_thinking_warning(
-    _warn_once_messages: list[str],
-) -> None:
-    """A non-adaptive-only thinking model should emit the extended-thinking message."""
-    api = AnthropicAPI(model_name="claude-opus-4-6", api_key="test-key")
-    api.completion_config(_cfg(reasoning_effort="low", temperature=0.0))
-    assert any("when using extended thinking" in m for m in _warn_once_messages)
-    assert not any("adaptive thinking only" in m for m in _warn_once_messages)
 
 
 # ---------------------------------------------------------------------------
@@ -2234,15 +2237,63 @@ def test_anthropic_fable_5_1_binding_applies_without_thinking_blocks() -> None:
     }
 
 
-@pytest.mark.parametrize("model_name", ["claude-fable-5", "claude-opus-5"])
-def test_anthropic_fable_5_no_binding_on_base_model(model_name: str) -> None:
-    """The base Fable 5 and Opus 5 models do not bind thinking blocks."""
+@pytest.mark.parametrize(
+    "model_name",
+    [
+        "claude-saga-5",
+        "claude-saga-5-2",
+        "claude-saga",
+        "claude-opus-6",
+        "claude-opus-4-9",
+    ],
+)
+def test_anthropic_thinking_block_binding_unrecognised_model(model_name: str) -> None:
+    """Names newer than any known release get the opt-in on the first-party API."""
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
+    request = _request_with_thinking_history()
+    betas: list[str] = []
+    api.apply_thinking_block_binding(request, betas)
+    assert betas == ["thinking-binding-controls-2026-08-01"]
+    assert request["thinking"] == {
+        "type": "adaptive",
+        "block_binding": {"prefix_mismatch_behavior": "drop_block"},
+    }
+
+
+@pytest.mark.parametrize(
+    "model_name",
+    [
+        "claude-fable-5",
+        "claude-opus-5",
+        "claude-sonnet-5",
+        "claude-opus-5-1",
+        "claude-opus-4-8",
+        "claude-sonnet-4",
+        "claude-opus-4",
+        "claude-2.1",
+        "deepseek-chat",
+        "glm-4.6",
+    ],
+)
+def test_anthropic_no_binding_on_non_binding_model(model_name: str) -> None:
+    """Known non-binding Claude models and non-Claude names get no opt-in."""
     api = AnthropicAPI(model_name=model_name, api_key="test-key")
     request = _request_with_thinking_history()
     betas: list[str] = []
     api.apply_thinking_block_binding(request, betas)
     assert betas == []
     assert "thinking" not in request
+
+
+@pytest.mark.parametrize("model_name", ["claude-sonnet-4", "claude-opus-4"])
+def test_anthropic_claude_4_0_base_name_uses_extended_thinking(model_name: str) -> None:
+    """Base Claude 4 names get budget thinking; adaptive is a 400 on Claude 4.0."""
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
+    params, _e, _h, _b = api.completion_config(
+        GenerateConfig(max_tokens=64, reasoning_effort="medium")
+    )
+    assert params["thinking"]["type"] == "enabled"
+    assert "output_config" not in params
 
 
 @pytest.mark.parametrize(
@@ -2259,9 +2310,12 @@ def test_anthropic_fable_5_no_binding_on_base_model(model_name: str) -> None:
         "bedrock/anthropic.claude-haiku-5-5",
         "vertex/claude-haiku-5-5",
         "azure/claude-haiku-5-5",
+        "bedrock/anthropic.claude-saga-5",
+        "vertex/claude-saga-5",
+        "azure/claude-saga-5",
     ],
 )
-def test_anthropic_fable_5_1_no_binding_off_first_party(model_name: str) -> None:
+def test_anthropic_no_binding_off_first_party(model_name: str) -> None:
     """The thinking-binding beta is first-party only, except Sonnet 5.5 on Bedrock."""
     setenv_if_unset("AWS_REGION", "us-east-1")
     setenv_if_unset("AWS_ACCESS_KEY_ID", "fake")
@@ -2294,9 +2348,10 @@ def test_anthropic_sonnet_5_5_between_tools_has_no_binding_config() -> None:
     assert request["thinking"] == {"type": "between_tools"}
 
 
-def test_anthropic_haiku_5_5_disabled_thinking_has_no_binding_config() -> None:
+@pytest.mark.parametrize("model_name", ["claude-haiku-5-5", "claude-opus-6"])
+def test_anthropic_disabled_thinking_has_no_binding_config(model_name: str) -> None:
     """`block_binding` is accepted only with adaptive thinking, not `disabled`."""
-    api = AnthropicAPI(model_name="claude-haiku-5-5", api_key="test-key")
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
     params, _e, _h, _b = api.completion_config(
         GenerateConfig(max_tokens=64, reasoning_effort="none")
     )
@@ -2330,9 +2385,12 @@ def test_anthropic_sonnet_5_5_binding_on_bedrock(model_name: str) -> None:
     }
 
 
-def test_anthropic_mythos_5_1_no_binding() -> None:
-    """Mythos 5.1 does not run the binding check, so no opt-in is sent."""
-    api = AnthropicAPI(model_name="claude-mythos-5-1", api_key="test-key")
+@pytest.mark.parametrize(
+    "model_name", ["claude-mythos-5-1", "claude-mythos-5-2", "claude-mythos-preview"]
+)
+def test_anthropic_mythos_no_binding(model_name: str) -> None:
+    """Mythos does not run the binding check, so no opt-in is sent."""
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
     request = _request_with_thinking_history()
     betas: list[str] = []
     api.apply_thinking_block_binding(request, betas)
@@ -2821,6 +2879,21 @@ async def test_anthropic_sonnet_5_5_reasoning_effort_none_bedrock_live(
 
 
 @pytest.mark.anyio
+@skip_if_no_vertex
+@pytest.mark.parametrize("effort", [None, "max"])
+async def test_anthropic_sonnet_5_5_reasoning_effort_none_vertex_live(
+    effort: Literal["max"] | None,
+) -> None:
+    """reasoning_effort='none' (between_tools) must not 400 on Vertex either."""
+    model = get_model(
+        "anthropic/vertex/claude-sonnet-5-5",
+        config=GenerateConfig(reasoning_effort="none", effort=effort, max_tokens=128),
+    )
+    response = await model.generate(input="Say hello in one short sentence.")
+    assert len(response.completion) >= 1
+
+
+@pytest.mark.anyio
 @skip_if_no_anthropic
 async def test_anthropic_sonnet_5_5_forced_tool_choice_live() -> None:
     """Forced tool choice must not 400 on Sonnet 5.5 (degraded to auto)."""
@@ -2834,6 +2907,38 @@ async def test_anthropic_sonnet_5_5_forced_tool_choice_bedrock_live() -> None:
     await _check_forced_tool_choice_degrades(
         "anthropic/bedrock/global.anthropic.claude-sonnet-5-5"
     )
+
+
+@pytest.mark.anyio
+@skip_if_no_vertex
+async def test_anthropic_sonnet_5_5_forced_tool_choice_vertex_live() -> None:
+    """Forced tool choice must not 400 on Sonnet 5.5 via Vertex (degraded to auto)."""
+    await _check_forced_tool_choice_degrades("anthropic/vertex/claude-sonnet-5-5")
+
+
+@pytest.mark.anyio
+@skip_if_no_bedrock
+async def test_anthropic_sonnet_4_6_bedrock_live() -> None:
+    """Bedrock rejects API version 2026-10-21 in the body for Sonnet 4.6."""
+    model = get_model(
+        "anthropic/bedrock/us.anthropic.claude-sonnet-4-6",
+        config=GenerateConfig(max_tokens=128),
+    )
+    response = await model.generate(input="Say hello in one short sentence.")
+    assert len(response.completion) >= 1
+
+
+@pytest.mark.anyio
+@skip_if_no_vertex
+async def test_anthropic_sonnet_4_6_vertex_live() -> None:
+    """Vertex generate and count_tokens accept the SDK's API version."""
+    model = get_model(
+        "anthropic/vertex/claude-sonnet-4-6",
+        config=GenerateConfig(max_tokens=128),
+    )
+    response = await model.generate(input="Say hello in one short sentence.")
+    assert len(response.completion) >= 1
+    assert await model.count_tokens([ChatMessageUser(content="hello")]) > 0
 
 
 @pytest.mark.anyio
@@ -2935,6 +3040,18 @@ async def test_anthropic_forced_tool_choice_adaptive_thinking_bedrock_live(
     await _check_forced_tool_choice_with_reasoning(
         f"anthropic/bedrock/global.anthropic.{model_name}"
     )
+
+
+@pytest.mark.anyio
+@skip_if_no_vertex
+@pytest.mark.parametrize(
+    "model_name", ["claude-sonnet-4-6", "claude-sonnet-5", "claude-haiku-5-5"]
+)
+async def test_anthropic_forced_tool_choice_adaptive_thinking_vertex_live(
+    model_name: str,
+) -> None:
+    """Forced tool choice is honored with adaptive thinking on Vertex."""
+    await _check_forced_tool_choice_with_reasoning(f"anthropic/vertex/{model_name}")
 
 
 async def _check_forced_tool_choice_with_reasoning(model_str: str) -> None:

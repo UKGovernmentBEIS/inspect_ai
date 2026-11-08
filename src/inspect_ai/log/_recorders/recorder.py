@@ -373,6 +373,16 @@ class Recorder(abc.ABC):
     @abc.abstractmethod
     async def flush(self, eval: EvalSpec) -> None: ...
 
+    async def write_buffered_samples(self, eval: EvalSpec) -> None:
+        """Write buffered samples to the local tier only.
+
+        Unlike :meth:`flush`, leaves the destination unchanged, so a caller
+        can bound memory while an existing destination stays intact until
+        ``log_finish``. The base implementation is a no-op so recorders
+        without a local tier (JSON) write nothing; ``EvalRecorder``
+        overrides it.
+        """
+
     async def log_prune(self, eval: EvalSpec, keys: set[SampleRecordKey]) -> None:
         """Drop seeded sample records, including their journal summaries.
 
@@ -452,6 +462,31 @@ class Recorder(abc.ABC):
     async def read_log_sample_summaries(
         cls, location: str
     ) -> list[EvalSampleSummary]: ...
+
+    @classmethod
+    async def read_log_sample_keys(cls, location: str) -> list[SampleRecordKey]:
+        """Keys of the samples stored in the log.
+
+        The base implementation reads the sample summaries; a recorder that
+        can list its samples without reading their contents overrides it.
+        """
+        return [
+            SampleRecordKey(str(summary.id), summary.epoch)
+            for summary in await cls.read_log_sample_summaries(location)
+        ]
+
+    @classmethod
+    @abc.abstractmethod
+    async def read_log_reductions(
+        cls, location: str
+    ) -> list[EvalSampleReductions] | None:
+        """Read a log's sample reductions.
+
+        A header-only `read_log` is not guaranteed to include reductions (the
+        .json format stores them after the samples), so code that rebuilds a
+        log from its header and streamed samples reads them with this.
+        """
+        ...
 
     @classmethod
     async def read_log_sample_ids(cls, location: str) -> list[tuple[str | int, int]]:

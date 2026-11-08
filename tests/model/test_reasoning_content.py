@@ -41,7 +41,7 @@ async def test_reasoning_content_openai():
 @skip_if_no_openai
 @skip_if_no_openrouter
 async def test_reasoning_content_openrouter_openai():
-    await check_reasoning_content("openrouter/openai/o4-mini")
+    await check_reasoning_content("openrouter/openai/gpt-5-mini")
 
 
 def check_reasoning_round_trip(model: str) -> None:

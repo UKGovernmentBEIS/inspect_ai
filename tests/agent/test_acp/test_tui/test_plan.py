@@ -196,7 +196,16 @@ async def _open_session_screen(pilot: Any, rows: list[SessionRow]) -> SessionScr
             if isinstance(app.screen, SessionScreen):
                 break
     assert isinstance(app.screen, SessionScreen)
-    return app.screen
+    screen = app.screen
+    # The screen is on the stack (and composed) before the plan strip's
+    # on_mount applies its initial -hidden class.
+    for _ in range(20):
+        strips = screen.query(PlanStripWidget)
+        if strips and strips.first().is_mounted:
+            break
+        await pilot.pause()
+    assert screen.query_one(PlanStripWidget).is_mounted
+    return screen
 
 
 def _sample_row() -> SessionRow:
