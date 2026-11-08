@@ -30,9 +30,10 @@ def rich_initialise(
     plain = plain if plain is not None else display_type_plain()
     size_kwargs = _dumb_terminal_size_kwargs()
 
-    # rich.reconfigure() reinitializes the global console, which drops the render hooks and
-    # live stack a Live or Progress registered before it entered Inspect; leaving that context
-    # then pops from an empty list. Keep the caller's registrations across the reconfigures.
+    # rich.reconfigure() (public) reinitializes the global console, which drops the render hooks
+    # and live stack a Live or Progress registered before it entered Inspect; leaving that context
+    # then pops from an empty list. Rich exposes no public API for either list, so the caller's
+    # registrations are carried across the reconfigures here instead.
     caller_state = {
         name: list(state)
         for name in ("_render_hooks", "_live_stack")
@@ -81,8 +82,9 @@ def rich_initialise(
     if caller_state:
         console = rich.get_console()
         for name, state in caller_state.items():
-            if hasattr(console, name):
-                setattr(console, name, state)
+            entries = getattr(console, name, None)
+            if isinstance(entries, list):
+                entries[:] = state
 
 
 def _dumb_terminal_size_kwargs() -> dict[str, int]:

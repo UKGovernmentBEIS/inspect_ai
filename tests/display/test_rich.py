@@ -25,22 +25,38 @@ def test_terminal_size_override_requires_dumb_term(monkeypatch):
     assert _dumb_terminal_size_kwargs() == {}
 
 
-def test_rich_initialise_keeps_a_render_hook_the_caller_registered():
-    """A Live or Progress started before the eval must still be able to stop afterwards.
-
-    ``rich.reconfigure()`` reinitializes the global console, which drops the render hook the
-    caller's context pushed; leaving that context then pops from an empty list.
-    """
+def test_rich_initialise_keeps_a_render_hook_the_caller_registered(monkeypatch):
+    """A host that registered a render hook can still pop it after the eval."""
     import rich
+    from rich.console import Console
 
-    console = rich.get_console()
+    console = Console(force_terminal=False)
+    monkeypatch.setattr(rich, "_console", console)
     hook = lambda renderable, options: iter(())  # noqa: E731
     console.push_render_hook(hook)
-    try:
-        rich_initialise()
 
-        assert list(getattr(console, "_render_hooks", [])) == [hook]
-        console.pop_render_hook()
-    finally:
-        while getattr(console, "_render_hooks", None):
-            console._render_hooks.pop()  # type: ignore[attr-defined]
+    rich_initialise(display="none", plain=True)
+
+    assert rich.get_console() is console
+    assert list(getattr(console, "_render_hooks", [])) == [hook]
+    console.pop_render_hook()
+
+
+def test_rich_initialise_keeps_a_hosts_progress_context_usable(monkeypatch):
+    """Entering an eval inside a host context must not break leaving that context.
+
+    ``rich.reconfigure()`` drops the render hook the ``Progress`` pushed, so ``__exit__``
+    would pop from an empty list.
+    """
+    import rich
+    from rich.console import Console
+    from rich.progress import Progress
+
+    monkeypatch.setattr(rich, "_console", Console(force_terminal=False))
+
+    with Progress(redirect_stdout=False, redirect_stderr=False) as progress:
+        progress.add_task("host", total=1)
+        rich_initialise(display="none", plain=True)
+
+        console = rich.get_console()
+        assert getattr(console, "_render_hooks", [])
