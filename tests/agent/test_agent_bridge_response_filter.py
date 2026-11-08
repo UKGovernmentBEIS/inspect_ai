@@ -1952,7 +1952,7 @@ NESTED_PENDING_CE_ID = "srvtoolu_ce_pending"
 NESTED_WS_ID = "srvtoolu_ws_nested"
 
 
-async def _nested_pending_output() -> ModelOutput:
+async def _nested_pending_output(q: JsonValue = "x") -> ModelOutput:
     """A completed web search nested in a code execution that is still pending."""
     caller = {"type": "code_execution_20260120", "tool_id": NESTED_PENDING_CE_ID}
     return await _anthropic_output(
@@ -1989,7 +1989,7 @@ async def _nested_pending_output() -> ModelOutput:
                 "type": "tool_use",
                 "id": "toolu_client",
                 "name": "lookup",
-                "input": {"q": "x"},
+                "input": {"q": q},
             },
         ],
         [ToolInfo(name="lookup", description="Look something up.")],
@@ -2165,7 +2165,7 @@ def _modifying_approver() -> Approver:
     return approve
 
 
-async def _pending_container_output() -> ModelOutput:
+async def _pending_container_output(q: JsonValue = "x") -> ModelOutput:
     """A turn ending on a client tool call while a code execution is pending."""
     return await _anthropic_output(
         [
@@ -2181,7 +2181,7 @@ async def _pending_container_output() -> ModelOutput:
                 "type": "tool_use",
                 "id": "toolu_client",
                 "name": "lookup",
-                "input": {"q": "x"},
+                "input": {"q": q},
             },
         ],
         [ToolInfo(name="lookup", description="Look something up.")],
@@ -2294,7 +2294,16 @@ class _GrantRecordingBridge(AgentBridge):
         )
 
 
-@pytest.mark.parametrize("edit", ["text", "text_and_call"])
+SCALAR_EDITS: dict[str, tuple[JsonValue, JsonValue]] = {
+    "zero_to_false": (0, False),
+    "false_to_zero": (False, 0),
+    "one_to_true": (1, True),
+    "true_to_one": (True, 1),
+    "zero_to_one": (0, 1),
+}
+
+
+@pytest.mark.parametrize("edit", ["text", "text_and_call", *SCALAR_EDITS])
 @pytest.mark.parametrize("turn", ["pending", "nested"])
 async def test_request_filter_text_edit_keeps_pending_work(
     turn: str, edit: str
@@ -2305,12 +2314,17 @@ async def test_request_filter_text_edit_keeps_pending_work(
     generation. A text edit, or an edit keeping the turn's server items, still
     replays the pending code execution in the turn's container; an edit of the
     calls of a turn with no server items drops it, as a response filter's does.
+    That includes an argument changed between a number and a boolean, which
+    Python equality takes as unchanged.
     """
     from inspect_ai.model._providers.anthropic import _pending_container_for_input
 
     init_sample_anthropic_assistant_internal()
+    before, after = SCALAR_EDITS.get(edit, ("x", {"q": "y"}))
     provider_output = await (
-        _pending_container_output() if turn == "pending" else _nested_pending_output()
+        _pending_container_output(before)
+        if turn == "pending"
+        else _nested_pending_output(before)
     )
     original_blocks = await _render_anthropic(provider_output.message)
 
@@ -2325,6 +2339,10 @@ async def test_request_filter_text_edit_keeps_pending_work(
             input=input, tools=tools, tool_choice=tool_choice, config=config
         )
         output = output.model_copy(deep=True)
+        if edit in SCALAR_EDITS:
+            assert output.message.tool_calls
+            output.message.tool_calls[0].arguments = {"q": after}
+            return output
         await _text_edit_filter(
             model, output, GenerateInput(input, tools, tool_choice, config)
         )
@@ -2346,7 +2364,11 @@ async def test_request_filter_text_edit_keeps_pending_work(
     )
 
     handed = output.message
-    assert REPLACED_SENTINEL in handed.text
+    if edit in SCALAR_EDITS:
+        assert handed.tool_calls and handed.tool_calls[0].arguments == {"q": after}
+        assert type(handed.tool_calls[0].arguments["q"]) is type(after)
+    else:
+        assert REPLACED_SENTINEL in handed.text
     assert handed.id == edited_id(provider_output.message.id, handed)
     # the calls are not verified against the generation
     assert bridge.registered == [({}, None)]

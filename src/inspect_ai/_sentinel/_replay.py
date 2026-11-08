@@ -9,7 +9,7 @@ from functools import partial
 from typing import TYPE_CHECKING, Any, NamedTuple, cast
 
 from inspect_ai._util.content import Content
-from inspect_ai._util.json import json_equal
+from inspect_ai._util.json import json_equal, jsonable_python
 from inspect_ai.event._approval import ApprovalEvent
 from inspect_ai.event._compaction import CompactionEvent
 from inspect_ai.event._event import Event
@@ -1305,8 +1305,13 @@ class _Driver:
                 for message in self._messages_by_id_all().get(event.message_id, [])
                 if isinstance(message, ChatMessageTool)
             ]
+            result = jsonable_python(event.result)
             found = next(
-                (message for message in copies if message.content == event.result),
+                (
+                    message
+                    for message in copies
+                    if json_equal(jsonable_python(message.content), result)
+                ),
                 copies[0] if copies else None,
             )
             if found is not None:

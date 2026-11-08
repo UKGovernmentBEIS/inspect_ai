@@ -6441,6 +6441,27 @@ def test_a_result_is_the_message_the_tool_event_names() -> None:
     assert (rebuilt.id, rebuilt.text) == ("m2", "rebuilt")
 
 
+@pytest.mark.parametrize("ran, edited", [(1, True), (0, False), (0, 1)])
+def test_a_result_is_the_copy_the_call_returned(ran: int, edited: int | bool) -> None:
+    """Of a tool message's copies under one id, the result is the one equal to the call's, by JSON."""
+    from inspect_ai._sentinel._replay import _Driver
+
+    def text(value: int | bool) -> ContentText:
+        return ContentText(text="ok", internal={"n": value})
+
+    def copy(value: int | bool) -> ChatMessageTool:
+        return ChatMessageTool(
+            id="m1", content=[text(value)], tool_call_id="c1", function="f"
+        )
+
+    edit, original = copy(edited), copy(ran)
+    driver = _Driver([], [], [edit, original], "sample", EvalInfo(None, True), None, ())
+    event = ToolEvent(
+        id="c1", function="f", arguments={}, result=[text(ran)], message_id="m1"
+    )
+    assert driver._result(event) is original
+
+
 def nudged_inputs(turns: int) -> list[Event]:
     """An append-only conversation whose scaffold stamps its turn on each nudge: equal content, a pool row each."""
     system = ChatMessageSystem(content="Be helpful.")

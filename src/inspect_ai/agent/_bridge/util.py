@@ -635,18 +635,29 @@ def _keeps_provider_state(source: ChatMessageAssistant, edited: ChatMessage) -> 
     def items(message: ChatMessage) -> list[Content]:
         return [] if isinstance(message.content, str) else message.content
 
-    non_text = [item for item in items(source) if not isinstance(item, ContentText)]
-    server_ids = {item.id for item in non_text if isinstance(item, ContentToolUse)}
-    return isinstance(edited, ChatMessageAssistant) and (
-        (
-            non_text
-            == [item for item in items(edited) if not isinstance(item, ContentText)]
-            and source.tool_calls == edited.tool_calls
+    def without_text(message: ChatMessageAssistant) -> ChatMessageAssistant:
+        return message.model_copy(
+            update={
+                "content": [
+                    item for item in items(message) if not isinstance(item, ContentText)
+                ]
+            }
         )
-        or any(
-            isinstance(item, ContentToolUse) and item.id in server_ids
-            for item in items(edited)
-        )
+
+    if not isinstance(edited, ChatMessageAssistant):
+        return False
+    source_rest, edited_rest = without_text(source), without_text(edited)
+    server_ids = {
+        item.id for item in items(source_rest) if isinstance(item, ContentToolUse)
+    }
+    # Pydantic equality takes 0 for False, which serialize differently
+    return (
+        source_rest.content == edited_rest.content
+        and source.tool_calls == edited.tool_calls
+        and content_hash(source_rest) == content_hash(edited_rest)
+    ) or any(
+        isinstance(item, ContentToolUse) and item.id in server_ids
+        for item in items(edited)
     )
 
 
