@@ -6516,6 +6516,101 @@ def test_earlier_cancellation_under_a_reused_id_is_not_the_later_calls_result(
     assert event.message_id is None
 
 
+def _replace_value(value: Any, old: str, new: str) -> Any:
+    if value == old:
+        return new
+    if isinstance(value, dict):
+        return {k: _replace_value(v, old, new) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_replace_value(v, old, new) for v in value]
+    return value
+
+
+@agent
+def scaffold_only_id_scaffold(dialect: HostDialect, answer: str) -> Agent:
+    """A scaffold running a local call, then two host calls, sending the first host call under the local call's id with `answer`."""
+
+    async def execute(state: AgentState) -> AgentState:
+        bridge = SandboxAgentBridge(
+            state=state,
+            filter=None,
+            retry_refusals=None,
+            compaction=None,
+            port=13131,
+            model=None,
+            bridged_tools={"host": {"read_file": read_file(_numbered_results())}},
+        )
+        [info] = declare("mcp__host__read_file")
+        conversation = _HostConversation(dialect, state.messages[0].text, info)
+        local = await conversation.request(bridge)
+        conversation.results(local, ["LOCAL RESULT"])
+        start = len(conversation.history)
+        calls = await conversation.request(bridge)
+        outputs = [
+            await call_host_tool(bridge)("host", "read_file", arguments)
+            for _, arguments in calls
+        ]
+        if dialect != "google":
+            [(local_id, _)] = local
+            host_id = calls[0][0]
+            conversation.history[start:] = _replace_value(
+                conversation.history[start:], host_id, local_id
+            )
+            calls[0] = (local_id, calls[0][1])
+        conversation.results(calls, [answer, outputs[1]])
+        await conversation.request(bridge)
+        return bridge.state
+
+    return execute
+
+
+@pytest.mark.parametrize("answer", ["LOCAL RESULT rewritten", "LOCAL RESULT"])
+@pytest.mark.parametrize("dialect", get_args(HostDialect))
+def test_host_result_is_not_claimed_through_a_scaffold_only_calls_id(
+    dialect: HostDialect, answer: str, tmp_path: Path
+) -> None:
+    """A copy giving a host call an earlier scaffold-only call's id, and an answer under it, doesn't link the host call.
+
+    The scaffold ran the earlier call itself, so no grant or execution
+    records its id. Google sends no call ids: its two results of one function
+    can't be told apart, so neither links.
+    """
+    name = "mcp__host__read_file"
+    log = eval(
+        Task(
+            dataset=[Sample(input="Read a locally, then a and b on the host.")],
+            solver=scaffold_only_id_scaffold(dialect, answer),
+        ),
+        model=get_model(
+            "mockllm/model",
+            custom_outputs=[
+                tool_calls_output(
+                    ToolCall(id="local", function="read_file", arguments={"path": "a"})
+                ),
+                tool_calls_output(
+                    ToolCall(id="host_a", function=name, arguments={"path": "a"}),
+                    ToolCall(id="host_b", function=name, arguments={"path": "b"}),
+                ),
+                ModelOutput.from_content("mockllm/model", "done"),
+            ],
+        ),
+        log_dir=str(tmp_path),
+    )[0]
+    assert log.status == "success", log.error
+    read = read_eval_log(log.location)
+    assert read.samples
+    sample = resolve_sample_attachments(read.samples[0], "full")
+    assert_message_ids(sample)
+
+    model_events = [e for e in sample.events if isinstance(e, ModelEvent)]
+    results = {m.text: m.id for m in model_events[-1].input if m.role == "tool"}
+    events = {e.arguments["path"]: e for e in sample.events if isinstance(e, ToolEvent)}
+    assert events["a"].message_id is None
+    assert events["b"].message_id == (
+        None if dialect == "google" else results["b result 2"]
+    )
+
+
 @agent
 def surrogate_host_scaffold(outcome: Literal["result", "error"]) -> Agent:
     """A Completions scaffold reading two files whose host results, or errors, hold a lone surrogate."""

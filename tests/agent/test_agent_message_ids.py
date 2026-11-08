@@ -2222,6 +2222,7 @@ def _matching_state(bridge: AgentBridge) -> dict[str, Any]:
         "answers": bridge._answers,
         "reply_answers": bridge._reply_answers,
         "answer_records": bridge._answer_records,
+        "known_call_ids": list(bridge._known_call_ids),
     }
 
 
@@ -2265,6 +2266,37 @@ async def test_resumed_bridge_restores_its_matching_state() -> None:
         for answers in bridge._reply_answers.values()
     )
     assert _matching_state(resumed) == _matching_state(bridge)
+
+
+@pytest.mark.parametrize("checkpoint", ["current", "without_evidence"])
+async def test_known_call_ids_are_bounded_and_survive_a_resume(
+    checkpoint: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The bridge knows the newest call ids it handed, also once resumed.
+
+    A checkpoint without the bridge's matching evidence gives it the call ids
+    of the conversation it restores.
+    """
+    monkeypatch.setattr(bridge_types, "_MAX_KNOWN_CALL_IDS", 2)
+    task = ChatMessageUser(content="List the files.")
+    checkpointer = RecordingCheckpointer()
+    bridge = AgentBridge(AgentState(messages=[task]), checkpointer=checkpointer)
+    scaffold = _Scaffold(bridge)
+    messages: list[ChatMessage] = [task]
+    for n in range(3):
+        reply = _call(f"call_{n}")
+        await scaffold.request(messages, reply)
+        messages += [reply, _result(f"call_{n}")]
+    assert list(bridge._known_call_ids) == ["call_1", "call_2"]
+
+    snapshot = checkpointer.snapshot()
+    if checkpoint == "without_evidence":
+        snapshot.pop("bridge_match_evidence", None)
+    resumed = AgentBridge(
+        AgentState(messages=[task]),
+        checkpointer=RecordingCheckpointer(restored=snapshot, serialized=True),
+    )
+    assert list(resumed._known_call_ids) == ["call_1", "call_2"]
 
 
 async def test_checkpointed_matching_evidence_stays_bounded() -> None:

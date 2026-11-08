@@ -179,8 +179,8 @@ def _copy_calls(
     None if another call in the reply has its id: an answer under that id
     can't be told apart. Otherwise the one with its id, function and arguments.
     When no copy call has its id (Google re-derives call ids), the ones with
-    its function and arguments and an id the bridge handed in no tracked reply
-    and no unexecuted proposal (`excluded_ids`), but only if `handed` is the
+    its function and arguments and an id the bridge knows from no other call
+    (`excluded_ids`), but only if `handed` is the
     reply's only call with that function and arguments and its handed ids are
     known. Identical calls can't be told apart, so they are never paired.
     """
@@ -312,6 +312,9 @@ class _CopiedAnswers:
 _MAX_ANSWER_RECORDS = 4096
 """Answer records (`_ReplyAnswers` message ids and occurrences) kept between requests, beyond which the oldest replies' are dropped."""
 
+_MAX_KNOWN_CALL_IDS = 4096
+"""Call ids kept in `AgentBridge._known_call_ids`, beyond which the oldest are dropped."""
+
 
 class _MatchEvidence(BaseModel):
     """The bridge's matching state beyond its recorded ids, kept across a checkpoint resume."""
@@ -334,6 +337,8 @@ class _MatchEvidence(BaseModel):
     answers: dict[str, _Answer] = {}
 
     reply_answers: dict[str, _ReplyAnswers] = {}
+
+    known_call_ids: list[str] = []
 
 
 _NO_EVIDENCE = _MatchEvidence()
@@ -474,6 +479,22 @@ class AgentBridge:
         self._held: Counter[str] = Counter()
         """Kept threads (the tracked thread and recent ones) holding each reply id."""
         self._held_replies = dict(evidence.held_replies)
+        self._known_call_ids: dict[str, None] = {}
+        """Ids of the calls in the conversation the bridge started with and in every reply it handed, oldest first.
+
+        A resume from a checkpoint without evidence takes those of the
+        conversation it restores.
+        """
+        self._know_call_ids(
+            [
+                call.id
+                for message in restored_messages
+                if isinstance(message, ChatMessageAssistant)
+                for call in message.tool_calls or []
+            ]
+            if evidence is _NO_EVIDENCE
+            else evidence.known_call_ids
+        )
         """Per reply id, the most replies a kept thread holding it had."""
         self._dropped_reach = (
             dict.fromkeys(restored_keys, _UNKNOWN_REACH)
@@ -733,7 +754,9 @@ class AgentBridge:
         No call links while another tracked reply keeps no handed ids: any id
         in the copy could be one of that reply's unexecuted calls. A call
         matched by function and arguments doesn't take the id of a call
-        proposed but not executed (`_unexecuted_call_ids`).
+        proposed but not executed (`_unexecuted_call_ids`), nor of any call the
+        bridge handed or started with, including those the scaffold ran itself
+        (`_known_call_ids`).
 
         Each call settles on its own. One the copy can't identify, or with no
         result yet, keeps waiting: results sent in separate requests, after
@@ -784,7 +807,11 @@ class AgentBridge:
             copies = _index_copy_calls(message.tool_calls or [])
             if tracked_ids is None:
                 tracked_ids = self._tracked_call_ids()
-                excluded_ids = tracked_ids.keys() | self._unexecuted_call_ids()
+                excluded_ids = (
+                    tracked_ids.keys()
+                    | self._unexecuted_call_ids()
+                    | self._known_call_ids.keys()
+                )
                 linked_ids = {
                     linked
                     for ids in tracked_ids.values()
@@ -827,6 +854,13 @@ class AgentBridge:
                     if linked is not None:
                         linked_ids.add(linked)
 
+    def _know_call_ids(self, call_ids: Sequence[str]) -> None:
+        for call_id in call_ids:
+            self._known_call_ids.pop(call_id, None)
+            self._known_call_ids[call_id] = None
+        while len(self._known_call_ids) > _MAX_KNOWN_CALL_IDS:
+            del self._known_call_ids[next(iter(self._known_call_ids))]
+
     def _answers_other_reply(self, message_id: str | None, reply_id: str) -> bool:
         if message_id is None:
             return False
@@ -845,9 +879,9 @@ class AgentBridge:
         unlinked. A reply that keeps no handed ids contributes its tracked
         calls' ids (`_link_result_messages` links no other reply's calls while
         it is tracked). Ids from replies dropped by `_MAX_AWAITED_RESULTS`
-        aren't known, so a scaffold that copies an
-        earlier call and its answer into a later reply can still be taken for
-        that reply's call.
+        stay in `_known_call_ids` until `_MAX_KNOWN_CALL_IDS` later call ids
+        push them out; after that, a scaffold that copies such a call and its
+        answer into a later reply can be taken for that reply's call.
         """
         ids: dict[str, list[tuple[str, str | None]]] = {}
         for reply_id, calls in self._awaited_results.items():
@@ -1516,6 +1550,7 @@ class AgentBridge:
             edit_parents=self._edit_parent,
             answers=self._answers,
             reply_answers=self._reply_answers,
+            known_call_ids=list(self._known_call_ids),
         )
 
     def _remember_thread(self, thread: list[tuple[str, str]]) -> None:
@@ -1753,6 +1788,13 @@ class AgentBridge:
                 )
         for choice, form in zip(output.choices, transported):
             self._record_transported_reply(choice.message, form)
+        self._know_call_ids(
+            [
+                call.id
+                for choice in output.choices
+                for call in choice.message.tool_calls or []
+            ]
+        )
 
         # every choice's thread, since the scaffold may continue any of them;
         # the primary's last, so it stays kept when the window is full
