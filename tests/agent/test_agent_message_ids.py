@@ -2993,6 +2993,41 @@ async def test_equal_host_result_after_its_earlier_answer_record_is_dropped(
     assert later_event.message_id == (None if dropped else ids[2])
 
 
+@pytest.mark.parametrize("dropped", [False, True])
+async def test_equal_host_result_after_a_checked_answer_record_is_dropped(
+    dropped: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A dropped answer record stops later equal results linking, though an earlier equal result was checked against it and linked."""
+    task = ChatMessageUser(content="Start")
+    scaffold = _Scaffold(AgentBridge(AgentState(messages=[task])))
+    bridge = scaffold.bridge
+    # the provider reuses the call id
+    first = _call("call_1")
+    second = _call("call_1").model_copy(update={"content": "Again."})
+    third = _call("call_1").model_copy(update={"content": "Once more."})
+    await scaffold.request([task], first)
+    [first_event] = _awaiting(bridge, first, result="A")
+    first_ids = await scaffold.request([task, first, _result("call_1", "A")], second)
+    [second_event] = _awaiting(bridge, second, result="A")
+    if dropped:
+        monkeypatch.setattr(bridge_types, "_MAX_ANSWER_RECORDS", bridge._answer_records)
+    window: list[ChatMessage] = [
+        ChatMessageUser(content="Summary"),
+        second,
+        _result("call_1", "A"),
+    ]
+    second_ids = await scaffold.request(window, third)
+    [third_event] = _awaiting(bridge, third, result="A")
+
+    window = [ChatMessageUser(content="New summary"), third, _result("call_1", "A")]
+    ids = await scaffold.request(window)
+
+    assert first_event.message_id == first_ids[2]
+    assert second_event.message_id == second_ids[2] != first_ids[2]
+    assert (first_ids[2] in bridge._answers) is not dropped
+    assert third_event.message_id == (None if dropped else ids[2])
+
+
 @pytest.mark.parametrize("regenerated", [False, True])
 async def test_copied_answer_stays_unlinked_when_its_record_is_dropped_in_the_same_request(
     regenerated: bool,

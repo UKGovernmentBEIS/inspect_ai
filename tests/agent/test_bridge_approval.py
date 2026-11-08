@@ -7363,6 +7363,92 @@ def test_matching_same_name_google_results_is_linear(host: bool) -> None:
     assert large <= 12 * small, (small, large)
 
 
+@pytest.mark.parametrize("host", [False, True], ids=["scaffold", "host"])
+async def test_repeated_google_results_are_matched_in_linear_time(host: bool) -> None:
+    """Checking whether a repeated result may be a copy doesn't rescan its earlier copies.
+
+    A Google scaffold polls one status call, which gets `working` each time,
+    then compacts to a summary and its newest half of turns. Measured: the
+    copy checks over the whole run, and all matching of the compacted request.
+    """
+    import sys
+
+    from inspect_ai.agent._bridge.google_api_impl import (
+        messages_from_google_contents,
+    )
+
+    async def work(turns: int) -> tuple[int, int]:
+        prompt = "Poll status until done."
+        bridge = AgentBridge(AgentState(messages=[ChatMessageUser(content=prompt)]))
+        contents: list[Any] = [{"role": "user", "parts": [{"text": prompt}]}]
+        call = {"functionCall": {"name": "status", "args": {}}}
+        result = {
+            "functionResponse": {"name": "status", "response": {"output": "working"}}
+        }
+        checks = compacted = 0
+        measuring_compacted = False
+
+        def trace(frame: Any, event: str, arg: Any) -> Any:
+            check = frame.f_code.co_qualname.startswith(
+                ("AgentBridge._new_result_linkable", "AgentBridge._copies_answered")
+            )
+            matching = measuring_compacted and "inspect_ai" in frame.f_code.co_filename
+            if not (check or matching):
+                return None
+            if event == "line":
+                nonlocal checks, compacted
+                checks += check
+                compacted += matching
+            return trace
+
+        sys.settrace(trace)
+        try:
+            for i in range(turns):
+                messages = messages_from_google_contents(contents, None)
+                bridge._assign_message_ids(messages)
+                reply = ChatMessageAssistant(
+                    content="",
+                    tool_calls=[
+                        ToolCall(id=f"provider-{i}", function="status", arguments={})
+                    ],
+                )
+                wire = {"role": "model", "parts": [call]}
+                await bridge._track_state(
+                    messages,
+                    ModelOutput.from_message(reply),
+                    [messages_from_google_contents([wire], None)],
+                )
+                if host:
+                    assert reply.id is not None
+                    [handed] = _handed_calls(reply.id, reply.tool_calls or [])
+                    bridge._await_result_message(
+                        handed,
+                        ToolEvent(
+                            id=handed.call_id,
+                            function="status",
+                            arguments={},
+                            result="working",
+                        ),
+                    )
+                contents += [wire, {"role": "user", "parts": [result]}]
+            summary = {"role": "user", "parts": [{"text": "Summary: still waiting."}]}
+            messages = messages_from_google_contents(
+                [summary, *contents[1 + 2 * (turns // 2) :]], None
+            )
+            measuring_compacted = True
+            bridge._assign_message_ids(messages)
+        finally:
+            sys.settrace(None)
+        return checks, compacted
+
+    works = [await work(turns) for turns in (32, 64, 128)]
+    for measured in zip(*works):
+        assert measured[0] > 0
+        # linear is 2x per doubling; rescanning the earlier copies is 4x
+        assert measured[1] <= 2.5 * measured[0], works
+        assert measured[2] <= 5 * measured[0], works
+
+
 def _awaited_entries(bridge: AgentBridge) -> list[Any]:
     return [
         entry for calls in bridge._awaited_results.values() for entry in calls.values()

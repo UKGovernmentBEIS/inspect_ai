@@ -1,5 +1,6 @@
 import json
 from collections import Counter, OrderedDict, deque
+from dataclasses import dataclass, field
 from enum import IntEnum
 from functools import lru_cache, partial
 from typing import (
@@ -294,6 +295,20 @@ class _ReplyAnswers(NamedTuple):
     """Per message key, the id its answer was first given (`None` once an answer with another id has it too)."""
 
 
+@dataclass
+class _CopiedAnswers:
+    """The answer records of the messages recorded under a key (`AgentBridge._copies_answered`)."""
+
+    counted: int = 0
+    """How many of the key's ids `outcomes` and `unrecorded` cover."""
+
+    outcomes: Counter[frozenset[str]] = field(default_factory=Counter)
+    """Per outcomes, how many of those ids' edit roots have an answer record with them (see `AgentBridge._copy_keys`)."""
+
+    unrecorded: list[str] = field(default_factory=list)
+    """Edit roots of those ids not yet found with an answer record, or whose record was dropped."""
+
+
 _MAX_ANSWER_RECORDS = 4096
 """Answer records (`_ReplyAnswers` message ids and occurrences) kept between requests, beyond which the oldest replies' are dropped."""
 
@@ -502,6 +517,9 @@ class AgentBridge:
             len(answers.message_ids) + len(answers.occurrences)
             for answers in self._reply_answers.values()
         )
+        self._copied_answers: dict[str, _CopiedAnswers] = {}
+        self._copy_keys: dict[str, set[str]] = {}
+        """Per edit root with an answer record, the keys whose `_CopiedAnswers.outcomes` count it."""
         self._operator_keys: set[str] = set()
         self._warned_request_settings: set[str] = set()
 
@@ -1149,24 +1167,38 @@ class AgentBridge:
         or the call has no host executions, each must be an answer whose call's
         executions returned what the call's one pending execution did.
         """
-        copied = {
-            id
-            for key in keys
-            if key.startswith(("content:", "loose:"))
-            for id in self._message_ids.get(key, ())
-        }
-        if not copied:
-            return True
         executions = self._executions(answered)
         if not executions.found:
             return True
+        copy_keys = [key for key in keys if key.startswith(("content:", "loose:"))]
+        if not any(self._message_ids.get(key) for key in copy_keys):
+            return True
         if len(executions.pending) != 1:
             return False
-        pending = set(executions.pending)
-        return all(
-            (earlier := self._answer_of(id)) is not None and earlier.outcomes == pending
-            for id in copied
-        )
+        pending = frozenset(executions.pending)
+        return all(self._copies_answered(key, pending) for key in copy_keys)
+
+    def _copies_answered(self, key: str, outcomes: frozenset[str]) -> bool:
+        """Whether every message recorded under `key` has an answer record with `outcomes`.
+
+        Kept per key and updated as ids are recorded and records dropped, so
+        repeated results don't each rescan the ids recorded under their keys.
+        """
+        ids = self._message_ids.get(key, [])
+        copied = self._copied_answers.setdefault(key, _CopiedAnswers())
+        copied.unrecorded.extend(self._edit_root(id) for id in ids[copied.counted :])
+        copied.counted = len(ids)
+        while copied.unrecorded:
+            root = copied.unrecorded[-1]
+            answer = self._answers.get(root)
+            if answer is None:
+                return False
+            copied.unrecorded.pop()
+            counted = self._copy_keys.setdefault(root, set())
+            if key not in counted:
+                counted.add(key)
+                copied.outcomes[answer.outcomes] += 1
+        return all(recorded == outcomes for recorded in copied.outcomes)
 
     def _executions(
         self, answered: _AnsweredCall, identical: bool = False
@@ -1309,7 +1341,13 @@ class AgentBridge:
         while self._answer_records > _MAX_ANSWER_RECORDS:
             _, dropped = self._reply_answers.popitem(last=False)
             for message_id in dropped.message_ids:
-                del self._answers[message_id]
+                answer = self._answers.pop(message_id)
+                for key in self._copy_keys.pop(message_id, ()):
+                    copied = self._copied_answers[key]
+                    copied.outcomes[answer.outcomes] -= 1
+                    if not copied.outcomes[answer.outcomes]:
+                        del copied.outcomes[answer.outcomes]
+                    copied.unrecorded.append(message_id)
             self._answer_records -= len(dropped.message_ids) + len(dropped.occurrences)
 
     def _version_id(self, message_id: str, message: ChatMessage) -> str:
