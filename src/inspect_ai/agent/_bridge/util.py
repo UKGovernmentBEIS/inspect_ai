@@ -1303,41 +1303,15 @@ async def _bridge_generate_impl(
             # a sink chose is stored, so a rotating checkpoint span is followed
             # a call the model proposed names its output, though a response
             # filter or an approver may have changed the message handed over
-            proposing: dict[str, str] = {}
-            if generated is not None:
-                for selected_call in reviewed.output.message.tool_calls or []:
-                    proposals = [
-                        (choice.message.id, call)
-                        for choice in generated.choices
-                        for call in choice.message.tool_calls or []
-                        if call.id == selected_call.id
-                        and call.function == selected_call.function
-                    ]
-                    selected = [
-                        proposal
-                        for proposal in proposals
-                        if proposal[0] == verified_source_id
-                    ]
-                    if selected:
-                        selected_args = {
-                            canonical_tool_arguments(call.arguments)
-                            for _, call in selected
-                        }
-                        matching_sources = {
-                            source_id
-                            for source_id, call in proposals
-                            if canonical_tool_arguments(call.arguments) in selected_args
-                        }
-                        if verified_source_id is not None and matching_sources == {
-                            verified_source_id
-                        }:
-                            proposing[selected_call.id] = verified_source_id
-                    else:
-                        sources = {source_id for source_id, _ in proposals}
-                        if len(sources) == 1:
-                            [source_id] = sources
-                            if source_id is not None:
-                                proposing[selected_call.id] = source_id
+            proposing = (
+                _proposing_message_ids(
+                    generated,
+                    reviewed.output.message.tool_calls or [],
+                    verified_source_id,
+                )
+                if generated is not None
+                else {}
+            )
             bridge._proposing_message_ids = proposing
             bridge._proposing_reply_id = reviewed.output.message.id
             bridge._proposing_call_verified = verified_calls
@@ -1360,6 +1334,55 @@ async def _bridge_generate_impl(
         # accumulate onto original_input (rather than input_messages) since that is
         # what the top of the loop resets to, and any filter rewrite is per-attempt
         original_input = original_input + reviewed.rejection
+
+
+def _proposing_message_ids(
+    generated: ModelOutput,
+    calls: list[ToolCall],
+    verified_source_id: str | None,
+) -> dict[str, str]:
+    """Map each handed call's id to the generated choice that proposed it, when known.
+
+    A call is attributed to the choice a response filter selected only when no
+    other choice proposed it with the same arguments; otherwise to the one
+    choice proposing a call with its id and function. Generated calls are
+    indexed once, so calls sharing an id and function (as every malformed
+    call from the Llama parser does) are attributed in linear time.
+    """
+    proposals: dict[tuple[str, str], list[tuple[str | None, ToolCall]]] = {}
+    for choice in generated.choices:
+        for call in choice.message.tool_calls or []:
+            proposals.setdefault((call.id, call.function), []).append(
+                (choice.message.id, call)
+            )
+
+    def source(key: tuple[str, str]) -> str | None:
+        keyed = proposals.get(key, [])
+        sources = {source_id for source_id, _ in keyed}
+        if verified_source_id not in sources:
+            return next(iter(sources)) if len(sources) == 1 else None
+        args = [canonical_tool_arguments(call.arguments) for _, call in keyed]
+        selected_args = {
+            arguments
+            for (source_id, _), arguments in zip(keyed, args)
+            if source_id == verified_source_id
+        }
+        matching_sources = {
+            source_id
+            for (source_id, _), arguments in zip(keyed, args)
+            if arguments in selected_args
+        }
+        return verified_source_id if matching_sources == {verified_source_id} else None
+
+    attributed: dict[tuple[str, str], str | None] = {}
+    proposing: dict[str, str] = {}
+    for call in calls:
+        key = (call.id, call.function)
+        if key not in attributed:
+            attributed[key] = source(key)
+        if (source_id := attributed[key]) is not None:
+            proposing[call.id] = source_id
+    return proposing
 
 
 class _SpanCapturingSink:

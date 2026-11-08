@@ -112,6 +112,7 @@ from inspect_ai.model._generate_config import (
     GenerateConfig,
     active_generate_config_context_var,
 )
+from inspect_ai.model._message_ids import canonical_tool_arguments
 from inspect_ai.model._model import (
     GenerateInput,
     Model,
@@ -7654,6 +7655,82 @@ async def test_matching_results_of_calls_sharing_an_id_is_linear(
         assert measured[0] > 0
         # linear is 8x; digesting each result's sibling calls is 64x
         assert measured[1] <= 12 * measured[0], (small, large)
+
+
+@pytest.mark.parametrize("dialect", get_args(HostDialect))
+@pytest.mark.parametrize("case", ["parse_error", "shared", "distinct"])
+async def test_handing_over_many_calls_sharing_an_id_is_linear(
+    dialect: HostDialect, case: str
+) -> None:
+    """Handing over a reply's calls is linear in its calls, however many share an id.
+
+    The Llama parser gives every malformed `<tool_call>` block the call id and
+    function `unknown`. Measured: argument canonicalizations and all work of the
+    generation request.
+    """
+    import sys
+
+    import inspect_ai.agent._bridge.util as bridge_util
+
+    def call(i: int) -> ToolCall:
+        match case:
+            case "parse_error":
+                return ToolCall(
+                    id="unknown", function="unknown", arguments={}, parse_error="bad"
+                )
+            case "shared":
+                return ToolCall(
+                    id="unknown", function="read_file", arguments={"path": str(i)}
+                )
+            case _:
+                return ToolCall(
+                    id=f"call_{i}", function="read_file", arguments={"path": str(i)}
+                )
+
+    async def work(n: int) -> tuple[int, int]:
+        outputs = [tool_calls_output(*[call(i) for i in range(n)])]
+        bridge = AgentBridge(
+            AgentState(messages=[ChatMessageUser(content="Read files.")]),
+            model_aliases={
+                "inspect": get_model("mockllm/model", custom_outputs=outputs)
+            },
+        )
+        [info] = declare("read_file")
+        conversation = _HostConversation(dialect, "Read files.", info)
+        canonicalized = lines = 0
+        canonical = canonical_tool_arguments
+
+        def counted_canonical(arguments: dict[str, Any]) -> str:
+            nonlocal canonicalized
+            canonicalized += 1
+            return canonical(arguments)
+
+        def trace(frame: Any, event: str, arg: Any) -> Any:
+            if "inspect_ai" not in frame.f_code.co_filename:
+                return None
+            if event == "line":
+                nonlocal lines
+                lines += 1
+            return trace
+
+        with (
+            recorded_transcript(),
+            patch.object(bridge_util, "canonical_tool_arguments", counted_canonical),
+        ):
+            sys.settrace(trace)
+            try:
+                calls = await conversation.request(cast(SandboxAgentBridge, bridge))
+            finally:
+                sys.settrace(None)
+        assert len(calls) == n
+        return canonicalized, lines
+
+    await work(4)
+    small, large = await work(100), await work(800)
+    assert small[1] > 0 and large[1] > 0
+    # linear is 8x; scanning every generated call for each handed call is 64x
+    assert large[0] <= 12 * max(small[0], 1), (small, large)
+    assert large[1] <= 12 * small[1], (small, large)
 
 
 @pytest.mark.parametrize("host", [False, True], ids=["scaffold", "host"])
