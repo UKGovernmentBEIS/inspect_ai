@@ -1,5 +1,6 @@
 """Tests for stable_message_ids and message ID stability."""
 
+import pytest
 from test_helpers.message_ids import assert_message_ids, edited_id, shown
 
 from inspect_ai import Task, eval
@@ -13,6 +14,7 @@ from inspect_ai.model import (
     ChatMessageUser,
     GenerateConfig,
     ModelOutput,
+    UrlCitation,
     get_model,
 )
 from inspect_ai.model._message_ids import (
@@ -422,6 +424,52 @@ def test_tool_model_input_editing_content_in_place_derives_ids() -> None:
     assert older[0].id == edited_id(first.id, older[0])
     assert again[0].id == older[0].id
     assert first.text == "full result"
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("citations", [UrlCitation(url="https://example.com", cited_text="result")]),
+        ("internal", {"provider": "payload"}),
+        ("cache_breakpoint", True),
+    ],
+)
+def test_tool_model_input_metadata_edit_is_applied_under_the_same_id(
+    field: str, value: object
+) -> None:
+    async def lookup(query: str) -> str:
+        """Look up a query.
+
+        Args:
+          query: The query.
+        """
+        return query
+
+    def strip(
+        index: int,
+        total: int,
+        content: str | list[Content],
+        hints: ToolCallModelInputHints,
+    ) -> str | list[Content]:
+        assert isinstance(content, list)
+        return [item.model_copy(update={field: None}) for item in content]
+
+    tdef = ToolDef(lookup, model_input=strip)
+    message = ChatMessageTool(
+        content=[ContentText(text="result").model_copy(update={field: value})],
+        tool_call_id="c1",
+        function="lookup",
+    )
+
+    resolved = resolve_tool_model_input(
+        [tdef], [message], {"disable_computer_screenshot_truncation": False}
+    )
+
+    assert isinstance(resolved[0].content, list)
+    assert getattr(resolved[0].content[0], field) is None
+    assert resolved[0].id == message.id
+    assert isinstance(message.content, list)
+    assert getattr(message.content[0], field) == value
 
 
 @tool(model_input=_redact_older_in_place)

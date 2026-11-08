@@ -2753,9 +2753,7 @@ def resolve_tool_model_input(
             model_input_content = tdef.model_input(
                 index, len(tdef_tool_messages), content, hints
             )
-            edited = edited_message(message, content=model_input_content)
-            if edited.id != message.id:
-                messages[position] = edited
+            messages[position] = edited_message(message, content=model_input_content)
 
     # return modified messages
     return messages
