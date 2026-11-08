@@ -7178,6 +7178,119 @@ async def test_answer_sent_after_a_later_execution_holds_its_outcome(
     assert tool_events[-1].message_id == (None if copied else latest)
 
 
+@pytest.mark.parametrize("resumed", [False, True], ids=["live", "resumed"])
+@pytest.mark.parametrize("sent", ["copy", "own"])
+@pytest.mark.parametrize(
+    "answered", ["before start", "while running", "after completion"]
+)
+@pytest.mark.parametrize("dialect", ["google", "completions", "responses", "anthropic"])
+async def test_answer_sent_before_its_execution_completes_links_nothing(
+    dialect: HostDialect, answered: str, sent: str, resumed: bool
+) -> None:
+    """An answer sent before an execution of its call completes never links that execution.
+
+    The call runs on `a` returning "OLD", and its answer links. The scaffold
+    compacts that exchange away and an equal call under the same id runs on
+    `a` returning "NEW". It answers that call with a copy of the "OLD"
+    answer (or, as a control, its own answer: "NEW" once the execution has
+    completed, else a timeout message) `answered` relative to the execution,
+    then resends the conversation. An answer sent before the execution
+    completed can't hold its result. With `resumed`, the later call is made
+    to a bridge resumed from a checkpoint taken after the first answer.
+    """
+    outputs = [
+        tool_calls_output(
+            ToolCall(id="call_1", function="read_file", arguments={"path": "p"}),
+            content="Reading p.",
+        ),
+        ModelOutput.from_content("mockllm/model", "Noted."),
+        tool_calls_output(
+            ToolCall(id="call_1", function="read_file", arguments={"path": "p"}),
+            content="Reading p again.",
+        ),
+        *[ModelOutput.from_content("mockllm/model", "Done.")] * 2,
+    ]
+    model = get_model("mockllm/model", custom_outputs=outputs)
+    started, release = anyio.Event(), anyio.Event()
+    executions = 0
+
+    async def result(**_: Any) -> str:
+        nonlocal executions
+        executions += 1
+        if executions == 1:
+            return "OLD"
+        started.set()
+        await release.wait()
+        return "NEW"
+
+    def host_bridge(checkpointer: RecordingCheckpointer) -> SandboxAgentBridge:
+        return SandboxAgentBridge(
+            state=AgentState(messages=[ChatMessageUser(content="Read p.")]),
+            filter=None,
+            retry_refusals=None,
+            compaction=None,
+            port=13131,
+            model=None,
+            model_aliases={"inspect": model},
+            bridged_tools={
+                "a": {"read_file": read_file(AsyncMock(side_effect=result))}
+            },
+            checkpointer=checkpointer,
+        )
+
+    checkpointer = RecordingCheckpointer()
+    bridge = host_bridge(checkpointer)
+    [info] = declare("read_file")
+    conversation = _HostConversation(dialect, "Read p.", info)
+    with recorded_transcript() as recorded:
+        first = await conversation.request(bridge)
+        await call_host_tool(bridge)("a", "read_file", first[0][1])
+        conversation.results(first, ["OLD"])
+        await conversation.request(bridge)
+        if resumed:
+            bridge = host_bridge(
+                RecordingCheckpointer(
+                    restored=json.loads(json.dumps(checkpointer.snapshot())),
+                    serialized=True,
+                )
+            )
+        conversation.history = [_user_turn(dialect, "Summary: p reads OLD.")]
+        second = await conversation.request(bridge)
+
+        async def execute() -> None:
+            await call_host_tool(bridge)("a", "read_file", second[0][1])
+
+        async def answer() -> None:
+            own = "NEW" if answered == "after completion" else "Timed out."
+            conversation.results(second, ["OLD" if sent == "copy" else own])
+            await conversation.request(bridge)
+
+        if answered == "before start":
+            await answer()
+            release.set()
+            await execute()
+        elif answered == "while running":
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(execute)
+                await started.wait()
+                await answer()
+                release.set()
+        else:
+            release.set()
+            await execute()
+            await answer()
+        conversation.history.append(_user_turn(dialect, "Continue."))
+        await conversation.request(bridge)
+
+    model_events = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    [latest] = [m.id for m in model_events[-1].input if m.role == "tool"]
+    tool_events = [e for e in recorded.events if isinstance(e, ToolEvent)]
+    assert [e.result for e in tool_events] == ["OLD", "NEW"]
+    assert tool_events[0].message_id is not None
+    linked = sent == "own" and answered == "after completion"
+    assert tool_events[-1].message_id == (latest if linked else None)
+
+
 @agent
 def fabricating_host_scaffold(dialect: HostDialect, fabricated_id: str) -> Agent:
     """A scaffold running a reply's two calls as host tools, then sending in the reply's place its own text and one call under `fabricated_id`, with the first call's function and arguments and its own answer."""

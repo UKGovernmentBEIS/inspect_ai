@@ -152,6 +152,9 @@ class _AwaitedResult(NamedTuple):
     reply_versions: tuple[str, ...] = ()
     """Recent edits of the handed reply, kept on one call per pending reply."""
 
+    answers_before: int = 0
+    """Answers recorded before the call's first execution completed (`AgentBridge._answer_order`), none of which holds its result."""
+
 
 class _CopyCalls(NamedTuple):
     """The calls of a scaffold's copy of a reply."""
@@ -644,6 +647,9 @@ class AgentBridge:
         """Per id with an answer record, the keys whose `_CopiedAnswers.outcomes` count it."""
         self._answer_groups: dict[str, _AnswerGroup] = {}
         """Per reply, the group holding it."""
+        self._answer_order: dict[str, int] = {}
+        """Per id with an answer record made by this bridge (not restored), how many were made before it."""
+        self._answers_made = 0
         self._operator_keys: set[str] = set()
         self._warned_request_settings: set[str] = set()
 
@@ -799,8 +805,10 @@ class AgentBridge:
         The result reaches the bridge only when the scaffold sends it back in a
         later request (`_link_result_messages`). A second execution of the call
         settles it unlinked (which execution the result holds is unknown), and
-        one after the call settled stays unlinked. Every execution's outcome is
-        kept, and added to the records of answers already sent that may answer
+        one after the call settled stays unlinked. An answer recorded before the
+        first execution completed (`_AwaitedResult.answers_before`) can't hold
+        its result, which the scaffold gets only after this. Every execution's
+        outcome is kept, and added to the records of answers already sent that may answer
         the call (`_answer_groups`), so a record covers every execution
         whichever one the answer holds. At most `_MAX_AWAITED_RESULTS` calls are
         tracked; the oldest replies' calls are dropped (left unlinked) beyond
@@ -824,7 +832,12 @@ class AgentBridge:
         calls = self._awaited_results.setdefault(handed.reply_id, {})
         tracked = calls.get(handed.position)
         if tracked is None:
-            calls[handed.position] = _AwaitedResult(handed, event, frozenset([outcome]))
+            calls[handed.position] = _AwaitedResult(
+                handed,
+                event,
+                frozenset([outcome]),
+                answers_before=self._answers_made,
+            )
         else:
             calls[handed.position] = tracked._replace(
                 event=None, settled=True, outcomes=tracked.outcomes | {outcome}
@@ -867,8 +880,9 @@ class AgentBridge:
         and with an id unique in the copy. Its result is a tool message before
         the next assistant message with tool calls: exactly one links it, more
         than one settles it unlinked. A message already linked to a tracked call,
-        or first sent as another reply's answer (`_result_occurrence`) or as an
-        answer without a linkable record (`unattributed`), isn't linked. A call
+        or first sent as another reply's answer (`_result_occurrence`), as an
+        answer without a linkable record (`unattributed`) or before the call's
+        execution completed (`_answered_before`), isn't linked. A call
         whose result has an `inferred` call id settles unlinked. A
         kept id another tracked reply also handed doesn't link while that reply's call is unlinked (`_tracked_call_ids`).
         No call links while another tracked reply keeps no handed ids: any id
@@ -960,6 +974,7 @@ class AgentBridge:
                 if len(matches) == 1 and (
                     linked_result(matches[0].id)
                     or matches[0].id in unattributed
+                    or self._answered_before(matches[0].id, awaited[call_index])
                     or self._answers_other_reply(matches[0].id, reply_id)
                     or any(
                         linked is None
@@ -986,6 +1001,12 @@ class AgentBridge:
             return False
         answered = self._answer_of(message_id)
         return answered is not None and answered.reply_id != reply_id
+
+    def _answered_before(self, message_id: str | None, awaited: _AwaitedResult) -> bool:
+        if message_id is None or self._answer_of(message_id) is None:
+            return False
+        order = self._answer_order.get(self._edit_root(message_id), -1)
+        return order < awaited.answers_before
 
     def _unexecuted_call_ids(self) -> set[str]:
         return set()
@@ -1390,7 +1411,8 @@ class AgentBridge:
 
         The message may be a copy of any message recorded under its content or
         loose key, whether or not recognition named one. Unless there is none,
-        or the call has no host executions, each must be an answer whose call's
+        or the call has no completed host executions (a later one never links
+        it, `_answered_before`), each must be an answer whose call's
         executions returned what the call's one pending execution did.
         """
         executions = self._executions(answered)
@@ -1544,6 +1566,8 @@ class AgentBridge:
         ):
             outcomes = frozenset()
         self._answers[message_id] = _Answer(answered.reply_id, outcomes, linkable)
+        self._answer_order[message_id] = self._answers_made
+        self._answers_made += 1
         self._reply_answer_records(answered.reply_id).message_ids.append(message_id)
         self._answer_records += 1
         if outcomes and executions.call is not None:
@@ -1641,6 +1665,7 @@ class AgentBridge:
             group = self._answer_groups.get(reply_id)
             for message_id in dropped.message_ids:
                 self._recount_answer(message_id, None)
+                self._answer_order.pop(message_id, None)
                 if group is not None:
                     group.remove(message_id, reply_id)
             if group is not None and not group.answers:
