@@ -339,6 +339,7 @@ class _MatchEvidence(BaseModel):
     reply_answers: dict[str, _ReplyAnswers] = {}
 
     known_call_ids: list[str] = []
+    """JSON-encoded, so an id holding a lone surrogate is restored unchanged."""
 
 
 _NO_EVIDENCE = _MatchEvidence()
@@ -493,7 +494,7 @@ class AgentBridge:
                 for call in message.tool_calls or []
             ]
             if evidence is _NO_EVIDENCE
-            else evidence.known_call_ids
+            else [json.loads(id) for id in evidence.known_call_ids]
         )
         """Per reply id, the most replies a kept thread holding it had."""
         self._dropped_reach = (
@@ -1550,7 +1551,7 @@ class AgentBridge:
             edit_parents=self._edit_parent,
             answers=self._answers,
             reply_answers=self._reply_answers,
-            known_call_ids=list(self._known_call_ids),
+            known_call_ids=[json.dumps(id) for id in self._known_call_ids],
         )
 
     def _remember_thread(self, thread: list[tuple[str, str]]) -> None:
@@ -1990,7 +1991,7 @@ def _message_id_keys(message: ChatMessage) -> list[str]:
     if isinstance(message, ChatMessageAssistant) and message.tool_calls:
         keys.append("calls:" + json.dumps([call.id for call in message.tool_calls]))
     if isinstance(message, ChatMessageTool) and message.tool_call_id:
-        keys.append(f"result:{message.tool_call_id}")
+        keys.append("result:" + json.dumps(message.tool_call_id))
     keys.append(_loose_message_key(message, message.text))
     return keys
 

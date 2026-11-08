@@ -32,6 +32,7 @@ from inspect_ai._util.content import (
     ContentReasoning,
     ContentText,
 )
+from inspect_ai._util.json import to_json_str_safe
 from inspect_ai.agent import Agent, AgentState, agent, agent_bridge, handoff, react
 from inspect_ai.agent._bridge import bridge as bridge_module
 from inspect_ai.agent._bridge import types as bridge_types
@@ -69,6 +70,7 @@ from inspect_ai.model._message_ids import (
     edited_message,
     stable_message_ids,
 )
+from inspect_ai.model._model import active_model_context_var
 from inspect_ai.model._model_output import ChatCompletionChoice
 from inspect_ai.solver import generate, user_message
 from inspect_ai.tool import (
@@ -1659,6 +1661,18 @@ def test_call_ids_key_tells_apart_ids_holding_a_separator(
     assert calls_keys(call_ids).isdisjoint(calls_keys(other))
 
 
+def test_result_key_tells_a_lone_surrogate_from_its_escaped_text() -> None:
+    """A tool message's call id key is ASCII, and differs from that of the id's escaped text."""
+
+    def result_keys(call_id: str) -> set[str]:
+        keys = _message_id_keys(_result(call_id))
+        return {key for key in keys if key.startswith("result:")}
+
+    lone, escaped = result_keys("call_\ud800"), result_keys("call_\\ud800")
+    assert len(lone) == 1 and all(key.isascii() for key in lone)
+    assert lone.isdisjoint(escaped)
+
+
 def test_responses_dedupe_tells_a_lone_surrogate_from_its_escaped_text() -> None:
     """Assistant text whose `internal` holds a lone surrogate isn't a duplicate of one holding its escaped text."""
 
@@ -2297,6 +2311,227 @@ async def test_known_call_ids_are_bounded_and_survive_a_resume(
         checkpointer=RecordingCheckpointer(restored=snapshot, serialized=True),
     )
     assert list(resumed._known_call_ids) == ["call_1", "call_2"]
+
+
+_UNTRUSTED_SUFFIXES = ["1", "\ud800", "\\ud800"]
+_UNTRUSTED_SUFFIX_IDS = ["ordinary", "lone surrogate", "literal backslash"]
+
+
+def _written_checkpoint(checkpointer: RecordingCheckpointer) -> dict[str, Any]:
+    # the tracked state as `CheckpointerImpl._write_host_context` writes it
+    agent_state = {key: callback() for key, callback in checkpointer.callbacks.items()}
+    return cast(dict[str, Any], json.loads(to_json_str_safe(agent_state)))
+
+
+@pytest.mark.parametrize("suffix", _UNTRUSTED_SUFFIXES, ids=_UNTRUSTED_SUFFIX_IDS)
+async def test_resumed_bridge_restores_untrusted_call_ids_exactly(
+    suffix: str,
+) -> None:
+    """A call id holding a lone surrogate is written to a checkpoint and restored unchanged."""
+    task = ChatMessageUser(content="List the files.")
+    call_id = f"call_{suffix}"
+    checkpointer = RecordingCheckpointer()
+    bridge = AgentBridge(AgentState(messages=[task]), checkpointer=checkpointer)
+    scaffold = _Scaffold(bridge)
+    reply = _call(call_id)
+    await scaffold.request([task], reply)
+    await scaffold.request(
+        [task, reply, _result(call_id)], ChatMessageAssistant(content="Done.")
+    )
+
+    resumed = AgentBridge(
+        AgentState(messages=[task]),
+        checkpointer=RecordingCheckpointer(
+            restored=_written_checkpoint(checkpointer), serialized=True
+        ),
+    )
+
+    assert list(bridge._known_call_ids) == [call_id]
+    assert _matching_state(resumed) == _matching_state(bridge)
+
+
+def _call_exchange(dialect: Dialect, suffix: str) -> list[dict[str, Any]]:
+    """A scaffold-run call of `read_<suffix>` (id `call_<suffix>`) and its result."""
+    call_id, name = f"call_{suffix}", f"read_{suffix}"
+    user: dict[str, Any] = {"role": "user", "content": "Read the file."}
+    if dialect == "completions":
+        return [
+            user,
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {
+                        "id": call_id,
+                        "type": "function",
+                        "function": {"name": name, "arguments": "{}"},
+                    }
+                ],
+            },
+            {"role": "tool", "tool_call_id": call_id, "content": "a.txt"},
+        ]
+    elif dialect == "responses":
+        return [
+            user,
+            {
+                "type": "function_call",
+                "call_id": call_id,
+                "name": name,
+                "arguments": "{}",
+            },
+            {"type": "function_call_output", "call_id": call_id, "output": "a.txt"},
+        ]
+    elif dialect == "anthropic":
+        return [
+            user,
+            {
+                "role": "assistant",
+                "content": [
+                    {"type": "tool_use", "id": call_id, "name": name, "input": {}}
+                ],
+            },
+            {
+                "role": "user",
+                "content": [
+                    {"type": "tool_result", "tool_use_id": call_id, "content": "a.txt"}
+                ],
+            },
+        ]
+    return [
+        {"role": "user", "parts": [{"text": "Read the file."}]},
+        {"role": "model", "parts": [{"functionCall": {"name": name, "args": {}}}]},
+        {
+            "role": "user",
+            "parts": [
+                {"functionResponse": {"name": name, "response": {"output": "a.txt"}}}
+            ],
+        },
+    ]
+
+
+async def _send(dialect: Dialect, wire: list[dict[str, Any]]) -> None:
+    conversation = _TextConversation(dialect)
+    conversation.turns = [[item] for item in wire]
+    await conversation.generate()
+
+
+@contextlib.contextmanager
+def _active_mock_model(*outputs: ModelOutput) -> Iterator[None]:
+    # outside an eval, so log writing doesn't need to encode the lone surrogates
+    token = active_model_context_var.set(
+        get_model("mockllm/model", custom_outputs=list(outputs))
+    )
+    try:
+        yield
+    finally:
+        active_model_context_var.reset(token)
+
+
+@pytest.mark.parametrize("suffix", _UNTRUSTED_SUFFIXES, ids=_UNTRUSTED_SUFFIX_IDS)
+@pytest.mark.parametrize("dialect", DIALECTS)
+async def test_scaffold_call_ids_with_a_lone_surrogate_keep_their_ids_across_a_checkpoint(
+    dialect: Dialect, suffix: str
+) -> None:
+    """A scaffold's call whose id or name holds a lone surrogate is checkpointed, and keeps its ids once resumed.
+
+    Each request sends the same call and result. The tracked state is
+    written as the checkpointer writes it, and a bridge resumed from it
+    gives the request the ids the checkpointed bridge gives it.
+    """
+    wire = _call_exchange(dialect, suffix)
+    task = ChatMessageUser(content="Read the file.")
+    checkpointer = RecordingCheckpointer()
+    bridge = AgentBridge(AgentState(messages=[task]), checkpointer=checkpointer)
+    ids: list[list[str | None]] = []
+    with _active_mock_model(*[ModelOutput.from_content("mockllm/model", "Done.")] * 3):
+        with _serving(bridge):
+            await _send(dialect, wire)
+            ids.append([m.id for m in bridge.state.messages[:3]])
+            resumed = AgentBridge(
+                AgentState(messages=[task]),
+                checkpointer=RecordingCheckpointer(
+                    restored=_written_checkpoint(checkpointer), serialized=True
+                ),
+            )
+            assert _matching_state(resumed) == _matching_state(bridge)
+            await _send(dialect, wire)
+            ids.append([m.id for m in bridge.state.messages[:3]])
+        with _serving(resumed):
+            await _send(dialect, wire)
+            ids.append([m.id for m in resumed.state.messages[:3]])
+
+    assert len(bridge.state.messages) == 4
+    assert ids[0] == ids[1] == ids[2]
+
+
+@pytest.mark.parametrize("suffix", _UNTRUSTED_SUFFIXES, ids=_UNTRUSTED_SUFFIX_IDS)
+async def test_google_unmatched_function_response_with_a_lone_surrogate_is_checkpointed(
+    suffix: str,
+) -> None:
+    """A Google function response without a call, whose name holds a lone surrogate, leaves state the checkpointer writes."""
+    name = f"read_{suffix}"
+    wire: list[dict[str, Any]] = [
+        {"role": "user", "parts": [{"text": "Read the file."}]},
+        {
+            "role": "user",
+            "parts": [
+                {"functionResponse": {"name": name, "response": {"output": "a.txt"}}}
+            ],
+        },
+    ]
+    checkpointer = RecordingCheckpointer()
+    bridge = AgentBridge(AgentState(messages=[]), checkpointer=checkpointer)
+    with _active_mock_model(ModelOutput.from_content("mockllm/model", "Done.")):
+        with _serving(bridge):
+            await _send("google", wire)
+
+    written = _written_checkpoint(checkpointer)
+    results = [m for m in bridge.state.messages if isinstance(m, ChatMessageTool)]
+    assert [m.function for m in results] == [name]
+    assert written["bridge_message_ids"]
+
+
+@pytest.mark.parametrize("suffix", _UNTRUSTED_SUFFIXES, ids=_UNTRUSTED_SUFFIX_IDS)
+async def test_google_reply_calling_a_name_with_a_lone_surrogate_is_returned(
+    suffix: str,
+) -> None:
+    """A model call whose function name holds a lone surrogate reaches a Google scaffold, and its reply keeps its id."""
+    name = f"read_{suffix}"
+    call = ToolCall(id="call", function=name, arguments={"path": "a.txt"})
+    bridge = AgentBridge(AgentState(messages=[]))
+    client = genai.Client(api_key="inspect")
+    contents: list[dict[str, Any]] = [{"role": "user", "parts": [{"text": PROMPT}]}]
+    with _active_mock_model(
+        ModelOutput.from_message(ChatMessageAssistant(content="", tool_calls=[call])),
+        ModelOutput.from_content("mockllm/model", "Done."),
+    ):
+        with _serving(bridge):
+            response = await client.aio.models.generate_content(
+                model="inspect", contents=contents
+            )
+            first = bridge.state.output.message
+            assert response.candidates and response.candidates[0].content
+            reply = response.candidates[0].content
+            assert reply.parts and reply.parts[0].function_call
+            assert reply.parts[0].function_call.name == name
+            contents += [
+                reply.model_dump(exclude_none=True, by_alias=True),
+                {
+                    "role": "user",
+                    "parts": [
+                        {
+                            "functionResponse": {
+                                "name": name,
+                                "response": {"output": "ok"},
+                            }
+                        }
+                    ],
+                },
+            ]
+            await client.aio.models.generate_content(model="inspect", contents=contents)
+
+    returned = bridge.state.messages[1]
+    assert returned.id == edited_id(first.id or "", returned)
 
 
 async def test_checkpointed_matching_evidence_stays_bounded() -> None:

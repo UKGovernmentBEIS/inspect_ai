@@ -599,8 +599,8 @@ def _extract_user_parts(
             else:
                 call_id = f"call_{func_name}_{uuid()[:8]}"
                 logger.warning(
-                    f"No pending tool call found for function '{func_name}', "
-                    f"generating new call_id: {call_id}"
+                    f"No pending tool call found for function {func_name!r}, "
+                    f"generating new call_id: {call_id!r}"
                 )
 
             response_content = (
@@ -745,10 +745,11 @@ def _extract_model_parts(
             if not isinstance(args, dict):
                 args = {"value": args}
 
-            # deterministic call ID for message ID stability
+            # deterministic call ID for message ID stability (`surrogatepass`
+            # encodes a lone surrogate in the name losslessly)
             args_str = json.dumps(args, sort_keys=True) if args else ""
             call_hash = hashlib.md5(
-                f"{func_name}:{args_str}:{part_idx}".encode()
+                f"{func_name}:{args_str}:{part_idx}".encode("utf-8", "surrogatepass")
             ).hexdigest()[:8]
             call_id = f"call_{func_name}_{call_hash}"
 
