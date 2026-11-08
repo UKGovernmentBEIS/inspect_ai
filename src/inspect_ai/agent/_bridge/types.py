@@ -987,7 +987,7 @@ class AgentBridge:
         preceding_reply_id: str | None = None
         preceding_reply_key: str | None = None
         preceding_reply_keys: list[str] = []
-        preceding_reply_ambiguous: bool | None = None
+        preceding_reply_rivals: list[str] | None = None
         preceding_reply_repeated = False
         reply_calls: dict[str, list[ToolCall]] = {}
         reply_functions: Counter[str] = Counter()
@@ -1058,15 +1058,16 @@ class AgentBridge:
             self._record_message_id(message_keys, message.id)
             if answered is not None:
                 if not known and not preceding_reply_repeated:
-                    if preceding_reply_ambiguous is None:
-                        preceding_reply_ambiguous = (
-                            preceding_reply_id is not None
-                            and self._ambiguous_reply(
+                    if preceding_reply_rivals is None:
+                        preceding_reply_rivals = (
+                            self._rival_replies(
                                 preceding_reply_id, preceding_reply_keys
                             )
+                            if preceding_reply_id is not None
+                            else []
                         )
                     self._record_answer(
-                        message.id, answered, preceding_reply_ambiguous, linkable
+                        message.id, answered, preceding_reply_rivals, linkable
                     )
                 answer = self._answer_of(message.id)
                 if answer is None or not answer.linkable or index in inferred_indexes:
@@ -1082,7 +1083,7 @@ class AgentBridge:
                 preceding_reply_key = preceding_reply_id or self._edit_root(message.id)
                 preceding_reply_keys = message_keys
                 preceding_reply_repeated = repeated
-                preceding_reply_ambiguous = None
+                preceding_reply_rivals = None
                 reply_calls = {}
                 for call in message.tool_calls:
                     reply_calls.setdefault(call.id, []).append(call)
@@ -1121,10 +1122,7 @@ class AgentBridge:
         the message's content or loose key: which of them it is can't be told.
         Any other message gets a new id: an equal message answering another
         reply, or whose reply is unknown, may be a later execution's result or
-        a copy of the earlier one. A new id isn't linkable if it could be such
-        a copy and the call has host executions: unless the message equals no
-        earlier answer other than by call id, the call's one pending execution
-        must have returned what the earlier call's did.
+        a copy of the earlier one (`_new_result_linkable`).
         """
         earlier = self._answer_of(candidate) if candidate is not None else None
         if earlier is not None and earlier.reply_id == answered.reply_id:
@@ -1139,24 +1137,35 @@ class AgentBridge:
                 occurrence = occurrences.get(key)
                 if occurrence is not None and available(occurrence):
                     return _ResultId(occurrence, True)
-        if candidate is None:
-            return _ResultId(None, True)
-        if earlier is None and placed:
+        if candidate is not None and earlier is None and placed:
             return _ResultId(candidate, True)
-        if not any(
-            key.startswith(("content:", "loose:"))
-            and key in self._keys_by_id.get(candidate, set())
+        return _ResultId(None, self._new_result_linkable(keys, answered))
+
+    def _new_result_linkable(self, keys: list[str], answered: _AnsweredCall) -> bool:
+        """Whether a tool message given a new id may be linked to its call's host execution.
+
+        The message may be a copy of any message recorded under its content or
+        loose key, whether or not recognition named one. Unless there is none,
+        or the call has no host executions, each must be an answer whose call's
+        executions returned what the call's one pending execution did.
+        """
+        copied = {
+            id
             for key in keys
-        ):
-            return _ResultId(None, True)
+            if key.startswith(("content:", "loose:"))
+            for id in self._message_ids.get(key, ())
+        }
+        if not copied:
+            return True
         executions = self._executions(answered)
         if not executions.found:
-            return _ResultId(None, True)
-        return _ResultId(
-            None,
-            earlier is not None
-            and len(executions.pending) == 1
-            and earlier.outcomes == set(executions.pending),
+            return True
+        if len(executions.pending) != 1:
+            return False
+        pending = set(executions.pending)
+        return all(
+            (earlier := self._answer_of(id)) is not None and earlier.outcomes == pending
+            for id in copied
         )
 
     def _executions(
@@ -1227,15 +1236,17 @@ class AgentBridge:
         self,
         message_id: str,
         answered: _AnsweredCall,
-        ambiguous: bool = False,
+        rivals: Collection[str] = (),
         linkable: bool = True,
     ) -> None:
         """Record a new tool message as an answer to its reply.
 
-        The record keeps no outcomes when the reply was `ambiguous`: another
-        awaited reply matches its copy as strongly (identical replies), so
-        recognition may have picked the other's executions, and a later equal
-        message must not be taken for a fresh answer on their basis.
+        `rivals` are other awaited replies that match the reply's copy as
+        strongly (identical replies), so recognition may have picked the wrong
+        one's executions. The record keeps no outcomes unless the call's
+        executions in each rival returned the same outcomes: a later equal
+        message must not be taken for a fresh answer on the basis of the
+        wrong executions.
 
         At most `_MAX_ANSWER_RECORDS` records are kept between requests: once a
         request is linked, the oldest replies' are dropped beyond that, so a
@@ -1244,17 +1255,18 @@ class AgentBridge:
         """
         if message_id in self._answers:
             return
-        self._answers[message_id] = _Answer(
-            answered.reply_id,
-            frozenset()
-            if ambiguous
-            else self._executions(answered, identical=True).outcomes,
-            linkable,
-        )
+        outcomes = self._executions(answered, identical=True).outcomes
+        if any(
+            self._executions(answered._replace(reply_id=rival), identical=True).outcomes
+            != outcomes
+            for rival in rivals
+        ):
+            outcomes = frozenset()
+        self._answers[message_id] = _Answer(answered.reply_id, outcomes, linkable)
         self._reply_answer_records(answered.reply_id).message_ids.append(message_id)
         self._answer_records += 1
 
-    def _ambiguous_reply(self, reply_id: str, keys: list[str]) -> bool:
+    def _rival_replies(self, reply_id: str, keys: list[str]) -> list[str]:
         def strength(original: str) -> int:
             calls = self._awaited_results[original]
             ids = (original, *next(iter(calls.values())).reply_versions)
@@ -1269,10 +1281,11 @@ class AgentBridge:
             )
 
         recognized = max(strength(reply_id), 1)
-        return any(
-            other != reply_id and strength(other) >= recognized
+        return [
+            other
             for other in self._awaited_results
-        )
+            if other != reply_id and strength(other) >= recognized
+        ]
 
     def _record_occurrence(
         self, keys: list[str], message_id: str, answered: _AnsweredCall

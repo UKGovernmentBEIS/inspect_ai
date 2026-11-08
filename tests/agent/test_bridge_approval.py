@@ -6596,7 +6596,11 @@ def test_host_outcome_with_a_lone_surrogate_links_its_result(
 
 @agent
 def compacting_host_scaffold(
-    dialect: HostDialect, results: tuple[str, str], copied: bool, placed: bool
+    dialect: HostDialect,
+    results: tuple[str, str],
+    copied: bool,
+    placed: bool,
+    compacted: bool = True,
 ) -> Agent:
     """A scaffold reading a file in two turns as a host tool, compacting to the latest reply and result, then continuing.
 
@@ -6604,6 +6608,7 @@ def compacting_host_scaffold(
     scaffold sends the first result again in place of the latest. With
     `placed`, the scaffold sends the first result, then compacts to the reply
     to it before the second turn, whose reply is then the latest generation's.
+    Without `compacted`, the scaffold keeps the full conversation.
     """
 
     async def execute(state: AgentState) -> AgentState:
@@ -6645,7 +6650,7 @@ def compacting_host_scaffold(
                 else sent
             )
             conversation.results(calls, [escaped] * len(calls))
-        if not placed:
+        if compacted and not placed:
             conversation.history = [summary, *conversation.history[kept:]]
         await conversation.request(bridge)
         conversation.history.append(_user_turn(dialect, "Thanks."))
@@ -6754,6 +6759,74 @@ def test_compacted_equal_host_result_links_to_its_own_message(
     else:
         assert latest_result not in first_results
         assert [e.message_id for e in events] == [*first_links, latest_result]
+
+
+@pytest.mark.parametrize(
+    "results,copied",
+    [
+        (("contents", "changed"), True),
+        ((SURROGATE_TEXT, ESCAPED_SURROGATE_TEXT), True),
+        (("contents", "changed"), False),
+        (("contents", "contents"), False),
+    ],
+    ids=[
+        "copied",
+        "copied over its lone surrogate's escape",
+        "new result",
+        "equal new result",
+    ],
+)
+@pytest.mark.parametrize("dialect", ["google", "completions", "responses", "anthropic"])
+def test_full_history_copied_host_result_links_nothing(
+    dialect: HostDialect,
+    results: tuple[str, str],
+    copied: bool,
+    tmp_path: Path,
+) -> None:
+    """With the full conversation kept, an earlier result copied as a later call's answer gets a new id and links nothing; the later call's own result links.
+
+    The provider reuses the call id, so the copy equals the earlier answer
+    under every key (Google re-derives call ids).
+    """
+    name = "mcp__host__read_file"
+    call = ToolCall(id="call_1", function=name, arguments={"path": "a"})
+    log = eval(
+        Task(
+            dataset=[Sample(input="Read a twice.")],
+            solver=compacting_host_scaffold(
+                dialect, results, copied, placed=False, compacted=False
+            ),
+        ),
+        model=get_model(
+            "mockllm/model",
+            custom_outputs=[
+                tool_calls_output(call),
+                tool_calls_output(call),
+                *[ModelOutput.from_content("mockllm/model", "done")] * 2,
+            ],
+        ),
+        log_dir=str(tmp_path),
+    )[0]
+    assert log.status == "success", log.error
+    read = read_eval_log(log.location)
+    assert read.samples
+    sample = resolve_sample_attachments(read.samples[0], "full")
+
+    model_events = [e for e in sample.events if isinstance(e, ModelEvent)]
+    assert len(model_events) == 4
+    [first_result] = [m.id for m in model_events[1].input if m.role == "tool"]
+    first, latest = [m for m in model_events[-2].input if m.role == "tool"]
+    assert first.id == first_result
+    assert [m.id for m in model_events[-1].input if m.role == "tool"] == [
+        first.id,
+        latest.id,
+    ]
+    assert latest.id != first.id
+    events = [e for e in sample.events if isinstance(e, ToolEvent)]
+    assert [e.message_id for e in events] == [
+        first.id,
+        None if copied else latest.id,
+    ]
 
 
 @pytest.mark.parametrize("shape", ["single", "parallel_reordered", "same_reply_kept"])
