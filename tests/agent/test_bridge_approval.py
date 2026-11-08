@@ -24,7 +24,7 @@ from typing import (
     cast,
     get_args,
 )
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import anyio
 import pytest
@@ -7589,6 +7589,71 @@ def test_matching_same_name_google_results_is_linear(host: bool) -> None:
     small, large = work(16), work(128)
     # linear is 8x; comparing each result with each call is 64x
     assert large <= 12 * small, (small, large)
+
+
+@pytest.mark.parametrize("case", ["shared", "distinct"])
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic"])
+async def test_matching_results_of_calls_sharing_an_id_is_linear(
+    dialect: HostDialect, case: str
+) -> None:
+    """Matching a batch of results of calls sharing a call id is linear in the batch.
+
+    Measured: argument digests and all matching of the request sending the results.
+    """
+    import sys
+
+    async def work(n: int) -> tuple[int, int]:
+        output = tool_calls_output(
+            *[
+                ToolCall(
+                    id="unknown" if case == "shared" else f"call_{i}",
+                    function="read_file",
+                    arguments={"path": str(i)},
+                )
+                for i in range(n)
+            ]
+        )
+        outputs = [output, ModelOutput.from_content("mockllm/model", "Done.")]
+        bridge = AgentBridge(
+            AgentState(messages=[ChatMessageUser(content="Read files.")]),
+            model_aliases={
+                "inspect": get_model("mockllm/model", custom_outputs=outputs)
+            },
+        )
+        [info] = declare("read_file")
+        conversation = _HostConversation(dialect, "Read files.", info)
+        digests = lines = 0
+        digest = bridge_types._arguments_digest
+
+        def counted_digest(arguments: dict[str, Any]) -> str:
+            nonlocal digests
+            digests += 1
+            return digest(arguments)
+
+        def trace(frame: Any, event: str, arg: Any) -> Any:
+            if not frame.f_code.co_filename.endswith("_bridge/types.py"):
+                return None
+            if event == "line":
+                nonlocal lines
+                lines += 1
+            return trace
+
+        with recorded_transcript():
+            calls = await conversation.request(cast(SandboxAgentBridge, bridge))
+            conversation.results(calls, [str(i) for i in range(n)])
+            with patch.object(bridge_types, "_arguments_digest", counted_digest):
+                sys.settrace(trace)
+                try:
+                    await conversation.request(cast(SandboxAgentBridge, bridge))
+                finally:
+                    sys.settrace(None)
+        return digests, lines
+
+    small, large = await work(16), await work(128)
+    for measured in zip(small, large):
+        assert measured[0] > 0
+        # linear is 8x; digesting each result's sibling calls is 64x
+        assert measured[1] <= 12 * measured[0], (small, large)
 
 
 @pytest.mark.parametrize("host", [False, True], ids=["scaffold", "host"])

@@ -1009,6 +1009,7 @@ class AgentBridge:
         preceding_reply_rivals: list[str] | None = None
         preceding_reply_repeated = False
         reply_calls: dict[str, list[ToolCall]] = {}
+        reply_answered: dict[str, _AnsweredCall] = {}
         reply_functions: Counter[str] = Counter()
         for index, (message, message_keys) in enumerate(zip(messages, keys)):
             aligned_id = aligned.get(index)
@@ -1041,26 +1042,28 @@ class AgentBridge:
             answered: _AnsweredCall | None = None
             linkable = True
             if isinstance(message, ChatMessageTool) and preceding_reply_key is not None:
-                answered = (
-                    _AnsweredCall(
+                call_id = message.tool_call_id or ""
+                if index in inferred_indexes:
+                    answered = _AnsweredCall(
                         preceding_reply_key,
                         None,
                         message.function,
                         reply_functions[message.function or ""],
                     )
-                    if index in inferred_indexes
-                    else _answered_call(
-                        preceding_reply_key,
-                        reply_calls.get(message.tool_call_id or "", []),
-                    )
-                )
+                else:
+                    answered = reply_answered.get(call_id)
+                    if answered is None:
+                        answered = _answered_call(
+                            preceding_reply_key, reply_calls.get(call_id, [])
+                        )
+                        reply_answered[call_id] = answered
                 message_id, linkable = self._result_occurrence(
                     message_keys,
                     message_id,
                     aligned_id is not None and message_id == aligned_id,
                     answered,
                     partial(available, index=index),
-                    len(reply_calls.get(message.tool_call_id or "", [])) > 1,
+                    len(reply_calls.get(call_id, [])) > 1,
                 )
                 linkable = linkable and index not in inferred_indexes
             recognized.append(message_id)
@@ -1105,6 +1108,7 @@ class AgentBridge:
                 preceding_reply_repeated = repeated
                 preceding_reply_rivals = None
                 reply_calls = {}
+                reply_answered = {}
                 for call in message.tool_calls:
                     reply_calls.setdefault(call.id, []).append(call)
                 reply_functions = Counter(call.function for call in message.tool_calls)
