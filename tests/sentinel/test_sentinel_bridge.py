@@ -7329,13 +7329,217 @@ def test_a_modified_responses_alias_carries_the_approved_arguments(
     assistant_internal().tool_calls[param["call_id"]] = cast(Any, deepcopy(param))
     alias_openai_tool_call(param["call_id"], "token", modified)
 
-    aliased = cast(dict[str, Any], assistant_internal().tool_calls["token"])
+    aliased = cast(dict[str, Any], assistant_internal().handed_tool_calls["token"])
     assert aliased == {
         **{key: value for key, value in param.items() if key not in ("action", "id")},
         "call_id": "token",
         **expected,
     }
     assert assistant_internal().tool_calls[param["call_id"]] == param
+
+
+class Parsing:
+    """A model whose responses are parsed as its provider parses them, when generated."""
+
+    def __init__(self, *responses: Callable[[], ModelOutput]) -> None:
+        self.inputs: list[list[ChatMessage]] = []
+
+        def respond(
+            input: list[ChatMessage], tools: Any, tool_choice: Any, config: Any
+        ) -> ModelOutput:
+            self.inputs.append(list(input))
+            return responses[min(len(self.inputs), len(responses)) - 1]()
+
+        self.model = get_model("mockllm/model", custom_outputs=respond, memoize=False)
+
+
+def _responses_call_reading(kind: str, path: str, generation: int) -> Any:
+    """A native Responses call to `kind` reading `path`, under a reused call id."""
+    from openai.types.responses.computer_action import Type
+
+    item, _, _, _ = _responses_modified_call(kind)
+    update: dict[str, Any] = {"id": f"{item.id}_{generation}", "call_id": "call_reused"}
+    match kind:
+        case "custom":
+            update["input"] = f"*** Begin Patch\n*** Delete File: {path}\n*** End Patch"
+        case "function":
+            update["arguments"] = json.dumps({"path": path})
+        case "computer":
+            update["actions"] = [Type(type="type", text=path)]
+        case _:
+            update["arguments"] = {"query": path}
+    return item.model_copy(update=update)
+
+
+@pytest.mark.parametrize("kind", ["function", "custom", "computer", "tool_search"])
+async def test_a_reused_responses_call_id_replays_each_execution_as_generated(
+    kind: str,
+) -> None:
+    from inspect_ai.agent._bridge.responses import inspect_responses_api_request
+    from inspect_ai.model._assistant_internal import init_sample_assistant_internal
+    from inspect_ai.model._openai_responses import (
+        _process_response_output_items,
+        openai_responses_inputs,
+    )
+
+    init_sample_assistant_internal()
+    _, tool, result, _ = _responses_modified_call(kind)
+    generated = [
+        _responses_call_reading(kind, "old.txt", 1),
+        _responses_call_reading(kind, "new.txt", 2),
+    ]
+
+    def parsed(item: Any) -> Callable[[], ModelOutput]:
+        def parse() -> ModelOutput:
+            content, calls, _, _ = _process_response_output_items([item], [])
+            return ModelOutput(
+                model="mockllm/model",
+                choices=[
+                    ChatCompletionChoice(
+                        message=ChatMessageAssistant(content=content, tool_calls=calls),
+                        stop_reason="tool_calls",
+                    )
+                ],
+            )
+
+        return parse
+
+    # the model reuses its call id in a second, freshly parsed response
+    model = Parsing(*[parsed(item) for item in generated], lambda: calls_output())
+    bridge = AgentBridge(
+        AgentState(messages=[]), model_aliases={"inspect": model.model}
+    )
+    items: list[Any] = [{"role": "user", "content": TASK}]
+    handed_ids: list[str] = []
+
+    with (
+        patch(
+            "inspect_ai.agent._bridge.responses_impl._is_openai_responses_provider",
+            return_value=True,
+        ),
+        active([bridge_recording([])]),
+    ):
+        for _ in generated:
+            response = await inspect_responses_api_request(
+                {"model": "inspect", "input": items, "tools": [tool]},
+                None,
+                None,
+                None,
+                bridge,
+            )
+            handed = [item.model_dump(exclude_none=True) for item in response.output]
+            [call] = [item for item in handed if "call_id" in item]
+            handed_ids.append(call["call_id"])
+            items = [*items, *handed, {**result, "call_id": call["call_id"]}]
+        await inspect_responses_api_request(
+            {"model": "inspect", "input": items, "tools": [tool]},
+            None,
+            None,
+            None,
+            bridge,
+        )
+
+    assert handed_ids[0] == "call_reused" != handed_ids[1]
+    replayed: list[Any] = await openai_responses_inputs(model.inputs[2])
+    assert [
+        (param["call_id"], _responses_native_arguments(param))
+        for param in replayed
+        if param["type"] == generated[0].type
+    ] == [
+        (handed_id, _responses_native_arguments(item.model_dump(exclude_none=True)))
+        for handed_id, item in zip(handed_ids, generated)
+    ]
+
+
+async def test_a_reused_anthropic_call_id_replays_each_execution_as_generated() -> None:
+    from inspect_ai.model._assistant_internal import init_sample_assistant_internal
+    from inspect_ai.model._providers.anthropic import (
+        assistant_message_block_params,
+        content_and_tool_calls_from_assistant_content_blocks,
+    )
+
+    init_sample_assistant_internal()
+    tools = [
+        ToolInfo(name="bash_session", description="Run a command."),
+        ToolInfo(name="read_file", description="Read a file."),
+    ]
+    first: Any = [
+        {"type": "thinking", "thinking": "first", "signature": "c2ln"},
+        {
+            "type": "tool_use",
+            "id": "toolu_a",
+            "name": "bash",
+            "input": {"command": "cat old.txt"},
+        },
+        {"type": "thinking", "thinking": "second", "signature": "c2lnMg=="},
+        {"type": "tool_use", "id": "toolu_b", "name": "read_file", "input": {}},
+    ]
+    # the model reuses an id at another position, under a name of its own
+    second: Any = [
+        {
+            "type": "tool_use",
+            "id": "toolu_a",
+            "name": "read_file",
+            "input": {"path": "new.txt"},
+        },
+        {"type": "thinking", "thinking": "third", "signature": "c2lnMw=="},
+    ]
+
+    def parsed(blocks: Any) -> Callable[[], ModelOutput]:
+        def parse() -> ModelOutput:
+            content, calls = content_and_tool_calls_from_assistant_content_blocks(
+                blocks, tools
+            )
+            return ModelOutput(
+                model="mockllm/model",
+                choices=[
+                    ChatCompletionChoice(
+                        message=ChatMessageAssistant(content=content, tool_calls=calls),
+                        stop_reason="tool_calls",
+                    )
+                ],
+            )
+
+        return parse
+
+    model = Parsing(parsed(first), parsed(second), lambda: calls_output())
+    bridge = in_process_bridge([])
+    messages: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+
+    with active([bridge_recording([])]):
+        for _ in range(3):
+            output, _ = await bridge_generate(
+                bridge,
+                model.model,
+                list(messages),
+                list(tools),
+                None,
+                GenerateConfig(),
+                requested_model=None,
+            )
+            messages += [
+                output.message,
+                *[
+                    ChatMessageTool(content="done", tool_call_id=call.id)
+                    for call in output.message.tool_calls or []
+                ],
+            ]
+
+    assistants = [m for m in model.inputs[2] if isinstance(m, ChatMessageAssistant)]
+    replayed = [await assistant_message_block_params(m) for m in assistants]
+    assert [
+        [(block["type"], block.get("name")) for block in blocks] for blocks in replayed
+    ] == [
+        [
+            ("thinking", None),
+            ("tool_use", "bash"),
+            ("thinking", None),
+            ("tool_use", "read_file"),
+        ],
+        # a message can't end with thinking
+        [("tool_use", "read_file"), ("thinking", None), ("text", None)],
+    ]
+    assert replayed[0][1].get("id") == "toolu_a" != replayed[1][0].get("id")
 
 
 @pytest.fixture

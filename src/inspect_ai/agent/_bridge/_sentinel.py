@@ -700,13 +700,19 @@ def sentinel_tokens(
     """Give each call handed to the scaffold its token as its id.
 
     A call's provider replay state (`alias_assistant_internal_call`) and Google
-    reasoning anchors follow it to its token.
+    reasoning anchors follow it to its token. The state is recorded under every
+    token, a call keeping the model's id included, as a later response reusing
+    that id replaces what the provider recorded under it.
 
     `checks` are the `tool_result` checks for the calls in `output`, in order.
     Returns the output to hand to the scaffold (a copy, when any id changes),
     and the checks with their tokens.
     """
     issued = bridge._sentinel_results.issue(checks)
+    for call, check in zip(output.message.tool_calls or [], issued):
+        alias_assistant_internal_call(
+            call.id, check.token or call.id, call if check.modified else None
+        )
     if all(check.token == check.handed.id for check in issued):
         return output, issued
     # a copy, as `output` may be the object the ModelEvent recorded
@@ -715,10 +721,6 @@ def sentinel_tokens(
     for call, check in zip(output.message.tool_calls or [], issued):
         token = check.token or call.id
         tokens.setdefault(call.id, deque()).append(token)
-        if token != call.id:
-            alias_assistant_internal_call(
-                call.id, token, call if check.modified else None
-            )
         call.id = token
     _retarget_anchors(output.message.content, tokens)
     return output, issued

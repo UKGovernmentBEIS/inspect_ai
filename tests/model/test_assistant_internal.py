@@ -86,6 +86,12 @@ def test_openai_round_trip() -> None:
         "name": "bash",
         "arguments": '{"cmd": "ls"}',
     }
+    internal.handed_tool_calls["token"] = {
+        "type": "function_call",
+        "call_id": "token",
+        "name": "bash",
+        "arguments": '{"cmd": "pwd"}',
+    }
     internal.server_tool_uses["ws_1"] = {
         "type": "web_search_call",
         "id": "ws_1",
@@ -101,6 +107,7 @@ def test_openai_round_trip() -> None:
     assert not assistant_internal().tool_calls
     init_sample_assistant_internal(restored_value)
     assert assistant_internal().tool_calls == internal.tool_calls
+    assert assistant_internal().handed_tool_calls == internal.handed_tool_calls
     assert assistant_internal().server_tool_uses == internal.server_tool_uses
 
 
@@ -119,6 +126,8 @@ def test_anthropic_round_trip() -> None:
     }
     internal.tool_call_internal_names["tc_1"] = "internal_name"
     internal.tool_call_internal_names["tc_2"] = None
+    internal.handed_tool_call_internal_names["token"] = "internal_name"
+    internal.handed_client_tool_call_positions["token"] = 1
     internal.server_mcp_tool_uses["mcp_1"] = (
         {
             "type": "mcp_tool_use",
@@ -163,6 +172,14 @@ def test_anthropic_round_trip() -> None:
     restored = assistant_internal()
     assert restored.thinking_blocks == internal.thinking_blocks
     assert restored.tool_call_internal_names == internal.tool_call_internal_names
+    assert (
+        restored.handed_tool_call_internal_names
+        == internal.handed_tool_call_internal_names
+    )
+    assert (
+        restored.handed_client_tool_call_positions
+        == internal.handed_client_tool_call_positions
+    )
     # JSON turns the (use, result) tuple into a list; restore rebuilds tuples
     assert restored.server_mcp_tool_uses == internal.server_mcp_tool_uses
     assert isinstance(restored.server_mcp_tool_uses["mcp_1"], tuple)

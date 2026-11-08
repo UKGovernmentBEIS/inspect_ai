@@ -116,12 +116,13 @@ def has_assistant_internal_call_arguments(call_id: str) -> bool:
 def alias_assistant_internal_call(
     call_id: str, alias: str, modified: ToolCall | None = None
 ) -> None:
-    """Record a tool call's per-call replay state under another ID too.
+    """Record a tool call's per-call replay state under the ID it is handed on under.
 
-    For a call handed on under a new ID, so it replays to the model as it was
-    generated (native call type, position among the turn's content), with the
-    `modified` call's arguments when approval changed them. The state recorded
-    under `call_id` is unchanged.
+    So the call replays to the model as it was generated (native call type,
+    position among the turn's content), with the `modified` call's arguments
+    when approval changed them. The state recorded under `alias` (which may be
+    `call_id`) is replayed in preference to what the provider records under
+    `call_id`, which a later response reusing that ID replaces.
     """
     if _HAS_OPENAI:
         try:

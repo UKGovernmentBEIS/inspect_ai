@@ -388,7 +388,7 @@ async def _openai_input_item_from_chat_message(
         )
     elif message.role == "tool":
         # recover the original call (by call_id) to replay the matching output item
-        responses_tool_call = assistant_internal().tool_calls.get(
+        responses_tool_call = cached_tool_call(
             message.tool_call_id or str(message.function)
         )
         if (
@@ -791,22 +791,36 @@ def is_native_tool_configured(
 #                                  └───────────────────────────┘
 
 
+_CachedToolCall = (
+    ResponseFunctionToolCallParam
+    | ResponseCustomToolCallParam
+    | ResponseComputerToolCallParam
+    | ResponseFunctionWebSearchParam
+    | ResponseCodeInterpreterToolCallParam
+    | ToolSearchCall
+)
+
+
 @dataclass
 class _AssistantInternal:
-    tool_calls: dict[
-        str,
-        ResponseFunctionToolCallParam
-        | ResponseCustomToolCallParam
-        | ResponseComputerToolCallParam
-        | ResponseFunctionWebSearchParam
-        | ResponseCodeInterpreterToolCallParam
-        | ToolSearchCall,
-    ] = field(default_factory=dict)
+    tool_calls: dict[str, _CachedToolCall] = field(default_factory=dict)
+    """Each call's item as last parsed or seeded, by its call id."""
+    handed_tool_calls: dict[str, _CachedToolCall] = field(default_factory=dict)
+    """The items of the calls the agent bridge handed on, by the id each was
+    handed under (`alias_openai_tool_call`). Replayed in preference to
+    `tool_calls`, where a later response reusing a call id replaces the item."""
     server_tool_uses: dict[str, ResponseInputItemParam] = field(default_factory=dict)
 
 
 def assistant_internal() -> _AssistantInternal:
     return _openai_assistant_internal.get()
+
+
+def cached_tool_call(call_id: str) -> _CachedToolCall | None:
+    """The item to replay for the call with this id, if one is cached."""
+    internal = assistant_internal()
+    handed = internal.handed_tool_calls.get(call_id)
+    return handed if handed is not None else internal.tool_calls.get(call_id)
 
 
 def init_sample_openai_assistant_internal(value: JsonValue | None = None) -> None:
@@ -823,6 +837,9 @@ def init_sample_openai_assistant_internal(value: JsonValue | None = None) -> Non
     assert isinstance(value, dict)
     internal = assistant_internal()
     internal.tool_calls.update(cast("dict[str, Any]", value.get("tool_calls", {})))
+    internal.handed_tool_calls.update(
+        cast("dict[str, Any]", value.get("handed_tool_calls", {}))
+    )
     internal.server_tool_uses.update(
         cast("dict[str, Any]", value.get("server_tool_uses", {}))
     )
@@ -837,12 +854,15 @@ def dump_openai_assistant_internal() -> JsonValue | None:
     in-memory).
     """
     internal = assistant_internal()
-    if not internal.tool_calls and not internal.server_tool_uses:
+    if not (
+        internal.tool_calls or internal.handed_tool_calls or internal.server_tool_uses
+    ):
         return None
     return cast(
         JsonValue,
         {
             "tool_calls": dict(internal.tool_calls),
+            "handed_tool_calls": dict(internal.handed_tool_calls),
             "server_tool_uses": dict(internal.server_tool_uses),
         },
     )
@@ -858,18 +878,22 @@ def alias_openai_tool_call(
     internal = assistant_internal()
     param = internal.tool_calls.get(call_id)
     if param is not None:
-        # the replayed item carries the call's id (`call_id`, and `id` when the
-        # call has no separate item id). A separate item id is left out: it
-        # names the model's item, which a stored response resolves to the
-        # model's call id.
-        aliased: dict[str, Any] = {
-            key: alias if key in ("call_id", "id") and value == call_id else value
-            for key, value in param.items()
-            if key != "id" or value == call_id
-        }
+        # under another id, the replayed item carries that id (`call_id`, and
+        # `id` when the call has no separate item id). A separate item id is
+        # left out: it names the model's item, which a stored response
+        # resolves to the model's call id.
+        aliased: dict[str, Any] = (
+            dict(param)
+            if alias == call_id
+            else {
+                key: alias if key in ("call_id", "id") and value == call_id else value
+                for key, value in param.items()
+                if key != "id" or value == call_id
+            }
+        )
         if modified is not None:
             aliased = _with_tool_call_arguments(aliased, modified)
-        internal.tool_calls[alias] = cast(Any, aliased)
+        internal.handed_tool_calls[alias] = cast(Any, aliased)
 
 
 def _with_tool_call_arguments(param: dict[str, Any], call: ToolCall) -> dict[str, Any]:
@@ -1847,7 +1871,7 @@ def _tool_call_items_from_assistant_message(
     for call in message.tool_calls or []:
         # see if we have it in assistant_internal (computer/custom/tool_search are
         # cached at parse time, and the bridge seeds tool_search calls on replay)
-        assistant_internal_call = assistant_internal().tool_calls.get(call.id, None)
+        assistant_internal_call = cached_tool_call(call.id)
         if assistant_internal_call is not None:
             tool_calls.append(assistant_internal_call)
         else:
