@@ -12,6 +12,7 @@ from collections.abc import AsyncIterator, Iterator
 from io import StringIO
 from pathlib import Path
 from typing import Awaitable, Callable, Literal, NamedTuple, overload
+from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import anyio
@@ -61,6 +62,7 @@ from inspect_ai.util._sandbox.docker.docker import DockerSandboxEnvironment
 from inspect_ai.util._sandbox.environment import (
     SandboxEnvironment,
     SandboxEnvironmentConfigType,
+    SandboxUserUnsupportedError,
 )
 from inspect_ai.util._sandbox.local import LocalSandboxEnvironment
 from inspect_ai.util._subprocess import ExecResult
@@ -94,6 +96,74 @@ def test_session_end_commands_decline_on_eof(
     command.cli(args)
 
     assert calls == expected_calls
+
+
+@pytest.mark.parametrize("command_type", [QuitCommand, SubmitCommand])
+@pytest.mark.parametrize("failure", [PermissionError, SandboxUserUnsupportedError])
+async def test_session_end_continues_when_log_listing_raises(
+    command_type: type[QuitCommand] | type[SubmitCommand],
+    failure: type[Exception],
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    def listing(cmd: list[str], user: str | None) -> ExecResult[str]:
+        assert user == "agent"
+        raise failure("cannot list recordings")
+
+    provider = CannedSandbox(listing)
+    read_mock = AsyncMock()
+    monkeypatch.setattr(provider, "read_file", read_mock)
+    monkeypatch.setattr(submit, "sandbox", lambda: provider)
+    state = HumanAgentState(instructions="test")
+    state.running = True
+    command = command_type(record_session=True, user="agent")
+
+    if isinstance(command, SubmitCommand):
+        await command.service(state)("answer")
+        assert state.answer == "answer"
+    else:
+        await command.service(state)()
+        assert state.answer == ""
+
+    assert not state.running
+    assert state.logs == {}
+    read_mock.assert_not_awaited()
+    assert len(caplog.records) == 1
+    assert "cannot list recordings" in caplog.text
+
+
+@pytest.mark.parametrize(
+    "failure,expected_reads,expected_logs",
+    [
+        (SandboxUserUnsupportedError("user unsupported"), 1, {}),
+        (PermissionError("file denied"), 2, {"second": "recording"}),
+    ],
+)
+async def test_session_log_read_failures_preserve_user_and_submission(
+    failure: Exception,
+    expected_reads: int,
+    expected_logs: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    provider = CannedSandbox.returning(
+        ExecResult(success=True, returncode=0, stdout="first\nsecond\n", stderr="")
+    )
+    read_mock = AsyncMock(side_effect=[failure, "recording"])
+    monkeypatch.setattr(provider, "read_file", read_mock)
+    monkeypatch.setattr(submit, "sandbox", lambda: provider)
+    state = HumanAgentState(instructions="test")
+
+    await SubmitCommand(record_session=True, user="agent").service(state)("answer")
+
+    assert state.answer == "answer"
+    assert not state.running
+    assert state.logs == expected_logs
+    assert provider.exec_calls[0][1] == "agent"
+    assert read_mock.await_count == expected_reads
+    assert all(call.kwargs == {"user": "agent"} for call in read_mock.await_args_list)
+    assert len(caplog.records) == 1
+    assert str(failure) in caplog.text
 
 
 # ---------------------------------------------------------------------------
@@ -581,16 +651,24 @@ class _HomeSandbox(SandboxEnvironment):
             [SHELL_PATH, "-c", self.script, *cmd[3:]], input, env=self.env
         )
 
-    async def write_file(self, file: str, contents: str | bytes) -> None:
+    async def write_file(
+        self, file: str, contents: str | bytes, *, user: str | None = None
+    ) -> None:
         raise NotImplementedError
 
     @overload
-    async def read_file(self, file: str, text: Literal[True] = True) -> str: ...
+    async def read_file(
+        self, file: str, text: Literal[True] = True, *, user: str | None = None
+    ) -> str: ...
 
     @overload
-    async def read_file(self, file: str, text: Literal[False]) -> bytes: ...
+    async def read_file(
+        self, file: str, text: Literal[False], *, user: str | None = None
+    ) -> bytes: ...
 
-    async def read_file(self, file: str, text: bool = True) -> str | bytes:
+    async def read_file(
+        self, file: str, text: bool = True, *, user: str | None = None
+    ) -> str | bytes:
         raise NotImplementedError
 
     @classmethod

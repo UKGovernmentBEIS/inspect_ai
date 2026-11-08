@@ -254,6 +254,16 @@ def basename(file: str) -> str:
     return name
 
 
+def url_protocol(url: str) -> str | None:
+    """The protocol fsspec reads in `url`, or None for a local path.
+
+    fsspec reads ``data:`` as a protocol without slashes, and a one-letter
+    scheme (``C://``) as a Windows drive. A chained URL is not split.
+    """
+    protocol: str | None = split_protocol(url)[0]
+    return protocol
+
+
 def dirname(file: str) -> str:
     base = basename(file)
     return file[: -(len(base) + 1)]
@@ -540,16 +550,28 @@ def to_uri(path_or_uri: str) -> str:
     return "file://" + quote_from_bytes(bytes(path_obj), safe="/:@")
 
 
+_WINDOWS_DRIVE_AUTHORITY = re.compile(r"[A-Za-z]:")
+
+
 def local_path(filename: str) -> str:
     """Convert a file:// URL to a local path, or return as-is.
 
     Percent-encoded characters are decoded (the inverse of `to_uri`, which
     encodes them), so paths with spaces or literal percent sequences round
-    trip. Known limitation (unchanged): a UNC-style `file://server/share`
-    URL drops its host component — only the path part is returned.
+    trip. A Windows drive in the authority (`file://D:/logs/...`, the form
+    the local filesystem reports on Windows) is kept so the path does not
+    resolve against the current drive (#5322). Known limitation (unchanged):
+    a UNC-style `file://server/share` URL drops its host component — only
+    the path part is returned.
     """
     if filename.startswith("file://"):
-        return url2pathname(urlparse(filename).path)
+        parsed = urlparse(filename)
+        # urlparse puts a Windows drive ("D:") in netloc and leaves only
+        # "/logs/..." in path; converting the path alone gives "\logs\...",
+        # which resolves against the current drive (#5322).
+        if _WINDOWS_DRIVE_AUTHORITY.fullmatch(parsed.netloc):
+            return url2pathname(parsed.netloc + parsed.path)
+        return url2pathname(parsed.path)
     return filename
 
 

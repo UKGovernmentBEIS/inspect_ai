@@ -4,7 +4,7 @@ Covers ``agent(background=True)``, the registry, ``_run_background``,
 cap behaviour, ``background=True|False|int`` resolution, the lifecycle
 tools (agent_status, agent_wait, agent_cancel, agent_list), the
 ``on_continue`` forgetting-backstop reminder, and the safety/async
-edge cases (limit propagation, errors not killing the sample, fork +
+edge cases (limit propagation, unexpected errors failing the sample, fork +
 background, abandon-on-exit, timeout partials).
 """
 
@@ -132,6 +132,7 @@ def _eval_deepagent(
     outputs: list[ModelOutput],
     input: str = "Do the task",
     message_limit: int = 30,
+    fail_on_error: bool = True,
 ) -> dict:
     agent_kwargs.setdefault("submit", True)
     # These are background-dispatch tests; deepagent()'s production default is
@@ -145,7 +146,7 @@ def _eval_deepagent(
         message_limit=message_limit,
     )
     model = get_model("mockllm/model", custom_outputs=outputs)
-    log = eval(task, model=model)[0]
+    log = eval(task, model=model, fail_on_error=fail_on_error)[0]
     return {
         "log": log,
         "status": log.status,
@@ -243,8 +244,7 @@ def _build_erroring_subagent(name: str, message: str = "boom"):
 
     The raise is a plain ``RuntimeError`` (an ``Exception``, not a
     ``BaseException``), so it exercises ``_run_background``'s
-    swallow-and-record path: the sample must survive and the future must
-    settle as ``errored`` with the message surfaced.
+    record-and-propagate path: the failure must reach the sample runner.
     """
     from inspect_ai.agent._deepagent.subagent import subagent as subagent_factory
 
@@ -1786,30 +1786,156 @@ class TestBackgroundLimits:
 
 
 class TestBackgroundErrors:
-    """A background subagent error must not fail the sample (Phase 2 fix)."""
+    """Unexpected subagent failures fail the sample in either dispatch mode."""
 
-    def test_error_does_not_kill_sample(self) -> None:
+    @pytest.mark.parametrize("background", [False, True])
+    @pytest.mark.parametrize("fail_on_error", [False, True])
+    def test_error_fails_sample(self, background: bool, fail_on_error: bool) -> None:
         boomer = _build_erroring_subagent("boomer", "kaboom")
         result = _eval_deepagent(
             agent_kwargs={"subagents": [boomer], "tools": [_wait_test_helper()]},
             outputs=[
-                _agent_call(prompt="go"),
+                _agent_call(prompt="go", background=background),
+                _tool_call("_wait_test_helper", agent_id="AGENT-1"),
+                _submit("done"),
+            ],
+            fail_on_error=fail_on_error,
+        )
+        assert result["status"] == ("error" if fail_on_error else "success")
+        sample = result["log"].samples[0]
+        assert sample.error is not None
+        assert "kaboom" in sample.error.message
+
+    @pytest.mark.parametrize("background", [False, True])
+    @pytest.mark.parametrize("error_type", [RuntimeError, ToolError])
+    def test_tool_errors(self, background: bool, error_type: type[Exception]) -> None:
+        @tool
+        def fail() -> Tool:
+            async def execute() -> str:
+                """Raise a tool or infrastructure error."""
+                raise error_type("sandbox failure")
+
+            return execute
+
+        worker = subagent(
+            name="worker",
+            description="Failing worker.",
+            prompt="Do the task.",
+            tools=[fail()],
+            model=get_model(
+                "mockllm/model",
+                custom_outputs=[_tool_call("fail"), _submit("recovered")],
+            ),
+        )
+        result = _eval_deepagent(
+            agent_kwargs={"subagents": [worker], "tools": [_wait_test_helper()]},
+            outputs=[
+                _agent_call(background=background),
                 _tool_call("_wait_test_helper", agent_id="AGENT-1"),
                 _submit("done"),
             ],
         )
-        # sample survives despite the background exception
-        assert result["status"] == "success"
-        waits = _events_for(result, "_wait_test_helper")
-        assert len(waits) == 1
-        body = str(waits[0].result)
-        # error is surfaced (status errored + message), not silently swallowed
-        assert body.startswith("errored:")
-        assert "kaboom" in body
+        sample = result["log"].samples[0]
+        if error_type is ToolError:
+            assert result["status"] == "success"
+            assert sample.error is None
+        else:
+            assert result["status"] == "error"
+            assert sample.error is not None
+            assert "sandbox failure" in sample.error.message
+
+    def test_background_error_is_retried(self) -> None:
+        from inspect_ai.model import ChatMessage, ChatMessageTool, GenerateConfig
+        from inspect_ai.tool import ToolChoice, ToolInfo
+
+        worker_calls = 0
+
+        def worker_output(
+            input: list[ChatMessage],
+            tools: list[ToolInfo],
+            tool_choice: ToolChoice,
+            config: GenerateConfig,
+        ) -> ModelOutput:
+            nonlocal worker_calls
+            worker_calls += 1
+            if worker_calls == 1:
+                raise RuntimeError("temporary infrastructure failure")
+            return _submit("recovered")
+
+        def parent_output(
+            input: list[ChatMessage],
+            tools: list[ToolInfo],
+            tool_choice: ToolChoice,
+            config: GenerateConfig,
+        ) -> ModelOutput:
+            called = {m.function for m in input if isinstance(m, ChatMessageTool)}
+            if "agent" not in called:
+                return _agent_call()
+            if "_wait_test_helper" not in called:
+                return _tool_call("_wait_test_helper", agent_id="AGENT-1")
+            return _submit("done")
+
+        worker = subagent(
+            name="worker",
+            description="Retrying worker.",
+            prompt="Do the task.",
+            model=get_model("mockllm/model", custom_outputs=worker_output),
+        )
+        task = Task(
+            solver=deepagent(
+                subagents=[worker],
+                tools=[_wait_test_helper()],
+                background=True,
+                submit=True,
+            )
+        )
+        log = eval(
+            task,
+            model=get_model("mockllm/model", custom_outputs=parent_output),
+            retry_on_error=1,
+        )[0]
+        assert log.status == "success"
+        assert worker_calls == 2
+        assert log.samples is not None
+        sample = log.samples[0]
+        assert sample.error is None
+        assert sample.error_retries is not None
+        assert len(sample.error_retries) == 1
+        assert "temporary infrastructure failure" in sample.error_retries[0].message
+
+    async def test_error_settles_future_and_propagates(self) -> None:
+        from inspect_ai.agent import AgentState
+        from inspect_ai.agent._deepagent.agent_tool import _run_background
+
+        error = RuntimeError("infrastructure failed")
+
+        async def fail(state: AgentState) -> AgentState:
+            raise error
+
+        future = AgentFuture(
+            agent_id="AGENT-1",
+            span_id="test-error",
+            subagent_name="worker",
+            cancel_scope=anyio.CancelScope(),
+        )
+        with pytest.raises(RuntimeError) as caught:
+            await _run_background(
+                future,
+                fail,
+                _build_erroring_subagent("worker"),
+                "go",
+                future.span_id,
+                False,
+                None,
+            )
+        assert caught.value is error
+        assert future.status == "errored"
+        assert future.error == "RuntimeError: infrastructure failed"
+        assert future.done.is_set()
 
 
 def _build_refusing_subagent(name: str):
-    """Build a subagent whose model always refuses (stop_reason content_filter)."""
+    """Build a subagent that refuses once, then submits if allowed to continue."""
     from inspect_ai.agent._deepagent.subagent import subagent as subagent_factory
 
     bg_model = get_model(
@@ -1819,7 +1945,8 @@ def _build_refusing_subagent(name: str):
                 model="mockllm/model",
                 content="I cannot help with that.",
                 stop_reason="content_filter",
-            )
+            ),
+            _submit("refusal handled"),
         ],
     )
     return subagent_factory(
@@ -2981,41 +3108,22 @@ class TestEagerCompletionE2E:
         text = msgs[0].text
         assert "AGENT-1" in text and "done_one" in text and "completed" in text
 
-    def test_pushes_error(self) -> None:
-        boom = _build_erroring_subagent("err_one", "kaboom")
-        result = _eval_deepagent(
-            agent_kwargs={"subagents": [boom], "tools": [_wait_test_helper()]},
-            outputs=[
-                _agent_call(),
-                _tool_call("_wait_test_helper", agent_id="AGENT-1"),
-                _idle(),
-                _submit("done"),
-            ],
-        )
-        assert result["status"] == "success"
-        msgs = _completion_messages(result)
-        assert len(msgs) == 1
-        assert "AGENT-1" in msgs[0].text and "errored" in msgs[0].text
-
 
 class TestErroredCancelledDisplay:
     """agent_status / agent_list render errored and cancelled agents."""
 
-    def test_status_and_list_show_errored(self) -> None:
-        boomer = _build_erroring_subagent("boomer2", "splat")
-        result = _eval_deepagent(
-            agent_kwargs={"subagents": [boomer], "tools": [_wait_test_helper()]},
-            outputs=[
-                _agent_call(),
-                _tool_call("_wait_test_helper", agent_id="AGENT-1"),
-                _tool_call("agent_status", agent_id="AGENT-1"),
-                _tool_call("agent_list"),
-                _submit("done"),
-            ],
-        )
-        status = str(_events_for(result, "agent_status")[0].result)
+    async def test_status_and_list_show_errored(self) -> None:
+        from inspect_ai.agent._deepagent.lifecycle_tools import agent_list, agent_status
+
+        future = _mk_future("AGENT-1", "boomer2", "errored")
+        future.error = "RuntimeError: splat"
+        future.done.set()
+        registry = BackgroundRegistry(max_background=8)
+        registry.futures[future.agent_id] = future
+        with background_registry(registry):
+            status = str(await agent_status()(agent_id="AGENT-1"))
+            listing = str(await agent_list()())
         assert "AGENT-1" in status and "errored" in status and "splat" in status
-        listing = str(_events_for(result, "agent_list")[0].result)
         assert "AGENT-1" in listing and "errored" in listing
 
     def test_list_shows_cancelled(self) -> None:

@@ -195,11 +195,6 @@
       "undescribed": 1
     }
   },
-  "src/inspect_ai/_sentinel/_dispatch.py": {
-    "type: ignore[call-arg]": {
-      "count": 2
-    }
-  },
   "src/inspect_ai/_util/_async.py": {
     "type: ignore": {
       "count": 1,
@@ -555,12 +550,6 @@
       "undescribed": 3
     }
   },
-  "src/inspect_ai/event/_pool.py": {
-    "type: ignore[attr-defined]": {
-      "count": 1,
-      "undescribed": 1
-    }
-  },
   "src/inspect_ai/event/_tree.py": {
     "type: ignore[overload-overlap]": {
       "count": 1,
@@ -605,12 +594,6 @@
     "noqa:F405 (file-wide)": {
       "count": 1,
       "undescribed": 1
-    }
-  },
-  "src/inspect_ai/model/_call_tools.py": {
-    "type: ignore": {
-      "count": 2,
-      "undescribed": 2
     }
   },
   "src/inspect_ai/model/_generate_config.py": {
@@ -877,8 +860,8 @@
   },
   "src/inspect_ai/scorer/_reducer/reducer.py": {
     "type: ignore": {
-      "count": 15,
-      "undescribed": 15
+      "count": 14,
+      "undescribed": 14
     },
     "type: ignore[redundant-cast]": {
       "count": 1,
@@ -973,8 +956,8 @@
   },
   "src/inspect_ai/util/_json.py": {
     "type: ignore": {
-      "count": 2,
-      "undescribed": 2
+      "count": 1,
+      "undescribed": 1
     },
     "type: ignore[valid-type]": {
       "count": 2,
@@ -1067,22 +1050,6 @@
     "type: ignore[assignment]": {
       "count": 2,
       "undescribed": 2
-    }
-  },
-  "src/inspect_tool_support/src/inspect_tool_support/_remote_tools/_web_browser/scale_factor.py": {
-    "noqa:PLC0415": {
-      "count": 2,
-      "undescribed": 2
-    },
-    "type: ignore": {
-      "count": 1,
-      "undescribed": 1
-    }
-  },
-  "src/inspect_tool_support/src/inspect_tool_support/_remote_tools/_web_browser/test_scale_factor.py": {
-    "type: ignore[attr-defined]": {
-      "count": 1,
-      "undescribed": 1
     }
   },
   "tests/_control/conftest.py": {
@@ -1343,10 +1310,6 @@
     "type: ignore[arg-type]": {
       "count": 3,
       "undescribed": 3
-    },
-    "type: ignore[attr-defined]": {
-      "count": 2,
-      "undescribed": 2
     }
   },
   "tests/agent/test_acp/test_tui/test_plan.py": {
@@ -1360,10 +1323,6 @@
       "count": 1,
       "undescribed": 1
     },
-    "type: ignore[attr-defined]": {
-      "count": 1,
-      "undescribed": 1
-    },
     "type: ignore[method-assign]": {
       "count": 1,
       "undescribed": 1
@@ -1373,10 +1332,6 @@
     "type: ignore[arg-type]": {
       "count": 3,
       "undescribed": 3
-    },
-    "type: ignore[attr-defined]": {
-      "count": 1,
-      "undescribed": 1
     },
     "type: ignore[method-assign]": {
       "count": 5,
@@ -1390,21 +1345,11 @@
     }
   },
   "tests/agent/test_acp/test_tui/test_session_screen.py": {
-    "type: ignore[attr-defined]": {
-      "count": 36,
-      "undescribed": 36
-    },
     "type: ignore[comparison-overlap]": {
       "count": 1,
       "undescribed": 1
     },
     "type: ignore[method-assign]": {
-      "count": 1,
-      "undescribed": 1
-    }
-  },
-  "tests/agent/test_acp/test_tui/test_session_screen_phase2.py": {
-    "type: ignore[attr-defined]": {
       "count": 1,
       "undescribed": 1
     }
@@ -1751,22 +1696,6 @@
       "undescribed": 1
     }
   },
-  "tests/sentinel/test_sentinel_dispatch.py": {
-    "type: ignore[attr-defined]": {
-      "count": 3
-    },
-    "type: ignore[call-arg]": {
-      "count": 3
-    },
-    "type: ignore[union-attr]": {
-      "count": 1
-    }
-  },
-  "tests/sentinel/test_sentinel_human.py": {
-    "type: ignore[call-arg]": {
-      "count": 2
-    }
-  },
   "tests/test_eval_set_capture.py": {
     "type: ignore[arg-type]": {
       "count": 1,
@@ -1889,8 +1818,8 @@
   },
   "tests/util/sandbox/test_json_rpc_transport.py": {
     "type: ignore[arg-type]": {
-      "count": 8,
-      "undescribed": 8
+      "count": 7,
+      "undescribed": 7
     }
   },
   "tests/util/sandbox/test_sandbox_timeout.py": {

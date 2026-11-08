@@ -10,6 +10,7 @@ from pydantic import JsonValue
 from inspect_ai import eval
 from inspect_ai._eval.task.task import Task
 from inspect_ai.analysis import (
+    EvalColumn,
     EvalInfo,
     EvalModel,
     EvalResults,
@@ -47,6 +48,7 @@ from inspect_ai.log import (
 )
 from inspect_ai.model import ChatMessage, ChatMessageUser, ModelOutput, get_model
 from inspect_ai.model._model import requested_model
+from inspect_ai.scorer import Score, Scorer, Target, scorer
 from inspect_ai.solver import Generate, TaskState, generate, solver, use_tools
 from inspect_ai.tool import Tool, tool
 
@@ -307,6 +309,27 @@ def test_evals_df_strict():
     assert len(errors) == 0
 
 
+@pytest.mark.parametrize(
+    "reader,columns",
+    [
+        (samples_df, SampleSummary),
+        (messages_df, MessageColumns),
+        (events_df, EventInfo),
+    ],
+)
+def test_sample_readers_strict_eval_column(reader, columns):
+    missing = EvalColumn("experiment", path="metadata.experiment", required=True)
+    columns = columns + [missing]
+
+    df, errors = reader(SECURITY_GUIDE_LOG, columns=columns, strict=False)
+    assert len(df) > 0
+    assert df["experiment"].isna().all()
+    assert [error.column for error in errors] == ["experiment"]
+
+    with pytest.raises(ValueError, match="experiment"):
+        reader(SECURITY_GUIDE_LOG, columns=columns, strict=True)
+
+
 def test_evals_df_filter():
     logs = list_eval_logs(
         LOGS_DIR.as_posix(), filter=lambda log: log.status == "success"
@@ -363,6 +386,17 @@ def test_evals_df_sentinel_column(tmp_path: Path) -> None:
     df = evals_df(tmp_path / "plain")
     assert "sentinel" in df.columns
     assert df["sentinel"].isna().all()
+
+
+def test_evals_df_model_args_column(tmp_path: Path) -> None:
+    model = get_model(
+        "mockllm/model", base_url="http://example.invalid/v1", custom_arg=123
+    )
+    eval(Task(), model=model, log_dir=str(tmp_path))
+
+    df = evals_df(tmp_path)
+    assert df["model_base_url"].to_list() == ["http://example.invalid/v1"]
+    assert df["model_args"].to_list() == ['{"custom_arg": 123}']
 
 
 def test_messages_df():
@@ -496,6 +530,63 @@ def test_samples_df_message_count():
     assert any(df["message_count"] > 0)
 
 
+@pytest.mark.parametrize("strict", [True, False])
+def test_samples_df_int_beyond_int64(tmp_path: Path, strict: bool) -> None:
+    """A column holding an int beyond int64 becomes exact strings."""
+    # pyarrow overflows on "first"; the leading None makes pandas read "big" as float64
+    metadata: list[dict[str, JsonValue]] = [
+        {"big": None, "first": 2**70},
+        {"big": 2**70},
+        {"big": 2**64 - 1},
+        {"big": -(2**63) - 1},
+        {"big": 1},
+        {},
+    ]
+    eval(
+        Task(dataset=[Sample(input="hi", metadata=m) for m in metadata]),
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        display="none",
+    )
+
+    if strict:
+        df = samples_df(tmp_path, strict=True)
+    else:
+        df, errors = samples_df(tmp_path, strict=False)
+        assert errors == []
+
+    df = df.sort_values("id")
+    assert df["metadata_first"].to_list()[0] == str(2**70)
+    values = df["metadata_big"].to_list()
+    assert pd.isna(values[0])
+    assert values[1:5] == [str(2**70), str(2**64 - 1), str(-(2**63) - 1), "1"]
+    assert pd.isna(values[5])
+
+
+def test_samples_df_unscored_nan_in_int_beyond_int64_column(tmp_path: Path) -> None:
+    """A NaN (unscored) value stays null when the column becomes strings."""
+    values: dict[str | int, float | int] = {1: float("nan"), 2: 2**63, 3: 1}
+
+    @scorer(metrics=[])
+    def big_score() -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            return Score(value=values[state.sample_id])
+
+        return score
+
+    eval(
+        Task(dataset=[Sample(input="hi") for _ in values], scorer=big_score()),
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        display="none",
+    )
+
+    scores = samples_df(tmp_path).sort_values("id")["score_big_score"]
+    assert pd.isna(scores.iloc[0])
+    assert scores.to_list()[1:] == [str(2**63), "1"]
+    assert scores.count() == 2
+
+
 def test_samples_df_eval_log():
     log = read_eval_log(str(SECURITY_GUIDE_LOG))
     df = samples_df(log)
@@ -598,8 +689,13 @@ def test_dataframe_functions_empty_list(
         model="mockllm/model",
         log_dir=log_dir,
     )
-    monkeypatch.setenv("INSPECT_LOG_DIR", log_dir)
-    assert len(list_eval_logs()) > 0
+    # list_eval_logs() reads INSPECT_LOG_DIR at import, so setting the env var
+    # here has no effect; point the default listing at log_dir directly
+    monkeypatch.setattr(
+        "inspect_ai.analysis._dataframe.util.list_eval_logs",
+        lambda: list_eval_logs(log_dir),
+    )
+    assert len(resolve_logs(None)) > 0
 
     assert resolve_logs([]) == []
     assert resolve_logs(()) == []

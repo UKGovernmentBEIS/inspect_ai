@@ -2916,17 +2916,17 @@ url("./bootstrap-icons.woff?e34853135f9e39acf64315236852cd5a") format("woff");
     opacity: 0;
   }
 }
-.btn._toolButton_13erz_1 {
+.btn._toolButton_1nf6j_1 {
   background-color: var(--bs-light-border-subtle);
   border: 1px solid var(--bs-border-color);
   white-space: nowrap;
 }
 
-._marginRight_13erz_7 {
+._marginRight_1nf6j_7 {
   margin-right: 0.5em;
 }
 
-._toolButton_13erz_1:focus {
+._toolButton_1nf6j_1:focus {
   outline: none;
   box-shadow:
     0 0 0 2px rgba(var(--bs-primary-rgb), 0.5),
@@ -2934,14 +2934,30 @@ url("./bootstrap-icons.woff?e34853135f9e39acf64315236852cd5a") format("woff");
     inset 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
-.btn._toolButton_13erz_1._subtle_13erz_19 {
+.btn._toolButton_1nf6j_1._subtle_1nf6j_19 {
   background-color: var(--bs-light);
 }
 
-.btn._toolButton_13erz_1._latched_13erz_23,
-.btn._toolButton_13erz_1._latched_13erz_23:hover {
+.btn._toolButton_1nf6j_1._latched_1nf6j_23,
+.btn._toolButton_1nf6j_1._latched_1nf6j_23:hover {
   background-color: var(--bs-secondary-bg);
   box-shadow:
     inset 0 2px 4px rgba(0, 0, 0, 0.15),
     inset 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+._collapsibleLabel_1nf6j_31 {
+  margin-left: 0.5em;
+}
+
+/* Below this width the label is visually hidden but stays the accessible name. */
+@media (max-width: 1300px) {
+  ._collapsibleLabel_1nf6j_31 {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
 }
