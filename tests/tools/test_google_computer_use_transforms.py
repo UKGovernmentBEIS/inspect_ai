@@ -1,8 +1,14 @@
+from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
 from google.genai.types import FunctionCall
+from test_helpers.utils import skip_if_no_google
 
+from inspect_ai._util.content import ContentImage, ContentText
+from inspect_ai.event import ModelEvent
+from inspect_ai.log._transcript import Transcript, init_transcript, transcript
+from inspect_ai.model import ChatMessage, ChatMessageUser, GenerateConfig, get_model
 from inspect_ai.model._chat_message import ChatMessageAssistant, ChatMessageTool
 from inspect_ai.model._providers._google_computer_use import (
     _parse_gemini_action,
@@ -11,6 +17,9 @@ from inspect_ai.model._providers._google_computer_use import (
 )
 from inspect_ai.model._providers.google import content as google_content
 from inspect_ai.tool._tool_call import ToolCall
+from inspect_ai.tool._tools._computer._computer import computer
+
+PNG_DATA_URI = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
 
 
 def test_click_at_bidirectional():
@@ -361,3 +370,76 @@ async def test_gemini_computer_call_and_result_use_the_same_name() -> None:
     function_response = result.parts[0].function_response
     assert function_response is not None
     assert function_response.name == replayed.name == "search"
+
+
+LIVE_ALIAS_PROMPTS = {
+    "go_back": "The browser is already open and showing the second page of a site; "
+    "you navigated there from the first page. Go back to the previous page.",
+    "go_forward": "The browser is already open. You just went back from the second "
+    "page of a site to the first page. Go forward to the second page again.",
+    "search": "The browser is already open. Go to the search engine so you can "
+    "start a web search.",
+}
+
+
+# requests are recorded with snake_case keys and responses with camelCase keys
+def _function_calls(contents: Any, name: str) -> list[tuple[Any, str | None]]:
+    calls: list[tuple[Any, str | None]] = []
+    for content in contents:
+        for part in content.get("parts") or []:
+            call = part.get("function_call") or part.get("functionCall") or {}
+            if call.get("name") == name:
+                signature = part.get("thought_signature", part.get("thoughtSignature"))
+                if isinstance(signature, str) and signature.startswith("attachment://"):
+                    signature = transcript().attachments[
+                        signature.removeprefix("attachment://")
+                    ]
+                calls.append((call.get("args") or {}, signature))
+    return calls
+
+
+@skip_if_no_google
+@pytest.mark.parametrize("action", list(LIVE_ALIAS_PROMPTS))
+async def test_live_gemini_alias_call_replays_as_sent_and_continues(
+    action: str,
+) -> None:
+    init_transcript(Transcript())
+    model = get_model(
+        "google/gemini-3-flash-preview",
+        config=GenerateConfig(max_retries=2, timeout=120),
+    )
+    screenshot = ContentImage(image=PNG_DATA_URI)
+    messages: list[ChatMessage] = [
+        ChatMessageUser(
+            content=[ContentText(text=LIVE_ALIAS_PROMPTS[action]), screenshot]
+        )
+    ]
+    # the model may open the browser before taking the requested action
+    for _ in range(3):
+        output = await model.generate(messages, tools=[computer()])
+        calls = output.message.tool_calls or []
+        messages.append(output.message)
+        messages.extend(
+            ChatMessageTool(
+                content=[ContentText(text="done"), screenshot],
+                tool_call_id=call.id,
+                function="computer",
+            )
+            for call in calls
+        )
+        if any(call.id.startswith(f"{action}_") for call in calls):
+            break
+    else:
+        pytest.fail(f"{model.name} did not call {action}")
+    await model.generate(messages, tools=[computer()])
+
+    events = [e for e in transcript().events if isinstance(e, ModelEvent)]
+    assert [e.error for e in events] == [None] * len(events)
+    assert events[-2].call is not None and events[-1].call is not None
+    response: Any = events[-2].call.response
+    [(sent_args, sent_signature)] = _function_calls(
+        [response["candidates"][0]["content"]], action
+    )
+    [replayed] = _function_calls(events[-1].call.request["contents"], action)
+    assert sent_signature
+    assert replayed == (sent_args, sent_signature)

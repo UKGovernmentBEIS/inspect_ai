@@ -159,7 +159,7 @@ def gemini_action_from_tool_call(
 def gemini_replay_args(action_name: str, tool_call: ToolCall) -> dict[str, object]:
     # go_back, go_forward and search are parsed as other Inspect actions, so
     # their arguments are rebuilt in their own schema when that reproduces the
-    # call.
+    # call's current arguments (which an edit may have changed).
     if action_name in ("go_back", "go_forward", "search"):
         text = str(tool_call.arguments.get("text", ""))
         args: dict[str, object] = (
