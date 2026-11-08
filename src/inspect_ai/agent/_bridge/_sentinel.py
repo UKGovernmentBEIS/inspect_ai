@@ -3,8 +3,8 @@ import json
 from collections import OrderedDict, deque
 from contextlib import AbstractContextManager, ExitStack, nullcontext
 from copy import deepcopy
-from dataclasses import replace
-from functools import partial
+from dataclasses import dataclass, replace
+from functools import cached_property, partial
 from logging import getLogger
 from typing import (
     TYPE_CHECKING,
@@ -161,10 +161,15 @@ class _Claimed(NamedTuple):
     waiting: list[anyio.Event]
 
 
-class _Call(NamedTuple):
+@dataclass
+class _Call:
     call: ToolCall
     text: str
     position: int
+
+    @cached_property
+    def key(self) -> str:
+        return _call_key(self.call)
 
 
 class _ResultChecks:
@@ -400,8 +405,10 @@ def _answers(
     for index, message in enumerate(input):
         if isinstance(message, ChatMessageAssistant):
             unanswered = {}
+            # a message with several text parts joins them on each read
+            text = message.text if message.tool_calls else ""
             for call in message.tool_calls or []:
-                calls[call.id] = _Call(call, message.text, index)
+                calls[call.id] = _Call(call, text, index)
                 unanswered.setdefault(call.id, []).append(calls[call.id])
         elif isinstance(message, ChatMessageTool):
             result_id = message.tool_call_id or ""
@@ -424,8 +431,10 @@ def _unissued(message: ChatMessageTool, found: _Call | None) -> tuple[ToolCall, 
             arguments={},
         )
     )
-    orphan = None if found is not None else message.function or ""
-    return call, _digest(["call", _call_key(call, orphan), _content_key(message)])
+    call_key = (
+        found.key if found is not None else _call_key(call, message.function or "")
+    )
+    return call, _digest(["call", call_key, _content_key(message)])
 
 
 def _call_key(call: ToolCall, orphan: str | None = None) -> str:
@@ -731,11 +740,15 @@ async def sentinel_host_tool_result(
     )
     executions = candidates or ([check] if check.token is not None else [])
     keys: list[str] = []
+    content_keys: dict[str, str] = {}
     for execution in executions:
         # as the scaffold reports it: under the function it was handed
-        content_key = _content_key(
-            result.model_copy(update={"function": execution.handed.function})
-        )
+        function = execution.handed.function
+        if function not in content_keys:
+            content_keys[function] = _content_key(
+                result.model_copy(update={"function": function})
+            )
+        content_key = content_keys[function]
         keys += [
             _digest(["token", execution.token, content_key]),
             _digest(["call", _call_key(execution.handed), content_key]),

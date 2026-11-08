@@ -1765,6 +1765,200 @@ def test_claiming_a_requests_results_takes_memory_linear_in_its_results() -> Non
     assert claimed_bytes(4000) < 6 * claimed_bytes(1000)
 
 
+def _multipart_request(dialect: str, text: int, calls: int) -> list[Any]:
+    """A request whose assistant turn has two text parts and `calls` calls, each answered."""
+    half = "x" * (text // 2)
+    ids = [f"call_{index}" for index in range(calls)]
+    if dialect == "completions":
+        return [
+            {"role": "user", "content": TASK},
+            {
+                "role": "assistant",
+                "content": [{"type": "text", "text": half}] * 2,
+                "tool_calls": [
+                    {
+                        "id": id,
+                        "type": "function",
+                        "function": {
+                            "name": "read",
+                            "arguments": json.dumps({"p": id}),
+                        },
+                    }
+                    for id in ids
+                ],
+            },
+            *[{"role": "tool", "tool_call_id": id, "content": id} for id in ids],
+        ]
+    if dialect == "responses":
+        return [
+            {"type": "message", "role": "user", "content": TASK},
+            {
+                "type": "message",
+                "role": "assistant",
+                "content": [{"type": "output_text", "text": half, "annotations": []}]
+                * 2,
+            },
+            *[
+                {
+                    "type": "function_call",
+                    "call_id": id,
+                    "name": "read",
+                    "arguments": json.dumps({"p": id}),
+                }
+                for id in ids
+            ],
+            *[
+                {"type": "function_call_output", "call_id": id, "output": id}
+                for id in ids
+            ],
+        ]
+    if dialect == "anthropic":
+        return [
+            {"role": "user", "content": TASK},
+            {
+                "role": "assistant",
+                "content": [{"type": "text", "text": half}] * 2
+                + [
+                    {"type": "tool_use", "id": id, "name": "read", "input": {"p": id}}
+                    for id in ids
+                ],
+            },
+            {
+                "role": "user",
+                "content": [
+                    {"type": "tool_result", "tool_use_id": id, "content": id}
+                    for id in ids
+                ],
+            },
+        ]
+    return [
+        {"role": "user", "parts": [{"text": TASK}]},
+        {
+            "role": "model",
+            "parts": [{"text": half}] * 2
+            + [
+                {"functionCall": {"id": id, "name": "read", "args": {"p": id}}}
+                for id in ids
+            ],
+        },
+        {
+            "role": "user",
+            "parts": [
+                {"functionResponse": {"id": id, "name": "read", "response": {"o": id}}}
+                for id in ids
+            ],
+        },
+    ]
+
+
+async def _converted(dialect: str, request: list[Any]) -> list[ChatMessage]:
+    from inspect_ai.agent._bridge.anthropic_api_impl import (
+        messages_from_anthropic_input,
+    )
+    from inspect_ai.agent._bridge.google_api_impl import messages_from_google_contents
+    from inspect_ai.agent._bridge.responses_impl import messages_from_responses_input
+    from inspect_ai.model._openai_convert import messages_from_openai
+
+    if dialect == "completions":
+        return await messages_from_openai(request, "model")
+    if dialect == "responses":
+        return messages_from_responses_input(request, [], "model")
+    if dialect == "anthropic":
+        return await messages_from_anthropic_input(request, [])
+    return messages_from_google_contents(request, None, call_ids=True)
+
+
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+async def test_scanning_a_requests_results_takes_memory_linear_in_its_size(
+    dialect: str,
+) -> None:
+    import tracemalloc
+
+    from inspect_ai.agent._bridge._sentinel import (
+        _ResultChecks,
+        inherited_result_keys,
+    )
+
+    async def peak_bytes(text: int, calls: int) -> int:
+        input = await _converted(dialect, _multipart_request(dialect, text, calls))
+        [assistant] = [m for m in input if isinstance(m, ChatMessageAssistant)]
+        assert isinstance(assistant.content, list)
+        assert len(assistant.tool_calls or []) == calls
+        tracemalloc.start()
+        try:
+            claimed = _ResultChecks(frozenset(), frozenset()).claim(input)
+            _, claim_peak = tracemalloc.get_traced_memory()
+            tracemalloc.reset_peak()
+            inherited = inherited_result_keys(input)
+            _, inherited_peak = tracemalloc.get_traced_memory()
+        finally:
+            tracemalloc.stop()
+        assert len(claimed.owned) == len(inherited) == calls
+        return max(claim_peak, inherited_peak)
+
+    # the request grows about 1.1x with 4x the text, and 3-4x with 4x the
+    # calls; a copy of the text per call grows 4x with either
+    assert await peak_bytes(32768, 1000) < 1.5 * await peak_bytes(8192, 1000)
+    assert await peak_bytes(32768, 1000) < 6 * await peak_bytes(32768, 250)
+
+
+def test_results_answering_one_call_key_its_arguments_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from inspect_ai.agent._bridge import _sentinel
+
+    keyed: list[ToolCall] = []
+    call_key = _sentinel._call_key
+
+    def counting_call_key(call: ToolCall, orphan: str | None = None) -> str:
+        keyed.append(call)
+        return call_key(call, orphan)
+
+    monkeypatch.setattr(_sentinel, "_call_key", counting_call_key)
+    input: list[ChatMessage] = [
+        ChatMessageUser(content=TASK),
+        ChatMessageAssistant(content="", tool_calls=[READ]),
+        *[
+            ChatMessageTool(content=f"{index}", tool_call_id=READ.id)
+            for index in range(100)
+        ],
+    ]
+
+    keys = _sentinel.inherited_result_keys(input)
+    claimed = _sentinel._ResultChecks(frozenset(), frozenset()).claim(input)
+
+    assert len(keys) == len(claimed.owned) == 100
+    assert len(keyed) == 2
+
+
+async def test_a_host_result_for_several_executions_is_keyed_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from inspect_ai.agent._bridge import _sentinel
+
+    keyed: list[ChatMessageTool] = []
+    content_key = _sentinel._content_key
+
+    def counting_content_key(result: ChatMessageTool) -> str:
+        keyed.append(result)
+        return content_key(result)
+
+    monkeypatch.setattr(_sentinel, "_content_key", counting_content_key)
+    bridge = in_process_bridge([])
+    candidates = [
+        _sentinel.SentinelCheck(READ, READ, None, "", "message_1", token=f"t{index}")
+        for index in range(50)
+    ]
+
+    await _sentinel.sentinel_host_tool_result(
+        bridge, candidates[0], "contents", "contents", candidates=candidates
+    )
+
+    assert len(keyed) == 1
+    # each execution's token key, and the call key they share
+    assert len(_sentinel._result_checks(bridge).checked) == 51
+
+
 async def test_a_result_whose_proposal_was_dropped_is_still_checked(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -564,6 +564,8 @@ class _Driver:
         self._views: dict[int, PoolView] = {}
         self._producers: dict[int, Producer] = {}
         self._assistants: dict[str, tuple[ChatMessageAssistant, ToolCall]] | None = None
+        # each assistant message and its text, by id() (`_text`)
+        self._texts: dict[int, tuple[ChatMessageAssistant, str]] = {}
         self._messages_by_id: dict[str, ChatMessage] | None = None
         # the origins of model calls the log records none for, by id()
         self._inferred: dict[int, str] | None = None
@@ -1099,11 +1101,12 @@ class _Driver:
         assistant = call.assistant
         conversation = call.conversation
         assistant_id = assistant.id or ""
+        assistant_text = self._text(assistant)
 
         def build_before() -> None:
             step = before_tool_call(
                 conversation=conversation,
-                message=assistant.text,
+                message=assistant_text,
                 message_id=assistant_id,
                 call=before_call,
                 view=before_view,
@@ -1131,7 +1134,7 @@ class _Driver:
         def build_after() -> None:
             step = after_tool_call(
                 conversation=conversation,
-                message=assistant.text,
+                message=assistant_text,
                 message_id=assistant_id,
                 call=after_call,
                 view=ToolCallView(call=event.view or _default_view(after_call)),
@@ -1452,6 +1455,14 @@ class _Driver:
                     found.setdefault(message.id, message)
             self._messages_by_id = found
         return self._messages_by_id.get(message_id)
+
+    def _text(self, message: ChatMessageAssistant) -> str:
+        # a message with several text parts joins them on each read, and
+        # replay keeps every step
+        cached = self._texts.get(id(message))
+        if cached is None or cached[0] is not message:
+            cached = self._texts[id(message)] = (message, message.text)
+        return cached[1]
 
     def _assistant(
         self, call_id: str

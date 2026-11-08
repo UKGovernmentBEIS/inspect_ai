@@ -545,6 +545,28 @@ def test_parallel_tool_calls_replay_as_they_ran() -> None:
     )
 
 
+def test_a_messages_tool_steps_share_its_text() -> None:
+    from inspect_ai._util.content import ContentText
+
+    turn = calls(
+        ("addition", {"x": 1, "y": 1}),
+        ("addition", {"x": 2, "y": 2}),
+        ("addition", {"x": 3, "y": 3}),
+    )
+    turn.message.content = [ContentText(text="Adding"), ContentText(text="three.")]
+    log = run_logged([use_tools(addition()), generate()], outputs(turn, done()))
+
+    steps = [
+        replayed.step
+        for replayed in replayed(log)
+        if isinstance(replayed.step, BeforeToolCall | AfterToolCall)
+    ]
+    assert len(steps) == 6
+    assert {step.message for step in steps} == {"Adding\nthree."}
+    # replay keeps every step, so a copy per call grows with calls x text
+    assert len({id(step.message) for step in steps}) == 1
+
+
 def test_a_truncated_result_replays_as_it_ran() -> None:
     replay = assert_replay_equals_live(
         tool_loop(returns("x" * 100)),
