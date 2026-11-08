@@ -71,8 +71,10 @@ def test_moonshot_kimi_k3_no_warning_when_params_unset(
 @pytest.mark.parametrize(
     "effort,expected",
     [
+        ("none", "low"),
         ("minimal", "low"),
         ("low", "low"),
+        ("medium", "high"),
         ("high", "high"),
         ("xhigh", "max"),
         ("max", "max"),
@@ -81,7 +83,10 @@ def test_moonshot_kimi_k3_no_warning_when_params_unset(
 def test_moonshot_kimi_k3_maps_reasoning_effort(
     mock_moonshot_env, _warn_once_messages, effort, expected
 ):
-    """K3 accepts low/high/max — supported values pass through, others map silently."""
+    """K3 accepts low/high/max — supported values pass through, others map silently.
+
+    `none` maps to `low` because omitting the field would select K3's default, `max`.
+    """
     from inspect_ai.model._providers.moonshot import MoonshotAPI
 
     api = MoonshotAPI(model_name="kimi-k3")
@@ -90,38 +95,6 @@ def test_moonshot_kimi_k3_maps_reasoning_effort(
     )
     assert params["reasoning_effort"] == expected
     assert not any("reasoning_effort" in m for m in _warn_once_messages)
-
-
-def test_moonshot_kimi_k3_maps_medium_reasoning_effort_to_high(
-    mock_moonshot_env, _warn_once_messages
-):
-    """K3 has no medium level — medium rounds up to high, with a warning."""
-    from inspect_ai.model._providers.moonshot import MoonshotAPI
-
-    api = MoonshotAPI(model_name="kimi-k3")
-    params = api.completion_params(
-        config=GenerateConfig(reasoning_effort="medium"), tools=False
-    )
-    assert params["reasoning_effort"] == "high"
-    assert any(
-        'reasoning_effort="medium"' in m and "kimi-k3" in m for m in _warn_once_messages
-    )
-
-
-def test_moonshot_kimi_k3_omits_none_reasoning_effort(
-    mock_moonshot_env, _warn_once_messages
-):
-    """K3 can't disable reasoning — none is omitted (default applies), with a warning."""
-    from inspect_ai.model._providers.moonshot import MoonshotAPI
-
-    api = MoonshotAPI(model_name="kimi-k3")
-    params = api.completion_params(
-        config=GenerateConfig(reasoning_effort="none"), tools=False
-    )
-    assert "reasoning_effort" not in params
-    assert any(
-        "cannot be disabled" in m and "kimi-k3" in m for m in _warn_once_messages
-    )
 
 
 def test_moonshot_kimi_k2_6_preserves_reasoning_effort(
