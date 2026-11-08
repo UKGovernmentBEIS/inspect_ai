@@ -1466,6 +1466,37 @@ async def test_model_proxy_responses_streaming_output_item_done_is_completed(
 
 
 @pytest.mark.asyncio
+async def test_model_proxy_responses_streaming_lifecycle_output_is_empty(
+    proxy_server: tuple[AsyncHTTPServer, str],
+) -> None:
+    """`response.created`/`in_progress` must not carry the finished output or usage.
+
+    Output items arrive via `response.output_item.added`; openai-python >= 3.31
+    raises "Duplicate response output index" if the created snapshot already
+    holds them.
+    """
+    _server, base_url = proxy_server
+
+    async with ClientSession() as session:
+        async with session.post(
+            f"{base_url}/v1/responses",
+            json={"model": "gpt-4o", "input": "Hello streaming!", "stream": True},
+        ) as response:
+            assert response.status == 200
+            body = await response.text()
+
+    events = {e["type"]: e for e in _parse_sse_events(body)}
+    for event_type in ("response.created", "response.in_progress"):
+        assert events[event_type]["response"]["output"] == []
+        assert events[event_type]["response"]["status"] == "in_progress"
+        assert events[event_type]["response"]["usage"] is None
+    completed = events["response.completed"]["response"]
+    assert completed["status"] == "completed"
+    assert len(completed["output"]) > 0
+    assert completed["usage"] is not None
+
+
+@pytest.mark.asyncio
 async def test_model_proxy_responses_web_search(
     proxy_server: tuple[AsyncHTTPServer, str],
 ) -> None:
@@ -2557,14 +2588,21 @@ async def proxy_server_google() -> AsyncGenerator[tuple[AsyncHTTPServer, str], N
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("api_version", ["v1beta", "v1"])
 async def test_google_generate_content_non_streaming(
     proxy_server_google: tuple[AsyncHTTPServer, str],
+    api_version: str,
 ) -> None:
     """Test Google generateContent API non-streaming endpoint."""
     _server, base_url = proxy_server_google
 
     # Use Google client
-    client = genai.Client(api_key="test", http_options={"base_url": base_url})
+    client = genai.Client(
+        api_key="test",
+        http_options=genai.types.HttpOptions(
+            base_url=base_url, api_version=api_version
+        ),
+    )
 
     # Make request
     response = await client.aio.models.generate_content(
@@ -2611,14 +2649,21 @@ async def test_google_proxy_rejects_missing_model_without_crashing(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("api_version", ["v1beta", "v1"])
 async def test_google_generate_content_streaming(
     proxy_server_google: tuple[AsyncHTTPServer, str],
+    api_version: str,
 ) -> None:
     """Test Google generateContent API streaming endpoint."""
     _server, base_url = proxy_server_google
 
     # Use Google client
-    client = genai.Client(api_key="test", http_options={"base_url": base_url})
+    client = genai.Client(
+        api_key="test",
+        http_options=genai.types.HttpOptions(
+            base_url=base_url, api_version=api_version
+        ),
+    )
 
     # Stream response
     collected_text = ""

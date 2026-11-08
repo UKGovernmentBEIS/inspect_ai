@@ -50,7 +50,11 @@ from inspect_ai._sentinel._config import (
     resolve_sentinel_spec,
     sentinel_config,
 )
-from inspect_ai._util._async import current_async_backend, unwrap_exception_group
+from inspect_ai._util._async import (
+    current_async_backend,
+    raise_unwrapped,
+    unwrap_exception_group,
+)
 from inspect_ai._util.asyncfiles import with_async_fs
 from inspect_ai._util.config import parse_cli_args, resolve_args
 from inspect_ai._util.constants import (
@@ -706,7 +710,7 @@ async def eval_async(
         async with anyio.create_task_group() as tg:
             tg.start_soon(run, tg)
     except Exception as ex:
-        raise inner_exception(ex)
+        raise_unwrapped(ex, inner_exception(ex))
     except anyio.get_cancelled_exc_class():
         # Cancelled exceptions are expected and handled by _eval_async_inner
         if result is None:
@@ -1181,8 +1185,8 @@ async def _eval_async_inner(
                             break
 
                         # (a TaskSource observes results via sample_complete /
-                        # task_complete, fired from task_run as each sample/task
-                        # finishes — so its next_tasks() decision can use them)
+                        # task_complete, fired as each sample/task finishes —
+                        # so its next_tasks() decision can use them)
 
                         # next batch under this run_id: imperative additions
                         # (enqueue_task) first, else the TaskSource's next_tasks()
@@ -1573,6 +1577,23 @@ def _requalify_sample_ids(
         return sample_id
 
 
+def _check_merged_log_retry(eval_log: EvalLog) -> None:
+    """Refuse a retry of a merged shard log whose selection a retry cannot express.
+
+    A merged log leaves `config.sample_id` unset, so a retry runs the whole
+    dataset. That is right only for a merge with no selection; an id or count
+    selection would run samples outside it.
+    """
+    shards = eval_log.eval.shards
+    if shards is not None and shards.selection != "none":
+        form = "ids" if shards.selection == "ids" else "count"
+        raise ValueError(
+            f"Cannot retry {eval_log.location or 'the log'}: it was merged from "
+            f"shards with a selection by sample {form}, which a retry cannot "
+            "reproduce. Re-run the incomplete shards and merge them again."
+        )
+
+
 async def eval_retry_async(
     tasks: str | EvalLogInfo | EvalLog | list[str] | list[EvalLogInfo] | list[EvalLog],
     log_level: str | None = None,
@@ -1717,6 +1738,8 @@ async def eval_retry_async(
         )
         for task in tasks
     ]
+    for eval_log in retry_eval_logs:
+        _check_merged_log_retry(eval_log)
     # opportunistically recover crashed logs before retrying
     from inspect_ai.log._recover import (
         RecoveryNotAvailable,
@@ -1739,6 +1762,8 @@ async def eval_retry_async(
                         cleanup="finalized",
                         incomplete_action=incomplete_action,
                         incomplete_max=incomplete_max,
+                        # the retry imports the task file and runs it next
+                        trust_log=True,
                     )
                 except RecoveryThresholdExceeded as ex:
                     log.warning(
@@ -1746,7 +1771,7 @@ async def eval_retry_async(
                         f"incomplete_max; falling back to recover-and-retry: {ex}"
                     )
                     recovered = await recover_eval_log_async(
-                        eval_log.location, cleanup=False
+                        eval_log.location, cleanup=False, trust_log=True
                     )
                 retry_eval_logs[i] = recovered
                 if recovered.status == "success":

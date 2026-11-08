@@ -169,3 +169,28 @@ async def test_apply_tool_approval_rejects_when_viewer_raises() -> None:
         and "Error in viewer" in r.getMessage()
         for r in handler.records
     )
+
+
+async def test_generate_views_the_call_as_the_model_gave_it() -> None:
+    """The generation-time view renders the model's call without validating it."""
+    viewed: list[dict[str, object]] = []
+
+    def viewer(call: ToolCall) -> ToolCallView:
+        viewed.append(call.arguments)
+        return ToolCallView(call=ToolCallContent(format="text", content="viewed"))
+
+    tdef = _make_tool_def("viewer_unvalidated_tool", viewer)
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                "mockllm/model", tool_name=tdef.name, tool_arguments={"thought": 5}
+            )
+        ],
+    )
+    output = await model.generate("go", tools=[tdef])
+
+    assert output.message.tool_calls
+    view = output.message.tool_calls[0].view
+    assert view is not None and view.content == "viewed"
+    assert viewed == [{"thought": 5}]

@@ -82,7 +82,7 @@ from typing_extensions import Buffer
 from inspect_ai.util._sandbox._privileged import privileged_shell
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
 
-from .._copy import DD_FULLBLOCK_PROBE, DEFAULT_COPY_CHUNK_SIZE, copy_out
+from .._copy import DD_FULLBLOCK_PROBE, DEFAULT_COPY_CHUNK_SIZE, copy_in, copy_out
 from .._layout.schemas import SnapshotDetails
 from .._repo_ops import checkpoint_tag
 from .._restore_scope import (
@@ -339,26 +339,9 @@ class ArchiveStrategy(SandboxSnapshotStrategy):
                 f"{ctx.sandbox_name!r}: {init.stderr}"
             )
 
-        # Chunked host → sandbox copy: `exec` takes fully materialized
-        # input bytes, so streaming the whole archive through one exec
-        # would buffer it entirely in host RAM (and can exceed per-call
-        # provider limits) — the copy-out problem in reverse.
-        with open(local_path, "rb") as f:
-            first = True
-            while True:
-                data = f.read(self._chunk_size)
-                if not data:
-                    break
-                redirect = ">" if first else ">>"
-                result = await privileged_shell(
-                    env, f"cat {redirect} {staged}", input=data, user="root"
-                )
-                if not result.success:
-                    raise RuntimeError(
-                        f"archive snapshot restore copy-in failed for sandbox "
-                        f"{ctx.sandbox_name!r}: {result.stderr}"
-                    )
-                first = False
+        await copy_in(
+            env, src=local_path, dest=staged, label=label, chunk_size=self._chunk_size
+        )
 
         # Verify-then-extract: a corrupt archive is rejected before any
         # byte reaches a final path. Extraction names each capture root
