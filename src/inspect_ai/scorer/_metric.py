@@ -14,7 +14,14 @@ from typing import (
     runtime_checkable,
 )
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationInfo,
+    model_serializer,
+    model_validator,
+)
 
 from inspect_ai._util.constants import DESERIALIZING
 from inspect_ai._util.error import PrerequisiteError
@@ -127,6 +134,22 @@ class ScoreEdit(BaseModel):
         ):
             return {"answer": None, "explanation": None} | data
         return data
+
+    @model_serializer(mode="wrap")
+    def _write_cleared_fields(self, handler: Any, info: Any) -> Any:
+        """Keep a cleared ``answer``, ``explanation`` or ``reason`` in the persisted edit.
+
+        Logs are written with ``exclude_none``, which drops a field whose value is None, and
+        a dropped field reads back as ``UNCHANGED``. Writing the null explicitly is what makes
+        "clear this field" survive the round trip, while a field that is missing from an older
+        log still means ``UNCHANGED``.
+        """
+        dumped = handler(self)
+        if isinstance(dumped, dict):
+            for field in ("answer", "explanation", "reason"):
+                if getattr(self, field) is None and field not in dumped:
+                    dumped[field] = None
+        return dumped
 
 
 class Score(BaseModel):

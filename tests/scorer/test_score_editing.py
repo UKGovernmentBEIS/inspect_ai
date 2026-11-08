@@ -820,9 +820,11 @@ async def test_edit_clearing_reason_drops_legacy_unscored_reason_metadata():
 async def test_score_edit_none_fields_round_trip(
     tmp_path: Path, log_format: str
 ) -> None:
-    """Answers and explanations an edit sets to None read back as None.
+    """Answers, explanations and reasons an edit sets to None read back as None.
 
-    ``reason`` is excluded; see test_legacy_score_edit_without_reason_keeps_reason.
+    A cleared field is written as an explicit null, so it is distinguishable from a field
+    that is missing from an older log, which still means UNCHANGED; see
+    test_legacy_score_edit_without_reason_keeps_reason.
     """
     log = (await eval_async(single_metric_task(), model="mockllm/model"))[0]
     assert log.samples
@@ -840,6 +842,12 @@ async def test_score_edit_none_fields_round_trip(
         "single_metric_scorer",
         ScoreEdit(explanation=None, provenance=provenance),
     )
+    edit_score(
+        log,
+        sample_id,
+        "single_metric_scorer",
+        ScoreEdit(reason=None, provenance=provenance),
+    )
     assert log.samples[0].scores
     edited_history = log.samples[0].scores["single_metric_scorer"].history
     log_file = (tmp_path / f"log.{log_format}").as_posix()
@@ -853,9 +861,10 @@ async def test_score_edit_none_fields_round_trip(
     assert history[0].explanation is None
     assert history[2].explanation is None
     assert history[2].answer == "UNCHANGED"
+    assert history[3].reason is None
 
     def fields(edits: list[ScoreEdit]) -> list[tuple[Any, ...]]:
-        return [(e.value, e.answer, e.explanation, e.metadata) for e in edits]
+        return [(e.value, e.answer, e.explanation, e.metadata, e.reason) for e in edits]
 
     assert fields(history) == fields(edited_history)
     edit_events = [e for e in read_sample.events if isinstance(e, ScoreEditEvent)]
@@ -903,3 +912,34 @@ async def test_legacy_score_edit_without_reason_keeps_reason() -> None:
     edited = scores["single_metric_scorer"]
     assert edited.reason == "grade_parse_failure"
     assert edited.metadata == {"unscored_reason": "grade_parse_failure"}
+
+
+@pytest.mark.parametrize("log_format", ["eval", "json"])
+@pytest.mark.anyio
+async def test_cleared_reason_survives_a_log_round_trip(
+    tmp_path: Path, log_format: str
+) -> None:
+    """A reason an edit clears stays cleared after the log is written and read."""
+    log = (await eval_async(single_metric_task(), model="mockllm/model"))[0]
+    assert log.samples
+    sample = log.samples[0]
+    scores = sample.scores
+    assert scores is not None
+    scores["single_metric_scorer"].reason = "grader_failed"
+
+    edit_score(
+        log,
+        sample.id,
+        "single_metric_scorer",
+        ScoreEdit(value=0, reason=None),
+        recompute_metrics=False,
+    )
+    log_file = (tmp_path / f"cleared-reason.{log_format}").as_posix()
+    await write_eval_log_async(log, log_file)
+
+    read_sample = await read_eval_log_sample_async(log_file, id=sample.id, epoch=1)
+
+    assert read_sample.scores
+    score = read_sample.scores["single_metric_scorer"]
+    assert score.reason is None
+    assert score.history[-1].reason is None
