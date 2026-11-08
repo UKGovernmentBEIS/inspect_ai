@@ -343,6 +343,28 @@ def test_dict_reducer_value_to_float_applied_once() -> None:
     assert median_score(value_to_float=half)(dict_scores).value == {"x": 3.0}
 
 
+def test_dict_stat_skips_none_before_conversion() -> None:
+    # None is missing. Converting it first makes it 0.0, so the mean of
+    # 1.0 and None would be 0.5 instead of 1.0.
+    scores = [
+        Score(value={"x": 1.0, "y": None}),
+        Score(value={"x": None, "y": None}),
+    ]
+    assert avg_reducer(scores).value == {"x": 1.0, "y": None}
+    assert median_reducer(scores).value == {"x": 1.0, "y": None}
+    assert avg_reducer([Score(value={"x": None})]).value == {"x": None}
+
+
+def test_dict_stat_nan_key_stays_nan_when_mixed_with_none() -> None:
+    scores = [
+        Score(value={"x": float("nan")}),
+        Score(value={"x": None}),
+    ]
+    reduced = avg_reducer(scores).value
+    assert isinstance(reduced, dict)
+    assert _is_nan(reduced["x"])
+
+
 def test_score_unscored() -> None:
     # Score.unscored() constructs a NaN-valued Score and preserves
     # answer/explanation/metadata.
