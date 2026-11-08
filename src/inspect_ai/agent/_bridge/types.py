@@ -638,18 +638,21 @@ def _rekey_legacy_message_ids(
     # checkpoints written before message keys were SHA-256 have 32-hex Murmur3
     # keys. an id keeps its place only when a restored message carried it and
     # that message's content has the Murmur3 key; other legacy ids are dropped
-    legacy = {key: ids for key, ids in message_ids.items() if len(key) == 32}
+    legacy = {key: set(ids) for key, ids in message_ids.items() if len(key) == 32}
     if not legacy:
         return message_ids
     rekeyed = {key: ids for key, ids in message_ids.items() if len(key) != 32}
+    emitted = {key: set(ids) for key, ids in rekeyed.items()}
     for message in restored:
         if message.id is None:
             continue
         message_json = to_json_str_safe(message.model_copy(update={"id": None}))
-        if message.id in legacy.get(mm3_hash(message_json), []):
-            ids = rekeyed.setdefault(message_json_hash(message_json), [])
-            if message.id not in ids:
-                ids.append(message.id)
+        if message.id in legacy.get(mm3_hash(message_json), ()):
+            key = message_json_hash(message_json)
+            seen = emitted.setdefault(key, set())
+            if message.id not in seen:
+                seen.add(message.id)
+                rekeyed.setdefault(key, []).append(message.id)
     return rekeyed
 
 

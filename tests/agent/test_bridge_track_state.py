@@ -18,7 +18,7 @@ from inspect_ai._util.json import to_json_str_safe
 from inspect_ai.agent._agent import AgentState
 from inspect_ai.agent._bridge.anthropic_api import inspect_anthropic_api_request
 from inspect_ai.agent._bridge.completions import inspect_completions_api_request
-from inspect_ai.agent._bridge.types import AgentBridge
+from inspect_ai.agent._bridge.types import AgentBridge, _rekey_legacy_message_ids
 from inspect_ai.agent._bridge.util import (
     apply_message_ids,
     default_code_execution_providers,
@@ -1626,3 +1626,34 @@ def test_legacy_message_ids_without_a_restored_message_are_dropped() -> None:
     input: list[ChatMessage] = [_read_result("first result")]
     apply_message_ids(bridge, input)
     assert input[0].id != "restored-id"
+
+
+class _CountedId(str):
+    comparisons = 0
+
+    def __eq__(self, other: object) -> bool:
+        _CountedId.comparisons += 1
+        return super().__eq__(other)
+
+    __hash__ = str.__hash__
+
+
+def _legacy_rekey_comparisons(n: int) -> int:
+    # repeated nudges share content, so all their ids sit under one legacy key
+    messages: list[ChatMessage] = []
+    for i in range(n):
+        message = ChatMessageUser(content="Continue.")
+        message.id = _CountedId(f"id-{i}")
+        messages.append(message)
+    legacy_key = mm3_hash(to_json_str_safe(messages[0].model_copy(update={"id": None})))
+    legacy_ids: list[str] = [_CountedId(f"id-{i}") for i in range(n)]
+
+    _CountedId.comparisons = 0
+    rekeyed = _rekey_legacy_message_ids({legacy_key: legacy_ids}, messages)
+    assert list(rekeyed.values()) == [[f"id-{i}" for i in range(n)]]
+    return _CountedId.comparisons
+
+
+def test_legacy_message_id_rekeying_is_linear_in_repeated_messages() -> None:
+    small, large = _legacy_rekey_comparisons(1000), _legacy_rekey_comparisons(4000)
+    assert large < 6 * small, (small, large)
