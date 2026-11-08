@@ -30,6 +30,15 @@ def rich_initialise(
     plain = plain if plain is not None else display_type_plain()
     size_kwargs = _dumb_terminal_size_kwargs()
 
+    # rich.reconfigure() reinitializes the global console, which drops the render hooks and
+    # live stack a Live or Progress registered before it entered Inspect; leaving that context
+    # then pops from an empty list. Keep the caller's registrations across the reconfigures.
+    caller_state = {
+        name: list(state)
+        for name in ("_render_hooks", "_live_stack")
+        if (state := getattr(rich.get_console(), name, None))
+    }
+
     # reflect ansi prefs
     if plain:
         rich.reconfigure(
@@ -68,6 +77,12 @@ def rich_initialise(
 
     Markdown.elements["fence"] = CustomCodeBlock
     Markdown.elements["code_block"] = CustomCodeBlock
+
+    if caller_state:
+        console = rich.get_console()
+        for name, state in caller_state.items():
+            if hasattr(console, name):
+                setattr(console, name, state)
 
 
 def _dumb_terminal_size_kwargs() -> dict[str, int]:
