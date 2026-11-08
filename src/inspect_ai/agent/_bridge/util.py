@@ -36,7 +36,7 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.images import materialize_media
-from inspect_ai._util.json import to_json_str_safe
+from inspect_ai._util.json import jsonable_python
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.url import data_uri_mime_type, is_data_uri
 from inspect_ai.agent._bridge._approval import (
@@ -783,7 +783,7 @@ def _operator_message_key(message: ChatMessageUser) -> str:
     the same ``message_json_hash`` the bridge uses elsewhere.
     """
     keyed = message.model_copy(update={"id": None, "source": None})
-    return message_json_hash(to_json_str_safe(keyed))
+    return message_json_hash(json.dumps(jsonable_python(keyed)))
 
 
 def _restore_operator_message_source(

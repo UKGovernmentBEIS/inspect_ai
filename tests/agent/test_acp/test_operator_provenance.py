@@ -241,6 +241,22 @@ def test_restore_carry_forward_does_not_touch_other_users() -> None:
     assert other.source is None
 
 
+def test_restore_carry_forward_tells_a_lone_surrogate_from_its_escaped_text() -> None:
+    # A user message holding the escaped text of an operator message's lone
+    # surrogate is a different message: carry-forward doesn't stamp it.
+    bridge = _bridge()
+    bridge.note_operator_message(ChatMessageUser(content="redirect \ud800"))
+    operator = ChatMessageUser(content="redirect \ud800")
+    _restore_operator_message_source(
+        bridge, [ChatMessageUser(content="task"), operator]
+    )
+    assert operator.source == "operator"
+
+    escaped = ChatMessageUser(content="redirect \\ud800")
+    _restore_operator_message_source(bridge, [ChatMessageUser(content="task"), escaped])
+    assert escaped.source is None
+
+
 # ---------------------------------------------------------------------------
 # Integration: bridge_generate + _track_state (the log path)
 # ---------------------------------------------------------------------------

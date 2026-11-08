@@ -70,7 +70,7 @@ from inspect_ai._util.content import (
     ContentText,
     ContentToolUse,
 )
-from inspect_ai._util.json import to_json_str_safe
+from inspect_ai._util.json import jsonable_python, to_json_str_safe
 from inspect_ai._util.logger import warn_once
 from inspect_ai.agent._bridge._errors import BridgePolicyError
 from inspect_ai.agent._bridge.types import AgentBridge
@@ -1439,7 +1439,7 @@ def filter_duplicate_assistant_content(
     messages_ids: Set[str] = set()
     for c in reversed(input):
         if c.type == "text" and c.internal:
-            internal = to_json_str_safe(c.internal)
+            internal = json.dumps(jsonable_python(c.internal))
             if internal not in messages_ids:
                 filtered_input.append(c)
                 messages_ids.add(internal)

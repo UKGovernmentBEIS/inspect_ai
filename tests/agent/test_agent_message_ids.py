@@ -27,6 +27,7 @@ from inspect_ai import Task, eval
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.content import (
     Content,
+    ContentData,
     ContentImage,
     ContentReasoning,
     ContentText,
@@ -34,6 +35,7 @@ from inspect_ai._util.content import (
 from inspect_ai.agent import Agent, AgentState, agent, agent_bridge, handoff, react
 from inspect_ai.agent._bridge import bridge as bridge_module
 from inspect_ai.agent._bridge import types as bridge_types
+from inspect_ai.agent._bridge.responses_impl import filter_duplicate_assistant_content
 from inspect_ai.agent._bridge.types import (
     AgentBridge,
     _arguments_digest,
@@ -1619,6 +1621,28 @@ def test_yaml_mixed_keys_are_accepted_by_message_identity(operation: str) -> Non
     else:
         stable_message_ids()([reply])
         assert reply.id is not None
+
+
+def test_loose_key_tells_a_lone_surrogate_from_its_escaped_text() -> None:
+    """Non-text content holding a lone surrogate has a loose key, distinct from its escaped text's."""
+
+    def message(value: str) -> ChatMessageAssistant:
+        return ChatMessageAssistant(content=[ContentData(data={"value": value})])
+
+    lone, escaped = message("x \ud800"), message("x \\ud800")
+    lone_key = _loose_message_key(lone, lone.text)
+    assert lone_key == _loose_message_key(lone.model_copy(deep=True), lone.text)
+    assert lone_key != _loose_message_key(escaped, escaped.text)
+
+
+def test_responses_dedupe_tells_a_lone_surrogate_from_its_escaped_text() -> None:
+    """Assistant text whose `internal` holds a lone surrogate isn't a duplicate of one holding its escaped text."""
+
+    def text(internal_id: str) -> ContentText:
+        return ContentText(text="same", internal={"id": internal_id})
+
+    content: list[Content] = [text("msg \ud800"), text("msg \\ud800")]
+    assert filter_duplicate_assistant_content([*content, content[1]]) == content
 
 
 @pytest.mark.parametrize("call_ids", [("unique-1", "unique-2"), ("call_1", "call_1")])

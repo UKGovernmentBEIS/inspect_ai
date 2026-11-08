@@ -18,7 +18,7 @@ from shortuuid import uuid
 from inspect_ai._util.content import ContentReasoning, ContentText, ContentToolUse
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.hash import mm3_hash
-from inspect_ai._util.json import to_json_str_safe
+from inspect_ai._util.json import jsonable_python
 from inspect_ai.agent._agent import AgentState
 from inspect_ai.log._condense import ATTACHMENT_PROTOCOL
 from inspect_ai.model._assistant_internal import copy_assistant_internal
@@ -662,7 +662,7 @@ class AgentBridge:
         beyond that.
         """
         outcome = mm3_hash(
-            to_json_str_safe({"result": event.result, "error": event.error})
+            json.dumps(jsonable_python({"result": event.result, "error": event.error}))
         )
         calls = self._awaited_results.setdefault(handed.reply_id, {})
         tracked = calls.get(handed.position)
@@ -1866,7 +1866,7 @@ def _loose_message_key(message: ChatMessage, text: str) -> str:
                 [
                     c.id
                     if isinstance(c, ContentToolUse)
-                    else c.model_dump_json(exclude_none=True)
+                    else c.model_dump(exclude_none=True)
                     for c in content
                     if not isinstance(c, ContentText | ContentReasoning)
                 ],

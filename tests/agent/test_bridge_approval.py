@@ -6546,14 +6546,13 @@ def surrogate_host_scaffold(outcome: Literal["result", "error"]) -> Agent:
             except ToolError:
                 assert outcome == "error"
             # the surrogate's escaped form, as the scaffold's JSON round-trip leaves it
-            conversation.results(
-                calls, [SURROGATE_TEXT.encode(errors="backslashreplace").decode()]
-            )
+            conversation.results(calls, [ESCAPED_SURROGATE_TEXT])
 
     return execute
 
 
 SURROGATE_TEXT = "decoded \ud800 text"
+ESCAPED_SURROGATE_TEXT = "decoded \\ud800 text"
 
 
 @pytest.mark.parametrize("outcome", ["result", "error"])
@@ -6596,19 +6595,20 @@ def test_host_outcome_with_a_lone_surrogate_links_its_result(
 
 
 @agent
-def compacting_host_scaffold(dialect: HostDialect, copied: bool, placed: bool) -> Agent:
+def compacting_host_scaffold(
+    dialect: HostDialect, results: tuple[str, str], copied: bool, placed: bool
+) -> Agent:
     """A scaffold reading a file in two turns as a host tool, compacting to the latest reply and result, then continuing.
 
-    The tool returns the same text every time unless `copied`; then the
+    The tool returns `results[turn]` in each turn. With `copied`, the
     scaffold sends the first result again in place of the latest. With
     `placed`, the scaffold sends the first result, then compacts to the reply
     to it before the second turn, whose reply is then the latest generation's.
     """
 
     async def execute(state: AgentState) -> AgentState:
-        tool = AsyncMock(return_value="contents")
-        if copied:
-            tool.side_effect = ["contents", "changed"]
+        turn = 0
+        tool = AsyncMock(side_effect=lambda **_: results[turn])
         bridge = SandboxAgentBridge(
             state=state,
             filter=None,
@@ -6638,7 +6638,13 @@ def compacting_host_scaffold(dialect: HostDialect, copied: bool, placed: bool) -
                 for _, arguments in calls
             ]
             sent = outputs[0] if sent is None or not copied else sent
-            conversation.results(calls, [sent] * len(calls))
+            # a lone surrogate's escaped form, as the scaffold's JSON round-trip leaves it
+            escaped = (
+                sent.encode(errors="backslashreplace").decode()
+                if isinstance(sent, str)
+                else sent
+            )
+            conversation.results(calls, [escaped] * len(calls))
         if not placed:
             conversation.history = [summary, *conversation.history[kept:]]
         await conversation.request(bridge)
@@ -6658,20 +6664,30 @@ def _user_turn(dialect: HostDialect, text: str) -> dict[str, Any]:
 
 
 @pytest.mark.parametrize(
-    "parallel,copied,evicted",
+    "results,parallel,copied,evicted",
     [
-        (False, False, False),
-        (False, True, False),
-        (True, False, False),
-        (False, False, True),
+        (("contents", "contents"), False, False, False),
+        ((SURROGATE_TEXT, SURROGATE_TEXT), False, False, False),
+        (("contents", "changed"), False, True, False),
+        ((SURROGATE_TEXT, ESCAPED_SURROGATE_TEXT), False, True, False),
+        (("contents", "contents"), True, False, False),
+        (("contents", "contents"), False, False, True),
     ],
-    ids=["equal result", "copied", "parallel then single", "earlier reply evicted"],
+    ids=[
+        "equal result",
+        "equal lone surrogate",
+        "copied",
+        "copied over its lone surrogate's escape",
+        "parallel then single",
+        "earlier reply evicted",
+    ],
 )
 @pytest.mark.parametrize("placed", [True, False], ids=["placed", "unplaced"])
 @pytest.mark.parametrize("dialect", ["google", "completions", "responses", "anthropic"])
 def test_compacted_equal_host_result_links_to_its_own_message(
     dialect: HostDialect,
     placed: bool,
+    results: tuple[str, str],
     parallel: bool,
     copied: bool,
     evicted: bool,
@@ -6679,6 +6695,10 @@ def test_compacted_equal_host_result_links_to_its_own_message(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """After compaction, an equal result of a later call links to its own message, also in the next request; a copied earlier result gets a new id and links nothing.
+
+    A copied result whose execution returned a lone surrogate, where the later
+    one returned its escaped text, is a copy too: the scaffold sees the two
+    alike, but the executions differ.
 
     With `parallel`, the first turn makes two identical calls (in Google they
     can't be told apart and stay unlinked). With `evicted`, the bridge no
@@ -6699,7 +6719,7 @@ def test_compacted_equal_host_result_links_to_its_own_message(
     log = eval(
         Task(
             dataset=[Sample(input="Read a twice.")],
-            solver=compacting_host_scaffold(dialect, copied, placed),
+            solver=compacting_host_scaffold(dialect, results, copied, placed),
         ),
         model=get_model(
             "mockllm/model",
