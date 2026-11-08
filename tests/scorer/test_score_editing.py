@@ -894,6 +894,45 @@ def test_score_edit_none_fields_respect_field_selection(
     assert field not in dumped
 
 
+@pytest.mark.parametrize("field", ["answer", "explanation", "reason"])
+@pytest.mark.parametrize(
+    ("selection", "selected", "expected_present"),
+    [
+        ("exclude", False, True),
+        ("exclude", True, False),
+        ("include", False, False),
+        ("include", True, True),
+    ],
+)
+def test_score_edit_none_fields_respect_mapping_selection(
+    field: str,
+    selection: str,
+    selected: bool,
+    expected_present: bool,
+) -> None:
+    edit = ScoreEdit(value="C", **{field: None})
+    selected_fields = (
+        {"value": True, field: selected}
+        if selection == "include"
+        else {field: selected}
+    )
+
+    if selection == "include":
+        dumped = edit.model_dump(
+            mode="json",
+            exclude_none=True,
+            include=selected_fields,
+        )
+    else:
+        dumped = edit.model_dump(
+            mode="json",
+            exclude_none=True,
+            exclude=selected_fields,
+        )
+
+    assert (field in dumped) is expected_present
+
+
 def test_score_edit_default_reason_serializes_as_unchanged() -> None:
     edit = ScoreEdit(value="C")
 

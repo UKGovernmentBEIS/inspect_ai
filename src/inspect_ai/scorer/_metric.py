@@ -89,6 +89,15 @@ UNCHANGED: Literal["UNCHANGED"] = "UNCHANGED"
 """Sentinel value to indicate an unchanged field in score edits."""
 
 
+def _selection_selects_field(field_name: str, selection: Any) -> bool:
+    """Whether a Pydantic include/exclude selection applies to a field."""
+    if selection is None:
+        return False
+    if isinstance(selection, Mapping):
+        return bool(selection.get(field_name, False))
+    return field_name in selection
+
+
 class ScoreEdit(BaseModel):
     """A single edit to a score."""
 
@@ -154,11 +163,15 @@ class ScoreEdit(BaseModel):
         data = cast(dict[str, Any], handler(self))
 
         for field_name in ("answer", "explanation", "reason"):
+            included = info.include is None or _selection_selects_field(
+                field_name, info.include
+            )
+            excluded = _selection_selects_field(field_name, info.exclude)
             if (
                 field_name in self.model_fields_set
                 and getattr(self, field_name) is None
-                and (info.include is None or field_name in info.include)
-                and (info.exclude is None or field_name not in info.exclude)
+                and included
+                and not excluded
             ):
                 data[field_name] = None
 
