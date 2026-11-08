@@ -1756,9 +1756,7 @@ def test_claiming_a_requests_results_takes_memory_linear_in_its_results() -> Non
         tracemalloc.start()
         try:
             claimed = _ResultChecks(
-                _SavedResultChecks(
-                    reserved_ids=[], tokens={}, prefixed_tokens=[], checked=[]
-                )
+                _SavedResultChecks(reserved_ids=[], tokens={}, checked=[])
             ).claim(input)
             retained, _ = tracemalloc.get_traced_memory()
         finally:
@@ -1892,9 +1890,7 @@ async def test_scanning_a_requests_results_takes_memory_linear_in_its_size(
         tracemalloc.start()
         try:
             claimed = _ResultChecks(
-                _SavedResultChecks(
-                    reserved_ids=[], tokens={}, prefixed_tokens=[], checked=[]
-                )
+                _SavedResultChecks(reserved_ids=[], tokens={}, checked=[])
             ).claim(input)
             _, claim_peak = tracemalloc.get_traced_memory()
             tracemalloc.reset_peak()
@@ -1935,9 +1931,7 @@ def test_results_answering_one_call_key_its_arguments_once(
 
     keys = _sentinel.inherited_result_keys(input)
     claimed = _sentinel._ResultChecks(
-        _sentinel._SavedResultChecks(
-            reserved_ids=[], tokens={}, prefixed_tokens=[], checked=[]
-        )
+        _sentinel._SavedResultChecks(reserved_ids=[], tokens={}, checked=[])
     ).claim(input)
 
     assert len(keys) == len(claimed.owned) == 100
@@ -3241,6 +3235,45 @@ async def test_a_bridge_does_not_resume_from_incomplete_result_checks(
                 resumed.close()
 
     assert len(model.inputs) == 2
+
+
+@pytest.mark.parametrize("sandbox", [False, True])
+@pytest.mark.parametrize("dialect", DIALECTS)
+async def test_a_resumed_bridge_derives_the_aliases_of_its_tokens(
+    dialect: str, sandbox: bool, tmp_path: Path
+) -> None:
+    alias = f"{OLD.function}__{LATE}"
+    new = replace(READ, id=alias, arguments={"path": "new.txt"})
+    model = Scripted(calls_output(replace(OLD, id=LATE)), calls_output(new))
+    start = AgentState(messages=[ChatMessageUser(content=TASK)])
+
+    async with AsyncFilesystem():
+        with _patch_sample_runtime([]):
+            checkpointer = real_checkpointer(tmp_path)
+            bridge = started_with(sandbox, model.model, deepcopy(start), checkpointer)
+            with active(terminate_on_old_secret()):
+                assert await dialect_proposal(dialect, bridge, TASK) == LATE
+            uninterrupted = set(bridge._sentinel_results.prefixed_tokens)
+            assert alias in uninterrupted
+            await checkpointer.checkpoint()
+            checkpointer.close()
+
+            saved = read_host_context(str(tmp_path / "context")).agent_state
+            assert saved is not None
+            # an alias list that disagrees with the tokens is not restored
+            saved["bridge_result_checks"]["prefixed_tokens"] = []
+            resumed = real_checkpointer(tmp_path, saved)
+            try:
+                bridge = started_with(sandbox, model.model, deepcopy(start), resumed)
+                assert bridge._sentinel_results.prefixed_tokens == uninterrupted
+                with active(terminate_on_old_secret()):
+                    handed = await dialect_proposal(
+                        dialect, bridge, "Name this session."
+                    )
+            finally:
+                resumed.close()
+
+    assert handed != alias
 
 
 @pytest.mark.parametrize("sandbox", [False, True])

@@ -186,7 +186,6 @@ class AgentBridge:
                 _SavedResultChecks(
                     reserved_ids=sorted(history_ids(self._compaction_prefix)),
                     tokens={},
-                    prefixed_tokens=[],
                     checked=sorted(inherited_result_keys(state.messages))
                     if self._cp.attempt == "initial"
                     else [],

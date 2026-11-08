@@ -19,7 +19,7 @@ from typing import (
 )
 
 import anyio
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 from pydantic_core import to_jsonable_python
 from shortuuid import uuid
 
@@ -138,12 +138,24 @@ class _Identity(NamedTuple):
     call_key: str
     """The call's conservative identity (`_call_key`)."""
 
+    action: str | None
+    """A computer call's Gemini action (`_computer_action`)."""
+
 
 class _SavedResultChecks(BaseModel):
     reserved_ids: list[str]
     tokens: dict[str, _Identity]
-    prefixed_tokens: list[str]
     checked: list[str]
+
+    @model_validator(mode="after")
+    def _computer_calls_have_actions(self) -> "_SavedResultChecks":
+        for token, identity in self.tokens.items():
+            if (identity.function == "computer") != (identity.action is not None):
+                raise ValueError(
+                    f"Token {token!r} must have an action if and only if it is "
+                    "a computer call."
+                )
+        return self
 
 
 class _Result(NamedTuple):
@@ -231,8 +243,10 @@ class _ResultChecks:
     """
 
     def __init__(self, saved: _SavedResultChecks) -> None:
-        self.identities: dict[str, _Identity] = dict(saved.tokens)
-        self.prefixed_tokens: set[str] = set(saved.prefixed_tokens)
+        self.identities: dict[str, _Identity] = {}
+        self.prefixed_tokens: set[str] = set()
+        for token, identity in saved.tokens.items():
+            self._record(token, identity)
         self.reserved_ids: set[str] = set(saved.reserved_ids)
         self.proposals: OrderedDict[str, SentinelCheck] = OrderedDict()
         self.checked: set[str] = set(saved.checked)
@@ -244,13 +258,20 @@ class _ResultChecks:
 
         Proposals hold their generation and viewer, so a resumed bridge
         matches a result to its token as it would after the proposal's
-        eviction. A check that was running or failed is made again.
+        eviction. A check that was running or failed is made again. The
+        tokens' aliases are derived from their identities on restore.
         """
         return _SavedResultChecks(
             reserved_ids=sorted(self.reserved_ids),
             tokens=dict(self.identities),
-            prefixed_tokens=sorted(self.prefixed_tokens),
             checked=sorted(self.checked),
+        )
+
+    def _record(self, token: str, identity: _Identity) -> None:
+        self.identities[token] = identity
+        self.prefixed_tokens.update(
+            f"{name}__{token}"
+            for name in _wire_names(identity.function, identity.action)
         )
 
     def reserve(self, input: Sequence[ChatMessage]) -> None:
@@ -260,7 +281,13 @@ class _ResultChecks:
         issued: list[SentinelCheck] = []
         for check in checks:
             token = check.handed.id
-            names = _wire_names(check.handed)
+            identity = _Identity(
+                check.call.id,
+                check.handed.function,
+                _call_key(check.handed),
+                _computer_action(check.handed),
+            )
+            names = _wire_names(identity.function, identity.action)
             while (
                 not token
                 or len(token) > _MAX_TOKEN_LENGTH
@@ -273,10 +300,7 @@ class _ResultChecks:
                 )
             ):
                 token = f"{_token_prefix(check)}_{uuid()}"
-            self.identities[token] = _Identity(
-                check.call.id, check.handed.function, _call_key(check.handed)
-            )
-            self.prefixed_tokens.update(f"{name}__{token}" for name in names)
+            self._record(token, identity)
             issued.append(check._replace(token=token))
             self.proposals[token] = issued[-1]
             while len(self.proposals) > _MAX_PROPOSALS:
@@ -545,7 +569,11 @@ def history_ids(input: Sequence[ChatMessage]) -> frozenset[str]:
     for message in input:
         if isinstance(message, ChatMessageAssistant):
             for call in message.tool_calls or []:
-                _reserve_id(reserved, call.id, _wire_names(call))
+                _reserve_id(
+                    reserved,
+                    call.id,
+                    _wire_names(call.function, _computer_action(call)),
+                )
         elif isinstance(message, ChatMessageTool) and message.tool_call_id:
             _reserve_id(
                 reserved,
@@ -615,12 +643,20 @@ def _names_another_action(token: str, check: SentinelCheck) -> bool:
     return prefix not in gemini_computer_action_names(call.arguments)
 
 
-def _wire_names(call: ToolCall) -> set[str]:
-    """Names a scaffold can use to echo this call's id."""
-    names = {call.function.strip() or "generic_tool"}
-    if call.function == "computer":
-        names.add(gemini_computer_action_name(call.arguments))
+def _wire_names(function: str, action: str | None) -> set[str]:
+    """Names a scaffold can use to echo the id of a call to `function`."""
+    names = {function.strip() or "generic_tool"}
+    if action is not None:
+        names.add(action)
     return names
+
+
+def _computer_action(call: ToolCall) -> str | None:
+    return (
+        gemini_computer_action_name(call.arguments)
+        if call.function == "computer"
+        else None
+    )
 
 
 def checks_bridged_results() -> bool:
