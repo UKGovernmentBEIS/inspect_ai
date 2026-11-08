@@ -897,6 +897,72 @@ def test_edited_retained_reply_never_takes_a_dropped_replys_id(
     ]
 
 
+@pytest.mark.parametrize("dialect", DIALECTS)
+def test_initial_example_replies_keep_their_ids_across_turns(
+    dialect: Dialect, tmp_path: Path
+) -> None:
+    """Equal replies in a fresh bridge's input keep their ids on every request.
+
+    The input holds two examples answered `4`. Each request resends them
+    unchanged, so they keep the input's ids on every turn.
+    """
+    examples: list[ChatMessage] = [
+        ChatMessageUser(content="What is 2+2?"),
+        ChatMessageAssistant(content="4"),
+        ChatMessageUser(content="What is 1+3?"),
+        ChatMessageAssistant(content="4"),
+        ChatMessageUser(content="What is 3+3?"),
+    ]
+    sent: _Sent = []
+
+    @agent
+    def scaffold() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            async with agent_bridge(state) as bridge:
+                conversation = _TextConversation(dialect, sent=sent)
+                for message in state.messages:
+                    if message.role == "user":
+                        conversation.user(message.text)
+                    elif dialect == "google":
+                        conversation.turns.append(
+                            [{"role": "model", "parts": [{"text": message.text}]}]
+                        )
+                    else:
+                        conversation.turns.append(
+                            [{"role": "assistant", "content": message.text}]
+                        )
+                await conversation.generate()
+                for text in ("And 4+4?", "Thanks."):
+                    conversation.user(text)
+                    await conversation.generate()
+                return bridge.state
+
+        return execute
+
+    log = eval(
+        Task(dataset=[Sample(input=examples)], solver=scaffold()),
+        model=get_model(
+            "mockllm/model",
+            custom_outputs=[
+                ModelOutput.from_content("mockllm/model", text)
+                for text in ("6", "8", "Bye")
+            ],
+        ),
+        log_dir=str(tmp_path),
+    )[0]
+
+    assert log.status == "success", log.error
+    assert log.samples
+    sample = log.samples[0]
+    events = [e for e in sample.events if isinstance(e, ModelEvent)]
+    assert isinstance(sample.input, list)
+    input_ids = [m.id for m in sample.input if m.role == "assistant"]
+    assert len(set(input_ids)) == 2
+    for event in events:
+        assert [m.id for m in event.input if m.role == "assistant"][:2] == input_ids
+    assert [m.id for m in sample.messages if m.role == "assistant"][:2] == input_ids
+
+
 def _assert_owned(events: list[ModelEvent], sent: _Sent) -> None:
     """No reply is given an id another reply was given first.
 

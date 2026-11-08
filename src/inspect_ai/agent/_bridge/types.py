@@ -325,7 +325,7 @@ _NO_EVIDENCE = _MatchEvidence()
 """Evidence of a fresh bridge, or of a resume from a checkpoint written before evidence was kept."""
 
 _UNKNOWN_REACH = 2**62
-"""Dropped reach of every key recorded before a resume from a checkpoint without evidence: any conversation it knew of may hold a reply, so none is placed."""
+"""Dropped reach of every key a checkpoint without evidence restores: any conversation it knew of may hold a reply, so none is placed."""
 
 
 class DispatchedCall(NamedTuple):
@@ -441,6 +441,7 @@ class AgentBridge:
             self._edit_roots[edited] = self._edit_root(parent)
         self._key_roots: dict[str, str | None] = {}
         """Per key, the edit root of every id recorded under it, or `None` if they have several."""
+        restored_keys = list(self._message_ids)
         for key, ids in self._message_ids.items():
             for id in ids:
                 self._keys_by_id.setdefault(id, set()).add(key)
@@ -460,7 +461,7 @@ class AgentBridge:
         self._held_replies = dict(evidence.held_replies)
         """Per reply id, the most replies a kept thread holding it had."""
         self._dropped_reach = (
-            dict.fromkeys(self._message_ids, _UNKNOWN_REACH)
+            dict.fromkeys(restored_keys, _UNKNOWN_REACH)
             if evidence is _NO_EVIDENCE
             else dict(evidence.dropped_reach)
         )
