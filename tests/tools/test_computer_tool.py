@@ -17,7 +17,26 @@ from typing import Any, Awaitable, Callable, Iterator, NamedTuple, get_args
 
 import pytest
 
-from inspect_ai.tool import ToolError, ToolResult, computer
+from inspect_ai.model import (
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageTool,
+    ChatMessageUser,
+    ContentImage,
+    ContentText,
+    GenerateConfig,
+    ModelOutput,
+    get_model,
+)
+from inspect_ai.tool import (
+    ToolCall,
+    ToolChoice,
+    ToolError,
+    ToolInfo,
+    ToolResult,
+    bash,
+    computer,
+)
 from inspect_ai.tool._tool import ToolParsingError
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tool_info import parse_tool_info
@@ -687,3 +706,70 @@ async def test_host_raises_tool_error_for_container_coordinate_error(
 
     with pytest.raises(ToolError, match="out of bounds"):
         await _common._send_cmd(["left_click", "--coordinate", "1800", "100"])
+
+
+# A 1x1 PNG
+SCREENSHOT = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+
+
+@pytest.mark.parametrize("max_screenshots", [1, 2])
+async def test_max_screenshots_counts_only_computer_results(
+    max_screenshots: int,
+) -> None:
+    """Results from other tools don't push screenshots out of `max_screenshots`."""
+    messages: list[ChatMessage] = [ChatMessageUser(content="Open the settings app.")]
+    for i in range(3):
+        for function in ["bash", "computer"]:
+            call_id = f"{function}-{i}"
+            messages.append(
+                ChatMessageAssistant(
+                    content="",
+                    tool_calls=[ToolCall(id=call_id, function=function, arguments={})],
+                )
+            )
+            messages.append(
+                ChatMessageTool(
+                    tool_call_id=call_id,
+                    function=function,
+                    content=[
+                        ContentText(text="screenshot"),
+                        ContentImage(image=SCREENSHOT),
+                    ]
+                    if function == "computer"
+                    else "file.txt",
+                )
+            )
+
+    inputs: list[list[ChatMessage]] = []
+
+    def capture(
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        inputs.append(input)
+        return ModelOutput.from_content("mockllm/model", "done")
+
+    model = get_model("mockllm/model", custom_outputs=capture)
+    await model.generate(
+        messages, tools=[computer(max_screenshots=max_screenshots), bash()]
+    )
+
+    kept = [
+        not any(
+            isinstance(c, ContentText) and c.text.startswith("Screenshot removed")
+            for c in message.content
+        )
+        for message in inputs[0]
+        if isinstance(message, ChatMessageTool) and message.function == "computer"
+    ]
+    assert kept == [False] * (3 - max_screenshots) + [True] * max_screenshots
+    images = [
+        c
+        for message in inputs[0]
+        if not isinstance(message.content, str)
+        for c in message.content
+        if isinstance(c, ContentImage)
+    ]
+    assert len(images) == max_screenshots

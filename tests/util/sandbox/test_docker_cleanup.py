@@ -55,7 +55,7 @@ from inspect_ai.util._sandbox.lifecycle import (
     sandbox_lifecycle_state,
 )
 
-GENERIC_IMAGE = "aisiuk/inspect-tool-support"
+GENERIC_IMAGE = "python:3.12-bookworm"
 
 
 class FakeDocker:

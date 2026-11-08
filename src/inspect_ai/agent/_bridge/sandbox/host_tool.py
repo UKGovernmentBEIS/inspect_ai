@@ -6,7 +6,6 @@ from pydantic import JsonValue, TypeAdapter
 from shortuuid import uuid
 
 from inspect_ai._sentinel._scope import sentinel_scope
-from inspect_ai._util._async import raise_unwrapped
 from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
@@ -66,19 +65,22 @@ async def execute_host_tool(
     (`decisive_tool_exception`), as in `execute_tools`, and classified with the
     same `tool_call_error` mapping. Those a native call would show the model
     propagate unchanged as the RPC error the scaffold reads as tool output,
-    except a `LimitExceededError`: the service dispatcher routes a bare one to
-    the sample, so a group decided by a limit raises that limit. A
-    termination (`TerminateSampleError`, anywhere in the exception as
-    `find_control_flow` finds it) also propagates unchanged: the service
-    dispatcher answers the RPC and propagates the termination out of the service
-    task, which ends the sample as a native tool's termination does. Any other
-    exception is a bug in the eval's tool, which natively fails the sample: the
-    decisive exception is signalled through `bridge.request_fail` so the
-    bridge's monitor task ends the sample at once, and the original still
-    propagates so the RPC unwinds with an error reply (the teardown may
-    pre-empt its delivery; the scaffold's turn is over either way). An error
-    building the reply from the tool's result (one that cannot be serialized)
-    is classified the same way, so it too fails the sample.
+    except a `LimitExceededError`, bare or deciding a group: it is raised as a
+    `ToolError` with the native message, as the service dispatcher would route
+    a `LimitExceededError` to the sample, where natively the model reads it as
+    a tool error and the agent continues. A termination
+    (`TerminateSampleError`, anywhere in the exception as `find_control_flow`
+    finds it, a limit's history included) also propagates unchanged: the
+    service dispatcher answers the RPC and propagates the termination out of
+    the service task, which ends the sample as a native tool's termination
+    does. Any other exception is a bug in the eval's tool, which natively
+    fails the sample: the decisive exception is signalled through
+    `bridge.request_fail` so the bridge's monitor task ends the sample at
+    once, and the original still propagates so the RPC unwinds with an error
+    reply (the teardown may pre-empt its delivery; the scaffold's turn is over
+    either way). An error building the reply from the tool's result (one that
+    cannot be serialized) is classified the same way, so it too fails the
+    sample.
 
     A result a native call would pass to the model as text (anything but
     content) is truncated to the same output limit, in the same format
@@ -327,7 +329,7 @@ async def _execute_granted(
                         outcome = _raised(ex, tool, tool_def.max_output)
                         raised = outcome.raised
                         if raised is not None and raised is not ex:
-                            raise_unwrapped(ex, raised)
+                            raise raised from ex
                         raise
             # `cancel_called`, not `cancelled_caught`: a tool that absorbs the
             # cancellation and returns was still cancelled
@@ -405,9 +407,10 @@ def _raised(ex: Exception, tool: str, max_output: int | None) -> _Outcome:
 
     A group is handled as its decisive leaf would be if raised bare, but the
     original propagates so the scaffold's error reply is unchanged, except that
-    a decided limit is raised itself: the service dispatcher routes a bare
-    LimitExceededError to the sample. A termination anywhere in the group still
-    leaves the original to the dispatcher.
+    a deciding limit is replaced by a `ToolError` with its mapped message: the
+    service dispatcher routes a `LimitExceededError` to the sample. A
+    termination anywhere in `ex` (including a limit's history) still leaves
+    the original to the dispatcher.
     """
     decisive = decisive_tool_exception(ex)
     mapped = tool_call_error(decisive, tool)
@@ -417,10 +420,8 @@ def _raised(ex: Exception, tool: str, max_output: int | None) -> _Outcome:
         return _Outcome(failed=True, raised=ex, fatal=fatal)
     output, truncated = _recorded_result(tool, mapped.result or "", max_output)
     raised = (
-        decisive
-        if decisive is not ex
-        and isinstance(decisive, LimitExceededError)
-        and find_control_flow(ex) is None
+        ToolError(mapped.error.message)
+        if isinstance(decisive, LimitExceededError) and find_control_flow(ex) is None
         else ex
     )
     return _Outcome(output, truncated, error=mapped.error, raised=raised)
