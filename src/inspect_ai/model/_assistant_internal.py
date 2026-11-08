@@ -11,7 +11,9 @@ resume.
 from __future__ import annotations
 
 import importlib.util
-from typing import TYPE_CHECKING
+from collections.abc import Sequence
+from hashlib import sha256
+from typing import TYPE_CHECKING, cast
 
 from pydantic import JsonValue
 
@@ -97,63 +99,61 @@ def dump_sample_assistant_internal() -> JsonValue | None:
     return dump or None
 
 
-def has_assistant_internal_call_arguments(call_id: str) -> bool:
-    """Whether a provider replays the call's generated arguments from its own state.
+def generation_replay(
+    calls: Sequence[ToolCall],
+    openai: dict[str, JsonValue] | None = None,
+    anthropic: dict[str, JsonValue] | None = None,
+) -> dict[str, JsonValue]:
+    """A generation's per-call provider replay state, as its provider parsed it.
 
-    Such a call, handed on with other arguments, replays as generated under its
-    own ID; under another ID (`alias_assistant_internal_call`) it replays as
-    handed on. The OpenAI Responses provider replays a call's cached item.
+    Taken by the provider's parse from that parse's own values, and kept with
+    the generation's output (`set_generation_assistant_internal`), so neither a
+    later nor a concurrent response reusing a call ID can change it. `openai`
+    holds each call's Responses item, `anthropic` each call's internal name and
+    position; a provider keeping no per-call state passes neither. `calls`
+    records each call as parsed (`_call_digest`), so a copy keeps the state
+    only of calls left unchanged (`carry_generation_assistant_internal`).
     """
-    if _HAS_OPENAI:
-        try:
-            from inspect_ai.model._openai_responses import has_openai_tool_call
+    replay: dict[str, JsonValue] = {
+        "calls": {call.id: _call_digest(call) for call in calls}
+    }
+    if openai is not None:
+        replay["openai"] = openai
+    if anthropic is not None:
+        replay["anthropic"] = anthropic
+    return replay
 
-            return has_openai_tool_call(call_id)
-        except ImportError:
-            pass
-    return False
+
+def set_generation_assistant_internal(
+    output: ModelOutput, replay: dict[str, JsonValue] | None
+) -> ModelOutput:
+    output._assistant_internal = replay
+    return output
 
 
-def record_generation_assistant_internal(output: ModelOutput) -> None:
-    """Keep the per-call replay state the providers recorded for this output's calls with it.
+def default_generation_assistant_internal(output: ModelOutput) -> None:
+    """Record that a generation whose provider kept no replay state needs none.
 
-    Called as the generation returns, before any other response can reuse its
-    call IDs. A model output cache hit returns the output with this state, so
-    the agent bridge hands its calls on as generated
-    (`alias_assistant_internal_call`), whatever has since been recorded under
-    their IDs.
+    For a freshly generated output: the providers that keep per-call state
+    (OpenAI Responses, Anthropic) give it in their parse.
     """
-    call_ids = [
-        call.id for choice in output.choices for call in choice.message.tool_calls or []
-    ]
-    if not call_ids:
-        return
-    recorded: dict[str, JsonValue] = {}
-    if _HAS_OPENAI:
-        try:
-            from inspect_ai.model._openai_responses import recorded_openai_tool_calls
-
-            if (value := recorded_openai_tool_calls(call_ids)) is not None:
-                recorded["openai"] = value
-        except ImportError:
-            pass
-
-    if _HAS_ANTHROPIC:
-        try:
-            from inspect_ai.model._providers.anthropic import (
-                recorded_anthropic_tool_calls,
-            )
-
-            if (value := recorded_anthropic_tool_calls(call_ids)) is not None:
-                recorded["anthropic"] = value
-        except ImportError:
-            pass
-
-    output._assistant_internal = recorded or None
+    if generation_assistant_internal(output) is None and any(
+        choice.message.tool_calls for choice in output.choices
+    ):
+        output._assistant_internal = generation_replay(
+            [
+                call
+                for choice in output.choices
+                for call in choice.message.tool_calls or []
+            ]
+        )
 
 
 def generation_assistant_internal(output: ModelOutput) -> dict[str, JsonValue] | None:
-    """The replay state recorded with this output, if any."""
+    """The replay state the output's generation was parsed with, if any.
+
+    None for an output rebuilt from its fields, or cached by older versions.
+    """
     try:
         return output._assistant_internal
     except TypeError:
@@ -161,46 +161,119 @@ def generation_assistant_internal(output: ModelOutput) -> dict[str, JsonValue] |
         return None
 
 
+def carry_generation_assistant_internal(
+    source: ModelOutput, target: ModelOutput
+) -> None:
+    """Give `target` the replay state `source` has for the calls it carries unchanged.
+
+    For a copy rebuilt from `source`'s fields. A call whose function or arguments
+    differ from those it was parsed with has no replay state in `target`, as the
+    state would replay what the model generated rather than the call.
+    """
+    replay = generation_assistant_internal(source)
+    if replay is None:
+        return
+    parsed = cast(dict[str, str], replay.get("calls", {}))
+    kept = {
+        call.id
+        for choice in target.choices
+        for call in choice.message.tool_calls or []
+        if parsed.get(call.id) == _call_digest(call)
+    }
+    carried: dict[str, JsonValue] = {
+        "calls": {id: digest for id, digest in parsed.items() if id in kept}
+    }
+    if "openai" in replay:
+        items = cast(dict[str, JsonValue], replay["openai"])
+        carried["openai"] = {id: item for id, item in items.items() if id in kept}
+    if "anthropic" in replay:
+        anthropic = cast(dict[str, dict[str, JsonValue]], replay["anthropic"])
+        carried["anthropic"] = {
+            key: {id: value for id, value in values.items() if id in kept}
+            for key, values in anthropic.items()
+        }
+    target._assistant_internal = carried
+
+
+def keeps_generation_call_id(replay: dict[str, JsonValue] | None, call_id: str) -> bool:
+    """Whether the call may be handed on under the model's ID for it.
+
+    Only when no provider can later replay another generation's state for it
+    under that ID: its generation recorded state for it
+    (`has_generation_call_state`), which is handed on under the ID, or came
+    from a provider keeping none. A call without known state is handed on
+    under a fresh ID.
+    """
+    if replay is None:
+        return False
+    return has_generation_call_state(replay, call_id) or not (
+        "openai" in replay or "anthropic" in replay
+    )
+
+
+def has_generation_call_state(
+    replay: dict[str, JsonValue] | None, call_id: str
+) -> bool:
+    """Whether a provider parse recorded replay state for the call."""
+    if replay is None:
+        return False
+    if call_id in cast(dict[str, JsonValue], replay.get("openai", {})):
+        return True
+    anthropic = cast(dict[str, dict[str, JsonValue]], replay.get("anthropic", {}))
+    return any(call_id in values for values in anthropic.values())
+
+
+def has_generation_call_arguments(
+    replay: dict[str, JsonValue] | None, call_id: str
+) -> bool:
+    """Whether the call's replay state carries its generated arguments.
+
+    Such a call, handed on with other arguments, replays as generated under its
+    own ID; under another ID (`alias_assistant_internal_call`) it replays as
+    handed on. A Responses call's item carries its arguments.
+    """
+    return replay is not None and call_id in cast(
+        dict[str, JsonValue], replay.get("openai", {})
+    )
+
+
+def _call_digest(call: ToolCall) -> str:
+    # repr, as parsed arguments may hold values JSON can't order or encode (e.g.
+    # YAML dates as keys); an unstable repr only drops the call's state
+    return sha256(repr([call.function, call.type, call.arguments]).encode()).hexdigest()
+
+
 def alias_assistant_internal_call(
     call_id: str,
     alias: str,
+    replay: dict[str, JsonValue],
     modified: ToolCall | None = None,
-    generation: dict[str, JsonValue] | None = None,
 ) -> None:
     """Record a tool call's per-call replay state under the ID it is handed on under.
 
     So the call replays to the model as it was generated (native call type,
     position among the turn's content), with the `modified` call's arguments
-    when approval changed them. The state comes from `generation`, what the
-    call's output recorded (`generation_assistant_internal`); for an output
-    that recorded none, from what the provider last recorded under `call_id`. The
-    state recorded under `alias` (which may be `call_id`) is replayed in
-    preference to what the provider records under `call_id`, which a later
-    response reusing that ID replaces.
+    when approval changed them. The state comes from `replay`, the state the
+    call's generation was parsed with (`generation_assistant_internal`), never
+    from what a provider has since recorded under `call_id`. The state recorded
+    under `alias` (which may be `call_id`) is replayed in preference to what the
+    provider records under `call_id`, which a later response reusing that ID
+    replaces.
     """
-    if _HAS_OPENAI:
+    if _HAS_OPENAI and "openai" in replay:
         try:
             from inspect_ai.model._openai_responses import alias_openai_tool_call
 
-            alias_openai_tool_call(
-                call_id,
-                alias,
-                modified,
-                generation.get("openai", {}) if generation is not None else None,
-            )
+            alias_openai_tool_call(call_id, alias, replay["openai"], modified)
         except ImportError:
             pass
 
-    if _HAS_ANTHROPIC:
+    if _HAS_ANTHROPIC and "anthropic" in replay:
         try:
             from inspect_ai.model._providers.anthropic import (
                 alias_anthropic_tool_call,
             )
 
-            alias_anthropic_tool_call(
-                call_id,
-                alias,
-                generation.get("anthropic", {}) if generation is not None else None,
-            )
+            alias_anthropic_tool_call(call_id, alias, replay["anthropic"])
         except ImportError:
             pass

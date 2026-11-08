@@ -121,11 +121,9 @@ def test_web_search_round_trip_excludes_none():
             )
 
             # Convert OpenAI Response to ChatMessageAssistant
-            chat_message, _stop_reason, _logprobs = (
-                _chat_message_assistant_from_openai_response(
-                    model="gpt-4", response=mock_response, tools=[]
-                )
-            )
+            chat_message = _chat_message_assistant_from_openai_response(
+                model="gpt-4", response=mock_response, tools=[]
+            ).message
 
             # Verify server_tool_uses excludes None values (the fix working)
             stored_data = mock_internal.server_tool_uses["round-trip-web-search"]

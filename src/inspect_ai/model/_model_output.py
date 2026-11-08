@@ -311,9 +311,18 @@ class ModelOutput(BaseModel):
     """Provider id for the response (e.g. `resp_...`, `chatcmpl-...`, `msg_...`)."""
 
     _assistant_internal: dict[str, JsonValue] | None = PrivateAttr(default=None)
-    """Per-call provider replay state as recorded by the generation
-    (`record_generation_assistant_internal`). Not serialized, but pickled with
-    the output by the model output cache."""
+    """Per-call provider replay state, as the provider's parse of this generation
+    recorded it (`generation_replay`). Not serialized, but pickled with the
+    output by the model output cache. Not compared by `==`."""
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, BaseModel):
+            return NotImplemented
+        return (
+            type(self) is type(other)
+            and self.__dict__ == other.__dict__
+            and self.__pydantic_extra__ == other.__pydantic_extra__
+        )
 
     @property
     def empty(self) -> bool:

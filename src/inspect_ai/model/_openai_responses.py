@@ -3,7 +3,7 @@ from contextvars import ContextVar
 from dataclasses import dataclass, field
 from functools import reduce
 from logging import getLogger
-from typing import Any, Iterable, Protocol, Sequence, TypeGuard, cast
+from typing import Any, Iterable, NamedTuple, Protocol, Sequence, TypeGuard, cast
 
 from openai.types.responses import (
     CompactedResponse,
@@ -160,6 +160,7 @@ from inspect_ai._util.images import inline_media_data_uri
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.text import truncate_string_to_bytes
 from inspect_ai.model._agent_message import validate_agent_message
+from inspect_ai.model._assistant_internal import generation_replay
 from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._chat_message import (
     ChatMessage,
@@ -728,23 +729,31 @@ def responses_stop_details(response: OpenAIResponse) -> StopDetails | None:
     )
 
 
+class OpenAIResponsesChoices(NamedTuple):
+    choices: list[ChatCompletionChoice]
+    replay: dict[str, JsonValue]
+    """The response's per-call replay state (`generation_replay`), for its output
+    (`set_generation_assistant_internal`)."""
+
+
 def openai_responses_chat_choices(
     model: str | None, response: OpenAIResponse, tools: list[ToolInfo]
-) -> list[ChatCompletionChoice]:
+) -> OpenAIResponsesChoices:
     model = model or response.model
-    message, stop_reason, logprobs = _chat_message_assistant_from_openai_response(
-        model, response, tools
+    parsed = _chat_message_assistant_from_openai_response(model, response, tools)
+    return OpenAIResponsesChoices(
+        [
+            ChatCompletionChoice(
+                message=parsed.message,
+                stop_reason=parsed.stop_reason,
+                stop_details=collect_stop_details(
+                    "openai_responses", logger, lambda: responses_stop_details(response)
+                ),
+                logprobs=parsed.logprobs,
+            )
+        ],
+        parsed.replay,
     )
-    return [
-        ChatCompletionChoice(
-            message=message,
-            stop_reason=stop_reason,
-            stop_details=collect_stop_details(
-                "openai_responses", logger, lambda: responses_stop_details(response)
-            ),
-            logprobs=logprobs,
-        )
-    ]
 
 
 def is_native_tool_configured(
@@ -868,29 +877,14 @@ def dump_openai_assistant_internal() -> JsonValue | None:
     )
 
 
-def has_openai_tool_call(call_id: str) -> bool:
-    return call_id in assistant_internal().tool_calls
-
-
-def recorded_openai_tool_calls(call_ids: Sequence[str]) -> JsonValue | None:
-    tool_calls = assistant_internal().tool_calls
-    recorded = {id: tool_calls[id] for id in call_ids if id in tool_calls}
-    return cast(JsonValue, recorded) if recorded else None
-
-
 def alias_openai_tool_call(
     call_id: str,
     alias: str,
+    replay: JsonValue,
     modified: ToolCall | None = None,
-    recorded: JsonValue | None = None,
 ) -> None:
     internal = assistant_internal()
-    tool_calls = (
-        internal.tool_calls
-        if recorded is None
-        else cast(dict[str, _CachedToolCall], recorded)
-    )
-    param = tool_calls.get(call_id)
+    param = cast(dict[str, _CachedToolCall], replay).get(call_id)
     if param is not None:
         # under another id, the replayed item carries that id (`call_id`, and
         # `id` when the call has no separate item id). A separate item id is
@@ -1009,10 +1003,27 @@ def model_usage_from_response_usage(usage: ResponseUsage | None) -> ModelUsage |
     )
 
 
+class _ParsedOutputItems(NamedTuple):
+    content: list[Content]
+    tool_calls: list[ToolCall]
+    logprobs: Logprobs | None
+    has_tool_calls: bool
+    replay: dict[str, _CachedToolCall]
+    """Each call's item as this parse recorded it, by call id."""
+
+
 def _process_response_output_items(
     outputs: Iterable[Any],
     tools: list[ToolInfo],
 ) -> tuple[list[Content], list[ToolCall], Logprobs | None, bool]:
+    parsed = _parse_response_output_items(outputs, tools)
+    return parsed.content, parsed.tool_calls, parsed.logprobs, parsed.has_tool_calls
+
+
+def _parse_response_output_items(
+    outputs: Iterable[Any],
+    tools: list[ToolInfo],
+) -> _ParsedOutputItems:
     """Process response output items into content, tool calls, and logprobs.
 
     This helper extracts the core logic for processing OpenAI response output items,
@@ -1034,6 +1045,15 @@ def _process_response_output_items(
     message_content: list[Content] = []
     tool_calls: list[ToolCall] = []
     has_tool_calls = False
+    replay: dict[str, _CachedToolCall] = {}
+
+    def record(call_id: str, param: _CachedToolCall | None) -> None:
+        # a call without an item leaves none of an earlier call under its id
+        if param is None:
+            assistant_internal().tool_calls.pop(call_id, None)
+        else:
+            assistant_internal().tool_calls[call_id] = param
+            replay[call_id] = cast(_CachedToolCall, dict(param))
 
     for output in outputs:
         match output:
@@ -1085,6 +1105,7 @@ def _process_response_output_items(
 
             case ResponseFunctionToolCall():
                 has_tool_calls = True
+                param: ResponseFunctionToolCallParam | None = None
                 if output.id is not None:
                     param = cast(
                         ResponseFunctionToolCallParam,
@@ -1093,9 +1114,7 @@ def _process_response_output_items(
                     param["arguments"] = _limit_function_call_arguments(
                         output.arguments
                     )
-                    assistant_internal().tool_calls[output.call_id] = param
-                else:
-                    assistant_internal().tool_calls.pop(output.call_id, None)
+                record(output.call_id, param)
 
                 call_name, call_arguments = _responses_call_to_inspect(
                     output.name, output.arguments, tools
@@ -1110,13 +1129,15 @@ def _process_response_output_items(
                 )
             case ResponseCustomToolCall():
                 has_tool_calls = True
-                if output.id is not None:
-                    assistant_internal().tool_calls[output.call_id] = cast(
+                record(
+                    output.call_id,
+                    cast(
                         ResponseCustomToolCallParam,
                         output.model_dump(exclude_none=True),
                     )
-                else:
-                    assistant_internal().tool_calls.pop(output.call_id, None)
+                    if output.id is not None
+                    else None,
+                )
                 tool_call = ToolCall(
                     id=output.call_id,
                     function=output.name,
@@ -1127,13 +1148,15 @@ def _process_response_output_items(
 
             case ResponseComputerToolCall():
                 has_tool_calls = True
-                if output.id is not None:
-                    assistant_internal().tool_calls[output.call_id] = cast(
+                record(
+                    output.call_id,
+                    cast(
                         ResponseComputerToolCallParam,
                         output.model_dump(exclude_none=True),
                     )
-                else:
-                    assistant_internal().tool_calls.pop(output.call_id, None)
+                    if output.id is not None
+                    else None,
+                )
 
                 if output.pending_safety_checks:
                     from inspect_ai.log._transcript import transcript
@@ -1179,8 +1202,9 @@ def _process_response_output_items(
                 # (keyed by call_id) for verbatim replay within the sample.
                 has_tool_calls = True
                 tool_call = tool_call_from_openai_tool_search_call(output)
-                assistant_internal().tool_calls[tool_call.id] = cast(
-                    ToolSearchCall, output.model_dump(exclude_none=True)
+                record(
+                    tool_call.id,
+                    cast(ToolSearchCall, output.model_dump(exclude_none=True)),
                 )
                 tool_calls.append(tool_call)
             case ResponseToolSearchOutputItem():
@@ -1191,12 +1215,21 @@ def _process_response_output_items(
             case _:
                 raise ValueError(f"Unexpected output type: {output.__class__}")
 
-    return message_content, tool_calls, logprobs, has_tool_calls
+    return _ParsedOutputItems(
+        message_content, tool_calls, logprobs, has_tool_calls, replay
+    )
+
+
+class _ParsedResponse(NamedTuple):
+    message: ChatMessageAssistant
+    stop_reason: StopReason
+    logprobs: Logprobs | None
+    replay: dict[str, JsonValue]
 
 
 def _chat_message_assistant_from_openai_response(
     model: str, response: OpenAIResponse, tools: list[ToolInfo]
-) -> tuple[ChatMessageAssistant, StopReason, Logprobs | None]:
+) -> _ParsedResponse:
     """
     Transform OpenAI `Response` into an Inspect `ChatMessageAssistant` and `StopReason`.
 
@@ -1218,22 +1251,23 @@ def _chat_message_assistant_from_openai_response(
             stop_reason = "stop"
 
     # process output items
-    message_content, tool_calls, logprobs, has_tool_calls = (
-        _process_response_output_items(response.output, tools)
-    )
+    parsed = _parse_response_output_items(response.output, tools)
 
-    if has_tool_calls:
+    if parsed.has_tool_calls:
         stop_reason = "tool_calls"
 
-    return (
+    return _ParsedResponse(
         ChatMessageAssistant(
-            content=message_content,
-            tool_calls=tool_calls if len(tool_calls) > 0 else None,
+            content=parsed.content,
+            tool_calls=parsed.tool_calls if len(parsed.tool_calls) > 0 else None,
             model=model,
             source="generate",
         ),
         stop_reason,
-        logprobs,
+        parsed.logprobs,
+        generation_replay(
+            parsed.tool_calls, openai=cast(dict[str, JsonValue], parsed.replay)
+        ),
     )
 
 

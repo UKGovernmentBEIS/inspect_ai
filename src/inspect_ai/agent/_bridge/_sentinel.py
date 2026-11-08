@@ -19,7 +19,7 @@ from typing import (
 )
 
 import anyio
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, JsonValue, model_validator
 from pydantic_core import to_jsonable_python
 from shortuuid import uuid
 
@@ -41,7 +41,9 @@ from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.model._assistant_internal import (
     alias_assistant_internal_call,
     generation_assistant_internal,
-    has_assistant_internal_call_arguments,
+    has_generation_call_arguments,
+    has_generation_call_state,
+    keeps_generation_call_id,
 )
 from inspect_ai.model._call_tools import decisive_sentinel_exception
 from inspect_ai.model._chat_message import (
@@ -200,9 +202,11 @@ class _ResultChecks:
     its id (`sentinel_tokens`): the model's own id when it is absent from the
     incoming history, the bridge has not handed it out before, it is at most
     `_MAX_TOKEN_LENGTH` characters, it names no Gemini computer action other
-    than the approved one (`_names_another_action`) and, for a call approval
-    modified, the provider does not replay the model's arguments under it
-    (`has_assistant_internal_call_arguments`); otherwise a fresh token
+    than the approved one (`_names_another_action`), no provider can replay
+    another generation's state under it (`keeps_generation_call_id`) and, for
+    a call approval
+    modified, that state does not carry the model's arguments
+    (`has_generation_call_arguments`); otherwise a fresh token
     (`_token_prefix`). A result
     reported under a token is the result of that execution, however the
     scaffold has rewritten, compacted or reformatted the rest of its
@@ -278,10 +282,17 @@ class _ResultChecks:
     def reserve(self, input: Sequence[ChatMessage]) -> None:
         self.reserved_ids.update(history_ids(input))
 
-    def issue(self, checks: Sequence[SentinelCheck]) -> list[SentinelCheck]:
+    def issue(
+        self,
+        checks: Sequence[SentinelCheck],
+        replay: dict[str, JsonValue] | None,
+    ) -> list[SentinelCheck]:
         issued: list[SentinelCheck] = []
         for check in checks:
             token = check.handed.id
+            fresh = not keeps_generation_call_id(replay, token) or (
+                check.modified and has_generation_call_arguments(replay, token)
+            )
             identity = _Identity(
                 check.call.id,
                 check.handed.function,
@@ -294,11 +305,7 @@ class _ResultChecks:
                 or len(token) > _MAX_TOKEN_LENGTH
                 or self._ambiguous_token(token, names)
                 or _names_another_action(token, check)
-                or (
-                    check.modified
-                    and token == check.handed.id
-                    and has_assistant_internal_call_arguments(token)
-                )
+                or (fresh and token == check.handed.id)
             ):
                 token = f"{_token_prefix(check)}_{uuid()}"
             self._record(token, identity)
@@ -701,25 +708,28 @@ def sentinel_tokens(
     """Give each call handed to the scaffold its token as its id.
 
     A call's provider replay state (`alias_assistant_internal_call`) and Google
-    reasoning anchors follow it to its token. The state is the one `output`
-    recorded when generated, so a cache hit served after a later response
+    reasoning anchors follow it to its token. The state is the one `output`'s
+    generation was parsed with, so a cache hit served after a later response
     reused its ids hands it on as generated. It is recorded under every token,
     a call keeping the model's id included, as a later response reusing that
-    id replaces what the provider recorded under it.
+    id replaces what the provider recorded under it. A call without known state
+    (`keeps_generation_call_id`) gets a fresh token, which no provider has
+    recorded state under, and replays from the call itself.
 
     `checks` are the `tool_result` checks for the calls in `output`, in order.
     Returns the output to hand to the scaffold (a copy, when any id changes),
     and the checks with their tokens.
     """
-    issued = bridge._sentinel_results.issue(checks)
-    generation = generation_assistant_internal(output)
+    replay = generation_assistant_internal(output)
+    issued = bridge._sentinel_results.issue(checks, replay)
     for call, check in zip(output.message.tool_calls or [], issued):
-        alias_assistant_internal_call(
-            call.id,
-            check.token or call.id,
-            call if check.modified else None,
-            generation,
-        )
+        if replay is not None and has_generation_call_state(replay, call.id):
+            alias_assistant_internal_call(
+                call.id,
+                check.token or call.id,
+                replay,
+                call if check.modified else None,
+            )
     if all(check.token == check.handed.id for check in issued):
         return output, issued
     # a copy, as `output` may be the object the ModelEvent recorded
