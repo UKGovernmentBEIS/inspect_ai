@@ -7134,6 +7134,75 @@ async def test_retained_result_of_calls_sharing_an_id_never_takes_the_others_id(
         assert retained == [second]
 
 
+@pytest.mark.parametrize("contents", ["unequal", "loose"])
+@pytest.mark.parametrize(
+    "case", ["shared", "distinct_same_call", "distinct_other_call"]
+)
+@pytest.mark.parametrize("retry", ["placed", "retained"])
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic"])
+async def test_result_under_a_shared_call_id_never_takes_its_siblings_id(
+    dialect: HostDialect, retry: str, case: str, contents: str
+) -> None:
+    """A result of one of two calls sharing a call id isn't taken for an edit of the other's.
+
+    The scaffold first sends only the first call's result, then, in the same
+    thread (`placed`) or after compaction (`retained`), only a different
+    result under the same call id. Either call may have returned it, also
+    when it differs from the first only in whitespace (`loose`), so it gets
+    a new id. Under distinct call ids it is an edit of the first if it
+    answers the same call, else a new message.
+    """
+
+    def reads(*paths: str) -> ModelOutput:
+        return tool_calls_output(
+            *[
+                ToolCall(
+                    id="unknown" if case == "shared" else f"call_{index}",
+                    function="read_file",
+                    arguments={"path": path},
+                )
+                for index, path in enumerate(paths)
+            ]
+        )
+
+    outputs = [
+        reads("a", "b"),
+        *[ModelOutput.from_content("mockllm/model", "Read them.")] * 2,
+    ]
+    bridge = AgentBridge(
+        AgentState(messages=[ChatMessageUser(content="Read a and b.")]),
+        model_aliases={"inspect": get_model("mockllm/model", custom_outputs=outputs)},
+    )
+    [info] = declare("read_file")
+    conversation = _HostConversation(dialect, "Read a and b.", info)
+    first, second = (
+        ("A", "B") if contents == "unequal" else ("hello world", "hello  world")
+    )
+    with recorded_transcript() as recorded:
+        calls = await conversation.request(cast(SandboxAgentBridge, bridge))
+        reply = conversation.history[1:]
+        conversation.results(calls[:1], [first])
+        await conversation.request(cast(SandboxAgentBridge, bridge))
+        conversation.history = [
+            conversation.history[0]
+            if retry == "placed"
+            else _user_turn(dialect, "Summary: read a and b."),
+            *reply,
+        ]
+        later_call = calls[:1] if case == "distinct_same_call" else calls[1:]
+        conversation.results(later_call, [second])
+        await conversation.request(cast(SandboxAgentBridge, bridge))
+
+    events = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    [first_id] = [m.id for m in events[-2].input if m.role == "tool"]
+    [later_id] = [m.id for m in events[-1].input if m.role == "tool"]
+    assert later_id is not None
+    if case == "distinct_same_call":
+        assert bridge._edit_root(later_id) == first_id
+    else:
+        assert bridge._edit_root(later_id) != first_id
+
+
 @pytest.mark.parametrize("dialect", ["google", "completions", "responses", "anthropic"])
 async def test_empty_text_tool_reply_never_takes_an_earlier_replys_id(
     dialect: HostDialect,

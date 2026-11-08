@@ -2802,11 +2802,11 @@ async def test_retained_result_of_calls_sharing_an_id_never_takes_the_others_id(
 
     Compaction keeps the reply and its second result (`both_retained`: both
     results). Equal results can't be told apart, so they get new ids, as does
-    a result `rewritten` to equal neither: the call id they share doesn't say
-    which it was. Unequal results, results under distinct call ids and an
-    intact history keep their own ids, also when a retry sends the unequal
-    results `reversed` (the other, `reversed_rewritten` to equal neither,
-    gets a new id), and a whitespace edit an id derived from its own. Reversed
+    a result `rewritten` to equal neither or `edited` in whitespace: the call
+    id they share doesn't say which it was. Unequal results, results under
+    distinct call ids and an intact history keep their own ids, also when a
+    retry sends the unequal results `reversed` (the other,
+    `reversed_rewritten` to equal neither, gets a new id). Reversed
     results that differ only in whitespace (`reversed_loose`), or whose
     contents an earlier reply's results under the same call ids had
     (`reversed_repeated`), can't be told from each other's edits: each keeps
@@ -2883,8 +2883,6 @@ async def test_retained_result_of_calls_sharing_an_id_never_takes_the_others_id(
         ids = await scaffold.request([summary, reply, *retained])
         if case in ("unequal", "distinct_ids"):
             assert ids[2] == full[3]
-        elif case == "edited":
-            assert ids[2] == edited_id(full[3], scaffold.sent[2])
         else:
             roots = {scaffold.bridge._edit_root(id) for id in ids[2:]}
             assert not roots & {full[2], full[3]}
@@ -2892,16 +2890,18 @@ async def test_retained_result_of_calls_sharing_an_id_never_takes_the_others_id(
         assert [event.message_id for event in events] == [None, None]
 
 
+@pytest.mark.parametrize("contents", ["unequal", "loose"])
 @pytest.mark.parametrize("call_ids", ["shared", "distinct"])
 @pytest.mark.parametrize("retry", ["placed", "retained"])
 async def test_result_under_a_shared_call_id_never_takes_its_siblings_id(
-    call_ids: str, retry: str
+    call_ids: str, retry: str, contents: str
 ) -> None:
     """A result of one of two calls sharing a call id isn't taken for an edit of the other's.
 
     The scaffold first sends one answer, then a different one under the same
     call id, in the same thread (`placed`) or after compaction (`retained`).
-    Either call may have returned it, so it gets a new id. Under distinct call
+    Either call may have returned it, also when it differs from the first
+    only in whitespace (`loose`), so it gets a new id. Under distinct call
     ids it is an edit of the first.
     """
     task = ChatMessageUser(content="Read a.txt twice.")
@@ -2912,11 +2912,14 @@ async def test_result_under_a_shared_call_id_never_takes_its_siblings_id(
     call_id = reply.tool_calls[0].id
     scaffold = _Scaffold(AgentBridge(AgentState(messages=[task])))
     await scaffold.request([task], reply)
+    first, second = (
+        ("A", "B") if contents == "unequal" else ("hello world", "hello  world")
+    )
     full = await scaffold.request(
-        [task, reply, _result(call_id, "A")], ChatMessageAssistant(content="Done.")
+        [task, reply, _result(call_id, first)], ChatMessageAssistant(content="Done.")
     )
     head = task if retry == "placed" else ChatMessageUser(content="Summary.")
-    ids = await scaffold.request([head, reply, _result(call_id, "B")])
+    ids = await scaffold.request([head, reply, _result(call_id, second)])
     if call_ids == "shared":
         assert scaffold.bridge._edit_root(ids[2]) != full[2]
     else:

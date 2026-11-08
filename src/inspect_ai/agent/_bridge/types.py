@@ -1175,14 +1175,15 @@ class AgentBridge:
         reply, or whose reply is unknown, may be a later execution's result or
         a copy of the earlier one (`_new_result_linkable`).
 
-        Position doesn't say which answer a placed message is, and a call id
-        the reply's calls share (`shared_call_id`) doesn't say which call's:
-        then only a key that names no other message does (`_identifies`).
+        Position doesn't say which answer a placed message is: then only a key
+        that names no other message does (`_identifies`). Under a call id the
+        reply's calls share (`shared_call_id`), a sibling's result may not be
+        recorded, so only the exact content says which call's it is.
         """
         if (
             candidate is not None
             and (placed or shared_call_id)
-            and not self._identifies(keys, candidate, by_call_id=not shared_call_id)
+            and not self._identifies(keys, candidate, exact=shared_call_id)
         ):
             candidate = None
         earlier = self._answer_of(candidate) if candidate is not None else None
@@ -1195,7 +1196,7 @@ class AgentBridge:
             for key in keys
         ):
             for key in keys:
-                if shared_call_id and key.startswith("result:"):
+                if shared_call_id and _key_strength(key) != 3:
                     continue
                 occurrence = occurrences.get(key)
                 if occurrence is not None and available(occurrence):
@@ -1204,20 +1205,17 @@ class AgentBridge:
             return _ResultId(candidate, True)
         return _ResultId(None, self._new_result_linkable(keys, answered))
 
-    def _identifies(self, keys: list[str], message_id: str, by_call_id: bool) -> bool:
-        """Whether a message with `keys` is an unchanged copy of `message_id`, or an edit of no other recorded message.
+    def _identifies(self, keys: list[str], message_id: str, exact: bool) -> bool:
+        """Whether a message with `keys` is an unchanged copy of `message_id`, or (unless `exact`) an edit of no other recorded message.
 
         An edit is told by a key that names `message_id` and no other recorded
-        message, a call id key only if `by_call_id`.
+        message.
         """
         root = self._edit_root(message_id)
         id_keys = self._keys_by_id.get(message_id, ())
         return any(
             (_key_strength(key) == 3 and key in id_keys)
-            or (
-                self._key_roots.get(key) == root
-                and (by_call_id or _key_strength(key) != 2)
-            )
+            or (not exact and self._key_roots.get(key) == root)
             for key in keys
         )
 
