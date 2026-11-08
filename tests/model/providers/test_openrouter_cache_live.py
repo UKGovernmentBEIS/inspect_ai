@@ -23,6 +23,7 @@ from inspect_ai.model import (
     GenerateConfig,
     get_model,
 )
+from inspect_ai.model._providers.openrouter import SESSION_ID_HEADER
 
 MODEL = "openrouter/anthropic/claude-haiku-4-5"
 TURNS = 4
@@ -45,7 +46,15 @@ def _unique_text(n_words: int) -> str:
 
 async def _run_conversation(thinking: bool) -> list[tuple[int, int, int]]:
     """Return (input, cache_read, cache_write) per call of a multi-turn chat."""
-    config = GenerateConfig(reasoning_tokens=1024) if thinking else GenerateConfig()
+    # Outside a running sample the provider sends no x-session-id, and without
+    # one OpenRouter only routes sticky after a cache hit is observed, so the
+    # second call could land on a backend with a cold cache. Pin the
+    # conversation to one backend the way a sample would.
+    session_id = "".join(random.choices(string.ascii_letters, k=24))
+    config = GenerateConfig(
+        extra_headers={SESSION_ID_HEADER: session_id},
+        reasoning_tokens=1024 if thinking else None,
+    )
     model = get_model(MODEL, config=config)
     messages: list[ChatMessage] = [
         ChatMessageSystem(
