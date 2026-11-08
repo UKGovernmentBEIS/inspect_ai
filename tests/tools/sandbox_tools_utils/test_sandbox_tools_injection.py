@@ -1,5 +1,6 @@
 """Tests for sandbox tools injection."""
 
+import gzip
 import os
 import sys
 import tarfile
@@ -662,32 +663,47 @@ async def test_extract_streams_archive_to_tar_inside_verified_directory() -> Non
     assert sandbox.written == []
 
 
-async def test_extract_falls_back_to_plain_tar_inside_verified_directory(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(
-        sandbox_tools, "_uncompressed_tar_bytes", lambda name, gz: b"tar"
-    )
+def _gzip_unsupported(cmd: list[str], user: str | None) -> ExecResult[str]:
+    if is_framework_dir_call(cmd) and TAR_XZF_STDIN in cmd:
+        return ExecResult(
+            success=False,
+            returncode=2,
+            stdout="",
+            stderr=f"{_VERIFIED_MARKER}\ntar: gzip: not found\n",
+        )
+    return helper_ok(cmd, user)
 
-    def policy(cmd: list[str], user: str | None) -> ExecResult[str]:
-        if is_framework_dir_call(cmd) and TAR_XZF_STDIN in cmd:
-            return ExecResult(
-                success=False,
-                returncode=2,
-                stdout="",
-                stderr=f"{_VERIFIED_MARKER}\ntar: gzip: not found\n",
-            )
-        return helper_ok(cmd, user)
 
-    sandbox = CannedSandbox(policy)
-    await sandbox_tools._extract_tools_tree(sandbox, "name", b"gz", None)
+async def test_extract_falls_back_to_plain_tar_inside_verified_directory() -> None:
+    gz = gzip.compress(b"tar")
+    sandbox = CannedSandbox(_gzip_unsupported)
+    await sandbox_tools._extract_tools_tree(sandbox, "name", gz, None)
 
     assert [wrapped_command(cmd) for cmd, _ in sandbox.exec_calls] == [
         ["sh", "-c", TAR_XZF_STDIN],
         ["sh", "-c", TAR_XF_STDIN],
     ]
-    assert sandbox.inputs == [b"gz", b"tar"]
+    assert sandbox.inputs == [gz, b"tar"]
     assert sandbox.written == []
+
+
+async def test_extract_fallback_ignores_stale_uncompressed_tar(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A stale or tampered `<name>.tar` in the binaries dir is never injected."""
+    monkeypatch.setattr(sandbox_tools, "_binaries_dir", lambda: tmp_path)
+    stale = tmp_path / "name.tar"
+    stale.write_bytes(b"tampered")
+
+    sandbox = CannedSandbox(_gzip_unsupported)
+    await sandbox_tools._extract_tools_tree(
+        sandbox, "name", gzip.compress(b"verified"), None
+    )
+
+    assert sandbox.inputs[-1] == b"verified"
+    assert b"tampered" not in sandbox.inputs
+    assert list(tmp_path.iterdir()) == [stale]
+    assert stale.read_bytes() == b"tampered"
 
 
 async def test_extract_propagates_helper_verdict() -> None:
@@ -700,12 +716,7 @@ async def test_extract_propagates_helper_verdict() -> None:
     assert sandbox.written == []
 
 
-async def test_extract_reports_failure_of_both_tar_attempts(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(
-        sandbox_tools, "_uncompressed_tar_bytes", lambda name, gz: b"tar"
-    )
+async def test_extract_reports_failure_of_both_tar_attempts() -> None:
     sandbox = CannedSandbox.returning(
         ExecResult(
             success=False,
@@ -715,7 +726,9 @@ async def test_extract_reports_failure_of_both_tar_attempts(
         )
     )
     with pytest.raises(RuntimeError, match="Failed to extract sandbox tools"):
-        await sandbox_tools._extract_tools_tree(sandbox, "name", b"gz", "root")
+        await sandbox_tools._extract_tools_tree(
+            sandbox, "name", gzip.compress(b"tar"), "root"
+        )
     assert len(sandbox.exec_calls) == 2
 
 
