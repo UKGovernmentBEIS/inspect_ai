@@ -7403,6 +7403,25 @@ def _sent_tool_messages(
     return found
 
 
+def _result_sent_later(sample: EvalSample, event: ToolEvent) -> bool:
+    start = next(n for n, e in enumerate(sample.events) if e is event)
+    for model_event in sample.events[start:]:
+        if not isinstance(model_event, ModelEvent):
+            continue
+        reply: ChatMessageAssistant | None = None
+        for message in model_event.input:
+            if isinstance(message, ChatMessageAssistant):
+                reply = message
+            elif (
+                isinstance(message, ChatMessageTool)
+                and reply
+                and str(event.result) in message.text
+                and any(c.arguments == event.arguments for c in reply.tool_calls or [])
+            ):
+                return True
+    return False
+
+
 def _run_live_host(dialect: HostDialect, shape: LiveHostShape, tmp_path: Path) -> None:
     """Run host tools with a live model and check the ids and tool event joins."""
     prompt = PARALLEL_READS if shape in ("parallel", "reordered") else SEQUENTIAL_READS
@@ -7459,10 +7478,12 @@ def _run_live_host(dialect: HostDialect, shape: LiveHostShape, tmp_path: Path) -
     if dialect in ("responses", "anthropic"):
         assert returned_ids == [e.output.message.id for e in model_events]
 
-    # result joins: Google results of several calls of one function, and the
-    # calls of a reordered reply, stay unlinked
+    # every result is sent back after the reply proposing its call; Google
+    # results of several calls of one function, and the calls of a reordered
+    # reply, stay unlinked
     sent_results = _sent_tool_messages(sample)
     for event in events:
+        assert _result_sent_later(sample, event), f"{event.result!r} wasn't sent"
         unlinked = (shape == "reordered" and event.call_message_id in multi_call) or (
             dialect == "google" and event.call_message_id in multi_call
         )
