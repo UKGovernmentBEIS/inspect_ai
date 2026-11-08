@@ -26,8 +26,8 @@ from test_helpers.sandbox import (
 )
 
 from inspect_ai import Task, eval
-from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util import logger as inspect_logger
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.dataset import Sample
 from inspect_ai.event import LoggerEvent
 from inspect_ai.event._sandbox import SandboxEvent

@@ -303,6 +303,9 @@ async def test_open_executable_pypi_missing_glibc_binary_raises(
     binaries: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _install_state(monkeypatch, "pypi")
+    monkeypatch.setattr(
+        sandbox_module, "_record_lists_binary", lambda name: name == _GLIBC
+    )
 
     with pytest.raises(PrerequisiteError, match="missing from the PyPI package"):
         await _open()
