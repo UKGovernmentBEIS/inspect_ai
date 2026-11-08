@@ -587,7 +587,11 @@ def _settle_message_ids(original: ModelOutput, filtered: ModelOutput) -> None:
             owner = next(iter(kept_owners))
             if owner is not None:
                 message.id = owner
-        if not kept_owners and message not in original_messages:
+        # Pydantic equality takes 0 for False, which serialize differently
+        if not kept_owners and not any(
+            message == m and content_hash(message) == content_hash(m)
+            for m in original_messages
+        ):
             source = next(
                 (m for m in original_messages if m.id == message.id),
                 original_messages[index] if index < len(original_messages) else None,

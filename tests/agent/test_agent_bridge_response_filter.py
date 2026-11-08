@@ -2950,3 +2950,33 @@ def test_settle_message_ids_gives_the_same_edit_the_same_id() -> None:
     assert first.message.id == second.message.id != original.message.id
     assert other.message.id not in {first.message.id, original.message.id}
     assert first.message.id == edited_id(original.message.id, first.message)
+
+
+@pytest.mark.parametrize(
+    "before,after,changed",
+    [
+        (0, False, True),
+        (False, 0, True),
+        (1, True, True),
+        (True, 1, True),
+        (1, 1.0, False),
+        (1.0, 1, False),
+    ],
+    ids=["0 to False", "False to 0", "1 to True", "True to 1", "1 to 1.0", "1.0 to 1"],
+)
+def test_settle_message_ids_tells_booleans_from_numbers(
+    before: JsonValue, after: JsonValue, changed: bool
+) -> None:
+    """A filter changing a call argument between a number and a boolean edits the reply; an equal JSON number doesn't."""
+    original = ModelOutput.for_tool_call("mockllm/model", "f", {"n": before})
+    copy = original.model_copy(deep=True)
+    assert copy.message.tool_calls
+    copy.message.tool_calls[0].arguments = {"n": after}
+
+    _settle_message_ids(original, copy)
+
+    if changed:
+        assert copy.message.id == edited_id(original.message.id, copy.message)
+        assert copy.message.id != original.message.id
+    else:
+        assert copy.message.id == original.message.id
