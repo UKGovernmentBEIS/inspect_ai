@@ -1,8 +1,10 @@
 """Tests for stable_message_ids and message ID stability."""
 
-from test_helpers.message_ids import edited_id, shown
+from test_helpers.message_ids import assert_message_ids, edited_id, shown
 
-from inspect_ai._util.content import ContentReasoning, ContentText
+from inspect_ai import Task, eval
+from inspect_ai._util.content import Content, ContentReasoning, ContentText
+from inspect_ai.dataset import Sample
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.model import (
     ChatMessage,
@@ -19,7 +21,9 @@ from inspect_ai.model._message_ids import (
     stable_message_ids,
 )
 from inspect_ai.model._model import resolve_reasoning_history, resolve_tool_model_input
-from inspect_ai.tool import ToolCall, ToolDef
+from inspect_ai.solver import Generate, Solver, TaskState, solver
+from inspect_ai.tool import Tool, ToolCall, ToolDef, tool
+from inspect_ai.tool._tool_call import ToolCallModelInputHints
 
 
 class TestStableMessageIds:
@@ -375,3 +379,95 @@ def test_tool_model_input_derives_ids() -> None:
     assert resolved[0].id == edited_id(messages[0].id, resolved[0])
     assert again[0].id == resolved[0].id
     assert messages[0].content == "result"
+
+
+def _redact_older_in_place(
+    index: int, total: int, content: str | list[Content], hints: ToolCallModelInputHints
+) -> str | list[Content]:
+    """Redact all but the latest result by editing its items, in a new list."""
+    if isinstance(content, str) or index == total - 1:
+        return content
+    redacted = list(content)
+    for item in redacted:
+        if isinstance(item, ContentText):
+            item.text = "(removed)"
+    return redacted
+
+
+def test_tool_model_input_editing_content_in_place_derives_ids() -> None:
+    async def lookup(query: str) -> str:
+        """Look up a query.
+
+        Args:
+          query: The query.
+        """
+        return query
+
+    tdef = ToolDef(lookup, model_input=_redact_older_in_place)
+    hints: ToolCallModelInputHints = {"disable_computer_screenshot_truncation": False}
+    first = ChatMessageTool(
+        content=[ContentText(text="full result")], tool_call_id="c1", function="lookup"
+    )
+    second = ChatMessageTool(
+        content=[ContentText(text="next")], tool_call_id="c2", function="lookup"
+    )
+
+    latest = resolve_tool_model_input([tdef], [first], hints)
+    older = resolve_tool_model_input([tdef], [first, second], hints)
+    again = resolve_tool_model_input([tdef], [first, second], hints)
+
+    assert latest[0].id == first.id
+    assert latest[0].text == "full result"
+    assert older[0].text == "(removed)"
+    assert older[0].id == edited_id(first.id, older[0])
+    assert again[0].id == older[0].id
+    assert first.text == "full result"
+
+
+@tool(model_input=_redact_older_in_place)
+def lookup() -> Tool:
+    async def execute(query: str) -> str:
+        """Look up a query.
+
+        Args:
+          query: The query.
+        """
+        return query
+
+    return execute
+
+
+@solver
+def _lookups(results: list[str]) -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        state.tools = [lookup()]
+        for n, result in enumerate(results):
+            call = ToolCall(id=f"c{n}", function="lookup", arguments={"query": "q"})
+            state.messages.append(ChatMessageAssistant(content="", tool_calls=[call]))
+            state.messages.append(
+                ChatMessageTool(
+                    content=[ContentText(text=result)],
+                    tool_call_id=call.id,
+                    function="lookup",
+                )
+            )
+            state = await generate(state, tool_calls="none")
+        return state
+
+    return solve
+
+
+def test_tool_model_input_editing_content_in_place_logs_one_content_per_id() -> None:
+    log = eval(
+        Task(
+            dataset=[Sample(input="look it up")],
+            solver=_lookups(["full result", "next", "last"]),
+        ),
+        model="mockllm/model",
+    )[0]
+
+    assert log.status == "success"
+    assert log.samples is not None
+    sample = log.samples[0]
+    assert_message_ids(sample)
+    assert sample.messages[2].text == "full result"

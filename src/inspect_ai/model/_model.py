@@ -2743,13 +2743,19 @@ def resolve_tool_model_input(
         ]
         # call the function for each tool, passing the index, total, and content
         for index, (position, message) in enumerate(tdef_tool_messages):
-            model_input_content = tdef.model_input(
-                index, len(tdef_tool_messages), message.content, hints
+            # a copy, so a handler editing items in place changes neither the
+            # conversation nor what its result is compared against
+            content = (
+                message.content
+                if isinstance(message.content, str)
+                else [item.model_copy(deep=True) for item in message.content]
             )
-            if model_input_content is not message.content:
-                messages[position] = edited_message(
-                    message, content=model_input_content
-                )
+            model_input_content = tdef.model_input(
+                index, len(tdef_tool_messages), content, hints
+            )
+            edited = edited_message(message, content=model_input_content)
+            if edited.id != message.id:
+                messages[position] = edited
 
     # return modified messages
     return messages
