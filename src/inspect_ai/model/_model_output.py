@@ -2,7 +2,7 @@ import uuid
 from logging import Logger
 from typing import Any, Callable, Literal, NamedTuple, Type, TypeVar
 
-from pydantic import BaseModel, Field, JsonValue, model_validator
+from pydantic import BaseModel, Field, JsonValue, PrivateAttr, model_validator
 
 from inspect_ai._util.content import Content
 from inspect_ai._util.logger import warn_once
@@ -309,6 +309,11 @@ class ModelOutput(BaseModel):
 
     response_id: str | None = Field(default=None)
     """Provider id for the response (e.g. `resp_...`, `chatcmpl-...`, `msg_...`)."""
+
+    _assistant_internal: dict[str, JsonValue] | None = PrivateAttr(default=None)
+    """Per-call provider replay state as recorded by the generation
+    (`record_generation_assistant_internal`). Not serialized, but pickled with
+    the output by the model output cache."""
 
     @property
     def empty(self) -> bool:

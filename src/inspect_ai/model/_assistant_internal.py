@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING
 from pydantic import JsonValue
 
 if TYPE_CHECKING:
+    from inspect_ai.model._model_output import ModelOutput
     from inspect_ai.tool._tool_call import ToolCall
 
 # `importlib.util.find_spec` walks importer paths (~3 ms per call). Cache
@@ -113,22 +114,80 @@ def has_assistant_internal_call_arguments(call_id: str) -> bool:
     return False
 
 
+def record_generation_assistant_internal(output: ModelOutput) -> None:
+    """Keep the per-call replay state the providers recorded for this output's calls with it.
+
+    Called as the generation returns, before any other response can reuse its
+    call IDs. A model output cache hit returns the output with this state, so
+    the agent bridge hands its calls on as generated
+    (`alias_assistant_internal_call`), whatever has since been recorded under
+    their IDs.
+    """
+    call_ids = [
+        call.id for choice in output.choices for call in choice.message.tool_calls or []
+    ]
+    if not call_ids:
+        return
+    recorded: dict[str, JsonValue] = {}
+    if _HAS_OPENAI:
+        try:
+            from inspect_ai.model._openai_responses import recorded_openai_tool_calls
+
+            if (value := recorded_openai_tool_calls(call_ids)) is not None:
+                recorded["openai"] = value
+        except ImportError:
+            pass
+
+    if _HAS_ANTHROPIC:
+        try:
+            from inspect_ai.model._providers.anthropic import (
+                recorded_anthropic_tool_calls,
+            )
+
+            if (value := recorded_anthropic_tool_calls(call_ids)) is not None:
+                recorded["anthropic"] = value
+        except ImportError:
+            pass
+
+    output._assistant_internal = recorded or None
+
+
+def generation_assistant_internal(output: ModelOutput) -> dict[str, JsonValue] | None:
+    """The replay state recorded with this output, if any."""
+    try:
+        return output._assistant_internal
+    except TypeError:
+        # an output cached before `ModelOutput` had private attributes
+        return None
+
+
 def alias_assistant_internal_call(
-    call_id: str, alias: str, modified: ToolCall | None = None
+    call_id: str,
+    alias: str,
+    modified: ToolCall | None = None,
+    generation: dict[str, JsonValue] | None = None,
 ) -> None:
     """Record a tool call's per-call replay state under the ID it is handed on under.
 
     So the call replays to the model as it was generated (native call type,
     position among the turn's content), with the `modified` call's arguments
-    when approval changed them. The state recorded under `alias` (which may be
-    `call_id`) is replayed in preference to what the provider records under
-    `call_id`, which a later response reusing that ID replaces.
+    when approval changed them. The state comes from `generation`, what the
+    call's output recorded (`generation_assistant_internal`); for an output
+    that recorded none, from what the provider last recorded under `call_id`. The
+    state recorded under `alias` (which may be `call_id`) is replayed in
+    preference to what the provider records under `call_id`, which a later
+    response reusing that ID replaces.
     """
     if _HAS_OPENAI:
         try:
             from inspect_ai.model._openai_responses import alias_openai_tool_call
 
-            alias_openai_tool_call(call_id, alias, modified)
+            alias_openai_tool_call(
+                call_id,
+                alias,
+                modified,
+                generation.get("openai", {}) if generation is not None else None,
+            )
         except ImportError:
             pass
 
@@ -138,6 +197,10 @@ def alias_assistant_internal_call(
                 alias_anthropic_tool_call,
             )
 
-            alias_anthropic_tool_call(call_id, alias)
+            alias_anthropic_tool_call(
+                call_id,
+                alias,
+                generation.get("anthropic", {}) if generation is not None else None,
+            )
         except ImportError:
             pass

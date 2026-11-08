@@ -40,6 +40,7 @@ from inspect_ai._util.logger import warn_once
 from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.model._assistant_internal import (
     alias_assistant_internal_call,
+    generation_assistant_internal,
     has_assistant_internal_call_arguments,
 )
 from inspect_ai.model._call_tools import decisive_sentinel_exception
@@ -700,18 +701,24 @@ def sentinel_tokens(
     """Give each call handed to the scaffold its token as its id.
 
     A call's provider replay state (`alias_assistant_internal_call`) and Google
-    reasoning anchors follow it to its token. The state is recorded under every
-    token, a call keeping the model's id included, as a later response reusing
-    that id replaces what the provider recorded under it.
+    reasoning anchors follow it to its token. The state is the one `output`
+    recorded when generated, so a cache hit served after a later response
+    reused its ids hands it on as generated. It is recorded under every token,
+    a call keeping the model's id included, as a later response reusing that
+    id replaces what the provider recorded under it.
 
     `checks` are the `tool_result` checks for the calls in `output`, in order.
     Returns the output to hand to the scaffold (a copy, when any id changes),
     and the checks with their tokens.
     """
     issued = bridge._sentinel_results.issue(checks)
+    generation = generation_assistant_internal(output)
     for call, check in zip(output.message.tool_calls or [], issued):
         alias_assistant_internal_call(
-            call.id, check.token or call.id, call if check.modified else None
+            call.id,
+            check.token or call.id,
+            call if check.modified else None,
+            generation,
         )
     if all(check.token == check.handed.id for check in issued):
         return output, issued

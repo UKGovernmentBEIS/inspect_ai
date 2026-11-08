@@ -216,3 +216,13 @@ async def test_restore_in_child_task_visible_to_siblings() -> None:
 
     await tg_collect([restore])
     assert "h" in assistant_internal().thinking_blocks
+
+
+def test_an_output_cached_before_private_attributes_records_no_replay_state() -> None:
+    from inspect_ai.model import ModelOutput
+    from inspect_ai.model._assistant_internal import generation_assistant_internal
+
+    output = ModelOutput()
+    # how pydantic unpickles a model pickled before it had private attributes
+    object.__setattr__(output, "__pydantic_private__", None)
+    assert generation_assistant_internal(output) is None

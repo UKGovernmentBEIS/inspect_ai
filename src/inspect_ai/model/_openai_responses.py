@@ -872,11 +872,25 @@ def has_openai_tool_call(call_id: str) -> bool:
     return call_id in assistant_internal().tool_calls
 
 
+def recorded_openai_tool_calls(call_ids: Sequence[str]) -> JsonValue | None:
+    tool_calls = assistant_internal().tool_calls
+    recorded = {id: tool_calls[id] for id in call_ids if id in tool_calls}
+    return cast(JsonValue, recorded) if recorded else None
+
+
 def alias_openai_tool_call(
-    call_id: str, alias: str, modified: ToolCall | None = None
+    call_id: str,
+    alias: str,
+    modified: ToolCall | None = None,
+    recorded: JsonValue | None = None,
 ) -> None:
     internal = assistant_internal()
-    param = internal.tool_calls.get(call_id)
+    tool_calls = (
+        internal.tool_calls
+        if recorded is None
+        else cast(dict[str, _CachedToolCall], recorded)
+    )
+    param = tool_calls.get(call_id)
     if param is not None:
         # under another id, the replayed item carries that id (`call_id`, and
         # `id` when the call has no separate item id). A separate item id is
@@ -1080,6 +1094,8 @@ def _process_response_output_items(
                         output.arguments
                     )
                     assistant_internal().tool_calls[output.call_id] = param
+                else:
+                    assistant_internal().tool_calls.pop(output.call_id, None)
 
                 call_name, call_arguments = _responses_call_to_inspect(
                     output.name, output.arguments, tools
@@ -1099,6 +1115,8 @@ def _process_response_output_items(
                         ResponseCustomToolCallParam,
                         output.model_dump(exclude_none=True),
                     )
+                else:
+                    assistant_internal().tool_calls.pop(output.call_id, None)
                 tool_call = ToolCall(
                     id=output.call_id,
                     function=output.name,
@@ -1114,6 +1132,8 @@ def _process_response_output_items(
                         ResponseComputerToolCallParam,
                         output.model_dump(exclude_none=True),
                     )
+                else:
+                    assistant_internal().tool_calls.pop(output.call_id, None)
 
                 if output.pending_safety_checks:
                     from inspect_ai.log._transcript import transcript

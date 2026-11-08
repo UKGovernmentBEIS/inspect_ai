@@ -4222,16 +4222,38 @@ def dump_anthropic_assistant_internal() -> JsonValue | None:
     )
 
 
-def alias_anthropic_tool_call(call_id: str, alias: str) -> None:
+def recorded_anthropic_tool_calls(call_ids: Sequence[str]) -> JsonValue | None:
     internal = assistant_internal()
-    if call_id in internal.tool_call_internal_names:
-        internal.handed_tool_call_internal_names[alias] = (
-            internal.tool_call_internal_names[call_id]
-        )
-    if call_id in internal.client_tool_call_positions:
-        internal.handed_client_tool_call_positions[alias] = (
-            internal.client_tool_call_positions[call_id]
-        )
+    names: dict[str, JsonValue] = {
+        id: internal.tool_call_internal_names[id]
+        for id in call_ids
+        if id in internal.tool_call_internal_names
+    }
+    positions: dict[str, JsonValue] = {
+        id: internal.client_tool_call_positions[id]
+        for id in call_ids
+        if id in internal.client_tool_call_positions
+    }
+    if not names and not positions:
+        return None
+    return {"names": names, "positions": positions}
+
+
+def alias_anthropic_tool_call(
+    call_id: str, alias: str, recorded: JsonValue | None = None
+) -> None:
+    internal = assistant_internal()
+    if recorded is None:
+        names: dict[str, Any] = internal.tool_call_internal_names
+        positions: dict[str, Any] = internal.client_tool_call_positions
+    else:
+        assert isinstance(recorded, dict)
+        names = cast(dict[str, Any], recorded.get("names", {}))
+        positions = cast(dict[str, Any], recorded.get("positions", {}))
+    if call_id in names:
+        internal.handed_tool_call_internal_names[alias] = names[call_id]
+    if call_id in positions:
+        internal.handed_client_tool_call_positions[alias] = positions[call_id]
 
 
 def _client_tool_call_position(call_id: str) -> int | None:
