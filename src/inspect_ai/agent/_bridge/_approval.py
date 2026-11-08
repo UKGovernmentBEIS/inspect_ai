@@ -39,6 +39,9 @@ from inspect_ai.agent._bridge._sentinel import (
     sentinel_tool_call,
 )
 from inspect_ai.agent._bridge.types import AgentBridge, DispatchedCall
+from inspect_ai.event._approval import ApprovalEvent
+from inspect_ai.event._execution import tool_call_execution
+from inspect_ai.event._sentinel import SentinelEvent
 from inspect_ai.model._call_tools import (
     _CHANGED_IN_PLACE,
     _SENTINEL_MODIFIED_FUNCTION,
@@ -104,6 +107,9 @@ class BridgeApproval(NamedTuple):
 
     sentinel: list[SentinelCheck] | None = None
     """With an active sentinel, each handed call's result check and alternate targets."""
+
+    recorded: list[list[ApprovalEvent | SentinelEvent]] | None = None
+    """The approvals and `tool_call` steps recorded for each call, which take the id it is handed over under (`sentinel_tokens`)."""
 
 
 async def apply_bridge_tool_approval(
@@ -200,6 +206,7 @@ async def apply_bridge_tool_approval(
         # the caller hands to `_track_state` is untouched.
         approval_history = history + [output.message]
         message = output.message.text
+        recorded: list[list[ApprovalEvent | SentinelEvent]] = [[] for _ in tool_calls]
         modified: dict[int, dict[str, Any]] = {}
         sentinel_reviewed: list[list[tuple[ToolCall, ToolCallViewer | None]]] = []
         for index, call in enumerate(tool_calls):
@@ -209,9 +216,10 @@ async def apply_bridge_tool_approval(
                 for target in reviewed_calls.calls:
                     reviewed = deepcopy(target)
                     shown = deepcopy(target)
-                    approved, approval = await apply_tool_approval(
-                        message, reviewed, None, approval_history
-                    )
+                    with tool_call_execution(call.id, recorded[index]):
+                        approved, approval = await apply_tool_approval(
+                            message, reviewed, None, approval_history
+                        )
                     error = (
                         approver_result_error(shown, reviewed, approval)
                         if approved
@@ -278,15 +286,16 @@ async def apply_bridge_tool_approval(
                     shown = deepcopy(reviewed)
                     offered = deepcopy(reviewed)
                     try:
-                        decision = await sentinel_tool_call(
-                            bridge,
-                            message,
-                            output.message.id,
-                            offered,
-                            viewer,
-                            sentinel_history,
-                            producer,
-                        )
+                        with tool_call_execution(call.id, recorded[index]):
+                            decision = await sentinel_tool_call(
+                                bridge,
+                                message,
+                                output.message.id,
+                                offered,
+                                viewer,
+                                sentinel_history,
+                                producer,
+                            )
                     except ToolApprovalError as ex:
                         return BridgeApproval(
                             output, rejection_messages(output, call, ex.message)
@@ -362,7 +371,7 @@ async def apply_bridge_tool_approval(
     if modified:
         output = with_modified_arguments(output, modified)
 
-    return BridgeApproval(output, None, checks)
+    return BridgeApproval(output, None, checks, recorded)
 
 
 def _sentinel_modify_error(shown: ToolCall, modified: ToolCall) -> str | None:

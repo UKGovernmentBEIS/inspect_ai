@@ -5,6 +5,7 @@ from logging import getLogger
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.registry import registry_log_name
 from inspect_ai.event._approval import ApprovalEvent
+from inspect_ai.event._execution import executed
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.tool._tool_call import ToolCall, ToolCallView
 
@@ -61,14 +62,16 @@ def record_approval(
     from inspect_ai.log._transcript import transcript
 
     transcript()._event(
-        ApprovalEvent(
-            message=message,
-            call=deepcopy(call),
-            view=deepcopy(view),
-            approver=approver_name,
-            decision=approval.decision,
-            modified=deepcopy(approval.modified),
-            explanation=approval.explanation,
-            metadata=approval.metadata,
+        executed(
+            ApprovalEvent(
+                message=message,
+                call=deepcopy(call),
+                view=deepcopy(view),
+                approver=approver_name,
+                decision=approval.decision,
+                modified=deepcopy(approval.modified),
+                explanation=approval.explanation,
+                metadata=approval.metadata,
+            )
         )
     )

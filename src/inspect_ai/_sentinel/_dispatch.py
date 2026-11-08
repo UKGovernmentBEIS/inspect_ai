@@ -41,6 +41,7 @@ from inspect_ai._util.registry import registry_info, registry_lookup
 from inspect_ai.approval._approval import Approval, ApprovalDecision
 from inspect_ai.approval._approver import Approver
 from inspect_ai.approval._human.approver import human_approver
+from inspect_ai.event._execution import executed
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._sentinel import (
     SentinelAction,
@@ -838,16 +839,18 @@ class _Recorder:
         # the step's invocation failed, so its human() decisions are not
         # published; replay reads this event to withhold them too
         transcript()._event(
-            SentinelEvent(
-                factory=registry_info(root).name,
-                path="",
-                function=root.__name__,
-                step_id=self._step_id,
-                conversation=step.conversation,
-                stage=step_stage(step),
-                kind="observation",
-                status="error",
-                error=f"{type(error).__name__}: {error}",
+            executed(
+                SentinelEvent(
+                    factory=registry_info(root).name,
+                    path="",
+                    function=root.__name__,
+                    step_id=self._step_id,
+                    conversation=step.conversation,
+                    stage=step_stage(step),
+                    kind="observation",
+                    status="error",
+                    error=f"{type(error).__name__}: {error}",
+                )
             )
         )
 
@@ -931,23 +934,25 @@ def _emit(
     error: str | None = None,
 ) -> None:
     transcript()._event(
-        SentinelEvent(
-            factory=factory,
-            path=context.path,
-            function=function,
-            step_id=step_id,
-            conversation=step.conversation,
-            stage=step_stage(step),
-            kind=kind,
-            status=status,
-            suspicion=suspicion,
-            action=action,
-            audit=audit,
-            message=message,
-            explanation=explanation,
-            references=list(references),
-            metadata=metadata,
-            modified=modified,
-            error=error,
+        executed(
+            SentinelEvent(
+                factory=factory,
+                path=context.path,
+                function=function,
+                step_id=step_id,
+                conversation=step.conversation,
+                stage=step_stage(step),
+                kind=kind,
+                status=status,
+                suspicion=suspicion,
+                action=action,
+                audit=audit,
+                message=message,
+                explanation=explanation,
+                references=list(references),
+                metadata=metadata,
+                modified=modified,
+                error=error,
+            )
         )
     )

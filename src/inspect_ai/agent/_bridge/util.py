@@ -1131,7 +1131,9 @@ async def _bridge_generate_impl(
             # with a sentinel, each call is handed over under a token identifying
             # its execution, which its result comes back under
             output, checks = (
-                sentinel_tokens(bridge, reviewed.output, reviewed.sentinel)
+                sentinel_tokens(
+                    bridge, reviewed.output, reviewed.sentinel, reviewed.recorded or ()
+                )
                 if reviewed.sentinel is not None
                 else (reviewed.output, None)
             )

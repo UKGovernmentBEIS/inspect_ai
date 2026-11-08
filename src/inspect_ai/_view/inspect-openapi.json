@@ -196,6 +196,17 @@
             "title": "Event",
             "type": "string"
           },
+          "execution_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Execution Id"
+          },
           "explanation": {
             "anyOf": [
               {
@@ -10633,6 +10644,17 @@
             "default": "sentinel",
             "title": "Event",
             "type": "string"
+          },
+          "execution_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Execution Id"
           },
           "explanation": {
             "anyOf": [

@@ -37,6 +37,10 @@ from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.logger import warn_once
 from inspect_ai.agent._bridge.types import AgentBridge
+from inspect_ai.event._approval import ApprovalEvent
+from inspect_ai.event._execution import tool_call_execution
+from inspect_ai.event._sentinel import SentinelEvent
+from inspect_ai.log._transcript import transcript
 from inspect_ai.model._assistant_internal import (
     alias_assistant_internal_call,
     has_assistant_internal_call_arguments,
@@ -148,6 +152,9 @@ class _Result(NamedTuple):
     """The possible targets to check; a host execution has only its actual target."""
 
     message: ChatMessageTool
+
+    execution: str | None = None
+    """The id the call was executed under: its token, or its host `ToolEvent`'s id."""
 
 
 class _Claimed(NamedTuple):
@@ -315,7 +322,7 @@ class _ResultChecks:
             ]
             proposal = self.proposals.get(token)
             if proposal is not None:
-                return _Result(keys, (proposal, *proposal.alternatives), message)
+                return _Result(keys, (proposal, *proposal.alternatives), message, token)
             call = (
                 replace(found.call, id=identity.call_id)
                 if found is not None
@@ -326,6 +333,7 @@ class _ResultChecks:
         else:
             call, key = _unissued(message, found)
             keys = [key]
+            token = None
         # the history ends with the call's assistant message, as on the native
         # path; a result answering no call in the request has none
         history = input[: found.position + 1 if found is not None else index]
@@ -337,7 +345,7 @@ class _ResultChecks:
             input[found.position].id if found is not None else _NO_MESSAGE_ID,
             history,
         )
-        return _Result(keys, (check,), message)
+        return _Result(keys, (check,), message, token)
 
     async def check(
         self,
@@ -354,6 +362,7 @@ class _ResultChecks:
                     result.message,
                     output,
                     truncated,
+                    result.execution,
                     reject_on_viewer_error=len(result.checks) > 1,
                 )
         except Exception as ex:
@@ -636,12 +645,17 @@ async def sentinel_tool_call(
 
 
 def sentinel_tokens(
-    bridge: AgentBridge, output: ModelOutput, checks: Sequence[SentinelCheck]
+    bridge: AgentBridge,
+    output: ModelOutput,
+    checks: Sequence[SentinelCheck],
+    recorded: Sequence[Sequence[ApprovalEvent | SentinelEvent]] = (),
 ) -> tuple[ModelOutput, list[SentinelCheck]]:
     """Give each call handed to the scaffold its token as its id.
 
     A call's provider replay state (`alias_assistant_internal_call`) and Google
-    reasoning anchors follow it to its token.
+    reasoning anchors follow it to its token, as do its approvals and
+    `tool_call` steps (`recorded`, by call), recorded before it had one: a
+    token other than the model's id becomes their `execution_id`.
 
     `checks` are the `tool_result` checks for the calls in `output`, in order.
     Returns the output to hand to the scaffold (a copy, when any id changes),
@@ -650,6 +664,11 @@ def sentinel_tokens(
     issued = _result_checks(bridge).issue(checks)
     if all(check.token == check.handed.id for check in issued):
         return output, issued
+    for check, events in zip(issued, recorded):
+        if check.token != check.handed.id:
+            for event in events:
+                event.execution_id = check.token
+                transcript()._event_updated(event)
     # a copy, as `output` may be the object the ModelEvent recorded
     output = output.model_copy(deep=True)
     tokens: dict[str, deque[str]] = {}
@@ -712,6 +731,7 @@ async def sentinel_host_tool_result(
     error: ToolCallError | None = None,
     truncated: tuple[int, int] | Literal[False] = False,
     candidates: Sequence[SentinelCheck] = (),
+    event_id: str | None = None,
 ) -> None:
     """Check a host call's result as delivered, recording it for its executions.
 
@@ -719,7 +739,8 @@ async def sentinel_host_tool_result(
     that matched proposals of several calls (`candidates`, when the service
     can't tell which execution it is), under each of theirs, so the scaffold
     reporting it is not checked again. A host call no proposal accounts for has
-    no token, so no result the scaffold reports can match it.
+    no token, so no result the scaffold reports can match it. The check is of
+    the execution recorded as the `ToolEvent` `event_id`.
 
     The call is the bridged scaffold's, so the check does not see the enclosing
     agent's messages, as the stages of a bridge request don't
@@ -745,7 +766,7 @@ async def sentinel_host_tool_result(
     keys = keys or [f"unproposed:{uuid()}"]
     with bridge_request():
         await _result_checks(bridge).check_running(
-            bridge, _Result(keys, (check,), result), output, truncated
+            bridge, _Result(keys, (check,), result, event_id), output, truncated
         )
 
 
@@ -799,12 +820,17 @@ async def _tool_result(
     result: ChatMessageTool,
     output: ToolResult,
     truncated: tuple[int, int] | Literal[False] | None,
+    execution: str | None,
     reject_on_viewer_error: bool = False,
 ) -> None:
     from inspect_ai._sentinel._dispatch import sentinel_after_tool_call
 
     producer = check.producer
-    with producer.scope() if producer is not None else nullcontext():
+    executed = execution if execution != check.call.id else None
+    with (
+        producer.scope() if producer is not None else nullcontext(),
+        tool_call_execution(check.call.id, executed),
+    ):
         try:
             await _guarded(
                 bridge,

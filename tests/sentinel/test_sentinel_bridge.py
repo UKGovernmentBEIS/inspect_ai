@@ -50,8 +50,10 @@ from inspect_ai.approval import (
     approver,
     auto_approver,
 )
+from inspect_ai.approval._apply import apply_tool_approval, approval
 from inspect_ai.dataset import Sample
 from inspect_ai.event import (
+    ApprovalEvent,
     Event,
     ModelEvent,
     SentinelEvent,
@@ -1639,6 +1641,11 @@ async def test_a_host_call_matching_several_proposals_gets_no_proposal_context()
     assert after.call.id not in {"stale", "fresh"}
     assert after.call.function == "read_file"
     assert after.message == "" and after.input is None
+    # its check names the host execution it is of
+    [execution] = [e for e in transcript().events if isinstance(e, ToolEvent)]
+    [checked] = [e for e in sentinel_events() if e.stage == "tool_result"]
+    assert checked.step_id == after.call.id
+    assert checked.execution_id == execution.id
 
 
 def read_file_view(call: ToolCall) -> ToolCallView:
@@ -1774,6 +1781,38 @@ async def test_a_result_whose_proposal_was_dropped_is_still_checked(
             )
 
 
+async def test_a_result_whose_proposal_was_dropped_names_its_execution(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from inspect_ai.agent._bridge import _sentinel
+
+    monkeypatch.setattr(_sentinel, "_MAX_PROPOSALS", 1)
+    other = replace(READ, id="other", arguments={"path": "other"})
+    model = Scripted(calls_output(READ), calls_output(READ), calls_output(other))
+    history: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+    bridge = in_process_bridge(history)
+
+    with active([reporting_results()]):
+        await generate(bridge, model, history)
+        repeated = await generate(bridge, model, history)
+        # a later call drops the repeated call's proposal
+        await generate(bridge, model, history)
+        [handed] = repeated.message.tool_calls or []
+        await generate(
+            bridge,
+            model,
+            [
+                *history,
+                repeated.message,
+                ChatMessageTool(content="contents", tool_call_id=handed.id),
+            ],
+        )
+
+    assert handed.id != READ.id
+    [checked] = [e for e in sentinel_events() if e.stage == "tool_result"]
+    assert (checked.step_id, checked.execution_id) == (READ.id, handed.id)
+
+
 @protocol
 def terminate_on_secret() -> Protocol:
     async def after(
@@ -1907,13 +1946,29 @@ def pair_host_executions(events: Sequence[Event]) -> list[HostPairing]:
     return pairings
 
 
+@tool
+def read_copy(mock: AsyncMock) -> Tool:
+    async def execute(path: str) -> str:
+        """Read a file from the host.
+
+        Args:
+            path: Path of the file to read.
+        """
+        result: str = await mock(path=path)
+        return result
+
+    return execute
+
+
 @solver
-def repeated_host_call(cached: bool) -> Solver:
+def repeated_host_call(cached: bool, shared: bool) -> Solver:
     """A sandbox scaffold the model hands the same host call twice.
 
     Repeated output proposes it again on the next turn; with the model output
     cache, the scaffold sends the same request again (a sub-agent given the
-    same prompt) and the cache hit returns the call again.
+    same prompt) and the cache hit returns the call again. Each call is
+    approved; `shared` serves a second bridged tool with the same description,
+    so each call is also reviewed as that tool.
     """
     bridged = generate
 
@@ -1928,6 +1983,9 @@ def repeated_host_call(cached: bool) -> Solver:
             config=GenerateConfig(cache=True) if cached else None,
         )
         bridge = sandbox_bridge(AsyncMock(side_effect=["contents 1", "contents 2"]))
+        if shared:
+            bridge.register_bridged_tools("copy", {"read_copy": read_copy(AsyncMock())})
+        bridge.approval = [ApprovalPolicy(auto_approver(), "*")]
         history: list[ChatMessage] = [ChatMessageUser(content=TASK)]
         for _ in range(2):
             output = await bridged(
@@ -1949,15 +2007,16 @@ def repeated_host_call(cached: bool) -> Solver:
     return solve
 
 
+@pytest.mark.parametrize("shared", [False, True])
 @pytest.mark.parametrize("cached", [False, True])
 def test_a_host_call_handed_over_under_a_new_id_pairs_with_its_proposal_and_steps(
-    cached: bool, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    cached: bool, shared: bool, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path / "cache"))
     [log] = eval(
         Task(
             dataset=[Sample(input=TASK)],
-            solver=repeated_host_call(cached),
+            solver=repeated_host_call(cached, shared),
             sentinel=[reporting_results()],
         ),
         model="mockllm/model",
@@ -1968,7 +2027,8 @@ def test_a_host_call_handed_over_under_a_new_id_pairs_with_its_proposal_and_step
     [sample] = read_eval_log(log.location).samples or []
     events = sample.events
 
-    proposals = [e for e in events if isinstance(e, ModelEvent)][:2]
+    generations = [e for e in events if isinstance(e, ModelEvent)]
+    proposals = generations[:2]
     if cached:
         assert [e.cache for e in proposals] == ["write", "read"]
     pairings = pair_host_executions(events)
@@ -1984,6 +2044,27 @@ def test_a_host_call_handed_over_under_a_new_id_pairs_with_its_proposal_and_step
             < events.index(pairing.execution)
         )
         assert pairing.after.explanation == f"saw contents {index + 1}"
+
+    # every step and approval of a run names its execution: the run handed
+    # over under the model's id by that id, the other by its execution_id
+    targets = 2 if shared else 1
+    for index, pairing in enumerate(pairings):
+        run = events[
+            events.index(generations[index]) : events.index(generations[index + 1])
+        ]
+        approvals = [e for e in run if isinstance(e, ApprovalEvent)]
+        steps = [
+            e
+            for e in run
+            if isinstance(e, SentinelEvent) and e.stage in ("tool_call", "tool_result")
+        ]
+        assert len(approvals) == targets
+        assert [e.stage for e in steps] == ["tool_call"] * targets + ["tool_result"]
+        assert {e.call.id for e in approvals} | {e.step_id for e in steps} == {"host_1"}
+        execution_id = None if pairing.execution.id == "host_1" else second
+        assert {e.execution_id for e in approvals} | {
+            e.execution_id for e in steps
+        } == {execution_id}
 
 
 async def google_round_trips(
@@ -3620,6 +3701,13 @@ async def test_a_result_under_an_id_never_handed_out_is_checked_once() -> None:
         ("scaffold_1", "other", None),
         (READ.id, "same", model.inputs[0]),
     ]
+    # neither names an execution: one was never handed out, the other was
+    # handed over under the model's id
+    assert [
+        (e.step_id, e.execution_id)
+        for e in sentinel_events()
+        if e.stage == "tool_result"
+    ] == [("scaffold_1", None), (READ.id, None)]
 
 
 async def gemini_cli_round_trips(
@@ -4328,6 +4416,105 @@ async def test_calls_sharing_an_id_keep_their_own_result_checks(
         for s in seen
         if isinstance(s, AfterToolCall)
     ) == [("notes.txt", "a"), ("other", "b")]
+
+
+async def test_steps_of_calls_sharing_an_id_name_their_executions() -> None:
+    one = replace(READ, id="one")
+    two = replace(READ, id="one", arguments={"path": "other"})
+    model = Scripted(calls_output(one, two), calls_output())
+    history: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+    bridge = in_process_bridge(history)
+    bridge.approval = [ApprovalPolicy(auto_approver(), "*")]
+
+    with active([reporting_results()]):
+        output = await generate(bridge, model, history)
+        calls = output.message.tool_calls or []
+        await generate(
+            bridge,
+            model,
+            [
+                *history,
+                output.message,
+                *[
+                    ChatMessageTool(content=content, tool_call_id=call.id)
+                    for content, call in zip("ab", calls)
+                ],
+            ],
+        )
+
+    # the first is handed over under the model's id, the second under a token
+    handed = [call.id for call in calls]
+    assert handed[0] == "one" and handed[1] != "one"
+    approvals = [e for e in transcript().events if isinstance(e, ApprovalEvent)]
+    assert [(e.call.arguments["path"], e.execution_id) for e in approvals] == [
+        ("notes.txt", None),
+        ("other", handed[1]),
+    ]
+    steps = [e for e in sentinel_events() if e.stage in ("tool_call", "tool_result")]
+    assert {e.step_id for e in steps} == {"one"}
+    assert [e.execution_id for e in steps if e.stage == "tool_call"] == [
+        None,
+        handed[1],
+    ]
+    assert sorted(
+        (e.explanation or "", e.execution_id) for e in steps if e.stage == "tool_result"
+    ) == [("saw a", None), ("saw b", handed[1])]
+
+
+@monitor
+def approving_its_own_calls() -> MonitorGroup:
+    async def before(context: Context, step: BeforeToolCall) -> Observation | None:
+        await apply_tool_approval("", replace(LOOKUP, id="lookup_before"), None, [])
+        return Observation.score(0.1, "looked")
+
+    async def after(context: Context, step: AfterToolCall) -> Observation | None:
+        await apply_tool_approval("", replace(LOOKUP, id="lookup_after"), None, [])
+        return Observation.score(0.2, "looked at the result")
+
+    return MonitorGroup(before, after)
+
+
+LOOKUP = ToolCall(id="lookup", function="lookup", arguments={})
+
+
+async def test_a_monitors_own_approvals_name_no_execution() -> None:
+    one = replace(READ, id="one")
+    two = replace(READ, id="one", arguments={"path": "other"})
+    model = Scripted(calls_output(one, two), calls_output())
+    history: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+    bridge = in_process_bridge(history)
+
+    with (
+        approval([ApprovalPolicy(auto_approver(), "*")]),
+        active([approving_its_own_calls()]),
+    ):
+        output = await generate(bridge, model, history)
+        calls = output.message.tool_calls or []
+        await generate(
+            bridge,
+            model,
+            [
+                *history,
+                output.message,
+                *[
+                    ChatMessageTool(content=content, tool_call_id=call.id)
+                    for content, call in zip("ab", calls)
+                ],
+            ],
+        )
+
+    handed = [call.id for call in calls]
+    assert handed[0] == "one" and handed[1] != "one"
+    approvals = [e for e in transcript().events if isinstance(e, ApprovalEvent)]
+    assert sorted((e.call.id, e.execution_id or "") for e in approvals) == sorted(
+        [("one", ""), ("one", handed[1])]
+        + [("lookup_before", "")] * 2
+        + [("lookup_after", "")] * 2
+    )
+    steps = [e for e in sentinel_events() if e.stage in ("tool_call", "tool_result")]
+    assert sorted(e.execution_id or "" for e in steps) == sorted(
+        ["", "", handed[1], handed[1]]
+    )
 
 
 async def test_calls_sharing_an_id_keep_their_own_modifications() -> None:

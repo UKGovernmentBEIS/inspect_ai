@@ -415,7 +415,7 @@ async def _execute_granted(
 
     assert outcome is not None
     if check is not None and _checked(outcome):
-        await _check_result(bridge, check, outcome, candidates)
+        await _check_result(bridge, check, outcome, candidates, event.id)
     if outcome.raised is not None:
         raise outcome.raised
     return outcome.reply
@@ -457,6 +457,7 @@ async def _check_result(
     check: SentinelCheck,
     outcome: _Outcome,
     candidates: list[SentinelCheck],
+    execution: str,
 ) -> None:
     content: str | list[Content]
     error: ToolCallError | None = None
@@ -481,6 +482,7 @@ async def _check_result(
         error,
         outcome.truncated or False,
         candidates,
+        execution,
     )
 
 
