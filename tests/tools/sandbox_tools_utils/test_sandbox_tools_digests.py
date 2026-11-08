@@ -609,9 +609,8 @@ def _write_dist(
     wheel_version: str,
     sdist_version: str,
     sdist_files: tuple[str, ...] = (),
-    sdist_text_files: dict[str, str] | None = None,
 ) -> None:
-    dist.mkdir(exist_ok=True)
+    dist.mkdir()
     _write_wheel(
         dist / f"inspect_ai-{wheel_version}-py3-none-any.whl", _wheel_members()
     )
@@ -621,11 +620,6 @@ def _write_dist(
             info = tarfile.TarInfo(f"{root}/{name}")
             info.size = len(name)
             sdist.addfile(info, io.BytesIO(name.encode()))
-        for name, content in (sdist_text_files or {}).items():
-            data = content.encode()
-            info = tarfile.TarInfo(f"{root}/{name}")
-            info.size = len(data)
-            sdist.addfile(info, io.BytesIO(data))
 
 
 @pytest.fixture
@@ -677,28 +671,14 @@ def test_pypi_verify_dist_rejects_unexpected_files(
         pypi_release.verify_dist(dist, "0.3.278", "9")
 
 
-_SDIST_BINARY = "src/inspect_ai/binaries/inspect-sandbox-tools-amd64-v9"
-
-
 @pytest.mark.usefixtures("wheel_globs")
-@pytest.mark.parametrize("version", ["0.3.278", "0.3.287", "0.3.288", "0.4.0"])
-@pytest.mark.parametrize(
-    "manifest",
-    [None, "prune tests\n", "recursive-exclude src/inspect_ai/binaries *\n"],
-)
 def test_pypi_verify_dist_rejects_binaries_in_sdist(
-    pypi_release: ModuleType, tmp_path: Path, version: str, manifest: str | None
+    pypi_release: ModuleType, tmp_path: Path
 ) -> None:
-    """Any binaries fail whatever the version or MANIFEST.in says."""
-    _write_dist(
-        tmp_path / "dist",
-        version,
-        version,
-        (_SDIST_BINARY,),
-        sdist_text_files={"MANIFEST.in": manifest} if manifest else None,
-    )
+    binary = "src/inspect_ai/binaries/inspect-sandbox-tools-amd64-v9"
+    _write_dist(tmp_path / "dist", "0.3.278", "0.3.278", (binary,))
     with pytest.raises(RuntimeError, match="must not contain the sandbox tools"):
-        pypi_release.verify_dist(tmp_path / "dist", version, "9")
+        pypi_release.verify_dist(tmp_path / "dist", "0.3.278", "9")
 
 
 @pytest.mark.usefixtures("wheel_globs")

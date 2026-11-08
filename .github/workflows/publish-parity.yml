@@ -1,9 +1,8 @@
 name: Publish parity
 
-# Rebuilds a version already on PyPI with that tag's own build steps
-# (.github/actions/build-dist) and release script, the way release.yml and
-# publish.yml build a tag, and compares the result with PyPI's files member
-# by member. Never publishes.
+# Rebuilds a version already on PyPI with this revision's shared build steps
+# (.github/actions/build-dist) and release script, and compares the result
+# with PyPI's files member by member. Never publishes.
 on:
   pull_request:
     branches:
@@ -22,7 +21,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version on PyPI to rebuild (default: latest); must have .github/actions/build-dist"
+        description: "Version on PyPI to rebuild (default: latest)"
         required: false
         type: string
 
@@ -41,6 +40,10 @@ jobs:
     permissions:
       contents: read
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
       - name: Resolve version
         id: version
         env:
@@ -52,12 +55,11 @@ jobs:
           echo "Rebuilding $VERSION"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-      # Same checkout settings and steps as the publish job, at the shipped
-      # tag. The build action and release script come from this tag, so a
-      # change to the build or its gates never turns parity red for old tags.
+      # Same checkout settings as the publish job, at the shipped tag.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: refs/tags/${{ steps.version.outputs.version }}
+          path: release-source
           fetch-depth: 0
           filter: "blob:none"
           submodules: true
@@ -66,8 +68,10 @@ jobs:
       - uses: ./.github/actions/build-dist
         with:
           version: ${{ steps.version.outputs.version }}
+          source: release-source
 
       - name: Compare with PyPI
+        working-directory: release-source
         env:
           VERSION: ${{ steps.version.outputs.version }}
-        run: python scripts/pypi-release.py verify-parity "$VERSION"
+        run: python "$GITHUB_WORKSPACE/scripts/pypi-release.py" verify-parity "$VERSION"
