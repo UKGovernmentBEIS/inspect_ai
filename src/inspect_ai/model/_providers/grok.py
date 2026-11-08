@@ -901,7 +901,8 @@ def _logprobs_from_grok_logprobs(grok_logprobs: chat_pb2.LogProbs) -> Logprobs |
 
 def _model_usage_from_sampling_usage(usage: usage_pb2.SamplingUsage) -> ModelUsage:
     cached = usage.cached_prompt_text_tokens or 0
-    # xAI reports reasoning separately from completion, and its total includes both. Fold
+    # xAI reports reasoning separately from completion, and its total includes both (see
+    # https://docs.x.ai/docs/guides/reasoning). Fold
     # reasoning into `output_tokens` to match the OpenAI, Anthropic and Google providers —
     # reasoning is billed at the output rate and counted by output-metered token limits —
     # with `reasoning_tokens` carrying the detail subset.

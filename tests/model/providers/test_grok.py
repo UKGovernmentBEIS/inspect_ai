@@ -1087,9 +1087,43 @@ def test_sampling_usage_folds_reasoning_into_output_tokens() -> None:
     )
 
     assert usage.input_tokens == 32
+    assert usage.input_tokens_cache_read == 0
     assert usage.output_tokens == 103
     assert usage.reasoning_tokens == 94
     assert usage.total_tokens == 135
+
+
+def test_sampling_usage_folds_reasoning_with_a_cached_prompt() -> None:
+    from xai_sdk.chat import usage_pb2
+
+    from inspect_ai.model._providers.grok import _model_usage_from_sampling_usage
+
+    usage = _model_usage_from_sampling_usage(
+        usage_pb2.SamplingUsage(
+            prompt_tokens=32,
+            cached_prompt_text_tokens=20,
+            completion_tokens=9,
+            reasoning_tokens=94,
+            total_tokens=135,
+        )
+    )
+
+    assert usage.input_tokens == 12
+    assert usage.input_tokens_cache_read == 20
+    assert usage.output_tokens == 103
+
+
+def test_sampling_usage_counts_reasoning_without_completion() -> None:
+    from xai_sdk.chat import usage_pb2
+
+    from inspect_ai.model._providers.grok import _model_usage_from_sampling_usage
+
+    usage = _model_usage_from_sampling_usage(
+        usage_pb2.SamplingUsage(prompt_tokens=10, reasoning_tokens=7, total_tokens=17)
+    )
+
+    assert usage.output_tokens == 7
+    assert usage.reasoning_tokens == 7
 
 
 def test_sampling_usage_without_reasoning_is_unchanged() -> None:
@@ -1103,5 +1137,7 @@ def test_sampling_usage_without_reasoning_is_unchanged() -> None:
         )
     )
 
+    assert usage.input_tokens == 100
     assert usage.output_tokens == 5
     assert usage.reasoning_tokens == 0
+    assert usage.total_tokens == 105
