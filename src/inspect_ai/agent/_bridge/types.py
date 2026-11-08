@@ -12,6 +12,7 @@ from typing import (
     Sequence,
 )
 
+from pydantic import BaseModel
 from shortuuid import uuid
 
 from inspect_ai._util.content import ContentReasoning, ContentText, ContentToolUse
@@ -297,6 +298,36 @@ _MAX_ANSWER_RECORDS = 4096
 """Answer records (`_ReplyAnswers` message ids and occurrences) kept between requests, beyond which the oldest replies' are dropped."""
 
 
+class _MatchEvidence(BaseModel):
+    """The bridge's matching state beyond its recorded ids, kept across a checkpoint resume."""
+
+    threads: list[list[tuple[str, str]]] = [[], []]
+    """Each of the threads below once, so one held by several stays one object."""
+
+    recent_threads: list[int] = []
+
+    latest_generation: int = 0
+
+    latest_request: int = 1
+
+    held_replies: dict[str, int] = {}
+
+    dropped_reach: dict[str, int] = {}
+
+    edit_parents: dict[str, str] = {}
+
+    answers: dict[str, _Answer] = {}
+
+    reply_answers: dict[str, _ReplyAnswers] = {}
+
+
+_NO_EVIDENCE = _MatchEvidence()
+"""Evidence of a fresh bridge, or of a resume from a checkpoint written before evidence was kept."""
+
+_UNKNOWN_REACH = 2**62
+"""Dropped reach of every key recorded before a resume from a checkpoint without evidence: any conversation it knew of may hold a reply, so none is placed."""
+
+
 class DispatchedCall(NamedTuple):
     """A bridged tool call the model made through a scaffold's dispatcher function."""
 
@@ -398,10 +429,16 @@ class AgentBridge:
             {},
             value_type=dict[str, str],
         )
+        evidence = self._cp.track(
+            "bridge_match_evidence", self._match_evidence, _NO_EVIDENCE
+        )
         self._keys_by_id: dict[str, set[str]] = {}
         self._edit_parent: dict[str, str] = {}
         self._edit_roots: dict[str, str] = {}
         """Per edited id, the id its chain of edits starts from."""
+        for edited, parent in evidence.edit_parents.items():
+            self._edit_parent[edited] = parent
+            self._edit_roots[edited] = self._edit_root(parent)
         self._key_roots: dict[str, str | None] = {}
         """Per key, the edit root of every id recorded under it, or `None` if they have several."""
         for key, ids in self._message_ids.items():
@@ -414,16 +451,22 @@ class AgentBridge:
         self._tracked_ids: list[tuple[str, str]] = [
             (m.id, m.role) for m in restored_messages if m.id is not None
         ]
-        self._latest_generation: list[tuple[str, str]] = []
-        self._latest_request: list[tuple[str, str]] = []
-        self._recent_threads: deque[list[tuple[str, str]]] = deque()
+        threads = [list(thread) for thread in evidence.threads]
+        self._latest_generation = threads[evidence.latest_generation]
+        self._latest_request = threads[evidence.latest_request]
+        self._recent_threads = deque(threads[i] for i in evidence.recent_threads)
         self._held: Counter[str] = Counter()
         """Kept threads (the tracked thread and recent ones) holding each reply id."""
-        self._held_replies: dict[str, int] = {}
+        self._held_replies = dict(evidence.held_replies)
         """Per reply id, the most replies a kept thread holding it had."""
-        self._dropped_reach: dict[str, int] = {}
+        self._dropped_reach = (
+            dict.fromkeys(self._message_ids, _UNKNOWN_REACH)
+            if evidence is _NO_EVIDENCE
+            else dict(evidence.dropped_reach)
+        )
         """Per key, the most replies a dropped thread had that held a reply with the key no kept thread holds."""
-        self._keep(self._tracked_ids)
+        for thread in (self._tracked_ids, *self._recent_threads):
+            self._keep(thread)
         self.filter = filter
         self.response_filter = response_filter
         self.retry_refusals = retry_refusals
@@ -452,9 +495,12 @@ class AgentBridge:
         self._pending_operator = 0
         self._awaited_results: dict[str, dict[int, _AwaitedResult]] = {}
         self._executions_memo: dict[str, _AwaitedIndex] = {}
-        self._answers: dict[str, _Answer] = {}
-        self._reply_answers: OrderedDict[str, _ReplyAnswers] = OrderedDict()
-        self._answer_records = 0
+        self._answers = dict(evidence.answers)
+        self._reply_answers = OrderedDict(evidence.reply_answers)
+        self._answer_records = sum(
+            len(answers.message_ids) + len(answers.occurrences)
+            for answers in self._reply_answers.values()
+        )
         self._operator_keys: set[str] = set()
         self._warned_request_settings: set[str] = set()
 
@@ -1320,6 +1366,27 @@ class AgentBridge:
             ):
                 return True
         return False
+
+    def _match_evidence(self) -> _MatchEvidence:
+        threads: dict[int, tuple[int, list[tuple[str, str]]]] = {}
+
+        def index(thread: list[tuple[str, str]]) -> int:
+            return threads.setdefault(id(thread), (len(threads), thread))[0]
+
+        recent = [index(thread) for thread in self._recent_threads]
+        generation = index(self._latest_generation)
+        request = index(self._latest_request)
+        return _MatchEvidence(
+            threads=[thread for _, thread in threads.values()],
+            recent_threads=recent,
+            latest_generation=generation,
+            latest_request=request,
+            held_replies=self._held_replies,
+            dropped_reach=self._dropped_reach,
+            edit_parents=self._edit_parent,
+            answers=self._answers,
+            reply_answers=self._reply_answers,
+        )
 
     def _remember_thread(self, thread: list[tuple[str, str]]) -> None:
         """Keep `thread` for `_contested`, in place of the kept threads it extends.

@@ -6,12 +6,12 @@ the final messages, in each `ModelEvent`'s input and output, in each
 `ToolEvent`, and in the log read back (`.eval` and `.json`) must agree.
 """
 
-import copy
+import contextlib
 import gc
 import json
 import weakref
 from pathlib import Path
-from typing import Any, Callable, Literal, cast
+from typing import Any, Callable, Iterator, Literal, cast
 from unittest.mock import patch
 
 import anyio
@@ -32,6 +32,7 @@ from inspect_ai._util.content import (
     ContentText,
 )
 from inspect_ai.agent import Agent, AgentState, agent, agent_bridge, handoff, react
+from inspect_ai.agent._bridge import bridge as bridge_module
 from inspect_ai.agent._bridge import types as bridge_types
 from inspect_ai.agent._bridge.types import (
     AgentBridge,
@@ -1912,9 +1913,9 @@ def test_google_reply_with_non_string_argument_keys_keeps_its_id(
 async def test_resumed_bridge_keeps_the_main_threads_id() -> None:
     """A side call's equal output recorded first doesn't take the main thread's id, before or after a resume.
 
-    Before, the side reply could stand in for the main reply, which may get a
-    new id. Recent threads aren't checkpointed, so after the resume the
-    tracked thread places it.
+    The side reply could stand in for the main reply, so the main reply gets a
+    new id. The checkpoint keeps the side thread, so the resumed bridge
+    decides the same.
     """
     task = ChatMessageUser(content="List the files.")
     side, first = _call("call_1"), _call("call_1")
@@ -1924,22 +1925,149 @@ async def test_resumed_bridge_keeps_the_main_threads_id() -> None:
     )
     await scaffold.request([ChatMessageUser(content="Is ls safe?")], side)
     await scaffold.request([task], first)
-    snapshot = {
-        key: copy.deepcopy(callback())
-        for key, callback in checkpointer.callbacks.items()
-    }
+    snapshot = checkpointer.snapshot()
     before = await scaffold.request([task, first, _result("call_1")])
 
     resumed = _Scaffold(
         AgentBridge(
             AgentState(messages=[task]),
-            checkpointer=RecordingCheckpointer(restored=snapshot),
+            checkpointer=RecordingCheckpointer(restored=snapshot, serialized=True),
         )
     )
     after = await resumed.request([task, first, _result("call_1")])
 
-    assert before[1] != side.id
-    assert after[1] == first.id
+    assert after[0] == before[0]
+    assert {before[1], after[1]}.isdisjoint({side.id, first.id})
+
+
+@contextlib.contextmanager
+def _serving(bridge: AgentBridge) -> Iterator[None]:
+    """Serve the dialect clients' requests with `bridge`."""
+    bridge_module.init_bridge_request_patch()
+    token = bridge_module._patch_config.set(
+        bridge_module.PatchConfig(enabled=True, bridge=bridge)
+    )
+    try:
+        yield
+    finally:
+        bridge_module._patch_config.reset(token)
+
+
+@pytest.mark.parametrize("checkpoint", ["current", "without_evidence"])
+@pytest.mark.parametrize("dialect", DIALECTS)
+def test_resumed_bridge_never_gives_a_conversation_another_conversations_ids(
+    dialect: Dialect, checkpoint: str, tmp_path: Path
+) -> None:
+    """A compacted main conversation takes no side conversation's ids, before or after a resume.
+
+    A side conversation repeats the main one's later replies and becomes the
+    tracked thread. The main conversation then slides away its first exchange
+    and sends the replies it shares with the side, to the bridge and to one
+    resumed from a checkpoint taken before. Neither gives them the side's
+    ids, including the new id the side's second request gave its copy. A
+    checkpoint without the bridge's matching evidence (written before it was
+    kept) places none of the replies it recorded.
+    """
+    sent: _Sent = []
+
+    @agent
+    def scaffold() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            initial = list(state.messages)
+            checkpointer = RecordingCheckpointer()
+            with _serving(AgentBridge(state, checkpointer=checkpointer)):
+                main = _TextConversation(dialect, sent=sent)
+                for text in ("Main task.", "Next.", "Go."):
+                    main.user(text)
+                    await main.generate()
+                side = _TextConversation(dialect, sent=sent)
+                for text in ("Next.", "Go."):
+                    side.user(text)
+                    await side.generate()
+                snapshot = checkpointer.snapshot()
+                del main.turns[:2]
+                main.user("Finish.")
+                await main.generate()
+            if checkpoint == "without_evidence":
+                snapshot.pop("bridge_match_evidence", None)
+            resumed = AgentBridge(
+                AgentState(messages=initial),
+                checkpointer=RecordingCheckpointer(restored=snapshot, serialized=True),
+            )
+            with _serving(resumed):
+                main.turns.pop()
+                await main.generate()
+            return state
+
+        return execute
+
+    events, _ = _reply_events(
+        scaffold,
+        ["Plan.", "OK", "Done", "OK", "Done", "Bye", "Bye"],
+        tmp_path,
+        "Main task.",
+    )
+    _assert_owned(events, sent)
+
+
+def _matching_state(bridge: AgentBridge) -> dict[str, Any]:
+    def kept_as(thread: list[tuple[str, str]]) -> int | None:
+        recent = bridge._recent_threads
+        return next((i for i, kept in enumerate(recent) if kept is thread), None)
+
+    return {
+        "message_ids": bridge._message_ids,
+        "content": bridge._content_by_id,
+        "keys": bridge._keys_by_id,
+        "key_roots": bridge._key_roots,
+        "edit_parents": bridge._edit_parent,
+        "edit_roots": bridge._edit_roots,
+        "tracked": bridge._tracked_ids,
+        "recent": list(bridge._recent_threads),
+        "latest_generation": (
+            bridge._latest_generation,
+            kept_as(bridge._latest_generation),
+        ),
+        "latest_request": (bridge._latest_request, kept_as(bridge._latest_request)),
+        "held": bridge._held,
+        "held_replies": bridge._held_replies,
+        "dropped_reach": bridge._dropped_reach,
+        "answers": bridge._answers,
+        "reply_answers": bridge._reply_answers,
+        "answer_records": bridge._answer_records,
+    }
+
+
+async def test_resumed_bridge_restores_its_matching_state() -> None:
+    """A bridge resumed from a checkpoint matches with the state the checkpointed one had.
+
+    The run has tool results, one edited, and more side conversations than
+    the bridge keeps threads for, so some were dropped.
+    """
+    task = ChatMessageUser(content="List the files.")
+    checkpointer = RecordingCheckpointer()
+    bridge = AgentBridge(AgentState(messages=[task]), checkpointer=checkpointer)
+    scaffold = _Scaffold(bridge)
+    first, second = _call("call_1"), ChatMessageAssistant(content="Anything else?")
+    await scaffold.request([task], first)
+    await scaffold.request([task, first, _result("call_1", "a long listing")], second)
+    edited: list[ChatMessage] = [task, first, _result("call_1", "[truncated]"), second]
+    await scaffold.request(
+        [*edited, ChatMessageUser(content="No.")], ChatMessageAssistant(content="Bye.")
+    )
+    for n in range(20):
+        side = ChatMessageUser(content=f"Side {n}.")
+        await scaffold.request([side], ChatMessageAssistant(content="OK"))
+
+    resumed = AgentBridge(
+        AgentState(messages=[task]),
+        checkpointer=RecordingCheckpointer(
+            restored=checkpointer.snapshot(), serialized=True
+        ),
+    )
+
+    assert bridge._edit_parent and bridge._answers and bridge._dropped_reach
+    assert _matching_state(resumed) == _matching_state(bridge)
 
 
 async def test_scaffold_edits_get_ids_derived_from_the_originals() -> None:
