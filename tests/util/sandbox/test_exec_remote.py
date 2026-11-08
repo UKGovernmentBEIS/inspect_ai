@@ -5,18 +5,19 @@ cancellation, accumulation). Integration tests (marked slow) run against a real
 Docker container to verify the full host-to-container path.
 """
 
+import asyncio
 import contextlib
 import json
 import warnings
 from collections.abc import Iterator
-from typing import Any
+from typing import Any, Literal
 from unittest.mock import AsyncMock, patch
 
 import anyio
 import pytest
 import tenacity
 from tenacity.wait import wait_none
-from test_helpers.utils import skip_if_no_docker
+from test_helpers.utils import skip_if_no_docker, skip_if_trio
 
 import inspect_ai.util._sandbox.exec_remote as exec_remote_module
 from inspect_ai.tool._sandbox_tools_utils.sandbox import (
@@ -383,7 +384,10 @@ class TestPollTimeoutRecovery:
                 sandbox, ["cmd"], 5, ExecRemoteCommonOptions(poll_timeout_recovery=60)
             )
 
-        assert sandbox.exec.call_count == 1
+        assert [method for method, _ in sandbox.requests] == [
+            "exec_remote_start",
+            "exec_remote_kill_key",
+        ]
 
     async def test_poll_after_recovery_names_a_lost_terminal_state(
         self, monkeypatch: pytest.MonkeyPatch
@@ -777,6 +781,200 @@ class TestTimeout:
 
 
 # ============================================================================
+# Start without a reply
+# ============================================================================
+
+
+class _GuestWithoutStartReply:
+    """A fake tool server that starts the job but whose start reply never arrives.
+
+    The start registers a running job under its key, then either waits until
+    cancelled (`lose="hang"`) or raises the sandbox's timeout
+    (`lose="timeout"`). exec_remote_kill_key marks the keyed job killed, after
+    `kill_answer` is set when one is given (as the real server answers only
+    once the job has terminated).
+    """
+
+    def __init__(
+        self,
+        lose: Literal["hang", "timeout"],
+        kill_hangs: bool = False,
+        kill_answer: anyio.Event | None = None,
+    ) -> None:
+        self.lose = lose
+        self.kill_hangs = kill_hangs
+        self.kill_answer = kill_answer
+        self.kill_received = anyio.Event()
+        self.jobs: dict[str, str] = {}
+        self.kill_key_kwargs: list[dict[str, Any]] = []
+        self.started = anyio.Event()
+        self.sandbox = _mock_sandbox()
+        self.sandbox.default_polling_interval.return_value = 5
+        self.sandbox.no_events = _no_events_context
+        self.sandbox.exec = AsyncMock(side_effect=self._exec)
+
+    async def _exec(self, *args: Any, **kwargs: Any) -> ExecResult[str]:
+        request = json.loads(kwargs["input"])
+        job_key = request["params"]["job_key"]
+        if request["method"] == "exec_remote_start":
+            self.jobs[job_key] = "running"
+            self.started.set()
+            if self.lose == "timeout":
+                raise SandboxTimeoutError("the start reply was lost.")
+            await anyio.sleep_forever()
+        assert request["method"] == "exec_remote_kill_key"
+        self.kill_key_kwargs.append(kwargs)
+        self.kill_received.set()
+        if self.kill_hangs:
+            await anyio.sleep_forever()
+        if self.kill_answer is not None:
+            await self.kill_answer.wait()
+        killed = self.jobs.get(job_key) == "running"
+        self.jobs[job_key] = "killed"
+        return ExecResult(
+            success=True, returncode=0, stdout=_rpc({"killed": killed}), stderr=""
+        )
+
+
+class TestStartWithoutReply:
+    """A job whose start reply never arrives is killed by its key."""
+
+    async def test_cancelled_start_kills_the_job(self) -> None:
+        guest = _GuestWithoutStartReply(lose="hang")
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(exec_remote_streaming, guest.sandbox, ["sleep", "999"], 5)
+            await guest.started.wait()
+            tg.cancel_scope.cancel()
+
+        assert list(guest.jobs.values()) == ["killed"]
+        # cleanup must not queue behind the commands it is cleaning up after
+        assert guest.kill_key_kwargs[0]["concurrency"] is False
+        assert guest.kill_key_kwargs[0]["timeout_retry"] is False
+
+    async def test_caller_timeout_during_start_kills_the_job(self) -> None:
+        guest = _GuestWithoutStartReply(lose="hang")
+
+        with pytest.raises(TimeoutError):
+            with anyio.fail_after(0.5):
+                await exec_remote_streaming(guest.sandbox, ["sleep", "999"], 5)
+
+        assert list(guest.jobs.values()) == ["killed"]
+
+    async def test_timed_out_start_kills_the_job(self) -> None:
+        guest = _GuestWithoutStartReply(lose="timeout")
+
+        with pytest.raises(TimeoutError):
+            await exec_remote_streaming(guest.sandbox, ["sleep", "999"], 5)
+
+        assert list(guest.jobs.values()) == ["killed"]
+
+    @pytest.mark.parametrize("lose", ["hang", "timeout"])
+    async def test_start_cleanup_waits_for_the_kill_by_key_answer(
+        self, lose: Literal["hang", "timeout"]
+    ) -> None:
+        """The error reaches the caller only after the server answers the kill."""
+        kill_answer = anyio.Event()
+        guest = _GuestWithoutStartReply(lose=lose, kill_answer=kill_answer)
+        scope = anyio.CancelScope()
+        finished = anyio.Event()
+
+        async def start() -> None:
+            with scope, contextlib.suppress(TimeoutError):
+                await exec_remote_streaming(guest.sandbox, ["sleep", "999"], 5)
+            finished.set()
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(start)
+            await guest.started.wait()
+            scope.cancel()  # no effect once a timed-out start is cleaning up
+            await guest.kill_received.wait()
+            await anyio.wait_all_tasks_blocked()
+            assert not finished.is_set()
+
+            kill_answer.set()
+            await finished.wait()
+
+        assert list(guest.jobs.values()) == ["killed"]
+
+    @skip_if_trio
+    @pytest.mark.parametrize("cancel", ["task", "timeout"])
+    async def test_native_asyncio_cancellation_waits_for_the_kill_by_key_answer(
+        self, cancel: Literal["task", "timeout"]
+    ) -> None:
+        """Task.cancel() or asyncio.timeout() during cleanup does not interrupt it."""
+        kill_answer = anyio.Event()
+        guest = _GuestWithoutStartReply(lose="timeout", kill_answer=kill_answer)
+        timeouts: list[asyncio.Timeout] = []
+
+        async def start() -> None:
+            async with asyncio.timeout(None) as timeout:
+                timeouts.append(timeout)
+                await exec_remote_streaming(guest.sandbox, ["sleep", "999"], 5)
+
+        task = asyncio.ensure_future(start())
+        await guest.kill_received.wait()
+        if cancel == "task":
+            task.cancel()
+        else:
+            timeouts[0].reschedule(asyncio.get_running_loop().time())
+        await anyio.wait_all_tasks_blocked()
+        assert not task.done()
+
+        kill_answer.set()
+        with pytest.raises(
+            asyncio.CancelledError if cancel == "task" else TimeoutError
+        ):
+            await task
+        assert list(guest.jobs.values()) == ["killed"]
+
+    async def test_cancelled_starts_send_every_kill_without_waiting_for_replies(
+        self,
+    ) -> None:
+        """Slow kill replies for some starts do not hold back the kills of others."""
+        kill_answer = anyio.Event()
+        guest = _GuestWithoutStartReply(lose="hang", kill_answer=kill_answer)
+        starts = anyio.CancelScope()
+        finished = anyio.Event()
+
+        async def start_twelve() -> None:
+            with starts:
+                async with anyio.create_task_group() as tg:
+                    for _ in range(12):
+                        tg.start_soon(
+                            exec_remote_streaming, guest.sandbox, ["sleep", "999"], 5
+                        )
+            finished.set()
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(start_twelve)
+            await anyio.wait_all_tasks_blocked()
+            assert list(guest.jobs.values()) == ["running"] * 12
+
+            starts.cancel()
+            await anyio.wait_all_tasks_blocked()
+            assert len(guest.kill_key_kwargs) == 12
+
+            kill_answer.set()
+            await finished.wait()
+
+        assert list(guest.jobs.values()) == ["killed"] * 12
+
+    async def test_kill_by_key_is_bounded(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        monkeypatch.setattr(exec_remote_module, "KILL_KEY_TIMEOUT", 0.2)
+        guest = _GuestWithoutStartReply(lose="timeout", kill_hangs=True)
+
+        with anyio.fail_after(5):
+            with pytest.raises(TimeoutError, match="start reply was lost"):
+                await exec_remote_streaming(guest.sandbox, ["sleep", "999"], 5)
+
+        assert len(guest.kill_key_kwargs) == 1
+        assert "may still be running" in caplog.text
+
+
+# ============================================================================
 # PID access
 # ============================================================================
 
@@ -1058,6 +1256,175 @@ class TestPollTimeoutOptions:
 
         kwargs = sandbox.exec.call_args_list[0].kwargs
         assert kwargs["timeout_retry"] is True
+
+
+# ============================================================================
+# Server wait window
+# ============================================================================
+
+
+def _poll_wait_start_response(pid: int = 42) -> str:
+    """A start response from sandbox tools that support the poll `wait` param."""
+    return _rpc({"pid": pid, "poll_wait": True})
+
+
+@pytest.fixture
+def sleeps(monkeypatch: pytest.MonkeyPatch) -> list[float]:
+    """Record the duration of each `anyio.sleep` call and return at once."""
+    recorded: list[float] = []
+    real_sleep = anyio.sleep
+
+    async def record_sleep(delay: float) -> None:
+        recorded.append(delay)
+        await real_sleep(0)
+
+    monkeypatch.setattr(anyio, "sleep", record_sleep)
+    return recorded
+
+
+_RUNNING = _poll_response(state="running", exit_code=None)
+
+
+class TestServerWait:
+    async def test_old_server_gets_no_wait_and_idle_sleeps(
+        self, sleeps: list[float]
+    ) -> None:
+        sandbox = _make_scripted_sandbox(
+            [_start_response(42), _RUNNING, _RUNNING, _poll_response()]
+        )
+        proc = await exec_remote_streaming(sandbox, ["cmd"], 5)
+
+        events = [event async for event in proc]
+
+        assert events == [ExecCompleted(exit_code=0)]
+        assert all("wait" not in params for params in _polls(sandbox))
+        assert sleeps == [5, 5]
+
+    async def test_polls_wait_for_the_remaining_window_without_sleeps(
+        self, sleeps: list[float]
+    ) -> None:
+        sandbox = _make_scripted_sandbox(
+            [_poll_wait_start_response(42), _RUNNING, _RUNNING, _poll_response()]
+        )
+        proc = await exec_remote_streaming(sandbox, ["cmd"], 5)
+
+        events = [event async for event in proc]
+
+        assert events == [ExecCompleted(exit_code=0)]
+        waits = [params["wait"] for params in _polls(sandbox)]
+        assert len(waits) == 3
+        assert waits[0] > 5
+        assert all(0 < wait <= 10 for wait in waits)
+        assert waits == sorted(waits, reverse=True)
+        assert sleeps == []
+
+    async def test_wait_is_capped_at_half_the_poll_timeout(self) -> None:
+        sandbox = _make_scripted_sandbox(
+            [_poll_wait_start_response(42), _RUNNING, _poll_response()]
+        )
+        proc = await exec_remote_streaming(
+            sandbox, ["cmd"], 5, ExecRemoteCommonOptions(poll_timeout=4)
+        )
+
+        _ = [event async for event in proc]
+
+        assert [params["wait"] for params in _polls(sandbox)] == [2, 2]
+
+    async def test_polls_sleep_without_wait_after_the_window(
+        self, sleeps: list[float]
+    ) -> None:
+        sandbox = _make_scripted_sandbox(
+            [_poll_wait_start_response(42), _RUNNING, _RUNNING, _poll_response()]
+        )
+        scripted_exec = sandbox.exec.side_effect
+        proc: ExecRemoteProcess | None = None
+
+        async def end_window_after_first_poll(
+            *args: Any, **kwargs: Any
+        ) -> ExecResult[str]:
+            result = await scripted_exec(*args, **kwargs)
+            if len(_polls(sandbox)) == 1:
+                assert proc is not None
+                proc._server_wait_end = 0
+            return result
+
+        sandbox.exec.side_effect = end_window_after_first_poll
+        proc = await exec_remote_streaming(sandbox, ["cmd"], 5)
+
+        _ = [event async for event in proc]
+
+        assert ["wait" in params for params in _polls(sandbox)] == [
+            True,
+            False,
+            False,
+        ]
+        assert sleeps == [5, 5]
+
+    async def test_stdin_open_process_gets_no_wait(self, sleeps: list[float]) -> None:
+        sandbox = _make_scripted_sandbox(
+            [_poll_wait_start_response(42), _RUNNING, _poll_response()]
+        )
+        proc = await exec_remote_streaming(
+            sandbox, ["cmd"], 5, ExecRemoteStreamingOptions(stdin_open=True)
+        )
+
+        _ = [event async for event in proc]
+
+        assert all("wait" not in params for params in _polls(sandbox))
+        assert sleeps == [5]
+
+    @staticmethod
+    def _sandbox_with_blocking_poll() -> tuple[AsyncMock, list[str], anyio.Event]:
+        """A sandbox that supports poll waits and never answers a poll."""
+        methods: list[str] = []
+        poll_started = anyio.Event()
+        answers = {
+            "exec_remote_start": _poll_wait_start_response(42),
+            "exec_remote_kill": _kill_response(),
+        }
+
+        async def fake_exec(*args: Any, **kwargs: Any) -> ExecResult[str]:
+            request = json.loads(kwargs["input"])
+            methods.append(request["method"])
+            if request["method"] == "exec_remote_poll":
+                assert "wait" in request["params"]
+                poll_started.set()
+                await anyio.sleep_forever()
+            return ExecResult(
+                success=True, returncode=0, stdout=answers[request["method"]], stderr=""
+            )
+
+        sandbox = _mock_sandbox()
+        sandbox.no_events = _no_events_context
+        sandbox.exec = AsyncMock(side_effect=fake_exec)
+        return sandbox, methods, poll_started
+
+    async def test_cancellation_during_a_waiting_poll_kills_the_process(
+        self,
+    ) -> None:
+        sandbox, methods, poll_started = self._sandbox_with_blocking_poll()
+        proc = await exec_remote_streaming(sandbox, ["cmd"], 5)
+
+        async def iterate() -> None:
+            async for _ in proc:
+                pass
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(iterate)
+            await poll_started.wait()
+            tg.cancel_scope.cancel()
+
+        assert methods == ["exec_remote_start", "exec_remote_poll", "exec_remote_kill"]
+
+    async def test_timeout_during_a_waiting_poll_kills_the_process(self) -> None:
+        sandbox, methods, _ = self._sandbox_with_blocking_poll()
+
+        with pytest.raises(TimeoutError):
+            await exec_remote_awaitable(
+                sandbox, ["cmd"], 5, ExecRemoteAwaitableOptions(timeout=0.5)
+            )
+
+        assert methods == ["exec_remote_start", "exec_remote_poll", "exec_remote_kill"]
 
 
 # ============================================================================
@@ -1488,3 +1855,184 @@ async def test_ack_seq_retransmit(docker_sandbox) -> None:
 
     await proc.close_stdin()
     _ = [event async for event in proc]
+
+
+_ORPHAN_SLEEP = "86413"
+"""Sleep duration that marks the job of the start-without-reply tests."""
+
+
+async def _orphan_running(sandbox: Any) -> bool:
+    return await _orphan_running_via(sandbox.exec)
+
+
+async def _orphan_running_via(exec: Any) -> bool:
+    # the bracket keeps this probe's own command line from matching
+    pattern = f"{_ORPHAN_SLEEP[:-1]}[{_ORPHAN_SLEEP[-1]}]"
+    result = await exec(
+        ["sh", "-c", f"grep -l -a '{pattern}' /proc/[0-9]*/cmdline 2>/dev/null"]
+    )
+    return bool(result.stdout.strip())
+
+
+@contextlib.contextmanager
+def _start_reply_lost(sandbox: Any, lose: Literal["hang", "timeout"]) -> Iterator[Any]:
+    """Run each exec_remote_start for real in the sandbox, then lose its reply."""
+    real_exec = sandbox.exec
+    started = anyio.Event()
+
+    async def exec_losing_start_reply(*args: Any, **kwargs: Any) -> Any:
+        result = await real_exec(*args, **kwargs)
+        if "exec_remote_start" in (kwargs.get("input") or ""):
+            started.set()
+            if lose == "timeout":
+                raise TimeoutError("the start reply was lost.")
+            await anyio.sleep_forever()
+        return result
+
+    with patch.object(sandbox, "exec", exec_losing_start_reply):
+        yield started
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+async def test_cancelled_start_kills_the_job(docker_sandbox) -> None:
+    with _start_reply_lost(docker_sandbox, "hang") as started:
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(
+                exec_remote_streaming, docker_sandbox, ["sleep", _ORPHAN_SLEEP], 5
+            )
+            await started.wait()
+            assert await _orphan_running(docker_sandbox)
+            tg.cancel_scope.cancel()
+
+    assert not await _orphan_running(docker_sandbox)
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+async def test_timed_out_start_kills_the_job(docker_sandbox) -> None:
+    with _start_reply_lost(docker_sandbox, "timeout"):
+        with pytest.raises(TimeoutError):
+            await exec_remote_streaming(docker_sandbox, ["sleep", _ORPHAN_SLEEP], 5)
+
+    assert not await _orphan_running(docker_sandbox)
+
+
+_BACKPRESSURED_INPUT = "x" * (512 * 1024)
+"""More input than a pipe buffers, so the start waits on a command that never reads it."""
+
+
+async def _wait_for_orphan(sandbox: Any) -> None:
+    with anyio.fail_after(30):
+        while not await _orphan_running(sandbox):
+            await anyio.sleep(0.1)
+
+
+@contextlib.contextmanager
+def _start_times_out_once_running(sandbox: Any) -> Iterator[None]:
+    """Time out each exec_remote_start once its job runs, with the start unfinished."""
+    real_exec = sandbox.exec
+
+    async def exec_timing_out_start(*args: Any, **kwargs: Any) -> Any:
+        if "exec_remote_start" not in (kwargs.get("input") or ""):
+            return await real_exec(*args, **kwargs)
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(lambda: real_exec(*args, **kwargs))
+            with anyio.fail_after(30):
+                while not await _orphan_running_via(real_exec):
+                    await anyio.sleep(0.1)
+            tg.cancel_scope.cancel()
+        raise TimeoutError("the start timed out.")
+
+    with patch.object(sandbox, "exec", exec_timing_out_start):
+        yield
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+async def test_cancelled_start_with_backpressured_input_kills_the_job(
+    docker_sandbox,
+) -> None:
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(
+            exec_remote_streaming,
+            docker_sandbox,
+            ["sleep", _ORPHAN_SLEEP],
+            5,
+            ExecRemoteStreamingOptions(input=_BACKPRESSURED_INPUT),
+        )
+        await _wait_for_orphan(docker_sandbox)
+        tg.cancel_scope.cancel()
+
+    assert not await _orphan_running(docker_sandbox)
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+async def test_timed_out_start_with_backpressured_input_kills_the_job(
+    docker_sandbox,
+) -> None:
+    with _start_times_out_once_running(docker_sandbox):
+        with pytest.raises(TimeoutError):
+            await exec_remote_awaitable(
+                docker_sandbox,
+                ["sleep", _ORPHAN_SLEEP],
+                5,
+                ExecRemoteAwaitableOptions(input=_BACKPRESSURED_INPUT),
+            )
+
+    assert not await _orphan_running(docker_sandbox)
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+async def test_timed_out_start_waits_for_a_job_the_server_is_killing(
+    docker_sandbox,
+) -> None:
+    """The kill by key must not return while the failed start's own kill waits.
+
+    The command ignores SIGTERM and closes stdin, so the server's start fails
+    and its kill waits seconds before SIGKILL; the start times out meanwhile.
+    """
+    # $((...)) keeps the marker out of the shell's own command line, so the
+    # probe sees the job only once stdin is closed and the server is killing it
+    sleep = f"$(({int(_ORPHAN_SLEEP) - 1}+1))"
+    with _start_times_out_once_running(docker_sandbox):
+        with pytest.raises(TimeoutError):
+            await exec_remote_streaming(
+                docker_sandbox,
+                ["exec", "sh", "-c", f"trap '' TERM; exec 0<&-; exec sleep {sleep}"],
+                5,
+                ExecRemoteStreamingOptions(input=_BACKPRESSURED_INPUT),
+            )
+
+    assert not await _orphan_running(docker_sandbox)
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+async def test_start_whose_command_closes_stdin_kills_the_job(docker_sandbox) -> None:
+    with pytest.raises(RuntimeError, match="Connection lost"):
+        await exec_remote_streaming(
+            docker_sandbox,
+            # exec so that no outer shell keeps stdin open
+            ["exec", "sh", "-c", f"exec 0<&-; exec sleep {_ORPHAN_SLEEP}"],
+            5,
+            ExecRemoteStreamingOptions(input=_BACKPRESSURED_INPUT),
+        )
+
+    assert not await _orphan_running(docker_sandbox)
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+async def test_kill_by_key_before_start_refuses_the_start(docker_sandbox) -> None:
+    proc = ExecRemoteProcess(
+        docker_sandbox, ["sleep", _ORPHAN_SLEEP], ExecRemoteCommonOptions(), 5
+    )
+
+    await proc._kill_key()
+    with pytest.raises(RuntimeError, match="killed before it started"):
+        await proc._start()
+
+    assert not await _orphan_running(docker_sandbox)

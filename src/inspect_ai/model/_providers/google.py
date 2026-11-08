@@ -729,10 +729,23 @@ class GoogleGenAIAPI(ModelAPI):
     def is_vertex(self) -> bool:
         return self.service == "vertex"
 
+    def _effective_api_version(self) -> str | None:
+        """API version to pass to the SDK.
+
+        Default the Gemini Developer API to `v1beta` (the SDK defaults to `v1`).
+        Return `None` for Vertex or when `GOOGLE_GENAI_API_VERSION` is set so the
+        SDK resolves the version itself.
+        """
+        if self.api_version is not None:
+            return self.api_version
+        if self.is_vertex() or os.environ.get("GOOGLE_GENAI_API_VERSION"):
+            return None
+        return "v1beta"
+
     def _http_options(self, config: GenerateConfig | None = None) -> HttpOptions:
         http_options = HttpOptions(
             base_url=self.base_url,
-            api_version=self.api_version,
+            api_version=self._effective_api_version(),
         )
 
         if config is not None and config.timeout is not None:
@@ -1344,7 +1357,7 @@ class GoogleGenAIAPI(ModelAPI):
 
         http_options = http_options or HttpOptions(
             base_url=self.base_url,
-            api_version=self.api_version,
+            api_version=self._effective_api_version(),
         )
         # Seed both `client_args` and `async_client_args`: genai's SSL-context
         # resolution reads only the sync dict when it is non-empty, ignoring the
