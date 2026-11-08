@@ -6,6 +6,7 @@ import threading
 from collections.abc import Callable, Iterator, Sequence
 from collections.abc import Set as AbstractSet
 from dataclasses import dataclass
+from datetime import datetime
 from typing import TYPE_CHECKING, Any, Literal, NamedTuple, Set, TypeVar, cast
 
 import rich
@@ -1125,9 +1126,11 @@ def eval_set(
             success_logs: list[Log] = []
         else:
             # look for retryable eval logs and cleave them into success/failed
+            # pass only the reusable logs: a log whose sample shuffle no longer
+            # matches must not be returned or retried in place of the task
             success_logs, failed_logs = list_latest_eval_logs(
                 all_tasks,
-                all_logs,
+                reusable_logs,
                 epochs=epochs,
                 limit=limit,
                 sample_id=sample_id,
@@ -1871,7 +1874,11 @@ def list_latest_eval_logs(
         else:
             complete_logs.append(log)
 
-    return (complete_logs, incomplete_logs)
+    # separate eval()/eval_set() runs of one task each get their own task_id,
+    # so the per-task_id selection above can hold several logs for one task
+    return one_log_per_task_identifier(
+        complete_logs, incomplete_logs, limit=limit, sample_id=sample_id
+    )
 
 
 def log_samples_complete(
@@ -1964,6 +1971,70 @@ def epochs_changed(epochs: Epochs | None, config: EvalConfig) -> bool:
         else None
     )
     return canonical(requested) != canonical(config.epochs_reducer)
+
+
+def one_log_per_task_identifier(
+    complete_logs: list[Log],
+    incomplete_logs: list[Log],
+    limit: int | tuple[int, int] | None,
+    sample_id: str | int | list[str] | list[int] | list[str | int] | None,
+) -> tuple[list[Log], list[Log]]:
+    """Keep one log per task identifier.
+
+    Logs are ranked by the run that started most recently (`eval.created`,
+    which survives rewrites and copies of the file; file mtime breaks ties
+    within a second). A complete log recorded for the requested `limit` and
+    `sample_id` is reused even when a newer incomplete log exists. Otherwise
+    the newest log wins, since a complete log for another selection may hold
+    different samples. Logs not chosen are left on disk.
+    """
+    requested = _selection(limit, sample_id)
+
+    def started(log: Log) -> tuple[datetime, float]:
+        return (datetime.fromisoformat(log.header.eval.created), log.info.mtime or 0)
+
+    def matches(log: Log) -> bool:
+        config = log.header.eval.config
+        return _selection(config.limit, config.sample_id) == requested
+
+    def best(logs: list[Log], key: Callable[[Log], Any]) -> dict[str, Log]:
+        chosen: dict[str, Log] = {}
+        for log in logs:
+            current = chosen.get(log.task_identifier)
+            if current is None or key(log) > key(current):
+                chosen[log.task_identifier] = log
+        return chosen
+
+    complete = best(complete_logs, lambda log: (matches(log), started(log)))
+    incomplete = best(incomplete_logs, started)
+    for identifier in set(complete) & set(incomplete):
+        reuse = complete[identifier]
+        if matches(reuse) or started(reuse) > started(incomplete[identifier]):
+            del incomplete[identifier]
+        else:
+            del complete[identifier]
+    return (
+        [log for log in complete_logs if complete.get(log.task_identifier) is log],
+        [log for log in incomplete_logs if incomplete.get(log.task_identifier) is log],
+    )
+
+
+def _selection(
+    limit: int | tuple[int, int] | None,
+    sample_id: str | int | list[str] | list[int] | list[str | int] | None,
+) -> tuple[tuple[int, int] | None, frozenset[str] | None]:
+    """Canonical form of a sample selection, comparable across log round trips."""
+    if isinstance(limit, int):
+        limit = (0, limit)
+    elif limit is not None:
+        limit = (int(limit[0]), int(limit[1]))
+    if sample_id is None:
+        ids = None
+    elif isinstance(sample_id, list):
+        ids = frozenset(str(id) for id in sample_id)
+    else:
+        ids = frozenset([str(sample_id)])
+    return (limit, ids)
 
 
 # cleanup logs that aren't the latest

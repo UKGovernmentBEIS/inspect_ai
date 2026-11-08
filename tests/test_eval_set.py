@@ -10,6 +10,7 @@ import tempfile
 import threading
 import time
 import zipfile
+from collections import Counter
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, BinaryIO, Callable, ClassVar, cast
@@ -2371,6 +2372,287 @@ def test_eval_set_shuffle_reused_without_limit(tmp_path: Path):
     )
     assert result
     assert logs[0].eval.eval_id == first_eval_id
+
+
+# Separate eval()/eval_set() runs give one task a new task_id each time, so
+# eval_set must pair logs with tasks by task_identifier: one log per task, no
+# re-run of a task that already has a complete log, and no stale log whose
+# sample shuffle no longer matches (see above) returned or retried (#6361).
+
+_CROSS_RUN_FAIL: dict[str, bool] = {}
+_CROSS_RUN_RUNS: Counter[str] = Counter()
+
+
+@solver
+def cross_run_counting_solver(name: str) -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        _CROSS_RUN_RUNS[name] += 1
+        if _CROSS_RUN_FAIL.get(name, False):
+            raise RuntimeError(f"planned failure for {name}")
+        return await generate(state)
+
+    return solve
+
+
+def _cross_run_task(name: str) -> Task:
+    return Task(
+        dataset=[Sample(id=i, input=f"x{i}", target="y") for i in range(5)],
+        solver=cross_run_counting_solver(name),
+        scorer=exact(),
+        name=name,
+    )
+
+
+@task
+def cross_run_a() -> Task:
+    return _cross_run_task("cross_run_a")
+
+
+@task
+def cross_run_b() -> Task:
+    return _cross_run_task("cross_run_b")
+
+
+def _cross_run_eval(t: Task, log_dir: str, fail: bool) -> EvalLog:
+    _CROSS_RUN_FAIL[t.name] = fail
+    return eval(t, model="mockllm/model", log_dir=log_dir, display="none")[0]
+
+
+def _cross_run_eval_set(
+    tasks: list[Task], log_dir: str, fail: bool = False, **kwargs: Any
+) -> tuple[bool, list[EvalLog]]:
+    _CROSS_RUN_RUNS.clear()
+    for t in tasks:
+        _CROSS_RUN_FAIL[t.name] = fail
+    return eval_set(
+        tasks,
+        model="mockllm/model",
+        log_dir=log_dir,
+        display="none",
+        retry_attempts=0,
+        **kwargs,
+    )
+
+
+def _cross_run_per_task(logs: list[EvalLog]) -> dict[str, int]:
+    return dict(Counter(log.eval.task for log in logs))
+
+
+def test_eval_set_cross_run_error_then_success_reuses_success(tmp_path: Path):
+    log_dir = str(tmp_path)
+    assert _cross_run_eval(cross_run_a(), log_dir, fail=True).status == "error"
+    success = _cross_run_eval(cross_run_a(), log_dir, fail=False)
+    assert success.status == "success"
+
+    for _ in range(2):
+        ok, logs = _cross_run_eval_set([cross_run_a()], log_dir)
+        assert ok
+        assert _CROSS_RUN_RUNS["cross_run_a"] == 0
+        assert _cross_run_per_task(logs) == {"cross_run_a": 1}
+        assert logs[0].eval.eval_id == success.eval.eval_id
+
+
+def test_eval_set_cross_run_success_then_error_reuses_success(tmp_path: Path):
+    log_dir = str(tmp_path)
+    success = _cross_run_eval(cross_run_a(), log_dir, fail=False)
+    assert _cross_run_eval(cross_run_a(), log_dir, fail=True).status == "error"
+
+    ok, logs = _cross_run_eval_set([cross_run_a()], log_dir)
+    assert ok
+    assert _CROSS_RUN_RUNS["cross_run_a"] == 0
+    assert _cross_run_per_task(logs) == {"cross_run_a": 1}
+    assert logs[0].eval.eval_id == success.eval.eval_id
+
+
+def test_eval_set_cross_run_two_success_logs_return_newest_started(tmp_path: Path):
+    log_dir = str(tmp_path)
+    older = _cross_run_eval(cross_run_a(), log_dir, fail=False)
+    with patch("inspect_ai._eval.task.log.iso_now") as mock_iso_now:
+        mock_iso_now.return_value = "2099-01-01T00:00:00+00:00"
+        newer = _cross_run_eval(cross_run_a(), log_dir, fail=False)
+    # rewrite the older log so its file is the most recently written
+    write_eval_log(read_eval_log(older.location), older.location)
+
+    for _ in range(2):
+        ok, logs = _cross_run_eval_set([cross_run_a()], log_dir)
+        assert ok
+        assert _CROSS_RUN_RUNS["cross_run_a"] == 0
+        assert _cross_run_per_task(logs) == {"cross_run_a": 1}
+        assert logs[0].eval.eval_id == newer.eval.eval_id
+
+
+def test_eval_set_cross_run_two_success_logs_newest_started_in_list_order(
+    tmp_path: Path,
+):
+    # as above, but the newest-started log is also the newest file, so a rule
+    # following listing order rather than start time picks the wrong one in
+    # one of the two tests
+    log_dir = str(tmp_path)
+    _cross_run_eval(cross_run_a(), log_dir, fail=False)
+    with patch("inspect_ai._eval.task.log.iso_now") as mock_iso_now:
+        mock_iso_now.return_value = "2099-01-01T00:00:00+00:00"
+        newer = _cross_run_eval(cross_run_a(), log_dir, fail=False)
+
+    ok, logs = _cross_run_eval_set([cross_run_a()], log_dir)
+    assert ok
+    assert _CROSS_RUN_RUNS["cross_run_a"] == 0
+    assert _cross_run_per_task(logs) == {"cross_run_a": 1}
+    assert logs[0].eval.eval_id == newer.eval.eval_id
+
+
+@pytest.mark.parametrize(
+    "first,second",
+    [
+        ({"sample_id": [0, 1]}, {"sample_id": [3, 4]}),
+        ({"limit": (0, 2)}, {"limit": (2, 4)}),
+    ],
+)
+def test_eval_set_cross_run_complete_log_for_other_selection_not_reused(
+    tmp_path: Path, first: dict[str, Any], second: dict[str, Any]
+):
+    # a complete log for different samples must not replace retrying the
+    # newer log of the requested selection
+    log_dir = str(tmp_path)
+    _CROSS_RUN_FAIL["cross_run_a"] = False
+    eval(cross_run_a(), model="mockllm/model", log_dir=log_dir, display="none", **first)
+    _CROSS_RUN_FAIL["cross_run_a"] = True
+    eval(
+        cross_run_a(), model="mockllm/model", log_dir=log_dir, display="none", **second
+    )
+
+    ok, logs = _cross_run_eval_set([cross_run_a()], log_dir, **second)
+    assert ok
+    assert _CROSS_RUN_RUNS["cross_run_a"] == 2
+    assert _cross_run_per_task(logs) == {"cross_run_a": 1}
+    samples = read_eval_log(logs[0].location).samples
+    assert samples is not None
+    expected = second.get("sample_id") or list(range(*second["limit"]))
+    assert sorted(int(sample.id) for sample in samples) == expected
+
+
+def test_eval_set_cross_run_rewritten_error_log_does_not_rerun(tmp_path: Path):
+    # rewriting (or copying) the old errored log must not make it win
+    log_dir = str(tmp_path)
+    errored = _cross_run_eval(cross_run_a(), log_dir, fail=True)
+    success = _cross_run_eval(cross_run_a(), log_dir, fail=False)
+    write_eval_log(read_eval_log(errored.location), errored.location)
+
+    ok, logs = _cross_run_eval_set([cross_run_a()], log_dir)
+    assert ok
+    assert _CROSS_RUN_RUNS["cross_run_a"] == 0
+    assert _cross_run_per_task(logs) == {"cross_run_a": 1}
+    assert logs[0].eval.eval_id == success.eval.eval_id
+
+
+def test_eval_set_cross_run_partial_run_does_not_shadow_complete(tmp_path: Path):
+    # a later run over fewer samples (e.g. a debug run with a limit) is
+    # incomplete for the full task and must not cause a re-run
+    log_dir = str(tmp_path)
+    full = _cross_run_eval(cross_run_a(), log_dir, fail=False)
+    eval(cross_run_a(), model="mockllm/model", log_dir=log_dir, display="none", limit=1)
+
+    ok, logs = _cross_run_eval_set([cross_run_a()], log_dir)
+    assert ok
+    assert _CROSS_RUN_RUNS["cross_run_a"] == 0
+    assert _cross_run_per_task(logs) == {"cross_run_a": 1}
+    assert logs[0].eval.eval_id == full.eval.eval_id
+
+
+def test_eval_set_cross_run_complete_preferred_over_newer_invalidated(
+    tmp_path: Path,
+):
+    # a complete log is reused before an incomplete one is retried, so an
+    # older complete run wins over a newer run whose samples were invalidated
+    log_dir = str(tmp_path)
+    older = _cross_run_eval(cross_run_a(), log_dir, fail=False)
+    newer = _cross_run_eval(cross_run_a(), log_dir, fail=False)
+    newer = read_eval_log(newer.location)
+    assert newer.samples is not None and newer.samples[0].uuid is not None
+    newer = invalidate_samples(
+        newer,
+        sample_uuids=[newer.samples[0].uuid],
+        provenance=ProvenanceData(author="test_person", reason="test_reason"),
+    )
+    write_eval_log(newer, location=newer.location)
+
+    ok, logs = _cross_run_eval_set([cross_run_a()], log_dir)
+    assert ok
+    assert _CROSS_RUN_RUNS["cross_run_a"] == 0
+    assert _cross_run_per_task(logs) == {"cross_run_a": 1}
+    assert logs[0].eval.eval_id == older.eval.eval_id
+
+
+def test_eval_set_cross_run_distinct_tasks_kept_apart(tmp_path: Path):
+    log_dir = str(tmp_path)
+    _cross_run_eval(cross_run_a(), log_dir, fail=False)
+    _cross_run_eval(cross_run_a(), log_dir, fail=False)
+
+    ok, logs = _cross_run_eval_set([cross_run_a(), cross_run_b()], log_dir)
+    assert ok
+    assert _CROSS_RUN_RUNS == Counter({"cross_run_b": 5})
+    assert _cross_run_per_task(logs) == {"cross_run_a": 1, "cross_run_b": 1}
+
+
+def test_eval_set_cross_run_different_config_not_reused(tmp_path: Path):
+    # a different execution limit is a different task identity: it must run
+    log_dir = str(tmp_path)
+    _cross_run_eval(cross_run_a(), log_dir, fail=False)
+
+    ok, logs = _cross_run_eval_set(
+        [cross_run_a()], log_dir, message_limit=50, log_dir_allow_dirty=True
+    )
+    assert ok
+    assert _CROSS_RUN_RUNS["cross_run_a"] == 5
+    assert _cross_run_per_task(logs) == {"cross_run_a": 1}
+    assert logs[0].eval.config.message_limit == 50
+
+
+def test_eval_set_cross_run_stale_unshuffled_log_not_returned(tmp_path: Path):
+    log_dir = str(tmp_path)
+    _cross_run_eval_set([cross_run_a()], log_dir, limit=3)
+    ok, logs = _cross_run_eval_set([cross_run_a()], log_dir, limit=3, sample_shuffle=42)
+    assert ok
+    assert _CROSS_RUN_RUNS["cross_run_a"] == 3  # the unshuffled log is not reused
+    shuffled_id = logs[0].eval.eval_id
+
+    ok, logs = _cross_run_eval_set(
+        [cross_run_a(), cross_run_b()], log_dir, limit=3, sample_shuffle=42
+    )
+    assert ok
+    assert _CROSS_RUN_RUNS == Counter({"cross_run_b": 3})
+    assert _cross_run_per_task(logs) == {"cross_run_a": 1, "cross_run_b": 1}
+    [a_log] = [log for log in logs if log.eval.task == "cross_run_a"]
+    assert a_log.eval.eval_id == shuffled_id
+    assert all(log.eval.config.sample_shuffle == 42 for log in logs)
+
+
+def test_eval_set_cross_run_newer_stale_unshuffled_log_not_returned(tmp_path: Path):
+    # the shuffle-mismatched log is the newest on disk; it must still not be
+    # selected in place of the matching one
+    log_dir = str(tmp_path)
+    _cross_run_eval_set([cross_run_a()], log_dir, limit=3, sample_shuffle=42)
+    _cross_run_eval_set([cross_run_a()], log_dir, limit=3)
+
+    ok, logs = _cross_run_eval_set([cross_run_a()], log_dir, limit=3, sample_shuffle=42)
+    assert ok
+    assert _CROSS_RUN_RUNS["cross_run_a"] == 0
+    assert _cross_run_per_task(logs) == {"cross_run_a": 1}
+    assert logs[0].eval.config.sample_shuffle == 42
+
+
+def test_eval_set_cross_run_stale_errored_log_not_retried(tmp_path: Path):
+    log_dir = str(tmp_path)
+    ok, _ = _cross_run_eval_set([cross_run_a()], log_dir, fail=True, limit=3)
+    assert not ok
+    _cross_run_eval_set([cross_run_a()], log_dir, limit=3, sample_shuffle=42)
+
+    ok, logs = _cross_run_eval_set(
+        [cross_run_a(), cross_run_b()], log_dir, limit=3, sample_shuffle=42
+    )
+    assert ok
+    assert _CROSS_RUN_RUNS == Counter({"cross_run_b": 3})
+    assert _cross_run_per_task(logs) == {"cross_run_a": 1, "cross_run_b": 1}
+    assert all(log.eval.config.sample_shuffle == 42 for log in logs)
 
 
 def test_eval_set_bundle_when_all_complete(tmp_path: Path) -> None:
