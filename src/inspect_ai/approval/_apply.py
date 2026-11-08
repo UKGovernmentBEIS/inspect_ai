@@ -1,9 +1,11 @@
 import contextlib
 from collections.abc import Iterator
 from contextvars import ContextVar
+from typing import NamedTuple
 
 from inspect_ai._sentinel._scope import sentinel_scope
 from inspect_ai.approval._approval import Approval
+from inspect_ai.event._approval import ApprovalEvent
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.tool._tool_call import (
     ToolCall,
@@ -17,9 +19,8 @@ from inspect_ai.util._limit import (
     suspend_working_limit,
 )
 
-from ._approver import Approver
 from ._call import record_approval
-from ._policy import ApprovalPolicy, policy_approver
+from ._policy import ApprovalPolicy, PolicyApprover, policy_approver
 
 MODIFY_WITHOUT_CALL = (
     "The approver chose to modify this tool call but supplied no modified call, "
@@ -39,14 +40,31 @@ async def apply_tool_approval(
     approvers: an approver deciding on a fallback rendering might approve an
     action that the tool's own view would have shown differently.
     """
+    applied = await apply_tool_approval_recorded(message, call, viewer, history)
+    return applied.approved, applied.approval
+
+
+class AppliedApproval(NamedTuple):
+    approved: bool
+    approval: Approval | None
+    events: list[ApprovalEvent]
+    """The approvals recorded for the call, not for calls its approvers make."""
+
+
+async def apply_tool_approval_recorded(
+    message: str,
+    call: ToolCall,
+    viewer: ToolCallViewer | None,
+    history: list[ChatMessage],
+) -> AppliedApproval:
     approver = _tool_approver.get(None)
     if approver:
         try:
             view = resolve_tool_call_view(call, viewer, reject_on_error=True)
         except ToolCallViewError as ex:
             rejection = Approval(decision="reject", explanation=str(ex))
-            record_approval("policy", message, call, None, rejection)
-            return False, rejection
+            event = record_approval("policy", message, call, None, rejection)
+            return AppliedApproval(False, rejection, [event])
 
         # call approver (approvers which use model inference — e.g. LLM monitors —
         # shouldn't have that inference charged to the agent's own budget, and
@@ -57,35 +75,30 @@ async def apply_tool_approval(
             suspend_working_limit(),
             sentinel_scope("approval", final=True),
         ):
-            approval = await approver(
-                message=message,
-                call=call,
-                view=view,
-                history=history,
-            )
+            approval, events = await approver.decide(message, call, view, history)
 
         # process decision
         match approval.decision:
             case "approve":
-                return True, approval
+                return AppliedApproval(True, approval, events)
             case "modify":
                 # without a modified call there is nothing approved to run, and
                 # running the original would contradict the recorded decision
                 if approval.modified is None:
-                    return False, Approval(
-                        decision="reject", explanation=MODIFY_WITHOUT_CALL
+                    return AppliedApproval(
+                        False,
+                        Approval(decision="reject", explanation=MODIFY_WITHOUT_CALL),
+                        events,
                     )
-                return True, approval
-            case "reject":
-                return False, approval
-            case "terminate":
-                return False, approval
+                return AppliedApproval(True, approval, events)
+            case "reject" | "terminate":
+                return AppliedApproval(False, approval, events)
             case "escalate":
                 raise RuntimeError("Unexpected 'escalate' from policy approver.")
 
     # no approval system registered
     else:
-        return True, None
+        return AppliedApproval(True, None, [])
 
 
 def modified_function_error(call: ToolCall, modified: ToolCall) -> str | None:
@@ -131,4 +144,6 @@ def have_tool_approval() -> bool:
     return _tool_approver.get(None) is not None
 
 
-_tool_approver: ContextVar[Approver | None] = ContextVar("tool_approver", default=None)
+_tool_approver: ContextVar[PolicyApprover | None] = ContextVar(
+    "tool_approver", default=None
+)

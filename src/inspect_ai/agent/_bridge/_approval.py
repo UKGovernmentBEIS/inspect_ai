@@ -40,7 +40,6 @@ from inspect_ai.agent._bridge._sentinel import (
 )
 from inspect_ai.agent._bridge.types import AgentBridge, DispatchedCall
 from inspect_ai.event._approval import ApprovalEvent
-from inspect_ai.event._execution import tool_call_execution
 from inspect_ai.event._sentinel import SentinelEvent
 from inspect_ai.model._call_tools import (
     _CHANGED_IN_PLACE,
@@ -175,7 +174,10 @@ async def apply_bridge_tool_approval(
         The response for the scaffold, plus the messages to replay to the model when
         the response was rejected.
     """
-    from inspect_ai.approval._apply import apply_tool_approval, have_tool_approval
+    from inspect_ai.approval._apply import (
+        apply_tool_approval_recorded,
+        have_tool_approval,
+    )
     from inspect_ai.approval._approval import Approval
     from inspect_ai.model._call_tools import approver_result_error
 
@@ -216,10 +218,10 @@ async def apply_bridge_tool_approval(
                 for target in reviewed_calls.calls:
                     reviewed = deepcopy(target)
                     shown = deepcopy(target)
-                    with tool_call_execution(call.id, recorded[index]):
-                        approved, approval = await apply_tool_approval(
-                            message, reviewed, None, approval_history
-                        )
+                    approved, approval, events = await apply_tool_approval_recorded(
+                        message, reviewed, None, approval_history
+                    )
+                    recorded[index].extend(events)
                     error = (
                         approver_result_error(shown, reviewed, approval)
                         if approved
@@ -286,16 +288,16 @@ async def apply_bridge_tool_approval(
                     shown = deepcopy(reviewed)
                     offered = deepcopy(reviewed)
                     try:
-                        with tool_call_execution(call.id, recorded[index]):
-                            decision = await sentinel_tool_call(
-                                bridge,
-                                message,
-                                output.message.id,
-                                offered,
-                                viewer,
-                                sentinel_history,
-                                producer,
-                            )
+                        decision = await sentinel_tool_call(
+                            bridge,
+                            message,
+                            output.message.id,
+                            offered,
+                            viewer,
+                            sentinel_history,
+                            producer,
+                            recorded[index],
+                        )
                     except ToolApprovalError as ex:
                         return BridgeApproval(
                             output, rejection_messages(output, call, ex.message)

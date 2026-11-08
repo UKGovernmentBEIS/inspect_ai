@@ -74,6 +74,7 @@ from inspect_ai.model import (
     ModelOutput,
     get_model,
 )
+from inspect_ai.model._call_tools import execute_tools
 from inspect_ai.model._model import GenerateFilter, GenerateInput
 from inspect_ai.model._model_data.model_data import ModelCost, ModelInfo
 from inspect_ai.model._model_info import clear_model_info_cache, set_model_info
@@ -4515,6 +4516,109 @@ async def test_a_monitors_own_approvals_name_no_execution() -> None:
     assert sorted(e.execution_id or "" for e in steps) == sorted(
         ["", "", handed[1], handed[1]]
     )
+
+
+@tool
+def lookup() -> Tool:
+    async def execute() -> str:
+        """Look up the policy."""
+        return "policy"
+
+    return execute
+
+
+async def run_own_call(id: str) -> None:
+    # a monitor's or approver's own model can return an id the agent's did
+    input: list[ChatMessage] = [ChatMessageUser(content="Check the policy.")]
+    own = Scripted(calls_output(replace(LOOKUP, id=id)))
+    output = await own.model.generate(input)
+    await execute_tools([*input, output.message], [lookup()])
+
+
+@monitor
+def running_its_own_calls() -> MonitorGroup:
+    async def before(context: Context, step: BeforeToolCall) -> Observation | None:
+        await run_own_call(step.call.id)
+        return Observation.score(0.1, "looked")
+
+    async def after(context: Context, step: AfterToolCall) -> Observation | None:
+        await run_own_call(step.call.id)
+        return Observation.score(0.2, f"saw {step.result.text}")
+
+    return MonitorGroup(before, after)
+
+
+@approver(name="bridge_running_its_own_call")
+def running_its_own_call() -> Approver:
+    async def approve(
+        message: str,
+        call: ToolCall,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Approval:
+        await run_own_call(call.id)
+        return Approval(decision="approve")
+
+    return approve
+
+
+def assert_own_calls_name_no_execution(token: str, lookups: int) -> None:
+    approvals = [e for e in transcript().events if isinstance(e, ApprovalEvent)]
+    assert [e.execution_id for e in approvals if e.call.function == "read_file"] == [
+        None,
+        token,
+    ]
+    own = [e for e in approvals if e.call.function == "lookup"]
+    assert [(e.call.id, e.execution_id) for e in own] == [("same", None)] * lookups
+    executions = [e for e in transcript().events if isinstance(e, ToolEvent)]
+    assert [e.id for e in executions] == ["same"] * lookups
+    steps = [e for e in sentinel_events() if e.stage in ("tool_call", "tool_result")]
+    assert [(e.stage, e.execution_id) for e in steps] == [
+        ("tool_call", None),
+        ("tool_call", token),
+        ("tool_result", token),
+    ]
+
+
+async def run_calls_sharing_an_id(bridge: AgentBridge) -> str:
+    """Generate the call `same` twice, and report the second's result."""
+    call = replace(READ, id="same")
+    model = Scripted(calls_output(call), calls_output(call), calls_output())
+    history: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+    await generate(bridge, model, history)
+    second = await generate(bridge, model, history)
+    token = (second.message.tool_calls or [])[0].id
+    assert token != "same"
+    await generate(
+        bridge,
+        model,
+        [*history, second.message, ChatMessageTool(content="b", tool_call_id=token)],
+    )
+    return token
+
+
+async def test_a_monitors_own_calls_sharing_the_agents_id_name_no_execution() -> None:
+    bridge = in_process_bridge([ChatMessageUser(content=TASK)])
+    with (
+        approval([ApprovalPolicy(auto_approver(), "*")]),
+        active([running_its_own_calls()]),
+    ):
+        token = await run_calls_sharing_an_id(bridge)
+
+    # its own calls at both proposals, and at the second's result
+    assert_own_calls_name_no_execution(token, 3)
+
+
+async def test_an_approvers_own_calls_sharing_the_agents_id_name_no_execution() -> None:
+    bridge = in_process_bridge([ChatMessageUser(content=TASK)])
+    bridge.approval = [
+        ApprovalPolicy(running_its_own_call(), "read_file"),
+        ApprovalPolicy(auto_approver(), "*"),
+    ]
+    with active([reporting_results()]):
+        token = await run_calls_sharing_an_id(bridge)
+
+    assert_own_calls_name_no_execution(token, 2)
 
 
 async def test_calls_sharing_an_id_keep_their_own_modifications() -> None:

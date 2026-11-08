@@ -38,7 +38,6 @@ from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.logger import warn_once
 from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.event._approval import ApprovalEvent
-from inspect_ai.event._execution import tool_call_execution
 from inspect_ai.event._sentinel import SentinelEvent
 from inspect_ai.log._transcript import transcript
 from inspect_ai.model._assistant_internal import (
@@ -624,11 +623,13 @@ async def sentinel_tool_call(
     viewer: ToolCallViewer | None,
     history: list[ChatMessage],
     producer: Produced | None,
+    recorded: list[ApprovalEvent | SentinelEvent],
 ) -> "Decision | None":
     from inspect_ai._sentinel._dispatch import sentinel_before_tool_call
 
+    steps: list[SentinelEvent] = []
     with producer.scope() if producer is not None else nullcontext():
-        return await _guarded(
+        decision = await _guarded(
             bridge,
             partial(
                 sentinel_before_tool_call,
@@ -640,8 +641,11 @@ async def sentinel_tool_call(
                 producer.event if producer is not None else None,
                 find_producer=False,
                 bridge=True,
+                recorded=steps,
             ),
         )
+    recorded.extend(steps)
+    return decision
 
 
 def sentinel_tokens(
@@ -826,11 +830,7 @@ async def _tool_result(
     from inspect_ai._sentinel._dispatch import sentinel_after_tool_call
 
     producer = check.producer
-    executed = execution if execution != check.call.id else None
-    with (
-        producer.scope() if producer is not None else nullcontext(),
-        tool_call_execution(check.call.id, executed),
-    ):
+    with producer.scope() if producer is not None else nullcontext():
         try:
             await _guarded(
                 bridge,
@@ -849,6 +849,7 @@ async def _tool_result(
                     find_producer=False,
                     reject_on_viewer_error=reject_on_viewer_error,
                     bridge=True,
+                    execution_id=execution if execution != check.call.id else None,
                 ),
             )
         except ToolCallViewError as ex:

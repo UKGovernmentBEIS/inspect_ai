@@ -1,11 +1,11 @@
 import inspect
 from copy import deepcopy
 from logging import getLogger
+from typing import NamedTuple
 
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.registry import registry_log_name
 from inspect_ai.event._approval import ApprovalEvent
-from inspect_ai.event._execution import executed
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.tool._tool_call import ToolCall, ToolCallView
 
@@ -15,13 +15,18 @@ from ._approver import Approver
 logger = getLogger(__name__)
 
 
+class RecordedApproval(NamedTuple):
+    approval: Approval
+    event: ApprovalEvent
+
+
 async def call_approver(
     approver: Approver,
     message: str,
     call: ToolCall,
     view: ToolCallView,
     history: list[ChatMessage],
-) -> Approval:
+) -> RecordedApproval:
     # the event records the call as presented, which the approver may change
     presented, presented_view = deepcopy(call), deepcopy(view)
 
@@ -39,12 +44,12 @@ async def call_approver(
         approval = await approver(message, call, view, history)
 
     # record
-    record_approval(
+    event = record_approval(
         registry_log_name(approver), message, presented, presented_view, approval
     )
 
     # return approval
-    return approval
+    return RecordedApproval(approval, event)
 
 
 def record_approval(
@@ -53,7 +58,7 @@ def record_approval(
     call: ToolCall,
     view: ToolCallView | None,
     approval: Approval,
-) -> None:
+) -> ApprovalEvent:
     """Record an approval decision as an `ApprovalEvent`.
 
     The event holds copies of the call, view and modified call, since the
@@ -61,17 +66,15 @@ def record_approval(
     """
     from inspect_ai.log._transcript import transcript
 
-    transcript()._event(
-        executed(
-            ApprovalEvent(
-                message=message,
-                call=deepcopy(call),
-                view=deepcopy(view),
-                approver=approver_name,
-                decision=approval.decision,
-                modified=deepcopy(approval.modified),
-                explanation=approval.explanation,
-                metadata=approval.metadata,
-            )
-        )
+    event = ApprovalEvent(
+        message=message,
+        call=deepcopy(call),
+        view=deepcopy(view),
+        approver=approver_name,
+        decision=approval.decision,
+        modified=deepcopy(approval.modified),
+        explanation=approval.explanation,
+        metadata=approval.metadata,
     )
+    transcript()._event(event)
+    return event
