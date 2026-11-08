@@ -9,14 +9,18 @@ mode where a longer side call permanently displaced the real conversation.
 
 from typing import Any
 
+import pytest
 from test_helpers.checkpoint import RecordingCheckpointer
+from test_helpers.utils import collide_murmur3
 
 from inspect_ai._util.hash import mm3_hash
+from inspect_ai._util.json import to_json_str_safe
 from inspect_ai.agent._agent import AgentState
 from inspect_ai.agent._bridge.anthropic_api import inspect_anthropic_api_request
 from inspect_ai.agent._bridge.completions import inspect_completions_api_request
 from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.agent._bridge.util import (
+    apply_message_ids,
     default_code_execution_providers,
     internal_web_search_providers,
 )
@@ -1532,3 +1536,44 @@ async def test_anthropic_handler_tracks_main_thread_end_to_end() -> None:
         "please continue",
         "Castle",
     ]
+
+
+# ---------------------------------------------------------------------------
+# Message id allocation
+# ---------------------------------------------------------------------------
+
+
+def test_message_ids_are_not_reused_across_a_murmur3_collision(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    collide_murmur3(monkeypatch)
+    bridge = task_bridge()
+    first: list[ChatMessage] = [ChatMessageUser(content="collision first")]
+    apply_message_ids(bridge, first)
+    second: list[ChatMessage] = [ChatMessageUser(content="collision second")]
+    apply_message_ids(bridge, second)
+    again: list[ChatMessage] = [ChatMessageUser(content="collision first")]
+    apply_message_ids(bridge, again)
+
+    assert second[0].id != first[0].id
+    assert again[0].id == first[0].id
+
+
+def test_message_ids_restored_under_murmur3_keys_are_kept() -> None:
+    # a checkpoint written before message keys were SHA-256
+    message = ChatMessageUser(content="restored message")
+    message.id = None
+    legacy_key = mm3_hash(to_json_str_safe(message))
+    cp = RecordingCheckpointer(
+        restored={"bridge_message_ids": {legacy_key: ["restored-id"]}}
+    )
+    bridge = AgentBridge(AgentState(messages=[]), checkpointer=cp)
+
+    input: list[ChatMessage] = [ChatMessageUser(content="restored message")]
+    apply_message_ids(bridge, input)
+    assert input[0].id == "restored-id"
+
+    saved = cp.callbacks["bridge_message_ids"]()
+    assert isinstance(saved, dict)
+    assert legacy_key not in saved
+    assert list(saved.values()) == [["restored-id"]]

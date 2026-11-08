@@ -1,3 +1,4 @@
+import hashlib
 from enum import IntEnum
 from functools import lru_cache
 from typing import TYPE_CHECKING, Any, Callable, NamedTuple, NoReturn, Sequence, Set
@@ -131,6 +132,7 @@ class AgentBridge:
             {},
             value_type=dict[str, list[str]],
         )
+        self._legacy_message_ids = any(len(key) == 32 for key in self._message_ids)
         self._compaction_prefix = self._cp.track(
             "bridge_compaction_prefix",
             lambda: self._compaction_prefix,
@@ -418,11 +420,19 @@ class AgentBridge:
         message_id: str | None = None
 
         # turn message into a hash so it can be a dictionary key
-        message_key = message_json_hash(to_json_str_safe(message))
+        message_json = to_json_str_safe(message)
+        message_key = message_json_hash(message_json)
+        message_ids = self._message_ids.get(message_key)
+        if message_ids is None and self._legacy_message_ids:
+            # restored from a checkpoint keyed by Murmur3: rekey on first use
+            message_ids = self._message_ids.pop(mm3_hash(message_json), None)
+            if message_ids is not None:
+                self._message_ids[message_key] = message_ids
+        if message_ids is None:
+            message_ids = []
 
         # do we already have an id for this message that isn't in the conversation?
         conversation_ids: Set[str] = {m.id for m in conversation if m.id is not None}
-        message_ids = self._message_ids.get(message_key, [])
         for id in message_ids:
             if id not in conversation_ids:
                 message_id = id
@@ -621,7 +631,10 @@ class AgentBridge:
 
 @lru_cache(maxsize=100)
 def message_json_hash(message_json: str) -> str:
-    return mm3_hash(message_json)
+    # a key decides which message an id or provenance belongs to, and the
+    # agent controls its messages, so it must be collision-resistant
+    encoded = message_json.encode("utf-8", errors="backslashreplace")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 class _MessageFingerprint(NamedTuple):

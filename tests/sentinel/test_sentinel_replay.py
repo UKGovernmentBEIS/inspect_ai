@@ -17,6 +17,7 @@ import pytest
 import tenacity
 from pydantic import BaseModel, TypeAdapter
 from shortuuid import uuid
+from test_helpers.utils import collide_murmur3
 
 from inspect_ai import Task, eval
 from inspect_ai._sentinel._integration import (
@@ -4108,6 +4109,18 @@ def test_a_rebuilt_message_s_fold_is_linear_in_what_the_log_stores(
         works.append(replay_work(monkeypatch, [], condensed, pool, "sample", info))
     small, large = works
     assert_linear(small, large, doubles=False)
+
+
+def test_replay_tells_apart_pool_rows_whose_murmur3_hashes_collide(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from inspect_ai._sentinel import _replay
+
+    collide_murmur3(monkeypatch)
+    keys = _replay._PoolKeys(
+        [ChatMessageUser(content="first"), ChatMessageUser(content="second")]
+    )
+    assert [keys.canonical(0), keys.canonical(1)] == [0, 1]
 
 
 def test_the_fold_over_pool_ranges_is_the_fold_live() -> None:

@@ -11,6 +11,7 @@ from typing import Any
 import numpy as np
 import pytest
 from pydantic import BaseModel, PrivateAttr
+from test_helpers.utils import collide_murmur3
 
 from inspect_ai._util.constants import get_deserializing_context
 from inspect_ai.event._model import ModelEvent
@@ -292,6 +293,17 @@ def test_model_event_input_snapshots_object_tool_arguments() -> None:
         assert isinstance(logged, ChatMessageAssistant) and logged.tool_calls
         steps.append(logged.tool_calls[0].arguments["state"].step)
     assert steps == [1, 2]
+
+
+def test_model_event_input_snapshots_a_change_whose_murmur3_hash_collides(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    collide_murmur3(monkeypatch)
+    message = ChatMessageUser(content="first")
+    [first] = _snapshot_messages([message])
+    message.content = "second"
+    [second] = _snapshot_messages([message])
+    assert [first.text, second.text] == ["first", "second"]
 
 
 async def test_model_event_input_reuses_deeply_nested_metadata() -> None:
