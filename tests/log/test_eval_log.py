@@ -467,6 +467,48 @@ def check_log_raises(log_file):
         read_log(log_file, header_only=True)
 
 
+@pytest.mark.parametrize("log_format", ["eval", "json"])
+def test_lone_surrogate_in_model_input_is_logged(
+    tmp_path: Path, log_format: Literal["eval", "json"]
+) -> None:
+    task = Task(
+        dataset=[
+            Sample(
+                input="hi " + chr(0xD800) + " there",
+                target="x",
+            )
+        ],
+        solver=generate(),
+    )
+
+    [log] = eval(
+        task,
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        log_format=log_format,
+        display="none",
+    )
+
+    assert log.status == "success"
+    assert log.error is None
+    assert log.samples is not None
+    assert len(log.samples) == 1
+    assert log.samples[0].input in (
+        "hi \ud800 there",
+        "hi \\ud800 there",
+    )
+
+    read_back = read_eval_log(log.location)
+    assert read_back.status == "success"
+    assert read_back.error is None
+    assert read_back.samples is not None
+    assert len(read_back.samples) == 1
+    assert read_back.samples[0].input in (
+        "hi \ud800 there",
+        "hi \\ud800 there",
+    )
+
+
 def test_unicode_surrogates_are_escaped():
     task = Task(
         dataset=[Sample(input="Say hello.", target="Hello")],

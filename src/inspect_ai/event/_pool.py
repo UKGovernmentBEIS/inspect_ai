@@ -52,12 +52,16 @@ def materialize_pooled_events(
 
 
 def _msg_hash(msg: ChatMessage) -> str:
-    # Hash pydantic's canonical serialization directly (field order is
-    # class-definition order; dict fields keep insertion order through a
-    # serialize/parse round-trip, so rebuild-time hashes match). A dict
-    # with different key insertion order hashes differently — that only
-    # costs a duplicate pool entry, never wrong dedup.
-    return mm3_hash(msg.model_dump_json(exclude={"id"}))
+    # model_dump_json pre-encodes UTF-8 and rejects lone surrogates before
+    # mm3_hash can escape them; keep compact non-ASCII JSON for hash stability.
+    dumped = msg.model_dump(mode="json", exclude={"id"})
+    return mm3_hash(
+        json.dumps(
+            dumped,
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+    )
 
 
 def _msg_pool_jsonable(msg: ChatMessage) -> JsonValue:
