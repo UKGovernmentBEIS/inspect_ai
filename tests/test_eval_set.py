@@ -2586,6 +2586,31 @@ def test_eval_set_cross_run_newer_invalidated_log_is_retried(tmp_path: Path):
     assert _cross_run_per_task(logs) == {"cross_run_a": 1}
 
 
+def test_eval_set_cross_run_older_invalidated_log_superseded(tmp_path: Path):
+    # a complete run started after the invalidation already holds valid
+    # results for every sample, so it is reused and the older invalidated
+    # log is not retried (as an older attempt of one task_id is superseded)
+    log_dir = str(tmp_path)
+    older = _cross_run_eval(cross_run_a(), log_dir, fail=False)
+    older = read_eval_log(older.location)
+    assert older.samples is not None and older.samples[0].uuid is not None
+    older = invalidate_samples(
+        older,
+        sample_uuids=[older.samples[0].uuid],
+        provenance=ProvenanceData(author="test_person", reason="test_reason"),
+    )
+    write_eval_log(older, location=older.location)
+    newer = _cross_run_eval(cross_run_a(), log_dir, fail=False)
+
+    for _ in range(2):
+        ok, logs = _cross_run_eval_set([cross_run_a()], log_dir)
+        assert ok
+        assert _CROSS_RUN_RUNS["cross_run_a"] == 0
+        assert _cross_run_per_task(logs) == {"cross_run_a": 1}
+        assert logs[0].eval.eval_id == newer.eval.eval_id
+        assert not logs[0].invalidated
+
+
 def test_eval_set_cross_run_distinct_tasks_kept_apart(tmp_path: Path):
     log_dir = str(tmp_path)
     _cross_run_eval(cross_run_a(), log_dir, fail=False)
