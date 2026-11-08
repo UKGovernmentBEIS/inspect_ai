@@ -1069,3 +1069,39 @@ async def test_grok_output_records_response_id(
     output, _ = await _generate_once(api)
 
     assert output.response_id == "grok-response"
+
+
+def test_sampling_usage_folds_reasoning_into_output_tokens() -> None:
+    """Reasoning tokens count as output tokens."""
+    from xai_sdk.chat import usage_pb2
+
+    from inspect_ai.model._providers.grok import _model_usage_from_sampling_usage
+
+    usage = _model_usage_from_sampling_usage(
+        usage_pb2.SamplingUsage(
+            prompt_tokens=32,
+            completion_tokens=9,
+            reasoning_tokens=94,
+            total_tokens=135,
+        )
+    )
+
+    assert usage.input_tokens == 32
+    assert usage.output_tokens == 103
+    assert usage.reasoning_tokens == 94
+    assert usage.total_tokens == 135
+
+
+def test_sampling_usage_without_reasoning_is_unchanged() -> None:
+    from xai_sdk.chat import usage_pb2
+
+    from inspect_ai.model._providers.grok import _model_usage_from_sampling_usage
+
+    usage = _model_usage_from_sampling_usage(
+        usage_pb2.SamplingUsage(
+            prompt_tokens=100, completion_tokens=5, total_tokens=105
+        )
+    )
+
+    assert usage.output_tokens == 5
+    assert usage.reasoning_tokens == 0
