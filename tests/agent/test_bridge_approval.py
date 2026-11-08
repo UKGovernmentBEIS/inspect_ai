@@ -7047,12 +7047,12 @@ async def test_copy_of_an_answer_to_several_executions_links_nothing(
 @pytest.mark.parametrize(
     "dialect,call_ids,answer",
     [
-        ("google", "reused", "edited"),
+        *[("google", "reused", answer) for answer in ["edited", "unchanged"]],
         *[
             (dialect, call_ids, answer)
             for call_ids in ["reused", "distinct"]
             for dialect in ["completions", "responses", "anthropic"]
-            for answer in ["added", "edited"]
+            for answer in ["added", "edited", "unchanged"]
         ],
     ],
 )
@@ -7064,18 +7064,21 @@ async def test_answer_sent_after_a_later_execution_holds_its_outcome(
     sent: str,
     resumed: bool,
 ) -> None:
-    """An answer, or an edit of one, first sent after the call executed again counts that execution's outcome too.
+    """An answer counts the outcome of every execution of its call, including those after it was first sent.
 
-    The call runs on `a` ("X") and its answer "X" links; with `rerun` it then
-    runs on `b` ("Y"). The scaffold sends "Y" as a second answer (`added`) or
-    in place of its "X" answer (`edited`), compacts that exchange away, and
-    runs an equal call on `a` returning "X", answering it with a copy of the
-    "Y" answer (or, as a control, its own "X"). With `resumed`, the later call
-    is made to a bridge resumed from a checkpoint taken after the "Y" answer.
-    A copy of an answer to both executions links nothing; after one
-    execution, "Y" is the scaffold's rendering of "X" and a copy links.
-    Google sends a second result under another call's derived id, so it has
-    no `added` case.
+    The call runs on `a` ("X") and its answer links; with `rerun` it then
+    runs on `b` ("Y"). The scaffold's answer is "X", then "Y" as a second
+    answer (`added`) or in place of the first (`edited`); or "Y" from the
+    start, resent unchanged after the rerun (`unchanged`). It compacts that
+    exchange away and runs an equal call on `a` returning "X", answering it
+    with a copy of the "Y" answer (or, as a control, its own "X"). With
+    `resumed`, the later call is made to a bridge resumed from a checkpoint
+    taken after the last "Y" answer. A copy of an answer to both executions
+    links nothing; after one execution, "Y" is the scaffold's rendering of
+    "X" and a copy links. After both, the earlier "X" answer is an answer to
+    both too, so under a reused id an own "X" equal to it may be its copy and
+    links nothing. Google sends a second result under another call's derived
+    id, so it has no `added` case.
     """
 
     def calls(text: str, call_id: str = "call_1") -> ModelOutput:
@@ -7121,14 +7124,25 @@ async def test_answer_sent_after_a_later_execution_holds_its_outcome(
         first = await conversation.request(bridge)
         await call_host_tool(bridge)("a", "read_file", first[0][1])
         answer_index = len(conversation.history)
-        conversation.results(first, ["X"])
+        conversation.results(first, ["Y" if answer == "unchanged" else "X"])
         await conversation.request(bridge)
+        [(first_id, first_answer)] = bridge._answers.items()
+        copy_keys = [
+            key
+            for key in bridge._keys_by_id[first_id]
+            if key.startswith(("content:", "loose:"))
+        ]
+        # counted before the rerun, so the rerun must recount them
+        assert copy_keys and all(
+            bridge._copies_answered(key, first_answer.outcomes) for key in copy_keys
+        )
         if rerun:
             await call_host_tool(bridge)("b", "read_file", first[0][1])
-        conversation.results(first, ["Y"])
+        if answer != "unchanged":
+            conversation.results(first, ["Y"])
         if answer == "edited":
             conversation.history[answer_index] = conversation.history.pop()
-        else:
+        elif answer == "added":
             conversation.history.insert(answer_index + 1, conversation.history.pop())
         await conversation.request(bridge)
         model_events = [e for e in recorded.events if isinstance(e, ModelEvent)]
@@ -7157,7 +7171,9 @@ async def test_answer_sent_after_a_later_execution_holds_its_outcome(
     tool_events = [e for e in recorded.events if isinstance(e, ToolEvent)]
     assert [e.result for e in tool_events] == ["X", *(["Y"] if rerun else []), "X"]
     assert tool_events[0].message_id is not None
-    copied = sent == "copy" and call_ids == "reused" and rerun
+    copied = (
+        call_ids == "reused" and rerun and (sent == "copy" or answer != "unchanged")
+    )
     assert tool_events[-1].message_id == (None if copied else latest)
 
 

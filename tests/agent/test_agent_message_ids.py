@@ -3426,6 +3426,61 @@ def test_tracked_host_calls_keep_no_unexecuted_calls() -> None:
     assert unexecuted() is None
 
 
+async def test_later_execution_adds_to_answer_records_of_rival_replies() -> None:
+    """A later execution of a call adds its outcome to the record of every answer that may answer it, including an answer to an identical reply recognition may have taken for its reply."""
+    task = ChatMessageUser(content="Start")
+    bridge = AgentBridge(AgentState(messages=[task]))
+    scaffold = _Scaffold(bridge)
+    first, second = _call("call_1"), _call("call_1")
+    await scaffold.request([task], first)
+    _awaiting(bridge, first, result="a.txt")
+    window: list[ChatMessage] = [task, first, _result("call_1")]
+    first_answer = (await scaffold.request(window, second))[2]
+    _awaiting(bridge, second, result="a.txt")
+    second_answer = (await scaffold.request([*window, second, _result("call_1")]))[4]
+    answers = [first_answer, second_answer]
+    assert [len(bridge._answers[id].outcomes) for id in answers] == [1, 1]
+    assert bridge._answer_groups[first.id or ""].answers.keys() == set(answers)
+
+    _awaiting(bridge, first, result="b.txt")
+
+    assert [len(bridge._answers[id].outcomes) for id in answers] == [2, 2]
+
+
+def test_answer_groups_merge_and_drop_with_their_answers() -> None:
+    """Answer groups sharing a reply merge, and a group goes once its last answer is dropped."""
+    bridge = AgentBridge(AgentState(messages=[]))
+    call = bridge_types._CallMatch("bash", None, None)
+    for reply, rivals in [("r1", []), ("r2", []), ("r3", ["r1", "r2"])]:
+        bridge._answers[f"m_{reply}"] = bridge_types._Answer(reply, frozenset({"A"}))
+        bridge._reply_answer_records(reply).message_ids.append(f"m_{reply}")
+        bridge._answer_records += 1
+        bridge._join_answer_group(f"m_{reply}", call, [reply, *rivals])
+    group = bridge._answer_groups["r1"]
+    assert all(bridge._answer_groups[reply] is group for reply in ("r2", "r3"))
+    assert group.answers.keys() == {"m_r1", "m_r2", "m_r3"}
+
+    _awaiting(
+        bridge,
+        ChatMessageAssistant(
+            id="r2",
+            content="",
+            tool_calls=[
+                ToolCall(id="call_1", function="bash", arguments={"cmd": "ls"})
+            ],
+        ),
+        result="B",
+    )
+    assert all(len(answer.outcomes) == 2 for answer in bridge._answers.values())
+
+    with patch.object(bridge_types, "_MAX_ANSWER_RECORDS", 1):
+        bridge._drop_answer_records()
+    assert group.answers.keys() == {"m_r3"} and bridge._answer_groups["r1"] is group
+    with patch.object(bridge_types, "_MAX_ANSWER_RECORDS", 0):
+        bridge._drop_answer_records()
+    assert bridge._answer_groups == {}
+
+
 async def test_answer_records_are_bounded() -> None:
     """A long run of host calls under compaction keeps a bounded number of answer records and no calls."""
     task = ChatMessageUser(content="Start")

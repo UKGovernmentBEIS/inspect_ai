@@ -247,7 +247,7 @@ class _Answer(NamedTuple):
     reply_id: str
 
     outcomes: frozenset[str]
-    """Outcomes of the call's host executions when the message was first sent."""
+    """Outcomes of every host execution of the call, including those after the message was first sent (`AgentBridge._await_result_message`); empty if it may answer calls whose executions differ."""
 
     linkable: bool = True
     """Whether the message may be linked to the call's host execution (not when it may be a copy of an earlier answer)."""
@@ -262,6 +262,18 @@ class _ResultId(NamedTuple):
     """Whether a new id may be linked to the call's host execution (see `_Answer`)."""
 
 
+class _CallMatch(NamedTuple):
+    """The calls of a reply a tool message may answer (`AgentBridge._executions`)."""
+
+    function: str
+
+    arguments: str | None
+    """Digest of their arguments, or `None` for every call with `function`."""
+
+    call_id: str | None
+    """Their id, or `None` for any id."""
+
+
 class _Executions(NamedTuple):
     """The awaited executions of the call a tool message answers (`AgentBridge._executions`)."""
 
@@ -271,6 +283,9 @@ class _Executions(NamedTuple):
 
     pending: tuple[str, ...]
     """Outcomes of the executions not yet settled."""
+
+    call: _CallMatch | None = None
+    """The calls matched, if any."""
 
 
 class _AwaitedIndex(NamedTuple):
@@ -293,6 +308,17 @@ class _ReplyAnswers(NamedTuple):
 
     occurrences: dict[str, str | None]
     """Per message key, the id its answer was first given (`None` once an answer with another id has it too)."""
+
+
+@dataclass
+class _AnswerGroup:
+    """Answer records a later execution of a call in `replies` may add an outcome to (`AgentBridge._await_result_message`)."""
+
+    replies: set[str]
+    """Replies answered, and those recognition may have taken for them (`AgentBridge._record_answer`)."""
+
+    answers: dict[str, _CallMatch]
+    """Ids of the answers, with the calls each may answer."""
 
 
 @dataclass
@@ -542,6 +568,8 @@ class AgentBridge:
         self._copied_answers: dict[str, _CopiedAnswers] = {}
         self._copy_keys: dict[str, set[str]] = {}
         """Per id with an answer record, the keys whose `_CopiedAnswers.outcomes` count it."""
+        self._answer_groups: dict[str, _AnswerGroup] = {}
+        """Per reply, the group holding it."""
         self._operator_keys: set[str] = set()
         self._warned_request_settings: set[str] = set()
 
@@ -698,13 +726,30 @@ class AgentBridge:
         later request (`_link_result_messages`). A second execution of the call
         settles it unlinked (which execution the result holds is unknown), and
         one after the call settled stays unlinked. Every execution's outcome is
-        kept, so an answer's record covers whichever one it holds. At most
-        `_MAX_AWAITED_RESULTS` calls are tracked; the oldest replies' calls are
-        dropped (left unlinked) beyond that.
+        kept, and added to the records of answers already sent that may answer
+        the call (`_answer_groups`), so a record covers every execution
+        whichever one the answer holds. At most `_MAX_AWAITED_RESULTS` calls are
+        tracked; the oldest replies' calls are dropped (left unlinked) beyond
+        that.
         """
         outcome = mm3_hash(
             json.dumps(jsonable_python({"result": event.result, "error": event.error}))
         )
+        group = self._answer_groups.get(handed.reply_id)
+        for message_id, call in group.answers.items() if group else ():
+            answer = self._answers[message_id]
+            if (
+                outcome not in answer.outcomes
+                and call.function == handed.function
+                and call.arguments in (None, handed.arguments)
+                and (
+                    call.call_id in (None, handed.call_id)
+                    or answer.reply_id != handed.reply_id
+                )
+            ):
+                self._recount_answer(
+                    message_id, answer._replace(outcomes=answer.outcomes | {outcome})
+                )
         calls = self._awaited_results.setdefault(handed.reply_id, {})
         tracked = calls.get(handed.position)
         if tracked is None:
@@ -1291,9 +1336,8 @@ class AgentBridge:
     def _copies_answered(self, key: str, outcomes: frozenset[str]) -> bool:
         """Whether every message recorded under `key` has an answer record with `outcomes`.
 
-        Each message's own record, not its edit root's: an edit sent after the
-        call ran again may hold that execution's result. An edit without a
-        record of its own doesn't count as an answer.
+        Each message's own record: an edit without one doesn't count as an
+        answer.
 
         Kept per key and updated as ids are recorded and records dropped, so
         repeated results don't each rescan the ids recorded under their keys.
@@ -1364,6 +1408,15 @@ class AgentBridge:
                 for entry in index.by_call.get((call.function, call.arguments), [])
                 if identical or entry.handed.identical == 1
             ]
+        matched: _CallMatch | None = None
+        if entries and call is None:
+            matched = _CallMatch(entries[0].handed.function, None, None)
+        elif entries and call is not None:
+            matched = _CallMatch(
+                call.function,
+                call.arguments,
+                call.id if call.id in index.by_id else None,
+            )
         executions = _Executions(
             bool(entries),
             frozenset().union(*(entry.outcomes for entry in entries)),
@@ -1373,6 +1426,7 @@ class AgentBridge:
                 if not entry.settled
                 for outcome in entry.outcomes
             ),
+            matched,
         )
         index.executions[memo_key] = executions
         return executions
@@ -1397,7 +1451,11 @@ class AgentBridge:
         one's executions. The record keeps no outcomes unless the call's
         executions in each rival returned the same outcomes: a later equal
         message must not be taken for a fresh answer on the basis of the
-        wrong executions.
+        wrong executions. A record with outcomes joins the group of its reply
+        and rivals (`_AnswerGroup`), so a later execution of a call it may
+        answer adds that outcome (`_await_result_message`). Groups that share
+        a reply merge, so a group may cover executions an answer can't hold:
+        that only leaves more records unusable for copy checks.
 
         At most `_MAX_ANSWER_RECORDS` records are kept between requests: once a
         request is linked, the oldest replies' are dropped beyond that, so a
@@ -1406,7 +1464,8 @@ class AgentBridge:
         """
         if message_id in self._answers:
             return
-        outcomes = self._executions(answered, identical=True).outcomes
+        executions = self._executions(answered, identical=True)
+        outcomes = executions.outcomes
         if any(
             self._executions(answered._replace(reply_id=rival), identical=True).outcomes
             != outcomes
@@ -1416,6 +1475,54 @@ class AgentBridge:
         self._answers[message_id] = _Answer(answered.reply_id, outcomes, linkable)
         self._reply_answer_records(answered.reply_id).message_ids.append(message_id)
         self._answer_records += 1
+        if outcomes and executions.call is not None:
+            self._join_answer_group(
+                message_id, executions.call, [answered.reply_id, *rivals]
+            )
+
+    def _join_answer_group(
+        self, message_id: str, call: _CallMatch, replies: list[str]
+    ) -> None:
+        groups = {
+            id(group): group
+            for reply in replies
+            if (group := self._answer_groups.get(reply)) is not None
+        }
+        joined = max(
+            groups.values(),
+            key=lambda group: len(group.replies) + len(group.answers),
+            default=_AnswerGroup(set(), {}),
+        )
+        for group in groups.values():
+            if group is not joined:
+                joined.replies |= group.replies
+                joined.answers |= group.answers
+                for reply in group.replies:
+                    self._answer_groups[reply] = joined
+        for reply in replies:
+            joined.replies.add(reply)
+            self._answer_groups[reply] = joined
+        joined.answers[message_id] = call
+
+    def _recount_answer(self, message_id: str, answer: _Answer | None) -> None:
+        previous = (
+            self._answers.pop(message_id)
+            if answer is None
+            else self._answers[message_id]
+        )
+        if answer is not None:
+            self._answers[message_id] = answer
+        for key in self._copy_keys.get(message_id, ()):
+            copied = self._copied_answers[key]
+            copied.outcomes[previous.outcomes] -= 1
+            if not copied.outcomes[previous.outcomes]:
+                del copied.outcomes[previous.outcomes]
+            if answer is not None:
+                copied.outcomes[answer.outcomes] += 1
+            else:
+                copied.unrecorded.append(message_id)
+        if answer is None:
+            self._copy_keys.pop(message_id, None)
 
     def _rival_replies(self, reply_id: str, keys: list[str]) -> list[str]:
         def strength(original: str) -> int:
@@ -1458,15 +1565,15 @@ class AgentBridge:
 
     def _drop_answer_records(self) -> None:
         while self._answer_records > _MAX_ANSWER_RECORDS:
-            _, dropped = self._reply_answers.popitem(last=False)
+            reply_id, dropped = self._reply_answers.popitem(last=False)
+            group = self._answer_groups.get(reply_id)
             for message_id in dropped.message_ids:
-                answer = self._answers.pop(message_id)
-                for key in self._copy_keys.pop(message_id, ()):
-                    copied = self._copied_answers[key]
-                    copied.outcomes[answer.outcomes] -= 1
-                    if not copied.outcomes[answer.outcomes]:
-                        del copied.outcomes[answer.outcomes]
-                    copied.unrecorded.append(message_id)
+                self._recount_answer(message_id, None)
+                if group is not None:
+                    group.answers.pop(message_id, None)
+            if group is not None and not group.answers:
+                for reply in group.replies:
+                    del self._answer_groups[reply]
             self._answer_records -= len(dropped.message_ids) + len(dropped.occurrences)
 
     def _version_id(self, message_id: str, message: ChatMessage) -> str:
