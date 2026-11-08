@@ -7,7 +7,7 @@ import anyio
 from shortuuid import uuid
 
 from inspect_ai._sentinel._context import warn_sentinel_bridged
-from inspect_ai._util.exception import TerminateSampleError
+from inspect_ai._util._async import raise_unwrapped
 from inspect_ai._util.working import untracked_sandbox_execs
 from inspect_ai.model._compaction.types import CompactionStrategy
 from inspect_ai.model._model import (
@@ -34,6 +34,7 @@ from inspect_ai.util._sandbox.exec_remote import (
     ExecRemoteStreamingOptions,
     ExecStderr,
 )
+from inspect_ai.util._sandbox.service import find_control_flow
 
 from ..._agent import AgentState
 from ..util import resolve_bridge_code_execution, resolve_bridge_web_search
@@ -102,7 +103,7 @@ async def sandbox_agent_bridge(
         state: Initial state for agent bridge. Used as a basis for yielding
             an updated state based on traffic over the bridge.
         model: Pin every request the bridge does not otherwise recognise to
-            this model (e.g. "inspect/openai/gpt-4o"; the "inspect/" prefix is
+            this model (e.g. "inspect/openai/gpt-6-luna"; the "inspect/" prefix is
             optional). Aliases, resolver results and the name "inspect" are not
             pinned. Defaults to `None`, which routes unrecognised names to the
             eval's active model ("inspect" means the same); map other names
@@ -162,9 +163,10 @@ async def sandbox_agent_bridge(
             to pass to CLI agents are available via bridge.mcp_server_configs.
         model_event_sink: Optional sink that takes ownership of `ModelEvent`
             emission for calls routed through the bridge. When set, the bridge
-            installs it around `model.generate()` so the sink decides when and
-            under which span each event is emitted to the transcript. A host
-            tool call the model proposed is recorded in the span the sink set
+            installs it around `model.generate()`. The sink decides under which
+            span each generation runs (its optional `on_start`) and when each
+            event is emitted to the transcript (`on_pending`/`on_complete`); see
+            `ModelEventSink`. A host tool call the model proposed is recorded in the span the sink set
             on the proposing `ModelEvent` by the time `on_complete` returns,
             and is recorded right away: a span set later, or a `ModelEvent`
             the sink emits later, is not matched up with it.
@@ -227,6 +229,7 @@ async def sandbox_agent_bridge(
     # should be logged but not cause the sample to fail.
     agent_completed = False
 
+    bridge: SandboxAgentBridge | None = None
     try:
         async with anyio.create_task_group() as tg:
             # event to signal startup of model service
@@ -297,7 +300,9 @@ async def sandbox_agent_bridge(
             tg.start_soon(_monitor_proxy, proxy)
 
             # monitor for a sample failure requested from the service task
-            # (approver termination, fail_on_refusal, a host tool that raised)
+            # (fail_on_refusal, a response filter failure, an invalid approver
+            # modification, a host tool bug). A termination needs no monitor:
+            # the service dispatcher propagates it out of run_model_service.
             tg.start_soon(_monitor_failure, bridge)
 
             # main agent
@@ -313,6 +318,19 @@ async def sandbox_agent_bridge(
                 # ensure the scope is cancelled
                 tg.cancel_scope.cancel()
     except Exception as ex:
+        # A termination ends the sample even if the agent completed first: the
+        # service dispatcher answers a terminating request before raising, so the
+        # scaffold can read that reply and exit before the termination arrives.
+        termination = find_control_flow(ex)
+        if termination is not None:
+            raise termination from ex
+        # A requested failure or a generation limit takes the place of the
+        # error the agent unwound with (often the scaffold's, after it read the
+        # error reply). A cancellation from an enclosing scope is not an
+        # Exception, so it passes through unchanged for that scope to handle.
+        error = await _error_after_unwind(bridge, ex)
+        if error is not None:
+            raise_unwrapped(ex, error)
         # If the agent completed successfully but we got an error during cleanup,
         # log the error but don't fail the sample.
         if agent_completed:
@@ -321,7 +339,52 @@ async def sandbox_agent_bridge(
             )
         else:
             # Error occurred before or during agent execution
-            raise inner_exception(ex)
+            raise_unwrapped(ex, inner_exception(ex))
+    # the agent returned after a failure was requested or a limit was reached
+    error = await _error_after_unwind(bridge, None)
+    if error is not None:
+        raise error
+
+
+async def _error_after_unwind(
+    bridge: SandboxAgentBridge | None, unwound: Exception | None
+) -> Exception | None:
+    """The error to raise once the agent has unwound, if any.
+
+    A requested sample failure (`SandboxAgentBridge.request_fail`), else the
+    generation limit recorded (`SandboxAgentBridge.generation_limit`). A
+    failure `_monitor_failure` raised, so the agent unwound with it, is
+    returned as is. Otherwise a pending enclosing cancellation is delivered
+    first: it passes through, and a failure the monitor had not yet raised is
+    lost with the limit (decision: Ransom, 2026-10-29).
+    """
+    if bridge is None:
+        return None
+    failure = bridge._failure
+    if failure is not None and unwound is not None and _holds(unwound, failure):
+        return failure
+    error = failure or bridge.generation_limit
+    if error is not None:
+        await _deliver_enclosing_cancellation()
+    return error
+
+
+def _holds(group: Exception, error: Exception) -> bool:
+    """Whether `group` is `error` or holds it as a member."""
+    if isinstance(group, BaseExceptionGroup):
+        return group.subgroup(lambda member: member is error) is not None
+    return group is error
+
+
+async def _deliver_enclosing_cancellation() -> None:
+    """Raise a cancellation an enclosing scope requested, if any.
+
+    A cancellation requested while the bridge shut down in its shielded scope
+    can be left undelivered on asyncio once the task group exits. Delivering it
+    before an error is raised in its place lets it pass through unchanged, as
+    when it arrives earlier.
+    """
+    await anyio.lowlevel.checkpoint_if_cancelled()
 
 
 def _register_bridged_tools(
@@ -351,14 +414,14 @@ async def _monitor_failure(bridge: SandboxAgentBridge) -> None:
     """Raise the error a bridged generation or tool call asked the sample to fail with.
 
     Bridged generations and host tool calls run in the sandbox service task,
-    whose exceptions never propagate (see `SandboxAgentBridge.request_fail`).
-    Raising here instead puts the error in the bridge's own task group, so it
-    unwinds the agent and reaches the sample runner.
+    whose dispatcher turns their exceptions into RPC error responses, except a
+    limit or a termination (see `SandboxAgentBridge.request_fail`). Raising here
+    instead puts the error in the bridge's own task group, so it unwinds the
+    agent and reaches the sample runner.
     """
     await bridge._failure_requested.wait()
-    raise bridge._failure or TerminateSampleError(
-        "Sample terminated by tool call approver."
-    )
+    assert bridge._failure is not None
+    raise bridge._failure
 
 
 async def _monitor_proxy(proxy: ExecRemoteProcess) -> None:

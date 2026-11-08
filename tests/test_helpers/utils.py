@@ -19,11 +19,14 @@ import pytest
 from _pytest.outcomes import OutcomeException, Skipped, XFailed
 
 from inspect_ai import Task, eval, task
+from inspect_ai._util._async import unwrap_exception_group
 from inspect_ai._util.entrypoints import clear_entry_points_state, ensure_entry_points
 from inspect_ai.dataset import Sample
 from inspect_ai.model import ChatMessage, ModelName, ModelOutput
 from inspect_ai.scorer import match
 from inspect_ai.solver import Generate, TaskState, generate, solver
+from inspect_ai.tool import ToolError
+from inspect_ai.util import collect
 from inspect_ai.util._concurrency import (
     AdaptiveConcurrency,
     AdaptiveConcurrencyController,
@@ -722,3 +725,29 @@ async def register_adaptive_controller(
     )
     assert isinstance(ctrl, AdaptiveConcurrencyController)
     return ctrl
+
+
+async def fail_in_a_group_with_handled_context(outer_cause: bool) -> None:
+    """Raise `ExceptionGroup("inner", [RuntimeError("fatal")])` from a task group.
+
+    The group is raised while handling `ToolError("handled context")`, so the
+    group's own context is a recoverable error that is not what failed. With
+    `outer_cause`, the task group's wrapper also has its own cause, so the
+    unwrapped group's context also holds the wrapper.
+    """
+
+    async def fail() -> None:
+        try:
+            raise ToolError("handled context")
+        except ToolError:
+            raise ExceptionGroup("inner", [RuntimeError("fatal")])
+
+    try:
+        await collect(fail())
+    except ExceptionGroup as inner:
+        if not outer_cause:
+            raise
+        outer = ExceptionGroup("outer", [inner])
+        outer.__cause__ = ValueError("outer cause")
+        with unwrap_exception_group():
+            raise outer

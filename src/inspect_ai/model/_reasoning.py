@@ -111,6 +111,40 @@ def parse_content_with_reasoning(content: str) -> tuple[str, ReasoningCapsule | 
     - The first element is the input content with the <think> tag and its contents fully removed.
     - The second element is a ReasoningCapsule named tuple (or None if no <think> tag is found).
     """
+    block = _parse_think_block(content)
+    if block is None:
+        return content, None
+    return (content[: block.start] + content[block.end :]).strip(), block.capsule
+
+
+def split_content_with_reasoning(content: str) -> list[str | ReasoningCapsule]:
+    """Split content into its text and every <think/> block, in order.
+
+    This is the inverse of serializing each reasoning block of a message with
+    `reasoning_to_think_tag` between its text (as agent bridges do for the
+    chat completions API). The serializer separates blocks and text with
+    newlines, so only newlines are stripped from the ends of each text segment;
+    other whitespace, such as code indentation, is kept. Empty text is omitted.
+    """
+    segments: list[str | ReasoningCapsule] = []
+    while (block := _parse_think_block(content)) is not None:
+        if text := content[: block.start].strip("\n"):
+            segments.append(text)
+        segments.append(block.capsule)
+        content = content[block.end :]
+    if text := content.strip("\n"):
+        segments.append(text)
+    return segments
+
+
+class _ThinkBlock(NamedTuple):
+    start: int
+    end: int
+    capsule: ReasoningCapsule
+
+
+def _parse_think_block(content: str) -> _ThinkBlock | None:
+    """Find the first <think/> block, returning its span and parsed capsule."""
     # Match <think> tag with any attributes
     pattern = r"<think([^>]*)>(.*?)</think>"
     match = _find_nested_think_block(content) or re.search(pattern, content, re.DOTALL)
@@ -132,12 +166,12 @@ def parse_content_with_reasoning(content: str) -> tuple[str, ReasoningCapsule | 
             # inserted there is not part of the payload.
             reasoning = re.sub(r"\s+", "", reasoning)
 
-        # Remove the matched <think>...</think> from the input
         start, end = match.span()
 
-        return (
-            (content[:start] + content[end:]).strip(),
-            ReasoningCapsule(
+        return _ThinkBlock(
+            start=start,
+            end=end,
+            capsule=ReasoningCapsule(
                 reasoning=reasoning,
                 signature=signature,
                 redacted=redacted,
@@ -146,7 +180,7 @@ def parse_content_with_reasoning(content: str) -> tuple[str, ReasoningCapsule | 
             ),
         )
     else:
-        return content, None
+        return None
 
 
 def _find_nested_think_block(content: str) -> re.Match[str] | None:

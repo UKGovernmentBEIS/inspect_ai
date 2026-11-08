@@ -1,25 +1,31 @@
+import json
 import pickle
 import sys
+from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterator
+from typing import Any, Iterator, Literal, cast
 
+import httpx2
 import pytest
+from pydantic import SecretStr
 from test_helpers.utils import run_example
 
-from inspect_ai import Task, eval
+from inspect_ai import Task, eval, eval_async, eval_retry, task
 from inspect_ai._eval.evalset import GENERATE_CONFIG_FIELDS_TO_EXCLUDE
 from inspect_ai._util import appdirs
 from inspect_ai._util import logger as inspect_logger
+from inspect_ai._util.constants import get_deserializing_context
 from inspect_ai._util.content import ContentText
 from inspect_ai.dataset import Sample
 from inspect_ai.event._model import ModelEvent
-from inspect_ai.log import EvalSample
+from inspect_ai.log import EvalSample, read_eval_log
 from inspect_ai.model import (
     CachePolicy,
     ChatMessageUser,
     GenerateConfig,
     ModelOutput,
+    get_model,
 )
 from inspect_ai.model import _cache as cache_module
 from inspect_ai.model._cache import (
@@ -30,11 +36,324 @@ from inspect_ai.model._cache import (
     cache_clear,
     cache_fetch,
     cache_list_expired,
+    cache_model_args_key,
     cache_path,
     cache_prune,
     cache_store,
 )
-from inspect_ai.solver import generate
+from inspect_ai.scorer import exact
+from inspect_ai.solver import Generate, TaskState, generate, solver
+
+
+async def test_cache_separates_model_args(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Constructor request defaults must not reuse a different model's answer."""
+    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path / "cache"))
+    monkeypatch.setenv("INSPECT_TRACE_FILE", str(tmp_path / "trace.log"))
+    requests: list[str] = []
+
+    async def send(
+        self: httpx2.AsyncClient, request: httpx2.Request, **kwargs: Any
+    ) -> httpx2.Response:
+        system = json.loads(request.content)["system"]
+        requests.append(system)
+        return httpx2.Response(
+            200,
+            request=request,
+            json={
+                "id": "msg_test",
+                "type": "message",
+                "role": "assistant",
+                "model": "claude-sonnet-4-6",
+                "content": [{"type": "text", "text": system}],
+                "stop_reason": "end_turn",
+                "stop_sequence": None,
+                "usage": {"input_tokens": 4, "output_tokens": 1},
+            },
+        )
+
+    monkeypatch.setattr(httpx2.AsyncClient, "send", send)
+    means: list[float] = []
+    cache_events: list[str | None] = []
+    for system in ["3", "4", "4"]:
+        model = get_model(
+            "anthropic/claude-sonnet-4-6",
+            api_key="test-key",
+            base_url="https://cache-test.invalid",
+            streaming=False,
+            extra_body={"system": system},
+            config=GenerateConfig(max_tokens=32, max_retries=0),
+            memoize=False,
+        )
+        async with model:
+            logs = await eval_async(
+                Task(
+                    dataset=[Sample(input="What is 2 + 2?", target="4")],
+                    solver=generate(cache=True),
+                    scorer=exact(),
+                ),
+                model=model,
+                log_dir=str(tmp_path / "logs"),
+                ctl_server=False,
+            )
+            log = logs[0]
+        assert log.status == "success"
+        assert log.results and log.samples
+        means.append(log.results.scores[0].metrics["mean"].value)
+        cache_events.extend(
+            event.cache
+            for event in log.samples[0].events
+            if isinstance(event, ModelEvent)
+        )
+
+    assert means == [0.0, 1.0, 1.0]
+    assert requests == ["3", "4"]
+    assert cache_events == ["write", "write", "read"]
+
+
+@pytest.mark.parametrize("credential", ["api_key", "aws_session_token"])
+async def test_cache_shares_entries_across_credentials(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, credential: str
+) -> None:
+    """A rotated credential does not change the response."""
+    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path))
+    calls = 0
+
+    async def generate_output(*args: Any, **kwargs: Any) -> ModelOutput:
+        nonlocal calls
+        calls += 1
+        return ModelOutput.from_content(model="mockllm", content="3")
+
+    for value in ["first", "rotated"]:
+        credential_args: dict[str, Any] = {credential: value}
+        model = get_model(
+            "mockllm/model",
+            memoize=False,
+            extra_body={"system": "3"},
+            **credential_args,
+        )
+        monkeypatch.setattr(model.api, "generate", generate_output)
+        assert (await model.generate("Hello", cache=True)).completion == "3"
+    assert calls == 1
+
+
+_fail_after_generate = {"fail": False}
+
+
+@solver
+def _generate_then_fail_once():
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        state = await generate(state, cache=True)
+        if _fail_after_generate["fail"]:
+            _fail_after_generate["fail"] = False
+            raise ValueError("fail once after generate")
+        return state
+
+    return solve
+
+
+@task
+def cached_generate_then_fail_once() -> Task:
+    return Task(dataset=[Sample(input="Hello")], solver=_generate_then_fail_once())
+
+
+def test_cache_hit_on_retry_from_logged_model_args(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The log drops credentials, so a retry rebuilds model args without them."""
+    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path / "cache"))
+    monkeypatch.setitem(_fail_after_generate, "fail", True)
+    log = eval(
+        cached_generate_then_fail_once(),
+        model="mockllm/model",
+        model_args={"aws_session_token": "token", "extra_body": {"system": "3"}},
+        log_dir=str(tmp_path / "logs"),
+    )[0]
+    assert log.status == "error"
+    assert log.eval.model_args == {"extra_body": {"system": "3"}}
+
+    retried = eval_retry(log, log_dir=str(tmp_path / "logs"))[0]
+    assert retried.status == "success"
+    assert retried.samples
+    assert [
+        event.cache
+        for event in retried.samples[0].events
+        if isinstance(event, ModelEvent)
+    ] == ["read"]
+
+
+def test_cache_model_args_key_is_stable() -> None:
+    args = {"extra_body": {"system": "3", "options": [True, None, 0.5]}}
+    same = {"extra_body": {"system": "3", "options": [True, None, 0.5]}}
+    assert cache_model_args_key(args) == cache_model_args_key(same)
+    assert cache_model_args_key(args) != cache_model_args_key(
+        {"extra_body": {"system": "4", "options": [True, None, 0.5]}}
+    )
+    secret_key = cache_model_args_key({"key": "distinctive-secret"})
+    assert secret_key and len(secret_key) == 64
+    assert "distinctive-secret" not in secret_key
+    assert cache_model_args_key({}) == ""
+
+
+@pytest.mark.parametrize(
+    "value", [object(), SecretStr("secret"), {1: "integer-key"}, float("nan")]
+)
+def test_cache_model_args_key_rejects_unsafe_values(value: Any) -> None:
+    assert cache_model_args_key({"option": {"nested": value}}) is None
+
+
+@pytest.mark.parametrize("instance_key", [None, "instance"])
+def test_cache_model_args_key_keeps_dict_order(instance_key: str | None) -> None:
+    """Providers resolve overlapping keys by order, so order is part of the key."""
+    client = {"client": object()} if instance_key else {}
+    headers_last_wins = cache_model_args_key(
+        {**client, "default_headers": {"x-model-route": "3", "X-Model-Route": "4"}},
+        instance_key=instance_key,
+    )
+    reversed_headers = cache_model_args_key(
+        {**client, "default_headers": {"X-Model-Route": "4", "x-model-route": "3"}},
+        instance_key=instance_key,
+    )
+    assert headers_last_wins != reversed_headers
+
+
+async def test_cache_separates_google_safety_setting_alias_order(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The later of two aliases for one harm category is the one Google applies."""
+    from inspect_ai.model._providers import google as google_provider
+
+    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path))
+    # the provider mutates these shared defaults when it applies user settings
+    monkeypatch.setattr(
+        google_provider,
+        "DEFAULT_SAFETY_SETTINGS",
+        deepcopy(google_provider.DEFAULT_SAFETY_SETTINGS),
+    )
+
+    async def threshold_completion(safety_settings: dict[str, str]) -> str:
+        model = get_model(
+            "google/gemini-2.5-flash",
+            api_key="test",
+            safety_settings=safety_settings,
+            memoize=False,
+        )
+        api = cast(google_provider.GoogleGenAIAPI, model.api)
+
+        async def generate_output(*args: Any, **kwargs: Any) -> ModelOutput:
+            threshold = next(
+                str(setting["threshold"])
+                for setting in api.safety_settings
+                if "HARASSMENT" in str(setting["category"])
+            )
+            return ModelOutput.from_content(model="google", content=threshold)
+
+        monkeypatch.setattr(model.api, "generate", generate_output)
+        return (await model.generate("Hello", cache=True)).completion
+
+    high = await threshold_completion(
+        {"harassment": "low", "HARM_CATEGORY_HARASSMENT": "high"}
+    )
+    low = await threshold_completion(
+        {"HARM_CATEGORY_HARASSMENT": "high", "harassment": "low"}
+    )
+    assert "HIGH" in high
+    assert "LOW" in low
+
+
+@pytest.mark.skipif(sys.get_int_max_str_digits() == 0, reason="no int conversion limit")
+async def test_cache_defers_unserializable_model_args_to_caching(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path))
+    model = get_model("mockllm/model", value=10**5000)
+    assert (await model.generate("Hello")).completion
+    with pytest.raises(ValueError):
+        await model.generate("Hello", cache=True)
+
+
+def test_cache_model_args_key_rejects_cycles() -> None:
+    args: dict[str, Any] = {}
+    args["cycle"] = args
+    assert cache_model_args_key(args) is None
+    assert cache_model_args_key(args, instance_key="instance") is not None
+
+
+def test_cache_model_args_instance_key_preserves_json_arguments() -> None:
+    client = object()
+    args = {"client": client, "extra_body": {"system": "3", "options": [True]}}
+    same = {"client": client, "extra_body": {"system": "3", "options": [True]}}
+    key = cache_model_args_key(args, instance_key="first")
+    assert key == cache_model_args_key(same, instance_key="first")
+    assert key != cache_model_args_key(args, instance_key="second")
+    args["extra_body"] = {"system": "4", "options": [True]}
+    assert key != cache_model_args_key(args, instance_key="first")
+
+    # An opaque node and a user's JSON value resembling its encoding differ.
+    assert cache_model_args_key(
+        {"client": client, "option": object()}, instance_key="first"
+    ) != cache_model_args_key(
+        {"client": client, "option": ["opaque"]}, instance_key="first"
+    )
+
+
+async def test_cache_key_uses_model_args_of_the_retried_attempt(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path))
+    extra_body = {"system": "3"}
+    model = get_model("mockllm/model", extra_body=extra_body)
+    calls = 0
+
+    async def generate_output(*args: Any, **kwargs: Any) -> ModelOutput:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            extra_body["system"] = "4"
+            raise RuntimeError("transient")
+        return ModelOutput.from_content(model="mockllm", content=extra_body["system"])
+
+    monkeypatch.setattr(model.api, "generate", generate_output)
+    monkeypatch.setattr(model.api, "should_retry", lambda ex: True)
+    first = await model.generate("Hello", cache=True)
+    extra_body["system"] = "3"
+    second = await model.generate("Hello", cache=True)
+    assert [first.completion, second.completion] == ["4", "3"]
+    assert calls == 3
+
+
+async def test_cache_scopes_opaque_model_args_to_instance(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path))
+    base = get_model("mockllm/model")
+    await base.generate("Hello", cache=True)
+
+    class Opaque:
+        def __repr__(self) -> str:
+            raise AssertionError("Cache identity must not stringify opaque objects")
+
+    client = Opaque()
+    models = [get_model("mockllm/model", client=client) for _ in range(2)]
+    calls = 0
+
+    async def generate_output(*args: Any, **kwargs: Any) -> ModelOutput:
+        nonlocal calls
+        calls += 1
+        return ModelOutput.from_content(model="mockllm", content=str(calls))
+
+    inspect_logger._warned.clear()
+    for index, model in enumerate(models, start=1):
+        monkeypatch.setattr(model.api, "generate", generate_output)
+        first = await model.generate("Hello", cache=True)
+        second = await model.generate("Hello", cache=True)
+        assert first.completion == str(index)
+        assert second.completion == str(index)
+    assert calls == 2
+    assert "Model output caching is scoped to this model instance" in caplog.text
+    assert len([p for p in tmp_path.rglob("*") if p.is_file()]) == 3
+    inspect_logger._warned.clear()
 
 
 def test_cache_examples():
@@ -76,6 +395,38 @@ def test_cache(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     # first eval should miss the cache and the second should hit it
     check_eval_with_cache(False)
     check_eval_with_cache(True)
+
+
+@pytest.mark.parametrize("log_format", ["eval", "json"])
+def test_cache_policy_without_expiry_round_trips(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, log_format: Literal["eval", "json"]
+):
+    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path / "cache"))
+    log = eval(
+        Task(dataset=[Sample(input="Hello")]),
+        model="mockllm/model",
+        cache=CachePolicy(expiry=None),
+        log_dir=str(tmp_path / "logs"),
+        log_format=log_format,
+        display="none",
+    )[0]
+
+    log = read_eval_log(log.location)
+    assert isinstance(log.eval.model_generate_config.cache, CachePolicy)
+    assert log.eval.model_generate_config.cache.expiry is None
+    assert log.samples
+    model_event = next(e for e in log.samples[0].events if isinstance(e, ModelEvent))
+    assert isinstance(model_event.config.cache, CachePolicy)
+    assert model_event.config.cache.expiry is None
+
+
+def test_cache_policy_missing_expiry_is_none_only_in_log_reads():
+    assert CachePolicy.model_validate({}).expiry == "1W"
+    assert CachePolicy().expiry == "1W"
+    assert (
+        CachePolicy.model_validate({}, context=get_deserializing_context()).expiry
+        is None
+    )
 
 
 def _key_for(config: GenerateConfig) -> str:

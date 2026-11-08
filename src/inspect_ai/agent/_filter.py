@@ -58,7 +58,7 @@ async def content_only(messages: list[ChatMessage]) -> list[ChatMessage]:
             if isinstance(message.content, str):
                 content: list[Content] = [ContentText(text=message.content)]
             else:
-                content = message.content
+                content = list(message.content)
 
             # append tool calls as plain content
             tool_calls = "\n".join(

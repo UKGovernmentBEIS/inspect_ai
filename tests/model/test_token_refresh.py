@@ -208,7 +208,7 @@ _ANTHROPIC_MESSAGE = {
             "https://example.com/v1",
             "authorization",
         ),
-        (AnthropicAPI, "claude-sonnet-4-6", "https://example.com", "x-api-key"),
+        (AnthropicAPI, "claude-sonnet-4-6", "https://example.com", "authorization"),
         (
             AnthropicAPI,
             "azure/claude-sonnet-4-6",

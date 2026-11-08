@@ -52,6 +52,20 @@ class DispatchedCall(NamedTuple):
     """Arguments for the dispatcher call that make the target call with the given ones."""
 
 
+class ReviewedCalls(NamedTuple):
+    """The calls approval reviews for one tool call in a bridged response."""
+
+    calls: list[ToolCall]
+    """The calls approvers see, under the tool call's id: one per bridged tool it would run."""
+
+    dispatch: Callable[[dict[str, Any]], dict[str, Any]]
+    """Arguments for the tool call that make a reviewed call with the given ones."""
+
+
+def _unchanged(arguments: dict[str, Any]) -> dict[str, Any]:
+    return arguments
+
+
 class AgentBridge:
     """Agent bridge."""
 
@@ -164,7 +178,7 @@ class AgentBridge:
 
     model: str | None
     """Model that serves every request the bridge does not otherwise recognise
-    (e.g. ``"inspect/openai/gpt-4o"``; the ``inspect/`` prefix is optional).
+    (e.g. ``"inspect/openai/gpt-6-luna"``; the ``inspect/`` prefix is optional).
     Aliases, resolver results and the name ``"inspect"`` are not pinned.
     ``None`` (or ``"inspect"``) serves such requests with the eval's active
     model, or with the model the name implies when
@@ -187,7 +201,7 @@ class AgentBridge:
 
     allow_client_model_names: bool
     """Let a requested name the bridge does not otherwise recognise reach the
-    model role or model it names (e.g. ``"inspect/openai/gpt-4o"``).  When
+    model role or model it names (e.g. ``"inspect/openai/gpt-6-luna"``).  When
     ``False`` (the default), such requests are served by the eval's active
     model.  Set by the in-process ``agent_bridge()``, whose agent already has
     the host's credentials.
@@ -196,10 +210,12 @@ class AgentBridge:
     model_event_sink: ModelEventSink | None
     """Optional sink that takes ownership of `ModelEvent` emission for calls
     routed through the bridge. When set, the bridge installs it around
-    `model.generate()`; `_record_model_interaction` then dispatches pending /
-    complete events to the sink instead of emitting them to the transcript.
-    Use this to attribute bridge model events to externally-managed agent
-    spans (e.g. spans driven by a side-channel event stream).
+    `model.generate()`. The sink's optional `on_start` decides under which span
+    each generation runs, which a live sentinel's conversation follows;
+    `_record_model_interaction` dispatches pending / complete events to the
+    sink, which decides when each is emitted to the transcript. Use this to
+    attribute bridge model events to externally-managed agent spans (e.g.
+    spans driven by a side-channel event stream). See `ModelEventSink`.
     """
 
     forward_generation_config: bool
@@ -231,9 +247,10 @@ class AgentBridge:
         """Terminate the sample from a bridged generation.
 
         Raises `TerminateSampleError`, which propagates out through the agent to the
-        sample runner. `SandboxAgentBridge` overrides this: its generations run in
-        the sandbox service task, where exceptions become RPC error responses instead
-        of propagating.
+        sample runner. A `SandboxAgentBridge`'s generations run in the sandbox
+        service task: there the raise reaches the service dispatcher, which answers
+        the RPC and propagates the termination out of the service task, unwinding
+        the bridge's task group.
         """
         raise TerminateSampleError(reason)
 
@@ -242,8 +259,9 @@ class AgentBridge:
 
         The caller then raises `error`, which propagates out through the agent to
         the sample runner, so an in-process bridge has nothing to do here.
-        `SandboxAgentBridge` overrides this to signal its monitor task, since a
-        raise in the sandbox service task never reaches the sample runner.
+        `SandboxAgentBridge` overrides this to signal its monitor task, since the
+        sandbox service dispatcher turns a raise (other than a limit or a
+        termination) into an RPC error that never reaches the sample runner.
         """
 
     grants_tool_execution: bool = False
@@ -286,6 +304,23 @@ class AgentBridge:
         dispatched; `SandboxAgentBridge` overrides this.
         """
         return None
+
+    def reviewed_calls(
+        self, call: ToolCall, tools: Sequence[ToolInfo | Tool]
+    ) -> ReviewedCalls:
+        """The calls approval reviews `call` as.
+
+        Approval must review a call as the tool it will run, so policies match
+        that tool's name and approvers see its arguments. Here that is the
+        target of a dispatcher call (`dispatched_call`), else the call itself.
+        `tools` are the declarations the scaffold made to the model in the
+        request that produced `call`. `SandboxAgentBridge` overrides this to
+        resolve a call the same way its execution grants do.
+        """
+        dispatched = self.dispatched_call(call)
+        if dispatched is not None:
+            return ReviewedCalls([dispatched.target], dispatched.dispatch)
+        return ReviewedCalls([call], _unchanged)
 
     def compaction(
         self, tools: Sequence[ToolInfo | Tool], model: Model

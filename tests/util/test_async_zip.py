@@ -449,6 +449,138 @@ async def test_false_zip64_locator_in_compressed_data(tmp_path: Path) -> None:
         assert len(cd.entries) > 0
 
 
+async def test_eocd_fields_containing_eocd_signature(tmp_path: Path) -> None:
+    """A valid archive whose EOCD fields spell out the EOCD signature is read."""
+    zip_path = tmp_path / "eocd_in_eocd.zip"
+
+    # 0x4B50 entries puts b"PK" in the entry-count field; a central directory
+    # size of 0x....0605 follows it with b"\x05\x06".
+    count = 0x4B50
+    names = [f"{i:05d}" for i in range(count)]
+    pad = (0x0605 - count * 46 - sum(len(n) for n in names)) % 0x10000
+    names = [n + ("x" if i < pad else "") for i, n in enumerate(names)]
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        for name in names:
+            zf.writestr(name, b"")
+    assert zip_path.read_bytes()[-12:-8] == b"PK\x05\x06"
+
+    async with AsyncFilesystem() as fs:
+        reader = AsyncZipReader(fs, str(zip_path))
+        cd = await reader.entries()
+        assert [e.filename for e in cd.entries] == names
+
+
+async def test_eocd_with_trailing_data(tmp_path: Path) -> None:
+    """Bytes appended after the EOCD don't hide it, as with stdlib zipfile."""
+    zip_path = tmp_path / "trailing.zip"
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        zf.writestr("member.txt", b"payload")
+    with open(zip_path, "ab") as f:
+        f.write(b"\0" * 100)
+
+    with zipfile.ZipFile(zip_path) as zf:
+        assert zf.read("member.txt") == b"payload"
+
+    async with AsyncFilesystem() as fs:
+        reader = AsyncZipReader(fs, str(zip_path))
+        assert await reader.read_member_fully("member.txt") == b"payload"
+
+
+async def test_truncated_eocd_raises(tmp_path: Path) -> None:
+    """A truncated EOCD raises rather than an earlier signature being read."""
+    zip_path = tmp_path / "truncated.zip"
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        zf.writestr("PK\x05\x06" + "A" * 30, b"")
+    zip_path.write_bytes(zip_path.read_bytes()[:-1])
+
+    with pytest.raises(zipfile.BadZipFile):
+        zipfile.ZipFile(zip_path)
+
+    async with AsyncFilesystem() as fs:
+        reader = AsyncZipReader(fs, str(zip_path))
+        with pytest.raises(ValueError, match="EOCD not found"):
+            await reader.entries()
+
+
+@pytest.mark.parametrize("cut", [19, 34])
+async def test_truncation_exposing_earlier_eocd_signature_raises(
+    tmp_path: Path, cut: int
+) -> None:
+    """A central directory that doesn't match the EOCD found raises.
+
+    Cutting 19 or more bytes leaves too little of the real EOCD to be found,
+    so the signature in a member name is read as the EOCD instead.
+    """
+    zip_path = tmp_path / "truncated.zip"
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        zf.writestr("a", b"")
+        zf.writestr("PK\x05\x06" + "A" * 30, b"")
+    zip_path.write_bytes(zip_path.read_bytes()[:-cut])
+
+    with pytest.raises(zipfile.BadZipFile):
+        zipfile.ZipFile(zip_path)
+
+    async with AsyncFilesystem() as fs:
+        reader = AsyncZipReader(fs, str(zip_path))
+        with pytest.raises(ValueError, match="central directory"):
+            await reader.entries()
+
+
+async def test_truncation_exposing_earlier_eocd_with_bad_header_raises(
+    tmp_path: Path,
+) -> None:
+    """A stray EOCD pointing at bytes that aren't central directory headers raises.
+
+    The member's extra field completes the signature in its name into an EOCD
+    describing a 46-byte central directory at offset 0, the local file header.
+    """
+    zip_path = tmp_path / "truncated.zip"
+    info = zipfile.ZipInfo("bPK\x05\x06")
+    info.extra = struct.pack("<HHHHIIH", 0x9999, 14, 1, 1, 46, 0, 0)
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        zf.writestr(info, b"")
+    zip_path.write_bytes(zip_path.read_bytes()[:-19])
+
+    with pytest.raises(zipfile.BadZipFile):
+        zipfile.ZipFile(zip_path)
+
+    async with AsyncFilesystem() as fs:
+        reader = AsyncZipReader(fs, str(zip_path))
+        with pytest.raises(ValueError, match="Bad signature"):
+            await reader.entries()
+
+
+async def test_read_empty_archive(tmp_path: Path) -> None:
+    zip_path = tmp_path / "empty.zip"
+    with zipfile.ZipFile(zip_path, "w"):
+        pass
+
+    async with AsyncFilesystem() as fs:
+        cd = await AsyncZipReader(fs, str(zip_path)).entries()
+        assert cd.entries == []
+
+
+async def test_65535_entries_without_zip64(tmp_path: Path) -> None:
+    """A 0xFFFF entry count with no ZIP64 locator isn't sent searching for one.
+
+    stdlib writes 65535 entries as a plain EOCD. Here a member name puts the
+    locator signature in the tail, where a search would find it.
+    """
+    zip_path = tmp_path / "65535.zip"
+    names = [str(i) for i in range(0xFFFF - 1)] + ["PK\x06\x07" + "A" * 20]
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        for name in names:
+            zf.writestr(name, b"")
+    data = zip_path.read_bytes()
+    assert b"PK\x06\x06" not in data
+    assert struct.unpack_from("<H", data, len(data) - 12)[0] == 0xFFFF
+
+    async with AsyncFilesystem() as fs:
+        reader = AsyncZipReader(fs, str(zip_path))
+        cd = await reader.entries()
+        assert [e.filename for e in cd.entries] == names
+
+
 async def test_deflate_compress_stream() -> None:
     """Test that _DeflateCompressStream correctly deflate-compresses data."""
     original_data = b"The quick brown fox jumps over the lazy dog. " * 100

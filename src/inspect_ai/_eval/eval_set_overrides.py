@@ -582,12 +582,10 @@ def merge_eval_set_overrides(
         value = getattr(worker, name)
         if value is None:
             continue
-        if name == "generate_config" and isinstance(value, BaseModel):
+        if name == "generate_config" and isinstance(value, GenerateConfig):
             existing = getattr(run, name)
-            if isinstance(existing, BaseModel):
-                value = existing.model_copy(
-                    update=value.model_dump(exclude_unset=True, exclude_none=True)
-                )
+            if isinstance(existing, GenerateConfig):
+                value = existing.merge(value)
         setattr(merged, name, value)
     return merged
 

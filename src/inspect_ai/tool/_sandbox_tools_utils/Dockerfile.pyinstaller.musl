@@ -1,14 +1,13 @@
 # musl (Alpine) builder for the PyInstaller --onedir bundle.
 #
 # Produces a musl-linked onedir tree (tarred by _build_bundled_executable) for
-# injection into musl-based sandboxes (e.g. Alpine). PyInstaller has no prebuilt
-# musl bootloader, so it compiles one from source at install time — hence the C
-# toolchain (build-base) and zlib-dev. All Python deps resolve to musllinux_1_1
-# wheels, so no Rust toolchain is needed.
+# injection into musl-based sandboxes (e.g. Alpine). PyInstaller and all Python
+# deps install as musllinux wheels from requirements.txt (sdists are refused except
+# jsonrpcserver's, which is pure Python), so no Rust toolchain is needed.
 # Pin to an older Alpine: its musl sets the runtime floor (a newer Alpine builds a
 # CPython that references newer musl symbols, e.g. pwritev2, breaking older targets).
 # alpine3.16 ships musl 1.2.3 (~2022); the bundle runs on that Alpine and newer.
-FROM python:3.10-alpine3.16 AS base
+FROM python:3.10-alpine3.16@sha256:afe68972cc00883d70b3760ee0ffbb7375cf09706c122dda7063ffe64c5be21b AS base
 
 FROM base AS packages-amd64
 RUN apk add --no-cache build-base python3-dev libffi-dev openssl-dev zlib-dev file
@@ -23,11 +22,12 @@ FROM packages-${TARGETARCH} AS final
 RUN python3 -m venv /opt/venv
 ENV PATH="/opt/venv/bin:${PATH}"
 
-RUN python -m pip install --no-cache-dir --upgrade pip setuptools wheel
-RUN python -m pip install --no-cache-dir \
-        pyinstaller \
-        psutil \
-        jsonrpcserver \
-        pydantic
+# Build tools and the package's runtime deps, from the hashed lockfile only.
+# jsonrpcserver publishes no wheel, so it alone builds from its (hash-checked)
+# sdist, using the image's setuptools rather than fetching one.
+COPY requirements.txt /tmp/requirements.txt
+RUN python -m pip install --no-cache-dir --require-hashes --no-deps \
+        --only-binary :all: --no-binary jsonrpcserver --no-build-isolation \
+        -r /tmp/requirements.txt
 
 CMD ["tail", "-f", "/dev/null"]

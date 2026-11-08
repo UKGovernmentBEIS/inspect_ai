@@ -62,7 +62,7 @@ class WebSearchProviders(TypedDict, total=False):
     """Use Anthropic internal provider. For available options see <https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/web-search-tool>."""
 
     grok: dict[str, Any] | bool
-    """Use Grok internal provider. For available options see <https://docs.x.ai/docs/guides/tools/search-tools#web-search-parameters>."""
+    """Use Grok internal provider. For available options see <https://docs.x.ai/developers/tools/web-search>."""
 
     gemini: dict[str, Any] | bool
     """Use Gemini internal provider. For available options see <https://ai.google.dev/gemini-api/docs/google-search>."""
@@ -190,8 +190,9 @@ def web_search(
         - google: Supports options like `num_results`, `max_provider_calls`,
           `max_connections`, and `model`
 
-        - grok: Supports X-AI's live search parameters.
-          See https://docs.x.ai/docs/guides/live-search#live-search
+        - grok: Supports the options of xAI's web search tool, such as
+          `allowed_domains` and `excluded_domains` (Grok 4 and later).
+          See https://docs.x.ai/developers/tools/web-search
 
       **deprecated: Deprecated arguments.
 

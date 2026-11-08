@@ -76,9 +76,9 @@ async def clear_sample_staging_dir(
     Staging is a cache of the destination, never the committed state:
     it is cleared before a resume repopulates it from the destination
     (so restore and resume detection see the same checkpoint), and when
-    a sample that ran here is re-run from scratch. A sample-level
-    ``retry_on_error`` re-entry keeps it — that continues the same
-    lineage, and ``init_repo`` is idempotent for exactly that case.
+    a sample that ran here is re-run from scratch. Sample-level
+    ``retry_on_error`` resumes also repopulate it from the destination;
+    uncommitted staging data must not become the resumed state.
     """
     await anyio.to_thread.run_sync(
         partial(
