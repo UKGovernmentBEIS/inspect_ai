@@ -22,6 +22,7 @@ from inspect_ai.model._model_role import ModelRole, as_model_role
 from inspect_ai.solver._task_state import TaskState
 from inspect_ai.util import resource
 
+from ._common import no_response
 from ._metric import Score
 from ._metrics import accuracy, stderr
 from ._multi import multi_scorer
@@ -286,6 +287,8 @@ def _model_graded_qa_single(
     )
 
     async def score(state: TaskState, target: Target) -> Score:
+        empty = no_response(state.output.completion or "")
+
         # resolve model
         grader = model if isinstance(model, Model) else get_model(model)
 
@@ -359,6 +362,7 @@ def _model_graded_qa_single(
                 value=value,
                 answer=state.output.completion,
                 explanation=result.completion,
+                reason="no_response" if empty else None,
                 metadata=dict(
                     grading=[
                         scoring_prompt,
