@@ -2070,6 +2070,35 @@ async def test_resumed_bridge_restores_its_matching_state() -> None:
     assert _matching_state(resumed) == _matching_state(bridge)
 
 
+async def test_checkpointed_matching_evidence_stays_bounded() -> None:
+    """Repeated side calls whose threads are dropped don't grow the checkpointed matching evidence.
+
+    The evidence keeps reply counts only for replies a kept thread holds; a
+    dropped reply's count goes into its keys' dropped reach.
+    """
+    checkpointer = RecordingCheckpointer()
+    bridge = AgentBridge(AgentState(messages=[]), checkpointer=checkpointer)
+    scaffold = _Scaffold(bridge)
+    sizes: dict[int, tuple[int, int]] = {}
+    for n in range(1, 1025):
+        side = ChatMessageUser(content="Side question")
+        await scaffold.request([side], ChatMessageAssistant(content="OK"))
+        if n in (128, 1024):
+            snapshot = checkpointer.snapshot()
+            resumed = AgentBridge(
+                AgentState(messages=[]),
+                checkpointer=RecordingCheckpointer(restored=snapshot, serialized=True),
+            )
+            for kept in (bridge, resumed):
+                assert kept._held_replies.keys() == kept._held.keys()
+            evidence = json.dumps(snapshot["bridge_match_evidence"])
+            sizes[n] = (len(bridge._held_replies), len(evidence))
+
+    (entries_128, bytes_128), (entries_1024, bytes_1024) = sizes.values()
+    assert entries_1024 == entries_128 <= 17
+    assert bytes_1024 <= bytes_128 * 1.1
+
+
 async def test_scaffold_edits_get_ids_derived_from_the_originals() -> None:
     """A tool result the scaffold edits gets an id derived from the original's.
 

@@ -1421,10 +1421,9 @@ class AgentBridge:
             if self._held[message_id]:
                 continue
             del self._held[message_id]
+            replies = self._held_replies.pop(message_id)
             for key in self._keys_by_id.get(message_id, ()):
-                self._dropped_reach[key] = max(
-                    self._dropped_reach.get(key, 0), self._held_replies[message_id]
-                )
+                self._dropped_reach[key] = max(self._dropped_reach.get(key, 0), replies)
 
     def _dropped_holds(
         self, keys: list[list[str]], thread: Sequence[tuple[str, str]]
