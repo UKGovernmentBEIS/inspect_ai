@@ -18,7 +18,6 @@ on:
       - "scripts/pypi-release.py"
       - "pyproject.toml"
       - "MANIFEST.in"
-      - "requirements.txt"
   workflow_dispatch:
     inputs:
       version:

@@ -42,6 +42,7 @@ def test_type_text_at_bidirectional():
         "text": "hello world",
         "coordinate": [507, 361],
         "press_enter": True,
+        "clear_before_typing": True,
     }
     tool_call = ToolCall(id="test", function="computer", arguments=args)
     action_name, action_args = gemini_action_from_tool_call(tool_call)
@@ -51,6 +52,7 @@ def test_type_text_at_bidirectional():
     assert abs(action_args["x"] - 371) <= 1
     assert abs(action_args["y"] - 470) <= 1
     assert action_args["press_enter"] is True
+    assert action_args["clear_before_typing"] is True
 
     function_call = FunctionCall(name=action_name, args=action_args)
     parsed = tool_call_from_gemini_computer_action(function_call)
@@ -77,6 +79,38 @@ def test_type_text_at_default_press_enter():
 
     assert parsed.arguments["action"] == "type"
     assert parsed.arguments["press_enter"] is True
+
+
+def test_type_text_at_default_clear_before_typing():
+    function_call = FunctionCall(
+        name="type_text_at",
+        args={"text": "hello world"},
+    )
+    parsed = tool_call_from_gemini_computer_action(function_call)
+
+    assert parsed.arguments["clear_before_typing"] is True
+
+
+def test_type_text_at_clear_before_typing_false():
+    function_call = FunctionCall(
+        name="type_text_at",
+        args={"text": "hello world", "clear_before_typing": False},
+    )
+    parsed = tool_call_from_gemini_computer_action(function_call)
+
+    assert parsed.arguments["clear_before_typing"] is False
+
+
+def test_type_without_clear_before_typing_sends_false():
+    """Gemini defaults to clearing, so a type call without it must say False."""
+    tool_call = ToolCall(
+        id="test",
+        function="computer",
+        arguments={"action": "type", "text": "hello", "coordinate": [10, 10]},
+    )
+    _, action_args = gemini_action_from_tool_call(tool_call)
+
+    assert action_args["clear_before_typing"] is False
 
 
 def test_key_combination_bidirectional():
