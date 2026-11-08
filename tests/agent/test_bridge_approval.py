@@ -14,7 +14,16 @@ from collections import deque
 from contextlib import contextmanager
 from functools import partial
 from pathlib import Path, PurePosixPath
-from typing import Any, Awaitable, Callable, Iterator, Literal, NamedTuple, cast
+from typing import (
+    Any,
+    Awaitable,
+    Callable,
+    Iterator,
+    Literal,
+    NamedTuple,
+    cast,
+    get_args,
+)
 from unittest.mock import AsyncMock, MagicMock
 
 import anyio
@@ -22,10 +31,20 @@ import pytest
 from acp.schema import SessionNotification, ToolCallProgress, ToolCallStart
 from pydantic import JsonValue
 from test_helpers.checkpoint import RecordingCheckpointer
-from test_helpers.message_ids import assert_message_ids, edited_id, tool_event_producers
+from test_helpers.message_ids import (
+    assert_message_ids,
+    edited_id,
+    message_id_violations,
+    tool_event_producers,
+)
 from test_helpers.service_dispatch import (
     dispatching_service,
     serve_beside_failure_monitor,
+)
+from test_helpers.utils import (
+    skip_if_no_anthropic,
+    skip_if_no_google,
+    skip_if_no_openai,
 )
 
 import inspect_ai._util.logger as inspect_logger
@@ -76,7 +95,7 @@ from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._span import SpanBeginEvent, SpanEndEvent
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.event._tree import EventTreeSpan, event_tree
-from inspect_ai.log import read_eval_log, resolve_sample_attachments
+from inspect_ai.log import EvalLog, read_eval_log, resolve_sample_attachments
 from inspect_ai.log._condense import condense_sample
 from inspect_ai.log._log import EvalSample
 from inspect_ai.log._samples import _sample_active
@@ -5913,6 +5932,7 @@ class _HostConversation:
             if dialect == "google"
             else [{"role": "user", "content": prompt}]
         )
+        self.returned_ids: list[str] = []
 
     async def request(
         self, bridge: SandboxAgentBridge
@@ -5966,6 +5986,7 @@ class _HostConversation:
                     default_code_execution_providers(),
                     bridge,
                 )
+                self.returned_ids.append(response.id)
                 self.history.extend(
                     item.model_dump(exclude_none=True) for item in response.output
                 )
@@ -5992,6 +6013,7 @@ class _HostConversation:
                     default_code_execution_providers(),
                     bridge,
                 )
+                self.returned_ids.append(message.id)
                 self.history.append(
                     {
                         "role": "assistant",
@@ -7259,3 +7281,446 @@ def test_answer_after_identical_replies_gives_no_later_link(tmp_path: Path) -> N
     [resent_b] = [m for m in model_events[-1].input if m.role == "tool"]
     assert "B" in resent_b.text
     assert events[2].message_id is None
+
+
+# live
+
+LiveHostShape = Literal["sequential", "parallel", "reordered", "compacted"]
+
+LIVE_HOST_MODELS: dict[HostDialect, str] = {
+    "completions": "openai/gpt-4o-mini",
+    "responses": "openai/gpt-5-mini",
+    "anthropic": "anthropic/claude-haiku-4-5",
+    "google": "google/gemini-3.1-flash-lite",
+}
+
+SEQUENTIAL_READS = (
+    "Use the read_file tool to read the file 'a'. Only after you have its "
+    "contents, read the file 'b'. Make one tool call per turn. Then reply with "
+    "the single word done."
+)
+PARALLEL_READS = (
+    "Read the files 'a' and 'b' with the read_file tool, making both calls "
+    "together in this one turn. Then reply with the single word done."
+)
+
+
+@agent
+def live_host_scaffold(
+    dialect: HostDialect, shape: LiveHostShape, returned_ids: list[str]
+) -> Agent:
+    """A scaffold running a live model's calls as host tools.
+
+    `reordered` sends each reply back with its calls (and their results) in
+    reverse order. `compacted` continues after the second turn from a summary
+    and that turn's reply and results, then sends one more request.
+    """
+
+    async def execute(state: AgentState) -> AgentState:
+        bridge = SandboxAgentBridge(
+            state=state,
+            filter=None,
+            retry_refusals=None,
+            compaction=None,
+            port=13131,
+            model=None,
+            bridged_tools={"host": {"read_file": read_file(_numbered_results())}},
+        )
+        [info] = declare("mcp__host__read_file")
+        conversation = _HostConversation(dialect, state.messages[0].text, info)
+        for turn in range(6):
+            start = len(conversation.history)
+            calls = await conversation.request(bridge)
+            if not calls:
+                break
+            outputs = list(
+                await tg_collect(
+                    [
+                        partial(call_host_tool(bridge), "host", "read_file", arguments)
+                        for _, arguments in calls
+                    ]
+                )
+            )
+            if shape == "reordered":
+                _reverse_calls(conversation.history, start)
+                calls, outputs = calls[::-1], outputs[::-1]
+            conversation.results(calls, outputs)
+            if shape == "compacted" and turn == 1:
+                summary = _user_turn(dialect, "Summary: you read the file 'a'.")
+                conversation.history = [summary, *conversation.history[start:]]
+        if shape == "compacted":
+            conversation.history.append(_user_turn(dialect, "Thanks."))
+            await conversation.request(bridge)
+        returned_ids.extend(conversation.returned_ids)
+        return bridge.state
+
+    return execute
+
+
+def _reverse_calls(history: list[dict[str, Any]], start: int) -> None:
+    reply = history[start:]
+    if "tool_calls" in reply[-1]:
+        reply[-1]["tool_calls"] = reply[-1]["tool_calls"][::-1]
+    elif reply[0].get("type"):
+        calls = [i for i in reply if i["type"] == "function_call"]
+        history[start:] = [i for i in reply if i["type"] != "function_call"] + calls[
+            ::-1
+        ]
+    else:
+        key, is_call = (
+            ("parts", lambda p: "functionCall" in p)
+            if "parts" in reply[-1]
+            else ("content", lambda b: b["type"] == "tool_use")
+        )
+        items = reply[-1][key]
+        reply[-1][key] = [i for i in items if not is_call(i)] + [
+            i for i in reversed(items) if is_call(i)
+        ]
+
+
+def _live_sample(log: EvalLog) -> EvalSample:
+    assert log.status == "success", log.error
+    read = read_eval_log(log.location)
+    assert read.samples
+    sample = resolve_sample_attachments(read.samples[0], "full")
+    assert sample.error is None, sample.error
+    return sample
+
+
+def _sent_tool_messages(
+    sample: EvalSample,
+) -> dict[str, tuple[ChatMessageTool, ChatMessageAssistant]]:
+    found: dict[str, tuple[ChatMessageTool, ChatMessageAssistant]] = {}
+    for event in sample.events:
+        if not isinstance(event, ModelEvent):
+            continue
+        reply: ChatMessageAssistant | None = None
+        for message in event.input:
+            if isinstance(message, ChatMessageAssistant):
+                reply = message
+            elif isinstance(message, ChatMessageTool) and message.id and reply:
+                found.setdefault(message.id, (message, reply))
+    return found
+
+
+def _run_live_host(dialect: HostDialect, shape: LiveHostShape, tmp_path: Path) -> None:
+    """Run host tools with a live model and check the ids and tool event joins."""
+    prompt = PARALLEL_READS if shape in ("parallel", "reordered") else SEQUENTIAL_READS
+    returned_ids: list[str] = []
+    sample = _live_sample(
+        eval(
+            Task(
+                dataset=[Sample(input=prompt)],
+                solver=live_host_scaffold(dialect, shape, returned_ids),
+            ),
+            model=LIVE_HOST_MODELS[dialect],
+            log_dir=str(tmp_path),
+            display="plain",
+        )[0]
+    )
+    assert_message_ids(sample)
+
+    model_events = [e for e in sample.events if isinstance(e, ModelEvent)]
+    generated = {e.output.message.id: e.output.message for e in model_events}
+    events = [e for e in sample.events if isinstance(e, ToolEvent)]
+    assert {e.arguments.get("path") for e in events} == {"a", "b"}
+
+    # each event names the one generated reply that proposed its call
+    assert tool_event_producers(sample) == [1] * len(events)
+    proposing = {e.id: generated[e.call_message_id] for e in events}
+    for event in events:
+        calls = proposing[event.id].tool_calls or []
+        assert any(c.arguments == event.arguments for c in calls)
+    multi_call = {
+        id for id, m in generated.items() if m.tool_calls and len(m.tool_calls) > 1
+    }
+    if shape in ("parallel", "reordered"):
+        assert multi_call, "the model made no parallel calls"
+    else:
+        assert not multi_call, "the model made parallel calls"
+
+    # a reply sent back keeps its generated id (Google: or an edit of it); a
+    # reordered reply isn't recognized and gets a fresh id
+    sent_replies = [
+        m for e in model_events for m in e.input if isinstance(m, ChatMessageAssistant)
+    ]
+    for reply in sent_replies:
+        derived = reply.id in generated or any(
+            reply.id == edited_id(source, reply) for source in generated
+        )
+        if shape == "reordered" and reply.tool_calls and len(reply.tool_calls) > 1:
+            assert not derived
+        elif dialect == "google":
+            assert derived
+        else:
+            assert reply.id in generated
+
+    # the id Responses and Anthropic return is the generated reply's
+    if dialect in ("responses", "anthropic"):
+        assert returned_ids == [e.output.message.id for e in model_events]
+
+    # result joins: Google results of several calls of one function, and the
+    # calls of a reordered reply, stay unlinked
+    sent_results = _sent_tool_messages(sample)
+    for event in events:
+        unlinked = (shape == "reordered" and event.call_message_id in multi_call) or (
+            dialect == "google" and event.call_message_id in multi_call
+        )
+        if unlinked:
+            assert event.message_id is None
+            continue
+        assert event.message_id is not None
+        result, answered = sent_results[event.message_id]
+        assert str(event.result) in result.text
+        if dialect != "google":
+            call_ids = [c.id for c in answered.tool_calls or []]
+            assert result.tool_call_id in call_ids
+    linked = [e.message_id for e in events if e.message_id is not None]
+    assert len(set(linked)) == len(linked)
+
+    if shape == "compacted":
+        # the request after the summary sends the second reply and its result,
+        # and the next request sends them again under the same ids
+        compacted = next(
+            n
+            for n, e in enumerate(model_events)
+            if e.input and e.input[0].text.startswith("Summary:")
+        )
+        summary_call, next_call = model_events[compacted], model_events[compacted + 1]
+        kept = [m.id for m in summary_call.input if m.role in ("assistant", "tool")]
+        assert (
+            kept
+            == [m.id for m in next_call.input if m.role in ("assistant", "tool")][
+                : len(kept)
+            ]
+        )
+        # the retained reply's calls link to the results kept with it (a model
+        # may call again after the summary)
+        retained = [
+            e
+            for e in events
+            if any(
+                m.id in (e.call_message_id, edited_id(e.call_message_id, m))
+                for m in summary_call.input
+                if isinstance(m, ChatMessageAssistant)
+            )
+        ]
+        assert retained
+        assert all(e.message_id in kept for e in retained)
+
+
+@skip_if_no_openai
+@pytest.mark.parametrize("shape", get_args(LiveHostShape))
+def test_live_host_ids_completions(shape: LiveHostShape, tmp_path: Path) -> None:
+    _run_live_host("completions", shape, tmp_path)
+
+
+@skip_if_no_openai
+@pytest.mark.parametrize("shape", get_args(LiveHostShape))
+def test_live_host_ids_responses(shape: LiveHostShape, tmp_path: Path) -> None:
+    _run_live_host("responses", shape, tmp_path)
+
+
+@skip_if_no_anthropic
+@pytest.mark.parametrize("shape", get_args(LiveHostShape))
+def test_live_host_ids_anthropic(shape: LiveHostShape, tmp_path: Path) -> None:
+    _run_live_host("anthropic", shape, tmp_path)
+
+
+@skip_if_no_google
+@pytest.mark.parametrize("shape", get_args(LiveHostShape))
+def test_live_host_ids_google(shape: LiveHostShape, tmp_path: Path) -> None:
+    _run_live_host("google", shape, tmp_path)
+
+
+SERVER_WORK_PROMPT = (
+    "Do two things in this same turn, issuing both tool calls before waiting "
+    "for either result: (1) use code execution to run Python that writes the "
+    "text 'seed-417' to /tmp/marker.txt and then prints the contents of "
+    "/tmp/marker.txt; (2) call read_file with path 'a'. After you have both "
+    "results, use code execution again to print /tmp/marker.txt, then reply "
+    "with the single word done."
+)
+
+
+@agent
+def server_work_scaffold(
+    response_filter: ModelResponseFilter | None, replies: list[Any]
+) -> Agent:
+    """An Anthropic scaffold with code execution and a host tool, sending each reply back as received."""
+
+    async def execute(state: AgentState) -> AgentState:
+        bridge = SandboxAgentBridge(
+            state=state,
+            filter=None,
+            retry_refusals=None,
+            compaction=None,
+            port=13131,
+            model=None,
+            bridged_tools={"host": {"read_file": read_file(_numbered_results())}},
+            response_filter=response_filter,
+        )
+        [info] = declare("mcp__host__read_file")
+        tools: list[dict[str, Any]] = [
+            {"type": "code_execution_20250825", "name": "code_execution"},
+            {
+                "name": info.name,
+                "description": info.description,
+                "input_schema": info.parameters.model_dump(exclude_none=True),
+            },
+        ]
+        history: list[dict[str, Any]] = [
+            {"role": "user", "content": state.messages[0].text}
+        ]
+        for _ in range(6):
+            message = await inspect_anthropic_api_request(
+                {
+                    "model": "inspect",
+                    "max_tokens": 4096,
+                    "messages": history,
+                    "tools": tools,
+                },
+                None,
+                internal_web_search_providers(),
+                default_code_execution_providers(),
+                bridge,
+            )
+            replies.append(message)
+            history.append(
+                {
+                    "role": "assistant",
+                    "content": [
+                        block.model_dump(mode="json", exclude_none=True)
+                        for block in message.content
+                    ],
+                }
+            )
+            calls = [b for b in message.content if b.type == "tool_use"]
+            if not calls:
+                if message.stop_reason == "pause_turn":
+                    continue
+                break
+            outputs = await tg_collect(
+                [
+                    partial(
+                        call_host_tool(bridge),
+                        "host",
+                        "read_file",
+                        cast(JsonValue, b.input),
+                    )
+                    for b in calls
+                ]
+            )
+            history.append(
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": b.id,
+                            "content": str(output),
+                        }
+                        for b, output in zip(calls, outputs)
+                    ],
+                }
+            )
+        return bridge.state
+
+    return execute
+
+
+async def _edit_text_filter(
+    model: Model, output: ModelOutput, generate_input: GenerateInput
+) -> ModelOutput:
+    for item in output.message.content:
+        if isinstance(item, ContentText):
+            item.text = f"{item.text} FILTERED"
+            break
+    return output
+
+
+@skip_if_no_anthropic
+@pytest.mark.parametrize("filtered", [False, True], ids=["unfiltered", "text_filter"])
+def test_live_anthropic_pending_server_work_ids(filtered: bool, tmp_path: Path) -> None:
+    """A reply that leaves code execution pending beside a host call, sent back as received.
+
+    Anthropic replays the pending work from state keyed by the reply's id, so
+    the reply must keep its generated id. A response filter that edits the
+    text gives the reply an edit id and drops the pending work, which has no
+    content item for the filter to keep.
+    """
+    replies: list[Any] = []
+    sample = _live_sample(
+        eval(
+            Task(
+                dataset=[Sample(input=SERVER_WORK_PROMPT)],
+                solver=server_work_scaffold(
+                    _edit_text_filter if filtered else None, replies
+                ),
+            ),
+            model="anthropic/claude-haiku-4-5",
+            log_dir=str(tmp_path),
+            display="plain",
+        )[0]
+    )
+    model_events = [e for e in sample.events if isinstance(e, ModelEvent)]
+
+    # the first generation leaves code execution pending beside the host call
+    first, second = replies[0], replies[1]
+    assert model_events[0].call is not None
+    response = cast(dict[str, Any], model_events[0].call.response)
+    [pending] = [b["id"] for b in response["content"] if b["type"] == "server_tool_use"]
+    assert [
+        b["type"] for b in response["content"] if b["type"].endswith("_result")
+    ] == []
+    assert [b.type for b in first.content if b.type == "tool_use"] == ["tool_use"]
+    assert first.stop_reason == "tool_use"
+
+    # the reply comes back under the id it was returned with: the generated
+    # one, or with the filter an edit of it
+    generated = model_events[0].output.message
+    assert generated.id is not None
+    [sent] = [m for m in model_events[1].input if isinstance(m, ChatMessageAssistant)]
+    assert sent.id == first.id
+    if filtered:
+        assert sent.text.endswith("FILTERED")
+        assert sent.id == edited_id(generated.id, sent) != generated.id
+    else:
+        assert sent.id == generated.id
+    assert [r.id for r in replies[1:]] == [
+        e.output.message.id for e in model_events[1:]
+    ]
+
+    # the continuation replays the pending work only under the generated id
+    assert model_events[1].call is not None
+    request = cast(dict[str, Any], model_events[1].call.request)
+    [request_reply] = [m for m in request["messages"] if m["role"] == "assistant"]
+    replayed = [
+        b["id"] for b in request_reply["content"] if b["type"] == "server_tool_use"
+    ]
+    resumed = getattr(second.content[0], "tool_use_id", None) == pending
+    shown = [b.id for b in first.content if b.type == "server_tool_use"]
+    if filtered:
+        assert shown == replayed == [] and not resumed
+    else:
+        assert shown == replayed == [pending] and resumed
+
+    # the host call links to its proposing output and to its result
+    [event] = [e for e in sample.events if isinstance(e, ToolEvent)]
+    assert event.call_message_id == generated.id
+    assert tool_event_producers(sample) == [1]
+    _assert_linked(sample, [event])
+
+    # a filtered reply that keeps server tool items keeps the output's id
+    kept_server_items = {
+        e.output.message.id
+        for e in model_events
+        if e.output.message.id is not None
+        and any(isinstance(c, ContentToolUse) for c in e.output.message.content)
+    }
+    violations = message_id_violations(sample)
+    if filtered:
+        assert kept_server_items and violations
+        assert all(any(id in v for id in kept_server_items) for v in violations)
+    else:
+        assert not violations
