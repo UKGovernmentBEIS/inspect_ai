@@ -38,6 +38,7 @@ from inspect_ai._util.content import (
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.agent import Agent, AgentState, agent, agent_bridge
 from inspect_ai.agent._bridge._errors import PROVIDER_ERROR_KEY
+from inspect_ai.agent._bridge._sentinel import _SavedResultChecks
 from inspect_ai.agent._bridge.sandbox.service import _forward_provider_errors
 from inspect_ai.agent._bridge.sandbox.service import call_tool as call_host_tool
 from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
@@ -1728,14 +1729,14 @@ def test_dropping_old_proposals_warns_once(
     ]
 
     with caplog.at_level("WARNING"):
-        _sentinel._result_checks(bridge).issue(checks[:3])
-        _sentinel._result_checks(bridge).issue(checks[3:])
+        bridge._sentinel_results.issue(checks[:3])
+        bridge._sentinel_results.issue(checks[3:])
 
     warnings = [
         r for r in caplog.records if "the oldest proposal was dropped" in r.message
     ]
     assert len(warnings) == 1
-    proposals = _sentinel._result_checks(bridge).proposals.values()
+    proposals = bridge._sentinel_results.proposals.values()
     assert [p.handed.id for p in proposals] == ["read_2", "read_3"]
 
 
@@ -1754,7 +1755,7 @@ def test_claiming_a_requests_results_takes_memory_linear_in_its_results() -> Non
             ]
         tracemalloc.start()
         try:
-            claimed = _ResultChecks(frozenset(), frozenset()).claim(input)
+            claimed = _ResultChecks(_SavedResultChecks()).claim(input)
             retained, _ = tracemalloc.get_traced_memory()
         finally:
             tracemalloc.stop()
@@ -1886,7 +1887,7 @@ async def test_scanning_a_requests_results_takes_memory_linear_in_its_size(
         assert len(assistant.tool_calls or []) == calls
         tracemalloc.start()
         try:
-            claimed = _ResultChecks(frozenset(), frozenset()).claim(input)
+            claimed = _ResultChecks(_SavedResultChecks()).claim(input)
             _, claim_peak = tracemalloc.get_traced_memory()
             tracemalloc.reset_peak()
             inherited = inherited_result_keys(input)
@@ -1925,7 +1926,7 @@ def test_results_answering_one_call_key_its_arguments_once(
     ]
 
     keys = _sentinel.inherited_result_keys(input)
-    claimed = _sentinel._ResultChecks(frozenset(), frozenset()).claim(input)
+    claimed = _sentinel._ResultChecks(_sentinel._SavedResultChecks()).claim(input)
 
     assert len(keys) == len(claimed.owned) == 100
     assert len(keyed) == 2
@@ -1956,7 +1957,7 @@ async def test_a_host_result_for_several_executions_is_keyed_once(
 
     assert len(keyed) == 1
     # each execution's token key, and the call key they share
-    assert len(_sentinel._result_checks(bridge).checked) == 51
+    assert len(bridge._sentinel_results.checked) == 51
 
 
 async def test_a_result_whose_proposal_was_dropped_is_still_checked(
@@ -2921,7 +2922,7 @@ async def test_a_starting_call_id_is_not_reissued_when_a_request_omits_it(
 @pytest.mark.parametrize(
     "keys",
     [
-        ["bridge_inherited_results", "bridge_reserved_ids"],
+        ["bridge_result_checks"],
         # a checkpoint written without the reservations: those of its prefix
         [],
     ],
@@ -2958,8 +2959,7 @@ def saved(checkpointer: RecordingCheckpointer, *keys: str) -> dict[str, object]:
     """Tracked values as a checkpoint saves and resume restores them."""
     types: dict[str, Any] = {
         "bridge_compaction_prefix": list[ChatMessage],
-        "bridge_inherited_results": list[str],
-        "bridge_reserved_ids": list[str],
+        "bridge_result_checks": _SavedResultChecks,
     }
     return {
         key: TypeAdapter(types[key]).validate_json(
@@ -2978,7 +2978,7 @@ async def test_a_resumed_bridge_inherits_the_results_it_first_started_with(
     first = RecordingCheckpointer()
     started_with(sandbox, model.model, AgentState(messages=conversation("safe")), first)
     checkpointer = RecordingCheckpointer(
-        restored=saved(first, "bridge_compaction_prefix", "bridge_inherited_results")
+        restored=saved(first, "bridge_compaction_prefix", "bridge_result_checks")
     )
     bridge = started_with(
         sandbox, model.model, AgentState(messages=conversation("secret")), checkpointer
@@ -3080,6 +3080,163 @@ async def test_a_result_changed_before_a_checkpoint_is_checked_after_resume(
                 resumed.close()
 
     assert model.inputs == []
+
+
+async def dialect_proposal(dialect: str, bridge: AgentBridge, prompt: str) -> str:
+    """A scaffold sending `prompt` alone in `dialect`: the id it is handed for the model's call."""
+    if dialect == "completions":
+        from inspect_ai.agent._bridge.completions import (
+            inspect_completions_api_request,
+        )
+
+        completion = await inspect_completions_api_request(
+            {"model": "inspect", "messages": [{"role": "user", "content": prompt}]},
+            None,
+            bridge,
+        )
+        [call] = completion.choices[0].message.tool_calls or []
+        return call.id
+    elif dialect == "anthropic":
+        from inspect_ai.agent._bridge.anthropic_api import (
+            inspect_anthropic_api_request,
+        )
+
+        response = await inspect_anthropic_api_request(
+            {
+                "model": "inspect",
+                "max_tokens": 100,
+                "messages": [{"role": "user", "content": prompt}],
+            },
+            None,
+            None,
+            None,
+            bridge,
+        )
+        [use] = [block for block in response.content if block.type == "tool_use"]
+        return use.id
+    elif dialect == "google":
+        from inspect_ai.agent._bridge.google_api import inspect_google_api_request
+
+        answer: Any = await inspect_google_api_request(
+            {
+                "model": "inspect",
+                "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+            },
+            None,
+            None,
+            bridge,
+        )
+        parts = answer["candidates"][0]["content"]["parts"]
+        [function_call] = [p["functionCall"] for p in parts if "functionCall" in p]
+        return cast(str, function_call["id"])
+    else:
+        from inspect_ai.agent._bridge.responses import inspect_responses_api_request
+
+        result = await inspect_responses_api_request(
+            {"model": "inspect", "input": [{"role": "user", "content": prompt}]},
+            None,
+            None,
+            None,
+            bridge,
+        )
+        [item] = [item for item in result.output if item.type == "function_call"]
+        return item.call_id
+
+
+# a model id the bridge first sees after it is constructed (Groq's streaming
+# fallback ids repeat across conversations)
+LATE = "tool_call_0_0"
+
+
+@pytest.mark.parametrize("first", ["compacted", "another"])
+@pytest.mark.parametrize("seen_as", ["issued", "observed", "observed_alias"])
+@pytest.mark.parametrize("sandbox", [False, True])
+@pytest.mark.parametrize("dialect", DIALECTS)
+async def test_a_resumed_bridge_keeps_the_call_ids_it_issued_or_observed(
+    dialect: str, sandbox: bool, seen_as: str, first: str, tmp_path: Path
+) -> None:
+    old = replace(
+        OLD, id=f"{OLD.function}__{LATE}" if seen_as == "observed_alias" else LATE
+    )
+    new = replace(READ, id=LATE, arguments={"path": "new.txt"})
+    proposals = [calls_output(old)] if seen_as == "issued" else []
+    model = Scripted(*proposals, calls_output(), calls_output(new), calls_output())
+    start = AgentState(messages=[ChatMessageUser(content=TASK)])
+
+    async with AsyncFilesystem():
+        with _patch_sample_runtime([]):
+            checkpointer = real_checkpointer(tmp_path)
+            bridge = started_with(sandbox, model.model, deepcopy(start), checkpointer)
+            with active(terminate_on_old_secret()):
+                if seen_as == "issued":
+                    assert await dialect_proposal(dialect, bridge, TASK) == old.id
+                await dialect_history_request(dialect, bridge, old, "safe")
+            await checkpointer.checkpoint()
+            checkpointer.close()
+
+            saved = read_host_context(str(tmp_path / "context")).agent_state
+            resumed = real_checkpointer(tmp_path, saved)
+            try:
+                bridge = started_with(sandbox, model.model, deepcopy(start), resumed)
+                with active(terminate_on_old_secret()):
+                    handed = await dialect_proposal(
+                        dialect,
+                        bridge,
+                        SUMMARY.text if first == "compacted" else "Name this session.",
+                    )
+                    assert handed != LATE
+                    await dialect_history_request(
+                        dialect, bridge, replace(new, id=handed), "fine"
+                    )
+                    with pytest.raises(
+                        TerminateSampleError, match="blocked old secret"
+                    ):
+                        await dialect_history_request(dialect, bridge, old, "secret")
+            finally:
+                resumed.close()
+
+    assert len(model.inputs) == len(proposals) + 3
+
+
+@pytest.mark.parametrize("sandbox", [False, True])
+@pytest.mark.parametrize("dialect", DIALECTS)
+async def test_a_result_checked_before_a_checkpoint_is_not_checked_again_after_resume(
+    dialect: str, sandbox: bool, tmp_path: Path
+) -> None:
+    seen: Steps = []
+    model = Scripted(calls_output(replace(READ, id=LATE)), calls_output())
+    start = AgentState(messages=[ChatMessageUser(content=TASK)])
+
+    async with AsyncFilesystem():
+        with _patch_sample_runtime([]):
+            checkpointer = real_checkpointer(tmp_path)
+            bridge = started_with(sandbox, model.model, deepcopy(start), checkpointer)
+            with active([bridge_recording(seen)]):
+                handed = await dialect_proposal(dialect, bridge, TASK)
+                await dialect_history_request(
+                    dialect, bridge, replace(READ, id=handed), "safe"
+                )
+            await checkpointer.checkpoint()
+            checkpointer.close()
+
+            saved = read_host_context(str(tmp_path / "context")).agent_state
+            resumed = real_checkpointer(tmp_path, saved)
+            try:
+                bridge = started_with(sandbox, model.model, deepcopy(start), resumed)
+                with active([bridge_recording(seen)]):
+                    await dialect_history_request(
+                        dialect, bridge, replace(READ, id=handed), "safe"
+                    )
+                    await dialect_history_request(
+                        dialect, bridge, replace(READ, id=handed), "changed"
+                    )
+            finally:
+                resumed.close()
+
+    assert [step.result.text for step in seen if isinstance(step, AfterToolCall)] == [
+        as_handed(dialect, "safe"),
+        as_handed(dialect, "changed"),
+    ]
 
 
 @pytest.mark.parametrize("dialect", DIALECTS)

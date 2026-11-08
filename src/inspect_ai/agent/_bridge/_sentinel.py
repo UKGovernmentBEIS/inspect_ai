@@ -19,6 +19,7 @@ from typing import (
 )
 
 import anyio
+from pydantic import BaseModel, Field
 from pydantic_core import to_jsonable_python
 from shortuuid import uuid
 
@@ -138,6 +139,13 @@ class _Identity(NamedTuple):
     """The call's conservative identity (`_call_key`)."""
 
 
+class _SavedResultChecks(BaseModel):
+    reserved_ids: list[str] = Field(default_factory=list)
+    tokens: dict[str, _Identity] = Field(default_factory=dict)
+    prefixed_tokens: list[str] = Field(default_factory=list)
+    checked: list[str] = Field(default_factory=list)
+
+
 class _Result(NamedTuple):
     keys: list[str]
     """The result's identity (first) and any it also answers for."""
@@ -185,9 +193,10 @@ class _ResultChecks:
     (`_token_prefix`). A result
     reported under a token is the result of that execution, however the
     scaffold has rewritten, compacted or reformatted the rest of its
-    conversation. Tokens and observed history ids are kept for the life of
-    the bridge, apart from the proposals (bounded), so
-    an evicted proposal can never make an older execution match a newer one.
+    conversation. Tokens, observed history ids and checked results are kept
+    for the life of the bridge and in its checkpoint (`saved`), apart from the
+    proposals (bounded), so neither an evicted proposal nor a resume can make
+    an older execution match a newer one.
 
     Each execution's result is checked once: a result is identified by its
     token and its exact content (`_content_key`), so replays are not checked
@@ -221,14 +230,28 @@ class _ResultChecks:
     Held by its bridge, since a failure's traceback references the bridge.
     """
 
-    def __init__(self, inherited: frozenset[str], reserved: frozenset[str]) -> None:
-        self.identities: dict[str, _Identity] = {}
-        self.prefixed_tokens: set[str] = set()
-        self.reserved_ids: set[str] = set(reserved)
+    def __init__(self, saved: _SavedResultChecks) -> None:
+        self.identities: dict[str, _Identity] = dict(saved.tokens)
+        self.prefixed_tokens: set[str] = set(saved.prefixed_tokens)
+        self.reserved_ids: set[str] = set(saved.reserved_ids)
         self.proposals: OrderedDict[str, SentinelCheck] = OrderedDict()
-        self.checked: set[str] = set(inherited)
+        self.checked: set[str] = set(saved.checked)
         self.running: dict[str, anyio.Event] = {}
         self.failed: dict[str, Exception] = {}
+
+    def saved(self) -> _SavedResultChecks:
+        """What a resumed bridge needs to issue tokens and match results as this one does.
+
+        Proposals hold their generation and viewer, so a resumed bridge
+        matches a result to its token as it would after the proposal's
+        eviction. A check that was running or failed is made again.
+        """
+        return _SavedResultChecks(
+            reserved_ids=sorted(self.reserved_ids),
+            tokens=dict(self.identities),
+            prefixed_tokens=sorted(self.prefixed_tokens),
+            checked=sorted(self.checked),
+        )
 
     def reserve(self, input: Sequence[ChatMessage]) -> None:
         self.reserved_ids.update(history_ids(input))
@@ -609,14 +632,6 @@ def checks_bridged_results() -> bool:
     return watches_tool_results()
 
 
-def _result_checks(bridge: AgentBridge) -> _ResultChecks:
-    if bridge._sentinel_results is None:
-        bridge._sentinel_results = _ResultChecks(
-            bridge._inherited_results, bridge._reserved_ids
-        )
-    return bridge._sentinel_results
-
-
 async def sentinel_tool_call(
     bridge: AgentBridge,
     message: str,
@@ -655,7 +670,7 @@ def sentinel_tokens(
     Returns the output to hand to the scaffold (a copy, when any id changes),
     and the checks with their tokens.
     """
-    issued = _result_checks(bridge).issue(checks)
+    issued = bridge._sentinel_results.issue(checks)
     if all(check.token == check.handed.id for check in issued):
         return output, issued
     # a copy, as `output` may be the object the ModelEvent recorded
@@ -755,7 +770,7 @@ async def sentinel_host_tool_result(
         ]
     keys = keys or [f"unproposed:{uuid()}"]
     with bridge_request():
-        await _result_checks(bridge).check_running(
+        await bridge._sentinel_results.check_running(
             bridge, _Result(keys, (check,), result), output, truncated
         )
 
@@ -763,7 +778,7 @@ async def sentinel_host_tool_result(
 async def sentinel_tool_results(bridge: AgentBridge, input: list[ChatMessage]) -> None:
     if not checks_tool_calls():
         return
-    result_checks = _result_checks(bridge)
+    result_checks = bridge._sentinel_results
     result_checks.reserve(input)
     while True:
         claimed = result_checks.claim(input)

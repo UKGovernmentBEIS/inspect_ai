@@ -39,7 +39,7 @@ if TYPE_CHECKING:
     # `model/_call_tools.py` defers it.
     from inspect_ai.approval._policy import ApprovalPolicy
 
-    from ._sentinel import SentinelCheck, _ResultChecks
+    from ._sentinel import SentinelCheck
 
 
 class DispatchedCall(NamedTuple):
@@ -169,28 +169,27 @@ class AgentBridge:
         self._pending_operator = 0
         self._operator_keys: set[str] = set()
         self._warned_request_settings: set[str] = set()
-        self._sentinel_results: "_ResultChecks | None" = None
         # deferred: `_sentinel` imports this module
-        from ._sentinel import history_ids, inherited_result_keys
-
-        # a checkpoint written without the keys exempts nothing
-        self._inherited_results = frozenset(
-            self._cp.track(
-                "bridge_inherited_results",
-                lambda: sorted(self._inherited_results),
-                sorted(inherited_result_keys(state.messages))
-                if self._cp.attempt == "initial"
-                else [],
-                value_type=list[str],
-            )
+        from ._sentinel import (
+            _ResultChecks,
+            _SavedResultChecks,
+            history_ids,
+            inherited_result_keys,
         )
-        # one written without the reservations reserves its prefix's ids
-        self._reserved_ids = frozenset(
+
+        # a checkpoint written without them exempts no result and reserves its
+        # prefix's ids
+        self._sentinel_results = _ResultChecks(
             self._cp.track(
-                "bridge_reserved_ids",
-                lambda: sorted(self._reserved_ids),
-                sorted(history_ids(self._compaction_prefix)),
-                value_type=list[str],
+                "bridge_result_checks",
+                lambda: self._sentinel_results.saved(),
+                _SavedResultChecks(
+                    reserved_ids=sorted(history_ids(self._compaction_prefix)),
+                    checked=sorted(inherited_result_keys(state.messages))
+                    if self._cp.attempt == "initial"
+                    else [],
+                ),
+                value_type=_SavedResultChecks,
             )
         )
 

@@ -25,7 +25,11 @@ from pathlib import Path
 import pytest
 
 from inspect_ai.agent._bridge._errors import BridgePolicyError
-from inspect_ai.agent._bridge._sentinel import SentinelCheck, _ResultChecks
+from inspect_ai.agent._bridge._sentinel import (
+    SentinelCheck,
+    _ResultChecks,
+    _SavedResultChecks,
+)
 from inspect_ai.agent._bridge.google_api_impl import (
     gemini_response_from_output,
     messages_from_google_contents,
@@ -275,7 +279,7 @@ def test_google_computer_action_ids_round_trip_in_both_issuance_orders(
         )
         for call in calls
     ]
-    issued = _ResultChecks(frozenset(), frozenset()).issue(checks)
+    issued = _ResultChecks(_SavedResultChecks()).issue(checks)
     output = ModelOutput.for_tool_call("mockllm/model", "computer", calls[0].arguments)
     output.message.tool_calls = [
         replace(call, id=check.token or call.id) for call, check in zip(calls, issued)
