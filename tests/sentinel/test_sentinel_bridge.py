@@ -15,7 +15,7 @@ from checkpoint.test_checkpointer import (
     _fake_hydration,
     _patch_sample_runtime,
 )
-from pydantic import JsonValue, TypeAdapter
+from pydantic import JsonValue, TypeAdapter, ValidationError
 from pydantic_core import to_json
 from test_helpers.checkpoint import RecordingCheckpointer
 from test_helpers.utils import (
@@ -1755,7 +1755,11 @@ def test_claiming_a_requests_results_takes_memory_linear_in_its_results() -> Non
             ]
         tracemalloc.start()
         try:
-            claimed = _ResultChecks(_SavedResultChecks()).claim(input)
+            claimed = _ResultChecks(
+                _SavedResultChecks(
+                    reserved_ids=[], tokens={}, prefixed_tokens=[], checked=[]
+                )
+            ).claim(input)
             retained, _ = tracemalloc.get_traced_memory()
         finally:
             tracemalloc.stop()
@@ -1887,7 +1891,11 @@ async def test_scanning_a_requests_results_takes_memory_linear_in_its_size(
         assert len(assistant.tool_calls or []) == calls
         tracemalloc.start()
         try:
-            claimed = _ResultChecks(_SavedResultChecks()).claim(input)
+            claimed = _ResultChecks(
+                _SavedResultChecks(
+                    reserved_ids=[], tokens={}, prefixed_tokens=[], checked=[]
+                )
+            ).claim(input)
             _, claim_peak = tracemalloc.get_traced_memory()
             tracemalloc.reset_peak()
             inherited = inherited_result_keys(input)
@@ -1926,7 +1934,11 @@ def test_results_answering_one_call_key_its_arguments_once(
     ]
 
     keys = _sentinel.inherited_result_keys(input)
-    claimed = _sentinel._ResultChecks(_sentinel._SavedResultChecks()).claim(input)
+    claimed = _sentinel._ResultChecks(
+        _sentinel._SavedResultChecks(
+            reserved_ids=[], tokens={}, prefixed_tokens=[], checked=[]
+        )
+    ).claim(input)
 
     assert len(keys) == len(claimed.owned) == 100
     assert len(keyed) == 2
@@ -3196,6 +3208,39 @@ async def test_a_resumed_bridge_keeps_the_call_ids_it_issued_or_observed(
                 resumed.close()
 
     assert len(model.inputs) == len(proposals) + 3
+
+
+@pytest.mark.parametrize("sandbox", [False, True])
+@pytest.mark.parametrize("dialect", DIALECTS)
+async def test_a_bridge_does_not_resume_from_incomplete_result_checks(
+    dialect: str, sandbox: bool, tmp_path: Path
+) -> None:
+    model = Scripted(calls_output(replace(OLD, id=LATE)), calls_output())
+    start = AgentState(messages=[ChatMessageUser(content=TASK)])
+
+    async with AsyncFilesystem():
+        with _patch_sample_runtime([]):
+            checkpointer = real_checkpointer(tmp_path)
+            bridge = started_with(sandbox, model.model, deepcopy(start), checkpointer)
+            with active(terminate_on_old_secret()):
+                handed = await dialect_proposal(dialect, bridge, TASK)
+                await dialect_history_request(
+                    dialect, bridge, replace(OLD, id=handed), "safe"
+                )
+            await checkpointer.checkpoint()
+            checkpointer.close()
+
+            saved = read_host_context(str(tmp_path / "context")).agent_state
+            assert saved is not None
+            del saved["bridge_result_checks"]["reserved_ids"]
+            resumed = real_checkpointer(tmp_path, saved)
+            try:
+                with pytest.raises(ValidationError, match="reserved_ids"):
+                    started_with(sandbox, model.model, deepcopy(start), resumed)
+            finally:
+                resumed.close()
+
+    assert len(model.inputs) == 2
 
 
 @pytest.mark.parametrize("sandbox", [False, True])

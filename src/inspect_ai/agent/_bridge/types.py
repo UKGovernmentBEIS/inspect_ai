@@ -178,13 +178,15 @@ class AgentBridge:
         )
 
         # a checkpoint written without them exempts no result and reserves its
-        # prefix's ids
+        # prefix's ids; an incomplete one fails to restore
         self._sentinel_results = _ResultChecks(
             self._cp.track(
                 "bridge_result_checks",
                 lambda: self._sentinel_results.saved(),
                 _SavedResultChecks(
                     reserved_ids=sorted(history_ids(self._compaction_prefix)),
+                    tokens={},
+                    prefixed_tokens=[],
                     checked=sorted(inherited_result_keys(state.messages))
                     if self._cp.attempt == "initial"
                     else [],

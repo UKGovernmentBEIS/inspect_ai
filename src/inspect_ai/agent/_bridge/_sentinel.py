@@ -19,7 +19,7 @@ from typing import (
 )
 
 import anyio
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from pydantic_core import to_jsonable_python
 from shortuuid import uuid
 
@@ -140,10 +140,10 @@ class _Identity(NamedTuple):
 
 
 class _SavedResultChecks(BaseModel):
-    reserved_ids: list[str] = Field(default_factory=list)
-    tokens: dict[str, _Identity] = Field(default_factory=dict)
-    prefixed_tokens: list[str] = Field(default_factory=list)
-    checked: list[str] = Field(default_factory=list)
+    reserved_ids: list[str]
+    tokens: dict[str, _Identity]
+    prefixed_tokens: list[str]
+    checked: list[str]
 
 
 class _Result(NamedTuple):
