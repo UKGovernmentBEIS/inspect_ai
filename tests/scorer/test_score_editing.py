@@ -943,3 +943,22 @@ async def test_cleared_reason_survives_a_log_round_trip(
     score = read_sample.scores["single_metric_scorer"]
     assert score.reason is None
     assert score.history[-1].reason is None
+    edit_events = [e for e in read_sample.events if isinstance(e, ScoreEditEvent)]
+    assert edit_events
+    assert edit_events[-1].edit.reason is None
+
+
+def test_cleared_fields_are_written_explicitly() -> None:
+    """A cleared field is written as a null, and UNCHANGED stays the sentinel string."""
+    edit = ScoreEdit(answer=None, explanation=None, reason=None)
+    cleared = ("answer", "explanation", "reason")
+    for dumped in (
+        edit.model_dump(exclude_none=True),
+        edit.model_dump(mode="json", exclude_none=True),
+    ):
+        assert {field: dumped[field] for field in cleared} == dict.fromkeys(cleared)
+
+    assert ScoreEdit().model_dump(exclude_none=True)["answer"] == "UNCHANGED"
+    assert "reason" not in ScoreEdit().model_dump(exclude={"reason"})
+    assert "reason" not in edit.model_dump(exclude={"reason"}, exclude_none=True)
+    assert set(edit.model_dump(include={"value"})) == {"value"}

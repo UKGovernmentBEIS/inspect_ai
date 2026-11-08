@@ -18,6 +18,8 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    SerializationInfo,
+    SerializerFunctionWrapHandler,
     ValidationInfo,
     model_serializer,
     model_validator,
@@ -126,6 +128,9 @@ class ScoreEdit(BaseModel):
         ``answer`` or ``explanation`` can only have been None. ``reason`` is
         left alone: edits written before it existed (#4629) have no ``reason``
         key and mean UNCHANGED, which a dropped None can't be told apart from.
+        Logs written since then carry an explicit null for a cleared ``reason``
+        (see ``_write_cleared_fields``), so the ambiguity only remains for older
+        logs and the shim has to stay.
         """
         if (
             isinstance(data, dict)
@@ -136,19 +141,29 @@ class ScoreEdit(BaseModel):
         return data
 
     @model_serializer(mode="wrap")
-    def _write_cleared_fields(self, handler: Any, info: Any) -> Any:
+    def _write_cleared_fields(
+        self, handler: SerializerFunctionWrapHandler, info: SerializationInfo
+    ) -> Any:
         """Keep a cleared ``answer``, ``explanation`` or ``reason`` in the persisted edit.
 
         Logs are written with ``exclude_none``, which drops a field whose value is None, and
         a dropped field reads back as ``UNCHANGED``. Writing the null explicitly is what makes
         "clear this field" survive the round trip, while a field that is missing from an older
-        log still means ``UNCHANGED``.
+        log still means ``UNCHANGED``. A field the caller excluded or left out of ``include``
+        stays out.
         """
         dumped = handler(self)
-        if isinstance(dumped, dict):
-            for field in ("answer", "explanation", "reason"):
-                if getattr(self, field) is None and field not in dumped:
-                    dumped[field] = None
+        if not info.exclude_none or not isinstance(dumped, dict):
+            return dumped
+        include, exclude = info.include, info.exclude
+        for cleared_field in ("answer", "explanation", "reason"):
+            if cleared_field in dumped or getattr(self, cleared_field) is not None:
+                continue
+            if (include is not None and cleared_field not in include) or (
+                exclude is not None and cleared_field in exclude
+            ):
+                continue
+            dumped[cleared_field] = None
         return dumped
 
 
