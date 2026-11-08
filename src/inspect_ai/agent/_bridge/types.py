@@ -981,6 +981,9 @@ class AgentBridge:
         id only as that reply's answer (`_result_occurrence`). One answering a
         reply given a new id for repeated content gets a new id and no answer
         record, since which reply it answers can't be told; it isn't linked.
+        One before any reply (its reply compacted away) may be another
+        execution's equal result, so it keeps only an id placement gives it
+        and identifies (`_identifies`), and otherwise gets a new id.
 
         `inferred_results` are tool messages whose call id the dialect
         inferred rather than read (Google names only a result's function, so
@@ -1049,7 +1052,12 @@ class AgentBridge:
         for index, (message, message_keys) in enumerate(zip(messages, keys)):
             aligned_id = aligned.get(index)
             message_id = aligned_id
-            if aligned_id is None:
+            if isinstance(message, ChatMessageTool) and preceding_reply_key is None:
+                if aligned_id is not None and not self._identifies(
+                    message_keys, aligned_id, exact=False
+                ):
+                    message_id = None
+            elif aligned_id is None:
                 if not (
                     isinstance(message, ChatMessageTool) and preceding_reply_repeated
                 ):

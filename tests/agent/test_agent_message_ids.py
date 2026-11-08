@@ -1433,6 +1433,76 @@ def test_compacted_identical_google_calls_never_link_another_calls_result(
     assert all(event.message_id is not None for event in host_events[:-1])
 
 
+def _result_turn(dialect: Dialect, call_id: str, name: str, output: str) -> _Turn:
+    if dialect == "completions":
+        return [{"role": "tool", "tool_call_id": call_id, "content": output}]
+    elif dialect == "responses":
+        return [{"type": "function_call_output", "call_id": call_id, "output": output}]
+    elif dialect == "anthropic":
+        return [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "tool_result", "tool_use_id": call_id, "content": output}
+                ],
+            }
+        ]
+    return [
+        {
+            "role": "user",
+            "parts": [
+                {"functionResponse": {"name": name, "response": {"output": output}}}
+            ],
+        }
+    ]
+
+
+@pytest.mark.parametrize("retained", [False, True], ids=["orphan", "retained"])
+@pytest.mark.parametrize("dialect", DIALECTS)
+async def test_result_without_its_reply_never_takes_an_earlier_answers_id(
+    dialect: Dialect, retained: bool
+) -> None:
+    """A second execution's equal result, sent after a summary without the reply that proposed it, gets a new id.
+
+    Two replies call the same call id and both results are equal. Without its
+    reply, which call the result answers can't be told, so it never takes the
+    first answer's id; neither does it with its reply retained. The next
+    request, continuing that one, keeps the result's id, except in Google,
+    which gives a result without its call a new call id each request.
+    """
+    bridge = AgentBridge(AgentState(messages=[ChatMessageUser(content="Read.")]))
+    calls = [
+        ModelOutput.for_tool_call("mockllm/model", "read", {}, tool_call_id="call_read")
+        for _ in range(2)
+    ]
+    done = [ModelOutput.from_content("mockllm/model", "Done.") for _ in range(2)]
+    conversation = _TextConversation(dialect)
+    with _active_mock_model(*calls, *done), _serving(bridge):
+        conversation.user("Read the file twice.")
+        await conversation.generate()
+        conversation.turns.append(_result_turn(dialect, "call_read", "read", "a.txt"))
+        await conversation.generate()
+        first_answer = bridge.state.messages[2]
+        assert isinstance(first_answer, ChatMessageTool)
+        second_reply = conversation.turns[-1]
+        conversation.turns = [
+            conversation.user_turn("Summary: read the file once."),
+            *([second_reply] if retained else []),
+            _result_turn(dialect, "call_read", "read", "a.txt"),
+        ]
+        await conversation.generate()
+        result_id, role = bridge._latest_request[-1]
+        conversation.user("Thanks.")
+        await conversation.generate()
+
+    assert role == "tool"
+    assert result_id != first_answer.id
+    later = [id for id, role in bridge._latest_request if role == "tool"]
+    assert later != [first_answer.id]
+    if dialect != "google" or retained:
+        assert later == [result_id]
+
+
 @pytest.mark.parametrize("identical", [False, True], ids=["distinct", "identical"])
 def test_completions_non_primary_choice_keeps_generated_id(
     identical: bool, tmp_path: Path
@@ -1958,6 +2028,58 @@ async def test_edited_reply_gets_fresh_result_after_compaction(
     assert ids[3] != first_ids[2]
     assert second_event.message_id is None
     assert ids[3] not in bridge._edit_parent
+
+
+async def test_host_result_without_its_reply_gets_a_new_id_and_stays_unlinked() -> None:
+    """A second host execution's equal result, sent without its reply, never takes the first answer's id or links."""
+    task = ChatMessageUser(content="List twice.")
+    first, second = _call("reused"), _call("reused")
+    bridge = AgentBridge(AgentState(messages=[task]))
+    scaffold = _Scaffold(bridge)
+    await scaffold.request([task], first)
+    [first_event] = _awaiting(bridge, first)
+    first_ids = await scaffold.request([task, first, _result("reused")], second)
+    assert first_event.message_id == first_ids[2]
+    [second_event] = _awaiting(bridge, second)
+
+    ids = await scaffold.request(
+        [ChatMessageUser(content="Summary: listed once."), _result("reused")]
+    )
+
+    assert ids[1] != first_ids[2]
+    assert first_event.message_id == first_ids[2]
+    assert second_event.message_id is None
+
+
+@pytest.mark.parametrize("shared", [False, True], ids=["own_call_id", "shared_call_id"])
+async def test_edited_result_without_its_reply_keeps_its_id_only_if_it_identifies_it(
+    shared: bool,
+) -> None:
+    """A result sent without its reply, then edited in place, is an edit of it only if a key names it alone.
+
+    Its call id names it alone unless an earlier answer has the same call
+    id; then the edit could be of either, so it gets a new id.
+    """
+    task = ChatMessageUser(content="List.")
+    call_id = "reused" if shared else "own"
+    bridge = AgentBridge(AgentState(messages=[task]))
+    scaffold = _Scaffold(bridge)
+    first = _call("reused")
+    await scaffold.request([task], first)
+    await scaffold.request(
+        [task, first, _result("reused")], ChatMessageAssistant(content="Listed.")
+    )
+    summary = ChatMessageUser(content="Summary: listed.")
+    done = ChatMessageAssistant(content="Done.")
+    kept = await scaffold.request([summary, _result(call_id, "b.txt")], done)
+    edited = _result(call_id, "b.txt (truncated)")
+
+    ids = await scaffold.request([summary, edited, done])
+
+    if shared:
+        assert ids[1] != kept[1] and ids[1] not in bridge._edit_parent
+    else:
+        assert ids[1] == edited_id(kept[1], scaffold.sent[1])
 
 
 async def _google_compacting() -> None:
