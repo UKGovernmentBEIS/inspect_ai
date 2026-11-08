@@ -279,3 +279,13 @@
     returns probabilities, so the pass threshold can be chosen after the run.
   author: "[Nace](https://github.com/nace-ai)"
   categories: ["Tooling"]
+
+- name: "[anchorset](https://github.com/ogous/anchorset/blob/main/docs/INSPECT.md)"
+  description: |
+    Judge-change measurement for model_graded_qa — re-grades the answers in one Inspect log with an old and a new
+    judge over repeated draws, and reports the labels that moved between judges in each direction, next to the cases
+    where each judge's own draws split. Refuses to compare unless the judge fields that moved (model name requested or
+    served, prompt, settings, harness) are exactly the ones you declare. A Node CLI run from a clone; grading needs
+    inspect_ai 0.3.286 or 0.3.275 in its own environment and a judge on Anthropic's Messages or OpenAI's Responses API.
+  author: "[Ogous Chan Ali](https://github.com/ogous)"
+  categories: ["Analysis"]
