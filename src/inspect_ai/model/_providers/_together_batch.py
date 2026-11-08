@@ -41,10 +41,13 @@ class TogetherBatcher(OpenAIBatcher[ChatCompletion]):
             raise pip_dependency_error(FEATURE, [PACKAGE])
 
         super().__init__(client, config, retry_config, ChatCompletion)
+        # the Together SDK clients need a base URL without the /v1 suffix
+        # on together 3.x (see _together_sdk_base_url)
+        self._together_base_url = _together_sdk_base_url(client)
         # together uses different file upload method than openai
         # async client doesn't have .upload method implemented
         self._together_sync_client = Together(
-            api_key=client.api_key, base_url=_together_sdk_base_url(client)
+            api_key=client.api_key, base_url=self._together_base_url
         )
 
     # OpenAIBatcher overrides
@@ -118,7 +121,7 @@ class TogetherBatcher(OpenAIBatcher[ChatCompletion]):
         # extra_headers in the request.
         client = AsyncTogether(
             api_key=self._openai_client.api_key,
-            base_url=_together_sdk_base_url(self._openai_client),
+            base_url=self._together_base_url,
             default_headers=extra_headers,
         )
 
