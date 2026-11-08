@@ -87,8 +87,9 @@ def test_add_cache_markers_system_tool_and_last_two_blocks() -> None:
     # last system block marked
     assert _has_cache_control(request["messages"][0]["content"][-1])
     assert "cache_control" not in request["messages"][0]["content"][0]
-    # last two blocks of the last (user) message marked: OpenRouter has no
-    # request-level auto-cache, so the last block needs an explicit marker
+    # last two blocks of the last (user) message marked: this provider does
+    # not send Anthropic's top-level (automatic) cache_control, so the last
+    # block needs an explicit marker
     user_blocks = request["messages"][1]["content"]
     assert _has_cache_control(user_blocks[-1])
     assert _has_cache_control(user_blocks[-2])

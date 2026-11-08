@@ -473,9 +473,11 @@ def _add_history_cache_markers(messages: list[Any]) -> None:
 
     Walks messages in reverse, skipping system messages (marked separately),
     non-text parts and blank text. The direct anthropic provider tags only the
-    second-to-last block because Anthropic's request-level automatic caching
-    covers the last one; OpenRouter does not forward that request-level
-    marker, so without an explicit marker on the last block the growing
+    second-to-last block because it also sends Anthropic's top-level
+    (request-level) `cache_control`, whose automatic caching covers the last
+    one. OpenRouter supports that top-level field across its Anthropic
+    backends, but this provider does not send it today, so both history
+    markers must be explicit: without one on the last block the growing
     conversation history is never written to the cache. The second marker
     gives prefix lookback a fallback when the final block changes between
     calls.
