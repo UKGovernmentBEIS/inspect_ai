@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import json
 import os
-import tempfile
+import sys
 import time
 from pathlib import Path
 
@@ -20,6 +20,15 @@ import pytest
 from click.testing import CliRunner
 
 from inspect_ai._cli.acp import acp_command
+
+# A port nothing listens on: the bridge fails to connect, which is all these tests need.
+CLOSED_PORT = 9
+
+# The bridge reaches a running eval over a Unix domain socket, which Windows does not
+# provide, so a test that hands it a socket path cannot run there.
+unix_socket_target = pytest.mark.skipif(
+    sys.platform == "win32", reason="the ACP bridge connects over AF_UNIX"
+)
 
 
 @pytest.fixture(autouse=True)
@@ -68,13 +77,13 @@ def mock_stdio_streams(monkeypatch):
 
 
 @pytest.fixture
-def short_data_dir(monkeypatch):
+def data_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Stub ``inspect_data_dir`` to an empty per-test temp dir.
 
     Also stubs ``pid_alive`` to ``True`` so synthetic-PID discovery
     files in the temp dir register as live.
     """
-    dirpath = Path(tempfile.mkdtemp(prefix="acp_cli_", dir="/tmp"))
+    dirpath = tmp_path
 
     def _stub(subdir: str | None) -> Path:
         path = (dirpath / (subdir or "")).resolve()
@@ -89,25 +98,11 @@ def short_data_dir(monkeypatch):
         "inspect_ai._util.process.pid_alive",
         lambda pid: pid > 0,
     )
-    try:
-        yield dirpath
-    finally:
-        for p in sorted(dirpath.rglob("*"), reverse=True):
-            try:
-                if p.is_dir():
-                    p.rmdir()
-                else:
-                    p.unlink()
-            except OSError:
-                pass
-        try:
-            dirpath.rmdir()
-        except OSError:
-            pass
+    return dirpath
 
 
 def _write_discovery(
-    short_data_dir: Path,
+    data_dir: Path,
     *,
     pid: int,
     eval_id: str,
@@ -116,7 +111,7 @@ def _write_discovery(
     port: int | None = None,
     started_at: float | None = None,
 ) -> None:
-    acp = short_data_dir / "acp"
+    acp = data_dir / "acp"
     acp.mkdir(parents=True, exist_ok=True)
     (acp / f"{pid}.json").write_text(
         json.dumps(
@@ -137,7 +132,7 @@ def _write_discovery(
 # ---------------------------------------------------------------------------
 
 
-def test_bare_command_invokes_tui_runner(short_data_dir: Path, monkeypatch) -> None:
+def test_bare_command_invokes_tui_runner(data_dir: Path, monkeypatch) -> None:
     """``inspect acp`` (no flag) dispatches to ``_tui.run_tui``.
 
     We assert the runner is invoked with the parsed flags rather than
@@ -183,7 +178,7 @@ def test_bare_command_invokes_tui_runner(short_data_dir: Path, monkeypatch) -> N
 # ---------------------------------------------------------------------------
 
 
-def test_eval_id_and_socket_are_mutually_exclusive(short_data_dir: Path) -> None:
+def test_eval_id_and_socket_are_mutually_exclusive(data_dir: Path) -> None:
     """Both flags together → exit 2 with a clear error message."""
     runner = CliRunner()
     result = runner.invoke(
@@ -200,7 +195,7 @@ def test_eval_id_and_socket_are_mutually_exclusive(short_data_dir: Path) -> None
 # ---------------------------------------------------------------------------
 
 
-def test_stdio_with_empty_discovery_dir_exits_2(short_data_dir: Path) -> None:
+def test_stdio_with_empty_discovery_dir_exits_2(data_dir: Path) -> None:
     """No evals running → exit 2 with actionable hint to ``--acp-server``."""
     runner = CliRunner()
     result = runner.invoke(acp_command, ["--stdio"], standalone_mode=False)
@@ -212,10 +207,10 @@ def test_stdio_with_empty_discovery_dir_exits_2(short_data_dir: Path) -> None:
     assert "no running evals" in result.stderr
 
 
-def test_stdio_eval_id_nonexistent_exits_2(short_data_dir: Path) -> None:
+def test_stdio_eval_id_nonexistent_exits_2(data_dir: Path) -> None:
     """``--eval-id`` for an unknown id → exit 2 with the id named."""
     _write_discovery(
-        short_data_dir,
+        data_dir,
         pid=100001,
         eval_id="real",
         socket_path="/tmp/real.sock",
@@ -229,7 +224,8 @@ def test_stdio_eval_id_nonexistent_exits_2(short_data_dir: Path) -> None:
     assert "ghost" in result.stderr
 
 
-def test_stdio_bad_socket_path_exits_2(short_data_dir: Path) -> None:
+@unix_socket_target
+def test_stdio_bad_socket_path_exits_2(data_dir: Path) -> None:
     """``--server=<nonexistent path>`` → bridge tries to connect, fails."""
     runner = CliRunner()
     result = runner.invoke(
@@ -242,7 +238,7 @@ def test_stdio_bad_socket_path_exits_2(short_data_dir: Path) -> None:
     assert "/tmp/does/not/exist/inspect.sock" in result.stderr
 
 
-def test_stdio_out_of_range_port_exits_2(short_data_dir: Path) -> None:
+def test_stdio_out_of_range_port_exits_2(data_dir: Path) -> None:
     """``--server=host:99999`` exits cleanly instead of dumping a traceback.
 
     Without port-range validation, ``asyncio.open_connection`` raises
@@ -270,7 +266,7 @@ def test_stdio_out_of_range_port_exits_2(short_data_dir: Path) -> None:
 
 
 def test_stdio_multi_eval_picks_newest_and_logs_to_stderr(
-    short_data_dir: Path,
+    data_dir: Path,
 ) -> None:
     """Multiple evals, no ``--eval-id`` → newest wins; stderr names the pick.
 
@@ -280,17 +276,19 @@ def test_stdio_multi_eval_picks_newest_and_logs_to_stderr(
     when the user spawns a second eval mid-session).
     """
     _write_discovery(
-        short_data_dir,
+        data_dir,
         pid=100001,
         eval_id="older",
-        socket_path="/tmp/acp_older.sock",
+        host="127.0.0.1",
+        port=CLOSED_PORT,
         started_at=1000.0,
     )
     _write_discovery(
-        short_data_dir,
+        data_dir,
         pid=100002,
         eval_id="newer",
-        socket_path="/tmp/acp_newer.sock",
+        host="127.0.0.1",
+        port=CLOSED_PORT,
         started_at=2000.0,
     )
     runner = CliRunner()
@@ -306,7 +304,7 @@ def test_stdio_multi_eval_picks_newest_and_logs_to_stderr(
     assert "older" in result.stderr
 
 
-def test_stdio_single_eval_no_pick_notice(short_data_dir: Path) -> None:
+def test_stdio_single_eval_no_pick_notice(data_dir: Path) -> None:
     """One eval running, no ``--eval-id`` → no pick-notice on stderr.
 
     Pins the contract that the pick-notice is only emitted when
@@ -314,10 +312,11 @@ def test_stdio_single_eval_no_pick_notice(short_data_dir: Path) -> None:
     quiet.
     """
     _write_discovery(
-        short_data_dir,
+        data_dir,
         pid=os.getpid(),
         eval_id="only",
-        socket_path="/tmp/acp_only.sock",
+        host="127.0.0.1",
+        port=CLOSED_PORT,
     )
     runner = CliRunner()
     result = runner.invoke(acp_command, ["--stdio"], standalone_mode=False)
@@ -333,7 +332,7 @@ def test_stdio_single_eval_no_pick_notice(short_data_dir: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_stdio_partial_triple_rejected_missing_two(short_data_dir: Path) -> None:
+def test_stdio_partial_triple_rejected_missing_two(data_dir: Path) -> None:
     """``--stdio --task-id foo`` (alone) → exit 2 naming the missing flags."""
     runner = CliRunner()
     result = runner.invoke(
@@ -345,7 +344,7 @@ def test_stdio_partial_triple_rejected_missing_two(short_data_dir: Path) -> None
     assert "--task-id" not in result.stderr.split("Missing:")[1].split(".")[0]
 
 
-def test_stdio_partial_triple_rejected_missing_epoch(short_data_dir: Path) -> None:
+def test_stdio_partial_triple_rejected_missing_epoch(data_dir: Path) -> None:
     """``--stdio --task-id foo --sample-id bar`` → exit 2 naming --epoch only."""
     runner = CliRunner()
     result = runner.invoke(
@@ -361,7 +360,7 @@ def test_stdio_partial_triple_rejected_missing_epoch(short_data_dir: Path) -> No
     assert "--sample-id" not in missing_chunk
 
 
-def test_tui_partial_triple_accepted(short_data_dir: Path, monkeypatch) -> None:
+def test_tui_partial_triple_accepted(data_dir: Path, monkeypatch) -> None:
     """TUI mode accepts any combination of the triple flags (mutex is stdio-only)."""
     captured: dict[str, object] = {}
 
@@ -385,7 +384,7 @@ def test_tui_partial_triple_accepted(short_data_dir: Path, monkeypatch) -> None:
     assert captured == {"task_id": "foo", "sample_id": None, "epoch": None}
 
 
-def test_stdio_full_triple_preflight_unreachable_socket(short_data_dir: Path) -> None:
+def test_stdio_full_triple_preflight_unreachable_socket(data_dir: Path) -> None:
     """``--stdio`` + complete triple + unreachable socket → exit 2 on preflight.
 
     The preflight runs BEFORE the bridge starts; on connect failure it
@@ -393,10 +392,11 @@ def test_stdio_full_triple_preflight_unreachable_socket(short_data_dir: Path) ->
     half-open bridge.
     """
     _write_discovery(
-        short_data_dir,
+        data_dir,
         pid=100001,
         eval_id="real",
-        socket_path="/tmp/acp_does_not_exist.sock",
+        host="127.0.0.1",
+        port=CLOSED_PORT,
     )
     runner = CliRunner()
     result = runner.invoke(
@@ -411,7 +411,7 @@ def test_stdio_full_triple_preflight_unreachable_socket(short_data_dir: Path) ->
     )
     assert isinstance(result.exception, SystemExit)
     assert result.exception.code == 2
-    assert "/tmp/acp_does_not_exist.sock" in result.stderr
+    assert f"127.0.0.1:{CLOSED_PORT}" in result.stderr
 
 
 # ---------------------------------------------------------------------------
