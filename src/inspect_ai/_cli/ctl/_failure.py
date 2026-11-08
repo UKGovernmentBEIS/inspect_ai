@@ -41,6 +41,8 @@ from ._render import _echo, _echo_raw
 # than shipping it as a new vocabulary entry. `unsupported` and
 # `storage_error` are raised only under `--log-dir` (see
 # design/ctl/log-dir-mode.md, "Structured errors in the mode").
+# `unknown_outcome` is a single-attempt mutation sent whose response was lost
+# (see `unknown_outcome` on `_request_json`).
 _ErrorKind = Literal[
     "busy",
     "connect_timeout",
@@ -54,6 +56,7 @@ _ErrorKind = Literal[
     "internal",
     "unsupported",
     "storage_error",
+    "unknown_outcome",
 ]
 
 

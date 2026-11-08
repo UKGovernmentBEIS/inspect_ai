@@ -1,0 +1,685 @@
+{
+  "version": 2,
+  "status": "success",
+  "eval": {
+    "eval_id": "JrqwFKJPjgz2VHRMjgs2aB",
+    "run_id": "3DSzjDe7LmnCn3Zm5b8ofr",
+    "created": "2026-11-05T03:41:34+00:00",
+    "task": "task",
+    "task_id": "exKckzUXvAJ7r48tCfjH4z",
+    "task_version": 0,
+    "task_display_name": "task",
+    "task_attribs": {},
+    "task_args": {},
+    "task_args_passed": {},
+    "solver_args_passed": {},
+    "dataset": {
+      "samples": 1,
+      "sample_ids": [
+        1
+      ],
+      "shuffled": false
+    },
+    "model": "mockllm/model",
+    "model_generate_config": {},
+    "model_args": {
+      "custom_outputs": [
+        {
+          "model": "mockllm/model",
+          "choices": [
+            {
+              "message": {
+                "id": "jEH8gvt5k23k53Y9PHc6s8",
+                "content": "tool call for tool mcp__host__addition",
+                "source": "generate",
+                "role": "assistant",
+                "tool_calls": [
+                  {
+                    "id": "for_tool_call_3eb5ee1b-d87c-4f81-9a36-f6732ad4316c",
+                    "function": "mcp__host__addition",
+                    "arguments": {
+                      "x": 1,
+                      "y": 1
+                    },
+                    "type": "function"
+                  }
+                ],
+                "model": "mockllm/model"
+              },
+              "stop_reason": "tool_calls"
+            }
+          ],
+          "completion": "tool call for tool mcp__host__addition",
+          "usage": {
+            "input_tokens": 111,
+            "output_tokens": 38,
+            "total_tokens": 149
+          },
+          "input_context_tokens": 111,
+          "time": 0.08127850014716387
+        }
+      ]
+    },
+    "config": {
+      "epochs": 1,
+      "sentinel": [
+        {
+          "name": "r7_probe",
+          "params": {
+            "seen": {}
+          }
+        }
+      ],
+      "fail_on_error": true,
+      "continue_on_fail": false,
+      "score_on_error": false,
+      "sandbox_cleanup": true,
+      "sandbox_prebuilt": false,
+      "log_samples": true,
+      "log_realtime": true,
+      "log_images": true,
+      "log_model_api": true,
+      "score_display": true
+    },
+    "packages": {
+      "inspect_ai": "0.3.286.dev63+g5c70c5f39"
+    }
+  },
+  "plan": {
+    "name": "plan",
+    "steps": [
+      {
+        "solver": "r7_runs_a_bridged_host_tool",
+        "params": {
+          "name": "mcp__host__addition",
+          "approval": [
+            {
+              "approver": "approve",
+              "tools": "*",
+              "arguments": null
+            }
+          ]
+        },
+        "params_passed": {
+          "name": "mcp__host__addition",
+          "approval": [
+            {
+              "approver": "approve",
+              "tools": "*",
+              "arguments": null
+            }
+          ]
+        }
+      }
+    ],
+    "config": {}
+  },
+  "results": {
+    "total_samples": 1,
+    "completed_samples": 1,
+    "scores": []
+  },
+  "stats": {
+    "started_at": "2026-11-05T03:41:34+00:00",
+    "completed_at": "2026-11-05T03:41:35+00:00",
+    "model_usage": {
+      "mockllm/model": {
+        "input_tokens": 111,
+        "output_tokens": 38,
+        "total_tokens": 149
+      }
+    },
+    "role_usage": {},
+    "connection_limit_history": []
+  },
+  "invalidated": false,
+  "tags": [],
+  "metadata": {},
+  "samples": [
+    {
+      "id": 1,
+      "epoch": 1,
+      "input": "What is 1 + 1?",
+      "target": "2",
+      "messages": [
+        {
+          "id": "erd5PHv4hB7TWoLwejsMEs",
+          "content": "What is 1 + 1?",
+          "role": "user"
+        },
+        {
+          "id": "jEH8gvt5k23k53Y9PHc6s8",
+          "content": "tool call for tool mcp__host__addition",
+          "source": "generate",
+          "role": "assistant",
+          "tool_calls": [
+            {
+              "id": "for_tool_call_3eb5ee1b-d87c-4f81-9a36-f6732ad4316c",
+              "function": "mcp__host__addition",
+              "arguments": {
+                "x": 1,
+                "y": 1
+              },
+              "type": "function"
+            }
+          ],
+          "model": "mockllm/model"
+        }
+      ],
+      "output": {
+        "model": "mockllm/model",
+        "choices": [
+          {
+            "message": {
+              "id": "jEH8gvt5k23k53Y9PHc6s8",
+              "content": "tool call for tool mcp__host__addition",
+              "source": "generate",
+              "role": "assistant",
+              "tool_calls": [
+                {
+                  "id": "for_tool_call_3eb5ee1b-d87c-4f81-9a36-f6732ad4316c",
+                  "function": "mcp__host__addition",
+                  "arguments": {
+                    "x": 1,
+                    "y": 1
+                  },
+                  "type": "function"
+                }
+              ],
+              "model": "mockllm/model"
+            },
+            "stop_reason": "tool_calls"
+          }
+        ],
+        "completion": "tool call for tool mcp__host__addition",
+        "usage": {
+          "input_tokens": 111,
+          "output_tokens": 38,
+          "total_tokens": 149
+        },
+        "input_context_tokens": 111,
+        "time": 0.08127850014716387
+      },
+      "scores": {},
+      "metadata": {},
+      "store": {},
+      "events": [
+        {
+          "uuid": "NjoxZPL8MgBqxwp3zoNBqD",
+          "span_id": "m8nLE4rEQnxxTvYWbuQGF7",
+          "timestamp": "2026-11-05T03:41:35.359366+00:00",
+          "working_start": 2335899.372028958,
+          "event": "span_begin",
+          "id": "m8nLE4rEQnxxTvYWbuQGF7",
+          "type": "init",
+          "name": "init"
+        },
+        {
+          "uuid": "bJTbunwsRKVe3gJGEUJocS",
+          "span_id": "m8nLE4rEQnxxTvYWbuQGF7",
+          "timestamp": "2026-11-05T03:41:35.359802+00:00",
+          "working_start": 2335899.372464333,
+          "event": "sample_init",
+          "sample": {
+            "input": "What is 1 + 1?",
+            "target": "2",
+            "id": 1
+          },
+          "state": {
+            "messages": [
+              {
+                "id": "YBXfZvapUKkExo7ZgC4ERf",
+                "content": "What is 1 + 1?",
+                "source": "input",
+                "role": "user"
+              }
+            ],
+            "tools": [],
+            "tool_choice": null,
+            "store": {},
+            "output": {
+              "model": "mockllm/model",
+              "choices": [],
+              "completion": ""
+            },
+            "completed": false,
+            "metadata": {}
+          }
+        },
+        {
+          "uuid": "4ZHdSco9YBjewQey8DJsPt",
+          "span_id": "m8nLE4rEQnxxTvYWbuQGF7",
+          "timestamp": "2026-11-05T03:41:35.359943+00:00",
+          "working_start": 2335899.3726045,
+          "event": "span_end",
+          "id": "m8nLE4rEQnxxTvYWbuQGF7"
+        },
+        {
+          "uuid": "KuFJ4usxiNoPV4uD34BYq9",
+          "span_id": "nZB9RDHMBKesajD5RefeSc",
+          "timestamp": "2026-11-05T03:41:35.360242+00:00",
+          "working_start": 0.00020091701298952103,
+          "event": "span_begin",
+          "id": "nZB9RDHMBKesajD5RefeSc",
+          "type": "solvers",
+          "name": "solvers"
+        },
+        {
+          "uuid": "h3inPZwCt5dLZ8iRLqMW8P",
+          "span_id": "DGo974TdcLLXeKDc7zDM9i",
+          "timestamp": "2026-11-05T03:41:35.360440+00:00",
+          "working_start": 0.0003993748687207699,
+          "event": "span_begin",
+          "id": "DGo974TdcLLXeKDc7zDM9i",
+          "parent_id": "nZB9RDHMBKesajD5RefeSc",
+          "type": "solver",
+          "name": "r7_runs_a_bridged_host_tool"
+        },
+        {
+          "uuid": "eguXKq8vd5Qd4bQpYokkaB",
+          "span_id": "fr7FMWY2yT6VY5RC9iqsyn",
+          "timestamp": "2026-11-05T03:41:35.360540+00:00",
+          "working_start": 0.0004989169538021088,
+          "event": "span_begin",
+          "id": "fr7FMWY2yT6VY5RC9iqsyn",
+          "parent_id": "DGo974TdcLLXeKDc7zDM9i",
+          "type": "agent",
+          "name": "r7_runs_a_bridged_host_tool"
+        },
+        {
+          "uuid": "Ak8LcDcyoFXynG6BL6m2x8",
+          "span_id": "U87SqUTm9UA3XyXzfSNrtf",
+          "timestamp": "2026-11-05T03:41:35.364655+00:00",
+          "working_start": 0.004614832811057568,
+          "event": "span_begin",
+          "id": "U87SqUTm9UA3XyXzfSNrtf",
+          "parent_id": "fr7FMWY2yT6VY5RC9iqsyn",
+          "type": "sentinel",
+          "name": "sentinel"
+        },
+        {
+          "uuid": "eJ8GkjSsCXJkWdkx7hod9S",
+          "span_id": "U87SqUTm9UA3XyXzfSNrtf",
+          "timestamp": "2026-11-05T03:41:35.364806+00:00",
+          "working_start": 0.004738125018775463,
+          "event": "sentinel",
+          "factory": "r7_probe",
+          "path": "r7_probe",
+          "function": "before_generate",
+          "step_id": "HAc7QE98Pp7Szcaendaf4E",
+          "conversation": "fr7FMWY2yT6VY5RC9iqsyn",
+          "stage": "model_input",
+          "kind": "observation",
+          "status": "reported",
+          "suspicion": 0.0,
+          "audit": false,
+          "explanation": "0",
+          "references": []
+        },
+        {
+          "uuid": "Lk24A7gYbuUhgSrHfnstRL",
+          "span_id": "U87SqUTm9UA3XyXzfSNrtf",
+          "timestamp": "2026-11-05T03:41:35.364956+00:00",
+          "working_start": 0.0047510829754173756,
+          "event": "span_end",
+          "id": "U87SqUTm9UA3XyXzfSNrtf"
+        },
+        {
+          "uuid": "HAc7QE98Pp7Szcaendaf4E",
+          "span_id": "fr7FMWY2yT6VY5RC9iqsyn",
+          "timestamp": "2026-11-05T03:41:35.365034+00:00",
+          "working_start": 0.004828666336834431,
+          "event": "model",
+          "model": "mockllm/model",
+          "requested_model": "inspect",
+          "origin": "agent",
+          "input": [
+            {
+              "id": "erd5PHv4hB7TWoLwejsMEs",
+              "content": "What is 1 + 1?",
+              "role": "user"
+            }
+          ],
+          "tools": [
+            {
+              "name": "mcp__host__addition",
+              "description": "Add two numbers.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "integer",
+                    "description": "First number to add."
+                  },
+                  "y": {
+                    "type": "integer",
+                    "description": "Second number to add."
+                  }
+                },
+                "required": [
+                  "x",
+                  "y"
+                ],
+                "additionalProperties": false
+              }
+            }
+          ],
+          "tool_choice": "auto",
+          "config": {},
+          "output": {
+            "model": "mockllm/model",
+            "choices": [
+              {
+                "message": {
+                  "id": "jEH8gvt5k23k53Y9PHc6s8",
+                  "content": "tool call for tool mcp__host__addition",
+                  "source": "generate",
+                  "role": "assistant",
+                  "tool_calls": [
+                    {
+                      "id": "for_tool_call_3eb5ee1b-d87c-4f81-9a36-f6732ad4316c",
+                      "function": "mcp__host__addition",
+                      "arguments": {
+                        "x": 1,
+                        "y": 1
+                      },
+                      "type": "function"
+                    }
+                  ],
+                  "model": "mockllm/model"
+                },
+                "stop_reason": "tool_calls"
+              }
+            ],
+            "completion": "tool call for tool mcp__host__addition",
+            "usage": {
+              "input_tokens": 111,
+              "output_tokens": 38,
+              "total_tokens": 149
+            },
+            "input_context_tokens": 111,
+            "time": 0.08127850014716387
+          },
+          "call": {
+            "request": {
+              "model": "model",
+              "messages": [
+                {
+                  "id": "erd5PHv4hB7TWoLwejsMEs",
+                  "content": "What is 1 + 1?",
+                  "source": null,
+                  "metadata": null,
+                  "role": "user",
+                  "tool_call_id": null
+                }
+              ]
+            },
+            "response": {
+              "content": "tool call for tool mcp__host__addition"
+            }
+          },
+          "completed": "2026-11-05T03:41:35.509356+00:00",
+          "working_time": 0.08127850014716387
+        },
+        {
+          "uuid": "76P9jwiuoXkcwXzHpZL87u",
+          "span_id": "JrEgYB5pUM3HqZSaTXTYJ8",
+          "timestamp": "2026-11-05T03:41:35.509643+00:00",
+          "working_start": 0.14938920782878995,
+          "event": "span_begin",
+          "id": "JrEgYB5pUM3HqZSaTXTYJ8",
+          "parent_id": "fr7FMWY2yT6VY5RC9iqsyn",
+          "type": "sentinel",
+          "name": "sentinel"
+        },
+        {
+          "uuid": "KsMeNzGh3TjNWAcBEwJ6Hd",
+          "span_id": "JrEgYB5pUM3HqZSaTXTYJ8",
+          "timestamp": "2026-11-05T03:41:35.509781+00:00",
+          "working_start": 0.14949045795947313,
+          "event": "sentinel",
+          "factory": "r7_probe",
+          "path": "r7_probe",
+          "function": "after_generate",
+          "step_id": "HAc7QE98Pp7Szcaendaf4E",
+          "conversation": "fr7FMWY2yT6VY5RC9iqsyn",
+          "stage": "model_output",
+          "kind": "observation",
+          "status": "reported",
+          "suspicion": 0.0,
+          "audit": false,
+          "explanation": "1",
+          "references": []
+        },
+        {
+          "uuid": "EGFWYD2tXYeucUrQGjHgcz",
+          "span_id": "JrEgYB5pUM3HqZSaTXTYJ8",
+          "timestamp": "2026-11-05T03:41:35.509894+00:00",
+          "working_start": 0.14950029226019979,
+          "event": "span_end",
+          "id": "JrEgYB5pUM3HqZSaTXTYJ8"
+        },
+        {
+          "uuid": "UfKH6XiqgjUivQ4SaWKrum",
+          "span_id": "fr7FMWY2yT6VY5RC9iqsyn",
+          "timestamp": "2026-11-05T03:41:35.510075+00:00",
+          "working_start": 0.1496033752337098,
+          "event": "approval",
+          "message": "tool call for tool mcp__host__addition",
+          "call": {
+            "id": "for_tool_call_3eb5ee1b-d87c-4f81-9a36-f6732ad4316c",
+            "function": "mcp__host__addition",
+            "arguments": {
+              "x": 1,
+              "y": 1
+            },
+            "type": "function"
+          },
+          "view": {
+            "call": {
+              "format": "markdown",
+              "content": "```python\nmcp__host__addition(x=1, y=1)\n```\n"
+            }
+          },
+          "approver": "r7_bridged_approver",
+          "decision": "approve"
+        },
+        {
+          "uuid": "P9Jf2vXw3XFF3uCFcRyBaP",
+          "span_id": "mzEbG2cbLhepFxwQAm52ad",
+          "timestamp": "2026-11-05T03:41:35.531412+00:00",
+          "working_start": 0.170823167078197,
+          "event": "span_begin",
+          "id": "mzEbG2cbLhepFxwQAm52ad",
+          "parent_id": "fr7FMWY2yT6VY5RC9iqsyn",
+          "type": "tool",
+          "name": "addition"
+        },
+        {
+          "uuid": "fSdQGvHvzMbgdMWTU4U3QH",
+          "span_id": "fr7FMWY2yT6VY5RC9iqsyn",
+          "timestamp": "2026-11-05T03:41:35.531358+00:00",
+          "working_start": 0.17077345913276076,
+          "metadata": {
+            "bridge": {
+              "server": "host",
+              "tool": "addition",
+              "function": "mcp__host__addition",
+              "proposal_id": "for_tool_call_3eb5ee1b-d87c-4f81-9a36-f6732ad4316c",
+              "grant": "consumed"
+            }
+          },
+          "event": "tool",
+          "type": "function",
+          "id": "for_tool_call_3eb5ee1b-d87c-4f81-9a36-f6732ad4316c",
+          "function": "addition",
+          "arguments": {
+            "x": 1,
+            "y": 1
+          },
+          "result": "2",
+          "events": [],
+          "completed": "2026-11-05T03:41:35.531968+00:00",
+          "working_time": 0.0005659996531903744
+        },
+        {
+          "uuid": "3G7ZjrKKbqNpzhamEtHtBi",
+          "span_id": "mzEbG2cbLhepFxwQAm52ad",
+          "timestamp": "2026-11-05T03:41:35.531750+00:00",
+          "working_start": 0.17116158409044147,
+          "event": "span_end",
+          "id": "mzEbG2cbLhepFxwQAm52ad"
+        },
+        {
+          "uuid": "Phtato7qyvK5L8S45cTcuR",
+          "span_id": "fr7FMWY2yT6VY5RC9iqsyn",
+          "timestamp": "2026-11-05T03:41:35.532108+00:00",
+          "working_start": 0.17151904245838523,
+          "event": "span_end",
+          "id": "fr7FMWY2yT6VY5RC9iqsyn"
+        },
+        {
+          "uuid": "QpJdMT6bgRRByVfbDxMwpZ",
+          "span_id": "DGo974TdcLLXeKDc7zDM9i",
+          "timestamp": "2026-11-05T03:41:35.532251+00:00",
+          "working_start": 0.17166250012815,
+          "event": "state",
+          "changes": [
+            {
+              "op": "remove",
+              "path": "/messages/0/source"
+            },
+            {
+              "op": "replace",
+              "path": "/messages/0/id",
+              "value": "erd5PHv4hB7TWoLwejsMEs",
+              "replaced": "YBXfZvapUKkExo7ZgC4ERf"
+            },
+            {
+              "op": "add",
+              "path": "/messages/1",
+              "value": {
+                "id": "jEH8gvt5k23k53Y9PHc6s8",
+                "content": "tool call for tool mcp__host__addition",
+                "source": "generate",
+                "role": "assistant",
+                "tool_calls": [
+                  {
+                    "id": "for_tool_call_3eb5ee1b-d87c-4f81-9a36-f6732ad4316c",
+                    "function": "mcp__host__addition",
+                    "arguments": {
+                      "x": 1,
+                      "y": 1
+                    },
+                    "type": "function"
+                  }
+                ],
+                "model": "mockllm/model"
+              }
+            },
+            {
+              "op": "add",
+              "path": "/output/usage",
+              "value": {
+                "input_tokens": 111,
+                "output_tokens": 38,
+                "total_tokens": 149
+              }
+            },
+            {
+              "op": "add",
+              "path": "/output/input_context_tokens",
+              "value": 111
+            },
+            {
+              "op": "add",
+              "path": "/output/time",
+              "value": 0.08127850014716387
+            },
+            {
+              "op": "add",
+              "path": "/output/choices/0",
+              "value": {
+                "message": {
+                  "id": "jEH8gvt5k23k53Y9PHc6s8",
+                  "content": "tool call for tool mcp__host__addition",
+                  "source": "generate",
+                  "role": "assistant",
+                  "tool_calls": [
+                    {
+                      "id": "for_tool_call_3eb5ee1b-d87c-4f81-9a36-f6732ad4316c",
+                      "function": "mcp__host__addition",
+                      "arguments": {
+                        "x": 1,
+                        "y": 1
+                      },
+                      "type": "function"
+                    }
+                  ],
+                  "model": "mockllm/model"
+                },
+                "stop_reason": "tool_calls"
+              }
+            },
+            {
+              "op": "replace",
+              "path": "/output/completion",
+              "value": "tool call for tool mcp__host__addition",
+              "replaced": ""
+            }
+          ]
+        },
+        {
+          "uuid": "CSqYHNxVxKueDwGzTz6oLT",
+          "span_id": "DGo974TdcLLXeKDc7zDM9i",
+          "timestamp": "2026-11-05T03:41:35.532393+00:00",
+          "working_start": 0.1718038753606379,
+          "event": "span_end",
+          "id": "DGo974TdcLLXeKDc7zDM9i"
+        },
+        {
+          "uuid": "YX7sJkdCoNHzqcRMTiL98E",
+          "span_id": "nZB9RDHMBKesajD5RefeSc",
+          "timestamp": "2026-11-05T03:41:35.532467+00:00",
+          "working_start": 0.1718782503157854,
+          "event": "span_end",
+          "id": "nZB9RDHMBKesajD5RefeSc"
+        },
+        {
+          "uuid": "eqZM5YoATrMLr2kJxz6HgK",
+          "span_id": "Mh7nmmFfkb54cmJrVfDH3f",
+          "timestamp": "2026-11-05T03:41:35.532709+00:00",
+          "working_start": 0.17212008405476809,
+          "event": "span_begin",
+          "id": "Mh7nmmFfkb54cmJrVfDH3f",
+          "type": "scorers",
+          "name": "scorers"
+        },
+        {
+          "uuid": "4gDiNPr8rqXBL8kXybrczS",
+          "span_id": "Mh7nmmFfkb54cmJrVfDH3f",
+          "timestamp": "2026-11-05T03:41:35.532790+00:00",
+          "working_start": 0.17220037523657084,
+          "event": "span_end",
+          "id": "Mh7nmmFfkb54cmJrVfDH3f"
+        }
+      ],
+      "model_usage": {
+        "mockllm/model": {
+          "input_tokens": 111,
+          "output_tokens": 38,
+          "total_tokens": 149
+        }
+      },
+      "role_usage": {},
+      "started_at": "2026-11-05T03:41:35.360043+00:00",
+      "completed_at": "2026-11-05T03:41:35.532937+00:00",
+      "total_time": 0.173,
+      "working_time": 0.172,
+      "uuid": "54jTP9psBJwYB5U4x2TA84",
+      "error_retries": [],
+      "attachments": {},
+      "turn_count": 1
+    }
+  ]
+}

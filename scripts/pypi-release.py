@@ -26,7 +26,9 @@ Usage:
 """
 
 import argparse
+import csv
 import hashlib
+import io
 import json
 import logging
 import os
@@ -536,7 +538,7 @@ def _normalize_scm_version(content: bytes) -> bytes:
 # Archive members (path below the sdist's top-level directory) whose content
 # legitimately differs between release builders, with the normalization
 # applied to both sides before comparing. Every other member must match byte
-# for byte.
+# for byte, except a wheel's WHEEL and RECORD (see `_ignore_wheel_generator`).
 PARITY_NORMALIZERS: Dict[str, Callable[[bytes], bytes]] = {
     "src/inspect_ai.egg-info/scm_version.json": _normalize_scm_version,
 }
@@ -591,18 +593,85 @@ def archive_member_digests(path: Path) -> Dict[str, str]:
     return digests
 
 
+class _WheelMetadata(NamedTuple):
+    generators: List[str]
+    other_lines: List[str]
+
+
+def _split_generator(wheel_metadata: bytes) -> _WheelMetadata:
+    lines = wheel_metadata.decode().splitlines()
+    return _WheelMetadata(
+        generators=[line for line in lines if line.startswith("Generator:")],
+        other_lines=[line for line in lines if not line.startswith("Generator:")],
+    )
+
+
+def _record_rows_without_metadata_hashes(
+    record: bytes, dist_info: str
+) -> List[List[str]]:
+    ignored = {f"{dist_info}/WHEEL", f"{dist_info}/RECORD"}
+    return [
+        row[:1] if row and row[0] in ignored else row
+        for row in csv.reader(io.StringIO(record.decode()))
+    ]
+
+
+def _ignore_wheel_generator(
+    published: Path, built: Path, differing: List[str]
+) -> List[str]:
+    """Drop a wheel's WHEEL and RECORD from `differing` when only the build tool differs.
+
+    WHEEL's `Generator:` line names the build backend and its version (e.g.
+    "setuptools (84.0.0)"), which changes with backend releases rather than
+    with the source. RECORD then differs only in WHEEL's hash and size. Any
+    other difference in either file is kept.
+    """
+    wheel_files = [n for n in differing if re.fullmatch(r"[^/]+\.dist-info/WHEEL", n)]
+    if len(wheel_files) != 1:
+        return differing
+    wheel_file = wheel_files[0]
+    dist_info = wheel_file.rsplit("/", 1)[0]
+    record_file = f"{dist_info}/RECORD"
+
+    with zipfile.ZipFile(published) as old, zipfile.ZipFile(built) as new:
+        old_wheel = _split_generator(old.read(wheel_file))
+        new_wheel = _split_generator(new.read(wheel_file))
+        if (
+            len(old_wheel.generators) != 1
+            or len(new_wheel.generators) != 1
+            or old_wheel.other_lines != new_wheel.other_lines
+        ):
+            return differing
+        ignored = [wheel_file]
+        if record_file in differing and _record_rows_without_metadata_hashes(
+            old.read(record_file), dist_info
+        ) == _record_rows_without_metadata_hashes(new.read(record_file), dist_info):
+            ignored.append(record_file)
+
+    logging.info(
+        f"{built.name}: ignoring build tool difference in {' and '.join(ignored)}: "
+        f"'{old_wheel.generators[0]}' on PyPI, '{new_wheel.generators[0]}' built"
+    )
+    return [n for n in differing if n not in ignored]
+
+
 def compare_archives(published: Path, built: Path) -> ParityResult:
-    """Compare member lists and per-member content of two archives."""
+    """Compare member lists and per-member content of two archives.
+
+    A wheel whose WHEEL and RECORD differ only in the build tool's identity
+    matches (see `_ignore_wheel_generator`).
+    """
     expected = archive_member_digests(published)
     actual = archive_member_digests(built)
+    differing = sorted(
+        name for name in set(expected) & set(actual) if expected[name] != actual[name]
+    )
+    if built.name.endswith(".whl"):
+        differing = _ignore_wheel_generator(published, built, differing)
     return ParityResult(
         missing=sorted(set(expected) - set(actual)),
         extra=sorted(set(actual) - set(expected)),
-        differing=sorted(
-            name
-            for name in set(expected) & set(actual)
-            if expected[name] != actual[name]
-        ),
+        differing=differing,
         compared=len(set(expected) | set(actual)),
     )
 

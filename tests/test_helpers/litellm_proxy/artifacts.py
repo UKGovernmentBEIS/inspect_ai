@@ -71,12 +71,14 @@ def check_anthropic_replay(
     message = _matching_message(
         next_request["messages"],
         role="assistant",
-        matches=lambda content: bool(tool_ids)
-        and any(
-            isinstance(b, dict)
-            and b.get("type") == "tool_use"
-            and b.get("id") in tool_ids
-            for b in content
+        matches=lambda content: (
+            bool(tool_ids)
+            and any(
+                isinstance(b, dict)
+                and b.get("type") == "tool_use"
+                and b.get("id") in tool_ids
+                for b in content
+            )
         ),
     )
     content = _content_blocks(message)
@@ -110,11 +112,13 @@ def check_gemini_replay(response: dict[str, Any], next_request: dict[str, Any]) 
     content = _matching_message(
         next_request["contents"],
         role="model",
-        matches=lambda replayed_parts: bool(call_names)
-        and any(
-            (call := _function_call(p)) is not None and call["name"] in call_names
-            for p in replayed_parts
-            if isinstance(p, dict)
+        matches=lambda replayed_parts: (
+            bool(call_names)
+            and any(
+                (call := _function_call(p)) is not None and call["name"] in call_names
+                for p in replayed_parts
+                if isinstance(p, dict)
+            )
         ),
         content_key="parts",
     )
@@ -233,10 +237,13 @@ def check_bedrock_converse_replay(
     message = _matching_message(
         next_request["messages"],
         role="assistant",
-        matches=lambda replayed_content: bool(tool_ids)
-        and any(
-            isinstance(b, dict) and b.get("toolUse", {}).get("toolUseId") in tool_ids
-            for b in replayed_content
+        matches=lambda replayed_content: (
+            bool(tool_ids)
+            and any(
+                isinstance(b, dict)
+                and b.get("toolUse", {}).get("toolUseId") in tool_ids
+                for b in replayed_content
+            )
         ),
     )
     replayed_content = _content_blocks(message)

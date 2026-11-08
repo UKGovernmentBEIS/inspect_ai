@@ -203,8 +203,7 @@ at the end of this list) is documented rather than fixed:
   `TerminateSampleError` on the agent's side, where the task group unwinds
   the agent and the sample runner sees it. Proposed: generalize that signal
   to carry an exception. `SandboxAgentBridge` gains a `request_fail(error)`
-  that stores the exception and sets the event (with `request_terminate`
-  becoming the `TerminateSampleError` case), and `_monitor_terminate`
+  that stores the exception and sets the event, and `_monitor_terminate`
   becomes `_monitor_failure`, raising whatever was stored.
   `_forward_provider_errors` then catches `ModelRefusalError`, calls
   `bridge.request_fail(ex)`, and still returns the provider-dialect error
@@ -224,6 +223,16 @@ at the end of this list) is documented rather than fixed:
   `LimitExceededError` branch in `_handle_request`; rejected because it would
   teach the generic sandbox service about a model-layer error type, whereas
   the bridge already owns a mechanism built for exactly this.
+
+  Since #4993, terminations do not use this signal. The service dispatcher
+  answers the RPC and propagates a `TerminateSampleError` (bare, grouped, or
+  in the history of the escaping exception, including a limit's) out of the
+  service task, which unwinds the `sandbox_agent_bridge` task group.
+  `SandboxAgentBridge` no longer overrides `request_terminate`; the base
+  method raises, and `_forward_provider_errors` and the host tool `call_tool`
+  re-raise a termination to the dispatcher instead of calling
+  `request_fail`. The signal remains for `ModelRefusalError` and the other
+  failures the dispatcher would turn into RPC errors.
 - MCP sampling. `sampling_fn` in `src/inspect_ai/tool/_mcp/sampling.py`
   answers a server-initiated `sampling/createMessage` request by calling
   `get_model().generate()` inside a bare `except Exception` that returns an
@@ -434,7 +443,9 @@ per-sample failure.
   `ModelRefusalError` from `_run_background`; `src/inspect_ai/util/_background.py`:
   add it to the `background()` no-log allowlist (both pending open question 4).
 - `src/inspect_ai/agent/_bridge/sandbox/types.py`: `request_fail(error)` on
-  `SandboxAgentBridge`, generalizing the terminate signal;
+  `SandboxAgentBridge`, generalizing the terminate signal (terminations
+  later moved to the service dispatcher in #4993; see section 3's sandbox
+  bridge gap);
   `src/inspect_ai/agent/_bridge/sandbox/bridge.py`: `_monitor_failure` raises
   the stored error; `src/inspect_ai/agent/_bridge/sandbox/service.py`:
   `_forward_provider_errors` takes the bridge, calls `request_fail` on

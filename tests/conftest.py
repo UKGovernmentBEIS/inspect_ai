@@ -399,6 +399,29 @@ def protect_registrations(
 
 
 @pytest.fixture
+def isolated_hooks_registry() -> Iterator[None]:
+    """Temporarily hide existing hooks; tests must clean up their own registrations."""
+    from inspect_ai._util import registry as registry_mod
+    from inspect_ai._util.entrypoints import ensure_entry_points
+
+    # Load extensions first so an empty registry cannot load their hooks mid-test.
+    ensure_entry_points()
+    saved = {
+        key: value
+        for key, value in registry_mod._registry.items()
+        if key.startswith("hooks:")
+    }
+    for key in saved:
+        del registry_mod._registry[key]
+    try:
+        yield
+    finally:
+        registry_mod._registry.update(saved)
+        # Direct dict updates don't invalidate get_all_hooks()'s cache.
+        registry_mod._registry_version += 1
+
+
+@pytest.fixture
 def no_model_copyreg_reducer():
     """Suspend any copyreg reducer registered for Model for the test's duration.
 
@@ -930,6 +953,13 @@ def _report_oom_kills(exitstatus: int) -> None:
 
 
 def pytest_configure(config):
+    # inspect_ai must never load inspect_sentinel for a user who configures no
+    # sentinel, so any import of it in a test raises ImportError. Tests of the
+    # sentinel code install a fake with the `fake_sentinel` fixture.
+    block_sentinel = pytest.MonkeyPatch()
+    block_sentinel.setitem(sys.modules, "inspect_sentinel", None)
+    config.add_cleanup(block_sentinel.undo)
+
     config.addinivalue_line("markers", "slow: mark test as slow to run")
     config.addinivalue_line("markers", "api: mark test as requiring API access")
     config.addinivalue_line("markers", "flaky: mark test as flaky/unreliable")
@@ -945,6 +975,9 @@ def pytest_configure(config):
         "is the live control surface)",
     )
     os.environ["INSPECT_EVAL_LOG_MODEL_API"] = "1"
+    # verify every composed S3 log flush against a digest of the temp file's
+    # prefix (off in production; see design/s3-incremental-log-flush.md)
+    os.environ["INSPECT_VERIFY_COMPOSE_PREFIX"] = "1"
     # Dummy provider keys so tests that only construct a client (not call the
     # API) work without real credentials. Real keys (when present) win via
     # setdefault. api-marked tests are gated behind --runapi and skip when the

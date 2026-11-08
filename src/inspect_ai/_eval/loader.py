@@ -26,6 +26,7 @@ from inspect_ai._util.registry import (
     registry_lookup,
     registry_params,
 )
+from inspect_ai._util.rich import escape_control_characters
 from inspect_ai.agent._agent import Agent
 from inspect_ai.agent._as_solver import as_solver
 from inspect_ai.log import EvalLog
@@ -355,9 +356,7 @@ def resolve_previous_task(
         model_roles=_merge_model_roles(
             loaded_task.model_roles, model_roles, previous_task.model_roles
         ),
-        sandbox=resolve_task_file_sandbox(
-            previous_task.log.eval.task_file, previous_task.log.eval.sandbox
-        ),
+        sandbox=previous_task.sandbox,
         checkpoint=loaded_task.checkpoint,
         sequence=sequence,
         id=previous_task.id,
@@ -415,6 +414,16 @@ def resolve_task_sandbox(
     # do the resolution
     resolved_sandbox = resolve_sandbox_environment(sandbox) or task.sandbox
 
+    # a bare override of the task's own sandbox type keeps the task's config,
+    # as resolve_sandbox() does for a sample and task of the same type
+    if (
+        resolved_sandbox is not None
+        and resolved_sandbox.config is None
+        and task.sandbox is not None
+        and resolved_sandbox.type == task.sandbox.type
+    ):
+        resolved_sandbox = task.sandbox
+
     # if we have a sandbox with no config, see if there are implcit
     # config files available for the provider
     if resolved_sandbox is not None:
@@ -439,7 +448,7 @@ def resolve_task_sandbox(
 
             # if we found an override without a config then we may still
             # want to forward the task config if it's docker config ->
-            # docker compatible sandbox
+            # docker compatible sandbox (otherwise the task config is not used)
             if resolved_sandbox.config is None and task.sandbox is not None:
                 if is_docker_compatible_config(
                     task.sandbox.config
@@ -447,16 +456,46 @@ def resolve_task_sandbox(
                     resolved_sandbox = SandboxEnvironmentSpec(
                         resolved_sandbox.type, task.sandbox.config
                     )
-                elif is_docker_compatible_config(task.sandbox.config):
-                    warn_once(
-                        logger,
-                        f"Task '{task.name}' declares sandbox '{task.sandbox.type}' "
-                        "with a Dockerfile/compose.yaml configuration, but the "
-                        f"'{resolved_sandbox.type}' sandbox specified for the eval "
-                        "does not support that configuration. The task's compose "
-                        "services, packages, and tools will not be available in "
-                        f"the '{resolved_sandbox.type}' sandbox.",
+                elif task.sandbox.config is not None:
+                    config_text = (
+                        f"configuration '{task.sandbox.config}'"
+                        if isinstance(task.sandbox.config, str)
+                        else "a configuration"
                     )
+                    if is_docker_compatible_sandbox_type(resolved_sandbox.type):
+                        warn_once(
+                            logger,
+                            f"Task '{task.name}' declares sandbox "
+                            f"'{task.sandbox.type}' with {config_text}, which the "
+                            f"'{resolved_sandbox.type}' sandbox specified for the "
+                            "eval will not use. A configuration declared for a "
+                            "different sandbox type is carried over only when it "
+                            "is a Dockerfile, a compose file with a recognized name "
+                            "(such as 'compose.yaml' or '*-compose.yaml'), or a "
+                            "ComposeConfig. Rename a compose file to a recognized "
+                            "name, or declare a native "
+                            f"'{resolved_sandbox.type}' configuration with sandbox "
+                            f"type '{resolved_sandbox.type}'.",
+                        )
+                    elif is_docker_compatible_config(task.sandbox.config):
+                        warn_once(
+                            logger,
+                            f"Task '{task.name}' declares sandbox "
+                            f"'{task.sandbox.type}' with a Dockerfile/compose.yaml "
+                            f"configuration, but the '{resolved_sandbox.type}' "
+                            "sandbox specified for the eval does not support that "
+                            "configuration. The task's compose services, packages, "
+                            "and tools will not be available in the "
+                            f"'{resolved_sandbox.type}' sandbox.",
+                        )
+                    else:
+                        warn_once(
+                            logger,
+                            f"Task '{task.name}' declares sandbox "
+                            f"'{task.sandbox.type}' with {config_text}, which the "
+                            f"'{resolved_sandbox.type}' sandbox specified for the "
+                            "eval does not support, so it will not be used.",
+                        )
 
         # resolve relative paths
         if isinstance(resolved_sandbox.config, str):
@@ -770,6 +809,111 @@ def solver_from_spec(spec: SolverSpec) -> Solver:
                     )
 
 
+def scorer_from_registry(name: str, /, **kwargs: Any) -> Scorer:
+    """Create a registered @scorer or @scanner by name.
+
+    Raises:
+        ValueError: If no scorer or scanner is registered under `name`.
+    """
+    if registry_lookup("scorer", name) is not None:
+        return scorer_create(name, **kwargs)
+    elif registry_lookup("scanner", name) is not None:
+        from inspect_scout import Scanner, Transcript, as_scorer
+
+        scanner = create_registry_object("scanner", name, kwargs)
+        return as_scorer(cast(Scanner[Transcript], scanner))
+    else:
+        raise ValueError(
+            f"Unknown scorer {name} (not registered as a @scorrer or @scanner)"
+        )
+
+
+def scorer_from_log_name(name: str, task_path: Path | None, /, **kwargs: Any) -> Scorer:
+    """Create a scorer from a bare name, falling back to the log's task file.
+
+    The name is looked up in the registry only, never parsed as a path, so a
+    scorer name recorded in a log cannot select a file to import. When the
+    registry cannot build the scorer (not registered, or its factory raises
+    `ValueError` for these options), `task_path` is imported and the registry
+    tried again. The import is printed and logged so that `inspect score`
+    shows what it loaded.
+
+    Args:
+        name: Scorer name.
+        task_path: Task file recorded in the log, if any.
+        **kwargs: Arguments passed to the scorer factory.
+
+    Raises:
+        PrerequisiteError: If the scorer cannot be found or loaded.
+    """
+    try:
+        return scorer_from_registry(name, **kwargs)
+    except ValueError:
+        # We need a valid path to a scorer file to try to load the scorer from there
+        if not task_path:
+            raise PrerequisiteError(
+                f"The scorer '{name}' couldn't be loaded. Please provide a path to the file containing the scorer using the '--scorer' parameter"
+            )
+
+        task_pretty_path = task_path.as_posix()
+        if not task_path.exists():
+            raise PrerequisiteError(
+                f"The scorer `{name}` couldn't be loaded. The file '{task_pretty_path}' was not found. Please provide a path to the file containing the scorer using the '--scorer' parameter"
+            )
+
+        record = escape_control_characters(
+            f"Imported task file {task_path.absolute().as_posix()} (recorded in the log) to load scorer '{name}'."
+        )
+        print_record(record)
+        logger.info(record)
+
+        # We have the path to a file, so load that and try again
+        try:
+            load_module(task_path)
+            scorer_fn = scorer_from_registry(name, **kwargs)
+            _validate_scorer(scorer_fn, name, task_pretty_path)
+            return scorer_fn
+        except ValueError:
+            # we still couldn't load this, request the user provide a path
+            raise PrerequisiteError(
+                f"The scorer '{name}' in the file '{task_pretty_path}' couldn't be loaded. Please provide a path to the file containing the scorer using the '--scorer' parameter."
+            )
+        except ModuleNotFoundError:
+            # we still couldn't load this, request the user provide a path
+            raise PrerequisiteError(
+                f"The scorer '{name}' in the file '{task_pretty_path}' couldn't be loaded. Please provide a path to the file containing the scorer using the '--scorer' parameter."
+            )
+
+
+def print_record(record: str) -> None:
+    """Print a record of what a run operation took from a log.
+
+    Prints with the display once a display type has been chosen (as the CLI
+    does at startup), unless it is `none`. Nothing is printed before then, so
+    the display is not created early and a library caller's later choice of
+    display still applies.
+
+    Args:
+        record: Line to print.
+    """
+    from inspect_ai._display import display
+    from inspect_ai.util._display import display_type, display_type_initialized
+
+    if display_type_initialized() and display_type() != "none":
+        display().print(record)
+
+
+# See if the scorer doesn't have type annotations. Currently the registry will not load
+# the function without type annotations.
+# TODO: We could consider calling this ourselves if we're certain it is what we're looking for
+def _validate_scorer(scorer_fn: Scorer, scorer_name: str, scorer_path: str) -> None:
+    signature = inspect.signature(scorer_fn)
+    if signature.return_annotation is inspect.Signature.empty:
+        raise PrerequisiteError(
+            f"The function '{scorer_name}' in the file '{scorer_path}' requires a return type annotation. Please add a return type annotation to use this function with scoring."
+        )
+
+
 def scorer_from_spec(spec: ScorerSpec, task_path: Path | None, **kwargs: Any) -> Scorer:
     """
     Load a scorer
@@ -800,67 +944,13 @@ def scorer_from_spec(spec: ScorerSpec, task_path: Path | None, **kwargs: Any) ->
         cwd_relative_path(scorer_file.as_posix()) if scorer_file else None
     )
 
-    # See if the scorer doesn't have type annotations. Currently the registry will not load
-    # the function without type annotations.
-    # TODO: We could consider calling this ourselves if we're certain it is what we're looking for
-    def validate_scorer(scorer_fn: Scorer, scorer_name: str, scorer_path: str) -> None:
-        signature = inspect.signature(scorer_fn)
-        if signature.return_annotation is inspect.Signature.empty:
-            raise PrerequisiteError(
-                f"The function '{scorer_name}' in the file '{scorer_path}' requires a return type annotation. Please add a return type annotation to use this function with scoring."
-            )
-
-    def create_scorer(scorer_name: str, /, **kwargs: Any) -> Scorer:
-        # handle scorers and scanners
-        if registry_lookup("scorer", scorer_name) is not None:
-            return scorer_create(scorer_name, **kwargs)
-        elif registry_lookup("scanner", scorer_name) is not None:
-            from inspect_scout import Scanner, Transcript, as_scorer
-
-            scanner = create_registry_object("scanner", scorer_name, kwargs)
-            return as_scorer(cast(Scanner[Transcript], scanner))
-        else:
-            raise ValueError(
-                f"Unknown scorer {scorer_name} (not registered as a @scorrer or @scanner)"
-            )
-
     with create_cm:
         # is there a scorer file being provided? if not, load from registry
         if scorer_file is None:
             if scorer_name is None:
                 raise ValueError(f"Unable to resolve scorer name from {spec.scorer}")
 
-            try:
-                return create_scorer(scorer_name, **kwargs)
-            except ValueError:
-                # We need a valid path to a scorer file to try to load the scorer from there
-                if not task_path:
-                    raise PrerequisiteError(
-                        f"The scorer '{scorer_name}' couldn't be loaded. Please provide a path to the file containing the scorer using the '--scorer' parameter"
-                    )
-
-                task_pretty_path = task_path.as_posix()
-                if not task_path.exists():
-                    raise PrerequisiteError(
-                        f"The scorer `{scorer_name}` couldn't be loaded. The file '{task_pretty_path}' was not found. Please provide a path to the file containing the scorer using the '--scorer' parameter"
-                    )
-
-                # We have the path to a file, so load that and try again
-                try:
-                    load_module(task_path)
-                    scorer_fn = create_scorer(scorer_name, **kwargs)
-                    validate_scorer(scorer_fn, scorer_name, task_pretty_path)
-                    return scorer_fn
-                except ValueError:
-                    # we still couldn't load this, request the user provide a path
-                    raise PrerequisiteError(
-                        f"The scorer '{scorer_name}' in the file '{task_pretty_path}' couldn't be loaded. Please provide a path to the file containing the scorer using the '--scorer' parameter."
-                    )
-                except ModuleNotFoundError:
-                    # we still couldn't load this, request the user provide a path
-                    raise PrerequisiteError(
-                        f"The scorer '{scorer_name}' in the file '{task_pretty_path}' couldn't be loaded. Please provide a path to the file containing the scorer using the '--scorer' parameter."
-                    )
+            return scorer_from_log_name(scorer_name, task_path, **kwargs)
 
         # solver is a path, so load it that way
         else:
@@ -888,8 +978,8 @@ def scorer_from_spec(spec: ScorerSpec, task_path: Path | None, **kwargs: Any) ->
                 solver[0] == scorer_name
                 for solver in (scorer_decorators + scanner_decorators)
             ):
-                scorer_fn = create_scorer(scorer_name, **kwargs)
-                validate_scorer(scorer_fn, scorer_name, pretty_scorer_file or "")
+                scorer_fn = scorer_from_registry(scorer_name, **kwargs)
+                _validate_scorer(scorer_fn, scorer_name, pretty_scorer_file or "")
                 return scorer_fn
             else:
                 raise PrerequisiteError(

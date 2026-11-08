@@ -277,7 +277,11 @@ async def mistral_conversation_inputs(
             inputs.append(
                 FunctionResultEntry(
                     tool_call_id=message.tool_call_id or str(message.function),
-                    result=message.text,
+                    result=(
+                        f"Error: {message.error.message}"
+                        if message.error
+                        else message.text
+                    ),
                 )
             )
         elif isinstance(message, ChatMessageAssistant):
