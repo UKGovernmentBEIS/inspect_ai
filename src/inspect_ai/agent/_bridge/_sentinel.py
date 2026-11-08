@@ -1,7 +1,7 @@
 import hashlib
 import json
 from collections import OrderedDict, deque
-from contextlib import AbstractContextManager, nullcontext
+from contextlib import AbstractContextManager, ExitStack, nullcontext
 from copy import deepcopy
 from dataclasses import replace
 from functools import partial
@@ -148,8 +148,16 @@ class _Result(NamedTuple):
     message: ChatMessageTool
 
 
+class _Claim(NamedTuple):
+    result: _Result
+
+    event: anyio.Event
+    """Set on release; the `running` entry of each of the result's keys this
+    claim took (a key another claim already held stays that claim's)."""
+
+
 class _Claimed(NamedTuple):
-    owned: list[_Result]
+    owned: list[_Claim]
     waiting: list[anyio.Event]
 
 
@@ -288,13 +296,17 @@ class _ResultChecks:
             if key in self.running:
                 claimed.waiting.append(self.running[key])
                 continue
-            keys.add(key)
-            claimed.owned.append(result)
-        for result in claimed.owned:
-            event = anyio.Event()
-            for key in result.keys:
-                self.running.setdefault(key, event)
+            # a result whose identity another of the request's results also
+            # answers for is checked by that result
+            keys.update(result.keys)
+            claimed.owned.append(_Claim(result, anyio.Event()))
+        for claim in claimed.owned:
+            self._take(claim)
         return claimed
+
+    def _take(self, claim: _Claim) -> None:
+        for key in claim.result.keys:
+            self.running.setdefault(key, claim.event)
 
     def _result(
         self,
@@ -363,26 +375,20 @@ class _ResultChecks:
         truncated: tuple[int, int] | Literal[False] | None,
     ) -> None:
         """Check a result claimed outside a request (a host call's), as running."""
-        event = anyio.Event()
-        for key in result.keys:
-            self.running.setdefault(key, event)
+        claim = _Claim(result, anyio.Event())
+        self._take(claim)
         try:
             await self.check(bridge, result, output, truncated)
         finally:
-            for key in result.keys:
-                if self.running.get(key) is event:
-                    del self.running[key]
-            event.set()
+            self.release(claim)
 
-    def release(self, result: _Result) -> None:
+    def release(self, claim: _Claim) -> None:
         # a check that did not finish is claimed again by the next request
         # carrying its result
-        event = self.running.get(result.keys[0])
-        for key in result.keys:
-            if self.running.get(key) is event:
+        for key in claim.result.keys:
+            if self.running.get(key) is claim.event:
                 del self.running[key]
-        if event is not None:
-            event.set()
+        claim.event.set()
 
 
 def _answers(
@@ -749,21 +755,20 @@ async def sentinel_tool_results(bridge: AgentBridge, input: list[ChatMessage]) -
     while True:
         claimed = result_checks.claim(input)
         if claimed.owned:
-            try:
+            with ExitStack() as releases:
+                for claim in claimed.owned:
+                    releases.callback(result_checks.release, claim)
                 await tg_collect(
                     [
                         partial(
                             result_checks.check,
                             bridge,
-                            result,
-                            _output(result.message),
+                            claim.result,
+                            _output(claim.result.message),
                         )
-                        for result in claimed.owned
+                        for claim in claimed.owned
                     ]
                 )
-            finally:
-                for result in claimed.owned:
-                    result_checks.release(result)
         if not claimed.waiting:
             return
         for running in claimed.waiting:

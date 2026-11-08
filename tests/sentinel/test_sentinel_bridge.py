@@ -2418,27 +2418,37 @@ async def dialect_history_request(
     dialect: str, bridge: AgentBridge, call: ToolCall, result: str
 ) -> None:
     """A scaffold sending the conversation it was handed (a task, a call, its result) in `dialect`."""
-    arguments = json.dumps(call.arguments)
+    await dialect_turns_request(dialect, bridge, [(call, result)])
+
+
+async def dialect_turns_request(
+    dialect: str, bridge: AgentBridge, turns: Sequence[tuple[ToolCall, str]]
+) -> None:
+    """A scaffold sending a task, then each call with its result, in `dialect`."""
     if dialect == "completions":
         from inspect_ai.agent._bridge.completions import (
             inspect_completions_api_request,
         )
 
-        messages: list[Any] = [
-            {"role": "user", "content": TASK},
-            {
-                "role": "assistant",
-                "content": "Reading.",
-                "tool_calls": [
-                    {
-                        "id": call.id,
-                        "type": "function",
-                        "function": {"name": call.function, "arguments": arguments},
-                    }
-                ],
-            },
-            {"role": "tool", "tool_call_id": call.id, "content": result},
-        ]
+        messages: list[Any] = [{"role": "user", "content": TASK}]
+        for call, result in turns:
+            messages += [
+                {
+                    "role": "assistant",
+                    "content": "Reading.",
+                    "tool_calls": [
+                        {
+                            "id": call.id,
+                            "type": "function",
+                            "function": {
+                                "name": call.function,
+                                "arguments": json.dumps(call.arguments),
+                            },
+                        }
+                    ],
+                },
+                {"role": "tool", "tool_call_id": call.id, "content": result},
+            ]
         await inspect_completions_api_request(
             {"model": "inspect", "messages": messages}, None, bridge
         )
@@ -2447,29 +2457,34 @@ async def dialect_history_request(
             inspect_anthropic_api_request,
         )
 
-        turns: list[Any] = [
-            {"role": "user", "content": TASK},
-            {
-                "role": "assistant",
-                "content": [
-                    {"type": "text", "text": "Reading."},
-                    {
-                        "type": "tool_use",
-                        "id": call.id,
-                        "name": call.function,
-                        "input": call.arguments,
-                    },
-                ],
-            },
-            {
-                "role": "user",
-                "content": [
-                    {"type": "tool_result", "tool_use_id": call.id, "content": result}
-                ],
-            },
-        ]
+        anthropic_turns: list[Any] = [{"role": "user", "content": TASK}]
+        for call, result in turns:
+            anthropic_turns += [
+                {
+                    "role": "assistant",
+                    "content": [
+                        {"type": "text", "text": "Reading."},
+                        {
+                            "type": "tool_use",
+                            "id": call.id,
+                            "name": call.function,
+                            "input": call.arguments,
+                        },
+                    ],
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": call.id,
+                            "content": result,
+                        }
+                    ],
+                },
+            ]
         await inspect_anthropic_api_request(
-            {"model": "inspect", "max_tokens": 100, "messages": turns},
+            {"model": "inspect", "max_tokens": 100, "messages": anthropic_turns},
             None,
             None,
             None,
@@ -2478,50 +2493,52 @@ async def dialect_history_request(
     elif dialect == "google":
         from inspect_ai.agent._bridge.google_api import inspect_google_api_request
 
-        contents: list[Any] = [
-            {"role": "user", "parts": [{"text": TASK}]},
-            {
-                "role": "model",
-                "parts": [
-                    {"text": "Reading."},
-                    {
-                        "functionCall": {
-                            "id": call.id,
-                            "name": call.function,
-                            "args": call.arguments,
+        contents: list[Any] = [{"role": "user", "parts": [{"text": TASK}]}]
+        for call, result in turns:
+            contents += [
+                {
+                    "role": "model",
+                    "parts": [
+                        {"text": "Reading."},
+                        {
+                            "functionCall": {
+                                "id": call.id,
+                                "name": call.function,
+                                "args": call.arguments,
+                            }
+                        },
+                    ],
+                },
+                {
+                    "role": "user",
+                    "parts": [
+                        {
+                            "functionResponse": {
+                                "id": call.id,
+                                "name": call.function,
+                                "response": {"output": result},
+                            }
                         }
-                    },
-                ],
-            },
-            {
-                "role": "user",
-                "parts": [
-                    {
-                        "functionResponse": {
-                            "id": call.id,
-                            "name": call.function,
-                            "response": {"output": result},
-                        }
-                    }
-                ],
-            },
-        ]
+                    ],
+                },
+            ]
         await inspect_google_api_request(
             {"model": "inspect", "contents": contents}, None, None, bridge
         )
     else:
         from inspect_ai.agent._bridge.responses import inspect_responses_api_request
 
-        items: list[Any] = [
-            {"role": "user", "content": TASK},
-            {
-                "type": "function_call",
-                "call_id": call.id,
-                "name": call.function,
-                "arguments": arguments,
-            },
-            {"type": "function_call_output", "call_id": call.id, "output": result},
-        ]
+        items: list[Any] = [{"role": "user", "content": TASK}]
+        for call, result in turns:
+            items += [
+                {
+                    "type": "function_call",
+                    "call_id": call.id,
+                    "name": call.function,
+                    "arguments": json.dumps(call.arguments),
+                },
+                {"type": "function_call_output", "call_id": call.id, "output": result},
+            ]
         await inspect_responses_api_request(
             {"model": "inspect", "input": items}, None, None, None, bridge
         )
@@ -3969,6 +3986,131 @@ async def test_a_concurrent_request_waits_for_an_inflight_result_check() -> None
     assert leaked == []
     assert hold.started == [READ.id]
     assert len(model.inputs) == 1
+
+
+OTHER_READ = replace(READ, id="read_2", arguments={"path": "other.txt"})
+UNISSUED_READ = replace(READ, id="read_9")
+
+
+def overlapping_turns(unissued_first: bool = False) -> list[tuple[ToolCall, str]]:
+    """A result under its token and again under an unissued id, then another result."""
+    same = [(READ, "contents"), (UNISSUED_READ, "contents")]
+    return [*(same[::-1] if unissued_first else same), (OTHER_READ, "other")]
+
+
+@pytest.mark.parametrize("unissued_first", [False, True])
+@pytest.mark.parametrize("dialect", DIALECTS)
+async def test_a_result_reported_under_its_token_and_an_unissued_id(
+    dialect: str, unissued_first: bool
+) -> None:
+    seen: Steps = []
+    model = Scripted(calls_output(READ, OTHER_READ), calls_output())
+    bridge = AgentBridge(
+        AgentState(messages=[]), model_aliases={"inspect": model.model}
+    )
+
+    with active([bridge_recording(seen)]):
+        await generate(bridge, model, [ChatMessageUser(content=TASK)])
+        with anyio.fail_after(10):
+            await dialect_turns_request(
+                dialect, bridge, overlapping_turns(unissued_first)
+            )
+
+    assert len(model.inputs) == 2
+    # the unissued result is the token result's conservative key, so it is
+    # checked only when reported first
+    checked = [step.call.id for step in seen if isinstance(step, AfterToolCall)]
+    assert sorted(checked) == sorted(
+        [READ.id, OTHER_READ.id, *([UNISSUED_READ.id] if unissued_first else [])]
+    )
+
+
+@protocol
+def held_other(started: Any, release: Any) -> Protocol:
+    async def after(
+        context: Context, step: AfterToolCall, escalations: Escalations
+    ) -> Decision | None:
+        if "other" in step.result.text:
+            started.set()
+            await release.wait()
+        return None
+
+    return after
+
+
+@pytest.mark.parametrize("dialect", DIALECTS)
+async def test_a_cancelled_request_with_overlapping_results_releases_each_check(
+    dialect: str,
+) -> None:
+    started, release = anyio.Event(), anyio.Event()
+    model = Scripted(calls_output(READ, OTHER_READ), calls_output())
+    bridge = AgentBridge(
+        AgentState(messages=[]), model_aliases={"inspect": model.model}
+    )
+
+    with active(held_other(started, release)):
+        await generate(bridge, model, [ChatMessageUser(content=TASK)])
+        with anyio.CancelScope() as scope:
+
+            async def cancel() -> None:
+                await started.wait()
+                # the other results' checks finish first
+                await anyio.wait_all_tasks_blocked()
+                scope.cancel()
+
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(cancel)
+                await dialect_turns_request(dialect, bridge, overlapping_turns())
+
+        assert scope.cancelled_caught
+        release.set()
+        with anyio.fail_after(10):
+            await dialect_turns_request(dialect, bridge, overlapping_turns())
+
+    assert len(model.inputs) == 2
+
+
+async def test_a_release_that_raises_still_releases_the_other_checks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from inspect_ai.agent._bridge._sentinel import _ResultChecks
+
+    release = _ResultChecks.release
+    failures = [RuntimeError("release failed")]
+
+    def failing_release(self: _ResultChecks, claim: Any) -> None:
+        release(self, claim)
+        if failures:
+            raise failures.pop()
+
+    monkeypatch.setattr(_ResultChecks, "release", failing_release)
+    started, held = anyio.Event(), anyio.Event()
+    model = Scripted(calls_output(READ, OTHER_READ), calls_output())
+    bridge = AgentBridge(
+        AgentState(messages=[]), model_aliases={"inspect": model.model}
+    )
+
+    with active(held_other(started, held)):
+        await generate(bridge, model, [ChatMessageUser(content=TASK)])
+        with anyio.CancelScope() as scope:
+
+            async def cancel() -> None:
+                await started.wait()
+                scope.cancel()
+
+            with pytest.raises(ExceptionGroup) as raised:
+                async with anyio.create_task_group() as tg:
+                    tg.start_soon(cancel)
+                    await dialect_turns_request(
+                        "completions", bridge, overlapping_turns()
+                    )
+
+        assert raised.group_contains(RuntimeError, match="release failed")
+        held.set()
+        with anyio.fail_after(10):
+            await dialect_turns_request("completions", bridge, overlapping_turns())
+
+    assert len(model.inputs) == 2
 
 
 async def test_a_reused_id_in_a_new_conversation_is_checked() -> None:
