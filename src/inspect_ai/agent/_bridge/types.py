@@ -419,6 +419,15 @@ _MAX_KNOWN_CALL_IDS = 4096
 """Call ids kept in `AgentBridge._known_call_ids`, beyond which the oldest are dropped."""
 
 
+class _AnswerGroupEvidence(NamedTuple):
+    """An `_AnswerGroup`, as a checkpoint keeps it."""
+
+    replies: list[str]
+
+    answers: dict[str, str]
+    """Per answer id, the JSON-encoded `_CallMatch` it may answer (an id or function may hold a lone surrogate)."""
+
+
 class _MatchEvidence(BaseModel):
     """The bridge's matching state beyond its recorded ids, kept across a checkpoint resume."""
 
@@ -440,6 +449,8 @@ class _MatchEvidence(BaseModel):
     answers: dict[str, _Answer] = {}
 
     reply_answers: dict[str, _ReplyAnswers] = {}
+
+    answer_groups: list[_AnswerGroupEvidence] = []
 
     known_call_ids: list[str] = []
     """JSON-encoded, so an id holding a lone surrogate is restored unchanged."""
@@ -647,6 +658,14 @@ class AgentBridge:
         """Per id with an answer record, the keys whose `_CopiedAnswers.outcomes` count it."""
         self._answer_groups: dict[str, _AnswerGroup] = {}
         """Per reply, the group holding it."""
+        for restored in evidence.answer_groups:
+            group = _AnswerGroup(set(restored.replies))
+            for message_id, call in restored.answers.items():
+                group.add(
+                    message_id, _CallMatch(*json.loads(call)), self._answers[message_id]
+                )
+            for reply in group.replies:
+                self._answer_groups[reply] = group
         self._answer_order: dict[str, int] = {}
         """Per id with an answer record made by this bridge (not restored), how many were made before it."""
         self._answers_made = 0
@@ -1775,6 +1794,18 @@ class AgentBridge:
             edit_parents=self._edit_parent,
             answers=self._answers,
             reply_answers=self._reply_answers,
+            answer_groups=[
+                _AnswerGroupEvidence(
+                    sorted(group.replies),
+                    {
+                        message_id: json.dumps(list(call))
+                        for message_id, call in group.answers.items()
+                    },
+                )
+                for group in {
+                    id(group): group for group in self._answer_groups.values()
+                }.values()
+            ],
             known_call_ids=[json.dumps(id) for id in self._known_call_ids],
         )
 

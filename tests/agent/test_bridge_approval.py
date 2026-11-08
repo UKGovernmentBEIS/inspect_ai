@@ -7181,6 +7181,111 @@ async def test_answer_sent_after_a_later_execution_holds_its_outcome(
 @pytest.mark.parametrize("resumed", [False, True], ids=["live", "resumed"])
 @pytest.mark.parametrize("sent", ["copy", "own"])
 @pytest.mark.parametrize(
+    "dialect,call_ids",
+    [
+        ("google", "reused"),
+        *[
+            (dialect, call_ids)
+            for call_ids in ["reused", "distinct"]
+            for dialect in ["completions", "responses", "anthropic"]
+        ],
+    ],
+)
+async def test_restored_answer_holds_the_outcome_of_a_cached_rerun(
+    dialect: HostDialect, call_ids: str, sent: str, resumed: bool
+) -> None:
+    """An answer restored from a checkpoint counts a later execution of its call.
+
+    The call runs on `a` ("X") and the scaffold answers it with "Y". With
+    `resumed`, the bridge is then resumed from the checkpoint that answer's
+    request saved. The scaffold requests the first generation again, which the
+    cache returns under its original id, and its call runs again ("Y"). The
+    scaffold compacts and runs an equal call on `a` returning "X", answering it
+    with a copy of the "Y" answer (or, as a control, its own "X"). A copy of an
+    answer to both executions links nothing, resumed or not.
+    """
+
+    def calls(text: str, call_id: str = "call_1") -> ModelOutput:
+        return tool_calls_output(
+            ToolCall(id=call_id, function="read_file", arguments={"path": "p"}),
+            content=text,
+        )
+
+    first_output = calls("Reading p.")
+    outputs = [
+        first_output,
+        ModelOutput.from_content("mockllm/model", "Noted."),
+        first_output.model_copy(deep=True),
+        calls("Reading p again.", "call_1" if call_ids == "reused" else "call_2"),
+        ModelOutput.from_content("mockllm/model", "Done."),
+    ]
+    model = get_model("mockllm/model", custom_outputs=outputs)
+    results = {"a": ["X", "Y", "X"]}
+
+    def host_bridge(checkpointer: RecordingCheckpointer) -> SandboxAgentBridge:
+        return SandboxAgentBridge(
+            state=AgentState(messages=[ChatMessageUser(content="Read p.")]),
+            filter=None,
+            retry_refusals=None,
+            compaction=None,
+            port=13131,
+            model=None,
+            model_aliases={"inspect": model},
+            bridged_tools={
+                server: {
+                    "read_file": read_file(
+                        AsyncMock(side_effect=lambda queue=queue, **_: queue.pop(0))
+                    )
+                }
+                for server, queue in results.items()
+            },
+            checkpointer=checkpointer,
+        )
+
+    checkpointer = RecordingCheckpointer()
+    bridge = host_bridge(checkpointer)
+    [info] = declare("read_file")
+    conversation = _HostConversation(dialect, "Read p.", info)
+    prompt = list(conversation.history)
+    with recorded_transcript() as recorded:
+        first = await conversation.request(bridge)
+        await call_host_tool(bridge)("a", "read_file", first[0][1])
+        conversation.results(first, ["Y"])
+        await conversation.request(bridge)
+        [(y_answer, record)] = bridge._answers.items()
+        assert len(record.outcomes) == 1
+        if resumed:
+            bridge = host_bridge(
+                RecordingCheckpointer(
+                    restored=json.loads(json.dumps(checkpointer.snapshot())),
+                    serialized=True,
+                )
+            )
+            assert bridge._answers[y_answer] == record
+        conversation.history = list(prompt)
+        replayed = await conversation.request(bridge)
+        await call_host_tool(bridge)("a", "read_file", replayed[0][1])
+        assert len(bridge._answers[y_answer].outcomes) == 2
+        conversation.history = [_user_turn(dialect, "Summary: p reads Y.")]
+        second = await conversation.request(bridge)
+        await call_host_tool(bridge)("a", "read_file", second[0][1])
+        conversation.results(second, ["Y" if sent == "copy" else "X"])
+        await conversation.request(bridge)
+
+    model_events = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    assert model_events[2].output.message.id == model_events[0].output.message.id
+    [latest] = [m.id for m in model_events[-1].input if m.role == "tool"]
+    tool_events = [e for e in recorded.events if isinstance(e, ToolEvent)]
+    assert [e.result for e in tool_events] == ["X", "Y", "X"]
+    copied = call_ids == "reused" and sent == "copy"
+    # after resume the replayed reply, its result still awaited, handed the same id
+    shadowed = resumed and call_ids == "reused" and dialect != "google"
+    assert tool_events[-1].message_id == (None if copied or shadowed else latest)
+
+
+@pytest.mark.parametrize("resumed", [False, True], ids=["live", "resumed"])
+@pytest.mark.parametrize("sent", ["copy", "own"])
+@pytest.mark.parametrize(
     "answered", ["before start", "while running", "after completion"]
 )
 @pytest.mark.parametrize("dialect", ["google", "completions", "responses", "anthropic"])
