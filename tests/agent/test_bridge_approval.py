@@ -7033,6 +7033,10 @@ async def test_repeated_scaffold_result_never_takes_an_earlier_executions_id(
         "shared_equal_intact",
         "shared_unequal_reversed",
         "distinct_unequal_reversed",
+        "shared_loose_reversed",
+        "distinct_loose_reversed",
+        "shared_repeated_reversed",
+        "distinct_repeated_reversed",
     ],
 )
 @pytest.mark.parametrize("dialect", ["google", "completions", "responses", "anthropic"])
@@ -7046,22 +7050,32 @@ async def test_retained_result_of_calls_sharing_an_id_never_takes_the_others_id(
     only its second result. Equal results can't be told apart, so the
     retained one gets a new id; unequal results, or results under distinct
     call ids, keep their own. With the history intact both keep their ids,
-    also when a retry sends unequal results `reversed`. Google re-derives
-    call ids and infers which call a result answers: a result equal to, or
-    sent without, the other call's gets a new id.
+    also when a retry sends unequal results `reversed`. Reversed results
+    under a shared id that differ only in whitespace (`loose`), or that an
+    earlier reply's results under the same ids already returned
+    (`repeated`), can't be told from each other's edits: each keeps its own
+    id or gets a new one. Google re-derives call ids and infers which call a
+    result answers: a result equal to, or sent without, the other call's
+    gets a new id.
     """
     shared = case.startswith("shared")
-    outputs = [
-        tool_calls_output(
+    repeated = "repeated" in case
+
+    def reads(*paths: str) -> ModelOutput:
+        return tool_calls_output(
             *[
                 ToolCall(
-                    id="unknown" if shared else f"call_{path}",
+                    id="unknown" if shared else f"call_{index}",
                     function="read_file",
                     arguments={"path": path},
                 )
-                for path in ("a", "b")
+                for index, path in enumerate(paths)
             ]
-        ),
+        )
+
+    outputs = [
+        *([reads("c", "d")] if repeated else []),
+        reads("a", "b"),
         ModelOutput.from_content("mockllm/model", "Read them."),
         ModelOutput.from_content("mockllm/model", "Done."),
     ]
@@ -7072,9 +7086,16 @@ async def test_retained_result_of_calls_sharing_an_id_never_takes_the_others_id(
     [info] = declare("read_file")
     conversation = _HostConversation(dialect, "Read a and b.", info)
     results: list[JsonValue] = (
-        ["same", "same"] if "equal" in case.split("_") else ["A", "B"]
+        ["same", "same"]
+        if "equal" in case.split("_")
+        else ["hello world", "hello  world"]
+        if "loose" in case
+        else ["A", "B"]
     )
     with recorded_transcript() as recorded:
+        if repeated:
+            calls = await conversation.request(cast(SandboxAgentBridge, bridge))
+            conversation.results(calls, results)
         start = len(conversation.history)
         calls = await conversation.request(cast(SandboxAgentBridge, bridge))
         reply = conversation.history[start:]
@@ -7094,13 +7115,17 @@ async def test_retained_result_of_calls_sharing_an_id_never_takes_the_others_id(
         await conversation.request(cast(SandboxAgentBridge, bridge))
 
     events = [e for e in recorded.events if isinstance(e, ModelEvent)]
-    first, second = [m.id for m in events[1].input if m.role == "tool"]
+    first, second = [m.id for m in events[-2].input if m.role == "tool"][-2:]
     assert first != second
-    retained = [m.id for m in events[2].input if m.role == "tool"]
+    retained = [m.id for m in events[-1].input if m.role == "tool"][-len(results) :]
     if dialect == "google":
         assert not set(retained) & {first, second}
     elif case.endswith("intact"):
         assert retained == [first, second]
+    elif case in ("shared_loose_reversed", "shared_repeated_reversed"):
+        for id, own, other in zip(retained, [second, first], [first, second]):
+            assert id is not None
+            assert id == own or bridge._edit_root(id) not in (own, other)
     elif case.endswith("reversed"):
         assert retained == [second, first]
     elif case == "shared_equal":

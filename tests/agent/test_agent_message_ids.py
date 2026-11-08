@@ -2787,7 +2787,11 @@ async def test_host_results_of_calls_sharing_an_id_stay_unlinked() -> None:
         "intact",
         "reversed",
         "reversed_rewritten",
+        "reversed_loose",
+        "reversed_repeated",
         "distinct_reversed",
+        "distinct_reversed_loose",
+        "distinct_reversed_repeated",
         "both_retained",
     ],
 )
@@ -2802,43 +2806,67 @@ async def test_retained_result_of_calls_sharing_an_id_never_takes_the_others_id(
     which it was. Unequal results, results under distinct call ids and an
     intact history keep their own ids, also when a retry sends the unequal
     results `reversed` (the other, `reversed_rewritten` to equal neither,
-    gets a new id), and a whitespace edit an id derived from its own. The
+    gets a new id), and a whitespace edit an id derived from its own. Reversed
+    results that differ only in whitespace (`reversed_loose`), or whose
+    contents an earlier reply's results under the same call ids had
+    (`reversed_repeated`), can't be told from each other's edits: each keeps
+    its own id or gets a new one, never one derived from the other's. The
     host results stay unlinked.
     """
     task = ChatMessageUser(content="Read a.txt twice.")
-    reply = _same_calls(
-        *(
-            ("call_a", "call_b")
-            if case.startswith("distinct")
-            else ("unknown", "unknown")
-        )
+    call_ids = (
+        ["call_a", "call_b"] if case.startswith("distinct") else ["unknown", "unknown"]
     )
-    assert reply.tool_calls
-    call_ids = [call.id for call in reply.tool_calls]
+    reply = _same_calls(*call_ids)
     contents = (
-        ("A", "B")
+        ("hello world", "hello  world")
+        if case.endswith("loose")
+        else ("A", "B")
         if case in ("unequal", "edited", "rewritten")
         or case.startswith(("reversed", "distinct_reversed"))
         else ("a.txt", "a.txt")
     )
     results = [_result(id, content) for id, content in zip(call_ids, contents)]
     scaffold = _Scaffold(AgentBridge(AgentState(messages=[task])))
-    await scaffold.request([task], reply)
+    earlier: list[ChatMessage] = []
+    if case.endswith("repeated"):
+        earlier_reply = ChatMessageAssistant(
+            content="Reading.",
+            tool_calls=[
+                ToolCall(id=id, function="bash", arguments={"cmd": "cat b.txt"})
+                for id in call_ids
+            ],
+        )
+        await scaffold.request([task], earlier_reply)
+        earlier = [
+            earlier_reply,
+            *[_result(id, c) for id, c in zip(call_ids, contents)],
+        ]
+    await scaffold.request([task, *earlier], reply)
     events = [
         *_awaiting(scaffold.bridge, reply, index=0),
         *_awaiting(scaffold.bridge, reply, index=1),
     ]
+    # drop `earlier`, so the reply and its results are at 1-3 in every case
     full = await scaffold.request(
-        [task, reply, *results], ChatMessageAssistant(content="Done.")
+        [task, *earlier, reply, *results], ChatMessageAssistant(content="Done.")
     )
+    full = [full[0], *full[1 + len(earlier) :]]
     assert full[2] != full[3]
 
     if case == "intact":
         ids = await scaffold.request([task, reply, *results])
         assert ids[2:4] == full[2:4]
-    elif case.endswith("reversed"):
-        ids = await scaffold.request([task, reply, *results[::-1]])
-        assert ids[2:4] == [full[3], full[2]]
+    elif case in ("reversed", "reversed_loose", "reversed_repeated") or case.startswith(
+        "distinct_reversed"
+    ):
+        ids = await scaffold.request([task, *earlier, reply, *results[::-1]])
+        ids = [ids[0], *ids[1 + len(earlier) :]]
+        if case in ("reversed_loose", "reversed_repeated"):
+            for id, own, other in zip(ids[2:4], [full[3], full[2]], full[2:4]):
+                assert id == own or scaffold.bridge._edit_root(id) not in (own, other)
+        else:
+            assert ids[2:4] == [full[3], full[2]]
     elif case == "reversed_rewritten":
         ids = await scaffold.request([task, reply, results[1], _result("unknown", "C")])
         assert ids[2] == full[3]
@@ -2862,6 +2890,37 @@ async def test_retained_result_of_calls_sharing_an_id_never_takes_the_others_id(
             assert not roots & {full[2], full[3]}
     if not case.startswith("distinct"):
         assert [event.message_id for event in events] == [None, None]
+
+
+@pytest.mark.parametrize("call_ids", ["shared", "distinct"])
+@pytest.mark.parametrize("retry", ["placed", "retained"])
+async def test_result_under_a_shared_call_id_never_takes_its_siblings_id(
+    call_ids: str, retry: str
+) -> None:
+    """A result of one of two calls sharing a call id isn't taken for an edit of the other's.
+
+    The scaffold first sends one answer, then a different one under the same
+    call id, in the same thread (`placed`) or after compaction (`retained`).
+    Either call may have returned it, so it gets a new id. Under distinct call
+    ids it is an edit of the first.
+    """
+    task = ChatMessageUser(content="Read a.txt twice.")
+    reply = _same_calls(
+        *(["unknown", "unknown"] if call_ids == "shared" else ["call_a", "call_b"])
+    )
+    assert reply.tool_calls
+    call_id = reply.tool_calls[0].id
+    scaffold = _Scaffold(AgentBridge(AgentState(messages=[task])))
+    await scaffold.request([task], reply)
+    full = await scaffold.request(
+        [task, reply, _result(call_id, "A")], ChatMessageAssistant(content="Done.")
+    )
+    head = task if retry == "placed" else ChatMessageUser(content="Summary.")
+    ids = await scaffold.request([head, reply, _result(call_id, "B")])
+    if call_ids == "shared":
+        assert scaffold.bridge._edit_root(ids[2]) != full[2]
+    else:
+        assert ids[2] == edited_id(full[2], scaffold.sent[2])
 
 
 async def test_placed_edit_keeps_its_id_beside_a_later_copy_of_its_original() -> None:

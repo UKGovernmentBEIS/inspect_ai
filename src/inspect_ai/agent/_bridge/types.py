@@ -1060,6 +1060,7 @@ class AgentBridge:
                     aligned_id is not None and message_id == aligned_id,
                     answered,
                     partial(available, index=index),
+                    len(reply_calls.get(message.tool_call_id or "", [])) > 1,
                 )
                 linkable = linkable and index not in inferred_indexes
             recognized.append(message_id)
@@ -1161,6 +1162,7 @@ class AgentBridge:
         placed: bool,
         answered: _AnsweredCall,
         available: Callable[[str], bool],
+        shared_call_id: bool,
     ) -> "_ResultId":
         """The id of a tool message answering a call of the reply before it.
 
@@ -1172,7 +1174,17 @@ class AgentBridge:
         Any other message gets a new id: an equal message answering another
         reply, or whose reply is unknown, may be a later execution's result or
         a copy of the earlier one (`_new_result_linkable`).
+
+        Position doesn't say which answer a placed message is, and a call id
+        the reply's calls share (`shared_call_id`) doesn't say which call's:
+        then only a key that names no other message does (`_identifies`).
         """
+        if (
+            candidate is not None
+            and (placed or shared_call_id)
+            and not self._identifies(keys, candidate, by_call_id=not shared_call_id)
+        ):
+            candidate = None
         earlier = self._answer_of(candidate) if candidate is not None else None
         if earlier is not None and earlier.reply_id == answered.reply_id:
             return _ResultId(candidate, True)
@@ -1183,12 +1195,31 @@ class AgentBridge:
             for key in keys
         ):
             for key in keys:
+                if shared_call_id and key.startswith("result:"):
+                    continue
                 occurrence = occurrences.get(key)
                 if occurrence is not None and available(occurrence):
                     return _ResultId(occurrence, True)
         if candidate is not None and earlier is None and placed:
             return _ResultId(candidate, True)
         return _ResultId(None, self._new_result_linkable(keys, answered))
+
+    def _identifies(self, keys: list[str], message_id: str, by_call_id: bool) -> bool:
+        """Whether a message with `keys` is an unchanged copy of `message_id`, or an edit of no other recorded message.
+
+        An edit is told by a key that names `message_id` and no other recorded
+        message, a call id key only if `by_call_id`.
+        """
+        root = self._edit_root(message_id)
+        id_keys = self._keys_by_id.get(message_id, ())
+        return any(
+            (_key_strength(key) == 3 and key in id_keys)
+            or (
+                self._key_roots.get(key) == root
+                and (by_call_id or _key_strength(key) != 2)
+            )
+            for key in keys
+        )
 
     def _new_result_linkable(self, keys: list[str], answered: _AnsweredCall) -> bool:
         """Whether a tool message given a new id may be linked to its call's host execution.
