@@ -3,6 +3,7 @@ from enum import IntEnum
 from functools import lru_cache
 from typing import TYPE_CHECKING, Any, Callable, NamedTuple, NoReturn, Sequence, Set
 
+from pydantic import JsonValue
 from shortuuid import uuid
 
 from inspect_ai._util.exception import TerminateSampleError
@@ -169,6 +170,14 @@ class AgentBridge:
         self._pending_operator = 0
         self._operator_keys: set[str] = set()
         self._warned_request_settings: set[str] = set()
+        # the provider replay state of the calls it handed on under the model's
+        # ids (`alias_assistant_internal_call`)
+        self._replay: dict[str, JsonValue] = self._cp.track(
+            "bridge_replay",
+            lambda: self._replay,
+            {},
+            value_type=dict[str, JsonValue],
+        )
         # deferred: `_sentinel` imports this module
         from ._sentinel import (
             _ResultChecks,

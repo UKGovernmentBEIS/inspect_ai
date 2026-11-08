@@ -181,7 +181,11 @@ from inspect_ai.util._json import (
 )
 
 from ..._util.httpx import httpx_classify_retry
-from .._assistant_internal import generation_replay, set_generation_assistant_internal
+from .._assistant_internal import (
+    bridge_replay,
+    generation_replay,
+    set_generation_assistant_internal,
+)
 from .._call_tools import TOOL_CALLS_FAIL_FAST
 from .._chat_message import (
     ChatMessage,
@@ -4045,13 +4049,6 @@ class _AssistantInternal:
     with client tool calls in a single turn). Keyed by tool use id (like
     `tool_call_internal_names`) so it survives the agent bridge and log
     round-trip."""
-    handed_tool_call_internal_names: dict[str, str | None] = field(default_factory=dict)
-    handed_client_tool_call_positions: dict[str, int] = field(default_factory=dict)
-    """A tool call's internal name and position for each call the agent bridge
-    handed on, by the id it was handed under (`alias_anthropic_tool_call`).
-    Replayed in preference to `tool_call_internal_names` and
-    `client_tool_call_positions`, where a later response reusing a tool use id
-    replaces them."""
     server_mcp_tool_uses: dict[
         str, tuple[BetaMCPToolUseBlockParam, BetaRequestMCPToolResultBlockParam]
     ] = field(default_factory=dict)
@@ -4108,12 +4105,6 @@ def init_sample_anthropic_assistant_internal(value: JsonValue | None = None) -> 
     )
     internal.client_tool_call_positions.update(
         cast("dict[str, int]", value.get("client_tool_call_positions", {}))
-    )
-    internal.handed_tool_call_internal_names.update(
-        cast("dict[str, str | None]", value.get("handed_tool_call_internal_names", {}))
-    )
-    internal.handed_client_tool_call_positions.update(
-        cast("dict[str, int]", value.get("handed_client_tool_call_positions", {}))
     )
     internal.server_mcp_tool_uses.update(
         {
@@ -4179,8 +4170,6 @@ def dump_anthropic_assistant_internal() -> JsonValue | None:
         internal.thinking_blocks
         or internal.tool_call_internal_names
         or internal.client_tool_call_positions
-        or internal.handed_tool_call_internal_names
-        or internal.handed_client_tool_call_positions
         or internal.server_mcp_tool_uses
         or span_table
         or internal.containers
@@ -4192,12 +4181,6 @@ def dump_anthropic_assistant_internal() -> JsonValue | None:
             "thinking_blocks": dict(internal.thinking_blocks),
             "tool_call_internal_names": dict(internal.tool_call_internal_names),
             "client_tool_call_positions": dict(internal.client_tool_call_positions),
-            "handed_tool_call_internal_names": dict(
-                internal.handed_tool_call_internal_names
-            ),
-            "handed_client_tool_call_positions": dict(
-                internal.handed_client_tool_call_positions
-            ),
             "server_mcp_tool_uses": {
                 tool_use_id: list(use_result)
                 for tool_use_id, use_result in internal.server_mcp_tool_uses.items()
@@ -4223,22 +4206,47 @@ def dump_anthropic_assistant_internal() -> JsonValue | None:
     )
 
 
-def alias_anthropic_tool_call(call_id: str, alias: str, replay: JsonValue) -> None:
+def alias_anthropic_tool_call(
+    call_id: str, alias: str, replay: JsonValue, bridge: dict[str, JsonValue] | None
+) -> None:
     internal = assistant_internal()
     assert isinstance(replay, dict)
     names = cast(dict[str, Any], replay.get("names", {}))
     positions = cast(dict[str, Any], replay.get("positions", {}))
     if call_id in names:
-        internal.handed_tool_call_internal_names[alias] = names[call_id]
+        if bridge is not None:
+            _bridge_section(bridge, "names")[alias] = names[call_id]
+        else:
+            internal.tool_call_internal_names[alias] = names[call_id]
     if call_id in positions:
-        internal.handed_client_tool_call_positions[alias] = positions[call_id]
+        if bridge is not None:
+            _bridge_section(bridge, "positions")[alias] = positions[call_id]
+        else:
+            internal.client_tool_call_positions[alias] = positions[call_id]
+
+
+def has_parsed_tool_call(call_id: str) -> bool:
+    internal = assistant_internal()
+    return (
+        call_id in internal.tool_call_internal_names
+        or call_id in internal.client_tool_call_positions
+    )
+
+
+def _bridge_section(bridge: dict[str, JsonValue], key: str) -> dict[str, JsonValue]:
+    return cast(dict[str, JsonValue], bridge.setdefault(key, {}))
+
+
+def _bridge_handed(key: str) -> dict[str, JsonValue]:
+    anthropic = cast(dict[str, JsonValue], bridge_replay().get("anthropic", {}))
+    return cast(dict[str, JsonValue], anthropic.get(key, {}))
 
 
 def _client_tool_call_position(call_id: str) -> int | None:
-    internal = assistant_internal()
-    if call_id in internal.handed_client_tool_call_positions:
-        return internal.handed_client_tool_call_positions[call_id]
-    return internal.client_tool_call_positions.get(call_id)
+    handed = _bridge_handed("positions")
+    if call_id in handed:
+        return cast(int, handed[call_id])
+    return assistant_internal().client_tool_call_positions.get(call_id)
 
 
 _anthropic_assistant_internal: ContextVar[_AssistantInternal] = ContextVar(
@@ -5598,10 +5606,10 @@ async def _capture_compaction_from_stream(
 
 
 def _internal_name_from_tool_call(tool_call: ToolCall) -> str | None:
-    internal = assistant_internal()
-    if tool_call.id in internal.handed_tool_call_internal_names:
-        return internal.handed_tool_call_internal_names[tool_call.id]
-    return internal.tool_call_internal_names.get(tool_call.id, None)
+    handed = _bridge_handed("names")
+    if tool_call.id in handed:
+        return cast(str | None, handed[tool_call.id])
+    return assistant_internal().tool_call_internal_names.get(tool_call.id, None)
 
 
 def _computer_toolset_fail_fast_tools(

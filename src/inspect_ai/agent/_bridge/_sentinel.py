@@ -712,7 +712,8 @@ def sentinel_tokens(
     generation was parsed with, so a cache hit served after a later response
     reused its ids hands it on as generated. It is recorded under every token,
     a call keeping the model's id included, as a later response reusing that
-    id replaces what the provider recorded under it. A call without known state
+    id replaces what the provider recorded under it; under the model's id, only
+    the bridge's own requests replay it. A call without known state
     (`keeps_generation_call_id`) gets a fresh token, which no provider has
     recorded state under, and replays from the call itself.
 
@@ -728,6 +729,7 @@ def sentinel_tokens(
                 call.id,
                 check.token or call.id,
                 replay,
+                bridge._replay,
                 call if check.modified else None,
             )
     if all(check.token == check.handed.id for check in issued):

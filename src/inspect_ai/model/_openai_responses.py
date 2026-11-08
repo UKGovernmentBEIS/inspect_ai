@@ -160,7 +160,7 @@ from inspect_ai._util.images import inline_media_data_uri
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.text import truncate_string_to_bytes
 from inspect_ai.model._agent_message import validate_agent_message
-from inspect_ai.model._assistant_internal import generation_replay
+from inspect_ai.model._assistant_internal import bridge_replay, generation_replay
 from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._chat_message import (
     ChatMessage,
@@ -814,10 +814,6 @@ _CachedToolCall = (
 class _AssistantInternal:
     tool_calls: dict[str, _CachedToolCall] = field(default_factory=dict)
     """Each call's item as last parsed or seeded, by its call id."""
-    handed_tool_calls: dict[str, _CachedToolCall] = field(default_factory=dict)
-    """The items of the calls the agent bridge handed on, by the id each was
-    handed under (`alias_openai_tool_call`). Replayed in preference to
-    `tool_calls`, where a later response reusing a call id replaces the item."""
     server_tool_uses: dict[str, ResponseInputItemParam] = field(default_factory=dict)
 
 
@@ -826,10 +822,19 @@ def assistant_internal() -> _AssistantInternal:
 
 
 def cached_tool_call(call_id: str) -> _CachedToolCall | None:
-    """The item to replay for the call with this id, if one is cached."""
-    internal = assistant_internal()
-    handed = internal.handed_tool_calls.get(call_id)
-    return handed if handed is not None else internal.tool_calls.get(call_id)
+    """The item to replay for the call with this id, if one is cached.
+
+    The bridge serving the request's item for a call it handed on under this id
+    (`bridge_replay`) comes first.
+    """
+    handed = cast(dict[str, _CachedToolCall], bridge_replay().get("openai", {}))
+    if call_id in handed:
+        return handed[call_id]
+    return assistant_internal().tool_calls.get(call_id)
+
+
+def has_parsed_tool_call(call_id: str) -> bool:
+    return call_id in assistant_internal().tool_calls
 
 
 def init_sample_openai_assistant_internal(value: JsonValue | None = None) -> None:
@@ -846,9 +851,6 @@ def init_sample_openai_assistant_internal(value: JsonValue | None = None) -> Non
     assert isinstance(value, dict)
     internal = assistant_internal()
     internal.tool_calls.update(cast("dict[str, Any]", value.get("tool_calls", {})))
-    internal.handed_tool_calls.update(
-        cast("dict[str, Any]", value.get("handed_tool_calls", {}))
-    )
     internal.server_tool_uses.update(
         cast("dict[str, Any]", value.get("server_tool_uses", {}))
     )
@@ -863,15 +865,12 @@ def dump_openai_assistant_internal() -> JsonValue | None:
     in-memory).
     """
     internal = assistant_internal()
-    if not (
-        internal.tool_calls or internal.handed_tool_calls or internal.server_tool_uses
-    ):
+    if not (internal.tool_calls or internal.server_tool_uses):
         return None
     return cast(
         JsonValue,
         {
             "tool_calls": dict(internal.tool_calls),
-            "handed_tool_calls": dict(internal.handed_tool_calls),
             "server_tool_uses": dict(internal.server_tool_uses),
         },
     )
@@ -881,9 +880,9 @@ def alias_openai_tool_call(
     call_id: str,
     alias: str,
     replay: JsonValue,
-    modified: ToolCall | None = None,
+    modified: ToolCall | None,
+    bridge: dict[str, JsonValue] | None,
 ) -> None:
-    internal = assistant_internal()
     param = cast(dict[str, _CachedToolCall], replay).get(call_id)
     if param is not None:
         # under another id, the replayed item carries that id (`call_id`, and
@@ -901,7 +900,10 @@ def alias_openai_tool_call(
         )
         if modified is not None:
             aliased = _with_tool_call_arguments(aliased, modified)
-        internal.handed_tool_calls[alias] = cast(Any, aliased)
+        if bridge is not None:
+            bridge[alias] = cast(JsonValue, aliased)
+        else:
+            assistant_internal().tool_calls[alias] = cast(Any, aliased)
 
 
 def _with_tool_call_arguments(param: dict[str, Any], call: ToolCall) -> dict[str, Any]:

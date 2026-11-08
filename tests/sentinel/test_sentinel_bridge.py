@@ -66,6 +66,7 @@ from inspect_ai.model import (
     ModelOutput,
     get_model,
 )
+from inspect_ai.model._assistant_internal import init_sample_assistant_internal
 from inspect_ai.model._model import GenerateFilter, GenerateInput
 from inspect_ai.model._model_data.model_data import ModelCost, ModelInfo
 from inspect_ai.model._model_info import clear_model_info_cache, set_model_info
@@ -257,6 +258,13 @@ def active(sentinel: Any) -> Iterator[None]:
 @pytest.fixture(autouse=True)
 def fresh_transcript() -> None:
     init_transcript(Transcript())
+
+
+@pytest.fixture(autouse=True)
+def fresh_assistant_internal() -> None:
+    # as each sample starts with its own: a provider's state for a call id
+    # changes how a bridge hands over a later call reusing it
+    init_sample_assistant_internal()
 
 
 def calls_output(*calls: ToolCall, content: str = "On it.") -> ModelOutput:
@@ -7305,10 +7313,10 @@ def test_a_modified_responses_alias_carries_the_approved_arguments(
 
     init_sample_assistant_internal()
     alias_openai_tool_call(
-        param["call_id"], "token", {param["call_id"]: deepcopy(param)}, modified
+        param["call_id"], "token", {param["call_id"]: deepcopy(param)}, modified, None
     )
 
-    aliased = cast(dict[str, Any], assistant_internal().handed_tool_calls["token"])
+    aliased = cast(dict[str, Any], assistant_internal().tool_calls["token"])
     assert aliased == {
         **{key: value for key, value in param.items() if key not in ("action", "id")},
         "call_id": "token",
@@ -7317,20 +7325,29 @@ def test_a_modified_responses_alias_carries_the_approved_arguments(
 
 
 class Parsing:
-    """A model whose responses are parsed as its provider parses them, when generated."""
+    """A model whose responses are parsed as its provider parses them, when generated.
+
+    With `wire`, each request's input is also serialized as its provider
+    serializes it, when generated, into `wire`.
+    """
 
     def __init__(
         self,
         *responses: Callable[[], ModelOutput | Awaitable[ModelOutput]],
         cache: bool = False,
+        wire: Callable[[list[ChatMessage]], Awaitable[Any]] | None = None,
     ) -> None:
         self.inputs: list[list[ChatMessage]] = []
+        self.wire: list[Any] = []
 
-        def respond(
+        async def respond(
             input: list[ChatMessage], tools: Any, tool_choice: Any, config: Any
-        ) -> ModelOutput | Awaitable[ModelOutput]:
+        ) -> ModelOutput:
             self.inputs.append(list(input))
-            return responses[min(len(self.inputs), len(responses)) - 1]()
+            if wire is not None:
+                self.wire.append(await wire(list(input)))
+            output = responses[min(len(self.inputs), len(responses)) - 1]()
+            return output if isinstance(output, ModelOutput) else await output
 
         self.model = get_model(
             "mockllm/model",
@@ -7365,6 +7382,37 @@ async def _responses_output(*items: Any) -> ModelOutput:
 def _responses_parsed(item: Any) -> Callable[[], Awaitable[ModelOutput]]:
     """The output of a Responses generation of `item`, parsed when generated."""
     return lambda: _responses_output(item)
+
+
+async def _responses_wire(input: list[ChatMessage]) -> list[Any]:
+    from inspect_ai.model._openai_responses import openai_responses_inputs
+
+    return cast(list[Any], await openai_responses_inputs(input))
+
+
+def _responses_replayed(wire: list[Any], type: str) -> list[tuple[str, Any]]:
+    """Each call of `type` in a serialized request: its id and native arguments."""
+    return [
+        (param["call_id"], _responses_native_arguments(param))
+        for param in wire
+        if param["type"] == type
+    ]
+
+
+async def _anthropic_wire(input: list[ChatMessage]) -> list[list[Any]]:
+    """Each assistant message in a serialized request, as its blocks."""
+    from inspect_ai.model._providers.anthropic import assistant_message_block_params
+
+    return [
+        list(await assistant_message_block_params(message))
+        for message in input
+        if isinstance(message, ChatMessageAssistant)
+    ]
+
+
+def _anthropic_shapes(wire: list[list[Any]]) -> list[list[tuple[str, str | None]]]:
+    """Each serialized assistant message's blocks: their types and names."""
+    return [[(block["type"], block.get("name")) for block in blocks] for blocks in wire]
 
 
 ANTHROPIC_TOOLS = [
@@ -7488,7 +7536,6 @@ async def test_a_reused_responses_call_id_replays_each_execution_as_generated(
 ) -> None:
     from inspect_ai.agent._bridge.responses import inspect_responses_api_request
     from inspect_ai.model._assistant_internal import init_sample_assistant_internal
-    from inspect_ai.model._openai_responses import openai_responses_inputs
 
     init_sample_assistant_internal()
     _, tool, result, _ = _responses_modified_call(kind)
@@ -7496,7 +7543,9 @@ async def test_a_reused_responses_call_id_replays_each_execution_as_generated(
 
     # the model reuses its call id in a second, freshly parsed response
     model = Parsing(
-        *[_responses_parsed(item) for item in generated], lambda: calls_output()
+        *[_responses_parsed(item) for item in generated],
+        lambda: calls_output(),
+        wire=_responses_wire,
     )
     bridge = AgentBridge(
         AgentState(messages=[]), model_aliases={"inspect": model.model}
@@ -7531,12 +7580,7 @@ async def test_a_reused_responses_call_id_replays_each_execution_as_generated(
             bridge,
         )
 
-    replayed: list[Any] = await openai_responses_inputs(model.inputs[2])
-    assert [
-        (param["call_id"], _responses_native_arguments(param))
-        for param in replayed
-        if param["type"] == generated[0].type
-    ] == [
+    assert _responses_replayed(model.wire[2], generated[0].type) == [
         (handed_id, _responses_native_arguments(item.model_dump(exclude_none=True)))
         for handed_id, item in zip(handed_ids, generated)
     ]
@@ -7581,7 +7625,6 @@ async def test_a_cached_responses_call_replays_as_generated_after_its_id_is_reus
 ) -> None:
     from inspect_ai.agent._bridge.responses import inspect_responses_api_request
     from inspect_ai.model._assistant_internal import init_sample_assistant_internal
-    from inspect_ai.model._openai_responses import openai_responses_inputs
 
     isolated_cache()
     init_sample_assistant_internal()
@@ -7591,6 +7634,7 @@ async def test_a_cached_responses_call_replays_as_generated_after_its_id_is_reus
         *[_responses_parsed(item) for item in generated],
         lambda: calls_output(),
         cache=True,
+        wire=_responses_wire,
     )
     # a response filter returning the output re-validates it
     bridge = AgentBridge(
@@ -7646,12 +7690,7 @@ async def test_a_cached_responses_call_replays_as_generated_after_its_id_is_reus
     assert len({call["call_id"] for call in handed}) == 3
     if filtered == "rebuilt":
         assert "call_reused" not in {call["call_id"] for call in handed}
-    replayed: list[Any] = await openai_responses_inputs(model.inputs[-1])
-    assert [
-        (param["call_id"], _responses_native_arguments(param))
-        for param in replayed
-        if param["type"] == generated[0].type
-    ] == [
+    assert _responses_replayed(model.wire[-1], generated[0].type) == [
         (
             call["call_id"],
             _responses_native_arguments(item.model_dump(exclude_none=True)),
@@ -7666,12 +7705,16 @@ async def test_a_responses_cache_hit_in_another_sample_replays_as_generated(
 ) -> None:
     from inspect_ai.agent._bridge.responses import inspect_responses_api_request
     from inspect_ai.model._assistant_internal import init_sample_assistant_internal
-    from inspect_ai.model._openai_responses import openai_responses_inputs
 
     isolated_cache()
     _, tool, result, _ = _responses_modified_call(kind)
     generated = _responses_call_reading(kind, "old.txt", 1)
-    model = Parsing(_responses_parsed(generated), lambda: calls_output(), cache=True)
+    model = Parsing(
+        _responses_parsed(generated),
+        lambda: calls_output(),
+        cache=True,
+        wire=_responses_wire,
+    )
     user = {"role": "user", "content": TASK}
 
     with (
@@ -7720,12 +7763,7 @@ async def test_a_responses_cache_hit_in_another_sample_replays_as_generated(
         "read",
         "write",
     ]
-    replayed: list[Any] = await openai_responses_inputs(model.inputs[-1])
-    assert [
-        (param["call_id"], _responses_native_arguments(param))
-        for param in replayed
-        if param["type"] == generated.type
-    ] == [
+    assert _responses_replayed(model.wire[-1], generated.type) == [
         (
             call["call_id"],
             _responses_native_arguments(generated.model_dump(exclude_none=True)),
@@ -7736,7 +7774,6 @@ async def test_a_responses_cache_hit_in_another_sample_replays_as_generated(
 async def test_a_responses_call_without_an_item_id_replays_its_own_arguments() -> None:
     from inspect_ai.agent._bridge.responses import inspect_responses_api_request
     from inspect_ai.model._assistant_internal import init_sample_assistant_internal
-    from inspect_ai.model._openai_responses import openai_responses_inputs
 
     init_sample_assistant_internal()
     _, tool, result, _ = _responses_modified_call("function")
@@ -7748,7 +7785,9 @@ async def test_a_responses_call_without_an_item_id_replays_its_own_arguments() -
         ),
     ]
     model = Parsing(
-        *[_responses_parsed(item) for item in generated], lambda: calls_output()
+        *[_responses_parsed(item) for item in generated],
+        lambda: calls_output(),
+        wire=_responses_wire,
     )
     bridge = AgentBridge(
         AgentState(messages=[]), model_aliases={"inspect": model.model}
@@ -7780,23 +7819,21 @@ async def test_a_responses_call_without_an_item_id_replays_its_own_arguments() -
                 ],
             ]
 
-    replayed: list[Any] = await openai_responses_inputs(model.inputs[2])
     assert [
-        json.loads(param["arguments"])
-        for param in replayed
-        if param["type"] == "function_call"
+        arguments
+        for _, arguments in _responses_replayed(model.wire[2], "function_call")
     ] == [{"path": "old.txt"}, {"path": "new.txt"}]
 
 
 async def test_a_reused_anthropic_call_id_replays_each_execution_as_generated() -> None:
     from inspect_ai.model._assistant_internal import init_sample_assistant_internal
-    from inspect_ai.model._providers.anthropic import assistant_message_block_params
 
     init_sample_assistant_internal()
     model = Parsing(
         _anthropic_parsed(ANTHROPIC_FIRST),
         _anthropic_parsed(ANTHROPIC_SECOND),
         lambda: calls_output(),
+        wire=_anthropic_wire,
     )
     bridge = in_process_bridge([])
     messages: list[ChatMessage] = [ChatMessageUser(content=TASK)]
@@ -7820,11 +7857,11 @@ async def test_a_reused_anthropic_call_id_replays_each_execution_as_generated() 
                 ],
             ]
 
-    assistants = [m for m in model.inputs[2] if isinstance(m, ChatMessageAssistant)]
-    replayed = [await assistant_message_block_params(m) for m in assistants]
-    assert [
-        [(block["type"], block.get("name")) for block in blocks] for blocks in replayed
-    ] == [ANTHROPIC_FIRST_REPLAY, ANTHROPIC_SECOND_REPLAY]
+    replayed = model.wire[2]
+    assert _anthropic_shapes(replayed) == [
+        ANTHROPIC_FIRST_REPLAY,
+        ANTHROPIC_SECOND_REPLAY,
+    ]
     assert replayed[0][1].get("id") == "toolu_a" != replayed[1][0].get("id")
 
 
@@ -7833,7 +7870,6 @@ async def test_a_cached_anthropic_turn_replays_as_generated_after_its_id_is_reus
     filtered: bool, isolated_cache: Callable[[], None]
 ) -> None:
     from inspect_ai.model._assistant_internal import init_sample_assistant_internal
-    from inspect_ai.model._providers.anthropic import assistant_message_block_params
 
     isolated_cache()
     init_sample_assistant_internal()
@@ -7842,6 +7878,7 @@ async def test_a_cached_anthropic_turn_replays_as_generated_after_its_id_is_reus
         _anthropic_parsed(ANTHROPIC_SECOND),
         lambda: calls_output(),
         cache=True,
+        wire=_anthropic_wire,
     )
     bridge = in_process_bridge([])
     bridge.response_filter = _pass_through if filtered else None
@@ -7882,11 +7919,12 @@ async def test_a_cached_anthropic_turn_replays_as_generated_after_its_id_is_reus
         "read",
         "write",
     ]
-    assistants = [m for m in model.inputs[-1] if isinstance(m, ChatMessageAssistant)]
-    replayed = [await assistant_message_block_params(m) for m in assistants]
-    assert [
-        [(block["type"], block.get("name")) for block in blocks] for blocks in replayed
-    ] == [ANTHROPIC_FIRST_REPLAY, ANTHROPIC_SECOND_REPLAY, ANTHROPIC_FIRST_REPLAY]
+    replayed = model.wire[-1]
+    assert _anthropic_shapes(replayed) == [
+        ANTHROPIC_FIRST_REPLAY,
+        ANTHROPIC_SECOND_REPLAY,
+        ANTHROPIC_FIRST_REPLAY,
+    ]
     assert len({blocks[1].get("id") for blocks in (replayed[0], replayed[2])}) == 2
 
 
@@ -7941,7 +7979,10 @@ async def test_a_cached_anthropic_response_is_handed_as_generated_after_its_id_i
 
 
 async def test_concurrent_anthropic_turns_reusing_an_id_replay_as_generated() -> None:
-    from inspect_ai.model._assistant_internal import init_sample_assistant_internal
+    from inspect_ai.model._assistant_internal import (
+        bridge_replay_scope,
+        init_sample_assistant_internal,
+    )
     from inspect_ai.model._providers import anthropic
 
     init_sample_assistant_internal()
@@ -7992,10 +8033,12 @@ async def test_concurrent_anthropic_turns_reusing_an_id_replay_as_generated() ->
             [lambda: turn("first"), lambda: turn("second")]
         )
 
-    replayed = [
-        await anthropic.assistant_message_block_params(output.message)
-        for output in (first, second)
-    ]
+        # as the bridge's next request replays them
+        with bridge_replay_scope(bridge._replay):
+            replayed = [
+                await anthropic.assistant_message_block_params(output.message)
+                for output in (first, second)
+            ]
     assert [
         [(block["type"], block.get("name")) for block in blocks] for blocks in replayed
     ] == [ANTHROPIC_FIRST_REPLAY, ANTHROPIC_SECOND_REPLAY]
@@ -8061,6 +8104,198 @@ async def test_a_call_a_response_filter_changed_replays_as_handed() -> None:
         for param in replayed
         if param["type"] == "function_call"
     ] == [(call["call_id"], {"path": "edited.txt"})]
+
+
+def _answered(input: list[ChatMessage], output: ModelOutput) -> list[ChatMessage]:
+    """`input` continued with `output` and a result for each of its calls."""
+    return [
+        *input,
+        output.message,
+        *[
+            ChatMessageTool(content="[]", tool_call_id=call.id)
+            for call in output.message.tool_calls or []
+        ],
+    ]
+
+
+def _reusing_model(kind: str, cache: bool = False) -> tuple[Parsing, list[ToolInfo]]:
+    """A model generating two calls of `kind` under one id, reading old then new."""
+    if kind == "anthropic":
+        return Parsing(
+            _anthropic_parsed(ANTHROPIC_FIRST),
+            _anthropic_parsed(ANTHROPIC_SECOND),
+            lambda: calls_output(),
+            cache=cache,
+            wire=_anthropic_wire,
+        ), list(ANTHROPIC_TOOLS)
+    return Parsing(
+        *[_responses_parsed(item) for item in _responses_calls_reading(kind, True)],
+        lambda: calls_output(),
+        cache=cache,
+        wire=_responses_wire,
+    ), []
+
+
+def _replays_reading(kind: str, wire: Any, call_id: str, generation: int) -> bool:
+    """Whether a serialized request replays the generation's call as generated."""
+    if kind == "anthropic":
+        return _anthropic_shapes(wire) == [
+            [ANTHROPIC_FIRST_REPLAY, ANTHROPIC_SECOND_REPLAY][generation]
+        ]
+    item = _responses_calls_reading(kind, True)[generation]
+    return _responses_replayed(wire, item.type) == [
+        (call_id, _responses_native_arguments(item.model_dump(exclude_none=True)))
+    ]
+
+
+async def _generate_bridged(
+    bridge: AgentBridge, model: Model, input: list[ChatMessage], tools: list[ToolInfo]
+) -> ModelOutput:
+    output, _ = await bridge_generate(
+        bridge, model, input, tools, None, GenerateConfig(), requested_model=None
+    )
+    return output
+
+
+@pytest.mark.parametrize(
+    "kind", ["function", "custom", "computer", "tool_search", "anthropic"]
+)
+async def test_a_native_generation_reusing_a_bridged_call_id_replays_as_generated(
+    kind: str, isolated_cache: Callable[[], None]
+) -> None:
+    from inspect_ai.model._assistant_internal import init_sample_assistant_internal
+
+    isolated_cache()
+    init_sample_assistant_internal()
+    model, tools = _reusing_model(kind, cache=True)
+    bridge = in_process_bridge([])
+    bridged_input: list[ChatMessage] = [ChatMessageUser(content="Read old.txt.")]
+    native_input: list[ChatMessage] = [ChatMessageUser(content="Read new.txt.")]
+
+    with active([bridge_recording([])]):
+        bridged = await _generate_bridged(bridge, model.model, bridged_input, tools)
+        # a native helper in the sample: the model reuses the bridged call's id
+        # in a freshly parsed response, which the cache then serves
+        await model.model.generate(native_input, tools)
+        native = await model.model.generate(native_input, tools)
+        await model.model.generate(_answered(native_input, native), tools)
+        await _generate_bridged(
+            bridge, model.model, _answered(bridged_input, bridged), tools
+        )
+
+    assert [e.cache for e in transcript().events if isinstance(e, ModelEvent)] == [
+        "write",
+        "write",
+        "read",
+        "write",
+        "write",
+    ]
+    [handed, *_] = bridged.message.tool_calls or []
+    assert handed.id == ("toolu_a" if kind == "anthropic" else "call_reused")
+    assert _replays_reading(kind, model.wire[2], handed.id, 1)
+    assert _replays_reading(kind, model.wire[3], handed.id, 0)
+
+
+@pytest.mark.parametrize("kind", ["function", "anthropic"])
+async def test_bridges_reusing_a_call_id_in_one_sample_each_replay_their_own(
+    kind: str,
+) -> None:
+    from inspect_ai.model._assistant_internal import init_sample_assistant_internal
+
+    init_sample_assistant_internal()
+    model, tools = _reusing_model(kind)
+    bridges = [in_process_bridge([]), in_process_bridge([])]
+    inputs: list[list[ChatMessage]] = [
+        [ChatMessageUser(content=f"Read {path}.")] for path in ["old.txt", "new.txt"]
+    ]
+
+    with active([bridge_recording([])]):
+        outputs = [
+            await _generate_bridged(bridge, model.model, input, tools)
+            for bridge, input in zip(bridges, inputs)
+        ]
+        for bridge, input, output in zip(bridges, inputs, outputs):
+            await _generate_bridged(
+                bridge, model.model, _answered(input, output), tools
+            )
+
+    handed = [(output.message.tool_calls or [])[0].id for output in outputs]
+    assert len(set(handed)) == 1
+    assert _replays_reading(kind, model.wire[2], handed[0], 0)
+    assert _replays_reading(kind, model.wire[3], handed[1], 1)
+
+
+@pytest.mark.parametrize("kind", ["function", "anthropic"])
+async def test_a_resumed_bridge_replays_a_call_it_handed_under_the_models_id(
+    kind: str, tmp_path: Path
+) -> None:
+    from inspect_ai.model._assistant_internal import init_sample_assistant_internal
+
+    init_sample_assistant_internal()
+    model, tools = _reusing_model(kind)
+    start = AgentState(messages=[])
+    input: list[ChatMessage] = [ChatMessageUser(content="Read old.txt.")]
+
+    async with AsyncFilesystem():
+        with _patch_sample_runtime([]):
+            checkpointer = real_checkpointer(tmp_path)
+            bridge = started_with(False, model.model, deepcopy(start), checkpointer)
+            with active([bridge_recording([])]):
+                output = await _generate_bridged(bridge, model.model, input, tools)
+            await checkpointer.checkpoint()
+            checkpointer.close()
+
+            saved = read_host_context(str(tmp_path / "context")).agent_state
+            assert saved is not None
+            resumed = real_checkpointer(tmp_path, saved)
+            try:
+                bridge = started_with(False, model.model, deepcopy(start), resumed)
+                # the resumed sample's provider state has only a native
+                # generation reusing the call's id
+                init_sample_assistant_internal()
+                with active([bridge_recording([])]):
+                    await model.model.generate(
+                        [ChatMessageUser(content="Read new.txt.")], tools
+                    )
+                    await _generate_bridged(
+                        bridge, model.model, _answered(input, output), tools
+                    )
+            finally:
+                resumed.close()
+
+    [handed, *_] = output.message.tool_calls or []
+    assert handed.id == ("toolu_a" if kind == "anthropic" else "call_reused")
+    assert _replays_reading(kind, model.wire[2], handed.id, 0)
+
+
+async def test_a_provider_output_rebuilt_from_its_fields_replays_its_own_calls() -> (
+    None
+):
+    from inspect_ai.model._assistant_internal import init_sample_assistant_internal
+
+    init_sample_assistant_internal()
+    old, new = _responses_calls_reading("function", True)
+
+    # a provider parses its response, then returns the output rebuilt from its
+    # fields after another generation in the sample reused the call's id
+    async def rebuilt() -> ModelOutput:
+        output = await _responses_output(new)
+        await _responses_output(old)
+        return ModelOutput.model_validate_json(output.model_dump_json())
+
+    model = Parsing(rebuilt, lambda: calls_output(), wire=_responses_wire)
+    bridge = in_process_bridge([])
+    input: list[ChatMessage] = [ChatMessageUser(content="Read new.txt.")]
+
+    with active([bridge_recording([])]):
+        output = await _generate_bridged(bridge, model.model, input, [])
+        await _generate_bridged(bridge, model.model, _answered(input, output), [])
+
+    [handed] = output.message.tool_calls or []
+    assert handed.id != "call_reused"
+    assert _responses_replayed(model.wire[1], "function_call") == [
+        (handed.id, {"path": "new.txt"})
+    ]
 
 
 @pytest.fixture

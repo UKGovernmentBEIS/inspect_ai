@@ -7,7 +7,7 @@ Providers "smuggle" wire-level content that doesn't round-trip through `ChatMess
 
 ## Key facts / constraints
 
-- OpenAI `_AssistantInternal` (`src/inspect_ai/model/_openai_responses.py:614`): `tool_calls`, `handed_tool_calls` (the agent bridge's copies, by handed id), `server_tool_uses` — values are SDK **TypedDicts** (plain dicts at runtime) → JSON-dump directly, restore via `cast`.
+- OpenAI `_AssistantInternal` (`src/inspect_ai/model/_openai_responses.py:614`): `tool_calls`, `server_tool_uses` — values are SDK **TypedDicts** (plain dicts at runtime) → JSON-dump directly, restore via `cast`.
 - Anthropic `_AssistantInternal` (`src/inspect_ai/model/_providers/anthropic.py:2651`): `thinking_blocks` (TypedDicts), `tool_call_internal_names` (`dict[str, str | None]`), `server_mcp_tool_uses` (`dict[str, tuple[TypedDict, TypedDict]]` — JSON turns tuple→list; restore `tuple(...)`), `server_tool_spans` / `server_tool_span_index` (share `_ServerToolSpan` **object identity**; `anthropic.py:2681-2706`). `_ServerToolSpan` (`anthropic.py:2572`) is a dataclass with `blocks: list[TypedDict]`, `content_ids: list[str]`, `open_use_ids: set[str]` (set → sorted list on dump, set() on load).
 - **Restore must mutate in place, not `ContextVar.set()`**: providers populate the instance set at `run.py:1091` (sample task) by in-place dict mutation, which is why scorers (sibling task, post-solver) see it. Restore runs in `_CheckpointerSetup.__aenter__` (solver task); a `.set()` there would be invisible to the scoring task (matters for `resume_for_scoring`). So: `init_sample_*_assistant_internal(value)` with `value is None` → `.set(fresh)` (today's behavior); with value → populate the *current* instance in place. Docstring must state this rationale.
 - Layering OK: `util/_checkpoint` already imports `inspect_ai.model._chat_message` (`host_context.py`, `hydrate.py`); it must never import `_eval` → aggregator moves out of `run.py`.
@@ -32,8 +32,6 @@ Move from `run.py:2041-2068` (delete there; update import at `run.py:1091`; keep
   "thinking_blocks": {...},
   "tool_call_internal_names": {...},
   "client_tool_call_positions": {"tool_use_id": content_position},
-  "handed_tool_call_internal_names": {"handed_id": "internal_name"},
-  "handed_client_tool_call_positions": {"handed_id": content_position},
   "server_mcp_tool_uses": {"id": [use, result]},
   "spans": [{"blocks": [...], "content_ids": [...], "open_use_ids": [...]}],
   "server_tool_spans": {"msg_id": [span_index, ...]},

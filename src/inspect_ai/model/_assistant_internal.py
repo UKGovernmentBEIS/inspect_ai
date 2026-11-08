@@ -11,7 +11,9 @@ resume.
 from __future__ import annotations
 
 import importlib.util
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
+from contextvars import ContextVar
 from hashlib import sha256
 from typing import TYPE_CHECKING, cast
 
@@ -135,18 +137,44 @@ def default_generation_assistant_internal(output: ModelOutput) -> None:
     """Record that a generation whose provider kept no replay state needs none.
 
     For a freshly generated output: the providers that keep per-call state
-    (OpenAI Responses, Anthropic) give it in their parse.
+    (OpenAI Responses, Anthropic) give it in their parse. An output without it
+    whose call IDs a provider has recorded state under came from such a
+    provider (rebuilt from its fields, e.g. through JSON), so its state is
+    unknown and nothing is recorded.
     """
-    if generation_assistant_internal(output) is None and any(
-        choice.message.tool_calls for choice in output.choices
+    calls = [
+        call for choice in output.choices for call in choice.message.tool_calls or []
+    ]
+    if (
+        generation_assistant_internal(output) is None
+        and calls
+        and not any(_has_parsed_call(call.id) for call in calls)
     ):
-        output._assistant_internal = generation_replay(
-            [
-                call
-                for choice in output.choices
-                for call in choice.message.tool_calls or []
-            ]
-        )
+        output._assistant_internal = generation_replay(calls)
+
+
+def _has_parsed_call(call_id: str) -> bool:
+    if _HAS_OPENAI:
+        try:
+            from inspect_ai.model._openai_responses import has_parsed_tool_call
+
+            if has_parsed_tool_call(call_id):
+                return True
+        except ImportError:
+            pass
+
+    if _HAS_ANTHROPIC:
+        try:
+            from inspect_ai.model._providers.anthropic import (
+                has_parsed_tool_call as has_parsed_anthropic_tool_call,
+            )
+
+            if has_parsed_anthropic_tool_call(call_id):
+                return True
+        except ImportError:
+            pass
+
+    return False
 
 
 def generation_assistant_internal(output: ModelOutput) -> dict[str, JsonValue] | None:
@@ -247,6 +275,7 @@ def alias_assistant_internal_call(
     call_id: str,
     alias: str,
     replay: dict[str, JsonValue],
+    bridge: dict[str, JsonValue],
     modified: ToolCall | None = None,
 ) -> None:
     """Record a tool call's per-call replay state under the ID it is handed on under.
@@ -255,16 +284,27 @@ def alias_assistant_internal_call(
     position among the turn's content), with the `modified` call's arguments
     when approval changed them. The state comes from `replay`, the state the
     call's generation was parsed with (`generation_assistant_internal`), never
-    from what a provider has since recorded under `call_id`. The state recorded
-    under `alias` (which may be `call_id`) is replayed in preference to what the
-    provider records under `call_id`, which a later response reusing that ID
-    replaces.
+    from what a provider has since recorded under `call_id`.
+
+    Under the model's ID (`alias == call_id`) the state goes in `bridge`, the
+    handing bridge's own state, replayed only while that bridge serves a
+    request (`bridge_replay_scope`): a later generation, native or another
+    bridge's, can reuse the ID, and replays what its provider records under it.
+    Under a token the bridge minted, which no generation produces, it goes in
+    the provider's state, so the call replays as handed wherever its
+    conversation is continued.
     """
     if _HAS_OPENAI and "openai" in replay:
         try:
             from inspect_ai.model._openai_responses import alias_openai_tool_call
 
-            alias_openai_tool_call(call_id, alias, replay["openai"], modified)
+            alias_openai_tool_call(
+                call_id,
+                alias,
+                replay["openai"],
+                modified,
+                _bridge_section(bridge, "openai") if alias == call_id else None,
+            )
         except ImportError:
             pass
 
@@ -274,6 +314,39 @@ def alias_assistant_internal_call(
                 alias_anthropic_tool_call,
             )
 
-            alias_anthropic_tool_call(call_id, alias, replay["anthropic"])
+            alias_anthropic_tool_call(
+                call_id,
+                alias,
+                replay["anthropic"],
+                _bridge_section(bridge, "anthropic") if alias == call_id else None,
+            )
         except ImportError:
             pass
+
+
+def _bridge_section(bridge: dict[str, JsonValue], key: str) -> dict[str, JsonValue]:
+    return cast(dict[str, JsonValue], bridge.setdefault(key, {}))
+
+
+_bridge_replay: ContextVar[dict[str, JsonValue] | None] = ContextVar(
+    "_bridge_replay", default=None
+)
+
+
+@contextmanager
+def bridge_replay_scope(replay: dict[str, JsonValue]) -> Iterator[None]:
+    """Replay the calls an agent bridge handed on with the state it recorded for them.
+
+    For the enclosed requests the bridge serves; `replay` is the bridge's own
+    state (`alias_assistant_internal_call`).
+    """
+    token = _bridge_replay.set(replay)
+    try:
+        yield
+    finally:
+        _bridge_replay.reset(token)
+
+
+def bridge_replay() -> dict[str, JsonValue]:
+    """The state of the bridge serving the current request, by provider (empty outside one)."""
+    return _bridge_replay.get() or {}

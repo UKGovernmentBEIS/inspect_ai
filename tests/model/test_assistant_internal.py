@@ -90,12 +90,6 @@ def test_openai_round_trip() -> None:
         "name": "bash",
         "arguments": '{"cmd": "ls"}',
     }
-    internal.handed_tool_calls["token"] = {
-        "type": "function_call",
-        "call_id": "token",
-        "name": "bash",
-        "arguments": '{"cmd": "pwd"}',
-    }
     internal.server_tool_uses["ws_1"] = {
         "type": "web_search_call",
         "id": "ws_1",
@@ -111,7 +105,6 @@ def test_openai_round_trip() -> None:
     assert not assistant_internal().tool_calls
     init_sample_assistant_internal(restored_value)
     assert assistant_internal().tool_calls == internal.tool_calls
-    assert assistant_internal().handed_tool_calls == internal.handed_tool_calls
     assert assistant_internal().server_tool_uses == internal.server_tool_uses
 
 
@@ -130,8 +123,6 @@ def test_anthropic_round_trip() -> None:
     }
     internal.tool_call_internal_names["tc_1"] = "internal_name"
     internal.tool_call_internal_names["tc_2"] = None
-    internal.handed_tool_call_internal_names["token"] = "internal_name"
-    internal.handed_client_tool_call_positions["token"] = 1
     internal.server_mcp_tool_uses["mcp_1"] = (
         {
             "type": "mcp_tool_use",
@@ -176,14 +167,6 @@ def test_anthropic_round_trip() -> None:
     restored = assistant_internal()
     assert restored.thinking_blocks == internal.thinking_blocks
     assert restored.tool_call_internal_names == internal.tool_call_internal_names
-    assert (
-        restored.handed_tool_call_internal_names
-        == internal.handed_tool_call_internal_names
-    )
-    assert (
-        restored.handed_client_tool_call_positions
-        == internal.handed_client_tool_call_positions
-    )
     # JSON turns the (use, result) tuple into a list; restore rebuilds tuples
     assert restored.server_mcp_tool_uses == internal.server_mcp_tool_uses
     assert isinstance(restored.server_mcp_tool_uses["mcp_1"], tuple)
@@ -328,3 +311,50 @@ def test_a_copy_keeps_the_replay_state_of_the_calls_it_leaves_unchanged() -> Non
         "openai": {"kept": {"type": "function_call"}},
         "anthropic": {"names": {"kept": None}, "positions": {"kept": 0}},
     }
+
+
+def _calling(call_id: str) -> ModelOutput:
+    return ModelOutput(
+        choices=[
+            ChatCompletionChoice(
+                message=ChatMessageAssistant(
+                    content="",
+                    tool_calls=[ToolCall(id=call_id, function="f", arguments={})],
+                )
+            )
+        ]
+    )
+
+
+def test_a_fresh_output_without_replay_state_needs_none_unless_a_provider_kept_some() -> (
+    None
+):
+    from inspect_ai.model._assistant_internal import (
+        default_generation_assistant_internal,
+        generation_assistant_internal,
+        keeps_generation_call_id,
+    )
+    from inspect_ai.model._openai_responses import assistant_internal
+    from inspect_ai.model._providers.anthropic import (
+        assistant_internal as anthropic_internal,
+    )
+
+    init_sample_assistant_internal()
+    assistant_internal().tool_calls["call_responses"] = {
+        "type": "function_call",
+        "call_id": "call_responses",
+        "name": "f",
+        "arguments": "{}",
+    }
+    anthropic_internal().client_tool_call_positions["toolu_1"] = 0
+
+    for call_id, stateless in [
+        ("call_stateless", True),
+        ("call_responses", False),
+        ("toolu_1", False),
+    ]:
+        output = _calling(call_id)
+        default_generation_assistant_internal(output)
+        replay = generation_assistant_internal(output)
+        assert (replay is not None) == stateless
+        assert keeps_generation_call_id(replay, call_id) == stateless

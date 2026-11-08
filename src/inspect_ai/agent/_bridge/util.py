@@ -54,7 +54,10 @@ from inspect_ai.agent._bridge._sentinel import (
 )
 from inspect_ai.agent._bridge.types import AgentBridge, message_json_hash
 from inspect_ai.model._agent_message import validate_agent_message
-from inspect_ai.model._assistant_internal import carry_generation_assistant_internal
+from inspect_ai.model._assistant_internal import (
+    bridge_replay_scope,
+    carry_generation_assistant_internal,
+)
 from inspect_ai.model._call_tools import get_tools_info
 from inspect_ai.model._chat_message import (
     ChatMessage,
@@ -889,7 +892,8 @@ async def bridge_generate(
     `AgentBridgeContext` defaults to unknown, `current_bridge_request()` carries
     `requested_model` (the scaffold's pre-alias-resolution model slug), or
     returns None when the scaffold sent no model, and both reset when the
-    request completes.
+    request completes. Within it, the calls the bridge handed on replay with
+    the state it recorded for them (`bridge_replay_scope`).
 
     Tool calls in the output are approved, and go through the sentinel's `tool_call`
     stage, before it is handed back to the scaffold. A rejected call is not edited
@@ -919,6 +923,7 @@ async def bridge_generate(
     generations = _Generations()
     with (
         bridged_request_scope(requested_model),
+        bridge_replay_scope(bridge._replay),
         bridge_request(),
         # only the sentinel's tool steps need to know what produced the response
         observe_generations(generations.record)
