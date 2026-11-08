@@ -100,3 +100,23 @@ def test_tool_with_applies_viewer_and_model_input_without_parallel():
 
     assert tdef.viewer is _viewer
     assert tdef.model_input is _model_input
+
+
+def test_tool_with_disabling_parallel_keeps_the_viewer():
+    """`parallel=False` is an explicit value, so it must not shadow the other attributes."""
+    tool = tool_with(addition(), parallel=False, viewer=_viewer)
+
+    tdef = ToolDef(tool)
+
+    assert tdef.parallel is False
+    assert tdef.viewer is _viewer
+
+
+def test_tool_with_keeps_a_viewer_set_by_an_earlier_call():
+    tool = tool_with(addition(), viewer=_viewer)
+
+    tool_with(tool, model_input=_model_input)
+
+    tdef = ToolDef(tool)
+    assert tdef.viewer is _viewer
+    assert tdef.model_input is _model_input
