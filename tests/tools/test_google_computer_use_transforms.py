@@ -355,6 +355,50 @@ async def test_unmodified_gemini_computer_call_replays_as_sent(
     assert replayed.args == args
 
 
+# Alias calls edited into another action, which no longer match the alias.
+EDITED_ALIAS_CALLS: list[tuple[str, dict[str, object], dict[str, object]]] = [
+    ("go_back", {"action": "key", "text": "ctrl+c"}, {"keys": "control+c"}),
+    ("go_forward", {"action": "key", "text": "alt+Left"}, {"keys": "alt+left"}),
+    (
+        "search",
+        {"action": "left_click", "coordinate": [683, 384]},
+        {"x": 500, "y": 500},
+    ),
+]
+
+
+def _parsed_alias_call(name: str) -> ToolCall:
+    args = {"query": "inspect ai framework"} if name == "search" else {}
+    return tool_call_from_gemini_computer_action(FunctionCall(name=name, args=args))
+
+
+@pytest.mark.parametrize(
+    "name,edited,expected",
+    EDITED_ALIAS_CALLS,
+    ids=["go_back-key", "go_forward-key", "search-click"],
+)
+async def test_gemini_alias_call_edited_into_another_action_uses_its_conversion(
+    name: str, edited: dict[str, object], expected: dict[str, object]
+) -> None:
+    tool_call = _parsed_alias_call(name)
+    tool_call.arguments = edited
+
+    replayed = await _replay(tool_call)
+
+    assert replayed.name == name
+    assert replayed.args == expected == gemini_action_from_tool_call(tool_call)[1]
+
+
+async def test_gemini_search_call_with_edited_text_replays_it_as_the_query() -> None:
+    tool_call = _parsed_alias_call("search")
+    tool_call.arguments = {"action": "navigate", "text": "https://allowed.example"}
+
+    replayed = await _replay(tool_call)
+
+    assert replayed.name == "search"
+    assert replayed.args == {"query": "https://allowed.example"}
+
+
 async def test_gemini_computer_call_and_result_use_the_same_name() -> None:
     tool_call = tool_call_from_gemini_computer_action(
         FunctionCall(name="search", args={})
