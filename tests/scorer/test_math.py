@@ -867,6 +867,7 @@ async def test_target_timeout_is_unscored(monkeypatch: pytest.MonkeyPatch) -> No
     assert result is not None
     assert isinstance(result.value, float)
     assert stdlib_math.isnan(result.value)
+    assert result.reason == "scoring_failed"
     assert result.metadata == {"math_scorer_status": "target_timeout"}
 
 
@@ -889,6 +890,7 @@ async def test_answer_timeout_is_incorrect(monkeypatch: pytest.MonkeyPatch) -> N
 
     assert result is not None
     assert result.value == INCORRECT
+    assert result.reason == "scoring_failed"
     assert result.metadata == {"math_scorer_status": "answer_timeout"}
 
 
