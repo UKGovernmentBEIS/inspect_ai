@@ -3476,9 +3476,50 @@ def test_answer_groups_merge_and_drop_with_their_answers() -> None:
     with patch.object(bridge_types, "_MAX_ANSWER_RECORDS", 1):
         bridge._drop_answer_records()
     assert group.answers.keys() == {"m_r3"} and bridge._answer_groups["r1"] is group
+    assert group.calls[call].message_ids == {"m_r3"}
     with patch.object(bridge_types, "_MAX_ANSWER_RECORDS", 0):
         bridge._drop_answer_records()
     assert bridge._answer_groups == {}
+
+
+def test_execution_adds_its_outcome_only_to_answers_of_its_call() -> None:
+    """An execution updates the answers indexed under its call, and those that may answer it in a rival reply whatever their call id."""
+    bridge = AgentBridge(AgentState(messages=[]))
+    reply = ChatMessageAssistant(
+        id="r1",
+        content="",
+        tool_calls=[ToolCall(id="call_1", function="bash", arguments={"cmd": "ls"})],
+    )
+    [handed] = _handed_calls("r1", reply.tool_calls or [])
+    Match = bridge_types._CallMatch
+    answers = {
+        "own": ("r1", Match("bash", handed.arguments, "call_1")),
+        "other_id": ("r1", Match("bash", handed.arguments, "call_2")),
+        "rival": ("r2", Match("bash", handed.arguments, "call_9")),
+        "any_id": ("r1", Match("bash", handed.arguments, None)),
+        "any_call": ("r1", Match("bash", None, None)),
+        "other_arguments": ("r1", Match("bash", "digest", None)),
+        "other_function": ("r1", Match("cat", None, None)),
+    }
+
+    def join(message_id: str) -> None:
+        reply_id, call = answers[message_id]
+        bridge._answers[message_id] = bridge_types._Answer(reply_id, frozenset({"A"}))
+        bridge._join_answer_group(message_id, call, ["r1", "r2"])
+
+    for message_id in answers:
+        join(message_id)
+    _awaiting(bridge, reply, result="B")
+    updated = {"own", "rival", "any_id", "any_call"}
+    assert {
+        id for id, answer in bridge._answers.items() if len(answer.outcomes) == 2
+    } == updated
+
+    # joins an index whose answers all hold the outcome of that execution
+    answers["late"] = ("r1", Match("bash", None, None))
+    join("late")
+    _awaiting(bridge, reply, result="B")
+    assert len(bridge._answers["late"].outcomes) == 2
 
 
 async def test_answer_records_are_bounded() -> None:

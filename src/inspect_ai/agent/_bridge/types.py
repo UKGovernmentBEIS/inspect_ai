@@ -11,6 +11,7 @@ from typing import (
     NamedTuple,
     NoReturn,
     Sequence,
+    TypeVar,
 )
 
 from pydantic import BaseModel
@@ -310,6 +311,19 @@ class _ReplyAnswers(NamedTuple):
     """Per message key, the id its answer was first given (`None` once an answer with another id has it too)."""
 
 
+_K = TypeVar("_K")
+
+
+@dataclass
+class _CallAnswers:
+    """The answers in an `_AnswerGroup` indexed under one key."""
+
+    message_ids: set[str]
+
+    outcomes: set[str]
+    """Outcomes every one of their records holds."""
+
+
 @dataclass
 class _AnswerGroup:
     """Answer records a later execution of a call in `replies` may add an outcome to (`AgentBridge._await_result_message`)."""
@@ -317,8 +331,68 @@ class _AnswerGroup:
     replies: set[str]
     """Replies answered, and those recognition may have taken for them (`AgentBridge._record_answer`)."""
 
-    answers: dict[str, _CallMatch]
+    answers: dict[str, _CallMatch] = field(default_factory=dict)
     """Ids of the answers, with the calls each may answer."""
+
+    calls: dict[_CallMatch, _CallAnswers] = field(default_factory=dict)
+    """The answers by the calls they may answer."""
+
+    rivals: dict[_CallMatch, dict[str, _CallAnswers]] = field(default_factory=dict)
+    """The answers matched by call id, by function and arguments and then by the reply each answers: a call with those in another reply may be theirs whatever its id."""
+
+    def add(self, message_id: str, call: _CallMatch, answer: _Answer) -> None:
+        self.answers[message_id] = call
+        _index_answer(self.calls, call, message_id, answer.outcomes)
+        if call.call_id is not None:
+            rivals = self.rivals.setdefault(call._replace(call_id=None), {})
+            _index_answer(rivals, answer.reply_id, message_id, answer.outcomes)
+
+    def remove(self, message_id: str, reply_id: str) -> None:
+        call = self.answers.pop(message_id, None)
+        if call is None:
+            return
+        _unindex_answer(self.calls, call, message_id)
+        if call.call_id is not None:
+            rivals = self.rivals[call._replace(call_id=None)]
+            _unindex_answer(rivals, reply_id, message_id)
+            if not rivals:
+                del self.rivals[call._replace(call_id=None)]
+
+    def answering(self, handed: _HandedCall) -> list[_CallAnswers]:
+        """The indexed answers that may answer `handed` (one matched by call id in another reply is in two)."""
+        any_call = _CallMatch(handed.function, handed.arguments, None)
+        found = [
+            self.calls.get(key)
+            for key in (
+                _CallMatch(handed.function, None, None),
+                any_call,
+                any_call._replace(call_id=handed.call_id),
+            )
+        ]
+        found.extend(
+            answers
+            for reply_id, answers in self.rivals.get(any_call, {}).items()
+            if reply_id != handed.reply_id
+        )
+        return [answers for answers in found if answers is not None]
+
+
+def _index_answer(
+    index: dict[_K, _CallAnswers], key: _K, message_id: str, outcomes: frozenset[str]
+) -> None:
+    answers = index.get(key)
+    if answers is None:
+        index[key] = _CallAnswers({message_id}, set(outcomes))
+    else:
+        answers.message_ids.add(message_id)
+        answers.outcomes &= outcomes
+
+
+def _unindex_answer(index: dict[_K, _CallAnswers], key: _K, message_id: str) -> None:
+    answers = index[key]
+    answers.message_ids.discard(message_id)
+    if not answers.message_ids:
+        del index[key]
 
 
 @dataclass
@@ -736,20 +810,17 @@ class AgentBridge:
             json.dumps(jsonable_python({"result": event.result, "error": event.error}))
         )
         group = self._answer_groups.get(handed.reply_id)
-        for message_id, call in group.answers.items() if group else ():
-            answer = self._answers[message_id]
-            if (
-                outcome not in answer.outcomes
-                and call.function == handed.function
-                and call.arguments in (None, handed.arguments)
-                and (
-                    call.call_id in (None, handed.call_id)
-                    or answer.reply_id != handed.reply_id
-                )
-            ):
-                self._recount_answer(
-                    message_id, answer._replace(outcomes=answer.outcomes | {outcome})
-                )
+        for answers in group.answering(handed) if group else ():
+            if outcome in answers.outcomes:
+                continue
+            for message_id in answers.message_ids:
+                answer = self._answers[message_id]
+                if outcome not in answer.outcomes:
+                    self._recount_answer(
+                        message_id,
+                        answer._replace(outcomes=answer.outcomes | {outcome}),
+                    )
+            answers.outcomes.add(outcome)
         calls = self._awaited_results.setdefault(handed.reply_id, {})
         tracked = calls.get(handed.position)
         if tracked is None:
@@ -1491,18 +1562,19 @@ class AgentBridge:
         joined = max(
             groups.values(),
             key=lambda group: len(group.replies) + len(group.answers),
-            default=_AnswerGroup(set(), {}),
+            default=_AnswerGroup(set()),
         )
         for group in groups.values():
             if group is not joined:
                 joined.replies |= group.replies
-                joined.answers |= group.answers
+                for merged, merged_call in group.answers.items():
+                    joined.add(merged, merged_call, self._answers[merged])
                 for reply in group.replies:
                     self._answer_groups[reply] = joined
         for reply in replies:
             joined.replies.add(reply)
             self._answer_groups[reply] = joined
-        joined.answers[message_id] = call
+        joined.add(message_id, call, self._answers[message_id])
 
     def _recount_answer(self, message_id: str, answer: _Answer | None) -> None:
         previous = (
@@ -1570,7 +1642,7 @@ class AgentBridge:
             for message_id in dropped.message_ids:
                 self._recount_answer(message_id, None)
                 if group is not None:
-                    group.answers.pop(message_id, None)
+                    group.remove(message_id, reply_id)
             if group is not None and not group.answers:
                 for reply in group.replies:
                     del self._answer_groups[reply]

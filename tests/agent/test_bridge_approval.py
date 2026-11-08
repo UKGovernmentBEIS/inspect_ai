@@ -7,6 +7,7 @@ than by editing the response the scaffold sees.
 """
 
 import inspect
+import itertools
 import json
 import logging
 import re
@@ -8078,6 +8079,93 @@ async def test_handing_over_many_calls_sharing_an_id_is_linear(
     # linear is 8x; scanning every generated call for each handed call is 64x
     assert large[0] <= 12 * max(small[0], 1), (small, large)
     assert large[1] <= 12 * small[1], (small, large)
+
+
+class _CountingAnswers(dict[str, Any]):
+    reads = 0
+
+    def __getitem__(self, key: str) -> Any:
+        _CountingAnswers.reads += 1
+        return super().__getitem__(key)
+
+    def get(self, key: str, default: Any = None) -> Any:
+        _CountingAnswers.reads += 1
+        return super().get(key, default)
+
+
+@pytest.mark.parametrize("dialect", get_args(HostDialect))
+async def test_executing_answered_calls_again_is_linear(dialect: HostDialect) -> None:
+    """Running a reply's answered calls again on a second host tool reads only the answer records of each call.
+
+    The calls read distinct files on `a`, are answered, then run on `b`, which
+    shares the tool's description. Measured: answer records read and all
+    bridge work of the executions on `b`.
+    """
+    import sys
+
+    async def work(n: int) -> tuple[int, int]:
+        outputs = [
+            tool_calls_output(
+                *[
+                    ToolCall(
+                        id=f"call_{i}", function="read_file", arguments={"path": str(i)}
+                    )
+                    for i in range(n)
+                ]
+            ),
+            ModelOutput.from_content("mockllm/model", "Noted."),
+        ]
+        bridge = SandboxAgentBridge(
+            state=AgentState(messages=[ChatMessageUser(content="Read files.")]),
+            filter=None,
+            retry_refusals=None,
+            compaction=None,
+            port=13131,
+            model=None,
+            model_aliases={
+                "inspect": get_model("mockllm/model", custom_outputs=outputs)
+            },
+            bridged_tools={
+                server: {"read_file": read_file(AsyncMock(return_value=result))}
+                for server, result in [("a", "X"), ("b", "Y")]
+            },
+        )
+        [info] = declare("read_file")
+        conversation = _HostConversation(dialect, "Read files.", info)
+        lines = 0
+
+        def trace(frame: Any, event: str, arg: Any) -> Any:
+            if not frame.f_code.co_filename.endswith("_bridge/types.py"):
+                return None
+            if event == "line":
+                nonlocal lines
+                lines += 1
+            return trace
+
+        with recorded_transcript():
+            calls = await conversation.request(bridge)
+            for _, arguments in calls:
+                await call_host_tool(bridge)("a", "read_file", arguments)
+            conversation.results(calls, ["Y"] * n)
+            await conversation.request(bridge)
+            assert len(bridge._answers) == n
+            bridge._answers = _CountingAnswers(bridge._answers)
+            _CountingAnswers.reads = 0
+            sys.settrace(trace)
+            try:
+                for _, arguments in calls:
+                    await call_host_tool(bridge)("b", "read_file", arguments)
+            finally:
+                sys.settrace(None)
+        assert all(len(answer.outcomes) == 2 for answer in bridge._answers.values())
+        return _CountingAnswers.reads, lines
+
+    works = [await work(n) for n in (16, 32, 64, 128)]
+    for measured in zip(*works):
+        assert measured[0] > 0
+        # linear is 2x per doubling; reading every answer in the reply is 4x
+        for smaller, larger in itertools.pairwise(measured):
+            assert larger <= 2.5 * smaller, works
 
 
 @pytest.mark.parametrize("host", [False, True], ids=["scaffold", "host"])
