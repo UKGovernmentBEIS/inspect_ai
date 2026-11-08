@@ -177,14 +177,18 @@ class AgentBridge:
             inherited_result_keys,
         )
 
-        # a checkpoint written without them exempts no result and reserves its
-        # prefix's ids; an incomplete one fails to restore
+        # a checkpoint written without them exempts no result and reserves the
+        # ids of its prefix and its conversation; an incomplete one fails to
+        # restore
         self._sentinel_results = _ResultChecks(
             self._cp.track(
                 "bridge_result_checks",
                 lambda: self._sentinel_results.saved(),
                 _SavedResultChecks(
-                    reserved_ids=sorted(history_ids(self._compaction_prefix)),
+                    reserved_ids=sorted(
+                        history_ids(self._compaction_prefix)
+                        | history_ids(restored_messages)
+                    ),
                     tokens={},
                     checked=sorted(inherited_result_keys(state.messages))
                     if self._cp.attempt == "initial"

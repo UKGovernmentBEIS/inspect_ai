@@ -2930,6 +2930,7 @@ async def test_a_starting_call_id_is_not_reissued_when_a_request_omits_it(
     [
         ["bridge_result_checks"],
         # a checkpoint written without the reservations: those of its prefix
+        # and its conversation
         [],
     ],
 )
@@ -3154,12 +3155,14 @@ async def dialect_proposal(dialect: str, bridge: AgentBridge, prompt: str) -> st
 LATE = "tool_call_0_0"
 
 
+# a checkpoint written before the bridge saved its result checks
+@pytest.mark.parametrize("legacy", [False, True])
 @pytest.mark.parametrize("first", ["compacted", "another"])
 @pytest.mark.parametrize("seen_as", ["issued", "observed", "observed_alias"])
 @pytest.mark.parametrize("sandbox", [False, True])
 @pytest.mark.parametrize("dialect", DIALECTS)
 async def test_a_resumed_bridge_keeps_the_call_ids_it_issued_or_observed(
-    dialect: str, sandbox: bool, seen_as: str, first: str, tmp_path: Path
+    dialect: str, sandbox: bool, seen_as: str, first: str, legacy: bool, tmp_path: Path
 ) -> None:
     old = replace(
         OLD, id=f"{OLD.function}__{LATE}" if seen_as == "observed_alias" else LATE
@@ -3181,6 +3184,9 @@ async def test_a_resumed_bridge_keeps_the_call_ids_it_issued_or_observed(
             checkpointer.close()
 
             saved = read_host_context(str(tmp_path / "context")).agent_state
+            assert saved is not None
+            if legacy:
+                del saved["bridge_result_checks"]
             resumed = real_checkpointer(tmp_path, saved)
             try:
                 bridge = started_with(sandbox, model.model, deepcopy(start), resumed)
@@ -5038,7 +5044,7 @@ def host_errors() -> list[Exception]:
     ]
 
 
-@pytest.mark.parametrize("decided_by", ["defect", "limit", "tool_errors"])
+@pytest.mark.parametrize("decided_by", ["defect", "limit", "bare_limit", "tool_errors"])
 async def test_a_host_tool_exception_group_is_decided_before_its_result_check(
     decided_by: str,
 ) -> None:
@@ -5053,12 +5059,15 @@ async def test_a_host_tool_exception_group_is_decided_before_its_result_check(
     second: Exception = {
         "defect": bug,
         "limit": limit,
+        "bare_limit": limit,
         "tool_errors": ToolError("another"),
     }[decided_by]
     group = ExceptionGroup("secret group", [ToolError("secret token"), second])
     seen: Steps = []
     call = replace(READ, function="mcp__host__read_file")
-    bridge = sandbox_bridge(AsyncMock(side_effect=group))
+    bridge = sandbox_bridge(
+        AsyncMock(side_effect=limit if decided_by == "bare_limit" else group)
+    )
 
     with active([bridge_recording(seen)]):
         await generate(
@@ -5076,7 +5085,7 @@ async def test_a_host_tool_exception_group_is_decided_before_its_result_check(
         assert after == []
         assert bridge._failure is bug
         assert raised.value is group
-    elif decided_by == "limit":
+    elif decided_by in ("limit", "bare_limit"):
         # main turns a limit into a model-facing tool error
         [checked] = after
         assert checked.result.error is not None
