@@ -74,6 +74,24 @@ def _should_retry_hf_error(err: BaseException) -> bool:
     except ImportError:
         pass
 
+    # huggingface_hub 1.x talks HTTPX, so a Hub timeout arrives as an HTTPX exception rather
+    # than a requests one.
+    try:
+        import httpx
+
+        if isinstance(err, httpx.TimeoutException):
+            request = getattr(err, "request", None)
+            host = getattr(getattr(request, "url", None), "host", None)
+            return host is None or host.endswith("huggingface.co")
+    except ImportError:
+        pass
+
+    # `datasets` re-raises a Hub timeout as a plain ConnectionError and drops the cause, so the
+    # wrapped LocalEntryNotFoundError leaves no attribute to inspect.
+    if isinstance(err, ConnectionError):
+        message = str(err)
+        return "Couldn't reach" in message and "on the Hub" in message
+
     return False
 
 
