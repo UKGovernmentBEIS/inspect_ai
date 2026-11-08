@@ -1882,6 +1882,8 @@ async def eval_retry_async(
         turn_limit = eval_log.eval.config.turn_limit
         time_limit = eval_log.eval.config.time_limit
         working_limit = eval_log.eval.config.working_limit
+        cost_limit = eval_log.eval.config.cost_limit
+        max_dataset_memory = eval_log.eval.config.max_dataset_memory
         max_samples = max_samples or eval_log.eval.config.max_samples
         max_tasks = max_tasks or eval_log.eval.config.max_tasks
         max_subprocesses = max_subprocesses or eval_log.eval.config.max_subprocesses
@@ -2034,7 +2036,9 @@ async def eval_retry_async(
                 turn_limit=turn_limit,
                 time_limit=time_limit,
                 working_limit=working_limit,
+                cost_limit=cost_limit,
                 max_samples=max_samples,
+                max_dataset_memory=max_dataset_memory,
                 max_tasks=max_tasks,
                 max_subprocesses=max_subprocesses,
                 max_sandboxes=max_sandboxes,
