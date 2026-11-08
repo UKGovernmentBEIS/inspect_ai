@@ -324,6 +324,8 @@ async def test_compaction_iterations_context_is_one_input(continued: bool) -> No
 
     assert output.usage is not None
     assert output.usage.input_tokens == 21_000 + (5_000 if continued else 0)
+    assert output.usage.input_tokens_cache_read == 90_000
+    assert output.usage.input_tokens_cache_write == 9_000
     assert output.input_context_tokens == 100_000
     restored = ModelOutput.model_validate_json(output.model_dump_json())
     assert restored.input_context_tokens == 100_000

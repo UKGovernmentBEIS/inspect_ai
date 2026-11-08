@@ -4571,6 +4571,20 @@ async def model_output_from_message(
         output_tokens = sum(
             it.get("output_tokens", 0) for it in iterations if isinstance(it, dict)
         )
+        cache_writes = [
+            it.get("cache_creation_input_tokens")
+            for it in iterations
+            if isinstance(it, dict)
+        ]
+        cache_reads = [
+            it.get("cache_read_input_tokens")
+            for it in iterations
+            if isinstance(it, dict)
+        ]
+        if any(v is not None for v in cache_writes):
+            input_tokens_cache_write = sum(v or 0 for v in cache_writes)
+        if any(v is not None for v in cache_reads):
+            input_tokens_cache_read = sum(v or 0 for v in cache_reads)
         # the first iteration read the request's input (later ones read a
         # compacted or extended version of it)
         first = next((it for it in iterations if isinstance(it, dict)), None)
@@ -5447,6 +5461,7 @@ async def _capture_compaction_from_stream(
     """
     compaction_content: str | None = None
     container: Container | None = None
+    iterations: Any = None
     # tool_use blocks by content index, so input_json_delta fragments can be
     # attributed to their call id / function when reported as stream deltas
     tool_blocks: dict[int, Any] = {}
@@ -5506,6 +5521,7 @@ async def _capture_compaction_from_stream(
                 report_model_stream_progress()
         elif event.type == "message_delta":
             usage = getattr(event, "usage", None)
+            iterations = getattr(usage, "iterations", None) or iterations
             report_model_stream_progress(
                 getattr(usage, "output_tokens", None) if usage is not None else None
             )
@@ -5517,6 +5533,10 @@ async def _capture_compaction_from_stream(
     # WORKAROUND (see above): patch the container the SDK snapshot dropped
     if message.container is None and container is not None:
         message.container = container
+
+    # patch the usage.iterations the SDK snapshot dropped
+    if iterations is not None and getattr(message.usage, "iterations", None) is None:
+        setattr(message.usage, "iterations", iterations)
 
     # Fix up compaction blocks with captured content
     if compaction_content is not None:
