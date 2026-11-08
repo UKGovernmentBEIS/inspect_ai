@@ -41,6 +41,7 @@ from inspect_ai.agent._bridge.types import (
     _arguments_digest,
     _handed_calls,
     _loose_message_key,
+    _message_id_keys,
 )
 from inspect_ai.agent._bridge.util import apply_message_ids
 from inspect_ai.dataset import Sample
@@ -1633,6 +1634,29 @@ def test_loose_key_tells_a_lone_surrogate_from_its_escaped_text() -> None:
     lone_key = _loose_message_key(lone, lone.text)
     assert lone_key == _loose_message_key(lone.model_copy(deep=True), lone.text)
     assert lone_key != _loose_message_key(escaped, escaped.text)
+
+
+@pytest.mark.parametrize(
+    "call_ids,other",
+    [
+        (["A", "B"], ["A\nB"]),
+        (["A", "B"], ['A", "B']),
+        (["A", "B"], ["B", "A"]),
+        (["A \ud800"], ["A \\ud800"]),
+    ],
+    ids=["newline", "quote and comma", "order", "lone surrogate"],
+)
+def test_call_ids_key_tells_apart_ids_holding_a_separator(
+    call_ids: list[str], other: list[str]
+) -> None:
+    """A reply's call ids key differs from that of calls whose ids, joined, read alike."""
+
+    def calls_keys(ids: list[str]) -> set[str]:
+        keys = _message_id_keys(_same_calls(*ids))
+        return {key for key in keys if key.startswith("calls:")}
+
+    assert calls_keys(call_ids) == calls_keys(list(call_ids))
+    assert calls_keys(call_ids).isdisjoint(calls_keys(other))
 
 
 def test_responses_dedupe_tells_a_lone_surrogate_from_its_escaped_text() -> None:

@@ -1882,7 +1882,7 @@ def _message_id_keys(message: ChatMessage) -> list[str]:
     """
     keys = ["content:" + content_hash(message)]
     if isinstance(message, ChatMessageAssistant) and message.tool_calls:
-        keys.append("calls:" + "\n".join(call.id for call in message.tool_calls))
+        keys.append("calls:" + json.dumps([call.id for call in message.tool_calls]))
     if isinstance(message, ChatMessageTool) and message.tool_call_id:
         keys.append(f"result:{message.tool_call_id}")
     keys.append(_loose_message_key(message, message.text))

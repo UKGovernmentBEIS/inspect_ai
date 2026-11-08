@@ -6829,6 +6829,132 @@ def test_full_history_copied_host_result_links_nothing(
     ]
 
 
+@agent
+def fabricating_host_scaffold(dialect: HostDialect, fabricated_id: str) -> Agent:
+    """A scaffold running a reply's two calls as host tools, then sending in the reply's place its own text and one call under `fabricated_id`, with the first call's function and arguments and its own answer."""
+
+    async def execute(state: AgentState) -> AgentState:
+        bridge = SandboxAgentBridge(
+            state=state,
+            filter=None,
+            retry_refusals=None,
+            compaction=None,
+            port=13131,
+            model=None,
+            bridged_tools={"host": {"read_file": read_file(_numbered_results())}},
+        )
+        [info] = declare("mcp__host__read_file")
+        conversation = _HostConversation(dialect, state.messages[0].text, info)
+        calls = await conversation.request(bridge)
+        for _, arguments in calls:
+            await call_host_tool(bridge)("host", "read_file", arguments)
+        call = (fabricated_id, calls[0][1])
+        conversation.history[1:] = _fabricated_reply(dialect, info.name, *call)
+        conversation.results([call], ["fabricated answer"])
+        await conversation.request(bridge)
+        return bridge.state
+
+    return execute
+
+
+def _fabricated_reply(
+    dialect: HostDialect, name: str, call_id: str, arguments: dict[str, Any]
+) -> list[dict[str, Any]]:
+    match dialect:
+        case "completions":
+            return [
+                {
+                    "role": "assistant",
+                    "content": "Unrelated.",
+                    "tool_calls": [
+                        {
+                            "id": call_id,
+                            "type": "function",
+                            "function": {
+                                "name": name,
+                                "arguments": json.dumps(arguments),
+                            },
+                        }
+                    ],
+                }
+            ]
+        case "responses":
+            return [
+                {"role": "assistant", "content": "Unrelated."},
+                {
+                    "type": "function_call",
+                    "call_id": call_id,
+                    "name": name,
+                    "arguments": json.dumps(arguments),
+                },
+            ]
+        case "anthropic":
+            return [
+                {
+                    "role": "assistant",
+                    "content": [
+                        {"type": "text", "text": "Unrelated."},
+                        {
+                            "type": "tool_use",
+                            "id": call_id,
+                            "name": name,
+                            "input": arguments,
+                        },
+                    ],
+                }
+            ]
+        case "google":
+            raise ValueError("Google regenerates incoming call ids")
+
+
+@pytest.mark.parametrize(
+    "fabricated_id",
+    ["call_a\ncall_b", "call_a\ncall_c"],
+    ids=["joined ids of the reply's calls", "noncolliding"],
+)
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic"])
+def test_reply_with_one_call_under_the_joined_ids_of_two_is_not_their_reply(
+    dialect: HostDialect, fabricated_id: str, tmp_path: Path
+) -> None:
+    """A fabricated reply whose one call's id is two calls' ids joined with a newline is neither their reply nor an edit of it, and their host results don't link to its answer.
+
+    Its call has the first call's function and arguments. The scaffold never
+    sends the executions' results, so the host events stay unlinked.
+    """
+    name = "mcp__host__read_file"
+    log = eval(
+        Task(
+            dataset=[Sample(input="Read a and b.")],
+            solver=fabricating_host_scaffold(dialect, fabricated_id),
+        ),
+        model=get_model(
+            "mockllm/model",
+            custom_outputs=[
+                tool_calls_output(
+                    ToolCall(id="call_a", function=name, arguments={"path": "a"}),
+                    ToolCall(id="call_b", function=name, arguments={"path": "b"}),
+                ),
+                ModelOutput.from_content("mockllm/model", "done"),
+            ],
+        ),
+        log_dir=str(tmp_path),
+    )[0]
+    assert log.status == "success", log.error
+    read = read_eval_log(log.location)
+    assert read.samples
+    sample = resolve_sample_attachments(read.samples[0], "full")
+    assert_message_ids(sample)
+
+    model_events = [e for e in sample.events if isinstance(e, ModelEvent)]
+    assert len(model_events) == 2
+    original = model_events[0].output.message
+    [fabricated] = [m for m in model_events[1].input if m.role == "assistant"]
+    assert fabricated.tool_calls and fabricated.tool_calls[0].id == fabricated_id
+    events = [e for e in sample.events if isinstance(e, ToolEvent)]
+    assert [e.message_id for e in events] == [None, None]
+    assert fabricated.id not in (original.id, edited_id(original.id, fabricated))
+
+
 @pytest.mark.parametrize("shape", ["single", "parallel_reordered", "same_reply_kept"])
 @pytest.mark.parametrize("dialect", ["google", "completions", "responses", "anthropic"])
 async def test_repeated_scaffold_result_never_takes_an_earlier_executions_id(
