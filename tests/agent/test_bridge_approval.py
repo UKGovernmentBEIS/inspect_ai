@@ -6805,6 +6805,83 @@ async def test_repeated_scaffold_result_never_takes_an_earlier_executions_id(
         assert not set(retained) & first_results
 
 
+@pytest.mark.parametrize(
+    "case",
+    [
+        "shared_equal",
+        "shared_unequal",
+        "distinct_equal",
+        "shared_equal_intact",
+    ],
+)
+@pytest.mark.parametrize("dialect", ["google", "completions", "responses", "anthropic"])
+async def test_retained_result_of_calls_sharing_an_id_never_takes_the_others_id(
+    dialect: HostDialect, case: str
+) -> None:
+    """A retained result of one of two calls sharing a call id never takes the other result's id.
+
+    The reply's two calls share the id `unknown`, as the Llama tool call
+    parser gives calls it can't parse ids for. Compaction keeps the reply and
+    only its second result. Equal results can't be told apart, so the
+    retained one gets a new id; unequal results, or results under distinct
+    call ids, keep their own. With the history intact both keep their ids.
+    Google re-derives call ids and infers which call a result answers: a
+    result equal to, or sent without, the other call's gets a new id.
+    """
+    shared = case.startswith("shared")
+    outputs = [
+        tool_calls_output(
+            *[
+                ToolCall(
+                    id="unknown" if shared else f"call_{path}",
+                    function="read_file",
+                    arguments={"path": path},
+                )
+                for path in ("a", "b")
+            ]
+        ),
+        ModelOutput.from_content("mockllm/model", "Read them."),
+        ModelOutput.from_content("mockllm/model", "Done."),
+    ]
+    bridge = AgentBridge(
+        AgentState(messages=[ChatMessageUser(content="Read a and b.")]),
+        model_aliases={"inspect": get_model("mockllm/model", custom_outputs=outputs)},
+    )
+    [info] = declare("read_file")
+    conversation = _HostConversation(dialect, "Read a and b.", info)
+    results: list[JsonValue] = (
+        ["same", "same"] if "equal" in case.split("_") else ["A", "B"]
+    )
+    with recorded_transcript() as recorded:
+        start = len(conversation.history)
+        calls = await conversation.request(cast(SandboxAgentBridge, bridge))
+        reply = conversation.history[start:]
+        conversation.results(calls, results)
+        await conversation.request(cast(SandboxAgentBridge, bridge))
+        if case.endswith("intact"):
+            conversation.history.append(_user_turn(dialect, "Thanks."))
+        else:
+            conversation.history = [
+                _user_turn(dialect, "Summary: read a and b."),
+                *reply,
+            ]
+            conversation.results(calls[1:], results[1:])
+        await conversation.request(cast(SandboxAgentBridge, bridge))
+
+    events = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    first, second = [m.id for m in events[1].input if m.role == "tool"]
+    assert first != second
+    retained = [m.id for m in events[2].input if m.role == "tool"]
+    if dialect == "google":
+        assert not set(retained) & {first, second}
+    elif case.endswith("intact"):
+        assert retained == [first, second]
+    elif case == "shared_equal":
+        assert retained[0] not in (first, second)
+    else:
+        assert retained == [second]
+
+
 @pytest.mark.parametrize("dialect", ["google", "completions", "responses", "anthropic"])
 async def test_empty_text_tool_reply_never_takes_an_earlier_replys_id(
     dialect: HostDialect,

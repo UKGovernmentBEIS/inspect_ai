@@ -290,8 +290,8 @@ class _ReplyAnswers(NamedTuple):
     message_ids: list[str]
     """Tool messages first sent as its answers (keys of `_answers`)."""
 
-    occurrences: dict[str, str]
-    """Per message key, the id its answer was first given."""
+    occurrences: dict[str, str | None]
+    """Per message key, the id its answer was first given (`None` once an answer with another id has it too)."""
 
 
 _MAX_ANSWER_RECORDS = 4096
@@ -1117,22 +1117,28 @@ class AgentBridge:
         The message keeps `candidate` if that was first an answer to this
         reply, or if placement (`placed`) gave it and its first answer isn't
         recorded. Else it takes the id this reply's answer was first given
-        under one of its keys. Any other message gets a new id: an equal
-        message answering another reply, or whose reply is unknown, may be a
-        later execution's result or a copy of the earlier one. A new id isn't
-        linkable if it could be such a copy and the call has host executions:
-        unless the message equals no earlier answer other than by call id, the
-        call's one pending execution must have returned what the earlier
-        call's did.
+        under one of its keys, unless answers with other ids have that key or
+        the message's content or loose key: which of them it is can't be told.
+        Any other message gets a new id: an equal message answering another
+        reply, or whose reply is unknown, may be a later execution's result or
+        a copy of the earlier one. A new id isn't linkable if it could be such
+        a copy and the call has host executions: unless the message equals no
+        earlier answer other than by call id, the call's one pending execution
+        must have returned what the earlier call's did.
         """
         earlier = self._answer_of(candidate) if candidate is not None else None
         if earlier is not None and earlier.reply_id == answered.reply_id:
             return _ResultId(candidate, True)
         reply_answers = self._reply_answers.get(answered.reply_id)
-        for key in keys:
-            occurrence = reply_answers.occurrences.get(key) if reply_answers else None
-            if occurrence is not None and available(occurrence):
-                return _ResultId(occurrence, True)
+        occurrences = reply_answers.occurrences if reply_answers else {}
+        if not any(
+            key in occurrences and occurrences[key] is None and _key_strength(key) != 2
+            for key in keys
+        ):
+            for key in keys:
+                occurrence = occurrences.get(key)
+                if occurrence is not None and available(occurrence):
+                    return _ResultId(occurrence, True)
         if candidate is None:
             return _ResultId(None, True)
         if earlier is None and placed:
@@ -1275,10 +1281,13 @@ class AgentBridge:
         if first is None or first.reply_id != answered.reply_id:
             return
         occurrences = self._reply_answer_records(answered.reply_id).occurrences
+        root = self._edit_root(message_id)
         for key in keys:
             if key not in occurrences:
                 occurrences[key] = message_id
                 self._answer_records += 1
+            elif (first_id := occurrences[key]) and self._edit_root(first_id) != root:
+                occurrences[key] = None
 
     def _reply_answer_records(self, reply_id: str) -> _ReplyAnswers:
         return self._reply_answers.setdefault(reply_id, _ReplyAnswers([], {}))

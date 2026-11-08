@@ -2180,8 +2180,9 @@ def _matching_state(bridge: AgentBridge) -> dict[str, Any]:
 async def test_resumed_bridge_restores_its_matching_state() -> None:
     """A bridge resumed from a checkpoint matches with the state the checkpointed one had.
 
-    The run has tool results, one edited, and more side conversations than
-    the bridge keeps threads for, so some were dropped.
+    The run has tool results, one edited, equal results of two calls sharing
+    a call id, and more side conversations than the bridge keeps threads for,
+    so some were dropped.
     """
     task = ChatMessageUser(content="List the files.")
     checkpointer = RecordingCheckpointer()
@@ -2193,6 +2194,11 @@ async def test_resumed_bridge_restores_its_matching_state() -> None:
     edited: list[ChatMessage] = [task, first, _result("call_1", "[truncated]"), second]
     await scaffold.request(
         [*edited, ChatMessageUser(content="No.")], ChatMessageAssistant(content="Bye.")
+    )
+    twice, shared = ChatMessageUser(content="Read twice."), _same_calls("x", "x")
+    await scaffold.request([twice], shared)
+    await scaffold.request(
+        [twice, shared, _result("x"), _result("x")], ChatMessageAssistant(content="OK")
     )
     for n in range(20):
         side = ChatMessageUser(content=f"Side {n}.")
@@ -2206,6 +2212,10 @@ async def test_resumed_bridge_restores_its_matching_state() -> None:
     )
 
     assert bridge._edit_parent and bridge._answers and bridge._dropped_reach
+    assert any(
+        None in answers.occurrences.values()
+        for answers in bridge._reply_answers.values()
+    )
     assert _matching_state(resumed) == _matching_state(bridge)
 
 
@@ -2716,6 +2726,75 @@ async def test_host_results_of_calls_sharing_an_id_stay_unlinked() -> None:
     await scaffold.request([task, reply, _result("call_1")])
 
     assert [event.message_id for event in events] == [None, None]
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "equal",
+        "unequal",
+        "edited",
+        "rewritten",
+        "distinct_ids",
+        "intact",
+        "both_retained",
+    ],
+)
+async def test_retained_result_of_calls_sharing_an_id_never_takes_the_others_id(
+    case: str,
+) -> None:
+    """A retained result of one of two calls under one call id never takes the other result's id.
+
+    Compaction keeps the reply and its second result (`both_retained`: both
+    results). Equal results can't be told apart, so they get new ids, as does
+    a result `rewritten` to equal neither: the call id they share doesn't say
+    which it was. Unequal results, results under distinct call ids and an
+    intact history keep their own ids, and a whitespace edit an id derived
+    from its own. The host results stay unlinked.
+    """
+    task = ChatMessageUser(content="Read a.txt twice.")
+    reply = _same_calls(
+        *(("call_a", "call_b") if case == "distinct_ids" else ("unknown", "unknown"))
+    )
+    assert reply.tool_calls
+    call_ids = [call.id for call in reply.tool_calls]
+    contents = (
+        ("A", "B") if case in ("unequal", "edited", "rewritten") else ("a.txt", "a.txt")
+    )
+    results = [_result(id, content) for id, content in zip(call_ids, contents)]
+    scaffold = _Scaffold(AgentBridge(AgentState(messages=[task])))
+    await scaffold.request([task], reply)
+    events = [
+        *_awaiting(scaffold.bridge, reply, index=0),
+        *_awaiting(scaffold.bridge, reply, index=1),
+    ]
+    full = await scaffold.request(
+        [task, reply, *results], ChatMessageAssistant(content="Done.")
+    )
+    assert full[2] != full[3]
+
+    if case == "intact":
+        ids = await scaffold.request([task, reply, *results])
+        assert ids[2:4] == full[2:4]
+    else:
+        summary = ChatMessageUser(content="Summary: read it twice.")
+        retained = (
+            [_result(call_ids[1], {"edited": "B ", "rewritten": "C"}[case])]
+            if case in ("edited", "rewritten")
+            else results
+            if case == "both_retained"
+            else results[1:]
+        )
+        ids = await scaffold.request([summary, reply, *retained])
+        if case in ("unequal", "distinct_ids"):
+            assert ids[2] == full[3]
+        elif case == "edited":
+            assert ids[2] == edited_id(full[3], scaffold.sent[2])
+        else:
+            roots = {scaffold.bridge._edit_root(id) for id in ids[2:]}
+            assert not roots & {full[2], full[3]}
+    if case != "distinct_ids":
+        assert [event.message_id for event in events] == [None, None]
 
 
 async def test_host_results_with_changed_arguments_stay_unlinked() -> None:
