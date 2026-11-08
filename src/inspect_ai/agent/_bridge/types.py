@@ -139,11 +139,11 @@ class _AwaitedResult(NamedTuple):
     event: "ToolEvent | None"
     """The call's execution, or `None` once settled."""
 
-    outcome: str
-    """Digest of the execution's result and error."""
+    outcomes: frozenset[str]
+    """Digests of the result and error of each of the call's executions."""
 
     settled: bool = False
-    """Whether the call was linked or found ambiguous, so later results and executions are ignored."""
+    """Whether the call was linked or found ambiguous, so later results are ignored and later executions left unlinked."""
 
     message_id: str | None = None
     """Id of the tool message the call was linked to, once settled."""
@@ -697,9 +697,10 @@ class AgentBridge:
         The result reaches the bridge only when the scaffold sends it back in a
         later request (`_link_result_messages`). A second execution of the call
         settles it unlinked (which execution the result holds is unknown), and
-        one after the call settled stays unlinked. At most `_MAX_AWAITED_RESULTS`
-        calls are tracked; the oldest replies' calls are dropped (left unlinked)
-        beyond that.
+        one after the call settled stays unlinked. Every execution's outcome is
+        kept, so an answer's record covers whichever one it holds. At most
+        `_MAX_AWAITED_RESULTS` calls are tracked; the oldest replies' calls are
+        dropped (left unlinked) beyond that.
         """
         outcome = mm3_hash(
             json.dumps(jsonable_python({"result": event.result, "error": event.error}))
@@ -707,9 +708,11 @@ class AgentBridge:
         calls = self._awaited_results.setdefault(handed.reply_id, {})
         tracked = calls.get(handed.position)
         if tracked is None:
-            calls[handed.position] = _AwaitedResult(handed, event, outcome)
-        elif not tracked.settled:
-            calls[handed.position] = tracked._replace(event=None, settled=True)
+            calls[handed.position] = _AwaitedResult(handed, event, frozenset([outcome]))
+        else:
+            calls[handed.position] = tracked._replace(
+                event=None, settled=True, outcomes=tracked.outcomes | {outcome}
+            )
         tracked_calls = sum(len(calls) for calls in self._awaited_results.values())
         while tracked_calls > _MAX_AWAITED_RESULTS:
             oldest = next(iter(self._awaited_results))
@@ -1359,8 +1362,13 @@ class AgentBridge:
             ]
         executions = _Executions(
             bool(entries),
-            frozenset(entry.outcome for entry in entries),
-            tuple(entry.outcome for entry in entries if not entry.settled),
+            frozenset().union(*(entry.outcomes for entry in entries)),
+            tuple(
+                outcome
+                for entry in entries
+                if not entry.settled
+                for outcome in entry.outcomes
+            ),
         )
         index.executions[memo_key] = executions
         return executions

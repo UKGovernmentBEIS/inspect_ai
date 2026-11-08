@@ -6925,6 +6925,198 @@ def test_full_history_copied_host_result_links_nothing(
     ]
 
 
+@pytest.mark.parametrize("resumed", [False, True], ids=["live", "resumed"])
+@pytest.mark.parametrize("sent", ["copy", "own"])
+@pytest.mark.parametrize(
+    "executions",
+    [(("a", "X"), ("b", "Y")), (("b", "Y"), ("a", "X")), (("a", "Y"),)],
+    ids=["X then Y", "Y then X", "Y only"],
+)
+@pytest.mark.parametrize(
+    "dialect,call_ids",
+    [
+        ("google", "reused"),
+        ("completions", "reused"),
+        ("responses", "reused"),
+        ("anthropic", "reused"),
+        ("completions", "distinct"),
+        ("responses", "distinct"),
+        ("anthropic", "distinct"),
+    ],
+)
+async def test_copy_of_an_answer_to_several_executions_links_nothing(
+    dialect: HostDialect,
+    call_ids: str,
+    executions: tuple[tuple[str, str], ...],
+    sent: str,
+    resumed: bool,
+) -> None:
+    """A copy of the answer to a call executed through several host tools never links a later execution.
+
+    Servers `a` and `b` serve tools sharing a description, so one proposal may
+    run on both, returning what `executions` gives. The scaffold answers the
+    call with "Y", compacts that exchange away, and runs an equal call on `a`
+    returning "X", answering it with a copy of the "Y" answer (or, as a
+    control, its own "X"). With `resumed`, the later call is made to a bridge
+    resumed from a checkpoint taken after the first answer. Google re-derives
+    the call ids, so they repeat, as the other providers' do when `reused`.
+    Under a `distinct` id the "Y" answer is the later call's own, not a copy.
+    """
+    call_id = "call_1" if call_ids == "reused" else "call_2"
+    outputs = [
+        tool_calls_output(
+            ToolCall(id="call_1", function="read_file", arguments={"path": "p"}),
+            content="Reading p.",
+        ),
+        ModelOutput.from_content("mockllm/model", "Noted."),
+        tool_calls_output(
+            ToolCall(id=call_id, function="read_file", arguments={"path": "p"}),
+            content="Reading p again.",
+        ),
+        ModelOutput.from_content("mockllm/model", "Done."),
+    ]
+    model = get_model("mockllm/model", custom_outputs=outputs)
+    results = {"a": [r for s, r in executions if s == "a"] + ["X"]}
+    results["b"] = [r for s, r in executions if s == "b"]
+
+    def host_bridge(checkpointer: RecordingCheckpointer) -> SandboxAgentBridge:
+        return SandboxAgentBridge(
+            state=AgentState(messages=[ChatMessageUser(content="Read p.")]),
+            filter=None,
+            retry_refusals=None,
+            compaction=None,
+            port=13131,
+            model=None,
+            model_aliases={"inspect": model},
+            bridged_tools={
+                server: {
+                    "read_file": read_file(
+                        AsyncMock(side_effect=lambda queue=queue, **_: queue.pop(0))
+                    )
+                }
+                for server, queue in results.items()
+            },
+            checkpointer=checkpointer,
+        )
+
+    checkpointer = RecordingCheckpointer()
+    bridge = host_bridge(checkpointer)
+    [info] = declare("read_file")
+    conversation = _HostConversation(dialect, "Read p.", info)
+    with recorded_transcript() as recorded:
+        first = await conversation.request(bridge)
+        for server, _ in executions:
+            await call_host_tool(bridge)(server, "read_file", first[0][1])
+        conversation.results(first, ["Y"])
+        await conversation.request(bridge)
+        [original] = bridge._answers.values()
+        assert len(original.outcomes) == len({r for _, r in executions})
+        if resumed:
+            bridge = host_bridge(
+                RecordingCheckpointer(
+                    restored=json.loads(json.dumps(checkpointer.snapshot())),
+                    serialized=True,
+                )
+            )
+            [record] = bridge._answers.values()
+            assert record.outcomes == frozenset(original.outcomes)
+        conversation.history = [_user_turn(dialect, "Summary: p reads Y.")]
+        second = await conversation.request(bridge)
+        await call_host_tool(bridge)("a", "read_file", second[0][1])
+        conversation.results(second, ["Y" if sent == "copy" else "X"])
+        await conversation.request(bridge)
+
+    model_events = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    [answer] = [m.id for m in model_events[-1].input if m.role == "tool"]
+    tool_events = [e for e in recorded.events if isinstance(e, ToolEvent)]
+    assert [e.result for e in tool_events] == [*(r for _, r in executions), "X"]
+    copied = sent == "copy" and call_ids == "reused"
+    # the earlier reply, still tracked, handed the same id and its call is unlinked
+    shadowed = (
+        call_ids == "reused"
+        and dialect != "google"
+        and not resumed
+        and len(executions) == 2
+    )
+    assert tool_events[-1].message_id == (None if copied or shadowed else answer)
+
+
+async def test_answer_sent_after_a_later_execution_holds_its_outcome() -> None:
+    """An answer first sent after the call executed again, once settled, counts that execution's outcome too.
+
+    The call runs on `a` ("X") and its answer links; it then runs on `b`
+    ("Y"), and the scaffold sends a second answer "Y". A copy of that answer
+    to a later equal call returning "X", made to a bridge resumed from a
+    checkpoint, links nothing.
+    """
+
+    def calls(text: str) -> ModelOutput:
+        return tool_calls_output(
+            ToolCall(id="call_1", function="read_file", arguments={"path": "p"}),
+            content=text,
+        )
+
+    outputs = [
+        calls("Reading p."),
+        *[ModelOutput.from_content("mockllm/model", "Noted.")] * 2,
+        calls("Reading p again."),
+        ModelOutput.from_content("mockllm/model", "Done."),
+    ]
+    model = get_model("mockllm/model", custom_outputs=outputs)
+    results = {"a": ["X", "X"], "b": ["Y"]}
+
+    def host_bridge(checkpointer: RecordingCheckpointer) -> SandboxAgentBridge:
+        return SandboxAgentBridge(
+            state=AgentState(messages=[ChatMessageUser(content="Read p.")]),
+            filter=None,
+            retry_refusals=None,
+            compaction=None,
+            port=13131,
+            model=None,
+            model_aliases={"inspect": model},
+            bridged_tools={
+                server: {
+                    "read_file": read_file(
+                        AsyncMock(side_effect=lambda queue=queue, **_: queue.pop(0))
+                    )
+                }
+                for server, queue in results.items()
+            },
+            checkpointer=checkpointer,
+        )
+
+    checkpointer = RecordingCheckpointer()
+    bridge = host_bridge(checkpointer)
+    [info] = declare("read_file")
+    conversation = _HostConversation("completions", "Read p.", info)
+    with recorded_transcript() as recorded:
+        first = await conversation.request(bridge)
+        await call_host_tool(bridge)("a", "read_file", first[0][1])
+        conversation.results(first, ["X"])
+        await conversation.request(bridge)
+        await call_host_tool(bridge)("b", "read_file", first[0][1])
+        conversation.history.insert(
+            3, {"role": "tool", "tool_call_id": "call_1", "content": "Y"}
+        )
+        await conversation.request(bridge)
+        bridge = host_bridge(
+            RecordingCheckpointer(
+                restored=json.loads(json.dumps(checkpointer.snapshot())),
+                serialized=True,
+            )
+        )
+        conversation.history = [_user_turn("completions", "Summary: p reads Y.")]
+        second = await conversation.request(bridge)
+        await call_host_tool(bridge)("a", "read_file", second[0][1])
+        conversation.results(second, ["Y"])
+        await conversation.request(bridge)
+
+    tool_events = [e for e in recorded.events if isinstance(e, ToolEvent)]
+    assert [e.result for e in tool_events] == ["X", "Y", "X"]
+    assert tool_events[0].message_id is not None
+    assert tool_events[-1].message_id is None
+
+
 @agent
 def fabricating_host_scaffold(dialect: HostDialect, fabricated_id: str) -> Agent:
     """A scaffold running a reply's two calls as host tools, then sending in the reply's place its own text and one call under `fabricated_id`, with the first call's function and arguments and its own answer."""
