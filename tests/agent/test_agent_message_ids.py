@@ -522,7 +522,7 @@ async def test_repeated_message_keeps_the_main_threads_id(side_first: bool) -> N
 
     async def request(messages: list[ChatMessage], output: ChatMessage) -> list[str]:
         apply_message_ids(bridge, messages)
-        await bridge._track_state(messages, ModelOutput.from_message(output))
+        await bridge._track_state(messages, ModelOutput.from_message(output), [])
         return [m.id or "" for m in messages]
 
     first, side, second = _list_files(), _list_files(), _list_files()
@@ -1441,7 +1441,9 @@ class _Scaffold:
         apply_message_ids(self.bridge, rebuilt)
         self.sent = rebuilt
         if output is not None:
-            await self.bridge._track_state(rebuilt, ModelOutput.from_message(output))
+            await self.bridge._track_state(
+                rebuilt, ModelOutput.from_message(output), []
+            )
         return [m.id or "" for m in rebuilt]
 
 

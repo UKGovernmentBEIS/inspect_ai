@@ -417,9 +417,6 @@ async def inspect_responses_api_request_impl(
 
     debug_log("INSPECT OUTPUT", output.message)
 
-    # update state if we have more messages than the last generation
-    await bridge._track_state(messages, output)
-
     # return response
     response = Response(
         id=output.message.id or uuid(),
@@ -436,20 +433,20 @@ async def inspect_responses_api_request_impl(
         usage=responses_model_usage(output.usage),
     )
     debug_log("SCAFFOLD RESPONSE", response)
-    bridge._record_transported_reply(
-        output.message,
-        messages_from_responses_input(
-            [
-                cast(
-                    ResponseInputItemParam,
-                    item.model_dump(mode="json", exclude_none=True),
-                )
-                for item in response.output
-            ],
-            tools,
-            model_name,
-        ),
+    transported = messages_from_responses_input(
+        [
+            cast(
+                ResponseInputItemParam,
+                item.model_dump(mode="json", exclude_none=True),
+            )
+            for item in response.output
+        ],
+        tools,
+        model_name,
     )
+
+    # update state if we have more messages than the last generation
+    await bridge._track_state(messages, output, [transported])
 
     return response
 

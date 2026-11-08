@@ -1534,8 +1534,18 @@ class AgentBridge:
 
     _message_ids: dict[str, list[str]]
 
-    async def _track_state(self, input: list[ChatMessage], output: ModelOutput) -> None:
+    async def _track_state(
+        self,
+        input: list[ChatMessage],
+        output: ModelOutput,
+        transported: Sequence[list[ChatMessage]],
+    ) -> None:
         """Track agent state by observing generations made through the bridge.
+
+        `transported` holds each choice handed back to the scaffold in its
+        dialect's wire form (see `_record_transported_reply`). It is recorded
+        before the checkpointer tick this method ends with, so a checkpoint
+        has every form of the generation.
 
         We need to distinguish the "main" thread of generation from side /
         sub-agent model calls (e.g. claude code does bash path detection with a
@@ -1591,6 +1601,8 @@ class AgentBridge:
                 self._content_by_id.setdefault(
                     choice.message.id, content_hash(choice.message)
                 )
+        for choice, form in zip(output.choices, transported):
+            self._record_transported_reply(choice.message, form)
 
         # every choice's thread, since the scaffold may continue any of them;
         # the primary's last, so it stays kept when the window is full

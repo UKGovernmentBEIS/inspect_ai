@@ -43,7 +43,7 @@ async def track(
     bridge: AgentBridge, input: list[ChatMessage], completion: str
 ) -> ModelOutput:
     output = ModelOutput.from_content(model="mockllm/model", content=completion)
-    await bridge._track_state(input, output)
+    await bridge._track_state(input, output, [])
     return output
 
 

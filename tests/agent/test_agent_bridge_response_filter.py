@@ -2265,7 +2265,7 @@ async def test_edits_of_a_pending_turn_keep_its_work(edit: str) -> None:
     else:
         task = ChatMessageUser(content="hi")
         bridge = AgentBridge(AgentState(messages=[task]))
-        await bridge._track_state([task], provider_output)
+        await bridge._track_state([task], provider_output, [])
         edited = provider_output.message.model_copy(
             update={"id": "wire", "content": content}
         )

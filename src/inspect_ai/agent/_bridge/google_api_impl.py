@@ -170,17 +170,15 @@ async def inspect_google_api_request_impl(
 
     debug_log("INSPECT OUTPUT", output.message)
 
-    # update state if we have more messages than the last generation
-    await bridge._track_state(messages, output)
-
     # translate response to Gemini format
     response = gemini_response_from_output(output, model.api.model_name)
     debug_log("SCAFFOLD RESPONSE", response)
     # re-parse the JSON the client receives (e.g. integer argument keys become strings)
     wire_content = json.loads(json.dumps(response["candidates"][0]["content"]))
-    bridge._record_transported_reply(
-        output.message, messages_from_google_contents([wire_content], None)
-    )
+    transported = messages_from_google_contents([wire_content], None)
+
+    # update state if we have more messages than the last generation
+    await bridge._track_state(messages, output, [transported])
 
     return response
 

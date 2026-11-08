@@ -205,9 +205,6 @@ async def inspect_anthropic_api_request_impl(
 
     debug_log("INSPECT OUTPUT", output.message)
 
-    # update state if we have more messages than the last generation
-    await bridge._track_state(messages, output)
-
     # return message (use beta message type if request came from beta endpoint)
     message_class = BetaMessage if beta else Message
     message = message_class.model_construct(
@@ -220,24 +217,24 @@ async def inspect_anthropic_api_request_impl(
         usage=anthropic_usage(output.usage or ModelUsage(), beta=beta),
     )
     debug_log("SCAFFOLD RESPONSE", message)
-    bridge._record_transported_reply(
-        output.message,
-        await messages_from_anthropic_input(
-            [
-                cast(
-                    MessageParam,
-                    {
-                        "role": "assistant",
-                        "content": [
-                            block.model_dump(mode="json", exclude_none=True)
-                            for block in message.content
-                        ],
-                    },
-                )
-            ],
-            tools,
-        ),
+    transported = await messages_from_anthropic_input(
+        [
+            cast(
+                MessageParam,
+                {
+                    "role": "assistant",
+                    "content": [
+                        block.model_dump(mode="json", exclude_none=True)
+                        for block in message.content
+                    ],
+                },
+            )
+        ],
+        tools,
     )
+
+    # update state if we have more messages than the last generation
+    await bridge._track_state(messages, output, [transported])
 
     return message
 

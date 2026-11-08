@@ -21,6 +21,7 @@ import anyio
 import pytest
 from acp.schema import SessionNotification, ToolCallProgress, ToolCallStart
 from pydantic import JsonValue
+from test_helpers.checkpoint import RecordingCheckpointer
 from test_helpers.message_ids import assert_message_ids, edited_id, tool_event_producers
 from test_helpers.service_dispatch import (
     dispatching_service,
@@ -3116,7 +3117,7 @@ async def test_track_state_is_unaffected_by_the_round_trip() -> None:
     # the caller's list is what the dialect impl hands to _track_state
     assert [(m.role, m.text) for m in messages] == [("user", TASK)]
 
-    await bridge._track_state(messages, run.output)
+    await bridge._track_state(messages, run.output, [])
     assert [m.text for m in bridge.state.messages] == [TASK, run.output.message.text]
 
 
@@ -6832,6 +6833,86 @@ async def test_empty_text_tool_reply_never_takes_an_earlier_replys_id(
     assert len(ids(events[3])) == 2
     assert not set(ids(events[3])) & first_ids
     assert ids(events[4])[:2] == ids(events[3])
+
+
+class _TickCheckpointer(RecordingCheckpointer):
+    """Saves a serialized snapshot each time the bridge reaches its checkpoint boundary."""
+
+    saved: dict[str, Any] = {}
+
+    async def tick(self) -> None:
+        self.saved = json.loads(json.dumps(self.snapshot()))
+
+
+@pytest.mark.parametrize("dialect", ["google", "completions", "responses", "anthropic"])
+async def test_empty_text_tool_reply_keeps_its_ids_when_resumed_from_its_checkpoint(
+    dialect: HostDialect,
+) -> None:
+    """A checkpoint saved as a reply is generated holds the form the reply is sent back in.
+
+    The second tool-only reply equals the first in that form. The checkpoint
+    its request saves equals the bridge's state once the request returns, and
+    a bridge resumed from it gives the reply and its result new ids, as the
+    uninterrupted bridge does, never the first reply's or its result's.
+    """
+
+    def calls() -> ModelOutput:
+        return tool_calls_output(
+            ToolCall(id="reused", function="read_file", arguments={"path": "a"}),
+            content="",
+        )
+
+    outputs = [
+        calls(),
+        ModelOutput.from_content("mockllm/model", "Read it."),
+        calls(),
+        *[ModelOutput.from_content("mockllm/model", "Done.")] * 2,
+    ]
+    model = get_model("mockllm/model", custom_outputs=outputs)
+    task = ChatMessageUser(content="Read twice.")
+    checkpointer = _TickCheckpointer()
+    bridge = AgentBridge(
+        AgentState(messages=[task]),
+        checkpointer=checkpointer,
+        model_aliases={"inspect": model},
+    )
+    [info] = declare("read_file")
+    conversation = _HostConversation(dialect, "Read twice.", info)
+    with recorded_transcript() as recorded:
+        first = await conversation.request(cast(SandboxAgentBridge, bridge))
+        conversation.results(first, ["same"])
+        await conversation.request(cast(SandboxAgentBridge, bridge))
+        conversation.history = [_user_turn(dialect, "Summary: read once.")]
+        second = await conversation.request(cast(SandboxAgentBridge, bridge))
+        saved = checkpointer.saved
+        assert saved == json.loads(json.dumps(checkpointer.snapshot()))
+        conversation.results(second, ["same"])
+        history = list(conversation.history)
+        await conversation.request(cast(SandboxAgentBridge, bridge))
+        resumed = AgentBridge(
+            AgentState(messages=[task]),
+            checkpointer=RecordingCheckpointer(restored=saved, serialized=True),
+            model_aliases={"inspect": model},
+        )
+        conversation.history = history
+        await conversation.request(cast(SandboxAgentBridge, resumed))
+
+    events = [e for e in recorded.events if isinstance(e, ModelEvent)]
+
+    def ids(event: ModelEvent) -> list[str | None]:
+        return [m.id for m in event.input if m.role in ("assistant", "tool")]
+
+    first_ids = {events[0].output.message.id, *ids(events[1])}
+    known = first_ids | {events[2].output.message.id}
+
+    def owners(event: ModelEvent) -> list[str]:
+        return [
+            "first" if id in first_ids else "second" if id in known else "new"
+            for id in ids(event)
+        ]
+
+    assert "first" not in owners(events[3])
+    assert owners(events[4]) == owners(events[3])
 
 
 @pytest.mark.parametrize("functions", ["same", "different"])

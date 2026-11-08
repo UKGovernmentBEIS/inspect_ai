@@ -112,24 +112,24 @@ async def inspect_completions_api_request(
     if c_message is not None:
         messages.append(c_message)
 
-    # update state if we have more messages than the last generation
-    await bridge._track_state(messages, output)
-
     # inspect completion to openai completion
     choices = openai_chat_choices(output.choices)
-    for choice, wire in zip(output.choices, choices):
-        bridge._record_transported_reply(
-            choice.message,
-            await messages_from_openai(
-                [
-                    cast(
-                        "ChatCompletionMessageParam",
-                        wire.message.model_dump(mode="json", exclude_none=True),
-                    )
-                ],
-                model_name,
-            ),
+    transported = [
+        await messages_from_openai(
+            [
+                cast(
+                    "ChatCompletionMessageParam",
+                    wire.message.model_dump(mode="json", exclude_none=True),
+                )
+            ],
+            model_name,
         )
+        for wire in choices
+    ]
+
+    # update state if we have more messages than the last generation
+    await bridge._track_state(messages, output, transported)
+
     return ChatCompletion(
         id=uuid(),
         created=int(time()),
