@@ -1172,6 +1172,7 @@ async def _score_live_sample(
     ``sample_active()`` stays ``None``, so grader calls neither spend the
     sample's limits nor park at the sample-keyed hold.
     """
+    from inspect_ai._sentinel._sidecar._endpoint import SentinelProxyError
     from inspect_ai._sentinel._sidecar._state import copy_sidecar_monitor_state
     from inspect_ai.log._transcript import init_transcript
     from inspect_ai.util._sandbox.context import (
@@ -1189,7 +1190,15 @@ async def _score_live_sample(
     _init_pass_scoring_context(handle, target)
     init_transcript(active.transcript)
     init_subtask_store(live_state.store)
-    await copy_sidecar_monitor_state(live_state, active)
+    # A copy that fails because two sentinels keep one key fails the sample
+    # at its final scoring. A pass over running samples reports it for this
+    # sample alone, as any other reason scoring couldn't be attempted, and
+    # goes on to the others; the marker the copy left says why the state is
+    # missing.
+    try:
+        await copy_sidecar_monitor_state(live_state, active)
+    except SentinelProxyError as ex:
+        return str(ex)
     if active.sandbox_environments:
         sandbox_environments_context_var.set(active.sandbox_environments)
         # mirror sample init: the first environment is the default (without
