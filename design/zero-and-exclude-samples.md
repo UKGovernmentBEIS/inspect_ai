@@ -630,7 +630,7 @@ a `Plan` as it is, on a shallow copy, and prepends `Task.setup` to its steps
 class SetupWroteScores(Exception):
     """`Task.setup` wrote `state.scores`, so the empty attempt has no verdict of the task's scorers alone."""
 
-@solver(name="inspect_ai/empty_attempt_check")
+@solver(name="empty_attempt_check")
 def empty_attempt_check() -> Solver:
     """Refuse an empty attempt in which `Task.setup` wrote scores; otherwise leave the state as it is."""
     async def solve(state: TaskState, generate: Generate) -> TaskState:
@@ -642,7 +642,7 @@ def empty_attempt_check() -> Solver:
         return state
     return solve
 
-@solver(name="inspect_ai/empty_attempt")
+@solver(name="empty_attempt")
 def empty_attempt() -> Solver:
     """No steps of its own (`Task.setup` is prepended), and the check as the finish solver."""
     return Plan([], finish=empty_attempt_check(), internal=True)
@@ -655,7 +655,11 @@ object that a `@solver` function did not create
 (`src/inspect_ai/_eval/loader.py:674`). A `Plan` is not registered by being
 named, and registering only its finish solver does not register the plan.
 `@solver` tags the returned object and keeps its type, so `resolve_plan()`
-still sees a `Plan` (`src/inspect_ai/solver/_solver.py:212-226`). I verified
+still sees a `Plan` (`src/inspect_ai/solver/_solver.py:212-226`). The names
+carry no package prefix: `@solver` prepends the defining package itself
+(`registry_name()`, `src/inspect_ai/_util/registry.py:265`, called from
+`src/inspect_ai/solver/_solver.py:194`), so they register as
+`inspect_ai/empty_attempt` and `inspect_ai/empty_attempt_check`. I verified
 this with `eval(task, solver=empty_attempt())` on a `mockllm` task: the run
 records the solver `inspect_ai/empty_attempt`, runs `Task.setup` and the
 check and not the task's solver, and a `Task.setup` that writes a score
@@ -849,7 +853,13 @@ a key up by registry name with `ScorerInfo.from_name()`
 parses the key as a path, but it constructs an already-registered scorer or
 scanner of that name, and a `pkg/name` key can load an installed package's
 Inspect entry point to find it; when nothing is found, the default metrics
-apply. The dispositions add no separate aggregation path: tightening this
+apply. Without a task, exclusion's metrics and reducers are likewise built
+from the names the header records (`resolve_log_metrics()`,
+`src/inspect_ai/log/_metric.py:57-83`): `metric_from_log()` and
+`create_reducers()` construct registered metrics and reducers through
+`registry_lookup()`, which can also load an installed package's entry point
+for a `pkg/name` name (`src/inspect_ai/_util/registry.py:311-316`), as
+`recompute_metrics()` does. The dispositions add no separate aggregation path: tightening this
 lookup is a change to `eval_results()` for every caller (see Not this
 design).
 
@@ -857,7 +867,18 @@ design).
 samples, and compute metrics on a second, disposable view of the log, before
 the input log changes:
 
-1. `edited` maps each target to `deepcopy(sample)`. The edits are applied to
+1. `edited` maps each target to `deepcopy(sample)` whose `scores` is then
+   replaced by its own `deepcopy(sample.scores)`, before any edit. The second
+   copy matters because a sample's final `Score` can be the same object as
+   the one its `ScoreEvent` holds: the runner puts the scorer's `Score` in
+   both (`src/inspect_ai/_eval/task/run.py:3241-3265`), and the log `eval()`
+   returns keeps that sharing for the JSON format
+   (`src/inspect_ai/log/_recorders/json.py:251-256`). `deepcopy(sample)`
+   preserves the sharing within the copy, so `edit_score()`, which changes
+   the current score in place (`src/inspect_ai/log/_score.py:113-145`),
+   would also rewrite the earlier `ScoreEvent`'s verdict and history. With
+   the score map copied separately, the existing events keep their contents
+   and the edits only add `ScoreEditEvent`s. The edits are applied to
    these copies with `edit_score(...)` on a log holding them
    (`log.model_copy(update={"samples": <the list with targets replaced by
    their copies>})`, with `recompute_metrics=False, epoch=...`), which
@@ -983,7 +1004,13 @@ def prepare_task(task: Task | str, task_args, model, model_base_url, model_args,
 `exclude_samples`:
 
 1. With a task, checks it with `task_difference()` and takes its metrics
-   from `task_log_metrics()`. Without one, rebuilds the metrics from the
+   from `task_log_metrics()`. On the command line, `--epochs` and
+   `--epochs-reducer` are converted by the shared `inspect eval` option
+   helper into an `epochs` setting, which is applied to a copy of the
+   prepared task (`task_with(copy(task), epochs=...)`) before the match and
+   `task_log_metrics()`; this is how the CLI recomputes a run given epochs
+   at eval level. The Python API takes the task with the epochs already
+   applied. Without one, rebuilds the metrics from the
    header with `resolve_log_metrics(log)`. No task file is imported either
    way.
    A log with no task scorers is accepted; it is refused only for a target
@@ -1189,7 +1216,8 @@ Two subcommands of `inspect log` (`src/inspect_ai/_cli/log.py`, beside
 ```
 inspect log exclude LOG_FILE --sample ID [--sample ID ...] [--epoch N]
                     --reason TEXT [--author NAME]
-                    [--task TASK [-T NAME=VALUE ...] [--model ...] [--model-role ...]]
+                    [--task TASK [-T NAME=VALUE ...] [--model ...] [--model-role ...]
+                                 [--epochs N] [--epochs-reducer ...]]
                     [--json]
 inspect log zero    LOG_FILE TASK --sample ID [--sample ID ...] [--epoch N]
                     --reason TEXT [--author NAME]
@@ -1447,7 +1475,9 @@ No migration required.
   imports a task file or path the log names, and zero builds no task,
   model or run setting from what the log records: they come from the
   caller. Without a task, exclusion rebuilds metrics with the existing
-  untrusted resolver, which refuses metric options that name a model or a
+  untrusted resolver, which constructs registered metrics and reducers named
+  in the header (loading an installed package's entry point for a
+  `pkg/name` name) and refuses metric options that name a model or a
   non-metric registry object. As in existing recomputation
   (`recompute_metrics()`), a score key outside the scorer list is looked up
   by registry name (`ScorerInfo.from_name()`), which can construct an
@@ -1541,6 +1571,13 @@ backends; run the zero tests with `--runtrio` locally.
     the committed `results` and `reductions` equal those of
     `recompute_metrics()` (with the same metrics) run on a copy of the log
     holding the same edits.
+  - Score events kept: on the log `eval(..., log_format="json")` returns
+    (where a sample's final score is the object its `ScoreEvent` holds) and
+    on a `.eval` log read back, a task-scored sample excluded, the same
+    sample zeroed, and a solver-only sample excluded: each pre-existing
+    `ScoreEvent` serializes exactly as before the call, the new
+    `ScoreEditEvent`s are added, and on a refusal (a metric that raises)
+    the whole input log serializes as before.
   - Task match for exclusion: a task with another name, and one with another
     scorer name, are each refused naming the field, with the log unchanged;
     a task whose scorer's options or metric differ is accepted.
@@ -1714,7 +1751,10 @@ backends; run the zero tests with `--runtrio` locally.
   and the `--json` envelope. `inspect log zero LOG TASK` passes `-T`,
   `--model`, `--model-role`, `--epochs`, a sample limit and a generate
   option through to the scratch eval (asserted on its header), and
-  `inspect log exclude --task` recomputes with the task's metric.
+  `inspect log exclude --task` recomputes with the task's metric, and with
+  `--epochs 5 --epochs-reducer pass_at_5` recomputes a log written with
+  `eval(task, epochs=Epochs(5, "pass_at_5"))` on a one-epoch task with that
+  reducer.
   `inspect eval`'s own option tests pass unchanged after its options move
   into shared groups.
 - Schema drift: the OpenAPI and TypeScript drift checks pass after the
