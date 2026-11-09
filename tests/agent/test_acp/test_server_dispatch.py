@@ -621,6 +621,117 @@ async def test_schedule_after_response_with_duplicate_in_flight_ids() -> None:
 
 
 @skip_if_trio
+async def test_schedule_after_response_ignores_null_method_frame() -> None:
+    """A frame with ``"method": null`` is not recorded as a request.
+
+    ACP treats it as an unsolicited response. A following request with
+    the same id must still release its own waiter.
+    """
+    handler = ConnectionHandler()
+    ran: list[str] = []
+
+    async def _work() -> None:
+        ran.append("work")
+
+    _observe_like_connection(
+        handler, StreamDirection.INCOMING, {"id": 1, "method": None, "result": None}
+    )
+    assert handler._request_methods == {}
+
+    _observe_like_connection(
+        handler, StreamDirection.INCOMING, {"id": 1, "method": "session/new"}
+    )
+    handler._schedule_after_response("session/new", _work)
+    _observe_like_connection(handler, StreamDirection.OUTGOING, {"id": 1, "result": {}})
+
+    await asyncio.wait_for(
+        asyncio.gather(*handler._pending_after_response), timeout=1.0
+    )
+    assert ran == ["work"]
+    assert handler._request_methods == {}
+
+
+_ONE_TARGET = [("solo", "s1", 0, "uuid-only")]
+_TWO_TARGETS = [("t1", "s1", 0, "uuid-a"), ("t2", "s2", 1, "uuid-b")]
+
+
+@skip_if_trio
+@unix_only
+@pytest.mark.parametrize(
+    ("targets", "method", "params"),
+    [
+        pytest.param(
+            _TWO_TARGETS,
+            "session/new",
+            {"cwd": "/tmp", "mcpServers": []},
+            id="session-new-picker",
+        ),
+        pytest.param(
+            _ONE_TARGET,
+            "session/new",
+            {"cwd": "/tmp", "mcpServers": []},
+            id="session-new-auto-bind",
+        ),
+        pytest.param(
+            _ONE_TARGET,
+            "session/load",
+            {"cwd": "/tmp", "mcpServers": [], "sessionId": "uuid-only"},
+            id="session-load",
+        ),
+        pytest.param(
+            _TWO_TARGETS,
+            "inspect/attach",
+            {"cwd": "/tmp", "mcpServers": [], "target": "t2/s2/1"},
+            id="inspect-attach",
+        ),
+    ],
+)
+async def test_bind_after_null_method_frames_sends_notifications(
+    short_data_dir: Path,
+    stub_targets,
+    targets: list[tuple[str, str, int, str]],
+    method: str,
+    params: dict[str, Any],
+) -> None:
+    """Null-method frames do not take the waiters of later binds with the same id.
+
+    Each frame reuses the id of an upcoming binding request. Each binding
+    request must still get a notification after its response.
+    """
+    stub_targets(
+        [
+            _make_sample(task=task, sample_id=sample_id, epoch=epoch, session_id=sid)
+            for task, sample_id, epoch, sid in targets
+        ]
+    )
+    async with acp_server(eval_id="evt-null-method", transport=True) as server:
+        assert server is not None
+        client = await _connect(server)
+        try:
+            for request_id in range(1, 4):
+                frame = {
+                    "jsonrpc": "2.0",
+                    "id": request_id,
+                    "method": None,
+                    "result": None,
+                }
+                client._writer.write((json.dumps(frame) + "\n").encode("utf-8"))
+            await client._writer.drain()
+
+            for _ in range(3):
+                resp = await client.request(method, params)
+                assert "result" in resp, resp
+                response_index = client.arrival_log.index(("response", resp["id"]))
+                while not any(
+                    kind == "notification"
+                    for kind, _ in client.arrival_log[response_index + 1 :]
+                ):
+                    await client.next_notification(timeout=2.0)
+        finally:
+            await client.close()
+
+
+@skip_if_trio
 @unix_only
 @pytest.mark.parametrize("request_id", [[], {}])
 async def test_session_new_after_unhashable_id_requests_sends_notifications(

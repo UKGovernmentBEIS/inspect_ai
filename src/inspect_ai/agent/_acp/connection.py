@@ -1355,7 +1355,8 @@ class ConnectionHandler:
         The connection calls this synchronously for each incoming
         message before it dispatches it, and for each outgoing message
         after the transport has written it. On an incoming request,
-        records the request's method by id. Any JSON id is accepted,
+        records the request's method by id. As in ACP, a message whose
+        ``"method"`` is null is not a request. Any JSON id is accepted,
         including an array or object. Requests that share an id are
         matched to responses oldest first. On the outgoing success
         response to that request, releases the oldest waiter of
@@ -1378,7 +1379,7 @@ class ConnectionHandler:
             return
         key = _request_id_key(message["id"])
         if event.direction is StreamDirection.INCOMING:
-            if "method" in message:
+            if message.get("method") is not None:
                 self._request_methods.setdefault(key, []).append(message["method"])
             return
         if "method" in message:
