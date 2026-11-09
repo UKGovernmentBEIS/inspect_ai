@@ -592,7 +592,10 @@ async def test_schedule_after_response_with_unhashable_request_id(
 
 @skip_if_trio
 async def test_schedule_after_response_with_duplicate_in_flight_ids() -> None:
-    """Two in-flight requests sharing an id and method each release one waiter."""
+    """Same-method in-flight requests sharing an id each release one waiter.
+
+    Requests that share an id but differ in method are unsupported.
+    """
     handler = ConnectionHandler()
     ran: list[str] = []
 

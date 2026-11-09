@@ -208,8 +208,8 @@ class ConnectionHandler:
         # before they run and so connection close can cancel them.
         self._pending_after_response: set[asyncio.Task[None]] = set()
         # Methods of incoming requests whose responses are not yet
-        # written, by ``_request_id_key`` (oldest first, since a client
-        # may reuse an id), and the waiters of
+        # written, by ``_request_id_key`` (oldest first, so in-flight
+        # requests of one method may share an id), and the waiters of
         # ``_schedule_after_response`` by method (oldest first). Both
         # are maintained by ``observe_stream``.
         self._request_methods: dict[str, list[str]] = {}
@@ -1356,7 +1356,7 @@ class ConnectionHandler:
         message before it dispatches it, and for each outgoing message
         after the transport has written it. On an incoming request,
         records the request's method by id. Any JSON id is accepted,
-        including an array or object, and requests that share an id are
+        including an array or object. Requests that share an id are
         matched to responses oldest first. On the outgoing success
         response to that request, releases the oldest waiter of
         ``_schedule_after_response`` for that method. An error response
@@ -1365,7 +1365,13 @@ class ConnectionHandler:
 
         Assumes a client does not have two requests of the same method
         in flight on one connection whose success responses are written
-        out of order.
+        out of order. Also assumes in-flight requests that share an id
+        have the same method, since a response carries no method to
+        match on. A client that reuses an id across methods cannot match
+        the responses itself, so Inspect does not support it: a response
+        can take another request's method. That can release a waiter
+        before its own response is written, or leave a waiter unreleased
+        until a later success response of that method or disconnect.
         """
         message = event.message
         if "id" not in message:
