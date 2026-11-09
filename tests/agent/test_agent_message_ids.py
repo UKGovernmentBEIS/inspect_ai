@@ -61,6 +61,7 @@ from inspect_ai.model import (
     ModelOutput,
     get_model,
 )
+from inspect_ai.model._assistant_internal import init_sample_assistant_internal
 from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._compaction import (
     CompactionAuto,
@@ -2080,7 +2081,14 @@ async def _send(dialect: Dialect, wire: list[dict[str, Any]]) -> None:
 
 @contextlib.contextmanager
 def _active_mock_model(*outputs: ModelOutput) -> Iterator[None]:
-    # outside an eval, so log writing doesn't need to encode the lone surrogates
+    """Serve generations with `outputs`, outside an eval and its sample.
+
+    Outside an eval, log writing doesn't need to encode the lone surrogates.
+    Outside a sample, provider assistant-internal state would be recorded in
+    the process-wide default, where later tests that checkpoint would write
+    it, so it is bound fresh here and cleared on exit, as a sample does.
+    """
+    init_sample_assistant_internal()
     token = active_model_context_var.set(
         get_model("mockllm/model", custom_outputs=list(outputs))
     )
@@ -2088,6 +2096,7 @@ def _active_mock_model(*outputs: ModelOutput) -> Iterator[None]:
         yield
     finally:
         active_model_context_var.reset(token)
+        init_sample_assistant_internal()
 
 
 @pytest.mark.parametrize("suffix", _UNTRUSTED_SUFFIXES, ids=_UNTRUSTED_SUFFIX_IDS)
