@@ -3477,6 +3477,13 @@ def test_settle_message_ids_tells_booleans_from_numbers(
         assert copy.message.id == original.message.id
 
 
+class _FilterWork(NamedTuple):
+    events_visited: int
+    response_generations: list[int]
+    """Generations each response filter had to choose from."""
+    request_generations_found: int
+
+
 @pytest.mark.parametrize("filter_kind", ["request", "response"])
 async def test_concurrent_generating_filters_do_linear_work(
     filter_kind: Literal["request", "response"],
@@ -3485,7 +3492,7 @@ async def test_concurrent_generating_filters_do_linear_work(
 
     N bridged requests share a sample and model, and each filter generates once,
     all N generations in flight together. The events visited in total grow
-    linearly with N.
+    linearly with N, and each filter finds exactly its own generation.
     """
     from contextvars import ContextVar
     from unittest.mock import patch
@@ -3500,7 +3507,7 @@ async def test_concurrent_generating_filters_do_linear_work(
     config = GenerateConfig(max_connections=256)
     in_filter: ContextVar[bool] = ContextVar("in_filter", default=False)
 
-    async def measure(n: int) -> tuple[int, list[int]]:
+    async def measure(n: int) -> _FilterWork:
         init_transcript(Transcript())
         model = get_model("mockllm/model")
         provider_generate = model.api.generate
@@ -3508,6 +3515,7 @@ async def test_concurrent_generating_filters_do_linear_work(
         all_entered = anyio.Event()
         visited = 0
         generations_seen: list[int] = []
+        request_generations_found = 0
 
         async def overlapping_generate(*args: Any, **kwargs: Any) -> Any:
             nonlocal entered
@@ -3542,6 +3550,7 @@ async def test_concurrent_generating_filters_do_linear_work(
 
         recent_events = TranscriptHistory.recent_events
         settle = bridge_util._settle_message_ids
+        request_filter_edits = bridge_util._request_filter_edits
 
         def counting_recent_events(
             history: TranscriptHistory, count: int | None = None
@@ -3558,6 +3567,14 @@ async def test_concurrent_generating_filters_do_linear_work(
         ) -> None:
             generations_seen.append(len(generations))
             settle(original, filtered, generations)
+
+        def recording_request_filter_edits(
+            generated: ModelOutput, output: ModelOutput
+        ) -> ModelOutput:
+            nonlocal request_generations_found
+            assert generated.message.id == output.message.id
+            request_generations_found += 1
+            return request_filter_edits(generated, output)
 
         async def request(i: int) -> None:
             bridge = AgentBridge(AgentState(messages=[]))
@@ -3579,14 +3596,19 @@ async def test_concurrent_generating_filters_do_linear_work(
             patch.object(model.api, "generate", overlapping_generate),
             patch.object(TranscriptHistory, "recent_events", counting_recent_events),
             patch.object(bridge_util, "_settle_message_ids", recording_settle),
+            patch.object(
+                bridge_util, "_request_filter_edits", recording_request_filter_edits
+            ),
         ):
             async with anyio.create_task_group() as tg:
                 for i in range(n):
                     tg.start_soon(request, i)
-        return visited, generations_seen
+        return _FilterWork(visited, generations_seen, request_generations_found)
 
     for n in (16, 64):
-        visited, generations_seen = await measure(n)
-        assert visited <= 2 * n
+        work = await measure(n)
+        assert work.events_visited <= 2 * n
         if filter_kind == "response":
-            assert generations_seen == [1] * n
+            assert work.response_generations == [1] * n
+        else:
+            assert work.request_generations_found == n

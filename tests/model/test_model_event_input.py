@@ -320,7 +320,7 @@ async def test_model_event_input_reuses_deeply_nested_metadata() -> None:
 async def test_collect_model_events_collects_the_blocks_own_generations(
     with_sink: bool,
 ) -> None:
-    """A block collects its own completed generations, nested ones included, not a concurrent task's."""
+    """A block collects its own completed generations, nested ones and those of tasks it starts included, not a concurrent task's."""
     init_transcript(Transcript())
     model = get_model("mockllm/model")
     sink = _Sink()
@@ -344,9 +344,15 @@ async def test_collect_model_events_collects_the_blocks_own_generations(
                 inner_started.set()
                 await outside_done.wait()
                 await model.generate("inner")
+                async with anyio.create_task_group() as inner_tg:
+                    inner_tg.start_soon(model.generate, "inner task")
 
-    assert [event.input[0].text for event in outer] == ["outer", "inner"]
-    assert [event.input[0].text for event in inner] == ["inner"]
+    assert [event.input[0].text for event in outer] == [
+        "outer",
+        "inner",
+        "inner task",
+    ]
+    assert [event.input[0].text for event in inner] == ["inner", "inner task"]
     assert all(event.pending is None for event in outer)
-    assert len(_model_events()) == (1 if with_sink else 3)
+    assert len(_model_events()) == (1 if with_sink else 4)
     assert outside[0].message.id not in [event.output.message.id for event in outer]
