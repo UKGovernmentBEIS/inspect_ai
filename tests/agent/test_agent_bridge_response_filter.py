@@ -3430,3 +3430,118 @@ def test_settle_message_ids_tells_booleans_from_numbers(
         assert copy.message.id != original.message.id
     else:
         assert copy.message.id == original.message.id
+
+
+@pytest.mark.parametrize("filter_kind", ["request", "response"])
+async def test_concurrent_generating_filters_do_linear_work(
+    filter_kind: Literal["request", "response"],
+) -> None:
+    """A filter's own generations are found without visiting other requests' events.
+
+    N bridged requests share a sample and model, and each filter generates once,
+    all N generations in flight together. The events visited in total grow
+    linearly with N.
+    """
+    from contextvars import ContextVar
+    from unittest.mock import patch
+
+    from inspect_ai.agent._bridge import util as bridge_util
+    from inspect_ai.log._transcript import (
+        Transcript,
+        TranscriptHistory,
+        init_transcript,
+    )
+
+    config = GenerateConfig(max_connections=256)
+    in_filter: ContextVar[bool] = ContextVar("in_filter", default=False)
+
+    async def measure(n: int) -> tuple[int, list[int]]:
+        init_transcript(Transcript())
+        model = get_model("mockllm/model")
+        provider_generate = model.api.generate
+        entered = 0
+        all_entered = anyio.Event()
+        visited = 0
+        generations_seen: list[int] = []
+
+        async def overlapping_generate(*args: Any, **kwargs: Any) -> Any:
+            nonlocal entered
+            if in_filter.get():
+                entered += 1
+                if entered == n:
+                    all_entered.set()
+                await all_entered.wait()
+            return await provider_generate(*args, **kwargs)
+
+        async def response_filter(
+            model: Model, output: ModelOutput, generate_input: GenerateInput
+        ) -> ModelOutput | None:
+            token = in_filter.set(True)
+            try:
+                return await model.generate(generate_input.input, config=config)
+            finally:
+                in_filter.reset(token)
+
+        async def request_filter(
+            model: Model,
+            messages: list[ChatMessage],
+            tools: list[ToolInfo],
+            tool_choice: ToolChoice | None,
+            config: GenerateConfig,
+        ) -> ModelOutput | GenerateInput | None:
+            token = in_filter.set(True)
+            try:
+                return await model.generate(messages, config=config)
+            finally:
+                in_filter.reset(token)
+
+        recent_events = TranscriptHistory.recent_events
+        settle = bridge_util._settle_message_ids
+
+        def counting_recent_events(
+            history: TranscriptHistory, count: int | None = None
+        ) -> Sequence[Any]:
+            nonlocal visited
+            events = recent_events(history, count)
+            visited += len(events)
+            return events
+
+        def recording_settle(
+            original: ModelOutput,
+            filtered: ModelOutput,
+            generations: Sequence[ChatMessageAssistant] = (),
+        ) -> None:
+            generations_seen.append(len(generations))
+            settle(original, filtered, generations)
+
+        async def request(i: int) -> None:
+            bridge = AgentBridge(AgentState(messages=[]))
+            if filter_kind == "response":
+                bridge.response_filter = response_filter
+            else:
+                bridge.filter = request_filter
+            await bridge_generate(
+                bridge,
+                model,
+                [ChatMessageUser(content=f"Question {i}")],
+                [],
+                None,
+                config,
+                requested_model=None,
+            )
+
+        with (
+            patch.object(model.api, "generate", overlapping_generate),
+            patch.object(TranscriptHistory, "recent_events", counting_recent_events),
+            patch.object(bridge_util, "_settle_message_ids", recording_settle),
+        ):
+            async with anyio.create_task_group() as tg:
+                for i in range(n):
+                    tg.start_soon(request, i)
+        return visited, generations_seen
+
+    for n in (16, 64):
+        visited, generations_seen = await measure(n)
+        assert visited <= 2 * n
+        if filter_kind == "response":
+            assert generations_seen == [1] * n

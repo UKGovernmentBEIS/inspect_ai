@@ -2120,6 +2120,7 @@ class Model:
 
             record_agent_turn(snapshot)
         sink = _model_event_sink.get()
+        collectors = _model_event_collectors.get()
         if sink is None:
             transcript()._event(event)
         else:
@@ -2177,6 +2178,8 @@ class Model:
                 transcript()._event_updated(event)
             else:
                 sink.on_complete(event)
+            for collected in collectors:
+                collected.append(event)
 
         # if we have output then complete it now
         if output:
@@ -3162,6 +3165,10 @@ _model_event_sink: ContextVar[ModelEventSink | None] = ContextVar(
     "_model_event_sink", default=None
 )
 
+_model_event_collectors: ContextVar[tuple[list["ModelEvent"], ...]] = ContextVar(
+    "_model_event_collectors", default=()
+)
+
 
 class _Snapshot(NamedTuple):
     message: weakref.ReferenceType[ChatMessage]
@@ -3270,6 +3277,24 @@ def use_model_event_sink(sink: ModelEventSink | None) -> Iterator[None]:
         yield
     finally:
         _model_event_sink.reset(token)
+
+
+@contextlib.contextmanager
+def collect_model_events() -> Iterator[list["ModelEvent"]]:
+    """Collect the `ModelEvent` of each attempt that completes in the block.
+
+    Only generations started in the block's context (including tasks it starts)
+    are collected, wherever their events are emitted (transcript or
+    `ModelEventSink`), so finding them does not visit other concurrent model
+    calls in the sample. Blocks nest: an outer block also collects the
+    generations of an inner one.
+    """
+    events: list["ModelEvent"] = []
+    token = _model_event_collectors.set((*_model_event_collectors.get(), events))
+    try:
+        yield events
+    finally:
+        _model_event_collectors.reset(token)
 
 
 @contextlib.contextmanager

@@ -47,8 +47,6 @@ from inspect_ai.agent._bridge._approval import (
 )
 from inspect_ai.agent._bridge._errors import BridgePolicyError, ResponseFilterError
 from inspect_ai.agent._bridge.types import AgentBridge, message_json_hash
-from inspect_ai.event._model import ModelEvent
-from inspect_ai.log._transcript import transcript
 from inspect_ai.model._agent_message import validate_agent_message
 from inspect_ai.model._assistant_internal import has_pending_assistant_work
 from inspect_ai.model._call_tools import get_tools_info
@@ -82,6 +80,7 @@ from inspect_ai.model._model import (
     _check_limits_before_dispatch,
     _StartingModelEventSink,
     active_model,
+    collect_model_events,
     get_model,
     model_roles,
     requested_model,
@@ -478,10 +477,9 @@ async def _apply_response_filter(
     are not the filter's to answer for.
     """
     candidate = output.model_copy(deep=True)
-    history = transcript().history
-    events_before_filter = history.event_count
     try:
-        filtered = await response_filter(model, candidate, generate_input)
+        with collect_model_events() as filter_events:
+            filtered = await response_filter(model, candidate, generate_input)
     except Exception as ex:
         control_flow = (LimitExceededError, TerminateSampleError, ModelRefusalError)
         inner: Exception = ex
@@ -541,8 +539,8 @@ async def _apply_response_filter(
     # model's dialect, so its provider items stay subject to the checks
     generations = [
         choice.message
-        for event in history.recent_events(history.event_count - events_before_filter)
-        if isinstance(event, ModelEvent) and event.model == str(model)
+        for event in filter_events
+        if event.model == str(model)
         for choice in event.output.choices
     ]
     _check_provider_owned_content(output, filtered, generations)
@@ -1186,15 +1184,16 @@ async def _bridge_generate_impl(
             output: ModelOutput | None = None
             generated_output: ModelOutput | None = None
             if bridge.filter:
-                history = transcript().history
-                events_before_filter = history.event_count
                 # get_tools_info (via ToolDef) preserves `options` — including the
                 # INTERNAL_TOOL_TYPE marker — so the filter sees the same ToolInfo
                 # the model provider would. parse_tool_info re-derives from the
                 # function signature and drops options.
                 tool_info = get_tools_info(tools)
                 # under the bridge's approval policies, as a filter may generate
-                with bridge_approval_scope(bridge.approval):
+                with (
+                    bridge_approval_scope(bridge.approval),
+                    collect_model_events() as filter_events,
+                ):
                     try:
                         if _is_model_filter(bridge.filter):
                             result = await bridge.filter(
@@ -1218,13 +1217,8 @@ async def _bridge_generate_impl(
                     generated_output = next(
                         (
                             event.output
-                            for event in reversed(
-                                history.recent_events(
-                                    history.event_count - events_before_filter
-                                )
-                            )
-                            if isinstance(event, ModelEvent)
-                            and any(
+                            for event in reversed(filter_events)
+                            if any(
                                 choice.message.id == result.message.id
                                 for choice in event.output.choices
                             )

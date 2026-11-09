@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import anyio
 import numpy as np
 import pytest
 from pydantic import BaseModel, PrivateAttr
@@ -25,7 +26,11 @@ from inspect_ai.model import (
     get_model,
 )
 from inspect_ai.model._chat_message import logged_json
-from inspect_ai.model._model import _snapshot_messages, use_model_event_sink
+from inspect_ai.model._model import (
+    _snapshot_messages,
+    collect_model_events,
+    use_model_event_sink,
+)
 from inspect_ai.tool import ToolCall, ToolCallError
 
 
@@ -309,3 +314,39 @@ async def test_model_event_input_reuses_deeply_nested_metadata() -> None:
 
     first, second = _model_events()
     assert first.input[0] is second.input[0]
+
+
+@pytest.mark.parametrize("with_sink", [False, True])
+async def test_collect_model_events_collects_the_blocks_own_generations(
+    with_sink: bool,
+) -> None:
+    """A block collects its own completed generations, nested ones included, not a concurrent task's."""
+    init_transcript(Transcript())
+    model = get_model("mockllm/model")
+    sink = _Sink()
+    inner_started = anyio.Event()
+    outside_done = anyio.Event()
+    outside: list[ModelOutput] = []
+
+    async def generate_outside() -> None:
+        await inner_started.wait()
+        outside.append(await model.generate("outside"))
+        outside_done.set()
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(generate_outside)
+        with (
+            use_model_event_sink(sink if with_sink else None),
+            collect_model_events() as outer,
+        ):
+            await model.generate("outer")
+            with collect_model_events() as inner:
+                inner_started.set()
+                await outside_done.wait()
+                await model.generate("inner")
+
+    assert [event.input[0].text for event in outer] == ["outer", "inner"]
+    assert [event.input[0].text for event in inner] == ["inner"]
+    assert all(event.pending is None for event in outer)
+    assert len(_model_events()) == (1 if with_sink else 3)
+    assert outside[0].message.id not in [event.output.message.id for event in outer]
