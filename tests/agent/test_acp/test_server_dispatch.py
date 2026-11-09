@@ -503,6 +503,41 @@ async def test_schedule_after_response_waits_for_response_write() -> None:
     assert ran == ["work"]
 
 
+@skip_if_trio
+async def test_schedule_after_response_ignores_error_response() -> None:
+    """An error response to one request does not release another's work.
+
+    Request A of a method fails without scheduling; request B of the
+    same method schedules work before A's error response is written.
+    The work must wait for B's success response.
+    """
+    handler = ConnectionHandler()
+    ran: list[str] = []
+
+    async def _work() -> None:
+        ran.append("work")
+
+    def _event(direction: StreamDirection, message: dict[str, Any]) -> None:
+        handler.observe_stream(StreamEvent(direction, message))
+
+    _event(StreamDirection.INCOMING, {"id": 1, "method": "session/load"})
+    _event(StreamDirection.INCOMING, {"id": 2, "method": "session/load"})
+    handler._schedule_after_response("session/load", _work)
+
+    _event(
+        StreamDirection.OUTGOING,
+        {"id": 1, "error": {"code": -32602, "message": "Invalid params"}},
+    )
+    for _ in range(5):
+        await asyncio.sleep(0)
+    assert ran == []
+    assert 1 not in handler._request_methods
+
+    _event(StreamDirection.OUTGOING, {"id": 2, "result": {}})
+    await asyncio.gather(*handler._pending_after_response)
+    assert ran == ["work"]
+
+
 async def test_load_session_observe_only_records_non_interactive(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

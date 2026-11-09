@@ -1353,13 +1353,15 @@ class ConnectionHandler:
         The connection calls this synchronously for each incoming
         message before it dispatches it, and for each outgoing message
         after the transport has written it. On an incoming request,
-        records the request's method by id. On the outgoing response
-        to that request, releases the oldest waiter of
-        ``_schedule_after_response`` for that method.
+        records the request's method by id. On the outgoing success
+        response to that request, releases the oldest waiter of
+        ``_schedule_after_response`` for that method. An error response
+        releases nothing: a failed request schedules no waiter, while
+        every successful one schedules exactly one before returning.
 
         Assumes a client does not have two requests of the same method
-        in flight on one connection whose responses are written out of
-        order.
+        in flight on one connection whose success responses are written
+        out of order.
         """
         message = event.message
         if "id" not in message:
@@ -1371,9 +1373,12 @@ class ConnectionHandler:
         if "method" in message:
             return
         method = self._request_methods.pop(message["id"], None)
-        waiters = self._response_waiters.get(method) if method is not None else None
+        if method is None or "result" not in message:
+            return
+        waiters = self._response_waiters.get(method)
         if waiters:
             waiter = waiters.pop(0)
+            # shutdown cancels the waiting task, which cancels its waiter.
             if not waiter.done():
                 waiter.set_result(None)
 
