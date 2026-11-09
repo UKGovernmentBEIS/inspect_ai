@@ -100,6 +100,8 @@ class TaskSidecars:
         # the attempts at each sample whose monitor state a sidecar lost, by
         # the sample's uuid
         self._lost: dict[str, set[int]] = {}
+        # whether the task was warned that a sidecar withholds monitor state
+        self._warned_withheld = False
 
     async def start(self, model: Model) -> None:
         """Probe the endpoint of the task's assigned model, and register the task with a sidecar found there, before any sample runs.
@@ -236,13 +238,11 @@ class TaskSidecars:
         if attempt_number in self._lost.get(sample_uuid, set()):
             # what the sidecar holds began afresh after it lost the sample,
             # so it isn't the attempt's monitor state
-            self.skip_monitor_state_copy(
-                sample_uuid,
-                attempt_number,
-                store,
-                "the sentinel sidecar lost the sample partway through, as on a restart",
+            lost = (
+                "the sentinel sidecar lost the sample partway through, as on a restart"
             )
-            return
+            self.skip_monitor_state_copy(sample_uuid, attempt_number, store, lost)
+            raise SentinelProxyError(_not_scored(lost))
         # the keys earlier copies wrote: any other key of the sample store
         # the copy would overwrite is a sentinel's inside Inspect
         copies = _copied_keys(store)
@@ -259,6 +259,9 @@ class TaskSidecars:
         copied: dict[str, Any] = {}
         written_by: dict[str, str] = {}
         failed: str | None = None
+        # a sidecar started with --no-eval-results withholds the state on
+        # purpose, which is no failure: the sample is scored all the same
+        withheld = True
         for sidecar in through:
             with anyio.move_on_after(CALL_TIMEOUT) as scope:
                 try:
@@ -267,6 +270,7 @@ class TaskSidecars:
                     )
                 except SidecarCallError as ex:
                     failed = _copy_failure(sidecar, ex)
+                    withheld = withheld and ex.code == METHOD_NOT_FOUND
                     continue
 
                 # the answer always holds the store, if only an empty one: an
@@ -274,6 +278,7 @@ class TaskSidecars:
                 kept = result.get("store")
                 if not isinstance(kept, dict):
                     failed = f"the sentinel sidecar at {sidecar.origin} answered without the sample's store"
+                    withheld = False
                     continue
 
                 for key, value in kept.items():
@@ -302,16 +307,32 @@ class TaskSidecars:
                 failed = (
                     f"the sentinel sidecar at {sidecar.origin} didn't answer in time"
                 )
+                withheld = False
         for key, value in copied.items():
             store.set(key, value)
+        withheld = failed is not None and withheld
         store.set(
             MONITOR_STATE_COPY,
             {
                 "copied": failed is None,
                 "reason": failed,
+                "withheld": withheld,
                 "keys": sorted(copies | copied.keys()),
             },
         )
+        if failed is None:
+            return
+        if withheld:
+            if not self._warned_withheld:
+                self._warned_withheld = True
+                logger.warning(
+                    f"The monitor state is withheld, so a scorer that reads it reads none: {failed}."
+                )
+            return
+        # never scored over defaults that read as a sample in which nothing
+        # was flagged: a sidecar that lost the sample, never saw it, or didn't
+        # answer fails the sample instead, and says why
+        raise SentinelProxyError(_not_scored(failed))
 
     def skip_monitor_state_copy(
         self, sample_uuid: str, attempt_number: int, store: Store, reason: str
@@ -458,6 +479,10 @@ def _copied_keys(store: Store) -> set[str]:
     # the keys of the sample store that earlier copies wrote
     earlier = store.get(MONITOR_STATE_COPY)
     return set(earlier.get("keys", [])) if isinstance(earlier, dict) else set()
+
+
+def _not_scored(reason: str) -> str:
+    return f"The sample isn't scored, as its monitor state wasn't copied from the sentinel sidecar: {reason}."
 
 
 def _copy_failure(sidecar: Sidecar, ex: SidecarCallError) -> str:

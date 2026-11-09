@@ -134,6 +134,13 @@ class StandInSidecar:
                 if params["id"] in self.judgments
                 else {}
             )
+        if method == "sample_result":
+            # a sidecar's answer always holds the store, if only an empty one
+            return lambda params: {
+                "sample_uuid": params.get("sample_uuid"),
+                "outcome": "proceed",
+                "store": {},
+            }
         return lambda params: {}
 
 

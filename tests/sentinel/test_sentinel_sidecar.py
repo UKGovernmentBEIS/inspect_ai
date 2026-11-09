@@ -64,7 +64,6 @@ from inspect_ai.scorer import (
     Scorer,
     Target,
     mean,
-    require_monitor_state,
     score,
     scorer,
 )
@@ -1875,10 +1874,10 @@ def test_a_sample_the_sidecar_lost_isnt_scored_on_what_it_holds_since(
 
     assert log.samples is not None
     [sample] = log.samples
-    assert sample.error is not None
-    score = (sample.scores or {})["_reads_monitor_state"]
-    assert score.value == 0
-    assert score.explanation is not None and "lost the sample" in score.explanation
+    # not scored, even with score_on_error: the sidecar's state isn't the
+    # attempt's, and the sample says so
+    assert sample.error is not None and "lost the sample" in sample.error.message
+    assert not sample.scores
     assert _registered(stand_in, "sample_result") == []
 
 
@@ -2202,11 +2201,9 @@ def test_a_step_without_records_keeps_its_decisions_metadata() -> None:
 
 @scorer(metrics=[mean()])
 def _reads_monitor_state() -> Scorer:
+    # reads the monitor state as copied, with nothing to check: a sample whose
+    # copy failed is never scored
     async def score(state: TaskState, target: Target) -> Score:
-        try:
-            require_monitor_state()
-        except RuntimeError as ex:
-            return Score(value=0, explanation=str(ex))
         return Score(value=state.store.get("Tally:lookups", -1))
 
     return score
@@ -2240,26 +2237,59 @@ def test_a_scorer_reads_the_monitor_state_the_sidecar_keeps() -> None:
     ]
 
 
-@pytest.mark.parametrize(
-    ("error", "says"),
-    [
-        ({"code": -32002, "message": "nothing for the sample"}, "holds nothing"),
-        ({"code": -32601, "message": "no method"}, "doesn't send results"),
-    ],
-    ids=["unknown sample", "no results"],
-)
-def test_a_scorer_can_tell_the_copy_failed(error: dict[str, Any], says: str) -> None:
+def test_a_sample_whose_monitor_state_wasnt_copied_isnt_scored() -> None:
+    # the sidecar never saw the sample; a scorer would read defaults as a
+    # sample in which nothing was flagged, so none runs, and the sample says why
+    error = {"code": -32002, "message": "nothing for the sample"}
     stand_in = StandInSidecar(methods={"sample_result": lambda _: {"error": error}})
-    task = Task(
-        dataset=[Sample(input="Hi.")], solver=generate(), scorer=_reads_monitor_state()
-    )
+    ran: list[str] = []
+
+    @scorer(metrics=[mean()])
+    def records() -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            ran.append(state.uuid)
+            return Score(value=1)
+
+        return score
+
+    task = Task(dataset=[Sample(input="Hi.")], solver=generate(), scorer=records())
 
     [log] = eval(task, model=_model(stand_in), display="none")
 
     assert log.samples is not None
-    score = (log.samples[0].scores or {})["_reads_monitor_state"]
-    assert score.value == 0
-    assert score.explanation is not None and says in score.explanation
+    [sample] = log.samples
+    assert sample.error is not None
+    assert "isn't scored" in sample.error.message
+    assert "holds nothing for the sample" in sample.error.message
+    assert not sample.scores
+    assert ran == []
+
+
+def test_a_sidecar_that_withholds_monitor_state_still_scores(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # --no-eval-results is the operator's choice, not a failure: the sample is
+    # scored, and the task is told once that the state is withheld
+    error = {"code": -32601, "message": "no method"}
+    stand_in = StandInSidecar(methods={"sample_result": lambda _: {"error": error}})
+    task = Task(
+        dataset=[Sample(input="Hi."), Sample(input="Bye.")],
+        solver=generate(),
+        scorer=_reads_monitor_state(),
+    )
+
+    with caplog.at_level("WARNING", logger="inspect_ai._sentinel._sidecar"):
+        [log] = eval(task, model=_model(stand_in), display="none")
+
+    assert log.samples is not None
+    assert [s.error for s in log.samples] == [None, None]
+    assert [(s.scores or {})["_reads_monitor_state"].value for s in log.samples] == [
+        -1,
+        -1,
+    ]
+    warned = [r for r in caplog.records if "withheld" in r.getMessage()]
+    assert len(warned) == 1
+    assert "doesn't send results" in warned[0].getMessage()
 
 
 @solver
@@ -2647,7 +2677,9 @@ async def test_a_copy_cut_short_keeps_the_record_of_what_earlier_copies_wrote() 
     assert marker["copied"] is True
 
 
-def test_a_copy_cut_short_by_the_scoring_deadline_says_the_state_is_missing() -> None:
+def test_a_copy_cut_short_by_the_scoring_deadline_says_the_state_is_missing(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     stand_in = _HungCopy(methods={"sample_result": _kept({"Tally:lookups": 1})})
     # the scoring's deadline is half the sample's time limit
     task = Task(
@@ -2659,19 +2691,21 @@ def test_a_copy_cut_short_by_the_scoring_deadline_says_the_state_is_missing() ->
 
     [log] = eval(task, model=_model(stand_in), display="none")
 
-    # the deadline fails the sample, and scoring the log later is told why
-    # the monitor state is missing, rather than reading none as nothing flagged
+    # the deadline fails the sample, and scoring the log later skips it,
+    # saying why the monitor state is missing, rather than reading none as
+    # nothing flagged
     assert log.samples is not None
     [sample] = log.samples
     assert sample.error is not None
     assert _registered(stand_in, "sample_result") == [
         {"sample_uuid": sample.uuid, "eval_id": log.eval.eval_id, "token": "token-1"}
     ]
-    rescored = score_log(log, _reads_monitor_state(), display="none")
+    with caplog.at_level("WARNING", logger="inspect_ai._eval.score"):
+        rescored = score_log(log, _reads_monitor_state(), display="none")
     assert rescored.samples is not None
-    again = (rescored.samples[0].scores or {})["_reads_monitor_state"]
-    assert again.value == 0
-    assert again.explanation is not None and "didn't finish" in again.explanation
+    assert not rescored.samples[0].scores
+    [skipped] = [r for r in caplog.records if "isn't scored" in r.getMessage()]
+    assert "didn't finish" in skipped.getMessage()
 
 
 class _Unanswering(StandInSidecar):
@@ -2732,9 +2766,9 @@ def _asks_both_then_fails(other: Model) -> Solver:
     return solve
 
 
-def test_a_failed_sample_whose_sidecars_keep_the_same_key_says_why_it_has_none() -> (
-    None
-):
+def test_a_failed_sample_whose_sidecars_keep_the_same_key_says_why_it_has_none(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     first = StandInSidecar(methods={"sample_result": _kept({"Tally:lookups": 2})})
     second = StandInSidecar(methods={"sample_result": _kept({"Tally:lookups": 5})})
     assigned, other = _two_models(first, second)
@@ -2746,15 +2780,17 @@ def test_a_failed_sample_whose_sidecars_keep_the_same_key_says_why_it_has_none()
 
     [log] = eval(task, model=assigned, display="none")
 
-    # saved with its own error, and scoring the log later is told why the
-    # monitor state is missing
+    # saved with its own error, and scoring the log later skips it, saying
+    # why the monitor state is missing
     assert log.samples is not None
     [sample] = log.samples
     assert sample.error is not None and "The agent fails." in sample.error.message
-    rescored = score_log(log, _reads_monitor_state(), display="none")
+    with caplog.at_level("WARNING", logger="inspect_ai._eval.score"):
+        rescored = score_log(log, _reads_monitor_state(), display="none")
     assert rescored.samples is not None
-    explanation = (rescored.samples[0].scores or {})["_reads_monitor_state"].explanation
-    assert explanation is not None and "both keep 'Tally:lookups'" in explanation
+    assert not rescored.samples[0].scores
+    [skipped] = [r for r in caplog.records if "isn't scored" in r.getMessage()]
+    assert "both keep 'Tally:lookups'" in skipped.getMessage()
 
 
 @solver

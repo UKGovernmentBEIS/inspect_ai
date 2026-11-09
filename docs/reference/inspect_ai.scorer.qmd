@@ -72,6 +72,3 @@ description: Task scoring and metrics.
 
 ### score
 
-## Monitor State
-
-### require_monitor_state

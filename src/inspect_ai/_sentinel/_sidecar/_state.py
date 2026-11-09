@@ -8,6 +8,7 @@ from ._task import MONITOR_STATE_COPY, attempt_number, task_sidecars
 if TYPE_CHECKING:
     from inspect_ai.log._samples import ActiveSample
     from inspect_ai.solver._task_state import TaskState
+    from inspect_ai.util._store import Store
 
 
 async def copy_sidecar_monitor_state(
@@ -18,6 +19,9 @@ async def copy_sidecar_monitor_state(
     Args:
         state: The sample's state.
         active: The running sample, where it isn't the caller's own, as for interim scoring.
+
+    Raises:
+        SentinelProxyError: If the copy failed, so the sample is not scored: a scorer would otherwise read default values that look like a sample in which nothing was flagged. State a sidecar withholds on purpose, with `--no-eval-results`, is no failure.
     """
     from inspect_ai.log._samples import sample_active
 
@@ -57,18 +61,12 @@ async def save_sidecar_monitor_state(
         pass
 
 
-def require_monitor_state() -> None:
-    """Check that the monitor state a scorer is about to read was copied from the sidecars, when the sample's calls went through any.
+def monitor_state_missing(store: "Store") -> str | None:
+    """Why the monitor state of a sample saved in a log is missing, or None if it was copied, is withheld on purpose, or no sidecar kept any.
 
-    A scorer that reads monitor state calls this first: a failed copy leaves the state's default values in the sample store, which would read as a sample in which nothing was flagged.
-
-    Raises:
-        RuntimeError: If the copy failed.
+    Read before a saved sample is scored again, as by `inspect score`, when no copy is possible any more: the marker the copy left says whether it succeeded.
     """
-    from inspect_ai.util._store import store
-
-    copy = store().get(MONITOR_STATE_COPY)
-    if isinstance(copy, dict) and not copy.get("copied"):
-        raise RuntimeError(
-            f"The monitor state wasn't copied from the sentinel sidecar: {copy.get('reason')}."
-        )
+    copy = store.get(MONITOR_STATE_COPY)
+    if isinstance(copy, dict) and not copy.get("copied") and not copy.get("withheld"):
+        return str(copy.get("reason") or "the copy from the sidecar failed")
+    return None

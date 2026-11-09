@@ -1,4 +1,3 @@
-from inspect_ai._sentinel._sidecar._state import require_monitor_state
 from inspect_ai._util.deprecation import relocated_module_attribute
 
 from ._answer import AnswerPattern, answer
@@ -113,7 +112,6 @@ __all__ = [
     "perplexity_per_seq",
     "perplexity_per_token",
     "precomputed_scores",
-    "require_monitor_state",
     "score",
     "score_reducer",
     "scorer",

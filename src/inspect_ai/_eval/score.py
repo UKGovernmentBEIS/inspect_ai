@@ -551,6 +551,23 @@ async def _run_score_task(
 
     results: dict[str, SampleScore] = {}
     scorer_names: list[str] = []
+
+    # a sample whose monitor state a sentinel sidecar kept, and whose copy of
+    # it failed when the sample was saved, is left as it is: no copy is
+    # possible now, and a scorer would read defaults as nothing flagged
+    from inspect_ai._sentinel._sidecar._state import monitor_state_missing
+
+    missing = monitor_state_missing(state.store)
+    if missing is not None:
+        logger.warning(
+            f"Sample {sample.id} (epoch {sample.epoch}) isn't scored, as its monitor state wasn't copied from the sentinel sidecar: {missing}."
+        )
+        for scorer in scorers:
+            scorer_names.append(
+                unique_scorer_name(scorer, list({*existing_score_names, *scorer_names}))
+            )
+        return results, scorer_names
+
     async with span(name=SCORERS_SPAN_NAME):
         for scorer in scorers:
             scorer_name = unique_scorer_name(
