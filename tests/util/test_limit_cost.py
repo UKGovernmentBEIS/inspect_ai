@@ -1,14 +1,26 @@
+from typing import Generator
+
 import pytest
 from test_helpers.limits import generate_with_retry_boundary
 
-from inspect_ai.model import ChatMessage, GenerateConfig, ModelOutput, get_model
+from inspect_ai.agent import Agent, AgentState, agent, run
+from inspect_ai.model import (
+    ChatMessage,
+    GenerateConfig,
+    ModelOutput,
+    ModelUsage,
+    get_model,
+)
 from inspect_ai.model._model import Model
+from inspect_ai.model._model_data.model_data import ModelCost, ModelInfo
+from inspect_ai.model._model_info import clear_model_info_cache, set_model_info
 from inspect_ai.tool import ToolChoice, ToolInfo
 from inspect_ai.util._limit import (
     LimitExceededError,
     check_cost_limit,
     cost_limit,
     record_model_cost,
+    token_limit,
 )
 
 
@@ -189,6 +201,84 @@ async def test_generate_retry_refused_when_cost_limit_reached_in_on_stream() -> 
     # only the failed first attempt reached the provider
     assert len(calls) == 1
     assert exc_info.value.source is limit
+
+
+@pytest.fixture
+def ten_dollar_calls() -> Generator[None, None, None]:
+    """Price mockllm/model so that each `_priced_model` call costs $10."""
+    clear_model_info_cache()
+    set_model_info(
+        "model",
+        ModelInfo(
+            cost=ModelCost(
+                input=5_000_000.0,
+                output=5_000_000.0,
+                input_cache_write=0.0,
+                input_cache_read=0.0,
+            )
+        ),
+    )
+    yield
+    clear_model_info_cache()
+
+
+def _priced_model(calls: list[list[ChatMessage]]) -> Model:
+    """A model whose calls each use 2 tokens (1 in, 1 out) and record the call."""
+
+    def outputs(
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        calls.append(input)
+        output = ModelOutput.from_content("mockllm/model", "hello")
+        output.usage = ModelUsage(input_tokens=1, output_tokens=1, total_tokens=2)
+        return output
+
+    return get_model("mockllm/model", custom_outputs=outputs)
+
+
+@pytest.mark.usefixtures("ten_dollar_calls")
+async def test_cost_charged_when_child_token_limit_raises() -> None:
+    calls: list[list[ChatMessage]] = []
+    model = _priced_model(calls)
+
+    @agent
+    def one_call() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            await model.generate(state.messages)
+            return state
+
+        return execute
+
+    with cost_limit(15.0) as limit:
+        with pytest.raises(LimitExceededError) as exc_info:
+            for _ in range(3):
+                _, child_error = await run(one_call(), "hi", limits=[token_limit(1)])
+                assert child_error is not None and child_error.type == "token"
+
+    # the second call crossed the cost limit (its child token limit raised
+    # first), so the third is refused before dispatch
+    assert len(calls) == 2
+    assert limit.usage == pytest.approx(20.0)
+    assert exc_info.value.type == "cost"
+    assert exc_info.value.source is limit
+
+
+@pytest.mark.usefixtures("ten_dollar_calls")
+async def test_token_limit_raise_charges_cost_once() -> None:
+    calls: list[list[ChatMessage]] = []
+    model = _priced_model(calls)
+
+    with cost_limit(100.0) as limit:
+        with token_limit(1):
+            with pytest.raises(LimitExceededError) as exc_info:
+                await model.generate("")
+
+    assert exc_info.value.type == "token"
+    assert len(calls) == 1
+    assert limit.usage == pytest.approx(10.0)
 
 
 def _consume_cost(amount: float) -> None:

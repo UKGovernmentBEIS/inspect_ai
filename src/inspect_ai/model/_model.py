@@ -3411,19 +3411,21 @@ def record_and_check_model_usage(
         set_model_usage(role, usage, sample_role_usage_context_var.get(None))
         set_model_usage(role, usage, role_usage_context_var.get(None))
 
+    # record into both limit trees before checking either, so a token limit
+    # raising for this call cannot skip charging its cost to the cost limits
     record_model_usage(usage)
-
-    # compute total tokens and update active sample (before check_token_limit()
-    # so the control channel sees the usage that tripped the limit)
-    total_tokens = sample_total_tokens()
-    set_active_sample_total_tokens(total_tokens)
-    set_active_sample_token_limit_usage(token_limit_usage())
-    check_token_limit()
-
-    # record cost to limit tree and check
     if total_cost is not None:
         record_model_cost(total_cost)
+
+    # update active sample (before the checks so the control channel sees the
+    # usage that tripped a limit)
+    set_active_sample_total_tokens(sample_total_tokens())
+    set_active_sample_token_limit_usage(token_limit_usage())
+    if total_cost is not None:
         set_active_sample_total_cost(sample_total_cost())
+
+    check_token_limit()
+    if total_cost is not None:
         check_cost_limit()
 
 
