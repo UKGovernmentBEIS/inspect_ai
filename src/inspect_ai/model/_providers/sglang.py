@@ -4,7 +4,7 @@ from logging import getLogger
 from subprocess import Popen
 from typing import Any
 
-from openai import APIStatusError
+from openai import APIStatusError, AsyncOpenAI
 from tenacity.wait import WaitBaseT, wait_fixed
 from typing_extensions import override
 
@@ -78,6 +78,11 @@ class SGLangAPI(OpenAICompatibleAPI):
             SGLANG_DEFAULT_SERVER_ARGS, server_args, logger
         )
 
+        # the server someone named, by argument, port or environment: a
+        # sentinel sidecar is looked for only behind one of those, never
+        # behind a server this process starts
+        self._named_base_url = base_url or os.environ.get("SGLANG_BASE_URL")
+
         self.server_found = True
         try:
             # Try to initialize with existing server
@@ -114,6 +119,15 @@ class SGLangAPI(OpenAICompatibleAPI):
                 service="SGLang",
                 service_base_url=base_url,
             )
+
+    @override
+    async def proxy_endpoint(self) -> tuple[AsyncOpenAI, str] | None:
+        # A server someone named may sit behind a proxy; one this process
+        # started never does. The named URL is also the service's own here,
+        # so the base class can't tell the two apart.
+        if not self._named_base_url or not self.server_found:
+            return None
+        return self.client, self._named_base_url
 
     def _start_server(
         self,
