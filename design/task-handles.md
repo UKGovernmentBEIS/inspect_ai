@@ -33,8 +33,9 @@ def search(n_steps: int) -> Solver:
 the searcher's model through `generate`, or another one through
 `get_model(...)`.
 
-Anonymous dynamic samples get ids that no other attempt gives a sample,
-so samples sent through a handle shift no id a later run would reuse. A task that can receive samples records that in its eval
+Anonymous dynamic samples get ids that no later attempt of the same task
+gives a sample, so samples sent through a handle shift no id a later run of
+that task would reuse. A task that can receive samples records that in its eval
 spec: nothing is reused from its logs, `eval_retry()` refuses them and
 `eval_set()` never counts them complete, and once it has received a sample
 it is not retried; its creator sends the samples to a fresh task instead.
@@ -135,9 +136,14 @@ Non-goals:
   (`reserve_runs`, `:1897-1905`; `dynamic_sample_id` and
   `dynamic_id_token`, `:368-402`). The source's own object never gains an
   id, so a source that returns the same object on a retry adds it without
-  one again, and a generated id never recurs in a later attempt, so retry
-  reuse and checkpoint resume (both keyed on `(id, epoch)`) never match
-  it. An explicit id equal to an id the attempt generated earlier fails as
+  one again. A later attempt of the task gets a later token, since its
+  `created` is moved past its prior log's (`task/log.py:457-473`), so a
+  generated id never recurs there, and retry reuse and checkpoint resume
+  (both keyed on `(id, epoch)` and reading only that task's prior log,
+  `task/run.py:4078-4125`) never match it. Ids are unique only along that
+  chain: two tasks started in the same second, such as one task run
+  against two models, can generate the same first id, which is harmless
+  because no task reads another's log for reuse. An explicit id equal to an id the attempt generated earlier fails as
   a duplicate at any epoch (`:1911-1919`).
 - On a task retry, the prior attempt's completed samples are reused, and a
   reused sample's `sample_complete` fires again so a completion-driven
@@ -597,11 +603,11 @@ no other record has one. It keeps a `PortRequest` for each
 @dataclass(eq=False)
 class PortRequest:
     sample: Sample                   # the caller's sample, as sent; never changed
-    id: str | int | None = None      # the id it was admitted with (its own, or a generated one)
     explicit_id: bool                # whether the caller's sample had an id when sent
     epoch: int | None
     state: Literal["sent", "admitted", "dropped", "refused", "done"]
     futures: dict[int, Future[EvalSample]]   # one per planned epoch
+    id: str | int | None = None      # the id it was admitted with (its own, or a generated one)
 
 class SamplePort:
     pending: list[PortRequest]       # not yet settled, in send order
@@ -661,8 +667,8 @@ the caller, without reaching the task, when they intersect:
   fails as a duplicate, as `reserve_runs` rules, `task/run.py:1911-1919`).
 
 A sample without an id is given one at delivery by the runner's rule for
-anonymous dynamic samples (see "Current behaviour"), which no other attempt
-or run repeats.
+anonymous dynamic samples (see "Current behaviour"), which no later
+attempt of that task repeats.
 
 **Delivery.** While an attempt runs, the port is attached to that attempt's
 feeder (after `log_start`, `task/run.py:1277`), which delivers requests as
@@ -871,15 +877,16 @@ port open, so its `sent` requests reach the retry.
 This design builds on unique ids for anonymous dynamic samples (decision:
 Ransom, 2026-11-04). Every sample a task admits without an id after its
 seed (from `next_samples()`, the task's own `enqueue_sample()`, a callback
-follow-up, or a handle) gets a generated id that no other attempt or run
-gives a sample (see "Current behaviour"); seed samples and explicit ids
-keep theirs. So an anonymous dynamic sample's id never appears in another
-attempt: a lookup or a checkpoint resume misses, and the sample runs fresh.
+follow-up, or a handle) gets a generated id that no later attempt of the
+same task gives a sample (see "Current behaviour"); seed samples and
+explicit ids keep theirs. Reuse and checkpoint resume read only the task's
+own prior log, so an anonymous dynamic sample's id never matches there: a
+lookup or a checkpoint resume misses, and the sample runs fresh.
 Port deliveries therefore shift no id that a rerun would reuse: with
 positional ids and an empty seed, source sample A, port request P and P's
 callback follow-up B would get ids 1, 2 and 3, and a later run without P
 would give B id 2 and hand it P's result; with generated ids each of the
-three has an id that no later run gives anything.
+three has an id that no later run of the task gives anything.
 
 What the design records, and which restrictions stay, and why:
 
@@ -909,7 +916,7 @@ What the design records, and which restrictions stay, and why:
   in-run retries ("No in-run retry after a delivery").
 - **No reuse from such a log** (stays, for explicit ids). Anonymous port
   samples, and the anonymous samples admitted after them, are safe: their
-  generated ids never recur. A port sample sent with an explicit id is not: no
+  generated ids never recur in a later attempt of the task. A port sample sent with an explicit id is not: no
   rerun regenerates it, and a rerun's own source can produce the same id.
   In a log where request P with id `"x"` completed, a rerun whose source
   adds a sample `"x"` (which the first attempt could not do after P
@@ -1659,8 +1666,8 @@ test touched), with mockllm models:
     runs B and drops A; with one seed and `limit=2`, a control-channel
     rerun of the seed during a blocked pull whose `sample_complete` returns
     A, while the pull later returns B, runs B and drops A; in both, the
-    samples that run have generated ids that no other attempt gives a
-    sample (the existing
+    samples that run have generated `dyn-<token>-<counter>` ids, not
+    positional ones (the existing
     `tests/_control/test_requeue.py` case extended); a port sample's
     follow-up during a blocked pull is held until the pull returns; a handle
     sample arriving while the pull blocks is admitted first and takes the
