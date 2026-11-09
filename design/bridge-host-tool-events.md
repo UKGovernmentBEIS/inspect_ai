@@ -390,9 +390,37 @@ data-URI images in a transcript tool event's result, native or host, follow
 (`ToolEvent.events`) stay inline. Text results stay inline: the same text is already inline in the tool
 message the model sees next.
 
-`message_id` is `None`: the agent builds the `ChatMessageTool` itself and
-sends it in a later request, so its id does not exist when the event is
-finalised. `agent` is `None`; `agent_span_id` is the tool's, as natively.
+`message_id` is the id of the tool message holding the result when the link
+is exact, and `None` otherwise. The agent builds that `ChatMessageTool` itself
+and sends it in a later request, so its id does not exist when the event is
+finalised. The bridge waits for it (`_await_result_message()`) and sets
+`message_id` when the request arrives (`_link_result_messages()`), updating
+the completed event through the transcript's event-update path
+(`_event_updated()`), as for a pending event. Transcript subscribers see the
+event completed with `message_id=None` and then updated; a log read back has
+it set.
+
+The link is exact when all of these hold:
+
+- The reply holding the call is placed under the id the bridge handed it
+  with (`_align_with_tracked()`), and no message the bridge could not place
+  took that id first.
+- The call ran once, its id is unique in the reply, and no other call in the
+  reply has its function and arguments.
+- Its execution matched no other reply's pending grant, exactly or once
+  undeclared arguments are dropped. `consume_tool_execution_grant()` marks
+  every proposal the execution could belong to `ambiguous`, so none of them
+  links.
+- Exactly one tool message answers it, by call id, before the next assistant
+  message with tool calls, and that message is new in the request: one sent
+  before, or equal to one sent before, may hold another result.
+
+Otherwise `message_id` stays `None`. This includes a Google result whose call
+id the dialect inferred from order (a call sharing its function with another),
+a call dropped from the awaited calls (the bridge tracks at most 256, dropping
+the oldest replies' first), and a call proposed before a checkpoint resume.
+
+`agent` is `None`; `agent_span_id` is the tool's, as natively.
 
 ## Consumers
 
@@ -490,7 +518,8 @@ finalised. `agent` is `None`; `agent_span_id` is the tool's, as natively.
   while a host call is pending keeps a pending event that resume never
   completes, as for a native tool. Grants are not restored, so a proposal
   made before a checkpoint does not pair after resume and, on a server that
-  requires proposals, its call is denied.
+  requires proposals, its call is denied. Its result is not linked
+  (`message_id` stays `None`).
 
 ## Security
 
@@ -525,8 +554,6 @@ The untrusted input is the agent's `tools/call`: `server`, `tool` and
   proposing call's).
 - **Native error wording on the wire.** A mapped exception reaches the agent
   as its own text, not the `ToolCallError` wording the event records.
-- **Back-filling `ToolEvent.message_id`** when the agent's `ChatMessageTool`
-  arrives, which needs a hooks-safe way to update a completed event.
 - **Grants and proposals across checkpoint restore** (registering the grant
   store with the checkpointer).
 - **A viewer badge** for `metadata.bridge` (host execution, denied, exempt) on
