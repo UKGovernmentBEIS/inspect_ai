@@ -1304,6 +1304,44 @@ def test_a_call_the_agent_was_handed_stays_as_its_provider_read_it() -> None:
     assert _LOOKED_UP == ["Oslo"]
 
 
+def test_a_call_the_sidecar_changed_runs_as_its_provider_read_it() -> None:
+    # the sidecar names the changed call as the model wrote it, and the eval's
+    # provider under the task's tool's name; the change runs under that name
+    modified = {
+        "id": "call_1",
+        "function": "weather_as_the_model_wrote_it",
+        "arguments": {"city": "Oslo"},
+    }
+    proposed = _turn_json(("call_1", "Oslo"))
+    proposed["tool_calls"][0]["function"] = "weather_as_the_model_wrote_it"
+    stand_in = StandInSidecar(
+        turns=[
+            Turn(
+                calls=[("call_1", "weather", {"city": "Oslo"})],
+                judgment={
+                    "outcome": "proceed",
+                    "steps": [
+                        {
+                            "stage": "tool_call",
+                            "call": "call_1",
+                            "decision": {"action": "modify", "modified": modified},
+                        }
+                    ],
+                    "proposed": {"message": proposed, "results": {}},
+                },
+            ),
+            Turn(text="Sunny in Oslo."),
+        ]
+    )
+
+    sample = _run_agent(stand_in)
+
+    [call] = _turns(sample)[0].tool_calls or []
+    assert (call.function, call.arguments) == ("weather", {"city": "Oslo"})
+    assert _tool_messages(sample)["call_1"].error is None
+    assert _LOOKED_UP == ["Oslo"]
+
+
 def test_a_call_the_sidecar_changed_runs_with_its_new_arguments() -> None:
     modified = {"id": "call_1", "function": "weather", "arguments": {"city": "Oslo"}}
     # a changed call is in the turn as it ran; the model's arguments are never

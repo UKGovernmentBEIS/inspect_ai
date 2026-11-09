@@ -156,6 +156,15 @@ def act_on_judgment(
     if bridged:
         return output
 
+    # The calls the agent was handed, as its provider read them. A provider
+    # may read a call under another name and arguments than the sidecar
+    # writes, as the Responses converter does for the planning tools, and the
+    # task's tool goes by the provider's.
+    handed = (
+        {call.id: call for call in output.choices[0].message.tool_calls or []}
+        if output.choices
+        else {}
+    )
     decisions: dict[str, CallDecision] = {}
     turn = judgment.withheld if judgment.outcome == "reject" else judgment.proposed
     if turn is not None:
@@ -172,19 +181,20 @@ def act_on_judgment(
             if step.decision.get("action") == "modify" and step.decision.get(
                 "modified"
             ):
+                # the sidecar wrote the change into the reply, so the call
+                # the agent was handed is the changed call as the provider
+                # read it, which is what runs
                 modified = _TOOL_CALL.validate_python(step.decision["modified"])
-                decisions[step.call] = CallDecision("modify", modified=modified)
+                decisions[step.call] = CallDecision(
+                    "modify", modified=handed.get(step.call, modified)
+                )
 
     _decide(decisions)
     if judgment.outcome == "proceed" and output.choices and turn is not None:
-        # The model's turn as the eval holds it: each call taken out put back
-        # with its id and function only, and each changed call as it ran. The
-        # calls the agent was handed stay as its provider read them, since a
-        # provider may read a call under another name than the sidecar does,
-        # as the Responses converter does for the planning tools, and the
-        # task's tool goes by that name.
+        # the model's turn as the eval holds it: each call taken out put back
+        # with its id and function only, and each changed call as it ran,
+        # with the calls the agent was handed as its provider read them
         own = output.choices[0].message
-        handed = {call.id: call for call in own.tool_calls or []}
         calls = [handed.get(call.id, call) for call in _message(turn).tool_calls or []]
         output.choices[0].message = own.model_copy(update={"tool_calls": calls})
         if calls:
