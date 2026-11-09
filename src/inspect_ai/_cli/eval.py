@@ -2668,6 +2668,12 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     help=INCOMPLETE_MAX_HELP,
     envvar="INSPECT_EVAL_INCOMPLETE_MAX",
 )
+@click.option(
+    "--model-cost-config",
+    type=str,
+    help="YAML or JSON file with model prices for cost tracking.",
+    envvar="INSPECT_EVAL_MODEL_COST_CONFIG",
+)
 @scanner_options
 @common_options
 def eval_retry_command(
@@ -2707,6 +2713,7 @@ def eval_retry_command(
     checkpoint: str | None,
     incomplete_action: IncompleteAction,
     incomplete_max: float | None,
+    model_cost_config: str | None,
     scanner: str | None,
     scanner_arg: tuple[str, ...] | None,
     scans: str | None,
@@ -2862,6 +2869,7 @@ def eval_retry_command(
                 checkpoint=parse_checkpoint(checkpoint),
                 incomplete_action=incomplete_action,
                 incomplete_max=incomplete_max,
+                model_cost_config=model_cost_config,
             )
 
         if json_output:
