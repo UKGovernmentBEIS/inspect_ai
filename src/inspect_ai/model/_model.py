@@ -1316,7 +1316,9 @@ class Model:
         """Compact messages using provider-native compaction.
 
         Delegates to the model provider's native compaction API when available.
-        Automatically tracks token usage and enforces token limits.
+        Automatically tracks token usage and enforces token and cost limits.
+        Once one of these limits has been reached, the call is refused before
+        it reaches the provider.
 
         Args:
           input: Chat message input (if a `str` is passed it is converted to a `ChatUserMessage`).
@@ -1375,6 +1377,9 @@ class Model:
                 messages: list[ChatMessage],
             ) -> tuple[list[ChatMessage], ModelUsage | None]:
                 await wait_generate_dispatch(self, slot)
+                # a concurrent call can reach a limit while this one waits for
+                # its slot, the pause gate, a retry or a caller's lock
+                _check_limits_before_dispatch()
                 with attempts.attempt():
                     return await self.api.compact(messages, tools, config, instructions)
 

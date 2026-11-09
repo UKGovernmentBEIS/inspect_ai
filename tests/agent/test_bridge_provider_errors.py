@@ -37,6 +37,7 @@ from inspect_ai._util.registry import _registry
 from inspect_ai.agent import Agent, agent, run
 from inspect_ai.agent._agent import AgentState
 from inspect_ai.agent._bridge import bridge as bridge_module
+from inspect_ai.agent._bridge import util as bridge_util
 from inspect_ai.agent._bridge._errors import (
     PROVIDER_ERROR_KEY,
     ResponseFilterError,
@@ -71,6 +72,7 @@ from inspect_ai.model._model import (
     ModelGenerateFilter,
     ModelRefusalError,
     ModelResponseFilter,
+    _check_limits_before_dispatch,
 )
 from inspect_ai.model._model_data.model_data import ModelCost, ModelInfo
 from inspect_ai.model._model_info import clear_model_info_cache, set_model_info
@@ -2197,6 +2199,76 @@ def test_request_after_a_reached_budget_makes_no_model_call(
     assert (calls, filtered) == (1, 1)
     events = outcome.sample.events
     assert sum(isinstance(event, ModelEvent) for event in events) == 1
+
+
+@pytest.mark.parametrize(
+    "make_limit",
+    [
+        # the first compaction's 7 tokens cross it
+        pytest.param(lambda: token_limit(5), id="token"),
+        # the first compaction's $0.007 at $1000 per million tokens crosses it
+        pytest.param(lambda: cost_limit(0.001), id="cost"),
+    ],
+)
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+@pytest.mark.usefixtures("_model_cost")
+def test_compactions_queued_behind_a_bridged_limit_make_no_model_calls(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    backend: str,
+    make_limit: Callable[[], Limit],
+) -> None:
+    """Concurrent requests waiting to compact when a compaction crosses a limit make no model call.
+
+    Three requests pass the bridge's limit check before any compaction ends,
+    then wait for the compaction lock. The first compaction crosses the token
+    or cost limit. The compactions still waiting are refused before they reach
+    the provider, and every request gets the limit's error reply.
+    """
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    requests = [_Request(content=f"Say hi {i}.") for i in range(3)]
+    checked = 0
+    all_checked: list[anyio.Event] = []
+
+    def count_checks() -> None:
+        nonlocal checked
+        _check_limits_before_dispatch()
+        if not all_checked:
+            all_checked.append(anyio.Event())
+        checked += 1
+        if checked == len(requests):
+            all_checked[0].set()
+
+    calls = 0
+
+    async def compact(*args: Any) -> tuple[list[ChatMessage], ModelUsage]:
+        nonlocal calls
+        calls += 1
+        # every request has passed the bridge's check before this one ends
+        with anyio.fail_after(10):
+            await all_checked[0].wait()
+        return await _compact_natively(*args)
+
+    monkeypatch.setattr(bridge_util, "_check_limits_before_dispatch", count_checks)
+    monkeypatch.setattr(mockllm.MockLLM, "compact", compact)
+    limit = make_limit()
+
+    outcome = _run_bridged_agent(
+        tmp_path,
+        monkeypatch,
+        limit,
+        scaffold=_Scaffold(
+            requests,
+            # with the (empty) tools, a request is 4 tokens and its compacted input 3
+            compaction=CompactionNative(threshold=3),
+        ),
+    )
+
+    _assert_agent_limit(outcome, limit)
+    _assert_error_replies(outcome.replies, count=len(requests))
+    assert (checked, calls) == (len(requests), 1)
+    events = outcome.sample.events
+    assert not any(isinstance(event, ModelEvent) for event in events)
 
 
 @pytest.mark.parametrize("shortened_by", ["compaction", "filter"])
