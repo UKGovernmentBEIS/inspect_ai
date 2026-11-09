@@ -8612,6 +8612,92 @@ async def test_google_results_link_only_when_their_function_names_one_call(
             assert f"contents {path}" in texts[event.message_id]
 
 
+async def _answer_host_read(
+    dialect: HostDialect,
+    answer: Callable[[_HostConversation, list[tuple[str, Any]]], None],
+) -> tuple[ToolEvent, list[ChatMessageTool]]:
+    """Run one host `read_file` call returning "NEW", let `answer` answer it, and send the answers.
+
+    Returns the execution's event and the tool messages of the request.
+    """
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            tool_calls_output(
+                ToolCall(id="call_1", function="read_file", arguments={"path": "p"}),
+                content="Reading p.",
+            ),
+            ModelOutput.from_content("mockllm/model", "Noted."),
+        ],
+    )
+    bridge = SandboxAgentBridge(
+        state=AgentState(messages=[ChatMessageUser(content="Read p.")]),
+        filter=None,
+        retry_refusals=None,
+        compaction=None,
+        port=13131,
+        model=None,
+        model_aliases={"inspect": model},
+        bridged_tools={"a": {"read_file": read_file(AsyncMock(return_value="NEW"))}},
+    )
+    [info] = declare("read_file")
+    conversation = _HostConversation(dialect, "Read p.", info)
+    with recorded_transcript() as recorded:
+        calls = await conversation.request(bridge)
+        await call_host_tool(bridge)("a", "read_file", calls[0][1])
+        answer(conversation, calls)
+        await conversation.request(bridge)
+    [event] = [e for e in recorded.events if isinstance(e, ToolEvent)]
+    assert event.result == "NEW"
+    model_events = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    tools = [m for m in model_events[-1].input if isinstance(m, ChatMessageTool)]
+    return event, tools
+
+
+@pytest.mark.parametrize("answers", [["Stale.", "NEW"], ["NEW"]], ids=["twice", "once"])
+@pytest.mark.parametrize("dialect", ["google", "completions", "responses", "anthropic"])
+async def test_host_call_answered_twice_links_neither_answer(
+    dialect: HostDialect, answers: list[JsonValue]
+) -> None:
+    """A host call the scaffold answers twice links neither answer; answered once, it links.
+
+    Which answer holds the execution's result can't be told. Google answers
+    name only their function, so both answer the one `read_file` call.
+    """
+    event, tools = await _answer_host_read(
+        dialect,
+        lambda conversation, calls: conversation.results(calls * len(answers), answers),
+    )
+    assert len(tools) == len(answers)
+    assert event.message_id == (tools[0].id if len(answers) == 1 else None)
+
+
+@pytest.mark.parametrize("answers", [["Stale.", "NEW"], ["NEW"]], ids=["twice", "once"])
+@pytest.mark.parametrize("split", [False, True], ids=["together", "split"])
+@pytest.mark.parametrize("key", ["functionResponse", "function_response"])
+@pytest.mark.parametrize("role", ["user", "model"])
+async def test_google_responses_naming_one_call_link_only_alone(
+    role: str, key: str, split: bool, answers: list[str]
+) -> None:
+    """Several Google responses naming one call's function leave it unlinked, the first too.
+
+    A response names only its function, so the first takes the call's id and
+    the next an id of its own. Which of them holds the execution's result
+    can't be told, in either role or key spelling, sent in one turn or one
+    turn each. A single response links.
+    """
+
+    def answer(conversation: _HostConversation, calls: list[tuple[str, Any]]) -> None:
+        [(name, _)] = calls
+        parts = [{key: {"name": name, "response": {"output": a}}} for a in answers]
+        turns = [[part] for part in parts] if split else [parts]
+        conversation.history.extend({"role": role, "parts": turn} for turn in turns)
+
+    event, tools = await _answer_host_read("google", answer)
+    assert len(tools) == len(answers)
+    assert event.message_id == (tools[0].id if len(answers) == 1 else None)
+
+
 @pytest.mark.parametrize("compacted", [False, True], ids=["full", "compacted"])
 async def test_reordered_google_results_never_take_each_others_ids(
     compacted: bool,

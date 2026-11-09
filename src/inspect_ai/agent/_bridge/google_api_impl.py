@@ -379,8 +379,11 @@ def messages_from_google_contents(
 
     A `functionResponse` names its function but not its call, so it takes
     the id of the next pending call of the previous model turn with that
-    name. Where that turn had several such calls the id is inferred from
-    order, and the tool message is appended to `inferred_results`.
+    name. The id is read only when that turn had one call with the name and
+    one response names it. Otherwise it is inferred from order (several
+    calls) or another response may be the call's answer (several
+    responses), and every response naming the function is appended to
+    `inferred_results`.
     """
     messages: list[ChatMessage] = []
 
@@ -434,14 +437,19 @@ def messages_from_google_contents(
     # track tool call IDs by function name for matching with tool results
     pending_tool_calls: dict[str, _PendingCalls] = {}
 
+    def settle_pending() -> None:
+        if inferred_results is not None:
+            for pending in pending_tool_calls.values():
+                if pending.shared or len(pending.responses) > 1:
+                    inferred_results.extend(pending.responses)
+        pending_tool_calls.clear()
+
     for content in contents:
         role = content.get("role", "user")
         parts = content.get("parts", [])
 
         if role == "user":
-            user_content, tool_messages = _extract_user_parts(
-                parts, pending_tool_calls, inferred_results
-            )
+            user_content, tool_messages = _extract_user_parts(parts, pending_tool_calls)
             if user_content:
                 # strip duplicate system prompt prefix
                 user_content = _strip_system_prompt_prefix(
@@ -462,7 +470,7 @@ def messages_from_google_contents(
             func_response_parts = [p for p in parts if _is_function_response_part(p)]
             if func_response_parts:
                 _, tool_messages = _extract_user_parts(
-                    func_response_parts, pending_tool_calls, inferred_results
+                    func_response_parts, pending_tool_calls
                 )
                 messages.extend(tool_messages)
 
@@ -470,11 +478,12 @@ def messages_from_google_contents(
             assistant_content, tool_calls = _extract_model_parts(other_parts)
 
             if tool_calls:
-                pending_tool_calls.clear()
+                settle_pending()
                 functions = Counter(tc.function for tc in tool_calls)
                 for tc in tool_calls:
                     pending_tool_calls.setdefault(
-                        tc.function, _PendingCalls(deque(), functions[tc.function] > 1)
+                        tc.function,
+                        _PendingCalls(deque(), functions[tc.function] > 1, []),
                     ).ids.append(tc.id)
 
             # Only emit an assistant turn when it carries real content or tool calls;
@@ -488,6 +497,7 @@ def messages_from_google_contents(
                     )
                 )
 
+    settle_pending()
     return messages
 
 
@@ -551,11 +561,13 @@ class _PendingCalls(NamedTuple):
     shared: bool
     """Whether the turn had more than one call with the name."""
 
+    responses: list[ChatMessageTool]
+    """The tool messages of the responses naming the function since the turn."""
+
 
 def _extract_user_parts(
     parts: list[dict[str, Any]],
     pending_tool_calls: dict[str, _PendingCalls],
-    inferred_results: list[ChatMessageTool] | None,
 ) -> tuple[list[Content] | str | None, list[ChatMessageTool]]:
     # pending_tool_calls maps function_name -> call_ids from the previous
     # model message, used to match functionResponse with the correct tool_use_id.
@@ -594,7 +606,6 @@ def _extract_user_parts(
             response = func_response.get("response", {})
 
             pending = pending_tool_calls.get(func_name)
-            inferred = pending is not None and bool(pending.ids) and pending.shared
             if pending is not None and pending.ids:
                 call_id = pending.ids.popleft()
             else:
@@ -612,8 +623,8 @@ def _extract_user_parts(
                 tool_call_id=call_id, function=func_name, content=response_content
             )
             tool_messages.append(tool_message)
-            if inferred and inferred_results is not None:
-                inferred_results.append(tool_message)
+            if pending is not None:
+                pending.responses.append(tool_message)
 
     if len(content_parts) == 1 and isinstance(content_parts[0], ContentText):
         return content_parts[0].text, tool_messages
