@@ -351,10 +351,31 @@ async def test_a_base_url_set_in_the_environment_is_probed(
     [
         (StandInSidecar(info=None), "has no sidecar", True),
         (StandInSidecar(info={"models": []}), "not as a sidecar", True),
-        (StandInSidecar(probe_status=401), "failed", False),
+        # the endpoint answered, so no sidecar can be reached there
+        (StandInSidecar(probe_status=400), "answered the probe with 400", True),
+        (StandInSidecar(probe_status=401), "answered the probe with 401", True),
+        (StandInSidecar(probe_status=403), "answered the probe with 403", True),
+        (StandInSidecar(probe_status=405), "answered the probe with 405", True),
+        # may pass next time
+        (StandInSidecar(probe_status=408), "failed", False),
+        (StandInSidecar(probe_status=429), "failed", False),
+        (StandInSidecar(probe_status=500), "failed", False),
+        (StandInSidecar(probe_status=502), "failed", False),
         (StandInSidecar(probe_status=503), "failed", False),
     ],
-    ids=["404", "not a sidecar", "401", "503"],
+    ids=[
+        "404",
+        "not a sidecar",
+        "400",
+        "401",
+        "403",
+        "405",
+        "408",
+        "429",
+        "500",
+        "502",
+        "503",
+    ],
 )
 async def test_an_answer_that_isnt_a_sidecar_finds_none(
     stand_in: StandInSidecar, says: str, definite: bool
@@ -364,6 +385,29 @@ async def test_an_answer_that_isnt_a_sidecar_finds_none(
     assert isinstance(found, NoSidecar)
     assert says in found.reason
     assert found.definite is definite
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [httpx2.ConnectError("refused"), httpx2.ConnectTimeout("timed out")],
+    ids=["no connection", "timeout"],
+)
+async def test_a_probe_that_got_no_answer_cant_tell(failure: Exception) -> None:
+    def fail(request: httpx2.Request) -> httpx2.Response:
+        raise failure
+
+    model = get_model(
+        _MODELS["anthropic"],
+        base_url="http://proxy.test",
+        api_key="test-key",
+        memoize=False,
+        http_client=httpx2.AsyncClient(transport=httpx2.MockTransport(fail)),
+    )
+
+    found = await _probed(model)
+
+    assert isinstance(found, NoSidecar)
+    assert found.definite is False
 
 
 async def test_a_probe_that_cant_tell_is_asked_again_on_the_next_call(

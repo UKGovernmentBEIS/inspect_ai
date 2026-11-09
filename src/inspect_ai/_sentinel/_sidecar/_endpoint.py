@@ -198,10 +198,7 @@ async def probe(client: _Client) -> Sidecar | NoSidecar:
             options={"max_retries": 0, "timeout": PROBE_TIMEOUT},
         )
     except Exception as ex:
-        status = getattr(ex, "status_code", None)
-        if status == 404:
-            return NoSidecar(f"{origin} has no sidecar", definite=True)
-        return NoSidecar(f"probing {origin} for a sidecar failed: {ex}", definite=False)
+        return NoSidecar(*_no_answer(origin, getattr(ex, "status_code", None), ex))
 
     try:
         info = response.json()
@@ -224,6 +221,22 @@ async def probe(client: _Client) -> Sidecar | NoSidecar:
         )
     version = max(v for v in versions if v in VERSIONS)
     return Sidecar(origin, release, client.sdk, version)
+
+
+def _no_answer(origin: str, status: object, ex: Exception) -> tuple[str, bool]:
+    # An HTTP status means the endpoint answered: a 404 says there is no
+    # sidecar, and any other 4xx that none can be reached there with the
+    # model's credentials, as from a gateway that answers an unknown route
+    # with 403 or 405. A 408 or 429, a 5xx, a timeout or no connection may
+    # pass next time, so none of those settles it.
+    if status == 404:
+        return f"{origin} has no sidecar", True
+    if isinstance(status, int) and 400 <= status < 500 and status not in (408, 429):
+        return (
+            f"{origin} answered the probe with {status}, so no sidecar can be reached there",
+            True,
+        )
+    return f"probing {origin} for a sidecar failed: {ex}", False
 
 
 def _origin(base_url: Any) -> str:
