@@ -233,6 +233,7 @@ async def test_a_second_probe_of_a_model_waits_for_its_adapter_to_load(
     # tasks sharing a model probe it at once; the server counts as resolved
     # only once its adapter is loaded, so the second waits on the lock
     import threading
+    from functools import partial
 
     from inspect_ai.model._providers import vllm
 
@@ -251,22 +252,30 @@ async def test_a_second_probe_of_a_model_waits_for_its_adapter_to_load(
         api_key="test-key",
         memoize=False,
     )
-    returned_while_loading = False
+    assert isinstance(model.api, vllm.VLLMAPI)
+    lock = model.api._server._init_lock  # pyright: ignore[reportPrivateUsage]
+    second_returned: bool | None = None
 
     async def second_probe() -> None:
-        nonlocal returned_while_loading
+        nonlocal second_returned
         await proxy_client(model.api)
-        returned_while_loading = not release.is_set()
+        second_returned = not release.is_set()
 
-    async with anyio.create_task_group() as tg:
-        tg.start_soon(proxy_client, model.api)
-        await anyio.to_thread.run_sync(loading.wait)
-        tg.start_soon(second_probe)
-        # time enough for a probe that skipped the lock to return
-        await anyio.sleep(0.2)
+    # the loader is released however the probes end, so the worker thread
+    # holding the server's lock never outlives the test
+    try:
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(proxy_client, model.api)
+            assert await anyio.to_thread.run_sync(partial(loading.wait, 5))
+            tg.start_soon(second_probe)
+            # the second probe either returns at once, or waits on the lock
+            while second_returned is None and not lock.statistics().tasks_waiting:
+                await anyio.sleep(0)
+            release.set()
+    finally:
         release.set()
 
-    assert not returned_while_loading
+    assert second_returned is False
 
 
 @pytest.mark.parametrize("how", ["argument", "environment"])
