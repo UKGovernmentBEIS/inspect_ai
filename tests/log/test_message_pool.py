@@ -1132,7 +1132,19 @@ def test_msg_hash_handles_lone_surrogates_across_pool_roundtrip() -> None:
             content="user: \udc00",
             metadata={"key-\ud800": ["value-\udc00"]},
         ),
-        ChatMessageAssistant(content="assistant: \ud800"),
+        ChatMessageAssistant(
+            content="assistant: \ud800",
+            tool_calls=[
+                ToolCall(
+                    id="call-surrogate",
+                    function="lookup",
+                    arguments={
+                        "query": "value: \udc00",
+                        "nested": {"items": ["value-\ud800", "value-\udc00"]},
+                    },
+                )
+            ],
+        ),
         ChatMessageTool(
             tool_call_id="call-1",
             function="lookup",
@@ -1152,7 +1164,7 @@ def test_msg_hash_handles_lone_surrogates_across_pool_roundtrip() -> None:
         )
 
 
-def test_msg_hash_matches_pydantic_json_for_valid_unicode() -> None:
+def test_msg_hash_matches_pydantic_json_for_valid_messages() -> None:
     """Surrogate-safe serialization must not change hashes for valid messages."""
     messages: list[ChatMessage] = [
         ChatMessageSystem(content="system"),
@@ -1163,6 +1175,8 @@ def test_msg_hash_matches_pydantic_json_for_valid_unicode() -> None:
                 "a": [1, {"k": "v"}],
                 "nan": float("nan"),
                 "inf": float("inf"),
+                "small_exponent": 1e-7,
+                "small_decimal": 1e-5,
             },
         ),
         ChatMessageAssistant(
@@ -1174,7 +1188,11 @@ def test_msg_hash_matches_pydantic_json_for_valid_unicode() -> None:
                 ToolCall(
                     id="call-1",
                     function="lookup",
-                    arguments={"query": "café"},
+                    arguments={
+                        "query": "café",
+                        "small_exponent": 1e-7,
+                        "small_decimal": 1e-5,
+                    },
                 )
             ],
         ),

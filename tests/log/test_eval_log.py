@@ -508,6 +508,13 @@ def test_lone_surrogate_in_model_input_is_logged(
         "hi \\ud800 there",
     )
 
+    expected_inputs = ("hi \ud800 there", "hi \\ud800 there")
+    for sample in (log.samples[0], read_back.samples[0]):
+        [model_event] = [
+            event for event in sample.events if isinstance(event, ModelEvent)
+        ]
+        assert any(message.text in expected_inputs for message in model_event.input)
+
 
 def test_unicode_surrogates_are_escaped():
     task = Task(

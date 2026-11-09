@@ -28,7 +28,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from typing import Final, Literal, NamedTuple, TypeVar, cast
 
 from pydantic import JsonValue
-from pydantic_core import to_jsonable_python
+from pydantic_core import PydanticSerializationError, to_jsonable_python
 
 from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.lineage import eq_prefix_len, needs_strict_eq
@@ -52,16 +52,24 @@ def materialize_pooled_events(
 
 
 def _msg_hash(msg: ChatMessage) -> str:
-    # model_dump_json pre-encodes UTF-8 and rejects lone surrogates before
-    # mm3_hash can escape them; keep compact non-ASCII JSON for hash stability.
-    dumped = msg.model_dump(mode="json", exclude={"id"})
-    return mm3_hash(
-        json.dumps(
-            dumped,
-            ensure_ascii=False,
-            separators=(",", ":"),
+    # Preserve Pydantic's canonical JSON for ordinary messages: the stdlib
+    # encoder formats some finite floats differently, which would change
+    # persisted pool hashes. Fall back only when UTF-8 serialization rejects
+    # a lone surrogate; mm3_hash escapes that in the fallback string.
+    try:
+        return mm3_hash(msg.model_dump_json(exclude={"id"}))
+    except PydanticSerializationError as ex:
+        if "surrogates not allowed" not in str(ex):
+            raise
+
+        dumped = msg.model_dump(mode="json", exclude={"id"})
+        return mm3_hash(
+            json.dumps(
+                dumped,
+                ensure_ascii=False,
+                separators=(",", ":"),
+            )
         )
-    )
 
 
 def _msg_pool_jsonable(msg: ChatMessage) -> JsonValue:
