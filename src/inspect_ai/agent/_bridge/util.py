@@ -469,7 +469,8 @@ async def _apply_response_filter(
     takes it for the calls it carries (`carry_generation_assistant_internal`)
     from the returned output, or, when that has none (e.g. the filter rebuilt it
     from its fields), from the generation's output, so its calls replay in their
-    native form.
+    native form. Google reasoning anchors naming no returned call are removed
+    (`_drop_orphan_anchors`), so their signatures go on no other part.
 
     Exceptions are classified after unwrapping by hand, not with `inner_exception`,
     which follows `__context__` and can pick the exception already being handled.
@@ -546,8 +547,50 @@ async def _apply_response_filter(
         # text continued across requests is joined with no separator)
         filtered.completion = output.completion
     _check_provider_owned_content(output, filtered)
+    _drop_orphan_anchors(filtered)
     _settle_message_ids(output, filtered)
     return filtered
+
+
+def _drop_orphan_anchors(output: ModelOutput) -> None:
+    """Remove the Google reasoning anchors that name none of their message's calls.
+
+    Google replays an anchor's thought signature on the call it names
+    (`gemini_function_call_id`). The serializer takes an anchor naming no call
+    in its message (one a response filter removed or renamed) as pending
+    reasoning, and puts its signature on the next part or the first unanchored
+    call. A message whose calls are left with no anchor keeps one orphan
+    anchor, without its signature, at the end of its content: with no anchor,
+    the serializer would put any other pending signature (e.g. a signed text
+    part's) on the first call.
+    """
+    for choice in output.choices:
+        message = choice.message
+        if isinstance(message.content, str):
+            continue
+        call_ids = {call.id for call in message.tool_calls or []}
+        content: list[Content] = []
+        orphan: Content | None = None
+        for part in message.content:
+            call_id = _anchor_call_id(part)
+            if call_id is None or call_id in call_ids:
+                content.append(part)
+            else:
+                orphan = part
+        if orphan is None:
+            continue
+        if call_ids and not any(_anchor_call_id(part) for part in content):
+            content.append(orphan.model_copy(update={"reasoning": ""}, deep=True))
+        message.content = content
+
+
+def _anchor_call_id(content: Content) -> str | None:
+    """The call a Google reasoning anchor names, or None for other content."""
+    if isinstance(content, ContentReasoning) and isinstance(content.internal, dict):
+        call_id = content.internal.get("gemini_function_call_id")
+        if isinstance(call_id, str):
+            return call_id
+    return None
 
 
 def _settle_message_ids(original: ModelOutput, filtered: ModelOutput) -> None:

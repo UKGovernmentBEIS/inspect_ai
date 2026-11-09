@@ -8907,6 +8907,103 @@ async def test_parallel_calls_never_replay_another_calls_state(
     ), replayed
 
 
+@pytest.mark.parametrize("anchors", ["kept", "signed", "none"])
+@pytest.mark.parametrize("renamed", [False, True])
+@pytest.mark.parametrize("rebuilt", [False, True])
+@pytest.mark.parametrize("kept", ["first", "last"])
+@pytest.mark.parametrize(
+    ("shared", "outcome"),
+    [
+        *[
+            (shared, outcome)
+            for shared in [True, False]
+            for outcome in ["accepted", "sentinel_rejected", "approval_rejected"]
+        ],
+        # without a sentinel, accepted calls sharing an id replay by id, as on main
+        (False, "unchecked"),
+    ],
+)
+async def test_a_google_anchor_naming_no_returned_call_signs_no_call(
+    shared: bool, outcome: str, kept: str, rebuilt: bool, renamed: bool, anchors: str
+) -> None:
+    """A filter keeps one call, maybe renaming it, and some or none of the anchors.
+
+    An anchor whose call the filter removed or renamed names no returned call;
+    its signature must not go on the call that is left. The kept call keeps its
+    own signature only when it keeps its id and anchor and no other call shared
+    that id.
+    """
+    from contextlib import AbstractContextManager, nullcontext
+
+    init_sample_assistant_internal()
+    generation, tools, wire = _calls_reading_old_then_new("google", shared)
+    model = Parsing(generation, lambda: calls_output(), wire=wire)
+    bridge = in_process_bridge([])
+
+    async def keep_one(
+        model: Any, output: ModelOutput, input: GenerateInput
+    ) -> ModelOutput:
+        calls = output.message.tool_calls or []
+        if not calls or isinstance(output.message.content, str):
+            return output
+        output.message.tool_calls = calls[:1] if kept == "first" else calls[-1:]
+        if renamed:
+            output.message.tool_calls[0].id = "filter_id"
+        if anchors == "signed":
+            output.message.content = [
+                part
+                for part in output.message.content
+                if isinstance(part, ContentReasoning) and part.reasoning
+            ]
+        elif anchors == "none":
+            output.message.content = []
+        return ModelOutput.model_validate(output.model_dump()) if rebuilt else output
+
+    bridge.response_filter = keep_one
+    if outcome == "approval_rejected":
+        bridge.approval = [ApprovalPolicy(rejecting_approver(None), "*")]
+    sentinel: AbstractContextManager[None] = (
+        nullcontext()
+        if outcome in ("approval_rejected", "unchecked")
+        else active(
+            [
+                bridge_reject_nth(None)
+                if outcome == "sentinel_rejected"
+                else bridge_recording([])
+            ]
+        )
+    )
+
+    messages: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+    with sentinel:
+        output, _ = await bridge_generate(
+            bridge,
+            model.model,
+            list(messages),
+            tools,
+            None,
+            GenerateConfig(),
+            requested_model=None,
+        )
+        if outcome in ("accepted", "unchecked"):
+            await bridge_generate(
+                bridge,
+                model.model,
+                _answered(messages, output),
+                tools,
+                None,
+                GenerateConfig(),
+                requested_model=None,
+            )
+
+    [replayed] = model.wire[1]
+    path = "old.txt" if kept == "first" else "new.txt"
+    own = kept == "first" and not shared and not renamed and anchors != "none"
+    assert [(call[1], call[2]) for call in replayed] == [
+        (path, GOOGLE_SIGNATURE if own else None)
+    ]
+
+
 def _answered(input: list[ChatMessage], output: ModelOutput) -> list[ChatMessage]:
     """`input` continued with `output` and a result for each of its calls."""
     return [
