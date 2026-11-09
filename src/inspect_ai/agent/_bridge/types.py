@@ -11,6 +11,7 @@ from typing import (
     NoReturn,
     Sequence,
 )
+from weakref import WeakValueDictionary
 
 from pydantic import BaseModel
 from shortuuid import uuid
@@ -114,24 +115,28 @@ _NO_PLACEMENT = _PlacementState()
 """Placement state of a fresh bridge, or of a resume from a checkpoint written before it was kept."""
 
 
-class _HandedCall(NamedTuple):
-    """A call in a reply handed to the scaffold."""
+@dataclass(eq=False)
+class _HandedReply:
+    """A reply handed to the scaffold, shared by its calls (`_HandedCall`)."""
 
-    reply_id: str
+    id: str
     """Id of the reply."""
-
-    position: int
-    """The call's index in the reply."""
 
     calls: int
     """How many calls the reply has."""
 
+    unlinked: bool = False
+    """Whether an unplaced message took the reply's id (`AgentBridge._unlink`), so none of its executions links."""
 
-def _handed_calls(reply_id: str, calls: Sequence[ToolCall]) -> list[_HandedCall]:
-    """The calls of a reply handed to the scaffold, for `AgentBridge._await_result_message`."""
-    return [
-        _HandedCall(reply_id, position, len(calls)) for position in range(len(calls))
-    ]
+
+class _HandedCall(NamedTuple):
+    """A call in a reply handed to the scaffold."""
+
+    reply: _HandedReply
+    """The reply."""
+
+    position: int
+    """The call's index in the reply."""
 
 
 @dataclass
@@ -316,6 +321,10 @@ class AgentBridge:
         self._pending_operator = 0
         self._awaited_results: dict[str, _AwaitedReply] = {}
         """Per reply handed to the scaffold, its executed calls awaiting their results."""
+        self._handed_replies: WeakValueDictionary[str, _HandedReply] = (
+            WeakValueDictionary()
+        )
+        """Replies handed to the scaffold by id, while a call of theirs can execute (`_handed_calls`)."""
         self._operator_keys: set[str] = set()
         self._warned_request_settings: set[str] = set()
 
@@ -465,6 +474,22 @@ class AgentBridge:
     _proposing_call_verified: list[bool] | None = None
     """Per-call filter verification, aligned with the calls being registered."""
 
+    def _handed_calls(
+        self, reply_id: str, calls: Sequence[ToolCall]
+    ) -> list[_HandedCall]:
+        """The calls of a reply handed to the scaffold, for `_await_result_message`.
+
+        They share one `_HandedReply`, which `_unlink` finds by the reply's id
+        for as long as a call's proposal holds it (`SandboxAgentBridge` keeps
+        proposals while one of their calls can still execute), so an
+        execution completing after the reply was unlinked stays unlinked.
+        """
+        reply = self._handed_replies.get(reply_id)
+        if reply is None:
+            reply = _HandedReply(reply_id, len(calls))
+            self._handed_replies[reply_id] = reply
+        return [_HandedCall(reply, position) for position in range(len(calls))]
+
     def _await_result_message(
         self, handed: _HandedCall, event: "ToolEvent", linkable: bool = True
     ) -> None:
@@ -474,17 +499,20 @@ class AgentBridge:
         later request (`_link_result_messages`). A second execution of the call,
         or one that may have run another call (not `linkable`), settles it
         unlinked, since which execution a result holds is unknown; one after
-        the call settled leaves it as it is. At most
+        the call settled, or of a reply unlinked before it completed, leaves it
+        as it is. At most
         `_MAX_AWAITED_RESULTS` calls are tracked; the oldest replies' calls are
         dropped (left unlinked) beyond that. A dropped call's later execution
         would be tracked as its first, so the caller passes `linkable=False`
         for any execution after a call's first.
         """
         reply = self._awaited_results.setdefault(
-            handed.reply_id, _AwaitedReply(handed.calls)
+            handed.reply.id, _AwaitedReply(handed.reply.calls)
         )
         executed = handed.position in reply.events
-        reply.events[handed.position] = event if linkable and not executed else None
+        reply.events[handed.position] = (
+            event if linkable and not executed and not handed.reply.unlinked else None
+        )
         tracked = sum(len(reply.events) for reply in self._awaited_results.values())
         while tracked > _MAX_AWAITED_RESULTS:
             oldest = next(iter(self._awaited_results))
@@ -704,12 +732,17 @@ class AgentBridge:
         return _UnplacedId(uuid(), True)
 
     def _unlink(self, message_id: str) -> None:
-        """Leave a handed reply's waiting calls unlinked once an unplaced message has its id.
+        """Leave a handed reply's calls unlinked once an unplaced message has its id.
 
         The unplaced message may be an equal reply's copy, so a request that
-        later places it under that id doesn't show which reply it is.
+        later places it under that id doesn't show which reply it is. That
+        holds for the calls whose executions complete later too.
         """
-        reply = self._awaited_results.get(self._edit_root(message_id))
+        root = self._edit_root(message_id)
+        handed = self._handed_replies.get(root)
+        if handed is not None:
+            handed.unlinked = True
+        reply = self._awaited_results.get(root)
         if reply is not None:
             reply.events = dict.fromkeys(reply.events)
 

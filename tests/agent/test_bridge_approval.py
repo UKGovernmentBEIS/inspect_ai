@@ -21,6 +21,7 @@ from typing import (
     Iterator,
     Literal,
     NamedTuple,
+    Sequence,
     cast,
     get_args,
 )
@@ -74,7 +75,7 @@ from inspect_ai.agent._bridge.sandbox.types import (
     _MAX_TOOL_EXECUTION_GRANTS,
     SandboxAgentBridge,
 )
-from inspect_ai.agent._bridge.types import AgentBridge, _handed_calls
+from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.agent._bridge.util import (
     bridge_generate,
     default_code_execution_providers,
@@ -5883,9 +5884,10 @@ class _HostConversation:
         prompt: str,
         info: ToolInfo,
         javascript: bool = False,
+        others: Sequence[ToolInfo] = (),
     ) -> None:
         self.dialect = dialect
-        self.info = info
+        self.infos = [info, *others]
         self.javascript = javascript
         self.history: list[dict[str, Any]] = (
             [{"role": "user", "parts": [{"text": prompt}]}]
@@ -5912,16 +5914,15 @@ class _HostConversation:
     async def _request(
         self, bridge: SandboxAgentBridge
     ) -> list[tuple[str, dict[str, Any]]]:
-        info = self.info
-        parameters = info.parameters.model_dump(exclude_none=True)
+        infos = self.infos
         match self.dialect:
             case "completions":
-                tool: dict[str, Any] = {
-                    "type": "function",
-                    "function": info.model_dump(exclude_none=True),
-                }
+                tools: list[dict[str, Any]] = [
+                    {"type": "function", "function": info.model_dump(exclude_none=True)}
+                    for info in infos
+                ]
                 completion = await inspect_completions_api_request(
-                    {"model": "inspect", "messages": self.history, "tools": [tool]},
+                    {"model": "inspect", "messages": self.history, "tools": tools},
                     None,
                     bridge,
                 )
@@ -5933,14 +5934,17 @@ class _HostConversation:
                     if call.type == "function"
                 ]
             case "responses":
-                tool = {
-                    "type": "function",
-                    "name": info.name,
-                    "description": info.description,
-                    "parameters": parameters,
-                }
+                tools = [
+                    {
+                        "type": "function",
+                        "name": info.name,
+                        "description": info.description,
+                        "parameters": _parameters(info),
+                    }
+                    for info in infos
+                ]
                 response = await inspect_responses_api_request(
-                    {"model": "inspect", "input": self.history, "tools": [tool]},
+                    {"model": "inspect", "input": self.history, "tools": tools},
                     None,
                     internal_web_search_providers(),
                     default_code_execution_providers(),
@@ -5956,17 +5960,20 @@ class _HostConversation:
                     if item.type == "function_call"
                 ]
             case "anthropic":
-                tool = {
-                    "name": info.name,
-                    "description": info.description,
-                    "input_schema": parameters,
-                }
+                tools = [
+                    {
+                        "name": info.name,
+                        "description": info.description,
+                        "input_schema": _parameters(info),
+                    }
+                    for info in infos
+                ]
                 message = await inspect_anthropic_api_request(
                     {
                         "model": "inspect",
                         "max_tokens": 1024,
                         "messages": self.history,
-                        "tools": [tool],
+                        "tools": tools,
                     },
                     None,
                     internal_web_search_providers(),
@@ -5989,17 +5996,19 @@ class _HostConversation:
                     if block.type == "tool_use"
                 ]
             case "google":
-                tool = {
-                    "functionDeclarations": [
-                        {
-                            "name": info.name,
-                            "description": info.description,
-                            "parametersJsonSchema": parameters,
-                        }
-                    ]
-                }
+                declarations = [
+                    {
+                        "name": info.name,
+                        "description": info.description,
+                        "parametersJsonSchema": _parameters(info),
+                    }
+                    for info in infos
+                ]
                 gemini = await inspect_google_api_request(
-                    {"contents": self.history, "tools": [tool]},
+                    {
+                        "contents": self.history,
+                        "tools": [{"functionDeclarations": declarations}],
+                    },
                     internal_web_search_providers(),
                     default_code_execution_providers(),
                     bridge,
@@ -6058,6 +6067,10 @@ class _HostConversation:
                         ],
                     }
                 )
+
+
+def _parameters(info: ToolInfo) -> dict[str, Any]:
+    return info.parameters.model_dump(exclude_none=True)
 
 
 def _javascript_json(value: Any, key: str | None = None) -> Any:
@@ -7191,6 +7204,117 @@ async def test_answer_sent_before_its_execution_completes_links_nothing(
     assert tool_events[-1].message_id == (latest if linked else None)
 
 
+@pytest.mark.parametrize(
+    "reuse",
+    ["while both run", "while one runs", "after both complete", "none"],
+)
+@pytest.mark.parametrize("dialect", ["google", "completions", "responses", "anthropic"])
+async def test_reply_reused_unplaced_while_its_calls_run_links_nothing(
+    dialect: HostDialect, reuse: str
+) -> None:
+    """A reply resent unplaced keeps its calls unlinked, also those whose executions complete after.
+
+    The reply reads `p` and lists `d`, both host tools. The scaffold runs
+    both in the background, sending a placeholder answer for each in the
+    reply's thread while they run. It then sends the reply again after a
+    summary (a compacted context), which places no thread, so the reply
+    takes the id it was sent with: which reply it is can't be told. `reuse`
+    is when, relative to the executions. The scaffold then sends the
+    executions' results in the compacted context, where the reply is placed.
+    No result links. With no reuse (`none`), the scaffold sends the results
+    in the reply's thread once both executions completed, and both link.
+    """
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            tool_calls_output(
+                ToolCall(id="call_read", function="read_file", arguments={"path": "p"}),
+                ToolCall(id="call_list", function="list_dir", arguments={"path": "d"}),
+                content="Reading p and listing d.",
+            ),
+            *[ModelOutput.from_content("mockllm/model", "Noted.")] * 3,
+        ],
+    )
+    started = {"p": anyio.Event(), "d": anyio.Event()}
+    release = {"p": anyio.Event(), "d": anyio.Event()}
+    completed = {"p": anyio.Event(), "d": anyio.Event()}
+
+    async def result(path: str) -> str:
+        started[path].set()
+        await release[path].wait()
+        return f"{path} result"
+
+    bridge = SandboxAgentBridge(
+        state=AgentState(messages=[ChatMessageUser(content="Read p, list d.")]),
+        filter=None,
+        retry_refusals=None,
+        compaction=None,
+        port=13131,
+        model=None,
+        model_aliases={"inspect": model},
+        bridged_tools={
+            "host": {
+                "read_file": read_file(AsyncMock(side_effect=result)),
+                "list_dir": served_tool(
+                    AsyncMock(side_effect=result), description=LIST_DIR, name="list_dir"
+                ),
+            }
+        },
+    )
+    [read_info] = declare("read_file")
+    [list_info] = declare("list_dir", description=LIST_DIR)
+    conversation = _HostConversation(
+        dialect, "Read p, list d.", read_info, others=[list_info]
+    )
+    with recorded_transcript() as recorded:
+        calls = await conversation.request(bridge)
+        assert [arguments for _, arguments in calls] == [{"path": "p"}, {"path": "d"}]
+        reply = conversation.history[1:]
+
+        async def execute(tool: str, arguments: dict[str, Any]) -> None:
+            await call_host_tool(bridge)("host", tool, arguments)
+            completed[arguments["path"]].set()
+
+        async def complete(path: str) -> None:
+            release[path].set()
+            await completed[path].wait()
+
+        async with anyio.create_task_group() as tg:
+            for (_, arguments), tool in zip(calls, ["read_file", "list_dir"]):
+                tg.start_soon(execute, tool, arguments)
+            for event in started.values():
+                await event.wait()
+            if reuse != "none":
+                conversation.results(calls, ["Running in background."] * 2)
+                await conversation.request(bridge)
+                if reuse == "while one runs":
+                    await complete("p")
+                elif reuse == "after both complete":
+                    await complete("p")
+                    await complete("d")
+                copied = [
+                    _user_turn(dialect, "Summary: reading p, listing d."),
+                    *reply,
+                ]
+                conversation.history = list(copied)
+                await conversation.request(bridge)
+                conversation.history = copied
+            for path in started:
+                release[path].set()
+        conversation.results(calls, ["p result", "d result"])
+        await conversation.request(bridge)
+
+    model_events = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    answers = [m.id for m in model_events[-1].input if m.role == "tool"][-2:]
+    tool_events = [e for e in recorded.events if isinstance(e, ToolEvent)]
+    assert sorted(str(e.result) for e in tool_events) == ["d result", "p result"]
+    expected = answers if reuse == "none" else [None, None]
+    links = {e.function: e.message_id for e in tool_events}
+    assert [links["read_file"], links["list_dir"]] == expected
+    # held only while a call of the reply can still execute
+    assert not bridge._handed_replies
+
+
 @agent
 def fabricating_host_scaffold(dialect: HostDialect, fabricated_id: str) -> Agent:
     """A scaffold running a reply's two calls as host tools, then sending in the reply's place its own text and one call under `fabricated_id`, with the first call's function and arguments and its own answer."""
@@ -7489,7 +7613,8 @@ async def test_google_results_link_only_when_their_function_names_one_call(
                 result=f"contents {path}",
             )
             bridge._await_result_message(
-                _handed_calls(cast(str, message.id), message.tool_calls)[index], event
+                bridge._handed_calls(cast(str, message.id), message.tool_calls)[index],
+                event,
             )
             events.append(event)
         results = [f"contents {p}" for p in paths]
@@ -7543,7 +7668,7 @@ async def test_reordered_google_results_never_take_each_others_ids(
         assert isinstance(message, ChatMessageAssistant) and message.tool_calls
         events = []
         for handed, output in zip(
-            _handed_calls(cast(str, message.id), message.tool_calls), outputs
+            bridge._handed_calls(cast(str, message.id), message.tool_calls), outputs
         ):
             call = message.tool_calls[handed.position]
             event = ToolEvent(
@@ -7627,7 +7752,7 @@ def test_matching_same_name_google_results_is_linear(host: bool) -> None:
         try:
             if host:
                 assert reply.id is not None
-                for handed in _handed_calls(reply.id, calls):
+                for handed in bridge._handed_calls(reply.id, calls):
                     bridge._await_result_message(
                         handed,
                         ToolEvent(
@@ -7845,7 +7970,7 @@ async def test_repeated_google_results_are_matched_in_linear_time(host: bool) ->
                 )
                 if host:
                     assert reply.id is not None
-                    [handed] = _handed_calls(reply.id, reply.tool_calls or [])
+                    [handed] = bridge._handed_calls(reply.id, reply.tool_calls or [])
                     bridge._await_result_message(
                         handed,
                         ToolEvent(

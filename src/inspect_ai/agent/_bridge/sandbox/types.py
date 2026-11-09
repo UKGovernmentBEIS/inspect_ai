@@ -17,7 +17,6 @@ from inspect_ai.agent._bridge.types import (
     AgentBridge,
     DispatchedCall,
     ReviewedCalls,
-    _handed_calls,
     _HandedCall,
     _unchanged,
 )
@@ -184,7 +183,7 @@ class SandboxAgentBridge(AgentBridge):
         """
         declared = _declarations_by_name(tools)
         handed = (
-            _handed_calls(self._proposing_reply_id, calls)
+            self._handed_calls(self._proposing_reply_id, calls)
             if self._proposing_reply_id is not None
             else None
         )

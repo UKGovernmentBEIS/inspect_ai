@@ -39,7 +39,7 @@ from inspect_ai.agent import Agent, AgentState, agent, agent_bridge, handoff, re
 from inspect_ai.agent._bridge import bridge as bridge_module
 from inspect_ai.agent._bridge import types as bridge_types
 from inspect_ai.agent._bridge.responses_impl import filter_duplicate_assistant_content
-from inspect_ai.agent._bridge.types import AgentBridge, _handed_calls, _unplaced_key
+from inspect_ai.agent._bridge.types import AgentBridge, _unplaced_key
 from inspect_ai.agent._bridge.util import apply_message_ids
 from inspect_ai.dataset import Sample
 from inspect_ai.event import ModelEvent, ToolEvent
@@ -2530,7 +2530,7 @@ def _awaiting(
     ]
     for event in events:
         bridge._await_result_message(
-            _handed_calls(reply.id, reply.tool_calls)[index], event
+            bridge._handed_calls(reply.id, reply.tool_calls)[index], event
         )
     return events
 
@@ -2735,7 +2735,7 @@ def _link_copy(
 ) -> list[str | None]:
     """Track executions of `handed` calls, place a copy with new `answers`; the events' message ids."""
     bridge = AgentBridge(AgentState(messages=[]))
-    tracked = _handed_calls("reply", handed)
+    tracked = bridge._handed_calls("reply", handed)
     events = []
     for position, result in results:
         call = handed[position]
