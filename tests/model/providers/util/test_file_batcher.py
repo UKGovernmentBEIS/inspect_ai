@@ -1,9 +1,15 @@
 from __future__ import annotations
 
+import anyio
 import pytest
-from pydantic import BaseModel
+from anyio.abc import ObjectReceiveStream
+from openai import APIStatusError, AsyncOpenAI
+from pydantic import BaseModel, JsonValue
 
 from inspect_ai.model._generate_config import BatchConfig
+from inspect_ai.model._openai import openai_should_retry
+from inspect_ai.model._providers._openai_batch import OpenAIBatcher
+from inspect_ai.model._providers.util.batch import Batch, BatchCheckResult, BatchRequest
 from inspect_ai.model._providers.util.file_batcher import FileBatcher
 from inspect_ai.model._retry import model_retry_config
 
@@ -19,6 +25,11 @@ class _Result(BaseModel):
 
 
 class _FileBatcher(FileBatcher[_Result, dict[str, list[str]]]):
+    async def _check_batch(
+        self, batch: Batch[_Result]
+    ) -> BatchCheckResult[dict[str, list[str]]]:
+        raise NotImplementedError
+
     async def _download_result_file(self, file_uri: str) -> bytes:
         return b'{"custom_id":"ok","response":{"value":"done"}}\n{"custom_id":"bad"}\n'
 
@@ -61,3 +72,73 @@ async def test_file_batcher_uses_key_when_malformed_row_has_no_custom_id():
     results = await batcher._parse_result_file("results")
 
     assert isinstance(results["bad"], KeyError)
+
+
+@pytest.mark.anyio
+async def test_unidentified_row_completes_missing_request() -> None:
+    class _UnidentifiedBatcher(_FileBatcher):
+        async def _download_result_file(self, file_uri: str) -> bytes:
+            return b'{"custom_id":"ok","response":{"value":"done"}}\n{"noid":1}\n'
+
+    batcher = _UnidentifiedBatcher(BatchConfig(), _retry_config(), 10, 1)
+    requests: dict[str, BatchRequest[_Result]] = {}
+    receivers: dict[str, ObjectReceiveStream[_Result | Exception]] = {}
+    for request_id in ("ok", "missing"):
+        send, receive = anyio.create_memory_object_stream[_Result | Exception](1)
+        requests[request_id] = BatchRequest(
+            request={}, result_stream=send, custom_id=request_id
+        )
+        receivers[request_id] = receive
+    batch = Batch(id="batch", requests=requests)
+    batcher._inflight_batches[batch.id] = batch
+
+    await batcher._wrapped_handle_batch_result(batch, {"result_uris": ["results"]})
+
+    with anyio.fail_after(1):
+        assert await receivers["ok"].receive() == _Result(value="done")
+        assert isinstance(await receivers["missing"].receive(), RuntimeError)
+    assert batch.id not in batcher._inflight_batches
+
+
+@pytest.mark.parametrize(
+    "row,status",
+    [
+        ({"custom_id": "req", "error": {"code": "429", "message": "rate limit"}}, 429),
+        (
+            {
+                "custom_id": "req",
+                "error": None,
+                "response": {
+                    "status_code": 503,
+                    "body": {"error": {"message": "unavailable"}},
+                },
+            },
+            503,
+        ),
+    ],
+)
+def test_openai_batch_status_errors_are_retryable(
+    row: dict[str, JsonValue], status: int
+) -> None:
+    batcher = OpenAIBatcher(
+        AsyncOpenAI(api_key="test"), BatchConfig(), _retry_config(), _Result
+    )
+    request_id, result = batcher._parse_jsonl_line(row)
+    assert request_id == "req"
+    assert isinstance(result, APIStatusError)
+    assert result.status_code == status
+    assert result.response.request.method == "POST"
+    assert openai_should_retry(result)
+
+
+def test_openai_batch_non_numeric_error_code() -> None:
+    batcher = OpenAIBatcher(
+        AsyncOpenAI(api_key="test"), BatchConfig(), _retry_config(), _Result
+    )
+    request_id, result = batcher._parse_jsonl_line(
+        {"custom_id": "req", "error": {"code": "batch_expired", "message": "expired"}}
+    )
+    assert request_id == "req"
+    assert isinstance(result, RuntimeError)
+    assert "batch_expired" in str(result)
+    assert "expired" in str(result)

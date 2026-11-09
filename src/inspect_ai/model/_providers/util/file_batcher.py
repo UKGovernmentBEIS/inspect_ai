@@ -94,7 +94,16 @@ class FileBatcher(Batcher[ResponseT, CompletedBatchInfoT]):
         for file_result in results:
             combined_results.update(file_result)
 
+        for request_id in batch.requests.keys() - combined_results.keys():
+            combined_results[request_id] = self._missing_result_error(
+                batch, completion_info
+            )
         return combined_results
+
+    def _missing_result_error(
+        self, batch: Batch[ResponseT], completion_info: CompletedBatchInfoT
+    ) -> Exception:
+        return RuntimeError(f"Batch {batch.id} ended without a result for this request")
 
     # Abstract methods for provider-specific behavior
 
