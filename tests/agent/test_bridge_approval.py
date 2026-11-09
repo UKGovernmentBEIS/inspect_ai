@@ -7691,6 +7691,267 @@ async def test_execution_on_an_exempt_server_links_nothing(
         assert [e.message_id for e in reads] == [None if exempt else answer]
 
 
+@pytest.mark.parametrize("later", [False, True], ids=["control", "later ambiguity"])
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+async def test_execution_made_ambiguous_after_it_completed_links_nothing(
+    dialect: HostDialect, later: bool
+) -> None:
+    """An execution that completed before a later one made its proposal ambiguous links nothing.
+
+    Servers `a` and `b` serve the same description, so the reply's call is
+    granted once on each. The call carries a bookkeeping field the scaffold
+    drops when it executes (matched with undeclared keys dropped). It runs on
+    `a` and its answer is held. A sub-agent's reply then proposes the call
+    without the field, and the scaffold runs the call again on `b`: that
+    execution matches both proposals, so which one it ran is unknown, and
+    the answer the scaffold sends holds `b`'s result. `a`'s execution, which
+    was already awaiting its answer, stays unlinked. With no sub-agent
+    (`control`), `a`'s answer links.
+    """
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            tool_calls_output(
+                ToolCall(
+                    id="call_main",
+                    function="read_file",
+                    arguments={"path": "a", "unexpected": "metadata"},
+                ),
+                content="Reading.",
+            ),
+            *(
+                [
+                    tool_calls_output(
+                        ToolCall(
+                            id="call_sub", function="read_file", arguments={"path": "a"}
+                        ),
+                        content="On it.",
+                    )
+                ]
+                if later
+                else []
+            ),
+            ModelOutput.from_content("mockllm/model", "done"),
+        ],
+    )
+    bridge = SandboxAgentBridge(
+        state=AgentState(messages=[ChatMessageUser(content="Read a.")]),
+        filter=None,
+        retry_refusals=None,
+        compaction=None,
+        port=13131,
+        model=None,
+        model_aliases={"inspect": model},
+        bridged_tools={
+            "a": {"read_file": read_file(AsyncMock(return_value="from a"))},
+            "b": {"read_file": read_file(AsyncMock(return_value="from b"))},
+        },
+    )
+    [info] = declare("read_file")
+    main = _HostConversation(dialect, "Read a.", info)
+    sub = _HostConversation(dialect, "Sub-agent: read a.", info)
+    with recorded_transcript() as recorded:
+        calls = await main.request(bridge)
+        output = await call_host_tool(bridge)("a", "read_file", {"path": "a"})
+        if later:
+            await sub.request(bridge)
+            output = await call_host_tool(bridge)("b", "read_file", {"path": "a"})
+        main.results(calls, [output])
+        await main.request(bridge)
+
+    model_events = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    [answer] = [m.id for m in model_events[-1].input if m.role == "tool"]
+    reads = [e for e in recorded.events if isinstance(e, ToolEvent)]
+    if later:
+        assert [e.result for e in reads] == ["from a", "from b"]
+        assert [e.message_id for e in reads] == [None, None]
+    else:
+        assert [e.result for e in reads] == ["from a"]
+        assert [e.message_id for e in reads] == [answer]
+
+
+@pytest.mark.parametrize(
+    "retry",
+    [
+        "none",
+        "denied after it completed",
+        "denied while it runs",
+        "denied with unreadable arguments",
+        "other call denied",
+    ],
+)
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+async def test_execution_whose_call_is_denied_again_links_nothing(
+    dialect: HostDialect, retry: str
+) -> None:
+    """An execution whose call the scaffold sends again, and the bridge denies, links nothing.
+
+    The call's one grant is consumed by its execution, so a retry (a client
+    that lost the first response, say) is denied, and the scaffold may send
+    the denial as the call's answer. The execution stays unlinked whether the
+    retry comes after it completed or while it runs, and when the retry's
+    arguments can't be read (so it may be any call of the tool). A denied call
+    with other arguments is not a retry of the call, which links; so does the
+    call with no retry (`none`).
+    """
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            tool_calls_output(
+                ToolCall(id="call_main", function="read_file", arguments={"path": "a"}),
+                content="Reading.",
+            ),
+            ModelOutput.from_content("mockllm/model", "done"),
+        ],
+    )
+    started = anyio.Event()
+    release = anyio.Event()
+
+    async def result(**_: Any) -> str:
+        started.set()
+        await release.wait()
+        return "successful first result"
+
+    bridge = SandboxAgentBridge(
+        state=AgentState(messages=[ChatMessageUser(content="Read a.")]),
+        filter=None,
+        retry_refusals=None,
+        compaction=None,
+        port=13131,
+        model=None,
+        model_aliases={"inspect": model},
+        bridged_tools={"host": {"read_file": read_file(AsyncMock(side_effect=result))}},
+    )
+    retried: JsonValue = (
+        "a"
+        if retry == "denied with unreadable arguments"
+        else {"path": "b" if retry == "other call denied" else "a"}
+    )
+
+    async def denied() -> str:
+        with pytest.raises(PermissionError) as raised:
+            await call_host_tool(bridge)("host", "read_file", retried)
+        return str(raised.value)
+
+    [info] = declare("read_file")
+    main = _HostConversation(dialect, "Read a.", info)
+    with recorded_transcript() as recorded:
+        calls = await main.request(bridge)
+        [(_, arguments)] = calls
+        outputs: list[JsonValue] = []
+
+        async def execute() -> None:
+            outputs.append(await call_host_tool(bridge)("host", "read_file", arguments))
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(execute)
+            await started.wait()
+            if retry == "denied while it runs":
+                outputs.append(await denied())
+            release.set()
+        if retry not in ("none", "denied while it runs"):
+            outputs.append(await denied())
+        main.results(calls, [outputs[-1]])
+        await main.request(bridge)
+
+    model_events = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    [answer] = [m.id for m in model_events[-1].input if m.role == "tool"]
+    events = [e for e in recorded.events if isinstance(e, ToolEvent)]
+    [execution] = [e for e in events if bridge_metadata(e)["grant"] == "consumed"]
+    assert execution.result == "successful first result"
+    assert [e.message_id for e in events if e is not execution] == [None] * (
+        len(events) - 1
+    )
+    linked = retry in ("none", "other call denied")
+    assert execution.message_id == (answer if linked else None)
+
+
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+async def test_call_whose_grant_was_evicted_taking_a_later_replys_grant_links_nothing(
+    dialect: HostDialect,
+) -> None:
+    """A call whose grant was evicted, run on a later reply's identical grant, leaves that reply unlinked.
+
+    A sub-agent's unconsumed calls evict the first reply's grant. A later
+    reply proposes the same call, and the scaffold then runs the first
+    reply's call, which takes the later reply's grant: matching no longer
+    knows the first reply, so the execution pairs with the later one. The
+    later reply's own call is then denied, which unlinks it, so its answer
+    (the denial) doesn't link to the execution that ran the first reply's
+    call.
+    """
+    call: dict[str, JsonValue] = {"path": "a"}
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            tool_calls_output(
+                ToolCall(id="call_first", function="read_file", arguments=call),
+                content="Reading.",
+            ),
+            tool_calls_output(
+                *(
+                    ToolCall(
+                        id=f"call_list_{n}",
+                        function="list_dir",
+                        arguments={"path": f"d{n}"},
+                    )
+                    for n in range(_MAX_TOOL_EXECUTION_GRANTS)
+                )
+            ),
+            tool_calls_output(
+                ToolCall(id="call_later", function="read_file", arguments=call),
+                content="Reading again.",
+            ),
+            ModelOutput.from_content("mockllm/model", "done"),
+        ],
+    )
+    bridge = SandboxAgentBridge(
+        state=AgentState(messages=[ChatMessageUser(content="Read a.")]),
+        filter=None,
+        retry_refusals=None,
+        compaction=None,
+        port=13131,
+        model=None,
+        model_aliases={"inspect": model},
+        bridged_tools={
+            "host": {
+                "read_file": read_file(AsyncMock(return_value="first result")),
+                "list_dir": served_tool(
+                    AsyncMock(return_value="listed"),
+                    description=LIST_DIR,
+                    name="list_dir",
+                ),
+            }
+        },
+    )
+    [read_info] = declare("read_file")
+    [list_info] = declare("list_dir", description=LIST_DIR)
+    first = _HostConversation(dialect, "Read a.", read_info)
+    sub = _HostConversation(dialect, "Sub-agent: list.", list_info)
+    later = _HostConversation(dialect, "Read a again.", read_info)
+    with recorded_transcript() as recorded:
+        await first.request(bridge)
+        await sub.request(bridge)
+        later_calls = await later.request(bridge)
+        await call_host_tool(bridge)("host", "read_file", call)
+        with pytest.raises(PermissionError) as denied:
+            await call_host_tool(bridge)("host", "read_file", call)
+        later.results(later_calls, [str(denied.value)])
+        await later.request(bridge)
+
+    reads = [
+        e
+        for e in recorded.events
+        if isinstance(e, ToolEvent) and e.function == "read_file"
+    ]
+    assert [(bridge_metadata(e)["grant"], e.result) for e in reads] == [
+        ("consumed", "first result"),
+        ("denied", ""),
+    ]
+    assert bridge_metadata(reads[0])["proposal_id"] == "call_later"
+    assert [e.message_id for e in reads] == [None, None]
+
+
 @agent
 def fabricating_host_scaffold(dialect: HostDialect, fabricated_id: str) -> Agent:
     """A scaffold running a reply's two calls as host tools, then sending in the reply's place its own text and one call under `fabricated_id`, with the first call's function and arguments and its own answer."""

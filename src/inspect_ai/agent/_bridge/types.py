@@ -742,7 +742,9 @@ class AgentBridge:
         when an unplaced message takes the reply's id (it may be an equal
         reply's copy, so a request that later places it under that id doesn't
         show which reply it is), the reply is handed out again
-        (`_handed_calls`), or one of its execution grants is evicted. A reply
+        (`_handed_calls`), or, in a sandbox bridge, one of its execution
+        grants is evicted, an execution makes one of its proposals ambiguous,
+        or a denied host call may repeat one of its calls. A reply
         whose result tracking is dropped (`_await_result_message`) is
         recorded the same way.
         The id is kept for the rest of the sample (ids only, like the message

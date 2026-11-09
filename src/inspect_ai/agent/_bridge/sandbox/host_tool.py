@@ -124,6 +124,7 @@ async def execute_host_tool(
         raise ValueError(message)
 
     if _exceeds_max_depth(arguments):
+        bridge.unlink_denied_call(server, tool, None)
         message = f"Error parsing tool call arguments: {_max_depth_parse_error()}"
         await _record_rejection(
             bridge, tool, {}, ToolCallError("parsing", message), metadata
@@ -136,6 +137,9 @@ async def execute_host_tool(
         else None
     )
     if grant is None and server not in bridge.proposal_exempt_servers:
+        bridge.unlink_denied_call(
+            server, tool, arguments if isinstance(arguments, dict) else None
+        )
         warn_once(
             logger,
             f"Denied host tool call '{server}/{tool}': the model did not "

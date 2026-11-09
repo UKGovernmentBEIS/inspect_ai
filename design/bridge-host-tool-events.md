@@ -425,8 +425,19 @@ The link is exact when all of these hold:
   reply has its function and arguments.
 - Its execution matched no other reply's pending grant, exactly or once
   undeclared arguments are dropped. `consume_tool_execution_grant()` marks
-  every proposal the execution could belong to `ambiguous`, so none of them
-  links.
+  every proposal the execution could belong to `ambiguous` and unlinks its
+  reply, so none of them links, including an execution of theirs that
+  completed before the ambiguity was found.
+- No request the bridge denied may repeat the call. A grant is one-shot, so
+  a client sending a call again (after losing the first response) is
+  denied, and the agent may send the denial as the call's answer.
+  `unlink_denied_call()` unlinks the reply of every executed or pending call
+  of the tool with the denied call's arguments (compared as grants are, also
+  projected onto a closed schema's declared keys), or of every such call of
+  the tool when the arguments can't be read (not an object, or nested too
+  deep). Executions are recorded when they consume a grant
+  (`_record_execution()`, reply ids and argument hashes only), so one still
+  running is covered. A request naming no bridged tool repeats no proposal.
 - Exactly one tool message answers it, by call id, before the next assistant
   message with tool calls, and that message is new in the request: one sent
   before, or equal to one sent before, may hold another result.
@@ -435,6 +446,18 @@ Otherwise `message_id` stays `None`. This includes a Google result whose call
 id the dialect inferred from order (a call sharing its function with another),
 a call of a reply whose awaited calls were dropped, and a call proposed before
 a checkpoint resume.
+
+Lost-grant cross-proposal limitation. Once a reply's grant is evicted (1024
+unconsumed grants), matching no longer knows that reply. If a later reply
+proposes the identical call, an execution of the first reply's call takes the
+later reply's grant without ambiguity, so its event pairs with the later
+proposal (`proposal_id`, id and span) although it ran the earlier call. The
+link is still left unset when the later reply's own call is sent: it is denied,
+which unlinks the later reply. A wrong link remains possible only if the agent
+answers the later call without sending it to the bridge (reusing the earlier
+result, say). Not handled further: it needs 1024 unconsumed grants and an
+identical later proposal, and fixing the pairing would mean keeping evicted
+grants.
 
 `agent` is `None`; `agent_span_id` is the tool's, as natively.
 
