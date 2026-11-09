@@ -67,7 +67,6 @@ from inspect_ai.approval._policy import ApprovalPolicy, config_from_approval_pol
 from inspect_ai.dataset._dataset import Dataset, Sample
 from inspect_ai.log import EvalConfig, EvalLog
 from inspect_ai.log._file import EvalLogInfo
-from inspect_ai.log._log import eval_error
 from inspect_ai.log._recorders import Recorder
 from inspect_ai.model import GenerateConfigArgs
 from inspect_ai.model._model import Model, ModelName, ensure_model_controller
@@ -108,6 +107,7 @@ from .task.run import (
     plan_agent_name,
     resolve_plan,
     task_run,
+    unwritten_task_log,
 )
 from .task.sandbox import (
     TaskSandboxEnvironment,
@@ -447,6 +447,9 @@ async def eval_run(
                     recorder=recorder,
                     header_only=header_only,
                     dynamic_dataset=task.sample_source is not None,
+                    prior_created=resolved_task.sample_source.prior_created
+                    if resolved_task.sample_source is not None
+                    else None,
                 )
                 await logger.init()
 
@@ -595,20 +598,6 @@ class TaskRunResult(NamedTuple):
     side-effect-free finalize."""
 
 
-def _unwritten_log(options: TaskRunOptions, error: BaseException) -> EvalLog:
-    """An errored log for an attempt that has no written log.
-
-    Its ``location`` points at the log file the write was destined for,
-    which may not exist or may hold a partial log.
-    """
-    return EvalLog(
-        status="error",
-        eval=options.logger.eval,
-        error=eval_error(error, type(error), error, error.__traceback__),
-        location=options.logger.location,
-    )
-
-
 async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRunResult:
     """Run one task in its own cancel scope so cancelling it can't affect siblings.
 
@@ -620,7 +609,9 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
     write the log itself (e.g. the ``log_start()`` header flush) — is
     converted into an errored :class:`EvalLog` so the dispatcher can retry
     the task rather than tearing down the run; it is re-raised only when
-    ``debug_errors`` is set.
+    ``debug_errors`` is set. An error escaping ``task_run`` after the final
+    log was written (e.g. from an ``on_task_end`` hook) is logged, and the
+    written log is the attempt's result.
 
     A task's own abort or retry request always leaves a log, so the
     dispatcher never reads it as a run-level cancellation. In ``task_run``
@@ -640,11 +631,14 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
     dialog answered while ``task_complete`` runs) is ignored, so it cannot
     re-run a finished task; only an abort of an attempt that ended in error
     is still recorded, so it stops the dispatcher from retrying it. An
-    exception from ``task_complete`` is not a task error: it ends the run,
-    as an exception from ``next_tasks()`` does. So does a cancellation
-    exception that no cancellation of the run caused, raised by
-    ``task_complete`` or escaping ``task_run`` (e.g. from an ``on_task_end``
-    hook): the task group would otherwise absorb it.
+    exception from the ``task_complete`` callback is not a task error: it is
+    logged, and the attempt keeps its written log and is not retried for it
+    (see ``notify_task_source``); with ``debug_errors``, or for an error
+    adding the tasks it returned, the exception ends the run. A
+    cancellation exception that no cancellation of the run caused, raised
+    by ``task_complete`` or escaping ``task_run`` (e.g. from an
+    ``on_task_end`` hook), ends the run: the task group would otherwise
+    absorb it.
     """
     result: EvalLog | None = None
     cancel_type: CancelType = None
@@ -700,6 +694,7 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
                     nonlocal result, abandoned, scope_exited, ended_in_error
                     nonlocal notifying, run_returned
                     write_failed = False
+                    error_after_write = False
                     with task_scope:
                         try:
                             result = await task_run(options, task_cancel=task_cancel)
@@ -731,24 +726,36 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
                             if options.debug_errors:
                                 raise
                             inner = inner_exception(ex)
-                            log.error(
-                                f"Task '{options.task.name}' encountered an error "
-                                f"while starting or writing its log: {inner}"
-                            )
-                            result = _unwritten_log(options, inner)
-                            write_failed = True
+                            if options.logger.finished_log is not None:
+                                # once written, the log is the attempt's
+                                # result (taken below)
+                                error_after_write = True
+                                log.error(
+                                    f"Task '{options.task.name}' encountered an "
+                                    f"error after writing its log: {inner}",
+                                    exc_info=ex,
+                                )
+                            else:
+                                log.error(
+                                    f"Task '{options.task.name}' encountered an "
+                                    f"error while starting or writing its log: "
+                                    f"{inner}"
+                                )
+                                result = unwritten_task_log(options.logger, inner)
+                                write_failed = True
                     scope_exited = True
                     written_log = options.logger.pop_finished_log()
                     # task_scope swallows only its own cancellation (a
                     # run-level one propagates), so no log here means the
-                    # task's abort/retry request interrupted task_run
+                    # task's abort/retry request interrupted task_run, or an
+                    # error escaped it after the write
                     if result is None and not abandoned:
-                        assert cancel_type in ("abort", "retry")
+                        assert error_after_write or cancel_type in ("abort", "retry")
                         if written_log is not None:
                             result = written_log
                         else:
-                            result = _unwritten_log(
-                                options,
+                            result = unwritten_task_log(
+                                options.logger,
                                 TerminateTaskError(
                                     f"Task cancelled by user ({cancel_type})"
                                 ),

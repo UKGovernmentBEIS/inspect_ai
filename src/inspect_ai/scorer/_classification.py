@@ -23,7 +23,7 @@ def f1(
 
     Args:
        answer_fn: Custom function to extract the answer from the completion (defaults to using the completion).
-       stop_words: Stop words to include in answer tokenization.
+       stop_words: Stop words to exclude from answer tokenization.
     """
 
     async def score(state: TaskState, target: Target) -> Score:
@@ -160,12 +160,14 @@ def _normalize_number(text: str) -> str:
 
 
 def _tokenize(text: str) -> List[str]:
-    # split on spaces and hyphens, except a minus sign that opens a number
+    # split on whitespace and hyphens, except a minus sign that opens a number
     # ("-5", "(-5)", "((-5))"); a minus after a word and any run of opening
-    # brackets ("f(-1)", "f([-1])") still splits, as before
+    # brackets ("f(-1)", "f([-1])") still splits, as before. Any whitespace
+    # character separates tokens, so stop words after a newline or tab are
+    # removed like the ones after a space.
     tokens = []
     start = 0
-    for match in re.finditer(r"[ -]", text):
+    for match in re.finditer(r"\s|-", text):
         index = match.start()
         if text[index] == "-" and _is_minus_sign(text, index):
             continue
@@ -181,7 +183,7 @@ def _is_minus_sign(text: str, index: int) -> bool:
     before = index
     while before > 0 and text[before - 1] in "([{":
         before -= 1
-    return before == 0 or text[before - 1] == " "
+    return before == 0 or text[before - 1].isspace()
 
 
 def _normalize(text: str, stop_words: list[str] | None = None) -> str:
