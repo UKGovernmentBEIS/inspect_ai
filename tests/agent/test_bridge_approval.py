@@ -122,7 +122,8 @@ from inspect_ai.model._model import (
     ModelResponseFilter,
     get_model,
 )
-from inspect_ai.model._model_output import ChatCompletionChoice, ModelOutput
+from inspect_ai.model._model_call import ModelCall
+from inspect_ai.model._model_output import ChatCompletionChoice, ModelOutput, ModelUsage
 from inspect_ai.model._openai_responses import (
     TOOL_SEARCH_NAME,
     tool_search_output_tools,
@@ -4628,7 +4629,10 @@ async def test_filter_generated_replacement_with_server_item_stays_unlinked() ->
         event for event in recorded.events if isinstance(event, ModelEvent)
     ]
     [event] = recorded.tool_events
-    assert run.output.message.id == first_event.output.message.id
+    # an edit of the output whose server item it keeps (no work left running)
+    assert run.output.message.id == edited_id(
+        first_event.output.message.id, run.output.message
+    )
     assert second_event.output.message.id != first_event.output.message.id
     assert event.call_message_id is None
     assert event.span_id == outer
@@ -9389,19 +9393,43 @@ async def _edit_text_filter(
     return output
 
 
-def _filtered_reply_id(output: ChatMessageAssistant) -> str:
-    """The id of `output` returned through `_edit_text_filter`.
+def _left_server_work_running(event: ModelEvent) -> bool:
+    """Whether the Anthropic turn of `event` ended with server tool work still running.
 
-    A reply keeping server tool items keeps the output's id (the work pending
-    under it stays replayable); a reply the filter changed otherwise gets an
-    id derived from the output's; an unchanged reply keeps the output's id.
+    That is a server tool use with no result, in the response or among the
+    output's completed items (a continued generation records its first
+    response; work a continuation leaves running is not seen).
     """
+    response = event.call.response if event.call is not None else None
+    content = response.get("content") if response is not None else None
+    if not isinstance(content, list):
+        return False
+    blocks = cast(list[dict[str, Any]], content)
+    uses = {b["id"] for b in blocks if b["type"] == "server_tool_use"}
+    results = {b["tool_use_id"] for b in blocks if b["type"].endswith("_tool_result")}
+    completed = {
+        c.id for c in event.output.message.content if isinstance(c, ContentToolUse)
+    }
+    return bool(uses - results - completed)
+
+
+def _filtered_reply_id(event: ModelEvent) -> str:
+    """The id of the output of `event` returned through `_edit_text_filter`.
+
+    An unchanged reply keeps the output's id, as does a reply keeping server
+    tool items of a turn that left server work running (that work replays from
+    state kept under the output's id); any other changed reply gets an id
+    derived from the output's.
+    """
+    output = event.output.message
     assert output.id is not None
     edited = output.model_copy(deep=True)
     _filter_text(edited)
-    if any(isinstance(c, ContentToolUse) for c in output.content):
-        return output.id
     if edited.content == output.content:
+        return output.id
+    if any(
+        isinstance(c, ContentToolUse) for c in output.content
+    ) and _left_server_work_running(event):
         return output.id
     return edited_id(output.id, edited)
 
@@ -9409,28 +9437,111 @@ def _filtered_reply_id(output: ChatMessageAssistant) -> str:
 def test_filtered_reply_ids_follow_server_items(tmp_path: Path) -> None:
     """`_filtered_reply_id` names the id each filtered reply comes back under.
 
-    The replies cover its three cases: one keeping server tool items beside
-    edited text, one the filter leaves unchanged, and one with edited text only.
+    The replies, parsed by the Anthropic provider so it records their replay
+    state, cover its four cases: server tool items beside edited text, from a
+    turn that left server work running and from one that didn't; a reply the
+    filter leaves unchanged; and edited text only.
     """
+    from anthropic.types import Message
+
+    from inspect_ai.model._providers.anthropic import model_output_from_message
+
     name = "mcp__host__read_file"
-    server = tool_calls_output(
-        ToolCall(id="toolu_a", function=name, arguments={"path": "a"})
-    )
-    server.message.content = [
-        ContentToolUse(
-            tool_type="code_execution",
-            id="srvtoolu_1",
-            name="bash_code_execution",
-            arguments='{"command": "echo seed-417"}',
-            result='{"stdout": "seed-417"}',
+    [info] = declare(name)
+
+    def read(path: str) -> dict[str, Any]:
+        return {
+            "type": "tool_use",
+            "id": f"toolu_{path}",
+            "name": name,
+            "input": {"path": path},
+        }
+
+    caller = {"type": "code_execution_20260120", "tool_id": "srvtoolu_ce"}
+    turns: list[tuple[list[dict[str, Any]], str]] = [
+        (
+            [
+                {"type": "text", "text": "Checking."},
+                {
+                    "type": "server_tool_use",
+                    "id": "srvtoolu_ce",
+                    "name": "code_execution",
+                    "input": {"code": "print('seed-417')"},
+                    "caller": {"type": "direct"},
+                },
+                {
+                    "type": "server_tool_use",
+                    "id": "srvtoolu_ws",
+                    "name": "web_search",
+                    "input": {"query": "seed"},
+                    "caller": caller,
+                },
+                {
+                    "type": "web_search_tool_result",
+                    "tool_use_id": "srvtoolu_ws",
+                    "content": [
+                        {
+                            "type": "web_search_result",
+                            "title": "Seed",
+                            "url": "https://example.com/seed",
+                            "encrypted_content": "ENCRYPTED_CONTENT",
+                        }
+                    ],
+                    "caller": caller,
+                },
+                read("a"),
+            ],
+            "tool_use",
         ),
-        ContentText(text="ran it"),
+        (
+            [
+                {
+                    "type": "server_tool_use",
+                    "id": "srvtoolu_done",
+                    "name": "web_search",
+                    "input": {"query": "seed"},
+                    "caller": {"type": "direct"},
+                },
+                {
+                    "type": "web_search_tool_result",
+                    "tool_use_id": "srvtoolu_done",
+                    "content": [],
+                    "caller": {"type": "direct"},
+                },
+                {"type": "text", "text": "Searched."},
+                read("b"),
+            ],
+            "tool_use",
+        ),
+        ([read("c")], "tool_use"),
+        ([{"type": "text", "text": "done"}], "end_turn"),
     ]
-    unchanged = tool_calls_output(
-        ToolCall(id="toolu_b", function=name, arguments={"path": "b"})
-    )
-    unchanged.message.content = []
-    text_only = ModelOutput.from_content("mockllm/model", [ContentText(text="done")])
+    served: list[list[dict[str, Any]]] = []
+
+    async def serve(*args: Any) -> ModelOutput:
+        blocks, stop_reason = turns[len(served)]
+        served.append(blocks)
+        message = Message.model_validate(
+            {
+                "id": f"msg_{len(served)}",
+                "type": "message",
+                "role": "assistant",
+                "model": "claude-haiku-4-5",
+                "content": blocks,
+                "stop_reason": stop_reason,
+                "usage": {"input_tokens": 1, "output_tokens": 1},
+                "container": {
+                    "id": "container_1",
+                    "expires_at": "2026-12-01T00:00:00Z",
+                },
+            }
+        )
+        output, _ = await model_output_from_message(
+            client=None, model="claude-haiku-4-5", message=message, tools=[info]
+        )
+        output.usage = ModelUsage(input_tokens=1, output_tokens=1, total_tokens=2)
+        return output
+
     replies: list[Any] = []
     sample = _live_sample(
         eval(
@@ -9438,21 +9549,29 @@ def test_filtered_reply_ids_follow_server_items(tmp_path: Path) -> None:
                 dataset=[Sample(input="go")],
                 solver=server_work_scaffold(_edit_text_filter, replies),
             ),
-            model=get_model(
-                "mockllm/model",
-                custom_outputs=[server, unchanged, text_only],
-            ),
+            model=get_model("mockllm/model", custom_outputs=serve),
             log_dir=str(tmp_path),
             display="none",
         )[0]
     )
-    outputs = [e.output.message for e in sample.events if isinstance(e, ModelEvent)]
+    # each event as the provider would record it, with its response
+    events = [
+        e.model_copy(
+            update={"call": ModelCall.create(request={}, response={"content": blocks})}
+        )
+        for e, blocks in zip(
+            [e for e in sample.events if isinstance(e, ModelEvent)], served, strict=True
+        )
+    ]
+    outputs = [e.output.message.id for e in events]
 
-    assert any(b.type == "server_tool_use" for b in replies[0].content)
-    expected = [_filtered_reply_id(output) for output in outputs]
+    assert [_left_server_work_running(e) for e in events] == [True, False, False, False]
+    expected = [_filtered_reply_id(e) for e in events]
     assert [r.id for r in replies] == expected
-    assert expected[:2] == [outputs[0].id, outputs[1].id]
-    assert expected[2] != outputs[2].id
+    assert expected[0] == outputs[0]
+    assert expected[1] != outputs[1]
+    assert expected[2] == outputs[2]
+    assert expected[3] != outputs[3]
 
 
 @skip_if_no_anthropic
@@ -9506,7 +9625,7 @@ def test_live_anthropic_pending_server_work_ids(filtered: bool, tmp_path: Path) 
     # later replies come back under their output's id, or with the filter
     # under the id `_filtered_reply_id` gives
     assert [r.id for r in replies[1:]] == [
-        _filtered_reply_id(e.output.message) if filtered else e.output.message.id
+        _filtered_reply_id(e) if filtered else e.output.message.id
         for e in model_events[1:]
     ]
 
@@ -9530,16 +9649,18 @@ def test_live_anthropic_pending_server_work_ids(filtered: bool, tmp_path: Path) 
     assert tool_event_producers(sample) == [1]
     _assert_linked(sample, [event])
 
-    # a filtered reply that keeps server tool items keeps the output's id
-    # (whether a later reply has them depends on the model)
-    kept_server_items = {
+    # a filtered reply keeping server tool items of a turn that left server
+    # work running keeps the output's id (whether a later reply does depends
+    # on the model)
+    kept_output_ids = {
         e.output.message.id
         for e in model_events
         if e.output.message.id is not None
         and any(isinstance(c, ContentToolUse) for c in e.output.message.content)
+        and _left_server_work_running(e)
     }
     violations = message_id_violations(sample)
     if filtered:
-        assert all(any(id in v for id in kept_server_items) for v in violations)
+        assert all(any(id in v for id in kept_output_ids) for v in violations)
     else:
         assert not violations

@@ -4323,14 +4323,21 @@ def _pending_container_for_input(input: list[ChatMessage]) -> str | None:
     )
     if last_assistant is None or last_assistant.id is None:
         return None
-    internal = assistant_internal()
-    container = internal.containers.get(last_assistant.id)
-    if container is None:
+    container = assistant_internal().containers.get(last_assistant.id)
+    if container is None or not has_pending_server_work(last_assistant.id):
         return None
-    spans = internal.server_tool_spans.get(last_assistant.id, [])
-    if any(span.open_use_ids for span in spans):
-        return container
-    return None
+    return container
+
+
+def has_pending_server_work(message_id: str) -> bool:
+    """Whether message `message_id` ended its turn with server tool work still running.
+
+    That work is replayed from the spans recorded under the message id (and
+    resumed in the container recorded under it): a span with no results yet
+    has no content item to be found by.
+    """
+    spans = assistant_internal().server_tool_spans.get(message_id, [])
+    return any(span.open_use_ids for span in spans)
 
 
 def _server_tool_span_for_content(

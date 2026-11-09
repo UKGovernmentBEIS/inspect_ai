@@ -50,6 +50,7 @@ from inspect_ai.agent._bridge.types import AgentBridge, message_json_hash
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.log._transcript import transcript
 from inspect_ai.model._agent_message import validate_agent_message
+from inspect_ai.model._assistant_internal import has_pending_assistant_work
 from inspect_ai.model._call_tools import get_tools_info
 from inspect_ai.model._chat_message import (
     ChatMessage,
@@ -542,25 +543,25 @@ async def _apply_response_filter(
 
 
 def _settle_message_ids(original: ModelOutput, filtered: ModelOutput) -> None:
-    """Set the ids of returned messages so id-keyed replay state matches them.
+    """Give each returned message an id: an edit of the original gets an id of its own.
 
-    Dialects key some replay state by message id. Anthropic records server work
-    still pending at the end of a turn (and the container to resume it) under the
-    message id; work with no content item yet is invisible to the filter. Server
-    tool items are kept all or none (`_check_provider_owned_content`), so a
-    message that keeps them takes the id of the message they came from, whatever
-    id the filter gave it, and keeps that work. A changed message that keeps none
-    gets a new id if it still has an original one, and drops the work.
-    Content-keyed replay state (kept server tool items, signed thinking) does not
-    depend on the message id.
+    A changed or new message replaces an original: the one whose server tool
+    items it keeps (they are kept all or none, `_check_provider_owned_content`),
+    else the one whose id it had, else the choice at its index. It gets an id
+    derived from that original's and its own content (`with_edited_id`), so the
+    same edit is the same message. An unchanged message keeps its id; one
+    keeping server tool items takes their message's id.
 
-    A changed or new message that keeps none replaces the original whose id it
-    had, else the original choice at its index: it gets an id derived from that
-    original's and its own content (`with_edited_id`), so the same edit is the
-    same message.
+    The exception is a message keeping the server tool items of an Anthropic
+    turn that ended with server work still running. That work, and the code
+    execution container to resume it, is replayed from state recorded under
+    the turn's id, with no content item to find it by, so the message keeps the
+    turn's id. A changed message that keeps no server tool items drops that
+    work. Other replay state (completed server tool items, signed thinking,
+    OpenAI items) is found by content, whatever the message id.
     """
     owners = {
-        content.id: choice.message.id
+        content.id: choice.message
         for choice in original.choices
         if isinstance(choice.message.content, list)
         for content in choice.message.content
@@ -570,25 +571,29 @@ def _settle_message_ids(original: ModelOutput, filtered: ModelOutput) -> None:
     for index, choice in enumerate(filtered.choices):
         message = choice.message
         kept_owners = (
-            {
+            [
                 owners[content.id]
                 for content in message.content
                 if isinstance(content, ContentToolUse)
-            }
+            ]
             if isinstance(message.content, list)
-            else set()
+            else []
         )
-        if len(kept_owners) > 1:
+        if len({owner.id for owner in kept_owners}) > 1:
             raise ResponseFilterError(
                 "response_filter combined server tool items from different "
                 "choices in one message"
             )
         if kept_owners:
-            owner = next(iter(kept_owners))
-            if owner is not None:
-                message.id = owner
+            owner = kept_owners[0]
+            if owner.id is None:
+                continue
+            if has_pending_assistant_work(owner.id):
+                message.id = owner.id
+            else:
+                with_edited_id(owner, message, keep_provider_state=False)
         # Pydantic equality takes 0 for False, which serialize differently
-        if not kept_owners and not any(
+        elif not any(
             message == m and content_hash(message) == content_hash(m)
             for m in original_messages
         ):

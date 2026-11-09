@@ -70,6 +70,23 @@ def copy_assistant_internal(source_id: str, edited_id: str) -> None:
             pass
 
 
+def has_pending_assistant_work(message_id: str) -> bool:
+    """Whether provider state for work still running is kept under message `message_id`.
+
+    Anthropic keeps a turn's server tool work that was still running when the
+    turn ended (and the code execution container to resume it) under the
+    message id: it has no content item to be found by.
+    """
+    if _HAS_ANTHROPIC:
+        try:
+            from inspect_ai.model._providers.anthropic import has_pending_server_work
+
+            return has_pending_server_work(message_id)
+        except ImportError:
+            pass
+    return False
+
+
 def dump_sample_assistant_internal() -> JsonValue | None:
     """Dump per-provider assistant-internal state as a JSON value.
 

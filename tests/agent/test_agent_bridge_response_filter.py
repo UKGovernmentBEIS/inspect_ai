@@ -41,7 +41,9 @@ from inspect_ai._util.content import (
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.agent import AgentState
 from inspect_ai.agent._bridge._errors import PROVIDER_ERROR_KEY, ResponseFilterError
+from inspect_ai.agent._bridge.anthropic_api import inspect_anthropic_api_request
 from inspect_ai.agent._bridge.bridge import agent_bridge
+from inspect_ai.agent._bridge.responses import inspect_responses_api_request
 from inspect_ai.agent._bridge.sandbox import bridge as sandbox_bridge_module
 from inspect_ai.agent._bridge.sandbox.bridge import (
     _monitor_failure,
@@ -59,6 +61,8 @@ from inspect_ai.agent._bridge.util import (
     _settle_message_ids,
     apply_message_ids,
     bridge_generate,
+    default_code_execution_providers,
+    internal_web_search_providers,
 )
 from inspect_ai.approval import Approval, ApprovalPolicy, Approver, approver
 from inspect_ai.event import ModelEvent
@@ -2139,6 +2143,8 @@ async def test_response_filter_keeps_pending_work_with_its_server_items(
     replayed = next(
         m for m in reversed(retry_input) if isinstance(m, ChatMessageAssistant)
     )
+    # the work stays under the turn's id, whatever id the filter gave it
+    assert replayed.id == provider_output.message.id
     replayed_blocks = await _render_anthropic(replayed)
     assert PENDING_CODE in json.dumps(replayed_blocks)
     assert {b.get("id") for b in replayed_blocks} >= {
@@ -2150,6 +2156,218 @@ async def test_response_filter_keeps_pending_work_with_its_server_items(
     # the provider's output and its replay record are untouched
     assert await _render_anthropic(provider_output.message) == original_blocks
     assert _pending_container_for_input([provider_output.message]) == CONTAINER_ID
+
+
+OPENAI_SERVER_ITEMS: dict[str, dict[str, Any]] = {
+    "web_search_call": {
+        "id": "ws_1",
+        "type": "web_search_call",
+        "status": "completed",
+        "action": {"type": "search", "query": "nhl scores"},
+    },
+    "code_interpreter_call": {
+        "id": "ci_1",
+        "type": "code_interpreter_call",
+        "status": "completed",
+        "code": "print(1)",
+        "container_id": "cntr_1",
+        "outputs": [{"type": "logs", "logs": "1"}],
+    },
+    "mcp_call": {
+        "id": "mcp_1",
+        "type": "mcp_call",
+        "server_label": "docs",
+        "name": "echo",
+        "arguments": '{"text": "hi"}',
+        "output": "hi",
+    },
+}
+
+ServerItemsReply = Literal[
+    "web_search_call",
+    "code_interpreter_call",
+    "mcp_call",
+    "anthropic_completed",
+    "anthropic_pending",
+]
+
+
+async def _server_items_output(reply: ServerItemsReply) -> ModelOutput:
+    """A provider's reply holding server tool items and text, parsed by its converter."""
+    from openai.types.responses import Response
+
+    from inspect_ai.model._openai_responses import openai_responses_chat_choices
+
+    match reply:
+        case "web_search_call" | "code_interpreter_call" | "mcp_call":
+            response = Response.model_validate(
+                {
+                    "id": "resp_1",
+                    "object": "response",
+                    "created_at": 0,
+                    "model": "gpt-5",
+                    "status": "completed",
+                    "parallel_tool_calls": False,
+                    "tool_choice": "auto",
+                    "tools": [],
+                    "output": [
+                        OPENAI_SERVER_ITEMS[reply],
+                        {
+                            "id": "msg_1",
+                            "type": "message",
+                            "role": "assistant",
+                            "status": "completed",
+                            "content": [
+                                {
+                                    "type": "output_text",
+                                    "text": "The Bruins won 3-2.",
+                                    "annotations": [],
+                                }
+                            ],
+                        },
+                    ],
+                }
+            )
+            output = ModelOutput(
+                model="mockllm/model",
+                choices=openai_responses_chat_choices("gpt-5", response, []),
+            )
+        case "anthropic_completed":
+            output = await _anthropic_output(
+                [b for b in NESTED_SEARCH_BLOCKS if b is not THINKING_BLOCK]
+            )
+        case "anthropic_pending":
+            output = await _nested_pending_output()
+        case _:
+            assert_never(reply)
+    # set so mockllm doesn't estimate usage (which downloads an encoding)
+    output.usage = ModelUsage(input_tokens=1, output_tokens=1, total_tokens=2)
+    return output
+
+
+@pytest.mark.parametrize("reply", get_args(ServerItemsReply))
+async def test_text_edit_keeping_server_items_is_a_message_of_its_own(
+    reply: ServerItemsReply,
+) -> None:
+    """A response filter's text edit that keeps server tool items gets an edit id.
+
+    Analysis extraction (like the viewer) keeps one message per id, so the
+    generated output and the edited reply the scaffold sends back both survive
+    only under different ids. The exception is an Anthropic turn that ended
+    with server work running: that work replays from state keyed by the
+    generated id, so the reply keeps it. Each reply goes through its own
+    provider's dialect, which sends it back unchanged.
+    """
+    from inspect_ai.analysis._dataframe.samples.table import (
+        sample_messages_from_events,
+    )
+    from inspect_ai.log._transcript import Transcript, init_transcript, transcript
+    from inspect_ai.model._providers.anthropic import _pending_container_for_input
+
+    init_sample_anthropic_assistant_internal()
+    init_transcript(Transcript())
+    done = ModelOutput.from_content("mockllm/model", "done")
+    done.usage = ModelUsage(input_tokens=1, output_tokens=1, total_tokens=2)
+    model = get_model(
+        "mockllm/model",
+        memoize=False,
+        custom_outputs=[await _server_items_output(reply), done],
+    )
+    bridge = AgentBridge(
+        AgentState(messages=[ChatMessageUser(content="go")]),
+        model_aliases={"scaffold": model},
+        response_filter=_text_edit_filter,
+    )
+    parameters: dict[str, Any] = {
+        "type": "object",
+        "properties": {"q": {"type": "string"}},
+        "required": ["q"],
+    }
+    anthropic = reply.startswith("anthropic")
+
+    async def request(input: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        if anthropic:
+            message = await inspect_anthropic_api_request(
+                {
+                    "model": "scaffold",
+                    "max_tokens": 1024,
+                    "messages": input,
+                    "tools": [
+                        {
+                            "name": "lookup",
+                            "description": "Look something up.",
+                            "input_schema": parameters,
+                        }
+                    ],
+                },
+                None,
+                internal_web_search_providers(),
+                default_code_execution_providers(),
+                bridge,
+            )
+            return [
+                b.model_dump(mode="json", exclude_none=True) for b in message.content
+            ]
+        response = await inspect_responses_api_request(
+            {
+                "model": "scaffold",
+                "input": input,
+                "tools": [
+                    {
+                        "type": "function",
+                        "name": "lookup",
+                        "description": "Look something up.",
+                        "parameters": parameters,
+                    }
+                ],
+            },
+            None,
+            internal_web_search_providers(),
+            default_code_execution_providers(),
+            bridge,
+        )
+        return [item.model_dump(exclude_none=True) for item in response.output]
+
+    history: list[dict[str, Any]] = [{"role": "user", "content": "go"}]
+    items = await request(history)
+    handed = bridge.state.output.message
+    if anthropic:
+        results: list[dict[str, Any]] = [
+            {"type": "tool_result", "tool_use_id": b["id"], "content": "1"}
+            for b in items
+            if b["type"] == "tool_use"
+        ]
+        history += [
+            {"role": "assistant", "content": items},
+            {"role": "user", "content": [*results, {"type": "text", "text": "go on"}]},
+        ]
+    else:
+        results = [
+            {"type": "function_call_output", "call_id": item["call_id"], "output": "1"}
+            for item in items
+            if item["type"] == "function_call"
+        ]
+        history += [*items, *results, {"role": "user", "content": "go on"}]
+    await request(history)
+
+    model_events = [e for e in transcript().events if isinstance(e, ModelEvent)]
+    generated = model_events[0].output.message
+    assert generated.id is not None
+    [sent] = [m for m in model_events[1].input if isinstance(m, ChatMessageAssistant)]
+    assert sent.id == handed.id
+    assert REPLACED_SENTINEL in sent.text
+    assert any(isinstance(c, ContentToolUse) for c in sent.content)
+    if reply == "anthropic_pending":
+        assert sent.id == generated.id
+        assert _pending_container_for_input([sent]) == CONTAINER_ID
+    else:
+        assert sent.id == edited_id(generated.id, sent) != generated.id
+        extracted = [
+            (m.id, m.text)
+            for m in sample_messages_from_events(list(transcript().events), None)
+            if isinstance(m, ChatMessageAssistant)
+        ]
+        assert extracted[:2] == [(generated.id, generated.text), (sent.id, sent.text)]
 
 
 @approver
