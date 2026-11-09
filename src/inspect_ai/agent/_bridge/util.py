@@ -473,8 +473,9 @@ async def _apply_response_filter(
     so that the `ResponseFilterError` message names the underlying exception.
 
     Only tool calls the filter changed have their arguments checked for JSON: a
-    provider's own arguments (e.g. `parse_tool_call`'s YAML fallback yields dates)
-    are not the filter's to answer for.
+    provider's own arguments (e.g. `parse_tool_call`'s YAML fallback yields dates),
+    in the output or in a generation the filter returns unchanged, are not the
+    filter's to answer for.
     """
     candidate = output.model_copy(deep=True)
     try:
@@ -511,6 +512,14 @@ async def _apply_response_filter(
             "response_filter returned an invalid ModelOutput: "
             f"{_validation_error_details(ex)}"
         ) from ex
+    # only the bridged model's: another model's output is rendered by this
+    # model's dialect, so its provider items stay subject to the checks
+    generations = [
+        choice.message
+        for event in filter_events
+        if event.model == str(model)
+        for choice in event.output.choices
+    ]
     original_arguments = {
         call.id: call.arguments
         for choice in output.choices
@@ -519,9 +528,14 @@ async def _apply_response_filter(
     try:
         # the one Any-typed field the dialect converters json.dumps
         for choice in filtered.choices:
-            for call in choice.message.tool_calls or []:
-                if original_arguments.get(call.id) != call.arguments:
-                    json.dumps(call.arguments)
+            changed = [
+                call.arguments
+                for call in choice.message.tool_calls or []
+                if original_arguments.get(call.id) != call.arguments
+            ]
+            if changed and not _is_unchanged(choice.message, generations):
+                for arguments in changed:
+                    json.dumps(arguments)
     except (TypeError, ValueError, RecursionError) as ex:
         raise ResponseFilterError(
             "response_filter returned tool call arguments that are not "
@@ -535,14 +549,6 @@ async def _apply_response_filter(
         # the provider's completion can differ from message.text (e.g. Gemini
         # text continued across requests is joined with no separator)
         filtered.completion = output.completion
-    # only the bridged model's: another model's output is rendered by this
-    # model's dialect, so its provider items stay subject to the checks
-    generations = [
-        choice.message
-        for event in filter_events
-        if event.model == str(model)
-        for choice in event.output.choices
-    ]
     _check_provider_owned_content(output, filtered, generations)
     if on_filtered_output is not None:
         on_filtered_output(filtered)

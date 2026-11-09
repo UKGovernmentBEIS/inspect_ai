@@ -1,6 +1,7 @@
 import json
 import re
 import traceback
+from datetime import date
 from pathlib import Path
 from typing import (
     Any,
@@ -1262,12 +1263,15 @@ def _sandbox_bridge(
     )
 
 
-async def test_sandbox_identity_filter_keeps_provider_tool_arguments() -> None:
+@pytest.mark.parametrize("regenerate", [False, True], ids=["output", "regeneration"])
+async def test_sandbox_identity_filter_keeps_provider_tool_arguments(
+    regenerate: bool,
+) -> None:
     """Only arguments the filter changed must be JSON-serializable.
 
     `parse_tool_call`'s YAML fallback turns a bare `2024-01-01` into a `date`, which
-    the Anthropic dialect renders. A filter that returns the output unchanged must
-    not fail a sample that would pass without it.
+    the Anthropic dialect renders. A filter that returns the output, or its own
+    generation, unchanged must not fail a sample that would pass without it.
     """
     events_tool = ToolInfo(
         name="get_events",
@@ -1278,6 +1282,11 @@ async def test_sandbox_identity_filter_keeps_provider_tool_arguments() -> None:
     model = get_model(
         "mockllm/model",
         custom_outputs=[
+            *(
+                [ModelOutput.from_content("mockllm/model", "first")]
+                if regenerate
+                else []
+            ),
             ModelOutput(
                 model="mockllm/model",
                 choices=[
@@ -1288,14 +1297,14 @@ async def test_sandbox_identity_filter_keeps_provider_tool_arguments() -> None:
                         stop_reason="tool_calls",
                     )
                 ],
-            )
+            ),
         ],
     )
 
     async def identity_filter(
         model: Model, output: ModelOutput, generate_input: GenerateInput
     ) -> ModelOutput | None:
-        return output
+        return await model.generate(generate_input.input) if regenerate else output
 
     bridge = _sandbox_bridge(identity_filter, model)
     reply = await _forward_provider_errors(
@@ -1306,6 +1315,42 @@ async def test_sandbox_identity_filter_keeps_provider_tool_arguments() -> None:
     assert not bridge._failure_requested.is_set()
     tool_use = cast(list[dict[str, JsonValue]], reply["content"])[-1]
     assert tool_use["input"] == {"date": "2024-01-01"}
+
+
+@pytest.mark.parametrize("regenerate", [False, True], ids=["output", "regeneration"])
+async def test_response_filter_rejects_arguments_it_makes_unserializable(
+    regenerate: bool,
+) -> None:
+    """A non-JSON argument the filter puts into a call, also one of its own generation, fails it."""
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call("mockllm/model", "lookup", {"q": "x"}),
+            ModelOutput.for_tool_call("mockllm/model", "lookup", {"q": "y"}),
+        ],
+    )
+
+    async def unserializable(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput | None:
+        if regenerate:
+            output = await model.generate(generate_input.input)
+        assert output.message.tool_calls
+        output.message.tool_calls[0].arguments["when"] = date(2024, 1, 1)
+        return output
+
+    bridge = AgentBridge(AgentState(messages=[]))
+    bridge.response_filter = unserializable
+    with pytest.raises(ResponseFilterError, match="not JSON-serializable"):
+        await bridge_generate(
+            bridge,
+            model,
+            [ChatMessageUser(content="hi")],
+            [],
+            None,
+            GenerateConfig(),
+            requested_model=None,
+        )
 
 
 async def test_sandbox_forwarding_preserves_response_filter_limit() -> None:
