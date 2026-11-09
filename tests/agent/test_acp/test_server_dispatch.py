@@ -23,6 +23,7 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
+from acp.connection import StreamDirection, StreamEvent
 from acp.exceptions import RequestError
 from test_helpers.utils import skip_if_trio
 
@@ -459,7 +460,7 @@ async def test_auto_bind_stops_old_forwarders_before_changing_binding(
     monkeypatch.setattr(handler, "_stop_forwarders", _spy_stop)
     monkeypatch.setattr(handler, "_schedule_after_response", MagicMock())
 
-    await handler._auto_bind(target)
+    await handler._auto_bind(target, method="session/new")
 
     assert binding_at_stop == old_bound, (
         "_stop_forwarders must run BEFORE state.binding is mutated; "
@@ -468,6 +469,38 @@ async def test_auto_bind_stops_old_forwarders_before_changing_binding(
     assert handler.state.binding == Bound(
         wire_session_id="new-uuid", target_session_id="new-uuid"
     )
+
+
+@skip_if_trio
+async def test_schedule_after_response_waits_for_response_write() -> None:
+    """Deferred work runs only after the response to its request is written.
+
+    Drives ``observe_stream`` with the events ``acp.Connection`` emits,
+    so the check does not depend on how the framework schedules the
+    handler and the response write.
+    """
+    handler = ConnectionHandler()
+    ran: list[str] = []
+
+    async def _work() -> None:
+        ran.append("work")
+
+    def _event(direction: StreamDirection, message: dict[str, Any]) -> None:
+        handler.observe_stream(StreamEvent(direction, message))
+
+    _event(StreamDirection.INCOMING, {"id": 7, "method": "session/new"})
+    _event(StreamDirection.INCOMING, {"id": 8, "method": "session/prompt"})
+    handler._schedule_after_response("session/new", _work)
+
+    _event(StreamDirection.OUTGOING, {"method": "session/update"})
+    _event(StreamDirection.OUTGOING, {"id": 8, "result": {}})
+    for _ in range(5):
+        await asyncio.sleep(0)
+    assert ran == []
+
+    _event(StreamDirection.OUTGOING, {"id": 7, "result": {}})
+    await asyncio.gather(*handler._pending_after_response)
+    assert ran == ["work"]
 
 
 async def test_load_session_observe_only_records_non_interactive(

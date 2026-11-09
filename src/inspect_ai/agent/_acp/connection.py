@@ -21,9 +21,9 @@ from dataclasses import dataclass, field
 from logging import getLogger
 from typing import TYPE_CHECKING, Any
 
-from acp.connection import Connection
+from acp.connection import Connection, StreamDirection, StreamEvent
 from acp.exceptions import RequestError
-from acp.meta import CLIENT_METHODS, PROTOCOL_VERSION
+from acp.meta import AGENT_METHODS, CLIENT_METHODS, PROTOCOL_VERSION
 from acp.schema import (
     AcceptElicitationResponse,
     AgentCapabilities,
@@ -45,6 +45,7 @@ from acp.schema import (
 from shortuuid import uuid
 
 from inspect_ai.agent._acp.inspect_ext import (
+    INSPECT_ATTACH_METHOD,
     INSPECT_CANCEL_SAMPLE_METHOD,
     INSPECT_CANCEL_TOOL_CALL_METHOD,
     INTERACTIVE_META_KEY,
@@ -82,6 +83,8 @@ _AGENT_VERSION = "0.10"
 # JSON-RPC method name for the picker confirmation / target list
 # notification sent on `session/update`.
 _SESSION_UPDATE_METHOD = CLIENT_METHODS["session_update"]
+_SESSION_NEW_METHOD = AGENT_METHODS["session_new"]
+_SESSION_LOAD_METHOD = AGENT_METHODS["session_load"]
 
 
 @dataclass(frozen=True)
@@ -203,6 +206,12 @@ class ConnectionHandler:
         # written to the wire. Tracked so they're not garbage-collected
         # before they run and so connection close can cancel them.
         self._pending_after_response: set[asyncio.Task[None]] = set()
+        # Method of each incoming request whose response is not yet
+        # written, by request id, and the waiters of
+        # ``_schedule_after_response`` by method (oldest first). Both
+        # are maintained by ``observe_stream``.
+        self._request_methods: dict[Any, str] = {}
+        self._response_waiters: dict[str, list[asyncio.Future[None]]] = {}
         # Bind serialization. ACP dispatches each request as its own
         # asyncio task, so two ``session/new`` / ``session/load`` calls
         # on the same connection can race. The lock serializes the
@@ -269,7 +278,7 @@ class ConnectionHandler:
         """Create a session. With a single target → auto-bind; else picker."""
         targets = list_picker_targets()
         if len(targets) == 1:
-            return await self._auto_bind(targets[0])
+            return await self._auto_bind(targets[0], method=_SESSION_NEW_METHOD)
         return await self._enter_picker_mode(targets)
 
     async def load_session(
@@ -321,7 +330,9 @@ class ConnectionHandler:
                 target_session_id=match.session_id,
                 interactive=interactive,
             )
-        self._schedule_after_response(lambda: self._post_bind_setup(match, gen))
+        self._schedule_after_response(
+            _SESSION_LOAD_METHOD, lambda: self._post_bind_setup(match, gen)
+        )
         return LoadSessionResponse()
 
     async def prompt(
@@ -592,7 +603,9 @@ class ConnectionHandler:
                 }
             )
         match, interactive = resolved
-        return await self._auto_bind(match, interactive=interactive)
+        return await self._auto_bind(
+            match, method=INSPECT_ATTACH_METHOD, interactive=interactive
+        )
 
     async def cancel_sample(
         self,
@@ -787,12 +800,13 @@ class ConnectionHandler:
         # Guarded by generation so a concurrent bind that landed
         # before this fires drops the now-stale picker payload.
         self._schedule_after_response(
-            lambda: self._send_notification_if_current(notif, gen)
+            _SESSION_NEW_METHOD,
+            lambda: self._send_notification_if_current(notif, gen),
         )
         return NewSessionResponse(session_id=control_id)
 
     async def _auto_bind(
-        self, target: PickerTarget, *, interactive: bool = True
+        self, target: PickerTarget, *, method: str, interactive: bool = True
     ) -> NewSessionResponse:
         """Skip the picker for the single-target case; bind immediately.
 
@@ -804,6 +818,8 @@ class ConnectionHandler:
         turn loop. The ``session/new`` single-target path and picker
         always pass drivable targets (default True); ``inspect/attach``
         passes the resolved flag so observe-only binds are marked.
+        ``method`` is the JSON-RPC method of the calling request, so the
+        deferred work waits for that request's response.
 
         The binding-confirmation notification, session_info title, and
         replay-on-attach events all flow as ``session/update`` for
@@ -826,7 +842,9 @@ class ConnectionHandler:
                 target_session_id=target.session_id,
                 interactive=interactive,
             )
-        self._schedule_after_response(lambda: self._post_bind_setup(target, gen))
+        self._schedule_after_response(
+            method, lambda: self._post_bind_setup(target, gen)
+        )
         return NewSessionResponse(session_id=target.session_id)
 
     async def _handle_picker_selection(
@@ -1329,36 +1347,66 @@ class ConnectionHandler:
                 return
             await self._send_session_update(notification)
 
+    def observe_stream(self, event: StreamEvent) -> None:
+        """``acp.Connection`` stream observer that releases deferred work.
+
+        The connection calls this synchronously for each incoming
+        message before it dispatches it, and for each outgoing message
+        after the transport has written it. On an incoming request,
+        records the request's method by id. On the outgoing response
+        to that request, releases the oldest waiter of
+        ``_schedule_after_response`` for that method.
+
+        Assumes a client does not have two requests of the same method
+        in flight on one connection whose responses are written out of
+        order.
+        """
+        message = event.message
+        if "id" not in message:
+            return
+        if event.direction is StreamDirection.INCOMING:
+            if "method" in message:
+                self._request_methods[message["id"]] = message["method"]
+            return
+        if "method" in message:
+            return
+        method = self._request_methods.pop(message["id"], None)
+        waiters = self._response_waiters.get(method) if method is not None else None
+        if waiters:
+            waiter = waiters.pop(0)
+            if not waiter.done():
+                waiter.set_result(None)
+
     def _schedule_after_response(
-        self, factory: Callable[[], Coroutine[Any, Any, None]]
+        self, method: str, factory: Callable[[], Coroutine[Any, Any, None]]
     ) -> None:
         """Schedule work to run after the in-progress RPC response writes.
 
-        The ACP framework's ``_run_request`` writes the response only
-        after the handler returns. Notifications sent inline from a
-        handler therefore land on the wire BEFORE the response — Zed
-        (and likely other clients) discard such notifications because
-        the sessionId they reference is not yet known to the client.
+        The ACP framework writes the response only after the handler
+        returns. Notifications sent inline from a handler therefore
+        land on the wire BEFORE the response — Zed (and likely other
+        clients) discard such notifications because the sessionId they
+        reference is not yet known to the client.
 
-        This helper schedules ``factory()`` on the event loop with a
-        leading ``sleep(0)`` so the framework's in-flight
-        ``_sender.send(response)`` enqueues onto the writer first; the
-        sender's internal FIFO queue then guarantees the response is
-        flushed before any notification we enqueue here.
+        ``method`` is the JSON-RPC method of the request being handled.
+        The task waits until ``observe_stream`` sees the response to
+        that request written, then runs ``factory()``.
 
         Takes a **factory** (not a pre-created coroutine) so the
-        coroutine is only constructed if/when the task survives the
-        initial yield. If ``shutdown`` cancels the task during
-        ``sleep(0)``, no coroutine exists to leak as
-        ``RuntimeWarning: coroutine ... was never awaited``.
+        coroutine is only constructed if/when the response is written.
+        If ``shutdown`` cancels the task while it waits, no coroutine
+        exists to leak as ``RuntimeWarning: coroutine ... was never
+        awaited``.
 
         Tasks are tracked in ``_pending_after_response`` so they're not
         garbage-collected before they run; a done callback discards
         them and logs any exception.
         """
+        waiter: asyncio.Future[None] = asyncio.get_running_loop().create_future()
+        self._response_waiters.setdefault(method, []).append(waiter)
 
         async def _run() -> None:
-            await asyncio.sleep(0)
+            await waiter
             await factory()
 
         task = asyncio.create_task(_run())
