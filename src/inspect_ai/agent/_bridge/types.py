@@ -213,14 +213,16 @@ class AgentBridge:
         # which is wrong for continuation and breaks prompt builders that require
         # a non-assistant final message. "resume_for_scoring" skips the agent
         # loop, so the tracked snapshot is the only source of the final state.
+        self._resumed_state: tuple[list[ChatMessage], ModelOutput] | None = None
+        """The restored tracked thread and output, until the first generation after a resume that restored its tracking applies them (`_track_state`)."""
         restored_messages = self._cp.track(
             "bridge_messages",
-            lambda: self.state.messages,
+            lambda: self._tracked_state()[0],
             state.messages,
             value_type=list[ChatMessage],
         )
         restored_output = self._cp.track(
-            "bridge_output", lambda: self.state.output, state.output
+            "bridge_output", lambda: self._tracked_state()[1], state.output
         )
         if self._cp.attempt == "resume_for_scoring":
             state.messages = restored_messages
@@ -308,8 +310,6 @@ class AgentBridge:
         self._tracked_calls = 0
         self._tracked_descends: _Descent | None = None
         self._candidate_fps: list[_MessageFingerprint] | None = None
-        self._resumed_state: tuple[list[ChatMessage], ModelOutput] | None = None
-        """The restored tracked thread and output, applied at the first generation after a resume that restored its tracking."""
         if placement.tracking is not None and self._cp.attempt == "resume":
             self._restore_tracking(placement.tracking)
             self._resumed_state = (restored_messages, restored_output)
@@ -830,6 +830,17 @@ class AgentBridge:
                 last_message_count=self._last_message_count,
             ),
         )
+
+    def _tracked_state(self) -> tuple[list[ChatMessage], ModelOutput]:
+        """The tracked thread and output, as checkpointed.
+
+        Before the first generation after a resume, these are the restored
+        ones, which the checkpointed tracking state describes; `state` is
+        still what the scaffold started from.
+        """
+        if self._resumed_state is not None:
+            return self._resumed_state
+        return self.state.messages, self.state.output
 
     def _restore_tracking(self, tracking: _TrackingState) -> None:
         """Pick the tracked thread as the checkpointed bridge would.

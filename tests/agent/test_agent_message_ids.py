@@ -1881,17 +1881,23 @@ def test_resumed_bridge_never_gives_a_conversation_another_conversations_ids(
     _assert_owned(events, sent, placements)
 
 
+@pytest.mark.parametrize("checkpointed_again", [False, True])
 @pytest.mark.parametrize("dialect", DIALECTS)
 def test_side_call_after_resume_keeps_the_main_threads_ids(
-    dialect: Dialect, tmp_path: Path
+    dialect: Dialect, checkpointed_again: bool, tmp_path: Path
 ) -> None:
     """A side call right after a resume doesn't displace the restored main thread.
 
     The main conversation generates once and a checkpoint is taken; then a
     one-shot side call runs and the main conversation continues. Run on the
     bridge and on one resumed from the checkpoint, the continuation sends
-    the main reply under the id it was generated with in both.
+    the main reply under the id it was generated with in both. With
+    `checkpointed_again`, the resumed bridge is checkpointed again before it
+    sees a generation, and the bridge resumed from that checkpoint runs the
+    side call: the checkpoint holds the restored main thread, while the
+    scaffold still starts from its initial prompt.
     """
+    pending: list[tuple[list[str | None], dict[str, Any], dict[str, Any]]] = []
 
     @agent
     def scaffold() -> Agent:
@@ -1909,6 +1915,16 @@ def test_side_call_after_resume_keeps_the_main_threads_ids(
                 await side.generate()
                 main.user("Continue main.")
                 await main.generate()
+            if checkpointed_again:
+                again = RecordingCheckpointer(restored=snapshot, serialized=True)
+                started = AgentBridge(AgentState(messages=initial), checkpointer=again)
+                pending.append(
+                    (
+                        [m.id for m in started.state.messages],
+                        snapshot,
+                        snapshot := again.snapshot(),
+                    )
+                )
             resumed = AgentBridge(
                 AgentState(messages=initial),
                 checkpointer=RecordingCheckpointer(restored=snapshot, serialized=True),
@@ -1936,6 +1952,9 @@ def test_side_call_after_resume_keeps_the_main_threads_ids(
     assert uninterrupted[1].id == generated
     # the continuation's new user message gets a new id in each run
     assert [m.id for m in resumed[:2]] == [m.id for m in uninterrupted[:2]]
+    for started, first, second in pending:
+        assert started == [uninterrupted[0].id]
+        assert second == first
 
 
 @pytest.mark.parametrize("checkpoint", ["current", "without_tracking"])
