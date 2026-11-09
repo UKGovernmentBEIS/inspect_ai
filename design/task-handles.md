@@ -485,7 +485,8 @@ ordinary count excluding attempts running on a loan:
                 whose next entry is startable (the record itself in admitted,
                 or its pending retry):
             if that entry is the record: move it to starting, as an ordinary pick does
-            set loan.started; start run_one(entry, on_loan=True)
+            set loan.started; register a shielded scope (as an ordinary pick does)
+            start run_one(entry, scope, on_loan=True)
 ```
 
 Both kinds of pick stop once the dispatcher has latched cancellation, so a

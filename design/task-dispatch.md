@@ -368,7 +368,9 @@ class RunQueue:
     def end(self, record: TaskRecord, log: EvalLog | None) -> None
     def open(self) -> AsyncContextManager[None]  # holds tg, the queue's task group, for its lifetime
     def close(self) -> None          # sets closed; synchronous and idempotent
-    def stop(self) -> None           # close(), then cancel every running attempt's shielded scope; see "Stopping dispatch"
+    def stop(self) -> None           # close(), then cancel every submitted attempt's shielded scope; see "Stopping dispatch"
+    attempt_scopes: set[CancelScope] # one per submitted attempt, added at submission, removed when run_one returns
+    screen_open: anyio.Event         # set inside _run_task_screen; non-declaring setups wait on it before suspending
     async def seed_admitted(self) -> None  # waits for the seed's admission; re-raises its first failure
     async def end_run(self) -> None  # ends every record not yet ended, once; see "The queue's task group"
     wake: Wake                       # rung by every phase move and by setups as they settle
@@ -469,14 +471,37 @@ async with queue.open():     # opens tg; the queue's lifetime
   answer as for an ended task
   ([task-handles.md](task-handles.md#the-handle-api)).
 - **Stopping dispatch.** `RunQueue.stop()` calls `close()` and then
-  cancels every running attempt, in one synchronous step. `run_one` runs
-  each attempt inside a shielded `CancelScope` of its own, registered with
-  the queue for the attempt's lifetime, so a cancellation of the attempt
-  group or of the run never reaches an attempt directly: only `stop()`
-  cancels one as a whole, and inside its scope `run_one` handles that
-  cancellation exactly as it handles a run-level cancellation today
-  (latching `cancelled`, `run.py:1000-1001`). A task-level cancel or
-  drain still acts inside the attempt through its `TaskCancel`, as today.
+  cancels every submitted attempt, in one synchronous step. Each attempt
+  runs inside a shielded `CancelScope` of its own, so a cancellation of
+  the attempt group or of the run never reaches an attempt directly: only
+  `stop()` cancels one as a whole. A task-level cancel or drain still acts
+  inside the attempt through its `TaskCancel`, as today.
+  - **The scope is registered at submission.** The dispatcher creates the
+    attempt's scope and adds it to `queue.attempt_scopes` in the same
+    synchronous step in which it counts the attempt (`in_flight += 1`,
+    the model count, `loan.started` for a loaned start; today's step at
+    `src/inspect_ai/_eval/run.py:1193-1195`) and calls
+    `start_soon(run_one, entry, scope)`; ordinary and loaned starts
+    ([task-handles.md](task-handles.md#what-the-handles-add-to-the-run-queue))
+    use the same step. So `stop()` reaches an attempt that has been
+    submitted but whose `run_one` has not yet run (AnyIO allows cancelling
+    a scope before it is entered; it is then cancelled on entry).
+    `run_one` removes its scope from the set when it returns.
+  - **An attempt stopped before it begins never starts.** `run_one`
+    enters its scope as its first statement and, inside it, checks
+    `scope.cancel_called` before calling `_run_task`. If it is set, the
+    attempt takes the path of a pending retry dropped at run end:
+    `_run_task` is not called, the attempt's unstarted logger is
+    discarded in a shielded scope, the slot is given back (`in_flight`,
+    the model count, and for a loaned start `loan.started` and its
+    `waiters` entries, in that same step) and the record ends with its
+    stored log (`None` for a first attempt), so no attempt starts after
+    shutdown and none holds the group open.
+  - **An attempt stopped while it runs** takes today's paths inside its
+    scope: a cancelled result latches `cancelled` (`run.py:1000-1001`),
+    and an exception out of `_run_task` discards the logger and ends the
+    record (`run.py:963-969`). The scope absorbs the cancellation on
+    exit, so `run_one` returns normally after its cleanup.
   Dispatch calls `stop()` at every point where it can begin to exit:
   - the dispatcher's two breaks (the source done with nothing remaining,
     when no attempt is running, and a latched cancellation, which only a
@@ -846,7 +871,7 @@ loop:
         entry = pick_balanced(startable)     # see the start rule
         if entry is None: break
         if entry is a record: move it from admitted to starting
-        start run_one(entry)                 # a retry entry: today's PendingTask
+        register a shielded scope; start run_one(entry, scope)   # a retry entry: today's PendingTask
     if cancelled: queue.stop(); break
     if any record is not ended, or a setup is in progress:
         await queue.wake; continue
@@ -1148,7 +1173,21 @@ class SandboxSetups:                   # one per run
   may start processes itself (an SDK, `asyncio.create_subprocess_exec`) or
   print, as Podman's `task_init` does, and only suspension keeps that output
   from corrupting the textual display. Other tasks keep running while the
-  display is suspended, as they do on today's live path. Seed setups run
+  display is suspended, as they do on today's live path. Such a job waits
+  for the task screen before it suspends it: the dispatcher sets the
+  queue's `screen_open` event as the first statement inside
+  `_run_task_screen`, whose textual `task_screen()` yields only after the
+  app has loaded (`src/inspect_ai/_display/textual/app.py:189-194`), and
+  a non-declaring job awaits that event before entering
+  `display().suspend_task_app()`. Suspension checks readiness only when
+  it is entered (`src/inspect_ai/_display/textual/display.py:59-64`,
+  `textual/app.py:164-174`), so a seed setup that entered it during
+  admission, before the app loaded, would not be suspended once the app
+  mounted, and the provider's output would land in the running display.
+  Waiting holds back only that job and the tasks that need it; no task
+  starts before the screen is open in any case, since dispatch runs
+  inside it. If the run ends before the screen opens, the job is
+  cancelled with the other setups. Seed setups run
   beside the dispatcher like every other setup (decision: Ransom,
   2026-11-03: one rule for every setup, with build output streamed to the
   console rather than the terminal).
@@ -1600,7 +1639,12 @@ does (a new list per call):
   `capture_output=False` subprocess during a declaring provider's setup
   reaches `display().print()` line by line with the configuration prefix and
   the failure buffer, while a non-declaring provider's setup suspends the
-  display and leaves output on the terminal; `sandbox_setup().print()`
+  display and leaves output on the terminal, and a non-declaring seed
+  setup requested while a fake display's `task_screen()` is held on an
+  event (standing in for the textual app loading) enters `task_init` only
+  after the screen opens, inside an active suspension (the fake records
+  that the screen was loaded when suspension was entered);
+  `sandbox_setup().print()`
   takes the same route, and with the `none` display writes nothing to
   stdout.
 - `tests/util/sandbox/test_docker_cleanup.py`: Docker under the setup scope
@@ -1665,7 +1709,15 @@ does (a new list per call):
   `enqueue_task()` raises `RuntimeError` with spies on the resolver and
   the queued registry showing neither called, C's `logger.discard()` is
   called once and C ends with no log, and the run's outcome is today's
-  for that exit (logs returned, or the exception raised). `RunQueue._move` accepts every row of the
+  for that exit (logs returned, or the exception raised). A stop between
+  submission and entry, on both backends and bounded with `fail_after`: a
+  spy on the dispatcher's submission step calls `queue.stop()` right after
+  it submits task X (once as an ordinary start, once as a loaned start for
+  a waiting parent), before X's `run_one` runs, and X's attempt is
+  written to block forever if it ever starts. `_run_task` is never called
+  for X, its logger is discarded once, `in_flight` and the model count
+  return to zero and the loan's `started` is cleared, X ends with no log,
+  and `eval_async()` returns. `RunQueue._move` accepts every row of the
   "Task phases" transition table and raises on every other pair, and a
   run's records pass only through listed moves (a spy on `_move`, over a
   run with an admission failure, a queued cancel, a cancel in `starting`, a
