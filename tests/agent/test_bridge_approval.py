@@ -9389,6 +9389,72 @@ async def _edit_text_filter(
     return output
 
 
+def _filtered_reply_id(output: ChatMessageAssistant) -> str:
+    """The id of `output` returned through `_edit_text_filter`.
+
+    A reply keeping server tool items keeps the output's id (the work pending
+    under it stays replayable); a reply the filter changed otherwise gets an
+    id derived from the output's; an unchanged reply keeps the output's id.
+    """
+    assert output.id is not None
+    edited = output.model_copy(deep=True)
+    _filter_text(edited)
+    if any(isinstance(c, ContentToolUse) for c in output.content):
+        return output.id
+    if edited.content == output.content:
+        return output.id
+    return edited_id(output.id, edited)
+
+
+def test_filtered_reply_ids_follow_server_items(tmp_path: Path) -> None:
+    """`_filtered_reply_id` names the id each filtered reply comes back under.
+
+    The replies cover its three cases: one keeping server tool items beside
+    edited text, one the filter leaves unchanged, and one with edited text only.
+    """
+    name = "mcp__host__read_file"
+    server = tool_calls_output(
+        ToolCall(id="toolu_a", function=name, arguments={"path": "a"})
+    )
+    server.message.content = [
+        ContentToolUse(
+            tool_type="code_execution",
+            id="srvtoolu_1",
+            name="bash_code_execution",
+            arguments='{"command": "echo seed-417"}',
+            result='{"stdout": "seed-417"}',
+        ),
+        ContentText(text="ran it"),
+    ]
+    unchanged = tool_calls_output(
+        ToolCall(id="toolu_b", function=name, arguments={"path": "b"})
+    )
+    unchanged.message.content = []
+    text_only = ModelOutput.from_content("mockllm/model", [ContentText(text="done")])
+    replies: list[Any] = []
+    sample = _live_sample(
+        eval(
+            Task(
+                dataset=[Sample(input="go")],
+                solver=server_work_scaffold(_edit_text_filter, replies),
+            ),
+            model=get_model(
+                "mockllm/model",
+                custom_outputs=[server, unchanged, text_only],
+            ),
+            log_dir=str(tmp_path),
+            display="none",
+        )[0]
+    )
+    outputs = [e.output.message for e in sample.events if isinstance(e, ModelEvent)]
+
+    assert any(b.type == "server_tool_use" for b in replies[0].content)
+    expected = [_filtered_reply_id(output) for output in outputs]
+    assert [r.id for r in replies] == expected
+    assert expected[:2] == [outputs[0].id, outputs[1].id]
+    assert expected[2] != outputs[2].id
+
+
 @skip_if_no_anthropic
 @pytest.mark.parametrize("filtered", [False, True], ids=["unfiltered", "text_filter"])
 def test_live_anthropic_pending_server_work_ids(filtered: bool, tmp_path: Path) -> None:
@@ -9438,15 +9504,11 @@ def test_live_anthropic_pending_server_work_ids(filtered: bool, tmp_path: Path) 
     else:
         assert sent.id == generated.id
     # later replies come back under their output's id, or with the filter
-    # possibly an edit of it
-    for reply, model_event in zip(replies[1:], model_events[1:], strict=True):
-        output = model_event.output.message
-        if filtered:
-            edited = output.model_copy(deep=True)
-            _filter_text(edited)
-            assert reply.id in (output.id, edited_id(output.id, edited))
-        else:
-            assert reply.id == output.id
+    # under the id `_filtered_reply_id` gives
+    assert [r.id for r in replies[1:]] == [
+        _filtered_reply_id(e.output.message) if filtered else e.output.message.id
+        for e in model_events[1:]
+    ]
 
     # the continuation replays the pending work only under the generated id
     assert model_events[1].call is not None
