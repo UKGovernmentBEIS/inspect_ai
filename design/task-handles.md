@@ -469,7 +469,7 @@ they are awaited, and ports opened, only from a sample's own code (see
 `RunQueue`, admission and the dispatch loop. This design adds to the record:
 
 ```python
-    creator: TaskAttempt | None      # the attempt whose sample called enqueue_task(), if any
+    creator: TaskAttempt | None = None  # the attempt whose sample called enqueue_task(), if any
     port: SamplePort | None = None   # only when the dataset is a SampleSource
     loan: Loan | None = None         # see "Slot lending"
 ```
@@ -602,7 +602,7 @@ no other record has one. It keeps a `PortRequest` for each
 ```python
 @dataclass(eq=False)
 class PortRequest:
-    sample: Sample                   # the caller's sample, as sent; never changed
+    sample: Sample                   # the port's shallow copy of the caller's sample, taken at the call
     explicit_id: bool                # whether the caller's sample had an id when sent
     epoch: int | None
     state: Literal["sent", "admitted", "dropped", "refused", "done"]
@@ -635,17 +635,27 @@ it, and releases the others when they complete (`task/run.py:1167-1177`,
 is flushed (`src/inspect_ai/log/_recorders/eval.py:1157`, `:1282`;
 `src/inspect_ai/_eval/task/log.py:829`). Neither changes.
 
-**Ownership.** `enqueue_sample()` keeps the caller's sample as given and
-records `explicit_id = sample.id is not None`; every later step (the check
-at the call, the delivery check and `add_samples`) uses that object. The
-runner changes no sample it reserves: `reserve_runs` gives an id-less
-sample its generated id on a `model_copy()` and admits that copy
-(`task/run.py:1897-1905`), and the port records the admitted copy's id. So
-the caller's object never gains an id, and one anonymous `Sample` sent to
-two tasks, or to two task × model handles, gets a generated id in each
-target independently, and neither target sees the other's id as an
-explicit one. The nested input, metadata and files stay shared and
-read-only, as a source's own samples share them with its dataset.
+**Ownership.** `enqueue_sample()` first takes its own shallow copy of the
+caller's sample, `sample.model_copy()`, and records `explicit_id =
+sample.id is not None`; every later step (the check at the call, the
+delivery check and `add_samples`) uses that copy. The caller keeps its
+object and may use it elsewhere while the request is pending, and other
+code can change its top-level fields: if the same object is also in the
+dataset of a task added later, `configure_task()` assigns missing seed
+ids by rebinding `id` on that object when the task is added (see "The run
+queue" in [task-dispatch.md](task-dispatch.md#the-run-queue); today's
+`src/inspect_ai/_eval/run.py:222-231`). Without the copy, an anonymous
+request would then reach delivery with an explicit id, and could collide
+with the target's seed instead of getting a generated id. The runner
+changes no sample it reserves: `reserve_runs` gives an id-less sample its
+generated id on a further `model_copy()` and admits that copy
+(`task/run.py:1897-1905`), and the port records the admitted copy's id.
+So one anonymous `Sample` sent to two tasks, or to two task × model
+handles, gets a generated id in each target independently, and neither
+target sees the other's id as an explicit one. A shallow copy is the depth
+needed: only top-level fields are rebound, and the nested input, metadata
+and files stay shared and read-only, as a source's own samples share them
+with its dataset.
 
 **Validation at the call.** `enqueue_sample()` validates `epoch` as the
 task-side `enqueue_sample()` does. For a sample with an explicit id it computes the
@@ -1640,7 +1650,12 @@ test touched), with mockllm models:
     one task, each runs in every target with that target's own generated
     id, and B does not fail; the caller's object still has `id is None`;
     sending one object with an explicit id that clashes is still refused
-    with `ValueError`.
+    with `ValueError`; an anonymous sample sent to target A (whose seed
+    reserves id 1) while A is queued with its admission held on an event,
+    and then used as the one-sample dataset of a task enqueued from the
+    same solver (whose configuration gives that object id 1), is delivered
+    to A, once admission is released, with a generated id, and A does not
+    fail.
 - `tests/test_sample_source.py`:
   - port validation: an id equal to a seed id, its int/str equivalent
     (`1` and `"1"`), and a seed id excluded by `--sample-id` or `--limit`

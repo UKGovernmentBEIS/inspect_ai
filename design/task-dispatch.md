@@ -349,12 +349,12 @@ class TaskRecord:
     resolved: ResolvedTask | None    # released when the record ends
     options: TaskRunOptions | None   # configured at add time; released when the record ends
     index: int                       # result order: seed first in input order, then arrival order
+    started: anyio.Event             # set once, at the first move into "running"
+    ended: anyio.Event               # set exactly once, by RunQueue.end()
     phase: TaskPhase = "waiting"
     setups: TaskSetups | None = None # see "Sandbox setup"; None until admitted
     log: EvalLog | None = None       # the log run_one stored for the task; final log once ended
     error: BaseException | None = None  # admission failure
-    started: anyio.Event             # set once, at the first move into "running"
-    ended: anyio.Event               # set exactly once, by RunQueue.end()
 
 class RunQueue:
     run_id: str
