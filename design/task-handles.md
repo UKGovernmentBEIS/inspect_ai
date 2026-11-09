@@ -480,12 +480,16 @@ ordinary count excluding attempts running on a loan:
 ```
     while not cancelled and ordinary_in_flight < effective_max_tasks(parallel):
         ... ordinary picks, unchanged ...
-    for record whose loan is not running an attempt, in queue order,
-            whose next entry is startable (the record itself in admitted,
-            or its pending retry):
-        if that entry is the record: move it to starting, as an ordinary pick does
-        set loan.started; start run_one(entry, on_loan=True)
+    if not cancelled:
+        for record whose loan is not running an attempt, in queue order,
+                whose next entry is startable (the record itself in admitted,
+                or its pending retry):
+            if that entry is the record: move it to starting, as an ordinary pick does
+            set loan.started; start run_one(entry, on_loan=True)
 ```
+
+Both kinds of pick stop once the dispatcher has latched cancellation, so a
+loan never starts a target after the run is cancelled.
 
 #### Creator and sample code
 
@@ -1461,7 +1465,9 @@ test touched), with mockllm models:
     waiting on `wake` (held there by an event-controlled spy, with no other
     event afterwards), and likewise against a ready pending retry of C,
     starts C on the loan; a wait that recreates a dropped loan starts C the
-    same way;
+    same way; a run cancelled while C is admitted with a loan and its setups
+    still held on an event never starts C once the setups settle (C ends
+    with no log and its wait settles as the run's end says);
   - headroom: with `max_sandboxes=1` (stub sandbox provider), a parent
     sample holding the only sandbox awaits its child's `started()`, then
     finishes, and the child's sample then gets the sandbox and runs; a

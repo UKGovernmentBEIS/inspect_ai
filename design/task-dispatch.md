@@ -312,6 +312,9 @@ control channel. Everything else is refused with a clear error:
   [task-handles.md](task-handles.md#run-shapes-and-what-is-refused).
 - `enqueue_task()` outside a running eval or with a mismatched `run_id`:
   `RuntimeError`, as today.
+- `enqueue_task()` after the run's task dispatch has ended (from a task
+  that outlived the eval and kept its context): `RuntimeError` before
+  anything is resolved or queued; see "The run queue".
 - `enqueue_task()` from a thread other than the run's event loop (a worker
   started with `anyio.to_thread.run_sync()` copies the context that finds
   the run): `RuntimeError` before anything is resolved or queued; see
@@ -364,6 +367,7 @@ class RunQueue:
     def cancel(self, record: TaskRecord) -> None
     def end(self, record: TaskRecord, log: EvalLog | None) -> None
     wake: Wake                       # rung by every phase move and by setups as they settle
+    closed: bool = False             # set once dispatch commits to ending; no addition is accepted after it
 ```
 
 [task-handles.md](task-handles.md#what-the-handles-add-to-the-run-queue)
@@ -392,6 +396,31 @@ event loop of its own (`anyio.run()`) is refused the same way. A worker
 that calls through `anyio.from_thread.run_sync()` or
 `anyio.from_thread.run()` runs the call on the run's loop with its copied
 context, so it passes. The queue stays loop-only with no lock.
+
+**No additions once dispatch ends.** Resetting the `ContextVar` when
+`eval_run` returns removes only the owner's binding: a task started from
+sample code under a task group that outlives the eval (an outer group of
+the caller's, for example) keeps its copied context, so it still finds the
+queue, and on the same event loop it passes `_require_run_loop()`. A record
+added then would have no dispatcher to admit or start it, and its admission
+job would be started in a task group that has closed. So the queue records
+the end of dispatch in `closed`, which the dispatcher sets synchronously in
+the step where it commits to ending, with no `await` between the decision
+and the flag: the break when the source is done and nothing remains, the
+break on a latched cancellation, and, for an exception leaving the loop,
+the first statement of a `finally` placed directly around the loop, inside
+the dispatcher's task group, so it runs before the group's exit awaits its
+children. `enqueue_task()` checks `closed` right after `_require_run_loop()`
+and raises `RuntimeError` ("enqueue_task() called after the eval's task
+dispatch has ended") before it resolves a task or touches the queued
+registry; `RunQueue.add` asserts it as well. Because the dispatcher checks
+for remaining work and sets `closed` in one synchronous step, an addition
+either lands before that step, and the loop sees it and keeps running, or
+after it, and is refused; none is accepted into a queue nothing will
+service. The handle methods need no such check: they act only on their own
+record, which the run's end ends ("End of run" under "The dispatcher"), so
+after it they answer as for an ended task
+([task-handles.md](task-handles.md#the-handle-api)).
 
 `RunQueue.add` is synchronous. It orders the addition sequence-major (the
 order `run_batches` uses at `max_tasks == 1` today), adds the tasks' names to
@@ -722,10 +751,10 @@ loop:
         if entry is None: break
         if entry is a record: move it from admitted to starting
         start run_one(entry)                 # a retry entry: today's PendingTask
-    if cancelled: break
+    if cancelled: queue.closed = True; break
     if any record is not ended, or a setup is in progress:
         await queue.wake; continue
-    if source_done: break
+    if source_done: queue.closed = True; break
     more = await task_source.next_tasks() if task_source else None
     if not more: source_done = True          # None or [] ends the source, as today
     else: queue.add(resolve(more), ahead=True)
@@ -763,7 +792,9 @@ loop:
   same point `run_batches` reaches after a batch; under the live path it is
   the same point as today.
 - **End of run.** The loop ends when the source is done and nothing remains,
-  or on a run-level cancellation. The run's end waits for the admission job
+  or on a run-level cancellation, setting `queue.closed` in the same step
+  (and in a `finally` around the loop if an exception leaves it; see "No
+  additions once dispatch ends"). The run's end waits for the admission job
   and for finalizations in progress, then ends the records still queued: a
   `waiting` record ends with no log, an `admitted` one is finalized as a
   cancelled one is (no log), and a record whose retry is still pending ends
@@ -878,12 +909,7 @@ The no-log outcome stays; the eval set learns about both explicitly:
 - `run_eval` (`evalset.py:542`), after `eval()` returns, computes the
   requested tasks with no log: their `ResolvedTask.id`s (the run's
   `task_id`, `run.py:426`) less the logs' `eval.task_id`s. Those in
-  `queued_cancelled_task_ids()`, or whose id carries the retry-abandon stamp
-  (`task_retry_abandoned()`), were cancelled explicitly. The stamp covers a
-  task that a legacy round reran from its error log after a cancel in an
-  earlier round abandoned its retry between attempts (today's
-  control-channel path): the round reuses the task's id, the dispatcher
-  drops it at the stamp and it returns no log, as today. Any other
+  `queued_cancelled_task_ids()` were cancelled explicitly. Any other
   requested task without a log was still queued when the run was
   cancelled, so `run_eval` raises `KeyboardInterrupt`, exactly as it does
   today for a cancelled log (`evalset.py:632`).
@@ -892,10 +918,16 @@ The no-log outcome stays; the eval set learns about both explicitly:
   to tasks with), for the rest of the invocation. Later rounds of the
   legacy retry loop (`retry(try_eval)`) leave them out of the tasks they
   run, pending or failed, so a retry never undoes an explicit cancel and
-  never reruns a stamped id. A task left out that ended with a log keeps
+  never reruns a stamped id. (Under the legacy loop the inner runs have no
+  task retries, `task_retry_attempts=0`, `evalset.py:490`, `:609`, so the
+  between-attempts path never stamps a registered task there; every stamp
+  a legacy round can carry comes from a cancel before starting.) A task left out that ended with a log keeps
   it: the round's returned list includes the header of the log
   `list_latest_eval_logs()` selected for it, as today's log selection
-  would; one with no log contributes nothing. With immediate retries
+  would (for a startup write that failed after writing its header, that is
+  the `started` header on disk under the default retry disposition; the
+  error log returned in the first round exists only in memory); one with
+  no log contributes nothing. With immediate retries
   (`retry_immediate`) the stamp already stops the dispatcher from retrying
   the record ("Task phases"), as for an aborted running task.
 - The retry predicate becomes `all_evals_succeeded` over the logs of tasks
@@ -1497,7 +1529,14 @@ does (a new list per call):
   `anyio.to_thread.run_sync()` worker in a solver raises `RuntimeError` and
   leaves the queue as it was (no record, no wake), and the same call through
   `anyio.from_thread.run_sync()` from that worker queues the task and it
-  runs; on asyncio and trio. `RunQueue._move` accepts every row of the
+  runs; on asyncio and trio. A solver starts a child in a task group the
+  test owns outside `eval_async()`; the child waits on an `anyio.Event`
+  that the test sets after `eval_async()` returns, then calls plain
+  `enqueue_task()`: it raises `RuntimeError`, and spies on the resolver
+  and on the queued registry show neither was called. The same holds when
+  the run ended by a latched cancellation (a Ctrl-C injected into a task)
+  and when an exception left the dispatch loop (a `next_tasks()` that
+  raises), and on both backends. `RunQueue._move` accepts every row of the
   "Task phases" transition table and raises on every other pair, and a
   run's records pass only through listed moves (a spy on `_move`, over a
   run with an admission failure, a queued cancel, a cancel in `starting`, a
@@ -1615,16 +1654,13 @@ does (a new list per call):
   and then wait on an `anyio.Event`; while it waits, A is cancelled (its
   record is in `starting`, so the cancel stamps it); the event is then set
   and the patched `log_start()` raises `OSError`, so A's attempt returns
-  its error log. B succeeds; no `KeyboardInterrupt` is raised; the second
-  round of the loop does not run A (a spy on the inner `eval()` sees A's
-  task id requested only in the first round); the eval set returns `False`
-  with A's error log among its results and its message naming A; and both
-  the stamp and the cancelled-before-starting set are empty after
-  `eval_set()` returns. The same case with A cancelled between attempts
-  after a registered first attempt errored (today's control-channel
-  path), so that the second round reruns A from its error log and the
-  dispatcher drops it at the stamp, raises no `KeyboardInterrupt` (its
-  eval-set result stays today's; see "Not this design").
+  its error log. B's solver raises in the first round and succeeds in the
+  second, so the loop runs a second round. No `KeyboardInterrupt` is
+  raised; a spy on the inner `eval()` sees the second round run, request
+  B and not A; the eval set returns `False` with B's success log and A's
+  `started` header (the log the listing selects for A) among its results
+  and its message naming A; and both the stamp and the
+  cancelled-before-starting set are empty after `eval_set()` returns.
 - inspect_sandboxes: a test per provider that two configurations and an
   added task's configuration clean up every sandbox, run against an Inspect
   build with step 2; it needs the providers' API keys, so it runs where their
@@ -1669,7 +1705,7 @@ batch has its own `eval_run` and cleans up its own state).
    release. Independent of step 1.
 3. **One queue, one dispatcher, queued tasks in the control channel.**
    `_eval/task/enqueue.py` (`RunQueue`, `TaskRecord` and `TaskPhase` with
-   the checked transitions; `_require_run_loop()`; `enqueue_task()` still
+   the checked transitions; `_require_run_loop()`; `closed` and its check; `enqueue_task()` still
    returns `None`), `_eval/run.py` (`configure_task()`, `admit_task()` with
    sample selection and logger construction, and no model-controller or
    setup startup under `run_samples=False`; `dispatch_tasks()` with
@@ -1764,11 +1800,3 @@ None. The questions raised by this design are decided (Ransom,
   queued (`src/inspect_ai/_eval/run.py:1039-1044`, `:1144`), and the retry's
   file can stay in the log directory. Today's behaviour, which this design
   keeps for records in `starting` and `running` alike.
-- The eval-set result after a registered task's retry is abandoned between
-  attempts under the legacy retry loop. The stamp outlives the inner run,
-  so the next round reruns the task from its error log under the same id
-  and the dispatcher drops it with no log; that round's results then omit
-  the task, and the eval set can report "Completed all tasks" with no log
-  for it. Today's behaviour (seen with an injected stamp on asyncio and
-  Trio); this design only keeps its new missing-log check from reading that
-  case as a Ctrl-C.
