@@ -18,7 +18,7 @@ from typing import (
     cast,
 )
 
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 from pydantic_core import PydanticSerializationError
 from typing_extensions import TypeIs
 
@@ -36,7 +36,7 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.images import materialize_media
-from inspect_ai._util.json import jsonable_python
+from inspect_ai._util.json import json_equal, jsonable_python
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.url import data_uri_mime_type, is_data_uri
 from inspect_ai.agent._bridge._approval import (
@@ -562,16 +562,24 @@ def _is_unchanged(
     """Whether `message` is one of `messages`, id and content alike.
 
     Metadata is not content (`ChatMessage.id`), so a filter may annotate the
-    message. Other fields, provider-internal ones included, must be equal.
+    message. Other fields, provider-internal ones included, must be equal
+    (`_json_equal_models`).
     """
-    unannotated = message.model_copy(update={"metadata": None})
-    # Pydantic equality takes 0 for False, which serialize differently
     return any(
-        message.id == m.id
-        and unannotated == m.model_copy(update={"metadata": None})
-        and content_hash(message) == content_hash(m)
+        message.id == m.id and _json_equal_models(message, m, exclude={"metadata"})
         for m in messages
     )
+
+
+def _json_equal_models(
+    a: BaseModel, b: BaseModel, exclude: set[str] | None = None
+) -> bool:
+    """Whether `a` and `b` are equal by `json_equal`, `exclude` aside.
+
+    Pydantic equality takes `0` for `False`, which serialize differently, also in
+    fields `content_hash` leaves out (e.g. `internal`).
+    """
+    return json_equal(a.model_dump(exclude=exclude), b.model_dump(exclude=exclude))
 
 
 def _settle_message_ids(
@@ -634,11 +642,7 @@ def _settle_message_ids(
                 message.id = owner.id
             else:
                 with_edited_id(owner, message, keep_provider_state=False)
-        # Pydantic equality takes 0 for False, which serialize differently
-        elif not any(
-            message == m and content_hash(message) == content_hash(m)
-            for m in original_messages
-        ):
+        elif not any(_json_equal_models(message, m) for m in original_messages):
             source = next(
                 (m for m in original_messages if m.id == message.id),
                 original_messages[index] if index < len(original_messages) else None,
@@ -825,14 +829,15 @@ def _check_provider_owned_content(
             continue
         for content in choice.message.content:
             if isinstance(content, ContentToolUse):
-                if original_tool_uses.get(content.id) != content:
+                kept = original_tool_uses.get(content.id)
+                if kept is None or not _json_equal_models(kept, content):
                     raise ResponseFilterError(
                         f"response_filter edited or added server tool use '{content.id}'; "
                         "server tool items can only be kept unchanged or removed"
                     )
                 kept_tool_uses.add(content.id)
             elif isinstance(content, ContentReasoning):
-                if content not in original_reasoning:
+                if not any(_json_equal_models(content, r) for r in original_reasoning):
                     raise ResponseFilterError(
                         "response_filter edited or added reasoning content; "
                         "reasoning can only be kept unchanged or removed"

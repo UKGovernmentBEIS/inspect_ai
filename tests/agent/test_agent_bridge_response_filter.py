@@ -59,6 +59,7 @@ from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
 from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.agent._bridge.util import (
     _apply_response_filter,
+    _is_unchanged,
     _settle_message_ids,
     apply_message_ids,
     bridge_generate,
@@ -3672,3 +3673,82 @@ async def test_response_filter_monitor_generations_are_not_retained() -> None:
 
     assert len(completed) == 9
     assert retained == 0
+
+
+@pytest.mark.parametrize("returned", ["regeneration", "output"])
+async def test_response_filter_reasoning_internal_boolean_to_number_is_an_edit(
+    returned: Literal["regeneration", "output"],
+) -> None:
+    """Changing reasoning's provider-internal `False` to `0` is rejected as a reasoning edit.
+
+    Pydantic equality takes them as equal; they serialize differently.
+    """
+    message = ChatMessageAssistant(
+        content=[
+            ContentReasoning(
+                reasoning="thinking", signature="sig", internal={"flag": False}
+            ),
+            ContentText(text="answer"),
+        ]
+    )
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.from_message(message),
+            ModelOutput.from_message(message.model_copy(deep=True)),
+        ],
+    )
+
+    async def edit_internal(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput | None:
+        if returned == "regeneration":
+            output = await model.generate(generate_input.input)
+        content = output.message.content
+        assert isinstance(content, list)
+        content[0].internal = {"flag": 0}
+        return output
+
+    bridge = AgentBridge(AgentState(messages=[]))
+    bridge.response_filter = edit_internal
+    with pytest.raises(ResponseFilterError, match="edited or added reasoning"):
+        await bridge_generate(
+            bridge,
+            model,
+            [ChatMessageUser(content="hi")],
+            [],
+            None,
+            GenerateConfig(),
+            requested_model=None,
+        )
+
+
+@pytest.mark.parametrize(
+    "edit,unchanged",
+    [
+        ("metadata", True),
+        ("text internal", False),
+        ("reasoning internal", False),
+    ],
+)
+def test_is_unchanged_ignores_only_metadata(edit: str, unchanged: bool) -> None:
+    """A metadata annotation leaves a generation unchanged; a `False` to `0` edit elsewhere does not."""
+    generation = ChatMessageAssistant(
+        content=[
+            ContentReasoning(
+                reasoning="thinking", signature="sig", internal={"flag": False}
+            ),
+            ContentText(text="answer", internal={"flag": False}),
+        ]
+    )
+    returned = generation.model_copy(deep=True)
+    content = cast(list[Content], returned.content)
+    match edit:
+        case "metadata":
+            returned.metadata = {"review": "accepted"}
+        case "text internal":
+            content[1].internal = {"flag": 0}
+        case "reasoning internal":
+            content[0].internal = {"flag": 0}
+
+    assert _is_unchanged(returned, [generation]) is unchanged
