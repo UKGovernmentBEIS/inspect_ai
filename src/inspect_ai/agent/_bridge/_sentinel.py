@@ -1,6 +1,6 @@
 import hashlib
 import json
-from collections import Counter, OrderedDict, deque
+from collections import OrderedDict, deque
 from contextlib import AbstractContextManager, ExitStack, nullcontext
 from copy import deepcopy
 from dataclasses import dataclass, replace
@@ -43,7 +43,6 @@ from inspect_ai.model._assistant_internal import (
     alias_assistant_internal_call,
     generation_assistant_internal,
     generation_call_states,
-    replays_generation_state,
 )
 from inspect_ai.model._call_tools import decisive_sentinel_exception
 from inspect_ai.model._chat_message import (
@@ -773,43 +772,32 @@ def _retarget_anchors(
 
 
 def replay_ids(output: ModelOutput) -> ModelOutput:
-    """`output` with each call under an id the providers replay it from as generated.
+    """`output` with each call under a fresh id carrying its own replay state.
 
     For a turn replayed to the model without being handed on (a rejected
-    response), within the bridge's request. A call keeps its id only when it is
-    the turn's only call with that id, a response filter did not change its
-    arguments, and what the providers replay under the id is the state its
-    generation parsed it with, or nothing when that is unknown
-    (`replays_generation_state`). Any other call (one sharing its id, one whose
-    sibling under the id a filter removed, an edited call, one whose provider
-    state was replaced or never recorded) goes under a fresh id with its own
-    state, as `sentinel_tokens` hands calls on, or with none when that is
+    response), so its call ids are the bridge's to choose. Under the model's id
+    a call would replay whatever the providers record under that id each time
+    the turn is serialized, and the bridge keeps a rejected turn in the model's
+    input for the rest of its retries: a sibling sharing the id, or a later
+    generation reusing it, records another call's state there. Each call goes
+    under a fresh id with the state its generation parsed it with
+    (`generation_call_states`; with a response filter's arguments for a call the
+    filter edited), recorded in the provider's state, or with none when that is
     unknown, so it replays from the call. Google's reasoning anchors follow.
-    Returns `output` (not a copy) when every call keeps its id.
+    A copy, as `output` may be the object the ModelEvent recorded.
     """
     calls = output.message.tool_calls or []
-    states = generation_call_states(generation_assistant_internal(output), calls)
-    counts = Counter(call.id for call in calls)
-    fresh = [
-        counts[call.id] > 1
-        or (state is not None and state.edited)
-        or not replays_generation_state(call.id, state)
-        for call, state in zip(calls, states)
-    ]
-    if not any(fresh):
+    if not calls:
         return output
-    # a copy, as `output` may be the object the ModelEvent recorded
+    states = generation_call_states(generation_assistant_internal(output), calls)
     output = output.model_copy(deep=True)
     tokens: dict[str, deque[str]] = {}
-    for call, state, renamed in zip(output.message.tool_calls or [], states, fresh):
-        token = call.id
-        if renamed:
-            check = SentinelCheck(call, call, None, "", None)
-            token = f"{_token_prefix(check)}_{uuid()}"
-            if state is not None and state.recorded:
-                alias_assistant_internal_call(
-                    call.id, token, state, {}, call if state.edited else None
-                )
+    for call, state in zip(output.message.tool_calls or [], states):
+        token = f"{_token_prefix(SentinelCheck(call, call, None, '', None))}_{uuid()}"
+        if state is not None and state.recorded:
+            alias_assistant_internal_call(
+                call.id, token, state, {}, call if state.edited else None
+            )
         tokens.setdefault(call.id, deque()).append(token)
         call.id = token
     _retarget_anchors(output.message.content, tokens)

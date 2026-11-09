@@ -331,41 +331,6 @@ def carry_generation_assistant_internal(
     }
 
 
-def replays_generation_state(call_id: str, state: GenerationCallState | None) -> bool:
-    """Whether the providers replay a call under `call_id` with exactly `state`.
-
-    That is, what the bridge serving the request (`bridge_replay`), or failing
-    that the provider, has recorded under the id is the call's own state as its
-    generation parsed it (`generation_call_states`): nothing, for a call whose
-    state is unknown or empty. False when another call's state is recorded
-    there (a sibling sharing the id, a later response reusing it), or the
-    call's own is missing (e.g. a cache hit served in another sample).
-    """
-    openai = state.openai if state is not None else None
-    anthropic = state.anthropic if state is not None else None
-    if _HAS_OPENAI:
-        try:
-            from inspect_ai.model._openai_responses import cached_tool_call
-
-            if cast(JsonValue, cached_tool_call(call_id)) != openai:
-                return False
-        except ImportError:
-            pass
-
-    if _HAS_ANTHROPIC:
-        try:
-            from inspect_ai.model._providers.anthropic import (
-                replayed_tool_call_state,
-            )
-
-            if replayed_tool_call_state(call_id) != anthropic:
-                return False
-        except ImportError:
-            pass
-
-    return True
-
-
 def _call_digest(call: ToolCall) -> str:
     # repr, as parsed arguments may hold values JSON can't order or encode (e.g.
     # YAML dates as keys); an unstable repr only drops the call's state

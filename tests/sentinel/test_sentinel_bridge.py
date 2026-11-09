@@ -484,8 +484,13 @@ async def test_reject_regenerates_and_tells_the_model() -> None:
     assert output.message.tool_calls == [READ]
     assert len(model.inputs) == 2
     replay = model.inputs[1][-1]
+    rejected = model.inputs[1][-2]
     assert isinstance(replay, ChatMessageTool)
-    assert replay.tool_call_id == BASH.id
+    assert isinstance(rejected, ChatMessageAssistant)
+    # the rejected turn is replayed under a fresh id, which its result answers
+    [replayed] = rejected.tool_calls or []
+    assert replace(replayed, id=BASH.id) == BASH
+    assert replay.tool_call_id == replayed.id != BASH.id
     assert replay.error is not None
     assert replay.error.type == "approval"
     assert replay.error.message == "Use a safer command."
@@ -8359,22 +8364,24 @@ async def test_parallel_anthropic_calls_sharing_an_id_continue_as_generated(
 
 
 @protocol
-def bridge_reject_nth(nth: int) -> Protocol:
-    """Rejects the `nth` call it sees."""
+def bridge_reject_nth(nth: int | None) -> Protocol:
+    """Rejects the `nth` call it sees, or every call."""
     seen: list[ToolCall] = []
 
     async def decide(
         context: Context, step: BeforeToolCall, escalations: Escalations
     ) -> Decision | None:
         seen.append(step.call)
-        return Decision.reject("risky", message="Denied.") if len(seen) == nth else None
+        if nth is None or len(seen) == nth:
+            return Decision.reject("risky", message="Denied.")
+        return None
 
     return decide
 
 
 @approver(name="bridge_reject_nth")
-def rejecting_approver(nth: int) -> Approver:
-    """Rejects the `nth` call it sees."""
+def rejecting_approver(nth: int | None) -> Approver:
+    """Rejects the `nth` call it sees, or every call."""
     seen: list[ToolCall] = []
 
     async def approve(
@@ -8384,7 +8391,7 @@ def rejecting_approver(nth: int) -> Approver:
         history: list[ChatMessage],
     ) -> Approval:
         seen.append(call)
-        if len(seen) == nth:
+        if nth is None or len(seen) == nth:
             return Approval(decision="reject", explanation="Denied.")
         return Approval(decision="approve")
 
@@ -8548,6 +8555,96 @@ async def test_a_rejected_turn_replays_each_call_as_generated(
             for param in replayed
             if param["type"] == RESPONSES_RESULT_TYPES[generated[0].type]
         ] == ids
+
+
+@pytest.mark.parametrize("distinct", [False, True])
+@pytest.mark.parametrize("rejecter", ["sentinel", "approval"])
+@pytest.mark.parametrize("filtered", ["unfiltered", "in_place", "rebuilt"])
+@pytest.mark.parametrize(
+    "kind", ["function", "custom", "computer", "tool_search", "anthropic"]
+)
+async def test_a_rejected_turn_replays_as_generated_after_a_later_rejection_reuses_its_id(
+    kind: str, filtered: str, rejecter: str, distinct: bool
+) -> None:
+    from contextlib import nullcontext
+
+    init_sample_assistant_internal()
+    # the first generation's last call, kept (alone, when filtered) and rejected;
+    # then a second generation reusing its id, also rejected
+    first: Any
+    second: Any
+    if kind == "anthropic":
+        first, second = deepcopy(ANTHROPIC_FIRST), deepcopy(ANTHROPIC_SECOND)
+        if filtered != "unfiltered":
+            first[3]["id"] = first[1]["id"]
+        if distinct:
+            second[0]["id"] = "toolu_distinct"
+        model = Parsing(
+            _anthropic_parsed(first),
+            _anthropic_parsed(second),
+            lambda: calls_output(),
+            wire=_anthropic_wire,
+        )
+        tools = list(ANTHROPIC_TOOLS)
+    else:
+        first = [_responses_call_reading(kind, "old.txt", 1)]
+        if filtered != "unfiltered":
+            first.insert(0, _responses_call_reading(kind, "removed.txt", 0))
+        second = _responses_call_reading(kind, "new.txt", 2)
+        if distinct:
+            second = second.model_copy(update={"call_id": "call_distinct"})
+        model = Parsing(
+            lambda: _responses_output(*first),
+            lambda: _responses_output(second),
+            lambda: calls_output(),
+            wire=_responses_wire,
+        )
+        tools = [ToolInfo(name="read_file", description="Read a file.")]
+    bridge = in_process_bridge([])
+    if filtered != "unfiltered":
+        bridge.response_filter = _keeping("last", filtered == "rebuilt", {})
+    if rejecter == "approval":
+        bridge.approval = [ApprovalPolicy(rejecting_approver(None), "*")]
+
+    with (
+        active([bridge_reject_nth(None)]) if rejecter == "sentinel" else (nullcontext())
+    ):
+        await bridge_generate(
+            bridge,
+            model.model,
+            [ChatMessageUser(content=TASK)],
+            tools,
+            None,
+            GenerateConfig(),
+            requested_model=None,
+        )
+
+    # the third request replays the first rejected turn as the second did
+    assert len(model.wire) == 3
+    assert model.wire[2][: len(model.wire[1])] == model.wire[1]
+    rejected = [m for m in model.inputs[2] if isinstance(m, ChatMessageAssistant)]
+    calls = [call for message in rejected for call in message.tool_calls or []]
+    results = [m for m in model.inputs[2] if isinstance(m, ChatMessageTool)]
+    assert [result.tool_call_id for result in results] == [call.id for call in calls]
+    assert len({call.id for call in calls}) == len(calls)
+    if kind == "anthropic":
+        kept = (
+            ANTHROPIC_FIRST_REPLAY
+            if filtered == "unfiltered"
+            else [("thinking", None), ("thinking", None), ("tool_use", "read_file")]
+        )
+        assert _anthropic_shapes(model.wire[2]) == [kept, ANTHROPIC_SECOND_REPLAY]
+        assert [
+            (block["id"], block["input"])
+            for blocks in model.wire[2]
+            for block in blocks
+            if block["type"] == "tool_use"
+        ] == [(call.id, call.arguments) for call in calls]
+    else:
+        assert _responses_replayed(model.wire[2], first[0].type) == [
+            (call.id, _responses_native_arguments(item.model_dump(exclude_none=True)))
+            for call, item in zip(calls, [first[-1], second])
+        ]
 
 
 def _answered(input: list[ChatMessage], output: ModelOutput) -> list[ChatMessage]:

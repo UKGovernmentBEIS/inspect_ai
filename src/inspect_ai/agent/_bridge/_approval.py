@@ -411,8 +411,8 @@ def rejection_messages(
     intended.
 
     `rejected` is one of `output`'s calls, found by position, as parallel calls can
-    share an id. The turn is replayed with each call under an id the providers
-    replay it from as generated (`replay_ids`), answered by its own result.
+    share an id. The turn is replayed with each call under a fresh id carrying
+    its own replay state (`replay_ids`), answered by its own result.
     """
     from inspect_ai.agent._bridge._sentinel import replay_ids
 
