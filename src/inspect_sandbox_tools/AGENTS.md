@@ -92,8 +92,12 @@ See [RELEASING.md](design/RELEASING.md) for the end-to-end process for building,
 
 ## Testing
 
-To test a local version of `inspect_sandbox_tools` instead of the published binaries, pass `--local-inspect-tools`. This builds the tools from source and injects them into the test sandboxes:
+An editable install whose sandbox tools build inputs differ from `main` uses the `-dev` binary, not the published binary. The build inputs are the paths in `src/inspect_ai/tool/_sandbox_tools_utils/injectable_paths.txt`. Build the `-dev` binaries before you run the tests. Use the architecture of your Docker host (`amd64` or `arm64`):
 
 ```sh
-pytest tests/tools/sandbox_tools_utils/test_sandbox_tools.py --runslow --local-inspect-tools
+python src/inspect_ai/tool/_sandbox_tools_utils/build_within_container.py --arch amd64
+python src/inspect_ai/tool/_sandbox_tools_utils/build_within_container.py --arch amd64 --musl
+pytest tests/tools/sandbox_tools_utils/test_sandbox_tools.py --runslow
 ```
+
+The tests reuse an existing `-dev` binary and do not check that it is current. Rebuild it after each change. Without a `-dev` binary, a non-interactive run stops with a `PrerequisiteError`. At a terminal, the run offers to build the binary.
