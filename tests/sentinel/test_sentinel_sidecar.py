@@ -253,7 +253,7 @@ async def test_a_second_probe_of_a_model_waits_for_its_adapter_to_load(
         memoize=False,
     )
     assert isinstance(model.api, vllm.VLLMAPI)
-    lock = model.api._server._init_lock  # pyright: ignore[reportPrivateUsage]
+    lock = model.api._server._init_lock
     second_returned: bool | None = None
 
     async def second_probe() -> None:
