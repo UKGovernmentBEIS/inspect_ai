@@ -2334,6 +2334,73 @@ def test_eval_set_selection_coverage_after_partial_log_recompute(
     )
 
 
+@pytest.mark.parametrize(
+    "initial_ids,ids,selection",
+    [
+        (["A"], ["A", "A"], {}),
+        (["A"], ["A", "A"], {"sample_id": ["A"]}),
+        ([1], [1, "1"], {"limit": 2}),
+    ],
+)
+def test_eval_set_selection_coverage_duplicate_ids_rejected(
+    tmp_path: Path,
+    initial_ids: list[str | int],
+    ids: list[str | int],
+    selection: dict[str, Any],
+) -> None:
+    """Duplicate selected ids are not hidden by a covering successful log."""
+    dataset_ids = list(initial_ids)
+
+    @task
+    def duplicates() -> Task:
+        return Task(
+            dataset=[Sample(id=id, input=str(id), target="ok") for id in dataset_ids],
+            solver=identity_solver(),
+        )
+
+    log_dir = str(tmp_path)
+    success, _ = eval_set(
+        duplicates, log_dir=log_dir, model="mockllm/model", **selection
+    )
+    assert success
+    dataset_ids[:] = ids
+    with pytest.raises(PrerequisiteError, match="unique"):
+        eval_set(duplicates, log_dir=log_dir, model="mockllm/model", **selection)
+
+
+def test_eval_set_drained_shuffled_log_does_not_cover_grown_dataset(
+    tmp_path: Path,
+) -> None:
+    """A fully drained shuffled log does not cover samples added since."""
+    dataset_ids = ["A", "B"]
+
+    @task
+    def grown() -> Task:
+        dataset = MemoryDataset(
+            [Sample(id=id, input=id, target="ok") for id in dataset_ids]
+        )
+        dataset.shuffle()
+        return Task(dataset=dataset, solver=identity_solver())
+
+    model = get_model("mockllm/model")
+    success, _ = eval_set(grown, log_dir=str(tmp_path), model=model)
+    assert success
+    [log] = list_all_eval_logs(str(tmp_path))
+    assert log.header.results is not None
+    # a drain after both samples started resolves both
+    log.header.results.logged_samples = 2
+
+    def complete() -> bool:
+        [resolved] = resolve_tasks([grown], {}, model, None, None, None)
+        return log_samples_complete(
+            log, [(log.task_identifier, resolved)], ["grown"], None, None
+        )
+
+    assert complete()
+    dataset_ids.append("C")
+    assert not complete()
+
+
 def test_eval_set_limit_slices():
     task1 = hello_world(samples=10)
 

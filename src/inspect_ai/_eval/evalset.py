@@ -118,6 +118,7 @@ from .eval_set_manifest import (
     EvalSetCaptureScan,
     build_eval_set_capture,
     eval_set_capture_requested,
+    samples_selected,
     task_args_hash,
 )
 from .eval_set_overrides import (
@@ -1895,6 +1896,12 @@ def log_samples_complete(
     epoch_count = epochs.epochs
 
     dataset = task.task.dataset
+    # count selected rows, not distinct ids, so duplicate ids still reach
+    # the run's unique-id validation
+    planned = (
+        samples_selected(dataset, limit, sample_id, task.task.name, task_names)
+        * epoch_count
+    )
     selected_range: range | None = None
     if sample_id is not None:
         sample_id = resolve_task_sample_ids(task.task.name, sample_id, task_names)
@@ -1912,7 +1919,6 @@ def log_samples_complete(
         for index in selected_range:
             sample = dataset[index]
             selected_ids.add(str(sample.id if sample.id is not None else index + 1))
-    planned = len(selected_ids) * epoch_count
 
     # a task no `task:id` selector named ran no samples, so its success log
     # holds none (and no results): nothing is outstanding
@@ -1965,9 +1971,12 @@ def log_samples_complete(
         # which samples resolved. A smaller selection still needs a retry
         # to establish coverage; the retry can reuse completed samples.
         # Metric recomputation can shrink total_samples to recorded samples,
-        # so also retain the original selection's planned count.
+        # so also retain the original selection's planned count, and the
+        # current one in case the dataset grew.
         previous_planned = len(previous_ids) * epoch_count
-        return logged_samples >= max(previous_planned, log.header.results.total_samples)
+        return logged_samples >= max(
+            planned, previous_planned, log.header.results.total_samples
+        )
 
     if log.header.results.total_samples < planned:
         return False
