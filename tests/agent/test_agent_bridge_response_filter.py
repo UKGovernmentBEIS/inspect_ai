@@ -2614,6 +2614,107 @@ async def test_request_filter_text_edit_keeps_pending_work(
     assert _pending_container_for_input([provider_output.message]) == CONTAINER_ID
 
 
+RegeneratedTurn = Literal["pending", "completed_and_pending", "completed", "plain"]
+
+
+async def _regenerated_output(turn: RegeneratedTurn) -> ModelOutput:
+    match turn:
+        case "pending":
+            return await _pending_container_output()
+        case "completed_and_pending":
+            return await _nested_pending_output()
+        case "completed":
+            return await _anthropic_output(
+                [
+                    {"type": "text", "text": "Checking."},
+                    *PENDING_SPAN_BLOCKS["completed_and_pending"],
+                    {
+                        "type": "tool_use",
+                        "id": "toolu_client",
+                        "name": "lookup",
+                        "input": {"q": "x"},
+                    },
+                ],
+                [ToolInfo(name="lookup", description="Look something up.")],
+                stop_reason="tool_use",
+            )
+        case "plain":
+            return ModelOutput.for_tool_call("mockllm/model", "lookup", {"q": "x"})
+        case _:
+            assert_never(turn)
+
+
+@pytest.mark.parametrize("path", get_args(BridgePath))
+@pytest.mark.parametrize("turn", get_args(RegeneratedTurn))
+async def test_response_filter_returning_its_own_generation_hands_over_that_reply(
+    turn: RegeneratedTurn, path: BridgePath
+) -> None:
+    """A filter returning its own generation unchanged hands over that generation's reply.
+
+    The reply keeps the generation's id, so the generation's replay state
+    reaches the scaffold: an Anthropic code execution still pending, and the
+    container to resume it, are found by that id alone.
+    """
+    from inspect_ai.model._providers.anthropic import _pending_container_for_input
+
+    init_sample_anthropic_assistant_internal()
+    regenerated = await _regenerated_output(turn)
+    regenerated_blocks = await _render_anthropic(regenerated.message)
+    pending = turn in ("pending", "completed_and_pending")
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.from_content("mockllm/model", "first"),
+            regenerated,
+        ],
+    )
+
+    async def regenerate(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput | None:
+        return await model.generate(generate_input.input)
+
+    match path:
+        case "in_process":
+            bridge = AgentBridge(AgentState(messages=[]))
+            bridge.response_filter = regenerate
+            output, _ = await bridge_generate(
+                bridge,
+                model,
+                [ChatMessageUser(content="hi")],
+                [],
+                None,
+                GenerateConfig(),
+                requested_model=None,
+            )
+            handed = output.message
+        case "sandbox":
+            sandbox_bridge = _sandbox_bridge(regenerate, model)
+            reply = await _forward_provider_errors(
+                generate_anthropic(None, None, sandbox_bridge), sandbox_bridge
+            )(
+                {
+                    "model": "inspect",
+                    "max_tokens": 1024,
+                    "messages": CHAT_REQUEST["messages"],
+                }
+            )
+            assert PROVIDER_ERROR_KEY not in reply
+            content = cast(list[dict[str, Any]], reply["content"])
+            assert [b["type"] for b in content] == [
+                b["type"] for b in regenerated_blocks
+            ]
+            handed = sandbox_bridge.state.output.message
+        case _:
+            assert_never(path)
+
+    assert handed.id == regenerated.message.id
+    assert await _render_anthropic(handed) == regenerated_blocks
+    if pending:
+        assert PENDING_CODE in json.dumps(regenerated_blocks)
+        assert _pending_container_for_input([handed]) == CONTAINER_ID
+
+
 async def test_response_filter_rejects_merging_server_items_across_choices() -> None:
     """Server tool items of two choices cannot share one message id."""
 

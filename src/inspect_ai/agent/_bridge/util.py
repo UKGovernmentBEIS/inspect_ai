@@ -478,6 +478,8 @@ async def _apply_response_filter(
     are not the filter's to answer for.
     """
     candidate = output.model_copy(deep=True)
+    history = transcript().history
+    events_before_filter = history.event_count
     try:
         filtered = await response_filter(model, candidate, generate_input)
     except Exception as ex:
@@ -535,15 +537,40 @@ async def _apply_response_filter(
         # the provider's completion can differ from message.text (e.g. Gemini
         # text continued across requests is joined with no separator)
         filtered.completion = output.completion
-    _check_provider_owned_content(output, filtered)
+    generations = [
+        choice.message
+        for event in history.recent_events(history.event_count - events_before_filter)
+        if isinstance(event, ModelEvent)
+        for choice in event.output.choices
+    ]
+    _check_provider_owned_content(output, filtered, generations)
     if on_filtered_output is not None:
         on_filtered_output(filtered)
-    _settle_message_ids(output, filtered)
+    _settle_message_ids(output, filtered, generations)
     return filtered
 
 
-def _settle_message_ids(original: ModelOutput, filtered: ModelOutput) -> None:
+def _is_unchanged(
+    message: ChatMessage, messages: Sequence[ChatMessageAssistant]
+) -> bool:
+    """Whether `message` is one of `messages`, id and content alike."""
+    # Pydantic equality takes 0 for False, which serialize differently
+    return any(
+        message.id == m.id and message == m and content_hash(message) == content_hash(m)
+        for m in messages
+    )
+
+
+def _settle_message_ids(
+    original: ModelOutput,
+    filtered: ModelOutput,
+    generations: Sequence[ChatMessageAssistant] = (),
+) -> None:
     """Give each returned message an id: an edit of the original gets an id of its own.
+
+    A message the filter's own generation produced (`generations`), returned
+    unchanged, is that generation's reply: it keeps its id, and with it the
+    replay state recorded under it.
 
     A changed or new message replaces an original: the one whose server tool
     items it keeps (they are kept all or none, `_check_provider_owned_content`),
@@ -570,6 +597,8 @@ def _settle_message_ids(original: ModelOutput, filtered: ModelOutput) -> None:
     original_messages = [choice.message for choice in original.choices]
     for index, choice in enumerate(filtered.choices):
         message = choice.message
+        if _is_unchanged(message, generations):
+            continue
         kept_owners = (
             [
                 owners[content.id]
@@ -734,7 +763,11 @@ def _verified_generated_calls(
     ]
 
 
-def _check_provider_owned_content(original: ModelOutput, filtered: ModelOutput) -> None:
+def _check_provider_owned_content(
+    original: ModelOutput,
+    filtered: ModelOutput,
+    generations: Sequence[ChatMessageAssistant] = (),
+) -> None:
     """Reject edits a dialect would silently undo when rendering for the agent.
 
     Dialects replay provider artifacts by identity rather than from the edited
@@ -742,7 +775,9 @@ def _check_provider_owned_content(original: ModelOutput, filtered: ModelOutput) 
     blocks as whole recorded spans (a span can cover several `ContentToolUse`
     items), and a native tool's wire name by its call id. So reasoning and server
     tool items may only be kept unchanged or removed, server tool items are kept
-    all or none, and a call keeping an original id keeps its function.
+    all or none, and a call keeping an original id keeps its function. A message
+    the filter's own generation produced, returned unchanged (`generations`), is
+    the provider's own and renders as such.
     """
     original_content = [
         content
@@ -763,6 +798,8 @@ def _check_provider_owned_content(original: ModelOutput, filtered: ModelOutput) 
     }
     kept_tool_uses: set[str] = set()
     for choice in filtered.choices:
+        if _is_unchanged(choice.message, generations):
+            continue
         for call in choice.message.tool_calls or []:
             function = original_functions.get(call.id)
             if function is not None and call.function != function:
