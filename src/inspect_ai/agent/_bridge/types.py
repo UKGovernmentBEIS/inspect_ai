@@ -284,10 +284,15 @@ class AgentBridge:
         self._latest_request = threads[placement.latest_request]
         self._recent_threads = deque(threads[i] for i in placement.recent_threads)
         self._held: Counter[str] = Counter()
-        """Kept threads (the tracked thread and recent ones) holding each reply id."""
+        """Kept threads (`_kept_threads`) holding each reply id, counting a thread once per role it is kept in."""
         self._held_replies: dict[str, int] = {}
         """Per reply id kept threads hold, the most replies a thread held it in while it stayed held, also a thread no longer kept."""
-        for thread in (self._tracked_ids, *self._recent_threads):
+        for thread in (
+            self._tracked_ids,
+            self._latest_generation,
+            self._latest_request,
+            *self._recent_threads,
+        ):
             self._keep(thread)
         for message_id, replies in (placement.held_replies or {}).items():
             if message_id in self._held_replies:
@@ -704,7 +709,7 @@ class AgentBridge:
                 self._recorded.add((key, message.id))
                 self._message_ids.setdefault(key, []).append(message.id)
         request: list[tuple[str, str]] = [(m.id, m.role) for m in messages if m.id]
-        self._latest_request = request
+        self._latest_request = self._replace_kept(self._latest_request, request)
         self._remember_thread(request)
         inferred = {id(message) for message in inferred_results}
         self._link_result_messages(
@@ -831,7 +836,7 @@ class AgentBridge:
             if role == "assistant"
         ]
         roots = [self._edit_root(message_id) for _, message_id in replies]
-        for other in (self._tracked_ids, *self._recent_threads):
+        for other in self._kept_threads():
             if other is thread:
                 continue
             other_ids = [
@@ -941,6 +946,31 @@ class AgentBridge:
         self._recent_threads.append(thread)
         if len(self._recent_threads) > _MAX_RECENT_THREADS:
             self._drop(self._recent_threads.popleft())
+
+    def _kept_threads(self) -> list[list[tuple[str, str]]]:
+        """The threads whose replies placement keeps: the tracked thread, the latest generation's and request's, and the recent ones.
+
+        The latest generation and request are kept whatever leaves the recent
+        window, since `_align_with_tracked` places requests by them: requests
+        entering the bridge while others are still generating (concurrent
+        sub-agents) can push the latest generation out of the window, and its
+        replies must not then count as dropped (`_dropped_holds`).
+        """
+        threads = (
+            self._tracked_ids,
+            self._latest_generation,
+            self._latest_request,
+            *self._recent_threads,
+        )
+        return list({id(thread): thread for thread in threads}.values())
+
+    def _replace_kept(
+        self, old: list[tuple[str, str]], new: list[tuple[str, str]]
+    ) -> list[tuple[str, str]]:
+        """Keep `new` in place of `old` (the latest generation or request); returns `new`."""
+        self._keep(new)
+        self._drop(old)
+        return new
 
     def _keep(self, thread: list[tuple[str, str]]) -> None:
         replies = sum(role == "assistant" for _, role in thread)
@@ -1107,7 +1137,9 @@ class AgentBridge:
         ]
         for thread in [*threads[1:], threads[0]]:
             self._remember_thread(thread)
-        self._latest_generation = threads[0]
+        self._latest_generation = self._replace_kept(
+            self._latest_generation, threads[0]
+        )
         messages = input + [output.message]
         fps = [_message_fingerprint(m) for m in messages]
 

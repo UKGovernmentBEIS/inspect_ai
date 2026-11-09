@@ -57,6 +57,7 @@ from inspect_ai.model import (
     ChatMessageSystem,
     ChatMessageTool,
     ChatMessageUser,
+    GenerateConfig,
     GenerateInput,
     Model,
     ModelOutput,
@@ -83,6 +84,7 @@ from inspect_ai.solver import generate, user_message
 from inspect_ai.tool import (
     Tool,
     ToolCall,
+    ToolChoice,
     ToolInfo,
     ToolParam,
     ToolParams,
@@ -1383,6 +1385,107 @@ def test_idle_conversation_never_takes_another_conversations_id(
     ]
     events, _ = _reply_events(scaffold, replies, tmp_path, "Main task.")
     _assert_owned(events, sent, placements)
+
+
+class _HeldRequests:
+    """A request filter holding `count` one-shot `Unrelated` requests in generation until released."""
+
+    def __init__(self, count: int) -> None:
+        self.count = count
+        self.entered = 0
+        self.all_entered = anyio.Event()
+        self.release = anyio.Event()
+
+    async def __call__(
+        self,
+        model: Model,
+        messages: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> ModelOutput | None:
+        text = messages[-1].text
+        if not text.startswith("Unrelated"):
+            return None
+        self.entered += 1
+        if self.entered == self.count:
+            self.all_entered.set()
+        await self.release.wait()
+        return ModelOutput.from_content("mockllm/model", f"Answer to {text}")
+
+
+@pytest.mark.parametrize("unrelated", [0, bridge_types._MAX_RECENT_THREADS])
+@pytest.mark.parametrize("dialect", DIALECTS)
+def test_latest_generation_keeps_its_reply_id_with_concurrent_requests(
+    dialect: Dialect, unrelated: int, tmp_path: Path
+) -> None:
+    """Requests still generating don't push the latest generation's reply out of placement.
+
+    After an established main conversation, a side conversation's short
+    exchange is the latest generation. `unrelated` one-shot requests
+    (concurrent sub-agents) then enter the bridge and stay in generation while
+    the side conversation continues unchanged: its reply keeps the id it was
+    generated with. The same holds on a bridge resumed from the checkpoint
+    taken after the side exchange.
+    """
+
+    async def continue_side(
+        side: _TextConversation, held: _HeldRequests, serving: AgentBridge
+    ) -> None:
+        with _serving(serving):
+            async with anyio.create_task_group() as tg:
+                for n in range(held.count):
+                    one_shot = _TextConversation(dialect)
+                    one_shot.user(f"Unrelated {n}?")
+                    tg.start_soon(one_shot.generate)
+                if held.count:
+                    await held.all_entered.wait()
+                await side.generate()
+                held.release.set()
+
+    @agent
+    def scaffold() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            initial = list(state.messages)
+            checkpointer = RecordingCheckpointer()
+            held = _HeldRequests(unrelated)
+            bridge = AgentBridge(state, filter=held, checkpointer=checkpointer)
+            with _serving(bridge):
+                main = _TextConversation(dialect)
+                main.user("Main task.")
+                for step in range(3):
+                    await main.generate()
+                    main.user(f"Step {step}.")
+                side = _TextConversation(dialect)
+                side.user("Side question?")
+                await side.generate()
+            snapshot = checkpointer.snapshot()
+            side.user("And?")
+            before = list(side.turns)
+            await continue_side(side, held, bridge)
+            held = _HeldRequests(unrelated)
+            resumed = AgentBridge(
+                AgentState(messages=initial),
+                filter=held,
+                checkpointer=RecordingCheckpointer(restored=snapshot, serialized=True),
+            )
+            side.turns = before
+            await continue_side(side, held, resumed)
+            return state
+
+        return execute
+
+    events, _ = _reply_events(
+        scaffold,
+        ["Plan.", "Did 0.", "Did 1.", "Side answer.", "Side done.", "Side done."],
+        tmp_path,
+        "Main task.",
+    )
+    side_reply = events[3].output.message.id
+    uninterrupted, resumed = events[4].input, events[5].input
+    assert [m.text for m in uninterrupted] == ["Side question?", "Side answer.", "And?"]
+    assert uninterrupted[1].id == side_reply
+    assert resumed[1].id == side_reply
 
 
 @pytest.mark.parametrize("dialect", DIALECTS)
