@@ -148,6 +148,7 @@ from .task.scan import scan_context
 from .task.task import PreviousTask, resolve_epochs, resolve_task_epochs
 from .task.task_source import TaskSource
 from .task.tasks import Tasks
+from .task.util import resolve_task_sample_ids, sample_id_filter
 
 if TYPE_CHECKING:
     from inspect_ai._control.eval_state import DeferredStatsProvider
@@ -1894,10 +1895,34 @@ def log_samples_complete(
         return False
     epoch_count = epochs.epochs
 
-    count = samples_selected(
-        task.task.dataset, limit, sample_id, task.task.name, task_names
+    dataset = task.task.dataset
+    # count selected rows, not distinct ids, so duplicate ids still reach
+    # the run's unique-id validation
+    planned = (
+        samples_selected(dataset, limit, sample_id, task.task.name, task_names)
+        * epoch_count
     )
-    planned = count * epoch_count
+    selected_ids: set[str] | None
+    if sample_id is not None:
+        sample_id = resolve_task_sample_ids(task.task.name, sample_id, task_names)
+        matcher = sample_id_filter(sample_id if sample_id is not None else [])
+        selected_ids = {
+            str(selected_id)
+            for position, sample in enumerate(dataset, start=1)
+            if matcher.matches(
+                selected_id := sample.id if sample.id is not None else position
+            )
+        }
+    elif dataset.shuffled:
+        # a shuffle can draw a different subset on each task resolution, so
+        # ids cannot prove that a limit selection changed: compare counts
+        selected_ids = None
+    else:
+        selection = slice(*limit) if isinstance(limit, tuple) else slice(0, limit)
+        selected_ids = set()
+        for index in range(len(dataset))[selection]:
+            sample = dataset[index]
+            selected_ids.add(str(sample.id if sample.id is not None else index + 1))
 
     # a task no `task:id` selector named ran no samples, so its success log
     # holds none (and no results): nothing is outstanding
@@ -1914,16 +1939,34 @@ def log_samples_complete(
     # logs from older versions), which fall through to the planned-count
     # comparison below.
     logged_samples = log.header.results.logged_samples
+    # a resolution stamped in this process is honored for the life of
+    # the run: with `retry_immediate=False` the outer tenacity pass
+    # re-enters this classification after a sibling task fails, and
+    # without the registry it would re-dispatch the abandoned remainder
+    # in-process. A later invocation (fresh process, empty registry)
+    # sees the shortfall and re-runs the remainder as designed.
+    if logged_samples is not None and task_gracefully_resolved(log.header.eval.task_id):
+        return True
+
+    # Counts alone cannot prove coverage when a selector or limit range
+    # changes. Keep reusing supersets, but require every requested id.
+    previous_ids = log.header.eval.dataset.sample_ids
+    if selected_ids is not None and (
+        previous_ids is None or not selected_ids.issubset(map(str, previous_ids))
+    ):
+        return False
+
     if logged_samples is not None:
-        if logged_samples >= planned:
-            return True
-        # a resolution stamped in this process is honored for the life of
-        # the run: with `retry_immediate=False` the outer tenacity pass
-        # re-enters this classification after a sibling task fails, and
-        # without the registry it would re-dispatch the abandoned remainder
-        # in-process. A later invocation (fresh process, empty registry)
-        # sees the shortfall and re-runs the remainder as designed.
-        return task_gracefully_resolved(log.header.eval.task_id)
+        # A partial log's sample_ids describe the planned selection, not
+        # which samples resolved. A smaller selection still needs a retry
+        # to establish coverage; the retry can reuse completed samples.
+        # Metric recomputation can shrink total_samples to recorded samples,
+        # so also retain the original selection's planned count, and the
+        # current one in case the dataset grew.
+        previous_planned = len(previous_ids or []) * epoch_count
+        return logged_samples >= max(
+            planned, previous_planned, log.header.results.total_samples
+        )
 
     if log.header.results.total_samples < planned:
         return False
