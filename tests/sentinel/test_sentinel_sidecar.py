@@ -261,19 +261,18 @@ async def test_a_second_probe_of_a_model_waits_for_its_adapter_to_load(
         await proxy_client(model.api)
         second_returned = not release.is_set()
 
-    # the loader is released however the probes end, so the worker thread
-    # holding the server's lock never outlives the test
-    try:
-        async with anyio.create_task_group() as tg:
+    # the loader is released however the probes end, inside the group: it
+    # waits for the first probe's thread, which waits for the release
+    async with anyio.create_task_group() as tg:
+        try:
             tg.start_soon(proxy_client, model.api)
             assert await anyio.to_thread.run_sync(partial(loading.wait, 5))
             tg.start_soon(second_probe)
             # the second probe either returns at once, or waits on the lock
             while second_returned is None and not lock.statistics().tasks_waiting:
                 await anyio.sleep(0)
+        finally:
             release.set()
-    finally:
-        release.set()
 
     assert second_returned is False
 
