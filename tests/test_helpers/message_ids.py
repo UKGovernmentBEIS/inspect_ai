@@ -8,7 +8,9 @@ independently of the id code it checks.
 
 import json
 from collections import defaultdict
-from typing import Any
+from contextlib import contextmanager
+from typing import Any, Iterator
+from unittest.mock import patch
 
 from inspect_ai.event import ModelEvent, ToolEvent
 from inspect_ai.log import EvalSample
@@ -153,3 +155,35 @@ def edited_id(source_id: str | None, edited: ChatMessage) -> str:
     """
     assert source_id is not None
     return edit_id(source_id, content_hash(edited))
+
+
+@contextmanager
+def recording_placements() -> Iterator[list[set[str]]]:
+    """Record, per bridged request, the ids the agent bridge gave by placement.
+
+    Placement is where the bridge claims certainty; other messages get ids by
+    content, which equal messages may share. Unlike the checks above, this
+    hooks the production bridge.
+    """
+    from inspect_ai.agent._bridge.types import AgentBridge
+
+    placements: list[set[str]] = []
+    align = AgentBridge._align_with_tracked
+    assign = AgentBridge._assign_message_ids
+    placed: dict[int, dict[int, str]] = {}
+
+    def recording_align(self: AgentBridge, contents: list[str]) -> dict[int, str]:
+        placed[id(self)] = align(self, contents)
+        return placed[id(self)]
+
+    def recording_assign(
+        self: AgentBridge, messages: list[ChatMessage], *args: Any, **kwargs: Any
+    ) -> None:
+        assign(self, messages, *args, **kwargs)
+        placements.append({messages[i].id or "" for i in placed.pop(id(self), {})})
+
+    with (
+        patch.object(AgentBridge, "_align_with_tracked", recording_align),
+        patch.object(AgentBridge, "_assign_message_ids", recording_assign),
+    ):
+        yield placements

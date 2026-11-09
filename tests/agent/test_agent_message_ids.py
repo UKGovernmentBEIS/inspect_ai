@@ -19,7 +19,12 @@ from google import genai
 from openai import AsyncOpenAI
 from shortuuid import uuid
 from test_helpers.checkpoint import RecordingCheckpointer
-from test_helpers.message_ids import assert_message_ids, edited_id, tool_event_producers
+from test_helpers.message_ids import (
+    assert_message_ids,
+    edited_id,
+    recording_placements,
+    tool_event_producers,
+)
 
 from inspect_ai import Task, eval
 from inspect_ai._util._async import tg_collect
@@ -844,17 +849,18 @@ class _TextConversation:
 )
 @pytest.mark.parametrize("dialect", DIALECTS)
 def test_compacted_identical_replies_keep_their_own_ids(
-    dialect: Dialect, case: str, tmp_path: Path
+    dialect: Dialect, case: str, tmp_path: Path, placements: list[set[str]]
 ) -> None:
-    """Replies retained by compaction never take another reply's id.
+    """Replies retained by compaction are never placed as another reply.
 
     Two replies (`OK` twice, or `OK` and `Fine`) follow different user
     messages. Compaction replaces the prompt with a summary and keeps both
     exchanges, or only the latest. The request no longer starts with a thread
-    the bridge knows, so each retained reply gets an id made for unplaced
-    messages, which it keeps. A reply generated after that compaction keeps
-    its own id, unless it is `OK` too: the conversation before compaction
-    holds two `OK` replies, so the next request could continue it.
+    the bridge knows, so the retained replies aren't placed: each gets the id
+    an equal message had, which it keeps. A reply generated after that
+    compaction keeps its own id, unless it is `OK` too: the conversation
+    before compaction holds two `OK` replies, so the next request could
+    continue it.
     """
     sent: _Sent = []
 
@@ -905,13 +911,13 @@ def test_compacted_identical_replies_keep_their_own_ids(
     sample = log.samples[0]
     events = [e for e in sample.events if isinstance(e, ModelEvent)]
     reply_ids = [event.output.message.id for event in events]
-    _assert_owned(events, sent)
+    _assert_owned(events, sent, placements)
     compacted = [m.id for m in events[2].input if m.role == "assistant"]
     final = [m.id for m in events[3].input if m.role == "assistant"]
     if case == "full_history":
         assert final == reply_ids[:3]
     elif case != "same_reply_next":
-        assert compacted[0] not in reply_ids
+        assert not set(compacted) & placements[2]
         assert final == [*compacted, reply_ids[2]]
     assert [m.id for m in sample.messages if m.role == "assistant"] == [
         *final,
@@ -928,17 +934,21 @@ _COMPACTION_STRATEGIES: dict[str, Callable[[], CompactionStrategy]] = {
 }
 
 
+@pytest.mark.parametrize("shape", ["equal_replies", "input_prompt", "placed_first"])
 @pytest.mark.parametrize("strategy", list(_COMPACTION_STRATEGIES))
 @pytest.mark.parametrize("dialect", DIALECTS)
 def test_retried_request_after_equal_replies_keeps_its_input_length(
-    dialect: Dialect, strategy: str, tmp_path: Path
+    dialect: Dialect, strategy: str, shape: str, tmp_path: Path
 ) -> None:
     """Retrying a request that holds an ambiguous reply never grows the compacted input.
 
     The prompt is sent twice and both replies are `OK`, so the retained reply
-    in `[prompt, OK, follow-up]` can't be placed. It gets the same id on every
-    retry, so compaction counts it as already processed (below its threshold
-    nothing is compacted) and each retry's input stays three messages.
+    in `[prompt, OK, follow-up]` can't be placed. Each of its messages gets the
+    same id on every retry, also one placed before (the sample input's prompt
+    with `input_prompt`, the first `OK` placed under its generated id before
+    the second was generated with `placed_first`), so compaction counts them
+    as already processed (below its threshold nothing is compacted) and the
+    input doesn't grow.
     """
 
     @agent
@@ -950,19 +960,27 @@ def test_retried_request_after_equal_replies_keeps_its_input_length(
                 conversation = _TextConversation(dialect)
                 conversation.user("Say OK.")
                 await conversation.generate()
+                if shape == "placed_first":
+                    conversation.user("Thanks.")
+                    await conversation.generate()
                 conversation.turns = conversation.turns[:1]
                 await conversation.generate()
                 conversation.user("Thanks.")
                 retried = list(conversation.turns)
-                for _ in range(3):
+                for _ in range(2 if shape == "placed_first" else 3):
                     conversation.turns = list(retried)
                     await conversation.generate()
                 return bridge.state
 
         return execute
 
-    events, _ = _reply_events(scaffold, ["OK", "OK", "Bye", "Bye", "Bye"], tmp_path)
-    assert [len(event.input) for event in events] == [1, 1, 3, 3, 3]
+    if shape == "placed_first":
+        replies, lengths = ["OK", "Bye", "OK", "Bye", "Bye"], [1, 3, 3, 3, 3]
+    else:
+        replies, lengths = ["OK", "OK", "Bye", "Bye", "Bye"], [1, 1, 3, 3, 3]
+    prompt = "Say OK." if shape == "input_prompt" else "Start."
+    events, _ = _reply_events(scaffold, replies, tmp_path, prompt=prompt)
+    assert [len(event.input) for event in events] == lengths
 
 
 def _stripped(value: Any) -> Any:
@@ -1045,27 +1063,39 @@ def test_initial_example_replies_keep_their_ids_across_turns(
     assert [m.id for m in sample.messages if m.role == "assistant"][:2] == input_ids
 
 
-def _assert_owned(events: list[ModelEvent], sent: _Sent) -> None:
-    """No reply takes an id generated for another reply.
+@pytest.fixture
+def placements() -> Iterator[list[set[str]]]:
+    with recording_placements() as recorded:
+        yield recorded
+
+
+def _assert_owned(
+    events: list[ModelEvent], sent: _Sent, placements: list[set[str]]
+) -> None:
+    """Placement never moves an id from one reply to another.
 
     Each event's assistant messages are its request's reply turns, in order,
-    then its output. A generated reply's id, and an edit of it, belong to the
-    reply turn appended for it. Reply turns share an id only if the bridge
-    made it for messages it couldn't place, which equal messages share.
+    then its output, and `placements` holds the ids each request's messages
+    got by placement. A placed reply turn carries an id the same turn had
+    before (its generated id, or one it carried in an earlier request), or an
+    edit of one. A reply turn the bridge didn't place got its id by content
+    and may share it with an equal reply.
     """
-    owners = {
-        event.output.message.id: id(reply)
-        for event, (_, reply) in zip(events, sent, strict=True)
-    }
-    for event, (turns, _) in zip(events, sent, strict=True):
+    assert len(placements) == len(events)
+    carried: dict[int, set[str]] = {}
+    for event, (turns, reply), placed in zip(events, sent, placements, strict=True):
         replies = [turn for turn in turns if turn[0].get("role") != "user"]
         messages = [m for m in event.input if m.role == "assistant"]
         for turn, message in zip(replies, messages, strict=True):
-            for output_id, owner in owners.items():
-                if message.id in (output_id, edited_id(output_id, message)):
-                    assert owner == id(turn), (
-                        f"a reply took {message.id}, another reply's id"
-                    )
+            assert message.id is not None
+            before = carried.setdefault(id(turn), set())
+            if message.id in placed:
+                assert message.id in before or any(
+                    message.id == edited_id(earlier, message) for earlier in before
+                ), f"a placed reply took {message.id}, another reply's id"
+            before.add(message.id)
+        assert event.output.message.id is not None
+        carried.setdefault(id(reply), set()).add(event.output.message.id)
 
 
 def _reply_events(
@@ -1093,7 +1123,7 @@ def _reply_events(
 @pytest.mark.parametrize("shape", ["middle_dropped", "sliding_window", "kept_prefix"])
 @pytest.mark.parametrize("dialect", DIALECTS)
 def test_compacted_repeated_exchanges_never_shift_ids(
-    dialect: Dialect, shape: str, tmp_path: Path
+    dialect: Dialect, shape: str, tmp_path: Path, placements: list[set[str]]
 ) -> None:
     """Retained `OK` replies keep their own ids or get new ones, never another's.
 
@@ -1146,7 +1176,7 @@ def test_compacted_repeated_exchanges_never_shift_ids(
         scaffold, ["OK"] * replies + ["Done", "Bye"], tmp_path
     )
     reply_ids = [event.output.message.id for event in events]
-    _assert_owned(events, sent)
+    _assert_owned(events, sent, placements)
     compacted = [m.id for m in events[replies].input if m.role == "assistant"]
     assert [m.id for m in events[-1].input if m.role == "assistant"] == [
         *compacted,
@@ -1161,7 +1191,7 @@ def test_compacted_repeated_exchanges_never_shift_ids(
 @pytest.mark.parametrize("case", ["retry", "rewind", "side", "compacted_side"])
 @pytest.mark.parametrize("dialect", DIALECTS)
 def test_retry_rewind_and_side_call_never_take_another_replys_id(
-    dialect: Dialect, case: str, tmp_path: Path
+    dialect: Dialect, case: str, tmp_path: Path, placements: list[set[str]]
 ) -> None:
     """`OK` replies keep their own ids or get new ones after a retry or a rewind, or beside a side call that returns `OK` too.
 
@@ -1201,7 +1231,7 @@ def test_retry_rewind_and_side_call_never_take_another_replys_id(
 
     events, sample = _reply_events(scaffold, ["OK", "OK", "OK", "Done"], tmp_path)
     reply_ids = [event.output.message.id for event in events]
-    _assert_owned(events, sent)
+    _assert_owned(events, sent, placements)
     final = [m.id for m in events[-1].input if m.role == "assistant"]
     if case in ("retry", "side"):
         assert [m.id for m in sample.messages if m.role == "assistant"] == [
@@ -1245,7 +1275,7 @@ _SEED_3_TRACE = [
 @pytest.mark.parametrize("shape", ["side_reply", "side_alias", "seed_3_trace"])
 @pytest.mark.parametrize("dialect", DIALECTS)
 def test_compacted_conversation_never_takes_another_conversations_id(
-    dialect: Dialect, shape: str, tmp_path: Path
+    dialect: Dialect, shape: str, tmp_path: Path, placements: list[set[str]]
 ) -> None:
     """A request another conversation could have sent places none of its replies.
 
@@ -1300,12 +1330,12 @@ def test_compacted_conversation_never_takes_another_conversations_id(
     )
     prompt = _SEED_3_USERS[0] if shape == "seed_3_trace" else "Main task."
     events, _ = _reply_events(scaffold, replies, tmp_path, prompt)
-    _assert_owned(events, sent)
+    _assert_owned(events, sent, placements)
 
 
 @pytest.mark.parametrize("dialect", DIALECTS)
 def test_idle_conversation_never_takes_another_conversations_id(
-    dialect: Dialect, tmp_path: Path
+    dialect: Dialect, tmp_path: Path, placements: list[set[str]]
 ) -> None:
     """A conversation resumed after the bridge stopped keeping its threads places none of its replies.
 
@@ -1350,12 +1380,12 @@ def test_idle_conversation_never_takes_another_conversations_id(
         *("OK", "Bye"),
     ]
     events, _ = _reply_events(scaffold, replies, tmp_path, "Main task.")
-    _assert_owned(events, sent)
+    _assert_owned(events, sent, placements)
 
 
 @pytest.mark.parametrize("dialect", DIALECTS)
 def test_repeated_compaction_never_revives_a_dropped_replys_id(
-    dialect: Dialect, tmp_path: Path
+    dialect: Dialect, tmp_path: Path, placements: list[set[str]]
 ) -> None:
     """A reply kept by a second compaction, equal to the first compaction's dropped reply, never takes its id."""
     sent: _Sent = []
@@ -1382,7 +1412,7 @@ def test_repeated_compaction_never_revives_a_dropped_replys_id(
 
     events, sample = _reply_events(scaffold, ["OK", "OK", "Done", "Bye"], tmp_path)
     reply_ids = [event.output.message.id for event in events]
-    _assert_owned(events, sent)
+    _assert_owned(events, sent, placements)
     [retained] = [m.id for m in events[2].input if m.role == "assistant"]
     assert retained not in reply_ids
     assert [m.id for m in sample.messages if m.role == "assistant"] == [
@@ -1626,8 +1656,8 @@ async def test_compaction_after_re_derived_ids_keeps_the_latest_replys_id(
     Generated after a compaction that kept a later reply, it is the latest
     generation's reply and keeps its id: the conversation before compaction
     can't hold that reply before an equal call. Generated before, nothing
-    tells it from the earlier one: it gets an id made for unplaced messages,
-    and its host result stays unlinked.
+    tells it from the earlier one: it isn't placed, and its host result stays
+    unlinked.
     """
     task = ChatMessageUser(content="List the files twice.")
     first, second = _call("toolu_1"), _call("toolu_2")
@@ -1653,7 +1683,10 @@ async def test_compaction_after_re_derived_ids_keeps_the_latest_replys_id(
     bridge._record_transported_reply(second, [second_back])
     [event] = _awaiting(bridge, second)
 
-    ids = await scaffold.request([*kept, second_back, _result("call_bash_1", "NEW")])
+    with recording_placements() as placements:
+        ids = await scaffold.request(
+            [*kept, second_back, _result("call_bash_1", "NEW")]
+        )
 
     assert first.id is not None and second.id is not None
     reply, result = ids[-2], ids[-1]
@@ -1661,9 +1694,7 @@ async def test_compaction_after_re_derived_ids_keeps_the_latest_replys_id(
         assert reply == edited_id(second.id, scaffold.sent[-2])
         assert event.message_id == result
     else:
-        assert reply not in (
-            edited_id(id, scaffold.sent[-2]) for id in (first.id, second.id)
-        )
+        assert reply not in placements[0]
         assert event.message_id is None
 
 
@@ -1793,10 +1824,10 @@ def _serving(bridge: AgentBridge) -> Iterator[None]:
         bridge_module._patch_config.reset(token)
 
 
-@pytest.mark.parametrize("checkpoint", ["current", "without_evidence"])
+@pytest.mark.parametrize("checkpoint", ["current", "without_placement"])
 @pytest.mark.parametrize("dialect", DIALECTS)
 def test_resumed_bridge_never_gives_a_conversation_another_conversations_ids(
-    dialect: Dialect, checkpoint: str, tmp_path: Path
+    dialect: Dialect, checkpoint: str, tmp_path: Path, placements: list[set[str]]
 ) -> None:
     """A compacted main conversation takes no side conversation's ids, before or after a resume.
 
@@ -1828,8 +1859,8 @@ def test_resumed_bridge_never_gives_a_conversation_another_conversations_ids(
                 del main.turns[:2]
                 main.user("Finish.")
                 await main.generate()
-            if checkpoint == "without_evidence":
-                snapshot.pop("bridge_match_evidence", None)
+            if checkpoint == "without_placement":
+                snapshot.pop("bridge_placement", None)
             resumed = AgentBridge(
                 AgentState(messages=initial),
                 checkpointer=RecordingCheckpointer(restored=snapshot, serialized=True),
@@ -1847,7 +1878,7 @@ def test_resumed_bridge_never_gives_a_conversation_another_conversations_ids(
         tmp_path,
         "Main task.",
     )
-    _assert_owned(events, sent)
+    _assert_owned(events, sent, placements)
 
 
 _UNTRUSTED_SUFFIXES = ["1", "\ud800", "\\ud800"]
@@ -2405,6 +2436,32 @@ async def test_host_result_is_linked_when_the_scaffold_first_sends_it() -> None:
     assert event.message_id == ids[2]
     await scaffold.request([task, reply, _result("call_1", "changed")])
     assert event.message_id == ids[2]
+
+
+async def test_host_result_after_a_reply_copy_given_its_id_by_content_stays_unlinked() -> (
+    None
+):
+    """A copy of a handed reply that got the reply's id by content leaves its calls unlinked.
+
+    After compaction the copy isn't placed: it takes the id an equal message
+    had, which an equal reply's copy would take too. The next request, which
+    continues it, places it under that id, but which reply it is stays
+    unknown, so its result doesn't link.
+    """
+    task = ChatMessageUser(content="List the files.")
+    reply = _call("call_1")
+    scaffold = _Scaffold(AgentBridge(AgentState(messages=[task])))
+    await scaffold.request([task], reply)
+    [event] = _awaiting(scaffold.bridge, reply)
+    await scaffold.request([task, reply, ChatMessageUser(content="Title?")])
+    summary = ChatMessageUser(content="Summary: listing.")
+
+    compacted = await scaffold.request([summary, reply])
+    ids = await scaffold.request([summary, reply, _result("call_1")])
+
+    assert compacted[1] == ids[1] == reply.id
+    assert event.message_id is None
+    assert _waiting(scaffold.bridge) == 0
 
 
 @pytest.mark.parametrize("ambiguity", ["two results", "two executions"])

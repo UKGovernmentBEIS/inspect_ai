@@ -35,6 +35,7 @@ from test_helpers.message_ids import (
     assert_message_ids,
     edited_id,
     message_id_violations,
+    recording_placements,
     tool_event_producers,
 )
 from test_helpers.service_dispatch import (
@@ -6224,9 +6225,11 @@ def test_host_tool_events_name_their_result_message(
 
     events = [e for e in sample.events if isinstance(e, ToolEvent)]
     assert len(events) == 4
-    if dialect == "google":
+    if dialect == "google" or mode == "approval":
         # each round's calls share a function, and a Google result names only
-        # its function, so which call it answers is unknown
+        # its function, so which call it answers is unknown; the approver
+        # gives each round's calls the same arguments, so which call's grant
+        # an execution took is unknown
         assert all(e.message_id is None for e in events)
         return
     _assert_linked(sample, events)
@@ -6758,8 +6761,8 @@ def test_compacted_equal_host_result_shares_its_id_and_links_nothing(
     in the request, and which execution it holds can't be told: the later
     call stays unlinked, also in the next request.
 
-    With `parallel`, the first turn makes two identical calls (in Google they
-    can't be told apart and stay unlinked). With `evicted`, the bridge no
+    With `parallel`, the first turn makes two identical calls, which can't be
+    told apart and stay unlinked. With `evicted`, the bridge no
     longer tracks the first reply when the compacted result arrives. With
     `placed`, the later reply was generated after a compaction that kept a
     later reply, so the bridge places it.
@@ -6800,7 +6803,8 @@ def test_compacted_equal_host_result_shares_its_id_and_links_nothing(
     [next_result] = [m.id for m in model_events[-1].input if m.role == "tool"]
     assert next_result == latest_result
     events = [e for e in sample.events if isinstance(e, ToolEvent)]
-    first_links = [None, None] if parallel and dialect == "google" else first_results
+    # identical parallel calls can't be told apart by the executions they took
+    first_links = [None, None] if parallel else first_results
     assert latest_result == first_results[0]
     assert [e.message_id for e in events] == [*first_links, None]
 
@@ -7114,13 +7118,12 @@ def test_reply_with_one_call_under_the_joined_ids_of_two_is_not_their_reply(
 async def test_empty_text_tool_reply_never_takes_an_earlier_replys_id(
     dialect: HostDialect,
 ) -> None:
-    """A tool-only reply equal to an earlier one in its wire form never takes that reply's id.
+    """A tool-only reply equal to an earlier one in its wire form is never placed as either.
 
     Responses and Anthropic send a reply with empty text back without the
     text, and Google re-derives call ids, so the second reply, generated after
     compaction, comes back as the first one's copy did. Either could hold it,
-    so it isn't placed and gets an id made for unplaced messages, which it
-    keeps. Its result equals the first one's and may share that id.
+    so it isn't placed: it gets the id the equal copy had, and keeps it.
     """
 
     def calls() -> ModelOutput:
@@ -7141,7 +7144,7 @@ async def test_empty_text_tool_reply_never_takes_an_earlier_replys_id(
     )
     [info] = declare("read_file")
     conversation = _HostConversation(dialect, "Read twice.", info)
-    with recorded_transcript() as recorded:
+    with recorded_transcript() as recorded, recording_placements() as placements:
         first = await conversation.request(cast(SandboxAgentBridge, bridge))
         conversation.results(first, ["same"])
         await conversation.request(cast(SandboxAgentBridge, bridge))
@@ -7157,9 +7160,8 @@ async def test_empty_text_tool_reply_never_takes_an_earlier_replys_id(
     def ids(event: ModelEvent) -> list[str | None]:
         return [m.id for m in event.input if m.role in ("assistant", "tool")]
 
-    first_ids = {events[0].output.message.id, *ids(events[1])}
     assert len(ids(events[3])) == 2
-    assert ids(events[3])[0] not in first_ids | {events[2].output.message.id}
+    assert ids(events[3])[0] not in placements[3]
     assert ids(events[4])[:2] == ids(events[3])
 
 
@@ -7180,8 +7182,8 @@ async def test_empty_text_tool_reply_keeps_its_ids_when_resumed_from_its_checkpo
 
     The second tool-only reply equals the first in that form. The checkpoint
     its request saves equals the bridge's state once the request returns, and
-    a bridge resumed from it doesn't place the reply either, never giving it
-    the first reply's id.
+    a bridge resumed from it doesn't place the reply either, giving it the
+    ids the uninterrupted bridge gives.
     """
 
     def calls() -> ModelOutput:
@@ -7206,7 +7208,7 @@ async def test_empty_text_tool_reply_keeps_its_ids_when_resumed_from_its_checkpo
     )
     [info] = declare("read_file")
     conversation = _HostConversation(dialect, "Read twice.", info)
-    with recorded_transcript() as recorded:
+    with recorded_transcript() as recorded, recording_placements() as placements:
         first = await conversation.request(cast(SandboxAgentBridge, bridge))
         conversation.results(first, ["same"])
         await conversation.request(cast(SandboxAgentBridge, bridge))
@@ -7239,7 +7241,7 @@ async def test_empty_text_tool_reply_keeps_its_ids_when_resumed_from_its_checkpo
             for id in ids(event)
         ]
 
-    assert owners(events[3])[0] == "new"
+    assert not set(ids(events[3])[:1]) & (placements[3] | placements[4])
     assert owners(events[4]) == owners(events[3])
 
 

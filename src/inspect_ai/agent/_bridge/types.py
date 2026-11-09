@@ -34,7 +34,11 @@ from inspect_ai.model._compaction import (
 from inspect_ai.model._compaction import (
     compaction as create_compaction,
 )
-from inspect_ai.model._message_ids import content_hash, edit_id
+from inspect_ai.model._message_ids import (
+    canonical_tool_arguments,
+    content_hash,
+    edit_id,
+)
 from inspect_ai.model._model import (
     GenerateFilter,
     Model,
@@ -228,6 +232,10 @@ class AgentBridge:
         placement = self._cp.track(
             "bridge_placement", self._placement_state, _NO_PLACEMENT
         )
+        self._recorded = {
+            (key, id) for key, ids in self._message_ids.items() for id in ids
+        }
+        """The (key, id) pairs in `_message_ids`."""
         self._forms: dict[str, set[str]] = {
             id: set(forms) for id, forms in placement.forms.items()
         }
@@ -466,7 +474,9 @@ class AgentBridge:
 
         A call links only when its result is certain: the reply holding it was
         placed (`_align_with_tracked`) under the id it was handed with, the call
-        ran once, its id is unique in the reply, and exactly one tool message
+        ran once, its id is unique in the reply and no other call of the reply
+        has its function and arguments (an execution of either may have taken
+        the other's grant), and exactly one tool message
         answers it before the next assistant message with tool calls. That
         message must also be new in this request (`fresh`), so it was first
         sent after the execution completed: a message sent before, or equal
@@ -496,13 +506,19 @@ class AgentBridge:
                 if isinstance(result, ChatMessageTool):
                     results.setdefault(result.tool_call_id or "", []).append(following)
             call_ids = Counter(call.id for call in calls)
+            identical = Counter(map(_call_key, calls))
             for position, event in reply.events.items():
                 if event is None:
                     continue
-                if len(calls) != reply.calls or call_ids[calls[position].id] != 1:
+                call = calls[position] if len(calls) == reply.calls else None
+                if (
+                    call is None
+                    or call_ids[call.id] != 1
+                    or identical[_call_key(call)] != 1
+                ):
                     reply.events[position] = None
                     continue
-                answers = results.get(calls[position].id)
+                answers = results.get(call.id)
                 if not answers:
                     continue
                 reply.events[position] = None
@@ -591,9 +607,10 @@ class AgentBridge:
 
         Messages in the prefix of a thread the request continues unchanged
         (`_align_with_tracked`) take its ids. Every other message gets the id
-        the bridge has always given a bridged message (`_unplaced_id`), so an
-        ambiguous message keeps one id from request to request but may share
-        it with an equal message.
+        the bridge has always given a bridged message (`_unplaced_id`): the id
+        an equal message had in an earlier request, placed or not. An
+        ambiguous message so keeps its id from request to request, but may
+        share it with an equal message.
 
         `inferred_results` are tool messages whose call id the dialect
         inferred rather than read (Google names only a result's function, so
@@ -605,15 +622,21 @@ class AgentBridge:
         cursors: dict[str, int] = {}
         fresh: set[int] = set()
         for index, (message, content) in enumerate(zip(messages, contents)):
+            key = _unplaced_key(message)
             thread_id = placed.get(index)
             if thread_id is not None:
                 message.id = self._version_id(thread_id, message, content)
             else:
-                message.id, new = self._unplaced_id(message, used, cursors)
+                message.id, new = self._unplaced_id(key, used, cursors)
                 if new:
                     fresh.add(index)
+                else:
+                    self._unlink(message.id)
             used.add(message.id)
             self._record_form(message.id, content)
+            if (key, message.id) not in self._recorded:
+                self._recorded.add((key, message.id))
+                self._message_ids.setdefault(key, []).append(message.id)
         request: list[tuple[str, str]] = [(m.id, m.role) for m in messages if m.id]
         self._latest_request = request
         self._remember_thread(request)
@@ -630,28 +653,36 @@ class AgentBridge:
         )
 
     def _unplaced_id(
-        self, message: ChatMessage, used: set[str], cursors: dict[str, int]
+        self, key: str, used: set[str], cursors: dict[str, int]
     ) -> "_UnplacedId":
         """The id of a message no thread places, as the bridge has always given it.
 
-        Ids are recorded per message JSON (`_unplaced_key`). A message takes the
-        first id recorded for it that no earlier message of the request has, so
-        the n-th equal message of a request takes the n-th id, and a new id if
-        there is none. Only ids made here are recorded: an unplaced message
-        never takes a generated reply's id, an initial message's or an edit's.
+        Every request message's id is recorded under its JSON (`_unplaced_key`),
+        whether placement or this gave it, so a message keeps the id it had
+        when its request was placed. A message takes the first id recorded for
+        it that no earlier message of the request has, so the n-th equal
+        message of a request takes the n-th id, and a new id if there is none.
         `cursors` holds, per key, how many of its ids the request has passed,
         so repeated messages don't each rescan them.
         """
-        key = _unplaced_key(message)
-        ids = self._message_ids.setdefault(key, [])
+        ids = self._message_ids.get(key, [])
         cursor = cursors.get(key, 0)
         while cursor < len(ids) and ids[cursor] in used:
             cursor += 1
         cursors[key] = cursor
         if cursor < len(ids):
             return _UnplacedId(ids[cursor], False)
-        ids.append(uuid())
-        return _UnplacedId(ids[-1], True)
+        return _UnplacedId(uuid(), True)
+
+    def _unlink(self, message_id: str) -> None:
+        """Leave a handed reply's waiting calls unlinked once an unplaced message has its id.
+
+        The unplaced message may be an equal reply's copy, so a request that
+        later places it under that id doesn't show which reply it is.
+        """
+        reply = self._awaited_results.get(self._edit_root(message_id))
+        if reply is not None:
+            reply.events = dict.fromkeys(reply.events)
 
     def _edit_root(self, message_id: str) -> str:
         return self._edit_roots.get(message_id, message_id)
@@ -1081,8 +1112,12 @@ def message_json_hash(message_json: str) -> str:
     return mm3_hash(message_json)
 
 
+def _call_key(call: ToolCall) -> tuple[str, str]:
+    return call.function, canonical_tool_arguments(call.arguments)
+
+
 def _unplaced_key(message: ChatMessage) -> str:
-    """The key an unplaced message's id is recorded under: its JSON without its id.
+    """The key a request message's id is recorded under: its JSON without its id.
 
     `json.dumps` escapes a lone surrogate, so no two messages share a key.
     """
