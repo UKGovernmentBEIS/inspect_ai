@@ -72,6 +72,20 @@ _UNKNOWN_REACH = 2**62
 """Dropped reach of every content a bridge resumed from a checkpoint without placement state knew: a conversation it can't see may hold any such reply, so none is placed."""
 
 
+class _TrackingState(BaseModel):
+    """The state `AgentBridge._track_state` picks the tracked thread by, as a checkpoint keeps it."""
+
+    fps: list[tuple[str, str]]
+
+    calls: int
+
+    descends: int | None = None
+
+    candidate_fps: list[tuple[str, str]] | None = None
+
+    last_message_count: int
+
+
 class _PlacementState(BaseModel):
     """The threads a bridge places requests by (`AgentBridge._align_with_tracked`), as a checkpoint keeps them."""
 
@@ -91,6 +105,9 @@ class _PlacementState(BaseModel):
     """Edit roots of the ids in the tracked thread and the threads above."""
 
     dropped_reach: dict[str, int] = {}
+
+    tracking: _TrackingState | None = None
+    """`None` before the first generation, or from a checkpoint written before it was kept: the resumed bridge then tracks the first generation it sees."""
 
 
 _NO_PLACEMENT = _PlacementState()
@@ -291,6 +308,11 @@ class AgentBridge:
         self._tracked_calls = 0
         self._tracked_descends: _Descent | None = None
         self._candidate_fps: list[_MessageFingerprint] | None = None
+        self._resumed_state: tuple[list[ChatMessage], ModelOutput] | None = None
+        """The restored tracked thread and output, applied at the first generation after a resume that restored its tracking."""
+        if placement.tracking is not None and self._cp.attempt == "resume":
+            self._restore_tracking(placement.tracking)
+            self._resumed_state = (restored_messages, restored_output)
         self._pending_operator = 0
         self._awaited_results: dict[str, _AwaitedReply] = {}
         """Per reply handed to the scaffold, its executed calls awaiting their results."""
@@ -796,7 +818,37 @@ class AgentBridge:
                 id: self._edit_roots[id] for id in ids if id in self._edit_roots
             },
             dropped_reach=self._dropped_reach,
+            tracking=None
+            if self._tracked_fps is None
+            else _TrackingState(
+                fps=list(self._tracked_fps),
+                calls=self._tracked_calls,
+                descends=self._tracked_descends,
+                candidate_fps=None
+                if self._candidate_fps is None
+                else list(self._candidate_fps),
+                last_message_count=self._last_message_count,
+            ),
         )
+
+    def _restore_tracking(self, tracking: _TrackingState) -> None:
+        """Pick the tracked thread as the checkpointed bridge would.
+
+        Without it, the first generation after a resume is tracked whatever
+        it is, so a side call there displaces the restored main thread, which
+        `_align_with_tracked` places requests by.
+        """
+        self._tracked_fps = [_MessageFingerprint(*fp) for fp in tracking.fps]
+        self._tracked_calls = tracking.calls
+        self._tracked_descends = (
+            None if tracking.descends is None else _Descent(tracking.descends)
+        )
+        self._candidate_fps = (
+            None
+            if tracking.candidate_fps is None
+            else [_MessageFingerprint(*fp) for fp in tracking.candidate_fps]
+        )
+        self._last_message_count = tracking.last_message_count
 
     def _remember_thread(self, thread: list[tuple[str, str]]) -> None:
         """Keep `thread` for `_contested`, in place of the kept threads it extends.
@@ -960,6 +1012,11 @@ class AgentBridge:
           further calls (candidate promotion) or by the longer-descending-call
           displacement above when it makes only one.
         """
+        if self._resumed_state is not None:
+            # applied only now: the scaffold builds its prompt from the state
+            # it starts with (see `__init__`)
+            self.state.messages, self.state.output = self._resumed_state
+            self._resumed_state = None
         for choice in output.choices:
             if choice.message.id is not None:
                 self._record_form(choice.message.id, content_hash(choice.message))

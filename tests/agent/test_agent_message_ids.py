@@ -1881,6 +1881,108 @@ def test_resumed_bridge_never_gives_a_conversation_another_conversations_ids(
     _assert_owned(events, sent, placements)
 
 
+@pytest.mark.parametrize("dialect", DIALECTS)
+def test_side_call_after_resume_keeps_the_main_threads_ids(
+    dialect: Dialect, tmp_path: Path
+) -> None:
+    """A side call right after a resume doesn't displace the restored main thread.
+
+    The main conversation generates once and a checkpoint is taken; then a
+    one-shot side call runs and the main conversation continues. Run on the
+    bridge and on one resumed from the checkpoint, the continuation sends
+    the main reply under the id it was generated with in both.
+    """
+
+    @agent
+    def scaffold() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            initial = list(state.messages)
+            checkpointer = RecordingCheckpointer()
+            main = _TextConversation(dialect)
+            main.user("Main task.")
+            with _serving(AgentBridge(state, checkpointer=checkpointer)):
+                await main.generate()
+                before = list(main.turns)
+                snapshot = checkpointer.snapshot()
+                side = _TextConversation(dialect)
+                side.user("Detect shell.")
+                await side.generate()
+                main.user("Continue main.")
+                await main.generate()
+            resumed = AgentBridge(
+                AgentState(messages=initial),
+                checkpointer=RecordingCheckpointer(restored=snapshot, serialized=True),
+            )
+            with _serving(resumed):
+                side = _TextConversation(dialect)
+                side.user("Detect shell.")
+                await side.generate()
+                main.turns = before
+                main.user("Continue main.")
+                await main.generate()
+            return state
+
+        return execute
+
+    events, _ = _reply_events(
+        scaffold,
+        ["Unique main answer.", "bash", "Done", "bash", "Done"],
+        tmp_path,
+        "Main task.",
+    )
+    generated = events[0].output.message.id
+    assert generated is not None
+    uninterrupted, resumed = events[2].input, events[4].input
+    assert uninterrupted[1].id == generated
+    # the continuation's new user message gets a new id in each run
+    assert [m.id for m in resumed[:2]] == [m.id for m in uninterrupted[:2]]
+
+
+@pytest.mark.parametrize("checkpoint", ["current", "without_tracking"])
+async def test_resumed_bridge_tracks_the_thread_the_checkpointed_one_would(
+    checkpoint: str,
+) -> None:
+    """A resumed bridge keeps the restored main thread tracked through a side call.
+
+    Its state is the restored main thread from the side call on, as the
+    checkpointed bridge's is. A checkpoint without the tracking state
+    (written before it was kept) tracks the side call instead, and the main
+    reply then takes none of the side call's ids.
+    """
+    task = ChatMessageUser(content="Main task.")
+    answer = ChatMessageAssistant(content="Unique main answer.")
+    side = [ChatMessageUser(content="Detect shell.")]
+    checkpointer = RecordingCheckpointer()
+    bridge = AgentBridge(AgentState(messages=[task]), checkpointer=checkpointer)
+    await _Scaffold(bridge).request([task], answer)
+    snapshot = checkpointer.snapshot()
+    if checkpoint == "without_tracking":
+        del snapshot["bridge_placement"]["tracking"]
+    resumed = AgentBridge(
+        AgentState(messages=[task]),
+        checkpointer=RecordingCheckpointer(restored=snapshot, serialized=True),
+    )
+    assert [m.id for m in resumed.state.messages] == [task.id]
+
+    states, ids = [], []
+    for current in (bridge, resumed):
+        scaffold = _Scaffold(current)
+        side_ids = await scaffold.request(side, ChatMessageAssistant(content="bash"))
+        states.append([m.id for m in current.state.messages])
+        continued = await scaffold.request(
+            [task, answer, ChatMessageUser(content="Continue main.")]
+        )
+        ids.append(continued[:2])
+
+    assert states[0] == [task.id, answer.id]
+    assert ids[0] == [task.id, answer.id]
+    if checkpoint == "current":
+        assert states[1] == states[0] and ids[1] == ids[0]
+    else:
+        assert states[1] == [*side_ids, current.state.output.message.id]
+        assert ids[1][1] not in states[1]
+
+
 _UNTRUSTED_SUFFIXES = ["1", "\ud800", "\\ud800"]
 _UNTRUSTED_SUFFIX_IDS = ["ordinary", "lone surrogate", "literal backslash"]
 
