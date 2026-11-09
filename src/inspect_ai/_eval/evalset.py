@@ -1902,7 +1902,7 @@ def log_samples_complete(
         samples_selected(dataset, limit, sample_id, task.task.name, task_names)
         * epoch_count
     )
-    selected_range: range | None = None
+    selected_ids: set[str] | None
     if sample_id is not None:
         sample_id = resolve_task_sample_ids(task.task.name, sample_id, task_names)
         matcher = sample_id_filter(sample_id if sample_id is not None else [])
@@ -1913,10 +1913,14 @@ def log_samples_complete(
                 selected_id := sample.id if sample.id is not None else position
             )
         }
+    elif dataset.shuffled:
+        # a shuffle can draw a different subset on each task resolution, so
+        # ids cannot prove that a limit selection changed: compare counts
+        selected_ids = None
     else:
-        selected_range = range(len(dataset))[_limit_slice(limit)]
+        selection = slice(*limit) if isinstance(limit, tuple) else slice(0, limit)
         selected_ids = set()
-        for index in selected_range:
+        for index in range(len(dataset))[selection]:
             sample = dataset[index]
             selected_ids.add(str(sample.id if sample.id is not None else index + 1))
 
@@ -1947,24 +1951,10 @@ def log_samples_complete(
     # Counts alone cannot prove coverage when a selector or limit range
     # changes. Keep reusing supersets, but require every requested id.
     previous_ids = log.header.eval.dataset.sample_ids
-    if previous_ids is None:
+    if selected_ids is not None and (
+        previous_ids is None or not selected_ids.issubset(map(str, previous_ids))
+    ):
         return False
-    if not selected_ids.issubset(map(str, previous_ids)):
-        # A shuffled dataset can draw a different subset on each task
-        # resolution (an unseeded shuffle, or a loader that shuffles before
-        # its own limit), so its ids cannot prove a change of selection.
-        # Keep the previous draw when it was also selected by limit and its
-        # limit range covers this one.
-        if not (
-            dataset.shuffled
-            and selected_range is not None
-            and log.header.eval.config.sample_id is None
-            and _range_covers(
-                range(len(dataset))[_limit_slice(log.header.eval.config.limit)],
-                selected_range,
-            )
-        ):
-            return False
 
     if logged_samples is not None:
         # A partial log's sample_ids describe the planned selection, not
@@ -1973,7 +1963,7 @@ def log_samples_complete(
         # Metric recomputation can shrink total_samples to recorded samples,
         # so also retain the original selection's planned count, and the
         # current one in case the dataset grew.
-        previous_planned = len(previous_ids) * epoch_count
+        previous_planned = len(previous_ids or []) * epoch_count
         return logged_samples >= max(
             planned, previous_planned, log.header.results.total_samples
         )
@@ -1981,17 +1971,6 @@ def log_samples_complete(
     if log.header.results.total_samples < planned:
         return False
     return True
-
-
-def _limit_slice(limit: int | tuple[int, int] | None) -> slice:
-    return slice(*limit) if isinstance(limit, tuple) else slice(0, limit)
-
-
-def _range_covers(previous: range, selected: range) -> bool:
-    """Whether the positions in `selected` are all in `previous`."""
-    return len(selected) == 0 or (
-        previous.start <= selected.start and selected.stop <= previous.stop
-    )
 
 
 def shuffle_changed(

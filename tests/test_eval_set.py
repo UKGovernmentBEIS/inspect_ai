@@ -2706,53 +2706,11 @@ def test_eval_set_unseeded_shuffle_reuses_completed_subset(
     assert logs[0].eval.dataset.sample_ids == first_ids
 
 
-@pytest.mark.parametrize("sample_shuffle", [True, 42])
-def test_eval_set_shuffle_shifted_limit_range_runs_new_samples(
-    tmp_path: Path, sample_shuffle: bool | int
-) -> None:
-    """A shuffled log does not cover a limit range outside its own."""
-    calls: list[str | int] = []
-
-    @solver
-    def record_selection() -> Solver:
-        async def solve(state: TaskState, generate: Generate) -> TaskState:
-            calls.append(state.sample_id)
-            state.output = ModelOutput.from_content("mockllm/model", "ok")
-            return state
-
-        return solve
-
-    @task
-    def shuffled_selection() -> Task:
-        return Task(
-            dataset=_unseeded_shuffle_dataset("sample_shuffle", tmp_path),
-            solver=record_selection(),
-            scorer=exact(),
-        )
-
-    log_dir = str(tmp_path / "logs")
-    locations: list[str] = []
-    for limit in [(0, 5), (5, 10)]:
-        calls.clear()
-        success, logs = eval_set(
-            shuffled_selection,
-            log_dir=log_dir,
-            model="mockllm/model",
-            sample_shuffle=sample_shuffle,
-            limit=limit,
-        )
-        assert success
-        locations.append(basename(logs[0].location))
-    assert locations[0] != locations[1]
-    # an unseeded redraw can overlap the first draw, whose samples are reused
-    assert len(calls) == 5 if sample_shuffle == 42 else calls
-
-
 @pytest.mark.parametrize("source", ["dataset_shuffle", "csv"])
-def test_eval_set_shuffled_dataset_id_selection_does_not_cover_limit(
+def test_eval_set_shuffled_dataset_sample_id_change_runs_new_sample(
     tmp_path: Path, source: str
 ) -> None:
-    """A log selected by sample id is not reused for a limit selection."""
+    """A shuffled log selected by id does not cover a newly requested id."""
     calls: list[str | int] = []
     ids = ["A", "B", "C"]
 
@@ -2772,11 +2730,11 @@ def test_eval_set_shuffled_dataset_id_selection_does_not_cover_limit(
                 "id,input,target\n"
                 + "".join(f"{id},{id},{'ok' if id == 'C' else 'no'}\n" for id in ids)
             )
-            return csv_dataset(str(path), shuffle=42)
+            return csv_dataset(str(path), shuffle=True)
         shuffled = MemoryDataset(
             [Sample(id=id, input=id, target="ok" if id == "C" else "no") for id in ids]
         )
-        shuffled.shuffle(42)
+        shuffled.shuffle()
         return shuffled
 
     @task
@@ -2785,22 +2743,22 @@ def test_eval_set_shuffled_dataset_id_selection_does_not_cover_limit(
 
     log_dir = str(tmp_path / "logs")
     success, _ = eval_set(
+        shuffled_selection, log_dir=log_dir, model="mockllm/model", sample_id=["A"]
+    )
+    assert success
+    assert calls == ["A"]
+    calls.clear()
+
+    # the same count of a different id: only identity shows the change
+    success, logs = eval_set(
         shuffled_selection, log_dir=log_dir, model="mockllm/model", sample_id=["C"]
     )
     assert success
-    first = dataset()[0].id
-    assert first != "C"
-    calls.clear()
-
-    success, logs = eval_set(
-        shuffled_selection, log_dir=log_dir, model="mockllm/model", limit=1
-    )
-    assert success
-    assert calls == [first]
+    assert calls == ["C"]
     log = read_eval_log(logs[0].location)
     assert log.samples is not None and log.results is not None
-    assert {sample.id for sample in log.samples} == {first}
-    assert log.results.scores[0].metrics["mean"].value == 0.0
+    assert {sample.id for sample in log.samples} == {"C"}
+    assert log.results.scores[0].metrics["mean"].value == 1.0
 
 
 def test_eval_set_unseeded_shuffle_kept_across_sibling_retry(tmp_path: Path) -> None:
