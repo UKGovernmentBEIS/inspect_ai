@@ -368,6 +368,7 @@ class RunQueue:
     def end(self, record: TaskRecord, log: EvalLog | None) -> None
     def open(self) -> AsyncContextManager[None]  # holds tg, the queue's task group, for its lifetime
     def close(self) -> None          # sets closed; synchronous and idempotent
+    def stop(self) -> None           # close(), then cancel every running attempt's shielded scope; see "Stopping dispatch"
     async def seed_admitted(self) -> None  # waits for the seed's admission; re-raises its first failure
     async def end_run(self) -> None  # ends every record not yet ended, once; see "The queue's task group"
     wake: Wake                       # rung by every phase move and by setups as they settle
@@ -432,7 +433,7 @@ async with queue.open():     # opens tg; the queue's lifetime
   (`src/inspect_ai/_eval/run.py:919-955`), which keeps today's Ctrl-C
   absorption. That group sits inside the `try`, so it has exited, and
   `run_one` has ended every record with an attempt, before `end_run()`
-  runs.
+  runs; "Stopping dispatch" below says how its attempts are cancelled.
 - **Its jobs never fail the group.** The admission job catches a record's
   admission failure and ends that record with its `error` (the seed's
   first failure is re-raised by `seed_admitted()` in `eval_run`, so it
@@ -443,11 +444,10 @@ async with queue.open():     # opens tg; the queue's lifetime
   shielded discard.
 - **Closing.** `RunQueue.close()` sets `closed`; it is synchronous and
   idempotent. The queue closes when its scope begins to exit, before any
-  `await`: at the first statement of the `finally` above, on every exit
-  (normal, cancelled or exceptional, including an exception before the
-  dispatch loop starts), or earlier, when the dispatcher decides to stop
-  (its break when the source is done and nothing remains, or on a latched
-  cancellation), in the same synchronous step as that decision. From then
+  `await`: when dispatch begins to stop, before any attempt is cancelled
+  or joined ("Stopping dispatch" below), or, for an exit before dispatch
+  starts (a seed configuration or admission failure, or the task screen's
+  setup failing), at the first statement of the `finally` above. From then
   on `enqueue_task()` raises `RuntimeError` ("enqueue_task() called after
   the eval's task dispatch has ended"), checking `closed` right after
   `_require_run_loop()` and before it resolves a task or touches the
@@ -459,12 +459,42 @@ async with queue.open():     # opens tg; the queue's lifetime
   passes `_require_run_loop()`. Since the dispatcher checks for remaining
   work and closes the queue in one synchronous step, an addition either
   lands before it, and the loop sees it and keeps running, or after it,
-  and is refused. Cancels are not refused: a queued cancel during
+  and is refused; and since every other exit closes the queue before any
+  attempt is cancelled, an attempt's cleanup (its shielded logging, its
+  task-end hooks, a sample's `finally`) runs with the queue closed, so a
+  plain `enqueue_task()` from it is refused too. Cancels are not refused: a queued cancel during
   teardown still moves its record and starts its finalization in `tg`,
   which `end_run()` joins. The handle methods need no check: they act
   only on their own record, which `end_run()` ends, so after it they
   answer as for an ended task
   ([task-handles.md](task-handles.md#the-handle-api)).
+- **Stopping dispatch.** `RunQueue.stop()` calls `close()` and then
+  cancels every running attempt, in one synchronous step. `run_one` runs
+  each attempt inside a shielded `CancelScope` of its own, registered with
+  the queue for the attempt's lifetime, so a cancellation of the attempt
+  group or of the run never reaches an attempt directly: only `stop()`
+  cancels one as a whole, and inside its scope `run_one` handles that
+  cancellation exactly as it handles a run-level cancellation today
+  (latching `cancelled`, `run.py:1000-1001`). A task-level cancel or
+  drain still acts inside the attempt through its `TaskCancel`, as today.
+  Dispatch calls `stop()` at every point where it can begin to exit:
+  - the dispatcher's two breaks (the source done with nothing remaining,
+    when no attempt is running, and a latched cancellation, which only a
+    `stop()` can have caused);
+  - the first statement of an `except BaseException` around the dispatch
+    loop, inside the attempt group, before re-raising: it covers an
+    exception raised by the loop and a cancellation from outside the run
+    (Ctrl-C, or a caller's cancel scope), which reaches the loop's own
+    `await` because the loop is the one task in the attempt group outside
+    the attempts' shields (the throughput reporter is cancelled with it,
+    as today);
+  - `run_one`, before it lets an exception escape to the attempt group
+    (the `debug_errors` path), so that its siblings are cancelled by
+    `stop()`, after the queue has closed, rather than by the group.
+
+  The attempt group then joins its children as today, and the
+  cancellation re-raised by the loop reaches `_run_task_screen`, which
+  absorbs it as today.
 - **`end_run()`** waits for the admission job and then ends each record
   that has not ended, exactly once, by the rows of "Task phases": a
   `waiting` record ends with no log; an `admitted` one moves to
@@ -817,10 +847,10 @@ loop:
         if entry is None: break
         if entry is a record: move it from admitted to starting
         start run_one(entry)                 # a retry entry: today's PendingTask
-    if cancelled: queue.close(); break
+    if cancelled: queue.stop(); break
     if any record is not ended, or a setup is in progress:
         await queue.wake; continue
-    if source_done: queue.close(); break
+    if source_done: queue.stop(); break
     more = await task_source.next_tasks() if task_source else None
     if not more: source_done = True          # None or [] ends the source, as today
     else: queue.add(resolve(more), ahead=True)
@@ -858,9 +888,10 @@ loop:
   same point `run_batches` reaches after a batch; under the live path it is
   the same point as today.
 - **End of run.** The loop ends when the source is done and nothing remains,
-  or on a run-level cancellation, closing the queue in the same step; an
-  exception leaving it closes the queue at the start of the `finally`
-  ("The queue's task group"). The records still queued are then ended by
+  or on a run-level cancellation, calling `queue.stop()` in the same step;
+  an exception or an outside cancellation leaving it calls `queue.stop()`
+  before the attempt group joins its children ("Stopping dispatch" under
+  "The queue's task group"). The records still queued are then ended by
   `queue.end_run()` in that `finally`, the one place that ends them on
   every exit.
 - **Ctrl-C.** `next_tasks()` is now awaited inside `_run_task_screen`, so a
@@ -1624,7 +1655,17 @@ does (a new list per call):
   record's `logger.discard()` called exactly once, both records are
   `ended` with no log once `eval_async()` returns, and their handles'
   `started()` raise `TaskEndedError(log=None)` and `result()` return
-  `None`. `RunQueue._move` accepts every row of the
+  `None`. Cleanup during dispatch teardown, on both backends: attempts A
+  and B run at `max_tasks=2` with an added record C admitted and waiting
+  on a held setup; A's `on_task_end` hook waits on an `anyio.Event` and
+  then calls plain `enqueue_task()`. The run ends once by a cancellation
+  from a cancel scope the test owns around `eval_async()` and once by an
+  exception from B's attempt under `debug_errors=True`; in each the test
+  sets the event only after A's attempt has been cancelled, and A's
+  `enqueue_task()` raises `RuntimeError` with spies on the resolver and
+  the queued registry showing neither called, C's `logger.discard()` is
+  called once and C ends with no log, and the run's outcome is today's
+  for that exit (logs returned, or the exception raised). `RunQueue._move` accepts every row of the
   "Task phases" transition table and raises on every other pair, and a
   run's records pass only through listed moves (a spy on `_move`, over a
   run with an admission failure, a queued cancel, a cancel in `starting`, a
@@ -1794,8 +1835,9 @@ batch has its own `eval_run` and cleans up its own state).
 3. **One queue, one dispatcher, queued tasks in the control channel.**
    `_eval/task/enqueue.py` (`RunQueue`, `TaskRecord` and `TaskPhase` with
    the checked transitions; `_require_run_loop()`; the queue's task group
-   (`open()`, `close()`, `seed_admitted()`, `end_run()`) entered by
-   `eval_run`; `enqueue_task()` still
+   (`open()`, `close()`, `stop()`, `seed_admitted()`, `end_run()`) entered
+   by `eval_run`, and each attempt's shielded scope in `run_one`;
+   `enqueue_task()` still
    returns `None`), `_eval/run.py` (`configure_task()`, `admit_task()` with
    sample selection and logger construction, and no model-controller or
    setup startup under `run_samples=False`; `dispatch_tasks()` with
