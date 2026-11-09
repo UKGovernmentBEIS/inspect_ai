@@ -42,6 +42,8 @@ class StandInSidecar:
     """The probe's answer, or None to answer it with a 404, as a proxy with no sidecar does."""
 
     probe_status: int = 200
+    probe_statuses: list[int] = field(default_factory=list)
+    """The status of each probe in turn, before `probe_status` answers the rest."""
     methods: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = field(
         default_factory=dict
     )
@@ -81,7 +83,10 @@ class StandInSidecar:
         if path == "/sentinel/info":
             if self.info is None:
                 return httpx2.Response(404, json={"error": "not found"})
-            return httpx2.Response(self.probe_status, json=self.info)
+            status = (
+                self.probe_statuses.pop(0) if self.probe_statuses else self.probe_status
+            )
+            return httpx2.Response(status, json=self.info)
         if path == "/sentinel/v1":
             call = json.loads(request.content)
             params = call["params"]

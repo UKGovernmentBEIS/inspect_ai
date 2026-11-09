@@ -1,5 +1,6 @@
 """Finding a sentinel sidecar behind a model's proxy, and calling its endpoint for evals."""
 
+import secrets
 from dataclasses import dataclass, field
 from itertools import count
 from logging import getLogger
@@ -42,6 +43,8 @@ class EvalAccess:
     eval_id: str
     token: str | None = field(default=None, repr=False)
     """The latest token the sidecar gave the eval, or None before it registered."""
+    chosen: str = field(default_factory=lambda: secrets.token_urlsafe(32), repr=False)
+    """The token the eval made for its first registration, which the sidecar keeps and hands back: a first registration whose answer was lost is sent again with it, and isn't refused."""
     lock: anyio.Lock = field(default_factory=anyio.Lock, repr=False)
     """Held while the eval registers, so two registrations never present different tokens."""
 
@@ -131,6 +134,14 @@ class _Client(NamedTuple):
     base_url: str
 
 
+class NoSidecar(NamedTuple):
+    """Why a probe found no sidecar to use."""
+
+    reason: str
+    definite: bool
+    """Whether the answer settles it for the task: a 404 or an answer that isn't a sidecar does, and a failure that may pass next time doesn't."""
+
+
 async def proxy_client(api: "ModelAPI") -> _Client | None:
     """The SDK client of a model whose calls a sidecar can read, when its base URL was set.
 
@@ -170,11 +181,11 @@ async def proxy_client(api: "ModelAPI") -> _Client | None:
     return None
 
 
-async def probe(client: _Client) -> Sidecar | str:
+async def probe(client: _Client) -> Sidecar | NoSidecar:
     """Ask the proxy behind a model's base URL whether a sidecar is there.
 
     Returns:
-        The sidecar, or why none can be used, when the answer means there is none or can't tell.
+        The sidecar, or why none can be used: definite when the answer means there is none, and not when it can't tell.
 
     Raises:
         SentinelProxyError: If a sidecar answered that Inspect can't work with.
@@ -189,16 +200,17 @@ async def probe(client: _Client) -> Sidecar | str:
     except Exception as ex:
         status = getattr(ex, "status_code", None)
         if status == 404:
-            return f"{origin} has no sidecar"
-        logger.debug(f"Probing {origin} for a sentinel sidecar failed: {ex}")
-        return f"probing {origin} for a sidecar failed: {ex}"
+            return NoSidecar(f"{origin} has no sidecar", definite=True)
+        return NoSidecar(f"probing {origin} for a sidecar failed: {ex}", definite=False)
 
     try:
         info = response.json()
     except ValueError:
-        return f"{origin} answered the probe, but not as a sidecar"
+        info = None
     if not isinstance(info, dict) or info.get("service") != "inspect_sentinel":
-        return f"{origin} answered the probe, but not as a sidecar"
+        return NoSidecar(
+            f"{origin} answered the probe, but not as a sidecar", definite=True
+        )
 
     versions = info.get("versions")
     if not isinstance(versions, list) or not any(v in VERSIONS for v in versions):

@@ -17,6 +17,7 @@ from inspect_ai import Task, eval_async
 from inspect_ai import eval as inspect_eval
 from inspect_ai import score as score_log
 from inspect_ai._sentinel._sidecar._endpoint import (
+    NoSidecar,
     SentinelProxyError,
     Sidecar,
     SidecarCallError,
@@ -114,7 +115,7 @@ def _model(
     )
 
 
-async def _probed(model: Model) -> Sidecar | str:
+async def _probed(model: Model) -> Sidecar | NoSidecar:
     client = await proxy_client(model.api)
     assert client is not None
     return await probe(client)
@@ -346,22 +347,70 @@ async def test_a_base_url_set_in_the_environment_is_probed(
 
 
 @pytest.mark.parametrize(
-    ("stand_in", "says"),
+    ("stand_in", "says", "definite"),
     [
-        (StandInSidecar(info=None), "has no sidecar"),
-        (StandInSidecar(info={"models": []}), "not as a sidecar"),
-        (StandInSidecar(probe_status=401), "failed"),
-        (StandInSidecar(probe_status=503), "failed"),
+        (StandInSidecar(info=None), "has no sidecar", True),
+        (StandInSidecar(info={"models": []}), "not as a sidecar", True),
+        (StandInSidecar(probe_status=401), "failed", False),
+        (StandInSidecar(probe_status=503), "failed", False),
     ],
     ids=["404", "not a sidecar", "401", "503"],
 )
 async def test_an_answer_that_isnt_a_sidecar_finds_none(
-    stand_in: StandInSidecar, says: str
+    stand_in: StandInSidecar, says: str, definite: bool
 ) -> None:
     found = await _probed(_model(stand_in))
 
-    assert isinstance(found, str)
-    assert says in found
+    assert isinstance(found, NoSidecar)
+    assert says in found.reason
+    assert found.definite is definite
+
+
+async def test_a_probe_that_cant_tell_is_asked_again_on_the_next_call(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # a proxy still warming up at task start fails the probe once; under
+    # `auto` the task runs on, says so once, and finds the sidecar next time
+    stand_in = StandInSidecar(probe_statuses=[503, 503])
+    model = _model(stand_in)
+    sidecars = TaskSidecars("auto", _FACTS)
+
+    with caplog.at_level("WARNING", logger="inspect_ai._sentinel._sidecar"):
+        await sidecars.start(model)
+        assert await sidecars.sidecar(model.api) is None
+        found = await sidecars.sidecar(model.api)
+
+    assert isinstance(found, Sidecar)
+    assert len(stand_in.probes) == 3
+    warned = [r for r in caplog.records if "probed again" in r.getMessage()]
+    assert len(warned) == 1
+
+
+@pytest.mark.parametrize(
+    "stand_in",
+    [StandInSidecar(info=None), StandInSidecar(info={"models": []})],
+    ids=["404", "not a sidecar"],
+)
+async def test_a_definite_answer_holds_for_the_task(stand_in: StandInSidecar) -> None:
+    model = _model(stand_in)
+    sidecars = TaskSidecars("auto", _FACTS)
+
+    await sidecars.start(model)
+    assert await sidecars.sidecar(model.api) is None
+
+    assert len(stand_in.probes) == 1
+
+
+async def test_a_first_registration_presents_a_token_the_eval_made() -> None:
+    # so the registration can be sent again with it if its answer is lost
+    stand_in = StandInSidecar()
+    sidecars = TaskSidecars("auto", _FACTS)
+
+    await sidecars.start(_model(stand_in))
+
+    [registered] = [c for c in stand_in.calls if c["method"] == "register_task"]
+    assert isinstance(registered["params"]["token"], str)
+    assert len(registered["params"]["token"]) >= 32
 
 
 @pytest.mark.parametrize(
@@ -476,17 +525,17 @@ def test_an_eval_registers_its_task_with_the_sidecar_it_finds() -> None:
 
     assert log.status == "success"
     # the selected samples' ids and the epochs, and no sample's facts, which
-    # are sent before each sample runs
-    assert _registered(stand_in, "register_task") == [
-        {
-            "eval_id": log.eval.eval_id,
-            "task": "weather_desk",
-            "task_description": None,
-            "metadata": {"desk": "weather"},
-            "sample_ids": ["a"],
-            "epochs": 2,
-        }
-    ]
+    # are sent before each sample runs; the token is the one the eval made
+    [registered] = _registered(stand_in, "register_task")
+    assert isinstance(registered.pop("token"), str)
+    assert registered == {
+        "eval_id": log.eval.eval_id,
+        "task": "weather_desk",
+        "task_description": None,
+        "metadata": {"desk": "weather"},
+        "sample_ids": ["a"],
+        "epochs": 2,
+    }
 
 
 @pytest.mark.parametrize(
@@ -646,6 +695,9 @@ async def test_every_call_for_the_eval_presents_its_latest_token() -> None:
     sidecars = TaskSidecars("auto", _FACTS)
     sidecar = await sidecars.sidecar(_model(stand_in).api)
     assert sidecar is not None
+    assert sidecar.access is not None
+    # the first registration presents the token the eval made for it
+    chosen = sidecar.access.chosen
 
     await sidecars.complete_registration(sidecar, _sample(), "sample_123", 1)
     sidecars.called_through("sample_123", 1, sidecar)
@@ -655,7 +707,7 @@ async def test_every_call_for_the_eval_presents_its_latest_token() -> None:
         (call["method"], call["params"]["eval_id"], call["params"].get("token"))
         for call in stand_in.calls
     ] == [
-        ("register_task", "eval_789", None),
+        ("register_task", "eval_789", chosen),
         ("complete_registration", "eval_789", "token-1"),
         ("register_task", "eval_789", "token-1"),
         ("complete_registration", "eval_789", "token-2"),

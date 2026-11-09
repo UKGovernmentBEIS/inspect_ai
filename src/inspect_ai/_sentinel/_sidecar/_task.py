@@ -18,6 +18,7 @@ from ._endpoint import (
     CALL_TIMEOUT,
     UNAUTHORIZED,
     EvalAccess,
+    NoSidecar,
     SentinelProxyError,
     Sidecar,
     SidecarCallError,
@@ -41,8 +42,9 @@ MONITOR_STATE_COPY = "sentinel_sidecar:monitor_state"
 
 logger = getLogger(__name__)
 
-_NOT_PROBED = (
-    "its base URL was not set, or its provider's calls aren't ones a sidecar reads"
+_NOT_PROBED = NoSidecar(
+    "its base URL was not set, or its provider's calls aren't ones a sidecar reads",
+    definite=True,
 )
 
 T = TypeVar("T")
@@ -81,7 +83,9 @@ class TaskSidecars:
         self.facts = facts
         self.in_process_sentinel = in_process_sentinel
         """Whether the task also has a sentinel inside Inspect, whose monitor state a copy must never overwrite."""
-        self._found = _Once[Sidecar | str]()
+        self._found = _Once[Sidecar | NoSidecar]()
+        # the endpoints whose probe couldn't tell, warned of once
+        self._warned: set[str] = set()
         self._completed = _Once[bool]()
         # the eval's id and token for each sidecar, by its origin: models with
         # other credentials reach the same sidecar, which keeps one token for
@@ -106,7 +110,7 @@ class TaskSidecars:
         found = await self._probe(model.api)
         if self.mode == "required" and not isinstance(found, Sidecar):
             raise SentinelProxyError(
-                f"A sentinel sidecar is required (--sentinel-proxy required), and none was found for {model}: {found}."
+                f"A sentinel sidecar is required (--sentinel-proxy required), and none was found for {model}: {found.reason}."
             )
 
     async def sidecar(self, api: ModelAPI) -> Sidecar | None:
@@ -332,12 +336,12 @@ class TaskSidecars:
             if called_in == attempt_number
         ]
 
-    async def _probe(self, api: ModelAPI) -> Sidecar | str:
+    async def _probe(self, api: ModelAPI) -> Sidecar | NoSidecar:
         client = await proxy_client(api)
         if client is None:
             return _NOT_PROBED
 
-        async def probe_and_register() -> Sidecar | str:
+        async def probe_and_register() -> Sidecar | NoSidecar:
             found = await probe(client)
             if isinstance(found, Sidecar):
                 found.access = self._access.setdefault(
@@ -346,7 +350,23 @@ class TaskSidecars:
                 await self._register(found)
             return found
 
-        return await self._found.run((client.base_url, api.api_key), probe_and_register)
+        # a definite answer holds for the task; one that couldn't tell is
+        # asked again on the next call, so a failure at task start doesn't
+        # leave a sidecar unused for the whole task
+        found = await self._found.run(
+            (client.base_url, api.api_key),
+            probe_and_register,
+            keep=lambda found: isinstance(found, Sidecar) or found.definite,
+        )
+        if isinstance(found, NoSidecar) and not found.definite:
+            if self.mode == "auto" and client.base_url not in self._warned:
+                self._warned.add(client.base_url)
+                logger.warning(
+                    f"No sentinel sidecar is used for this call, as {found.reason}. The endpoint is probed again on the next call."
+                )
+            else:
+                logger.debug(f"Probing for a sentinel sidecar failed: {found.reason}")
+        return found
 
     async def _register(
         self, sidecar: Sidecar, unless_since: str | None = None
@@ -370,8 +390,12 @@ class TaskSidecars:
                 "sample_ids": facts.sample_ids,
                 "epochs": facts.epochs,
             }
-            if access.token is not None:
-                params["token"] = access.token
+            # the token the sidecar gave the eval, or at first the one the eval
+            # made, which the sidecar keeps: so this registration can be sent
+            # again if its answer is lost
+            params["token"] = (
+                access.token if access.token is not None else access.chosen
+            )
             try:
                 result = await sidecar.call("register_task", params)
             except SidecarCallError as ex:
@@ -398,12 +422,18 @@ class TaskSidecars:
 
 class _Once(Generic[T]):
     # each key's work runs once: callers asking meanwhile wait for it, and
-    # work that raised is tried again by the next caller
+    # work that raised, or whose result `keep` turns down, is tried again by
+    # the next caller
     def __init__(self) -> None:
         self._done: dict[Hashable, T] = {}
         self._running: dict[Hashable, anyio.Event] = {}
 
-    async def run(self, key: Hashable, work: Callable[[], Awaitable[T]]) -> T:
+    async def run(
+        self,
+        key: Hashable,
+        work: Callable[[], Awaitable[T]],
+        keep: Callable[[T], bool] = lambda result: True,
+    ) -> T:
         while key not in self._done:
             running = self._running.get(key)
             if running is not None:
@@ -411,7 +441,10 @@ class _Once(Generic[T]):
                 continue
             self._running[key] = anyio.Event()
             try:
-                self._done[key] = await work()
+                result = await work()
+                if not keep(result):
+                    return result
+                self._done[key] = result
             finally:
                 self._running.pop(key).set()
         return self._done[key]
