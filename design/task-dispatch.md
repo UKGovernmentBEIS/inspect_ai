@@ -93,12 +93,6 @@ Non-goals:
   added task under `eval_set()`, and selection-mode handling of added tasks.
   Those are separate changes; "Interactions" below says where this design
   touches them.
-- The two companion fixes this design assumes: an abort while a sample is
-  failing no longer stops the run (a task's own abort or retry request
-  always leaves an `error` log, so the dispatcher's rule that an attempt
-  ending with no log or a `cancelled` log was ended by a run-level
-  cancellation holds), and `on_task_end` fires for every task whose
-  `on_task_start` fired.
 - Task handles and sending samples to another task; see
   [task-handles.md](task-handles.md).
 - Making `sample_init` resolve relative paths against the task directory
@@ -119,13 +113,13 @@ Non-goals:
   batch is ordered sequence-major (`eval.py:1162-1173`) and handed to one
   dispatcher, which dispatches in queue order.
 - The live path (`eval.py:1202`, a `TaskSource` at `max_tasks > 1` only)
-  makes one `eval_run` with a `TaskInjection` (`src/inspect_ai/_eval/run.py:125`)
-  that `eval_run` wraps as a `PreparedFeed` (`run.py:145`, `run.py:512-521`).
+  makes one `eval_run` with a `TaskInjection` (`src/inspect_ai/_eval/run.py:126`)
+  that `eval_run` wraps as a `PreparedFeed` (`run.py:146`, `run.py:516-525`).
 
-Both end in `run_task_retry_attempts` (`run.py:711`); a fixed run is an
-empty feed (`_empty_feed`, `run.py:560`). Its loop drains the feed
-(`run.py:1048`), dispatches up to `effective_max_tasks(parallel)` with
-model balancing, and when fully idle awaits `feed.next()` (`run.py:1103`).
+Both end in `run_task_retry_attempts` (`run.py:813`); a fixed run is an
+empty feed (`_empty_feed`, `run.py:564`). Its loop drains the feed
+(`run.py:1155`), dispatches up to `effective_max_tasks(parallel)` with
+model balancing, and when fully idle awaits `feed.next()` (`run.py:1210`).
 `TaskEnqueuer`, `TaskInjection` and `PreparedFeed` are adapters around one
 buffer and one blocking pull. `design/task-source.md` gives keeping
 sequence-group order at `max_tasks == 1` as the reason live injection is
@@ -141,8 +135,8 @@ unreachable there and in selection-mode workers.
 synchronously through `_resolve_enqueued_tasks` (`eval.py:1291`) and buffers
 into the `TaskEnqueuer` found through a `ContextVar`; it returns `None`.
 `TaskSource` callback returns go through the same buffer
-(`_enqueue_source_tasks`, `src/inspect_ai/_eval/task/run.py:708`).
-`enqueue_sample()` (`src/inspect_ai/_eval/task/sample_source.py:267`) works
+(`_enqueue_source_tasks`, `src/inspect_ai/_eval/task/run.py:762`).
+`enqueue_sample()` (`src/inspect_ai/_eval/task/sample_source.py:268`) works
 only through the calling task's own `SampleEnqueuer` `ContextVar` and returns
 nothing.
 
@@ -155,18 +149,25 @@ shared queue in `next_samples()`, and a future resolved in its
 ### Control channel
 
 `register_eval` is called only when `task_run` starts an attempt
-(`task/run.py:1185`). Task directives look the task up with
+(`task/run.py:1344`). Task directives look the task up with
 `latest_eval_for_task` (`src/inspect_ai/_control/eval_state.py:823`), so for
 a task still waiting to start `cancel_task` / `drain_task`
 (`src/inspect_ai/_control/cancel.py:183`, `:225`) return `None` and the
-server answers 404 "task … not found" (`src/inspect_ai/_control/server.py:1011-1034`).
+server answers 404 "task … not found" (`src/inspect_ai/_control/server.py:1015-1038`).
 `design/ctl/task-drain.md` ("Out of scope") leaves not-yet-started tasks to
-`process pause`. `GET /tasks` (`server.py:769`) lists only registered
+`process pause`. `GET /tasks` (`server.py:773`) lists only registered
 attempts.
+
+A task's own abort or retry request always leaves a log
+(`_run_task`, `src/inspect_ai/_eval/run.py:601`), so the dispatcher's
+rule that an attempt ending with no log or a `cancelled` log was ended by a
+run-level cancellation (`run.py:1000`) holds, and `on_task_end` fires for
+every task whose `on_task_start` fired (`task_end_pending`,
+`src/inspect_ai/_eval/task/run.py:1065`, `:1375`).
 
 ### Ctrl-C
 
-The dispatcher runs inside `_run_task_screen` (`run.py:817`, `:1320`), which
+The dispatcher runs inside `_run_task_screen` (`run.py:919`, `:1427`), which
 absorbs a cancellation of the run body so the run returns the logs it has.
 On the live path `feed.next()` is awaited inside it. `run_batches` awaits
 `next_tasks()` outside any `eval_run`, so a Ctrl-C there raises
@@ -174,20 +175,20 @@ On the live path `feed.next()` is awaited inside it. `run_batches` awaits
 
 ### Sandbox setup
 
-`prepare_options` (`run.py:212`) runs inside the dispatcher's feed for added
-tasks: it awaits `SandboxManager.start` (`run.py:245`) and then, per task,
+`prepare_options` (`run.py:213`) runs inside the dispatcher's feed for added
+tasks: it awaits `SandboxManager.start` (`run.py:246`) and then, per task,
 builds the `TaskLogger` and awaits `logger.init()` inside
-`with chdir(task_run_dir(...))` (`run.py:250`, `:450`).
-`SandboxManager._start_sandboxenvs` (`run.py:1238`) serializes setups on
-`_init_lock`, suspends the task display (`run.py:1262`) and awaits
+`with chdir(task_run_dir(...))` (`run.py:251`, `:454`).
+`SandboxManager._start_sandboxenvs` (`run.py:1345`) serializes setups on
+`_init_lock`, suspends the task display (`run.py:1369`) and awaits
 `task_init` inside `with chdir(sandboxenv.run_dir), environ_vars(...)`
-(`run.py:1278`). The provider type's `default_concurrency()` is read for the
-sandbox limiter before that, outside the `chdir` (`run.py:1270`,
+(`run.py:1385`). The provider type's `default_concurrency()` is read for the
+sandbox limiter before that, outside the `chdir` (`run.py:1377`,
 `task/sandbox.py:51`). `chdir` is `os.chdir` (`src/inspect_ai/_util/path.py:27`)
 and `environ_vars` writes `os.environ` (`src/inspect_ai/_util/environ.py:30`).
 The same chdir wraps `await task_init_environment(...)`
 (`src/inspect_ai/_eval/task/sandbox.py:265`) and each `task_cleanup` at
-shutdown (`run.py:1307`). Because these are awaited, every running coroutine
+shutdown (`run.py:1414`). Because these are awaited, every running coroutine
 sees the changed directory and environment for the whole call; subprocesses
 inherit `os.environ` (`src/inspect_ai/util/_subprocess.py:260`); Docker
 resolves `ComposeConfig` build paths and the no-config compose lookup against
@@ -195,7 +196,7 @@ resolves `ComposeConfig` build paths and the no-config compose lookup against
 
 A setup error in `prepare_options` escapes into the dispatcher's task group
 and fails the whole run. A `SampleSource` task's mid-run setup
-(`options.startup_sandboxes`, `task/run.py:1827`) fails only that task.
+(`options.startup_sandboxes`, `task/run.py:2019`) fails only that task.
 
 Setup output reaches the terminal directly. Docker's `compose build` and
 `compose pull` (`src/inspect_ai/util/_sandbox/docker/compose.py:263`, `:275`)
@@ -238,7 +239,7 @@ other provider returns `{}`, so `environ_vars` changes nothing for them.
 
 ### Provider state
 
-`SandboxManager.open()` (`run.py:1158`, `:497`) binds Docker's
+`SandboxManager.open()` (`run.py:1265`, `:501`) binds Docker's
 `SandboxLifecycleState` (`src/inspect_ai/util/_sandbox/lifecycle.py`) in
 `eval_run`'s context; it is not exported from `inspect_ai.util`. Every other
 provider keeps state in its own `ContextVar`s, and all `task_init` and
@@ -429,7 +430,7 @@ is ordered, named, configured or registered. For the seed it raises from
 `eval()`; the seed paths that pass resolved or previous tasks resolve each
 once (`eval_set()` rounds and selection workers pass `model=None`,
 `src/inspect_ai/_eval/evalset.py:554`; `eval_retry()` runs each log with
-its own model, `src/inspect_ai/_eval/eval.py:1973-1985`), so it does not
+its own model, `src/inspect_ai/_eval/eval.py:1992-2004`), so it does not
 fire for them. A retry is not an addition: an in-run retry keeps its record
 and id, and `eval_set(retry_immediate=False)` runs its retry rounds as
 separate `eval()` calls, each with its own `RunQueue`.
@@ -439,7 +440,7 @@ only when that task's name is in the run's set
 (`resolve_task_sample_ids`, `src/inspect_ai/_eval/task/util.py:80-123`);
 otherwise the colon is part of a literal id, which `slice_dataset` requires
 to exist (`:179`). Today `prepare_options` adds a whole buffered batch's
-names before resolving any of its selectors (`run.py:215-219`, `:264`), so a
+names before resolving any of its selectors (`run.py:216-220`, `:265`), so a
 parent that enqueues A and then B under `sample_id=["parent:1", "B:1"]` runs
 no sample of A. Resolving A's selectors inside its own `enqueue_task()` call
 would not yet know B and would read `B:1` as a literal id of A. So the
@@ -450,7 +451,7 @@ task" warning, constructs the `TaskLogger` with that `sample_id`, and
 requests the sandbox setups for the samples that selection keeps, so the
 logger, the setup keys and the attempt all use one resolved selection, as
 `SandboxManager.start` and `prepare_options` share one today
-(`run.py:1179`). Admission is a background job, which cannot run until the
+(`run.py:1286`). Admission is a background job, which cannot run until the
 code that called `enqueue_task()` next awaits, so every task added before
 that `await` (one call with several tasks, or consecutive calls) is in the
 set when any of them resolves its selectors, and so is every task added
@@ -472,11 +473,11 @@ selection and constructs its `TaskLogger` (above), awaits
 `ensure_model_controller` and `logger.init()` (as `prepare_options` does
 today), requests the record's sandbox setups, and grows the display's task
 count. A run with `run_samples=False` runs no samples, so, as
-`prepare_options` does today (`src/inspect_ai/_eval/run.py:236-245`), its
+`prepare_options` does today (`src/inspect_ai/_eval/run.py:237-246`), its
 admission skips `ensure_model_controller` and requests no setups: the
 record gets an empty `TaskSetups`, which has settled, so it is startable as
 soon as it is admitted. It still initializes its logger, and its attempt
-returns the existing `started` log (`task/run.py:1131-1132`). The rule is
+returns the existing `started` log (`task/run.py:1290-1291`). The rule is
 the same for the seed, for added tasks and for a retry's setups
 (`SandboxSetups.request` and `request_retry` both return the empty
 `TaskSetups` when the attempt's `TaskRunOptions.run_samples` is false).
@@ -555,7 +556,7 @@ finalizations still in progress, as it waits for admissions.
 
 A record that ends before its first attempt starts, for any reason (cancel,
 run end), and whose logger was initialised calls `logger.discard()`
-(`src/inspect_ai/_eval/task/log.py:1076`), which releases the recorder entry
+(`src/inspect_ai/_eval/task/log.py:1127`), which releases the recorder entry
 and its temporary file; nothing reaches the log directory. It drops its
 setup jobs that have not started and that no other record needs.
 
@@ -566,7 +567,7 @@ final `log` (the same object the run returns), `error` and `ended`.
 `RunQueue.end` clears `resolved`, `options` and `setups` (and what the
 handles design attaches). `ResolvedTask.task` holds the
 original dataset (`src/inspect_ai/_eval/task/resolved.py:17`) and the
-configured task is a shallow copy of it (`run.py:260`), so both references
+configured task is a shallow copy of it (`run.py:261`), so both references
 have to go for a finished added task's samples to be freed. A retained
 admission failure would otherwise keep them through its traceback: a
 selection failure raised in `slice_dataset()` holds its dataset argument in
@@ -588,7 +589,7 @@ the control channel and the handles need to know about its attempts:
 whether one has registered, and whether a cancel arrived before one did.
 Once the dispatcher hands a record to `run_one`, its attempts, its retries,
 the retry decision and retry abandonment are today's `run_one` and
-`_run_task` (`src/inspect_ai/_eval/run.py:594-696`, `:855-1043`), unchanged;
+`_run_task` (`src/inspect_ai/_eval/run.py:601-798`, `:957-1150`), unchanged;
 the phase does not track them. The phases:
 
 - `waiting`: added, admission not begun.
@@ -604,9 +605,9 @@ the phase does not track them. The phases:
   registering: `_run_task` converts a startup error (prior-log seeding, a
   retry's checkpoint startup copy, the `log_start()` flush, recording
   inherited configuration updates) into an error log
-  (`src/inspect_ai/_eval/run.py:662-687`), and with `run_samples=False`
+  (`src/inspect_ai/_eval/run.py:713-745`), and with `run_samples=False`
   `task_run` returns the `started` log before registering
-  (`src/inspect_ai/_eval/task/run.py:1131-1132`). Any retry of such an
+  (`src/inspect_ai/_eval/task/run.py:1290-1291`). Any retry of such an
   attempt waits and runs inside this phase.
 - `starting_cancelled`: cancelled while `starting`.
 - `running`: an attempt has registered. Entered at the first
@@ -628,7 +629,7 @@ What the public surfaces show is a function of the phase:
 log, which is `None` when no attempt returned one (see
 [task-handles.md](task-handles.md#the-handle-api)). A control-channel pause
 (the existing `task_dispatch_paused` latch,
-`src/inspect_ai/_eval/run.py:796`) is not a phase: it holds an `admitted`
+`src/inspect_ai/_eval/run.py:898`) is not a phase: it holds an `admitted`
 record or a pending retry from being picked without changing what it is.
 
 Transitions. Each is one synchronous step on the event loop, made by the
@@ -657,9 +658,9 @@ does not list, which would be a bug in Inspect.
 attempt through `_run_task`, makes the retry decision, stores the result
 (`results[item.idx]` today, `record.log` here) and appends a retry item to
 the queue; the dispatcher drops a pending retry whose task carries the
-abandon stamp and discards its unstarted logger (`run.py:1052-1070`); and
+abandon stamp and discards its unstarted logger (`run.py:1159-1177`); and
 `_run_task` stops an attempt that finds the stamp before it registers
-(`task/run.py:944`, `:977`, `:1177`). The log a record ends with is the log
+(`task/run.py:1091`, `:1124`, `:1336`). The log a record ends with is the log
 that code leaves for the task, chosen as today. The design does not
 re-specify those paths; the table holds only the moves the phase makes
 around them.
@@ -668,10 +669,10 @@ around them.
 `abandon_task_retry(task_id)`, in the same step as the move, and today's
 readers of the stamp do the rest, as they do for a retry abandoned in the
 same window today: the dispatcher drops a retry already pending; `run_one`'s
-retry decision queues none (`run.py:932`); and an attempt still starting
-stops at the stamp checks before `register_eval` (the last, `:1177`, runs
+retry decision queues none (`run.py:1039`); and an attempt still starting
+stops at the stamp checks before `register_eval` (the last, `:1336`, runs
 with no `await` before `register_eval`), after which `run_one` discards its
-logger (`run.py:882`). So the record ends with the log its earlier
+logger (`run.py:984`). So the record ends with the log its earlier
 attempts stored, or with no log for a first attempt, unless the attempt
 returns a log before it reaches a check (a startup write that fails, or
 `run_samples=False`'s `started` log), which it then ends with. The stamp is
@@ -684,7 +685,7 @@ before registration lets no samples run.
 
 `on_registered` is a new `TaskRunOptions` field, a callback the dispatcher
 sets when it hands a record to `run_one`. `task_run` calls it immediately
-after `register_eval` (`src/inspect_ai/_eval/task/run.py:1185`), with no
+after `register_eval` (`src/inspect_ai/_eval/task/run.py:1344`), with no
 `await` between. From `starting` or `starting_cancelled` it moves the
 record to `running`, removes it from the queued registry and sets
 `started`, and it returns `True` from `starting_cancelled`, when `task_run`
@@ -695,7 +696,7 @@ A cancel of a `running` record that waits for a retry stays where it is
 today: the control channel's between-attempts path writes the same stamp
 for a registered task (it can land while the errored attempt is still
 running, since the runner flags the attempt's `EvalState` `retry_pending`
-before its final log write, `src/inspect_ai/_eval/task/run.py:880-900`),
+before its final log write, `src/inspect_ai/_eval/task/run.py:1023-1043`),
 and the readers above act on it.
 
 ### The dispatcher
@@ -734,13 +735,13 @@ loop:
   ahead of an earlier task that is waiting for its image.
 - **Retries** are today's: `run_one` decides on a retry, stores the
   attempt's log on the record and appends the retry item at the back of the
-  queue under the record's index (`src/inspect_ai/_eval/run.py:1037-1039`),
+  queue under the record's index (`src/inspect_ai/_eval/run.py:1144-1146`),
   and the dispatcher starts it like any entry. A retry's setups are
   requested again under the retry rule in "Sandbox setup". The record's
   phase does not change: a retry after an attempt that never registered
   waits and runs in `starting`, and one after a registered attempt in
   `running` ("Task phases"). A cancel or drain while a retry waits
-  abandons it as today (`run.py:871`, `:1064`), through the stamp: from the
+  abandons it as today (`run.py:973`, `:1171`), through the stamp: from the
   queued registry in `starting` (`RunQueue.cancel`), and through today's
   between-attempts path in `running`. Only the retry's unstarted logger is
   discarded, and the stored log stays the record's log.
@@ -785,7 +786,7 @@ Registration is synchronous and comes before admission, so a record whose
 `logger.init()` is slow, and every record behind it, is listed and
 cancellable at once. The record leaves the registry in the same
 synchronous step in which an attempt of it first calls `register_eval`
-(`task/run.py:1185`): `on_registered` (see "Task phases") does both, with
+(`task/run.py:1344`): `on_registered` (see "Task phases") does both, with
 no `await` between, so a directive always finds it in one of the two. A
 cancel that arrives after the dispatcher has handed the record to `run_one`
 but before any attempt registers moves it from `starting` to
@@ -861,7 +862,7 @@ The no-log outcome stays; the eval set learns about it explicitly:
   `queued_cancelled_task_ids()`.
 - `run_eval` (`evalset.py:542`), after `eval()` returns, computes the
   requested tasks with no log: their `ResolvedTask.id`s (the run's
-  `task_id`, `run.py:425`) less the logs' `eval.task_id`s. Those in
+  `task_id`, `run.py:426`) less the logs' `eval.task_id`s. Those in
   `queued_cancelled_task_ids()` were cancelled explicitly. Any other
   requested task without a log was still queued when the run was cancelled,
   so `run_eval` raises `KeyboardInterrupt`, exactly as it does today for a
@@ -924,10 +925,10 @@ class SandboxSetups:                   # one per run
 - **Which samples use which job.** Key resolution records, for each sample
   of the attempt, the `SetupKey` its sandbox resolves to, keyed by the
   sample's index in the attempt's sample list: the `sample_index` that
-  `run_sample` receives (`task/run.py:1330`), seed samples first, then added
-  samples in the order they were added (`task/run.py:1757`). Each added
+  `run_sample` receives (`task/run.py:1489`), seed samples first, then added
+  samples in the order they were added (`task/run.py:1949`). Each added
   `Sample` object gets its own index, including separate objects added with
-  the same id for different explicit epochs (`task/run.py:1769`), whose
+  the same id for different explicit epochs (`task/run.py:1961`), whose
   sandbox configuration or metadata (and so `task_init_environment` values)
   may differ (`task/sandbox.py:249`). An id, or an `(id, epoch)` pair, is
   not used as the key: one object can run several epochs with one
@@ -990,7 +991,7 @@ class SandboxSetups:                   # one per run
 - **Providers that have not declared support** keep today's terminal
   behaviour: their `task_init` runs inside
   `display().suspend_task_app()`, as every setup does today
-  (`run.py:1262`), and their subprocesses inherit the terminal. A provider
+  (`run.py:1369`), and their subprocesses inherit the terminal. A provider
   may start processes itself (an SDK, `asyncio.create_subprocess_exec`) or
   print, as Podman's `task_init` does, and only suspension keeps that output
   from corrupting the textual display. Other tasks keep running while the
@@ -1293,7 +1294,7 @@ Public API (additive):
 - `enqueue_task()` from a worker thread raises `RuntimeError`. Today such a
   call buffers under the `TaskEnqueuer` lock and, in a `TaskSource` run,
   sets the feeder's `anyio.Event` from the wrong thread
-  (`src/inspect_ai/_eval/task/enqueue.py:51-58`, `task/run.py:1658`); no
+  (`src/inspect_ai/_eval/task/enqueue.py:51-58`, `task/run.py:1817`); no
   caller in Inspect, its tests or its docs calls it from a thread, and a
   worker can call it through `anyio.from_thread.run_sync()`.
 - New `inspect_ai.util.SandboxSetup` (with `print()`), `sandbox_setup()`;
@@ -1655,8 +1656,7 @@ batch has its own `eval_run` and cleans up its own state).
    Needs step 3.
 5. **Task handles**, designed in [task-handles.md](task-handles.md) (its
    "Implementation plan" lists the files and tests). Needs step 4 (and so
-   step 3) and the separate change that gives anonymous dynamic samples
-   unique ids. Step 4's setup-failure attempt path is what lets a handle
+   step 3). Step 4's setup-failure attempt path is what lets a handle
    report a setup failure (`started()` returns, `result()` returns the error
    log) and a loan start a target whose setup failed; with step 3's inline
    setup a failure has no attempt and no log.
@@ -1706,7 +1706,7 @@ None. The questions raised by this design are decided (Ransom,
 - A stale `retry_pending` flag after an unregistered final retry. When a
   registered attempt A errors and its last retry B fails before it
   registers, `run_one` clears the flag using B's eval id
-  (`src/inspect_ai/_eval/run.py:1021`), which `clear_eval_retry_pending`
+  (`src/inspect_ai/_eval/run.py:1128`), which `clear_eval_retry_pending`
   ignores as unregistered (`src/inspect_ai/_control/eval_state.py:870-889`),
   so A stays flagged: a task cancel or drain offers to abandon a retry that
   is not coming, and `score`/`error` reject the task as between attempts.
@@ -1715,6 +1715,6 @@ None. The questions raised by this design are decided (Ransom,
   `await` before it registers: if that startup write then fails, or with
   `run_samples=False` returns the `started` log, `run_one` queues no further
   retry but stores the returned log over the one kept before the retry was
-  queued (`src/inspect_ai/_eval/run.py:932-937`, `:1037`), and the retry's
+  queued (`src/inspect_ai/_eval/run.py:1039-1044`, `:1144`), and the retry's
   file can stay in the log directory. Today's behaviour, which this design
   keeps for records in `starting` and `running` alike.

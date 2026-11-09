@@ -33,9 +33,8 @@ def search(n_steps: int) -> Solver:
 the searcher's model through `generate`, or another one through
 `get_model(...)`.
 
-The design relies on anonymous dynamic samples having unique ids (a
-companion change), so samples sent through a handle shift no id a later
-run would reuse. A task that can receive samples records that in its eval
+Anonymous dynamic samples get ids that no other attempt gives a sample,
+so samples sent through a handle shift no id a later run would reuse. A task that can receive samples records that in its eval
 spec: nothing is reused from its logs, `eval_retry()` refuses them and
 `eval_set()` never counts them complete, and once it has received a sample
 it is not retried; its creator sends the samples to a fresh task instead.
@@ -101,13 +100,13 @@ Non-goals:
 
 - `enqueue_task()` (`src/inspect_ai/_eval/task/enqueue.py:91`) resolves and
   buffers tasks and returns `None`.
-- `enqueue_sample()` (`src/inspect_ai/_eval/task/sample_source.py:267`)
+- `enqueue_sample()` (`src/inspect_ai/_eval/task/sample_source.py:268`)
   finds the calling task's own `SampleEnqueuer` through a `ContextVar` and
   returns nothing.
 - A `SampleSource` task's feeder (`feed_samples`,
-  `src/inspect_ai/_eval/task/run.py:1832-1865`) admits buffered samples,
+  `src/inspect_ai/_eval/task/run.py:2024-2057`) admits buffered samples,
   waits while samples are in flight, and when fully idle awaits
-  `next_samples()` inline (`:1854`). Nothing buffered starts while that call
+  `next_samples()` inline (`:2046`). Nothing buffered starts while that call
   blocks, and the source may block indefinitely (`sample_source.py:63`).
   A sample enqueued while `next_samples()` blocks does not run until it
   returns. A control-channel rerun
@@ -119,34 +118,40 @@ Non-goals:
   returns, so at `limit=2` with one seed the pull's sample runs and the
   follow-up is dropped.
 - The feeder is the only caller of `add_samples` (through `add_and_start`,
-  `task/run.py:1779`), so nothing else allocates ids or reserves runs while
+  `task/run.py:1971`), so nothing else allocates ids or reserves runs while
   it awaits.
-- Admission (`add_samples`, `task/run.py:1745`) reserves `(str(id), epoch)`
+- Admission (`add_samples`, `task/run.py:1937`) reserves `(str(id), epoch)`
   runs. The reservations start from the complete seed before `--limit` or
-  `--sample-id` slices it (`:810`, `:1689-1693`), so a dynamic sample can
+  `--sample-id` slices it (`:953`, `:1846-1850`), so a dynamic sample can
   reclaim neither an excluded seed id nor an int/str-equivalent one, while a
   seed id at an epoch above the configured `epochs` is a distinct run
-  (`:1710-1731`). A duplicate raises `ValueError` inside the receiving task
+  (`reserve_runs`, `:1877-1922`). A duplicate raises `ValueError` inside the receiving task
   and fails it. `--limit` counts distinct ids against a budget recomputed at
-  each attempt (`:1674-1678`); `--sample-id` drops non-matching samples.
-- A dynamic sample admitted without an id gets the next integer after the
-  seed's size that is not already taken (`reserve_runs`, `:1701`,
-  `:1712-1717`), so its id depends on its admission order. The companion
-  change this design builds on (see "Logs of tasks that can receive
-  samples") replaces that rule.
+  each attempt (`:1833-1837`); `--sample-id` drops non-matching samples.
+- A dynamic sample admitted without an id runs as a copy
+  (`sample.model_copy()`) with a generated id, `dyn-<token>-<counter>`:
+  the attempt's token (its `eval.created` second in base 36, later on
+  every retry) and an admission counter, skipping any id already taken
+  (`reserve_runs`, `:1897-1905`; `dynamic_sample_id` and
+  `dynamic_id_token`, `:368-402`). The source's own object never gains an
+  id, so a source that returns the same object on a retry adds it without
+  one again, and a generated id never recurs in a later attempt, so retry
+  reuse and checkpoint resume (both keyed on `(id, epoch)`) never match
+  it. An explicit id equal to an id the attempt generated earlier fails as
+  a duplicate at any epoch (`:1911-1919`).
 - On a task retry, the prior attempt's completed samples are reused, and a
   reused sample's `sample_complete` fires again so a completion-driven
-  source regenerates its follow-ups (`:1473`); a limited feed's later
+  source regenerates its follow-ups (`:1632`); a limited feed's later
   admissions are seeded from the prior log as they are re-admitted
-  (`:952-965`).
+  (`:1099-1112`).
 - Every per-sample reuse of a prior log goes through `eval_log_sample_source()`
-  (`task/run.py:3743`), which returns the id-and-epoch lookup, the seed
+  (`task/run.py:3978`), which returns the id-and-epoch lookup, the seed
   source and `prior_checkpoints_dir` (checkpoint resume keys on id and epoch
   too, and its existing guards already withhold it when ids are unstable,
-  `:3812`). It has two callers: the in-run retry (`src/inspect_ai/_eval/run.py:979`)
+  `:4047`). It has two callers: the in-run retry (`src/inspect_ai/_eval/run.py:1086`)
   and `resolve_previous_task()` (`src/inspect_ai/_eval/loader.py:363`), which
   every `PreviousTask` reaches: `eval_retry()`
-  (`src/inspect_ai/_eval/eval.py:1973`), eval-set resume in ordinary and
+  (`src/inspect_ai/_eval/eval.py:1992`), eval-set resume in ordinary and
   legacy retry rounds (`src/inspect_ai/_eval/evalset.py:1148`, `:1530`) and
   selection-worker resume (`evalset.py:1763`). `enqueue_task()` passes
   its `Tasks` argument to `_resolve_enqueued_tasks`
@@ -171,44 +176,44 @@ Non-goals:
   store can be imported (`_store/match.py:74`); attempts are cached in a
   file versioned by `CACHE_VERSION` (`_evalset/cache.py:25`).
 - A sample's own code runs in its task inside `task_run_sample`: the
-  solver plan at `task/run.py:2873` (with the tools and subtasks it runs)
-  and the scorers at `:3101`. Scorers run only for a sample with no
-  cancellation error, so the shield at `:3084`, which is raised only after
+  solver plan at `task/run.py:3108` (with the tools and subtasks it runs)
+  and the scorers at `:3336`. Scorers run only for a sample with no
+  cancellation error, so the shield at `:3319`, which is raised only after
   one, never covers them. An abort of the task (a handle-level or
   `inspect ctl task cancel`, or a run-level cancellation) cancels the
-  task's scope (`src/inspect_ai/_eval/run.py:620-639`), and with it every
+  task's scope (`src/inspect_ai/_eval/run.py:665-691`), and with it every
   sample's task group. The solver runs in a task started in the sample's
-  task group (`task/run.py:3003-3004`), which `background()` also uses
+  task group (`task/run.py:3238-3239`), which `background()` also uses
   (`src/inspect_ai/util/_background.py`); the group is cancelled when the
-  solver returns (`:2976`) and exits before scoring. Every way of starting
+  solver returns (`:3211`) and exits before scoring. Every way of starting
   a task copies the starting task's context, so a `ContextVar` set around
   the solver is seen by every task the solver starts: AnyIO task groups,
   `asyncio.create_task()`, and through it `asyncio.gather()` of coroutines
   and `asyncio.TaskGroup`.
 - Inspect calls into `Hooks` objects in four places: `_emit_to_all`
-  (`src/inspect_ai/hooks/_hooks.py:1166`), through which every async hook
-  is awaited, including the streamed `on_sample_event` (`:812`) and the
+  (`src/inspect_ai/hooks/_hooks.py:1211`), through which every async hook
+  is awaited, including the streamed `on_sample_event` (`:857`) and the
   model hooks that `Model.generate` awaits inside the caller's context
-  (`src/inspect_ai/model/_model.py:1526`, `:1583`, `:1779`, `:2989`);
-  the synchronous `override_api_key` dispatch (`hooks/_hooks.py:1092`),
-  which `Model` construction calls (`model/_model.py:354-377`);
-  `any_hook_needs_full_sample()` (`hooks/_hooks.py:1151`); and the
-  `enabled()` scan in `Model.generate` (`model/_model.py:1471`). A hook a
+  (`src/inspect_ai/model/_model.py:1535`, `:1611`, `:1807`, `:3017`);
+  the synchronous `override_api_key` dispatch (`hooks/_hooks.py:1137`),
+  which `Model` construction calls (`model/_model.py:361-384`);
+  `any_hook_needs_full_sample()` (`hooks/_hooks.py:1196`); and the
+  `enabled()` scan in `Model.generate` (`model/_model.py:1480`). A hook a
   solver's or scorer's model call triggers runs in that solver's or
   scorer's context. The deprecated environment-variable hooks bypass all
   four: `send_telemetry_legacy()` awaits its subscriber directly
   (`hooks/_legacy.py:42`), and `Model.generate` awaits it after the usage
-  hooks (`model/_model.py:1782`), as `task_run` does for the log
-  (`task/run.py:2122`, `:2127`); `override_api_key_legacy()` calls its
+  hooks (`model/_model.py:1810`), as `task_run` does for the log
+  (`task/run.py:2361`, `:2366`); `override_api_key_legacy()` calls its
   subscriber directly (`hooks/_legacy.py:63-66`) and is the fallback the
-  `override_api_key` dispatch returns (`hooks/_hooks.py:1104`).
-- The sites that report a sample to the source are `task/run.py:1480`,
-  `:1619` and `:3372` (`sample_complete`, and `sample_abandoned` for a
+  `override_api_key` dispatch returns (`hooks/_hooks.py:1149`).
+- The sites that report a sample to the source are `task/run.py:1639`,
+  `:1778` and `:3607` (`sample_complete`, and `sample_abandoned` for a
   sample cancelled before it was logged); the `TaskSource` calls, at
-  `:1623` and `:3376`, run inside the attempt's sample task group. The
-  `:3372` call runs after the sample's scoring but still inside its
+  `:1782` and `:3611`, run inside the attempt's sample task group. The
+  `:3607` call runs after the sample's scoring but still inside its
   `active_sample()` context, so `sample_active()`
-  (`src/inspect_ai/log/_samples.py:599`) is set there; the other two run in
+  (`src/inspect_ai/log/_samples.py:603`) is set there; the other two run in
   the task's own code.
 - Outside a sample, a task's code can run where the control channel no
   longer reaches it:
@@ -217,22 +222,25 @@ Non-goals:
     (`src/inspect_ai/_control/cancel.py:311-332`), although `run_one` has
     not returned and the task still holds its slot. A dynamic `EvalState`
     (a `SampleSource` dataset, or any task under a `TaskSource`,
-    `task/run.py:1210`) is stamped by `finalize_eval()` (`:2105`), before
-    `TaskSource.task_complete` (`:2137`); a fixed dataset at its last
-    terminal sample report (`_maybe_mark_finished`,
+    `task/run.py:1369`) is stamped by `finalize_eval()` (`:2329`), before
+    `TaskSource.task_complete`, which `_run_task` awaits after `task_run`
+    returns and the task's cancel scope has exited
+    (`notify_task_source`, `src/inspect_ai/_eval/run.py:771`,
+    `task/run.py:775-801`); a fixed dataset at its last terminal sample
+    report (`_maybe_mark_finished`,
     `src/inspect_ai/_control/eval_state.py:1069`), before the early-stopping
-    callbacks (`task/run.py:1312`, `:1951`) and the `on_task_end` hooks
-    (`:1995`); a task with no samples at registration
+    callbacks (`task/run.py:1471`, `:2143`) and the `on_task_end` hooks
+    (`:2187`); a task with no samples at registration
     (`eval_state.py:500`), before its `on_task_start` hooks
-    (`task/run.py:1216`);
+    (`task/run.py:1375`);
   - when an attempt that can be retried ends in error, `finish_task_log`
     marks the retry pending before the `on_task_end` hooks run
-    (`task/run.py:894-901`, `:1995`), with `completed_at` still unset; a
+    (`task/run.py:1037-1044`, `:2187`), with `completed_at` still unset; a
     cancel or drain then only abandons the retry and never calls the
     attempt's cancel callback (`cancel.py:296-332`), and abandoning clears
     `retry_pending` (`eval_state.py:897-919`).
 - The dispatcher awaits `TaskSource.next_tasks()` inline, only when nothing
-  is queued or running (`src/inspect_ai/_eval/run.py:1103`), so a task
+  is queued or running (`src/inspect_ai/_eval/run.py:1210`), so a task
   enqueued inside it starts only after it returns.
 - A sample's sandboxes are counted by a process-wide limiter per provider,
   `sandboxes/<provider>` (`max_sandboxes`, or the provider's
@@ -241,9 +249,9 @@ Non-goals:
   (`src/inspect_ai/_eval/task/sandbox.py:118-128`, `:51-80`); the registered
   limiters are listed by `sandbox_limiters()`
   (`src/inspect_ai/util/_concurrency.py:488`). The sample limiter
-  (`max_samples`) is per task (`task/run.py:3898`), and model connection
+  (`max_samples`) is per task (`task/run.py:4135`), and model connection
   slots are held only during a `generate` call
-  (`src/inspect_ai/model/_model.py:1066`).
+  (`src/inspect_ai/model/_model.py:1074`).
 - A second `eval()` in the same process while one runs is refused
   ("Multiple concurrent calls to eval_async are not allowed",
   `src/inspect_ai/_eval/eval.py:797`).
@@ -371,9 +379,9 @@ target. What each wait does when the target ends:
 A retry waiting in the queue is not a never-started task: cancelling it
 (through the handle or `inspect ctl task cancel`/`drain`), or the run ending
 first, abandons the retry exactly as today's retry-abandon path does
-(`src/inspect_ai/_eval/run.py:871`, `:1064`), discarding only the retry's
+(`src/inspect_ai/_eval/run.py:973`, `:1171`), discarding only the retry's
 unstarted logger and keeping the error log the dispatcher stored before
-queuing it (`run.py:1036`); see "End of run" in
+queuing it (`run.py:1143`); see "End of run" in
 [task-dispatch.md](task-dispatch.md#the-dispatcher).
 
 A setup failure is an ordinary attempt in
@@ -431,7 +439,7 @@ they are awaited, and ports opened, only from a sample's own code (see
   without `send_samples`, whose tasks run as today; the non-blocking calls
   on any handle, `cancel()`, `close()`, `state` and the `task_id`, `task`
   and `model` attributes; and the task's own `enqueue_sample()`
-  (`sample_source.py:267`), which is not a handle call: it buffers a
+  (`sample_source.py:268`), which is not a handle call: it buffers a
   sample in the calling task's own source without waiting, and stays
   usable from `sample_complete` and the other source callbacks exactly as
   today.
@@ -495,23 +503,23 @@ _sample_code: ContextVar[SampleCode | None]   # in enqueue.py, default None
 - **Setting it.** `_run_task` sets a `ContextVar` per attempt to its
   `TaskAttempt`. For each run of a sample (a sample-level retry is a new
   run), `task_run_sample` creates a `SampleCode` before the solver, and sets
-  `_sample_code` to it around the solver plan (`task/run.py:2873`) and
-  around the scorer loop (`:3101`), resetting it after each. A `finally`
+  `_sample_code` to it around the solver plan (`task/run.py:3108`) and
+  around the scorer loop (`:3336`), resetting it after each. A `finally`
   that ends the sample's own code (after the scorer loop, or when the run
   leaves by error or cancellation), before the source callbacks at
-  `:3369`, sets `live = False`.
+  `:3604`, sets `live = False`.
 - **Hooks clear it.** Every call into a `Hooks` object, its `enabled()`
   and `needs_full_sample()` predicates included, runs under a
   `hook_call()` context manager (in `hooks/_hooks.py`) that sets
   `_sample_code` to `None` and resets it on return or on an exception. The
   calls are: `_emit_to_all` around each hook's `enabled()` check and
-  `await callable(hook)` (`hooks/_hooks.py:1166`), which covers every async hook, including the
+  `await callable(hook)` (`hooks/_hooks.py:1211`), which covers every async hook, including the
   model hooks a solver's or scorer's `generate` awaits (before-generate,
   usage, cache usage, retry) and the streamed `on_sample_event`; the
-  synchronous `override_api_key` dispatch (`:1092`), which a model
+  synchronous `override_api_key` dispatch (`:1137`), which a model
   constructed inside a solver reaches; `any_hook_needs_full_sample()`
-  (`:1151`); the `enabled()` scan in `Model.generate`
-  (`src/inspect_ai/model/_model.py:1471`); and, inside each of the two
+  (`:1196`); the `enabled()` scan in `Model.generate`
+  (`src/inspect_ai/model/_model.py:1480`); and, inside each of the two
   legacy hook functions around its subscriber's call,
   `send_telemetry_legacy()` (`hooks/_legacy.py:42`, which `Model.generate`
   awaits after the usage hooks) and `override_api_key_legacy()`
@@ -525,7 +533,7 @@ _sample_code: ContextVar[SampleCode | None]   # in enqueue.py, default None
   call only when the value is set and `live` is true. A task started from
   sample code inherits the value however it was started, because it copies
   its starter's context: in an AnyIO task group (the solver itself, started
-  in the sample's group at `:3003-3004`; its subtasks through `tg_collect()`
+  in the sample's group at `:3238-3239`; its subtasks through `tg_collect()`
   and `collect()`; agent and tool task groups; the scorers' own groups),
   with `background()`, under `asyncio.gather()` or `asyncio.TaskGroup`, with
   a raw `asyncio.create_task()`, or in a group another component owns. Each
@@ -541,7 +549,7 @@ _sample_code: ContextVar[SampleCode | None]   # in enqueue.py, default None
   run's event loop; the loop check, which runs first, refuses it (see "Run
   shapes and what is refused").
 - **Lifetime.** A wait begun in a task the sample joins ends with the
-  sample: the solver's group is cancelled when the solver returns (`:2976`,
+  sample: the solver's group is cancelled when the solver returns (`:3211`,
   which also ends `background()` work) and exits before scoring, each
   scorer's groups exit before it returns, and an awaited `asyncio.gather()`
   or `asyncio.TaskGroup` cancels its children when its caller is
@@ -588,7 +596,8 @@ no other record has one. It keeps a `PortRequest` for each
 ```python
 @dataclass(eq=False)
 class PortRequest:
-    sample: Sample                   # the port's own copy; an id assigned at delivery is set on it
+    sample: Sample                   # the caller's sample, as sent; never changed
+    id: str | int | None = None      # the id it was admitted with (its own, or a generated one)
     explicit_id: bool                # whether the caller's sample had an id when sent
     epoch: int | None
     state: Literal["sent", "admitted", "dropped", "refused", "done"]
@@ -615,24 +624,22 @@ hours-long rollout task's port holds its pending requests and one small
 tuple per run. This is about the port's own references: the runner and
 the recorder keep theirs as they do for any injected sample. The runner
 keeps an errored or cancelled sample so the control channel can requeue
-it, and releases the others when they complete (`task/run.py:1018-1028`,
-`:1040-1059`); the recorder keeps an `EvalSample` until its buffered write
-is flushed (`src/inspect_ai/log/_recorders/eval.py:1152`, `:1277`;
-`src/inspect_ai/_eval/task/log.py:778`). Neither changes.
+it, and releases the others when they complete (`task/run.py:1167-1177`,
+`:1189-1208`); the recorder keeps an `EvalSample` until its buffered write
+is flushed (`src/inspect_ai/log/_recorders/eval.py:1157`, `:1282`;
+`src/inspect_ai/_eval/task/log.py:829`). Neither changes.
 
-**Ownership.** `enqueue_sample()` first takes its own copy of the caller's
-sample, `sample.model_copy()`, and records `explicit_id = sample.id is not
-None`. Every later step (the check at the call, the delivery check and
-`add_samples`) uses that copy. The runner's allocator
-assigns an automatic id by rebinding the top-level `id` field of the sample
-it reserves (`reserve_runs`, `task/run.py:1710-1717`), and nothing else it
-does changes the sample object, so a shallow copy is the depth needed: the
-id lands on the copy, and the nested input, metadata and files stay shared
-and read-only, as a source's own samples share them with its dataset
-today. So the caller's object never gains an id, and one anonymous
-`Sample` sent to two tasks, or to two task × model handles, gets an
-automatic id in each target independently, and neither target sees the
-other's id as an explicit one.
+**Ownership.** `enqueue_sample()` keeps the caller's sample as given and
+records `explicit_id = sample.id is not None`; every later step (the check
+at the call, the delivery check and `add_samples`) uses that object. The
+runner changes no sample it reserves: `reserve_runs` gives an id-less
+sample its generated id on a `model_copy()` and admits that copy
+(`task/run.py:1897-1905`), and the port records the admitted copy's id. So
+the caller's object never gains an id, and one anonymous `Sample` sent to
+two tasks, or to two task × model handles, gets a generated id in each
+target independently, and neither target sees the other's id as an
+explicit one. The nested input, metadata and files stay shared and
+read-only, as a source's own samples share them with its dataset.
 
 **Validation at the call.** `enqueue_sample()` validates `epoch` as the
 task-side `enqueue_sample()` does. For a sample with an explicit id it computes the
@@ -643,20 +650,22 @@ the caller, without reaching the task, when they intersect:
 - the target's seed reservations: every seed id before `--limit` or
   `--sample-id` slicing, at epochs `1..epochs`, which the port computes
   from the configured task when the record is configured, exactly as the
-  attempt does at start (`task/run.py:810`, `:1689-1693`). So an id equal
+  attempt does at start (`task/run.py:953`, `:1846-1850`). So an id equal
   to a seed id, an int/str-equivalent of one (`1` and `"1"`), or an
   excluded seed id is refused while the target is still queued; a seed id
   at an explicit epoch above `epochs` is accepted, as the runner accepts
   it;
 - the runs of earlier requests on this port (`SamplePort.runs`);
-- while an attempt runs, that attempt's own reservations.
+- while an attempt runs, that attempt's own reservations, and at any epoch
+  the ids it generated for anonymous samples (an explicit id equal to one
+  fails as a duplicate, as `reserve_runs` rules, `task/run.py:1911-1919`).
 
 A sample without an id is given one at delivery by the runner's rule for
-anonymous dynamic samples, which under the companion change is unique (see
-"Logs of tasks that can receive samples").
+anonymous dynamic samples (see "Current behaviour"), which no other attempt
+or run repeats.
 
 **Delivery.** While an attempt runs, the port is attached to that attempt's
-feeder (after `log_start`, `task/run.py:1127`), which delivers requests as
+feeder (after `log_start`, `task/run.py:1277`), which delivers requests as
 they arrive, so a request starts as soon as `max_samples` allows; a request
 sent while the task is queued is delivered when its first attempt starts.
 The source's own additions can still reserve an id between the check at
@@ -664,25 +673,27 @@ the call and the delivery (the source returns or enqueues the same id
 first). The feeder therefore delivers each request on its own, in two
 steps:
 
-1. It checks the request's planned runs against the attempt's reservations,
-   the same check `reserve_runs` makes (`task/run.py:1710-1731`) without
-   reserving anything. A clash makes the request **`refused`**: nothing is
+1. It checks the request's planned runs against the attempt's reservations
+   and its explicit id against the ids the attempt generated, the same
+   check `reserve_runs` makes (`task/run.py:1911-1919`) without reserving
+   anything. A clash makes the request **`refused`**: nothing is
    reserved, allocated or written, its futures fail with the same
    `ValueError`, and the receiving task continues. Only an explicit id can
-   clash; an automatic id never does. A duplicate from the source's own
+   clash; a generated id never does. A duplicate from the source's own
    samples still fails the task, as today.
 2. It sets `SamplePort.delivered`, which ends the task's in-run retries
    (see "No in-run retry after a delivery" under "Logs of tasks that can
    receive samples"), and calls `add_samples` with the request alone,
-   which reserves its runs and gives it an automatic id if it has none.
+   which reserves its runs and gives it a generated id if it has none.
    The feeder is the task's only admitter (see "Current behaviour"), so
    nothing changes the reservations between the two steps. It then records
    one of:
    - **`dropped`**: `--sample-id` or `--limit` filtered it out after
-     reservation (`task/run.py:1749-1755`), as for the source's own
+     reservation (`task/run.py:1941-1947`), as for the source's own
      samples. Its futures fail with `SampleAbandonedError`, so a caller
      never waits for a sample that will not run.
-   - **`admitted`**: `add_samples` accepted it, with the id it was given.
+   - **`admitted`**: `add_samples` accepted it, with the id it was given,
+     which the request records in `id`.
 
 **Results.** At the sites that already report samples to the source (see
 "Current behaviour"), before the source's own `sample_complete` the port
@@ -696,7 +707,7 @@ request is then `done` and leaves the port (see "Retention").
 
 `SampleSource.next_samples()` may block indefinitely
 (`sample_source.py:63`), and today the feeder awaits it inline
-(`task/run.py:1854`), so nothing buffered starts until it returns: a
+(`task/run.py:2046`), so nothing buffered starts until it returns: a
 sample enqueued while `next_samples()` blocks does not run until it
 returns. `feed_samples` changes so that a pull never
 blocks the port, while everything the source adds keeps today's order:
@@ -752,7 +763,7 @@ async with task group tg:                  # owned by the feeder
   are control-channel reruns (which start during a pull today, see
   "Current behaviour") or samples sent through a handle. That is today's
   order exactly: the feeder awaits the pull inline, admits the returned
-  batch, and drains the buffer on its next pass (`task/run.py:1854-1865`).
+  batch, and drains the buffer on its next pass (`task/run.py:2046-2057`).
   So `--limit` and `--sample-id` select exactly the samples they select
   today, and ids are assigned in today's producer order: explicit ids as
   today, anonymous ones by the unique-id rule this design builds on (see
@@ -774,13 +785,13 @@ async with task group tg:                  # owned by the feeder
   end of that pull have run: `held` records the source's own additions and
   `port_during_pull` the requests delivered while the pull was outstanding,
   so the pull's `None` cannot erase them. That is today's rule for a late
-  enqueue during a terminal call (`task/run.py:1855-1860`,
+  enqueue during a terminal call (`task/run.py:2047-2052`,
   `sample_source.py:69`): today a `next_samples()`
   that enqueues a sample and returns `None` is called again and its next
   batch runs.
 - **An exhausted limit ends the task only when nothing more can start.**
   `--limit` counts distinct ids, and another epoch of an admitted id is
-  still admitted at zero budget (`task/run.py:1734-1742`). So when the task
+  still admitted at zero budget (`task/run.py:1926-1934`). So when the task
   is fully idle and the limit is exhausted, the feeder first admits the
   held additions; if any of them starts (an epoch 2 a callback returned for
   an admitted sample), it goes round the loop again, admitting each
@@ -818,7 +829,7 @@ docstring say to close first; nothing detects the cycle.
 cancel with `action="score"` or `action="error"`, stamps the attempt's
 `TaskCancel` through its `cancel_task` callback
 (`src/inspect_ai/_control/cancel.py:403-430`), which `_run_task` defines
-(`src/inspect_ai/_eval/run.py:620-639`) and which cancels the task's scope
+(`src/inspect_ai/_eval/run.py:665-691`) and which cancels the task's scope
 only for abort and retry. That callback is the one shared hook: for
 `drain`, `score` and `error` it also calls `SamplePort.stop()` on the
 attempt's port, if it has one. `stop()` is synchronous and idempotent:
@@ -857,19 +868,18 @@ port open, so its `sent` requests reach the retry.
 
 ### Logs of tasks that can receive samples
 
-This design builds on a companion change in Inspect, **unique ids for
-anonymous dynamic samples** (decision: Ransom, 2026-11-04). Every sample a
-task admits without an id after its seed (from `next_samples()`, the task's
-own `enqueue_sample()`, a callback follow-up, or a handle) gets an id no
-other attempt or run gives a sample, such as a UUID string, instead of the
-next free integer (see "Current behaviour"). Seed samples and explicit ids are unchanged. So an
-anonymous dynamic sample's id never appears in another attempt: a lookup or
-a checkpoint resume misses, and the sample runs fresh. Port deliveries
-therefore shift no id that a rerun would reuse. With integer ids and an
-empty seed, source sample A would get id 1, port request P id 2 and P's
-callback follow-up B id 3, and a later run without P would give B id 2 and
-hand it P's result; with unique ids each of the three has an id of its own
-that no later run gives anything.
+This design builds on unique ids for anonymous dynamic samples (decision:
+Ransom, 2026-11-04). Every sample a task admits without an id after its
+seed (from `next_samples()`, the task's own `enqueue_sample()`, a callback
+follow-up, or a handle) gets a generated id that no other attempt or run
+gives a sample (see "Current behaviour"); seed samples and explicit ids
+keep theirs. So an anonymous dynamic sample's id never appears in another
+attempt: a lookup or a checkpoint resume misses, and the sample runs fresh.
+Port deliveries therefore shift no id that a rerun would reuse: with
+positional ids and an empty seed, source sample A, port request P and P's
+callback follow-up B would get ids 1, 2 and 3, and a later run without P
+would give B id 2 and hand it P's result; with generated ids each of the
+three has an id that no later run gives anything.
 
 What the design records, and which restrictions stay, and why:
 
@@ -880,16 +890,17 @@ What the design records, and which restrictions stay, and why:
   `eval_retry()` refuses it". `admit_task()` passes
   `send_samples=record.port is not None` to the `TaskLogger` it constructs
   (see [task-dispatch.md](task-dispatch.md#the-run-queue)), which sets it on
-  the spec it builds (`src/inspect_ai/_eval/task/log.py:282`); `reinit()`
-  copies that spec for a retry (`:425`). Being part of the spec, the field
+  the spec it builds (`src/inspect_ai/_eval/task/log.py:287`); `reinit()`
+  copies that spec for a retry (`:437`). Being part of the spec, the field
   is in the log from its first write: `start.json` of an unfinished `.eval`
   log, the header of a finished one, the errored `EvalLog` that `_run_task`
-  builds when a log write escapes the attempt (`eval=options.logger.eval`,
-  `src/inspect_ai/_eval/run.py:682-687`), and every copy, since whole-log
+  returns when a log write escapes the attempt (`unwritten_task_log`,
+  `eval=logger.eval`, `src/inspect_ai/_eval/task/run.py:4305-4319`, called
+  at `src/inspect_ai/_eval/run.py:744`), and every copy, since whole-log
   writes, conversion, streamed `inspect score` and crashed-log recovery all
   write the source's spec from their first write
   (`src/inspect_ai/log/_convert.py:158-159`,
-  `src/inspect_ai/_cli/score.py:253-254`,
+  `src/inspect_ai/_cli/score.py:259-260`,
   `src/inspect_ai/log/_recover/_write.py:146-147`). No copy path changes
   and no write is added. It records the capability, not a delivery: a
   rollout task whose creator never sent it a sample carries it too
@@ -897,13 +908,13 @@ What the design records, and which restrictions stay, and why:
   (below), neither of which a task fed by its creator can use; it keeps its
   in-run retries ("No in-run retry after a delivery").
 - **No reuse from such a log** (stays, for explicit ids). Anonymous port
-  samples, and the anonymous samples admitted after them, are safe under
-  the companion rule. A port sample sent with an explicit id is not: no
+  samples, and the anonymous samples admitted after them, are safe: their
+  generated ids never recur. A port sample sent with an explicit id is not: no
   rerun regenerates it, and a rerun's own source can produce the same id.
   In a log where request P with id `"x"` completed, a rerun whose source
   adds a sample `"x"` (which the first attempt could not do after P
   without a duplicate failure) would be handed P's result by the lookup by
-  id and epoch (`task/run.py:3843`, `:3870`), and checkpoint resume would
+  id and epoch (`task/run.py:4078`, `:4106`), and checkpoint resume would
   restore P's state into it. The same can happen inside the run: an in-run
   retry (which follows only an attempt without a delivery, below) whose
   failed attempt's source completed `"x"` can admit a request P with `"x"`
@@ -914,7 +925,7 @@ What the design records, and which restrictions stay, and why:
   `eval.send_samples` is set, with a warning naming it, before its other
   guards. That one check covers every path that reuses a prior log (see
   "Current behaviour"), for samples and checkpoints alike: the in-run retry,
-  whose two branches (`src/inspect_ai/_eval/run.py:968-995`) either build
+  whose two branches (`src/inspect_ai/_eval/run.py:1075-1102`) either build
   the source from the failed attempt's log, which carries the field, or keep
   the source the failed attempt ran with, which for such a task is none (the
   first attempt starts clean, below) or the empty source; `eval_retry()`;
@@ -952,8 +963,8 @@ What the design records, and which restrictions stay, and why:
   `SamplePort.delivered` is set when a request first passes step 1 of
   "Delivery" and is never cleared. Setting it also clears the attempt's
   `TaskCancel.can_retry` and the `will_retry` it registered with the control
-  channel (`task/run.py:897`, `:1200`), and the dispatcher's retry decision
-  (`src/inspect_ai/_eval/run.py:921-923`) reads it from the record, so
+  channel (`task/run.py:1040`, `:1359`), and the dispatcher's retry decision
+  (`src/inspect_ai/_eval/run.py:1028-1030`) reads it from the record, so
   neither a fallback log nor a failed final write turns the attempt back
   into a retry. A retry would rerun the task without the samples its
   creator sent, so it ends with its error log: every unresolved future
@@ -970,7 +981,7 @@ What the design records, and which restrictions stay, and why:
   does not depend on ids) with `PrerequisiteError` ("<log> cannot be
   retried on its own: task '<task>' was added to receive samples through a
   task handle from the task that created it; retry that task instead"),
-  checked when the logs are read (`src/inspect_ai/_eval/eval.py:1712`),
+  checked when the logs are read (`src/inspect_ai/_eval/eval.py:1729`),
   before any recovery writes. With no creator, a rerun would lack the
   samples it was sent and could end `success` while missing them. After a
   restart, the creator's own task reruns and enqueues fresh rollout tasks.
@@ -1050,15 +1061,16 @@ class Loan:
   attempt is running on it. A wait leaves `waiters` when it returns or is
   cancelled, and when the attempt it ran in releases its slot: in the
   same synchronous step in which `run_one` gives the slot back (today's
-  `in_flight -= 1`, at `src/inspect_ai/_eval/run.py:884` for a retry
-  abandoned before it registered and `:1034` otherwise, or clearing
+  `in_flight -= 1`, at `src/inspect_ai/_eval/run.py:986` for a retry
+  abandoned before it registered and `:1141` otherwise, or clearing
   `loan.started` for an attempt that ran on a loan), the attempt removes
   its entry from every loan in the queue. When `_run_task` raises,
-  `run_one` re-raises without giving the slot back (`:862-868`), the run
+  `run_one` re-raises without giving the slot back (`:964-970`), the run
   ends, and `RunQueue.end` clears every loan. That is later than finalization on purpose: after
-  `finalize_eval()`, `task_run` still awaits legacy telemetry and
-  `TaskSource.task_complete` (`task/run.py:2105-2137`) while the attempt
-  holds its slot, and code there may join a task its solver started
+  `finalize_eval()` (`task/run.py:2329`), `task_run` still awaits legacy
+  telemetry (`:2361-2366`) and `_run_task` then awaits
+  `TaskSource.task_complete` (`src/inspect_ai/_eval/run.py:771`), all
+  while the attempt holds its slot, and code there may join a task its solver started
   without awaiting, still blocked on a wait; while the slot is held the
   wait keeps lending, so the target's retry, or its first attempt once
   its setup settles, can still start on the loan. A wait still
@@ -1199,9 +1211,9 @@ under "The handle API" are unchanged.
 - **A durable log record of the first delivery** instead of the spec
   field: a header field written, with fsync, before the first request is
   reserved, so that only logs that had received a sample were refused.
-  Without unique ids for anonymous dynamic samples it was needed, because a
-  delivery shifted the integer ids of every anonymous sample admitted after
-  it. It costs a durable mid-run write, and every path that copies a log
+  With positional ids for anonymous dynamic samples it would be needed,
+  because a delivery would shift the ids of every anonymous sample
+  admitted after it. It costs a durable mid-run write, and every path that copies a log
   (conversion, streamed `inspect score`, crashed-log recovery, including a
   copy that writes over its own source) must write the record before it
   publishes a sample. With unique ids, nothing about reuse depends on when
@@ -1343,9 +1355,6 @@ Eval logs:
   its `inspect-ai` floor rises with it.
 - `eval_retry()` of such a log raises `PrerequisiteError` instead of
   rerunning it.
-- Sample ids of anonymous dynamic samples change in every task with the
-  companion change this design builds on; that change owns the
-  compatibility of its ids, and this design adds nothing to it.
 - `enqueue_task(..., send_samples=True)` is refused in a run that logs in
   the deprecated `.json` format; `send_samples=False` works with either
   format.
@@ -1362,7 +1371,7 @@ Eval logs:
   request refused by those checks fails only its sender. An accepted
   explicit id reserves its runs as a source sample's does: if the source
   later adds the same `(str(id), epoch)`, `reserve_runs` raises
-  (`src/inspect_ai/_eval/task/run.py:1720-1726`) and the task fails, with
+  (`src/inspect_ai/_eval/task/run.py:1908-1916`) and the task fails, with
   its unresolved requests ending in `TaskEndedError`, as a duplicate within
   a source fails its task today. A creator that sends model-proposed ids
   can avoid this by sending samples without ids, which get unique ids. Ids
@@ -1443,7 +1452,7 @@ test touched), with mockllm models:
     held logs the warning once per provider, and none when the target uses
     another provider or the provider has no limit.
 - `tests/test_eval_retry.py` and `tests/test_eval_set.py` (logs of tasks
-  that can receive samples, with the companion change in place):
+  that can receive samples):
   - a rollout task added with `send_samples=True` has `eval.send_samples`
     set in its log while unfinished, when finished, after
     `recover_eval_log`, after `convert_eval_logs` to `.json` and back,
@@ -1612,7 +1621,7 @@ test touched), with mockllm models:
     with `fail_after`);
   - retention: a rollout task that receives many requests (successful,
     errored, dropped and refused): after each call returns, the port holds
-    no `PortRequest` for it and no reference to its sample copy, futures or
+    no `PortRequest` for it and no reference to its sample, futures or
     `EvalSample` (checked on the port's own fields), while its `runs` still
     refuse a duplicate id; after the run's sample buffer is flushed and the
     runner has released the completed samples, weak references to the
@@ -1621,7 +1630,7 @@ test touched), with mockllm models:
     request still pending across an in-run retry is kept and delivered;
   - ownership: one anonymous `Sample` sent to task A (empty seed) and to
     task B (whose seed reserves id 1), and to two task × model handles of
-    one task, each runs in every target with that target's own automatic
+    one task, each runs in every target with that target's own generated
     id, and B does not fail; the caller's object still has `id is None`;
     sending one object with an explicit id that clashes is still refused
     with `ValueError`.
@@ -1635,7 +1644,10 @@ test touched), with mockllm models:
     no reservation, and the target task completes; an accepted request
     with explicit id `"y"` that the source then adds itself fails the task
     with the duplicate-id `ValueError`, and another request still pending
-    ends with `TaskEndedError` carrying the task's error log;
+    ends with `TaskEndedError` carrying the task's error log; a request
+    whose explicit id equals an id the running attempt generated for an
+    anonymous source sample, at an epoch that sample did not run, is
+    refused with `ValueError` at the call and the target task completes;
   - abandoned and limit-dropped requests raise `SampleAbandonedError`;
   - a rollout task whose first attempt fails in setup before any request
     arrives is retried and receives its pending requests in the retry;
@@ -1647,9 +1659,8 @@ test touched), with mockllm models:
     runs B and drops A; with one seed and `limit=2`, a control-channel
     rerun of the seed during a blocked pull whose `sample_complete` returns
     A, while the pull later returns B, runs B and drops A; in both, the
-    samples that run have unique anonymous ids that no other attempt gives a
-    sample, as the companion rule requires, rather than today's integers
-    (the existing
+    samples that run have generated ids that no other attempt gives a
+    sample (the existing
     `tests/_control/test_requeue.py` case extended); a port sample's
     follow-up during a blocked pull is held until the pull returns; a handle
     sample arriving while the pull blocks is admitted first and takes the
@@ -1666,10 +1677,9 @@ test touched), with mockllm models:
 
 This design is step 5 of the plan in
 [task-dispatch.md](task-dispatch.md#implementation-plan), one PR, after
-step 3 (the run queue and dispatcher), step 4 (setup beside the dispatcher,
-whose setup-failure attempt path the handle outcomes and loans rely on) and
-the companion change that gives anonymous dynamic samples unique ids, plus a
-companion change in Steward (step 6):
+step 3 (the run queue and dispatcher) and step 4 (setup beside the
+dispatcher, whose setup-failure attempt path the handle outcomes and loans
+rely on), plus a companion change in Steward (step 6):
 
 5. **Task handles.** `_eval/task/enqueue.py` (`TaskHandle`, `SamplePort`,
    `PortRequest`, the errors, `Loan`, `SampleCode`, the `next_tasks()` and
@@ -1728,8 +1738,6 @@ receive samples").
 
 ## Not this design
 
-- Unique ids for anonymous dynamic samples, the companion change this
-  design builds on.
 - Ids of seed samples, which are positions when the dataset gives none: a
   rerun over an edited or reordered dataset of the same length can map a
   prior record onto a different sample. This holds for every task, with or
