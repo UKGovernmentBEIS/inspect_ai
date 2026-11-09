@@ -1,7 +1,7 @@
 import json
 from collections.abc import Awaitable, Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import anyio
 import httpx2
@@ -2677,6 +2677,38 @@ async def test_a_copy_cut_short_keeps_the_record_of_what_earlier_copies_wrote() 
     assert marker["copied"] is True
 
 
+@pytest.mark.parametrize("action", ["overwrite", "append"])
+def test_rescoring_a_skipped_sample_updates_its_scores_as_the_action_says(
+    action: Literal["overwrite", "append"],
+) -> None:
+    # a sample scored before its monitor state went missing: an overwrite
+    # leaves it with no scores, as the metrics count it, and an append keeps
+    # the ones it had
+    stand_in = StandInSidecar(methods={"sample_result": _kept({"Tally:lookups": 2})})
+    task = Task(
+        dataset=[Sample(input="Hi.")], solver=generate(), scorer=_reads_monitor_state()
+    )
+    [log] = eval(task, model=_model(stand_in), display="none")
+    assert log.samples is not None
+    [sample] = log.samples
+    assert (sample.scores or {})["_reads_monitor_state"].value == 2
+    sample.store[MONITOR_STATE_COPY] = {
+        "copied": False,
+        "reason": "the sentinel sidecar at http://proxy.test holds nothing for the sample",
+        "withheld": False,
+        "keys": [],
+    }
+
+    rescored = score_log(log, _reads_monitor_state(), action=action, display="none")
+
+    assert rescored.samples is not None
+    [again] = rescored.samples
+    if action == "overwrite":
+        assert again.scores == {}
+    else:
+        assert (again.scores or {})["_reads_monitor_state"].value == 2
+
+
 def test_a_copy_cut_short_by_the_scoring_deadline_says_the_state_is_missing(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -2703,9 +2735,21 @@ def test_a_copy_cut_short_by_the_scoring_deadline_says_the_state_is_missing(
     with caplog.at_level("WARNING", logger="inspect_ai._eval.score"):
         rescored = score_log(log, _reads_monitor_state(), display="none")
     assert rescored.samples is not None
-    assert not rescored.samples[0].scores
+    [again] = rescored.samples
+    assert again.scores == {}
     [skipped] = [r for r in caplog.records if "isn't scored" in r.getMessage()]
     assert "didn't finish" in skipped.getMessage()
+    # the log says why, where the scores would be
+    [noted] = [
+        e
+        for e in again.events
+        if isinstance(e, InfoEvent)
+        and isinstance(e.data, dict)
+        and "not_scored" in e.data
+    ]
+    assert noted.source == "sentinel_sidecar"
+    assert isinstance(noted.data, dict)
+    assert "didn't finish" in str(noted.data["not_scored"])
 
 
 class _Unanswering(StandInSidecar):
