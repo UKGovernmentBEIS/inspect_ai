@@ -4234,6 +4234,31 @@ def has_parsed_tool_call(call_id: str) -> bool:
     )
 
 
+def replayed_tool_call_state(call_id: str) -> JsonValue | None:
+    """The internal name and position a call with this id is replayed with, if any.
+
+    As `assistant_message_block_params` reads them: the bridge serving the
+    request's first (`bridge_replay`), then the provider's. In the shape of a
+    parse's state (`generation_replay`).
+    """
+    internal = assistant_internal()
+    names = _bridge_handed("names")
+    positions = _bridge_handed("positions")
+    if not (
+        call_id in names
+        or call_id in positions
+        or call_id in internal.tool_call_internal_names
+        or call_id in internal.client_tool_call_positions
+    ):
+        return None
+    return {
+        "name": cast(str | None, names[call_id])
+        if call_id in names
+        else internal.tool_call_internal_names.get(call_id),
+        "position": _client_tool_call_position(call_id),
+    }
+
+
 def _bridge_section(bridge: dict[str, JsonValue], key: str) -> dict[str, JsonValue]:
     return cast(dict[str, JsonValue], bridge.setdefault(key, {}))
 

@@ -8359,27 +8359,94 @@ async def test_parallel_anthropic_calls_sharing_an_id_continue_as_generated(
 
 
 @protocol
-def bridge_reject_second() -> Protocol:
-    """Rejects the second call it sees."""
+def bridge_reject_nth(nth: int) -> Protocol:
+    """Rejects the `nth` call it sees."""
     seen: list[ToolCall] = []
 
     async def decide(
         context: Context, step: BeforeToolCall, escalations: Escalations
     ) -> Decision | None:
         seen.append(step.call)
-        return Decision.reject("risky", message="Denied.") if len(seen) == 2 else None
+        return Decision.reject("risky", message="Denied.") if len(seen) == nth else None
 
     return decide
 
 
-@pytest.mark.parametrize("filtered", ["unfiltered", "rebuilt"])
+@approver(name="bridge_reject_nth")
+def rejecting_approver(nth: int) -> Approver:
+    """Rejects the `nth` call it sees."""
+    seen: list[ToolCall] = []
+
+    async def approve(
+        message: str,
+        call: ToolCall,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Approval:
+        seen.append(call)
+        if len(seen) == nth:
+            return Approval(decision="reject", explanation="Denied.")
+        return Approval(decision="approve")
+
+    return approve
+
+
+def _keeping(kept: str, rebuild: bool, edited: dict[str, Any]) -> Any:
+    """A response filter keeping two calls, the first, the last, or both reversed.
+
+    `edited` keeps both, giving the first those arguments.
+    """
+
+    async def keep(
+        model: Any, output: ModelOutput, input: GenerateInput
+    ) -> ModelOutput:
+        calls = output.message.tool_calls or []
+        if kept == "edited" and calls:
+            calls[0].arguments = edited
+        output.message.tool_calls = {
+            "both": calls,
+            "edited": calls,
+            "first": calls[:1],
+            "last": calls[-1:],
+            "reversed": calls[::-1],
+        }[kept]
+        return ModelOutput.model_validate(output.model_dump()) if rebuild else output
+
+    return keep
+
+
+# what a Responses call of each kind carries natively once a filter gives it
+# `_responses_modified_call`'s approved arguments
+RESPONSES_EDITED_NATIVE: dict[str, Any] = {
+    "function": {"path": "safe.txt"},
+    "custom": "*** Begin Patch\n*** End Patch",
+    "computer": [{"type": "wait"}],
+    "tool_search": {"query": "approved tools"},
+}
+ANTHROPIC_EDITED = {"command": "edited"}
+
+
+@pytest.mark.parametrize("rejecter", ["sentinel", "approval"])
+@pytest.mark.parametrize(
+    ("kept", "filtered"),
+    [
+        ("both", "unfiltered"),
+        *[
+            (kept, filtered)
+            for kept in ["both", "first", "last", "reversed", "edited"]
+            for filtered in ["in_place", "rebuilt"]
+        ],
+    ],
+)
 @pytest.mark.parametrize("shared", [True, False])
 @pytest.mark.parametrize(
     "kind", ["function", "custom", "computer", "tool_search", "anthropic"]
 )
 async def test_a_rejected_turn_replays_each_call_as_generated(
-    kind: str, shared: bool, filtered: str
+    kind: str, shared: bool, kept: str, filtered: str, rejecter: str
 ) -> None:
+    from contextlib import nullcontext
+
     init_sample_assistant_internal()
     generated: list[Any] = []
     if kind == "anthropic":
@@ -8403,10 +8470,22 @@ async def test_a_rejected_turn_replays_each_call_as_generated(
             wire=_responses_wire,
         )
         tools = [ToolInfo(name="read_file", description="Read a file.")]
+    edited = (
+        ANTHROPIC_EDITED if kind == "anthropic" else _responses_modified_call(kind)[3]
+    )
     bridge = in_process_bridge([])
-    bridge.response_filter = RESPONSE_FILTERS[filtered]
+    if filtered != "unfiltered":
+        bridge.response_filter = _keeping(kept, filtered == "rebuilt", edited)
+    # the indices of the generated calls the filter keeps; the last is rejected
+    indices = {"first": [0], "last": [1], "reversed": [1, 0]}.get(kept, [0, 1])
+    if rejecter == "approval":
+        bridge.approval = [ApprovalPolicy(rejecting_approver(len(indices)), "*")]
 
-    with active([bridge_reject_second()]):
+    with (
+        active([bridge_reject_nth(len(indices))])
+        if rejecter == "sentinel"
+        else (nullcontext())
+    ):
         await bridge_generate(
             bridge,
             model.model,
@@ -8421,21 +8500,48 @@ async def test_a_rejected_turn_replays_each_call_as_generated(
     [rejected] = [m for m in model.inputs[1] if isinstance(m, ChatMessageAssistant)]
     results = [m for m in model.inputs[1] if isinstance(m, ChatMessageTool)]
     ids = [call.id for call in rejected.tool_calls or []]
-    assert len(set(ids)) == 2
+    assert len(set(ids)) == len(indices)
     assert [result.tool_call_id for result in results] == ids
-    # the second call was rejected; the first was not run because of it
+    # only the rejected call carries the rejection
     explanations = [result.error.message if result.error else "" for result in results]
-    assert explanations[0].startswith("This tool call was not executed")
-    assert explanations[1].startswith("Denied.")
+    assert [
+        explanation.startswith("This tool call was not executed")
+        for explanation in explanations
+    ] == [True] * (len(indices) - 1) + [False]
+    assert explanations[-1].startswith("Denied.")
     if kind == "anthropic":
         [replayed] = model.wire[1]
-        assert _anthropic_shapes([replayed]) == [ANTHROPIC_FIRST_REPLAY]
-        assert [block["id"] for block in replayed if block["type"] == "tool_use"] == ids
+        removed = {("tool_use", ["bash", "read_file"][i]) for i in (0, 1)} - {
+            ("tool_use", ["bash", "read_file"][i]) for i in indices
+        }
+        expected = [shape for shape in ANTHROPIC_FIRST_REPLAY if shape not in removed]
+        if expected[-1][0] == "thinking":
+            # a message can't end with thinking
+            expected.append(("text", None))
+        assert _anthropic_shapes([replayed]) == [expected]
+        # in their generated positions, whatever the filter's order
+        assert {
+            block["id"]: block["input"]
+            for block in replayed
+            if block["type"] == "tool_use"
+        } == {
+            call_id: ANTHROPIC_EDITED
+            if kept == "edited" and i == 0
+            else ANTHROPIC_FIRST[[1, 3][i]]["input"]
+            for call_id, i in zip(ids, indices)
+        }
     else:
         replayed = model.wire[1]
         assert _responses_replayed(replayed, generated[0].type) == [
-            (call_id, _responses_native_arguments(item.model_dump(exclude_none=True)))
-            for call_id, item in zip(ids, generated)
+            (
+                call_id,
+                RESPONSES_EDITED_NATIVE[kind]
+                if kept == "edited" and i == 0
+                else _responses_native_arguments(
+                    generated[i].model_dump(exclude_none=True)
+                ),
+            )
+            for call_id, i in zip(ids, indices)
         ]
         assert [
             param["call_id"]

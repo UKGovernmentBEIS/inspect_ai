@@ -43,6 +43,7 @@ from inspect_ai.model._assistant_internal import (
     alias_assistant_internal_call,
     generation_assistant_internal,
     generation_call_states,
+    replays_generation_state,
 )
 from inspect_ai.model._call_tools import decisive_sentinel_exception
 from inspect_ai.model._chat_message import (
@@ -771,30 +772,38 @@ def _retarget_anchors(
                 }
 
 
-def distinct_call_ids(output: ModelOutput) -> ModelOutput:
-    """`output` with each call that shares its id with another under an id of its own.
+def replay_ids(output: ModelOutput) -> ModelOutput:
+    """`output` with each call under an id the providers replay it from as generated.
 
     For a turn replayed to the model without being handed on (a rejected
-    response): the provider's state under a shared id is one call's, so would
-    replay that call's operation for each. Each such call goes under a fresh id
-    with the replay state its generation parsed it with
-    (`generation_call_states`), as `sentinel_tokens` hands calls on, and Google's
-    reasoning anchors follow. Returns `output` (not a copy) when no calls share
-    an id.
+    response), within the bridge's request. A call keeps its id only when it is
+    the turn's only call with that id, a response filter did not change its
+    arguments, and what the providers replay under the id is the state its
+    generation parsed it with, or nothing when that is unknown
+    (`replays_generation_state`). Any other call (one sharing its id, one whose
+    sibling under the id a filter removed, an edited call, one whose provider
+    state was replaced or never recorded) goes under a fresh id with its own
+    state, as `sentinel_tokens` hands calls on, or with none when that is
+    unknown, so it replays from the call. Google's reasoning anchors follow.
+    Returns `output` (not a copy) when every call keeps its id.
     """
     calls = output.message.tool_calls or []
-    shared = {
-        call_id for call_id, count in Counter(c.id for c in calls).items() if count > 1
-    }
-    if not shared:
-        return output
     states = generation_call_states(generation_assistant_internal(output), calls)
+    counts = Counter(call.id for call in calls)
+    fresh = [
+        counts[call.id] > 1
+        or (state is not None and state.edited)
+        or not replays_generation_state(call.id, state)
+        for call, state in zip(calls, states)
+    ]
+    if not any(fresh):
+        return output
     # a copy, as `output` may be the object the ModelEvent recorded
     output = output.model_copy(deep=True)
     tokens: dict[str, deque[str]] = {}
-    for call, state in zip(output.message.tool_calls or [], states):
+    for call, state, renamed in zip(output.message.tool_calls or [], states, fresh):
         token = call.id
-        if call.id in shared:
+        if renamed:
             check = SentinelCheck(call, call, None, "", None)
             token = f"{_token_prefix(check)}_{uuid()}"
             if state is not None and state.recorded:

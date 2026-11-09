@@ -411,17 +411,17 @@ def rejection_messages(
     intended.
 
     `rejected` is one of `output`'s calls, found by position, as parallel calls can
-    share an id; such calls are replayed under ids of their own
-    (`distinct_call_ids`), each answered by its own result.
+    share an id. The turn is replayed with each call under an id the providers
+    replay it from as generated (`replay_ids`), answered by its own result.
     """
-    from inspect_ai.agent._bridge._sentinel import distinct_call_ids
+    from inspect_ai.agent._bridge._sentinel import replay_ids
 
     calls = output.message.tool_calls or []
     position = next(
         (index for index, call in enumerate(calls) if call is rejected),
         next((index for index, call in enumerate(calls) if call.id == rejected.id), -1),
     )
-    message = distinct_call_ids(output).message
+    message = replay_ids(output).message
     tool_calls = message.tool_calls or []
     others = len(tool_calls) - 1
     description = describe_call(rejected)
