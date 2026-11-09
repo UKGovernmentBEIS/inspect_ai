@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 # tagless shallow clone. Without it the project builds as 0.1.devN, below the
 # inspect-ai floor of dev dependencies like inspect-scout, and `uv lock` fails.
 # Release Please updates it with each release.
-fallback_version = "0.3.287"
+fallback_version = "0.3.288"
 git_describe_command = [
   'git',
   'describe',
@@ -339,7 +339,6 @@ anthropic = "6 hours"
 azure-ai-inference = "6 hours"
 google-genai = "6 hours"
 groq = "6 hours"
-huggingface-hub = "6 hours"
 inspect-scout = "6 hours"
 inspect-sentinel = "6 hours"
 mistralai = "6 hours"
