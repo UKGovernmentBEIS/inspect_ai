@@ -356,3 +356,39 @@ async def test_collect_model_events_collects_the_blocks_own_generations(
     assert all(event.pending is None for event in outer)
     assert len(_model_events()) == (1 if with_sink else 4)
     assert outside[0].message.id not in [event.output.message.id for event in outer]
+
+
+@pytest.mark.parametrize("with_sink", [False, True])
+async def test_collect_model_events_ends_when_the_block_exits(with_sink: bool) -> None:
+    """A task outliving the block, and an attempt still in flight when it exits, are not collected."""
+    from unittest.mock import patch
+
+    init_transcript(Transcript())
+    model = get_model("mockllm/model")
+    provider_generate = model.api.generate
+    in_flight = anyio.Event()
+    release = anyio.Event()
+
+    async def held_generate(*args: Any, **kwargs: Any) -> Any:
+        if not release.is_set():
+            in_flight.set()
+            await release.wait()
+        return await provider_generate(*args, **kwargs)
+
+    async def monitor() -> None:
+        await release.wait()
+        for n in range(3):
+            await model.generate(f"monitor {n}")
+
+    with (
+        patch.object(model.api, "generate", held_generate),
+        use_model_event_sink(_Sink() if with_sink else None),
+    ):
+        async with anyio.create_task_group() as tg:
+            with collect_model_events() as events:
+                tg.start_soon(model.generate, "in flight")
+                tg.start_soon(monitor)
+                await in_flight.wait()
+            release.set()
+
+    assert events == []

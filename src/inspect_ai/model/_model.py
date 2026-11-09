@@ -2178,8 +2178,9 @@ class Model:
                 transcript()._event_updated(event)
             else:
                 sink.on_complete(event)
-            for collected in collectors:
-                collected.append(event)
+            for collector in collectors:
+                if collector.events is not None:
+                    collector.events.append(event)
 
         # if we have output then complete it now
         if output:
@@ -3165,7 +3166,20 @@ _model_event_sink: ContextVar[ModelEventSink | None] = ContextVar(
     "_model_event_sink", default=None
 )
 
-_model_event_collectors: ContextVar[tuple[list["ModelEvent"], ...]] = ContextVar(
+
+class _ModelEventCollector:
+    """A `collect_model_events` block's events; `None` once the block exits.
+
+    Tasks the block starts inherit the collector and may outlive it, as may an
+    attempt in flight when it exits. Closing it lets their later events go
+    uncollected and unreferenced.
+    """
+
+    def __init__(self, events: list["ModelEvent"]) -> None:
+        self.events: list["ModelEvent"] | None = events
+
+
+_model_event_collectors: ContextVar[tuple[_ModelEventCollector, ...]] = ContextVar(
     "_model_event_collectors", default=()
 )
 
@@ -3287,13 +3301,17 @@ def collect_model_events() -> Iterator[list["ModelEvent"]]:
     are collected, wherever their events are emitted (transcript or
     `ModelEventSink`), so finding them does not visit other concurrent model
     calls in the sample. Blocks nest: an outer block also collects the
-    generations of an inner one.
+    generations of an inner one. Collection ends when the block exits: an
+    attempt completing later, in a task outliving the block or in flight when
+    it exits, is not collected.
     """
     events: list["ModelEvent"] = []
-    token = _model_event_collectors.set((*_model_event_collectors.get(), events))
+    collector = _ModelEventCollector(events)
+    token = _model_event_collectors.set((*_model_event_collectors.get(), collector))
     try:
         yield events
     finally:
+        collector.events = None
         _model_event_collectors.reset(token)
 
 

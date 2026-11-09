@@ -83,6 +83,7 @@ from inspect_ai.model._model import (
     ModelRefusalError,
     ModelResponseFilter,
     get_model,
+    use_model_event_sink,
 )
 from inspect_ai.model._model_output import (
     ChatCompletionChoice,
@@ -3612,3 +3613,62 @@ async def test_concurrent_generating_filters_do_linear_work(
             assert work.response_generations == [1] * n
         else:
             assert work.request_generations_found == n
+
+
+async def test_response_filter_monitor_generations_are_not_retained() -> None:
+    """A monitor the filter starts, generating after the bridge returns, leaves no event alive."""
+    import gc
+    import weakref
+
+    from inspect_ai.event import ModelEvent
+
+    completed: list[weakref.ref[ModelEvent]] = []
+
+    class WeakSink:
+        def on_pending(self, event: ModelEvent) -> None:
+            pass
+
+        def on_complete(self, event: ModelEvent) -> None:
+            completed.append(weakref.ref(event))
+
+    model = get_model("mockllm/model")
+    started, release, generated, finish = (anyio.Event() for _ in range(4))
+
+    async def monitor() -> None:
+        started.set()
+        await release.wait()
+        for n in range(8):
+            await model.generate(f"monitor {n}")
+        generated.set()
+        await finish.wait()
+
+    sink = WeakSink()
+    async with anyio.create_task_group() as tg:
+
+        async def start_monitor(
+            model: Model, output: ModelOutput, generate_input: GenerateInput
+        ) -> ModelOutput | None:
+            tg.start_soon(monitor)
+            await started.wait()
+            return output
+
+        bridge = AgentBridge(AgentState(messages=[]), response_filter=start_monitor)
+        bridge.model_event_sink = sink
+        with use_model_event_sink(sink):
+            await bridge_generate(
+                bridge,
+                model,
+                [ChatMessageUser(content="hi")],
+                [],
+                None,
+                GenerateConfig(),
+                requested_model=None,
+            )
+        release.set()
+        await generated.wait()
+        gc.collect()
+        retained = sum(ref() is not None for ref in completed)
+        finish.set()
+
+    assert len(completed) == 9
+    assert retained == 0
