@@ -193,6 +193,47 @@ def test_a_vllm_server_someone_named_is_probed_without_starting_one() -> None:
     assert _origin(client.sdk.base_url) == "http://proxy.test"
 
 
+@pytest.mark.parametrize("how", ["argument", "environment"])
+def test_an_sglang_server_someone_named_is_probed(
+    monkeypatch: pytest.MonkeyPatch, how: str
+) -> None:
+    # SGLang passes the named URL as the service's own too, so the provider
+    # says itself where a sidecar may be
+    if how == "environment":
+        monkeypatch.setenv("SGLANG_BASE_URL", "http://proxy.test/v1")
+    model = get_model(
+        "sglang/meta-llama/Llama-3.1-8B-Instruct",
+        base_url="http://proxy.test/v1" if how == "argument" else None,
+        api_key="test-key",
+        memoize=False,
+    )
+
+    client = proxy_client(model.api)
+
+    assert client is not None
+    assert str(client.base_url).rstrip("/") == "http://proxy.test/v1"
+    assert _origin(client.sdk.base_url) == "http://proxy.test"
+
+
+def test_an_sglang_server_this_process_started_is_not_probed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # no server was named, so the provider starts one, which can't be behind
+    # a proxy; starting it is stood in for
+    from inspect_ai.model._providers.sglang import SGLangAPI
+
+    monkeypatch.setattr(
+        SGLangAPI,
+        "_start_server",
+        lambda self, model_path, api_key=None: ("http://localhost:30000/v1", "key"),
+    )
+    model = get_model(
+        "sglang/meta-llama/Llama-3.1-8B-Instruct", api_key="test-key", memoize=False
+    )
+
+    assert proxy_client(model.api) is None
+
+
 def test_a_vllm_server_this_process_would_start_is_not_probed() -> None:
     # its own base model: vLLM models sharing one are one server entry, and
     # the named-server test above resolves that entry
