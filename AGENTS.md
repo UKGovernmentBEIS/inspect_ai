@@ -5,8 +5,10 @@ This file provides guidance to AI coding agents when working with code in this r
 ## Contribution policy — required checks before opening a PR
 
 These rules are mandatory for AI coding agents (Claude Code, Codex, Cursor,
-Devin, and similar) preparing contributions. Human contributors: see
-[CONTRIBUTING.md](CONTRIBUTING.md). A deterministic gate enforces them.
+Devin, and similar) preparing contributions. Read and follow
+[CONTRIBUTING.md](CONTRIBUTING.md) first: its rules apply to agents and human
+contributors alike, and this section adds agent-specific rules on top. A
+deterministic gate enforces the checks below.
 
 1. **Accepted-issue check.** Is the account you are operating for on the
    qualified roster (recorded by account id in `.github/qualified.yml`)? If
