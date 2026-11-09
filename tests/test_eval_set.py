@@ -2762,6 +2762,28 @@ def test_eval_set_cross_run_newer_stale_unshuffled_log_not_returned(tmp_path: Pa
     assert logs[0].eval.config.sample_shuffle == 42
 
 
+def test_eval_set_cross_run_selected_log_survives_cleanup(tmp_path: Path):
+    # the unrestricted shuffled run extends the limit=3 log's task_id and
+    # keeps both attempts; the limit=3 log selected next is not the newest of
+    # its task_id, and the final cleanup sweep must not remove it
+    log_dir = str(tmp_path)
+    _cross_run_eval_set([cross_run_a()], log_dir, limit=3)
+    _cross_run_eval_set(
+        [cross_run_a()], log_dir, sample_shuffle=42, retry_cleanup=False
+    )
+
+    ok, logs = _cross_run_eval_set([cross_run_a()], log_dir, limit=3)
+    assert ok
+    assert _CROSS_RUN_RUNS["cross_run_a"] == 0
+    selected = read_eval_log(logs[0].location)
+    assert selected.eval.config.sample_shuffle is None
+
+    ok, logs = _cross_run_eval_set([cross_run_a()], log_dir, limit=3)
+    assert ok
+    assert _CROSS_RUN_RUNS["cross_run_a"] == 0
+    assert logs[0].eval.eval_id == selected.eval.eval_id
+
+
 def test_eval_set_cross_run_stale_errored_log_not_retried(tmp_path: Path):
     log_dir = str(tmp_path)
     ok, _ = _cross_run_eval_set([cross_run_a()], log_dir, fail=True, limit=3)

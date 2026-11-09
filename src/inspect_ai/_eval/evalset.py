@@ -1224,7 +1224,12 @@ def eval_set(
             # final sweep to remove failed log files
             if retry_cleanup:
                 task_ids = {result.eval.task_id for result in results}
-                cleanup_older_eval_logs(log_dir, task_ids, run_ids)
+                cleanup_older_eval_logs(
+                    log_dir,
+                    task_ids,
+                    run_ids,
+                    keep_eval_ids={result.eval.eval_id for result in results},
+                )
 
         # if specified, bundle the output directory
         if bundle_dir:
@@ -2041,7 +2046,10 @@ def _selection(
 
 # cleanup logs that aren't the latest
 def cleanup_older_eval_logs(
-    log_dir: str, task_ids: set[str], owned_run_ids: AbstractSet[str] = frozenset()
+    log_dir: str,
+    task_ids: set[str],
+    owned_run_ids: AbstractSet[str] = frozenset(),
+    keep_eval_ids: AbstractSet[str] = frozenset(),
 ) -> None:
     logs = [
         log
@@ -2049,7 +2057,10 @@ def cleanup_older_eval_logs(
         if log.header.eval.task_id in task_ids
     ]
     latest_completed_task_eval_logs(
-        logs=logs, cleanup_older=True, owned_run_ids=owned_run_ids
+        logs=logs,
+        cleanup_older=True,
+        owned_run_ids=owned_run_ids,
+        keep_eval_ids=keep_eval_ids,
     )
 
 
@@ -2057,6 +2068,7 @@ def latest_completed_task_eval_logs(
     logs: list[Log],
     cleanup_older: bool = False,
     owned_run_ids: AbstractSet[str] = frozenset(),
+    keep_eval_ids: AbstractSet[str] = frozenset(),
 ) -> list[Log]:
     """Select each task's newest log, optionally removing the older ones.
 
@@ -2078,6 +2090,9 @@ def latest_completed_task_eval_logs(
         cleanup_older: Remove every log that is not its task's newest.
         owned_run_ids: Run ids of the ``eval()`` calls the current process
             has made; a `started` log from any other run is never removed.
+        keep_eval_ids: Eval ids of logs never removed: the logs an eval set
+            returned, which need not be their task's newest when a newer one
+            has a different sample shuffle.
 
     Returns:
         The newest log for each task.
@@ -2109,6 +2124,8 @@ def latest_completed_task_eval_logs(
         if cleanup_older:
             fs = filesystem(id_logs[0][0].name)
             for id_log in id_logs[1:]:
+                if id_log.header.eval.eval_id in keep_eval_ids:
+                    continue
                 try:
                     if id_log.header.status == "started":
                         if id_log.header.eval.run_id not in owned_run_ids:
