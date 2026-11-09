@@ -1947,10 +1947,12 @@ def log_samples_complete(
         # A shuffled dataset can draw a different subset on each task
         # resolution (an unseeded shuffle, or a loader that shuffles before
         # its own limit), so its ids cannot prove a change of selection.
-        # Keep the previous draw when its limit range covers this one.
+        # Keep the previous draw when it was also selected by limit and its
+        # limit range covers this one.
         if not (
             dataset.shuffled
             and selected_range is not None
+            and log.header.eval.config.sample_id is None
             and _range_covers(
                 range(len(dataset))[_limit_slice(log.header.eval.config.limit)],
                 selected_range,

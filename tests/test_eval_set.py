@@ -2681,6 +2681,61 @@ def test_eval_set_shuffle_shifted_limit_range_runs_new_samples(
     assert len(calls) == 5 if sample_shuffle == 42 else calls
 
 
+@pytest.mark.parametrize("source", ["dataset_shuffle", "csv"])
+def test_eval_set_shuffled_dataset_id_selection_does_not_cover_limit(
+    tmp_path: Path, source: str
+) -> None:
+    """A log selected by sample id is not reused for a limit selection."""
+    calls: list[str | int] = []
+    ids = ["A", "B", "C"]
+
+    @solver
+    def record_selection() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            calls.append(state.sample_id)
+            state.output = ModelOutput.from_content("mockllm/model", "ok")
+            return state
+
+        return solve
+
+    def dataset() -> Dataset:
+        if source == "csv":
+            path = tmp_path / "samples.csv"
+            path.write_text(
+                "id,input,target\n"
+                + "".join(f"{id},{id},{'ok' if id == 'C' else 'no'}\n" for id in ids)
+            )
+            return csv_dataset(str(path), shuffle=42)
+        shuffled = MemoryDataset(
+            [Sample(id=id, input=id, target="ok" if id == "C" else "no") for id in ids]
+        )
+        shuffled.shuffle(42)
+        return shuffled
+
+    @task
+    def shuffled_selection() -> Task:
+        return Task(dataset=dataset(), solver=record_selection(), scorer=exact())
+
+    log_dir = str(tmp_path / "logs")
+    success, _ = eval_set(
+        shuffled_selection, log_dir=log_dir, model="mockllm/model", sample_id=["C"]
+    )
+    assert success
+    first = dataset()[0].id
+    assert first != "C"
+    calls.clear()
+
+    success, logs = eval_set(
+        shuffled_selection, log_dir=log_dir, model="mockllm/model", limit=1
+    )
+    assert success
+    assert calls == [first]
+    log = read_eval_log(logs[0].location)
+    assert log.samples is not None and log.results is not None
+    assert {sample.id for sample in log.samples} == {first}
+    assert log.results.scores[0].metrics["mean"].value == 0.0
+
+
 def test_eval_set_unseeded_shuffle_kept_across_sibling_retry(tmp_path: Path) -> None:
     """A sibling's retry pass does not redraw a completed unseeded shuffle."""
     shuffled_calls: list[str | int] = []
