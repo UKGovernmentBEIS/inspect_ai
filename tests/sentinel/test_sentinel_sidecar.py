@@ -115,7 +115,7 @@ def _model(
 
 
 async def _probed(model: Model) -> Sidecar | str:
-    client = proxy_client(model.api)
+    client = await proxy_client(model.api)
     assert client is not None
     return await probe(client)
 
@@ -151,20 +151,24 @@ async def test_a_sidecar_behind_an_openai_compatible_models_base_url_is_found() 
 
 
 @pytest.mark.parametrize("provider", ["anthropic", "openai"])
-def test_a_model_whose_base_url_was_not_set_is_not_probed(provider: str) -> None:
+async def test_a_model_whose_base_url_was_not_set_is_not_probed(
+    provider: str,
+) -> None:
     stand_in = StandInSidecar()
 
-    assert proxy_client(_model(stand_in, provider, base_url=None).api) is None
+    assert await proxy_client(_model(stand_in, provider, base_url=None).api) is None
 
 
-def test_a_named_provider_at_its_own_address_is_not_probed() -> None:
+async def test_a_named_provider_at_its_own_address_is_not_probed() -> None:
     # a service's own default address is no proxy, only a URL someone set is
     model = get_model("together/meta-llama-3", api_key="test-key", memoize=False)
 
-    assert proxy_client(model.api) is None
+    assert await proxy_client(model.api) is None
 
 
-def test_a_provider_that_passes_its_own_address_as_the_base_url_is_not_probed() -> None:
+async def test_a_provider_that_passes_its_own_address_as_the_base_url_is_not_probed() -> (
+    None
+):
     # this provider hands its own default to the base class as the base_url
     # argument, which must not count as a URL someone set
     model = get_model(
@@ -173,10 +177,10 @@ def test_a_provider_that_passes_its_own_address_as_the_base_url_is_not_probed() 
         memoize=False,
     )
 
-    assert proxy_client(model.api) is None
+    assert await proxy_client(model.api) is None
 
 
-def test_a_vllm_server_someone_named_is_probed_without_starting_one() -> None:
+async def test_a_vllm_server_someone_named_is_probed_without_starting_one() -> None:
     # the client is built lazily, on the first generate; naming a server
     # resolves it with no server started, so the probe has a client to use
     model = get_model(
@@ -186,15 +190,45 @@ def test_a_vllm_server_someone_named_is_probed_without_starting_one() -> None:
         memoize=False,
     )
 
-    client = proxy_client(model.api)
+    client = await proxy_client(model.api)
 
     assert client is not None
     assert str(client.base_url).rstrip("/") == "http://proxy.test/v1"
     assert _origin(client.sdk.base_url) == "http://proxy.test"
 
 
+async def test_a_named_vllm_server_with_an_adapter_is_resolved_off_the_loop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # loading the adapter makes blocking requests, so the probe resolves the
+    # server as a generate does: in a worker thread, under the server's lock
+    import threading
+
+    from inspect_ai.model._providers import vllm
+
+    loaded: list[tuple[bool, bool]] = []
+
+    def stand_in_loading(server: Any, adapter: Any) -> None:
+        on_loop = threading.current_thread() is threading.main_thread()
+        loaded.append((on_loop, server._init_lock.locked()))
+
+    monkeypatch.setattr(vllm, "get_adapter_rank", lambda adapter: None)
+    monkeypatch.setattr(vllm, "ensure_adapter_loaded", stand_in_loading)
+    model = get_model(
+        "vllm/meta-llama/Llama-3.1-8B-Instruct:an-org/an-adapter",
+        base_url="http://proxy.test/v1",
+        api_key="test-key",
+        memoize=False,
+    )
+
+    client = await proxy_client(model.api)
+
+    assert client is not None
+    assert loaded == [(False, True)]
+
+
 @pytest.mark.parametrize("how", ["argument", "environment"])
-def test_an_sglang_server_someone_named_is_probed(
+async def test_an_sglang_server_someone_named_is_probed(
     monkeypatch: pytest.MonkeyPatch, how: str
 ) -> None:
     # SGLang passes the named URL as the service's own too, so the provider
@@ -208,14 +242,14 @@ def test_an_sglang_server_someone_named_is_probed(
         memoize=False,
     )
 
-    client = proxy_client(model.api)
+    client = await proxy_client(model.api)
 
     assert client is not None
     assert str(client.base_url).rstrip("/") == "http://proxy.test/v1"
     assert _origin(client.sdk.base_url) == "http://proxy.test"
 
 
-def test_an_sglang_server_this_process_started_is_not_probed(
+async def test_an_sglang_server_this_process_started_is_not_probed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # no server was named, so the provider starts one, which can't be behind
@@ -231,17 +265,17 @@ def test_an_sglang_server_this_process_started_is_not_probed(
         "sglang/meta-llama/Llama-3.1-8B-Instruct", api_key="test-key", memoize=False
     )
 
-    assert proxy_client(model.api) is None
+    assert await proxy_client(model.api) is None
 
 
-def test_a_vllm_server_this_process_would_start_is_not_probed() -> None:
+async def test_a_vllm_server_this_process_would_start_is_not_probed() -> None:
     # its own base model: vLLM models sharing one are one server entry, and
     # the named-server test above resolves that entry
     model = get_model(
         "vllm/meta-llama/Llama-3.1-70B-Instruct", api_key="test-key", memoize=False
     )
 
-    assert proxy_client(model.api) is None
+    assert await proxy_client(model.api) is None
     # nothing was resolved, so no server was started
     assert not hasattr(model.api, "client")
 

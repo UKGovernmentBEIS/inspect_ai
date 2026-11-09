@@ -301,20 +301,28 @@ class VLLMAPI(OpenAICompatibleAPI):
 
     async def _ensure_server_started(self) -> None:
         """Lazy version of ``_resolve_server`` — thread-safe for concurrent ``generate()`` calls."""
+        await self._resolve_server_off_loop()
+        await self._register_context_window()
+
+    async def _resolve_server_off_loop(self) -> None:
+        """Resolve the server in a worker thread, under the server's lock.
+
+        Resolving may load a LoRA adapter with blocking requests, and two
+        models sharing a server must not resolve it at once.
+        """
         if self._resolved_epoch != self._server._epoch:
             async with self._server._init_lock:
                 await anyio.to_thread.run_sync(self._resolve_server)
-        await self._register_context_window()
 
     @override
-    def proxy_endpoint(self) -> tuple[AsyncOpenAI, str] | None:
+    async def proxy_endpoint(self) -> tuple[AsyncOpenAI, str] | None:
         # An existing server someone named may sit behind a proxy; a server this
         # process starts never does. Resolving with a named server builds the
-        # client and starts nothing.
+        # client and starts nothing, and runs as it does before a generate.
         url = self._init_base_url or os.environ.get("VLLM_BASE_URL")
         if not url:
             return None
-        self._resolve_server()
+        await self._resolve_server_off_loop()
         return self.client, url
 
     def _server_root(self) -> str:

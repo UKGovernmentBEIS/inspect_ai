@@ -121,7 +121,7 @@ class SGLangAPI(OpenAICompatibleAPI):
             )
 
     @override
-    def proxy_endpoint(self) -> tuple[AsyncOpenAI, str] | None:
+    async def proxy_endpoint(self) -> tuple[AsyncOpenAI, str] | None:
         # A server someone named may sit behind a proxy; one this process
         # started never does. The named URL is also the service's own here,
         # so the base class can't tell the two apart.

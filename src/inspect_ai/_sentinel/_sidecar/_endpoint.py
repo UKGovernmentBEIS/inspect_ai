@@ -131,7 +131,7 @@ class _Client(NamedTuple):
     base_url: str
 
 
-def proxy_client(api: "ModelAPI") -> _Client | None:
+async def proxy_client(api: "ModelAPI") -> _Client | None:
     """The SDK client of a model whose calls a sidecar can read, when its base URL was set.
 
     Anthropic, OpenAI and OpenAI-compatible providers (such as Together, vLLM, Ollama and `openai-api/<service>/<model>`) are probed. Only a base URL someone set can point at a proxy, so a provider's own default address is never probed.
@@ -163,7 +163,7 @@ def proxy_client(api: "ModelAPI") -> _Client | None:
         except ImportError:
             return None
         if isinstance(api, OpenAICompatibleAPI):
-            found = api.proxy_endpoint()
+            found = await api.proxy_endpoint()
             if found is not None:
                 sdk, _ = found
                 return _Client(sdk, str(sdk.base_url))

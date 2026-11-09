@@ -333,7 +333,7 @@ class TaskSidecars:
         ]
 
     async def _probe(self, api: ModelAPI) -> Sidecar | str:
-        client = proxy_client(api)
+        client = await proxy_client(api)
         if client is None:
             return _NOT_PROBED
 

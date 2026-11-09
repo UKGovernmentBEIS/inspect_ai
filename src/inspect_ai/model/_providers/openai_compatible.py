@@ -228,8 +228,11 @@ class OpenAICompatibleAPI(ModelAPI):
     async def aclose(self) -> None:
         await self.client.close()
 
-    def proxy_endpoint(self) -> tuple[AsyncOpenAI, str] | None:
-        """The SDK client and the base URL a sentinel sidecar may sit behind: the URL someone set, or None where the model is called at its provider's own address."""
+    async def proxy_endpoint(self) -> tuple[AsyncOpenAI, str] | None:
+        """The SDK client and the base URL a sentinel sidecar may sit behind: the URL someone set, or None where the model is called at its provider's own address.
+
+        Awaited, so a provider that builds its client lazily may do that here as it does before a generate.
+        """
         if self._explicit_base_url is None:
             return None
         return self.client, self._explicit_base_url
