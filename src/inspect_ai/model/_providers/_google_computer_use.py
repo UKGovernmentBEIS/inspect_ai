@@ -158,6 +158,20 @@ def gemini_action_from_tool_call(
         return "wait_5_seconds", {}
 
 
+def gemini_replay_args(action_name: str, tool_call: ToolCall) -> dict[str, object]:
+    # go_back, go_forward and search are parsed as other Inspect actions, so
+    # their arguments are rebuilt in their own schema when that reproduces the
+    # call's current arguments (which an edit may have changed).
+    if action_name in ("go_back", "go_forward", "search"):
+        text = str(tool_call.arguments.get("text", ""))
+        args: dict[str, object] = (
+            {"query": text} if action_name == "search" and text else {}
+        )
+        if _parse_gemini_action(action_name, args) == tool_call.arguments:
+            return args
+    return gemini_action_from_tool_call(tool_call)[1]
+
+
 def _parse_gemini_action(name: str, args: dict[str, object]) -> dict[str, object]:
     if name == "click_at":
         x, y = _denormalize_coordinate(args)
