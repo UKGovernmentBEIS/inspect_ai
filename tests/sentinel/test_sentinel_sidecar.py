@@ -3009,6 +3009,70 @@ def test_a_bridged_agent_is_handed_the_turn_as_the_sidecar_left_it() -> None:
     assert [c.id for c in handed.message.tool_calls or []] == ["call_2"]
 
 
+def test_a_bridged_agent_whose_filter_generates_is_handed_the_turn_as_left() -> None:
+    # a bridge's filter may generate itself, outside the bridge's own
+    # generation; its output goes back to the scaffold all the same, so a call
+    # the sidecar took out must not be put back for the scaffold to run
+    from inspect_ai.agent._bridge.types import AgentBridge
+    from inspect_ai.agent._bridge.util import bridge_generate
+    from inspect_ai.model import ChatMessage
+    from inspect_ai.tool import ToolChoice, ToolInfo
+
+    proposed = {
+        "message": _turn_json(("call_1", "Tokyo"), ("call_2", "Oslo")),
+        "results": {"call_1": "Tokyo is not allowed."},
+    }
+    stand_in = StandInSidecar(
+        turns=[
+            Turn(
+                calls=[("call_2", "weather", {"city": "Oslo"})],
+                judgment={"outcome": "proceed", "steps": [], "proposed": proposed},
+            )
+        ]
+    )
+    seen: list[ModelOutput | Exception] = []
+
+    async def generating(
+        model: Model,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        return await model.generate(input, tools, tool_choice, config)
+
+    @solver
+    def through_a_filter() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            bridge = AgentBridge(
+                state=AgentState(messages=state.messages), filter=generating
+            )
+            try:
+                output, _ = await bridge_generate(
+                    bridge,
+                    get_model(),
+                    state.messages,
+                    [],
+                    None,
+                    GenerateConfig(),
+                    requested_model=None,
+                )
+                seen.append(output)
+            except Exception as ex:
+                seen.append(ex)
+            return state
+
+        return solve
+
+    task = Task(dataset=[Sample(input="Hi.")], solver=through_a_filter())
+
+    eval(task, model=_model(stand_in), display="none")
+
+    [handed] = seen
+    assert isinstance(handed, ModelOutput)
+    assert [c.id for c in handed.message.tool_calls or []] == ["call_2"]
+
+
 _ANTHROPIC_REQUEST = {
     "model": "inspect",
     "max_tokens": 64,

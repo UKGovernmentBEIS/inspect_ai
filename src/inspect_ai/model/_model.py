@@ -2542,10 +2542,14 @@ async def _refused_or_complete(
 
 
 def _bridged() -> bool:
-    """Whether the current model call is a bridged agent's, which runs its own tools."""
+    """Whether the current model call is a bridged agent's, which runs its own tools.
+
+    Any generate made while a bridge handles the scaffold's request counts, a filter's as much as the bridge's own, since its output goes back to the scaffold.
+    """
+    from inspect_ai.agent._bridge.context import current_agent_bridge_context
     from inspect_ai.agent._bridge.util import in_bridge_model_generate
 
-    return in_bridge_model_generate()
+    return in_bridge_model_generate() or current_agent_bridge_context() is not None
 
 
 def _would_retry(api: ModelAPI, ex: BaseException) -> bool:
