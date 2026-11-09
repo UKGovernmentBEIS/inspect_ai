@@ -54,6 +54,10 @@ from inspect_ai.agent._bridge._sentinel import (
 )
 from inspect_ai.agent._bridge.types import AgentBridge, message_json_hash
 from inspect_ai.model._agent_message import validate_agent_message
+from inspect_ai.model._assistant_internal import (
+    bridge_replay_scope,
+    carry_generation_assistant_internal,
+)
 from inspect_ai.model._call_tools import get_tools_info
 from inspect_ai.model._chat_message import (
     ChatMessage,
@@ -460,6 +464,9 @@ async def _apply_response_filter(
     The copy is taken before the `try`, so a failure copying the output is not
     blamed on the filter. A returned output is re-validated because its models do
     not validate assignment, so values edited in place are otherwise unchecked.
+    Validation drops the returned output's replay state; the re-validated output
+    keeps it for the calls the filter left unchanged
+    (`carry_generation_assistant_internal`).
 
     Exceptions are classified after unwrapping by hand, not with `inner_exception`,
     which follows `__context__` and can pick the exception already being handled.
@@ -498,7 +505,7 @@ async def _apply_response_filter(
         )
     try:
         # completion is excluded so validation re-derives it from the message
-        filtered = ModelOutput.model_validate(
+        validated = ModelOutput.model_validate(
             filtered.model_dump(exclude={"completion"}, warnings=False)
         )
     except ValidationError as ex:
@@ -506,6 +513,8 @@ async def _apply_response_filter(
             "response_filter returned an invalid ModelOutput: "
             f"{_validation_error_details(ex)}"
         ) from ex
+    carry_generation_assistant_internal(filtered, validated)
+    filtered = validated
     original_arguments = {
         call.id: call.arguments
         for choice in output.choices
@@ -883,7 +892,8 @@ async def bridge_generate(
     `AgentBridgeContext` defaults to unknown, `current_bridge_request()` carries
     `requested_model` (the scaffold's pre-alias-resolution model slug), or
     returns None when the scaffold sent no model, and both reset when the
-    request completes.
+    request completes. Within it, the calls the bridge handed on replay with
+    the state it recorded for them (`bridge_replay_scope`).
 
     Tool calls in the output are approved, and go through the sentinel's `tool_call`
     stage, before it is handed back to the scaffold. A rejected call is not edited
@@ -913,6 +923,7 @@ async def bridge_generate(
     generations = _Generations()
     with (
         bridged_request_scope(requested_model),
+        bridge_replay_scope(bridge._replay),
         bridge_request(),
         # only the sentinel's tool steps need to know what produced the response
         observe_generations(generations.record)
@@ -1123,7 +1134,6 @@ async def _bridge_generate_impl(
                 bridge,
                 output,
                 input_messages,
-                input + replayed,
                 declarations,
                 producer=generations.producer(produced),
             )

@@ -2,6 +2,7 @@ import abc
 import contextlib
 import dataclasses
 import functools
+import hashlib
 import json
 import logging
 import os
@@ -34,7 +35,6 @@ if TYPE_CHECKING:
     from inspect_ai.tool import ToolInfo
 
 import anyio
-import mmh3
 from pydantic import BaseModel
 from pydantic_core import to_jsonable_python
 from shortuuid import uuid
@@ -107,6 +107,7 @@ from inspect_ai.util._span import (
 )
 
 from ._agent_message import validate_agent_message
+from ._assistant_internal import default_generation_assistant_internal
 from ._cache import (
     CacheEntry,
     CachePolicy,
@@ -1776,6 +1777,8 @@ class Model:
                     provider_message=str(output),
                 ) from output
 
+            default_generation_assistant_internal(output)
+
             # a provider whose generate makes one request leaves the context
             # size to be read from its usage
             if output.input_context_tokens is None:
@@ -3111,7 +3114,7 @@ _model_event_sink: ContextVar[ModelEventSink | None] = ContextVar(
 class _Snapshot(NamedTuple):
     message: weakref.ReferenceType[ChatMessage]
     hash: bytes
-    """Hash of the message's `logged_json()`."""
+    """SHA-256 of the message's `logged_json()`."""
 
 
 _message_snapshots: dict[str | int, _Snapshot] = {}
@@ -3175,7 +3178,7 @@ def _snapshot_message(message: _MessageT) -> _MessageT:
         logged = logged_json(message)
         if logged is None:
             return message
-        digest = mmh3.hash_bytes(logged)
+        digest = hashlib.sha256(logged).digest()
         entry = _message_snapshots.get(key)
         snapshot = entry.message() if entry and entry.hash == digest else None
         # the logged JSON includes the role, so a hit has the message's type

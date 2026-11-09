@@ -1,9 +1,10 @@
+import hashlib
 import json
 from collections import OrderedDict, deque
-from contextlib import AbstractContextManager, nullcontext
+from contextlib import AbstractContextManager, ExitStack, nullcontext
 from copy import deepcopy
-from dataclasses import replace
-from functools import partial
+from dataclasses import dataclass, replace
+from functools import cached_property, partial
 from logging import getLogger
 from typing import (
     TYPE_CHECKING,
@@ -18,6 +19,7 @@ from typing import (
 )
 
 import anyio
+from pydantic import BaseModel, JsonValue, model_validator
 from pydantic_core import to_jsonable_python
 from shortuuid import uuid
 
@@ -34,7 +36,6 @@ from inspect_ai._util.content import (
     ContentVideo,
 )
 from inspect_ai._util.exception import TerminateSampleError
-from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.logger import warn_once
 from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.event._approval import ApprovalEvent
@@ -42,7 +43,10 @@ from inspect_ai.event._sentinel import SentinelEvent
 from inspect_ai.log._transcript import transcript
 from inspect_ai.model._assistant_internal import (
     alias_assistant_internal_call,
-    has_assistant_internal_call_arguments,
+    generation_assistant_internal,
+    has_generation_call_arguments,
+    has_generation_call_state,
+    keeps_generation_call_id,
 )
 from inspect_ai.model._call_tools import decisive_sentinel_exception
 from inspect_ai.model._chat_message import (
@@ -113,8 +117,6 @@ class SentinelCheck(NamedTuple):
     message_id: str | None
     """The id of the assistant message that made the call."""
 
-    history: list[ChatMessage]
-
     producer: Produced | None = None
     """The generation that produced the call, if the bridge knows it; the steps
     take what the model was sent from it, and its conversation, and without it
@@ -142,6 +144,25 @@ class _Identity(NamedTuple):
     call_key: str
     """The call's conservative identity (`_call_key`)."""
 
+    action: str | None
+    """A computer call's Gemini action (`_computer_action`)."""
+
+
+class _SavedResultChecks(BaseModel):
+    reserved_ids: list[str]
+    tokens: dict[str, _Identity]
+    checked: list[str]
+
+    @model_validator(mode="after")
+    def _computer_calls_have_actions(self) -> "_SavedResultChecks":
+        for token, identity in self.tokens.items():
+            if (identity.function == "computer") != (identity.action is not None):
+                raise ValueError(
+                    f"Token {token!r} must have an action if and only if it is "
+                    "a computer call."
+                )
+        return self
+
 
 class _Result(NamedTuple):
     keys: list[str]
@@ -156,15 +177,28 @@ class _Result(NamedTuple):
     """The id the call was executed under: its token, or its host `ToolEvent`'s id."""
 
 
+class _Claim(NamedTuple):
+    result: _Result
+
+    event: anyio.Event
+    """Set on release; the `running` entry of each of the result's keys this
+    claim took (a key another claim already held stays that claim's)."""
+
+
 class _Claimed(NamedTuple):
-    owned: list[_Result]
+    owned: list[_Claim]
     waiting: list[anyio.Event]
 
 
-class _Call(NamedTuple):
+@dataclass
+class _Call:
     call: ToolCall
     text: str
     position: int
+
+    @cached_property
+    def key(self) -> str:
+        return _call_key(self.call)
 
 
 class _ResultChecks:
@@ -174,15 +208,18 @@ class _ResultChecks:
     its id (`sentinel_tokens`): the model's own id when it is absent from the
     incoming history, the bridge has not handed it out before, it is at most
     `_MAX_TOKEN_LENGTH` characters, it names no Gemini computer action other
-    than the approved one (`_names_another_action`) and, for a call approval
-    modified, the provider does not replay the model's arguments under it
-    (`has_assistant_internal_call_arguments`); otherwise a fresh token
+    than the approved one (`_names_another_action`), no provider can replay
+    another generation's state under it (`keeps_generation_call_id`) and, for
+    a call approval
+    modified, that state does not carry the model's arguments
+    (`has_generation_call_arguments`); otherwise a fresh token
     (`_token_prefix`). A result
     reported under a token is the result of that execution, however the
     scaffold has rewritten, compacted or reformatted the rest of its
-    conversation. Tokens and observed history ids are kept for the life of
-    the bridge, apart from the proposals (bounded), so
-    an evicted proposal can never make an older execution match a newer one.
+    conversation. Tokens, observed history ids and checked results are kept
+    for the life of the bridge and in its checkpoint (`saved`), apart from the
+    proposals (bounded), so neither an evicted proposal nor a resume can make
+    an older execution match a newer one.
 
     Each execution's result is checked once: a result is identified by its
     token and its exact content (`_content_key`), so replays are not checked
@@ -216,39 +253,68 @@ class _ResultChecks:
     Held by its bridge, since a failure's traceback references the bridge.
     """
 
-    def __init__(self, inherited: frozenset[str], reserved: frozenset[str]) -> None:
+    def __init__(self, saved: _SavedResultChecks) -> None:
         self.identities: dict[str, _Identity] = {}
         self.prefixed_tokens: set[str] = set()
-        self.reserved_ids: set[str] = set(reserved)
+        for token, identity in saved.tokens.items():
+            self._record(token, identity)
+        self.reserved_ids: set[str] = set(saved.reserved_ids)
         self.proposals: OrderedDict[str, SentinelCheck] = OrderedDict()
-        self.checked: set[str] = set(inherited)
+        self.checked: set[str] = set(saved.checked)
         self.running: dict[str, anyio.Event] = {}
         self.failed: dict[str, Exception] = {}
+
+    def saved(self) -> _SavedResultChecks:
+        """What a resumed bridge needs to issue tokens and match results as this one does.
+
+        Proposals hold their generation and viewer, so a resumed bridge
+        matches a result to its token as it would after the proposal's
+        eviction. A check that was running or failed is made again. The
+        tokens' aliases are derived from their identities on restore.
+        """
+        return _SavedResultChecks(
+            reserved_ids=sorted(self.reserved_ids),
+            tokens=dict(self.identities),
+            checked=sorted(self.checked),
+        )
+
+    def _record(self, token: str, identity: _Identity) -> None:
+        self.identities[token] = identity
+        self.prefixed_tokens.update(
+            f"{name}__{token}"
+            for name in _wire_names(identity.function, identity.action)
+        )
 
     def reserve(self, input: Sequence[ChatMessage]) -> None:
         self.reserved_ids.update(history_ids(input))
 
-    def issue(self, checks: Sequence[SentinelCheck]) -> list[SentinelCheck]:
+    def issue(
+        self,
+        checks: Sequence[SentinelCheck],
+        replay: dict[str, JsonValue] | None,
+    ) -> list[SentinelCheck]:
         issued: list[SentinelCheck] = []
         for check in checks:
             token = check.handed.id
-            names = _wire_names(check.handed)
+            fresh = not keeps_generation_call_id(replay, token) or (
+                check.modified and has_generation_call_arguments(replay, token)
+            )
+            identity = _Identity(
+                check.call.id,
+                check.handed.function,
+                _call_key(check.handed),
+                _computer_action(check.handed),
+            )
+            names = _wire_names(identity.function, identity.action)
             while (
                 not token
                 or len(token) > _MAX_TOKEN_LENGTH
                 or self._ambiguous_token(token, names)
                 or _names_another_action(token, check)
-                or (
-                    check.modified
-                    and token == check.handed.id
-                    and has_assistant_internal_call_arguments(token)
-                )
+                or (fresh and token == check.handed.id)
             ):
                 token = f"{_token_prefix(check)}_{uuid()}"
-            self.identities[token] = _Identity(
-                check.call.id, check.handed.function, _call_key(check.handed)
-            )
-            self.prefixed_tokens.update(f"{name}__{token}" for name in names)
+            self._record(token, identity)
             issued.append(check._replace(token=token))
             self.proposals[token] = issued[-1]
             while len(self.proposals) > _MAX_PROPOSALS:
@@ -286,8 +352,8 @@ class _ResultChecks:
     def claim(self, input: list[ChatMessage]) -> _Claimed:
         claimed = _Claimed([], [])
         keys: set[str] = set()
-        for index, message, found in _answers(input):
-            result = self._result(input, index, message, found)
+        for message, found in _answers(input):
+            result = self._result(input, message, found)
             key = result.keys[0]
             if key in keys or key in self.checked:
                 continue
@@ -296,18 +362,21 @@ class _ResultChecks:
             if key in self.running:
                 claimed.waiting.append(self.running[key])
                 continue
-            keys.add(key)
-            claimed.owned.append(result)
-        for result in claimed.owned:
-            event = anyio.Event()
-            for key in result.keys:
-                self.running.setdefault(key, event)
+            # a result whose identity another of the request's results also
+            # answers for is checked by that result
+            keys.update(result.keys)
+            claimed.owned.append(_Claim(result, anyio.Event()))
+        for claim in claimed.owned:
+            self._take(claim)
         return claimed
+
+    def _take(self, claim: _Claim) -> None:
+        for key in claim.result.keys:
+            self.running.setdefault(key, claim.event)
 
     def _result(
         self,
         input: list[ChatMessage],
-        index: int,
         message: ChatMessageTool,
         found: _Call | None,
     ) -> _Result:
@@ -316,8 +385,8 @@ class _ResultChecks:
             content = _content_key(message)
             token = message.tool_call_id or ""
             keys = [
-                mm3_hash(f"token:{token}:{content}"),
-                mm3_hash(f"call:{identity.call_key}:{content}"),
+                _digest(["token", token, content]),
+                _digest(["call", identity.call_key, content]),
             ]
             proposal = self.proposals.get(token)
             if proposal is not None:
@@ -333,16 +402,12 @@ class _ResultChecks:
             call, key = _unissued(message, found)
             keys = [key]
             token = None
-        # the history ends with the call's assistant message, as on the native
-        # path; a result answering no call in the request has none
-        history = input[: found.position + 1 if found is not None else index]
         check = SentinelCheck(
             call,
             call,
             None,
             found.text if found is not None else "",
             input[found.position].id if found is not None else _NO_MESSAGE_ID,
-            history,
         )
         return _Result(keys, (check,), message, token)
 
@@ -378,39 +443,35 @@ class _ResultChecks:
         truncated: tuple[int, int] | Literal[False] | None,
     ) -> None:
         """Check a result claimed outside a request (a host call's), as running."""
-        event = anyio.Event()
-        for key in result.keys:
-            self.running.setdefault(key, event)
+        claim = _Claim(result, anyio.Event())
+        self._take(claim)
         try:
             await self.check(bridge, result, output, truncated)
         finally:
-            for key in result.keys:
-                if self.running.get(key) is event:
-                    del self.running[key]
-            event.set()
+            self.release(claim)
 
-    def release(self, result: _Result) -> None:
+    def release(self, claim: _Claim) -> None:
         # a check that did not finish is claimed again by the next request
         # carrying its result
-        event = self.running.get(result.keys[0])
-        for key in result.keys:
-            if self.running.get(key) is event:
+        for key in claim.result.keys:
+            if self.running.get(key) is claim.event:
                 del self.running[key]
-        if event is not None:
-            event.set()
+        claim.event.set()
 
 
 def _answers(
     input: Sequence[ChatMessage],
-) -> Iterator[tuple[int, ChatMessageTool, _Call | None]]:
-    """Each result in a request, with its position and the call it answers in the request, if any."""
+) -> Iterator[tuple[ChatMessageTool, _Call | None]]:
+    """Each result in a request, with the call it answers in the request, if any."""
     calls: dict[str, _Call] = {}
     unanswered: dict[str, list[_Call]] = {}
     for index, message in enumerate(input):
         if isinstance(message, ChatMessageAssistant):
             unanswered = {}
+            # a message with several text parts joins them on each read
+            text = message.text if message.tool_calls else ""
             for call in message.tool_calls or []:
-                calls[call.id] = _Call(call, message.text, index)
+                calls[call.id] = _Call(call, text, index)
                 unanswered.setdefault(call.id, []).append(calls[call.id])
         elif isinstance(message, ChatMessageTool):
             result_id = message.tool_call_id or ""
@@ -419,7 +480,7 @@ def _answers(
                 if unanswered.get(result_id)
                 else calls.get(result_id)
             )
-            yield index, message, found
+            yield message, found
 
 
 def _unissued(message: ChatMessageTool, found: _Call | None) -> tuple[ToolCall, str]:
@@ -433,8 +494,10 @@ def _unissued(message: ChatMessageTool, found: _Call | None) -> tuple[ToolCall, 
             arguments={},
         )
     )
-    orphan = None if found is not None else message.function or ""
-    return call, mm3_hash(f"call:{_call_key(call, orphan)}:{_content_key(message)}")
+    call_key = (
+        found.key if found is not None else _call_key(call, message.function or "")
+    )
+    return call, _digest(["call", call_key, _content_key(message)])
 
 
 def _call_key(call: ToolCall, orphan: str | None = None) -> str:
@@ -448,7 +511,7 @@ def _call_key(call: ToolCall, orphan: str | None = None) -> str:
         if orphan is not None
         else [call.function, _json_canonical(call.arguments)]
     )
-    return mm3_hash(json.dumps(identity, sort_keys=True))
+    return _digest(identity)
 
 
 def _json_canonical(value: Any) -> Any:
@@ -488,13 +551,17 @@ def _content_key(result: ChatMessageTool) -> str:
     error = (
         [result.error.type, result.error.message] if result.error is not None else None
     )
-    return mm3_hash(
-        json.dumps(
-            # a provider sends no function as an empty name
-            to_jsonable_python([result.function or "", parts, error], fallback=str),
-            sort_keys=True,
-        )
+    # a provider sends no function as an empty name
+    return _digest(
+        to_jsonable_python([result.function or "", parts, error], fallback=str)
     )
+
+
+def _digest(value: Any) -> str:
+    # the agent controls its results, so a key standing for a checked result
+    # must be collision-resistant
+    encoded = json.dumps(value, sort_keys=True).encode()
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def inherited_result_keys(input: Sequence[ChatMessage]) -> frozenset[str]:
@@ -504,9 +571,7 @@ def inherited_result_keys(input: Sequence[ChatMessage]) -> frozenset[str]:
     then, and restored from its checkpoint on resume: a result later changed
     in place has a different key and is checked.
     """
-    return frozenset(
-        _unissued(message, found)[1] for _, message, found in _answers(input)
-    )
+    return frozenset(_unissued(message, found)[1] for message, found in _answers(input))
 
 
 def history_ids(input: Sequence[ChatMessage]) -> frozenset[str]:
@@ -520,7 +585,11 @@ def history_ids(input: Sequence[ChatMessage]) -> frozenset[str]:
     for message in input:
         if isinstance(message, ChatMessageAssistant):
             for call in message.tool_calls or []:
-                _reserve_id(reserved, call.id, _wire_names(call))
+                _reserve_id(
+                    reserved,
+                    call.id,
+                    _wire_names(call.function, _computer_action(call)),
+                )
         elif isinstance(message, ChatMessageTool) and message.tool_call_id:
             _reserve_id(
                 reserved,
@@ -590,12 +659,20 @@ def _names_another_action(token: str, check: SentinelCheck) -> bool:
     return prefix not in gemini_computer_action_names(call.arguments)
 
 
-def _wire_names(call: ToolCall) -> set[str]:
-    """Names a scaffold can use to echo this call's id."""
-    names = {call.function.strip() or "generic_tool"}
-    if call.function == "computer":
-        names.add(gemini_computer_action_name(call.arguments))
+def _wire_names(function: str, action: str | None) -> set[str]:
+    """Names a scaffold can use to echo the id of a call to `function`."""
+    names = {function.strip() or "generic_tool"}
+    if action is not None:
+        names.add(action)
     return names
+
+
+def _computer_action(call: ToolCall) -> str | None:
+    return (
+        gemini_computer_action_name(call.arguments)
+        if call.function == "computer"
+        else None
+    )
 
 
 def checks_bridged_results() -> bool:
@@ -607,21 +684,12 @@ def checks_bridged_results() -> bool:
     return watches_tool_results()
 
 
-def _result_checks(bridge: AgentBridge) -> _ResultChecks:
-    if bridge._sentinel_results is None:
-        bridge._sentinel_results = _ResultChecks(
-            bridge._inherited_results, bridge._reserved_ids
-        )
-    return bridge._sentinel_results
-
-
 async def sentinel_tool_call(
     bridge: AgentBridge,
     message: str,
     message_id: str | None,
     call: ToolCall,
     viewer: ToolCallViewer | None,
-    history: list[ChatMessage],
     producer: Produced | None,
     recorded: list[ApprovalEvent | SentinelEvent],
 ) -> "Decision | None":
@@ -637,9 +705,8 @@ async def sentinel_tool_call(
                 message_id,
                 call,
                 viewer,
-                history,
-                producer.event if producer is not None else None,
-                find_producer=False,
+                history=None,
+                producer=producer.event if producer is not None else None,
                 bridge=True,
                 recorded=steps,
             ),
@@ -657,15 +724,34 @@ def sentinel_tokens(
     """Give each call handed to the scaffold its token as its id.
 
     A call's provider replay state (`alias_assistant_internal_call`) and Google
-    reasoning anchors follow it to its token, as do its approvals and
-    `tool_call` steps (`recorded`, by call), recorded before it had one: a
-    token other than the model's id becomes their `execution_id`.
+    reasoning anchors follow it to its token. The state is the one `output`'s
+    generation was parsed with, so a cache hit served after a later response
+    reused its ids hands it on as generated. It is recorded under every token,
+    a call keeping the model's id included, as a later response reusing that
+    id replaces what the provider recorded under it; under the model's id, only
+    the bridge's own requests replay it. A call without known state
+    (`keeps_generation_call_id`) gets a fresh token, which no provider has
+    recorded state under, and replays from the call itself.
+
+    A call's approvals and `tool_call` steps (`recorded`, by call), recorded
+    before it had a token, follow it too: a token other than the model's id,
+    fresh or not, becomes their `execution_id`.
 
     `checks` are the `tool_result` checks for the calls in `output`, in order.
     Returns the output to hand to the scaffold (a copy, when any id changes),
     and the checks with their tokens.
     """
-    issued = _result_checks(bridge).issue(checks)
+    replay = generation_assistant_internal(output)
+    issued = bridge._sentinel_results.issue(checks, replay)
+    for call, check in zip(output.message.tool_calls or [], issued):
+        if replay is not None and has_generation_call_state(replay, call.id):
+            alias_assistant_internal_call(
+                call.id,
+                check.token or call.id,
+                replay,
+                bridge._replay,
+                call if check.modified else None,
+            )
     if all(check.token == check.handed.id for check in issued):
         return output, issued
     for check, events in zip(issued, recorded):
@@ -679,10 +765,6 @@ def sentinel_tokens(
     for call, check in zip(output.message.tool_calls or [], issued):
         token = check.token or call.id
         tokens.setdefault(call.id, deque()).append(token)
-        if token != call.id:
-            alias_assistant_internal_call(
-                call.id, token, call if check.modified else None
-            )
         call.id = token
     _retarget_anchors(output.message.content, tokens)
     return output, issued
@@ -723,7 +805,6 @@ def sentinel_unproposed_host_check(
         ToolDef(tool_fn).viewer,
         "",
         _NO_MESSAGE_ID,
-        list(bridge.state.messages),
     )
 
 
@@ -758,18 +839,22 @@ async def sentinel_host_tool_result(
     )
     executions = candidates or ([check] if check.token is not None else [])
     keys: list[str] = []
+    content_keys: dict[str, str] = {}
     for execution in executions:
         # as the scaffold reports it: under the function it was handed
-        content_key = _content_key(
-            result.model_copy(update={"function": execution.handed.function})
-        )
+        function = execution.handed.function
+        if function not in content_keys:
+            content_keys[function] = _content_key(
+                result.model_copy(update={"function": function})
+            )
+        content_key = content_keys[function]
         keys += [
-            mm3_hash(f"token:{execution.token}:{content_key}"),
-            mm3_hash(f"call:{_call_key(execution.handed)}:{content_key}"),
+            _digest(["token", execution.token, content_key]),
+            _digest(["call", _call_key(execution.handed), content_key]),
         ]
     keys = keys or [f"unproposed:{uuid()}"]
     with bridge_request():
-        await _result_checks(bridge).check_running(
+        await bridge._sentinel_results.check_running(
             bridge, _Result(keys, (check,), result, event_id), output, truncated
         )
 
@@ -777,26 +862,25 @@ async def sentinel_host_tool_result(
 async def sentinel_tool_results(bridge: AgentBridge, input: list[ChatMessage]) -> None:
     if not checks_tool_calls():
         return
-    result_checks = _result_checks(bridge)
+    result_checks = bridge._sentinel_results
     result_checks.reserve(input)
     while True:
         claimed = result_checks.claim(input)
         if claimed.owned:
-            try:
+            with ExitStack() as releases:
+                for claim in claimed.owned:
+                    releases.callback(result_checks.release, claim)
                 await tg_collect(
                     [
                         partial(
                             result_checks.check,
                             bridge,
-                            result,
-                            _output(result.message),
+                            claim.result,
+                            _output(claim.result.message),
                         )
-                        for result in claimed.owned
+                        for claim in claimed.owned
                     ]
                 )
-            finally:
-                for result in claimed.owned:
-                    result_checks.release(result)
         if not claimed.waiting:
             return
         for running in claimed.waiting:
@@ -844,9 +928,8 @@ async def _tool_result(
                     output,
                     truncated,
                     check.viewer,
-                    check.history,
-                    producer.event if producer is not None else None,
-                    find_producer=False,
+                    history=None,
+                    producer=producer.event if producer is not None else None,
                     reject_on_viewer_error=reject_on_viewer_error,
                     bridge=True,
                     execution_id=execution if execution != check.call.id else None,

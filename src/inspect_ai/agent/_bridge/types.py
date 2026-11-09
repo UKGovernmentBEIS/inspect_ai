@@ -1,7 +1,9 @@
+import hashlib
 from enum import IntEnum
 from functools import lru_cache
 from typing import TYPE_CHECKING, Any, Callable, NamedTuple, NoReturn, Sequence, Set
 
+from pydantic import JsonValue
 from shortuuid import uuid
 
 from inspect_ai._util.exception import TerminateSampleError
@@ -38,7 +40,7 @@ if TYPE_CHECKING:
     # `model/_call_tools.py` defers it.
     from inspect_ai.approval._policy import ApprovalPolicy
 
-    from ._sentinel import SentinelCheck, _ResultChecks
+    from ._sentinel import SentinelCheck
 
 
 class DispatchedCall(NamedTuple):
@@ -125,11 +127,14 @@ class AgentBridge:
             state.messages = restored_messages
             state.output = restored_output
         self.state = state
-        self._message_ids = self._cp.track(
-            "bridge_message_ids",
-            lambda: self._message_ids,
-            {},
-            value_type=dict[str, list[str]],
+        self._message_ids = _rekey_legacy_message_ids(
+            self._cp.track(
+                "bridge_message_ids",
+                lambda: self._message_ids,
+                {},
+                value_type=dict[str, list[str]],
+            ),
+            restored_messages,
         )
         self._compaction_prefix = self._cp.track(
             "bridge_compaction_prefix",
@@ -165,28 +170,40 @@ class AgentBridge:
         self._pending_operator = 0
         self._operator_keys: set[str] = set()
         self._warned_request_settings: set[str] = set()
-        self._sentinel_results: "_ResultChecks | None" = None
-        # deferred: `_sentinel` imports this module
-        from ._sentinel import history_ids, inherited_result_keys
-
-        # a checkpoint written without the keys exempts nothing
-        self._inherited_results = frozenset(
-            self._cp.track(
-                "bridge_inherited_results",
-                lambda: sorted(self._inherited_results),
-                sorted(inherited_result_keys(state.messages))
-                if self._cp.attempt == "initial"
-                else [],
-                value_type=list[str],
-            )
+        # the provider replay state of the calls it handed on under the model's
+        # ids (`alias_assistant_internal_call`)
+        self._replay: dict[str, JsonValue] = self._cp.track(
+            "bridge_replay",
+            lambda: self._replay,
+            {},
+            value_type=dict[str, JsonValue],
         )
-        # one written without the reservations reserves its prefix's ids
-        self._reserved_ids = frozenset(
+        # deferred: `_sentinel` imports this module
+        from ._sentinel import (
+            _ResultChecks,
+            _SavedResultChecks,
+            history_ids,
+            inherited_result_keys,
+        )
+
+        # a checkpoint written without them exempts no result and reserves the
+        # ids of its prefix and its conversation; an incomplete one fails to
+        # restore
+        self._sentinel_results = _ResultChecks(
             self._cp.track(
-                "bridge_reserved_ids",
-                lambda: sorted(self._reserved_ids),
-                sorted(history_ids(self._compaction_prefix)),
-                value_type=list[str],
+                "bridge_result_checks",
+                lambda: self._sentinel_results.saved(),
+                _SavedResultChecks(
+                    reserved_ids=sorted(
+                        history_ids(self._compaction_prefix)
+                        | history_ids(restored_messages)
+                    ),
+                    tokens={},
+                    checked=sorted(inherited_result_keys(state.messages))
+                    if self._cp.attempt == "initial"
+                    else [],
+                ),
+                value_type=_SavedResultChecks,
             )
         )
 
@@ -418,11 +435,12 @@ class AgentBridge:
         message_id: str | None = None
 
         # turn message into a hash so it can be a dictionary key
-        message_key = message_json_hash(to_json_str_safe(message))
+        message_json = to_json_str_safe(message)
+        message_key = message_json_hash(message_json)
+        message_ids = self._message_ids.get(message_key, [])
 
         # do we already have an id for this message that isn't in the conversation?
         conversation_ids: Set[str] = {m.id for m in conversation if m.id is not None}
-        message_ids = self._message_ids.get(message_key, [])
         for id in message_ids:
             if id not in conversation_ids:
                 message_id = id
@@ -621,7 +639,34 @@ class AgentBridge:
 
 @lru_cache(maxsize=100)
 def message_json_hash(message_json: str) -> str:
-    return mm3_hash(message_json)
+    # a key decides which message an id or provenance belongs to, and the
+    # agent controls its messages, so it must be collision-resistant
+    encoded = message_json.encode("utf-8", errors="backslashreplace")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _rekey_legacy_message_ids(
+    message_ids: dict[str, list[str]], restored: list[ChatMessage]
+) -> dict[str, list[str]]:
+    # checkpoints written before message keys were SHA-256 have 32-hex Murmur3
+    # keys. an id keeps its place only when a restored message carried it and
+    # that message's content has the Murmur3 key; other legacy ids are dropped
+    legacy = {key: set(ids) for key, ids in message_ids.items() if len(key) == 32}
+    if not legacy:
+        return message_ids
+    rekeyed = {key: ids for key, ids in message_ids.items() if len(key) != 32}
+    emitted = {key: set(ids) for key, ids in rekeyed.items()}
+    for message in restored:
+        if message.id is None:
+            continue
+        message_json = to_json_str_safe(message.model_copy(update={"id": None}))
+        if message.id in legacy.get(mm3_hash(message_json), ()):
+            key = message_json_hash(message_json)
+            seen = emitted.setdefault(key, set())
+            if message.id not in seen:
+                seen.add(message.id)
+                rekeyed.setdefault(key, []).append(message.id)
+    return rekeyed
 
 
 class _MessageFingerprint(NamedTuple):

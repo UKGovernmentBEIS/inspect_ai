@@ -9,14 +9,18 @@ mode where a longer side call permanently displaced the real conversation.
 
 from typing import Any
 
+import pytest
 from test_helpers.checkpoint import RecordingCheckpointer
+from test_helpers.utils import collide_murmur3
 
 from inspect_ai._util.hash import mm3_hash
+from inspect_ai._util.json import to_json_str_safe
 from inspect_ai.agent._agent import AgentState
 from inspect_ai.agent._bridge.anthropic_api import inspect_anthropic_api_request
 from inspect_ai.agent._bridge.completions import inspect_completions_api_request
-from inspect_ai.agent._bridge.types import AgentBridge
+from inspect_ai.agent._bridge.types import AgentBridge, _rekey_legacy_message_ids
 from inspect_ai.agent._bridge.util import (
+    apply_message_ids,
     default_code_execution_providers,
     internal_web_search_providers,
 )
@@ -1532,3 +1536,124 @@ async def test_anthropic_handler_tracks_main_thread_end_to_end() -> None:
         "please continue",
         "Castle",
     ]
+
+
+# ---------------------------------------------------------------------------
+# Message id allocation
+# ---------------------------------------------------------------------------
+
+
+def test_message_ids_are_not_reused_across_a_murmur3_collision(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    collide_murmur3(monkeypatch)
+    bridge = task_bridge()
+    first: list[ChatMessage] = [ChatMessageUser(content="collision first")]
+    apply_message_ids(bridge, first)
+    second: list[ChatMessage] = [ChatMessageUser(content="collision second")]
+    apply_message_ids(bridge, second)
+    again: list[ChatMessage] = [ChatMessageUser(content="collision first")]
+    apply_message_ids(bridge, again)
+
+    assert second[0].id != first[0].id
+    assert again[0].id == first[0].id
+
+
+def _read_result(text: str) -> ChatMessageTool:
+    message = ChatMessageTool(content=text, tool_call_id="read_1", function="read_file")
+    message.id = None
+    return message
+
+
+def _legacy_bridge(
+    ids: list[str], restored_messages: list[ChatMessage]
+) -> tuple[AgentBridge, RecordingCheckpointer, str]:
+    # a checkpoint written before message keys were SHA-256
+    legacy_key = mm3_hash(to_json_str_safe(_read_result("first result")))
+    cp = RecordingCheckpointer(
+        restored={
+            "bridge_message_ids": {legacy_key: ids},
+            "bridge_messages": AgentState(messages=restored_messages).messages,
+        }
+    )
+    return AgentBridge(AgentState(messages=[]), checkpointer=cp), cp, legacy_key
+
+
+def test_message_ids_restored_under_murmur3_keys_are_kept() -> None:
+    restored = _read_result("first result")
+    restored.id = "restored-id"
+    bridge, cp, legacy_key = _legacy_bridge(["restored-id"], [restored])
+
+    input: list[ChatMessage] = [_read_result("first result")]
+    apply_message_ids(bridge, input)
+    assert input[0].id == "restored-id"
+
+    saved = cp.callbacks["bridge_message_ids"]()
+    assert isinstance(saved, dict)
+    assert legacy_key not in saved
+    assert list(saved.values()) == [["restored-id"]]
+
+
+def test_legacy_message_ids_go_only_to_the_restored_content_that_carried_them(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    collide_murmur3(monkeypatch)
+    restored = _read_result("first result")
+    restored.id = "first-result-id"
+    # "other-id" belonged to a colliding message the checkpoint didn't keep
+    bridge, cp, legacy_key = _legacy_bridge(["other-id", "first-result-id"], [restored])
+
+    changed: list[ChatMessage] = [_read_result("changed result")]
+    apply_message_ids(bridge, changed)
+    assert changed[0].id not in {"other-id", "first-result-id"}
+
+    unchanged: list[ChatMessage] = [_read_result("first result")]
+    apply_message_ids(bridge, unchanged)
+    assert unchanged[0].id == "first-result-id"
+
+    saved = cp.callbacks["bridge_message_ids"]()
+    assert isinstance(saved, dict)
+    assert legacy_key not in saved
+    assert "other-id" not in [id for ids in saved.values() for id in ids]
+
+
+def test_legacy_message_ids_without_a_restored_message_are_dropped() -> None:
+    bridge, cp, legacy_key = _legacy_bridge(["restored-id"], [])
+
+    saved = cp.callbacks["bridge_message_ids"]()
+    assert saved == {}
+
+    input: list[ChatMessage] = [_read_result("first result")]
+    apply_message_ids(bridge, input)
+    assert input[0].id != "restored-id"
+
+
+class _CountedId(str):
+    comparisons = 0
+
+    def __eq__(self, other: object) -> bool:
+        _CountedId.comparisons += 1
+        return super().__eq__(other)
+
+    __hash__ = str.__hash__
+
+
+def _legacy_rekey_comparisons(n: int) -> int:
+    # repeated nudges share content, so all their ids sit under one legacy key
+    messages: list[ChatMessage] = []
+    for i in range(n):
+        message = ChatMessageUser(content="Continue.")
+        message.id = _CountedId(f"id-{i}")
+        messages.append(message)
+    legacy_key = mm3_hash(to_json_str_safe(messages[0].model_copy(update={"id": None})))
+    legacy_ids: list[str] = [_CountedId(f"id-{i}") for i in range(n)]
+
+    _CountedId.comparisons = 0
+    rekeyed = _rekey_legacy_message_ids({legacy_key: legacy_ids}, messages)
+    assert list(rekeyed.values()) == [[f"id-{i}" for i in range(n)]]
+    return _CountedId.comparisons
+
+
+def test_legacy_message_id_rekeying_is_linear_in_repeated_messages() -> None:
+    small, large = _legacy_rekey_comparisons(1000), _legacy_rekey_comparisons(4000)
+    assert large < 6 * small, (small, large)

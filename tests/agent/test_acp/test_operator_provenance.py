@@ -18,7 +18,7 @@ carry-forward re-stamps it on later turns by the bridge's stable content key.
 from __future__ import annotations
 
 import pytest
-from test_helpers.utils import skip_if_trio
+from test_helpers.utils import collide_murmur3, skip_if_trio
 
 from inspect_ai._util.content import ContentText
 from inspect_ai.agent import AgentState
@@ -237,6 +237,27 @@ def test_restore_carry_forward_does_not_touch_other_users() -> None:
         op_copy,
     ]
     _restore_operator_message_source(bridge, input2)
+    assert op_copy.source == "operator"
+    assert other.source is None
+
+
+def test_restore_carry_forward_does_not_stamp_a_murmur3_collision(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    collide_murmur3(monkeypatch)
+    bridge = _bridge()
+    bridge.note_operator_message(ChatMessageUser(content="collision redirect"))
+    _restore_operator_message_source(
+        bridge,
+        [
+            ChatMessageUser(content="collision task"),
+            ChatMessageUser(content="collision redirect"),
+        ],
+    )
+
+    other = ChatMessageUser(content="collision other")
+    op_copy = ChatMessageUser(content="collision redirect")
+    _restore_operator_message_source(bridge, [other, op_copy])
     assert op_copy.source == "operator"
     assert other.source is None
 

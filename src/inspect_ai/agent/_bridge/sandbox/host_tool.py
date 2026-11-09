@@ -105,9 +105,10 @@ async def execute_host_tool(
     and its result recorded as checked for each of them.
     The check sees the result as the scaffold receives it (the serialized text,
     or the text and images of the MCP content), and an error as the service's
-    error text, with the type the native path gives it. As on the native path,
-    an argument validation error has no `tool_result` stage, and neither does a
-    bare `LimitExceededError`, which ends the sample.
+    error text, with the type the native path gives it. An argument validation
+    error has no `tool_result` stage, as on the native path; a bare
+    `LimitExceededError` is returned as a tool error and checked, while an
+    error carrying a termination ends the sample without a check.
 
     Every request is recorded as one `ToolEvent` in a `tool` span, as a native
     call is, with `metadata["bridge"]` describing it (see `ToolEvent`). An
@@ -437,11 +438,13 @@ class _Outcome(NamedTuple):
 def _checked(outcome: _Outcome) -> bool:
     """Whether the sentinel checks this outcome: a result, or a model-facing error.
 
-    Not a failure, a cancellation, a bare `LimitExceededError` or an error
-    carrying a termination, which end the sample or the call without the model
-    seeing an error. An exception group is already decided by its decisive leaf
-    (`_raised`, `decisive_tool_exception`): one a defect decides is a failure,
-    and one a limit decides raises the limit.
+    Not a failure, a cancellation or an error carrying a termination (a limit
+    whose history holds one included), which end the sample or the call without
+    the model seeing an error. A bare `LimitExceededError` arrives as the
+    `ToolError` `_raised` replaces it with, so it is checked as the tool error
+    the scaffold receives. An exception group is already decided by its
+    decisive leaf (`_raised`, `decisive_tool_exception`): one a defect decides
+    is a failure, and one a limit decides is checked as a bare limit is.
     """
     if outcome.failed or outcome.error == _CANCELLED:
         return False
@@ -513,9 +516,10 @@ def _raised(ex: Exception, tool: str, max_output: int | None) -> _Outcome:
     A group is handled as its decisive leaf would be if raised bare, but the
     original propagates so the scaffold's error reply is unchanged, except that
     a deciding limit is replaced by a `ToolError` with its mapped message: the
-    service dispatcher routes a `LimitExceededError` to the sample. A
-    termination anywhere in `ex` (including a limit's history) still leaves
-    the original to the dispatcher.
+    service dispatcher routes a `LimitExceededError` to the sample. The
+    scaffold receives it as a tool error and the sentinel checks it as one
+    (`_checked`). A termination anywhere in `ex` (including a limit's history)
+    still leaves the original to the dispatcher, and ends the sample unchecked.
     """
     decisive = decisive_tool_exception(ex)
     mapped = tool_call_error(decisive, tool)

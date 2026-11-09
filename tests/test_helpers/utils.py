@@ -537,6 +537,16 @@ def skip_if_async_backend(backend):
     return decorator
 
 
+def collide_murmur3(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Make every Murmur3 hash the same, so an identity resting on one collides."""
+    import mmh3
+
+    monkeypatch.setattr(mmh3, "hash_bytes", lambda *args, **kwargs: bytes(16))
+    monkeypatch.setattr(mmh3, "hash64", lambda *args, **kwargs: (0, 0))
+    monkeypatch.setattr(mmh3, "hash128", lambda *args, **kwargs: 0)
+    monkeypatch.setattr(mmh3, "hash", lambda *args, **kwargs: 0)
+
+
 def skip_if_trio(func):
     return skip_if_async_backend("trio")(func)
 

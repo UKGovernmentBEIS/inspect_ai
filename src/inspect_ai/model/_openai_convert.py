@@ -120,16 +120,18 @@ async def model_output_from_openai_responses(
 
     from openai.types.responses import Response
 
+    from inspect_ai.model._assistant_internal import set_generation_assistant_internal
     from inspect_ai.model._openai_responses import openai_responses_chat_choices
     from inspect_ai.model._providers.openai_responses import model_usage_from_response
 
     if isinstance(response, dict):
         response = Response.model_validate(response)
 
-    choices = openai_responses_chat_choices(model=None, response=response, tools=[])
-    return ModelOutput(
+    parsed = openai_responses_chat_choices(model=None, response=response, tools=[])
+    output = ModelOutput(
         model=response.model,
-        choices=choices,
+        choices=parsed.choices,
         usage=model_usage_from_response(response),
         response_id=response.id,
     )
+    return set_generation_assistant_internal(output, parsed.replay)

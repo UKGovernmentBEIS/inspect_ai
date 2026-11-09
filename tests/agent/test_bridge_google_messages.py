@@ -23,13 +23,19 @@ from dataclasses import replace
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
 from inspect_ai.agent._bridge._errors import BridgePolicyError
-from inspect_ai.agent._bridge._sentinel import SentinelCheck, _ResultChecks
+from inspect_ai.agent._bridge._sentinel import (
+    SentinelCheck,
+    _ResultChecks,
+    _SavedResultChecks,
+)
 from inspect_ai.agent._bridge.google_api_impl import (
     gemini_response_from_output,
     messages_from_google_contents,
 )
+from inspect_ai.model._assistant_internal import generation_replay
 from inspect_ai.model._chat_message import (
     ChatMessageAssistant,
     ChatMessageTool,
@@ -272,11 +278,12 @@ def test_google_computer_action_ids_round_trip_in_both_issuance_orders(
             viewer=None,
             message="",
             message_id=None,
-            history=[],
         )
         for call in calls
     ]
-    issued = _ResultChecks(frozenset(), frozenset()).issue(checks)
+    issued = _ResultChecks(
+        _SavedResultChecks(reserved_ids=[], tokens={}, checked=[])
+    ).issue(checks, generation_replay(calls))
     output = ModelOutput.for_tool_call("mockllm/model", "computer", calls[0].arguments)
     output.message.tool_calls = [
         replace(call, id=check.token or call.id) for call, check in zip(calls, issued)
@@ -315,6 +322,44 @@ def test_google_computer_action_ids_round_trip_in_both_issuance_orders(
     assert len(set(issued_ids)) == 2
     assert [call.id for call in assistant.tool_calls or []] == issued_ids
     assert result_ids == issued_ids
+
+
+def test_restored_result_checks_derive_the_aliases_of_their_tokens() -> None:
+    calls = [
+        ToolCall(
+            id="c",
+            function="computer",
+            arguments={"action": "left_click", "coordinate": [10, 20]},
+        ),
+        ToolCall(id="r", function="read_file", arguments={"path": "notes.txt"}),
+        ToolCall(id="g", function=" ", arguments={}),
+    ]
+    checks = _ResultChecks(_SavedResultChecks(reserved_ids=[], tokens={}, checked=[]))
+    checks.issue(
+        [
+            SentinelCheck(
+                handed=call, call=call, viewer=None, message="", message_id=None
+            )
+            for call in calls
+        ],
+        generation_replay(calls),
+    )
+    saved = checks.saved().model_dump(mode="json")
+    saved["prefixed_tokens"] = []
+
+    restored = _ResultChecks(_SavedResultChecks.model_validate_json(json.dumps(saved)))
+
+    assert checks.prefixed_tokens == {
+        "computer__c",
+        "click_at__c",
+        "read_file__r",
+        "generic_tool__g",
+    }
+    assert restored.prefixed_tokens == checks.prefixed_tokens
+
+    saved["tokens"]["c"][3] = None
+    with pytest.raises(ValidationError, match="computer call"):
+        _SavedResultChecks.model_validate_json(json.dumps(saved))
 
 
 def test_google_calls_without_ids_keep_their_deterministic_ids() -> None:

@@ -10,16 +10,20 @@ from __future__ import annotations
 
 import importlib
 import json
+import pickle
 import time
+from typing import Any, cast
 from unittest.mock import patch
 
 from pydantic import JsonValue
 
 from inspect_ai._util._async import tg_collect
+from inspect_ai.model import ChatCompletionChoice, ChatMessageAssistant, ModelOutput
 from inspect_ai.model._assistant_internal import (
     dump_sample_assistant_internal,
     init_sample_assistant_internal,
 )
+from inspect_ai.tool import ToolCall
 
 
 def test_init_sample_assistant_internal_does_not_call_find_spec() -> None:
@@ -199,3 +203,158 @@ async def test_restore_in_child_task_visible_to_siblings() -> None:
 
     await tg_collect([restore])
     assert "h" in assistant_internal().thinking_blocks
+
+
+def test_an_output_cached_before_private_attributes_records_no_replay_state() -> None:
+    from inspect_ai.model import ModelOutput
+    from inspect_ai.model._assistant_internal import generation_assistant_internal
+
+    output = ModelOutput()
+    # how pydantic unpickles a model pickled before it had private attributes
+    object.__setattr__(output, "__pydantic_private__", None)
+    assert generation_assistant_internal(output) is None
+
+
+async def test_a_responses_parse_keeps_its_own_replay_state_with_its_output() -> None:
+    from openai.types.responses import Response, ResponseFunctionToolCall
+
+    from inspect_ai.model import model_output_from_openai_responses
+    from inspect_ai.model._assistant_internal import (
+        generation_assistant_internal,
+        has_generation_call_state,
+    )
+    from inspect_ai.model._openai_responses import assistant_internal
+
+    init_sample_assistant_internal()
+
+    def call(item_id: str | None, call_id: str) -> ResponseFunctionToolCall:
+        return ResponseFunctionToolCall(
+            id=item_id,
+            type="function_call",
+            call_id=call_id,
+            name="read_file",
+            arguments="{}",
+        )
+
+    output = await model_output_from_openai_responses(
+        Response.model_validate(
+            {
+                "id": "resp_1",
+                "created_at": 0,
+                "model": "gpt-5",
+                "object": "response",
+                "output": [call("fc_1", "call_item"), call(None, "call_itemless")],
+                "parallel_tool_calls": True,
+                "tool_choice": "auto",
+                "tools": [],
+            }
+        )
+    )
+    replay = generation_assistant_internal(output)
+    # a later parse replacing the provider's state leaves the output's own
+    assistant_internal().tool_calls["call_item"] = cast(Any, {"type": "other"})
+    assistant_internal().tool_calls["call_itemless"] = cast(Any, {"type": "other"})
+
+    assert has_generation_call_state(replay, "call_item")
+    assert not has_generation_call_state(replay, "call_itemless")
+    assert generation_assistant_internal(pickle.loads(pickle.dumps(output))) == replay
+    assert generation_assistant_internal(output.model_copy(deep=True)) == replay
+    rebuilt = ModelOutput.model_validate(output.model_dump())
+    assert generation_assistant_internal(rebuilt) is None
+    # the replay state is not part of the output's value
+    assert rebuilt == output
+
+
+def test_a_copy_keeps_the_replay_state_of_the_calls_it_leaves_unchanged() -> None:
+    from inspect_ai.model._assistant_internal import (
+        carry_generation_assistant_internal,
+        generation_assistant_internal,
+        generation_replay,
+        has_generation_call_state,
+        set_generation_assistant_internal,
+    )
+
+    calls = [
+        ToolCall(id="kept", function="read_file", arguments={"path": "a"}),
+        ToolCall(id="edited", function="read_file", arguments={"path": "b"}),
+    ]
+    output = set_generation_assistant_internal(
+        ModelOutput(
+            choices=[
+                ChatCompletionChoice(
+                    message=ChatMessageAssistant(content="", tool_calls=calls),
+                    stop_reason="tool_calls",
+                )
+            ]
+        ),
+        generation_replay(
+            calls,
+            openai={call.id: {"type": "function_call"} for call in calls},
+            anthropic={
+                "names": {call.id: None for call in calls},
+                "positions": {call.id: 0 for call in calls},
+            },
+        ),
+    )
+    copy = ModelOutput.model_validate(output.model_dump())
+    assert copy.message.tool_calls
+    copy.message.tool_calls[1].arguments = {"path": "c"}
+
+    carry_generation_assistant_internal(output, copy)
+
+    replay = generation_assistant_internal(copy)
+    assert has_generation_call_state(replay, "kept")
+    assert not has_generation_call_state(replay, "edited")
+    original = cast(dict[str, Any], generation_assistant_internal(output))
+    assert replay == {
+        "calls": {"kept": original["calls"]["kept"]},
+        "openai": {"kept": {"type": "function_call"}},
+        "anthropic": {"names": {"kept": None}, "positions": {"kept": 0}},
+    }
+
+
+def _calling(call_id: str) -> ModelOutput:
+    return ModelOutput(
+        choices=[
+            ChatCompletionChoice(
+                message=ChatMessageAssistant(
+                    content="",
+                    tool_calls=[ToolCall(id=call_id, function="f", arguments={})],
+                )
+            )
+        ]
+    )
+
+
+def test_a_fresh_output_without_replay_state_needs_none_unless_a_provider_kept_some() -> (
+    None
+):
+    from inspect_ai.model._assistant_internal import (
+        default_generation_assistant_internal,
+        generation_assistant_internal,
+        keeps_generation_call_id,
+    )
+    from inspect_ai.model._openai_responses import assistant_internal
+    from inspect_ai.model._providers.anthropic import (
+        assistant_internal as anthropic_internal,
+    )
+
+    init_sample_assistant_internal()
+    assistant_internal().tool_calls["call_responses"] = {
+        "type": "function_call",
+        "call_id": "call_responses",
+        "name": "f",
+        "arguments": "{}",
+    }
+    anthropic_internal().client_tool_call_positions["toolu_1"] = 0
+
+    for call_id, stateless in [
+        ("call_stateless", True),
+        ("call_responses", False),
+        ("toolu_1", False),
+    ]:
+        output = _calling(call_id)
+        default_generation_assistant_internal(output)
+        replay = generation_assistant_internal(output)
+        assert (replay is not None) == stateless
+        assert keeps_generation_call_id(replay, call_id) == stateless

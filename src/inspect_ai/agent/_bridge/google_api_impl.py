@@ -136,11 +136,7 @@ async def inspect_google_api_request_impl(
     call_ids = active_sentinel() is not None
 
     # translate messages
-    issued_ids = (
-        set(bridge._sentinel_results.identities)
-        if call_ids and bridge._sentinel_results is not None
-        else set()
-    )
+    issued_ids = set(bridge._sentinel_results.identities) if call_ids else set()
     messages = messages_from_google_contents(
         contents, system_instruction, call_ids=call_ids, issued_ids=issued_ids
     )

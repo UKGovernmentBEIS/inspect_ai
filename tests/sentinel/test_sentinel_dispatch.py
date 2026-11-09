@@ -16,7 +16,7 @@ import pytest
 import tenacity
 from pydantic import BaseModel, PrivateAttr, field_validator
 from test_helpers.transcript import FakeTranscriptHistoryProvider
-from test_helpers.utils import skip_if_no_mcp_package
+from test_helpers.utils import collide_murmur3, skip_if_no_mcp_package
 from typing_extensions import assert_type
 
 from inspect_ai import Task, eval
@@ -6514,6 +6514,17 @@ def test_the_fold_compares_messages_with_lone_surrogates_by_content() -> None:
     other = ChatMessageUser(content="word " * 40 + "\udc01")
     assert fold([first], [rebuilt]) == [first]
     assert fold([first], [other]) == [first, other]
+
+
+@pytest.mark.parametrize("suffix", ["", _LONG_WITH_A_LONE_SURROGATE])
+def test_the_fold_tells_apart_messages_whose_murmur3_hashes_collide(
+    monkeypatch: pytest.MonkeyPatch, suffix: str
+) -> None:
+    # with a lone surrogate, the key is taken from the fallback serialization
+    collide_murmur3(monkeypatch)
+    first = ChatMessageUser(content=f"first {suffix}")
+    second = ChatMessageUser(content=f"second {suffix}")
+    assert fold([first], [second]) == [first, second]
 
 
 def test_the_fold_matches_a_message_it_cannot_serialize_only_as_itself() -> None:

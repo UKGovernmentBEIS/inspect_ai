@@ -115,7 +115,6 @@ async def apply_bridge_tool_approval(
     bridge: AgentBridge,
     output: ModelOutput,
     history: list[ChatMessage],
-    conversation: list[ChatMessage] | None = None,
     tools: Sequence[ToolInfo | Tool] = (),
     producer: Produced | None = None,
 ) -> BridgeApproval:
@@ -161,9 +160,6 @@ async def apply_bridge_tool_approval(
         bridge: Bridge whose `approval` policies (if any) apply for this call.
         output: Model output about to be handed to the scaffold.
         history: Conversation that produced `output`: the model's input.
-        conversation: The scaffold's conversation before compaction, in which the
-            sentinel's steps find the call's assistant message (defaults to
-            `history`). A step's `history` is what the agent has sent.
         tools: The declarations the scaffold made to the model, which identify
             the host tools (and so the registered viewers) the calls denote.
         producer: The generation whose output object `output` is, if known
@@ -280,7 +276,6 @@ async def apply_bridge_tool_approval(
 
         checks: list[SentinelCheck] | None = None
         if sentinel_active:
-            sentinel_history = (conversation or history) + [output.message]
             checks = []
             for index, (call, targets) in enumerate(zip(tool_calls, sentinel_reviewed)):
                 target_checks: list[SentinelCheck] = []
@@ -294,7 +289,6 @@ async def apply_bridge_tool_approval(
                             output.message.id,
                             offered,
                             viewer,
-                            sentinel_history,
                             producer,
                             recorded[index],
                         )
@@ -356,7 +350,6 @@ async def apply_bridge_tool_approval(
                             viewer=viewer,
                             message=message,
                             message_id=output.message.id,
-                            history=sentinel_history,
                             producer=producer,
                             modified=not json_equal(
                                 modified.get(index, call.arguments), call.arguments

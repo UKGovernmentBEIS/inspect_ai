@@ -17,6 +17,7 @@ import pytest
 import tenacity
 from pydantic import BaseModel, TypeAdapter
 from shortuuid import uuid
+from test_helpers.utils import collide_murmur3
 
 from inspect_ai import Task, eval
 from inspect_ai._sentinel._integration import (
@@ -542,6 +543,28 @@ def test_parallel_tool_calls_replay_as_they_ran() -> None:
             done(),
         ),
     )
+
+
+def test_a_messages_tool_steps_share_its_text() -> None:
+    from inspect_ai._util.content import ContentText
+
+    turn = calls(
+        ("addition", {"x": 1, "y": 1}),
+        ("addition", {"x": 2, "y": 2}),
+        ("addition", {"x": 3, "y": 3}),
+    )
+    turn.message.content = [ContentText(text="Adding"), ContentText(text="three.")]
+    log = run_logged([use_tools(addition()), generate()], outputs(turn, done()))
+
+    steps = [
+        replayed.step
+        for replayed in replayed(log)
+        if isinstance(replayed.step, BeforeToolCall | AfterToolCall)
+    ]
+    assert len(steps) == 6
+    assert {step.message for step in steps} == {"Adding\nthree."}
+    # replay keeps every step, so a copy per call grows with calls x text
+    assert len({id(step.message) for step in steps}) == 1
 
 
 def test_a_truncated_result_replays_as_it_ran() -> None:
@@ -4108,6 +4131,18 @@ def test_a_rebuilt_message_s_fold_is_linear_in_what_the_log_stores(
         works.append(replay_work(monkeypatch, [], condensed, pool, "sample", info))
     small, large = works
     assert_linear(small, large, doubles=False)
+
+
+def test_replay_tells_apart_pool_rows_whose_murmur3_hashes_collide(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from inspect_ai._sentinel import _replay
+
+    collide_murmur3(monkeypatch)
+    keys = _replay._PoolKeys(
+        [ChatMessageUser(content="first"), ChatMessageUser(content="second")]
+    )
+    assert [keys.canonical(0), keys.canonical(1)] == [0, 1]
 
 
 def test_the_fold_over_pool_ranges_is_the_fold_live() -> None:
