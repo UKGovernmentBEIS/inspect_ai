@@ -22,6 +22,7 @@ from inspect_ai.dataset import Sample
 from inspect_ai.log import (
     EvalLog,
     EvalSample,
+    edit_eval_log,
     list_eval_logs,
     read_eval_log,
     read_eval_log_samples,
@@ -163,6 +164,32 @@ def test_sample_source_error_log_keeps_total_samples_through_rewrite() -> None:
         assert reread.status == "error"
         assert reread.total_samples == 20
 
+        # header-only reads (used for listing/viewer) go through the
+        # streaming header reader; the count must survive it too
+        header = read_eval_log(str(rewritten), header_only=True)
+        assert header.total_samples == 20
+
+        # a header edit (viewer tag/metadata) rebuilds the header through
+        # _eval_log_header; the count must survive the round trip
+        from inspect_ai.log._edit import ProvenanceData, TagsEdit
+
+        edited_log = edit_eval_log(
+            read_eval_log(str(rewritten)),
+            [TagsEdit(tags_add=["edited"])],
+            ProvenanceData(author="test"),
+        )
+        write_eval_log(edited_log, str(rewritten))
+        edited = read_eval_log(str(rewritten))
+        assert "edited" in edited.tags
+        assert edited.total_samples == 20
+
+        # persisted JSON input keeps the count through the JSON header
+        # reader (streaming) and a full read alike
+        json_path = Path(tmp) / "rewritten.json"
+        write_eval_log(log, str(json_path), format="json")
+        assert read_eval_log(str(json_path), header_only=True).total_samples == 20
+        assert read_eval_log(str(json_path)).total_samples == 20
+
 
 class _GrowThenParkSource(SampleSource):
     """Seeds 1 sample; after both generations are accepted, parks the feed."""
@@ -183,10 +210,18 @@ class _GrowThenParkSource(SampleSource):
         return [Sample(id="next0", input="q")]
 
 
-def test_sample_source_cancelled_log_keeps_total_samples(
+@pytest.mark.parametrize("log_format", ["eval", "json"])
+def test_sample_source_cancelled_before_completion_log_keeps_total_samples(
     tmp_path: Path,
+    log_format: str,
 ) -> None:
-    """A cancelled eval keeps its accepted-run count on the log (#5814)."""
+    """A cancelled eval keeps its accepted-run count, with nothing finished.
+
+    The seed enqueues added work while it is still running (so acceptance is
+    observable without waiting on the feed), both runs park before either
+    completes, and the interrupt lands there: the log must finalize as
+    cancelled, carry no results, and still count both accepted runs.
+    """
     import os
     import signal
     import threading
@@ -198,12 +233,15 @@ def test_sample_source_cancelled_log_keeps_total_samples(
     both_parked = threading.Event()
     eval_returned = threading.Event()
 
-    @solver(name="park_until_interrupted")
-    def park_until_interrupted() -> Solver:
+    @solver(name="enqueue_then_park")
+    def enqueue_then_park() -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if str(state.sample_id) == "seed0":
+                # enqueue added work from the still-running seed; the feed
+                # loop wakes on enqueue and accepts the run (counting it)
+                # before starting it
+                enqueue_sample(Sample(id="next0", input="q"))
             seen.add(str(state.sample_id))
-            # only interrupt once both accepted runs (seed + injected) are
-            # parked, so the count reflects the feed's growth
             if len(seen) >= 2:
                 both_parked.set()
             await anyio.sleep(30)
@@ -221,12 +259,21 @@ def test_sample_source_cancelled_log_keeps_total_samples(
     sigint_thread = threading.Thread(target=send_sigint, daemon=True)
     sigint_thread.start()
 
+    class _EnqueueSeed(SampleSource):
+        def initial_samples(self) -> list[Sample]:
+            return [Sample(id="seed0", input="q")]
+
+        async def next_samples(self) -> list[Sample] | None:
+            await anyio.sleep(30)
+            return None
+
     try:
         inspect_eval(
-            Task(dataset=_GrowThenParkSource(), solver=[park_until_interrupted()]),
+            Task(dataset=_EnqueueSeed(), solver=[enqueue_then_park()]),
             model="mockllm/model",
             max_samples=2,
             log_dir=str(tmp_path),
+            log_format=log_format,  # type: ignore[arg-type]
         )
     except KeyboardInterrupt:
         pass
@@ -238,6 +285,9 @@ def test_sample_source_cancelled_log_keeps_total_samples(
     assert len(log_files) == 1
     reread = read_eval_log(log_files[0].name)
     assert reread.status == "cancelled"
+    # no sample completed before the interrupt, so there are no results to
+    # write — the header's count is the only denominator
+    assert reread.results is None
     assert reread.total_samples == 2
 
 

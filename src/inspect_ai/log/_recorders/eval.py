@@ -660,6 +660,7 @@ def _eval_log_header(log: EvalLog) -> EvalLog:
         stats=log.stats,
         status=log.status,
         error=log.error,
+        total_samples=log.total_samples,
     )
 
 

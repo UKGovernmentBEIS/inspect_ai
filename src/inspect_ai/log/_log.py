@@ -1365,10 +1365,12 @@ class EvalLog(BaseModel):
     ended, including runs that never started before a failure or
     cancellation. Unlike ``results.total_samples`` it survives in logs whose
     aggregate ``results`` is absent (an errored eval, or one cancelled before
-    any sample finished), giving readers a denominator; when ``results`` is
-    written the two agree. It counts accepted work so far and cannot predict
-    what a source will add later. ``None`` (logs written by older versions)
-    means unknown."""
+    any sample finished), giving readers a denominator; during evaluation it
+    matches ``results.total_samples`` when ``results`` is written — later
+    rescoring can change the results count, while this header field keeps the
+    attempt's accepted total. It counts accepted work so far and cannot
+    predict what a source will add later. ``None`` (logs written by older
+    versions) means unknown."""
 
     tags: list[str] = Field(default_factory=list)
     """Current tags (eval-time + edits). Do not set directly; use edit_eval_log()."""
