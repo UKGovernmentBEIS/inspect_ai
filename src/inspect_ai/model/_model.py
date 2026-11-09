@@ -2231,11 +2231,13 @@ choice's message is unchanged, which keeps the original ``completion``). Reasoni
 (``ContentReasoning``) and server tool items (``ContentToolUse``) can only be
 kept unchanged or removed, and server tool items are kept all or none. A tool
 call that keeps an original call's ``id`` keeps its ``function``; give a call to
-a different function a new ``id``. Server work still pending at the end of the
-turn (Anthropic) goes with the server tool items: a message that keeps them
-takes the ``id`` of the message they came from and keeps that work, and a changed
-message that keeps none gets a new ``id`` and drops it. The
-filter also receives a model refusal
+a different function a new ``id``. A changed message gets an ``id`` derived from
+the message it replaces and its own content. The exception is server work still
+pending at the end of an Anthropic turn, which is replayed by message ``id``: a
+response-filter output that keeps server-tool items from an Anthropic turn with
+unfinished server work keeps the generated message's ``id`` and that work; other
+edits get a derived ``id``, and one that keeps no server tool items drops the
+work. The filter also receives a model refusal
 under ``fail_on_refusal`` (from the default generation or a request ``filter``
 that generates), before it is retried or raised, and can replace it. An output
 still ``stop_reason="content_filter"``

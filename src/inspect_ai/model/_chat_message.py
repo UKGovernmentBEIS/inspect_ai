@@ -43,8 +43,9 @@ class ChatMessageBase(BaseModel):
     the message it was made from and its own content, so the same edit is the
     same message. Messages built from others (combined messages, media moved
     out of tool results) get ids derived from their sources' ids and their
-    content. One exception: a response filter output that keeps Anthropic
-    server tool items keeps the model output's id.
+    content. One exception: a response-filter output that keeps server-tool
+    items from an Anthropic turn with unfinished server work keeps the
+    generated message's id; other edits get a derived id.
     """
 
     content: str | list[Content]
