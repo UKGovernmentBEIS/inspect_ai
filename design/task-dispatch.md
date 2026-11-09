@@ -676,8 +676,15 @@ logger (`run.py:984`). So the record ends with the log its earlier
 attempts stored, or with no log for a first attempt, unless the attempt
 returns a log before it reaches a check (a startup write that fails, or
 `run_samples=False`'s `started` log), which it then ends with. The stamp is
-per task id and per run (`reset_retry_abandoned` at the run boundary), and
-task ids are unique in a run, so it reaches only this record. Because the
+per task id and lasts until the outermost run boundary,
+`reset_run_registries()`: the end of a standalone `eval()`
+(`src/inspect_ai/_eval/eval.py:1284-1285`) or of the whole `eval_set()`
+(`src/inspect_ai/_eval/evalset.py:1262`), so under the legacy retry loop it
+outlives the inner run that wrote it. Within that span a task id names one
+task: ids are unique in a run, and a legacy round that reruns a task from
+its log reuses that task's id (`PreviousTask`, `evalset.py:1531`), where the
+stamp would stop it again; "Queued cancels under `eval_set()`" keeps such a
+task out of later rounds. So the stamp reaches only this record's task. Because the
 last check runs synchronously before `register_eval`, today's runner never
 registers an attempt of a `starting_cancelled` record; `on_registered`
 aborts one that does, so the phase alone holds the rule that a cancel
@@ -850,41 +857,61 @@ and the final status (`:1232`) and selection mode (`:1664`) call
 for an empty list. Without a change, a run whose only other task succeeded,
 or whose every seed task was cancelled while queued, would report "Completed
 all tasks", contradicting the documented result (`docs/eval-sets.qmd:49`).
-The no-log outcome stays; the eval set learns about it explicitly:
+A task cancelled in `starting` can instead return the log its attempt
+wrote before a stamp check, and under the legacy retry loop a later round
+would rerun it under the same, still-stamped id and get no log back.
+The no-log outcome stays; the eval set learns about both explicitly:
 
-- `_control/queued_tasks.py` keeps the `task_id`s of records that end with
-  no log after a cancel or drain directive or a handle's `cancel()` reached
-  them before any attempt registered (in `waiting`, `admitting`, `admitted`
-  or `starting`; never a record that ends with a log, such as a retry
-  abandoned after an attempt that stored its error log, which reaches the
-  eval set as a failure, as today), for the
-  current run (reset when `eval_run` starts), and exposes
-  `queued_cancelled_task_ids()`.
+- `_control/queued_tasks.py` keeps the `task_id`s of records that a cancel
+  or drain directive or a handle's `cancel()` reached before any attempt
+  registered (in `waiting`, `admitting`, `admitted` or `starting`): the
+  tasks *cancelled before starting*. That includes a record that then ends
+  with a log its attempt returned before a stamp check (a startup write that
+  failed after writing its header, or `run_samples=False`'s `started` log;
+  see "Task phases"), not only one that ends with no log. A record with a
+  registered attempt is never in it: a retry abandoned after a registered
+  attempt stored its error log reaches the eval set as a failure, as today.
+  The set lives as long as the retry-abandon stamp: `reset_run_registries()`
+  clears it, at the end of a standalone `eval()` or of the whole
+  `eval_set()`, so each legacy round sees the cancels of the rounds before
+  it. It is exposed as `queued_cancelled_task_ids()`.
 - `run_eval` (`evalset.py:542`), after `eval()` returns, computes the
   requested tasks with no log: their `ResolvedTask.id`s (the run's
   `task_id`, `run.py:426`) less the logs' `eval.task_id`s. Those in
-  `queued_cancelled_task_ids()` were cancelled explicitly. Any other
-  requested task without a log was still queued when the run was cancelled,
-  so `run_eval` raises `KeyboardInterrupt`, exactly as it does today for a
-  cancelled log (`evalset.py:632`).
-- The eval set keeps the explicitly cancelled tasks, by task identifier, for
-  the rest of the invocation. Later attempts of the legacy retry loop
-  (`retry(try_eval)`) leave them out of the tasks they run, so a retry never
-  undoes an explicit cancel. With immediate retries (`retry_immediate`) a
-  record cancelled while queued never ran, so the dispatcher has no attempt
-  to retry, as for an aborted running task.
-- The retry predicate stays `all_evals_succeeded` over the logs, so the
-  loop stops once every task that was not cancelled has succeeded. The
-  final result is `all_evals_succeeded(results)` and no task cancelled
-  while queued; the closing message names the cancelled tasks ("Did not
+  `queued_cancelled_task_ids()`, or whose id carries the retry-abandon stamp
+  (`task_retry_abandoned()`), were cancelled explicitly. The stamp covers a
+  task that a legacy round reran from its error log after a cancel in an
+  earlier round abandoned its retry between attempts (today's
+  control-channel path): the round reuses the task's id, the dispatcher
+  drops it at the stamp and it returns no log, as today. Any other
+  requested task without a log was still queued when the run was
+  cancelled, so `run_eval` raises `KeyboardInterrupt`, exactly as it does
+  today for a cancelled log (`evalset.py:632`).
+- The eval set keeps the tasks cancelled before starting, by task
+  identifier (`task_identifier()`, the key `try_eval()` already matches logs
+  to tasks with), for the rest of the invocation. Later rounds of the
+  legacy retry loop (`retry(try_eval)`) leave them out of the tasks they
+  run, pending or failed, so a retry never undoes an explicit cancel and
+  never reruns a stamped id. A task left out that ended with a log keeps
+  it: the round's returned list includes the header of the log
+  `list_latest_eval_logs()` selected for it, as today's log selection
+  would; one with no log contributes nothing. With immediate retries
+  (`retry_immediate`) the stamp already stops the dispatcher from retrying
+  the record ("Task phases"), as for an aborted running task.
+- The retry predicate becomes `all_evals_succeeded` over the logs of tasks
+  not cancelled before starting, so the loop stops once every other task has
+  succeeded; for a cancel that left no log this is today's predicate, and a
+  cancelled task's error log does not force rounds that would leave it out.
+  The final result is `all_evals_succeeded(results)` and no task cancelled
+  before starting; the closing message names the cancelled tasks ("Did not
   successfully complete all tasks: cancelled before starting: …").
 - Selection mode (`_run_selected`, `evalset.py:1655-1664`) applies the same
   detection and returns `False` when one or all of its selected tasks were
-  cancelled while queued.
-- A later `eval_set()` on the same log directory finds no log for them and
-  runs them: running the remainder after all is a deliberate later action,
-  as for a drained task ("No eval-set in-run retry" in
-  [task-drain.md](ctl/task-drain.md)).
+  cancelled before starting.
+- A later `eval_set()` on the same log directory finds no log, or that
+  task's error or `started` log, and runs them: running the remainder after
+  all is a deliberate later action, as for a drained task ("No eval-set
+  in-run retry" in [task-drain.md](ctl/task-drain.md)).
 
 ### Sandbox setup
 
@@ -1488,9 +1515,11 @@ does (a new list per call):
   spent (ends with the latest error log, `started()` raises
   `TaskEndedError(log=<that log>)`), and injected while the attempt's
   `log_start()` is held on an event and a cancel lands (ends with that
-  error log and no retry); a cancel and a drain of such a record while its
-  retry is pending (the retry is dropped, its logger discarded, and the
-  record ends with the stored error log); a cancel of a first attempt in
+  error log and no retry, and the task in the cancelled-before-starting
+  set); a cancel and a drain of such a record while its
+  retry is pending (the retry is dropped, its logger discarded, the
+  record ends with the stored error log, and the task is in the
+  cancelled-before-starting set); a cancel of a first attempt in
   `starting`, landing before the attempt's first stamp check and while its
   `log_start()` is held (each ends with no log, its logger discarded with
   nothing in the log directory, no `EvalState` registered, `started()`
@@ -1498,7 +1527,8 @@ does (a new list per call):
   cancelled-before-starting set); `run_samples=False` with no cancel and
   with a cancel while `log_start()` is held (ends with the `started` log,
   never retried, no `EvalState`, `started()` raises
-  `TaskEndedError(log=<that log>)`); `run_samples=False` with a task-level
+  `TaskEndedError(log=<that log>)`, and with the cancel the task is in the
+  cancelled-before-starting set); `run_samples=False` with a task-level
   and a sample-level sandbox, for a seed task, an added task, and a retry
   after an injected `log_start()` failure: spies on
   `ensure_model_controller` and the provider's `task_init` record no call,
@@ -1579,7 +1609,22 @@ does (a new list per call):
   while queued reports failure, not success; selection mode with one and
   with all selected tasks cancelled returns `False`; a run cancelled while
   a seed task is still queued raises `KeyboardInterrupt`; a later
-  `eval_set()` on the same directory runs B.
+  `eval_set()` on the same directory runs B. A legacy-retry case
+  (`retry_immediate=False`, `retry_attempts=2`, seed tasks A and B, both
+  backends): A's `log_start()` is patched to write the destination header
+  and then wait on an `anyio.Event`; while it waits, A is cancelled (its
+  record is in `starting`, so the cancel stamps it); the event is then set
+  and the patched `log_start()` raises `OSError`, so A's attempt returns
+  its error log. B succeeds; no `KeyboardInterrupt` is raised; the second
+  round of the loop does not run A (a spy on the inner `eval()` sees A's
+  task id requested only in the first round); the eval set returns `False`
+  with A's error log among its results and its message naming A; and both
+  the stamp and the cancelled-before-starting set are empty after
+  `eval_set()` returns. The same case with A cancelled between attempts
+  after a registered first attempt errored (today's control-channel
+  path), so that the second round reruns A from its error log and the
+  dispatcher drops it at the stamp, raises no `KeyboardInterrupt` (its
+  eval-set result stays today's; see "Not this design").
 - inspect_sandboxes: a test per provider that two configurations and an
   added task's configuration clean up every sandbox, run against an Inspect
   build with step 2; it needs the providers' API keys, so it runs where their
@@ -1633,9 +1678,10 @@ batch has its own `eval_run` and cleans up its own state).
    removed), `_eval/eval.py` (one `eval_run` call), `_eval/task/run.py`
    (`_enqueue_source_tasks`; `TaskRunOptions.on_registered`, called after
    `register_eval`), `_control/queued_tasks.py` (new),
-   `_control/cancel.py`, `_control/state.py`, `_control/__init__.py`,
-   `_cli/ctl/_task.py`, `_eval/evalset.py` (queued cancels in success,
-   retries and selection mode); `docs/task-source.qmd`; `design/task-source.md`
+   `_control/eval_state.py` (`reset_run_registries()` clears the
+   cancelled-before-starting set), `_control/cancel.py`, `_control/state.py`, `_control/__init__.py`,
+   `_cli/ctl/_task.py`, `_eval/evalset.py` (tasks cancelled before
+   starting in success, the missing-log check, retries and selection mode); `docs/task-source.qmd`; `design/task-source.md`
    ("Live injection"), `design/ctl/task-drain.md` ("Out of scope"),
    `design/sample-source.md` (the `SandboxManager` notes). Records register
    with the control channel at `add`; admission runs as a background job.
@@ -1718,3 +1764,11 @@ None. The questions raised by this design are decided (Ransom,
   queued (`src/inspect_ai/_eval/run.py:1039-1044`, `:1144`), and the retry's
   file can stay in the log directory. Today's behaviour, which this design
   keeps for records in `starting` and `running` alike.
+- The eval-set result after a registered task's retry is abandoned between
+  attempts under the legacy retry loop. The stamp outlives the inner run,
+  so the next round reruns the task from its error log under the same id
+  and the dispatcher drops it with no log; that round's results then omit
+  the task, and the eval set can report "Completed all tasks" with no log
+  for it. Today's behaviour (seen with an injected stamp on asyncio and
+  Trio); this design only keeps its new missing-log check from reading that
+  case as a Ctrl-C.
