@@ -1390,10 +1390,8 @@ def messages_from_responses_input(
             pass
         else:
             # ImageGenerationCall
-            # ResponseCodeInterpreterToolCallParam
             # McpApprovalRequest
             # McpApprovalResponse
-            # ResponseCustomToolCallParam
             # LocalShellCall
             # LocalShellCallOutput
             # ResponseFileSearchToolCallParam

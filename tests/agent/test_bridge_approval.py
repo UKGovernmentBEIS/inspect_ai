@@ -9089,8 +9089,40 @@ def _result_sent_later(sample: EvalSample, event: ToolEvent) -> bool:
     return False
 
 
-def _run_live_host(dialect: HostDialect, shape: LiveHostShape, tmp_path: Path) -> None:
-    """Run host tools with a live model and check the ids and tool event joins."""
+def _scripted_host_model(shape: LiveHostShape, reread: str | None = None) -> Model:
+    """A model making the calls a live model makes for `shape`'s prompt.
+
+    With `reread`, the model reads that file again after a compaction.
+    """
+    name = "mcp__host__read_file"
+    a = ToolCall(id="call_a", function=name, arguments={"path": "a"})
+    b = ToolCall(id="call_b", function=name, arguments={"path": "b"})
+    calls = (
+        [tool_calls_output(a, b)]
+        if shape in ("parallel", "reordered")
+        else [tool_calls_output(a), tool_calls_output(b)]
+    )
+    if reread:
+        calls.append(
+            tool_calls_output(
+                ToolCall(id="call_c", function=name, arguments={"path": reread})
+            )
+        )
+    answers = 2 if shape == "compacted" else 1
+    return get_model(
+        "mockllm/model",
+        custom_outputs=calls
+        + [ModelOutput.from_content("mockllm/model", "done")] * answers,
+    )
+
+
+def _run_live_host(
+    dialect: HostDialect,
+    shape: LiveHostShape,
+    tmp_path: Path,
+    model: Model | None = None,
+) -> None:
+    """Run host tools with a live model (or `model`) and check the ids and tool event joins."""
     prompt = PARALLEL_READS if shape in ("parallel", "reordered") else SEQUENTIAL_READS
     returned_ids: list[str] = []
     sample = _live_sample(
@@ -9099,7 +9131,7 @@ def _run_live_host(dialect: HostDialect, shape: LiveHostShape, tmp_path: Path) -
                 dataset=[Sample(input=prompt)],
                 solver=live_host_scaffold(dialect, shape, returned_ids),
             ),
-            model=LIVE_HOST_MODELS[dialect],
+            model=model or LIVE_HOST_MODELS[dialect],
             log_dir=str(tmp_path),
             display="plain",
         )[0]
@@ -9125,8 +9157,35 @@ def _run_live_host(dialect: HostDialect, shape: LiveHostShape, tmp_path: Path) -
     else:
         assert not multi_call, "the model made parallel calls"
 
+    # the request after the summary continues no known thread, so the reply
+    # it keeps (the second turn's) isn't placed; the next request, continuing
+    # it unchanged, sends that reply and its result again under the same ids
+    kept_reply: str | None = None
+    retained_ids: set[str | None] = set()
+    if shape == "compacted":
+        compacted = next(
+            n
+            for n, e in enumerate(model_events)
+            if e.input and e.input[0].text.startswith("Summary:")
+        )
+        summary_call, next_call = model_events[compacted], model_events[compacted + 1]
+        kept_reply = model_events[compacted - 1].output.message.id
+        retained_ids = {
+            m.id for m in summary_call.input if isinstance(m, ChatMessageAssistant)
+        }
+        assert len(retained_ids) == 1
+        assert any(e.call_message_id == kept_reply for e in events)
+        kept = [m.id for m in summary_call.input if m.role in ("assistant", "tool")]
+        assert (
+            kept
+            == [m.id for m in next_call.input if m.role in ("assistant", "tool")][
+                : len(kept)
+            ]
+        )
+
     # a reply sent back keeps its generated id (Google: or an edit of it); a
-    # reordered reply isn't recognized and gets a fresh id
+    # reordered reply isn't recognized and gets a fresh id, and so does the
+    # compacted request's reply, which no earlier request held
     sent_replies = [
         m for e in model_events for m in e.input if isinstance(m, ChatMessageAssistant)
     ]
@@ -9135,6 +9194,8 @@ def _run_live_host(dialect: HostDialect, shape: LiveHostShape, tmp_path: Path) -
             reply.id == edited_id(source, reply) for source in generated
         )
         if shape == "reordered" and reply.tool_calls and len(reply.tool_calls) > 1:
+            assert not derived
+        elif reply.id in retained_ids:
             assert not derived
         elif dialect == "google":
             assert derived
@@ -9147,15 +9208,22 @@ def _run_live_host(dialect: HostDialect, shape: LiveHostShape, tmp_path: Path) -
 
     # every result is sent back after the reply proposing its call; Google
     # results of several calls of one function, and the calls of a reordered
-    # reply, stay unlinked
+    # reply or of the compacted request's reply, stay unlinked. A model may
+    # repeat a call of the compacted request's reply after the summary; that
+    # reply's answer was never placed, so the repeat may stay unlinked too
     sent_results = _sent_tool_messages(sample)
+    kept_calls = [e.arguments for e in events if e.call_message_id == kept_reply]
     for event in events:
         assert _result_sent_later(sample, event), f"{event.result!r} wasn't sent"
-        unlinked = (shape == "reordered" and event.call_message_id in multi_call) or (
-            dialect == "google" and event.call_message_id in multi_call
+        unlinked = (
+            (shape == "reordered" and event.call_message_id in multi_call)
+            or (dialect == "google" and event.call_message_id in multi_call)
+            or (kept_reply is not None and event.call_message_id == kept_reply)
         )
         if unlinked:
             assert event.message_id is None
+            continue
+        if event.message_id is None and event.arguments in kept_calls:
             continue
         assert event.message_id is not None
         result, answered = sent_results[event.message_id]
@@ -9166,35 +9234,25 @@ def _run_live_host(dialect: HostDialect, shape: LiveHostShape, tmp_path: Path) -
     linked = [e.message_id for e in events if e.message_id is not None]
     assert len(set(linked)) == len(linked)
 
-    if shape == "compacted":
-        # the request after the summary sends the second reply and its result,
-        # and the next request sends them again under the same ids
-        compacted = next(
-            n
-            for n, e in enumerate(model_events)
-            if e.input and e.input[0].text.startswith("Summary:")
-        )
-        summary_call, next_call = model_events[compacted], model_events[compacted + 1]
-        kept = [m.id for m in summary_call.input if m.role in ("assistant", "tool")]
-        assert (
-            kept
-            == [m.id for m in next_call.input if m.role in ("assistant", "tool")][
-                : len(kept)
-            ]
-        )
-        # the retained reply's calls link to the results kept with it (a model
-        # may call again after the summary)
-        retained = [
-            e
-            for e in events
-            if any(
-                m.id in (e.call_message_id, edited_id(e.call_message_id, m))
-                for m in summary_call.input
-                if isinstance(m, ChatMessageAssistant)
-            )
-        ]
-        assert retained
-        assert all(e.message_id in kept for e in retained)
+
+@pytest.mark.parametrize("dialect", get_args(HostDialect))
+@pytest.mark.parametrize("shape", get_args(LiveHostShape))
+def test_host_ids_with_scripted_calls(
+    dialect: HostDialect, shape: LiveHostShape, tmp_path: Path
+) -> None:
+    """The live host-tool checks pass with a model scripted to make the calls a live model makes."""
+    _run_live_host(dialect, shape, tmp_path, _scripted_host_model(shape))
+
+
+@pytest.mark.parametrize("dialect", get_args(HostDialect))
+@pytest.mark.parametrize("path", ["a", "b"])
+def test_host_ids_with_a_scripted_reread_after_compaction(
+    dialect: HostDialect, path: str, tmp_path: Path
+) -> None:
+    """The live checks allow a model to read a file again after the summary."""
+    _run_live_host(
+        dialect, "compacted", tmp_path, _scripted_host_model("compacted", path)
+    )
 
 
 @skip_if_no_openai
@@ -9317,13 +9375,17 @@ def server_work_scaffold(
     return execute
 
 
-async def _edit_text_filter(
-    model: Model, output: ModelOutput, generate_input: GenerateInput
-) -> ModelOutput:
-    for item in output.message.content:
+def _filter_text(message: ChatMessageAssistant) -> None:
+    for item in message.content:
         if isinstance(item, ContentText):
             item.text = f"{item.text} FILTERED"
             break
+
+
+async def _edit_text_filter(
+    model: Model, output: ModelOutput, generate_input: GenerateInput
+) -> ModelOutput:
+    _filter_text(output.message)
     return output
 
 
@@ -9375,9 +9437,16 @@ def test_live_anthropic_pending_server_work_ids(filtered: bool, tmp_path: Path) 
         assert sent.id == edited_id(generated.id, sent) != generated.id
     else:
         assert sent.id == generated.id
-    assert [r.id for r in replies[1:]] == [
-        e.output.message.id for e in model_events[1:]
-    ]
+    # later replies come back under their output's id, or with the filter
+    # possibly an edit of it
+    for reply, model_event in zip(replies[1:], model_events[1:], strict=True):
+        output = model_event.output.message
+        if filtered:
+            edited = output.model_copy(deep=True)
+            _filter_text(edited)
+            assert reply.id in (output.id, edited_id(output.id, edited))
+        else:
+            assert reply.id == output.id
 
     # the continuation replays the pending work only under the generated id
     assert model_events[1].call is not None
@@ -9400,6 +9469,7 @@ def test_live_anthropic_pending_server_work_ids(filtered: bool, tmp_path: Path) 
     _assert_linked(sample, [event])
 
     # a filtered reply that keeps server tool items keeps the output's id
+    # (whether a later reply has them depends on the model)
     kept_server_items = {
         e.output.message.id
         for e in model_events
@@ -9408,7 +9478,6 @@ def test_live_anthropic_pending_server_work_ids(filtered: bool, tmp_path: Path) 
     }
     violations = message_id_violations(sample)
     if filtered:
-        assert kept_server_items and violations
         assert all(any(id in v for id in kept_server_items) for v in violations)
     else:
         assert not violations
