@@ -8242,22 +8242,33 @@ async def test_an_anthropic_turn_a_response_filter_returned_continues_as_generat
     ] == [(call.id, call.arguments) for call in handed.tool_calls or []]
 
 
-@pytest.mark.parametrize("kind", ["function", "custom", "computer", "tool_search"])
+@pytest.mark.parametrize("filtered", list(RESPONSE_FILTERS))
+@pytest.mark.parametrize(
+    "kind", ["function", "function_pair", "custom", "computer", "tool_search"]
+)
 async def test_parallel_responses_calls_sharing_an_id_continue_as_generated(
-    kind: str,
+    kind: str, filtered: str
 ) -> None:
     from inspect_ai.agent._bridge.responses import inspect_responses_api_request
 
     init_sample_assistant_internal()
-    _, tool, result, _ = _responses_modified_call(kind)
-    generated = _responses_calls_reading(kind, True)
+    pair = kind == "function_pair"
+    _, tool, result, _ = _responses_modified_call("function" if pair else kind)
+    generated = _responses_calls_reading("function" if pair else kind, True)
+    tools = [tool]
+    if pair:
+        # calls to different functions
+        generated[1] = generated[1].model_copy(update={"name": "list_files"})
+        tools.append({**tool, "name": "list_files"})
     model = Parsing(
         lambda: _responses_output(*generated),
         lambda: calls_output(),
         wire=_responses_wire,
     )
     bridge = AgentBridge(
-        AgentState(messages=[]), model_aliases={"inspect": model.model}
+        AgentState(messages=[]),
+        model_aliases={"inspect": model.model},
+        response_filter=RESPONSE_FILTERS[filtered],
     )
     items: list[Any] = [{"role": "user", "content": TASK}]
 
@@ -8270,7 +8281,7 @@ async def test_parallel_responses_calls_sharing_an_id_continue_as_generated(
     ):
         for _ in range(2):
             response = await inspect_responses_api_request(
-                {"model": "inspect", "input": items, "tools": [tool]},
+                {"model": "inspect", "input": items, "tools": tools},
                 None,
                 None,
                 None,
@@ -8304,7 +8315,10 @@ async def test_parallel_responses_calls_sharing_an_id_continue_as_generated(
     ] == [call["call_id"] for call in calls]
 
 
-async def test_parallel_anthropic_calls_sharing_an_id_continue_as_generated() -> None:
+@pytest.mark.parametrize("filtered", list(RESPONSE_FILTERS))
+async def test_parallel_anthropic_calls_sharing_an_id_continue_as_generated(
+    filtered: str,
+) -> None:
     # the first turn's calls, under one id
     blocks: Any = [
         {**block, "id": "toolu_a"} if block["type"] == "tool_use" else block
@@ -8316,6 +8330,7 @@ async def test_parallel_anthropic_calls_sharing_an_id_continue_as_generated() ->
         wire=_anthropic_wire,
     )
     bridge = in_process_bridge([])
+    bridge.response_filter = RESPONSE_FILTERS[filtered]
     messages: list[ChatMessage] = [ChatMessageUser(content=TASK)]
 
     with active([bridge_recording([])]):

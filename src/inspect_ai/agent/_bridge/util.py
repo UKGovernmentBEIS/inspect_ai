@@ -521,16 +521,16 @@ async def _apply_response_filter(
         validated,
     )
     filtered = validated
-    original_arguments = {
-        call.id: call.arguments
-        for choice in output.choices
-        for call in choice.message.tool_calls or []
-    }
+    # by id, a list per call, as parallel calls can share an id
+    original_arguments: dict[str, list[dict[str, Any]]] = {}
+    for choice in output.choices:
+        for call in choice.message.tool_calls or []:
+            original_arguments.setdefault(call.id, []).append(call.arguments)
     try:
         # the one Any-typed field the dialect converters json.dumps
         for choice in filtered.choices:
             for call in choice.message.tool_calls or []:
-                if original_arguments.get(call.id) != call.arguments:
+                if call.arguments not in original_arguments.get(call.id, []):
                     json.dumps(call.arguments)
     except (TypeError, ValueError, RecursionError) as ex:
         raise ResponseFilterError(
@@ -604,7 +604,8 @@ def _check_provider_owned_content(original: ModelOutput, filtered: ModelOutput) 
     blocks as whole recorded spans (a span can cover several `ContentToolUse`
     items), and a native tool's wire name by its call id. So reasoning and server
     tool items may only be kept unchanged or removed, server tool items are kept
-    all or none, and a call keeping an original id keeps its function.
+    all or none, and a call keeping an original id keeps its function (one of
+    the functions of the calls under that id, as parallel calls can share one).
     """
     original_content = [
         content
@@ -618,20 +619,19 @@ def _check_provider_owned_content(original: ModelOutput, filtered: ModelOutput) 
     original_reasoning = [
         c for c in original_content if isinstance(c, ContentReasoning)
     ]
-    original_functions = {
-        call.id: call.function
-        for choice in original.choices
-        for call in choice.message.tool_calls or []
-    }
+    original_functions: dict[str, list[str]] = {}
+    for choice in original.choices:
+        for call in choice.message.tool_calls or []:
+            original_functions.setdefault(call.id, []).append(call.function)
     kept_tool_uses: set[str] = set()
     for choice in filtered.choices:
         for call in choice.message.tool_calls or []:
-            function = original_functions.get(call.id)
-            if function is not None and call.function != function:
+            functions = original_functions.get(call.id)
+            if functions is not None and call.function not in functions:
                 raise ResponseFilterError(
                     f"response_filter changed the function of tool call '{call.id}' "
-                    f"from '{function}' to '{call.function}'; give a call to a "
-                    "different function a new id"
+                    f"from '{' or '.join(dict.fromkeys(functions))}' to "
+                    f"'{call.function}'; give a call to a different function a new id"
                 )
         if not isinstance(choice.message.content, list):
             continue
