@@ -113,6 +113,15 @@ def _forward_provider_errors(
             if find_control_flow(ex) is not None:
                 # the service dispatcher ends the sample with it
                 raise
+            # a failure the sidecar raised fails the sample whatever else the
+            # generation raised beside it, a limit included: the sample was
+            # never judged, so it is neither scored nor retried
+            failed = _first_sample_failure(ex)
+            if failed is not None:
+                bridge.request_fail(failed)
+                return {
+                    PROVIDER_ERROR_KEY: cast(JsonValue, provider_error_payload(failed))
+                }
             control = _first_control(ex)
             if isinstance(control, LimitExceededError):
                 # only one is raised, so the others are not kept; no local
@@ -125,9 +134,7 @@ def _forward_provider_errors(
                 _warn_other_errors(ex)
                 return {PROVIDER_ERROR_KEY: cast(JsonValue, provider_error_payload(ex))}
             failure = control or ex
-            if isinstance(
-                failure, (ModelRefusalError, ResponseFilterError, *SAMPLE_FAILURES)
-            ):
+            if isinstance(failure, (ModelRefusalError, ResponseFilterError)):
                 bridge.request_fail(failure)
                 # no non-provider-error warning: the failure is reported once,
                 # by the sample error the monitor task raises
@@ -217,6 +224,20 @@ def _first_control(ex: Exception) -> LimitExceededError | ModelRefusalError | No
                 first = first.exceptions[0]
             return cast(LimitExceededError | ModelRefusalError, first)
     return _first_limit(ex)
+
+
+def _first_sample_failure(ex: Exception) -> Exception | None:
+    """The first of `SAMPLE_FAILURES` among `ex` and its group members, depth first in order, as a filter that generates in a task group raises it wrapped."""
+    if isinstance(ex, SAMPLE_FAILURES):
+        return ex
+    if isinstance(ex, ExceptionGroup):
+        failures = ex.subgroup(SAMPLE_FAILURES)
+        if failures is not None:
+            first: Exception = failures
+            while isinstance(first, ExceptionGroup):
+                first = first.exceptions[0]
+            return first
+    return None
 
 
 def _warn_other_errors(ex: Exception) -> None:

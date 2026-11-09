@@ -49,10 +49,12 @@ from inspect_ai.event import InfoEvent, ModelEvent, SentinelEvent, ToolEvent
 from inspect_ai.log import EvalLog, EvalSample
 from inspect_ai.log._samples import sample_active
 from inspect_ai.model import (
+    ChatMessage,
     ChatMessageAssistant,
     ChatMessageTool,
     ChatMessageUser,
     GenerateConfig,
+    GenerateFilter,
     Model,
     ModelOutput,
     get_model,
@@ -67,7 +69,7 @@ from inspect_ai.scorer import (
     scorer,
 )
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver, use_tools
-from inspect_ai.tool import Tool, ToolCall, tool
+from inspect_ai.tool import Tool, ToolCall, ToolChoice, ToolInfo, tool
 from inspect_ai.util import LimitExceededError, Store, StoreModel
 
 _MODELS = {
@@ -3015,8 +3017,6 @@ def test_a_bridged_agent_whose_filter_generates_is_handed_the_turn_as_left() -> 
     # the sidecar took out must not be put back for the scaffold to run
     from inspect_ai.agent._bridge.types import AgentBridge
     from inspect_ai.agent._bridge.util import bridge_generate
-    from inspect_ai.model import ChatMessage
-    from inspect_ai.tool import ToolChoice, ToolInfo
 
     proposed = {
         "message": _turn_json(("call_1", "Tokyo"), ("call_2", "Oslo")),
@@ -3080,8 +3080,29 @@ _ANTHROPIC_REQUEST = {
 }
 
 
+async def _generating_in_a_task_group(
+    model: Model,
+    input: list[ChatMessage],
+    tools: list[ToolInfo],
+    tool_choice: ToolChoice | None,
+    config: GenerateConfig,
+) -> ModelOutput:
+    # a filter that generates in a task of its own raises what the generate
+    # raised inside an exception group
+    outputs: list[ModelOutput] = []
+
+    async def generate() -> None:
+        outputs.append(await model.generate(input, tools, tool_choice, config))
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(generate)
+    return outputs[0]
+
+
 @solver
-def _sandbox_bridged_turn(monkeypatch: pytest.MonkeyPatch) -> Solver:
+def _sandbox_bridged_turn(
+    monkeypatch: pytest.MonkeyPatch, filter: GenerateFilter | None = None
+) -> Solver:
     # a sandbox-bridged agent's call, through the model service's own method
     # as `run_model_service` registers it, the service dispatcher and the
     # bridge's failure monitor, which `sandbox_agent_bridge` runs in one task
@@ -3089,7 +3110,7 @@ def _sandbox_bridged_turn(monkeypatch: pytest.MonkeyPatch) -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         bridge = SandboxAgentBridge(
             state=AgentState(messages=state.messages),
-            filter=None,
+            filter=filter,
             retry_refusals=None,
             compaction=None,
             port=13131,
@@ -3141,6 +3162,42 @@ def test_a_sandbox_bridged_sample_the_sidecar_never_accepted_is_never_retried_or
     )
 
     # failed, not handed to the agent as a provider's error to carry on from
+    assert log.samples is not None
+    [sample] = log.samples
+    assert sample.error is not None
+    assert "SampleRefusedError" in sample.error.message
+    assert sample.scores is None or sample.scores == {}
+    assert len(stand_in.model_calls) == 1
+
+
+def test_a_sandbox_bridged_sample_refused_inside_a_filters_task_group_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # the refusal reaches the bridge inside an exception group, and fails the
+    # sample as a bare one does
+    stand_in = StandInSidecar(
+        turns=[Turn(status=400)] * 3,
+        methods={
+            "complete_registration": lambda _: {"fixed": True},
+            "request_result": _answers(
+                {"records": "held", "state": "not_judged", "reason": "unregistered"}
+            ),
+        },
+    )
+    task = Task(
+        dataset=[Sample(input="Hi.")],
+        solver=_sandbox_bridged_turn(monkeypatch, filter=_generating_in_a_task_group),
+        scorer=_graded(),
+    )
+
+    [log] = eval(
+        task,
+        model=_model(stand_in),
+        retry_on_error=2,
+        score_on_error=True,
+        display="none",
+    )
+
     assert log.samples is not None
     [sample] = log.samples
     assert sample.error is not None
