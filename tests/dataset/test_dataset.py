@@ -14,7 +14,7 @@ from test_helpers.utils import skip_if_github_action
 
 from inspect_ai._eval.task.hf import HFFieldSpec
 from inspect_ai._util.content import ContentImage
-from inspect_ai._util.file import exists
+from inspect_ai._util.file import exists, file
 from inspect_ai.dataset import (
     Dataset,
     FieldSpec,
@@ -487,6 +487,99 @@ def test_dataset_image_paths_file_uri() -> None:
     assert isinstance(content, ContentImage)
     assert content.image.startswith("file://")
     assert exists(content.image)
+
+
+@pytest.mark.parametrize(
+    ("url_tail", "content_suffix"),
+    [
+        ("data.jsonl?download=1", ".jsonl"),
+        ("data.JSONL?download=1", ".jsonl"),
+        ("data.jsonl#samples", ".jsonl"),
+        ("data.json?download=data.jsonl", ".json"),
+    ],
+)
+def test_dataset_reader_selected_from_url_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    url_tail: str,
+    content_suffix: str,
+) -> None:
+    # a query string or fragment must not pick the reader: JSONL then failed
+    # with "Extra data", JSON with "line does not match requested type"
+    records = [{"input": "q1", "target": "a1"}, {"input": "q2", "target": "a2"}]
+    dataset_file = tmp_path / f"data{content_suffix}"
+    if content_suffix == ".jsonl":
+        dataset_file.write_text(
+            "\n".join(json_module.dumps(record) for record in records)
+        )
+    else:
+        dataset_file.write_text(json_module.dumps(records))
+
+    opened: dict[str, Any] = {}
+
+    # the URL has no host to reach, so serve the local file for it
+
+    def open_local(url: str, *args: Any, **kwargs: Any) -> Any:
+        opened["url"] = url
+        return file(str(dataset_file), *args, **kwargs)
+
+    monkeypatch.setattr("inspect_ai.dataset._sources.json.file", open_local)
+
+    url = f"http://localhost:8000/{url_tail}"
+    dataset = json_dataset(url)
+
+    assert len(dataset) == 2
+    assert dataset[0].input == "q1"
+    assert dataset[1].input == "q2"
+    # the URL reaches the filesystem untouched, so a signed query survives it
+    assert opened["url"] == url
+
+
+def test_dataset_reader_selected_for_local_path_with_hash(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # a drive letter reads as a URL scheme, so deriving the extension from
+    # urlparse().path alone would cut the path at "#" and pick the JSON reader
+    # for a local JSONL file that main reads correctly
+    records = [{"input": "q1", "target": "a1"}, {"input": "q2", "target": "a2"}]
+    dataset_file = tmp_path / "data.jsonl"
+    dataset_file.write_text("\n".join(json_module.dumps(r) for r in records))
+
+    monkeypatch.setattr(
+        "inspect_ai.dataset._sources.json.file",
+        lambda url, *args, **kwargs: file(str(dataset_file), *args, **kwargs),
+    )
+
+    dataset = json_dataset(r"C:\data\run#3\data.jsonl")
+
+    assert len(dataset) == 2
+    assert dataset[0].input == "q1"
+
+
+def test_dataset_reader_selected_for_file_uri_with_hash(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # fsspec strips the scheme from a file:// URI and keeps "#" and "?" in the
+    # path, so they are path characters here, not URL delimiters: parsing them
+    # off cut the path to "/tmp/run" and picked the JSON reader for a JSONL file
+    records = [{"input": "q1", "target": "a1"}, {"input": "q2", "target": "a2"}]
+    dataset_file = tmp_path / "data.jsonl"
+    dataset_file.write_text("\n".join(json_module.dumps(r) for r in records))
+
+    opened: dict[str, Any] = {}
+
+    def open_local(url: str, *args: Any, **kwargs: Any) -> Any:
+        opened["url"] = url
+        return file(str(dataset_file), *args, **kwargs)
+
+    monkeypatch.setattr("inspect_ai.dataset._sources.json.file", open_local)
+
+    url = "file:///tmp/run#3/data.jsonl"
+    dataset = json_dataset(url)
+
+    assert len(dataset) == 2
+    assert dataset[0].input == "q1"
+    assert opened["url"] == url
 
 
 def test_dataset_empty_string_files_not_resolved(tmp_path: Path) -> None:
