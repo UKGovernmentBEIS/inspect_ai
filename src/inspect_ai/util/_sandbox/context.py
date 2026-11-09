@@ -10,6 +10,7 @@ from shortuuid import uuid
 from inspect_ai._util.constants import SANDBOX_SETUP_TIMEOUT
 from inspect_ai.util._sandbox.events import SandboxEnvironmentProxy
 
+from ._framework_operation import framework_sandbox_operation
 from ._privileged import (
     IMAGE_PATH_VARIABLE,
     image_path_lookup,
@@ -139,7 +140,8 @@ async def _is_file_readable(environment: SandboxEnvironment, file: str) -> bool:
 
     # Fallback: read the file. Cross-platform but transfers full contents.
     try:
-        await environment.read_file(file, False)
+        with framework_sandbox_operation():
+            await environment.read_file(file, False)
         return True
     # allow exception types known to be raised from read_file
     except (

@@ -477,20 +477,58 @@ def _parse_chinese_number(s: str) -> Optional[float]:
 
 
 def _parse_chinese_integer_with_units(s: str) -> Optional[int]:
+    """Parse a Chinese integer, handling compound and descending large units.
+
+    Split at the first occurrence of the largest large unit (万/亿/兆):
+    everything before it is that unit's coefficient, everything after it
+    is a lower-order remainder. This makes a smaller large unit's value the
+    coefficient of a following larger unit (一万亿 = 一万 * 亿) while keeping
+    descending sequences additive (一兆一万亿 = 一兆 + 一万亿).
+
+    The split is evaluated with an explicit stack, not recursion: a long
+    run of repeated large units (e.g. "万" * 1100) would otherwise recurse
+    once per unit and raise RecursionError before any value is produced.
+    """
+    # Each frame is ("eval", segment, 0) or ("combine", "", unit). Frames
+    # are pushed combine-first so the coefficient segment evaluates before
+    # the remainder segment, and the combine pops remainder then coefficient.
+    values: list[Optional[int]] = []
+    stack: list[tuple[str, str, int]] = [("eval", s, 0)]
+    while stack:
+        kind, segment, unit = stack.pop()
+        if kind == "combine":
+            rest = values.pop()
+            coeff = values.pop()
+            if coeff is None or rest is None:
+                values.append(None)
+            else:
+                values.append(coeff * unit + rest)
+            continue
+
+        max_val = 0
+        max_idx = -1
+        for i, ch in enumerate(segment):
+            unit_val = _CH_LARGE_UNITS.get(ch)
+            if unit_val is not None and unit_val > max_val:
+                max_val = unit_val
+                max_idx = i
+        if max_idx < 0:
+            values.append(_parse_chinese_small_segment(segment))
+            continue
+
+        left = segment[:max_idx].strip()
+        right = segment[max_idx + 1 :].strip()
+        stack.append(("combine", "", max_val))
+        stack.append(("eval", right, 0))
+        stack.append(("eval", left, 0))
+    return values[0]
+
+
+def _parse_chinese_small_segment(s: str) -> Optional[int]:
+    """Parse a Chinese integer segment with no large units (digits, 十/百/千)."""
     total = 0
     section = 0
     number = 0
-
-    def flush_section_with(large_unit: Optional[int] = None) -> None:
-        nonlocal total, section, number
-        section += number
-        number = 0
-        if large_unit is None:
-            total += section
-            section = 0
-        else:
-            total += section * large_unit
-            section = 0
 
     i = 0
     while i < len(s):
@@ -522,12 +560,6 @@ def _parse_chinese_integer_with_units(s: str) -> Optional[int]:
             number = 0
             continue
 
-        if ch in _CH_LARGE_UNITS:
-            large_val = _CH_LARGE_UNITS[ch]
-            flush_section_with(large_val)
-            continue
-
         return None
 
-    flush_section_with(None)
-    return total
+    return total + section + number
