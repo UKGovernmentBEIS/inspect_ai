@@ -1566,9 +1566,10 @@ test touched), with mockllm models:
   - a detached wait joined after finalization: the parent is driven by a
     `TaskSource` at `max_tasks=1` whose `task_complete` awaits the
     detached task; the child fails its first attempt under
-    `retry_on_error=1`, so its retry is pending after the parent's
-    `EvalState` is terminal: the loan still counts the parent's entry
-    while `task_complete` runs, the retry starts on it, the detached
+    `task_retry_attempts=1` (a task retry, not a sample retry), so its
+    retry is pending after the parent's `EvalState` is terminal: the loan
+    still counts the parent's entry while `task_complete` runs, the
+    child's second task attempt starts on that loan, the detached
     `result()` returns the retry's log, `task_complete` returns, and the
     entry leaves with the parent's slot; the same with the child's setup
     held on an event (stub provider) until the parent is in
