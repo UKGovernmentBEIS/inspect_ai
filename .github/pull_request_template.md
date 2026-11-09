@@ -28,6 +28,7 @@ plus a "Not run" bullet; give only the conclusion here. Do not repeat job
 lists or test-case inventories. -->
 
 ### Slow tests
+<!-- Required for changes to model providers, sandbox or tool code, agents, or async plumbing. See "Gated tests" in AGENTS.md. Give one bullet per run with the command and passed, failed, and skipped counts, then a "Not run" bullet with the reason for anything relevant you did not run. Delete this section for other changes. -->
 
 ### Agent review
 <!-- If an agent worked on this PR, give the authoring tool, reviewer model/tool,
