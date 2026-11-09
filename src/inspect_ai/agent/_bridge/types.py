@@ -273,6 +273,8 @@ class AgentBridge:
             self._dropped_reach = dict.fromkeys(
                 self._content_by_id.values(), _UNKNOWN_REACH
             )
+        self._ids_with_content = Counter(self._content_by_id.values())
+        """Per `content_hash`, how many ids have it (`_content_by_id`)."""
         self._record_forms(self._compaction_prefix)
         # the tracked thread's ids, from the checkpoint on resume (which isn't
         # handed back to the scaffold, see above)
@@ -686,8 +688,17 @@ class AgentBridge:
         `inferred_results` are tool messages whose call id the dialect
         inferred rather than read (Google names only a result's function, so
         among calls sharing it the id follows order). They aren't linked.
+
+        A message is new in the request (`fresh`, which a linked result must
+        be) when it takes a new id and it is the n-th message of the request
+        with its content while fewer than n ids had that content before. The
+        id alone doesn't show that: it is recorded under the message's JSON,
+        which differs between forms of one content (string content and a
+        list of one text part, or other metadata).
         """
         contents = [content_hash(message) for message in messages]
+        known = {content: self._ids_with_content[content] for content in contents}
+        sent: Counter[str] = Counter()
         placed = self._align_with_tracked(contents)
         used: set[str] = set()
         cursors: dict[str, int] = {}
@@ -695,14 +706,15 @@ class AgentBridge:
         for index, (message, content) in enumerate(zip(messages, contents)):
             key = _unplaced_key(message)
             thread_id = placed.get(index)
+            sent[content] += 1
             if thread_id is not None:
                 message.id = self._version_id(thread_id, message, content)
             else:
                 message.id, new = self._unplaced_id(key, used, cursors)
-                if new:
-                    fresh.add(index)
-                else:
+                if not new:
                     self._unlink(message.id)
+                elif sent[content] > known[content]:
+                    fresh.add(index)
             used.add(message.id)
             self._record_form(message.id, content)
             if (key, message.id) not in self._recorded:
@@ -782,10 +794,10 @@ class AgentBridge:
         content, and an edited reply keeps the provider state recorded under
         that id.
         """
-        if self._content_by_id.setdefault(message_id, content) == content:
+        if self._content_of(message_id, content) == content:
             return message_id
         edited_id = edit_id(message_id, content)
-        self._content_by_id.setdefault(edited_id, content)
+        self._content_of(edited_id, content)
         if isinstance(message, ChatMessageAssistant):
             copy_assistant_internal(message_id, edited_id)
         self._edit_roots[edited_id] = self._edit_root(message_id)
@@ -1037,7 +1049,15 @@ class AgentBridge:
     def _record_form(self, message_id: str, content: str) -> None:
         """Record that a message with `message_id` was sent or handed with `content`."""
         self._forms.setdefault(message_id, set()).add(content)
-        self._content_by_id.setdefault(message_id, content)
+        self._content_of(message_id, content)
+
+    def _content_of(self, message_id: str, content: str) -> str:
+        """The content `message_id` has, recording `content` if it has none yet."""
+        recorded = self._content_by_id.get(message_id)
+        if recorded is None:
+            self._content_by_id[message_id] = recorded = content
+            self._ids_with_content[content] += 1
+        return recorded
 
     def _record_forms(self, messages: list[ChatMessage]) -> None:
         for message in messages:

@@ -6026,12 +6026,25 @@ class _HostConversation:
                     if "functionCall" in part
                 ]
 
-    def results(self, calls: list[tuple[str, Any]], outputs: list[JsonValue]) -> None:
-        """Append the results of `calls` the way the dialect sends them."""
+    def results(
+        self,
+        calls: list[tuple[str, Any]],
+        outputs: list[JsonValue],
+        listed: bool = False,
+    ) -> None:
+        """Append the results of `calls` the way the dialect sends them.
+
+        With `listed`, each result's text is sent as a list of one text part,
+        where the dialect allows one (Google results are JSON objects).
+        """
+
+        def content(output: JsonValue, text_type: str = "text") -> Any:
+            return [{"type": text_type, "text": str(output)}] if listed else str(output)
+
         match self.dialect:
             case "completions":
                 self.history.extend(
-                    {"role": "tool", "tool_call_id": id, "content": str(output)}
+                    {"role": "tool", "tool_call_id": id, "content": content(output)}
                     for (id, _), output in zip(calls, outputs)
                 )
             case "responses":
@@ -6039,7 +6052,7 @@ class _HostConversation:
                     {
                         "type": "function_call_output",
                         "call_id": id,
-                        "output": str(output),
+                        "output": content(output, "input_text"),
                     }
                     for (id, _), output in zip(calls, outputs)
                 )
@@ -6051,7 +6064,7 @@ class _HostConversation:
                             {
                                 "type": "tool_result",
                                 "tool_use_id": id,
-                                "content": str(output),
+                                "content": content(output),
                             }
                             for (id, _), output in zip(calls, outputs)
                         ],
@@ -7207,6 +7220,106 @@ async def test_answer_sent_before_its_execution_completes_links_nothing(
     assert tool_events[0].message_id is not None
     linked = sent == "own" and answered == "after completion"
     assert tool_events[-1].message_id == (latest if linked else None)
+
+
+def _without_text(dialect: HostDialect, reply: list[dict[str, Any]]) -> list[Any]:
+    """`reply`'s wire items with its assistant text removed, keeping its calls."""
+    match dialect:
+        case "completions":
+            return [{k: v for k, v in item.items() if k != "content"} for item in reply]
+        case "responses":
+            return [item for item in reply if item.get("type") != "message"]
+        case "anthropic":
+            return [
+                {
+                    **item,
+                    "content": [b for b in item["content"] if b["type"] != "text"],
+                }
+                for item in reply
+            ]
+        case "google":
+            return [
+                {**item, "parts": [p for p in item["parts"] if "text" not in p]}
+                for item in reply
+            ]
+
+
+@pytest.mark.parametrize(
+    "resent", ["listed timeout", "string timeout", "listed result"]
+)
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic"])
+async def test_answer_resent_as_a_text_list_is_not_a_new_answer(
+    dialect: HostDialect, resent: str
+) -> None:
+    """An answer sent while the execution ran stays sent when its text comes back as a list.
+
+    While `read_file` runs, the scaffold sends a compacted context: a
+    summary, the reply without its text, and a timeout answer. Once the
+    execution completes, it continues the original thread with the timeout
+    answer again, as a list of one text part (`listed timeout`) or as the
+    string it was (`string timeout`). Either is the answer sent before the
+    execution completed, so the execution links nothing. As a control, the
+    execution's own result sent as a list (`listed result`) links.
+    """
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            tool_calls_output(
+                ToolCall(id="call_1", function="read_file", arguments={"path": "p"}),
+                content="Reading p.",
+            ),
+            *[ModelOutput.from_content("mockllm/model", "Noted.")] * 2,
+        ],
+    )
+    started, release = anyio.Event(), anyio.Event()
+
+    async def result(**_: Any) -> str:
+        started.set()
+        await release.wait()
+        return "NEW"
+
+    bridge = SandboxAgentBridge(
+        state=AgentState(messages=[ChatMessageUser(content="Read p.")]),
+        filter=None,
+        retry_refusals=None,
+        compaction=None,
+        port=13131,
+        model=None,
+        model_aliases={"inspect": model},
+        bridged_tools={"a": {"read_file": read_file(AsyncMock(side_effect=result))}},
+    )
+    [info] = declare("read_file")
+    conversation = _HostConversation(dialect, "Read p.", info)
+    with recorded_transcript() as recorded:
+        calls = await conversation.request(bridge)
+        original = list(conversation.history)
+
+        async def execute() -> None:
+            await call_host_tool(bridge)("a", "read_file", calls[0][1])
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(execute)
+            await started.wait()
+            conversation.history = [
+                _user_turn(dialect, "Summary: reading p."),
+                *_without_text(dialect, original[1:]),
+            ]
+            conversation.results(calls, ["Timed out."])
+            await conversation.request(bridge)
+            release.set()
+        conversation.history = original
+        conversation.results(
+            calls,
+            ["NEW" if resent == "listed result" else "Timed out."],
+            listed=resent != "string timeout",
+        )
+        await conversation.request(bridge)
+
+    model_events = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    [latest] = [m.id for m in model_events[-1].input if m.role == "tool"]
+    [event] = [e for e in recorded.events if isinstance(e, ToolEvent)]
+    assert event.result == "NEW"
+    assert event.message_id == (latest if resent == "listed result" else None)
 
 
 @pytest.mark.parametrize(
