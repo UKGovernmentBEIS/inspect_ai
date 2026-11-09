@@ -16,12 +16,15 @@ from inspect_ai._eval.score import (
     score_async,
 )
 from inspect_ai.dataset import Sample
+from inspect_ai.event._error import ErrorEvent
 from inspect_ai.event._event import Event
 from inspect_ai.event._input import InputEvent
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._sample_init import SampleInitEvent
 from inspect_ai.event._score import ScoreEvent
+from inspect_ai.event._span import SpanBeginEvent, SpanEndEvent
 from inspect_ai.log import (
+    EvalError,
     EvalLog,
     EvalSample,
     Transcript,
@@ -38,7 +41,7 @@ from inspect_ai.scorer._metric import SampleScore, Score
 from inspect_ai.scorer._scorer import Scorer, scorer
 from inspect_ai.scorer._target import Target
 from inspect_ai.solver._task_state import TaskState
-from inspect_ai.util._span import span
+from inspect_ai.util._span import SCORERS_SPAN_NAME, span
 
 
 class UpdatedScoresTestCase(pydantic.BaseModel):
@@ -1355,3 +1358,166 @@ def test_score_command_help_says_trusted_logs_only() -> None:
     help_text = " ".join(result.output.split())
     assert "Only run it on logs you trust." in help_text
     assert "the log's metrics are rebuilt without importing its task file" in help_text
+
+
+def _scoring_log(samples: list[EvalSample]) -> EvalLog:
+    from inspect_ai.log._log import (
+        EvalConfig,
+        EvalDataset,
+        EvalPlan,
+        EvalPlanStep,
+        EvalSpec,
+    )
+
+    return EvalLog(
+        version=2,
+        status="success",
+        eval=EvalSpec(
+            created="2025-01-01T00:00:00Z",
+            task="test_task",
+            task_id="test",
+            dataset=EvalDataset(samples=len(samples)),
+            model="mockllm/model",
+            config=EvalConfig(),
+        ),
+        plan=EvalPlan(
+            name="test",
+            steps=[EvalPlanStep(solver="generate")],
+            config=GenerateConfig(),
+        ),
+        samples=samples,
+    )
+
+
+def _rescored_sample(
+    sample_id: int | str,
+    *,
+    error: EvalError | None = None,
+    events: list[Event] | None = None,
+) -> EvalSample:
+    return EvalSample(
+        id=sample_id,
+        epoch=1,
+        input="What is 2+2?",
+        target="4",
+        messages=[ChatMessageUser(role="user", content="What is 2+2?")],
+        output=ModelOutput(
+            choices=[
+                ChatCompletionChoice(
+                    message=ChatMessageAssistant(role="assistant", content="4")
+                )
+            ]
+        ),
+        error=error,
+        events=events or [],
+    )
+
+
+def _judge_error(message: str = "judge API unavailable") -> EvalError:
+    return EvalError(message=message, traceback="", traceback_ansi="")
+
+
+@scorer(metrics=[accuracy()])
+def _failing_for_sample(fail_sample_id: int | str):
+    async def score(state: TaskState, target: Target) -> Score:
+        if state.sample_id == fail_sample_id:
+            raise RuntimeError("judge API unavailable")
+        return Score(value=1.0)
+
+    return score
+
+
+@pytest.mark.anyio
+async def test_score_isolates_a_scorer_failure_to_its_sample() -> None:
+    """A scorer exception records an error on its sample, not the whole pass."""
+    from inspect_ai.event._score import ScoreEvent as ScoringEvent
+
+    log = _scoring_log([_rescored_sample("ok"), _rescored_sample("boom")])
+
+    scored = await score_async(
+        log=log,
+        scorers=[_failing_for_sample("boom")],
+        model="mockllm/model",
+    )
+
+    samples = {sample.id: sample for sample in scored.samples or []}
+    assert samples["boom"].error is not None
+    assert "judge API unavailable" in samples["boom"].error.message
+    assert any(isinstance(event, ErrorEvent) for event in samples["boom"].events)
+    # the transcript keeps the scoring attempt that failed
+    assert any(
+        isinstance(event, SpanBeginEvent) and event.name == SCORERS_SPAN_NAME
+        for event in samples["boom"].events
+    )
+
+    # the unaffected sample is scored normally
+    assert samples["ok"].error is None
+    assert samples["ok"].scores is not None
+    assert any(isinstance(event, ScoringEvent) for event in samples["ok"].events)
+
+    # the pass as a whole completed, with the failed sample excluded
+    assert scored.results is not None
+    assert scored.results.total_samples == 2
+    assert scored.results.completed_samples == 1
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("action", ["append", "overwrite"])
+async def test_score_clears_a_scoring_error_after_a_successful_rescore(
+    action: ScoreAction,
+) -> None:
+    """A successful re-score clears the scoring error it replaced."""
+    unclosed_scorers_span = SpanBeginEvent(
+        id="failed-scorers", name=SCORERS_SPAN_NAME, type=SCORERS_SPAN_NAME
+    )
+    sample = _rescored_sample("1", error=_judge_error(), events=[unclosed_scorers_span])
+
+    scored = await score_async(
+        log=_scoring_log([sample]),
+        scorers=[_failing_for_sample("never")],
+        action=action,
+        model="mockllm/model",
+    )
+
+    assert scored.samples is not None
+    assert scored.samples[0].error is None
+    assert scored.samples[0].scores is not None
+    assert scored.results is not None
+    assert scored.results.completed_samples == 1
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "events",
+    [
+        pytest.param([], id="solver-error-before-scoring"),
+        pytest.param(
+            [
+                SpanBeginEvent(
+                    id="closed-scorers", name=SCORERS_SPAN_NAME, type=SCORERS_SPAN_NAME
+                ),
+                SpanEndEvent(id="closed-scorers"),
+            ],
+            id="solver-error-scored-with-score-on-error",
+        ),
+    ],
+)
+async def test_score_preserves_an_error_from_an_earlier_phase(
+    events: list[Event],
+) -> None:
+    """Only scoring errors are cleared; solver/sandbox errors stay."""
+    sample = _rescored_sample("1", error=_judge_error("agent crashed"), events=events)
+
+    scored = await score_async(
+        log=_scoring_log([sample]),
+        scorers=[_failing_for_sample("never")],
+        model="mockllm/model",
+    )
+
+    assert scored.samples is not None
+    assert scored.samples[0].error is not None
+    assert "agent crashed" in scored.samples[0].error.message
+    # the sample still receives its new score
+    assert scored.samples[0].scores is not None
+    assert scored.results is not None
+    assert scored.results.completed_samples == 0

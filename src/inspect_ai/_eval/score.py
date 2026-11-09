@@ -48,6 +48,7 @@ from inspect_ai._util.registry import (
     registry_unqualified_name,
 )
 from inspect_ai._util.rich import escape_control_characters
+from inspect_ai.event._error import ErrorEvent
 from inspect_ai.event._event import Event
 from inspect_ai.event._score import ScoreEvent
 from inspect_ai.event._tree import (
@@ -61,7 +62,7 @@ from inspect_ai.log import (
 )
 from inspect_ai.log._condense import resolve_sample_attachments
 from inspect_ai.log._headline import headline_metric_ref, resolve_headline_metric
-from inspect_ai.log._log import EvalMetricDefinition, EvalSample
+from inspect_ai.log._log import EvalMetricDefinition, EvalSample, eval_error
 from inspect_ai.log._resolve import rebind_sample_timelines
 from inspect_ai.log._score import _find_scorers_span
 from inspect_ai.log._transcript import Transcript, init_transcript, transcript
@@ -113,6 +114,10 @@ def score(
     Scoring uses the model (unless `model` is passed) and model roles recorded
     in the log, with their base URLs and model args. Only score logs you
     trust. The log's metrics are rebuilt without importing its task file.
+
+    A scorer exception is recorded on the sample that raised it (`sample.error`)
+    and the remaining samples are scored normally. A sample whose previous
+    scoring error is repaired by this pass has that error cleared.
 
     Args:
        log (EvalLog): Evaluation log.
@@ -231,6 +236,45 @@ def _get_updated_events(
     return list(event_sequence(sample_event_tree))
 
 
+def _is_scoring_error(sample: EvalSample) -> bool:
+    """Whether the sample's existing error was raised during scoring.
+
+    A scorer exception escapes the sample's `scorers` span, so that span is
+    opened and never closed -- the durable marker a log carries. Solver and
+    sandbox failures happen before the scoring phase, and a sample scored with
+    `score_on_error` keeps a closed span for the scoring attempt it completed.
+
+    Args:
+        sample: Sample whose error is being classified.
+
+    Returns:
+        `True` when the error came from the scoring phase.
+    """
+    span = _find_scorers_span(event_tree(sample.events))
+    return span is not None and span.end is None
+
+
+def _record_scoring_error(sample: EvalSample, ex: BaseException) -> None:
+    """Record a scorer failure on the sample, as the eval loop does.
+
+    The new scoring events kept by the failed attempt are preserved so the
+    transcript shows what the scorer did before it failed, followed by the
+    error event itself.
+
+    Args:
+        sample: Sample to record the error on.
+        ex: Exception raised while scoring the sample.
+    """
+    error = eval_error(ex, type(ex), ex, ex.__traceback__)
+    try:
+        new_events = transcript().events[len(sample.events) :]
+    except Exception:
+        # the failure happened before the sample's transcript was initialized
+        new_events = []
+    sample.events = [*sample.events, *new_events, ErrorEvent(error=error)]
+    sample.error = error
+
+
 async def score_async(
     log: EvalLog,
     scorers: "Scorers",
@@ -252,6 +296,10 @@ async def score_async(
     Scoring uses the model (unless `model` is passed) and model roles recorded
     in the log, with their base URLs and model args. Only score logs you
     trust. The log's metrics are rebuilt without importing its task file.
+
+    A scorer exception is recorded on the sample that raised it (`sample.error`)
+    and the remaining samples are scored normally. A sample whose previous
+    scoring error is repaired by this pass has that error cleared.
 
     Args:
        log (EvalLog):
@@ -359,6 +407,13 @@ async def score_async(
             sample_score: dict[str, SampleScore] = {}
 
             async with samples(idx_sample) as sample:
+                # the sample may already carry an error from the original run;
+                # note whether it came from scoring before this pass rewrites
+                # the events (see _is_scoring_error)
+                pending_scoring_error = sample.error is not None and _is_scoring_error(
+                    sample
+                )
+
                 # run the task, capturing the resulting sample scores
                 # and sample names for later use. The sample scores
                 # returned here are only the _newly created_ scores
@@ -368,9 +423,28 @@ async def score_async(
                 # We need to capture the the full sample score here
                 # since the sample score carries the scorer name that generated
                 # it (so using sample.scores directly isn't enough)
-                sample_score, names = await _run_score_task(
-                    log, sample, resolved_scorers, active_model, active_roles, action
-                )
+                try:
+                    sample_score, names = await _run_score_task(
+                        log,
+                        sample,
+                        resolved_scorers,
+                        active_model,
+                        active_roles,
+                        action,
+                    )
+                except Exception as ex:
+                    # a scorer failure is isolated to its sample: record it on
+                    # the sample (as the eval loop does) and let the other
+                    # samples finish scoring
+                    _record_scoring_error(sample, ex)
+                    sample_completed[idx_sample] = False
+                    p.update(1)
+                    return
+
+                # a successful re-score clears the scoring error it replaced;
+                # errors from earlier phases (solver, sandbox) are preserved
+                if pending_scoring_error:
+                    sample.error = None
 
             assert sample.scores is not None
             scores[idx_sample] = sample_score

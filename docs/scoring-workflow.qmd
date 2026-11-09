@@ -91,6 +91,12 @@ inspect score ./logs/2024-02-23_task_gpt-4_TUhnCn473c6.eval --scorer custom_scor
 
 With `--action overwrite`, the log's task-level metrics are rebuilt and applied to the new scores, before any sample is scored. When you score with your own scorer (`--scorer`, or the `score()` function) they are rebuilt without importing the log's task file, and metric options that would create a model or an object other than a metric or reducer are refused. If the log's metrics can't be rebuilt this way, scoring fails with an error naming the metric. Pass `--metric` (or `metrics` to `score()`) to use your own metrics instead. When you rescore with the log's own scorers (no `--scorer`), the log's metrics are rebuilt as recorded.
 
+### Scorer Failures
+
+A scorer that raises an exception affects only the sample being scored: the error is recorded on that sample (`sample.error`, with the scoring events kept in its transcript) and the rest of the log is scored normally. The pass therefore completes rather than aborting on the first failure, and the failed sample is reported as not completed in the results rather than contributing a score.
+
+Re-scoring a sample that previously failed in scoring clears that error once the scorer succeeds, so a repaired grader no longer leaves the sample looking broken. Errors from earlier phases (the solver, a sandbox, a limit) are preserved — only the scoring error the pass replaced is cleared.
+
 ## Score Function
 
 You can also use the `score()` function in your Python code to score evaluation logs. For example, if you are exploring the performance of different scorers, you might find it more useful to call the `score()` function using varying scorers or scorer options. For example:
