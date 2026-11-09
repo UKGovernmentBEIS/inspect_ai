@@ -99,12 +99,15 @@ class _PlacementState(BaseModel):
     latest_request: int = 1
 
     forms: dict[str, list[str]] = {}
-    """Forms of the ids in the tracked thread and the threads above."""
+    """Forms of the ids in the tracked thread and the threads above, and of every other id in `bridge_message_ids` with a form besides its content (`bridge_message_content`)."""
 
     edit_roots: dict[str, str] = {}
-    """Edit roots of the ids in the tracked thread and the threads above."""
+    """Edit roots of every edited id (of the ids in the threads above, in a checkpoint written before all were kept)."""
 
     dropped_reach: dict[str, int] = {}
+
+    held_replies: dict[str, int] | None = None
+    """Per reply id the kept threads hold, the most replies a kept thread holding it had, also one no longer kept. `None` in a checkpoint written before it was kept: the resumed bridge counts the threads it restores."""
 
     tracking: _TrackingState | None = None
     """`None` before the first generation, or from a checkpoint written before it was kept: the resumed bridge then tracks the first generation it sees."""
@@ -283,9 +286,14 @@ class AgentBridge:
         self._held: Counter[str] = Counter()
         """Kept threads (the tracked thread and recent ones) holding each reply id."""
         self._held_replies: dict[str, int] = {}
-        """Per reply id, the most replies a kept thread holding it had."""
+        """Per reply id kept threads hold, the most replies a thread held it in while it stayed held, also a thread no longer kept."""
         for thread in (self._tracked_ids, *self._recent_threads):
             self._keep(thread)
+        for message_id, replies in (placement.held_replies or {}).items():
+            if message_id in self._held_replies:
+                self._held_replies[message_id] = max(
+                    self._held_replies[message_id], replies
+                )
         self.filter = filter
         self.response_filter = response_filter
         self.retry_refusals = retry_refusals
@@ -840,7 +848,13 @@ class AgentBridge:
         return False
 
     def _placement_state(self) -> "_PlacementState":
-        """The threads `_align_with_tracked` reads, with the forms and edit roots of their ids, for the checkpoint."""
+        """The threads `_align_with_tracked` reads, and what it reads of their ids, for the checkpoint.
+
+        That includes what an id that is in no kept thread brings back when
+        a request takes it again (`_unplaced_id`, so only an id recorded in
+        `_message_ids`): its edit root and the forms other than its content. A reply's reach (`_held_replies`) is kept as
+        recorded, since a thread that set it may no longer be kept.
+        """
         threads: dict[int, tuple[int, list[tuple[str, str]]]] = {}
 
         def index(thread: list[tuple[str, str]]) -> int:
@@ -854,16 +868,21 @@ class AgentBridge:
             for thread in (self._tracked_ids, *(t for _, t in threads.values()))
             for message_id, _ in thread
         }
+        recorded = {message_id for _, message_id in self._recorded}
         return _PlacementState(
             threads=[thread for _, thread in threads.values()],
             recent_threads=recent,
             latest_generation=generation,
             latest_request=request,
-            forms={id: sorted(self._forms[id]) for id in ids if id in self._forms},
-            edit_roots={
-                id: self._edit_roots[id] for id in ids if id in self._edit_roots
+            forms={
+                id: sorted(forms)
+                for id, forms in self._forms.items()
+                if id in ids
+                or (id in recorded and forms != {self._content_by_id.get(id)})
             },
+            edit_roots=self._edit_roots,
             dropped_reach=self._dropped_reach,
+            held_replies=self._held_replies,
             tracking=None
             if self._tracked_fps is None
             else _TrackingState(

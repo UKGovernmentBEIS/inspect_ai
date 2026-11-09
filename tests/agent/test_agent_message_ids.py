@@ -1883,6 +1883,103 @@ def test_resumed_bridge_never_gives_a_conversation_another_conversations_ids(
     _assert_owned(events, sent, placements)
 
 
+@pytest.mark.parametrize("checkpoint", ["current", "without_reach"])
+@pytest.mark.parametrize("dialect", DIALECTS)
+def test_resumed_bridge_places_as_uninterrupted_after_a_compacted_side_leaves_the_window(
+    dialect: Dialect, checkpoint: str, tmp_path: Path, placements: list[set[str]]
+) -> None:
+    """A resumed bridge remembers how many replies a forgotten conversation had.
+
+    A four-reply side conversation, whose first reply is `OK`, compacts to a
+    branch that keeps that reply. The main conversation's third reply is
+    also `OK`. One-shot calls push the side conversation out of the kept
+    threads, and a checkpoint is taken while the branch is still kept. One
+    more call pushes the branch out too, and the main conversation goes on.
+    The side conversation could hold its three replies, so neither the
+    bridge nor one resumed from the checkpoint places them, and both give
+    them the same ids. A checkpoint without the reach (the field removed,
+    as in one written before it was kept) falls back to counting the threads
+    it restores: only the branch's two replies, so the resumed bridge places
+    the main conversation's replies where the uninterrupted one didn't.
+    """
+    sent: _Sent = []
+    one_shots = bridge_types._MAX_RECENT_THREADS - 2
+
+    @agent
+    def scaffold() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            initial = list(state.messages)
+            checkpointer = RecordingCheckpointer()
+
+            async def ask(text: str) -> None:
+                one_shot = _TextConversation(dialect, sent=sent)
+                one_shot.user(text)
+                await one_shot.generate()
+
+            async def continue_main(main: _TextConversation) -> None:
+                await ask("Question 99?")
+                main.user("Fourth main.")
+                await main.generate()
+
+            with _serving(AgentBridge(state, checkpointer=checkpointer)):
+                main = _TextConversation(dialect, sent=sent)
+                main.user("Main task.")
+                await main.generate()
+                side = _TextConversation(dialect, sent=sent)
+                for n in range(4):
+                    side.user(f"Side {n}.")
+                    await side.generate()
+                side.turns = [side.user_turn("Summary."), side.turns[1]]
+                side.user("Go.")
+                await side.generate()
+                for text in ("Next main.", "Third main."):
+                    main.user(text)
+                    await main.generate()
+                for n in range(one_shots):
+                    await ask(f"Question {n}?")
+                snapshot = checkpointer.snapshot()
+                before = list(main.turns)
+                await continue_main(main)
+            if checkpoint == "without_reach":
+                del snapshot["bridge_placement"]["held_replies"]
+            resumed = AgentBridge(
+                AgentState(messages=initial),
+                checkpointer=RecordingCheckpointer(restored=snapshot, serialized=True),
+            )
+            with _serving(resumed):
+                main.turns = before
+                await continue_main(main)
+            return state
+
+        return execute
+
+    replies = [
+        *("Plan.", "OK", "Side 1.", "Side 2.", "Side 3.", "Branch.", "Did main."),
+        "OK",
+        *(f"Answer {n}." for n in range(one_shots)),
+        *("Evicted.", "Bye", "Evicted.", "Bye"),
+    ]
+    events, _ = _reply_events(scaffold, replies, tmp_path, "Main task.")
+    _assert_owned(events, sent, placements)
+    uninterrupted, resumed = events[-3], events[-1]
+    assert len(uninterrupted.input) == 7
+    assert placements[-3] == set()
+    if checkpoint == "current":
+        assert placements[-1] == placements[-3]
+        # the new user message gets a new id in each run
+        assert [m.id for m in resumed.input[:6]] == [
+            m.id for m in uninterrupted.input[:6]
+        ]
+    else:
+        assert placements[-1] == {m.id for m in resumed.input[:6]}
+        [main_ok] = [
+            event.output.message.id
+            for event in events
+            if event.input[0].text == "Main task." and event.output.completion == "OK"
+        ]
+        assert resumed.input[5].id == main_ok != uninterrupted.input[5].id
+
+
 @pytest.mark.parametrize("checkpointed_again", [False, True])
 @pytest.mark.parametrize("dialect", DIALECTS)
 def test_side_call_after_resume_keeps_the_main_threads_ids(
