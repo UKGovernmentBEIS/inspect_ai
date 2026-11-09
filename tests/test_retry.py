@@ -2,7 +2,7 @@ import logging
 import os
 import tempfile
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Generator, Literal
 
 import pytest
 from test_helpers.utils import (
@@ -23,6 +23,7 @@ from inspect_ai.log import (
     write_eval_log,
 )
 from inspect_ai.model import GenerateConfig, get_model
+from inspect_ai.model._model_info import clear_model_info_cache
 from inspect_ai.model._providers.mockllm import MockLLM
 from inspect_ai.scorer import exact
 from inspect_ai.solver import TaskState, generate, solver
@@ -861,6 +862,14 @@ def test_read_eval_log_samples_after_retry_changes_id_type(
     assert [(sample.id, sample.epoch) for sample in samples] == [(1, 1)]
 
 
+@pytest.fixture
+def clear_model_info() -> Generator[None, None, None]:
+    clear_model_info_cache()
+    yield
+    clear_model_info_cache()
+
+
+@pytest.mark.usefixtures("clear_model_info")
 def test_eval_retry_preserves_cost_limit_and_max_dataset_memory(
     tmp_path: Path,
 ) -> None:
@@ -917,11 +926,18 @@ def test_eval_retry_preserves_cost_limit_and_max_dataset_memory(
     assert retried.samples[0].limit.type == "cost"
 
 
+@pytest.mark.usefixtures("clear_model_info")
 def test_eval_retry_model_cost_config(tmp_path: Path) -> None:
     from click.testing import CliRunner
 
     from inspect_ai._cli.eval import eval_retry_command
     from inspect_ai.model import ModelInfo, set_model_info
+
+    def register_unpriced_model() -> None:
+        # Drop every pricing entry, as in a fresh process. set_model_cost()
+        # only prices a known model, and mockllm's is not in the database.
+        clear_model_info_cache()
+        set_model_info("model", ModelInfo())
 
     pricing_file = tmp_path / "pricing.yaml"
     pricing_file.write_text(
@@ -947,7 +963,7 @@ def test_eval_retry_model_cost_config(tmp_path: Path) -> None:
     def retry_cost_config_task() -> Task:
         return Task(dataset=[Sample(input="x")], solver=[fail_once(), generate()])
 
-    set_model_info("model", ModelInfo())
+    register_unpriced_model()
     fail_file.touch()
     log = eval(
         retry_cost_config_task(),
@@ -961,8 +977,7 @@ def test_eval_retry_model_cost_config(tmp_path: Path) -> None:
 
     fail_file.unlink()
 
-    # Reset cost info to simulate retrying in a fresh process without in-memory pricing
-    set_model_info("model", ModelInfo())
+    register_unpriced_model()
 
     # Retrying via Python API with model_cost_config
     retried = eval_retry(
@@ -978,7 +993,7 @@ def test_eval_retry_model_cost_config(tmp_path: Path) -> None:
     assert retried.samples[0].limit.type == "cost"
 
     # Retrying via CLI with --model-cost-config
-    set_model_info("model", ModelInfo())
+    register_unpriced_model()
     runner = CliRunner()
     res = runner.invoke(
         eval_retry_command,
