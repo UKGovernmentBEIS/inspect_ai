@@ -8358,6 +8358,92 @@ async def test_parallel_anthropic_calls_sharing_an_id_continue_as_generated(
     assert len({call.id for call in handed.tool_calls or []}) == 2
 
 
+@protocol
+def bridge_reject_second() -> Protocol:
+    """Rejects the second call it sees."""
+    seen: list[ToolCall] = []
+
+    async def decide(
+        context: Context, step: BeforeToolCall, escalations: Escalations
+    ) -> Decision | None:
+        seen.append(step.call)
+        return Decision.reject("risky", message="Denied.") if len(seen) == 2 else None
+
+    return decide
+
+
+@pytest.mark.parametrize("filtered", ["unfiltered", "rebuilt"])
+@pytest.mark.parametrize("shared", [True, False])
+@pytest.mark.parametrize(
+    "kind", ["function", "custom", "computer", "tool_search", "anthropic"]
+)
+async def test_a_rejected_turn_replays_each_call_as_generated(
+    kind: str, shared: bool, filtered: str
+) -> None:
+    init_sample_assistant_internal()
+    generated: list[Any] = []
+    if kind == "anthropic":
+        blocks: Any = [
+            {**block, "id": "toolu_a"}
+            if shared and block["type"] == "tool_use"
+            else block
+            for block in ANTHROPIC_FIRST
+        ]
+        model = Parsing(
+            _anthropic_parsed(blocks), lambda: calls_output(), wire=_anthropic_wire
+        )
+        tools = list(ANTHROPIC_TOOLS)
+    else:
+        generated = _responses_calls_reading(kind, True)
+        if not shared:
+            generated[1] = generated[1].model_copy(update={"call_id": "call_distinct"})
+        model = Parsing(
+            lambda: _responses_output(*generated),
+            lambda: calls_output(),
+            wire=_responses_wire,
+        )
+        tools = [ToolInfo(name="read_file", description="Read a file.")]
+    bridge = in_process_bridge([])
+    bridge.response_filter = RESPONSE_FILTERS[filtered]
+
+    with active([bridge_reject_second()]):
+        await bridge_generate(
+            bridge,
+            model.model,
+            [ChatMessageUser(content=TASK)],
+            tools,
+            None,
+            GenerateConfig(),
+            requested_model=None,
+        )
+
+    # the retry replays the rejected turn, each call with its own result
+    [rejected] = [m for m in model.inputs[1] if isinstance(m, ChatMessageAssistant)]
+    results = [m for m in model.inputs[1] if isinstance(m, ChatMessageTool)]
+    ids = [call.id for call in rejected.tool_calls or []]
+    assert len(set(ids)) == 2
+    assert [result.tool_call_id for result in results] == ids
+    # the second call was rejected; the first was not run because of it
+    explanations = [result.error.message if result.error else "" for result in results]
+    assert explanations[0].startswith("This tool call was not executed")
+    assert explanations[1].startswith("Denied.")
+    if kind == "anthropic":
+        [replayed] = model.wire[1]
+        assert _anthropic_shapes([replayed]) == [ANTHROPIC_FIRST_REPLAY]
+        assert [block["id"] for block in replayed if block["type"] == "tool_use"] == ids
+    else:
+        replayed = model.wire[1]
+        assert _responses_replayed(replayed, generated[0].type) == [
+            (call_id, _responses_native_arguments(item.model_dump(exclude_none=True)))
+            for call_id, item in zip(ids, generated)
+        ]
+        assert [
+            param["call_id"]
+            for param in replayed
+            if param["type"] == RESPONSES_RESULT_TYPES[generated[0].type]
+        ] == ids
+
+
 def _answered(input: list[ChatMessage], output: ModelOutput) -> list[ChatMessage]:
     """`input` continued with `output` and a result for each of its calls."""
     return [

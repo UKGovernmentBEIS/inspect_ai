@@ -1,6 +1,6 @@
 import hashlib
 import json
-from collections import OrderedDict, deque
+from collections import Counter, OrderedDict, deque
 from contextlib import AbstractContextManager, ExitStack, nullcontext
 from copy import deepcopy
 from dataclasses import dataclass, replace
@@ -769,6 +769,42 @@ def _retarget_anchors(
                     **part.internal,
                     "gemini_function_call_id": tokens[call_id].popleft(),
                 }
+
+
+def distinct_call_ids(output: ModelOutput) -> ModelOutput:
+    """`output` with each call that shares its id with another under an id of its own.
+
+    For a turn replayed to the model without being handed on (a rejected
+    response): the provider's state under a shared id is one call's, so would
+    replay that call's operation for each. Each such call goes under a fresh id
+    with the replay state its generation parsed it with
+    (`generation_call_states`), as `sentinel_tokens` hands calls on, and Google's
+    reasoning anchors follow. Returns `output` (not a copy) when no calls share
+    an id.
+    """
+    calls = output.message.tool_calls or []
+    shared = {
+        call_id for call_id, count in Counter(c.id for c in calls).items() if count > 1
+    }
+    if not shared:
+        return output
+    states = generation_call_states(generation_assistant_internal(output), calls)
+    # a copy, as `output` may be the object the ModelEvent recorded
+    output = output.model_copy(deep=True)
+    tokens: dict[str, deque[str]] = {}
+    for call, state in zip(output.message.tool_calls or [], states):
+        token = call.id
+        if call.id in shared:
+            check = SentinelCheck(call, call, None, "", None)
+            token = f"{_token_prefix(check)}_{uuid()}"
+            if state is not None and state.recorded:
+                alias_assistant_internal_call(
+                    call.id, token, state, {}, call if state.edited else None
+                )
+        tokens.setdefault(call.id, deque()).append(token)
+        call.id = token
+    _retarget_anchors(output.message.content, tokens)
+    return output
 
 
 def sentinel_unproposed_host_check(
