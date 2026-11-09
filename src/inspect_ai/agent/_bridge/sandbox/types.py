@@ -104,10 +104,10 @@ class SandboxAgentBridge(AgentBridge):
         self._tool_execution_grants: deque[_ToolExecutionGrant] = deque(
             maxlen=_MAX_TOOL_EXECUTION_GRANTS
         )
-        self._executed_calls: dict[tuple[str, str, str], list[str]] = {}
-        """Per (server, tool, argument key), the replies whose grant an execution consumed (`_record_execution`)."""
-        self._executed_tools: dict[tuple[str, str], list[str]] = {}
-        """Per (server, tool), the replies whose grant an execution consumed."""
+        self._executed_calls: dict[tuple[str, str, str], list[_HandedCall]] = {}
+        """Per (server, tool, argument key), the calls an execution consumed a grant of, unless settled since (`_record_execution`)."""
+        self._executed_tools: dict[tuple[str, str], list[_HandedCall]] = {}
+        """Per (server, tool), the calls an execution consumed a grant of."""
         self._failure_requested = anyio.Event()
         self._failure: Exception | None = None
         self.generation_limit: LimitExceededError | None = None
@@ -365,8 +365,9 @@ class SandboxAgentBridge(AgentBridge):
         A grant is one-shot, so a client sending a call again (after losing
         the first response, say) is denied, and the scaffold may send that
         denial as the call's answer: the reply of each call it may repeat is
-        unlinked (`_unlink`), whether that call's execution has completed or
-        still runs, and so is the reply of each pending grant it may repeat.
+        unlinked (`_unlink`), whether that call's execution awaits its answer
+        or still runs (one already settled keeps its link), and so is the
+        reply of each pending grant it may repeat.
         Calls are compared as `consume_tool_execution_grant` compares them,
         on the argument keys of `_call_keys` (both sides also projected onto
         a closed schema's declared keys, so this errs towards unlinking).
@@ -377,18 +378,18 @@ class SandboxAgentBridge(AgentBridge):
         keys = (
             self._call_keys(server, tool, arguments) if arguments is not None else None
         )
-        # unlinked for good, so each recorded reply is unlinked here once
-        replies = (
+        # unlinked for good, so each recorded call is unlinked here once
+        executed = (
             self._executed_tools.pop((server, tool), [])
             if keys is None
             else [
-                reply
+                handed
                 for key in keys
-                for reply in self._executed_calls.pop((server, tool, key), [])
+                for handed in self._executed_calls.pop((server, tool, key), [])
             ]
         )
-        for reply in replies:
-            self._unlink(reply)
+        for handed in executed:
+            self._unlink(handed.reply.id)
         for grant in self._tool_execution_grants:
             if (
                 grant.server == server
@@ -404,21 +405,55 @@ class SandboxAgentBridge(AgentBridge):
                 self._unlink(grant.proposal.reply.reply.id)
 
     def _record_execution(self, grant: "_ToolExecutionGrant") -> None:
-        """Record that an execution consumed `grant`, for `unlink_denied_call`.
+        """Check and record the evidence an execution consuming `grant` gives.
 
-        Reply ids and argument hashes only, a few entries per execution,
-        like the message pool; `unlink_denied_call` drops the entries it
-        unlinks.
+        Run as the grant is consumed, before the execution starts, so a
+        request arriving while it runs already sees it.
+
+        - A proposal's second execution (one call granted for several tools)
+          unlinks its reply (`_unlink`): an answer may hold either result.
+        - An earlier execution of the same (server, tool) and arguments
+          (`_call_keys`) whose answer hasn't been settled, still queued or
+          running, unlinks its reply and this one's: this execution may be
+          a client's retry of that call (after losing its response), taking
+          a later proposal's identical grant, so either answer may hold
+          either result. An earlier execution already settled (its answer
+          linked, or left unlinked) is final and is dropped from the record.
+        - The call is recorded for `unlink_denied_call`.
+
+        Each recorded call is dropped once scanned or unlinked, so the work
+        is amortized constant per execution. Reply ids, positions and
+        argument hashes only, like the message pool.
         """
         reply = grant.proposal.reply
         if reply is None:
             return
-        for key in self._call_keys(grant.server, grant.tool, grant.arguments):
-            self._executed_calls.setdefault((grant.server, grant.tool, key), []).append(
-                reply.reply.id
-            )
-        self._executed_tools.setdefault((grant.server, grant.tool), []).append(
-            reply.reply.id
+        if grant.proposal.executions > 0:
+            self._unlink(reply.reply.id)
+        keys = self._call_keys(grant.server, grant.tool, grant.arguments)
+        doubt = False
+        for key in keys:
+            for earlier in self._executed_calls.pop(
+                (grant.server, grant.tool, key), []
+            ):
+                if self._unsettled(earlier):
+                    self._unlink(earlier.reply.id)
+                    doubt = True
+        if doubt:
+            self._unlink(reply.reply.id)
+        for key in keys:
+            self._executed_calls[(grant.server, grant.tool, key)] = [reply]
+        self._executed_tools.setdefault((grant.server, grant.tool), []).append(reply)
+
+    def _unsettled(self, handed: _HandedCall) -> bool:
+        """Whether an execution of `handed` may still link: running, or awaiting its answer."""
+        if self._edit_root(handed.reply.id) in self._unlinked_replies:
+            return False
+        awaited = self._awaited_results.get(handed.reply.id)
+        return (
+            awaited is None
+            or handed.position not in awaited.events
+            or awaited.events[handed.position] is not None
         )
 
     def _call_keys(self, server: str, tool: str, arguments: dict[str, Any]) -> set[str]:

@@ -7338,7 +7338,8 @@ async def test_reply_handed_out_again_links_no_execution(
     answer in the original thread. Neither execution links: which execution
     the answer holds is unknown. An uncached retry hands out a new reply (with
     other text, so that Google's wire form, which has no call ids, tells the
-    two apart), so the first execution links unless its tracking was dropped;
+    two apart), but its identical call runs while the first execution awaits
+    its answer, so it may be a retry of that call and neither links either;
     with no retry, a cached generation links as any other.
     """
     monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path / "cache"))
@@ -7438,7 +7439,7 @@ async def test_reply_handed_out_again_links_no_execution(
         if isinstance(e, ToolEvent) and e.function == "read_file"
     ]
     assert [e.result for e in reads] == (["first", "second"] if retry else ["first"])
-    first_link = answer if not unrelated and not (retry and cached) else None
+    first_link = answer if not unrelated and not retry else None
     assert [e.message_id for e in reads] == [first_link, *([None] if retry else [])]
 
 
@@ -7866,9 +7867,10 @@ async def test_execution_whose_call_is_denied_again_links_nothing(
     assert execution.message_id == (answer if linked else None)
 
 
+@pytest.mark.parametrize("later_call", ["denied", "takes a third grant"])
 @pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
 async def test_call_whose_grant_was_evicted_taking_a_later_replys_grant_links_nothing(
-    dialect: HostDialect,
+    dialect: HostDialect, later_call: str
 ) -> None:
     """A call whose grant was evicted, run on a later reply's identical grant, leaves that reply unlinked.
 
@@ -7878,7 +7880,10 @@ async def test_call_whose_grant_was_evicted_taking_a_later_replys_grant_links_no
     knows the first reply, so the execution pairs with the later one. The
     later reply's own call is then denied, which unlinks it, so its answer
     (the denial) doesn't link to the execution that ran the first reply's
-    call.
+    call. When a third reply proposes the call before that, the later
+    reply's own call takes the third reply's grant instead: the execution
+    paired with the later reply is still awaiting its answer, so both
+    replies are unlinked.
     """
     call: dict[str, JsonValue] = {"path": "a"}
     model = get_model(
@@ -7902,6 +7907,16 @@ async def test_call_whose_grant_was_evicted_taking_a_later_replys_grant_links_no
                 ToolCall(id="call_later", function="read_file", arguments=call),
                 content="Reading again.",
             ),
+            *(
+                [
+                    tool_calls_output(
+                        ToolCall(id="call_third", function="read_file", arguments=call),
+                        content="Reading a third time.",
+                    )
+                ]
+                if later_call == "takes a third grant"
+                else []
+            ),
             ModelOutput.from_content("mockllm/model", "done"),
         ],
     )
@@ -7915,7 +7930,9 @@ async def test_call_whose_grant_was_evicted_taking_a_later_replys_grant_links_no
         model_aliases={"inspect": model},
         bridged_tools={
             "host": {
-                "read_file": read_file(AsyncMock(return_value="first result")),
+                "read_file": read_file(
+                    AsyncMock(side_effect=["first result", "later result"])
+                ),
                 "list_dir": served_tool(
                     AsyncMock(return_value="listed"),
                     description=LIST_DIR,
@@ -7926,17 +7943,24 @@ async def test_call_whose_grant_was_evicted_taking_a_later_replys_grant_links_no
     )
     [read_info] = declare("read_file")
     [list_info] = declare("list_dir", description=LIST_DIR)
-    first = _HostConversation(dialect, "Read a.", read_info)
+    # the later reply's conversation is the sample's, so the bridge tracks it
+    first = _HostConversation(dialect, "Earlier: read a.", read_info)
     sub = _HostConversation(dialect, "Sub-agent: list.", list_info)
-    later = _HostConversation(dialect, "Read a again.", read_info)
+    later = _HostConversation(dialect, "Read a.", read_info)
+    third = _HostConversation(dialect, "Side call: read a.", read_info)
     with recorded_transcript() as recorded:
         await first.request(bridge)
         await sub.request(bridge)
         later_calls = await later.request(bridge)
         await call_host_tool(bridge)("host", "read_file", call)
-        with pytest.raises(PermissionError) as denied:
-            await call_host_tool(bridge)("host", "read_file", call)
-        later.results(later_calls, [str(denied.value)])
+        if later_call == "denied":
+            with pytest.raises(PermissionError) as denied:
+                await call_host_tool(bridge)("host", "read_file", call)
+            answer: JsonValue = str(denied.value)
+        else:
+            await third.request(bridge)
+            answer = await call_host_tool(bridge)("host", "read_file", call)
+        later.results(later_calls, [answer])
         await later.request(bridge)
 
     reads = [
@@ -7946,10 +7970,209 @@ async def test_call_whose_grant_was_evicted_taking_a_later_replys_grant_links_no
     ]
     assert [(bridge_metadata(e)["grant"], e.result) for e in reads] == [
         ("consumed", "first result"),
-        ("denied", ""),
+        ("denied", "") if later_call == "denied" else ("consumed", "later result"),
     ]
     assert bridge_metadata(reads[0])["proposal_id"] == "call_later"
     assert [e.message_id for e in reads] == [None, None]
+
+
+@pytest.mark.parametrize(
+    "shape",
+    [
+        "retry, answer before a later denial",
+        "retry, no later call",
+        "sequential, answered first",
+        "no retry",
+    ],
+)
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+async def test_retry_taking_a_later_replys_identical_grant_links_nothing(
+    dialect: HostDialect, shape: str
+) -> None:
+    """A retry that takes a later reply's identical grant leaves both replies unlinked.
+
+    The main reply's call executes and its response is lost, so its answer
+    is not yet sent. A sub-agent's reply then proposes the identical call,
+    and the client's retry of the main call takes that grant: no denial, and
+    no pending ambiguity. The main thread's answer holds the retry's result,
+    so neither execution links, also when the sub-agent's own call is then
+    denied after the answer arrived. When the main call's answer arrived
+    before the identical call executed (`sequential, answered first`), both
+    executions link their own answers, as the main execution does with no
+    retry.
+    """
+    retry = shape.startswith("retry")
+    sequential = shape == "sequential, answered first"
+    main_output = tool_calls_output(
+        ToolCall(id="call_main", function="read_file", arguments={"path": "a"}),
+        content="Reading.",
+    )
+    sub_output = tool_calls_output(
+        ToolCall(id="call_sub", function="read_file", arguments={"path": "a"}),
+        content="On it.",
+    )
+    done = ModelOutput.from_content("mockllm/model", "done")
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[main_output, done, sub_output, done]
+        if sequential
+        else [main_output, sub_output, done],
+    )
+    bridge = SandboxAgentBridge(
+        state=AgentState(messages=[ChatMessageUser(content="Read a.")]),
+        filter=None,
+        retry_refusals=None,
+        compaction=None,
+        port=13131,
+        model=None,
+        model_aliases={"inspect": model},
+        bridged_tools={
+            "host": {
+                "read_file": read_file(
+                    AsyncMock(side_effect=["FIRST RESULT", "SECOND RESULT"])
+                )
+            }
+        },
+    )
+    [info] = declare("read_file")
+    main = _HostConversation(dialect, "Read a.", info)
+    sub = _HostConversation(dialect, "Sub-agent: read a.", info)
+    with recorded_transcript() as recorded:
+        main_calls = await main.request(bridge)
+        [(_, arguments)] = main_calls
+        first = await call_host_tool(bridge)("host", "read_file", arguments)
+        if sequential:
+            main.results(main_calls, [first])
+            await main.request(bridge)
+        sub_calls = await sub.request(bridge)
+        if retry:
+            first = await call_host_tool(bridge)("host", "read_file", arguments)
+        if not sequential:
+            main.results(main_calls, [first])
+            await main.request(bridge)
+        if shape == "retry, answer before a later denial":
+            with pytest.raises(PermissionError):
+                await call_host_tool(bridge)("host", "read_file", arguments)
+        if sequential:
+            second = await call_host_tool(bridge)("host", "read_file", arguments)
+            sub.results(sub_calls, [second])
+            await sub.request(bridge)
+
+    answers = {
+        m.text: m.id
+        for e in recorded.events
+        if isinstance(e, ModelEvent)
+        for m in e.input
+        if m.role == "tool"
+    }
+
+    def answer_holding(result: str) -> str:
+        [id] = [id for text, id in answers.items() if result in text]
+        assert id is not None
+        return id
+
+    reads = [
+        e
+        for e in recorded.events
+        if isinstance(e, ToolEvent) and bridge_metadata(e)["grant"] == "consumed"
+    ]
+    results = (
+        ["FIRST RESULT", "SECOND RESULT"] if shape != "no retry" else ["FIRST RESULT"]
+    )
+    assert [e.result for e in reads] == results
+    if retry:
+        assert [bridge_metadata(e)["proposal_id"] for e in reads] == [
+            "call_main",
+            "call_sub",
+        ]
+        assert [e.message_id for e in reads] == [None, None]
+    else:
+        assert [e.message_id for e in reads] == [
+            answer_holding(str(e.result)) for e in reads
+        ]
+
+
+@pytest.mark.parametrize("second", [False, True], ids=["control", "second running"])
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+async def test_second_execution_of_a_proposal_unlinks_it_when_it_starts(
+    dialect: HostDialect, second: bool
+) -> None:
+    """A proposal's completed first execution stops linking as soon as its second starts.
+
+    Servers `a` and `b` serve the same description, so the call is granted
+    once on each. It completes on `a`, and its answer is held. The second
+    execution, on `b`, starts and blocks; the client times out waiting for
+    it and sends a timeout message as the call's answer, and `b`'s execution
+    is then cancelled. Neither execution links. With no second execution
+    (`control`), `a`'s answer links.
+    """
+    started = anyio.Event()
+
+    async def blocked(**_: Any) -> str:
+        started.set()
+        await anyio.sleep_forever()
+        return "SECOND RESULT"
+
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            tool_calls_output(
+                ToolCall(id="call_main", function="read_file", arguments={"path": "a"}),
+                content="Reading.",
+            ),
+            ModelOutput.from_content("mockllm/model", "done"),
+        ],
+    )
+    bridge = SandboxAgentBridge(
+        state=AgentState(messages=[ChatMessageUser(content="Read a.")]),
+        filter=None,
+        retry_refusals=None,
+        compaction=None,
+        port=13131,
+        model=None,
+        model_aliases={"inspect": model},
+        bridged_tools={
+            "a": {"read_file": read_file(AsyncMock(return_value="FIRST RESULT"))},
+            "b": {"read_file": read_file(AsyncMock(side_effect=blocked))},
+        },
+    )
+    [info] = declare("read_file")
+    main = _HostConversation(dialect, "Read a.", info)
+    cancelled = anyio.Event()
+    with recorded_transcript() as recorded:
+        calls = await main.request(bridge)
+        first = await call_host_tool(bridge)("a", "read_file", {"path": "a"})
+        if second:
+
+            async def execute() -> None:
+                try:
+                    await call_host_tool(bridge)("b", "read_file", {"path": "a"})
+                finally:
+                    cancelled.set()
+
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(execute)
+                await started.wait()
+                main.results(calls, ["Client timed out waiting for server b."])
+                await main.request(bridge)
+                tg.cancel_scope.cancel()
+            assert cancelled.is_set()
+        else:
+            main.results(calls, [first])
+            await main.request(bridge)
+
+    model_events = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    [answer] = [m.id for m in model_events[-1].input if m.role == "tool"]
+    reads = [e for e in recorded.events if isinstance(e, ToolEvent)]
+    if second:
+        assert [(bridge_metadata(e)["server"], e.result) for e in reads] == [
+            ("a", "FIRST RESULT"),
+            ("b", ""),
+        ]
+        assert reads[1].error is not None and reads[1].error.type == "cancelled"
+        assert [e.message_id for e in reads] == [None, None]
+    else:
+        assert [e.message_id for e in reads] == [answer]
 
 
 @agent

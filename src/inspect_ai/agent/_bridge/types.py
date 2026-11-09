@@ -744,7 +744,8 @@ class AgentBridge:
         show which reply it is), the reply is handed out again
         (`_handed_calls`), or, in a sandbox bridge, one of its execution
         grants is evicted, an execution makes one of its proposals ambiguous,
-        or a denied host call may repeat one of its calls. A reply
+        or another host call (an execution or a denied request) may repeat
+        one of its calls while its answer is outstanding. A reply
         whose result tracking is dropped (`_await_result_message`) is
         recorded the same way.
         The id is kept for the rest of the sample (ids only, like the message
