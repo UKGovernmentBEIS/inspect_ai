@@ -361,6 +361,7 @@ The following environment variables are supported by the Google provider
 | `GOOGLE_BASE_URL` | Base URL for requests (optional) |
 | `GOOGLE_USE_ADC` | Set to `true` to authenticate Gemini Developer API models with OAuth/ADC by default (optional). |
 | `GOOGLE_CLOUD_QUOTA_PROJECT` | Quota/billing project sent as `x-goog-user-project` when using OAuth/ADC (optional). |
+| `GOOGLE_GENAI_API_VERSION` | API version (optional; `-M api_version` takes precedence). Defaults to `v1beta` for the Gemini Developer API and to the SDK default (`v1beta1`) on Vertex. |
 
 ### Gemini Developer API with OAuth / ADC {#gemini-oauth}
 

@@ -311,9 +311,15 @@ def _read_samples_df_serial(
         all_errors: list[ColumnError] = []
 
         # read logs and note total samples
-        evals_table, eval_logs, total_samples = _read_evals_df(
-            logs, columns=columns_eval, strict=True, progress=p.update
-        )
+        if strict:
+            evals_table, eval_logs, total_samples = _read_evals_df(
+                logs, columns=columns_eval, strict=True, progress=p.update
+            )
+        else:
+            evals_table, eval_logs, eval_errors, total_samples = _read_evals_df(
+                logs, columns=columns_eval, strict=False, progress=p.update
+            )
+            all_errors.extend(eval_errors)
 
         # update progress now that we know the total samples
         entity = detail.name if detail else "sample"

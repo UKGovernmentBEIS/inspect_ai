@@ -184,6 +184,11 @@ class OpenRouterAPI(OpenAICompatibleAPI):
         return _openrouter_canonical_name(self.service_model_name())
 
     @override
+    def supports_max_reasoning_effort(self) -> bool:
+        """OpenRouter accepts the ``max`` reasoning effort."""
+        return True
+
+    @override
     def served_model_usage(self, output: ModelOutput) -> list[ServedModelUsage] | None:
         # routers (e.g. openrouter/auto) and the `models` fallback list can
         # serve a request with another model, reported in the response
@@ -386,15 +391,9 @@ class OpenRouterAPI(OpenAICompatibleAPI):
             or self.reasoning_enabled is not None
         ):
             reasoning = dict()
-            # openrouter supports one of max_tokens or effort, prefer effort.
-            # OpenRouter accepts minimal/low/medium/high/xhigh (per
-            # https://openrouter.ai/docs/guides/best-practices/reasoning-tokens)
-            # but not `max`; map it to `xhigh` (their highest tier, ratio 0.95).
+            # OpenRouter supports one of max_tokens or effort, prefer effort.
             if config.reasoning_effort is not None:
-                effort: str = config.reasoning_effort
-                if effort == "max":
-                    effort = "xhigh"
-                reasoning["effort"] = effort
+                reasoning["effort"] = config.reasoning_effort
                 if config.reasoning_tokens is not None:
                     warn_once(
                         logger,

@@ -559,7 +559,10 @@ def scorers_from_metric_dict(
             group = registry_unqualified_name(target_metric)
             if isinstance(value, Mapping):
                 for key, val in value.items():
-                    result_metrics[f"{metric_name}_{key}"] = EvalMetric(
+                    name = metrics_unique_key(
+                        f"{metric_name}_{key}", list(result_metrics.keys())
+                    )
+                    result_metrics[name] = EvalMetric(
                         name=key,
                         group=group,
                         value=cast(float, val),
@@ -567,14 +570,18 @@ def scorers_from_metric_dict(
                     )
             elif isinstance(value, Sequence) and not isinstance(value, str | bytes):
                 for idx, item in enumerate(value):
-                    result_metrics[f"{metric_name}_{idx}"] = EvalMetric(
+                    name = metrics_unique_key(
+                        f"{metric_name}_{idx}", list(result_metrics.keys())
+                    )
+                    result_metrics[name] = EvalMetric(
                         name=str(idx),
                         group=group,
                         value=cast(float, item),
                         params=metric_params,
                     )
             else:
-                result_metrics[metric_name] = EvalMetric(
+                name = metrics_unique_key(metric_name, list(result_metrics.keys()))
+                result_metrics[name] = EvalMetric(
                     name=metric_name, value=cast(float, value), params=metric_params
                 )
 
@@ -687,16 +694,17 @@ def resolve_glob_metric_keys(
                 # The key matched, so either create a new entry for it and add metrics
                 # or add metrics to the existing key
                 resolved_metrics.setdefault(score_key, [])
-                existing_metric_names = {
-                    registry_log_name(m) for m in resolved_metrics[score_key]
-                }
+                existing_metrics = [
+                    (registry_log_name(m), registry_params(m))
+                    for m in resolved_metrics[score_key]
+                ]
 
-                # Add metrics that aren't already in the list
+                # Add metrics that aren't already in the list (same name and params)
                 for metric in metric_list:
-                    metric_name = registry_log_name(metric)
-                    if metric_name not in existing_metric_names:
+                    metric_id = (registry_log_name(metric), registry_params(metric))
+                    if metric_id not in existing_metrics:
                         resolved_metrics[score_key].append(metric)
-                        existing_metric_names.add(metric_name)
+                        existing_metrics.append(metric_id)
     return resolved_metrics
 
 

@@ -42,6 +42,7 @@ from typing import (
 if TYPE_CHECKING:
     from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 
+    from inspect_ai._control.operator import OperatorGroup
     from inspect_ai.agent._acp.transport import AcpTransport
     from inspect_ai.agent._channel import ExecutionObserver
     from inspect_ai.hooks._hooks import SampleEvent
@@ -251,6 +252,9 @@ class ActiveSample:
         # The Inspect TUI reads this to decide whether to render the
         # Interrupt button and to dispatch session/cancel + session/prompt.
         self.acp_transport: "AcpTransport | None" = None
+        # Named agents the control channel can act on, by group name. Added
+        # and removed by `operator_group()` (see `inspect_ai._control.operator`).
+        self.operator_groups: dict[str, "OperatorGroup"] = {}
         # In-flight human-in-the-loop waits, appended by the ACP routing
         # shims (approval/_human/acp.py, input/acp.py) through
         # `awaiting_human` below. A list (not a single slot) because
