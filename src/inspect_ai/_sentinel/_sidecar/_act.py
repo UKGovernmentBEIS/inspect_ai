@@ -177,11 +177,17 @@ def act_on_judgment(
 
     _decide(decisions)
     if judgment.outcome == "proceed" and output.choices and turn is not None:
-        # the model's turn as the eval holds it: each call taken out put back
-        # with its id and function only, and each changed call as it ran
-        message = _message(turn)
-        output.choices[0].message = message
-        if message.tool_calls:
+        # The model's turn as the eval holds it: each call taken out put back
+        # with its id and function only, and each changed call as it ran. The
+        # calls the agent was handed stay as its provider read them, since a
+        # provider may read a call under another name than the sidecar does,
+        # as the Responses converter does for the planning tools, and the
+        # task's tool goes by that name.
+        own = output.choices[0].message
+        handed = {call.id: call for call in own.tool_calls or []}
+        calls = [handed.get(call.id, call) for call in _message(turn).tool_calls or []]
+        output.choices[0].message = own.model_copy(update={"tool_calls": calls})
+        if calls:
             output.choices[0].stop_reason = "tool_calls"
     return output
 
