@@ -810,7 +810,7 @@ does not list, which would be a bug in Inspect.
 | `starting` | an attempt calls `register_eval` | `running` | `task_run`, through `on_registered` |
 | `starting_cancelled` | an attempt calls `register_eval` | `running`, and the attempt is aborted at once | `task_run`, through `on_registered` |
 | `running` | cancel | no change: today's task cancel or drain of the running attempt or of the retry it waits for | the control channel; a handle through `cancel_task(task_id)` |
-| `starting`, `starting_cancelled`, `running` | the record's attempts are over: `run_one` returns or raises without queuing a retry, the dispatcher drops the record's abandoned pending retry, or the run ends with its retry still pending | `ended`, with the log today's code leaves for the task (`None` if no attempt returned one) | `run_one` or the dispatcher, in the synchronous step where today's code stores the result or drops the retry; `RunQueue.end_unstarted()` for a retry still pending at run end |
+| `starting`, `starting_cancelled`, `running` | the record's attempts are over: `run_one` returns or raises without queuing a retry (including a retry it does not publish because the queue has closed), the dispatcher drops the record's abandoned pending retry, or the run ends with its retry still pending | `ended`, with the log today's code leaves for the task (`None` if no attempt returned one) | `run_one` or the dispatcher, in the synchronous step where today's code stores the result or drops the retry; `RunQueue.end_unstarted()` for a retry still pending at run end |
 
 **The rest of the attempt lifecycle is today's.** `run_one` runs an
 attempt through `_run_task`, makes the retry decision, stores the result
@@ -869,7 +869,9 @@ and the readers above act on it.
 `run_task_retry_attempts` becomes `dispatch_tasks(queue, setups, *, parallel,
 task_retry_attempts, task_source, debug_errors) -> list[EvalLog]` in
 `run.py`. `run_one`, the retry decision, the retry-abandon handling and
-model balancing are unchanged. The loop, inside `_run_task_screen` as today:
+model balancing are unchanged, except that `run_one` publishes no retry
+once the queue has closed ("No retry is published once the queue has
+closed" below). The loop, inside `_run_task_screen` as today:
 
 ```
 loop:
@@ -910,6 +912,26 @@ loop:
   queued registry in `starting` (`RunQueue.cancel`), and through today's
   between-attempts path in `running`. Only the retry's unstarted logger is
   discarded, and the stored log stays the record's log.
+- **No retry is published once the queue has closed.** After a latched
+  cancellation the dispatcher has closed the queue and left the
+  attempts still running to finish ("End of run"); no dispatch pass
+  remains to start a retry, and `end_unstarted()` has already run. So
+  `run_one` reads `queue.closed` at the two points where today's code
+  decides and publishes a retry, alongside today's abandon-stamp check
+  (`run.py:1039`): at the retry decision, a closed queue means no retry,
+  as for an abandoned one, and the record ends with this attempt's log;
+  and in the synchronous publication step after `logger.reinit()`
+  returns (`run.py:1138-1146`), a queue that closed during that `await`
+  means the retry item is not appended: its reinitialised logger is
+  discarded in a shielded scope, as the drop step discards an unstarted
+  retry's logger, the slot is given back as today, `results` keeps this
+  attempt's log, and the record ends with it, settling its handles
+  (`result()` returns that log) and clearing its loan. The attempt's
+  `retry_pending` flag is cleared as today's no-retry path clears it.
+  Under a normal finish no attempt is running when the queue closes, and
+  on an exception or outside cancellation the attempts are cancelled,
+  which never retries, so these checks matter only for a latched
+  cancellation.
 - **An empty batch.** `next_tasks()` returning `None` or `[]` ends the
   source, and the resolver is never called for it, as both drivers do today
   (`src/inspect_ai/_eval/eval.py:1196-1199`, `:1214-1215`): the resolver
@@ -1757,7 +1779,16 @@ does (a new list per call):
   dispatcher closes the queue and calls `end_unstarted()`, C is finalized
   with no log, P's `started()` raises `TaskEndedError(log=None)`, P
   finishes, and `eval_async()` returns within a `fail_after` bound with
-  the setup event never set. `tests/_control/test_ctl.py`: cancel and
+  the setup event never set. A retry after the latched cancellation, on
+  both backends and bounded with `fail_after`: at `max_tasks=2` with a
+  retry budget, attempt P's sample awaits `C.result()` for a running
+  child C while attempt Q returns a cancelled result; once with C's
+  attempt still running when the queue closes and then erroring, and once
+  with C's `logger.reinit()` held on an event when the queue closes and
+  then released. In each, no retry of C is pending or started, the
+  retry's logger (when one was reinitialised) is discarded exactly once,
+  C ends with its errored attempt's log, P's `result()` returns that log,
+  and `eval_async()` returns. `tests/_control/test_ctl.py`: cancel and
   drain of a queued task return `task_queued: true` with `in_flight: 0`
   (and `queued: 0` for drain) in `--json` output, and the rendered line
   says the queued task was cancelled before it started, with and without
