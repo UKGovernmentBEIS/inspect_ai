@@ -1384,6 +1384,7 @@ def eval_retry(
     checkpoint: CheckpointConfig | bool | None = None,
     incomplete_action: IncompleteAction = "retry",
     incomplete_max: int | float | None = None,
+    model_cost_config: str | dict[str, ModelCost] | None = None,
 ) -> list[EvalLog]:
     """Retry a previously failed evaluation task.
 
@@ -1492,6 +1493,8 @@ def eval_retry(
             than this many samples are in progress, fall back to the default
             recover-and-retry behavior. Has no effect (a warning is logged)
             with `incomplete_action="retry"`.
+        model_cost_config: YAML or JSON file with model prices for cost tracking
+            (or dictionary of model names to ModelCost instances).
 
     Returns:
         List of EvalLog (one for each task)
@@ -1541,6 +1544,7 @@ def eval_retry(
             checkpoint=checkpoint,
             incomplete_action=incomplete_action,
             incomplete_max=incomplete_max,
+            model_cost_config=model_cost_config,
         )
 
     result = task_display().run_task_app(with_async_fs(run_task_app))
@@ -1632,6 +1636,7 @@ async def eval_retry_async(
     checkpoint: CheckpointConfig | bool | None = None,
     incomplete_action: IncompleteAction = "retry",
     incomplete_max: int | float | None = None,
+    model_cost_config: str | dict[str, ModelCost] | None = None,
 ) -> list[EvalLog]:
     """Retry a previously failed evaluation task.
 
@@ -1715,6 +1720,8 @@ async def eval_retry_async(
             than this many samples are in progress, fall back to the default
             recover-and-retry behavior. Has no effect (a warning is logged)
             with `incomplete_action="retry"`.
+        model_cost_config: YAML or JSON file with model prices for cost tracking
+            (or dictionary of model names to ModelCost instances).
 
     Returns:
         List of EvalLog (one for each task)
@@ -1882,6 +1889,8 @@ async def eval_retry_async(
         turn_limit = eval_log.eval.config.turn_limit
         time_limit = eval_log.eval.config.time_limit
         working_limit = eval_log.eval.config.working_limit
+        cost_limit = eval_log.eval.config.cost_limit
+        max_dataset_memory = eval_log.eval.config.max_dataset_memory
         max_samples = max_samples or eval_log.eval.config.max_samples
         max_tasks = max_tasks or eval_log.eval.config.max_tasks
         max_subprocesses = max_subprocesses or eval_log.eval.config.max_subprocesses
@@ -2034,7 +2043,10 @@ async def eval_retry_async(
                 turn_limit=turn_limit,
                 time_limit=time_limit,
                 working_limit=working_limit,
+                cost_limit=cost_limit,
+                model_cost_config=model_cost_config,
                 max_samples=max_samples,
+                max_dataset_memory=max_dataset_memory,
                 max_tasks=max_tasks,
                 max_subprocesses=max_subprocesses,
                 max_sandboxes=max_sandboxes,
