@@ -205,8 +205,7 @@ This table lists common cases. The skill has the full list and takes precedence.
 | You changed | Run | Needs |
 |---|---|---|
 | A model provider | `pytest --runapi --runslow tests/model/providers/test_<provider>*.py` | That provider's credentials |
-| Tool code (`src/inspect_ai/tool/`) | `pytest --runslow -m slow tests/tools/ -x` | Docker running |
-| Sandbox tools (`src/inspect_sandbox_tools/`) | `pytest --runslow -m slow tests/tools/ -x --local-inspect-tools` | Docker running. Without `--local-inspect-tools`, the tests use the published binary, not your working tree |
+| Tool code (`src/inspect_ai/tool/`, `src/inspect_sandbox_tools/`) | `pytest --runslow -m slow tests/tools/` | Docker running |
 | Agent code | `pytest --runslow --runapi tests/agent/` | Some tests need Docker or an OpenAI or Anthropic key |
 
 A gated test that is not enabled shows as skipped, and pytest still exits
