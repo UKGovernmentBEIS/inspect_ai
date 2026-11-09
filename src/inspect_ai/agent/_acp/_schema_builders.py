@@ -1,7 +1,7 @@
 """Builders for `acp.schema` models.
 
 agent-client-protocol 1.0 removed `acp.helpers`. These functions replace the
-helpers that we used and keep their names, so one code path works with 0.12
+helpers that Inspect used and keep their names, so one code path works with 0.12
 and 1.0. They set each discriminator explicitly because 0.12 requires it and
 1.0 sets a default.
 """
