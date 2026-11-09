@@ -559,6 +559,18 @@ async def test_exec_timeout_not_raised_on_fast_signal_death(
     )
 
 
+async def test_exec_timeout_not_raised_on_command_exit_124(
+    sandbox_env: SandboxEnvironment,
+) -> None:
+    # exit 124 is also what GNU `timeout` returns, so a command that runs its
+    # own `timeout` and exits 124 well within the deadline should NOT be
+    # misinterpreted as the exec timing out.
+    result = await sandbox_env.exec(["sh", "-c", "exit 124"], timeout=30)
+    assert result.returncode == 124, (
+        f"Expected exit 124 from the command, got {result.returncode}"
+    )
+
+
 async def test_exec_timeout_kills_process(sandbox_env: SandboxEnvironment) -> None:
     # use a unique random marker so we can find the process later via ps,
     # avoiding PID reuse issues and conflicts with other test runs

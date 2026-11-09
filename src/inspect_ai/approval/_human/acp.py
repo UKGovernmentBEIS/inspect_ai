@@ -622,8 +622,10 @@ def finish_approval_card(
     like the rest of this shim: a failure is logged, never raised.
     """
     with acp_guard("ACP approval card completion raised; the card stays pending"):
-        from acp.helpers import session_notification, update_tool_call
-
+        from inspect_ai.agent._acp._schema_builders import (
+            session_notification,
+            update_tool_call,
+        )
         from inspect_ai.agent._acp.server import acp_server_accepting_clients
         from inspect_ai.log._samples import sample_active
 

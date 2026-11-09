@@ -4,9 +4,11 @@ import string
 import types
 import typing
 from collections.abc import Collection
+from contextlib import contextmanager
+from contextvars import ContextVar
 from copy import copy, deepcopy
-from dataclasses import is_dataclass, replace
-from datetime import date, datetime, time
+from dataclasses import dataclass, is_dataclass, replace
+from datetime import date, datetime, time, timezone
 from enum import EnumMeta
 from logging import getLogger
 from textwrap import dedent
@@ -16,6 +18,7 @@ from typing import (
     Any,
     Callable,
     Dict,
+    Iterator,
     List,
     Literal,
     NamedTuple,
@@ -111,6 +114,35 @@ toolset); `execute_tools` reads it. Calls to other tools are unaffected.
 """
 
 
+@dataclass
+class HandoffWatch:
+    """What one `execute_tools()` call reports to the `watch_handoffs()` around it."""
+
+    called: bool = False
+    """Whether a tool call in the message resolved to a handoff."""
+
+
+_handoff_watch: ContextVar[HandoffWatch | None] = ContextVar(
+    "_handoff_watch", default=None
+)
+
+
+@contextmanager
+def watch_handoffs() -> Iterator[HandoffWatch]:
+    """Watch the next `execute_tools()` call for calls that resolve to handoffs.
+
+    The call takes the watch and clears it for its own tool resolution and
+    tool bodies, so an `execute_tools()` nested in one of its tools (an
+    `as_tool()` child's loop, say) reports nothing to it.
+    """
+    watch = HandoffWatch()
+    token = _handoff_watch.set(watch)
+    try:
+        yield watch
+    finally:
+        _handoff_watch.reset(token)
+
+
 def _fail_fast_tools(message: ChatMessageAssistant) -> set[str]:
     value = (message.metadata or {}).get(TOOL_CALLS_FAIL_FAST)
     if isinstance(value, list):
@@ -191,14 +223,20 @@ async def execute_tools(
 
     approval_cm = approval_context(approval) if approval else nullcontext()
     review_cm = review_context(review) if review else nullcontext()
-    with approval_cm, review_cm:
-        return await _execute_tools_impl(messages, tools, max_output)
+    watch = _handoff_watch.get()
+    token = _handoff_watch.set(None)
+    try:
+        with approval_cm, review_cm:
+            return await _execute_tools_impl(messages, tools, max_output, watch)
+    finally:
+        _handoff_watch.reset(token)
 
 
 async def _execute_tools_impl(
     messages: list[ChatMessage],
     tools: Sequence[Tool | ToolDef | ToolSource] | ToolSource,
     max_output: int | None = None,
+    watch: HandoffWatch | None = None,
 ) -> ExecuteToolsResult:
     message = messages[-1]
     if isinstance(message, ChatMessageAssistant) and message.tool_calls:
@@ -207,6 +245,8 @@ async def _execute_tools_impl(
 
         tool_calls = message.tool_calls
         tdefs = await tool_defs(tools)
+        if watch is not None:
+            _report_handoffs(watch, tool_calls, tdefs)
 
         async def call_tool_task(
             call: ToolCall,
@@ -395,6 +435,9 @@ async def _execute_tools_impl(
             # time lets us compute working time.)
             stage_events: dict[int, ToolEvent] = {}
             waiting_starts: dict[int, float] = {}
+            # When each call's own unwind from a cancellation ended, and its
+            # working time then.
+            cancel_ends: dict[int, tuple[datetime, float]] = {}
             stage_results: dict[int, StreamItem | None] = {}
             for idx in stage:
                 call = tool_calls[idx]
@@ -461,6 +504,7 @@ async def _execute_tools_impl(
                 events: dict[int, ToolEvent],
                 results: dict[int, StreamItem | None],
                 waiting_starts: dict[int, float],
+                cancel_ends: dict[int, tuple[datetime, float]],
             ) -> None:
                 call = tool_calls[idx]
                 event = events[idx]
@@ -552,6 +596,14 @@ async def _execute_tools_impl(
                     # leave the post-task-group block below to detect and
                     # finalise the cancellation.
                     pass
+                except anyio.get_cancelled_exc_class():
+                    # Recorded here, after this call's own cleanup, so a
+                    # sibling's slower cleanup is not counted against it.
+                    cancel_ends[idx] = (
+                        datetime.now(timezone.utc),
+                        sample_working_time_since(waiting_start),
+                    )
+                    raise
 
                 if review_cancellation is not None:
                     raise review_cancellation
@@ -631,9 +683,42 @@ async def _execute_tools_impl(
                             stage_events,
                             stage_results,
                             waiting_starts,
+                            cancel_ends,
                         )
             except Exception as ex:
                 stage_exception = ex
+            except anyio.get_cancelled_exc_class():
+                # An enclosing scope (an agent channel interrupt, a sample
+                # limit) cancelled the stage. Finalise the calls still in
+                # flight so the log does not keep them pending, as generate
+                # does for a cancelled ModelEvent. Events already finalised
+                # (completed calls, ACP's interrupt snapshot) are left as is.
+                for idx in stage:
+                    event = stage_events[idx]
+                    if not event.pending:
+                        continue
+                    completed, working_time = cancel_ends.get(
+                        idx,
+                        (
+                            datetime.now(timezone.utc),
+                            sample_working_time_since(waiting_starts[idx]),
+                        ),
+                    )
+                    event._set_result(
+                        result="",
+                        truncated=None,
+                        error=ToolCallError("cancelled", "Tool call was cancelled."),
+                        working_time=working_time,
+                        agent=None,
+                        failed=True,
+                        message_id=None,
+                    )
+                    event.completed = completed
+                    # A call cancelled before call_tool recorded it (in approval
+                    # or the sentinel's pre-call check) is not logged.
+                    if event in transcript().events:
+                        transcript()._event_updated(event)
+                raise
 
             # Splice results into `result_messages` in declared order so the
             # message list matches the order of tool_calls (Anthropic and
@@ -752,6 +837,18 @@ class CalledTool(NamedTuple):
     agent_span_id: str | None
 
 
+def _report_handoffs(
+    watch: HandoffWatch, tool_calls: list[ToolCall], tdefs: list[ToolDef]
+) -> None:
+    """Set `watch.called` if a call resolves to a handoff as `call_tool()` resolves it."""
+    from inspect_ai.agent._handoff import AgentTool
+
+    for call in tool_calls:
+        tdef = next((t for t in tdefs if t.name == call.function), None)
+        if tdef is not None and isinstance(tdef.tool, AgentTool):
+            watch.called = True
+
+
 async def call_tool(
     tools: list[ToolDef],
     message: str,
@@ -814,6 +911,24 @@ async def call_tool(
         event.arguments = shown.arguments
         return shown
 
+    # A sentinel sidecar that ended the sample at a call of this turn ends it
+    # before any of the turn's calls runs, as an in-process sentinel's
+    # terminate at a call does, whatever the call holds.
+    from inspect_ai._sentinel._sidecar._act import take_call_decision
+
+    decided = take_call_decision(call.id)
+    if decided is not None and decided.action == "terminate":
+        await record_pending_tool_event()
+        raise TerminateSampleError(decided.message or "Sentinel requested termination.")
+
+    # A call a sentinel sidecar rejected is answered as an in-process
+    # sentinel's rejection is, whatever it holds: the eval is handed it with
+    # its id and function only, so its arguments are never parsed. No approver
+    # sees it: the sidecar judged the turn before Inspect was handed it.
+    if decided is not None and decided.action == "reject":
+        await record_pending_tool_event()
+        raise ToolApprovalError(decided.message)
+
     # if there was an error parsing the ToolCall, raise that
     if call.parse_error:
         raise await record_tool_parsing_error(call.parse_error)
@@ -851,6 +966,16 @@ async def call_tool(
     call, arguments = validated
     # without oversight the event records the model's arguments, canonical
     shown = shown_to_callbacks(call)
+
+    # A call the sidecar changed is the call Inspect is handed, so approvers
+    # and an in-process sentinel see it changed and may change it again.
+    if decided is not None and decided.modified is not None:
+        error = _sidecar_modified_error(shown, decided.modified)
+        if error is not None:
+            await record_pending_tool_event()
+            raise RuntimeError(error)
+        call, arguments = await revalidated_tool_call(decided.modified, tool_def)
+        shown = shown_to_callbacks(call)
 
     # if we have a tool approver, apply it now
     from inspect_ai.approval._apply import apply_tool_approval
@@ -957,6 +1082,12 @@ _SENTINEL_MODIFIED_FUNCTION = (
     "'modify' decision may change only the arguments of a tool call, not the "
     "function called."
 )
+
+
+def _sidecar_modified_error(shown: ToolCall, modified: ToolCall) -> str | None:
+    if modified.function != shown.function:
+        return _SENTINEL_MODIFIED_FUNCTION.format(modified.function, shown.function)
+    return _modified_id_error("A sentinel sidecar", shown, modified)
 
 
 def _modified_id_error(who: str, shown: ToolCall, modified: ToolCall) -> str | None:

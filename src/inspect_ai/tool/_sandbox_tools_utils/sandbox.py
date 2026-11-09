@@ -1,4 +1,8 @@
+import csv
 import gzip
+import hashlib
+import importlib.metadata
+import io
 import os
 import stat
 import subprocess
@@ -28,6 +32,7 @@ from inspect_ai.util._sandbox._cli import (
     SANDBOX_CLI,
     SANDBOX_TOOLS_BASE_NAME,
     SANDBOX_TOOLS_DIR,
+    SANDBOX_TOOLS_VERSION,
 )
 from inspect_ai.util._sandbox._framework_directory import (
     FrameworkDirectoryError,
@@ -38,6 +43,7 @@ from inspect_ai.util._sandbox._framework_directory import (
     stat_in_framework_directory,
     verify_framework_directory,
 )
+from inspect_ai.util._sandbox._framework_operation import framework_sandbox_operation
 from inspect_ai.util._sandbox._privileged import privileged_shell
 from inspect_ai.util._sandbox.context import (
     SandboxInjectable,
@@ -296,7 +302,8 @@ async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
 
         # As root the server can setuid to any user for exec_remote; as the
         # default user, user-switching is disabled (auto-detected by the server).
-        result = await sandbox.exec([SANDBOX_CLI, "start-server"], user=user)
+        with framework_sandbox_operation():
+            result = await sandbox.exec([SANDBOX_CLI, "start-server"], user=user)
         if not result.success:
             raise RuntimeError(f"Failed to start sandbox tools server: {result.stderr}")
     except SandboxInjectionError:
@@ -470,6 +477,9 @@ async def _extract_tools_tree(
 ) -> None:
     """Extract the gzipped onedir tar into SANDBOX_TOOLS_DIR.
 
+    ``name`` (the artifact name) is unused; it is kept so existing callers and
+    test doubles that pass it keep working.
+
     The archive travels to `tar` on stdin, so no copy of it exists at a path another
     principal could write to before the tools user reads it. `write_file` cannot do
     this: it has no `user` parameter, so it stages as the default user, and a
@@ -483,7 +493,8 @@ async def _extract_tools_tree(
     Optimistic path: ship the compressed artifact and extract with `tar xzf`. If the
     container's `tar` lacks gzip support, fall back to injecting an uncompressed tar,
     which only needs plain `tar xf` (the broadest assumption). The uncompressed tar is
-    cached in the binaries dir so we decompress at most once per artifact.
+    decompressed from `gz_bytes` on each fallback, never read from disk, so it holds
+    exactly the bytes that were verified.
 
     A failing `tar` exits before reading stdin, and providers then raise on the broken
     stdin write instead of returning tar's status, so on failure the wrapper drains
@@ -513,49 +524,53 @@ async def _extract_tools_tree(
         ["sh", "-c", "tar xf - || { cat >/dev/null; exit 1; }"],
         user=user,
         expected_uid=expected_uid_for(user),
-        input=_uncompressed_tar_bytes(name, gz_bytes),
+        input=gzip.decompress(gz_bytes),
         timeout=_EXTRACT_TIMEOUT,
     )
     if not result.success:
         raise RuntimeError(f"Failed to extract sandbox tools: {result.stderr}")
 
 
-def _uncompressed_tar_bytes(name: str, gz_bytes: bytes) -> bytes:
-    """Return the uncompressed tar for an artifact, caching it in the binaries dir.
-
-    Used only by the fallback extraction path. Decompresses once and caches the result
-    next to the gzipped artifact (as `<name>.tar`) so repeated injections into
-    gzip-less sandboxes reuse it rather than re-decompressing each time. The write is
-    atomic so concurrent injections can't observe a partial file. Caching is
-    best-effort: if the binaries dir isn't writable (e.g. a locked-down install) we
-    just return the decompressed bytes rather than failing injection.
-    """
-    binaries_path = _binaries_dir()
-    cache_path = binaries_path / f"{name}.tar"
-    if cache_path.exists():
-        return cache_path.read_bytes()
-
-    tar_bytes = gzip.decompress(gz_bytes)
-    try:
-        binaries_path.mkdir(exist_ok=True)
-        tmp_path = cache_path.with_suffix(".tar.tmp")
-        tmp_path.write_bytes(tar_bytes)
-        os.replace(tmp_path, cache_path)
-    except OSError as ex:
-        trace_message(
-            logger, TRACE_SANDBOX_TOOLS, f"could not cache uncompressed tar: {ex}"
-        )
-    return tar_bytes
-
-
 @asynccontextmanager
-async def _open_executable(executable: str) -> AsyncIterator[BinaryIO]:
-    """Open the executable file from the binaries package."""
+async def _open_executable(executable: str, *, verify: bool) -> AsyncIterator[BinaryIO]:
+    """Open the executable file from the binaries package.
+
+    With ``verify``, the bytes must match the vendored ``SHA256SUMS`` digest,
+    else ``PrerequisiteError``. The yielded stream holds the bytes that were
+    checked, so the file cannot change between verification and use.
+    """
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", category=DeprecationWarning)
         with resources.path("inspect_ai.binaries", executable) as executable_path:
-            with open(executable_path, "rb") as f:
-                yield f
+            data = executable_path.read_bytes()
+            if verify:
+                _verify_digest(executable, executable_path, data)
+    yield io.BytesIO(data)
+
+
+def _expected_digest(filename: str) -> str:
+    """Pinned digest for ``filename``; ``PrerequisiteError`` if there is none."""
+    try:
+        return lookup_digest(filename)
+    except RuntimeError as e:
+        raise PrerequisiteError(
+            f"Cannot verify sandbox tools executable {filename}: {e} If "
+            f"reinstalling inspect_ai does not resolve this, report it to the "
+            f"inspect_ai maintainers rather than retrying."
+        ) from e
+
+
+def _verify_digest(filename: str, path: Path, data: bytes) -> None:
+    expected = _expected_digest(filename)
+    actual = hashlib.sha256(data).hexdigest()
+    if actual != expected:
+        raise PrerequisiteError(
+            f"Digest verification failed for {filename} at {path}: expected "
+            f"{expected}, got {actual}. The local artifact does not match the "
+            f"digest pinned in this inspect_ai release, which may indicate a "
+            f"compromised or corrupted artifact — please report this to the "
+            f"inspect_ai maintainers rather than retrying."
+        )
 
 
 def _prompt_user_action(
@@ -603,6 +618,9 @@ async def _open_executable_for_arch(
     install_state = _get_install_state()
 
     executable_name = _get_executable_name(arch, install_state == "edited", musl)
+    # "edited" resolves -dev names. SHA256SUMS has no -dev entries: dev
+    # artifacts are only built locally, and local builds are not reproducible.
+    verify = install_state != "edited"
 
     trace_message(logger, TRACE_SANDBOX_TOOLS, f"looking for {executable_name}")
 
@@ -610,7 +628,7 @@ async def _open_executable_for_arch(
     async with concurrency(executable_name, 1, visible=False):
         # Local Executable Check
         try:
-            async with _open_executable(executable_name) as f:
+            async with _open_executable(executable_name, verify=verify) as f:
                 trace_message(logger, TRACE_SANDBOX_TOOLS, f"found {executable_name}")
                 yield executable_name, f
                 return
@@ -622,16 +640,21 @@ async def _open_executable_for_arch(
                         TRACE_SANDBOX_TOOLS,
                         f"musl executable {executable_name} not bundled in PyPI package; attempting S3 download",
                     )
+                elif _record_lists_binary(executable_name):
+                    raise PrerequisiteError(
+                        f"Tool support executable {executable_name} is missing from the PyPI package installation. This indicates a problem with the package. Please reinstall inspect_ai."
+                    )
                 else:
-                    msg = f"Tool support executable {executable_name} is missing from the PyPI package installation. This indicates a problem with the package. Please reinstall inspect_ai."
-                    # TODO: once we get the github CI/CD actions robust, this should be fatal
-                    # raise PrerequisiteError(msg)
-                    warn_once(logger, msg)
+                    trace_message(
+                        logger,
+                        TRACE_SANDBOX_TOOLS,
+                        f"{executable_name} not bundled in this install (e.g. built from the sdist); attempting S3 download",
+                    )
 
         # S3 Download Attempt. "pypi" might be wrongly detected, e.g., when UV_NO_INSTALLER_METADATA=1
         if install_state in {"clean", "pypi"}:
             if await _download_from_s3(executable_name):
-                async with _open_executable(executable_name) as f:
+                async with _open_executable(executable_name, verify=True) as f:
                     trace_message(
                         logger,
                         TRACE_SANDBOX_TOOLS,
@@ -646,15 +669,13 @@ async def _open_executable_for_arch(
         # Build it locally
         await _build_it(arch, musl, executable_name)
 
-        async with _open_executable(executable_name) as f:
+        async with _open_executable(executable_name, verify=verify) as f:
             yield executable_name, f
 
 
 def _get_sandbox_tools_version() -> str:
     """Get the container tools version from sandbox_tools_version.txt file."""
-    # Look in the same directory as this module
-    version_file = Path(__file__).parent / "sandbox_tools_version.txt"
-    return version_file.read_text().strip()
+    return SANDBOX_TOOLS_VERSION
 
 
 def _get_executable_name(arch: Architecture, dev: bool, musl: bool) -> str:
@@ -672,6 +693,25 @@ def _binaries_dir() -> Path:
     return Path(inspect_ai.__file__).parent / "binaries"
 
 
+def _record_lists_binary(executable_name: str) -> bool:
+    """Whether the installed distribution's RECORD lists the given binary.
+
+    The released wheel bundles the glibc binaries, so a RECORD entry for a
+    binary that is missing on disk means a broken install. Installs built from
+    the sdist (``pip install --no-binary``, conda-forge) never had it, and
+    fetch it from S3 as intended. Reads the raw RECORD because
+    ``Distribution.files`` omits paths missing on disk on Python 3.12+.
+    """
+    try:
+        record = importlib.metadata.distribution("inspect-ai").read_text("RECORD")
+    except importlib.metadata.PackageNotFoundError:
+        return False
+    if record is None:
+        return False
+    target = f"inspect_ai/binaries/{executable_name}"
+    return any(row and row[0] == target for row in csv.reader(record.splitlines()))
+
+
 async def _download_from_s3(filename: str) -> bool:
     """Download executable from S3, verified against the vendored SHA256SUMS.
 
@@ -683,16 +723,9 @@ async def _download_from_s3(filename: str) -> bool:
     the user wrapped in SandboxInjectionError) with nothing written to the
     binaries directory.
     """
-    try:
-        # Raises if the sums file is unreadable or has no entry for this name —
-        # deliberately before any network I/O.
-        expected_sha256 = lookup_digest(filename)
-    except RuntimeError as e:
-        raise PrerequisiteError(
-            f"Cannot verify sandbox tools executable {filename}: {e} If "
-            f"reinstalling inspect_ai does not resolve this, report it to the "
-            f"inspect_ai maintainers rather than retrying."
-        ) from e
+    # Raises if the sums file is unreadable or has no entry for this name —
+    # deliberately before any network I/O.
+    expected_sha256 = _expected_digest(filename)
 
     binaries_path = _binaries_dir()
     binaries_path.mkdir(exist_ok=True)

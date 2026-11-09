@@ -17,7 +17,9 @@ from google.genai.types import (
     Blob,
     BlockedReason,
     Candidate,
+    CodeExecutionResult,
     Content,
+    ExecutableCode,
     File,
     FileState,
     FinishReason,
@@ -34,6 +36,8 @@ from google.genai.types import (
     GroundingSupport,
     HttpOptions,
     JobState,
+    Language,
+    Outcome,
     Part,
     Segment,
     ToolResponse,
@@ -2021,6 +2025,91 @@ async def test_continuation_replays_signatures_in_place(
     assert json.dumps(model_call.response).count("thoughtSignature") == signatures
 
 
+_SIGNED_IMAGE = Part(
+    inline_data=Blob(mime_type="image/png", data=b"PNG"), thought_signature=b"S"
+)
+
+# signed non-text parts as a stream delivers them, each after other output
+_SIGNED_NON_TEXT_PARTS = {
+    "image-after-thinking": [_thought("thinking"), _SIGNED_IMAGE],
+    "image-after-text": [Part(text="here:"), _SIGNED_IMAGE],
+    "code-execution": [
+        Part(text="here:"),
+        Part(
+            executable_code=ExecutableCode(code="print(1)", language=Language.PYTHON),
+            thought_signature=b"S",
+        ),
+        Part(
+            code_execution_result=CodeExecutionResult(
+                outcome=Outcome.OUTCOME_OK, output="1"
+            ),
+            thought_signature=b"R",
+        ),
+    ],
+    "server-tool": [
+        Part(text="here:"),
+        Part(
+            tool_call=GeminiToolCall(
+                id="search-1",
+                tool_type=ToolType.GOOGLE_SEARCH_WEB,
+                args={"queries": ["q"]},
+            ),
+            thought_signature=b"S",
+        ),
+        Part(
+            tool_response=ToolResponse(
+                id="search-1",
+                tool_type=ToolType.GOOGLE_SEARCH_WEB,
+                response={"results": ["r"]},
+            ),
+            thought_signature=b"R",
+        ),
+    ],
+}
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("case", list(_SIGNED_NON_TEXT_PARTS))
+async def test_streamed_signed_non_text_parts_are_kept(case: str) -> None:
+    """Streamed signed non-text parts keep their content and signatures, as unstreamed.
+
+    Checked after the output goes through its JSON form, as a log stores it.
+    """
+    parts = _SIGNED_NON_TEXT_PARTS[case]
+    streamed, _, _ = await _generate_streamed(
+        [
+            [
+                *(_chunk([part]) for part in parts[:-1]),
+                _chunk([parts[-1]], FinishReason.STOP),
+            ]
+        ]
+    )
+    plain, _, _ = await _generate_with_legs([_leg(parts, FinishReason.STOP)])
+
+    async def replayed(output: ModelOutput) -> list[Part]:
+        stored = ModelOutput.model_validate_json(output.model_dump_json())
+        return (await content(MagicMock(), stored.message)).parts or []
+
+    streamed_parts = await replayed(streamed)
+    assert [p for p in parts if p.thought_signature] == [
+        p for p in streamed_parts if p.thought_signature
+    ]
+    assert streamed_parts == await replayed(plain)
+
+
+@pytest.mark.anyio
+async def test_streamed_signature_with_metadata_goes_on_text() -> None:
+    """A streamed signature with only metadata is a bare signature for the text before it."""
+    signature = Part(thought_signature=b"S", part_metadata={"source": "x"})
+    output, _, _ = await _generate_streamed(
+        [[_chunk([Part(text="answer")]), _chunk([signature], FinishReason.STOP)]]
+    )
+
+    stored = ModelOutput.model_validate_json(output.model_dump_json())
+    replayed = await content(MagicMock(), stored.message)
+    assert replayed.parts == [_signed("answer", b"S")]
+
+
 @pytest.mark.anyio
 @pytest.mark.parametrize("streaming", [False, True], ids=["plain", "streamed"])
 @pytest.mark.parametrize(
@@ -2949,6 +3038,45 @@ def test_batch_request_dict_omits_automatic_continuation() -> None:
     assert request["generation_config"] == {"temperature": 0.5}
 
 
+def test_batch_request_dict_encodes_bytes_as_base64() -> None:
+    """Thought signatures and inline media in a batch request serialize as base64."""
+    from inspect_ai.model._providers._google_batch import batch_request_dict
+
+    signature = b"\xfb\xffSIG"
+    image = b"\x89PNG\xff"
+    config = GenerateContentConfig(
+        system_instruction=[
+            Part.from_text(text="be brief"),
+            Part.from_bytes(data=image, mime_type="image/png"),
+        ]
+    )
+    request = batch_request_dict(
+        config,
+        [
+            Content(role="user", parts=[Part(text="hi")]),
+            Content(
+                role="model",
+                parts=[
+                    Part(
+                        function_call=FunctionCall(name="ls", args={}),
+                        thought_signature=signature,
+                    )
+                ],
+            ),
+        ],
+    )
+
+    # the batcher sizes and writes each request with json.dumps
+    json.dumps(request)
+    # URL-safe base64, as the SDK sends on the live path
+    assert request["contents"][1]["parts"][0]["thought_signature"] == (
+        base64.urlsafe_b64encode(signature).decode()
+    )
+    assert request["system_instruction"]["parts"][1]["inline_data"]["data"] == (
+        base64.urlsafe_b64encode(image).decode()
+    )
+
+
 @pytest.mark.anyio
 async def test_batch_continuation_is_not_continued() -> None:
     """The batch API has no continuations, so a batch response is never continued."""
@@ -3293,21 +3421,22 @@ def _make_batcher_and_batch(job_state: JobState) -> tuple:
 
     batcher = GoogleBatcher(
         client=client,
-        config=BatchConfig(),
+        config=BatchConfig(tick=0.001),
         retry_config=model_retry_config(
             "test", 3, None, lambda e: True, lambda ex: None, lambda m, s: None
         ),
         model_name="gemini-2.0-flash",
     )
 
-    send_stream = MagicMock()
+    send_stream, receive_stream = anyio.create_memory_object_stream[Any](1)
     req: BatchRequest[Any] = BatchRequest(
         request={},
         result_stream=send_stream,
         custom_id="req-1",
     )
     batch = Batch(id="batch-123", requests={"req-1": req})
-    return batcher, batch
+    batcher._inflight_batches[batch.id] = batch
+    return batcher, batch, receive_stream
 
 
 def test_google_batch_result_line_tolerates_unknown_rest_fields() -> None:
@@ -3419,7 +3548,7 @@ async def test_check_batch_terminal_states(
 ) -> None:
     """_check_batch must map all terminal JobStates so polling terminates."""
     job_state = getattr(JobState, state)
-    batcher, batch = _make_batcher_and_batch(job_state)
+    batcher, batch, _ = _make_batcher_and_batch(job_state)
     result = await batcher._check_batch(batch)
 
     if expect_completed:
@@ -3429,6 +3558,20 @@ async def test_check_batch_terminal_states(
     if not expect_completed and not expect_failed:
         assert result.completed_count == 0 and result.failed_count == 0
     assert (result.completion_info is not None) == expect_completion_info
+
+
+@pytest.mark.parametrize(
+    "state", ["JOB_STATE_FAILED", "JOB_STATE_CANCELLED", "JOB_STATE_EXPIRED"]
+)
+async def test_batch_job_without_results_fails_its_requests(state: str) -> None:
+    """A batch job that ends without results fails its requests and stops polling."""
+    batcher, _, receive_stream = _make_batcher_and_batch(getattr(JobState, state))
+
+    with anyio.fail_after(5):
+        await batcher._batch_worker()
+
+    assert batcher._inflight_batches == {}
+    assert isinstance(receive_stream.receive_nowait(), RuntimeError)
 
 
 async def test_image_generation_round_trip():
@@ -4086,8 +4229,35 @@ def test_model_client_reuses_ssl_context_with_client_args(
     )
 
 
+@pytest.fixture(params=["httpx", "httpx2"])
+def async_client_kwargs(
+    request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch
+) -> dict[str, Any]:
+    """Kwargs genai passes to its async HTTP client, once per genai HTTP backend.
+
+    google-genai defaults to httpx2 and keeps httpx as an opt-in backend.
+    """
+    from google.genai import _api_client
+
+    client_cls: type[Any] = {
+        "httpx": _api_client.AsyncHttpxClient,
+        "httpx2": _api_client.AsyncHttpx2Client,
+    }[request.param]
+    monkeypatch.setenv("GOOGLE_GENAI_HTTP_CLIENT", request.param)
+
+    captured: dict[str, Any] = {}
+    real_init = client_cls.__init__
+
+    def capturing_init(self: Any, **kwargs: Any) -> None:
+        captured.update(kwargs)
+        real_init(self, **kwargs)
+
+    monkeypatch.setattr(client_cls, "__init__", capturing_init)
+    return captured
+
+
 def test_model_client_preserves_custom_verify_for_async(
-    monkeypatch: pytest.MonkeyPatch,
+    async_client_kwargs: dict[str, Any],
 ) -> None:
     """A caller-supplied CA/SSLContext on `client_args` must reach async requests too.
 
@@ -4098,23 +4268,12 @@ def test_model_client_preserves_custom_verify_for_async(
     requests stayed correctly validated against it.
     """
     import ssl as ssl_module
-    from typing import Any
 
-    from google.genai._api_client import AsyncHttpxClient
     from google.genai.types import HttpOptions
 
     from inspect_ai.model._providers.google import GoogleGenAIAPI
 
     custom_context = ssl_module.create_default_context()
-
-    captured: dict[str, Any] = {}
-    real_init = AsyncHttpxClient.__init__
-
-    def capturing_init(self: Any, **kwargs: Any) -> None:
-        captured.update(kwargs)
-        real_init(self, **kwargs)
-
-    monkeypatch.setattr(AsyncHttpxClient, "__init__", capturing_init)
 
     api = GoogleGenAIAPI(
         model_name="gemini-2.0-flash",
@@ -4124,13 +4283,13 @@ def test_model_client_preserves_custom_verify_for_async(
     GoogleGenAIAPI._ssl_context.cache_clear()
     api.model_client(HttpOptions(client_args={"verify": custom_context}))
 
-    assert captured["verify"] is custom_context, (
+    assert async_client_kwargs["verify"] is custom_context, (
         "async httpx client did not receive the caller-supplied custom verify"
     )
 
 
 def test_model_client_converts_str_verify_for_aiohttp(
-    monkeypatch: pytest.MonkeyPatch,
+    async_client_kwargs: dict[str, Any],
 ) -> None:
     """A caller-supplied CA-bundle *path* must not reach aiohttp's `ssl` param.
 
@@ -4143,21 +4302,11 @@ def test_model_client_converts_str_verify_for_aiohttp(
     import ssl as ssl_module
 
     import certifi
-    from google.genai._api_client import AsyncHttpxClient
     from google.genai.types import HttpOptions
 
     from inspect_ai.model._providers.google import GoogleGenAIAPI
 
     ca_path = str(certifi.where())
-
-    captured: dict[str, Any] = {}
-    real_init = AsyncHttpxClient.__init__
-
-    def capturing_init(self: Any, **kwargs: Any) -> None:
-        captured.update(kwargs)
-        real_init(self, **kwargs)
-
-    monkeypatch.setattr(AsyncHttpxClient, "__init__", capturing_init)
 
     api = GoogleGenAIAPI(
         model_name="gemini-2.0-flash",
@@ -4169,7 +4318,7 @@ def test_model_client_converts_str_verify_for_aiohttp(
     client = api.model_client(HttpOptions(client_args={"verify": ca_path}))
 
     # httpx's async client keeps the original path -- that's a legal httpx `verify`.
-    assert captured["verify"] == ca_path
+    assert async_client_kwargs["verify"] == ca_path
 
     # aiohttp's `ssl` param only accepts SSLContext | bool | Fingerprint | None; the
     # resolved verify value must be converted, not copied verbatim.
@@ -4425,3 +4574,59 @@ def test_google_explicit_use_adc_overrides_api_key(
 
     assert api._oauth is True
     assert api._credentials is credentials
+
+
+def _sdk_api_version(api: GoogleGenAIAPI) -> str | None:
+    client = api.model_client(api._http_options())
+    return client._api_client._http_options.api_version
+
+
+def test_google_api_version_defaults_to_v1beta(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("GOOGLE_GENAI_API_VERSION", raising=False)
+    api = GoogleGenAIAPI(
+        model_name="gemini-2.0-flash", base_url=None, api_key="test-key"
+    )
+    assert _sdk_api_version(api) == "v1beta"
+    assert api.model_client()._api_client._http_options.api_version == "v1beta"
+
+
+def test_google_api_version_explicit(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("GOOGLE_GENAI_API_VERSION", "v1alpha")
+    api = GoogleGenAIAPI(
+        model_name="gemini-2.0-flash",
+        base_url=None,
+        api_key="test-key",
+        api_version="v1",
+    )
+    assert _sdk_api_version(api) == "v1"
+
+
+@pytest.mark.parametrize("env_value,expected", [("v1", "v1"), ("beta", "v1beta")])
+def test_google_api_version_from_env(
+    monkeypatch: pytest.MonkeyPatch, env_value: str, expected: str
+) -> None:
+    monkeypatch.setenv("GOOGLE_GENAI_API_VERSION", env_value)
+    api = GoogleGenAIAPI(
+        model_name="gemini-2.0-flash", base_url=None, api_key="test-key"
+    )
+    assert _sdk_api_version(api) == expected
+
+
+def test_google_api_version_vertex_uses_sdk_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("GOOGLE_GENAI_API_VERSION", raising=False)
+    monkeypatch.delenv("VERTEX_API_KEY", raising=False)
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    api = GoogleGenAIAPI(
+        model_name="vertex/gemini-2.0-flash",
+        base_url=None,
+        api_key=None,
+        project="test-project",
+        location="us-central1",
+    )
+    assert api.is_vertex()
+    assert _sdk_api_version(api) == "v1beta1"
