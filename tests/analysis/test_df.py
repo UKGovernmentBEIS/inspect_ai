@@ -10,6 +10,7 @@ from pydantic import JsonValue
 from inspect_ai import eval
 from inspect_ai._eval.task.task import Task
 from inspect_ai.analysis import (
+    EvalColumn,
     EvalInfo,
     EvalModel,
     EvalResults,
@@ -308,6 +309,27 @@ def test_evals_df_strict():
     assert len(errors) == 0
 
 
+@pytest.mark.parametrize(
+    "reader,columns",
+    [
+        (samples_df, SampleSummary),
+        (messages_df, MessageColumns),
+        (events_df, EventInfo),
+    ],
+)
+def test_sample_readers_strict_eval_column(reader, columns):
+    missing = EvalColumn("experiment", path="metadata.experiment", required=True)
+    columns = columns + [missing]
+
+    df, errors = reader(SECURITY_GUIDE_LOG, columns=columns, strict=False)
+    assert len(df) > 0
+    assert df["experiment"].isna().all()
+    assert [error.column for error in errors] == ["experiment"]
+
+    with pytest.raises(ValueError, match="experiment"):
+        reader(SECURITY_GUIDE_LOG, columns=columns, strict=True)
+
+
 def test_evals_df_filter():
     logs = list_eval_logs(
         LOGS_DIR.as_posix(), filter=lambda log: log.status == "success"
@@ -364,6 +386,17 @@ def test_evals_df_sentinel_column(tmp_path: Path) -> None:
     df = evals_df(tmp_path / "plain")
     assert "sentinel" in df.columns
     assert df["sentinel"].isna().all()
+
+
+def test_evals_df_model_args_column(tmp_path: Path) -> None:
+    model = get_model(
+        "mockllm/model", base_url="http://example.invalid/v1", custom_arg=123
+    )
+    eval(Task(), model=model, log_dir=str(tmp_path))
+
+    df = evals_df(tmp_path)
+    assert df["model_base_url"].to_list() == ["http://example.invalid/v1"]
+    assert df["model_args"].to_list() == ['{"custom_arg": 123}']
 
 
 def test_messages_df():
