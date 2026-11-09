@@ -555,10 +555,17 @@ async def _apply_response_filter(
 def _is_unchanged(
     message: ChatMessage, messages: Sequence[ChatMessageAssistant]
 ) -> bool:
-    """Whether `message` is one of `messages`, id and content alike."""
+    """Whether `message` is one of `messages`, id and content alike.
+
+    Metadata is not content (`ChatMessage.id`), so a filter may annotate the
+    message. Other fields, provider-internal ones included, must be equal.
+    """
+    unannotated = message.model_copy(update={"metadata": None})
     # Pydantic equality takes 0 for False, which serialize differently
     return any(
-        message.id == m.id and message == m and content_hash(message) == content_hash(m)
+        message.id == m.id
+        and unannotated == m.model_copy(update={"metadata": None})
+        and content_hash(message) == content_hash(m)
         for m in messages
     )
 

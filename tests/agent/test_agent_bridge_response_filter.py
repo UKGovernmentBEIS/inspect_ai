@@ -2614,7 +2614,9 @@ async def test_request_filter_text_edit_keeps_pending_work(
     assert _pending_container_for_input([provider_output.message]) == CONTAINER_ID
 
 
-RegeneratedTurn = Literal["pending", "completed_and_pending", "completed", "plain"]
+RegeneratedTurn = Literal[
+    "pending", "completed_and_pending", "completed", "plain", "text"
+]
 
 
 async def _regenerated_output(turn: RegeneratedTurn) -> ModelOutput:
@@ -2640,20 +2642,24 @@ async def _regenerated_output(turn: RegeneratedTurn) -> ModelOutput:
             )
         case "plain":
             return ModelOutput.for_tool_call("mockllm/model", "lookup", {"q": "x"})
+        case "text":
+            return ModelOutput.from_content("mockllm/model", "Regenerated")
         case _:
             assert_never(turn)
 
 
+@pytest.mark.parametrize("annotated", [False, True], ids=["as_is", "annotated"])
 @pytest.mark.parametrize("path", get_args(BridgePath))
 @pytest.mark.parametrize("turn", get_args(RegeneratedTurn))
 async def test_response_filter_returning_its_own_generation_hands_over_that_reply(
-    turn: RegeneratedTurn, path: BridgePath
+    turn: RegeneratedTurn, path: BridgePath, annotated: bool
 ) -> None:
     """A filter returning its own generation unchanged hands over that generation's reply.
 
     The reply keeps the generation's id, so the generation's replay state
     reaches the scaffold: an Anthropic code execution still pending, and the
-    container to resume it, are found by that id alone.
+    container to resume it, are found by that id alone. Metadata is not
+    content, so a filter may annotate the reply.
     """
     from inspect_ai.model._providers.anthropic import _pending_container_for_input
 
@@ -2672,7 +2678,10 @@ async def test_response_filter_returning_its_own_generation_hands_over_that_repl
     async def regenerate(
         model: Model, output: ModelOutput, generate_input: GenerateInput
     ) -> ModelOutput | None:
-        return await model.generate(generate_input.input)
+        output = await model.generate(generate_input.input)
+        if annotated:
+            output.message.metadata = {"review": "accepted"}
+        return output
 
     match path:
         case "in_process":
@@ -2710,6 +2719,8 @@ async def test_response_filter_returning_its_own_generation_hands_over_that_repl
 
     assert handed.id == regenerated.message.id
     assert await _render_anthropic(handed) == regenerated_blocks
+    if annotated:
+        assert handed.metadata == {"review": "accepted"}
     if pending:
         assert PENDING_CODE in json.dumps(regenerated_blocks)
         assert _pending_container_for_input([handed]) == CONTAINER_ID
@@ -2761,6 +2772,48 @@ async def test_response_filter_regeneration_edit_or_other_model_is_an_edit(
     assert _pending_container_for_input([handed]) is None
     if turn == "pending":
         assert _pending_container_for_input([regenerated.message]) == CONTAINER_ID
+
+
+@pytest.mark.parametrize(
+    "before,after", [(False, 0), (0, False)], ids=["False to 0", "0 to False"]
+)
+async def test_response_filter_annotated_regeneration_with_an_edit_is_an_edit(
+    before: JsonValue, after: JsonValue
+) -> None:
+    """Annotating a regeneration does not hide an edit Pydantic equality misses."""
+    regenerated = ModelOutput.for_tool_call("mockllm/model", "f", {"n": before})
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.from_content("mockllm/model", "first"),
+            regenerated,
+        ],
+    )
+
+    async def annotate_and_edit(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput | None:
+        output = await model.generate(generate_input.input)
+        assert output.message.tool_calls
+        output.message.tool_calls[0].arguments["n"] = after
+        output.message.metadata = {"review": "accepted"}
+        return output
+
+    bridge = AgentBridge(AgentState(messages=[]))
+    bridge.response_filter = annotate_and_edit
+    output, _ = await bridge_generate(
+        bridge,
+        model,
+        [ChatMessageUser(content="hi")],
+        [],
+        None,
+        GenerateConfig(),
+        requested_model=None,
+    )
+
+    assert output.message.id != regenerated.message.id
+    assert output.message.tool_calls
+    assert output.message.tool_calls[0].arguments == {"n": after}
 
 
 async def test_response_filter_rejects_merging_server_items_across_choices() -> None:

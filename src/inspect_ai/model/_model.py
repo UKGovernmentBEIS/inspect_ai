@@ -2246,8 +2246,9 @@ after the filter is handled like a model refusal (``retry_refusals``,
 own output; the replacement is what the agent, bridge state and later turns see.
 Model calls the filter makes run under the bridge's approval policies. A message
 that a ``generate()`` call of the bridged model made during the filter produced,
-returned unchanged, is that generation's reply: it keeps its ``id`` and replays as
-the provider returned it, server tool items and pending server work included.
+returned unchanged (``metadata`` aside), is that generation's reply: it keeps its
+``id`` and replays as the provider returned it, server tool items and pending
+server work included.
 Another model's output is held to the rules above.
 
 An exception fails the sample as a ``ResponseFilterError``, except that a
