@@ -443,13 +443,16 @@ class AgentBridge:
     _proposing_call_verified: list[bool] | None = None
     """Per-call filter verification, aligned with the calls being registered."""
 
-    def _await_result_message(self, handed: _HandedCall, event: "ToolEvent") -> None:
+    def _await_result_message(
+        self, handed: _HandedCall, event: "ToolEvent", linkable: bool = True
+    ) -> None:
         """Set `event.message_id` when the scaffold first sends the result of `handed`.
 
         The result reaches the bridge only when the scaffold sends it back in a
-        later request (`_link_result_messages`). A second execution of the call
-        settles it unlinked, since which execution a result holds is unknown;
-        one after the call settled leaves it as it is. At most
+        later request (`_link_result_messages`). A second execution of the call,
+        or one that may have run another call (not `linkable`), settles it
+        unlinked, since which execution a result holds is unknown; one after
+        the call settled leaves it as it is. At most
         `_MAX_AWAITED_RESULTS` calls are tracked; the oldest replies' calls are
         dropped (left unlinked) beyond that.
         """
@@ -457,7 +460,7 @@ class AgentBridge:
             handed.reply_id, _AwaitedReply(handed.calls)
         )
         executed = handed.position in reply.events
-        reply.events[handed.position] = None if executed else event
+        reply.events[handed.position] = event if linkable and not executed else None
         tracked = sum(len(reply.events) for reply in self._awaited_results.values())
         while tracked > _MAX_AWAITED_RESULTS:
             oldest = next(iter(self._awaited_results))
@@ -662,6 +665,8 @@ class AgentBridge:
         when its request was placed. A message takes the first id recorded for
         it that no earlier message of the request has, so the n-th equal
         message of a request takes the n-th id, and a new id if there is none.
+        That may be an equal message's id recorded before its own, so a message
+        placed under its own id and later not placed can take it.
         `cursors` holds, per key, how many of its ids the request has passed,
         so repeated messages don't each rescan them.
         """

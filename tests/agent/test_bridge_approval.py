@@ -6235,6 +6235,81 @@ def test_host_tool_events_name_their_result_message(
     _assert_linked(sample, events)
 
 
+@agent
+def crossed_grants_scaffold(dialect: HostDialect) -> Agent:
+    """Two conversations each get the same host call; the second one's executes first."""
+
+    async def execute(state: AgentState) -> AgentState:
+        bridge = SandboxAgentBridge(
+            state=state,
+            filter=None,
+            retry_refusals=None,
+            compaction=None,
+            port=13131,
+            model=None,
+            bridged_tools={"host": {"read_file": read_file(_numbered_results())}},
+        )
+        [info] = declare("mcp__host__read_file")
+        main = _HostConversation(dialect, state.messages[0].text, info)
+        sub = _HostConversation(dialect, "Sub-agent: read a.", info)
+        main_calls = await main.request(bridge)
+        sub_calls = await sub.request(bridge)
+        sub_output = await call_host_tool(bridge)("host", "read_file", sub_calls[0][1])
+        main_output = await call_host_tool(bridge)(
+            "host", "read_file", main_calls[0][1]
+        )
+        main.results(main_calls, [main_output])
+        sub.results(sub_calls, [sub_output])
+        await main.request(bridge)
+        await sub.request(bridge)
+        return bridge.state
+
+    return execute
+
+
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+def test_host_calls_whose_grants_cross_stay_unlinked(
+    dialect: HostDialect, tmp_path: Path
+) -> None:
+    """Two replies making the same call leave both executions unlinked.
+
+    The sub-agent's execution matches both replies' grants and takes the
+    older, the main conversation's, so each event holds the other
+    conversation's result. Which call an execution ran is unknown, so
+    neither event names a result message.
+    """
+    name = "mcp__host__read_file"
+    log = eval(
+        Task(
+            dataset=[Sample(input="Read a.")], solver=crossed_grants_scaffold(dialect)
+        ),
+        model=get_model(
+            "mockllm/model",
+            custom_outputs=[
+                tool_calls_output(
+                    ToolCall(id="call_main", function=name, arguments={"path": "a"}),
+                    content="Reading.",
+                ),
+                tool_calls_output(
+                    ToolCall(id="call_sub", function=name, arguments={"path": "a"}),
+                    content="On it.",
+                ),
+                ModelOutput.from_content("mockllm/model", "done"),
+                ModelOutput.from_content("mockllm/model", "done"),
+            ],
+        ),
+        log_dir=str(tmp_path),
+    )[0]
+    assert log.status == "success", log.error
+    assert log.samples
+    events = [e for e in log.samples[0].events if isinstance(e, ToolEvent)]
+    assert [(e.id, e.result) for e in events] == [
+        ("call_main", "a result 1"),
+        ("call_sub", "a result 2"),
+    ]
+    assert [e.message_id for e in events] == [None, None]
+
+
 @pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
 def test_host_tool_grant_matches_numeric_reserialization(
     dialect: HostDialect, tmp_path: Path

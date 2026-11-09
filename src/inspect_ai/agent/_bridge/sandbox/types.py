@@ -274,6 +274,10 @@ class SandboxAgentBridge(AgentBridge):
     ) -> "_ToolExecutionGrant | None":
         """Consume and return the oldest grant binding this exact (server, tool), if any.
 
+        When grants of more than one proposal match, the execution may belong
+        to any of them, so each of those proposals is marked `ambiguous` and no
+        execution under them links its result message.
+
         Arguments match by JSON semantics (`json_equal`): key order and
         int/float numeric equality (`5 == 5.0`) don't matter, so a scaffold's
         JSON round-trip cannot turn a proposed call into a denial; any other
@@ -308,31 +312,31 @@ class SandboxAgentBridge(AgentBridge):
             for index, grant in enumerate(self._tool_execution_grants)
             if grant.server == server and grant.tool == tool
         ]
-        matched = next(
-            (index for index, granted in pending if json_equal(granted, arguments)),
-            None,
-        )
-        if matched is None and declared_properties is not None:
-            matched = next(
-                (
-                    index
-                    for index, granted in pending
-                    if isinstance(granted, dict)
-                    and json_equal(
-                        {
-                            key: value
-                            for key, value in granted.items()
-                            if key in declared_properties
-                        },
-                        arguments,
-                    )
-                ),
-                None,
-            )
-        if matched is None:
+        matches = [
+            index for index, granted in pending if json_equal(granted, arguments)
+        ]
+        if not matches and declared_properties is not None:
+            matches = [
+                index
+                for index, granted in pending
+                if isinstance(granted, dict)
+                and json_equal(
+                    {
+                        key: value
+                        for key, value in granted.items()
+                        if key in declared_properties
+                    },
+                    arguments,
+                )
+            ]
+        if not matches:
             return None
-        grant = self._tool_execution_grants[matched]
-        del self._tool_execution_grants[matched]
+        proposals = [self._tool_execution_grants[index].proposal for index in matches]
+        if any(proposal is not proposals[0] for proposal in proposals):
+            for proposal in proposals:
+                proposal.ambiguous = True
+        grant = self._tool_execution_grants[matches[0]]
+        del self._tool_execution_grants[matches[0]]
         return grant
 
     def dispatched_call(self, call: ToolCall) -> DispatchedCall | None:
@@ -399,7 +403,7 @@ class _Proposal:
     and no pairing state outlives the bounded grant store.
     """
 
-    __slots__ = ("call", "span_id", "message_id", "reply", "paired")
+    __slots__ = ("call", "span_id", "message_id", "reply", "paired", "ambiguous")
 
     def __init__(
         self,
@@ -422,6 +426,9 @@ class _Proposal:
 
         self.paired = False
         """Whether an execution has already taken `call.id`."""
+
+        self.ambiguous = False
+        """Whether an execution matched this proposal's grants and another proposal's alike, so which call it ran is unknown."""
 
     def take_id(self) -> str:
         """The `ToolEvent` id for the next execution of this proposal.
