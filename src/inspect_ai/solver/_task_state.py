@@ -389,12 +389,14 @@ class TaskState:
 
         Also checks whether the current cost usage exceeds the new limit.
         """
-        self._cost_limit.limit = cost
-        check_cost_limit()
-
         from inspect_ai.log._samples import set_active_sample_cost_limit
 
+        self._cost_limit.limit = cost
+        # push the new ceiling before the check so the control channel
+        # reflects it even when the check trips (mirroring token_limit above)
         set_active_sample_cost_limit(cost)
+
+        check_cost_limit()
 
     @property
     def cost_usage(self) -> float:
