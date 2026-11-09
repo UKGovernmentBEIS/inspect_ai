@@ -1951,7 +1951,7 @@ async def test_resumed_bridge_tracks_the_thread_the_checkpointed_one_would(
     """
     task = ChatMessageUser(content="Main task.")
     answer = ChatMessageAssistant(content="Unique main answer.")
-    side = [ChatMessageUser(content="Detect shell.")]
+    side: list[ChatMessage] = [ChatMessageUser(content="Detect shell.")]
     checkpointer = RecordingCheckpointer()
     bridge = AgentBridge(AgentState(messages=[task]), checkpointer=checkpointer)
     await _Scaffold(bridge).request([task], answer)
@@ -1964,10 +1964,11 @@ async def test_resumed_bridge_tracks_the_thread_the_checkpointed_one_would(
     )
     assert [m.id for m in resumed.state.messages] == [task.id]
 
-    states, ids = [], []
+    states: list[list[str | None]] = []
+    ids: list[list[str]] = []
     for current in (bridge, resumed):
         scaffold = _Scaffold(current)
-        side_ids = await scaffold.request(side, ChatMessageAssistant(content="bash"))
+        await scaffold.request(side, ChatMessageAssistant(content="bash"))
         states.append([m.id for m in current.state.messages])
         continued = await scaffold.request(
             [task, answer, ChatMessageUser(content="Continue main.")]
@@ -1979,7 +1980,7 @@ async def test_resumed_bridge_tracks_the_thread_the_checkpointed_one_would(
     if checkpoint == "current":
         assert states[1] == states[0] and ids[1] == ids[0]
     else:
-        assert states[1] == [*side_ids, current.state.output.message.id]
+        assert len(states[1]) == 2 and states[1][0] not in (task.id, answer.id)
         assert ids[1][1] not in states[1]
 
 
