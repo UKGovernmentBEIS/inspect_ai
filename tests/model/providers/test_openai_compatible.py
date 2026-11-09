@@ -12,7 +12,6 @@ from openai.types.chat import ChatCompletionChunk
 from test_helpers.utils import (
     skip_if_no_openai,
     skip_if_no_together,
-    skip_if_no_together_base_url,
 )
 
 from inspect_ai._util.environ import environ_var
@@ -39,10 +38,10 @@ from inspect_ai.tool import ToolInfo
 
 
 @skip_if_no_together
-@skip_if_no_together_base_url
-async def test_openai_compatible() -> None:
+async def test_openai_compatible_together() -> None:
     model = get_model(
-        "openai-api/together/MiniMaxAI/MiniMax-M3.1-Flash",
+        "openai-api/together/Qwen/Qwen3.5-9B",
+        base_url="https://api.together.xyz/v1",
         config=GenerateConfig(
             frequency_penalty=0.0,
             stop_seqs=None,
@@ -52,6 +51,8 @@ async def test_openai_compatible() -> None:
             seed=None,
             temperature=0.0,
             top_p=1.0,
+            # reasoning would otherwise consume the small max_tokens budget
+            extra_body={"reasoning": {"enabled": False}},
         ),
     )
 
