@@ -370,7 +370,9 @@ class RunQueue:
     def close(self) -> None          # sets closed; synchronous and idempotent
     screen_open: anyio.Event         # set inside _run_task_screen; non-declaring setups wait on it before suspending
     async def seed_admitted(self) -> None  # waits for the seed's admission; re-raises its first failure
-    async def end_run(self) -> None  # ends every record not yet ended, once; see "The queue's task group"
+    def end_unstarted(self) -> None  # ends every record whose first attempt has not started; see "The queue's task group"
+    async def end_run(self) -> None  # end_unstarted(), then waits for every record to end
+    dispatch_cancel_absorbed: bool = False  # set when _run_task_screen absorbed the dispatch body's cancellation
     wake: Wake                       # rung by every phase move and by setups as they settle
     closed: bool = False             # set once dispatch commits to ending; no addition is accepted after it
 ```
@@ -408,17 +410,21 @@ it. `eval_run` creates and binds the queue and at once enters
 `queue.open()`, an async context manager that holds the group:
 
 ```python
-async with queue.open():     # opens tg; the queue's lifetime
-    try:
-        queue.add(seed)                      # configuration errors raise
-        await queue.seed_admitted()          # waits for the seed's admission; re-raises the first seed failure
-        async with _run_task_screen(...):    # the display and today's attempt group
-            await dispatch_tasks(queue, ...)
-    finally:
-        queue.close()                        # first statement, before any await
-        with anyio.CancelScope(shield=True):
-            await queue.end_run()
-# tg has exited: every job of the queue has returned
+try:
+    async with queue.open():     # opens tg; the queue's lifetime
+        try:
+            queue.add(seed)                      # configuration errors raise
+            await queue.seed_admitted()          # waits for the seed's admission; re-raises the first seed failure
+            async with _run_task_screen(...):    # the display and today's attempt group
+                await dispatch_tasks(queue, ...)
+        finally:
+            queue.close()                        # first statement, before any await
+            with anyio.CancelScope(shield=True):
+                await queue.end_run()
+    # tg has exited: every job of the queue has returned
+except anyio.get_cancelled_exc_class():
+    if not queue.dispatch_cancel_absorbed:
+        raise                                    # cancelled before the screen, or not by a cancel the screen absorbed
 ```
 
 - **What runs in `tg`.** The admission job (one at a time, in queue
@@ -443,6 +449,35 @@ async with queue.open():     # opens tg; the queue's lifetime
   only by a cancellation from outside the run, and a job started in a
   cancelled group (during an exceptional exit) still finishes its
   shielded discard.
+- **An admission interrupted by that cancellation still ends its
+  record.** The admission job admits the record it has taken (moved from
+  `waiting` to `admitting`) inside `try`/`except BaseException`. On any
+  exception, a cancellation from outside the run included (it can land
+  in `ensure_model_controller` or `logger.init()`), the handler, in a
+  shielded scope, discards the record's logger if one was constructed
+  (`logger.discard()` contains each of its steps, so a logger whose
+  `init()` was interrupted, with or without its recorder entry, is
+  released; `src/inspect_ai/_eval/task/log.py:397-415`, `:1127`), then
+  ends the record from `admitting` or `admitting_cancelled` with no log,
+  keeping the exception in `error` unless it is a cancellation, and
+  re-raises a cancellation, which ends the job. Records the job has not
+  taken stay `waiting`, and so does a record added after the job has
+  ended (for example from attempt cleanup during the exit); `end_run()`
+  ends them. A job started in a cancelled group takes its record and
+  fails at its first `await`, so it ends that record the same way.
+- **Absorbing the run's cancellation through the group's exit.**
+  `_run_task_screen` absorbs a cancellation of the dispatch body, so the
+  run returns the logs it has (`src/inspect_ai/_eval/run.py:1427-1447`).
+  The queue's group exits outside that helper, and on Trio a group inside
+  a cancelled scope raises the cancellation again when it exits, even
+  after every job has finished its shielded cleanup. So the dispatcher
+  sets `queue.dispatch_cancel_absorbed` when `_run_task_screen` absorbs
+  its body's cancellation (the helper reports this through the screen
+  context it yields), and `eval_run` absorbs a cancellation raised by
+  `queue.open()`'s exit only when that flag is set, then returns the
+  run's logs as today. A cancellation before the screen is entered (during
+  seed admission), or one the screen did not absorb, propagates as
+  today.
 - **Closing.** `RunQueue.close()` sets `closed`; it is synchronous and
   idempotent. Dispatch closes the queue at every point where it exits:
   the dispatcher closes it in the same synchronous step in which it
@@ -481,18 +516,27 @@ async with queue.open():     # opens tg; the queue's lifetime
   finalization, which discards its logger), so its handles answer as for
   an ended task (`started()` raises `TaskEndedError(log=None)`, `result()`
   returns `None`). This is the same outcome as for a task added just
-  before the cancellation, and nothing is left unended.
-- **`end_run()`** waits for the admission job and then ends each record
-  that has not ended, exactly once, by the rows of "Task phases": a
-  `waiting` record ends with no log; an `admitted` one moves to
-  `finalizing` and its finalization starts in `tg`; a record whose retry
-  is still pending ends with its stored log, the retry's unstarted logger
-  discarded as the drop step discards one. A record in `admitting` or
-  `admitting_cancelled` is left to the admission job, which ends it or
-  moves it on, after discarding a logger it initialised. `end_run()` then
-  waits on every record's `ended` event, which covers finalizations
-  already running, those it started and those a cancel starts while it
-  waits. A record that has ended, or is in `finalizing`, is skipped, so a
+  before the cancellation, and nothing is left unended. A run-level
+  cancellation that the dispatcher latches is different: it closes the
+  queue at its break, before the attempts still running finish, so an
+  addition from their cleanup is refused with `RuntimeError`, as after
+  any close.
+- **`end_unstarted()` and `end_run()`.** `RunQueue.end_unstarted()` is
+  synchronous and ends every record whose first attempt has not started,
+  by the rows of "Task phases": a `waiting` record ends with no log; an
+  `admitting` one moves to `admitting_cancelled`, so the admission job
+  finalizes it when admission returns (or ends it, if admission fails or
+  is cancelled); an `admitted` one moves to `finalizing` and its
+  finalization starts in `tg`; a record whose retry is still pending ends
+  with its stored log, the retry's unstarted logger discarded by a job in
+  `tg` as the drop step discards one. Records in `starting`,
+  `starting_cancelled` or `running` are left to their attempts. These are
+  the run's end, not explicit cancels, so none of them enters the
+  cancelled-before-starting set ("Queued cancels under `eval_set()`").
+  `end_run()` calls `end_unstarted()` and then waits on every record's
+  `ended` event, which covers finalizations already running, those it
+  started and those a cancel starts while it waits. A record that has
+  ended, or is in `finalizing` or `admitting_cancelled`, is skipped, so a
   cancel or finalization that already ran is never repeated. After
   `queue.open()` exits, `eval_run` shuts down the sandbox setups and
   cleans up the cached S3 sessions, as today's `finally` does
@@ -615,9 +659,11 @@ never returns (the source contract allows one,
   `RunQueue.end(record, None)`; the admission job skips a record that has
   ended;
 - `admitting`: it moves the record to `admitting_cancelled`; the admission
-  runs to the end (interrupting `logger.init()` part-way leaves a recorder
-  entry and temporary file behind), then moves the record to `finalizing`
-  instead of `admitted` and runs the finalization below;
+  runs to the end (a cancel of one record does not interrupt the shared
+  admission job; only a cancellation of the whole run does, and the job's
+  handler then releases what `logger.init()` allocated), then moves the
+  record to `finalizing` instead of `admitted` and runs the finalization
+  below;
 - `admitted`: it moves the record to `finalizing` and starts the
   finalization as its own task in the queue's task group, where the
   admission job runs ("The queue's task group"); that group is open from
@@ -752,19 +798,19 @@ does not list, which would be a bug in Inspect.
 | --- | --- | --- | --- |
 | (none) | `RunQueue.add` | `waiting` | `add` |
 | `waiting` | the admission job takes the record | `admitting` | admission job |
-| `waiting` | cancel, or the run ends | `ended`, no log | `RunQueue.cancel`; `RunQueue.end_run()` |
-| `admitting` | cancel | `admitting_cancelled` | `RunQueue.cancel` |
+| `waiting` | cancel, or the run ends | `ended`, no log | `RunQueue.cancel`; `RunQueue.end_unstarted()` |
+| `admitting` | cancel, or the run ends | `admitting_cancelled` | `RunQueue.cancel`; `RunQueue.end_unstarted()` |
 | `admitting` | admission succeeds (setups requested) | `admitted` | admission job |
 | `admitting_cancelled` | admission succeeds | `finalizing` | admission job, which then runs the finalization |
-| `admitting`, `admitting_cancelled` | admission fails | `ended`, no log, `error` kept | admission job, after discarding a logger it initialised |
-| `admitted` | cancel, or the run ends | `finalizing` | `RunQueue.cancel`; `RunQueue.end_run()` |
+| `admitting`, `admitting_cancelled` | admission fails, or is cancelled from outside the run | `ended`, no log, `error` kept (not for a cancellation) | admission job, after discarding a logger it constructed, in a shielded scope |
+| `admitted` | cancel, or the run ends | `finalizing` | `RunQueue.cancel`; `RunQueue.end_unstarted()` |
 | `finalizing` | `logger.discard()` returns | `ended`, no log | the finalization |
 | `admitted` | the dispatcher hands the record to `run_one` (an ordinary pick or a loan) | `starting` | dispatcher |
 | `starting` | cancel | `starting_cancelled`, with the retry-abandon stamp written in the same step | `RunQueue.cancel` |
 | `starting` | an attempt calls `register_eval` | `running` | `task_run`, through `on_registered` |
 | `starting_cancelled` | an attempt calls `register_eval` | `running`, and the attempt is aborted at once | `task_run`, through `on_registered` |
 | `running` | cancel | no change: today's task cancel or drain of the running attempt or of the retry it waits for | the control channel; a handle through `cancel_task(task_id)` |
-| `starting`, `starting_cancelled`, `running` | the record's attempts are over: `run_one` returns or raises without queuing a retry, the dispatcher drops the record's abandoned pending retry, or the run ends with its retry still pending | `ended`, with the log today's code leaves for the task (`None` if no attempt returned one) | `run_one` or the dispatcher, in the synchronous step where today's code stores the result or drops the retry; `RunQueue.end_run()` for a retry still pending at run end |
+| `starting`, `starting_cancelled`, `running` | the record's attempts are over: `run_one` returns or raises without queuing a retry, the dispatcher drops the record's abandoned pending retry, or the run ends with its retry still pending | `ended`, with the log today's code leaves for the task (`None` if no attempt returned one) | `run_one` or the dispatcher, in the synchronous step where today's code stores the result or drops the retry; `RunQueue.end_unstarted()` for a retry still pending at run end |
 
 **The rest of the attempt lifecycle is today's.** `run_one` runs an
 attempt through `_run_task`, makes the retry decision, stores the result
@@ -834,7 +880,7 @@ loop:
         if entry is None: break
         if entry is a record: move it from admitted to starting
         start run_one(entry)                 # a retry entry: today's PendingTask
-    if cancelled: queue.close(); break
+    if cancelled: queue.close(); queue.end_unstarted(); break
     if any record is not ended, or a setup is in progress:
         await queue.wake; continue
     if source_done: queue.close(); break
@@ -875,7 +921,15 @@ loop:
   same point `run_batches` reaches after a batch; under the live path it is
   the same point as today.
 - **End of run.** The loop ends when the source is done and nothing remains,
-  or on a run-level cancellation, closing the queue in the same step; an
+  or on a run-level cancellation, closing the queue in the same step. On
+  the run-level cancellation it also calls `queue.end_unstarted()` in that
+  step: the dispatcher breaks without cancelling the attempts still
+  running, as today, and the attempt group then joins them, so a sample
+  of one of them that awaits a handle on a task that has not started
+  (admitted, with its setup still running) would otherwise wait for a
+  start that no pick will make, and the join would wait on it; ending
+  those records first settles the handle (`started()` raises
+  `TaskEndedError(log=None)`), and the attempt goes on to finish. An
   exception or an outside cancellation leaving it is closed by the
   `finally` ("Closing" under "The queue's task group"). The records still queued are then ended by
   `queue.end_run()` in that `finally`, the one place that ends them on
@@ -943,11 +997,19 @@ takes precedence over that history wherever both have the task:
   finished" (`src/inspect_ai/_control/cancel.py:332`) while the queued
   attempt goes on to run. A plain cancel or a drain of a queued record in
   `waiting`, `admitting` or `admitted` ends it with no log (`changed: true`,
-  `queued: true` in the result; `dry_run` reports without acting). In
+  `task_queued: true` in the result; `dry_run` reports without acting). In
   `starting` it stops the attempt that has not registered and drops any
   retry of it, through the stamp ("Task phases"): `changed: true`,
-  `queued: true`, plus `retry_abandoned: true` when an earlier attempt has
-  stored a log, which the record then ends with. `action=score|error` on a queued record answers 409:
+  `task_queued: true`, plus `retry_abandoned: true` when an earlier attempt has
+  stored a log, which the record then ends with. The flag is
+  `task_queued`, not `queued`: a drain result's `queued` is already the
+  count of queued samples it will abandon
+  (`src/inspect_ai/_control/cancel.py:135-151`), which the CLI renders as
+  a number (`src/inspect_ai/_cli/ctl/_task.py:649-656`). A queued task's
+  result carries `in_flight: 0` and, for drain, `queued: 0`, and the CLI
+  renders a `task_queued` result as "queued task … cancelled before it
+  started; no samples ran" (with "would be" under `--dry-run`) instead of
+  the sample counts. `action=score|error` on a queued record answers 409:
   "task … has not started, so there are no samples for a resolution to apply
   to; use cancel or drain", the same rule the between-attempts case uses.
 - Cancelling a queued record follows "Cancelling a record" above; a
@@ -1653,10 +1715,11 @@ does (a new list per call):
   finalization at once; and at a run-level cancellation (a Ctrl-C
   injected into the one running task at `max_tasks=1`) with added record
   A admitted and added record B in `admitting`, its `logger.init()` held
-  on an event so that `end_run()` waits for the admission job, a cancel of
-  A starts A's finalization while `end_run()` waits, A's
-  `logger.discard()` is held on a second event, B is cancelled, and both
-  events are then set. In each, no `RuntimeError` is raised, a recorder spy sees each
+  on an event: `end_unstarted()` at the dispatcher's break starts A's
+  finalization (A's `logger.discard()` held on a second event) and moves
+  B to `admitting_cancelled`, a cancel of A and of B while `end_run()`
+  waits changes nothing, and both events are then set, after which the
+  admission job finalizes B. In each, no `RuntimeError` is raised, a recorder spy sees each
   record's `logger.discard()` called exactly once, both records are
   `ended` with no log once `eval_async()` returns, and their handles'
   `started()` raise `TaskEndedError(log=None)` and `result()` return
@@ -1673,7 +1736,32 @@ does (a new list per call):
   raises `TaskEndedError(log=None)` and `result()` returns `None`, C's
   `logger.discard()` is called once and C ends with no log, and the run's
   outcome is today's for that exit (logs returned, or the exception
-  raised). `RunQueue._move` accepts every row of the
+  raised). Queue teardown under an enclosing cancel scope, on both
+  backends and bounded with `fail_after`: added record B's `logger.init()`
+  is held on an event (after the recorder entry is allocated, and once
+  before it) while a sibling attempt runs, and the test cancels a scope it
+  owns around `eval_async()`; a running attempt's `on_task_end` hook then
+  adds record E, whose admission job starts in the cancelled group. The
+  admission job ends B with no log and E either the same way or, if the
+  job has already ended, `end_run()` ends E from `waiting`; each logger
+  constructed is discarded exactly once (a recorder spy; no recorder entry
+  or temporary file left), every record is `ended`, B's and E's handles
+  settle as for an ended task, and `eval_async()` returns the logs of the
+  attempts that ran (the cancellation absorbed through `queue.open()`'s
+  exit as through `_run_task_screen`) rather than raising. A cancellation
+  delivered while the seed's `logger.init()` is held, before the task
+  screen, still propagates. A latched cancellation with a waiting
+  sibling, on both backends: at `max_tasks=2`, attempt P's sample has
+  enqueued child C (admitted, its setup held on an event) and awaits
+  `C.started()`, while attempt Q returns a cancelled result; the
+  dispatcher closes the queue and calls `end_unstarted()`, C is finalized
+  with no log, P's `started()` raises `TaskEndedError(log=None)`, P
+  finishes, and `eval_async()` returns within a `fail_after` bound with
+  the setup event never set. `tests/_control/test_ctl.py`: cancel and
+  drain of a queued task return `task_queued: true` with `in_flight: 0`
+  (and `queued: 0` for drain) in `--json` output, and the rendered line
+  says the queued task was cancelled before it started, with and without
+  `--dry-run`. `RunQueue._move` accepts every row of the
   "Task phases" transition table and raises on every other pair, and a
   run's records pass only through listed moves (a spy on `_move`, over a
   run with an admission failure, a queued cancel, a cancel in `starting`, a
@@ -1767,7 +1855,7 @@ does (a new list per call):
   record, in each of `admitting_cancelled`, `starting_cancelled`,
   `finalizing` and `ended`, changes nothing; a cancel
   between dispatch and `register_eval` stops the attempt before it
-  registers (the result carries `changed: true`, `queued: true`); a run
+  registers (the result carries `changed: true`, `task_queued: true`); a run
   cancelled, and a cancel or drain, while a task waits in the queue for its
   retry keep the prior attempt's error log (the existing between-attempts
   test, extended to the run-cancel case) and add nothing to the
