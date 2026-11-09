@@ -276,7 +276,10 @@ class SandboxAgentBridge(AgentBridge):
 
         When grants of more than one proposal match, the execution may belong
         to any of them, so each of those proposals is marked `ambiguous` and no
-        execution under them links its result message.
+        execution under them links its result message. A grant that matches
+        only once undeclared keys are dropped (below) counts as matching here
+        even when another grant matches exactly: exact matching decides which
+        grant is consumed, not which proposal made the call.
 
         Arguments match by JSON semantics (`json_equal`): key order and
         int/float numeric equality (`5 == 5.0`) don't matter, so a scaffold's
@@ -312,11 +315,9 @@ class SandboxAgentBridge(AgentBridge):
             for index, grant in enumerate(self._tool_execution_grants)
             if grant.server == server and grant.tool == tool
         ]
-        matches = [
-            index for index, granted in pending if json_equal(granted, arguments)
-        ]
-        if not matches and declared_properties is not None:
-            matches = [
+        exact = [index for index, granted in pending if json_equal(granted, arguments)]
+        projected = (
+            [
                 index
                 for index, granted in pending
                 if isinstance(granted, dict)
@@ -329,9 +330,16 @@ class SandboxAgentBridge(AgentBridge):
                     arguments,
                 )
             ]
+            if declared_properties is not None
+            else []
+        )
+        matches = exact or projected
         if not matches:
             return None
-        proposals = [self._tool_execution_grants[index].proposal for index in matches]
+        proposals = [
+            self._tool_execution_grants[index].proposal
+            for index in sorted(set(exact) | set(projected))
+        ]
         if any(proposal is not proposals[0] for proposal in proposals):
             for proposal in proposals:
                 proposal.ambiguous = True

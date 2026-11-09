@@ -6236,8 +6236,12 @@ def test_host_tool_events_name_their_result_message(
 
 
 @agent
-def crossed_grants_scaffold(dialect: HostDialect) -> Agent:
-    """Two conversations each get the same host call; the second one's executes first."""
+def crossed_grants_scaffold(dialect: HostDialect, declared_only: bool) -> Agent:
+    """Two conversations each get the same host call; the second one's executes first.
+
+    With `declared_only`, the sub-agent's call is forwarded with only the
+    properties the host tool declares.
+    """
 
     async def execute(state: AgentState) -> AgentState:
         bridge = SandboxAgentBridge(
@@ -6254,7 +6258,10 @@ def crossed_grants_scaffold(dialect: HostDialect) -> Agent:
         sub = _HostConversation(dialect, "Sub-agent: read a.", info)
         main_calls = await main.request(bridge)
         sub_calls = await sub.request(bridge)
-        sub_output = await call_host_tool(bridge)("host", "read_file", sub_calls[0][1])
+        sub_arguments = sub_calls[0][1]
+        if declared_only:
+            sub_arguments = {"path": sub_arguments["path"]}
+        sub_output = await call_host_tool(bridge)("host", "read_file", sub_arguments)
         main_output = await call_host_tool(bridge)(
             "host", "read_file", main_calls[0][1]
         )
@@ -6267,21 +6274,29 @@ def crossed_grants_scaffold(dialect: HostDialect) -> Agent:
     return execute
 
 
+@pytest.mark.parametrize("declared_only", [False, True])
 @pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
 def test_host_calls_whose_grants_cross_stay_unlinked(
-    dialect: HostDialect, tmp_path: Path
+    dialect: HostDialect, declared_only: bool, tmp_path: Path
 ) -> None:
     """Two replies making the same call leave both executions unlinked.
 
     The sub-agent's execution matches both replies' grants and takes the
     older, the main conversation's, so each event holds the other
     conversation's result. Which call an execution ran is unknown, so
-    neither event names a result message.
+    neither event names a result message. With `declared_only`, the
+    sub-agent's call also proposes an undeclared property that its scaffold
+    drops when executing: its grant matches only once that property is
+    dropped, and the main conversation's exact match does not hide it.
     """
     name = "mcp__host__read_file"
+    sub_arguments: dict[str, object] = {"path": "a"}
+    if declared_only:
+        sub_arguments["unexpected"] = "value"
     log = eval(
         Task(
-            dataset=[Sample(input="Read a.")], solver=crossed_grants_scaffold(dialect)
+            dataset=[Sample(input="Read a.")],
+            solver=crossed_grants_scaffold(dialect, declared_only),
         ),
         model=get_model(
             "mockllm/model",
@@ -6291,7 +6306,7 @@ def test_host_calls_whose_grants_cross_stay_unlinked(
                     content="Reading.",
                 ),
                 tool_calls_output(
-                    ToolCall(id="call_sub", function=name, arguments={"path": "a"}),
+                    ToolCall(id="call_sub", function=name, arguments=sub_arguments),
                     content="On it.",
                 ),
                 ModelOutput.from_content("mockllm/model", "done"),
