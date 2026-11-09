@@ -259,10 +259,12 @@ class VLLMAPI(OpenAICompatibleAPI):
             service_base_url=server.base_url,
             client_timeout=self._client_timeout,
         )
-        self._resolved_epoch = self._server._epoch
-
         if self.adapter:
             ensure_adapter_loaded(self._server, self.adapter)
+
+        # resolved only once the adapter is loaded: a caller that finds the
+        # epoch current skips the lock and uses the server at once
+        self._resolved_epoch = self._server._epoch
 
     @override
     def _apply_api_key_overrides(self) -> None:
