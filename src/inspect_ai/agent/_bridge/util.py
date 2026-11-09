@@ -537,10 +537,12 @@ async def _apply_response_filter(
         # the provider's completion can differ from message.text (e.g. Gemini
         # text continued across requests is joined with no separator)
         filtered.completion = output.completion
+    # only the bridged model's: another model's output is rendered by this
+    # model's dialect, so its provider items stay subject to the checks
     generations = [
         choice.message
         for event in history.recent_events(history.event_count - events_before_filter)
-        if isinstance(event, ModelEvent)
+        if isinstance(event, ModelEvent) and event.model == str(model)
         for choice in event.output.choices
     ]
     _check_provider_owned_content(output, filtered, generations)
@@ -568,9 +570,9 @@ def _settle_message_ids(
 ) -> None:
     """Give each returned message an id: an edit of the original gets an id of its own.
 
-    A message the filter's own generation produced (`generations`), returned
-    unchanged, is that generation's reply: it keeps its id, and with it the
-    replay state recorded under it.
+    A message a generation of the bridged model made during the filter produced
+    (`generations`), returned unchanged, is that generation's reply: it keeps
+    its id, and with it the replay state recorded under it.
 
     A changed or new message replaces an original: the one whose server tool
     items it keeps (they are kept all or none, `_check_provider_owned_content`),
@@ -776,8 +778,8 @@ def _check_provider_owned_content(
     items), and a native tool's wire name by its call id. So reasoning and server
     tool items may only be kept unchanged or removed, server tool items are kept
     all or none, and a call keeping an original id keeps its function. A message
-    the filter's own generation produced, returned unchanged (`generations`), is
-    the provider's own and renders as such.
+    a generation of the bridged model made during the filter produced, returned
+    unchanged (`generations`), is the provider's own and renders as such.
     """
     original_content = [
         content

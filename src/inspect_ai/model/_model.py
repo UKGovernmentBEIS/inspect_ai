@@ -2234,7 +2234,7 @@ call that keeps an original call's ``id`` keeps its ``function``; give a call to
 a different function a new ``id``. A changed message gets an ``id`` derived from
 the message it replaces and its own content. The exception is server work still
 pending at the end of an Anthropic turn, which is replayed by message ``id``: a
-response-filter output that keeps server-tool items from an Anthropic turn with
+response-filter output that keeps server tool items from an Anthropic turn with
 unfinished server work keeps the generated message's ``id`` and that work; other
 edits get a derived ``id``, and one that keeps no server tool items drops the
 work. The filter also receives a model refusal
@@ -2245,9 +2245,10 @@ after the filter is handled like a model refusal (``retry_refusals``,
 ``fail_on_refusal``). The ``ModelEvent`` keeps the model's
 own output; the replacement is what the agent, bridge state and later turns see.
 Model calls the filter makes run under the bridge's approval policies. A message
-the filter's own ``model.generate()`` call produced, returned unchanged, is that
-generation's reply: it keeps its ``id`` and replays as the provider returned it,
-server tool items and pending server work included.
+that a ``generate()`` call of the bridged model made during the filter produced,
+returned unchanged, is that generation's reply: it keeps its ``id`` and replays as
+the provider returned it, server tool items and pending server work included.
+Another model's output is held to the rules above.
 
 An exception fails the sample as a ``ResponseFilterError``, except that a
 ``LimitExceededError``, ``TerminateSampleError`` or ``ModelRefusalError`` keeps

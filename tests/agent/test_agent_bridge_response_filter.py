@@ -2715,6 +2715,54 @@ async def test_response_filter_returning_its_own_generation_hands_over_that_repl
         assert _pending_container_for_input([handed]) == CONTAINER_ID
 
 
+@pytest.mark.parametrize("returned", ["edited", "other_model"])
+@pytest.mark.parametrize("turn", ["pending", "plain"])
+async def test_response_filter_regeneration_edit_or_other_model_is_an_edit(
+    turn: Literal["pending", "plain"], returned: str
+) -> None:
+    """A regeneration the filter edits, or another model's output, replaces the bridge's output.
+
+    Neither is the bridged model's generation unchanged, so the reply gets an
+    edit id and keeps none of the generation's pending server work.
+    """
+    from inspect_ai.model._providers.anthropic import _pending_container_for_input
+
+    init_sample_anthropic_assistant_internal()
+    regenerated = await _regenerated_output(turn)
+    first = ModelOutput.from_content("mockllm/model", "first")
+    model = get_model("mockllm/model", custom_outputs=[first, regenerated])
+    judge = get_model("mockllm/judge", custom_outputs=[regenerated])
+
+    async def regenerate(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput | None:
+        if returned == "other_model":
+            return await judge.generate(generate_input.input)
+        output = await model.generate(generate_input.input)
+        output.message.content = REPLACED_SENTINEL
+        return output
+
+    bridge = AgentBridge(AgentState(messages=[]))
+    bridge.response_filter = regenerate
+    output, _ = await bridge_generate(
+        bridge,
+        model,
+        [ChatMessageUser(content="hi")],
+        [],
+        None,
+        GenerateConfig(),
+        requested_model=None,
+    )
+
+    handed = output.message
+    assert handed.id is not None
+    assert handed.id not in (regenerated.message.id, first.message.id)
+    assert PENDING_CODE not in json.dumps(await _render_anthropic(handed))
+    assert _pending_container_for_input([handed]) is None
+    if turn == "pending":
+        assert _pending_container_for_input([regenerated.message]) == CONTAINER_ID
+
+
 async def test_response_filter_rejects_merging_server_items_across_choices() -> None:
     """Server tool items of two choices cannot share one message id."""
 
