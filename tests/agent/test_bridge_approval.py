@@ -6325,6 +6325,119 @@ def test_host_calls_whose_grants_cross_stay_unlinked(
     assert [e.message_id for e in events] == [None, None]
 
 
+LIST_DIR = "List a directory on the host."
+
+
+@agent
+def delayed_second_grant_scaffold(dialect: HostDialect, unrelated: int) -> Agent:
+    """Executes a call on server `a`, then `unrelated` other host calls, then the call's remaining grant on server `b`, then sends `a`'s answer."""
+
+    async def execute(state: AgentState) -> AgentState:
+        bridge = SandboxAgentBridge(
+            state=state,
+            filter=None,
+            retry_refusals=None,
+            compaction=None,
+            port=13131,
+            model=None,
+            bridged_tools={
+                "a": {"read_file": read_file(AsyncMock(return_value="from a"))},
+                "b": {"read_file": read_file(AsyncMock(return_value="from b"))},
+                "other": {
+                    "list_dir": served_tool(
+                        AsyncMock(return_value="listed"),
+                        description=LIST_DIR,
+                        name="list_dir",
+                    )
+                },
+            },
+        )
+        [info] = declare("mcp__host__read_file")
+        main = _HostConversation(dialect, state.messages[0].text, info)
+        main_calls = await main.request(bridge)
+        [(_, arguments)] = main_calls
+        a_output = await call_host_tool(bridge)("a", "read_file", arguments)
+        if unrelated:
+            [list_info] = declare("list_dir", description=LIST_DIR)
+            sub = _HostConversation(dialect, "Sub-agent: list.", list_info)
+            for _, listed in await sub.request(bridge):
+                await call_host_tool(bridge)("other", "list_dir", listed)
+        await call_host_tool(bridge)("b", "read_file", arguments)
+        main.results(main_calls, [a_output])
+        await main.request(bridge)
+        return bridge.state
+
+    return execute
+
+
+@pytest.mark.parametrize(
+    "unrelated", [0, bridge_types._MAX_AWAITED_RESULTS], ids=["kept", "evicted"]
+)
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+def test_delayed_second_execution_of_a_proposal_stays_unlinked(
+    dialect: HostDialect, unrelated: int, tmp_path: Path
+) -> None:
+    """A proposal's second execution links nothing, even after its first's tracking was dropped.
+
+    Two servers serve the same description, so the proposal grants each one
+    execution. The scaffold answers the call with server `a`'s result; with
+    `unrelated` host calls in between, the bridge has stopped tracking the
+    first execution by the time `b`'s runs.
+    """
+    log = eval(
+        Task(
+            dataset=[Sample(input="Read a.")],
+            solver=delayed_second_grant_scaffold(dialect, unrelated),
+        ),
+        model=get_model(
+            "mockllm/model",
+            custom_outputs=[
+                tool_calls_output(
+                    ToolCall(
+                        id="call_main",
+                        function="mcp__host__read_file",
+                        arguments={"path": "a"},
+                    ),
+                    content="Reading.",
+                ),
+                *(
+                    [
+                        tool_calls_output(
+                            *(
+                                ToolCall(
+                                    id=f"call_list_{n}",
+                                    function="list_dir",
+                                    arguments={"path": f"d{n}"},
+                                )
+                                for n in range(unrelated)
+                            )
+                        )
+                    ]
+                    if unrelated
+                    else []
+                ),
+                ModelOutput.from_content("mockllm/model", "done"),
+            ],
+        ),
+        log_dir=str(tmp_path),
+    )[0]
+    assert log.status == "success", log.error
+    read = read_eval_log(log.location)
+    assert read.samples
+    sample = resolve_sample_attachments(read.samples[0], "full")
+    events = [
+        e
+        for e in sample.events
+        if isinstance(e, ToolEvent) and bridge_metadata(e)["tool"] == "read_file"
+    ]
+    assert [(bridge_metadata(e)["server"], e.result) for e in events] == [
+        ("a", "from a"),
+        ("b", "from b"),
+    ]
+    assert all(bridge_metadata(e)["proposal_id"] == "call_main" for e in events)
+    assert [e.message_id for e in events] == [None, None]
+
+
 @pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
 def test_host_tool_grant_matches_numeric_reserialization(
     dialect: HostDialect, tmp_path: Path

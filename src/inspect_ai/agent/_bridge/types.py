@@ -476,7 +476,9 @@ class AgentBridge:
         unlinked, since which execution a result holds is unknown; one after
         the call settled leaves it as it is. At most
         `_MAX_AWAITED_RESULTS` calls are tracked; the oldest replies' calls are
-        dropped (left unlinked) beyond that.
+        dropped (left unlinked) beyond that. A dropped call's later execution
+        would be tracked as its first, so the caller passes `linkable=False`
+        for any execution after a call's first.
         """
         reply = self._awaited_results.setdefault(
             handed.reply_id, _AwaitedReply(handed.calls)

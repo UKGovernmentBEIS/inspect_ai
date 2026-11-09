@@ -411,7 +411,7 @@ class _Proposal:
     and no pairing state outlives the bounded grant store.
     """
 
-    __slots__ = ("call", "span_id", "message_id", "reply", "paired", "ambiguous")
+    __slots__ = ("call", "span_id", "message_id", "reply", "executions", "ambiguous")
 
     def __init__(
         self,
@@ -432,8 +432,8 @@ class _Proposal:
         self.reply = reply
         """The call in the reply handed to the scaffold, or `None` if unknown."""
 
-        self.paired = False
-        """Whether an execution has already taken `call.id`."""
+        self.executions = 0
+        """How many executions have consumed one of the proposal's grants (`take_id`)."""
 
         self.ambiguous = False
         """Whether an execution matched this proposal's grants and another proposal's alike, so which call it ran is unknown."""
@@ -445,10 +445,19 @@ class _Proposal:
         granted for several indistinguishable tools can execute more than once
         and consumers key on the event id.
         """
-        if self.paired:
-            return uuid()
-        self.paired = True
-        return self.call.id
+        self.executions += 1
+        return self.call.id if self.executions == 1 else uuid()
+
+    @property
+    def linkable(self) -> bool:
+        """Whether an execution of this proposal may link its result message.
+
+        Only while the proposal has executed once and matched no other
+        proposal's grants. Kept here rather than read from the bridge's
+        result tracking, which drops old replies: the proposal lives as long
+        as any of its grants can still execute.
+        """
+        return self.executions == 1 and not self.ambiguous
 
 
 class _ToolExecutionGrant(NamedTuple):
