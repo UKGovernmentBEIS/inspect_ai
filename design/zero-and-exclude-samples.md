@@ -29,13 +29,15 @@ as score-edit provenance, so the earlier score stays in `Score.history`, and
 both recompute the log's metrics. They are Python functions in
 `inspect_ai.log` and two `inspect log` subcommands.
 
-Neither rebuilds anything from the log. As for the shard merge, the caller
-names the task: zero takes the task, the models and the eval settings to run
+Neither imports a task file the log names. As for the shard merge, the
+caller names the task: zero takes the task, the models and the eval settings to run
 it with, as `eval()` and `inspect eval` take them, and runs its empty
 attempts in a scratch eval of that task restricted to the targeted samples.
 Exclusion may take the task to recompute the log's metrics with; without
 it, the metrics are rebuilt from the registry as an untrusted recompute does
-today. A task is refused when its name or its scorer names differ from the
+today. Both recompute the log's results exactly as `recompute_metrics()`
+does, with the task's metrics and reducer when it is given. A task is
+refused when its name or its scorer names differ from the
 log's, but its options, metrics, epochs, code and
 settings are the caller's responsibility: the verdict reflects the task and
 settings passed. Otherwise zero copies the verdicts in. Neither applies to a
@@ -111,10 +113,10 @@ Non-goals:
   `inspect ctl sample requeue` and by eval-retry with sample invalidation.
 - Changing a sample's `error`, the log's `status`, or which samples an
   eval-set retry re-runs (decision: Ransom, 2026-11-04; see Compatibility).
-- Rebuilding the task or its run from the log. Zero and exclusion import
-  nothing the log names and build no model, metric or reducer from what it
-  records; the caller passes the task and the settings, as for the shard
-  merge (decision: Ransom, 2026-11-06).
+- Rebuilding the task or its run from the log. Zero and exclusion import no
+  task file or path the log names, and zero builds no task, model or run
+  setting from what the log records; the caller passes the task and the
+  settings, as for the shard merge (decision: Ransom, 2026-11-06).
 - Checking that the caller's task and settings are the ones the log ran,
   beyond the names compared under "Matching the task". A task edited since
   the log, or settings other than the original run's, change the verdict;
@@ -743,11 +745,13 @@ logging and the error policy. A caller passes what it passed to `eval()`
 for the original run, and the empty attempt runs with exactly that.
 
 Both functions edit `log` in place, like `edit_score()`, and leave writing
-to the caller. Neither imports anything the log names, and neither builds a
-model, metric or reducer from what the log records: the task, its code and
-the settings to run it with come from the caller, the rule Ransom set for
-the shard merge's results (decisions: Ransom, 2026-11-03, 2026-11-04 and
-2026-11-06). These rules are checked before anything changes:
+to the caller. Neither imports a task file or path the log names: the
+task, its code and the settings to run it with come from the caller, the
+rule Ransom set for the shard merge's results (decisions: Ransom,
+2026-11-03, 2026-11-04 and 2026-11-06). Metrics are recomputed exactly as
+`edit_score()` and `recompute_metrics()` recompute them today, with the
+registry lookup that implies (see "Recomputation" below; decision: Ransom,
+2026-11-09). These rules are checked before anything changes:
 
 - `log.samples` must be present (a log read whole). A header-only read is a
   `ValueError`.
@@ -826,11 +830,28 @@ def task_log_metrics(task: Task) -> LogMetrics:
 and `eval_results()` builds scorer metrics from `ScorerInfo.from_scorer()`
 as a native run does (`src/inspect_ai/_eval/task/results.py:61`, `:125`).
 Without a task (exclusion only), metrics are rebuilt from the log header
-with the existing untrusted `resolve_log_metrics(log)`, which imports
-nothing and refuses a metric or reducer the registry cannot build with its
+with the existing untrusted `resolve_log_metrics(log)`, which imports no
+task file and refuses a metric or reducer the registry cannot build with its
 `LookupError` or `DisallowedRegistryArg`. Exclusion calls it with
 `trust_log_advice=False`, since it has no such option, and adds advice to
 pass the task instead.
+
+**Recomputation.** Either way, the results come from the existing
+`compute_log_metrics()` and `eval_results()`, unchanged, so a disposition
+recomputes exactly as `recompute_metrics()` does today (decision: Ransom,
+2026-11-09). That includes its handling of a score key outside the scorer
+list, such as a solver-written score on any sample of the log:
+`compute_log_metrics()` builds each `SampleScore` with no scorer
+(`src/inspect_ai/log/_metric.py:104-109`), and `eval_results()` looks such
+a key up by registry name with `ScorerInfo.from_name()`
+(`src/inspect_ai/_eval/task/results.py:70`, `:137-145`). That lookup
+(`scorer_from_registry`, `src/inspect_ai/_eval/loader.py:812`) never
+parses the key as a path, but it constructs an already-registered scorer or
+scanner of that name, and a `pkg/name` key can load an installed package's
+Inspect entry point to find it; when nothing is found, the default metrics
+apply. The dispositions add no separate aggregation path: tightening this
+lookup is a change to `eval_results()` for every caller (see Not this
+design).
 
 **Staged commit.** Both functions apply their edits to copies of the target
 samples, and compute metrics on a second, disposable view of the log, before
@@ -963,7 +984,8 @@ def prepare_task(task: Task | str, task_args, model, model_base_url, model_args,
 
 1. With a task, checks it with `task_difference()` and takes its metrics
    from `task_log_metrics()`. Without one, rebuilds the metrics from the
-   header with `resolve_log_metrics(log)`. Nothing is imported either way.
+   header with `resolve_log_metrics(log)`. No task file is imported either
+   way.
    A log with no task scorers is accepted; it is refused only for a target
    that holds no score.
 2. Builds the exclusion edits for every target that is not already excluded
@@ -1325,7 +1347,7 @@ inspect log zero    LOG_FILE TASK --sample ID [--sample ID ...] [--epoch N]
 - **Rebuild exclusion's metrics from the log with trust** (importing the
   log's task file, as `recompute_metrics(trust_log=True)` does). Exclusion
   instead takes the task when the registry cannot build the metrics, so it
-  imports nothing a log names either.
+  imports no task file the log names either.
 - **Attribute each held key to a scorer when the scorer list was appended
   to.** Zero could compare options and score-event attribution per key, and
   refuse only ambiguous cases. Refusing any log whose scorer list differs
@@ -1421,13 +1443,18 @@ No migration required.
 
 - **Log contents** (the `log.eval` task file, task name, args, scorer and
   metric specs, recorded models and settings) are untrusted when the log
-  is. Neither function imports anything a log names or builds a model,
-  metric or reducer from what it records: the task and the settings come
-  from the caller, and without a task exclusion rebuilds metrics with the
-  existing untrusted resolver, which refuses metric options that name a
-  model or a non-metric registry object. The log contributes only the
-  names compared with the caller's task, the sample ids and the scores, all
-  compared or copied as data.
+  is. The trust boundary is that of score editing today. Neither function
+  imports a task file or path the log names, and zero builds no task,
+  model or run setting from what the log records: they come from the
+  caller. Without a task, exclusion rebuilds metrics with the existing
+  untrusted resolver, which refuses metric options that name a model or a
+  non-metric registry object. As in existing recomputation
+  (`recompute_metrics()`), a score key outside the scorer list is looked up
+  by registry name (`ScorerInfo.from_name()`), which can construct an
+  already-registered scorer or scanner, or load an installed package's
+  Inspect entry point for a `pkg/name` key; it never imports a path. The
+  names compared with the caller's task, the sample ids and the score
+  values are otherwise compared or copied as data.
 - **The caller's task.** A task spec given to `zero_samples` or on the
   command line is imported and run, with the trust model of `inspect eval`:
   the user names the code. A file that runs an evaluation at module scope
@@ -1505,10 +1532,15 @@ backends; run the zero tests with `--runtrio` locally.
     and untargeted samples are unchanged.
   - `exclude_samples(..., task=...)`: a log whose metric is defined in a test
     module and not registered when the log is read, excluded with the task:
-    metrics recompute with the task's metric and no module is imported
-    (asserted by patching `load_module`). The same log without a task is
+    metrics recompute with the task's metric and the log's task file is not
+    imported (asserted by patching `load_module`). The same log without a task is
     refused with the untrusted resolver's `LookupError`, whose advice names
     the `task` argument, and is unchanged.
+  - Same recomputation: a log with a solver-written key on an untargeted
+    sample, excluded with a task and, separately, without one, and zeroed:
+    the committed `results` and `reductions` equal those of
+    `recompute_metrics()` (with the same metrics) run on a copy of the log
+    holding the same edits.
   - Task match for exclusion: a task with another name, and one with another
     scorer name, are each refused naming the field, with the log unchanged;
     a task whose scorer's options or metric differ is accepted.
@@ -1554,8 +1586,8 @@ backends; run the zero tests with `--runtrio` locally.
     with results computed by the task's reducer and metric.
   - Nothing from the log: zeroing a log whose header names a task file that
     does not exist and a model provider that is not installed succeeds with
-    the caller's task and a `mockllm` model; no module the log names is
-    imported and no model is built from its header.
+    the caller's task and a `mockllm` model; the task file the log names is
+    not imported and no model is built from its header.
   - Integer ids, each refused before the scratch eval with the log
     unchanged: a log of a task whose dataset samples have no ids, run with
     and without `sample_shuffle`; and a dataset with explicit `int` ids. A
@@ -1801,6 +1833,14 @@ additions later:
   or settings other than the ones the log ran.
 
 ## Not this design
+
+- Tightening the score-key lookup in recomputation. `eval_results()` looks
+  up a score key outside the scorer list by registry name
+  (`ScorerInfo.from_name()`), which can construct a registered scorer or
+  scanner or load a package entry point, for every caller that recomputes
+  metrics (`recompute_metrics()`, `edit_score()`, these dispositions).
+  Limiting it to registered names without construction, or to default
+  metrics for such keys, is a change to `eval_results()` for all of them.
 
 - Moving Steward's `_marks` package onto `exclude_samples` / `zero_samples`,
   which would delete the side run, the watcher and the id workaround.
