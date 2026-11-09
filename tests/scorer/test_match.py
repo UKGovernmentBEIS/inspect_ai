@@ -371,6 +371,10 @@ async def test_numeric_match_any_with_punctuation():
         "The answer is ＇42＇",
         "The answer is （42）。",
         "答え: 42。",
+        "The answer is 「42」",
+        "The answer is 『42』",
+        "The answer is 【42】",
+        "答えは 「42」",
     ],
 )
 async def test_numeric_match_with_fullwidth_punctuation(model_output: str):
@@ -494,6 +498,11 @@ async def test_numeric_match_exact_rejects_punctuation():
     assert result.text == INCORRECT
 
     state = simple_task_state(model_output="42。")
+    result = await scorer(state, Target(["42"]))
+    assert result is not None
+    assert result.text == INCORRECT
+
+    state = simple_task_state(model_output="「42」")
     result = await scorer(state, Target(["42"]))
     assert result is not None
     assert result.text == INCORRECT

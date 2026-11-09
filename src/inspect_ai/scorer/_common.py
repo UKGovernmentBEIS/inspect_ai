@@ -129,13 +129,14 @@ def match_str(
 
 
 # Sentence/enclosing punctuation only, including the full-width forms of
-# those characters and the ideographic full stop ("42。", "（42）"). Operator
+# those characters, the ideographic full stop ("42。", "（42）"), and the CJK
+# corner brackets used as quotes ("「42」", "『42』", "【42】"). Operator
 # characters (~ < > = etc.) are deliberately excluded: "<42", ">=42", "~42"
 # express bounds or approximations, not the value itself, and trimming them
 # would grade a hedge as the exact answer (false CORRECTs). U+FF0E
 # FULLWIDTH FULL STOP is excluded too: like ASCII ".", it is a decimal
 # separator ("．42" is 0.42).
-_NUMERIC_PUNCTUATION_TRIM = "!?:;()[]{}'\"`！？：；（）［］｛｝＇＂｀。"
+_NUMERIC_PUNCTUATION_TRIM = "!?:;()[]{}'\"`！？：；（）［］｛｝＇＂｀。「」『』【】"
 
 
 def _clean_numeric_word(s: str) -> str:
