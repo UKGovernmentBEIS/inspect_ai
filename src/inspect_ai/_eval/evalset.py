@@ -149,7 +149,7 @@ from .task.scan import scan_context
 from .task.task import PreviousTask, resolve_epochs, resolve_task_epochs
 from .task.task_source import TaskSource
 from .task.tasks import Tasks
-from .task.util import resolve_task_sample_ids
+from .task.util import resolve_task_sample_ids, sample_id_filter
 
 if TYPE_CHECKING:
     from inspect_ai._control.eval_state import DeferredStatsProvider
@@ -2000,8 +2000,11 @@ def one_log_per_task_identifier(
     `invalidate_samples()`). Otherwise the run that started most recently
     wins, complete or not: a newer incomplete log can be the failed retry of
     an invalidated run, which nothing on disk tells apart from a separate
-    failed run. Start order is `eval.created`, which survives rewrites and
-    copies of the file, with file mtime breaking ties within a second. Logs
+    failed run. Start order is the attempt's `stats.started_at` (or
+    `eval.created` before an attempt records it), which survives rewrites
+    and copies of the file, with file mtime breaking ties within a second.
+    Not `eval.created` alone: each retry moves it at least a second past its
+    prior attempt's, so fast retries can date a run after a later one. Logs
     not chosen are left on disk.
     """
 
@@ -2011,7 +2014,9 @@ def one_log_per_task_identifier(
             _selection(config.limit, config.sample_id)
             == requested[log.task_identifier],
             log.header.invalidated,
-            datetime.fromisoformat(log.header.eval.created),
+            datetime.fromisoformat(
+                log.header.stats.started_at or log.header.eval.created
+            ),
             log.info.mtime or 0,
         )
 
@@ -2035,12 +2040,7 @@ def _selection(
         limit = (0, limit)
     elif limit is not None:
         limit = (int(limit[0]), int(limit[1]))
-    if sample_id is None:
-        ids = None
-    elif isinstance(sample_id, list):
-        ids = frozenset(str(id) for id in sample_id)
-    else:
-        ids = frozenset([str(sample_id)])
+    ids = None if sample_id is None else frozenset(sample_id_filter(sample_id).patterns)
     return (limit, ids)
 
 
