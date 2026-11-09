@@ -178,8 +178,9 @@ restore.
 Grants are stored for servers registered with `require_proposal=False` too,
 only so that a proposed call on them pairs; their calls execute with or
 without one (decision: Ransom, 2026-09-15). They share the store, and the
-eviction warning says what an evicted grant loses: for an exempt server only
-the pairing, for any other the right to execute. An unproposed call on an
+eviction warning says what an evicted grant loses: for an exempt server the
+pairing, for any other the right to execute. Either way the evicted grant's
+reply no longer links any of its calls (see `message_id` below). An unproposed call on an
 exempt server with the same arguments as a pending proposal takes that
 proposal's grant and id, and the proposed call then runs with a fresh id and
 `grant: "exempt"`. Execution is unaffected; the user docs state this
@@ -405,6 +406,21 @@ The link is exact when all of these hold:
 - The reply holding the call is placed under the id the bridge handed it
   with (`_align_with_tracked()`), and no message the bridge could not place
   took that id first.
+- The bridge has complete evidence of the reply's executions: it handed the
+  reply out once, and it neither dropped the reply's awaited calls (it tracks
+  at most 256, dropping the oldest replies' first) nor evicted one of its
+  grants. A reply handed out again (a cached generation or retry, also after
+  a checkpoint resume, since the checkpoint keeps the ids the bridge knows)
+  may have its calls run once per hand-out, and executions the bridge no
+  longer tracks can't be told apart from the one it does. The bridge records
+  each such reply's id in `_unlinked_replies` (ids only, for the rest of the
+  sample; `_unlink()`, or directly when it drops awaited calls), and none of
+  the reply's calls links again, including one first executed after the
+  drop.
+- The grant it consumed is not for a server registered with
+  `require_proposal=False`: there an unproposed call with a pending
+  proposal's arguments takes that proposal's grant, so the grant does not
+  show which call ran.
 - The call ran once, its id is unique in the reply, and no other call in the
   reply has its function and arguments.
 - Its execution matched no other reply's pending grant, exactly or once
@@ -417,8 +433,8 @@ The link is exact when all of these hold:
 
 Otherwise `message_id` stays `None`. This includes a Google result whose call
 id the dialect inferred from order (a call sharing its function with another),
-a call dropped from the awaited calls (the bridge tracks at most 256, dropping
-the oldest replies' first), and a call proposed before a checkpoint resume.
+a call of a reply whose awaited calls were dropped, and a call proposed before
+a checkpoint resume.
 
 `agent` is `None`; `agent_span_id` is the tool's, as natively.
 

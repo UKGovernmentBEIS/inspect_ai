@@ -9,13 +9,17 @@ independently of the id code it checks.
 import json
 from collections import defaultdict
 from contextlib import contextmanager
-from typing import Any, Iterator
+from typing import TYPE_CHECKING, Any, Iterator, Sequence
 from unittest.mock import patch
 
 from inspect_ai.event import ModelEvent, ToolEvent
 from inspect_ai.log import EvalSample
 from inspect_ai.model import ChatMessage, ChatMessageAssistant, ChatMessageTool
 from inspect_ai.model._message_ids import content_hash, edit_id
+from inspect_ai.tool._tool_call import ToolCall
+
+if TYPE_CHECKING:
+    from inspect_ai.agent._bridge.types import _HandedCall
 
 
 def shown(message: ChatMessage) -> str:
@@ -187,3 +191,17 @@ def recording_placements() -> Iterator[list[set[str]]]:
         patch.object(AgentBridge, "_assign_message_ids", recording_assign),
     ):
         yield placements
+
+
+def handed_calls(reply_id: str, calls: Sequence[ToolCall]) -> list["_HandedCall"]:
+    """The calls of a reply as the bridge records them when it hands the reply out.
+
+    For tests that track a reply's generation before registering executions of
+    its calls. The bridge registers them first (`AgentBridge._handed_calls`)
+    and unlinks a reply whose id it already knows, so calling that afterwards
+    would unlink every such reply.
+    """
+    from inspect_ai.agent._bridge.types import _HandedCall, _HandedReply
+
+    reply = _HandedReply(reply_id, len(calls))
+    return [_HandedCall(reply, position) for position in range(len(calls))]

@@ -179,7 +179,9 @@ class SandboxAgentBridge(AgentBridge):
         `_warn_eviction`, once `_MAX_TOOL_EXECUTION_GRANTS` unconsumed grants
         accumulate, counting those for exempt servers), including when
         the response never reached the scaffold, but only ever authorizes the
-        exact proposed action.
+        exact proposed action. An evicted grant's reply is unlinked
+        (`_unlink`): on an exempt server its call still executes, untracked,
+        and another grant of the call may then execute it again.
         """
         declared = _declarations_by_name(tools)
         handed = (
@@ -212,7 +214,10 @@ class SandboxAgentBridge(AgentBridge):
                     len(self._tool_execution_grants)
                     == self._tool_execution_grants.maxlen
                 ):
-                    self._warn_eviction(self._tool_execution_grants[0])
+                    evicted = self._tool_execution_grants[0]
+                    self._warn_eviction(evicted)
+                    if evicted.proposal.reply is not None:
+                        self._unlink(evicted.proposal.reply.reply.id)
                 self._tool_execution_grants.append(
                     _ToolExecutionGrant(
                         server=target.server,

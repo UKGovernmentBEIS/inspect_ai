@@ -35,6 +35,7 @@ from test_helpers.checkpoint import RecordingCheckpointer
 from test_helpers.message_ids import (
     assert_message_ids,
     edited_id,
+    handed_calls,
     message_id_violations,
     recording_placements,
     tool_event_producers,
@@ -7311,8 +7312,383 @@ async def test_reply_reused_unplaced_while_its_calls_run_links_nothing(
     expected = answers if reuse == "none" else [None, None]
     links = {e.function: e.message_id for e in tool_events}
     assert [links["read_file"], links["list_dir"]] == expected
-    # held only while a call of the reply can still execute
-    assert not bridge._handed_replies
+
+
+@pytest.mark.parametrize(
+    "shape",
+    [
+        "cached retry, evicted",
+        "cached retry, kept",
+        "uncached retry, evicted",
+        "uncached retry, kept",
+        "cached, no retry",
+    ],
+)
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+async def test_reply_handed_out_again_links_no_execution(
+    dialect: HostDialect, shape: str, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A reply handed out a second time (a cached retry) links none of its executions.
+
+    The scaffold executes the reply's call and holds the answer. With
+    `evicted`, it then runs `_MAX_AWAITED_RESULTS` unrelated host calls, so
+    the bridge stops tracking the first execution. It retries the first
+    request, which with caching hands out the same reply again, and executes
+    the call again (a different result). It then sends the first execution's
+    answer in the original thread. Neither execution links: which execution
+    the answer holds is unknown. An uncached retry hands out a new reply (with
+    other text, so that Google's wire form, which has no call ids, tells the
+    two apart), so the first execution links unless its tracking was dropped;
+    with no retry, a cached generation links as any other.
+    """
+    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path / "cache"))
+    cached = shape.startswith("cached")
+    retry = "no retry" not in shape
+    unrelated = bridge_types._MAX_AWAITED_RESULTS if "evicted" in shape else 0
+    main_output = tool_calls_output(
+        ToolCall(id="call_main", function="read_file", arguments={"path": "a"}),
+        content="Reading.",
+    )
+    model = get_model(
+        "mockllm/model",
+        config=GenerateConfig(cache=cached),
+        custom_outputs=[
+            main_output,
+            *(
+                [
+                    tool_calls_output(
+                        *(
+                            ToolCall(
+                                id=f"call_list_{n}",
+                                function="list_dir",
+                                arguments={"path": f"d{n}"},
+                            )
+                            for n in range(unrelated)
+                        )
+                    )
+                ]
+                if unrelated
+                else []
+            ),
+            *(
+                [
+                    tool_calls_output(
+                        ToolCall(
+                            id="call_retry",
+                            function="read_file",
+                            arguments={"path": "a"},
+                        ),
+                        content="Reading a.",
+                    )
+                ]
+                if retry and not cached
+                else []
+            ),
+            ModelOutput.from_content("mockllm/model", "done"),
+        ],
+    )
+    bridge = SandboxAgentBridge(
+        state=AgentState(messages=[ChatMessageUser(content="Read a.")]),
+        filter=None,
+        retry_refusals=None,
+        compaction=None,
+        port=13131,
+        model=None,
+        model_aliases={"inspect": model},
+        bridged_tools={
+            "host": {
+                "read_file": read_file(AsyncMock(side_effect=["first", "second"])),
+                "list_dir": served_tool(
+                    AsyncMock(return_value="listed"),
+                    description=LIST_DIR,
+                    name="list_dir",
+                ),
+            }
+        },
+    )
+    [read_info] = declare("read_file")
+    [list_info] = declare("list_dir", description=LIST_DIR)
+    with recorded_transcript() as recorded:
+        main = _HostConversation(dialect, "Read a.", read_info)
+        main_calls = await main.request(bridge)
+        [(_, arguments)] = main_calls
+        first = await call_host_tool(bridge)("host", "read_file", arguments)
+        if unrelated:
+            sub = _HostConversation(dialect, "Sub-agent: list.", list_info)
+            listed = await sub.request(bridge)
+            assert len(listed) == unrelated
+            for _, list_arguments in listed:
+                await call_host_tool(bridge)("host", "list_dir", list_arguments)
+        if retry:
+            again = _HostConversation(dialect, "Read a.", read_info)
+            [(_, retried)] = await again.request(bridge)
+            await call_host_tool(bridge)("host", "read_file", retried)
+        main.results(main_calls, [first])
+        await main.request(bridge)
+
+    model_events = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    if retry:
+        assert (
+            model_events[-2].output.message.id == model_events[0].output.message.id
+        ) == cached
+    [answer] = [m.id for m in model_events[-1].input if m.role == "tool"]
+    reads = [
+        e
+        for e in recorded.events
+        if isinstance(e, ToolEvent) and e.function == "read_file"
+    ]
+    assert [e.result for e in reads] == (["first", "second"] if retry else ["first"])
+    first_link = answer if not unrelated and not (retry and cached) else None
+    assert [e.message_id for e in reads] == [first_link, *([None] if retry else [])]
+
+
+@pytest.mark.parametrize("cached", [True, False], ids=["cached", "uncached"])
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+async def test_reply_handed_out_again_after_resume_links_no_execution(
+    dialect: HostDialect, cached: bool, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A reply handed out before a checkpoint and again after resuming from it links nothing.
+
+    The resumed bridge has no record of the first execution, but its
+    checkpoint knows the reply's id. With caching, the retry after the resume
+    hands out the same reply, and the first execution's answer, sent after the
+    second execution, links neither. Without caching the retry's reply is new,
+    and its execution links its own answer.
+    """
+    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path / "cache"))
+    model = get_model(
+        "mockllm/model",
+        config=GenerateConfig(cache=cached),
+        custom_outputs=[
+            tool_calls_output(
+                ToolCall(id="call_main", function="read_file", arguments={"path": "a"}),
+                content="Reading.",
+            ),
+            *(
+                []
+                if cached
+                else [
+                    tool_calls_output(
+                        ToolCall(
+                            id="call_retry",
+                            function="read_file",
+                            arguments={"path": "a"},
+                        ),
+                        content="Reading a.",
+                    )
+                ]
+            ),
+            ModelOutput.from_content("mockllm/model", "done"),
+        ],
+    )
+    tools = {
+        "host": {"read_file": read_file(AsyncMock(side_effect=["first", "second"]))}
+    }
+
+    def bridge(checkpointer: RecordingCheckpointer) -> SandboxAgentBridge:
+        return SandboxAgentBridge(
+            state=AgentState(messages=[ChatMessageUser(content="Read a.")]),
+            filter=None,
+            retry_refusals=None,
+            compaction=None,
+            port=13131,
+            model=None,
+            model_aliases={"inspect": model},
+            bridged_tools=tools,
+            checkpointer=checkpointer,
+        )
+
+    [info] = declare("read_file")
+    checkpointer = _TickCheckpointer()
+    with recorded_transcript() as recorded:
+        original = bridge(checkpointer)
+        main = _HostConversation(dialect, "Read a.", info)
+        main_calls = await main.request(original)
+        [(_, arguments)] = main_calls
+        first = await call_host_tool(original)("host", "read_file", arguments)
+        resumed = bridge(
+            RecordingCheckpointer(restored=checkpointer.saved, serialized=True)
+        )
+        again = _HostConversation(dialect, "Read a.", info)
+        again_calls = await again.request(resumed)
+        [(_, retried)] = again_calls
+        second = await call_host_tool(resumed)("host", "read_file", retried)
+        if cached:
+            main.results(main_calls, [first])
+            await main.request(resumed)
+        else:
+            again.results(again_calls, [second])
+            await again.request(resumed)
+
+    model_events = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    assert (
+        model_events[1].output.message.id == model_events[0].output.message.id
+    ) == cached
+    [answer] = [m.id for m in model_events[-1].input if m.role == "tool"]
+    reads = [e for e in recorded.events if isinstance(e, ToolEvent)]
+    assert [e.result for e in reads] == ["first", "second"]
+    assert [e.message_id for e in reads] == [None, None if cached else answer]
+
+
+@pytest.mark.parametrize("evicted", ["own grant", "other grant"])
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+async def test_reply_whose_grant_is_evicted_links_no_execution(
+    dialect: HostDialect, evicted: str
+) -> None:
+    """A reply that loses an execution grant to eviction links none of its executions.
+
+    Servers `a` and `b` serve the same description, so the reply's call is
+    granted once for each; `a` is registered with `require_proposal=False`.
+    With `own grant`, a sub-agent's unconsumed calls fill the grant store and
+    evict the call's grant for `a`, so its execution there runs ungranted and
+    untracked; the execution on `b` then holds the call's only grant, and the
+    scaffold sends `a`'s answer. Neither execution links. With `other grant`,
+    the sub-agent's calls come first and the call's grants evict theirs; the
+    call runs once, on `b`, and links its answer.
+    """
+    filler = _MAX_TOOL_EXECUTION_GRANTS - 1
+    main_output = tool_calls_output(
+        ToolCall(id="call_main", function="read_file", arguments={"path": "a"}),
+        content="Reading.",
+    )
+    sub_output = tool_calls_output(
+        *(
+            ToolCall(
+                id=f"call_list_{n}", function="list_dir", arguments={"path": f"d{n}"}
+            )
+            for n in range(filler + (2 if evicted == "other grant" else 0))
+        )
+    )
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            *(
+                [main_output, sub_output]
+                if evicted == "own grant"
+                else [sub_output, main_output]
+            ),
+            ModelOutput.from_content("mockllm/model", "done"),
+        ],
+    )
+    bridge = SandboxAgentBridge(
+        state=AgentState(messages=[ChatMessageUser(content="Read a.")]),
+        filter=None,
+        retry_refusals=None,
+        compaction=None,
+        port=13131,
+        model=None,
+        model_aliases={"inspect": model},
+        bridged_tools={
+            "a": {"read_file": read_file(AsyncMock(return_value="from a"))},
+            "b": {"read_file": read_file(AsyncMock(return_value="from b"))},
+            "other": {
+                "list_dir": served_tool(
+                    AsyncMock(return_value="listed"),
+                    description=LIST_DIR,
+                    name="list_dir",
+                )
+            },
+        },
+        proposal_exempt_servers={"a"},
+    )
+    [read_info] = declare("read_file")
+    [list_info] = declare("list_dir", description=LIST_DIR)
+    main = _HostConversation(dialect, "Read a.", read_info)
+    sub = _HostConversation(dialect, "Sub-agent: list.", list_info)
+    with recorded_transcript() as recorded:
+        if evicted == "other grant":
+            await sub.request(bridge)
+        main_calls = await main.request(bridge)
+        if evicted == "own grant":
+            await sub.request(bridge)
+        assert len(bridge._tool_execution_grants) == _MAX_TOOL_EXECUTION_GRANTS
+        [(_, arguments)] = main_calls
+        outputs = []
+        if evicted == "own grant":
+            outputs.append(await call_host_tool(bridge)("a", "read_file", arguments))
+        await call_host_tool(bridge)("b", "read_file", arguments)
+        if evicted == "other grant":
+            outputs.append("from b")
+        main.results(main_calls, outputs)
+        await main.request(bridge)
+
+    model_events = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    [answer] = [m.id for m in model_events[-1].input if m.role == "tool"]
+    reads = [e for e in recorded.events if isinstance(e, ToolEvent)]
+    if evicted == "own grant":
+        assert [(bridge_metadata(e)["server"], e.result) for e in reads] == [
+            ("a", "from a"),
+            ("b", "from b"),
+        ]
+        assert [e.message_id for e in reads] == [None, None]
+    else:
+        assert [e.result for e in reads] == ["from b"]
+        assert [e.message_id for e in reads] == [answer]
+
+
+@pytest.mark.parametrize(
+    "shape",
+    ["unproposed call first", "proposed call only", "requires proposals"],
+)
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+async def test_execution_on_an_exempt_server_links_nothing(
+    dialect: HostDialect, shape: str
+) -> None:
+    """An execution on a `require_proposal=False` server never links its result message.
+
+    There, a call the model did not propose (from code the model wrote, say)
+    with a pending proposal's arguments takes that proposal's grant, and the
+    proposed call runs ungranted. With `unproposed call first`, the proposed
+    call's answer would otherwise link to the unproposed call's execution.
+    The control, a server that requires proposals, links its one execution.
+    """
+    exempt = shape != "requires proposals"
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            tool_calls_output(
+                ToolCall(id="call_main", function="read_file", arguments={"path": "a"}),
+                content="Reading.",
+            ),
+            ModelOutput.from_content("mockllm/model", "done"),
+        ],
+    )
+    bridge = SandboxAgentBridge(
+        state=AgentState(messages=[ChatMessageUser(content="Read a.")]),
+        filter=None,
+        retry_refusals=None,
+        compaction=None,
+        port=13131,
+        model=None,
+        model_aliases={"inspect": model},
+        bridged_tools={
+            "host": {"read_file": read_file(AsyncMock(side_effect=["first", "second"]))}
+        },
+        proposal_exempt_servers={"host"} if exempt else None,
+    )
+    [info] = declare("read_file")
+    main = _HostConversation(dialect, "Read a.", info)
+    with recorded_transcript() as recorded:
+        main_calls = await main.request(bridge)
+        [(_, arguments)] = main_calls
+        if shape == "unproposed call first":
+            await call_host_tool(bridge)("host", "read_file", arguments)
+        output = await call_host_tool(bridge)("host", "read_file", arguments)
+        main.results(main_calls, [output])
+        await main.request(bridge)
+
+    model_events = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    [answer] = [m.id for m in model_events[-1].input if m.role == "tool"]
+    reads = [e for e in recorded.events if isinstance(e, ToolEvent)]
+    if shape == "unproposed call first":
+        assert [(e.result, bridge_metadata(e)["grant"]) for e in reads] == [
+            ("first", "consumed"),
+            ("second", "exempt"),
+        ]
+        assert [e.message_id for e in reads] == [None, None]
+    else:
+        assert [e.result for e in reads] == ["first"]
+        assert [e.message_id for e in reads] == [None if exempt else answer]
 
 
 @agent
@@ -7613,7 +7989,7 @@ async def test_google_results_link_only_when_their_function_names_one_call(
                 result=f"contents {path}",
             )
             bridge._await_result_message(
-                bridge._handed_calls(cast(str, message.id), message.tool_calls)[index],
+                handed_calls(cast(str, message.id), message.tool_calls)[index],
                 event,
             )
             events.append(event)
@@ -7668,7 +8044,7 @@ async def test_reordered_google_results_never_take_each_others_ids(
         assert isinstance(message, ChatMessageAssistant) and message.tool_calls
         events = []
         for handed, output in zip(
-            bridge._handed_calls(cast(str, message.id), message.tool_calls), outputs
+            handed_calls(cast(str, message.id), message.tool_calls), outputs
         ):
             call = message.tool_calls[handed.position]
             event = ToolEvent(
@@ -7752,7 +8128,7 @@ def test_matching_same_name_google_results_is_linear(host: bool) -> None:
         try:
             if host:
                 assert reply.id is not None
-                for handed in bridge._handed_calls(reply.id, calls):
+                for handed in handed_calls(reply.id, calls):
                     bridge._await_result_message(
                         handed,
                         ToolEvent(
@@ -7970,7 +8346,7 @@ async def test_repeated_google_results_are_matched_in_linear_time(host: bool) ->
                 )
                 if host:
                     assert reply.id is not None
-                    [handed] = bridge._handed_calls(reply.id, reply.tool_calls or [])
+                    [handed] = handed_calls(reply.id, reply.tool_calls or [])
                     bridge._await_result_message(
                         handed,
                         ToolEvent(

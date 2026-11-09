@@ -22,6 +22,7 @@ from test_helpers.checkpoint import RecordingCheckpointer
 from test_helpers.message_ids import (
     assert_message_ids,
     edited_id,
+    handed_calls,
     recording_placements,
     tool_event_producers,
 )
@@ -2530,7 +2531,7 @@ def _awaiting(
     ]
     for event in events:
         bridge._await_result_message(
-            bridge._handed_calls(reply.id, reply.tool_calls)[index], event
+            handed_calls(reply.id, reply.tool_calls)[index], event
         )
     return events
 
@@ -2723,6 +2724,32 @@ def test_host_results_waiting_are_capped() -> None:
     assert events[-1].message_id is not None
 
 
+def test_host_reply_dropped_from_the_awaited_results_links_no_later_execution() -> None:
+    """A call first executed after its reply was dropped from the awaited results stays unlinked.
+
+    The bridge no longer holds evidence of the reply's earlier executions.
+    """
+    bridge = AgentBridge(AgentState(messages=[]))
+    reply = ChatMessageAssistant(
+        content="",
+        tool_calls=[
+            ToolCall(id="call_a", function="bash", arguments={"cmd": "ls"}),
+            ToolCall(id="call_b", function="bash", arguments={"cmd": "pwd"}),
+        ],
+    )
+    assert reply.id is not None
+    _awaiting(bridge, reply, index=0)
+    for n in range(bridge_types._MAX_AWAITED_RESULTS):
+        _awaiting(bridge, _call(f"call_{n}"))
+    assert reply.id not in bridge._awaited_results
+    [event] = _awaiting(bridge, reply, index=1)
+
+    result = _result("call_b")
+    bridge._link_result_messages([reply, result], {0: reply.id}, {1}, set())
+
+    assert event.message_id is None
+
+
 def _read(call_id: str, path: str) -> ToolCall:
     return ToolCall(id=call_id, function="read", arguments={"path": path})
 
@@ -2735,7 +2762,7 @@ def _link_copy(
 ) -> list[str | None]:
     """Track executions of `handed` calls, place a copy with new `answers`; the events' message ids."""
     bridge = AgentBridge(AgentState(messages=[]))
-    tracked = bridge._handed_calls("reply", handed)
+    tracked = handed_calls("reply", handed)
     events = []
     for position, result in results:
         call = handed[position]
