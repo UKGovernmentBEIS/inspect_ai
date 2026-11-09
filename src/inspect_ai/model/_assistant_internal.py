@@ -11,7 +11,6 @@ resume.
 from __future__ import annotations
 
 import importlib.util
-from collections import Counter
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -117,29 +116,42 @@ def generation_replay(
     call the parse recorded nothing for. A provider keeping no per-call state
     passes neither.
 
-    The state is kept for each call occurrence, so calls sharing an ID keep
-    their own (`generation_call_states`). Each occurrence also records the call
-    as parsed (`_call_digest`), so a copy keeps the state only of the calls it
-    carries (`carry_generation_assistant_internal`).
+    The state is kept by call ID, with the call as parsed (`_call_digest`), so a
+    copy keeps the state only of the calls it carries
+    (`carry_generation_assistant_internal`). An ID several of the generation's
+    calls share keeps no state (None), so no call can replay another's
+    (`shared_call_ids`).
     """
     providers = {"openai": openai, "anthropic": anthropic}
-    occurrences: dict[str, list[JsonValue]] = {}
+    shared = _repeated_ids(calls)
+    states: dict[str, JsonValue] = {}
     for index, call in enumerate(calls):
-        occurrence: dict[str, JsonValue] = {
+        if call.id in shared:
+            states[call.id] = None
+            continue
+        state: dict[str, JsonValue] = {
             "function": call.function,
             "type": call.type,
             "digest": _call_digest(call),
         }
-        for provider, states in providers.items():
-            if states is not None and states[index] is not None:
-                occurrence[provider] = states[index]
-        occurrences.setdefault(call.id, []).append(occurrence)
+        for provider, values in providers.items():
+            if values is not None and values[index] is not None:
+                state[provider] = values[index]
+        states[call.id] = state
     return {
-        "calls": cast(JsonValue, occurrences),
+        "calls": states,
         "providers": [
-            provider for provider, states in providers.items() if states is not None
+            provider for provider, values in providers.items() if values is not None
         ],
     }
+
+
+def _repeated_ids(calls: Sequence[ToolCall]) -> set[str]:
+    seen: set[str] = set()
+    repeated: set[str] = set()
+    for call in calls:
+        (repeated if call.id in seen else seen).add(call.id)
+    return repeated
 
 
 def set_generation_assistant_internal(
@@ -197,7 +209,8 @@ def generation_assistant_internal(output: ModelOutput) -> dict[str, JsonValue] |
     """The replay state the output's generation was parsed with, if any.
 
     None for an output rebuilt from its fields, or cached by older versions
-    (including those keeping a single state per call ID).
+    (including those without the parsed calls' functions, or keeping a state per
+    call occurrence).
     """
     try:
         replay = output._assistant_internal
@@ -208,10 +221,29 @@ def generation_assistant_internal(output: ModelOutput) -> dict[str, JsonValue] |
         replay is None
         or not isinstance(replay.get("providers"), list)
         or not isinstance(calls := replay.get("calls"), dict)
-        or not all(isinstance(occurrences, list) for occurrences in calls.values())
+        or not all(state is None or isinstance(state, dict) for state in calls.values())
     ):
         return None
     return replay
+
+
+def shared_call_ids(output: ModelOutput) -> set[str]:
+    """The call IDs that several of the output's calls, or its generation's, share.
+
+    Calls sharing an ID within a turn replay with no per-call state, as the
+    state recorded under the ID can't be told apart by call. Inspect's
+    providers don't produce such calls (OpenAI and Anthropic IDs are unique,
+    and Google's missing IDs are filled in uniquely), so replay of them is not
+    guaranteed, only that no call carries another's state.
+    """
+    calls = [
+        call for choice in output.choices for call in choice.message.tool_calls or []
+    ]
+    replay = generation_assistant_internal(output)
+    parsed = cast(dict[str, JsonValue], replay["calls"]) if replay else {}
+    return _repeated_ids(calls) | {
+        call_id for call_id, state in parsed.items() if state is None
+    }
 
 
 class GenerationCallState(NamedTuple):
@@ -248,32 +280,32 @@ def generation_call_states(
 ) -> list[GenerationCallState | None]:
     """Each of a generation's calls' replay state (`generation_replay`), in call order.
 
-    The nth call with an ID gets the state of the nth call the generation was
-    parsed with under that ID. A call from a provider keeping no per-call state
-    gets an empty state. A call's state is None (unknown) when `replay` is None,
-    when the generation parsed no such call, or when its provider recorded
-    nothing for it (a Responses call without an item ID).
+    A call from a provider keeping no per-call state gets an empty state. A
+    call's state is None (unknown) when `replay` is None, when the generation
+    parsed no such call, when its provider recorded nothing for it (a Responses
+    call without an item ID), or when its ID is shared (`shared_call_ids`).
     """
-    occurrences = cast(
-        dict[str, list[dict[str, JsonValue] | None]],
+    parsed = cast(
+        dict[str, dict[str, JsonValue] | None],
         replay.get("calls", {}) if replay is not None else {},
     )
     providers = cast(list[str], replay.get("providers", [])) if replay else []
-    seen: Counter[str] = Counter()
+    shared = _repeated_ids(calls)
     states: list[GenerationCallState | None] = []
     for call in calls:
-        parsed = occurrences.get(call.id, [])
-        index = seen[call.id]
-        seen[call.id] += 1
-        occurrence = parsed[index] if index < len(parsed) else None
-        if occurrence is None or any(key not in occurrence for key in providers):
+        state = parsed.get(call.id)
+        if (
+            call.id in shared
+            or state is None
+            or any(key not in state for key in providers)
+        ):
             states.append(None)
         else:
             states.append(
                 GenerationCallState(
-                    occurrence.get("openai"),
-                    occurrence.get("anthropic"),
-                    occurrence.get("edited") is True,
+                    state.get("openai"),
+                    state.get("anthropic"),
+                    state.get("edited") is True,
                 )
             )
     return states
@@ -286,49 +318,31 @@ def carry_generation_assistant_internal(
 
     For an output rebuilt from `source` (e.g. by a response filter). A call
     `target` carries unchanged keeps its state. A call with other arguments
-    keeps the state of a call parsed under its ID with its function and type,
-    marked edited, so it replays in its native form with the arguments it is
-    handed on with (`alias_assistant_internal_call`). Any other call has no
-    state in `target`.
+    keeps the state of the call parsed under its ID if it has its function and
+    type, marked edited, so it replays in its native form with the arguments it
+    is handed on with (`alias_assistant_internal_call`). Any other call has no
+    state in `target`, and an ID shared in `source` or `target` stays shared
+    (`shared_call_ids`).
     """
     replay = generation_assistant_internal(source)
     if replay is None:
         return
-    parsed = {
-        call_id: list(occurrences)
-        for call_id, occurrences in cast(
-            dict[str, list[dict[str, JsonValue] | None]], replay["calls"]
-        ).items()
-    }
+    parsed = cast(dict[str, dict[str, JsonValue] | None], replay["calls"])
     calls = [
         call for choice in target.choices for call in choice.message.tool_calls or []
     ]
-    carried: list[dict[str, JsonValue] | None] = [None] * len(calls)
-    # unchanged calls first, so an edited call can't take an unchanged one's state
-    for unchanged in (True, False):
-        for index, call in enumerate(calls):
-            candidates = parsed.get(call.id, [])
-            for position, occurrence in enumerate(candidates):
-                if carried[index] is not None or occurrence is None:
-                    continue
-                if unchanged and occurrence["digest"] == _call_digest(call):
-                    carried[index] = occurrence
-                elif (
-                    not unchanged
-                    and occurrence["function"] == call.function
-                    and occurrence["type"] == call.type
-                ):
-                    carried[index] = {**occurrence, "edited": True}
-                else:
-                    continue
-                candidates[position] = None
-    occurrences: dict[str, list[JsonValue]] = {}
-    for call, occurrence in zip(calls, carried):
-        occurrences.setdefault(call.id, []).append(occurrence)
-    target._assistant_internal = {
-        "calls": cast(JsonValue, occurrences),
-        "providers": replay["providers"],
-    }
+    shared = _repeated_ids(calls)
+    carried: dict[str, JsonValue] = {}
+    for call in calls:
+        if call.id in shared or (call.id in parsed and parsed[call.id] is None):
+            carried[call.id] = None
+        elif (state := parsed.get(call.id)) is None:
+            continue
+        elif state["digest"] == _call_digest(call):
+            carried[call.id] = state
+        elif state["function"] == call.function and state["type"] == call.type:
+            carried[call.id] = {**state, "edited": True}
+    target._assistant_internal = {"calls": carried, "providers": replay["providers"]}
 
 
 def _call_digest(call: ToolCall) -> str:

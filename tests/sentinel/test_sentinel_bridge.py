@@ -4915,10 +4915,13 @@ async def test_calls_sharing_an_id_keep_their_own_result_checks(
             ],
         )
 
-    # the scaffold is handed each call under its own id
+    # the scaffold is handed each call under its own id; calls sharing one
+    # are handed on under new ids
     handed = [call.id for call in output.message.tool_calls or []]
-    assert handed[0] == "one" and handed[1] != "one"
-    assert handed[1] == ("two" if not duplicate_id else handed[1])
+    if duplicate_id:
+        assert "one" not in handed and len(set(handed)) == 2
+    else:
+        assert handed == ["one", "two"]
     # a response's results are checked concurrently, each as its own call
     assert sorted(
         (s.call.arguments["path"], s.output)
@@ -4949,10 +4952,10 @@ async def test_calls_sharing_an_id_keep_their_own_modifications() -> None:
         output = await generate(bridge, model, [ChatMessageUser(content=TASK)])
 
     first, second = output.message.tool_calls or []
-    assert first == one
-    # the scaffold gets the second call under an id of its own
+    assert first == replace(one, id=first.id)
+    # the scaffold gets each call under an id of its own
     assert second == replace(two, id=second.id, arguments={"path": "safe.txt"})
-    assert second.id != one.id
+    assert first.id != second.id
 
 
 async def test_a_host_call_beyond_the_scaffold_cap_is_still_checked() -> None:
@@ -8251,7 +8254,7 @@ async def test_an_anthropic_turn_a_response_filter_returned_continues_as_generat
 @pytest.mark.parametrize(
     "kind", ["function", "function_pair", "custom", "computer", "tool_search"]
 )
-async def test_parallel_responses_calls_sharing_an_id_continue_as_generated(
+async def test_parallel_responses_calls_sharing_an_id_continue_with_their_own_arguments(
     kind: str, filtered: str
 ) -> None:
     from inspect_ai.agent._bridge.responses import inspect_responses_api_request
@@ -8310,57 +8313,19 @@ async def test_parallel_responses_calls_sharing_an_id_continue_as_generated(
     # the scaffold runs each call as generated, under its own id
     assert [_responses_native_arguments(call) for call in calls] == expected
     assert len({call["call_id"] for call in calls}) == 2
-    assert _responses_replayed(model.wire[1], generated[0].type) == [
-        (call["call_id"], arguments) for call, arguments in zip(calls, expected)
+    # the continuation replays each call with its own arguments, and no other
+    # call's item (replay in the native form is not guaranteed)
+    replayed = [
+        param for param in model.wire[1] if param["type"] in RESPONSES_CALL_TYPES
     ]
-    assert [
-        param["call_id"]
-        for param in model.wire[1]
-        if param["type"] == RESPONSES_RESULT_TYPES[generated[0].type]
-    ] == [call["call_id"] for call in calls]
-
-
-@pytest.mark.parametrize("filtered", list(RESPONSE_FILTERS))
-async def test_parallel_anthropic_calls_sharing_an_id_continue_as_generated(
-    filtered: str,
-) -> None:
-    # the first turn's calls, under one id
-    blocks: Any = [
-        {**block, "id": "toolu_a"} if block["type"] == "tool_use" else block
-        for block in ANTHROPIC_FIRST
+    assert [(param["call_id"], _path(param)) for param in replayed] == [
+        (call["call_id"], path) for call, path in zip(calls, ["old.txt", "new.txt"])
     ]
-    model = Parsing(
-        _anthropic_parsed(blocks),
-        lambda: calls_output(),
-        wire=_anthropic_wire,
-    )
-    bridge = in_process_bridge([])
-    bridge.response_filter = RESPONSE_FILTERS[filtered]
-    messages: list[ChatMessage] = [ChatMessageUser(content=TASK)]
-
-    with active([bridge_recording([])]):
-        for _ in range(2):
-            output, _ = await bridge_generate(
-                bridge,
-                model.model,
-                list(messages),
-                list(ANTHROPIC_TOOLS),
-                None,
-                GenerateConfig(),
-                requested_model=None,
-            )
-            messages = _answered(messages, output)
-
-    [replayed] = model.wire[1]
-    assert _anthropic_shapes([replayed]) == [ANTHROPIC_FIRST_REPLAY]
-    handed = messages[1]
-    assert isinstance(handed, ChatMessageAssistant)
-    assert [
-        (block["id"], block["input"])
-        for block in replayed
-        if block["type"] == "tool_use"
-    ] == [(call.id, call.arguments) for call in handed.tool_calls or []]
-    assert len({call.id for call in handed.tool_calls or []}) == 2
+    assert all(
+        param.get("id") in (None, param["call_id"])
+        or param["id"].endswith(("_1", "_2")[i])
+        for i, param in enumerate(replayed)
+    ), replayed
 
 
 @protocol
@@ -8445,32 +8410,26 @@ ANTHROPIC_EDITED = {"command": "edited"}
         ],
     ],
 )
-@pytest.mark.parametrize("shared", [True, False])
 @pytest.mark.parametrize(
     "kind", ["function", "custom", "computer", "tool_search", "anthropic"]
 )
 async def test_a_rejected_turn_replays_each_call_as_generated(
-    kind: str, shared: bool, kept: str, filtered: str, rejecter: str
+    kind: str, kept: str, filtered: str, rejecter: str
 ) -> None:
     from contextlib import nullcontext
 
     init_sample_assistant_internal()
     generated: list[Any] = []
     if kind == "anthropic":
-        blocks: Any = [
-            {**block, "id": "toolu_a"}
-            if shared and block["type"] == "tool_use"
-            else block
-            for block in ANTHROPIC_FIRST
-        ]
         model = Parsing(
-            _anthropic_parsed(blocks), lambda: calls_output(), wire=_anthropic_wire
+            _anthropic_parsed(ANTHROPIC_FIRST),
+            lambda: calls_output(),
+            wire=_anthropic_wire,
         )
         tools = list(ANTHROPIC_TOOLS)
     else:
         generated = _responses_calls_reading(kind, True)
-        if not shared:
-            generated[1] = generated[1].model_copy(update={"call_id": "call_distinct"})
+        generated[1] = generated[1].model_copy(update={"call_id": "call_distinct"})
         model = Parsing(
             lambda: _responses_output(*generated),
             lambda: calls_output(),
@@ -8575,10 +8534,11 @@ async def test_a_rejected_turn_replays_as_generated_after_a_later_rejection_reus
     second: Any
     if kind == "anthropic":
         first, second = deepcopy(ANTHROPIC_FIRST), deepcopy(ANTHROPIC_SECOND)
-        if filtered != "unfiltered":
-            first[3]["id"] = first[1]["id"]
         if distinct:
             second[0]["id"] = "toolu_distinct"
+        elif filtered != "unfiltered":
+            # the id of the call the filter keeps
+            second[0]["id"] = first[3]["id"]
         model = Parsing(
             _anthropic_parsed(first),
             _anthropic_parsed(second),
@@ -8589,7 +8549,12 @@ async def test_a_rejected_turn_replays_as_generated_after_a_later_rejection_reus
     else:
         first = [_responses_call_reading(kind, "old.txt", 1)]
         if filtered != "unfiltered":
-            first.insert(0, _responses_call_reading(kind, "removed.txt", 0))
+            first.insert(
+                0,
+                _responses_call_reading(kind, "removed.txt", 0).model_copy(
+                    update={"call_id": "call_removed"}
+                ),
+            )
         second = _responses_call_reading(kind, "new.txt", 2)
         if distinct:
             second = second.model_copy(update={"call_id": "call_distinct"})
@@ -8645,6 +8610,301 @@ async def test_a_rejected_turn_replays_as_generated_after_a_later_rejection_reus
             (call.id, _responses_native_arguments(item.model_dump(exclude_none=True)))
             for call, item in zip(calls, [first[-1], second])
         ]
+
+
+GOOGLE_SIGNATURE = b"old-call-signature"
+RESPONSES_KINDS = ["function", "custom", "computer", "tool_search"]
+RESPONSES_CALL_TYPES = {
+    "function_call",
+    "custom_tool_call",
+    "computer_call",
+    "tool_search_call",
+}
+
+
+def _calls_reading_old_then_new(
+    dialect: str, shared: bool
+) -> tuple[Callable[[], Any], list[ToolInfo], Callable[[list[ChatMessage]], Any]]:
+    """A generation of two parallel calls reading old.txt then new.txt.
+
+    Under one call id when `shared`. Returns the generation (parsed as its
+    provider parses it), the tools, and a serializer giving each replayed call
+    of each assistant message as `(id, path, state)`: the path the call reads,
+    and the provider state replayed with it (a Responses item id, an Anthropic
+    internal name, a Google thought signature).
+    """
+    if dialect == "completions":
+        from inspect_ai.model._openai import openai_chat_message
+
+        second = "call_reused" if shared else "call_distinct"
+
+        def completions() -> ModelOutput:
+            return calls_output(
+                ToolCall(
+                    id="call_reused",
+                    function="read_file",
+                    arguments={"path": "old.txt"},
+                ),
+                ToolCall(
+                    id=second, function="read_file", arguments={"path": "new.txt"}
+                ),
+            )
+
+        async def completions_wire(input: list[ChatMessage]) -> Any:
+            replayed = []
+            for message in input:
+                if isinstance(message, ChatMessageAssistant):
+                    param: Any = await openai_chat_message(message)
+                    replayed.append(
+                        [
+                            (call["id"], _path(call), None)
+                            for call in param.get("tool_calls", [])
+                        ]
+                    )
+            return replayed
+
+        return (
+            completions,
+            [ToolInfo(name="read_file", description="Read.")],
+            completions_wire,
+        )
+    elif dialect == "anthropic":
+        blocks: Any = [
+            {"type": "thinking", "thinking": "first", "signature": "c2ln"},
+            {
+                "type": "tool_use",
+                "id": "toolu_a",
+                "name": "bash",
+                "input": {"command": "cat old.txt"},
+            },
+            {"type": "thinking", "thinking": "second", "signature": "c2lnMg=="},
+            {
+                "type": "tool_use",
+                "id": "toolu_a" if shared else "toolu_b",
+                "name": "read_file",
+                "input": {"path": "new.txt"},
+            },
+        ]
+
+        async def anthropic_wire(input: list[ChatMessage]) -> Any:
+            return [
+                [
+                    (block["id"], _path(block["input"]), block["name"])
+                    for block in blocks
+                    if block["type"] == "tool_use"
+                ]
+                for blocks in await _anthropic_wire(input)
+            ]
+
+        return _anthropic_parsed(blocks), list(ANTHROPIC_TOOLS), anthropic_wire
+    elif dialect == "google":
+        from google.genai.types import (
+            Candidate,
+            Content,
+            FinishReason,
+            FunctionCall,
+            Part,
+        )
+
+        from inspect_ai.model._providers.google import (
+            completion_choice_from_candidate,
+        )
+        from inspect_ai.model._providers.google import content as google_content
+
+        def google() -> ModelOutput:
+            choice = completion_choice_from_candidate(
+                "gemini-3-flash-preview",
+                Candidate(
+                    content=Content(
+                        role="model",
+                        parts=[
+                            Part(
+                                function_call=FunctionCall(
+                                    id="shared",
+                                    name="read_file",
+                                    args={"path": "old.txt"},
+                                ),
+                                thought_signature=GOOGLE_SIGNATURE,
+                            ),
+                            Part(
+                                function_call=FunctionCall(
+                                    id="shared" if shared else "distinct",
+                                    name="read_file",
+                                    args={"path": "new.txt"},
+                                )
+                            ),
+                        ],
+                    ),
+                    finish_reason=FinishReason.STOP,
+                ),
+            )
+            return ModelOutput(model="mockllm/model", choices=[choice])
+
+        async def google_wire(input: list[ChatMessage]) -> Any:
+            replayed = []
+            for message in input:
+                if isinstance(message, ChatMessageAssistant):
+                    parts = (await google_content(AsyncMock(), message)).parts or []
+                    replayed.append(
+                        [
+                            (
+                                part.function_call.id,
+                                _path(part.function_call.args),
+                                part.thought_signature,
+                            )
+                            for part in parts
+                            if part.function_call is not None
+                        ]
+                    )
+            return replayed
+
+        return google, [ToolInfo(name="read_file", description="Read.")], google_wire
+    else:
+        generated = _responses_calls_reading(dialect, True)
+        if not shared:
+            generated[1] = generated[1].model_copy(update={"call_id": "call_distinct"})
+
+        async def responses_wire(input: list[ChatMessage]) -> Any:
+            # one request's items; split into the assistant turns they replay
+            replayed: list[list[Any]] = []
+            for message in input:
+                if isinstance(message, ChatMessageAssistant):
+                    items = await _responses_wire([message])
+                    replayed.append(
+                        [
+                            (item["call_id"], _path(item), item.get("id"))
+                            for item in items
+                            if item.get("type") in RESPONSES_CALL_TYPES
+                        ]
+                    )
+            return replayed
+
+        return (
+            lambda: _responses_output(*generated),
+            [ToolInfo(name="read_file", description="Read a file.")],
+            responses_wire,
+        )
+
+
+def _path(value: Any) -> str | None:
+    """Which of old.txt and new.txt a call carries, or None for both or neither."""
+    text = value if isinstance(value, str) else json.dumps(value, default=str)
+    paths = [path for path in ("old.txt", "new.txt") if path in text]
+    return paths[0] if len(paths) == 1 else None
+
+
+def _own_state(dialect: str, path: str, state: Any, shared: bool) -> bool:
+    """Whether `state` is the replay state of the call reading `path`, or none.
+
+    For calls sharing an id, replay state is dropped rather than risk another
+    call's; Google's thought signature is the one state that is checked as
+    dropped, since it is the state a removed or reordered sibling could donate.
+    """
+    old = path == "old.txt"
+    match dialect:
+        case "completions":
+            return state is None
+        case "anthropic":
+            names = {"bash", "bash_session"} if old else {"read_file"}
+            return (
+                state in names if shared else state == ("bash" if old else "read_file")
+            )
+        case "google":
+            return state == (GOOGLE_SIGNATURE if old and not shared else None)
+        case _:
+            # a native item under the model's id names the generated item
+            return state is None or str(state).endswith("_1" if old else "_2")
+
+
+@pytest.mark.parametrize(
+    "outcome", ["accepted", "sentinel_rejected", "approval_rejected"]
+)
+@pytest.mark.parametrize(
+    ("kept", "rebuilt"),
+    [
+        ("unfiltered", False),
+        *[
+            (kept, rebuilt)
+            for kept in ["first", "last", "reversed"]
+            for rebuilt in [False, True]
+        ],
+    ],
+)
+@pytest.mark.parametrize("shared", [True, False])
+@pytest.mark.parametrize(
+    "dialect", ["completions", *RESPONSES_KINDS, "anthropic", "google"]
+)
+async def test_parallel_calls_never_replay_another_calls_state(
+    dialect: str, shared: bool, kept: str, rebuilt: bool, outcome: str
+) -> None:
+    from contextlib import AbstractContextManager, nullcontext
+
+    init_sample_assistant_internal()
+    generation, tools, wire = _calls_reading_old_then_new(dialect, shared)
+    model = Parsing(generation, lambda: calls_output(), wire=wire)
+    bridge = in_process_bridge([])
+    if kept != "unfiltered":
+        bridge.response_filter = _keeping(kept, rebuilt, {})
+    if outcome == "approval_rejected":
+        bridge.approval = [ApprovalPolicy(rejecting_approver(None), "*")]
+    sentinel: AbstractContextManager[None] = (
+        nullcontext()
+        if outcome == "approval_rejected"
+        else active(
+            [
+                bridge_reject_nth(None)
+                if outcome == "sentinel_rejected"
+                else bridge_recording([])
+            ]
+        )
+    )
+
+    messages: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+    with sentinel:
+        output, _ = await bridge_generate(
+            bridge,
+            model.model,
+            list(messages),
+            tools,
+            None,
+            GenerateConfig(),
+            requested_model=None,
+        )
+        if outcome == "accepted":
+            messages = _answered(messages, output)
+            await bridge_generate(
+                bridge,
+                model.model,
+                list(messages),
+                tools,
+                None,
+                GenerateConfig(),
+                requested_model=None,
+            )
+
+    # the next request replays the turn: each call once, under its own id,
+    # answered by its own result
+    [turn] = [m for m in model.inputs[1] if isinstance(m, ChatMessageAssistant)]
+    calls = turn.tool_calls or []
+    results = [m for m in model.inputs[1] if isinstance(m, ChatMessageTool)]
+    assert [result.tool_call_id for result in results] == [call.id for call in calls]
+    expected = {
+        "first": ["old.txt"],
+        "last": ["new.txt"],
+        "reversed": ["new.txt", "old.txt"],
+    }.get(kept, ["old.txt", "new.txt"])
+    assert [_path(call.arguments) for call in calls] == expected
+    assert len({call.id for call in calls}) == len(calls)
+    # in its generated position (Anthropic, Google) or in call order, with its
+    # own arguments and provider state, or with none
+    [replayed] = model.wire[1]
+    assert len(replayed) == len(calls)
+    assert {call_id: path for call_id, path, _ in replayed} == {
+        call.id: _path(call.arguments) for call in calls
+    }
+    assert all(
+        _own_state(dialect, path, state, shared) for _, path, state in replayed
+    ), replayed
 
 
 def _answered(input: list[ChatMessage], output: ModelOutput) -> list[ChatMessage]:

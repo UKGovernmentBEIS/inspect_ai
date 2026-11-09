@@ -1,6 +1,6 @@
 import hashlib
 import json
-from collections import OrderedDict, deque
+from collections import Counter, OrderedDict, deque
 from contextlib import AbstractContextManager, ExitStack, nullcontext
 from copy import deepcopy
 from dataclasses import dataclass, replace
@@ -43,6 +43,7 @@ from inspect_ai.model._assistant_internal import (
     alias_assistant_internal_call,
     generation_assistant_internal,
     generation_call_states,
+    shared_call_ids,
 )
 from inspect_ai.model._call_tools import decisive_sentinel_exception
 from inspect_ai.model._chat_message import (
@@ -718,8 +719,9 @@ def sentinel_tokens(
     a call keeping the model's id included, as a later response reusing that
     id replaces what the provider recorded under it; under the model's id, only
     the bridge's own requests replay it. A call without known state
-    (`generation_call_states`) gets a fresh token, which no provider has
-    recorded state under, and replays from the call itself.
+    (`generation_call_states`), including each of calls sharing an id
+    (`shared_call_ids`), gets a fresh token, which no provider has recorded
+    state under, and replays from the call itself.
 
     `checks` are the `tool_result` checks for the calls in `output`, in order.
     Returns the output to hand to the scaffold (a copy, when any id changes),
@@ -727,6 +729,7 @@ def sentinel_tokens(
     """
     calls = output.message.tool_calls or []
     states = generation_call_states(generation_assistant_internal(output), calls)
+    shared = shared_call_ids(output)
     issued = bridge._sentinel_results.issue(checks, states)
     for call, check, state in zip(calls, issued, states):
         if state is not None and state.recorded:
@@ -746,29 +749,49 @@ def sentinel_tokens(
         token = check.token or call.id
         tokens.setdefault(call.id, deque()).append(token)
         call.id = token
-    _retarget_anchors(output.message.content, tokens)
+    _retarget_anchors(output.message, tokens, shared)
     return output, issued
 
 
 def _retarget_anchors(
-    content: str | list[Content], tokens: dict[str, deque[str]]
+    message: ChatMessageAssistant, tokens: dict[str, deque[str]], shared: set[str]
 ) -> None:
     """Point Google's reasoning anchors at the calls' tokens.
 
     Google replays a call's thought signature at the call its anchor names
     (`gemini_function_call_id`). `tokens` maps each model ID to the tokens of
     its calls, in order; anchors are in call order.
+
+    Anchors of an ID several calls share (`shared`, or named by several
+    anchors) can't be told apart by call, so they keep only their position:
+    their signatures are dropped, they are matched to the calls under that ID
+    in order, and any left over are removed. No call replays another's
+    signature, and none is replayed twice.
     """
-    if isinstance(content, str):
+    if isinstance(message.content, str):
         return
-    for part in content:
+    anchored = Counter(
+        part.internal.get("gemini_function_call_id")
+        for part in message.content
+        if isinstance(part, ContentReasoning) and isinstance(part.internal, dict)
+    )
+    content: list[Content] = []
+    for part in message.content:
         if isinstance(part, ContentReasoning) and isinstance(part.internal, dict):
             call_id = part.internal.get("gemini_function_call_id")
-            if isinstance(call_id, str) and tokens.get(call_id):
-                part.internal = {
-                    **part.internal,
-                    "gemini_function_call_id": tokens[call_id].popleft(),
-                }
+            if isinstance(call_id, str):
+                ambiguous = call_id in shared or anchored[call_id] > 1
+                if tokens.get(call_id):
+                    part.internal = {
+                        **part.internal,
+                        "gemini_function_call_id": tokens[call_id].popleft(),
+                    }
+                    if ambiguous:
+                        part.reasoning = ""
+                elif ambiguous:
+                    continue
+        content.append(part)
+    message.content = content
 
 
 def replay_ids(output: ModelOutput) -> ModelOutput:
@@ -778,18 +801,20 @@ def replay_ids(output: ModelOutput) -> ModelOutput:
     response), so its call ids are the bridge's to choose. Under the model's id
     a call would replay whatever the providers record under that id each time
     the turn is serialized, and the bridge keeps a rejected turn in the model's
-    input for the rest of its retries: a sibling sharing the id, or a later
-    generation reusing it, records another call's state there. Each call goes
-    under a fresh id with the state its generation parsed it with
+    input for the rest of its retries: a later generation reusing the id, or a
+    response filter's edit, would replace the call's operation there. Each call
+    goes under a fresh id with the state its generation parsed it with
     (`generation_call_states`; with a response filter's arguments for a call the
     filter edited), recorded in the provider's state, or with none when that is
-    unknown, so it replays from the call. Google's reasoning anchors follow.
+    unknown or the id is shared (`shared_call_ids`), so it replays from the
+    call. Google's reasoning anchors follow (`_retarget_anchors`).
     A copy, as `output` may be the object the ModelEvent recorded.
     """
     calls = output.message.tool_calls or []
     if not calls:
         return output
     states = generation_call_states(generation_assistant_internal(output), calls)
+    shared = shared_call_ids(output)
     output = output.model_copy(deep=True)
     tokens: dict[str, deque[str]] = {}
     for call, state in zip(output.message.tool_calls or [], states):
@@ -800,7 +825,7 @@ def replay_ids(output: ModelOutput) -> ModelOutput:
             )
         tokens.setdefault(call.id, deque()).append(token)
         call.id = token
-    _retarget_anchors(output.message.content, tokens)
+    _retarget_anchors(output.message, tokens, shared)
     return output
 
 

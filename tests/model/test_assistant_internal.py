@@ -12,6 +12,7 @@ import importlib
 import json
 import pickle
 import time
+from dataclasses import replace
 from typing import Any, cast
 from unittest.mock import patch
 
@@ -264,15 +265,11 @@ async def test_a_responses_parse_keeps_its_own_replay_state_with_its_output() ->
     assistant_internal().tool_calls["call_itemless"] = cast(Any, {"type": "other"})
 
     states = generation_call_states(replay, output.message.tool_calls or [])
+    # calls sharing an id keep none, so neither can replay the other's
     assert [
         cast(dict[str, Any], state.openai)["arguments"] if state else None
         for state in states
-    ] == [
-        json.dumps({"path": "a"}),
-        None,
-        json.dumps({"path": "old.txt"}),
-        json.dumps({"path": "new.txt"}),
-    ]
+    ] == [json.dumps({"path": "a"}), None, None, None]
     assert generation_assistant_internal(pickle.loads(pickle.dumps(output))) == replay
     assert generation_assistant_internal(output.model_copy(deep=True)) == replay
     rebuilt = ModelOutput.model_validate(output.model_dump())
@@ -289,6 +286,7 @@ def test_a_copy_keeps_the_replay_state_of_the_calls_it_carries() -> None:
         generation_call_states,
         generation_replay,
         set_generation_assistant_internal,
+        shared_call_ids,
     )
 
     calls = [
@@ -297,6 +295,7 @@ def test_a_copy_keeps_the_replay_state_of_the_calls_it_carries() -> None:
         ToolCall(id="renamed", function="read_file", arguments={"path": "c"}),
         ToolCall(id="shared", function="read_file", arguments={"path": "old"}),
         ToolCall(id="shared", function="read_file", arguments={"path": "new"}),
+        ToolCall(id="duplicated", function="read_file", arguments={"path": "d"}),
     ]
     output = set_generation_assistant_internal(
         ModelOutput(
@@ -307,7 +306,7 @@ def test_a_copy_keeps_the_replay_state_of_the_calls_it_carries() -> None:
                 )
             ]
         ),
-        generation_replay(calls, openai=[{"index": index} for index in range(5)]),
+        generation_replay(calls, openai=[{"index": index} for index in range(6)]),
     )
     copy = ModelOutput.model_validate(output.model_dump())
     assert generation_assistant_internal(copy) is None
@@ -315,8 +314,9 @@ def test_a_copy_keeps_the_replay_state_of_the_calls_it_carries() -> None:
     copied = copy.message.tool_calls
     copied[1].arguments = {"path": "edited"}
     copied[2].function = "write_file"
-    # the filter swaps the shared calls
-    copied[3], copied[4] = copied[4], copied[3]
+    # the filter keeps one of the calls sharing an id, and duplicates a call
+    del copied[3]
+    copied.append(replace(copied[-1]))
 
     carry_generation_assistant_internal(output, copy)
 
@@ -324,22 +324,29 @@ def test_a_copy_keeps_the_replay_state_of_the_calls_it_carries() -> None:
         GenerationCallState({"index": 0}, None, False),
         GenerationCallState({"index": 1}, None, True),
         None,
-        GenerationCallState({"index": 4}, None, False),
-        GenerationCallState({"index": 3}, None, False),
+        None,
+        None,
+        None,
     ]
+    assert shared_call_ids(copy) == {"shared", "duplicated"}
 
 
-def test_replay_state_kept_per_call_id_by_older_versions_is_unknown() -> None:
+def test_replay_state_in_the_shapes_of_earlier_versions_is_unknown() -> None:
     from inspect_ai.model._assistant_internal import (
         generation_assistant_internal,
         set_generation_assistant_internal,
     )
 
-    output = set_generation_assistant_internal(
-        _calling("call_1"),
+    for replay in [
+        # without the parsed calls' functions
         {"calls": {"call_1": "digest"}, "openai": {"call_1": {"type": "x"}}},
-    )
-    assert generation_assistant_internal(output) is None
+        # a state per call occurrence
+        {"calls": {"call_1": [{"digest": "d", "openai": {}}]}, "providers": []},
+    ]:
+        output = set_generation_assistant_internal(
+            _calling("call_1"), cast(dict[str, JsonValue], replay)
+        )
+        assert generation_assistant_internal(output) is None
 
 
 def _calling(call_id: str) -> ModelOutput:
