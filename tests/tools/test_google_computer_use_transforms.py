@@ -346,8 +346,26 @@ GEMINI_COMPUTER_CALLS: list[tuple[str, dict[str, object]]] = [
     ("navigate", {"url": "https://example.com"}),
     ("click_at", {"x": 500, "y": 500}),
     ("hover_at", {"x": 200, "y": 250}),
-    ("type_text_at", {"x": 500, "y": 500, "text": "hello", "press_enter": True}),
-    ("type_text_at", {"x": 500, "y": 500, "text": "hello", "press_enter": False}),
+    (
+        "type_text_at",
+        {
+            "x": 500,
+            "y": 500,
+            "text": "hello",
+            "press_enter": True,
+            "clear_before_typing": True,
+        },
+    ),
+    (
+        "type_text_at",
+        {
+            "x": 500,
+            "y": 500,
+            "text": "hello",
+            "press_enter": False,
+            "clear_before_typing": False,
+        },
+    ),
     ("key_combination", {"keys": "control+c"}),
     ("key_combination", {"keys": "enter"}),
     ("scroll_document", {"direction": "down"}),
@@ -387,6 +405,44 @@ async def test_unmodified_gemini_computer_call_replays_as_sent(
     assert replayed.id == tool_call.id
     assert replayed.name == name
     assert replayed.args == args
+
+
+# type_text_at calls that leave out press_enter or clear_before_typing. Parsing
+# fills in Gemini's defaults, so replay sends the same values explicitly.
+TYPE_TEXT_AT_OMITTED_DEFAULTS: list[tuple[dict[str, object], dict[str, object]]] = [
+    (
+        {"x": 500, "y": 500, "text": "hello", "press_enter": True},
+        {"press_enter": True, "clear_before_typing": True},
+    ),
+    (
+        {"x": 500, "y": 500, "text": "hello", "press_enter": False},
+        {"press_enter": False, "clear_before_typing": True},
+    ),
+    (
+        {"x": 500, "y": 500, "text": "hello"},
+        {"press_enter": True, "clear_before_typing": True},
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    "args,flags",
+    TYPE_TEXT_AT_OMITTED_DEFAULTS,
+    ids=["press_enter-true", "press_enter-false", "no-flags"],
+)
+async def test_gemini_type_text_at_replays_omitted_defaults_explicitly(
+    args: dict[str, object], flags: dict[str, object]
+) -> None:
+    tool_call = tool_call_from_gemini_computer_action(
+        FunctionCall(name="type_text_at", args=args)
+    )
+
+    replayed = await _replay(tool_call)
+
+    assert tool_call.arguments["clear_before_typing"] is True
+    assert replayed.id == tool_call.id
+    assert replayed.name == "type_text_at"
+    assert replayed.args == {**args, **flags}
 
 
 # Alias calls edited into another action, which no longer match the alias.
