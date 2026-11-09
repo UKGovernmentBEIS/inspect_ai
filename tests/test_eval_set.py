@@ -2419,7 +2419,11 @@ def _cross_run_eval(t: Task, log_dir: str, fail: bool) -> EvalLog:
 
 
 def _cross_run_eval_set(
-    tasks: list[Task], log_dir: str, fail: bool = False, **kwargs: Any
+    tasks: list[Task],
+    log_dir: str,
+    fail: bool = False,
+    retry_attempts: int = 0,
+    **kwargs: Any,
 ) -> tuple[bool, list[EvalLog]]:
     _CROSS_RUN_RUNS.clear()
     for t in tasks:
@@ -2429,9 +2433,21 @@ def _cross_run_eval_set(
         model="mockllm/model",
         log_dir=log_dir,
         display="none",
-        retry_attempts=0,
+        retry_attempts=retry_attempts,
         **kwargs,
     )
+
+
+def _cross_run_invalidate_first_sample(log: EvalLog) -> EvalLog:
+    log = read_eval_log(log.location)
+    assert log.samples is not None and log.samples[0].uuid is not None
+    log = invalidate_samples(
+        log,
+        sample_uuids=[log.samples[0].uuid],
+        provenance=ProvenanceData(author="test_person", reason="test_reason"),
+    )
+    write_eval_log(log, location=log.location)
+    return log
 
 
 def _cross_run_per_task(logs: list[EvalLog]) -> dict[str, int]:
@@ -2452,16 +2468,26 @@ def test_eval_set_cross_run_error_then_success_reuses_success(tmp_path: Path):
         assert logs[0].eval.eval_id == success.eval.eval_id
 
 
-def test_eval_set_cross_run_success_then_error_reuses_success(tmp_path: Path):
+def test_eval_set_cross_run_success_then_error_retries_newer_run(tmp_path: Path):
+    # a newer failed log can be the failed retry of an invalidated run, which
+    # nothing on disk tells apart from a separate run, so the newest run is
+    # retried rather than replaced by the older complete one
     log_dir = str(tmp_path)
-    success = _cross_run_eval(cross_run_a(), log_dir, fail=False)
-    assert _cross_run_eval(cross_run_a(), log_dir, fail=True).status == "error"
+    _cross_run_eval(cross_run_a(), log_dir, fail=False)
+    errored = _cross_run_eval(cross_run_a(), log_dir, fail=True)
+    assert errored.status == "error"
+
+    ok, logs = _cross_run_eval_set([cross_run_a()], log_dir)
+    assert ok
+    assert _CROSS_RUN_RUNS["cross_run_a"] == 5
+    assert _cross_run_per_task(logs) == {"cross_run_a": 1}
+    assert logs[0].eval.task_id == errored.eval.task_id
 
     ok, logs = _cross_run_eval_set([cross_run_a()], log_dir)
     assert ok
     assert _CROSS_RUN_RUNS["cross_run_a"] == 0
     assert _cross_run_per_task(logs) == {"cross_run_a": 1}
-    assert logs[0].eval.eval_id == success.eval.eval_id
+    assert logs[0].eval.task_id == errored.eval.task_id
 
 
 def test_eval_set_cross_run_two_success_logs_return_newest_started(tmp_path: Path):
@@ -2501,32 +2527,40 @@ def test_eval_set_cross_run_two_success_logs_newest_started_in_list_order(
 
 
 @pytest.mark.parametrize(
-    "first,second",
+    "other,requested",
     [
         ({"sample_id": [0, 1]}, {"sample_id": [3, 4]}),
         ({"limit": (0, 2)}, {"limit": (2, 4)}),
     ],
 )
+@pytest.mark.parametrize("complete_first", [True, False])
 def test_eval_set_cross_run_complete_log_for_other_selection_not_reused(
-    tmp_path: Path, first: dict[str, Any], second: dict[str, Any]
+    tmp_path: Path,
+    other: dict[str, Any],
+    requested: dict[str, Any],
+    complete_first: bool,
 ):
     # a complete log for different samples must not replace retrying the
-    # newer log of the requested selection
+    # failed log of the requested selection, whichever started first
     log_dir = str(tmp_path)
-    _CROSS_RUN_FAIL["cross_run_a"] = False
-    eval(cross_run_a(), model="mockllm/model", log_dir=log_dir, display="none", **first)
-    _CROSS_RUN_FAIL["cross_run_a"] = True
-    eval(
-        cross_run_a(), model="mockllm/model", log_dir=log_dir, display="none", **second
-    )
+    runs = [(other, False), (requested, True)]
+    for selection, fail in runs if complete_first else reversed(runs):
+        _CROSS_RUN_FAIL["cross_run_a"] = fail
+        eval(
+            cross_run_a(),
+            model="mockllm/model",
+            log_dir=log_dir,
+            display="none",
+            **selection,
+        )
 
-    ok, logs = _cross_run_eval_set([cross_run_a()], log_dir, **second)
+    ok, logs = _cross_run_eval_set([cross_run_a()], log_dir, **requested)
     assert ok
     assert _CROSS_RUN_RUNS["cross_run_a"] == 2
     assert _cross_run_per_task(logs) == {"cross_run_a": 1}
     samples = read_eval_log(logs[0].location).samples
     assert samples is not None
-    expected = second.get("sample_id") or list(range(*second["limit"]))
+    expected = requested.get("sample_id") or list(range(*requested["limit"]))
     assert sorted(int(sample.id) for sample in samples) == expected
 
 
@@ -2534,7 +2568,9 @@ def test_eval_set_cross_run_rewritten_error_log_does_not_rerun(tmp_path: Path):
     # rewriting (or copying) the old errored log must not make it win
     log_dir = str(tmp_path)
     errored = _cross_run_eval(cross_run_a(), log_dir, fail=True)
-    success = _cross_run_eval(cross_run_a(), log_dir, fail=False)
+    with patch("inspect_ai._eval.task.log.iso_now") as mock_iso_now:
+        mock_iso_now.return_value = "2099-01-01T00:00:00+00:00"
+        success = _cross_run_eval(cross_run_a(), log_dir, fail=False)
     write_eval_log(read_eval_log(errored.location), errored.location)
 
     ok, logs = _cross_run_eval_set([cross_run_a()], log_dir)
@@ -2564,14 +2600,7 @@ def test_eval_set_cross_run_newer_invalidated_log_is_retried(tmp_path: Path):
     log_dir = str(tmp_path)
     older = _cross_run_eval(cross_run_a(), log_dir, fail=False)
     newer = _cross_run_eval(cross_run_a(), log_dir, fail=False)
-    newer = read_eval_log(newer.location)
-    assert newer.samples is not None and newer.samples[0].uuid is not None
-    newer = invalidate_samples(
-        newer,
-        sample_uuids=[newer.samples[0].uuid],
-        provenance=ProvenanceData(author="test_person", reason="test_reason"),
-    )
-    write_eval_log(newer, location=newer.location)
+    newer = _cross_run_invalidate_first_sample(newer)
 
     ok, logs = _cross_run_eval_set([cross_run_a()], log_dir)
     assert ok
@@ -2586,29 +2615,93 @@ def test_eval_set_cross_run_newer_invalidated_log_is_retried(tmp_path: Path):
     assert _cross_run_per_task(logs) == {"cross_run_a": 1}
 
 
-def test_eval_set_cross_run_older_invalidated_log_superseded(tmp_path: Path):
-    # a complete run started after the invalidation already holds valid
-    # results for every sample, so it is reused and the older invalidated
-    # log is not retried (as an older attempt of one task_id is superseded)
+@pytest.mark.parametrize("retry_immediate", [False, True])
+def test_eval_set_cross_run_failed_retry_of_invalidated_log_is_retried(
+    tmp_path: Path, retry_immediate: bool
+):
+    # the retry of an invalidated log records invalidated=False; when it fails,
+    # the older complete run must still not stand in for it, neither on the
+    # next retry pass nor on a later eval_set call
+    log_dir = str(tmp_path)
+    _cross_run_eval(cross_run_a(), log_dir, fail=False)
+    newer = _cross_run_eval(cross_run_a(), log_dir, fail=False)
+    newer = _cross_run_invalidate_first_sample(newer)
+
+    # two attempts either way: one batch pass each, or one pass that retries
+    ok, logs = _cross_run_eval_set(
+        [cross_run_a()],
+        log_dir,
+        fail=True,
+        retry_attempts=1 if retry_immediate else 2,
+        retry_wait=0.1,
+        retry_immediate=retry_immediate,
+    )
+    assert not ok
+    assert _CROSS_RUN_RUNS["cross_run_a"] == 2  # the invalidated sample, twice
+    assert _cross_run_per_task(logs) == {"cross_run_a": 1}
+    assert logs[0].eval.task_id == newer.eval.task_id
+
+    ok, logs = _cross_run_eval_set([cross_run_a()], log_dir)
+    assert ok
+    assert _CROSS_RUN_RUNS["cross_run_a"] == 1
+    assert _cross_run_per_task(logs) == {"cross_run_a": 1}
+    assert logs[0].eval.task_id == newer.eval.task_id
+    assert not logs[0].invalidated
+
+
+def test_eval_set_cross_run_older_invalidated_log_is_retried(tmp_path: Path):
+    # invalidated logs are retried by eval sets (see invalidate_samples), even
+    # when a complete run started after the invalidated one
     log_dir = str(tmp_path)
     older = _cross_run_eval(cross_run_a(), log_dir, fail=False)
-    older = read_eval_log(older.location)
-    assert older.samples is not None and older.samples[0].uuid is not None
-    older = invalidate_samples(
-        older,
-        sample_uuids=[older.samples[0].uuid],
-        provenance=ProvenanceData(author="test_person", reason="test_reason"),
-    )
-    write_eval_log(older, location=older.location)
-    newer = _cross_run_eval(cross_run_a(), log_dir, fail=False)
+    older = _cross_run_invalidate_first_sample(older)
+    _cross_run_eval(cross_run_a(), log_dir, fail=False)
 
-    for _ in range(2):
+    for runs in (1, 0):
         ok, logs = _cross_run_eval_set([cross_run_a()], log_dir)
         assert ok
-        assert _CROSS_RUN_RUNS["cross_run_a"] == 0
+        assert _CROSS_RUN_RUNS["cross_run_a"] == runs
         assert _cross_run_per_task(logs) == {"cross_run_a": 1}
-        assert logs[0].eval.eval_id == newer.eval.eval_id
+        assert logs[0].eval.task_id == older.eval.task_id
         assert not logs[0].invalidated
+
+
+@pytest.mark.parametrize(
+    "tasks,sample_id",
+    [
+        (["cross_run_a"], "cross_run_a:0"),
+        (["cross_run_a", "cross_run_b"], ["cross_run_a:0", "cross_run_b:1"]),
+    ],
+)
+def test_eval_set_cross_run_task_qualified_sample_id_reused(
+    tmp_path: Path, tasks: list[str], sample_id: str | list[str]
+):
+    # stored sample ids are resolved per task (prefix stripped), so the
+    # request must be resolved the same way before it is compared with them
+    log_dir = str(tmp_path)
+    factories = {"cross_run_a": cross_run_a, "cross_run_b": cross_run_b}
+    ok, logs = _cross_run_eval_set(
+        [factories[name]() for name in tasks], log_dir, sample_id=sample_id
+    )
+    assert ok
+    [complete] = [log for log in logs if log.eval.task == "cross_run_a"]
+    _CROSS_RUN_FAIL["cross_run_a"] = True
+    eval(
+        cross_run_a(),
+        model="mockllm/model",
+        log_dir=log_dir,
+        display="none",
+        sample_id=[3],
+    )
+
+    ok, logs = _cross_run_eval_set(
+        [factories[name]() for name in tasks], log_dir, sample_id=sample_id
+    )
+    assert ok
+    assert _CROSS_RUN_RUNS == Counter()
+    assert _cross_run_per_task(logs) == {name: 1 for name in tasks}
+    [a_log] = [log for log in logs if log.eval.task == "cross_run_a"]
+    assert a_log.eval.eval_id == complete.eval.eval_id
 
 
 def test_eval_set_cross_run_distinct_tasks_kept_apart(tmp_path: Path):

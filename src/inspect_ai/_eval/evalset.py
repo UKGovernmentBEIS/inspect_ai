@@ -149,6 +149,7 @@ from .task.scan import scan_context
 from .task.task import PreviousTask, resolve_epochs, resolve_task_epochs
 from .task.task_source import TaskSource
 from .task.tasks import Tasks
+from .task.util import resolve_task_sample_ids
 
 if TYPE_CHECKING:
     from inspect_ai._control.eval_state import DeferredStatsProvider
@@ -1876,9 +1877,13 @@ def list_latest_eval_logs(
 
     # separate eval()/eval_set() runs of one task each get their own task_id,
     # so the per-task_id selection above can hold several logs for one task
-    return one_log_per_task_identifier(
-        complete_logs, incomplete_logs, limit=limit, sample_id=sample_id
-    )
+    requested = {
+        tid: _selection(
+            limit, resolve_task_sample_ids(task.task.name, sample_id, task_names)
+        )
+        for tid, task in all_tasks
+    }
+    return one_log_per_task_identifier(complete_logs, incomplete_logs, requested)
 
 
 def log_samples_complete(
@@ -1973,62 +1978,53 @@ def epochs_changed(epochs: Epochs | None, config: EvalConfig) -> bool:
     return canonical(requested) != canonical(config.epochs_reducer)
 
 
+_Selection = tuple[tuple[int, int] | None, frozenset[str] | None]
+
+
 def one_log_per_task_identifier(
     complete_logs: list[Log],
     incomplete_logs: list[Log],
-    limit: int | tuple[int, int] | None,
-    sample_id: str | int | list[str] | list[int] | list[str | int] | None,
+    requested: dict[str, _Selection],
 ) -> tuple[list[Log], list[Log]]:
     """Keep one log per task identifier.
 
-    Logs are ranked by the run that started most recently (`eval.created`,
-    which survives rewrites and copies of the file; file mtime breaks ties
-    within a second). A complete log recorded for the requested `limit` and
-    `sample_id` is reused even when a newer incomplete log exists, unless
-    that newer log was invalidated. Otherwise the newest log wins, since a
-    complete log for another selection may hold different samples. Logs not
-    chosen are left on disk.
+    When any of a task's logs was recorded for the requested `limit` and
+    `sample_id` (`requested`, keyed by task identifier), only those are
+    considered, since a log for another selection can hold other samples.
+    Among them a log with invalidated samples is retried first (see
+    `invalidate_samples()`). Otherwise the run that started most recently
+    wins, complete or not: a newer incomplete log can be the failed retry of
+    an invalidated run, which nothing on disk tells apart from a separate
+    failed run. Start order is `eval.created`, which survives rewrites and
+    copies of the file, with file mtime breaking ties within a second. Logs
+    not chosen are left on disk.
     """
-    requested = _selection(limit, sample_id)
 
-    def started(log: Log) -> tuple[datetime, float]:
-        return (datetime.fromisoformat(log.header.eval.created), log.info.mtime or 0)
-
-    def matches(log: Log) -> bool:
+    def rank(log: Log) -> tuple[bool, bool, datetime, float]:
         config = log.header.eval.config
-        return _selection(config.limit, config.sample_id) == requested
+        return (
+            _selection(config.limit, config.sample_id)
+            == requested[log.task_identifier],
+            log.header.invalidated,
+            datetime.fromisoformat(log.header.eval.created),
+            log.info.mtime or 0,
+        )
 
-    def best(logs: list[Log], key: Callable[[Log], Any]) -> dict[str, Log]:
-        chosen: dict[str, Log] = {}
-        for log in logs:
-            current = chosen.get(log.task_identifier)
-            if current is None or key(log) > key(current):
-                chosen[log.task_identifier] = log
-        return chosen
-
-    complete = best(complete_logs, lambda log: (matches(log), started(log)))
-    incomplete = best(incomplete_logs, started)
-    for identifier in set(complete) & set(incomplete):
-        reuse, retry = complete[identifier], incomplete[identifier]
-        newer_retry = started(retry) > started(reuse)
-        # invalidated samples are retried (see invalidate_samples), so an
-        # older complete run never stands in for a newer invalidated one
-        if (matches(reuse) or not newer_retry) and not (
-            newer_retry and retry.header.invalidated
-        ):
-            del incomplete[identifier]
-        else:
-            del complete[identifier]
+    chosen: dict[str, Log] = {}
+    for log in [*complete_logs, *incomplete_logs]:
+        current = chosen.get(log.task_identifier)
+        if current is None or rank(log) > rank(current):
+            chosen[log.task_identifier] = log
     return (
-        [log for log in complete_logs if complete.get(log.task_identifier) is log],
-        [log for log in incomplete_logs if incomplete.get(log.task_identifier) is log],
+        [log for log in complete_logs if chosen[log.task_identifier] is log],
+        [log for log in incomplete_logs if chosen[log.task_identifier] is log],
     )
 
 
 def _selection(
     limit: int | tuple[int, int] | None,
     sample_id: str | int | list[str] | list[int] | list[str | int] | None,
-) -> tuple[tuple[int, int] | None, frozenset[str] | None]:
+) -> _Selection:
     """Canonical form of a sample selection, comparable across log round trips."""
     if isinstance(limit, int):
         limit = (0, limit)
