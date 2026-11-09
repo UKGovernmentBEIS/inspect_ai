@@ -7,7 +7,6 @@ than by editing the response the scaffold sees.
 """
 
 import inspect
-import itertools
 import json
 import logging
 import re
@@ -5404,48 +5403,6 @@ async def test_reused_call_id_pairs_again() -> None:
     assert [e.id for e in recorded.tool_events] == ["same", "same"]
 
 
-@pytest.mark.parametrize("consumed", [False, True])
-async def test_host_result_is_not_claimed_through_an_unexecuted_proposals_id(
-    consumed: bool,
-) -> None:
-    """A copy carrying an earlier, never-executed proposal's id and answer isn't the executed call.
-
-    Once that proposal executes, its reply is tracked and excludes the id too.
-    """
-    bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)
-    earlier = ToolCall(id="earlier", function="read_file", arguments={"path": "a"})
-    current = ToolCall(id="current", function="read_file", arguments={"path": "b"})
-
-    with recorded_transcript() as recorded:
-        await propose(bridge, earlier)
-        run = await run_bridge(
-            [tool_calls_output(current)], bridge=bridge, tools=declare("read_file")
-        )
-        reply = run.output.message
-        await call_host_tool(bridge)("host", "read_file", {"path": "b"})
-        if consumed:
-            await call_host_tool(bridge)("host", "read_file", {"path": "a"})
-        copy = reply.model_copy(
-            update={
-                "tool_calls": [
-                    ToolCall(
-                        id="earlier", function="read_file", arguments={"path": "b"}
-                    )
-                ]
-            }
-        )
-        cancelled = ChatMessageTool(
-            id="cancelled",
-            content="Cancelled.",
-            tool_call_id="earlier",
-            function="read_file",
-        )
-        bridge._link_result_messages([copy, cancelled], [reply.id, None])
-
-    event = next(e for e in recorded.tool_events if e.id == "current")
-    assert event.message_id is None
-
-
 async def test_large_arguments_on_a_denied_call_are_condensed() -> None:
     bridge = sandbox_bridge_with_tool(AsyncMock(), None)
     path = "x" * (1024 * 1024)
@@ -6480,8 +6437,8 @@ def test_earlier_cancellation_under_a_reused_id_is_not_the_later_calls_result(
 ) -> None:
     """A cancellation already sent for an unexecuted call doesn't link to a later call under its id.
 
-    Sent again after the later reply, it answers that reply, so it gets a new
-    id: it can't be told from the later call's result.
+    Sent again after the later reply, it equals the message sent before, so
+    it isn't new in that request and the later call doesn't link it.
     """
     name = "mcp__host__read_file"
     log = eval(
@@ -6511,7 +6468,7 @@ def test_earlier_cancellation_under_a_reused_id_is_not_the_later_calls_result(
     model_events = [e for e in sample.events if isinstance(e, ModelEvent)]
     [sent] = [m for m in model_events[1].input if m.role == "tool"]
     [returned] = [m for m in model_events[2].input if m.role == "tool"]
-    assert returned.id != sent.id
+    assert returned.text == sent.text
     [event] = [e for e in sample.events if isinstance(e, ToolEvent)]
     assert event.arguments == {"path": "b"}
     assert event.message_id is None
@@ -6570,11 +6527,12 @@ def scaffold_only_id_scaffold(dialect: HostDialect, answer: str) -> Agent:
 def test_host_result_is_not_claimed_through_a_scaffold_only_calls_id(
     dialect: HostDialect, answer: str, tmp_path: Path
 ) -> None:
-    """A copy giving a host call an earlier scaffold-only call's id, and an answer under it, doesn't link the host call.
+    """A copy giving a host call an earlier scaffold-only call's id, and an answer under it, links neither host call.
 
     The scaffold ran the earlier call itself, so no grant or execution
-    records its id. Google sends no call ids: its two results of one function
-    can't be told apart, so neither links.
+    records its id. The copy is an edit of the reply, which the bridge
+    doesn't place, so neither call's result links (in Google its two results
+    of one function can't be told apart either).
     """
     name = "mcp__host__read_file"
     log = eval(
@@ -6603,13 +6561,9 @@ def test_host_result_is_not_claimed_through_a_scaffold_only_calls_id(
     sample = resolve_sample_attachments(read.samples[0], "full")
     assert_message_ids(sample)
 
-    model_events = [e for e in sample.events if isinstance(e, ModelEvent)]
-    results = {m.text: m.id for m in model_events[-1].input if m.role == "tool"}
     events = {e.arguments["path"]: e for e in sample.events if isinstance(e, ToolEvent)}
     assert events["a"].message_id is None
-    assert events["b"].message_id == (
-        None if dialect == "google" else results["b result 2"]
-    )
+    assert events["b"].message_id is None
 
 
 @agent
@@ -6786,7 +6740,7 @@ def _user_turn(dialect: HostDialect, text: str) -> dict[str, Any]:
 )
 @pytest.mark.parametrize("placed", [True, False], ids=["placed", "unplaced"])
 @pytest.mark.parametrize("dialect", ["google", "completions", "responses", "anthropic"])
-def test_compacted_equal_host_result_links_to_its_own_message(
+def test_compacted_equal_host_result_shares_its_id_and_links_nothing(
     dialect: HostDialect,
     placed: bool,
     results: tuple[str, str],
@@ -6796,19 +6750,19 @@ def test_compacted_equal_host_result_links_to_its_own_message(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """After compaction, an equal result of a later call links to its own message, also in the next request; a copied earlier result gets a new id and links nothing.
+    """After compaction, a later call's answer equal to the dropped first answer shares its id and links nothing.
 
-    A copied result whose execution returned a lone surrogate, where the later
-    one returned its escaped text, is a copy too: the scaffold sees the two
-    alike, but the executions differ.
+    The provider reuses the call id, so the answer (the later execution's
+    equal result, or a copy of the first answer) equals the first answer,
+    which compaction dropped. It gets the first answer's id, so it isn't new
+    in the request, and which execution it holds can't be told: the later
+    call stays unlinked, also in the next request.
 
     With `parallel`, the first turn makes two identical calls (in Google they
     can't be told apart and stay unlinked). With `evicted`, the bridge no
-    longer tracks the first reply when the compacted result arrives. Unless
-    `placed` (generated after a compaction that kept a later reply, which the
-    first conversation can't hold before an equal call), a latest reply equal
-    to the first (the provider reuses the call id) can't be told from it: it
-    and its result get new ids, and the result links nothing.
+    longer tracks the first reply when the compacted result arrives. With
+    `placed`, the later reply was generated after a compaction that kept a
+    later reply, so the bridge places it.
     """
     if evicted:
         monkeypatch.setattr(bridge_types, "_MAX_AWAITED_RESULTS", 1)
@@ -6847,15 +6801,8 @@ def test_compacted_equal_host_result_links_to_its_own_message(
     assert next_result == latest_result
     events = [e for e in sample.events if isinstance(e, ToolEvent)]
     first_links = [None, None] if parallel and dialect == "google" else first_results
-    if not placed and not parallel:
-        assert latest_result not in first_results
-        assert [e.message_id for e in events] == [*first_links, None]
-    elif copied:
-        assert latest_result not in first_results
-        assert [e.message_id for e in events] == [*first_links, None]
-    else:
-        assert latest_result not in first_results
-        assert [e.message_id for e in events] == [*first_links, latest_result]
+    assert latest_result == first_results[0]
+    assert [e.message_id for e in events] == [*first_links, None]
 
 
 @pytest.mark.parametrize(
@@ -6874,16 +6821,17 @@ def test_compacted_equal_host_result_links_to_its_own_message(
     ],
 )
 @pytest.mark.parametrize("dialect", ["google", "completions", "responses", "anthropic"])
-def test_full_history_copied_host_result_links_nothing(
+def test_full_history_host_result_links_to_the_later_calls_answer(
     dialect: HostDialect,
     results: tuple[str, str],
     copied: bool,
     tmp_path: Path,
 ) -> None:
-    """With the full conversation kept, an earlier result copied as a later call's answer gets a new id and links nothing; the later call's own result links.
+    """With the full conversation kept, the answer sent after the later reply links to the later call, whatever it holds.
 
-    The provider reuses the call id, so the copy equals the earlier answer
-    under every key (Google re-derives call ids).
+    The provider reuses the call id (Google re-derives call ids), so a copy of
+    the earlier answer equals it. Both are in the request, so the copy gets an
+    id of its own, new in that request, and it is the later call's answer.
     """
     name = "mcp__host__read_file"
     call = ToolCall(id="call_1", function=name, arguments={"path": "a"})
@@ -6920,367 +6868,7 @@ def test_full_history_copied_host_result_links_nothing(
     ]
     assert latest.id != first.id
     events = [e for e in sample.events if isinstance(e, ToolEvent)]
-    assert [e.message_id for e in events] == [
-        first.id,
-        None if copied else latest.id,
-    ]
-
-
-@pytest.mark.parametrize("resumed", [False, True], ids=["live", "resumed"])
-@pytest.mark.parametrize("sent", ["copy", "own"])
-@pytest.mark.parametrize(
-    "executions",
-    [(("a", "X"), ("b", "Y")), (("b", "Y"), ("a", "X")), (("a", "Y"),)],
-    ids=["X then Y", "Y then X", "Y only"],
-)
-@pytest.mark.parametrize(
-    "dialect,call_ids",
-    [
-        ("google", "reused"),
-        ("completions", "reused"),
-        ("responses", "reused"),
-        ("anthropic", "reused"),
-        ("completions", "distinct"),
-        ("responses", "distinct"),
-        ("anthropic", "distinct"),
-    ],
-)
-async def test_copy_of_an_answer_to_several_executions_links_nothing(
-    dialect: HostDialect,
-    call_ids: str,
-    executions: tuple[tuple[str, str], ...],
-    sent: str,
-    resumed: bool,
-) -> None:
-    """A copy of the answer to a call executed through several host tools never links a later execution.
-
-    Servers `a` and `b` serve tools sharing a description, so one proposal may
-    run on both, returning what `executions` gives. The scaffold answers the
-    call with "Y", compacts that exchange away, and runs an equal call on `a`
-    returning "X", answering it with a copy of the "Y" answer (or, as a
-    control, its own "X"). With `resumed`, the later call is made to a bridge
-    resumed from a checkpoint taken after the first answer. Google re-derives
-    the call ids, so they repeat, as the other providers' do when `reused`.
-    Under a `distinct` id the "Y" answer is the later call's own, not a copy.
-    """
-    call_id = "call_1" if call_ids == "reused" else "call_2"
-    outputs = [
-        tool_calls_output(
-            ToolCall(id="call_1", function="read_file", arguments={"path": "p"}),
-            content="Reading p.",
-        ),
-        ModelOutput.from_content("mockllm/model", "Noted."),
-        tool_calls_output(
-            ToolCall(id=call_id, function="read_file", arguments={"path": "p"}),
-            content="Reading p again.",
-        ),
-        ModelOutput.from_content("mockllm/model", "Done."),
-    ]
-    model = get_model("mockllm/model", custom_outputs=outputs)
-    results = {"a": [r for s, r in executions if s == "a"] + ["X"]}
-    results["b"] = [r for s, r in executions if s == "b"]
-
-    def host_bridge(checkpointer: RecordingCheckpointer) -> SandboxAgentBridge:
-        return SandboxAgentBridge(
-            state=AgentState(messages=[ChatMessageUser(content="Read p.")]),
-            filter=None,
-            retry_refusals=None,
-            compaction=None,
-            port=13131,
-            model=None,
-            model_aliases={"inspect": model},
-            bridged_tools={
-                server: {
-                    "read_file": read_file(
-                        AsyncMock(side_effect=lambda queue=queue, **_: queue.pop(0))
-                    )
-                }
-                for server, queue in results.items()
-            },
-            checkpointer=checkpointer,
-        )
-
-    checkpointer = RecordingCheckpointer()
-    bridge = host_bridge(checkpointer)
-    [info] = declare("read_file")
-    conversation = _HostConversation(dialect, "Read p.", info)
-    with recorded_transcript() as recorded:
-        first = await conversation.request(bridge)
-        for server, _ in executions:
-            await call_host_tool(bridge)(server, "read_file", first[0][1])
-        conversation.results(first, ["Y"])
-        await conversation.request(bridge)
-        [original] = bridge._answers.values()
-        assert len(original.outcomes) == len({r for _, r in executions})
-        if resumed:
-            bridge = host_bridge(
-                RecordingCheckpointer(
-                    restored=json.loads(json.dumps(checkpointer.snapshot())),
-                    serialized=True,
-                )
-            )
-            [record] = bridge._answers.values()
-            assert record.outcomes == frozenset(original.outcomes)
-        conversation.history = [_user_turn(dialect, "Summary: p reads Y.")]
-        second = await conversation.request(bridge)
-        await call_host_tool(bridge)("a", "read_file", second[0][1])
-        conversation.results(second, ["Y" if sent == "copy" else "X"])
-        await conversation.request(bridge)
-
-    model_events = [e for e in recorded.events if isinstance(e, ModelEvent)]
-    [answer] = [m.id for m in model_events[-1].input if m.role == "tool"]
-    tool_events = [e for e in recorded.events if isinstance(e, ToolEvent)]
-    assert [e.result for e in tool_events] == [*(r for _, r in executions), "X"]
-    copied = sent == "copy" and call_ids == "reused"
-    # the earlier reply, still tracked, handed the same id and its call is unlinked
-    shadowed = (
-        call_ids == "reused"
-        and dialect != "google"
-        and not resumed
-        and len(executions) == 2
-    )
-    assert tool_events[-1].message_id == (None if copied or shadowed else answer)
-
-
-@pytest.mark.parametrize("resumed", [False, True], ids=["live", "resumed"])
-@pytest.mark.parametrize("sent", ["copy", "own"])
-@pytest.mark.parametrize("rerun", [True, False], ids=["X then Y", "X only"])
-@pytest.mark.parametrize(
-    "dialect,call_ids,answer",
-    [
-        *[("google", "reused", answer) for answer in ["edited", "unchanged"]],
-        *[
-            (dialect, call_ids, answer)
-            for call_ids in ["reused", "distinct"]
-            for dialect in ["completions", "responses", "anthropic"]
-            for answer in ["added", "edited", "unchanged"]
-        ],
-    ],
-)
-async def test_answer_sent_after_a_later_execution_holds_its_outcome(
-    dialect: HostDialect,
-    call_ids: str,
-    rerun: bool,
-    answer: str,
-    sent: str,
-    resumed: bool,
-) -> None:
-    """An answer counts the outcome of every execution of its call, including those after it was first sent.
-
-    The call runs on `a` ("X") and its answer links; with `rerun` it then
-    runs on `b` ("Y"). The scaffold's answer is "X", then "Y" as a second
-    answer (`added`) or in place of the first (`edited`); or "Y" from the
-    start, resent unchanged after the rerun (`unchanged`). It compacts that
-    exchange away and runs an equal call on `a` returning "X", answering it
-    with a copy of the "Y" answer (or, as a control, its own "X"). With
-    `resumed`, the later call is made to a bridge resumed from a checkpoint
-    taken after the last "Y" answer. A copy of an answer to both executions
-    links nothing; after one execution, "Y" is the scaffold's rendering of
-    "X" and a copy links. After both, the earlier "X" answer is an answer to
-    both too, so under a reused id an own "X" equal to it may be its copy and
-    links nothing. Google sends a second result under another call's derived
-    id, so it has no `added` case.
-    """
-
-    def calls(text: str, call_id: str = "call_1") -> ModelOutput:
-        return tool_calls_output(
-            ToolCall(id=call_id, function="read_file", arguments={"path": "p"}),
-            content=text,
-        )
-
-    outputs = [
-        calls("Reading p."),
-        *[ModelOutput.from_content("mockllm/model", "Noted.")] * 2,
-        calls("Reading p again.", "call_1" if call_ids == "reused" else "call_2"),
-        ModelOutput.from_content("mockllm/model", "Done."),
-    ]
-    model = get_model("mockllm/model", custom_outputs=outputs)
-    results = {"a": ["X", "X"], "b": ["Y"]}
-
-    def host_bridge(checkpointer: RecordingCheckpointer) -> SandboxAgentBridge:
-        return SandboxAgentBridge(
-            state=AgentState(messages=[ChatMessageUser(content="Read p.")]),
-            filter=None,
-            retry_refusals=None,
-            compaction=None,
-            port=13131,
-            model=None,
-            model_aliases={"inspect": model},
-            bridged_tools={
-                server: {
-                    "read_file": read_file(
-                        AsyncMock(side_effect=lambda queue=queue, **_: queue.pop(0))
-                    )
-                }
-                for server, queue in results.items()
-            },
-            checkpointer=checkpointer,
-        )
-
-    checkpointer = RecordingCheckpointer()
-    bridge = host_bridge(checkpointer)
-    [info] = declare("read_file")
-    conversation = _HostConversation(dialect, "Read p.", info)
-    with recorded_transcript() as recorded:
-        first = await conversation.request(bridge)
-        await call_host_tool(bridge)("a", "read_file", first[0][1])
-        answer_index = len(conversation.history)
-        conversation.results(first, ["Y" if answer == "unchanged" else "X"])
-        await conversation.request(bridge)
-        [(first_id, first_answer)] = bridge._answers.items()
-        copy_keys = [
-            key
-            for key in bridge._keys_by_id[first_id]
-            if key.startswith(("content:", "loose:"))
-        ]
-        # counted before the rerun, so the rerun must recount them
-        assert copy_keys and all(
-            bridge._copies_answered(key, first_answer.outcomes) for key in copy_keys
-        )
-        if rerun:
-            await call_host_tool(bridge)("b", "read_file", first[0][1])
-        if answer != "unchanged":
-            conversation.results(first, ["Y"])
-        if answer == "edited":
-            conversation.history[answer_index] = conversation.history.pop()
-        elif answer == "added":
-            conversation.history.insert(answer_index + 1, conversation.history.pop())
-        await conversation.request(bridge)
-        model_events = [e for e in recorded.events if isinstance(e, ModelEvent)]
-        [y_answer] = [
-            m for m in model_events[-1].input if m.role == "tool" and "Y" in m.text
-        ]
-        assert y_answer.id is not None
-        record = bridge._answers[y_answer.id]
-        assert len(record.outcomes) == (2 if rerun else 1)
-        if resumed:
-            bridge = host_bridge(
-                RecordingCheckpointer(
-                    restored=json.loads(json.dumps(checkpointer.snapshot())),
-                    serialized=True,
-                )
-            )
-            assert bridge._answers[y_answer.id] == record
-        conversation.history = [_user_turn(dialect, "Summary: p reads Y.")]
-        second = await conversation.request(bridge)
-        await call_host_tool(bridge)("a", "read_file", second[0][1])
-        conversation.results(second, ["Y" if sent == "copy" else "X"])
-        await conversation.request(bridge)
-
-    model_events = [e for e in recorded.events if isinstance(e, ModelEvent)]
-    [latest] = [m.id for m in model_events[-1].input if m.role == "tool"]
-    tool_events = [e for e in recorded.events if isinstance(e, ToolEvent)]
-    assert [e.result for e in tool_events] == ["X", *(["Y"] if rerun else []), "X"]
-    assert tool_events[0].message_id is not None
-    copied = (
-        call_ids == "reused" and rerun and (sent == "copy" or answer != "unchanged")
-    )
-    assert tool_events[-1].message_id == (None if copied else latest)
-
-
-@pytest.mark.parametrize("resumed", [False, True], ids=["live", "resumed"])
-@pytest.mark.parametrize("sent", ["copy", "own"])
-@pytest.mark.parametrize(
-    "dialect,call_ids",
-    [
-        ("google", "reused"),
-        *[
-            (dialect, call_ids)
-            for call_ids in ["reused", "distinct"]
-            for dialect in ["completions", "responses", "anthropic"]
-        ],
-    ],
-)
-async def test_restored_answer_holds_the_outcome_of_a_cached_rerun(
-    dialect: HostDialect, call_ids: str, sent: str, resumed: bool
-) -> None:
-    """An answer restored from a checkpoint counts a later execution of its call.
-
-    The call runs on `a` ("X") and the scaffold answers it with "Y". With
-    `resumed`, the bridge is then resumed from the checkpoint that answer's
-    request saved. The scaffold requests the first generation again, which the
-    cache returns under its original id, and its call runs again ("Y"). The
-    scaffold compacts and runs an equal call on `a` returning "X", answering it
-    with a copy of the "Y" answer (or, as a control, its own "X"). A copy of an
-    answer to both executions links nothing, resumed or not.
-    """
-
-    def calls(text: str, call_id: str = "call_1") -> ModelOutput:
-        return tool_calls_output(
-            ToolCall(id=call_id, function="read_file", arguments={"path": "p"}),
-            content=text,
-        )
-
-    first_output = calls("Reading p.")
-    outputs = [
-        first_output,
-        ModelOutput.from_content("mockllm/model", "Noted."),
-        first_output.model_copy(deep=True),
-        calls("Reading p again.", "call_1" if call_ids == "reused" else "call_2"),
-        ModelOutput.from_content("mockllm/model", "Done."),
-    ]
-    model = get_model("mockllm/model", custom_outputs=outputs)
-    results = {"a": ["X", "Y", "X"]}
-
-    def host_bridge(checkpointer: RecordingCheckpointer) -> SandboxAgentBridge:
-        return SandboxAgentBridge(
-            state=AgentState(messages=[ChatMessageUser(content="Read p.")]),
-            filter=None,
-            retry_refusals=None,
-            compaction=None,
-            port=13131,
-            model=None,
-            model_aliases={"inspect": model},
-            bridged_tools={
-                server: {
-                    "read_file": read_file(
-                        AsyncMock(side_effect=lambda queue=queue, **_: queue.pop(0))
-                    )
-                }
-                for server, queue in results.items()
-            },
-            checkpointer=checkpointer,
-        )
-
-    checkpointer = RecordingCheckpointer()
-    bridge = host_bridge(checkpointer)
-    [info] = declare("read_file")
-    conversation = _HostConversation(dialect, "Read p.", info)
-    prompt = list(conversation.history)
-    with recorded_transcript() as recorded:
-        first = await conversation.request(bridge)
-        await call_host_tool(bridge)("a", "read_file", first[0][1])
-        conversation.results(first, ["Y"])
-        await conversation.request(bridge)
-        [(y_answer, record)] = bridge._answers.items()
-        assert len(record.outcomes) == 1
-        if resumed:
-            bridge = host_bridge(
-                RecordingCheckpointer(
-                    restored=json.loads(json.dumps(checkpointer.snapshot())),
-                    serialized=True,
-                )
-            )
-            assert bridge._answers[y_answer] == record
-        conversation.history = list(prompt)
-        replayed = await conversation.request(bridge)
-        await call_host_tool(bridge)("a", "read_file", replayed[0][1])
-        assert len(bridge._answers[y_answer].outcomes) == 2
-        conversation.history = [_user_turn(dialect, "Summary: p reads Y.")]
-        second = await conversation.request(bridge)
-        await call_host_tool(bridge)("a", "read_file", second[0][1])
-        conversation.results(second, ["Y" if sent == "copy" else "X"])
-        await conversation.request(bridge)
-
-    model_events = [e for e in recorded.events if isinstance(e, ModelEvent)]
-    assert model_events[2].output.message.id == model_events[0].output.message.id
-    [latest] = [m.id for m in model_events[-1].input if m.role == "tool"]
-    tool_events = [e for e in recorded.events if isinstance(e, ToolEvent)]
-    assert [e.result for e in tool_events] == ["X", "Y", "X"]
-    copied = call_ids == "reused" and sent == "copy"
-    # after resume the replayed reply, its result still awaited, handed the same id
-    shadowed = resumed and call_ids == "reused" and dialect != "google"
-    assert tool_events[-1].message_id == (None if copied or shadowed else latest)
+    assert [e.message_id for e in events] == [first.id, latest.id]
 
 
 @pytest.mark.parametrize("resumed", [False, True], ids=["live", "resumed"])
@@ -7522,264 +7110,17 @@ def test_reply_with_one_call_under_the_joined_ids_of_two_is_not_their_reply(
     assert fabricated.id not in (original.id, edited_id(original.id, fabricated))
 
 
-@pytest.mark.parametrize("shape", ["single", "parallel_reordered", "same_reply_kept"])
-@pytest.mark.parametrize("dialect", ["google", "completions", "responses", "anthropic"])
-async def test_repeated_scaffold_result_never_takes_an_earlier_executions_id(
-    dialect: HostDialect, shape: str
-) -> None:
-    """A scaffold tool's result answering a later reply never takes an earlier execution's result id.
-
-    The scaffold runs `read_file`, compacts, and runs it again under the same
-    call ids (Google re-derives them; the other providers reuse them) with
-    the same results. The later results answer a different reply, so they
-    get new ids, which they keep. With `same_reply_kept`, compaction keeps the
-    first reply and its result, which keep their ids.
-    """
-    paths = ["a", "b"] if shape == "parallel_reordered" else ["a"]
-
-    def calls(text: str) -> ModelOutput:
-        return tool_calls_output(
-            *[
-                ToolCall(
-                    id=f"reused_{path}", function="read_file", arguments={"path": path}
-                )
-                for path in paths
-            ],
-            content=text,
-        )
-
-    outputs = [
-        calls("First call."),
-        ModelOutput.from_content("mockllm/model", "Read it."),
-        calls("Second call."),
-        *[ModelOutput.from_content("mockllm/model", "Done.")] * 2,
-    ]
-    bridge = AgentBridge(
-        AgentState(messages=[ChatMessageUser(content="Read twice.")]),
-        model_aliases={"inspect": get_model("mockllm/model", custom_outputs=outputs)},
-    )
-    [info] = declare("read_file")
-    conversation = _HostConversation(dialect, "Read twice.", info)
-    summary = _user_turn(dialect, "Summary: read once.")
-    with recorded_transcript() as recorded:
-        first = await conversation.request(cast(SandboxAgentBridge, bridge))
-        conversation.results(first, ["same"] * len(first))
-        await conversation.request(cast(SandboxAgentBridge, bridge))
-        if shape == "same_reply_kept":
-            conversation.history = [summary, *conversation.history[1:]]
-        else:
-            conversation.history = [summary]
-            second = await conversation.request(cast(SandboxAgentBridge, bridge))
-            conversation.results(second[::-1], ["same"] * len(second))
-        await conversation.request(cast(SandboxAgentBridge, bridge))
-        conversation.history.append(_user_turn(dialect, "Thanks."))
-        await conversation.request(cast(SandboxAgentBridge, bridge))
-
-    events = [e for e in recorded.events if isinstance(e, ModelEvent)]
-    first_results = {m.id for m in events[1].input if m.role == "tool"}
-    retained = [m.id for m in events[-2].input if m.role == "tool"]
-    later = [m.id for m in events[-1].input if m.role == "tool"]
-    if dialect == "google" and shape == "parallel_reordered":
-        # equal results of calls sharing a function can't be told apart
-        assert not set(later) & {*retained, *first_results}
-    else:
-        assert later == retained
-    assert len(retained) == len(paths)
-    if shape == "same_reply_kept":
-        assert set(retained) == first_results
-    else:
-        assert not set(retained) & first_results
-
-
-@pytest.mark.parametrize(
-    "case",
-    [
-        "shared_equal",
-        "shared_unequal",
-        "distinct_equal",
-        "shared_equal_intact",
-        "shared_unequal_reversed",
-        "distinct_unequal_reversed",
-        "shared_loose_reversed",
-        "distinct_loose_reversed",
-        "shared_repeated_reversed",
-        "distinct_repeated_reversed",
-    ],
-)
-@pytest.mark.parametrize("dialect", ["google", "completions", "responses", "anthropic"])
-async def test_retained_result_of_calls_sharing_an_id_never_takes_the_others_id(
-    dialect: HostDialect, case: str
-) -> None:
-    """A retained result of one of two calls sharing a call id never takes the other result's id.
-
-    The reply's two calls share the id `unknown`, as the Llama tool call
-    parser gives calls it can't parse ids for. Compaction keeps the reply and
-    only its second result. Equal results can't be told apart, so the
-    retained one gets a new id; unequal results, or results under distinct
-    call ids, keep their own. With the history intact both keep their ids,
-    also when a retry sends unequal results `reversed`. Reversed results
-    under a shared id that differ only in whitespace (`loose`), or that an
-    earlier reply's results under the same ids already returned
-    (`repeated`), can't be told from each other's edits: each keeps its own
-    id or gets a new one. Google re-derives call ids and infers which call a
-    result answers: a result equal to, or sent without, the other call's
-    gets a new id.
-    """
-    shared = case.startswith("shared")
-    repeated = "repeated" in case
-
-    def reads(*paths: str) -> ModelOutput:
-        return tool_calls_output(
-            *[
-                ToolCall(
-                    id="unknown" if shared else f"call_{index}",
-                    function="read_file",
-                    arguments={"path": path},
-                )
-                for index, path in enumerate(paths)
-            ]
-        )
-
-    outputs = [
-        *([reads("c", "d")] if repeated else []),
-        reads("a", "b"),
-        ModelOutput.from_content("mockllm/model", "Read them."),
-        ModelOutput.from_content("mockllm/model", "Done."),
-    ]
-    bridge = AgentBridge(
-        AgentState(messages=[ChatMessageUser(content="Read a and b.")]),
-        model_aliases={"inspect": get_model("mockllm/model", custom_outputs=outputs)},
-    )
-    [info] = declare("read_file")
-    conversation = _HostConversation(dialect, "Read a and b.", info)
-    results: list[JsonValue] = (
-        ["same", "same"]
-        if "equal" in case.split("_")
-        else ["hello world", "hello  world"]
-        if "loose" in case
-        else ["A", "B"]
-    )
-    with recorded_transcript() as recorded:
-        if repeated:
-            calls = await conversation.request(cast(SandboxAgentBridge, bridge))
-            conversation.results(calls, results)
-        start = len(conversation.history)
-        calls = await conversation.request(cast(SandboxAgentBridge, bridge))
-        reply = conversation.history[start:]
-        conversation.results(calls, results)
-        await conversation.request(cast(SandboxAgentBridge, bridge))
-        if case.endswith("intact"):
-            conversation.history.append(_user_turn(dialect, "Thanks."))
-        elif case.endswith("reversed"):
-            conversation.history = conversation.history[: start + len(reply)]
-            conversation.results(calls[::-1], results[::-1])
-        else:
-            conversation.history = [
-                _user_turn(dialect, "Summary: read a and b."),
-                *reply,
-            ]
-            conversation.results(calls[1:], results[1:])
-        await conversation.request(cast(SandboxAgentBridge, bridge))
-
-    events = [e for e in recorded.events if isinstance(e, ModelEvent)]
-    first, second = [m.id for m in events[-2].input if m.role == "tool"][-2:]
-    assert first != second
-    retained = [m.id for m in events[-1].input if m.role == "tool"][-len(results) :]
-    if dialect == "google":
-        assert not set(retained) & {first, second}
-    elif case.endswith("intact"):
-        assert retained == [first, second]
-    elif case in ("shared_loose_reversed", "shared_repeated_reversed"):
-        for id, own, other in zip(retained, [second, first], [first, second]):
-            assert id is not None
-            assert id == own or bridge._edit_root(id) not in (own, other)
-    elif case.endswith("reversed"):
-        assert retained == [second, first]
-    elif case == "shared_equal":
-        assert retained[0] not in (first, second)
-    else:
-        assert retained == [second]
-
-
-@pytest.mark.parametrize("contents", ["unequal", "loose"])
-@pytest.mark.parametrize(
-    "case", ["shared", "distinct_same_call", "distinct_other_call"]
-)
-@pytest.mark.parametrize("retry", ["placed", "retained"])
-@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic"])
-async def test_result_under_a_shared_call_id_never_takes_its_siblings_id(
-    dialect: HostDialect, retry: str, case: str, contents: str
-) -> None:
-    """A result of one of two calls sharing a call id isn't taken for an edit of the other's.
-
-    The scaffold first sends only the first call's result, then, in the same
-    thread (`placed`) or after compaction (`retained`), only a different
-    result under the same call id. Either call may have returned it, also
-    when it differs from the first only in whitespace (`loose`), so it gets
-    a new id. Under distinct call ids it is an edit of the first if it
-    answers the same call, else a new message.
-    """
-
-    def reads(*paths: str) -> ModelOutput:
-        return tool_calls_output(
-            *[
-                ToolCall(
-                    id="unknown" if case == "shared" else f"call_{index}",
-                    function="read_file",
-                    arguments={"path": path},
-                )
-                for index, path in enumerate(paths)
-            ]
-        )
-
-    outputs = [
-        reads("a", "b"),
-        *[ModelOutput.from_content("mockllm/model", "Read them.")] * 2,
-    ]
-    bridge = AgentBridge(
-        AgentState(messages=[ChatMessageUser(content="Read a and b.")]),
-        model_aliases={"inspect": get_model("mockllm/model", custom_outputs=outputs)},
-    )
-    [info] = declare("read_file")
-    conversation = _HostConversation(dialect, "Read a and b.", info)
-    first, second = (
-        ("A", "B") if contents == "unequal" else ("hello world", "hello  world")
-    )
-    with recorded_transcript() as recorded:
-        calls = await conversation.request(cast(SandboxAgentBridge, bridge))
-        reply = conversation.history[1:]
-        conversation.results(calls[:1], [first])
-        await conversation.request(cast(SandboxAgentBridge, bridge))
-        conversation.history = [
-            conversation.history[0]
-            if retry == "placed"
-            else _user_turn(dialect, "Summary: read a and b."),
-            *reply,
-        ]
-        later_call = calls[:1] if case == "distinct_same_call" else calls[1:]
-        conversation.results(later_call, [second])
-        await conversation.request(cast(SandboxAgentBridge, bridge))
-
-    events = [e for e in recorded.events if isinstance(e, ModelEvent)]
-    [first_id] = [m.id for m in events[-2].input if m.role == "tool"]
-    [later_id] = [m.id for m in events[-1].input if m.role == "tool"]
-    assert later_id is not None
-    if case == "distinct_same_call":
-        assert bridge._edit_root(later_id) == first_id
-    else:
-        assert bridge._edit_root(later_id) != first_id
-
-
 @pytest.mark.parametrize("dialect", ["google", "completions", "responses", "anthropic"])
 async def test_empty_text_tool_reply_never_takes_an_earlier_replys_id(
     dialect: HostDialect,
 ) -> None:
-    """A tool-only reply equal to an earlier one never takes that reply's ids, or its result's.
+    """A tool-only reply equal to an earlier one in its wire form never takes that reply's id.
 
     Responses and Anthropic send a reply with empty text back without the
-    text, so the first reply's copy is recorded under a form only it has been
-    sent back in. The second reply, generated after compaction, comes back in
-    that form too, and must keep its own ids or get new ones.
+    text, and Google re-derives call ids, so the second reply, generated after
+    compaction, comes back as the first one's copy did. Either could hold it,
+    so it isn't placed and gets an id made for unplaced messages, which it
+    keeps. Its result equals the first one's and may share that id.
     """
 
     def calls() -> ModelOutput:
@@ -7818,7 +7159,7 @@ async def test_empty_text_tool_reply_never_takes_an_earlier_replys_id(
 
     first_ids = {events[0].output.message.id, *ids(events[1])}
     assert len(ids(events[3])) == 2
-    assert not set(ids(events[3])) & first_ids
+    assert ids(events[3])[0] not in first_ids | {events[2].output.message.id}
     assert ids(events[4])[:2] == ids(events[3])
 
 
@@ -7839,8 +7180,8 @@ async def test_empty_text_tool_reply_keeps_its_ids_when_resumed_from_its_checkpo
 
     The second tool-only reply equals the first in that form. The checkpoint
     its request saves equals the bridge's state once the request returns, and
-    a bridge resumed from it gives the reply and its result new ids, as the
-    uninterrupted bridge does, never the first reply's or its result's.
+    a bridge resumed from it doesn't place the reply either, never giving it
+    the first reply's id.
     """
 
     def calls() -> ModelOutput:
@@ -7898,7 +7239,7 @@ async def test_empty_text_tool_reply_keeps_its_ids_when_resumed_from_its_checkpo
             for id in ids(event)
         ]
 
-    assert "first" not in owners(events[3])
+    assert owners(events[3])[0] == "new"
     assert owners(events[4]) == owners(events[3])
 
 
@@ -7954,7 +7295,7 @@ async def test_google_results_link_only_when_their_function_names_one_call(
         conversation.history.append(_user_turn("google", "Thanks."))
         await conversation.request(cast(SandboxAgentBridge, bridge))
 
-    assert not any(entry.event for entry in _awaited_entries(bridge))
+    assert not any(_awaited_events(bridge))
     if functions == "same":
         assert [e.message_id for e in events] == [None, None]
     else:
@@ -7965,17 +7306,16 @@ async def test_google_results_link_only_when_their_function_names_one_call(
 
 
 @pytest.mark.parametrize("compacted", [False, True], ids=["full", "compacted"])
-@pytest.mark.parametrize(
-    "outputs", [["OK", "OK"], ["A", "B"]], ids=["equal", "distinct"]
-)
 async def test_reordered_google_results_never_take_each_others_ids(
-    outputs: list[str], compacted: bool
+    compacted: bool,
 ) -> None:
-    """Google results of calls sharing a function, sent again in another order, keep their own ids or get new ones.
+    """Distinct Google results of calls sharing a function, sent again in another order, never take each other's ids.
 
     The bridge infers their call ids from order, so a result sent at another
-    position carries the other call's id: it can't keep an id by that.
+    position carries the other call's id: neither is the message sent before
+    at its position, and neither links.
     """
+    outputs = ["A", "B"]
     reply = tool_calls_output(
         *[
             ToolCall(id=path, function="read_file", arguments={"path": path})
@@ -8000,11 +7340,9 @@ async def test_reordered_google_results_never_take_each_others_ids(
         for handed, output in zip(
             _handed_calls(cast(str, message.id), message.tool_calls), outputs
         ):
+            call = message.tool_calls[handed.position]
             event = ToolEvent(
-                id=handed.call_id,
-                function=handed.function,
-                arguments={},
-                result=output,
+                id=call.id, function=call.function, arguments={}, result=output
             )
             bridge._await_result_message(handed, event)
             events.append(event)
@@ -8030,58 +7368,7 @@ async def test_reordered_google_results_never_take_each_others_ids(
     assert sent_b != own_a and sent_a != own_b, (own_a, own_b, reordered)
     assert len(set(reordered)) == 2
     assert [e.message_id for e in events] == [None, None]
-    if outputs[0] != outputs[1]:
-        # distinct content at the same position stays forced
-        assert [m.id for m in model_events[-1].input if m.role == "tool"] == reordered
-
-
-async def test_google_result_without_its_batch_gets_a_new_id() -> None:
-    """A Google result sent without the other results of calls sharing its function doesn't keep an id by position.
-
-    Here `b`'s result, edited to `a`'s content, is sent alone, so it takes
-    `a`'s position and call id.
-    """
-    reply = tool_calls_output(
-        *[
-            ToolCall(id=path, function="read_file", arguments={"path": path})
-            for path in ["a", "b"]
-        ],
-        content="Read both.",
-    )
-    done = ModelOutput.from_content("mockllm/model", "Done.")
-    bridge = AgentBridge(
-        AgentState(messages=[ChatMessageUser(content="Read files.")]),
-        model_aliases={
-            "inspect": get_model("mockllm/model", custom_outputs=[reply, *[done] * 2])
-        },
-    )
-    [info] = declare("read_file")
-    conversation = _HostConversation("google", "Read files.", info)
-    with recorded_transcript() as recorded:
-        calls = await conversation.request(cast(SandboxAgentBridge, bridge))
-        conversation.results(calls, ["A", "B"])
-        bundle = conversation.history[-1]
-        await conversation.request(cast(SandboxAgentBridge, bridge))
-        own_a, _ = [
-            m.id
-            for m in [e for e in recorded.events if isinstance(e, ModelEvent)][-1].input
-            if m.role == "tool"
-        ]
-        part_b = bundle["parts"][1]
-        bundle["parts"] = [
-            {
-                "functionResponse": {
-                    **part_b["functionResponse"],
-                    "response": {"output": "A"},
-                }
-            }
-        ]
-        conversation.history.append(_user_turn("google", "Continue."))
-        await conversation.request(cast(SandboxAgentBridge, bridge))
-
-    latest = [e for e in recorded.events if isinstance(e, ModelEvent)][-1]
-    [sent_b] = [m.id for m in latest.input if m.role == "tool"]
-    assert sent_b != own_a
+    assert [m.id for m in model_events[-1].input if m.role == "tool"] == reordered
 
 
 @pytest.mark.parametrize("host", [False, True], ids=["scaffold", "host"])
@@ -8139,7 +7426,7 @@ def test_matching_same_name_google_results_is_linear(host: bool) -> None:
                     bridge._await_result_message(
                         handed,
                         ToolEvent(
-                            id=handed.call_id,
+                            id=calls[handed.position].id,
                             function="read_file",
                             arguments={},
                             result="OK",
@@ -8165,11 +7452,11 @@ async def test_matching_results_of_calls_sharing_an_id_is_linear(
 ) -> None:
     """Matching a batch of results of calls sharing a call id is linear in the batch.
 
-    Measured: argument digests and all matching of the request sending the results.
+    Measured: all matching of the request sending the results.
     """
     import sys
 
-    async def work(n: int) -> tuple[int, int]:
+    async def work(n: int) -> int:
         output = tool_calls_output(
             *[
                 ToolCall(
@@ -8189,13 +7476,7 @@ async def test_matching_results_of_calls_sharing_an_id_is_linear(
         )
         [info] = declare("read_file")
         conversation = _HostConversation(dialect, "Read files.", info)
-        digests = lines = 0
-        digest = bridge_types._arguments_digest
-
-        def counted_digest(arguments: dict[str, Any]) -> str:
-            nonlocal digests
-            digests += 1
-            return digest(arguments)
+        lines = 0
 
         def trace(frame: Any, event: str, arg: Any) -> Any:
             if not frame.f_code.co_filename.endswith("_bridge/types.py"):
@@ -8208,19 +7489,17 @@ async def test_matching_results_of_calls_sharing_an_id_is_linear(
         with recorded_transcript():
             calls = await conversation.request(cast(SandboxAgentBridge, bridge))
             conversation.results(calls, [str(i) for i in range(n)])
-            with patch.object(bridge_types, "_arguments_digest", counted_digest):
-                sys.settrace(trace)
-                try:
-                    await conversation.request(cast(SandboxAgentBridge, bridge))
-                finally:
-                    sys.settrace(None)
-        return digests, lines
+            sys.settrace(trace)
+            try:
+                await conversation.request(cast(SandboxAgentBridge, bridge))
+            finally:
+                sys.settrace(None)
+        return lines
 
     small, large = await work(16), await work(128)
-    for measured in zip(small, large):
-        assert measured[0] > 0
-        # linear is 8x; digesting each result's sibling calls is 64x
-        assert measured[1] <= 12 * measured[0], (small, large)
+    assert small > 0
+    # linear is 8x; matching each result with each sibling call is 64x
+    assert large <= 12 * small, (small, large)
 
 
 @pytest.mark.parametrize("dialect", get_args(HostDialect))
@@ -8311,88 +7590,13 @@ class _CountingAnswers(dict[str, Any]):
         return super().get(key, default)
 
 
-@pytest.mark.parametrize("dialect", get_args(HostDialect))
-async def test_executing_answered_calls_again_is_linear(dialect: HostDialect) -> None:
-    """Running a reply's answered calls again on a second host tool reads only the answer records of each call.
-
-    The calls read distinct files on `a`, are answered, then run on `b`, which
-    shares the tool's description. Measured: answer records read and all
-    bridge work of the executions on `b`.
-    """
-    import sys
-
-    async def work(n: int) -> tuple[int, int]:
-        outputs = [
-            tool_calls_output(
-                *[
-                    ToolCall(
-                        id=f"call_{i}", function="read_file", arguments={"path": str(i)}
-                    )
-                    for i in range(n)
-                ]
-            ),
-            ModelOutput.from_content("mockllm/model", "Noted."),
-        ]
-        bridge = SandboxAgentBridge(
-            state=AgentState(messages=[ChatMessageUser(content="Read files.")]),
-            filter=None,
-            retry_refusals=None,
-            compaction=None,
-            port=13131,
-            model=None,
-            model_aliases={
-                "inspect": get_model("mockllm/model", custom_outputs=outputs)
-            },
-            bridged_tools={
-                server: {"read_file": read_file(AsyncMock(return_value=result))}
-                for server, result in [("a", "X"), ("b", "Y")]
-            },
-        )
-        [info] = declare("read_file")
-        conversation = _HostConversation(dialect, "Read files.", info)
-        lines = 0
-
-        def trace(frame: Any, event: str, arg: Any) -> Any:
-            if not frame.f_code.co_filename.endswith("_bridge/types.py"):
-                return None
-            if event == "line":
-                nonlocal lines
-                lines += 1
-            return trace
-
-        with recorded_transcript():
-            calls = await conversation.request(bridge)
-            for _, arguments in calls:
-                await call_host_tool(bridge)("a", "read_file", arguments)
-            conversation.results(calls, ["Y"] * n)
-            await conversation.request(bridge)
-            assert len(bridge._answers) == n
-            bridge._answers = _CountingAnswers(bridge._answers)
-            _CountingAnswers.reads = 0
-            sys.settrace(trace)
-            try:
-                for _, arguments in calls:
-                    await call_host_tool(bridge)("b", "read_file", arguments)
-            finally:
-                sys.settrace(None)
-        assert all(len(answer.outcomes) == 2 for answer in bridge._answers.values())
-        return _CountingAnswers.reads, lines
-
-    works = [await work(n) for n in (16, 32, 64, 128)]
-    for measured in zip(*works):
-        assert measured[0] > 0
-        # linear is 2x per doubling; reading every answer in the reply is 4x
-        for smaller, larger in itertools.pairwise(measured):
-            assert larger <= 2.5 * smaller, works
-
-
 @pytest.mark.parametrize("host", [False, True], ids=["scaffold", "host"])
 async def test_repeated_google_results_are_matched_in_linear_time(host: bool) -> None:
-    """Checking whether a repeated result may be a copy doesn't rescan its earlier copies.
+    """Matching a compacted run of repeated results doesn't rescan their earlier copies.
 
     A Google scaffold polls one status call, which gets `working` each time,
-    then compacts to a summary and its newest half of turns. Measured: the
-    copy checks over the whole run, and all matching of the compacted request.
+    then compacts to a summary and its newest half of turns. Measured: all
+    matching of the compacted request.
     """
     import sys
 
@@ -8400,7 +7604,7 @@ async def test_repeated_google_results_are_matched_in_linear_time(host: bool) ->
         messages_from_google_contents,
     )
 
-    async def work(turns: int) -> tuple[int, int]:
+    async def work(turns: int) -> int:
         prompt = "Poll status until done."
         bridge = AgentBridge(AgentState(messages=[ChatMessageUser(content=prompt)]))
         contents: list[Any] = [{"role": "user", "parts": [{"text": prompt}]}]
@@ -8408,23 +7612,16 @@ async def test_repeated_google_results_are_matched_in_linear_time(host: bool) ->
         result = {
             "functionResponse": {"name": "status", "response": {"output": "working"}}
         }
-        checks = compacted = 0
-        measuring_compacted = False
+        compacted = 0
 
         def trace(frame: Any, event: str, arg: Any) -> Any:
-            check = frame.f_code.co_qualname.startswith(
-                ("AgentBridge._new_result_linkable", "AgentBridge._copies_answered")
-            )
-            matching = measuring_compacted and "inspect_ai" in frame.f_code.co_filename
-            if not (check or matching):
+            if "inspect_ai" not in frame.f_code.co_filename:
                 return None
             if event == "line":
-                nonlocal checks, compacted
-                checks += check
-                compacted += matching
+                nonlocal compacted
+                compacted += 1
             return trace
 
-        sys.settrace(trace)
         try:
             for i in range(turns):
                 messages = messages_from_google_contents(contents, None)
@@ -8447,7 +7644,7 @@ async def test_repeated_google_results_are_matched_in_linear_time(host: bool) ->
                     bridge._await_result_message(
                         handed,
                         ToolEvent(
-                            id=handed.call_id,
+                            id=f"provider-{i}",
                             function="status",
                             arguments={},
                             result="working",
@@ -8458,23 +7655,24 @@ async def test_repeated_google_results_are_matched_in_linear_time(host: bool) ->
             messages = messages_from_google_contents(
                 [summary, *contents[1 + 2 * (turns // 2) :]], None
             )
-            measuring_compacted = True
+            sys.settrace(trace)
             bridge._assign_message_ids(messages)
         finally:
             sys.settrace(None)
-        return checks, compacted
+        return compacted
 
     works = [await work(turns) for turns in (32, 64, 128)]
-    for measured in zip(*works):
-        assert measured[0] > 0
-        # linear is 2x per doubling; rescanning the earlier copies is 4x
-        assert measured[1] <= 2.5 * measured[0], works
-        assert measured[2] <= 5 * measured[0], works
+    assert works[0] > 0
+    # linear is 2x per doubling; rescanning the earlier copies is 4x
+    assert works[1] <= 2.5 * works[0], works
+    assert works[2] <= 5 * works[0], works
 
 
-def _awaited_entries(bridge: AgentBridge) -> list[Any]:
+def _awaited_events(bridge: AgentBridge) -> list[ToolEvent | None]:
     return [
-        entry for calls in bridge._awaited_results.values() for entry in calls.values()
+        event
+        for reply in bridge._awaited_results.values()
+        for event in reply.events.values()
     ]
 
 

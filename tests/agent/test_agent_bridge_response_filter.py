@@ -2251,30 +2251,38 @@ async def test_modified_arguments_keep_pending_server_work(path: BridgePath) -> 
     assert _pending_container_for_input([provider_output.message]) == CONTAINER_ID
 
 
-@pytest.mark.parametrize("edit", ["native", "scaffold"])
-async def test_edits_of_a_pending_turn_keep_its_work(edit: str) -> None:
-    """An edit of the turn (Inspect's, or a scaffold's changed copy) keeps its pending work."""
+async def test_edits_of_a_pending_turn_keep_its_work() -> None:
+    """Inspect's edit of the turn keeps its pending work."""
     from inspect_ai.model._providers.anthropic import _pending_container_for_input
 
     init_sample_anthropic_assistant_internal()
     provider_output = await _pending_container_output()
     original_blocks = await _render_anthropic(provider_output.message)
-    content = [ContentText(text="Checking.  ")]
-    if edit == "native":
-        edited = edited_message(provider_output.message, content=content)
-    else:
-        task = ChatMessageUser(content="hi")
-        bridge = AgentBridge(AgentState(messages=[task]))
-        await bridge._track_state([task], provider_output, [])
-        edited = provider_output.message.model_copy(
-            update={"id": "wire", "content": content}
-        )
-        apply_message_ids(bridge, [task.model_copy(update={"id": "wire-task"}), edited])
+    edited = edited_message(
+        provider_output.message, content=[ContentText(text="Checking.  ")]
+    )
 
     assert edited.id == edited_id(provider_output.message.id, edited)
     blocks = await _render_anthropic(edited)
     assert [b["type"] for b in blocks] == [b["type"] for b in original_blocks]
     assert _pending_container_for_input([edited]) == CONTAINER_ID
+
+
+async def test_unchanged_scaffold_copy_of_a_pending_turn_keeps_its_work() -> None:
+    """A scaffold's unchanged copy of the turn is placed under its id, so it keeps the pending work."""
+    from inspect_ai.model._providers.anthropic import _pending_container_for_input
+
+    init_sample_anthropic_assistant_internal()
+    provider_output = await _pending_container_output()
+    task = ChatMessageUser(content="hi")
+    bridge = AgentBridge(AgentState(messages=[task]))
+    await bridge._track_state([task], provider_output, [])
+    copy = provider_output.message.model_copy(update={"id": "wire"})
+
+    apply_message_ids(bridge, [task.model_copy(update={"id": "wire-task"}), copy])
+
+    assert copy.id == provider_output.message.id
+    assert _pending_container_for_input([copy]) == CONTAINER_ID
 
 
 class _GrantRecordingBridge(AgentBridge):

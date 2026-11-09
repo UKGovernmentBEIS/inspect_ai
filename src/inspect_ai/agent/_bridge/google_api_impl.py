@@ -23,6 +23,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageUser,
 )
 from inspect_ai.model._generate_config import GenerateConfig, ResponseSchema
+from inspect_ai.model._message_ids import canonical_tool_arguments
 from inspect_ai.model._model import ModelName
 from inspect_ai.model._model_output import ModelOutput, ModelUsage, StopReason
 from inspect_ai.model._providers._google_computer_use import (
@@ -745,9 +746,10 @@ def _extract_model_parts(
             if not isinstance(args, dict):
                 args = {"value": args}
 
-            # deterministic call ID for message ID stability (`surrogatepass`
-            # encodes a lone surrogate in the name losslessly)
-            args_str = json.dumps(args, sort_keys=True) if args else ""
+            # deterministic call ID for message ID stability, unchanged by a
+            # JSON round-trip of the arguments (5.0 sent back as 5); `surrogatepass`
+            # encodes a lone surrogate in the name losslessly
+            args_str = canonical_tool_arguments(args) if args else ""
             call_hash = hashlib.md5(
                 f"{func_name}:{args_str}:{part_idx}".encode("utf-8", "surrogatepass")
             ).hexdigest()[:8]

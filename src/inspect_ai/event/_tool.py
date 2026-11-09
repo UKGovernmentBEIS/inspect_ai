@@ -87,28 +87,22 @@ class ToolEvent(BaseEvent):
     The message may not stay in the conversation (react removes its `submit`
     tool's result). For a host tool a sandbox agent bridge runs for the
     scaffold, the result reaches the conversation only when the scaffold sends
-    it back, so this is set then, on the completed event: the tool message the
-    scaffold sent, after the reply handed to it, as the answer to this call,
-    identified by call id. Its content may differ from `result`: scaffolds edit
-    results and dialects reshape them. It never names the answer to a different
-    call the bridge can tell apart from this one; a scaffold that copies an
-    earlier call and its answer into a later reply, once the earlier reply is no
-    longer tracked (after 256 later host calls), can be taken for the later
-    call.
+    it back, so this is set then, on the completed event, and only when the
+    answer is certain: the scaffold sends back the reply holding the call
+    unchanged and the bridge places it under the id it handed it with, the call
+    ran once and its id is unique in the reply, and exactly one tool message
+    answers it (by call id, before the next assistant message with tool calls)
+    and is new in that request. Its content may differ from `result`:
+    scaffolds edit results and dialects reshape them.
 
-    It stays `None` until then, while another reply of more than 256 calls is
-    still tracked, and for good if the scaffold never sends the result, the
-    sample resumes from a checkpoint first, the bridge doesn't
-    recognize the reply the scaffold sends back as the one handed to it (its
-    calls reordered, or an edited version older than the last 16 edited copies
-    the scaffold sent), the reply doesn't identify the call (exactly one call
-    with its id, function and arguments, an id handed to no other call of the
-    reply, or in Google its function and arguments, shared by no other call of
-    the reply, in a reply of at most 256 calls), the call executed more than
-    once, more than one tool message answers it, the only answer is already
-    linked to another call or was first sent as another reply's answer (unless
-    the host results show it equal to a fresh answer), or 256 later host calls
-    are tracked before its result arrives.
+    Otherwise it stays `None`: the scaffold never sends the result, edits the
+    reply, or sends it where the bridge can't place it (another conversation
+    may hold an equal reply); the call executed more than once; more than one
+    tool message answers it; the answer equals a message sent before or was
+    sent before the call completed; Google names only the result's function
+    and several calls of the reply share it; the sample resumed from a
+    checkpoint first; or 256 later host calls are tracked before its result
+    arrives.
     """
 
     call_message_id: str | None = Field(default=None)
