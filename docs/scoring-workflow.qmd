@@ -50,7 +50,7 @@ inspect score ./logs/2024-02-23_task_gpt-4_TUhnCn473c6.eval --scorer custom_scor
 inspect score ./logs/2024-02-23_task_gpt-4_TUhnCn473c6.eval --scorer custom_scorers.py@classify
 ```
 
-If you need to pass arguments to the scorer, you can do do using scorer args (`-S`) like so:
+If you need to pass arguments to the scorer, you can do so using scorer args (`-S`) like so:
 
 ``` bash
 inspect score ./logs/2024-02-23_task_gpt-4_TUhnCn473c6.eval --scorer match -S location=end
