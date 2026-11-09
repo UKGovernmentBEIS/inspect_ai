@@ -22,6 +22,9 @@ git_describe_command = [
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["inspect_ai*"]
+# Not runtime code. The wheel is built from the checkout, not the sdist, so
+# MANIFEST.in does not keep these namespace-package modules out of it.
+exclude = ["inspect_ai._view.ts-mono*", "inspect_ai.tool._tools._computer._resources*"]
 
 # Keep the ts-mono TS source out of the wheel: the git-tracked files are
 # pruned in MANIFEST.in (include-package-data pulls the manifest into the
@@ -29,7 +32,7 @@ include = ["inspect_ai*"]
 # **/*.yml) from picking up untracked files inside ts-mono such as
 # node_modules. The viewer ships prebuilt as _view/dist.
 [tool.setuptools.exclude-package-data]
-inspect_ai = ["_view/ts-mono*"]
+inspect_ai = ["_view/ts-mono*", "tool/_tools/_computer/_resources*"]
 
 [tool.setuptools.package-data]
 inspect_ai = [
@@ -339,7 +342,6 @@ anthropic = "6 hours"
 azure-ai-inference = "6 hours"
 google-genai = "6 hours"
 groq = "6 hours"
-huggingface-hub = "6 hours"
 inspect-scout = "6 hours"
 inspect-sentinel = "6 hours"
 mistralai = "6 hours"
