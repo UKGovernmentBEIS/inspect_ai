@@ -1,8 +1,9 @@
 """Builders for `acp.schema` models.
 
-agent-client-protocol 1.0 removed `acp.helpers`. These functions keep its
-names and signatures so one code path works with both 0.12 and 1.0. They pass
-each discriminator explicitly because 0.12 requires it and 1.0 defaults it.
+agent-client-protocol 1.0 removed `acp.helpers`. These functions replace the
+helpers that we used and keep their names, so one code path works with 0.12
+and 1.0. They set each discriminator explicitly because 0.12 requires it and
+1.0 sets a default.
 """
 
 from __future__ import annotations
@@ -111,8 +112,8 @@ def start_tool_call(
     status: ToolCallStatus | None = None,
     content: Sequence[ToolCallContentVariant] | None = None,
     locations: Sequence[ToolCallLocation] | None = None,
-    raw_input: Any | None = None,
-    raw_output: Any | None = None,
+    raw_input: Any = None,
+    raw_output: Any = None,
 ) -> ToolCallStart:
     return ToolCallStart(
         session_update="tool_call",
@@ -135,8 +136,8 @@ def update_tool_call(
     status: ToolCallStatus | None = None,
     content: Sequence[ToolCallContentVariant] | None = None,
     locations: Sequence[ToolCallLocation] | None = None,
-    raw_input: Any | None = None,
-    raw_output: Any | None = None,
+    raw_input: Any = None,
+    raw_output: Any = None,
 ) -> ToolCallProgress:
     return ToolCallProgress(
         session_update="tool_call_update",
