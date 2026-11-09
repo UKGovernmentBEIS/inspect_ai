@@ -1895,6 +1895,7 @@ def log_samples_complete(
     epoch_count = epochs.epochs
 
     dataset = task.task.dataset
+    selected_range: range | None = None
     if sample_id is not None:
         sample_id = resolve_task_sample_ids(task.task.name, sample_id, task_names)
         matcher = sample_id_filter(sample_id if sample_id is not None else [])
@@ -1906,9 +1907,9 @@ def log_samples_complete(
             )
         }
     else:
-        selection = slice(*limit) if isinstance(limit, tuple) else slice(0, limit)
+        selected_range = range(len(dataset))[_limit_slice(limit)]
         selected_ids = set()
-        for index in range(len(dataset))[selection]:
+        for index in selected_range:
             sample = dataset[index]
             selected_ids.add(str(sample.id if sample.id is not None else index + 1))
     planned = len(selected_ids) * epoch_count
@@ -1920,12 +1921,6 @@ def log_samples_complete(
     if not log.header.results:
         return False
 
-    # Counts alone cannot prove coverage when a selector or limit range
-    # changes. Keep reusing supersets, but require every requested id.
-    previous_ids = log.header.eval.dataset.sample_ids
-    if previous_ids is None or not selected_ids.issubset(map(str, previous_ids)):
-        return False
-
     # a graceful cancel/drain abandons queued samples but still finishes with
     # a success log whose total_samples records the *planned* count — such
     # logs carry the count of samples actually resolved (stamped at finalize,
@@ -1934,6 +1929,35 @@ def log_samples_complete(
     # logs from older versions), which fall through to the planned-count
     # comparison below.
     logged_samples = log.header.results.logged_samples
+    # a resolution stamped in this process is honored for the life of
+    # the run: with `retry_immediate=False` the outer tenacity pass
+    # re-enters this classification after a sibling task fails, and
+    # without the registry it would re-dispatch the abandoned remainder
+    # in-process. A later invocation (fresh process, empty registry)
+    # sees the shortfall and re-runs the remainder as designed.
+    if logged_samples is not None and task_gracefully_resolved(log.header.eval.task_id):
+        return True
+
+    # Counts alone cannot prove coverage when a selector or limit range
+    # changes. Keep reusing supersets, but require every requested id.
+    previous_ids = log.header.eval.dataset.sample_ids
+    if previous_ids is None:
+        return False
+    if not selected_ids.issubset(map(str, previous_ids)):
+        # A shuffled dataset can draw a different subset on each task
+        # resolution (an unseeded shuffle, or a loader that shuffles before
+        # its own limit), so its ids cannot prove a change of selection.
+        # Keep the previous draw when its limit range covers this one.
+        if not (
+            dataset.shuffled
+            and selected_range is not None
+            and _range_covers(
+                range(len(dataset))[_limit_slice(log.header.eval.config.limit)],
+                selected_range,
+            )
+        ):
+            return False
+
     if logged_samples is not None:
         # A partial log's sample_ids describe the planned selection, not
         # which samples resolved. A smaller selection still needs a retry
@@ -1941,19 +1965,22 @@ def log_samples_complete(
         # Metric recomputation can shrink total_samples to recorded samples,
         # so also retain the original selection's planned count.
         previous_planned = len(previous_ids) * epoch_count
-        if logged_samples >= max(previous_planned, log.header.results.total_samples):
-            return True
-        # a resolution stamped in this process is honored for the life of
-        # the run: with `retry_immediate=False` the outer tenacity pass
-        # re-enters this classification after a sibling task fails, and
-        # without the registry it would re-dispatch the abandoned remainder
-        # in-process. A later invocation (fresh process, empty registry)
-        # sees the shortfall and re-runs the remainder as designed.
-        return task_gracefully_resolved(log.header.eval.task_id)
+        return logged_samples >= max(previous_planned, log.header.results.total_samples)
 
     if log.header.results.total_samples < planned:
         return False
     return True
+
+
+def _limit_slice(limit: int | tuple[int, int] | None) -> slice:
+    return slice(*limit) if isinstance(limit, tuple) else slice(0, limit)
+
+
+def _range_covers(previous: range, selected: range) -> bool:
+    """Whether the positions in `selected` are all in `previous`."""
+    return len(selected) == 0 or (
+        previous.start <= selected.start and selected.stop <= previous.stop
+    )
 
 
 def shuffle_changed(

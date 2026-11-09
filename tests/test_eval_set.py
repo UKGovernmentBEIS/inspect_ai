@@ -24,6 +24,7 @@ from test_helpers.utils import (
     failing_task_deterministic,
     identity_solver,
     keyboard_interrupt,
+    skip_if_no_package,
     skip_if_trio,
     sleep_for_solver,
 )
@@ -56,7 +57,14 @@ from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import basename, filesystem, local_path, size_in_mb
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._view.common import read_eval_set_info_async
-from inspect_ai.dataset import Sample
+from inspect_ai.dataset import (
+    Dataset,
+    MemoryDataset,
+    Sample,
+    csv_dataset,
+    hf_dataset,
+    json_dataset,
+)
 from inspect_ai.event import SampleInitEvent
 from inspect_ai.log._edit import ProvenanceData, invalidate_samples
 from inspect_ai.log._file import (
@@ -2526,6 +2534,207 @@ def test_eval_set_shuffle_reused_without_limit(tmp_path: Path):
     )
     assert result
     assert logs[0].eval.eval_id == first_eval_id
+
+
+_SHUFFLE_IDS = [f"s{index}" for index in range(50)]
+
+
+def _unseeded_shuffle_dataset(source: str, tmp_path: Path) -> Dataset:
+    """A dataset whose selected samples are redrawn on each task resolution."""
+    records = [{"id": id, "input": id, "target": "ok"} for id in _SHUFFLE_IDS]
+    match source:
+        case "sample_shuffle":
+            return MemoryDataset(
+                [Sample(id=id, input=id, target="ok") for id in _SHUFFLE_IDS]
+            )
+        case "dataset_shuffle":
+            dataset = MemoryDataset(
+                [Sample(id=id, input=id, target="ok") for id in _SHUFFLE_IDS]
+            )
+            dataset.shuffle()
+            return dataset
+        case "csv":
+            path = tmp_path / "samples.csv"
+            path.write_text(
+                "id,input,target\n" + "".join(f"{id},{id},ok\n" for id in _SHUFFLE_IDS)
+            )
+            return csv_dataset(str(path), shuffle=True, limit=5)
+        case "json":
+            path = tmp_path / "samples.jsonl"
+            path.write_text("".join(json.dumps(record) + "\n" for record in records))
+            return json_dataset(str(path), shuffle=True, limit=5)
+        case "hf":
+            path = tmp_path / "samples.csv"
+            path.write_text(
+                "id,input,target\n" + "".join(f"{id},{id},ok\n" for id in _SHUFFLE_IDS)
+            )
+            return hf_dataset(
+                "csv",
+                split="train",
+                data_files=str(path),
+                shuffle=True,
+                limit=5,
+                cached=False,
+            )
+    raise AssertionError(source)
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "sample_shuffle",
+        "dataset_shuffle",
+        "csv",
+        "json",
+        pytest.param("hf", marks=skip_if_no_package("datasets")),
+    ],
+)
+def test_eval_set_unseeded_shuffle_reuses_completed_subset(
+    tmp_path: Path, source: str
+) -> None:
+    """Rerunning an unchanged unseeded shuffle with a subset is a no-op."""
+    calls: list[str | int] = []
+
+    @solver
+    def record_selection() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            calls.append(state.sample_id)
+            state.output = ModelOutput.from_content("mockllm/model", "ok")
+            return state
+
+        return solve
+
+    @task
+    def unseeded_shuffle() -> Task:
+        return Task(
+            dataset=_unseeded_shuffle_dataset(source, tmp_path),
+            solver=record_selection(),
+            scorer=exact(),
+        )
+
+    selection: dict[str, Any] = {
+        "sample_shuffle": {"sample_shuffle": True, "limit": 5},
+        "dataset_shuffle": {"limit": 5},
+    }.get(source, {})
+    log_dir = str(tmp_path / "logs")
+    with patch(
+        "inspect_ai.dataset._sources.hf.inspect_cache_dir",
+        return_value=tmp_path / "hf_cache",
+    ):
+        success, first_logs = eval_set(
+            unseeded_shuffle, log_dir=log_dir, model="mockllm/model", **selection
+        )
+        assert success
+        first_ids = list(first_logs[0].eval.dataset.sample_ids or [])
+        assert len(first_ids) == 5 and len(calls) == 5
+        calls.clear()
+
+        # each eval_set call resolves the task again, redrawing the shuffle
+        success, logs = eval_set(
+            unseeded_shuffle, log_dir=log_dir, model="mockllm/model", **selection
+        )
+    assert success
+    assert calls == []
+    assert basename(logs[0].location) == basename(first_logs[0].location)
+    assert logs[0].eval.dataset.sample_ids == first_ids
+
+
+@pytest.mark.parametrize("sample_shuffle", [True, 42])
+def test_eval_set_shuffle_shifted_limit_range_runs_new_samples(
+    tmp_path: Path, sample_shuffle: bool | int
+) -> None:
+    """A shuffled log does not cover a limit range outside its own."""
+    calls: list[str | int] = []
+
+    @solver
+    def record_selection() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            calls.append(state.sample_id)
+            state.output = ModelOutput.from_content("mockllm/model", "ok")
+            return state
+
+        return solve
+
+    @task
+    def shuffled_selection() -> Task:
+        return Task(
+            dataset=_unseeded_shuffle_dataset("sample_shuffle", tmp_path),
+            solver=record_selection(),
+            scorer=exact(),
+        )
+
+    log_dir = str(tmp_path / "logs")
+    locations: list[str] = []
+    for limit in [(0, 5), (5, 10)]:
+        calls.clear()
+        success, logs = eval_set(
+            shuffled_selection,
+            log_dir=log_dir,
+            model="mockllm/model",
+            sample_shuffle=sample_shuffle,
+            limit=limit,
+        )
+        assert success
+        locations.append(basename(logs[0].location))
+    assert locations[0] != locations[1]
+    # an unseeded redraw can overlap the first draw, whose samples are reused
+    assert len(calls) == 5 if sample_shuffle == 42 else calls
+
+
+def test_eval_set_unseeded_shuffle_kept_across_sibling_retry(tmp_path: Path) -> None:
+    """A sibling's retry pass does not redraw a completed unseeded shuffle."""
+    shuffled_calls: list[str | int] = []
+    sibling_calls: list[str | int] = []
+
+    @solver
+    def record_selection() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            shuffled_calls.append(state.sample_id)
+            state.output = ModelOutput.from_content("mockllm/model", "ok")
+            return state
+
+        return solve
+
+    @solver
+    def fail_first_attempt() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            sibling_calls.append(state.sample_id)
+            if len(sibling_calls) == 1:
+                raise RuntimeError("first attempt fails")
+            state.output = ModelOutput.from_content("mockllm/model", "ok")
+            return state
+
+        return solve
+
+    @task
+    def shuffled_selection() -> Task:
+        return Task(
+            dataset=_unseeded_shuffle_dataset("sample_shuffle", tmp_path),
+            solver=record_selection(),
+            scorer=exact(),
+        )
+
+    @task
+    def sibling() -> Task:
+        return Task(
+            dataset=[Sample(id="x", input="x", target="ok")],
+            solver=fail_first_attempt(),
+            scorer=exact(),
+        )
+
+    success, logs = eval_set(
+        [shuffled_selection, sibling],
+        log_dir=str(tmp_path / "logs"),
+        model="mockllm/model",
+        sample_shuffle=True,
+        limit=5,
+        retry_attempts=2,
+        retry_wait=0.001,
+        retry_immediate=False,
+    )
+    assert success
+    assert len(sibling_calls) == 2
+    assert len(shuffled_calls) == 5
 
 
 def test_eval_set_bundle_when_all_complete(tmp_path: Path) -> None:
