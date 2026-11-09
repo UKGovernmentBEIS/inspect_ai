@@ -92,7 +92,7 @@ See [RELEASING.md](design/RELEASING.md) for the end-to-end process for building,
 
 ## Testing
 
-An editable install whose sandbox tools build inputs differ from `main` uses the `-dev` binary, not the published binary. The build inputs are the paths in `src/inspect_ai/tool/_sandbox_tools_utils/injectable_paths.txt`. Build the `-dev` binaries before you run the tests. Use the architecture of your Docker host (`amd64` or `arm64`):
+An editable install whose sandbox tools build inputs differ from `main` uses the `-dev` binary, not the published binary. The build inputs are the paths in `src/inspect_ai/tool/_sandbox_tools_utils/injectable_paths.txt`. A change to `src/inspect_ai/tool/_sandbox_tools_utils/sandbox_tools_version.txt` also selects the `-dev` binary. Build the `-dev` binaries before you run the tests. Use the architecture of your Docker host (`amd64` or `arm64`):
 
 ```sh
 python src/inspect_ai/tool/_sandbox_tools_utils/build_within_container.py --arch amd64
@@ -100,4 +100,4 @@ python src/inspect_ai/tool/_sandbox_tools_utils/build_within_container.py --arch
 pytest tests/tools/sandbox_tools_utils/test_sandbox_tools.py --runslow
 ```
 
-The tests reuse an existing `-dev` binary and do not check that it is current. Rebuild it after each change. Without a `-dev` binary, a non-interactive run stops with a `PrerequisiteError`. At a terminal, the run offers to build the binary.
+The tests reuse the existing `-dev` binaries and do not check that they are current. Rebuild both after each change. Without a `-dev` binary, the tests stop with a `PrerequisiteError`.

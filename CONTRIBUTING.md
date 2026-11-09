@@ -140,7 +140,7 @@ Run these as `uv run make check` and `uv run make test`, or activate the environ
 
 If any tests are failing, fix the code and run both commands again to verify. Once all the tests are passing, push your branch to GitHub.
 
-`make test` skips the gated tests: slow Docker tests, live model-provider tests, flaky tests, and trio variants. PR CI runs only some of the slow tests and none of the live provider tests. If you change model providers, sandbox or tool code, agents, or async plumbing, run the gated tests that cover your change locally. Report the commands and results in the "Slow tests" section of the PR description. Name any relevant tests you could not run, and say why. This applies to human contributors and AI agents alike. See [Gated tests](AGENTS.md#gated-tests-slow-api-flaky-trio) in AGENTS.md for common commands and the [slow-tests skill](.agents/skills/slow-tests/SKILL.md) for the full list of flags, directories, and requirements.
+`make test` skips the gated tests: slow Docker tests, most live model-provider tests, flaky tests, and trio variants. PR CI runs only some of the slow tests and none of the live provider tests. If you change model providers, sandbox or tool code, agents, or async plumbing, run the gated tests that cover your change locally. Report the commands and results in the "Slow tests" section of the PR description. Name any relevant tests you could not run, and say why. This applies to human contributors and AI agents alike. See [Gated tests](AGENTS.md#gated-tests-slow-api-flaky-trio) in AGENTS.md for common commands and the [slow-tests skill](.agents/skills/slow-tests/SKILL.md) for the full list of flags, directories, and requirements.
 
 ## Creating a pull request
 

@@ -211,13 +211,14 @@ This table lists common cases. The skill has the full list and takes precedence.
 
 `build_within_container.py` and `injectable_paths.txt` are in
 `src/inspect_ai/tool/_sandbox_tools_utils/`. Use the architecture of your
-Docker host for `<arch>`; CI uses `amd64`. The tests reuse an existing `-dev`
-binary. Rebuild it after each change.
+Docker host for `<arch>`; CI uses `amd64`. The tests reuse the existing `-dev`
+binaries. Rebuild both after each change.
 
 A gated test that is not enabled shows as skipped, and pytest still exits
-successfully. `--runslow` alone does not run live provider tests; they also
-need `--runapi` and the provider's credentials. Check the skip summary at the
-end of the run to confirm the tests you meant to run actually ran.
+successfully. `--runslow` alone does not run the live provider tests marked
+`api`; they also need `--runapi` and the provider's credentials. Check the
+skip summary at the end of the run to confirm the tests you meant to run
+actually ran.
 
 Report the run in a `### Slow tests` section after `### Validation`. Use one
 short bullet per run: test class/provider, version when relevant, exact
