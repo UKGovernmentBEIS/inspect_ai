@@ -13,7 +13,7 @@ Covers:
   models; `none` is dropped and `xhigh`/`max` clamped to `high` only for gpt-oss and
   MiniMax M2 (which reject them), while other models (deepseek/glm/kimi and MiniMax
   M3) accept and pass through `none`/`xhigh`/`max`.
-- OpenRouter: `max` is remapped to `xhigh` (OpenRouter does not accept `max`).
+- OpenRouter: reasoning effort values, including `max`, pass through unchanged.
 - OpenAI-compatible providers: `supports_max_reasoning_effort()` recognizes OpenAI
   families by default and a subclass's override reaches the Responses request.
 """
@@ -923,7 +923,7 @@ async def test_openai_compatible_max_support_reaches_responses_request(
     assert create.call_args.kwargs["reasoning"]["effort"] == expected
 
 
-# -- OpenRouter max -> xhigh clamp --
+# -- OpenRouter reasoning effort --
 
 
 @pytest.mark.parametrize(
@@ -934,13 +934,51 @@ async def test_openai_compatible_max_support_reaches_responses_request(
         ("medium", "medium"),
         ("high", "high"),
         ("xhigh", "xhigh"),
-        ("max", "xhigh"),  # OpenRouter doesn't accept 'max'
+        ("max", "max"),
     ],
 )
-def test_openrouter_max_clamped_to_xhigh(effort, expected):
+def test_openrouter_preserves_reasoning_effort(effort, expected):
     api = OpenRouterAPI(model_name="anthropic/claude-3.7-sonnet", api_key="test-key")
     params = api.completion_params(GenerateConfig(reasoning_effort=effort), tools=False)
     assert params["extra_body"]["reasoning"]["effort"] == expected
+
+
+async def test_openrouter_max_reaches_responses_request(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    from openai.types.responses import Response
+
+    from inspect_ai.model import ChatMessageUser
+
+    api = OpenRouterAPI(
+        model_name="anthropic/claude-3.7-sonnet",
+        api_key="test-key",
+        responses_api=True,
+        stream=False,
+    )
+    create = AsyncMock(
+        return_value=Response.model_construct(
+            id="resp_test",
+            model="anthropic/claude-3.7-sonnet",
+            created_at=0.0,
+            object="response",
+            status="completed",
+            output=[],
+            tools=[],
+        )
+    )
+    monkeypatch.setattr(api.client.responses, "create", create)
+    try:
+        await api.generate(
+            input=[ChatMessageUser(content="hi")],
+            tools=[],
+            tool_choice="auto",
+            config=GenerateConfig(reasoning_effort="max"),
+        )
+    finally:
+        await api.aclose()
+
+    assert create.call_args.kwargs["reasoning"]["effort"] == "max"
 
 
 # -- Grok mapping --
