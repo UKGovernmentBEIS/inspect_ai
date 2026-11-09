@@ -57,6 +57,7 @@ from inspect_ai.model._agent_message import validate_agent_message
 from inspect_ai.model._assistant_internal import (
     bridge_replay_scope,
     carry_generation_assistant_internal,
+    generation_assistant_internal,
 )
 from inspect_ai.model._call_tools import get_tools_info
 from inspect_ai.model._chat_message import (
@@ -464,9 +465,11 @@ async def _apply_response_filter(
     The copy is taken before the `try`, so a failure copying the output is not
     blamed on the filter. A returned output is re-validated because its models do
     not validate assignment, so values edited in place are otherwise unchecked.
-    Validation drops the returned output's replay state; the re-validated output
-    keeps it for the calls the filter left unchanged
-    (`carry_generation_assistant_internal`).
+    Validation drops the returned output's replay state. The re-validated output
+    takes it for the calls it carries (`carry_generation_assistant_internal`)
+    from the returned output, or, when that has none (e.g. the filter rebuilt it
+    from its fields), from the generation's output, so its calls replay in their
+    native form.
 
     Exceptions are classified after unwrapping by hand, not with `inner_exception`,
     which follows `__context__` and can pick the exception already being handled.
@@ -513,7 +516,10 @@ async def _apply_response_filter(
             "response_filter returned an invalid ModelOutput: "
             f"{_validation_error_details(ex)}"
         ) from ex
-    carry_generation_assistant_internal(filtered, validated)
+    carry_generation_assistant_internal(
+        filtered if generation_assistant_internal(filtered) is not None else output,
+        validated,
+    )
     filtered = validated
     original_arguments = {
         call.id: call.arguments

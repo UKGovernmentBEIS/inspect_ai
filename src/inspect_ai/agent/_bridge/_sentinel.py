@@ -19,7 +19,7 @@ from typing import (
 )
 
 import anyio
-from pydantic import BaseModel, JsonValue, model_validator
+from pydantic import BaseModel, model_validator
 from pydantic_core import to_jsonable_python
 from shortuuid import uuid
 
@@ -39,11 +39,10 @@ from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.logger import warn_once
 from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.model._assistant_internal import (
+    GenerationCallState,
     alias_assistant_internal_call,
     generation_assistant_internal,
-    has_generation_call_arguments,
-    has_generation_call_state,
-    keeps_generation_call_id,
+    generation_call_states,
 )
 from inspect_ai.model._call_tools import decisive_sentinel_exception
 from inspect_ai.model._chat_message import (
@@ -202,11 +201,11 @@ class _ResultChecks:
     its id (`sentinel_tokens`): the model's own id when it is absent from the
     incoming history, the bridge has not handed it out before, it is at most
     `_MAX_TOKEN_LENGTH` characters, it names no Gemini computer action other
-    than the approved one (`_names_another_action`), no provider can replay
-    another generation's state under it (`keeps_generation_call_id`) and, for
-    a call approval
-    modified, that state does not carry the model's arguments
-    (`has_generation_call_arguments`); otherwise a fresh token
+    than the approved one (`_names_another_action`), its generation's replay
+    state for it is known (`generation_call_states`), so no provider can replay
+    another generation's state under it, and, for a call approval or a response
+    filter changed, that state does not carry the model's arguments
+    (`GenerationCallState.carries_arguments`); otherwise a fresh token
     (`_token_prefix`). A result
     reported under a token is the result of that execution, however the
     scaffold has rewritten, compacted or reformatted the rest of its
@@ -285,13 +284,18 @@ class _ResultChecks:
     def issue(
         self,
         checks: Sequence[SentinelCheck],
-        replay: dict[str, JsonValue] | None,
+        states: Sequence[GenerationCallState | None],
     ) -> list[SentinelCheck]:
+        """Give each check's call its token.
+
+        `states` are the calls' replay states (`generation_call_states`), in
+        order.
+        """
         issued: list[SentinelCheck] = []
-        for check in checks:
+        for check, state in zip(checks, states, strict=True):
             token = check.handed.id
-            fresh = not keeps_generation_call_id(replay, token) or (
-                check.modified and has_generation_call_arguments(replay, token)
+            fresh = state is None or (
+                (check.modified or state.edited) and state.carries_arguments
             )
             identity = _Identity(
                 check.call.id,
@@ -714,23 +718,24 @@ def sentinel_tokens(
     a call keeping the model's id included, as a later response reusing that
     id replaces what the provider recorded under it; under the model's id, only
     the bridge's own requests replay it. A call without known state
-    (`keeps_generation_call_id`) gets a fresh token, which no provider has
+    (`generation_call_states`) gets a fresh token, which no provider has
     recorded state under, and replays from the call itself.
 
     `checks` are the `tool_result` checks for the calls in `output`, in order.
     Returns the output to hand to the scaffold (a copy, when any id changes),
     and the checks with their tokens.
     """
-    replay = generation_assistant_internal(output)
-    issued = bridge._sentinel_results.issue(checks, replay)
-    for call, check in zip(output.message.tool_calls or [], issued):
-        if replay is not None and has_generation_call_state(replay, call.id):
+    calls = output.message.tool_calls or []
+    states = generation_call_states(generation_assistant_internal(output), calls)
+    issued = bridge._sentinel_results.issue(checks, states)
+    for call, check, state in zip(calls, issued, states):
+        if state is not None and state.recorded:
             alias_assistant_internal_call(
                 call.id,
                 check.token or call.id,
-                replay,
+                state,
                 bridge._replay,
-                call if check.modified else None,
+                call if check.modified or state.edited else None,
             )
     if all(check.token == check.handed.id for check in issued):
         return output, issued

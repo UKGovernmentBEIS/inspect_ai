@@ -4211,22 +4211,19 @@ def dump_anthropic_assistant_internal() -> JsonValue | None:
 
 
 def alias_anthropic_tool_call(
-    call_id: str, alias: str, replay: JsonValue, bridge: dict[str, JsonValue] | None
+    alias: str, state: JsonValue, bridge: dict[str, JsonValue] | None
 ) -> None:
-    internal = assistant_internal()
-    assert isinstance(replay, dict)
-    names = cast(dict[str, Any], replay.get("names", {}))
-    positions = cast(dict[str, Any], replay.get("positions", {}))
-    if call_id in names:
-        if bridge is not None:
-            _bridge_section(bridge, "names")[alias] = names[call_id]
-        else:
-            internal.tool_call_internal_names[alias] = names[call_id]
-    if call_id in positions:
-        if bridge is not None:
-            _bridge_section(bridge, "positions")[alias] = positions[call_id]
-        else:
-            internal.client_tool_call_positions[alias] = positions[call_id]
+    """Record a call's internal name and position (`state`) under `alias`."""
+    assert isinstance(state, dict)
+    name = cast(str | None, state["name"])
+    position = cast(int, state["position"])
+    if bridge is not None:
+        _bridge_section(bridge, "names")[alias] = name
+        _bridge_section(bridge, "positions")[alias] = position
+    else:
+        internal = assistant_internal()
+        internal.tool_call_internal_names[alias] = name
+        internal.client_tool_call_positions[alias] = position
 
 
 def has_parsed_tool_call(call_id: str) -> bool:
@@ -4829,8 +4826,8 @@ def _parse_assistant_content_blocks(
     # extract content and tool calls
     content: list[Content] = []
     tool_calls: list[ToolCall] | None = None
-    names: dict[str, JsonValue] = {}
-    positions: dict[str, JsonValue] = {}
+    # each client tool call's internal name and position, in call order
+    states: list[JsonValue | None] = []
 
     if pending_tool_uses is None:
         pending_tool_uses = dict()
@@ -5041,8 +5038,7 @@ def _parse_assistant_content_blocks(
             # the rebuild can splice it back at its interleaved position rather
             # than front-loading the surrounding thinking blocks (see
             # `_AssistantInternal.client_tool_call_positions`)
-            names[content_block.id] = internal_name
-            positions[content_block.id] = len(content)
+            states.append({"name": internal_name, "position": len(content)})
             assistant_internal().tool_call_internal_names[content_block.id] = (
                 internal_name
             )
@@ -5144,7 +5140,7 @@ def _parse_assistant_content_blocks(
         tool_calls,
         generation_replay(
             tool_calls or [],
-            anthropic={"names": names, "positions": positions},
+            anthropic=states,
         ),
     )
 

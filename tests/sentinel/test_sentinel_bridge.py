@@ -1728,6 +1728,7 @@ def test_dropping_old_proposals_warns_once(
 ) -> None:
     from inspect_ai._util import logger as inspect_logger
     from inspect_ai.agent._bridge import _sentinel
+    from inspect_ai.model._assistant_internal import GenerationCallState
 
     monkeypatch.setattr(_sentinel, "_MAX_PROPOSALS", 2)
     monkeypatch.setattr(inspect_logger, "_warned", [])
@@ -1738,10 +1739,10 @@ def test_dropping_old_proposals_warns_once(
     ]
 
     # from a provider keeping no replay state, so each call keeps its id
-    replay: dict[str, JsonValue] = {"calls": {}}
+    stateless = GenerationCallState(None, None, False)
     with caplog.at_level("WARNING"):
-        bridge._sentinel_results.issue(checks[:3], replay)
-        bridge._sentinel_results.issue(checks[3:], replay)
+        bridge._sentinel_results.issue(checks[:3], [stateless] * 3)
+        bridge._sentinel_results.issue(checks[3:], [stateless])
 
     warnings = [
         r for r in caplog.records if "the oldest proposal was dropped" in r.message
@@ -7312,9 +7313,7 @@ def test_a_modified_responses_alias_carries_the_approved_arguments(
     )
 
     init_sample_assistant_internal()
-    alias_openai_tool_call(
-        param["call_id"], "token", {param["call_id"]: deepcopy(param)}, modified, None
-    )
+    alias_openai_tool_call(param["call_id"], "token", deepcopy(param), modified, None)
 
     aliased = cast(dict[str, Any], assistant_internal().tool_calls["token"])
     assert aliased == {
@@ -7613,8 +7612,8 @@ RESPONSE_FILTERS: dict[str, Any] = {
     [
         *[(kind, item_id, "unfiltered") for kind, item_id in RESPONSES_REUSED_CALLS],
         *[(kind, item_id, "pass_through") for kind, item_id in RESPONSES_REUSED_CALLS],
-        # an output without replay state replays from its calls
-        ("function", True, "rebuilt"),
+        # an output the filter rebuilt keeps its generation's replay state
+        *[(kind, item_id, "rebuilt") for kind, item_id in RESPONSES_REUSED_CALLS],
     ],
 )
 async def test_a_cached_responses_call_replays_as_generated_after_its_id_is_reused(
@@ -7688,8 +7687,6 @@ async def test_a_cached_responses_call_replays_as_generated_after_its_id_is_reus
         "write",
     ]
     assert len({call["call_id"] for call in handed}) == 3
-    if filtered == "rebuilt":
-        assert "call_reused" not in {call["call_id"] for call in handed}
     assert _responses_replayed(model.wire[-1], generated[0].type) == [
         (
             call["call_id"],
@@ -7865,9 +7862,9 @@ async def test_a_reused_anthropic_call_id_replays_each_execution_as_generated() 
     assert replayed[0][1].get("id") == "toolu_a" != replayed[1][0].get("id")
 
 
-@pytest.mark.parametrize("filtered", [False, True])
+@pytest.mark.parametrize("filtered", ["unfiltered", "pass_through", "rebuilt"])
 async def test_a_cached_anthropic_turn_replays_as_generated_after_its_id_is_reused(
-    filtered: bool, isolated_cache: Callable[[], None]
+    filtered: str, isolated_cache: Callable[[], None]
 ) -> None:
     from inspect_ai.model._assistant_internal import init_sample_assistant_internal
 
@@ -7881,7 +7878,7 @@ async def test_a_cached_anthropic_turn_replays_as_generated_after_its_id_is_reus
         wire=_anthropic_wire,
     )
     bridge = in_process_bridge([])
-    bridge.response_filter = _pass_through if filtered else None
+    bridge.response_filter = RESPONSE_FILTERS[filtered]
     messages: list[ChatMessage] = [ChatMessageUser(content=TASK)]
 
     with active([bridge_recording([])]):
@@ -8104,6 +8101,246 @@ async def test_a_call_a_response_filter_changed_replays_as_handed() -> None:
         for param in replayed
         if param["type"] == "function_call"
     ] == [(call["call_id"], {"path": "edited.txt"})]
+
+
+RESPONSES_RESULT_TYPES = {
+    "function_call": "function_call_output",
+    "custom_tool_call": "custom_tool_call_output",
+    "computer_call": "computer_call_output",
+    "tool_search_call": "tool_search_output",
+}
+
+
+def _editing(arguments: Callable[[ToolCall], dict[str, Any]], rebuild: bool) -> Any:
+    """A response filter giving each call `arguments(call)`, optionally rebuilding."""
+
+    async def edit(
+        model: Any, output: ModelOutput, input: GenerateInput
+    ) -> ModelOutput:
+        for call in output.message.tool_calls or []:
+            call.arguments = arguments(call)
+        return ModelOutput.model_validate(output.model_dump()) if rebuild else output
+
+    return edit
+
+
+@pytest.mark.parametrize("filtered", ["rebuilt", "edited", "edited_rebuilt"])
+@pytest.mark.parametrize("kind", ["function", "custom", "computer", "tool_search"])
+async def test_a_call_a_response_filter_returned_continues_in_its_native_form(
+    kind: str, filtered: str
+) -> None:
+    from inspect_ai.agent._bridge.responses import inspect_responses_api_request
+
+    init_sample_assistant_internal()
+    item, tool, result, approved = _responses_modified_call(kind)
+    model = Parsing(
+        _responses_parsed(item), lambda: calls_output(), wire=_responses_wire
+    )
+    response_filter = (
+        _rebuilt
+        if filtered == "rebuilt"
+        else _editing(lambda call: approved, rebuild=filtered == "edited_rebuilt")
+    )
+    bridge = AgentBridge(
+        AgentState(messages=[]),
+        model_aliases={"inspect": model.model},
+        response_filter=response_filter,
+    )
+    items: list[Any] = [{"role": "user", "content": TASK}]
+
+    with (
+        patch(
+            "inspect_ai.agent._bridge.responses_impl._is_openai_responses_provider",
+            return_value=True,
+        ),
+        active([bridge_recording([])]),
+    ):
+        for _ in range(2):
+            response = await inspect_responses_api_request(
+                {"model": "inspect", "input": items, "tools": [tool]},
+                None,
+                None,
+                None,
+                bridge,
+            )
+            handed = [item.model_dump(exclude_none=True) for item in response.output]
+            items += [
+                *handed,
+                *[
+                    {**result, "call_id": item["call_id"]}
+                    for item in handed
+                    if "call_id" in item
+                ],
+            ]
+
+    [call] = [param for param in items if param.get("type") == item.type]
+    replayed = model.wire[1]
+    # the call and its result, each as the native item of the call's type (a
+    # function call's output can't hold a screenshot, which follows it)
+    assert [
+        (param["type"], param["call_id"]) for param in replayed if "call_id" in param
+    ] == [
+        (item.type, call["call_id"]),
+        (RESPONSES_RESULT_TYPES[item.type], call["call_id"]),
+    ]
+    assert _responses_replayed(replayed, item.type) == [
+        (call["call_id"], _responses_native_arguments(call))
+    ]
+    if filtered == "rebuilt":
+        assert _responses_native_arguments(call) == _responses_native_arguments(
+            item.model_dump(exclude_none=True)
+        )
+    else:
+        # an edited call replays as edited, under a fresh token
+        assert call["call_id"] != item.call_id
+        assert _responses_native_arguments(call) != _responses_native_arguments(
+            item.model_dump(exclude_none=True)
+        )
+
+
+@pytest.mark.parametrize("filtered", ["rebuilt", "edited", "edited_rebuilt"])
+async def test_an_anthropic_turn_a_response_filter_returned_continues_as_generated(
+    filtered: str,
+) -> None:
+    model = Parsing(
+        _anthropic_parsed(ANTHROPIC_FIRST),
+        lambda: calls_output(),
+        wire=_anthropic_wire,
+    )
+    bridge = in_process_bridge([])
+    bridge.response_filter = (
+        _rebuilt
+        if filtered == "rebuilt"
+        else _editing(
+            lambda call: {**call.arguments, "edited": True},
+            rebuild=filtered == "edited_rebuilt",
+        )
+    )
+    messages: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+
+    with active([bridge_recording([])]):
+        for _ in range(2):
+            output, _ = await bridge_generate(
+                bridge,
+                model.model,
+                list(messages),
+                list(ANTHROPIC_TOOLS),
+                None,
+                GenerateConfig(),
+                requested_model=None,
+            )
+            messages = _answered(messages, output)
+
+    [replayed] = model.wire[1]
+    assert _anthropic_shapes([replayed]) == [ANTHROPIC_FIRST_REPLAY]
+    handed = messages[1]
+    assert isinstance(handed, ChatMessageAssistant)
+    assert [
+        (block["id"], block["input"])
+        for block in replayed
+        if block["type"] == "tool_use"
+    ] == [(call.id, call.arguments) for call in handed.tool_calls or []]
+
+
+@pytest.mark.parametrize("kind", ["function", "custom", "computer", "tool_search"])
+async def test_parallel_responses_calls_sharing_an_id_continue_as_generated(
+    kind: str,
+) -> None:
+    from inspect_ai.agent._bridge.responses import inspect_responses_api_request
+
+    init_sample_assistant_internal()
+    _, tool, result, _ = _responses_modified_call(kind)
+    generated = _responses_calls_reading(kind, True)
+    model = Parsing(
+        lambda: _responses_output(*generated),
+        lambda: calls_output(),
+        wire=_responses_wire,
+    )
+    bridge = AgentBridge(
+        AgentState(messages=[]), model_aliases={"inspect": model.model}
+    )
+    items: list[Any] = [{"role": "user", "content": TASK}]
+
+    with (
+        patch(
+            "inspect_ai.agent._bridge.responses_impl._is_openai_responses_provider",
+            return_value=True,
+        ),
+        active([bridge_recording([])]),
+    ):
+        for _ in range(2):
+            response = await inspect_responses_api_request(
+                {"model": "inspect", "input": items, "tools": [tool]},
+                None,
+                None,
+                None,
+                bridge,
+            )
+            handed = [item.model_dump(exclude_none=True) for item in response.output]
+            items += [
+                *handed,
+                *[
+                    {**result, "call_id": item["call_id"]}
+                    for item in handed
+                    if "call_id" in item
+                ],
+            ]
+
+    calls = [param for param in items if param.get("type") == generated[0].type]
+    expected = [
+        _responses_native_arguments(item.model_dump(exclude_none=True))
+        for item in generated
+    ]
+    # the scaffold runs each call as generated, under its own id
+    assert [_responses_native_arguments(call) for call in calls] == expected
+    assert len({call["call_id"] for call in calls}) == 2
+    assert _responses_replayed(model.wire[1], generated[0].type) == [
+        (call["call_id"], arguments) for call, arguments in zip(calls, expected)
+    ]
+    assert [
+        param["call_id"]
+        for param in model.wire[1]
+        if param["type"] == RESPONSES_RESULT_TYPES[generated[0].type]
+    ] == [call["call_id"] for call in calls]
+
+
+async def test_parallel_anthropic_calls_sharing_an_id_continue_as_generated() -> None:
+    # the first turn's calls, under one id
+    blocks: Any = [
+        {**block, "id": "toolu_a"} if block["type"] == "tool_use" else block
+        for block in ANTHROPIC_FIRST
+    ]
+    model = Parsing(
+        _anthropic_parsed(blocks),
+        lambda: calls_output(),
+        wire=_anthropic_wire,
+    )
+    bridge = in_process_bridge([])
+    messages: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+
+    with active([bridge_recording([])]):
+        for _ in range(2):
+            output, _ = await bridge_generate(
+                bridge,
+                model.model,
+                list(messages),
+                list(ANTHROPIC_TOOLS),
+                None,
+                GenerateConfig(),
+                requested_model=None,
+            )
+            messages = _answered(messages, output)
+
+    [replayed] = model.wire[1]
+    assert _anthropic_shapes([replayed]) == [ANTHROPIC_FIRST_REPLAY]
+    handed = messages[1]
+    assert isinstance(handed, ChatMessageAssistant)
+    assert [
+        (block["id"], block["input"])
+        for block in replayed
+        if block["type"] == "tool_use"
+    ] == [(call.id, call.arguments) for call in handed.tool_calls or []]
+    assert len({call.id for call in handed.tool_calls or []}) == 2
 
 
 def _answered(input: list[ChatMessage], output: ModelOutput) -> list[ChatMessage]:

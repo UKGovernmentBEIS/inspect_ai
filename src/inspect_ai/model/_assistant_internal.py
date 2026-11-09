@@ -11,11 +11,12 @@ resume.
 from __future__ import annotations
 
 import importlib.util
+from collections import Counter
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from contextvars import ContextVar
 from hashlib import sha256
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, NamedTuple, cast
 
 from pydantic import JsonValue
 
@@ -103,8 +104,8 @@ def dump_sample_assistant_internal() -> JsonValue | None:
 
 def generation_replay(
     calls: Sequence[ToolCall],
-    openai: dict[str, JsonValue] | None = None,
-    anthropic: dict[str, JsonValue] | None = None,
+    openai: Sequence[JsonValue | None] | None = None,
+    anthropic: Sequence[JsonValue | None] | None = None,
 ) -> dict[str, JsonValue]:
     """A generation's per-call provider replay state, as its provider parsed it.
 
@@ -112,18 +113,33 @@ def generation_replay(
     the generation's output (`set_generation_assistant_internal`), so neither a
     later nor a concurrent response reusing a call ID can change it. `openai`
     holds each call's Responses item, `anthropic` each call's internal name and
-    position; a provider keeping no per-call state passes neither. `calls`
-    records each call as parsed (`_call_digest`), so a copy keeps the state
-    only of calls left unchanged (`carry_generation_assistant_internal`).
+    position (`{"name": ..., "position": ...}`), in call order, with None for a
+    call the parse recorded nothing for. A provider keeping no per-call state
+    passes neither.
+
+    The state is kept for each call occurrence, so calls sharing an ID keep
+    their own (`generation_call_states`). Each occurrence also records the call
+    as parsed (`_call_digest`), so a copy keeps the state only of the calls it
+    carries (`carry_generation_assistant_internal`).
     """
-    replay: dict[str, JsonValue] = {
-        "calls": {call.id: _call_digest(call) for call in calls}
+    providers = {"openai": openai, "anthropic": anthropic}
+    occurrences: dict[str, list[JsonValue]] = {}
+    for index, call in enumerate(calls):
+        occurrence: dict[str, JsonValue] = {
+            "function": call.function,
+            "type": call.type,
+            "digest": _call_digest(call),
+        }
+        for provider, states in providers.items():
+            if states is not None and states[index] is not None:
+                occurrence[provider] = states[index]
+        occurrences.setdefault(call.id, []).append(occurrence)
+    return {
+        "calls": cast(JsonValue, occurrences),
+        "providers": [
+            provider for provider, states in providers.items() if states is not None
+        ],
     }
-    if openai is not None:
-        replay["openai"] = openai
-    if anthropic is not None:
-        replay["anthropic"] = anthropic
-    return replay
 
 
 def set_generation_assistant_internal(
@@ -180,89 +196,139 @@ def _has_parsed_call(call_id: str) -> bool:
 def generation_assistant_internal(output: ModelOutput) -> dict[str, JsonValue] | None:
     """The replay state the output's generation was parsed with, if any.
 
-    None for an output rebuilt from its fields, or cached by older versions.
+    None for an output rebuilt from its fields, or cached by older versions
+    (including those keeping a single state per call ID).
     """
     try:
-        return output._assistant_internal
+        replay = output._assistant_internal
     except TypeError:
         # an output cached before `ModelOutput` had private attributes
         return None
+    if (
+        replay is None
+        or not isinstance(replay.get("providers"), list)
+        or not isinstance(calls := replay.get("calls"), dict)
+        or not all(isinstance(occurrences, list) for occurrences in calls.values())
+    ):
+        return None
+    return replay
+
+
+class GenerationCallState(NamedTuple):
+    """A call's replay state, as its generation's provider parsed it."""
+
+    openai: JsonValue | None
+    """The call's Responses item."""
+
+    anthropic: JsonValue | None
+    """The call's internal name and position."""
+
+    edited: bool
+    """Whether the call is handed on with other arguments than it was parsed with
+    (a response filter changed them)."""
+
+    @property
+    def recorded(self) -> bool:
+        """Whether a provider recorded state for the call."""
+        return self.openai is not None or self.anthropic is not None
+
+    @property
+    def carries_arguments(self) -> bool:
+        """Whether the state carries the call's generated arguments.
+
+        Such a call, handed on with other arguments, replays as generated under
+        its own ID; under another ID (`alias_assistant_internal_call`) it
+        replays as handed on. A Responses call's item carries its arguments.
+        """
+        return self.openai is not None
+
+
+def generation_call_states(
+    replay: dict[str, JsonValue] | None, calls: Sequence[ToolCall]
+) -> list[GenerationCallState | None]:
+    """Each of a generation's calls' replay state (`generation_replay`), in call order.
+
+    The nth call with an ID gets the state of the nth call the generation was
+    parsed with under that ID. A call from a provider keeping no per-call state
+    gets an empty state. A call's state is None (unknown) when `replay` is None,
+    when the generation parsed no such call, or when its provider recorded
+    nothing for it (a Responses call without an item ID).
+    """
+    occurrences = cast(
+        dict[str, list[dict[str, JsonValue] | None]],
+        replay.get("calls", {}) if replay is not None else {},
+    )
+    providers = cast(list[str], replay.get("providers", [])) if replay else []
+    seen: Counter[str] = Counter()
+    states: list[GenerationCallState | None] = []
+    for call in calls:
+        parsed = occurrences.get(call.id, [])
+        index = seen[call.id]
+        seen[call.id] += 1
+        occurrence = parsed[index] if index < len(parsed) else None
+        if occurrence is None or any(key not in occurrence for key in providers):
+            states.append(None)
+        else:
+            states.append(
+                GenerationCallState(
+                    occurrence.get("openai"),
+                    occurrence.get("anthropic"),
+                    occurrence.get("edited") is True,
+                )
+            )
+    return states
 
 
 def carry_generation_assistant_internal(
     source: ModelOutput, target: ModelOutput
 ) -> None:
-    """Give `target` the replay state `source` has for the calls it carries unchanged.
+    """Give `target` the replay state of the calls of `source` it carries.
 
-    For a copy rebuilt from `source`'s fields. A call whose function or arguments
-    differ from those it was parsed with has no replay state in `target`, as the
-    state would replay what the model generated rather than the call.
+    For an output rebuilt from `source` (e.g. by a response filter). A call
+    `target` carries unchanged keeps its state. A call with other arguments
+    keeps the state of a call parsed under its ID with its function and type,
+    marked edited, so it replays in its native form with the arguments it is
+    handed on with (`alias_assistant_internal_call`). Any other call has no
+    state in `target`.
     """
     replay = generation_assistant_internal(source)
     if replay is None:
         return
-    parsed = cast(dict[str, str], replay.get("calls", {}))
-    kept = {
-        call.id
-        for choice in target.choices
-        for call in choice.message.tool_calls or []
-        if parsed.get(call.id) == _call_digest(call)
+    parsed = {
+        call_id: list(occurrences)
+        for call_id, occurrences in cast(
+            dict[str, list[dict[str, JsonValue] | None]], replay["calls"]
+        ).items()
     }
-    carried: dict[str, JsonValue] = {
-        "calls": {id: digest for id, digest in parsed.items() if id in kept}
+    calls = [
+        call for choice in target.choices for call in choice.message.tool_calls or []
+    ]
+    carried: list[dict[str, JsonValue] | None] = [None] * len(calls)
+    # unchanged calls first, so an edited call can't take an unchanged one's state
+    for unchanged in (True, False):
+        for index, call in enumerate(calls):
+            candidates = parsed.get(call.id, [])
+            for position, occurrence in enumerate(candidates):
+                if carried[index] is not None or occurrence is None:
+                    continue
+                if unchanged and occurrence["digest"] == _call_digest(call):
+                    carried[index] = occurrence
+                elif (
+                    not unchanged
+                    and occurrence["function"] == call.function
+                    and occurrence["type"] == call.type
+                ):
+                    carried[index] = {**occurrence, "edited": True}
+                else:
+                    continue
+                candidates[position] = None
+    occurrences: dict[str, list[JsonValue]] = {}
+    for call, occurrence in zip(calls, carried):
+        occurrences.setdefault(call.id, []).append(occurrence)
+    target._assistant_internal = {
+        "calls": cast(JsonValue, occurrences),
+        "providers": replay["providers"],
     }
-    if "openai" in replay:
-        items = cast(dict[str, JsonValue], replay["openai"])
-        carried["openai"] = {id: item for id, item in items.items() if id in kept}
-    if "anthropic" in replay:
-        anthropic = cast(dict[str, dict[str, JsonValue]], replay["anthropic"])
-        carried["anthropic"] = {
-            key: {id: value for id, value in values.items() if id in kept}
-            for key, values in anthropic.items()
-        }
-    target._assistant_internal = carried
-
-
-def keeps_generation_call_id(replay: dict[str, JsonValue] | None, call_id: str) -> bool:
-    """Whether the call may be handed on under the model's ID for it.
-
-    Only when no provider can later replay another generation's state for it
-    under that ID: its generation recorded state for it
-    (`has_generation_call_state`), which is handed on under the ID, or came
-    from a provider keeping none. A call without known state is handed on
-    under a fresh ID.
-    """
-    if replay is None:
-        return False
-    return has_generation_call_state(replay, call_id) or not (
-        "openai" in replay or "anthropic" in replay
-    )
-
-
-def has_generation_call_state(
-    replay: dict[str, JsonValue] | None, call_id: str
-) -> bool:
-    """Whether a provider parse recorded replay state for the call."""
-    if replay is None:
-        return False
-    if call_id in cast(dict[str, JsonValue], replay.get("openai", {})):
-        return True
-    anthropic = cast(dict[str, dict[str, JsonValue]], replay.get("anthropic", {}))
-    return any(call_id in values for values in anthropic.values())
-
-
-def has_generation_call_arguments(
-    replay: dict[str, JsonValue] | None, call_id: str
-) -> bool:
-    """Whether the call's replay state carries its generated arguments.
-
-    Such a call, handed on with other arguments, replays as generated under its
-    own ID; under another ID (`alias_assistant_internal_call`) it replays as
-    handed on. A Responses call's item carries its arguments.
-    """
-    return replay is not None and call_id in cast(
-        dict[str, JsonValue], replay.get("openai", {})
-    )
 
 
 def _call_digest(call: ToolCall) -> str:
@@ -274,7 +340,7 @@ def _call_digest(call: ToolCall) -> str:
 def alias_assistant_internal_call(
     call_id: str,
     alias: str,
-    replay: dict[str, JsonValue],
+    state: GenerationCallState,
     bridge: dict[str, JsonValue],
     modified: ToolCall | None = None,
 ) -> None:
@@ -282,9 +348,9 @@ def alias_assistant_internal_call(
 
     So the call replays to the model as it was generated (native call type,
     position among the turn's content), with the `modified` call's arguments
-    when approval changed them. The state comes from `replay`, the state the
-    call's generation was parsed with (`generation_assistant_internal`), never
-    from what a provider has since recorded under `call_id`.
+    when approval or a response filter changed them. The state is the one the
+    call's generation was parsed with (`generation_call_states`), never what a
+    provider has since recorded under `call_id`.
 
     Under the model's ID (`alias == call_id`) the state goes in `bridge`, the
     handing bridge's own state, replayed only while that bridge serves a
@@ -294,30 +360,29 @@ def alias_assistant_internal_call(
     the provider's state, so the call replays as handed wherever its
     conversation is continued.
     """
-    if _HAS_OPENAI and "openai" in replay:
+    if _HAS_OPENAI and state.openai is not None:
         try:
             from inspect_ai.model._openai_responses import alias_openai_tool_call
 
             alias_openai_tool_call(
                 call_id,
                 alias,
-                replay["openai"],
+                state.openai,
                 modified,
                 _bridge_section(bridge, "openai") if alias == call_id else None,
             )
         except ImportError:
             pass
 
-    if _HAS_ANTHROPIC and "anthropic" in replay:
+    if _HAS_ANTHROPIC and state.anthropic is not None:
         try:
             from inspect_ai.model._providers.anthropic import (
                 alias_anthropic_tool_call,
             )
 
             alias_anthropic_tool_call(
-                call_id,
                 alias,
-                replay["anthropic"],
+                state.anthropic,
                 _bridge_section(bridge, "anthropic") if alias == call_id else None,
             )
         except ImportError:
