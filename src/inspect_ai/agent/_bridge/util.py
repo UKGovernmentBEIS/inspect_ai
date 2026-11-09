@@ -473,9 +473,10 @@ async def _apply_response_filter(
     so that the `ResponseFilterError` message names the underlying exception.
 
     Only tool calls the filter changed have their arguments checked for JSON: a
-    provider's own arguments (e.g. `parse_tool_call`'s YAML fallback yields dates),
-    in the output or in a generation the filter returns unchanged, are not the
-    filter's to answer for.
+    provider's own arguments (e.g. `parse_tool_call`'s YAML fallback yields dates)
+    are not the filter's to answer for. A call is unchanged if its arguments equal
+    (`json_equal`) those of the call with its id in the output or in a generation
+    of the bridged model's, whatever else of the message the filter edited.
     """
     candidate = output.model_copy(deep=True)
     try:
@@ -520,22 +521,19 @@ async def _apply_response_filter(
         if event.model == str(model)
         for choice in event.output.choices
     ]
-    original_arguments = {
-        call.id: call.arguments
-        for choice in output.choices
-        for call in choice.message.tool_calls or []
-    }
+    provider_arguments: dict[str, list[dict[str, Any]]] = {}
+    for message in [*(choice.message for choice in output.choices), *generations]:
+        for call in message.tool_calls or []:
+            provider_arguments.setdefault(call.id, []).append(call.arguments)
     try:
         # the one Any-typed field the dialect converters json.dumps
         for choice in filtered.choices:
-            changed = [
-                call.arguments
-                for call in choice.message.tool_calls or []
-                if original_arguments.get(call.id) != call.arguments
-            ]
-            if changed and not _is_unchanged(choice.message, generations):
-                for arguments in changed:
-                    json.dumps(arguments)
+            for call in choice.message.tool_calls or []:
+                if not any(
+                    json_equal(call.arguments, arguments)
+                    for arguments in provider_arguments.get(call.id, [])
+                ):
+                    json.dumps(call.arguments)
     except (TypeError, ValueError, RecursionError) as ex:
         raise ResponseFilterError(
             "response_filter returned tool call arguments that are not "

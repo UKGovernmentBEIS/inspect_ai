@@ -1319,9 +1319,10 @@ async def test_sandbox_identity_filter_keeps_provider_tool_arguments(
     assert tool_use["input"] == {"date": "2024-01-01"}
 
 
+@pytest.mark.parametrize("edit_text", [False, True], ids=["arguments", "and text"])
 @pytest.mark.parametrize("regenerate", [False, True], ids=["output", "regeneration"])
 async def test_response_filter_rejects_arguments_it_makes_unserializable(
-    regenerate: bool,
+    regenerate: bool, edit_text: bool
 ) -> None:
     """A non-JSON argument the filter puts into a call, also one of its own generation, fails it."""
     model = get_model(
@@ -1339,6 +1340,8 @@ async def test_response_filter_rejects_arguments_it_makes_unserializable(
             output = await model.generate(generate_input.input)
         assert output.message.tool_calls
         output.message.tool_calls[0].arguments["when"] = date(2024, 1, 1)
+        if edit_text:
+            output.message.content = "Looking up"
         return output
 
     bridge = AgentBridge(AgentState(messages=[]))
@@ -3752,3 +3755,40 @@ def test_is_unchanged_ignores_only_metadata(edit: str, unchanged: bool) -> None:
             content[0].internal = {"flag": 0}
 
     assert _is_unchanged(returned, [generation]) is unchanged
+
+
+async def test_sandbox_text_edit_of_a_regeneration_keeps_its_tool_arguments() -> None:
+    """A regeneration's arguments the filter leaves alone are not its edit, though it edits the text."""
+    events_tool = ToolInfo(
+        name="get_events",
+        description="List events on a date.",
+        parameters=ToolParams(properties={"date": ToolParam(type="string")}),
+    )
+    provider_call = parse_tool_call("call_1", "get_events", "2024-01-01", [events_tool])
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.from_content("mockllm/model", "first"),
+            ModelOutput.from_message(
+                ChatMessageAssistant(content="", tool_calls=[provider_call]),
+                stop_reason="tool_calls",
+            ),
+        ],
+    )
+
+    async def regenerate_and_edit_text(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput | None:
+        output = await model.generate(generate_input.input)
+        output.message.content = "Looking up events"
+        return output
+
+    bridge = _sandbox_bridge(regenerate_and_edit_text, model)
+    reply = await _forward_provider_errors(
+        generate_anthropic(None, None, bridge), bridge
+    )({"model": "inspect", "max_tokens": 1024, "messages": CHAT_REQUEST["messages"]})
+
+    assert PROVIDER_ERROR_KEY not in reply
+    assert not bridge._failure_requested.is_set()
+    tool_use = cast(list[dict[str, JsonValue]], reply["content"])[-1]
+    assert tool_use["input"] == {"date": "2024-01-01"}
