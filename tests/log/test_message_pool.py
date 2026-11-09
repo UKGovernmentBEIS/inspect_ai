@@ -10,6 +10,7 @@ from pydantic import JsonValue
 
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION
 from inspect_ai._util.content import ContentReasoning, ContentText
+from inspect_ai._util.hash import mm3_hash
 from inspect_ai.event import Event, Timeline, TimelineEvent, TimelineSpan
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._pool import (
@@ -44,6 +45,7 @@ from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
     ChatMessageSystem,
+    ChatMessageTool,
     ChatMessageUser,
 )
 from inspect_ai.model._generate_config import GenerateConfig
@@ -1120,3 +1122,86 @@ def test_pool_json_helpers_roundtrip_to_own_hash() -> None:
     call_msg: JsonValue = {"role": "user", "b": 1, "a": 2}
     stored_call = _call_pool_json(call_msg)
     assert _call_hash(json.loads(stored_call)) == _call_hash(call_msg)
+
+
+def test_msg_hash_handles_lone_surrogates_across_pool_roundtrip() -> None:
+    """A surrogate-bearing message hashes safely and matches after a pool roundtrip."""
+    messages: list[ChatMessage] = [
+        ChatMessageSystem(content="system: \ud800"),
+        ChatMessageUser(
+            content="user: \udc00",
+            metadata={"key-\ud800": ["value-\udc00"]},
+        ),
+        ChatMessageAssistant(
+            content="assistant: \ud800",
+            tool_calls=[
+                ToolCall(
+                    id="call-surrogate",
+                    function="lookup",
+                    arguments={
+                        "query": "value: \udc00",
+                        "nested": {"items": ["value-\ud800", "value-\udc00"]},
+                    },
+                )
+            ],
+        ),
+        ChatMessageTool(
+            tool_call_id="call-1",
+            function="lookup",
+            content="tool: \udc00",
+        ),
+    ]
+
+    for message in messages:
+        stored = _msg_pool_json(_msg_pool_jsonable(message))
+        [reparsed] = validate_chat_messages([json.loads(stored)])
+        message_hash = _msg_hash(message)
+
+        assert len(message_hash) == 32
+        assert _msg_hash(reparsed) == message_hash
+        assert (
+            _msg_hash(message.model_copy(update={"id": "different-id"})) == message_hash
+        )
+
+
+def test_msg_hash_matches_pydantic_json_for_valid_messages() -> None:
+    """Surrogate-safe serialization must not change hashes for valid messages."""
+    messages: list[ChatMessage] = [
+        ChatMessageSystem(content="system"),
+        ChatMessageUser(
+            content="中文 café 💡",
+            metadata={
+                "b": 1,
+                "a": [1, {"k": "v"}],
+                "nan": float("nan"),
+                "inf": float("inf"),
+                "small_exponent": 1e-7,
+                "small_decimal": 1e-5,
+            },
+        ),
+        ChatMessageAssistant(
+            content=[
+                ContentText(text="visible"),
+                ContentReasoning(reasoning="private reasoning"),
+            ],
+            tool_calls=[
+                ToolCall(
+                    id="call-1",
+                    function="lookup",
+                    arguments={
+                        "query": "café",
+                        "small_exponent": 1e-7,
+                        "small_decimal": 1e-5,
+                    },
+                )
+            ],
+        ),
+        ChatMessageTool(
+            tool_call_id="call-2",
+            function="lookup",
+            content="tool result",
+        ),
+    ]
+
+    for message in messages:
+        assert _msg_hash(message) == mm3_hash(message.model_dump_json(exclude={"id"}))

@@ -51,6 +51,7 @@ from inspect_ai._display.core.display import (
 from inspect_ai._eval.task.constants import TASK_ALL_PARAMS_ATTR
 from inspect_ai._eval.task.scan import Scanners
 from inspect_ai._sentinel._config import (
+    SentinelProxy,
     Sentinels,
     resolve_sentinel_root,
     sentinel_config,
@@ -164,6 +165,7 @@ async def eval_run(
     approval: list[ApprovalPolicy] | None = None,
     review: list[ReviewPolicy] | None = None,
     sentinel: Sentinels | None = None,
+    sentinel_proxy: SentinelProxy | None = None,
     solver: Solver | SolverSpec | None = None,
     scanner: "Scanners | None" = None,
     scan_id: str | None = None,
@@ -476,6 +478,7 @@ async def eval_run(
                         eval_wd=eval_wd,
                         config=task_eval_config,
                         sentinel=sentinel_root,
+                        sentinel_proxy=sentinel_proxy,
                         solver=eval_solver,
                         scanner=scanner,
                         scan_id=scan_id,
