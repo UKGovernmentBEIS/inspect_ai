@@ -16,6 +16,7 @@ anyio boundary" for the rationale.
 from __future__ import annotations
 
 import asyncio
+import json
 from collections.abc import Callable, Coroutine
 from dataclasses import dataclass, field
 from logging import getLogger
@@ -206,11 +207,12 @@ class ConnectionHandler:
         # written to the wire. Tracked so they're not garbage-collected
         # before they run and so connection close can cancel them.
         self._pending_after_response: set[asyncio.Task[None]] = set()
-        # Method of each incoming request whose response is not yet
-        # written, by request id, and the waiters of
+        # Methods of incoming requests whose responses are not yet
+        # written, by ``_request_id_key`` (oldest first, since a client
+        # may reuse an id), and the waiters of
         # ``_schedule_after_response`` by method (oldest first). Both
         # are maintained by ``observe_stream``.
-        self._request_methods: dict[Any, str] = {}
+        self._request_methods: dict[str, list[str]] = {}
         self._response_waiters: dict[str, list[asyncio.Future[None]]] = {}
         # Bind serialization. ACP dispatches each request as its own
         # asyncio task, so two ``session/new`` / ``session/load`` calls
@@ -1353,7 +1355,9 @@ class ConnectionHandler:
         The connection calls this synchronously for each incoming
         message before it dispatches it, and for each outgoing message
         after the transport has written it. On an incoming request,
-        records the request's method by id. On the outgoing success
+        records the request's method by id. Any JSON id is accepted,
+        including an array or object, and requests that share an id are
+        matched to responses oldest first. On the outgoing success
         response to that request, releases the oldest waiter of
         ``_schedule_after_response`` for that method. An error response
         releases nothing: a failed request schedules no waiter, while
@@ -1366,14 +1370,20 @@ class ConnectionHandler:
         message = event.message
         if "id" not in message:
             return
+        key = _request_id_key(message["id"])
         if event.direction is StreamDirection.INCOMING:
             if "method" in message:
-                self._request_methods[message["id"]] = message["method"]
+                self._request_methods.setdefault(key, []).append(message["method"])
             return
         if "method" in message:
             return
-        method = self._request_methods.pop(message["id"], None)
-        if method is None or "result" not in message:
+        methods = self._request_methods.get(key)
+        if not methods:
+            return
+        method = methods.pop(0)
+        if not methods:
+            del self._request_methods[key]
+        if "result" not in message:
             return
         waiters = self._response_waiters.get(method)
         if waiters:
@@ -1458,6 +1468,16 @@ class ConnectionHandler:
 # ---------------------------------------------------------------------------
 # Module-level helpers
 # ---------------------------------------------------------------------------
+
+
+def _request_id_key(request_id: Any) -> str:
+    """Hashable key for a JSON-RPC request id.
+
+    The id comes from a parsed JSON message and may be any JSON value,
+    including an unhashable array or object. The response echoes the
+    same value, so its canonical JSON text matches the request's.
+    """
+    return json.dumps(request_id, sort_keys=True, separators=(",", ":"))
 
 
 def _prompt_text(prompt_blocks: list[Any]) -> str:
