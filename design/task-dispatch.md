@@ -577,8 +577,8 @@ async with _run_task_screen(...):              # absorbs a cancellation of the r
   awaits `reinit()` and appends the retry at the back of the queue under the
   record's index. The retry reuses the record's setups, which have all
   succeeded, because an attempt that failed in sandbox setup
-  (`options.setups.failure()` set) is not retried as a task ("Sandbox setup
-  beside the dispatcher", Failure). A cancel or drain while a retry waits
+  (`options.setups.failure()` set) is not retried as a task within the run
+  ("Sandbox setup beside the dispatcher", Failure). A cancel or drain while a retry waits
   abandons it through the stamp. `task_retry_attempts` is one run-wide value:
   `eval()`'s argument (default 0), `eval_set()`'s `retry_attempts` (default
   10) when `retry_immediate` is on (the default) and 0 otherwise, and 0 in a
@@ -694,6 +694,18 @@ rerun it under its still-stamped id. So:
   cancelled before starting; the closing message names them. Selection mode
   returns `False` in the same case.
 
+#### Setup failures across `eval_set()` rounds
+
+A setup failure is final only for the run it happened in. With immediate
+retries (the default) the eval set is one run, whose setups retry
+themselves up to `retry_attempts`, so a task whose setup failed is not run
+again. Legacy rounds (`retry_immediate=False`) run with `task_retry_attempts`
+of 0, so each round's setups get one try, and each round is a new `eval()`
+with its own `SandboxSetups`: a task whose setup failed in one round is
+retried in the next like any failed task, as today, and that is the only
+setup retry legacy mode gets. Nothing about setup failures is carried across
+rounds (decision: Ransom, 2026-11-10).
+
 ### Sandbox setup beside the dispatcher
 
 `src/inspect_ai/_eval/sandbox_setups.py` replaces `SandboxManager`:
@@ -766,8 +778,12 @@ class SandboxSetups:                   # one per run
   error log whose error is the setup exception, and fires `on_task_end`. A
   record added later that needs the key, a fresh task a creator adds
   included, ends the same way without a new try. An attempt that failed in
-  setup, here or in `ensure()`, is not retried as a task: its setup has
-  already had its retries. A `KeyboardInterrupt` or `SystemExit` from a setup
+  setup, here or in `ensure()`, is not retried as a task within the run: the
+  shared setup job has already used its retries, and its failure is final for
+  this run. The rule is per run: `eval_set()`'s legacy rounds
+  (`retry_immediate=False`) each start a new run with fresh setups and retry
+  a task whose setup failed in an earlier round, as they do today ("Setup
+  failures across `eval_set()` rounds"). A `KeyboardInterrupt` or `SystemExit` from a setup
   ends the run.
 - **`SampleSource` additions.** `startup_sandboxes` becomes
   `options.setups.ensure(samples)`: resolve the added samples' keys, request
@@ -1137,6 +1153,11 @@ test that waits on a run is bounded with `fail_after`.
     the configuration's cleanup still runs once at shutdown, and an error it
     raises is logged;
   - with `task_retry_attempts=0` the first failure is final;
+  - under `eval_set(retry_immediate=False, retry_attempts=1)`, a task whose
+    setup fails in the first round (stub provider failing once per process
+    run) is re-run in the second round, with a fresh setup that succeeds,
+    and the eval set succeeds; with immediate retries, a setup that fails
+    on every try is not run again and the eval set fails;
   - with configuration A's samples running while B fails on every try,
     nothing of A's is cleaned up before shutdown;
   - requests for the key arriving during the tries join the same job, and
@@ -1248,7 +1269,9 @@ config paths are resolved by Inspect against the task directory, and that
 build-output streaming is a separate change; and (2026-11-10) that a failed
 setup retries itself up to the run's `task_retry_attempts`, with a backoff and
 no cleanup between tries (its cleanup runs once at run end), and that a task
-whose attempt failed in setup is not retried as a task.
+whose attempt failed in setup is not retried as a task within that run, while
+`eval_set()`'s legacy rounds, each a new run with fresh setups, retry it as
+they do today.
 
 ## Not this design
 
