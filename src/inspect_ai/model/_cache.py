@@ -317,22 +317,35 @@ def _cache_key_config(config: BaseModel) -> dict[str, Any]:
     return values
 
 
+def _cache_key_message(message: ChatMessage) -> dict[str, Any]:
+    """A request message as the cache key sees it.
+
+    An agent bridge that passes a tool result on under an id other than the
+    model's records the model's id on it as `metadata["bridge"]["proposal_id"]`
+    for transcript readers. That id is never sent to the provider, so the key
+    leaves it out.
+    """
+    values = message.model_dump(
+        exclude={"id": True, "content": {"__all__": {"cache_breakpoint"}}}
+    )
+    metadata = values.get("metadata")
+    if message.role == "tool" and isinstance(metadata, dict):
+        bridge = metadata.get("bridge")
+        if isinstance(bridge, dict) and "proposal_id" in bridge:
+            bridge = {k: v for k, v in bridge.items() if k != "proposal_id"}
+            metadata = {
+                k: bridge if k == "bridge" else v
+                for k, v in metadata.items()
+                if k != "bridge" or bridge
+            }
+            values["metadata"] = metadata or None
+    return values
+
+
 def _cache_key(entry: CacheEntry) -> str:
     components = [
         _cache_key_config(entry.config),
-        ",".join(
-            [
-                str(
-                    message.model_dump(
-                        exclude={
-                            "id": True,
-                            "content": {"__all__": {"cache_breakpoint"}},
-                        }
-                    )
-                )
-                for message in entry.input
-            ]
-        ),
+        ",".join([str(_cache_key_message(message)) for message in entry.input]),
         entry.base_url,
         entry.tool_choice,
         entry.tools,

@@ -836,7 +836,8 @@ def name_proposal(result: ChatMessageTool, proposal_id: str) -> None:
     turn's `replay_ids`) is answered under that id. The model's id is recorded
     as `metadata["bridge"]["proposal_id"]`, as on the call's host `ToolEvent`,
     so a reader of the result (ACP's tool call cards) can pair it with the
-    model's proposal of the call.
+    model's proposal of the call. It is not sent to the provider and is left
+    out of the model cache key.
     """
     if result.tool_call_id == proposal_id:
         return

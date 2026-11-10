@@ -9924,6 +9924,67 @@ async def test_cancelling_a_modified_host_calls_acp_card_cancels_its_run(
     assert _acp_cards(published)["call_read"][-1] == "failed"
 
 
+async def test_a_results_proposal_annotation_leaves_the_requests_cache_key() -> None:
+    """Naming a result's proposal changes neither the cache key nor what is sent."""
+    from inspect_ai.agent._bridge._sentinel import (
+        name_proposal,
+        name_result_proposals,
+    )
+    from inspect_ai.model._cache import CacheEntry, CachePolicy
+    from inspect_ai.model._openai import messages_to_openai
+    from inspect_ai.model._providers.google import as_chat_messages
+
+    init_sample_assistant_internal()
+    bridge = in_process_bridge([])
+    model = Parsing(lambda: _responses_output(HOST_READ_ITEM))
+    with active([bridge_modify()]):
+        output = await _generate_bridged(
+            bridge, model.model, [ChatMessageUser(content=TASK)], declare_read_file()
+        )
+    [handed] = output.message.tool_calls or []
+    result = ChatMessageTool(
+        content="contents", tool_call_id=handed.id, function=handed.function
+    )
+    messages: list[ChatMessage] = [result]
+
+    def key() -> str:
+        return CacheEntry(
+            base_url=None,
+            config=GenerateConfig(),
+            input=messages,
+            model="test",
+            policy=CachePolicy(per_epoch=False),
+            tool_choice=None,
+            tools=[],
+        ).key
+
+    async def wire() -> tuple[Any, ...]:
+        return (
+            await messages_to_openai(messages),
+            await _responses_wire(messages),
+            await _anthropic_wire(messages),
+            await as_chat_messages(AsyncMock(), messages),
+        )
+
+    original_key, unnamed_id, unnamed_wire = key(), result.id, await wire()
+    name_result_proposals(bridge, messages)
+    assert result.metadata == {"bridge": {"proposal_id": "call_read"}}
+    assert key() == original_key
+    assert result.id == unnamed_id
+    assert await wire() == unnamed_wire
+
+    # the result's other metadata stays in the key
+    result.metadata = {"note": 1, "bridge": {"other": 1}}
+    unnamed_key = key()
+    assert unnamed_key != original_key
+    name_proposal(result, "call_read")
+    assert result.metadata == {
+        "note": 1,
+        "bridge": {"other": 1, "proposal_id": "call_read"},
+    }
+    assert key() == unnamed_key
+
+
 def _google_after_signed_text(*calls: tuple[str, str, bytes | None]) -> ModelOutput:
     """A Gemini response, as the provider parses it: a signed text part, then `calls`.
 
