@@ -21,8 +21,9 @@ from test_helpers.utils import (
 )
 
 from inspect_ai import Task, eval, eval_async, task
-from inspect_ai._util.content import ContentToolUse
+from inspect_ai._util.content import ContentReasoning, ContentToolUse
 from inspect_ai.agent import Agent, AgentState, agent, agent_bridge
+from inspect_ai.agent._bridge.google_api_impl import _extract_model_parts
 from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.agent._bridge.util import bridge_generate
 from inspect_ai.dataset import Sample
@@ -42,6 +43,10 @@ from inspect_ai.model._openai import (
 )
 from inspect_ai.model._openai_convert import model_output_from_openai
 from inspect_ai.model._openai_responses import _tool_param_for_tool_info
+from inspect_ai.model._openrouter_reasoning import (
+    openrouter_reasoning_details_to_reasoning,
+    reasoning_to_openrouter_reasoning_details,
+)
 from inspect_ai.model._prompt import user_prompt
 from inspect_ai.scorer import includes
 from inspect_ai.solver import Generate, Solver, TaskState, solver
@@ -719,6 +724,108 @@ def google_web_search_agent() -> Agent:
             return bridge.state
 
     return execute
+
+
+@pytest.mark.parametrize("urlsafe", [False, True])
+@pytest.mark.parametrize("padded", [False, True])
+def test_google_bridge_normalizes_sdk_thought_signature(
+    urlsafe: bool, padded: bool
+) -> None:
+    """All Google signature encodings remain replayable by the provider."""
+    signature = b"\xfb\xff\xfe\xfa"
+    encoded = (
+        base64.urlsafe_b64encode(signature) if urlsafe else base64.b64encode(signature)
+    ).decode()
+    sdk_signature = encoded if padded else encoded.rstrip("=")
+
+    content, calls = _extract_model_parts(
+        [
+            {
+                "functionCall": {"name": "echo_marker", "args": {}},
+                "thoughtSignature": sdk_signature,
+            }
+        ]
+    )
+
+    assert len(calls) == 1
+    assert content and isinstance(content[0], ContentReasoning)
+    assert content[0].reasoning == base64.b64encode(signature).decode()
+
+
+async def test_google_bridge_sdk_round_trip_keeps_openrouter_reasoning() -> None:
+    original = openrouter_reasoning_details_to_reasoning(
+        [
+            {
+                "type": "reasoning.text",
+                "text": "read file",
+                "format": "google-gemini-v1",
+            },
+            {
+                "type": "reasoning.encrypted",
+                "data": "+//++g==",
+                "format": "google-gemini-v1",
+            },
+        ]
+    )
+    assert isinstance(original, ContentReasoning)
+    output = ModelOutput.for_tool_call("mockllm/model", "read_file", {"path": "a"})
+    output.message.content = [original]
+
+    @agent
+    def openrouter_reasoning_agent() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            async with agent_bridge(state) as bridge:
+                async with genai.Client(api_key="inspect").aio as client:
+                    user = genai.types.Content(
+                        role="user", parts=[genai.types.Part(text="read a")]
+                    )
+                    response = await client.models.generate_content(
+                        model="inspect", contents=[user]
+                    )
+                    assert response.candidates and response.candidates[0].content
+                    result = genai.types.Content(
+                        role="user",
+                        parts=[
+                            genai.types.Part(
+                                function_response=genai.types.FunctionResponse(
+                                    name="read_file", response={"output": "ok"}
+                                )
+                            )
+                        ],
+                    )
+                    await client.models.generate_content(
+                        model="inspect",
+                        contents=[user, response.candidates[0].content, result],
+                    )
+                return bridge.state
+
+        return execute
+
+    logs = await eval_async(
+        Task(dataset=[Sample(input="read a")], solver=openrouter_reasoning_agent()),
+        model=get_model(
+            "mockllm/model",
+            custom_outputs=[output, ModelOutput.from_content("mockllm/model", "done")],
+        ),
+    )
+    assert logs[0].status == "success", logs[0].error
+    assert logs[0].samples
+    model_events = [e for e in logs[0].samples[0].events if isinstance(e, ModelEvent)]
+    assert len(model_events) == 2
+    replayed = [
+        c
+        for m in model_events[1].input
+        if isinstance(m, ChatMessageAssistant) and isinstance(m.content, list)
+        for c in m.content
+        if isinstance(c, ContentReasoning)
+    ]
+    assert len(replayed) == 1
+    assert replayed[0].reasoning == original.reasoning
+    assert replayed[0].signature == original.signature
+    assert replayed[0].summary == original.summary
+    assert reasoning_to_openrouter_reasoning_details(
+        replayed[0]
+    ) == reasoning_to_openrouter_reasoning_details(original)
 
 
 async def test_google_bridge_returns_logprobs_to_client() -> None:

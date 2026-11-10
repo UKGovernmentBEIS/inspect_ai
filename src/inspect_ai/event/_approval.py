@@ -18,6 +18,12 @@ class ApprovalEvent(BaseEvent):
     call: ToolCall
     """Tool call being approved."""
 
+    execution_id: str | None = Field(default=None)
+    """When set, the execution this approval belongs to: which run of a bridged call it applies to, for a call that ran more than once.
+
+    Experimental: not yet a stable API; may change without notice.
+    """
+
     view: ToolCallView | None = Field(default=None)
     """View presented for approval."""
 

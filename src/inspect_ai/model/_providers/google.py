@@ -564,6 +564,9 @@ class GoogleGenAIAPI(ModelAPI):
         # record api version
         self.api_version = api_version
 
+        # the endpoint a client of this model resolves (`_client_endpoint`)
+        self._resolved_endpoint: str | None = None
+
         # set when the countTokens endpoint returns 404 (no route for this
         # configuration); later counts use the local estimate
         self._count_tokens_unavailable = False
@@ -1286,6 +1289,16 @@ class GoogleGenAIAPI(ModelAPI):
         ):
             return RetryDecision.transient()
         return RetryDecision.no()
+
+    @override
+    def _client_endpoint(self) -> str | None:
+        # a client is constructed per call; one constructed here only reads
+        # the endpoint it resolves, and sends nothing
+        if self._resolved_endpoint is None:
+            client = self.model_client()
+            self._resolved_endpoint = client._api_client._http_options.base_url
+            client.close()
+        return self._resolved_endpoint
 
     @override
     def connection_key(self) -> str:
