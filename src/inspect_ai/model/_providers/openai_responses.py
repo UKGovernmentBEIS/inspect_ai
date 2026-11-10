@@ -48,6 +48,7 @@ from inspect_ai.tool import ToolChoice, ToolInfo
 from inspect_ai.tool._tools._computer._computer import is_computer_tool_info
 from inspect_ai.util._json import json_schema_dump
 
+from .._assistant_internal import set_generation_assistant_internal
 from .._chat_message import ChatMessage
 from .._generate_config import GenerateConfig
 from .._model_call import ModelCall, as_error_response
@@ -294,7 +295,7 @@ async def generate_responses(
                 model_response = process_response(model_response)
 
             # parse out choices
-            choices = openai_responses_chat_choices(model_name, model_response, tools)
+            parsed = openai_responses_chat_choices(model_name, model_response, tools)
 
             # surface response-level `metadata` (echoed request metadata, which
             # some models augment with additional fields) so callers can read it
@@ -303,12 +304,15 @@ async def generate_responses(
 
             # `model` is typed as required but compatible services can omit it
             # (Meta's streamed refusal has a null model); fall back to the request
-            return ModelOutput(
-                model=model_response.model or model_name,
-                choices=choices,
-                usage=model_usage_from_response(model_response),
-                metadata=dict(response_metadata) if response_metadata else None,
-                response_id=model_response.id,
+            return set_generation_assistant_internal(
+                ModelOutput(
+                    model=model_response.model or model_name,
+                    choices=parsed.choices,
+                    usage=model_usage_from_response(model_response),
+                    metadata=dict(response_metadata) if response_metadata else None,
+                    response_id=model_response.id,
+                ),
+                parsed.replay,
             ), model_call
         except BadRequestError as e:
             model_call.set_error(

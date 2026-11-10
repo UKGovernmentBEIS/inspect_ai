@@ -142,8 +142,9 @@ async def test_apply_tool_approval_rejects_when_viewer_raises() -> None:
         return Approval(decision="approve", explanation="ok")
 
     from inspect_ai.approval._apply import _tool_approver
+    from inspect_ai.approval._policy import ApprovalPolicy, policy_approver
 
-    token = _tool_approver.set(capture_approver)
+    token = _tool_approver.set(policy_approver([ApprovalPolicy(capture_approver, "*")]))
     handler = _attach("inspect_ai.tool._tool_call")
     try:
         approved, approval = await apply_tool_approval(

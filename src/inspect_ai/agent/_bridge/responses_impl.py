@@ -70,7 +70,7 @@ from inspect_ai._util.content import (
     ContentText,
     ContentToolUse,
 )
-from inspect_ai._util.json import to_json_str_safe
+from inspect_ai._util.json import jsonable_python, to_json_str_safe
 from inspect_ai._util.logger import warn_once
 from inspect_ai.agent._bridge._errors import BridgePolicyError
 from inspect_ai.agent._bridge.types import AgentBridge
@@ -96,6 +96,7 @@ from inspect_ai.model._openai_responses import (
     TOOL_SEARCH_NAME,
     TOOL_SEARCH_OPTIONS_MARKER,
     assistant_internal,
+    cached_tool_call,
     code_interpreter_to_tool_use,
     content_from_response_input_content_param,
     is_additional_tools,
@@ -417,9 +418,6 @@ async def inspect_responses_api_request_impl(
 
     debug_log("INSPECT OUTPUT", output.message)
 
-    # update state if we have more messages than the last generation
-    await bridge._track_state(messages, output)
-
     # return response
     response = Response(
         id=output.message.id or uuid(),
@@ -436,6 +434,20 @@ async def inspect_responses_api_request_impl(
         usage=responses_model_usage(output.usage),
     )
     debug_log("SCAFFOLD RESPONSE", response)
+    transported = messages_from_responses_input(
+        [
+            cast(
+                ResponseInputItemParam,
+                item.model_dump(mode="json", exclude_none=True),
+            )
+            for item in response.output
+        ],
+        tools,
+        model_name,
+    )
+
+    # update state if we have more messages than the last generation
+    await bridge._track_state(messages, output, [transported])
 
     return response
 
@@ -549,12 +561,11 @@ def _declarations_in_input(
     declares nothing, just as the model is then told nothing; no entry is
     salvaged for grants alone.
     """
-    cached_calls = assistant_internal().tool_calls
     declarations: list[ToolInfo] = []
     for message in messages:
         if not isinstance(message, ChatMessageTool) or message.error is not None:
             continue
-        call = cached_calls.get(message.tool_call_id or "")
+        call = cached_tool_call(message.tool_call_id or "")
         if call is None or call["type"] != "tool_search_call":
             continue
         for discovered in tool_search_output_tools(message):
@@ -639,10 +650,9 @@ def _seed_function_call_namespace(param: ResponseFunctionToolCallParam) -> None:
     if not namespace:
         return
     call_id = param["call_id"]
-    cache = assistant_internal().tool_calls
-    if call_id in cache:
+    if cached_tool_call(call_id) is not None:
         return
-    cache[call_id] = ResponseFunctionToolCallParam(
+    assistant_internal().tool_calls[call_id] = ResponseFunctionToolCallParam(
         type="function_call",
         call_id=call_id,
         name=param["name"],
@@ -660,10 +670,9 @@ def _seed_tool_search_call(call_id: str, arguments: dict[str, Any]) -> None:
     than a function_call_output. The `call_id in cache` guard ensures we never
     clobber a richer in-sample entry.
     """
-    cache = assistant_internal().tool_calls
-    if call_id in cache:
+    if cached_tool_call(call_id) is not None:
         return
-    cache[call_id] = ToolSearchCall(
+    assistant_internal().tool_calls[call_id] = ToolSearchCall(
         type="tool_search_call",
         id=call_id,
         call_id=call_id,
@@ -1379,10 +1388,8 @@ def messages_from_responses_input(
             pass
         else:
             # ImageGenerationCall
-            # ResponseCodeInterpreterToolCallParam
             # McpApprovalRequest
             # McpApprovalResponse
-            # ResponseCustomToolCallParam
             # LocalShellCall
             # LocalShellCallOutput
             # ResponseFileSearchToolCallParam
@@ -1428,7 +1435,7 @@ def filter_duplicate_assistant_content(
     messages_ids: Set[str] = set()
     for c in reversed(input):
         if c.type == "text" and c.internal:
-            internal = to_json_str_safe(c.internal)
+            internal = json.dumps(jsonable_python(c.internal))
             if internal not in messages_ids:
                 filtered_input.append(c)
                 messages_ids.add(internal)

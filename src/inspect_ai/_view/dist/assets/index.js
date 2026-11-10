@@ -89033,6 +89033,7 @@ var isEventNodeOf = (node, type) => node.event.event === type;
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/transform/toolSentinels.ts
 /** The span a sentinel's dispatch runs in; it holds the step's events and the model calls its monitors made. */ var isSentinelSpan = (node) => node.event.event === "span_begin" && node.event.type === "sentinel";
+/** Whether a sandbox agent bridge ran the call on the host, which records it with `metadata.bridge`. */ var isBridgeTool = (event) => event.metadata != null && "bridge" in event.metadata;
 var reported = (node, kind) => node.event.status === "reported" && node.event.kind === kind;
 var pathSegments = (path) => path === "" ? [] : path.split("/");
 /**
@@ -89270,9 +89271,11 @@ var kToolStages = /* @__PURE__ */ new Set(["tool_call", "tool_result"]);
 * The ToolEvent a tool-stage step judged: the first one with the step's id
 * recorded after a `tool_call` step (none when no such tool follows), the last
 * one before a `tool_result` step, skipping tools that already host a step of
-* the same stage.
-*/ var hostTool = (tools, step, order, claimed) => {
-	const candidates = tools.filter((t) => t.node.event.id === step.stepId && !claimed.has(`${step.stage}\u0000${t.node.id}`));
+* the same stage. A bridge's check judges only a call the bridge ran on the
+* host: a native call under the same id (one the bridged agent inherited, for
+* example) is not the one it checked.
+*/ var hostTool = (tools, step, order, claimed, bridge) => {
+	const candidates = tools.filter((t) => t.node.event.id === step.stepId && (!bridge || isBridgeTool(t.node.event)) && !claimed.has(`${step.stage}\u0000${t.node.id}`));
 	const after = candidates.find((t) => t.order > order);
 	if (step.stage === "tool_call") return after;
 	return candidates.findLast((t) => t.order < order) ?? after;
@@ -89339,7 +89342,8 @@ var kToolStages = /* @__PURE__ */ new Set(["tool_call", "tool_result"]);
 	const ordered = [...steps.values()].sort((a, b) => a.order - b.order);
 	for (const { nodes, order: at, span } of ordered) {
 		const step = buildSentinelStep(nodes, span?.modelCalls);
-		const tool = kToolStages.has(step.stage) ? hostTool(tools, step, at, claimed) : void 0;
+		const bridge = span?.node.event.event === "span_begin" && span.node.event.name === "sentinel_bridge";
+		const tool = kToolStages.has(step.stage) ? hostTool(tools, step, at, claimed, bridge) : void 0;
 		const hostId = tool?.node.id ?? span?.node.id ?? nodes[0].id;
 		if (tool) {
 			claimed.add(`${step.stage}\u0000${tool.node.id}`);
@@ -89692,6 +89696,8 @@ var scoreText = (score) => {
 var approvalStopped = (approval) => approval.decision !== "approve" && approval.decision !== "modify";
 /** A call stopped before it ran, or whose arguments never parsed, has no
 *  result; an escalation older builds let through ran despite its step. */ var didNotRun = (slot) => !slot.tool || toolFailed(slot.tool) && (slot.stopped === true || slot.tool.error?.type === "parsing");
+/** A call a bridge ran on the host, which only the bridge's checks judge. */ var ranOnHost = (slot) => !!slot.tool && isBridgeTool(slot.tool);
+/** A `tool_call` step that kept its call from running. */ var stopsCall = (step) => !!step.effective && step.verdict !== "proceed" && step.verdict !== "modify";
 /** Each sentinel step counts once, by the decision that took effect —
 *  nested configurations record a decision per layer. Pairing runs in
 *  recording order within each conversation: `conversationOf` keys an
@@ -89702,7 +89708,9 @@ var approvalStopped = (approval) => approval.decision !== "approve" && approval.
 *  call's proposing model call, in one pass over a flat list. Keep the rules
 *  in sync: the latest output proposing an id owns its proposals, which its
 *  tools take in order; a `tool_call` step judges the next tool with its id,
-*  a `tool_result` step one that ran before it. */ var collectSentinelDecisions = (events, spans, conversationOf) => {
+*  a `tool_result` step one that ran before it; an agent bridge's check
+*  judges only a call the bridge ran on the host, and a native check never
+*  does. */ var collectSentinelDecisions = (events, spans, conversationOf) => {
 	const steps = buildSentinelSteps(events);
 	const chains = /* @__PURE__ */ new Map();
 	const chainKey = (spanId, id) => `${conversationOf(spanId)}\u0000${id}`;
@@ -89724,6 +89732,11 @@ var approvalStopped = (approval) => approval.decision !== "approve" && approval.
 	const producerOfStep = /* @__PURE__ */ new Map();
 	const overruledApprovals = /* @__PURE__ */ new Set();
 	const blockedTools = /* @__PURE__ */ new Set();
+	const bridgeChecks = [];
+	const isBridgeCheck = (event) => {
+		const span = spans.get(event.span_id ?? "");
+		return span?.type === "sentinel" && span.name === "sentinel_bridge";
+	};
 	for (const event of events) if (event.event === "model") {
 		if (spans.get(event.span_id ?? "")?.type === "sentinel") continue;
 		latestModel.set(conversationOf(event.span_id), event);
@@ -89745,17 +89758,40 @@ var approvalStopped = (approval) => approval.decision !== "approve" && approval.
 	else if (event.event === "sentinel") {
 		const step = steps.get(event);
 		if (!step) continue;
-		if (step.stage === "tool_call") {
-			const slot = takeSlot(chainFor(event.span_id, step.stepId), "checks", (slot) => slot.stopped === true);
+		if ((step.stage === "tool_call" || step.stage === "tool_result") && isBridgeCheck(event)) bridgeChecks.push({
+			step,
+			chain: chainFor(event.span_id, step.stepId)
+		});
+		else if (step.stage === "tool_call") {
+			const slot = takeSlot(chainFor(event.span_id, step.stepId), "checks", (slot) => slot.stopped === true || ranOnHost(slot));
 			slotOfStep.set(step, slot);
-			if (step.effective && step.verdict !== "proceed" && step.verdict !== "modify") slot.stopped = true;
+			if (stopsCall(step)) slot.stopped = true;
 		} else if (step.stage === "tool_result") {
 			const chain = chainFor(event.span_id, step.stepId);
-			slotOfStep.set(step, takeSlot(chain, "results", didNotRun));
+			slotOfStep.set(step, takeSlot(chain, "results", (slot) => didNotRun(slot) || ranOnHost(slot)));
 		} else {
 			const producer = latestModel.get(conversationOf(event.span_id));
 			if (producer) producerOfStep.set(step, producer);
 		}
+	}
+	const bridgeTaken = /* @__PURE__ */ new Map();
+	const callOfStep = /* @__PURE__ */ new Map();
+	for (const { step, chain } of bridgeChecks) {
+		const taken = bridgeTaken.get(step.stage) ?? /* @__PURE__ */ new Set();
+		bridgeTaken.set(step.stage, taken);
+		const slot = chain.slots.find((s) => ranOnHost(s) && !taken.has(s) && (step.stage === "tool_call" || !didNotRun(s)));
+		if (!slot) {
+			const proposal = step.stage === "tool_call" ? chain.slots.find((s) => !s.tool && !!s.producer?.requested_model && !taken.has(s)) : void 0;
+			if (proposal?.call) {
+				taken.add(proposal);
+				callOfStep.set(step, proposal.call);
+				if (proposal.producer) producerOfStep.set(step, proposal.producer);
+			}
+			continue;
+		}
+		taken.add(slot);
+		slotOfStep.set(step, slot);
+		if (step.stage === "tool_call" && stopsCall(step)) slot.stopped = true;
 	}
 	const byOutcome = /* @__PURE__ */ new Map();
 	for (const step of steps.values()) {
@@ -89769,7 +89805,7 @@ var approvalStopped = (approval) => approval.decision !== "approve" && approval.
 		byOutcome.set(outcome.event, {
 			step,
 			decider,
-			call: slot ? slot.call ?? tool : void 0,
+			call: slot ? slot.call ?? tool : callOfStep.get(step),
 			producer: slot ? slot.producer : producerOfStep.get(step),
 			ghost
 		});

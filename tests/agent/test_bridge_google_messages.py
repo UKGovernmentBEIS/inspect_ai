@@ -17,21 +17,41 @@ turn structure and tool name, and the think-body/thoughtSignature strings still 
 
 from __future__ import annotations
 
+import base64
+import hashlib
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
+from google.genai import types
+from pydantic import ValidationError
 
+from inspect_ai._util.content import ContentReasoning
 from inspect_ai.agent._bridge._errors import BridgePolicyError
+from inspect_ai.agent._bridge._sentinel import (
+    SentinelCheck,
+    _ResultChecks,
+    _SavedResultChecks,
+)
 from inspect_ai.agent._bridge.google_api_impl import (
     gemini_response_from_output,
     messages_from_google_contents,
+)
+from inspect_ai.model._assistant_internal import (
+    generation_call_states,
+    generation_replay,
 )
 from inspect_ai.model._chat_message import (
     ChatMessageAssistant,
     ChatMessageTool,
 )
 from inspect_ai.model._model_output import Logprob, Logprobs, ModelOutput, TopLogprob
+from inspect_ai.model._openrouter_reasoning import (
+    openrouter_reasoning_details_to_reasoning,
+    reasoning_to_openrouter_reasoning_details,
+)
+from inspect_ai.tool import ToolCall
 
 _FIXTURE = json.loads(
     (
@@ -150,6 +170,430 @@ def test_google_response_without_logprobs_is_unchanged(
     assert response == expected
     assert "logprobsResult" not in response["candidates"][0]
     assert "avgLogprobs" not in response["candidates"][0]
+
+
+def test_google_response_carries_each_calls_id() -> None:
+    output = ModelOutput.for_tool_call("mockllm/model", "read_file", {"path": "a"})
+    [call] = output.message.tool_calls or []
+    unnamed = ModelOutput.for_tool_call("mockllm/model", "read_file", {"path": "b"})
+    for unnamed_call in unnamed.message.tool_calls or []:
+        unnamed_call.id = ""
+
+    def function_call(output: ModelOutput, call_ids: bool = True) -> object:
+        parts = gemini_response_from_output(output, "model", call_ids=call_ids)[
+            "candidates"
+        ][0]["content"]["parts"]
+        [part] = [part for part in parts if "functionCall" in part]
+        return part["functionCall"]
+
+    assert function_call(output) == {
+        "id": call.id,
+        "name": "read_file",
+        "args": {"path": "a"},
+    }
+    assert function_call(unnamed) == {"name": "read_file", "args": {"path": "b"}}
+    # without a sentinel, as before
+    assert function_call(output, call_ids=False) == {
+        "name": "read_file",
+        "args": {"path": "a"},
+    }
+
+
+def echoed_contents(echoed: str) -> list[dict[str, object]]:
+    return [
+        {"role": "user", "parts": [{"text": "Read a."}]},
+        {
+            "role": "model",
+            "parts": [
+                {
+                    "functionCall": {
+                        "id": echoed,
+                        "name": "read_file",
+                        "args": {"path": "a"},
+                    }
+                }
+            ],
+        },
+        {
+            "role": "user",
+            "parts": [
+                {
+                    "functionResponse": {
+                        "id": echoed,
+                        "name": "read_file",
+                        "response": {"out": "x"},
+                    }
+                }
+            ],
+        },
+    ]
+
+
+def deterministic_id(name: str, args: dict[str, object], position: int) -> str:
+    # the id main derives for a call carrying no id the bridge reads
+    args_str = json.dumps(args, sort_keys=True) if args else ""
+    digest = hashlib.md5(f"{name}:{args_str}:{position}".encode()).hexdigest()[:8]
+    return f"call_{name}_{digest}"
+
+
+def test_google_ids_the_scaffold_echoes_are_ignored_without_call_ids() -> None:
+    messages = messages_from_google_contents(
+        echoed_contents("read_file__read_file_1712_0"), None
+    )
+
+    assistant = next(m for m in messages if isinstance(m, ChatMessageAssistant))
+    tool = next(m for m in messages if isinstance(m, ChatMessageTool))
+    expected = deterministic_id("read_file", {"path": "a"}, 0)
+    assert [call.id for call in assistant.tool_calls or []] == [expected]
+    assert tool.tool_call_id == expected
+
+
+@pytest.mark.parametrize("prefixed", [False, True])
+def test_google_ids_the_scaffold_echoes_are_kept(prefixed: bool) -> None:
+    # gemini-cli prefixes the id it is handed with `<function>__`
+    echoed = "read_file__tok_1" if prefixed else "tok_1"
+    contents = echoed_contents(echoed)
+
+    messages = messages_from_google_contents(contents, None, call_ids=True)
+
+    assistant = next(m for m in messages if isinstance(m, ChatMessageAssistant))
+    tool = next(m for m in messages if isinstance(m, ChatMessageTool))
+    assert [call.id for call in assistant.tool_calls or []] == ["tok_1"]
+    assert tool.tool_call_id == "tok_1"
+
+
+@pytest.mark.parametrize(
+    ("action", "wire_name"),
+    [("left_click", "click_at"), ("mouse_move", "hover_at")],
+)
+@pytest.mark.parametrize("short_id_first", [True, False])
+def test_google_computer_action_ids_round_trip_in_both_issuance_orders(
+    action: str, wire_name: str, short_id_first: bool
+) -> None:
+    ids = ["c", f"{wire_name}__c"]
+    if not short_id_first:
+        ids.reverse()
+    calls = [
+        ToolCall(
+            id=call_id,
+            function="computer",
+            arguments={"action": action, "coordinate": [10, 20]},
+        )
+        for call_id in ids
+    ]
+    checks = [
+        SentinelCheck(
+            handed=call,
+            call=call,
+            viewer=None,
+            message="",
+            message_id=None,
+        )
+        for call in calls
+    ]
+    issued = _ResultChecks(
+        _SavedResultChecks(reserved_ids=[], tokens={}, checked=[])
+    ).issue(checks, generation_call_states(generation_replay(calls), calls))
+    output = ModelOutput.for_tool_call("mockllm/model", "computer", calls[0].arguments)
+    output.message.tool_calls = [
+        replace(call, id=check.token or call.id) for call, check in zip(calls, issued)
+    ]
+    parts = gemini_response_from_output(output, "model", call_ids=True)["candidates"][
+        0
+    ]["content"]["parts"]
+    function_calls = [part["functionCall"] for part in parts if "functionCall" in part]
+    assert [part["name"] for part in function_calls] == [wire_name, wire_name]
+    for index, function_call in enumerate(function_calls):
+        if ids[index] == "c":
+            function_call["id"] = f"{wire_name}__{function_call['id']}"
+    responses = [
+        {
+            "functionResponse": {
+                "id": function_call["id"],
+                "name": wire_name,
+                "response": {"out": str(index)},
+            }
+        }
+        for index, function_call in enumerate(function_calls)
+    ]
+    contents = [
+        {"role": "model", "parts": parts},
+        {"role": "user", "parts": responses},
+    ]
+    messages = messages_from_google_contents(
+        contents,
+        None,
+        call_ids=True,
+        issued_ids={check.token for check in issued if check.token},
+    )
+    assistant = next(m for m in messages if isinstance(m, ChatMessageAssistant))
+    result_ids = [m.tool_call_id for m in messages if isinstance(m, ChatMessageTool)]
+    issued_ids = [check.token for check in issued]
+    assert len(set(issued_ids)) == 2
+    assert [call.id for call in assistant.tool_calls or []] == issued_ids
+    assert result_ids == issued_ids
+
+
+def test_restored_result_checks_derive_the_aliases_of_their_tokens() -> None:
+    calls = [
+        ToolCall(
+            id="c",
+            function="computer",
+            arguments={"action": "left_click", "coordinate": [10, 20]},
+        ),
+        ToolCall(id="r", function="read_file", arguments={"path": "notes.txt"}),
+        ToolCall(id="g", function=" ", arguments={}),
+    ]
+    checks = _ResultChecks(_SavedResultChecks(reserved_ids=[], tokens={}, checked=[]))
+    checks.issue(
+        [
+            SentinelCheck(
+                handed=call, call=call, viewer=None, message="", message_id=None
+            )
+            for call in calls
+        ],
+        generation_call_states(generation_replay(calls), calls),
+    )
+    saved = checks.saved().model_dump(mode="json")
+    saved["prefixed_tokens"] = []
+
+    restored = _ResultChecks(_SavedResultChecks.model_validate_json(json.dumps(saved)))
+
+    assert checks.prefixed_tokens == {
+        "computer__c",
+        "click_at__c",
+        "read_file__r",
+        "generic_tool__g",
+    }
+    assert restored.prefixed_tokens == checks.prefixed_tokens
+
+    saved["tokens"]["c"][3] = None
+    with pytest.raises(ValidationError, match="computer call"):
+        _SavedResultChecks.model_validate_json(json.dumps(saved))
+
+
+def test_google_calls_without_ids_keep_their_deterministic_ids() -> None:
+    contents: list[dict[str, object]] = [
+        {"role": "user", "parts": [{"text": "Read a."}]},
+        {
+            "role": "model",
+            "parts": [{"functionCall": {"name": "read_file", "args": {"path": "a"}}}],
+        },
+        {
+            "role": "user",
+            "parts": [
+                {"functionResponse": {"name": "read_file", "response": {"out": "x"}}}
+            ],
+        },
+    ]
+
+    first = messages_from_google_contents(contents, None, call_ids=True)
+    second = messages_from_google_contents(contents, None, call_ids=True)
+
+    [call] = (
+        next(m for m in first if isinstance(m, ChatMessageAssistant)).tool_calls or []
+    )
+    tool = next(m for m in first if isinstance(m, ChatMessageTool))
+    assert call.id.startswith("call_read_file_")
+    assert tool.tool_call_id == call.id
+    assert [m.model_dump(exclude={"id"}) for m in first] == [
+        m.model_dump(exclude={"id"}) for m in second
+    ]
+
+
+def test_a_google_round_trip_without_a_sentinel_keeps_mains_ids() -> None:
+    import anyio
+
+    from inspect_ai.agent import AgentState
+    from inspect_ai.agent._bridge.google_api import inspect_google_api_request
+    from inspect_ai.agent._bridge.types import AgentBridge
+    from inspect_ai.model import ChatMessage, get_model
+    from inspect_ai.tool import ToolCall
+
+    inputs: list[list[ChatMessage]] = []
+    outputs = [
+        ModelOutput.for_tool_call("mockllm/model", "read_file", {"path": "a"}),
+        ModelOutput.from_content("mockllm/model", "done"),
+    ]
+
+    def respond(input: list[ChatMessage], *_: object) -> ModelOutput:
+        inputs.append(list(input))
+        return outputs[len(inputs) - 1]
+
+    model = get_model("mockllm/model", custom_outputs=respond, memoize=False)
+    bridge = AgentBridge(AgentState(messages=[]), model_aliases={"inspect": model})
+    tools = [
+        {
+            "functionDeclarations": [
+                {
+                    "name": "read_file",
+                    "description": "Read",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"path": {"type": "string"}},
+                    },
+                }
+            ]
+        }
+    ]
+
+    async def round_trip() -> dict[str, object]:
+        contents: list[dict[str, object]] = [
+            {"role": "user", "parts": [{"text": "Read a."}]}
+        ]
+        response = await inspect_google_api_request(
+            {"model": "inspect", "contents": contents, "tools": tools},
+            None,
+            None,
+            bridge,
+        )
+        [part] = [
+            part
+            for part in response["candidates"][0]["content"]["parts"]
+            if "functionCall" in part
+        ]
+        # gemini-cli synthesizes an id when it is handed none
+        synthesized = "read_file__read_file_1712_0"
+        call = {**part["functionCall"], "id": synthesized}
+        contents += [
+            {"role": "model", "parts": [{"functionCall": call}]},
+            {
+                "role": "user",
+                "parts": [
+                    {
+                        "functionResponse": {
+                            "id": synthesized,
+                            "name": "read_file",
+                            "response": {"out": "x"},
+                        }
+                    }
+                ],
+            },
+        ]
+        await inspect_google_api_request(
+            {"model": "inspect", "contents": contents, "tools": tools},
+            None,
+            None,
+            bridge,
+        )
+        return dict(part["functionCall"])
+
+    function_call = anyio.run(round_trip)
+
+    # the response carries no id, and the ids the scaffold sends back are not
+    # read: the call and its result get the id main derives from the call
+    assert function_call == {"name": "read_file", "args": {"path": "a"}}
+    expected = deterministic_id("read_file", {"path": "a"}, 0)
+    assistant = next(m for m in inputs[1] if isinstance(m, ChatMessageAssistant))
+    tool = next(m for m in inputs[1] if isinstance(m, ChatMessageTool))
+    assert assistant.tool_calls == [
+        ToolCall(id=expected, function="read_file", arguments={"path": "a"})
+    ]
+    assert tool.tool_call_id == expected
+
+
+def _assistant_from_parts(parts: list[dict[str, object]]) -> ChatMessageAssistant:
+    messages = messages_from_google_contents(
+        [
+            {"role": "user", "parts": [{"text": "Read a."}]},
+            {"role": "model", "parts": parts},
+        ],
+        None,
+    )
+    assert isinstance(messages[-1], ChatMessageAssistant)
+    return messages[-1]
+
+
+def _reasoning(message: ChatMessageAssistant) -> ContentReasoning:
+    assert isinstance(message.content, list)
+    reasoning = [c for c in message.content if isinstance(c, ContentReasoning)]
+    assert len(reasoning) == 1
+    return reasoning[0]
+
+
+@pytest.mark.parametrize(
+    "signature",
+    [
+        base64.b64encode(b"\xfb\xff\xfe\xfa").decode(),
+        "not a signature",
+        "pas de clé",
+    ],
+)
+def test_google_bridge_keeps_readable_reasoning_beside_signature(
+    signature: str,
+) -> None:
+    message = _assistant_from_parts(
+        [
+            {"text": "<think>I should read the file.</think>"},
+            {
+                "functionCall": {"name": "read_file", "args": {"path": "a"}},
+                "thoughtSignature": signature,
+            },
+        ]
+    )
+
+    assert message.tool_calls and message.tool_calls[0].function == "read_file"
+    reasoning = _reasoning(message)
+    assert reasoning.reasoning == signature
+    assert reasoning.redacted
+
+
+@pytest.mark.parametrize("keep_signature_field", [True, False])
+def test_google_bridge_round_trips_openai_reasoning_token(
+    keep_signature_field: bool,
+) -> None:
+    token = base64.urlsafe_b64encode(b"\x80\x00\xfb\xef\xbe\xff\xff\xff" * 3).decode()
+    assert "-" in token and "_" in token
+    output = ModelOutput.for_tool_call("mockllm/model", "read_file", {"path": "a"})
+    output.message.content = [
+        ContentReasoning(reasoning=token, signature="rs_1", redacted=True)
+    ]
+
+    content = gemini_response_from_output(output, "model")["candidates"][0]["content"]
+    if not keep_signature_field:
+        for part in content["parts"]:
+            part.pop("thoughtSignature", None)
+    message = _assistant_from_parts(content["parts"])
+
+    reasoning = _reasoning(message)
+    assert reasoning.reasoning == token
+    assert reasoning.signature == "rs_1"
+    assert reasoning.redacted
+
+
+def test_google_bridge_keeps_openrouter_reasoning_after_sdk_serialization() -> None:
+    original = openrouter_reasoning_details_to_reasoning(
+        [
+            {
+                "type": "reasoning.text",
+                "text": "read file",
+                "format": "google-gemini-v1",
+            },
+            {
+                "type": "reasoning.encrypted",
+                "data": "+//++g==",
+                "format": "google-gemini-v1",
+            },
+        ]
+    )
+    assert isinstance(original, ContentReasoning) and original.signature
+    output = ModelOutput.for_tool_call("mockllm/model", "read_file", {"path": "a"})
+    output.message.content = [original]
+
+    content = gemini_response_from_output(output, "model")["candidates"][0]["content"]
+    sdk_parts = types.Content(role="model", parts=content["parts"]).model_dump(
+        mode="json", exclude_none=True
+    )["parts"]
+    assert any(p.get("thought_signature") == "-__--g==" for p in sdk_parts)
+    reasoning = _reasoning(_assistant_from_parts(sdk_parts))
+
+    assert reasoning.reasoning == original.reasoning
+    assert reasoning.signature == original.signature
+    assert reasoning.summary == original.summary
+    assert reasoning.redacted == original.redacted
+    assert reasoning_to_openrouter_reasoning_details(
+        reasoning
+    ) == reasoning_to_openrouter_reasoning_details(original)
 
 
 @pytest.mark.parametrize(

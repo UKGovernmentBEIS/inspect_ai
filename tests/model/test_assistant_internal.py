@@ -10,16 +10,21 @@ from __future__ import annotations
 
 import importlib
 import json
+import pickle
 import time
+from dataclasses import replace
+from typing import Any, cast
 from unittest.mock import patch
 
 from pydantic import JsonValue
 
 from inspect_ai._util._async import tg_collect
+from inspect_ai.model import ChatCompletionChoice, ChatMessageAssistant, ModelOutput
 from inspect_ai.model._assistant_internal import (
     dump_sample_assistant_internal,
     init_sample_assistant_internal,
 )
+from inspect_ai.tool import ToolCall
 
 
 def test_init_sample_assistant_internal_does_not_call_find_spec() -> None:
@@ -199,3 +204,283 @@ async def test_restore_in_child_task_visible_to_siblings() -> None:
 
     await tg_collect([restore])
     assert "h" in assistant_internal().thinking_blocks
+
+
+def test_an_output_cached_before_private_attributes_records_no_replay_state() -> None:
+    from inspect_ai.model import ModelOutput
+    from inspect_ai.model._assistant_internal import generation_assistant_internal
+
+    output = ModelOutput()
+    # how pydantic unpickles a model pickled before it had private attributes
+    object.__setattr__(output, "__pydantic_private__", None)
+    assert generation_assistant_internal(output) is None
+
+
+async def test_a_responses_parse_keeps_its_own_replay_state_with_its_output() -> None:
+    from openai.types.responses import Response, ResponseFunctionToolCall
+
+    from inspect_ai.model import model_output_from_openai_responses
+    from inspect_ai.model._assistant_internal import (
+        generation_assistant_internal,
+        generation_call_states,
+    )
+    from inspect_ai.model._openai_responses import assistant_internal
+
+    init_sample_assistant_internal()
+
+    def call(
+        item_id: str | None, call_id: str, path: str = "a"
+    ) -> ResponseFunctionToolCall:
+        return ResponseFunctionToolCall(
+            id=item_id,
+            type="function_call",
+            call_id=call_id,
+            name="read_file",
+            arguments=json.dumps({"path": path}),
+        )
+
+    output = await model_output_from_openai_responses(
+        Response.model_validate(
+            {
+                "id": "resp_1",
+                "created_at": 0,
+                "model": "gpt-5",
+                "object": "response",
+                "output": [
+                    call("fc_1", "call_item"),
+                    call(None, "call_itemless"),
+                    # parallel calls sharing an id
+                    call("fc_2", "call_shared", "old.txt"),
+                    call("fc_3", "call_shared", "new.txt"),
+                ],
+                "parallel_tool_calls": True,
+                "tool_choice": "auto",
+                "tools": [],
+            }
+        )
+    )
+    replay = generation_assistant_internal(output)
+    # a later parse replacing the provider's state leaves the output's own
+    assistant_internal().tool_calls["call_item"] = cast(Any, {"type": "other"})
+    assistant_internal().tool_calls["call_itemless"] = cast(Any, {"type": "other"})
+
+    states = generation_call_states(replay, output.message.tool_calls or [])
+    # calls sharing an id keep none, so neither can replay the other's
+    assert [
+        cast(dict[str, Any], state.openai)["arguments"] if state else None
+        for state in states
+    ] == [json.dumps({"path": "a"}), None, None, None]
+    assert generation_assistant_internal(pickle.loads(pickle.dumps(output))) == replay
+    assert generation_assistant_internal(output.model_copy(deep=True)) == replay
+    rebuilt = ModelOutput.model_validate(output.model_dump())
+    assert generation_assistant_internal(rebuilt) is None
+    # the replay state is not part of the output's value
+    assert rebuilt == output
+
+
+def test_a_copy_keeps_the_replay_state_of_the_calls_it_carries() -> None:
+    from inspect_ai.model._assistant_internal import (
+        GenerationCallState,
+        carry_generation_assistant_internal,
+        generation_assistant_internal,
+        generation_call_states,
+        generation_replay,
+        set_generation_assistant_internal,
+        shared_call_ids,
+    )
+
+    calls = [
+        ToolCall(id="kept", function="read_file", arguments={"path": "a"}),
+        ToolCall(id="edited", function="read_file", arguments={"path": "b"}),
+        ToolCall(id="renamed", function="read_file", arguments={"path": "c"}),
+        ToolCall(id="shared", function="read_file", arguments={"path": "old"}),
+        ToolCall(id="shared", function="read_file", arguments={"path": "new"}),
+        ToolCall(id="duplicated", function="read_file", arguments={"path": "d"}),
+    ]
+    output = set_generation_assistant_internal(
+        ModelOutput(
+            choices=[
+                ChatCompletionChoice(
+                    message=ChatMessageAssistant(content="", tool_calls=calls),
+                    stop_reason="tool_calls",
+                )
+            ]
+        ),
+        generation_replay(calls, openai=[{"index": index} for index in range(6)]),
+    )
+    copy = ModelOutput.model_validate(output.model_dump())
+    assert generation_assistant_internal(copy) is None
+    assert copy.message.tool_calls
+    copied = copy.message.tool_calls
+    copied[1].arguments = {"path": "edited"}
+    copied[2].function = "write_file"
+    # the filter keeps one of the calls sharing an id, and duplicates a call
+    del copied[3]
+    copied.append(replace(copied[-1]))
+
+    carry_generation_assistant_internal(output, copy)
+
+    assert generation_call_states(generation_assistant_internal(copy), copied) == [
+        GenerationCallState({"index": 0}, None, False),
+        GenerationCallState({"index": 1}, None, True),
+        None,
+        None,
+        None,
+        None,
+    ]
+    assert shared_call_ids(copy) == {"shared", "duplicated"}
+
+
+def test_calls_edited_in_place_are_checked_against_their_parsed_state() -> None:
+    from inspect_ai.model._assistant_internal import (
+        GenerationCallState,
+        generation_assistant_internal,
+        generation_call_states,
+        generation_replay,
+        set_generation_assistant_internal,
+    )
+
+    calls = [
+        ToolCall(id=f"call_{index}", function="read_file", arguments={"path": "a"})
+        for index in range(4)
+    ]
+    # the output itself, with its replay state, as a request filter that
+    # generates and edits it in place returns it
+    output = set_generation_assistant_internal(
+        ModelOutput(
+            choices=[
+                ChatCompletionChoice(
+                    message=ChatMessageAssistant(content="", tool_calls=calls),
+                    stop_reason="tool_calls",
+                )
+            ]
+        ),
+        generation_replay(calls, openai=[{"index": index} for index in range(4)]),
+    )
+    calls[1].arguments = {"path": "edited"}
+    calls[2].function = "write_file"
+    calls[3].type = "custom"
+
+    assert generation_call_states(generation_assistant_internal(output), calls) == [
+        GenerationCallState({"index": 0}, None, False),
+        GenerationCallState({"index": 1}, None, True),
+        None,
+        None,
+    ]
+
+
+def test_ids_recorded_as_shared_stay_shared_and_give_no_call_state() -> None:
+    from inspect_ai.model._assistant_internal import (
+        GenerationCallState,
+        carry_generation_assistant_internal,
+        generation_assistant_internal,
+        generation_call_states,
+        generation_replay,
+        set_generation_assistant_internal,
+        share_call_ids,
+        shared_call_ids,
+    )
+
+    calls = [
+        ToolCall(id="shared", function="read_file", arguments={"path": "new"}),
+        ToolCall(id="unique", function="read_file", arguments={"path": "a"}),
+    ]
+
+    # without the generation's replay state, the marker records none
+    unknown = _calling("shared")
+    # an id none of its calls carries is not recorded
+    share_call_ids(unknown, ["shared", "removed"])
+    assert generation_assistant_internal(unknown) is None
+    assert shared_call_ids(unknown) == {"shared"}
+    rebuilt = ModelOutput.model_validate(unknown.model_dump())
+    carry_generation_assistant_internal(unknown, rebuilt)
+    assert generation_assistant_internal(rebuilt) is None
+    assert shared_call_ids(rebuilt) == {"shared"}
+
+    # with it, the shared id's call loses its state, and no other call does
+    known = set_generation_assistant_internal(
+        ModelOutput(
+            choices=[
+                ChatCompletionChoice(
+                    message=ChatMessageAssistant(content="", tool_calls=calls)
+                )
+            ]
+        ),
+        generation_replay(calls, openai=[{"index": 0}, {"index": 1}]),
+    )
+    share_call_ids(known, ["shared"])
+    replay = generation_assistant_internal(known)
+    assert generation_call_states(replay, calls) == [
+        None,
+        GenerationCallState({"index": 1}, None, False),
+    ]
+    assert shared_call_ids(known) == {"shared"}
+    copy = ModelOutput.model_validate(known.model_dump())
+    carry_generation_assistant_internal(known, copy)
+    assert shared_call_ids(copy) == {"shared"}
+
+
+def test_replay_state_in_the_shapes_of_earlier_versions_is_unknown() -> None:
+    from inspect_ai.model._assistant_internal import (
+        generation_assistant_internal,
+        set_generation_assistant_internal,
+    )
+
+    for replay in [
+        # without the parsed calls' functions
+        {"calls": {"call_1": "digest"}, "openai": {"call_1": {"type": "x"}}},
+        # a state per call occurrence
+        {"calls": {"call_1": [{"digest": "d", "openai": {}}]}, "providers": []},
+    ]:
+        output = set_generation_assistant_internal(
+            _calling("call_1"), cast(dict[str, JsonValue], replay)
+        )
+        assert generation_assistant_internal(output) is None
+
+
+def _calling(call_id: str) -> ModelOutput:
+    return ModelOutput(
+        choices=[
+            ChatCompletionChoice(
+                message=ChatMessageAssistant(
+                    content="",
+                    tool_calls=[ToolCall(id=call_id, function="f", arguments={})],
+                )
+            )
+        ]
+    )
+
+
+def test_a_fresh_output_without_replay_state_needs_none_unless_a_provider_kept_some() -> (
+    None
+):
+    from inspect_ai.model._assistant_internal import (
+        default_generation_assistant_internal,
+        generation_assistant_internal,
+        generation_call_states,
+    )
+    from inspect_ai.model._openai_responses import assistant_internal
+    from inspect_ai.model._providers.anthropic import (
+        assistant_internal as anthropic_internal,
+    )
+
+    init_sample_assistant_internal()
+    assistant_internal().tool_calls["call_responses"] = {
+        "type": "function_call",
+        "call_id": "call_responses",
+        "name": "f",
+        "arguments": "{}",
+    }
+    anthropic_internal().client_tool_call_positions["toolu_1"] = 0
+
+    for call_id, stateless in [
+        ("call_stateless", True),
+        ("call_responses", False),
+        ("toolu_1", False),
+    ]:
+        output = _calling(call_id)
+        default_generation_assistant_internal(output)
+        replay = generation_assistant_internal(output)
+        assert (replay is not None) == stateless
+        [state] = generation_call_states(replay, output.message.tool_calls or [])
+        assert (state is not None and not state.recorded) == stateless

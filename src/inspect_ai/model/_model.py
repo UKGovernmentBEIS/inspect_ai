@@ -2,6 +2,7 @@ import abc
 import contextlib
 import dataclasses
 import functools
+import hashlib
 import json
 import logging
 import os
@@ -34,7 +35,6 @@ if TYPE_CHECKING:
     from inspect_ai.tool import ToolInfo
 
 import anyio
-import mmh3
 from pydantic import BaseModel
 from pydantic_core import to_jsonable_python
 from shortuuid import uuid
@@ -124,6 +124,7 @@ from inspect_ai.util._span import (
 )
 
 from ._agent_message import validate_agent_message
+from ._assistant_internal import default_generation_assistant_internal
 from ._cache import (
     CacheEntry,
     CachePolicy,
@@ -157,6 +158,7 @@ from ._generate_config import (
     active_generate_config,
     set_active_generate_config,
 )
+from ._message_ids import content_hash, edited_message, with_edited_id
 from ._model_call import ModelCall, as_error_response
 from ._model_data.model_data import ModelCost, ModelInfo
 from ._model_output import (
@@ -1053,7 +1055,7 @@ class Model:
 
         # insert any system message provided in config
         if config.system_message:
-            input = [ChatMessageSystem(content=config.system_message)] + input
+            input = [_configured_system_message(config.system_message)] + input
 
         prepared = await self._prepare_input(input, tools, tool_choice, config)
 
@@ -1199,6 +1201,11 @@ class Model:
                 # serializes a snapshot at emission time) pick up the timing
                 # fields set above
                 transcript()._event_updated(event)
+
+            # before a refusal is raised, which carries this same output
+            observer = _generation_observer.get()
+            if observer is not None:
+                observer(output, event)
 
             # fail the sample on a refusal if requested. Raised here, after the
             # ModelEvent is complete (so the transcript shows the refusal and
@@ -1939,6 +1946,8 @@ class Model:
                     provider_message=str(output),
                 ) from output
 
+            default_generation_assistant_internal(output)
+
             # a provider whose generate makes one request leaves the context
             # size to be read from its usage
             if output.input_context_tokens is None:
@@ -2287,6 +2296,7 @@ class Model:
 
             record_agent_turn(snapshot)
         sink = _model_event_sink.get()
+        collectors = _model_event_collectors.get()
         if sink is None:
             transcript()._event(event)
         else:
@@ -2344,6 +2354,9 @@ class Model:
                 transcript()._event_updated(event)
             else:
                 sink.on_complete(event)
+            for collector in collectors:
+                if collector.events is not None:
+                    collector.events.append(CollectedGeneration(event, self))
 
         # if we have output then complete it now
         if output:
@@ -2398,18 +2411,31 @@ choice's message is unchanged, which keeps the original ``completion``). Reasoni
 (``ContentReasoning``) and server tool items (``ContentToolUse``) can only be
 kept unchanged or removed, and server tool items are kept all or none. A tool
 call that keeps an original call's ``id`` keeps its ``function``; give a call to
-a different function a new ``id``. Server work still pending at the end of the
-turn (Anthropic) goes with the server tool items: a message that keeps them
-takes the ``id`` of the message they came from and keeps that work, and a changed
-message that keeps none gets a new ``id`` and drops it. The
-filter also receives a model refusal
+a different function a new ``id``. A changed message gets an ``id`` derived from
+the message it replaces and its own content. The exception is server work still
+pending at the end of an Anthropic turn, which is replayed by message ``id``: a
+response-filter output that keeps server tool items from an Anthropic turn with
+unfinished server work keeps the generated message's ``id`` and that work; other
+edits get a derived ``id``, and one that keeps no server tool items drops the
+work. The filter also receives a model refusal
 under ``fail_on_refusal`` (from the default generation or a request ``filter``
 that generates), before it is retried or raised, and can replace it. An output
 still ``stop_reason="content_filter"``
 after the filter is handled like a model refusal (``retry_refusals``,
 ``fail_on_refusal``). The ``ModelEvent`` keeps the model's
 own output; the replacement is what the agent, bridge state and later turns see.
-Model calls the filter makes run under the bridge's approval policies.
+Model calls the filter makes run under the bridge's approval policies. A message
+that a ``generate()`` call of the bridged model made during the filter produced,
+returned unchanged (``metadata`` aside), is that generation's reply: it keeps its
+``id`` and replays as the provider returned it, server tool items and pending
+server work included. The call must use the bridged model's endpoint and account,
+and its effective config (with the model's and the eval's config merged in) must
+be the bridged model's for the request (``GenerateInput.config``) or for no
+config, apart from settings that only shape the request or Inspect's retries
+and concurrency (e.g. ``temperature``, ``max_tokens``, ``reasoning_effort``,
+``system_message``, ``timeout``).
+Another model's output, or a call that changes other settings (e.g.
+``extra_headers`` or ``extra_body``), is held to the rules above.
 
 An exception fails the sample as a ``ResponseFilterError``, except that a
 ``LimitExceededError``, ``TerminateSampleError`` or ``ModelRefusalError`` keeps
@@ -2911,9 +2937,7 @@ def resolve_reasoning_history(
                             if not isinstance(content, ContentReasoning)
                         ]
                         if len(filtered) != len(message.content):
-                            message = message.model_copy(
-                                update={"id": uuid(), "content": filtered}
-                            )
+                            message = edited_message(message, content=filtered)
                     found_last = True
 
             resolved_messages.append(message)
@@ -2936,27 +2960,36 @@ def resolve_tool_model_input(
         return messages
 
     # don't mutate the original messages
-    messages = [m.model_copy() for m in messages]
+    messages = list(messages)
 
     # extract tool messages
     tool_messages = [
-        message for message in messages if isinstance(message, ChatMessageTool)
+        (position, message)
+        for position, message in enumerate(messages)
+        if isinstance(message, ChatMessageTool)
     ]
     # run model_input handlers over all tool_messages with the same function name
     for tdef in tdefs:
         assert tdef.model_input
         # filter messages down to just this tool
         tdef_tool_messages = [
-            message for message in tool_messages if message.function == tdef.name
+            (position, message)
+            for position, message in tool_messages
+            if message.function == tdef.name
         ]
         # call the function for each tool, passing the index, total, and content
-        for index, message in enumerate(tdef_tool_messages):
-            model_input_content = tdef.model_input(
-                index, len(tdef_tool_messages), message.content, hints
+        for index, (position, message) in enumerate(tdef_tool_messages):
+            # a copy, so a handler editing items in place changes neither the
+            # conversation nor what its result is compared against
+            content = (
+                message.content
+                if isinstance(message.content, str)
+                else [item.model_copy(deep=True) for item in message.content]
             )
-            if model_input_content is not message.content:
-                message.content = model_input_content
-                message.id = uuid()
+            model_input_content = tdef.model_input(
+                index, len(tdef_tool_messages), content, hints
+            )
+            messages[position] = edited_message(message, content=model_input_content)
 
     # return modified messages
     return messages
@@ -2983,6 +3016,7 @@ def tool_result_media_as_user_message(
     chat_messages: list[ChatMessage] = []
     pending_content: list[Content] = []
     tool_call_ids: list[str] = []
+    source_ids: list[str] = []
     for message in messages:
         if (
             isinstance(message, ChatMessageTool)
@@ -2995,28 +3029,69 @@ def tool_result_media_as_user_message(
                 (list[Content](), list[Content]()),
             )
             chat_messages.append(
-                ChatMessageTool(
-                    content=edited_tool_message_content,
-                    tool_call_id=message.tool_call_id,
-                    function=message.function,
+                with_edited_id(
+                    message,
+                    ChatMessageTool(
+                        content=edited_tool_message_content,
+                        tool_call_id=message.tool_call_id,
+                        function=message.function,
+                    ),
                 )
             )
             pending_content.extend(new_user_message_content)
             if message.tool_call_id:
                 tool_call_ids.append(message.tool_call_id)
+            if message.id:
+                source_ids.append(message.id)
         else:
             if pending_content:
                 chat_messages.append(
-                    ChatMessageUser(content=pending_content, tool_call_id=tool_call_ids)
+                    _media_user_message(pending_content, tool_call_ids, source_ids)
                 )
             pending_content = []
             tool_call_ids = []
+            source_ids = []
             chat_messages.append(message)
     if pending_content:
         chat_messages.append(
-            ChatMessageUser(content=pending_content, tool_call_id=tool_call_ids)
+            _media_user_message(pending_content, tool_call_ids, source_ids)
         )
     return chat_messages
+
+
+def _media_user_message(
+    content: list[Content], tool_call_ids: list[str], source_ids: list[str]
+) -> ChatMessageUser:
+    message = ChatMessageUser(content=content, tool_call_id=tool_call_ids)
+    return _with_derived_id("media", source_ids, message)
+
+
+def _configured_system_message(content: str) -> ChatMessageSystem:
+    """The configured system message, under one id per sample for each content."""
+    from inspect_ai.log._samples import sample_active
+
+    sample = sample_active()
+    key = [sample.sample_uuid if sample is not None else None, content]
+    return ChatMessageSystem(
+        id=uuid(name=f"inspect-system-message:{json.dumps(key)}"), content=content
+    )
+
+
+_DerivedT = TypeVar("_DerivedT", bound=ChatMessage)
+
+
+def _with_derived_id(kind: str, source_ids: list[str], message: _DerivedT) -> _DerivedT:
+    """Give a message rebuilt on every model call an id from its sources and content.
+
+    The same on every call, so the message is one message across a sample's
+    model events (and one entry in the log's message pool), and different
+    content from the same sources (another model's media support) is another.
+    """
+    if source_ids:
+        message.id = uuid(
+            name=f"inspect-{kind}:{json.dumps([source_ids, content_hash(message)])}"
+        )
+    return message
 
 
 def _make_content_reducer(
@@ -3166,7 +3241,7 @@ def combine_messages(
     # type-specific field merging
     if isinstance(a, ChatMessageAssistant) and isinstance(b, ChatMessageAssistant):
         merged_tool_calls = (a.tool_calls or []) + (b.tool_calls or [])
-        return ChatMessageAssistant(
+        combined: ChatMessage = ChatMessageAssistant(
             content=content,
             tool_calls=merged_tool_calls or None,
             model=b.model or a.model,
@@ -3175,18 +3250,21 @@ def combine_messages(
         )
     elif isinstance(a, ChatMessageUser) and isinstance(b, ChatMessageUser):
         merged_tool_call_id = (a.tool_call_id or []) + (b.tool_call_id or [])
-        return ChatMessageUser(
+        combined = ChatMessageUser(
             content=content,
             tool_call_id=merged_tool_call_id or None,
             source=b.source or a.source,
             metadata=merged_metadata or None,
         )
     else:
-        return message_type(
+        combined = message_type(
             content=content,
             source=b.source or a.source,
             metadata=merged_metadata or None,
         )
+    return _with_derived_id(
+        "combined", [id for id in (a.id, b.id) if id is not None], combined
+    )
 
 
 async def log_model_retry(
@@ -3314,10 +3392,35 @@ _model_event_sink: ContextVar[ModelEventSink | None] = ContextVar(
 )
 
 
+class CollectedGeneration(NamedTuple):
+    """A generation collected by `collect_model_events`."""
+
+    event: "ModelEvent"
+    model: "Model"
+    """The model that made it (models sharing a name can differ in endpoint or account)."""
+
+
+class _ModelEventCollector:
+    """A `collect_model_events` block's events; `None` once the block exits.
+
+    Tasks the block starts inherit the collector and may outlive it, as may an
+    attempt in flight when it exits. Closing it lets their later events go
+    uncollected and unreferenced.
+    """
+
+    def __init__(self, events: list[CollectedGeneration]) -> None:
+        self.events: list[CollectedGeneration] | None = events
+
+
+_model_event_collectors: ContextVar[tuple[_ModelEventCollector, ...]] = ContextVar(
+    "_model_event_collectors", default=()
+)
+
+
 class _Snapshot(NamedTuple):
     message: weakref.ReferenceType[ChatMessage]
     hash: bytes
-    """Hash of the message's `logged_json()`."""
+    """SHA-256 of the message's `logged_json()`."""
 
 
 _message_snapshots: dict[str | int, _Snapshot] = {}
@@ -3381,7 +3484,7 @@ def _snapshot_message(message: _MessageT) -> _MessageT:
         logged = logged_json(message)
         if logged is None:
             return message
-        digest = mmh3.hash_bytes(logged)
+        digest = hashlib.sha256(logged).digest()
         entry = _message_snapshots.get(key)
         snapshot = entry.message() if entry and entry.hash == digest else None
         # the logged JSON includes the role, so a hit has the message's type
@@ -3424,6 +3527,28 @@ def use_model_event_sink(sink: ModelEventSink | None) -> Iterator[None]:
 
 
 @contextlib.contextmanager
+def collect_model_events() -> Iterator[list[CollectedGeneration]]:
+    """Collect the `ModelEvent` of each attempt that completes in the block.
+
+    Only generations started in the block's context (including tasks it starts)
+    are collected, wherever their events are emitted (transcript or
+    `ModelEventSink`), so finding them does not visit other concurrent model
+    calls in the sample. Blocks nest: an outer block also collects the
+    generations of an inner one. Collection ends when the block exits: an
+    attempt completing later, in a task outliving the block or in flight when
+    it exits, is not collected.
+    """
+    events: list[CollectedGeneration] = []
+    collector = _ModelEventCollector(events)
+    token = _model_event_collectors.set((*_model_event_collectors.get(), collector))
+    try:
+        yield events
+    finally:
+        collector.events = None
+        _model_event_collectors.reset(token)
+
+
+@contextlib.contextmanager
 def suspend_model_event_sink() -> Iterator[None]:
     """Emit `ModelEvent`s straight to the transcript for the block, whatever sink is installed."""
     token = _model_event_sink.set(None)
@@ -3459,6 +3584,32 @@ def _model_event_sink_span(input: list[ChatMessage]) -> Iterator[None]:
             yield
     else:
         yield
+
+
+_generation_observer: ContextVar[
+    Callable[[ModelOutput, "ModelEvent | None"], None] | None
+] = ContextVar("_generation_observer", default=None)
+
+
+@contextlib.contextmanager
+def observe_generations(
+    observer: Callable[[ModelOutput, "ModelEvent | None"], None],
+) -> Iterator[None]:
+    """Call `observer` with each output `generate()` returns and its `ModelEvent`.
+
+    For the duration of the block, in this context and tasks started from it.
+    The output is the object `generate()` returns (or a `ModelRefusalError`
+    carries), so a caller can tell which generation produced an output it is
+    handed by identity. The event is None for an output with no event of its
+    own (a refusal a sidecar decided, recovered after the provider's error,
+    whose call's event records the error). An inner block replaces the
+    observer for its duration.
+    """
+    token = _generation_observer.set(observer)
+    try:
+        yield
+    finally:
+        _generation_observer.reset(token)
 
 
 _requested_model: ContextVar[str | None] = ContextVar("_requested_model", default=None)

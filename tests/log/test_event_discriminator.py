@@ -8,6 +8,7 @@ import pytest
 from pydantic import TypeAdapter, ValidationError
 
 import inspect_ai
+from inspect_ai.event._approval import ApprovalEvent
 from inspect_ai.event._event import DiscriminatedEvent, Event
 from inspect_ai.event._info import InfoEvent
 from inspect_ai.event._model import ModelEvent
@@ -123,6 +124,7 @@ def _observation(**kwargs: Any) -> SentinelEvent:
         _observation(references=_REFERENCES),
         _sentinel_event(references=_REFERENCES),
         _observation(status="error", suspicion=None, error="ValueError: no model"),
+        _observation(stage="tool_result", execution_id="call_token"),
     ],
 )
 def test_sentinel_event_round_trips(event: SentinelEvent) -> None:
@@ -140,6 +142,25 @@ def test_sentinel_event_reads_continue_from_old_logs_as_proceed(status: str) -> 
     restored = adapter.validate_json(json.dumps(logged))
     assert isinstance(restored, SentinelEvent)
     assert restored.action == "proceed"
+
+
+def test_events_from_logs_without_an_execution_id_read_as_none() -> None:
+    adapter: TypeAdapter[Event] = TypeAdapter(DiscriminatedEvent)
+    approval = ApprovalEvent(
+        message="",
+        call=_MODIFIED,
+        approver="auto",
+        decision="approve",
+        execution_id="call_token",
+    )
+    for event in [_observation(execution_id="call_token"), approval]:
+        logged = event.model_dump(mode="json")
+        del logged["execution_id"]
+        restored = adapter.validate_json(json.dumps(logged))
+        assert isinstance(restored, SentinelEvent | ApprovalEvent)
+        assert restored.execution_id is None
+    restored = adapter.validate_json(adapter.dump_json(approval))
+    assert restored == approval
 
 
 def test_sentinel_event_rejects_invalid_suspicion() -> None:

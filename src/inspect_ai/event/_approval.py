@@ -18,6 +18,12 @@ class ApprovalEvent(BaseEvent):
     call: ToolCall
     """Tool call being approved."""
 
+    execution_id: str | None = Field(default=None)
+    """The id of the call's execution when an agent bridge handed it to its scaffold under an id other than `call.id` (the model's): the scaffold's tool call id, which a bridged host tool's `ToolEvent.id` is too, unless the scaffold runs the handed call more than once. `None` when the call was executed under `call.id` or never handed over.
+
+    Experimental: not yet a stable API; may change without notice.
+    """
+
     view: ToolCallView | None = Field(default=None)
     """View presented for approval."""
 

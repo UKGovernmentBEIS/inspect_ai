@@ -1,0 +1,1025 @@
+import hashlib
+import json
+from collections import Counter, OrderedDict, deque
+from contextlib import AbstractContextManager, ExitStack, nullcontext
+from copy import deepcopy
+from dataclasses import dataclass, replace
+from functools import cached_property, partial
+from logging import getLogger
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Awaitable,
+    Callable,
+    Iterator,
+    Literal,
+    NamedTuple,
+    Sequence,
+    TypeVar,
+)
+
+import anyio
+from pydantic import BaseModel, model_validator
+from pydantic_core import to_jsonable_python
+from shortuuid import uuid
+
+from inspect_ai._sentinel._agent_state import bridge_request
+from inspect_ai._sentinel._context import SentinelFailure, checks_tool_calls
+from inspect_ai._util._async import tg_collect
+from inspect_ai._util.content import (
+    Content,
+    ContentAudio,
+    ContentDocument,
+    ContentImage,
+    ContentReasoning,
+    ContentText,
+    ContentVideo,
+)
+from inspect_ai._util.exception import TerminateSampleError
+from inspect_ai._util.logger import warn_once
+from inspect_ai.agent._bridge.types import AgentBridge
+from inspect_ai.event._approval import ApprovalEvent
+from inspect_ai.event._sentinel import SentinelEvent
+from inspect_ai.log._transcript import transcript
+from inspect_ai.model._assistant_internal import (
+    GenerationCallState,
+    alias_assistant_internal_call,
+    generation_assistant_internal,
+    generation_call_states,
+    shared_call_ids,
+)
+from inspect_ai.model._call_tools import decisive_sentinel_exception
+from inspect_ai.model._chat_message import (
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageTool,
+)
+from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.model._providers._google_computer_use_name import (
+    GEMINI_COMPUTER_ACTIONS,
+    gemini_computer_action_name,
+    gemini_computer_action_names,
+)
+from inspect_ai.tool._tool import Tool, ToolResult
+from inspect_ai.tool._tool_call import (
+    ToolCall,
+    ToolCallError,
+    ToolCallViewer,
+    ToolCallViewError,
+)
+from inspect_ai.tool._tool_def import ToolDef
+from inspect_ai.util._limit import LimitExceededError
+from inspect_ai.util._span import in_agent_span
+
+if TYPE_CHECKING:
+    from inspect_sentinel import Decision
+
+    from inspect_ai.event._model import ModelEvent
+
+logger = getLogger(__name__)
+
+T = TypeVar("T")
+
+_MAX_PROPOSALS = 1000
+
+# a model id longer than this is replaced by a fresh token, so the aliases of a
+# history id that need reserving are those up to this length
+_MAX_TOKEN_LENGTH = 128
+
+# a result no assistant message in the request accounts for, or a host call no
+# proposal does, has no message that made the call
+_NO_MESSAGE_ID = ""
+
+
+class Produced(NamedTuple):
+    """The generation that produced a bridged call, and the agent span it ran in."""
+
+    event: "ModelEvent"
+    """What the model was sent (`input`, `tools`, `tool_choice`)."""
+
+    agent_span_id: str | None
+    """The agent span current during the generation: the call's conversation."""
+
+    def scope(self) -> AbstractContextManager[None]:
+        return in_agent_span(self.agent_span_id)
+
+
+class SentinelCheck(NamedTuple):
+    handed: ToolCall
+    """The call as handed to the scaffold (the model's id, the approved arguments)."""
+
+    call: ToolCall
+    """The call the steps show (the model's id; a dispatched call's target)."""
+
+    viewer: ToolCallViewer | None
+    message: str
+
+    message_id: str | None
+    """The id of the assistant message that made the call."""
+
+    producer: Produced | None = None
+    """The generation that produced the call, if the bridge knows it; the steps
+    take what the model was sent from it, and its conversation, and without it
+    have no input and the bridge's current conversation."""
+
+    token: str | None = None
+    """The id the scaffold was handed for the call (`sentinel_tokens`), or None
+    for a host call no proposal accounts for."""
+
+    alternatives: tuple["SentinelCheck", ...] = ()
+    """Checks for other host tools denoted by the same handed call."""
+
+    modified: bool = False
+    """Whether approval changed the arguments the model proposed."""
+
+
+class _Identity(NamedTuple):
+    """What the bridge keeps for every token it has handed out, for good."""
+
+    call_id: str
+    """The model's id for the call."""
+
+    function: str
+
+    call_key: str
+    """The call's conservative identity (`_call_key`)."""
+
+    action: str | None
+    """A computer call's Gemini action (`_computer_action`)."""
+
+
+class _SavedResultChecks(BaseModel):
+    reserved_ids: list[str]
+    tokens: dict[str, _Identity]
+    checked: list[str]
+
+    @model_validator(mode="after")
+    def _computer_calls_have_actions(self) -> "_SavedResultChecks":
+        for token, identity in self.tokens.items():
+            if (identity.function == "computer") != (identity.action is not None):
+                raise ValueError(
+                    f"Token {token!r} must have an action if and only if it is "
+                    "a computer call."
+                )
+        return self
+
+
+class _Result(NamedTuple):
+    keys: list[str]
+    """The result's identity (first) and any it also answers for."""
+
+    checks: tuple[SentinelCheck, ...]
+    """The possible targets to check; a host execution has only its actual target."""
+
+    message: ChatMessageTool
+
+    execution: str | None = None
+    """The id the call was executed under: its token, or its host `ToolEvent`'s id."""
+
+
+class _Claim(NamedTuple):
+    result: _Result
+
+    event: anyio.Event
+    """Set on release; the `running` entry of each of the result's keys this
+    claim took (a key another claim already held stays that claim's)."""
+
+
+class _Claimed(NamedTuple):
+    owned: list[_Claim]
+    waiting: list[anyio.Event]
+
+
+@dataclass
+class _Call:
+    call: ToolCall
+    text: str
+    position: int
+
+    @cached_property
+    def key(self) -> str:
+        return _call_key(self.call)
+
+
+class _ResultChecks:
+    """The `tool_result` checks for the results the scaffold reports.
+
+    Each call handed to the scaffold gets a token, unique for the bridge, as
+    its id (`sentinel_tokens`): the model's own id when it is absent from the
+    incoming history, the bridge has not handed it out before, it is at most
+    `_MAX_TOKEN_LENGTH` characters, it names no Gemini computer action other
+    than the approved one (`_names_another_action`), its generation's replay
+    state for it is known (`generation_call_states`), so no provider can replay
+    another generation's state under it, and, for a call approval or a request or
+    response filter changed, that state does not carry the model's arguments
+    (`GenerationCallState.carries_arguments`); otherwise a fresh token
+    (`_token_prefix`). A result
+    reported under a token is the result of that execution, however the
+    scaffold has rewritten, compacted or reformatted the rest of its
+    conversation. Tokens, observed history ids and checked results are kept
+    for the life of the bridge and in its checkpoint (`saved`), apart from the
+    proposals (bounded), so neither an evicted proposal nor a resume can make
+    an older execution match a newer one.
+
+    Each execution's result is checked once: a result is identified by its
+    token and its exact content (`_content_key`), so replays are not checked
+    again, while different content for the same execution, down to its
+    whitespace, is. A result under a token gets
+    its proposal's context; once the proposal is evicted, the request's
+    conversation and no model input.
+
+    A result whose id the bridge never handed out (a scaffold that drops or
+    rewrites ids, or one answering no call) can't be matched to an execution.
+    It is checked once per conservative key, its call's function and arguments
+    and its content (`_call_key`), with the request's conversation and no
+    model input, never another call's context; an identical result of another
+    execution is not checked again. Every checked result also records that
+    key, so a matched result reported again without its token is not checked
+    twice.
+
+    A host call's result is checked when the call executes, and that result,
+    as delivered, is recorded as checked under the call's token; other content
+    the scaffold reports for the call is checked like a scaffold-run call's.
+
+    The results in the state the bridge starts with were in the agent's
+    conversation before the bridge ran, and are not checked again, as a native
+    agent handed a conversation does not check its results again
+    (`inherited_result_keys`). Each is recorded under its conservative key,
+    taken when the bridge is first constructed and kept in its checkpoint, so
+    a result reported with other content (including one changed in place
+    since, before or after a resume) is checked. Their call IDs are reserved
+    (`history_ids`) at the same point, so no token can match a starting call.
+
+    Held by its bridge, since a failure's traceback references the bridge.
+    """
+
+    def __init__(self, saved: _SavedResultChecks) -> None:
+        self.identities: dict[str, _Identity] = {}
+        self.prefixed_tokens: set[str] = set()
+        for token, identity in saved.tokens.items():
+            self._record(token, identity)
+        self.reserved_ids: set[str] = set(saved.reserved_ids)
+        self.proposals: OrderedDict[str, SentinelCheck] = OrderedDict()
+        self.checked: set[str] = set(saved.checked)
+        self.running: dict[str, anyio.Event] = {}
+        self.failed: dict[str, Exception] = {}
+
+    def saved(self) -> _SavedResultChecks:
+        """What a resumed bridge needs to issue tokens and match results as this one does.
+
+        Proposals hold their generation and viewer, so a resumed bridge
+        matches a result to its token as it would after the proposal's
+        eviction. A check that was running or failed is made again. The
+        tokens' aliases are derived from their identities on restore.
+        """
+        return _SavedResultChecks(
+            reserved_ids=sorted(self.reserved_ids),
+            tokens=dict(self.identities),
+            checked=sorted(self.checked),
+        )
+
+    def _record(self, token: str, identity: _Identity) -> None:
+        self.identities[token] = identity
+        self.prefixed_tokens.update(
+            f"{name}__{token}"
+            for name in _wire_names(identity.function, identity.action)
+        )
+
+    def reserve(self, input: Sequence[ChatMessage]) -> None:
+        self.reserved_ids.update(history_ids(input))
+
+    def issue(
+        self,
+        checks: Sequence[SentinelCheck],
+        states: Sequence[GenerationCallState | None],
+    ) -> list[SentinelCheck]:
+        """Give each check's call its token.
+
+        `states` are the calls' replay states (`generation_call_states`), in
+        order.
+        """
+        issued: list[SentinelCheck] = []
+        for check, state in zip(checks, states, strict=True):
+            token = check.handed.id
+            fresh = state is None or (
+                (check.modified or state.edited) and state.carries_arguments
+            )
+            identity = _Identity(
+                check.call.id,
+                check.handed.function,
+                _call_key(check.handed),
+                _computer_action(check.handed),
+            )
+            names = _wire_names(identity.function, identity.action)
+            while (
+                not token
+                or len(token) > _MAX_TOKEN_LENGTH
+                or self._ambiguous_token(token, names)
+                or _names_another_action(token, check)
+                or (fresh and token == check.handed.id)
+            ):
+                token = f"{_token_prefix(check)}_{uuid()}"
+            self._record(token, identity)
+            issued.append(check._replace(token=token))
+            self.proposals[token] = issued[-1]
+            while len(self.proposals) > _MAX_PROPOSALS:
+                self.proposals.popitem(last=False)
+                warn_once(
+                    logger,
+                    f"More than {_MAX_PROPOSALS} bridged tool calls have been "
+                    "handed to the scaffold; the oldest proposal was dropped, so "
+                    "the sentinel's tool_result check of a call handed over more "
+                    f"than {_MAX_PROPOSALS} calls ago sees only the conversation "
+                    "that carries its result, and no model input.",
+                )
+        return issued
+
+    def _ambiguous_token(self, token: str, names: set[str]) -> bool:
+        """Whether this token could echo another issued or historical call.
+
+        The Google bridge receives both unchanged and function-prefixed echoes.
+        Issuing either side of a prefix pair would make one wire id denote two
+        calls, so mint a fresh token instead.
+        """
+        return (
+            token in self.identities
+            or token in self.prefixed_tokens
+            or token in self.reserved_ids
+            or any(f"{name}__{token}" in self.identities for name in names)
+            or any(f"{name}__{token}" in self.reserved_ids for name in names)
+            or self._echoes_reserved_id(token)
+        )
+
+    def _echoes_reserved_id(self, token: str) -> bool:
+        """Whether stripping one or more wire prefixes reveals a history ID."""
+        return any(alias in self.reserved_ids for alias in _aliases(token))
+
+    def claim(self, input: list[ChatMessage]) -> _Claimed:
+        claimed = _Claimed([], [])
+        keys: set[str] = set()
+        for message, found in _answers(input):
+            result = self._result(input, message, found)
+            key = result.keys[0]
+            if key in keys or key in self.checked:
+                continue
+            if key in self.failed:
+                raise self.failed[key]
+            if key in self.running:
+                claimed.waiting.append(self.running[key])
+                continue
+            # a result whose identity another of the request's results also
+            # answers for is checked by that result
+            keys.update(result.keys)
+            claimed.owned.append(_Claim(result, anyio.Event()))
+        for claim in claimed.owned:
+            self._take(claim)
+        return claimed
+
+    def _take(self, claim: _Claim) -> None:
+        for key in claim.result.keys:
+            self.running.setdefault(key, claim.event)
+
+    def _result(
+        self,
+        input: list[ChatMessage],
+        message: ChatMessageTool,
+        found: _Call | None,
+    ) -> _Result:
+        identity = self.identities.get(message.tool_call_id or "")
+        if identity is not None:
+            content = _content_key(message)
+            token = message.tool_call_id or ""
+            keys = [
+                _digest(["token", token, content]),
+                _digest(["call", identity.call_key, content]),
+            ]
+            proposal = self.proposals.get(token)
+            if proposal is not None:
+                return _Result(keys, (proposal, *proposal.alternatives), message, token)
+            call = (
+                replace(found.call, id=identity.call_id)
+                if found is not None
+                else ToolCall(
+                    id=identity.call_id, function=identity.function, arguments={}
+                )
+            )
+        else:
+            call, key = _unissued(message, found)
+            keys = [key]
+            token = None
+        check = SentinelCheck(
+            call,
+            call,
+            None,
+            found.text if found is not None else "",
+            input[found.position].id if found is not None else _NO_MESSAGE_ID,
+        )
+        return _Result(keys, (check,), message, token)
+
+    async def check(
+        self,
+        bridge: AgentBridge,
+        result: _Result,
+        output: ToolResult,
+        truncated: tuple[int, int] | Literal[False] | None = None,
+    ) -> None:
+        try:
+            for check in result.checks:
+                await _tool_result(
+                    bridge,
+                    check,
+                    result.message,
+                    output,
+                    truncated,
+                    result.execution,
+                    reject_on_viewer_error=len(result.checks) > 1,
+                )
+        except Exception as ex:
+            for key in result.keys:
+                self.failed.setdefault(key, ex)
+            raise
+        self.checked.update(result.keys)
+
+    async def check_running(
+        self,
+        bridge: AgentBridge,
+        result: _Result,
+        output: ToolResult,
+        truncated: tuple[int, int] | Literal[False] | None,
+    ) -> None:
+        """Check a result claimed outside a request (a host call's), as running."""
+        claim = _Claim(result, anyio.Event())
+        self._take(claim)
+        try:
+            await self.check(bridge, result, output, truncated)
+        finally:
+            self.release(claim)
+
+    def release(self, claim: _Claim) -> None:
+        # a check that did not finish is claimed again by the next request
+        # carrying its result
+        for key in claim.result.keys:
+            if self.running.get(key) is claim.event:
+                del self.running[key]
+        claim.event.set()
+
+
+def _answers(
+    input: Sequence[ChatMessage],
+) -> Iterator[tuple[ChatMessageTool, _Call | None]]:
+    """Each result in a request, with the call it answers in the request, if any."""
+    calls: dict[str, _Call] = {}
+    unanswered: dict[str, list[_Call]] = {}
+    for index, message in enumerate(input):
+        if isinstance(message, ChatMessageAssistant):
+            unanswered = {}
+            # a message with several text parts joins them on each read
+            text = message.text if message.tool_calls else ""
+            for call in message.tool_calls or []:
+                calls[call.id] = _Call(call, text, index)
+                unanswered.setdefault(call.id, []).append(calls[call.id])
+        elif isinstance(message, ChatMessageTool):
+            result_id = message.tool_call_id or ""
+            found = (
+                unanswered[result_id].pop(0)
+                if unanswered.get(result_id)
+                else calls.get(result_id)
+            )
+            yield message, found
+
+
+def _unissued(message: ChatMessageTool, found: _Call | None) -> tuple[ToolCall, str]:
+    """A result under an id the bridge never handed out: the call it answers, and its conservative key."""
+    call = (
+        found.call
+        if found is not None
+        else ToolCall(
+            id=message.tool_call_id or "",
+            function=message.function or "",
+            arguments={},
+        )
+    )
+    call_key = (
+        found.key if found is not None else _call_key(call, message.function or "")
+    )
+    return call, _digest(["call", call_key, _content_key(message)])
+
+
+def _call_key(call: ToolCall, orphan: str | None = None) -> str:
+    """A call's conservative identity: its function and arguments.
+
+    For a result answering no call in its request, `orphan` is the function the
+    result names, and the arguments are unknown.
+    """
+    identity: Any = (
+        ["orphan", orphan]
+        if orphan is not None
+        else [call.function, _json_canonical(call.arguments)]
+    )
+    return _digest(identity)
+
+
+def _json_canonical(value: Any) -> Any:
+    # as `_json_equal`: 5 and 5.0 are the same argument, True and 1 are not
+    value = to_jsonable_python(value, fallback=str)
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    if isinstance(value, dict):
+        return {key: _json_canonical(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_json_canonical(item) for item in value]
+    return value
+
+
+def _content_key(result: ChatMessageTool) -> str:
+    """A result as the model receives it: its function, its content, in order and exactly, and its error.
+
+    Whitespace and the order of text and other parts are meaningful (in code,
+    paths and instructions), so any difference is a different result, checked
+    again; so is the function it is reported under, which a provider can send
+    the model (Google's `FunctionResponse.name`); so is a text part's
+    `internal`, which a provider can send in its text (Anthropic), serialized
+    as it is sent there (`content_internal_tag()`), in its key order. Other
+    parts' `internal` never reaches a model and is left out; a string and a
+    single text part are the same content.
+    """
+    content = (
+        [ContentText(text=result.content)]
+        if isinstance(result.content, str)
+        else result.content
+    )
+    parts: list[dict[str, Any]] = []
+    for part in content:
+        parts.append(part.model_dump(exclude={"internal"}, exclude_none=True))
+        if isinstance(part, ContentText) and part.internal is not None:
+            parts[-1]["internal"] = json.dumps(part.internal)
+    error = (
+        [result.error.type, result.error.message] if result.error is not None else None
+    )
+    # a provider sends no function as an empty name
+    return _digest(
+        to_jsonable_python([result.function or "", parts, error], fallback=str)
+    )
+
+
+def _digest(value: Any) -> str:
+    # the agent controls its results, so a key standing for a checked result
+    # must be collision-resistant
+    encoded = json.dumps(value, sort_keys=True).encode()
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def inherited_result_keys(input: Sequence[ChatMessage]) -> frozenset[str]:
+    """The keys of the results a bridge starts with, which it does not check.
+
+    Taken when the bridge is first constructed, from the messages as they are
+    then, and restored from its checkpoint on resume: a result later changed
+    in place has a different key and is checked.
+    """
+    return frozenset(_unissued(message, found)[1] for message, found in _answers(input))
+
+
+def history_ids(input: Sequence[ChatMessage]) -> frozenset[str]:
+    """The call IDs in a conversation, and their wire aliases, never issued as tokens.
+
+    Those of the conversation a bridge starts with are taken when it is first
+    constructed and restored from its checkpoint on resume, so a request that
+    omits that history can't have one of its IDs reissued to a new call.
+    """
+    reserved: set[str] = set()
+    for message in input:
+        if isinstance(message, ChatMessageAssistant):
+            for call in message.tool_calls or []:
+                _reserve_id(
+                    reserved,
+                    call.id,
+                    _wire_names(call.function, _computer_action(call)),
+                )
+        elif isinstance(message, ChatMessageTool) and message.tool_call_id:
+            _reserve_id(
+                reserved,
+                message.tool_call_id,
+                {message.function.strip() or "generic_tool"}
+                if message.function
+                else set(),
+            )
+    return frozenset(reserved)
+
+
+def _reserve_id(reserved: set[str], call_id: str, names: set[str]) -> None:
+    """Reserve the raw ID and any alias Google could strip from it later."""
+    if not call_id:
+        return
+    reserved.add(call_id)
+    for name in names:
+        stripped = call_id.removeprefix(f"{name}__")
+        if stripped and stripped != call_id and len(stripped) <= _MAX_TOKEN_LENGTH:
+            reserved.add(stripped)
+    if not names:
+        reserved.update(_aliases(call_id))
+
+
+def _aliases(call_id: str) -> Iterator[str]:
+    """What stripping an unknown `name__` prefix from an ID can leave, up to the longest token.
+
+    Bounded by `_MAX_TOKEN_LENGTH`, so an ID's aliases take space independent
+    of its length.
+    """
+    index = call_id.find("__", max(len(call_id) - _MAX_TOKEN_LENGTH - 2, 0))
+    while index != -1:
+        if index + 2 < len(call_id):
+            yield call_id[index + 2 :]
+        index = call_id.find("__", index + 1)
+
+
+def _token_prefix(check: SentinelCheck) -> str:
+    """The prefix of a fresh token for the call.
+
+    Google names a computer call's action by its ID's prefix (`click_at_<id>`),
+    which a fresh token keeps, or, for an action approval changed, the name of
+    the approved action.
+    """
+    call = check.handed
+    if call.function == "computer":
+        if _names_another_action(call.id, check):
+            return gemini_computer_action_name(call.arguments)
+        prefix = call.id.rpartition("_")[0]
+        if prefix and len(prefix) <= _MAX_TOKEN_LENGTH // 2:
+            return prefix
+    return "call"
+
+
+def _names_another_action(token: str, check: SentinelCheck) -> bool:
+    """Whether the token names a Gemini computer action other than the approved one.
+
+    Only an unmodified call keeps an action it was parsed from (`search` parses
+    as navigation, so a modified navigation is not a search).
+    """
+    call = check.handed
+    prefix = token.rpartition("_")[0]
+    if call.function != "computer" or prefix not in GEMINI_COMPUTER_ACTIONS:
+        return False
+    if check.modified:
+        return prefix != gemini_computer_action_name(call.arguments)
+    return prefix not in gemini_computer_action_names(call.arguments)
+
+
+def _wire_names(function: str, action: str | None) -> set[str]:
+    """Names a scaffold can use to echo the id of a call to `function`."""
+    names = {function.strip() or "generic_tool"}
+    if action is not None:
+        names.add(action)
+    return names
+
+
+def _computer_action(call: ToolCall) -> str | None:
+    return (
+        gemini_computer_action_name(call.arguments)
+        if call.function == "computer"
+        else None
+    )
+
+
+def checks_bridged_results() -> bool:
+    """Whether the sentinel checks the result of a bridged call made here."""
+    if not checks_tool_calls():
+        return False
+    from inspect_ai._sentinel._dispatch import watches_tool_results
+
+    return watches_tool_results()
+
+
+async def sentinel_tool_call(
+    bridge: AgentBridge,
+    message: str,
+    message_id: str | None,
+    call: ToolCall,
+    viewer: ToolCallViewer | None,
+    producer: Produced | None,
+    recorded: list[ApprovalEvent | SentinelEvent],
+) -> "Decision | None":
+    from inspect_ai._sentinel._dispatch import sentinel_before_tool_call
+
+    steps: list[SentinelEvent] = []
+    with producer.scope() if producer is not None else nullcontext():
+        decision = await _guarded(
+            bridge,
+            partial(
+                sentinel_before_tool_call,
+                message,
+                message_id,
+                call,
+                viewer,
+                history=None,
+                producer=producer.event if producer is not None else None,
+                bridge=True,
+                recorded=steps,
+            ),
+        )
+    recorded.extend(steps)
+    return decision
+
+
+def sentinel_tokens(
+    bridge: AgentBridge,
+    output: ModelOutput,
+    checks: Sequence[SentinelCheck],
+    recorded: Sequence[Sequence[ApprovalEvent | SentinelEvent]] = (),
+) -> tuple[ModelOutput, list[SentinelCheck]]:
+    """Give each call handed to the scaffold its token as its id.
+
+    A call's provider replay state (`alias_assistant_internal_call`) and Google
+    reasoning anchors follow it to its token. The state is the one `output`'s
+    generation was parsed with, so a cache hit served after a later response
+    reused its ids hands it on as generated. It is recorded under every token,
+    a call keeping the model's id included, as a later response reusing that
+    id replaces what the provider recorded under it; under the model's id, only
+    the bridge's own requests replay it. A call without known state
+    (`generation_call_states`), including each of calls sharing an id
+    (`shared_call_ids`), gets a fresh token, which no provider has recorded
+    state under, and replays from the call itself.
+
+    A call's approvals and `tool_call` steps (`recorded`, by call), recorded
+    before it had a token, follow it too: a token other than the model's id,
+    fresh or not, becomes their `execution_id`.
+
+    `checks` are the `tool_result` checks for the calls in `output`, in order.
+    Returns the output to hand to the scaffold (a copy, when any id changes),
+    and the checks with their tokens.
+    """
+    calls = output.message.tool_calls or []
+    states = generation_call_states(generation_assistant_internal(output), calls)
+    shared = shared_call_ids(output)
+    issued = bridge._sentinel_results.issue(checks, states)
+    for call, check, state in zip(calls, issued, states):
+        if state is not None and state.recorded:
+            alias_assistant_internal_call(
+                call.id,
+                check.token or call.id,
+                state,
+                bridge._replay,
+                call if check.modified or state.edited else None,
+            )
+    if all(check.token == check.handed.id for check in issued):
+        return output, issued
+    for check, events in zip(issued, recorded):
+        if check.token != check.handed.id:
+            for event in events:
+                event.execution_id = check.token
+                transcript()._event_updated(event)
+    # a copy, as `output` may be the object the ModelEvent recorded
+    output = output.model_copy(deep=True)
+    tokens: dict[str, deque[str]] = {}
+    for call, check in zip(output.message.tool_calls or [], issued):
+        token = check.token or call.id
+        tokens.setdefault(call.id, deque()).append(token)
+        call.id = token
+    _retarget_anchors(output.message, tokens, shared)
+    return output, issued
+
+
+def _retarget_anchors(
+    message: ChatMessageAssistant, tokens: dict[str, deque[str]], shared: set[str]
+) -> None:
+    """Point Google's reasoning anchors at the calls' tokens.
+
+    Google replays a call's thought signature at the call its anchor names
+    (`gemini_function_call_id`). `tokens` maps each model ID to the tokens of
+    its calls, in order; anchors are in call order.
+
+    Anchors of an ID several calls share (`shared`, or named by several
+    anchors) can't be told apart by call, so they keep only their position:
+    their signatures are dropped, they are matched to the calls under that ID
+    in order, and any left over are removed. No call replays another's
+    signature, and none is replayed twice.
+    """
+    if isinstance(message.content, str):
+        return
+    anchored = Counter(
+        part.internal.get("gemini_function_call_id")
+        for part in message.content
+        if isinstance(part, ContentReasoning) and isinstance(part.internal, dict)
+    )
+    content: list[Content] = []
+    for part in message.content:
+        if isinstance(part, ContentReasoning) and isinstance(part.internal, dict):
+            call_id = part.internal.get("gemini_function_call_id")
+            if isinstance(call_id, str):
+                ambiguous = call_id in shared or anchored[call_id] > 1
+                if tokens.get(call_id):
+                    part.internal = {
+                        **part.internal,
+                        "gemini_function_call_id": tokens[call_id].popleft(),
+                    }
+                    if ambiguous:
+                        part.reasoning = ""
+                elif ambiguous:
+                    continue
+        content.append(part)
+    message.content = content
+
+
+def replay_ids(output: ModelOutput) -> ModelOutput:
+    """`output` with each call under a fresh id carrying its own replay state.
+
+    For a turn replayed to the model without being handed on (a rejected
+    response), so its call ids are the bridge's to choose. Under the model's id
+    a call would replay whatever the providers record under that id each time
+    the turn is serialized, and the bridge keeps a rejected turn in the model's
+    input for the rest of its retries: a later generation reusing the id, or a
+    response filter's edit, would replace the call's operation there. Each call
+    goes under a fresh id with the state its generation parsed it with
+    (`generation_call_states`; with the arguments a request or response filter
+    gave a call), recorded in the provider's state, or with none when that is
+    unknown or the id is shared (`shared_call_ids`), so it replays from the
+    call. Google's reasoning anchors follow (`_retarget_anchors`).
+    A copy, as `output` may be the object the ModelEvent recorded.
+    """
+    calls = output.message.tool_calls or []
+    if not calls:
+        return output
+    states = generation_call_states(generation_assistant_internal(output), calls)
+    shared = shared_call_ids(output)
+    output = output.model_copy(deep=True)
+    tokens: dict[str, deque[str]] = {}
+    for call, state in zip(output.message.tool_calls or [], states):
+        token = f"{_token_prefix(SentinelCheck(call, call, None, '', None))}_{uuid()}"
+        if state is not None and state.recorded:
+            alias_assistant_internal_call(
+                call.id, token, state, {}, call if state.edited else None
+            )
+        tokens.setdefault(call.id, deque()).append(token)
+        call.id = token
+    _retarget_anchors(output.message, tokens, shared)
+    return output
+
+
+def sentinel_unproposed_host_check(
+    bridge: AgentBridge, tool: str, arguments: dict[str, Any], tool_fn: Tool
+) -> SentinelCheck | None:
+    # a host call no proposal accounts for is checked with the conversation the
+    # bridge last saw, as a scaffold-reported result without a proposal is
+    if not checks_tool_calls():
+        return None
+    call = ToolCall(id=f"call_{tool}_{uuid()[:8]}", function=tool, arguments=arguments)
+    return SentinelCheck(
+        call,
+        call,
+        ToolDef(tool_fn).viewer,
+        "",
+        _NO_MESSAGE_ID,
+    )
+
+
+async def sentinel_host_tool_result(
+    bridge: AgentBridge,
+    check: SentinelCheck,
+    content: str | list[Content],
+    output: ToolResult,
+    error: ToolCallError | None = None,
+    truncated: tuple[int, int] | Literal[False] = False,
+    candidates: Sequence[SentinelCheck] = (),
+    event_id: str | None = None,
+) -> None:
+    """Check a host call's result as delivered, recording it for its executions.
+
+    The result is recorded as checked under the call's token, or, for a call
+    that matched proposals of several calls (`candidates`, when the service
+    can't tell which execution it is), under each of theirs, so the scaffold
+    reporting it is not checked again. A host call no proposal accounts for has
+    no token, so no result the scaffold reports can match it. The check is of
+    the execution recorded as the `ToolEvent` `event_id`.
+
+    The call is the bridged scaffold's, so the check does not see the enclosing
+    agent's messages, as the stages of a bridge request don't
+    (`bridge_request()`).
+    """
+    result = ChatMessageTool(
+        content=content,
+        tool_call_id=check.handed.id,
+        function=check.call.function,
+        error=error,
+    )
+    executions = candidates or ([check] if check.token is not None else [])
+    keys: list[str] = []
+    content_keys: dict[str, str] = {}
+    for execution in executions:
+        # as the scaffold reports it: under the function it was handed
+        function = execution.handed.function
+        if function not in content_keys:
+            content_keys[function] = _content_key(
+                result.model_copy(update={"function": function})
+            )
+        content_key = content_keys[function]
+        keys += [
+            _digest(["token", execution.token, content_key]),
+            _digest(["call", _call_key(execution.handed), content_key]),
+        ]
+    keys = keys or [f"unproposed:{uuid()}"]
+    with bridge_request():
+        await bridge._sentinel_results.check_running(
+            bridge, _Result(keys, (check,), result, event_id), output, truncated
+        )
+
+
+async def sentinel_tool_results(bridge: AgentBridge, input: list[ChatMessage]) -> None:
+    if not checks_tool_calls():
+        return
+    result_checks = bridge._sentinel_results
+    result_checks.reserve(input)
+    while True:
+        claimed = result_checks.claim(input)
+        if claimed.owned:
+            with ExitStack() as releases:
+                for claim in claimed.owned:
+                    releases.callback(result_checks.release, claim)
+                await tg_collect(
+                    [
+                        partial(
+                            result_checks.check,
+                            bridge,
+                            claim.result,
+                            _output(claim.result.message),
+                        )
+                        for claim in claimed.owned
+                    ]
+                )
+        if not claimed.waiting:
+            return
+        for running in claimed.waiting:
+            await running.wait()
+
+
+def _output(result: ChatMessageTool) -> ToolResult:
+    # the scaffold's rendering of the result: its untruncated output never
+    # reaches the bridge
+    if isinstance(result.content, str):
+        return result.content
+    return [
+        content
+        for content in result.content
+        if isinstance(
+            content,
+            ContentText | ContentImage | ContentAudio | ContentVideo | ContentDocument,
+        )
+    ]
+
+
+async def _tool_result(
+    bridge: AgentBridge,
+    check: SentinelCheck,
+    result: ChatMessageTool,
+    output: ToolResult,
+    truncated: tuple[int, int] | Literal[False] | None,
+    execution: str | None,
+    reject_on_viewer_error: bool = False,
+) -> None:
+    from inspect_ai._sentinel._dispatch import sentinel_after_tool_call
+
+    producer = check.producer
+    with producer.scope() if producer is not None else nullcontext():
+        try:
+            await _guarded(
+                bridge,
+                partial(
+                    sentinel_after_tool_call,
+                    check.message,
+                    check.message_id,
+                    # a copy, so a monitor can't change the call the check keeps
+                    deepcopy(check.call),
+                    result,
+                    output,
+                    truncated,
+                    check.viewer,
+                    history=None,
+                    producer=producer.event if producer is not None else None,
+                    reject_on_viewer_error=reject_on_viewer_error,
+                    bridge=True,
+                    execution_id=execution if execution != check.call.id else None,
+                ),
+            )
+        except ToolCallViewError as ex:
+            bridge.request_fail(ex)
+            raise
+
+
+async def _guarded(bridge: AgentBridge, run: Callable[[], Awaitable[T]]) -> T:
+    # outcomes that end the sample go through the bridge, since a sandbox
+    # bridge's service task can't raise them to the sample runner
+    limit: LimitExceededError | None = None
+    try:
+        return await run()
+    except TerminateSampleError as ex:
+        bridge.request_terminate(str(ex))
+    except SentinelFailure as ex:
+        inner = decisive_sentinel_exception(ex.error)
+        if not isinstance(inner, LimitExceededError):
+            if isinstance(inner, TerminateSampleError):
+                bridge.request_terminate(str(inner))
+            bridge.request_fail(ex)
+            raise
+        limit = inner
+    # raised outside the handler: the failure's cause is the limit, so linking
+    # the limit back to it (as a cause or context) would make a cycle
+    if limit is not None:
+        raise limit
