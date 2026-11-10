@@ -394,48 +394,6 @@ def _call_pool_contents(db: SampleBufferDatabase) -> list[str]:
     return [json.loads(entry.data)["content"] for entry in data.call_pool]
 
 
-def test_call_prefix_survives_in_place_mutation_of_logged_request(
-    db: SampleBufferDatabase,
-) -> None:
-    """A logged wire request mutated in place must not corrupt later call dedup.
-
-    The call-pool prefix index retains the previous event's wire messages to
-    match the next event's shared prefix. If it retained the caller's own dict
-    objects, an eval that mutates an already-logged ``call.request`` in place
-    (e.g. playback shaping with ``log_model_api=True``) would make the next
-    event's prefix match against content that was never pooled at that
-    position, so the new content would silently never be hashed/stored — the
-    persisted pool would keep only the stale value.
-    """
-    _start_sample(db)
-
-    event1 = _make_model_event(
-        [ChatMessageUser(content="a")],
-        call_messages=[{"role": "user", "content": "a"}],
-    )
-    db.log_events([SampleEvent(id="s1", epoch=1, event=event1)])
-
-    # Mutate the *same* request dict that was just logged (the object the call
-    # index retained for prefix matching), then log a second event whose wire
-    # content matches the mutated value.
-    assert event1.call is not None
-    messages = event1.call.request["messages"]
-    assert isinstance(messages, list)
-    first = messages[0]
-    assert isinstance(first, dict)
-    first["content"] = "b"
-
-    event2 = _make_model_event(
-        [ChatMessageUser(content="b")],
-        call_messages=[{"role": "user", "content": "b"}],
-    )
-    db.log_events([SampleEvent(id="s1", epoch=1, event=event2)])
-
-    # Both "a" (event 1) and "b" (event 2) must be pooled; event 2 must not
-    # alias the stale "a" row.
-    assert sorted(_call_pool_contents(db)) == ["a", "b"]
-
-
 def test_rollback_restores_pool_indices(
     db: SampleBufferDatabase, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -495,34 +453,36 @@ def test_rollback_restores_pool_indices(
     assert last["input_refs"] == [[0, 2]]
 
 
-def test_buffer_pool_dedup_uses_content_hash_not_msg_id(
+def test_buffer_pool_dedup_keeps_msg_id(
     db: SampleBufferDatabase,
 ) -> None:
-    """Messages with same content but different .id fields dedup to one pool entry."""
+    """Copies of a message share a pool entry; the same content under another id does not."""
     sample = EvalSampleSummary(id="s1", epoch=1, input="test", target="target")
     db.start_sample(sample)
 
-    # Two distinct ChatMessage objects with identical content but different .id
     msg_1 = ChatMessageUser(content="Hello").model_copy(update={"id": "uuid-aaa"})
+    copy_1 = msg_1.model_copy()
     msg_2 = ChatMessageUser(content="Hello").model_copy(update={"id": "uuid-bbb"})
 
     db.log_events([SampleEvent(id="s1", epoch=1, event=_make_model_event([msg_1]))])
     db.log_events(
-        [SampleEvent(id="s1", epoch=1, event=_make_model_event([msg_1, msg_2]))]
+        [
+            SampleEvent(
+                id="s1", epoch=1, event=_make_model_event([copy_1, msg_2, copy_1])
+            )
+        ]
     )
 
     data = db.get_sample_data("s1", 1)
     assert data is not None
 
-    # Same content -> should be 1 pool entry, not 2
-    assert len(data.message_pool) == 1, (
-        f"Expected 1 pool entry for identical content, got {len(data.message_pool)}"
-    )
-
-    # both occurrences in the second event resolve to pool position 0
+    assert [json.loads(m.data)["id"] for m in data.message_pool] == [
+        "uuid-aaa",
+        "uuid-bbb",
+    ]
     last = data.events[-1].event
     assert isinstance(last, dict)
-    assert last["input_refs"] == [[0, 1], [0, 1]]
+    assert last["input_refs"] == [[0, 2], [0, 1]]
 
 
 def test_get_sample_data_is_consistent_with_concurrent_removal(

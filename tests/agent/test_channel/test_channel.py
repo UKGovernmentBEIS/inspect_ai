@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Sequence
+from typing import Any, Sequence
 
 import anyio
 import pytest
+from test_helpers.utils import skip_if_no_bedrock, skip_if_no_google, skip_if_trio
 
 from inspect_ai.agent import (
     AgentChannel,
@@ -19,7 +20,7 @@ from inspect_ai.agent._channel import (
     UserMessage,
     current_agent_channel,
 )
-from inspect_ai.agent._channel.gate import turn_gate
+from inspect_ai.agent._channel.gate import after_answer, turn_gate
 from inspect_ai.agent._channel.observer import (
     NullExecutionObserver,
     null_execution_observer,
@@ -275,6 +276,156 @@ def test_repair_cause_selects_message_text() -> None:
     r = ch._repair(msgs, reason="limit")[0]
     assert r.error is not None
     assert "limit" in r.error.message.lower()
+
+
+def _interrupted_history() -> list[ChatMessage]:
+    """A conversation interrupted during parallel calls to different tools.
+
+    The first call finished before the interrupt; the other two are repaired.
+    The operator's redirect follows the repairs, as ``after_cancel()`` returns.
+    """
+    msgs: list[ChatMessage] = [
+        ChatMessageUser(content="look around"),
+        ChatMessageAssistant(
+            content="ok",
+            tool_calls=[
+                ToolCall(id="t1", function="list_files", arguments={"path": "."}),
+                ToolCall(id="t2", function="read_file", arguments={"path": "a"}),
+                ToolCall(id="t3", function="run_shell", arguments={"cmd": "ls"}),
+            ],
+        ),
+        ChatMessageTool(tool_call_id="t1", function="list_files", content="a b"),
+    ]
+    return [
+        *msgs,
+        *AgentChannel()._repair(msgs),
+        ChatMessageUser(content="stop and do this instead", source="operator"),
+    ]
+
+
+def test_repair_names_each_repair_after_its_call() -> None:
+    repairs = [m for m in _interrupted_history() if isinstance(m, ChatMessageTool)][1:]
+    assert [(r.tool_call_id, r.function) for r in repairs] == [
+        ("t2", "read_file"),
+        ("t3", "run_shell"),
+    ]
+
+
+async def test_repaired_history_converts_for_anthropic() -> None:
+    pytest.importorskip("anthropic")
+    from inspect_ai.model import GenerateConfig
+    from inspect_ai.model._providers.anthropic import AnthropicAPI
+
+    api = AnthropicAPI(model_name="claude-sonnet-4-5", api_key="test-key")
+    _, _, _, params, _ = await api.resolve_chat_input(
+        input=_interrupted_history(),
+        tools=[],
+        config=GenerateConfig(cache_prompt=False),
+        cache_ttl=None,
+    )
+    results = [
+        block["tool_use_id"]
+        for param in params
+        if isinstance(param["content"], list)
+        for block in param["content"]
+        if block["type"] == "tool_result"
+    ]
+    assert results == ["t1", "t2", "t3"]
+
+
+async def test_repaired_history_converts_for_bedrock() -> None:
+    pytest.importorskip("aiobotocore")
+    from inspect_ai.model._providers.bedrock import converse_messages
+
+    _, converse = await converse_messages(_interrupted_history())
+    results = [
+        block.toolResult.toolUseId
+        for message in converse
+        for block in message.content
+        if block.toolResult is not None
+    ]
+    assert results == ["t1", "t2", "t3"]
+
+
+async def test_repaired_history_converts_for_google() -> None:
+    pytest.importorskip("google.genai")
+    from unittest.mock import MagicMock
+
+    from inspect_ai.model._providers.google import as_chat_messages
+
+    contents = await as_chat_messages(MagicMock(), _interrupted_history())
+    responses = [
+        (part.function_response.id, part.function_response.name)
+        for content in contents
+        for part in content.parts or []
+        if part.function_response is not None
+    ]
+    assert responses == [
+        ("t1", "list_files"),
+        ("t2", "read_file"),
+        ("t3", "run_shell"),
+    ]
+
+
+async def test_repaired_history_converts_for_openai_responses() -> None:
+    pytest.importorskip("openai")
+    from inspect_ai.model._openai_responses import openai_responses_inputs
+
+    items: list[dict[str, Any]] = [
+        dict(item) for item in await openai_responses_inputs(_interrupted_history())
+    ]
+    calls = [item["call_id"] for item in items if item["type"] == "function_call"]
+    outputs = [
+        item["call_id"] for item in items if item["type"] == "function_call_output"
+    ]
+    assert calls == outputs == ["t1", "t2", "t3"]
+
+
+async def test_repaired_history_converts_for_openai_chat_completions() -> None:
+    pytest.importorskip("openai")
+    from inspect_ai.model._openai import messages_to_openai
+
+    params = await messages_to_openai(_interrupted_history())
+    results = [p["tool_call_id"] for p in params if p["role"] == "tool"]
+    assert results == ["t1", "t2", "t3"]
+    assert params[-1] == {"role": "user", "content": "stop and do this instead"}
+
+
+async def _continue_interrupted_history(model: str) -> None:
+    """Send the repaired history to a live model, which must accept it."""
+    from inspect_ai.model import GenerateConfig, get_model
+    from inspect_ai.tool import ToolInfo, ToolParam, ToolParams
+
+    tools = [
+        ToolInfo(
+            name=name,
+            description=f"Call {name}.",
+            parameters=ToolParams(
+                properties={arg: ToolParam(type="string", description=arg)},
+                required=[arg],
+            ),
+        )
+        for name, arg in [
+            ("list_files", "path"),
+            ("read_file", "path"),
+            ("run_shell", "cmd"),
+        ]
+    ]
+    output = await get_model(model).generate(
+        _interrupted_history(), tools=tools, config=GenerateConfig(max_tokens=256)
+    )
+    assert output.choices
+
+
+@skip_if_no_google
+async def test_repaired_history_continues_on_google() -> None:
+    await _continue_interrupted_history("google/gemini-2.5-flash")
+
+
+@skip_if_no_bedrock
+@skip_if_trio  # the bedrock provider refuses to run on trio
+async def test_repaired_history_continues_on_bedrock() -> None:
+    await _continue_interrupted_history("bedrock/us.anthropic.claude-sonnet-4-6")
 
 
 # ---------------------------------------------------------------------------
@@ -616,11 +767,13 @@ async def test_after_cancel_blocks_for_redirect_with_existing_user_messages() ->
 class _RecordingGate:
     """Turn gate that records its calls and returns a set result."""
 
-    def __init__(self, rewrite: bool = False) -> None:
+    def __init__(self, rewrite: bool = False, answer: bool = False) -> None:
         self.rewrite = rewrite
+        self.answer = answer
         self.calls: list[
             tuple[AgentChannel, Sequence[ChatMessage], AgentState | None, int]
         ] = []
+        self.answer_calls: list[tuple[AgentChannel, AgentState]] = []
         self.closed_channels: list[AgentChannel] = []
 
     async def before_turn(
@@ -631,6 +784,10 @@ class _RecordingGate:
     ) -> bool:
         self.calls.append((channel, messages, state, len(channel._queue)))
         return self.rewrite
+
+    async def after_answer(self, channel: AgentChannel, state: AgentState) -> bool:
+        self.answer_calls.append((channel, state))
+        return self.answer
 
     def closed(self, channel: AgentChannel) -> None:
         self.closed_channels.append(channel)
@@ -792,6 +949,27 @@ async def test_channel_opened_outside_turn_gate_has_no_gate() -> None:
         await ch.before_turn([ChatMessageUser(content="prior")])
     assert gate.calls == []
     assert gate.closed_channels == []
+
+
+async def test_after_answer_without_gate_is_false() -> None:
+    gate = _RecordingGate(answer=True)
+    state = AgentState(messages=[ChatMessageUser(content="prior")])
+    with turn_gate(gate):
+        # the inert channel has no gate
+        assert await after_answer(current_agent_channel(), state) is False
+    async with agent_channel() as ch:
+        assert await after_answer(ch, state) is False
+    assert gate.answer_calls == []
+
+
+@pytest.mark.parametrize("answer", [True, False])
+async def test_after_answer_returns_gate_result(answer: bool) -> None:
+    gate = _RecordingGate(answer=answer)
+    state = AgentState(messages=[ChatMessageUser(content="prior")])
+    with turn_gate(gate):
+        async with agent_channel() as ch:
+            assert await after_answer(ch, state) is answer
+    assert gate.answer_calls == [(ch, state)]
 
 
 # ---------------------------------------------------------------------------

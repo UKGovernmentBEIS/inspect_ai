@@ -1,14 +1,36 @@
 """Tests for stable_message_ids and message ID stability."""
 
+import pytest
+from test_helpers.message_ids import assert_message_ids, edited_id, shown
+
+from inspect_ai import Task, eval
+from inspect_ai._util.content import (
+    Content,
+    ContentImage,
+    ContentReasoning,
+    ContentText,
+)
+from inspect_ai.dataset import Sample
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.model import (
     ChatMessage,
     ChatMessageAssistant,
+    ChatMessageTool,
     ChatMessageUser,
     GenerateConfig,
     ModelOutput,
+    UrlCitation,
+    get_model,
 )
-from inspect_ai.model._message_ids import stable_message_ids
+from inspect_ai.model._message_ids import (
+    canonical_tool_arguments,
+    edited_message,
+    stable_message_ids,
+)
+from inspect_ai.model._model import resolve_reasoning_history, resolve_tool_model_input
+from inspect_ai.solver import Generate, Solver, TaskState, solver
+from inspect_ai.tool import Tool, ToolCall, ToolDef, tool
+from inspect_ai.tool._tool_call import ToolCallModelInputHints
 
 
 class TestStableMessageIds:
@@ -271,3 +293,361 @@ class TestStableMessageIdsWithModelEvent:
 
         # Input should still have IDs
         assert list(event.input)[0].id is not None
+
+
+def test_reasoning_history_stripping_derives_ids() -> None:
+    messages: list[ChatMessage] = [
+        ChatMessageUser(content="Question"),
+        ChatMessageAssistant(
+            content=[ContentReasoning(reasoning="hmm"), ContentText(text="Answer")]
+        ),
+    ]
+    resolved = resolve_reasoning_history(
+        messages,
+        GenerateConfig(reasoning_history="none"),
+        get_model("mockllm/model").api,
+    )
+
+    again = resolve_reasoning_history(
+        messages,
+        GenerateConfig(reasoning_history="none"),
+        get_model("mockllm/model").api,
+    )
+
+    assert resolved[1].content == [ContentText(text="Answer")]
+    assert resolved[0] is messages[0]
+    assert resolved[1].id == edited_id(messages[1].id, resolved[1])
+    assert [m.id for m in again] == [m.id for m in resolved]
+
+
+def test_reasoning_summary_edit_gets_a_new_id() -> None:
+    """A changed summary is a changed message, even with the same reasoning payload."""
+    reply = ChatMessageAssistant(
+        id="reply",
+        content=[
+            ContentReasoning(reasoning="signature", summary="First.", redacted=True),
+            ContentText(text="Answer"),
+        ],
+    )
+
+    edited = edited_message(
+        reply,
+        content=[
+            ContentReasoning(reasoning="signature", summary="Second.", redacted=True),
+            ContentText(text="Answer"),
+        ],
+    )
+
+    assert edited.id != reply.id
+    assert shown(edited) != shown(reply)
+
+
+def test_tool_arguments_compare_by_json_numbers() -> None:
+    """5.0 and 5 are one JSON number, but a bool is not a number."""
+    assert canonical_tool_arguments({"n": [5.0, {"m": -0.0}]}) == (
+        canonical_tool_arguments({"n": [5, {"m": 0}]})
+    )
+    assert canonical_tool_arguments({"n": 5.5}) != canonical_tool_arguments({"n": 5})
+    assert canonical_tool_arguments({"n": True}) != canonical_tool_arguments({"n": 1})
+    assert canonical_tool_arguments({"n": 1.0}) != canonical_tool_arguments({"n": True})
+
+    def reply(arguments: dict[str, object]) -> ChatMessageAssistant:
+        call = ToolCall(id="c1", function="read", arguments=arguments)
+        return ChatMessageAssistant(id="reply", content="", tool_calls=[call])
+
+    assert (
+        edited_message(reply({"n": 5.0}), tool_calls=reply({"n": 5}).tool_calls).id
+        == "reply"
+    )
+
+
+def test_tool_model_input_derives_ids() -> None:
+    async def lookup(query: str) -> str:
+        """Look up a query.
+
+        Args:
+          query: The query.
+        """
+        return query
+
+    tdef = ToolDef(lookup, model_input=lambda index, total, content, hints: "(removed)")
+    messages: list[ChatMessage] = [
+        ChatMessageTool(content="result", tool_call_id="c1", function="lookup")
+    ]
+    resolved = resolve_tool_model_input(
+        [tdef], messages, {"disable_computer_screenshot_truncation": False}
+    )
+
+    again = resolve_tool_model_input(
+        [tdef], messages, {"disable_computer_screenshot_truncation": False}
+    )
+
+    assert resolved[0].content == "(removed)"
+    assert resolved[0].id == edited_id(messages[0].id, resolved[0])
+    assert again[0].id == resolved[0].id
+    assert messages[0].content == "result"
+
+
+def _redact_older_in_place(
+    index: int, total: int, content: str | list[Content], hints: ToolCallModelInputHints
+) -> str | list[Content]:
+    """Redact all but the latest result by editing its items, in a new list."""
+    if isinstance(content, str) or index == total - 1:
+        return content
+    redacted = list(content)
+    for item in redacted:
+        if isinstance(item, ContentText):
+            item.text = "(removed)"
+    return redacted
+
+
+def test_tool_model_input_editing_content_in_place_derives_ids() -> None:
+    async def lookup(query: str) -> str:
+        """Look up a query.
+
+        Args:
+          query: The query.
+        """
+        return query
+
+    tdef = ToolDef(lookup, model_input=_redact_older_in_place)
+    hints: ToolCallModelInputHints = {"disable_computer_screenshot_truncation": False}
+    first = ChatMessageTool(
+        content=[ContentText(text="full result")], tool_call_id="c1", function="lookup"
+    )
+    second = ChatMessageTool(
+        content=[ContentText(text="next")], tool_call_id="c2", function="lookup"
+    )
+
+    latest = resolve_tool_model_input([tdef], [first], hints)
+    older = resolve_tool_model_input([tdef], [first, second], hints)
+    again = resolve_tool_model_input([tdef], [first, second], hints)
+
+    assert latest[0].id == first.id
+    assert latest[0].text == "full result"
+    assert older[0].text == "(removed)"
+    assert older[0].id == edited_id(first.id, older[0])
+    assert again[0].id == older[0].id
+    assert first.text == "full result"
+
+
+_SCREENSHOT = "data:image/png;base64," + "A" * 100_000
+
+
+def _screenshot_results(count: int) -> list[ChatMessage]:
+    return [
+        ChatMessageTool(
+            content=[ContentText(text=f"step {n}"), ContentImage(image=_SCREENSHOT)],
+            tool_call_id=f"c{n}",
+            function="computer",
+        )
+        for n in range(count)
+    ]
+
+
+def _prepared_hash_bytes(messages: list[ChatMessage]) -> int:
+    """Bytes `content_hash` hashes preparing `messages` for a model without tool result images."""
+    from unittest.mock import patch
+
+    from inspect_ai._util.hash import mm3_hash
+    from inspect_ai.model import _message_ids
+    from inspect_ai.model._model import tool_result_media_as_user_message
+    from inspect_ai.tool._tools._computer._computer import _computer_model_input
+
+    async def computer(action: str) -> str:
+        """Use the computer.
+
+        Args:
+          action: The action.
+        """
+        return action
+
+    tdef = ToolDef(computer, model_input=_computer_model_input(max_screenshots=1))
+    hashed = 0
+
+    def counting_hash(value: str) -> str:
+        nonlocal hashed
+        hashed += len(value)
+        return mm3_hash(value)
+
+    with patch.object(_message_ids, "mm3_hash", counting_hash):
+        resolved = resolve_tool_model_input(
+            [tdef], messages, {"disable_computer_screenshot_truncation": False}
+        )
+        tool_result_media_as_user_message(resolved, (ContentImage,))
+    return hashed
+
+
+def test_tool_model_input_does_not_hash_removed_screenshots() -> None:
+    """Preparing a call hashes the screenshots kept for the model, not every one in the history.
+
+    Each call runs the model input handler over every result, so hashing each
+    source to tell whether the handler changed it made a run's preparation
+    quadratic in its screenshots.
+    """
+    few = _prepared_hash_bytes(_screenshot_results(4))
+    many = _prepared_hash_bytes(_screenshot_results(64))
+
+    assert many - few < len(_SCREENSHOT)
+
+
+class _Label(str):
+    pass
+
+
+@pytest.mark.parametrize(
+    "a,b",
+    [
+        ("x", "x"),
+        ("x", "y"),
+        (1, 1.0),
+        (True, 1),
+        (0.0, -0.0),
+        (float("nan"), float("nan")),
+        (None, "null"),
+        ([1, "x"], (1, "x")),
+        ([1], [1, 1]),
+        ({"a": 1, "b": 2}, {"b": 2, "a": 1}),
+        ({"1": "x"}, {1: "x"}),
+        ({"a": [1.5]}, {"a": [1.5]}),
+        (_Label("x"), "x"),
+        (["x"], ["x", None]),
+    ],
+)
+def test_same_content_agrees_with_content_hash(a: object, b: object) -> None:
+    import json
+
+    from inspect_ai.model._message_ids import _dumps_equal
+
+    assert _dumps_equal(a, b) == (
+        json.dumps(a, default=str) == json.dumps(b, default=str)
+    )
+
+
+def test_tool_model_input_editing_an_image_in_place_derives_an_id() -> None:
+    async def computer(action: str) -> str:
+        """Use the computer.
+
+        Args:
+          action: The action.
+        """
+        return action
+
+    def downscale(
+        index: int,
+        total: int,
+        content: str | list[Content],
+        hints: ToolCallModelInputHints,
+    ) -> str | list[Content]:
+        assert isinstance(content, list)
+        for item in content:
+            if isinstance(item, ContentImage):
+                item.image = "data:image/png;base64,c21hbGw="
+        return content
+
+    tdef = ToolDef(computer, model_input=downscale)
+    message = _screenshot_results(1)[0]
+
+    resolved = resolve_tool_model_input(
+        [tdef], [message], {"disable_computer_screenshot_truncation": False}
+    )
+
+    assert resolved[0].id == edited_id(message.id, resolved[0])
+    assert resolved[0].id != message.id
+    assert isinstance(message.content, list)
+    assert message.content[1] == ContentImage(image=_SCREENSHOT)
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("citations", [UrlCitation(url="https://example.com", cited_text="result")]),
+        ("internal", {"provider": "payload"}),
+        ("cache_breakpoint", True),
+    ],
+)
+def test_tool_model_input_metadata_edit_is_applied_under_the_same_id(
+    field: str, value: object
+) -> None:
+    async def lookup(query: str) -> str:
+        """Look up a query.
+
+        Args:
+          query: The query.
+        """
+        return query
+
+    def strip(
+        index: int,
+        total: int,
+        content: str | list[Content],
+        hints: ToolCallModelInputHints,
+    ) -> str | list[Content]:
+        assert isinstance(content, list)
+        return [item.model_copy(update={field: None}) for item in content]
+
+    tdef = ToolDef(lookup, model_input=strip)
+    message = ChatMessageTool(
+        content=[ContentText(text="result").model_copy(update={field: value})],
+        tool_call_id="c1",
+        function="lookup",
+    )
+
+    resolved = resolve_tool_model_input(
+        [tdef], [message], {"disable_computer_screenshot_truncation": False}
+    )
+
+    assert isinstance(resolved[0].content, list)
+    assert getattr(resolved[0].content[0], field) is None
+    assert resolved[0].id == message.id
+    assert isinstance(message.content, list)
+    assert getattr(message.content[0], field) == value
+
+
+@tool(model_input=_redact_older_in_place)
+def lookup() -> Tool:
+    async def execute(query: str) -> str:
+        """Look up a query.
+
+        Args:
+          query: The query.
+        """
+        return query
+
+    return execute
+
+
+@solver
+def _lookups(results: list[str]) -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        state.tools = [lookup()]
+        for n, result in enumerate(results):
+            call = ToolCall(id=f"c{n}", function="lookup", arguments={"query": "q"})
+            state.messages.append(ChatMessageAssistant(content="", tool_calls=[call]))
+            state.messages.append(
+                ChatMessageTool(
+                    content=[ContentText(text=result)],
+                    tool_call_id=call.id,
+                    function="lookup",
+                )
+            )
+            state = await generate(state, tool_calls="none")
+        return state
+
+    return solve
+
+
+def test_tool_model_input_editing_content_in_place_logs_one_content_per_id() -> None:
+    log = eval(
+        Task(
+            dataset=[Sample(input="look it up")],
+            solver=_lookups(["full result", "next", "last"]),
+        ),
+        model="mockllm/model",
+    )[0]
+
+    assert log.status == "success"
+    assert log.samples is not None
+    sample = log.samples[0]
+    assert_message_ids(sample)
+    assert sample.messages[2].text == "full result"

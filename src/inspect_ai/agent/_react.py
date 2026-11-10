@@ -9,7 +9,7 @@ from inspect_ai._util._async import is_callable_coroutine
 from inspect_ai._util.content import Content, ContentText
 from inspect_ai.approval._apply import approval as approval_context
 from inspect_ai.approval._policy import ApprovalPolicy
-from inspect_ai.model._call_tools import execute_tools
+from inspect_ai.model._call_tools import execute_tools, watch_handoffs
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -24,6 +24,7 @@ from inspect_ai.model._compaction import (
 from inspect_ai.model._compaction import (
     compaction as create_compaction,
 )
+from inspect_ai.model._message_ids import edited_message
 from inspect_ai.model._model import Model, ModelRefusalError, get_model
 from inspect_ai.model._trim import partition_messages, trim_messages
 from inspect_ai.review._policy import ReviewPolicy
@@ -39,6 +40,7 @@ from ._channel import (
     AgentInterrupted,
     agent_channel,
 )
+from ._channel.gate import after_answer, mark_turn_loop
 from ._filter import MessageFilter
 from ._handoff import has_handoff
 from ._types import (
@@ -306,12 +308,16 @@ def react(
                             # resolve tool calls (if any)
                             if state.output.message.tool_calls:
                                 # call tool functions
-                                messages, output = await execute_tools(
-                                    state.messages,
-                                    tools,
-                                    approval=approval,
-                                    review=review,
-                                )
+                                with watch_handoffs() as handoffs:
+                                    messages, output = await execute_tools(
+                                        state.messages,
+                                        tools,
+                                        approval=approval,
+                                        review=review,
+                                    )
+                                # a turn that handed off is not asked about its
+                                # submission, which may not be its own
+                                handed_off = handoffs.called
                                 state.messages.extend(messages)
                                 if output:
                                     state.output = output
@@ -331,16 +337,40 @@ def react(
                                         and len(state.output.choices) > 0
                                     ):
                                         message = state.output.choices[0].message
-                                        if isinstance(message.content, str):
-                                            message.content = f"{message.content}{submit.answer_delimiter}{answer}".strip()
-                                        else:
-                                            message.content.append(
-                                                ContentText(text=answer)
-                                            )
+                                        answered = edited_message(
+                                            message,
+                                            content=f"{message.content}{submit.answer_delimiter}{answer}".strip()
+                                            if isinstance(message.content, str)
+                                            else [
+                                                *message.content,
+                                                ContentText(text=answer),
+                                            ],
+                                        )
+                                        # a copy: the recorded model event shares the choice
+                                        state.output = state.output.model_copy(
+                                            update={
+                                                "choices": [
+                                                    state.output.choices[0].model_copy(
+                                                        update={"message": answered}
+                                                    ),
+                                                    *state.output.choices[1:],
+                                                ]
+                                            }
+                                        )
+                                        state.messages = [
+                                            answered if m is message else m
+                                            for m in state.messages
+                                        ]
 
-                                    # exit if we are at max_attempts
+                                    # exit if we are at max_attempts (or continue
+                                    # with fresh attempts if the gate says so)
                                     attempt_count += 1
                                     if attempt_count >= attempts.attempts:
+                                        if not handed_off and await after_answer(
+                                            ch, state
+                                        ):
+                                            attempt_count = 0
+                                            continue
                                         break
 
                                     # exit if the submission is successful
@@ -349,6 +379,11 @@ def react(
                                         attempts.score_value(answer_scores[0].value)
                                         == 1.0
                                     ):
+                                        if not handed_off and await after_answer(
+                                            ch, state
+                                        ):
+                                            attempt_count = 0
+                                            continue
                                         break
 
                                     # otherwise notify the model that it was incorrect and continue
@@ -432,6 +467,7 @@ def react(
                     )
                 return state
 
+    mark_turn_loop(execute)
     return _resolve_agent(execute, name, description)
 
 
@@ -527,6 +563,9 @@ def react_no_submit(
                                 model, state, tools, retry_refusals, compact, approval
                             )
                             _absorb(state, generated)
+                            # a handoff can replace the output with the child's,
+                            # so whether the turn replied is read before tools run
+                            replied = not state.output.message.tool_calls
 
                             # check for context window overflow
                             if state.output.stop_reason == "model_length":
@@ -583,12 +622,17 @@ def react_no_submit(
                             state.messages = do_continue.messages
                             state.output = do_continue.output
                         else:
+                            if replied and await after_answer(ch, state):
+                                continue
                             break
                     elif not state.output.message.tool_calls:
+                        if replied and await after_answer(ch, state):
+                            continue
                         break
 
                 return state
 
+    mark_turn_loop(execute)
     return _resolve_agent(execute, name, description)
 
 
@@ -893,11 +937,8 @@ def _remove_submit_tool(
                         new_content.pop(indices[-1])
 
                 # update w/ new tool calls and new content
-                message = message.model_copy(
-                    update=dict(
-                        tool_calls=new_tools_calls,
-                        content=new_content,
-                    ),
+                message = edited_message(
+                    message, tool_calls=new_tools_calls, content=new_content
                 )
 
         # always append message

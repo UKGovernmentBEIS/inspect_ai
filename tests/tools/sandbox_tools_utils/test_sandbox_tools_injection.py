@@ -1,12 +1,15 @@
 """Tests for sandbox tools injection."""
 
+import gzip
+import importlib.metadata
 import os
 import sys
+import tarfile
 import warnings
 from contextlib import asynccontextmanager
 from io import BytesIO
 from pathlib import Path
-from typing import AsyncIterator, BinaryIO, Iterator
+from typing import Any, AsyncIterator, BinaryIO, Iterator
 
 import anyio
 import pytest
@@ -24,12 +27,14 @@ from test_helpers.sandbox import (
 
 from inspect_ai import Task, eval
 from inspect_ai._util import logger as inspect_logger
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.dataset import Sample
 from inspect_ai.event import LoggerEvent
 from inspect_ai.event._sandbox import SandboxEvent
 from inspect_ai.log._transcript import Transcript, init_transcript
 from inspect_ai.solver import generate
 from inspect_ai.tool._sandbox_tools_utils import sandbox as sandbox_tools
+from inspect_ai.util._sandbox import local as local_sandbox
 from inspect_ai.util._sandbox._cli import SANDBOX_CLI, SANDBOX_TOOLS_DIR
 from inspect_ai.util._sandbox._framework_directory import (
     _MISSING_MARKER,
@@ -60,6 +65,9 @@ from inspect_ai.util._subprocess import ExecResult
 
 OK = ExecResult(success=True, returncode=0, stdout="", stderr="")
 """Result of an ordinary (non-helper) command."""
+
+VERSION = sandbox_tools._get_sandbox_tools_version()
+"""The sandbox tools version this release installs."""
 
 VERIFIED = ExecResult(
     success=True, returncode=0, stdout="", stderr=f"{_VERIFIED_MARKER}\n"
@@ -363,6 +371,54 @@ async def test_inject_installs_rootless_quietly_when_root_unusable(
     assert _warn_once_messages == []
 
 
+MEMBER_IDENTITY = ExecResult(
+    success=True,
+    returncode=0,
+    stdout="Uid: 2222\t2222\t2222\t2222\nGid: 2222\t2222\t2222\t2222\nGroups: 2222 \nHOME: /home/w-1\nHOME_SET: 1\n",
+    stderr="",
+)
+"""Result of the identity probe if it ran as the scope's user `w-1`."""
+
+
+@pytest.mark.parametrize(
+    "root_access, tools_user",
+    [(ROOT_USABLE, "root"), (ROOT_UNUSABLE, None)],
+    ids=["root", "rootless"],
+)
+async def test_injection_inside_a_scope_records_the_default_identity(
+    stub_artifact: dict[str, object], root_access: RootAccess, tools_user: str | None
+) -> None:
+    """Injection first triggered inside a member's scope keeps the default user."""
+    from inspect_ai.util._sandbox.context import (
+        sandbox_default_context_var,
+        sandbox_environments_context_var,
+    )
+    from inspect_ai.util._sandbox.identity import sandbox_identity
+
+    def policy(cmd: list[str], user: str | None) -> ExecResult[str]:
+        if is_identity_probe(cmd) and user == "w-1":
+            return MEMBER_IDENTITY
+        return helper_ok(cmd, user)
+
+    provider = CannedSandbox(policy)
+    provider._root_access = root_access
+    proxy = SandboxEnvironmentProxy(provider)
+    envs_token = sandbox_environments_context_var.set({"default": proxy})
+    default_token = sandbox_default_context_var.set("default")
+    try:
+        with sandbox_identity("w-1"):
+            await sandbox_tools._inject_container_tools_code(proxy)
+    finally:
+        sandbox_default_context_var.reset(default_token)
+        sandbox_environments_context_var.reset(envs_token)
+
+    assert proxy._tools_user == tools_user
+    assert proxy._tools_default_user == (NONROOT if tools_user == "root" else None)
+    assert ([SANDBOX_CLI, "start-server"], tools_user) in provider.exec_calls
+    assert any(is_framework_dir_call(cmd) for cmd, _ in provider.exec_calls)
+    assert {user for _, user in provider.exec_calls} <= {None, "root"}
+
+
 async def test_inject_warns_once_per_process_when_root_access_ambiguous(
     stub_artifact: dict[str, object], _warn_once_messages: list[str]
 ) -> None:
@@ -609,32 +665,47 @@ async def test_extract_streams_archive_to_tar_inside_verified_directory() -> Non
     assert sandbox.written == []
 
 
-async def test_extract_falls_back_to_plain_tar_inside_verified_directory(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(
-        sandbox_tools, "_uncompressed_tar_bytes", lambda name, gz: b"tar"
-    )
+def _gzip_unsupported(cmd: list[str], user: str | None) -> ExecResult[str]:
+    if is_framework_dir_call(cmd) and TAR_XZF_STDIN in cmd:
+        return ExecResult(
+            success=False,
+            returncode=2,
+            stdout="",
+            stderr=f"{_VERIFIED_MARKER}\ntar: gzip: not found\n",
+        )
+    return helper_ok(cmd, user)
 
-    def policy(cmd: list[str], user: str | None) -> ExecResult[str]:
-        if is_framework_dir_call(cmd) and TAR_XZF_STDIN in cmd:
-            return ExecResult(
-                success=False,
-                returncode=2,
-                stdout="",
-                stderr=f"{_VERIFIED_MARKER}\ntar: gzip: not found\n",
-            )
-        return helper_ok(cmd, user)
 
-    sandbox = CannedSandbox(policy)
-    await sandbox_tools._extract_tools_tree(sandbox, "name", b"gz", None)
+async def test_extract_falls_back_to_plain_tar_inside_verified_directory() -> None:
+    gz = gzip.compress(b"tar")
+    sandbox = CannedSandbox(_gzip_unsupported)
+    await sandbox_tools._extract_tools_tree(sandbox, "name", gz, None)
 
     assert [wrapped_command(cmd) for cmd, _ in sandbox.exec_calls] == [
         ["sh", "-c", TAR_XZF_STDIN],
         ["sh", "-c", TAR_XF_STDIN],
     ]
-    assert sandbox.inputs == [b"gz", b"tar"]
+    assert sandbox.inputs == [gz, b"tar"]
     assert sandbox.written == []
+
+
+async def test_extract_fallback_ignores_stale_uncompressed_tar(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A stale or tampered `<name>.tar` in the binaries dir is never injected."""
+    monkeypatch.setattr(sandbox_tools, "_binaries_dir", lambda: tmp_path)
+    stale = tmp_path / "name.tar"
+    stale.write_bytes(b"tampered")
+
+    sandbox = CannedSandbox(_gzip_unsupported)
+    await sandbox_tools._extract_tools_tree(
+        sandbox, "name", gzip.compress(b"verified"), None
+    )
+
+    assert sandbox.inputs[-1] == b"verified"
+    assert b"tampered" not in sandbox.inputs
+    assert list(tmp_path.iterdir()) == [stale]
+    assert stale.read_bytes() == b"tampered"
 
 
 async def test_extract_propagates_helper_verdict() -> None:
@@ -647,12 +718,7 @@ async def test_extract_propagates_helper_verdict() -> None:
     assert sandbox.written == []
 
 
-async def test_extract_reports_failure_of_both_tar_attempts(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(
-        sandbox_tools, "_uncompressed_tar_bytes", lambda name, gz: b"tar"
-    )
+async def test_extract_reports_failure_of_both_tar_attempts() -> None:
     sandbox = CannedSandbox.returning(
         ExecResult(
             success=False,
@@ -662,8 +728,133 @@ async def test_extract_reports_failure_of_both_tar_attempts(
         )
     )
     with pytest.raises(RuntimeError, match="Failed to extract sandbox tools"):
-        await sandbox_tools._extract_tools_tree(sandbox, "name", b"gz", "root")
+        await sandbox_tools._extract_tools_tree(
+            sandbox, "name", gzip.compress(b"tar"), "root"
+        )
     assert len(sandbox.exec_calls) == 2
+
+
+def test_tools_dir_is_per_version() -> None:
+    """Each tools version installs into, and adopts, only its own tree."""
+    assert SANDBOX_TOOLS_DIR == f"/var/tmp/.da7be258e003d428-v{VERSION}"
+    assert SANDBOX_CLI == f"{SANDBOX_TOOLS_DIR}/inspect-sandbox-tools"
+
+
+def test_tools_version_is_read_once(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An upgrade under a running process cannot split directory and artifact.
+
+    The directory is fixed at import; the artifact must name the same version even
+    if ``sandbox_tools_version.txt`` changes afterwards.
+    """
+    read_text = Path.read_text
+
+    def upgraded(self: Path, *args: Any, **kwargs: Any) -> str:
+        if self.name == "sandbox_tools_version.txt":
+            return f"{int(VERSION) + 1}\n"
+        return read_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", upgraded)
+    assert sandbox_tools._get_sandbox_tools_version() == VERSION
+    variants: list[tuple[Architecture, bool, bool]] = [
+        ("amd64", False, False),
+        ("arm64", True, True),
+    ]
+    for arch, dev, musl in variants:
+        name = sandbox_tools._get_executable_name(arch, dev, musl)
+        assert f"-v{VERSION}" in name, name
+    assert SANDBOX_TOOLS_DIR.endswith(f"-v{VERSION}")
+
+
+def _launcher_script(tag: str, log: Path) -> str:
+    """A launcher that appends its tag, command and server directory to ``log``."""
+    return f'#!/bin/sh\necho "{tag} $1 ${{INSPECT_SANDBOX_TOOLS_DIR:-tree}}" >> {log}\n'
+
+
+def _tools_archive(launcher: str) -> bytes:
+    buffer = BytesIO()
+    with tarfile.open(fileobj=buffer, mode="w:gz") as tar:
+        for name, data, mode in [
+            ("inspect-sandbox-tools", launcher.encode(), 0o755),
+            ("_internal/lib", b"new", 0o644),
+        ]:
+            info = tarfile.TarInfo(name)
+            info.size, info.mode = len(data), mode
+            tar.addfile(info, BytesIO(data))
+    return buffer.getvalue()
+
+
+@pytest.mark.skipif(
+    sys.platform != "linux",
+    reason="the framework-directory helper needs GNU/BusyBox stat",
+)
+async def test_local_sandbox_installs_its_version_beside_older_trees(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Trees older releases left on the host are neither adopted nor modified.
+
+    On the ``local`` sandbox every sample on the host shares the tree for its
+    version. The trees here stand in for one from a release before per-version
+    directories and one from an older version; both keep their files and their
+    launchers never run, while this version's tree is installed once and then
+    adopted by a later sample.
+    """
+    log = tmp_path / "launcher.log"
+    old_trees = [tmp_path / ".da7be258e003d428", tmp_path / ".da7be258e003d428-v38"]
+    for tree in old_trees:
+        tree.mkdir(mode=0o700)
+        (tree / "inspect-sandbox-tools").write_text(_launcher_script("old", log))
+        (tree / "inspect-sandbox-tools").chmod(0o700)
+        (tree / ".server").mkdir(mode=0o700)
+    tools_dir = tmp_path / Path(SANDBOX_TOOLS_DIR).name
+    cli = tools_dir / "inspect-sandbox-tools"
+    monkeypatch.setattr(sandbox_tools, "SANDBOX_TOOLS_DIR", str(tools_dir))
+    monkeypatch.setattr(sandbox_tools, "SANDBOX_CLI", str(cli))
+    monkeypatch.setattr(local_sandbox, "SANDBOX_CLI", str(cli))
+    monkeypatch.delenv("INSPECT_SANDBOX_TOOLS_DIR", raising=False)
+
+    async def fake_detect_sandbox_os(
+        _sandbox: SandboxEnvironment,
+    ) -> SupportedContainerOSInfo:
+        return {"architecture": "amd64", "libc": "glibc"}
+
+    @asynccontextmanager
+    async def fake_open_executable_for_arch(
+        _arch: Architecture, _musl: bool
+    ) -> AsyncIterator[tuple[str, BinaryIO]]:
+        yield (
+            "inspect-sandbox-tools-test",
+            BytesIO(_tools_archive(_launcher_script("new", log))),
+        )
+
+    monkeypatch.setattr(sandbox_tools, "detect_sandbox_os", fake_detect_sandbox_os)
+    monkeypatch.setattr(
+        sandbox_tools, "_open_executable_for_arch", fake_open_executable_for_arch
+    )
+
+    first, second = LocalSandboxEnvironment(), LocalSandboxEnvironment()
+    try:
+        await sandbox_tools.sandbox_with_injected_tools(sandbox=first)
+        assert cli.read_text() == _launcher_script("new", log)
+        assert log.read_text().splitlines() == [
+            f"new start-server {first._sandbox_tools_dir}"
+        ]
+
+        await sandbox_tools.sandbox_with_injected_tools(sandbox=second)
+        assert len(log.read_text().splitlines()) == 1
+        assert second._tools_user_resolved
+    finally:
+        first.directory.cleanup()
+        second.directory.cleanup()
+
+    for tree in old_trees:
+        assert sorted(p.name for p in tree.iterdir()) == [
+            ".server",
+            "inspect-sandbox-tools",
+        ]
+        assert (tree / "inspect-sandbox-tools").read_text() == _launcher_script(
+            "old", log
+        )
 
 
 async def test_detector_checks_as_known_tools_user() -> None:
@@ -1504,3 +1695,88 @@ async def test_sample_init_records_root_access_for_every_sandbox_last(
         if isinstance(e, SandboxEvent) and (e.options or {}).get("user") == "root"
     ]
     assert len(probe_events) == 2
+
+
+def _dist_info(tmp_path: Path, record: list[str] | None) -> Path:
+    """Write a real dist-info dir; listed RECORD paths do not exist on disk."""
+    dist_info = tmp_path / "inspect_ai-0.0.0.dist-info"
+    dist_info.mkdir()
+    (dist_info / "METADATA").write_text(
+        "Metadata-Version: 2.1\nName: inspect-ai\nVersion: 0.0.0\n"
+    )
+    if record is not None:
+        (dist_info / "RECORD").write_text(
+            "".join(f"{path},sha256=abc,1\n" for path in record)
+        )
+    return dist_info
+
+
+def _missing_binary_then_download(
+    monkeypatch: pytest.MonkeyPatch, dist_info: Path | None
+) -> list[str]:
+    """Stub a `pypi` install whose binary is missing until an S3 download runs."""
+    downloaded: list[str] = []
+
+    @asynccontextmanager
+    async def fake_open_executable(
+        executable: str, *, verify: bool = False
+    ) -> AsyncIterator[BinaryIO]:
+        if executable not in downloaded:
+            raise FileNotFoundError(executable)
+        yield BytesIO(b"binary")
+
+    async def fake_download_from_s3(filename: str) -> bool:
+        downloaded.append(filename)
+        return True
+
+    def fake_distribution(name: str) -> importlib.metadata.Distribution:
+        assert name == "inspect-ai"
+        if dist_info is None:
+            raise importlib.metadata.PackageNotFoundError(name)
+        return importlib.metadata.PathDistribution(dist_info)
+
+    monkeypatch.setattr(sandbox_tools, "_get_install_state", lambda: "pypi")
+    monkeypatch.setattr(sandbox_tools, "_open_executable", fake_open_executable)
+    monkeypatch.setattr(sandbox_tools, "_download_from_s3", fake_download_from_s3)
+    monkeypatch.setattr(importlib.metadata, "distribution", fake_distribution)
+    return downloaded
+
+
+@pytest.mark.parametrize(
+    "record",
+    [
+        pytest.param(["inspect_ai/__init__.py"], id="not-in-record"),
+        pytest.param(None, id="no-record"),
+        pytest.param("no-metadata", id="no-metadata"),
+    ],
+)
+async def test_sdist_install_downloads_missing_binary_without_warning(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    _warn_once_messages: list[str],
+    record: list[str] | None | str,
+) -> None:
+    dist_info = None if isinstance(record, str) else _dist_info(tmp_path, record)
+    downloaded = _missing_binary_then_download(monkeypatch, dist_info)
+
+    async with sandbox_tools._open_executable_for_arch("amd64", False) as (name, f):
+        assert f.read() == b"binary"
+
+    assert downloaded == [name]
+    assert _warn_once_messages == []
+
+
+async def test_wheel_install_missing_bundled_binary_raises(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    name = sandbox_tools._get_executable_name("amd64", False, False)
+    dist_info = _dist_info(
+        tmp_path, ["inspect_ai/__init__.py", f"inspect_ai/binaries/{name}"]
+    )
+    downloaded = _missing_binary_then_download(monkeypatch, dist_info)
+
+    with pytest.raises(PrerequisiteError, match="missing from the PyPI package"):
+        async with sandbox_tools._open_executable_for_arch("amd64", False):
+            pass
+
+    assert downloaded == []

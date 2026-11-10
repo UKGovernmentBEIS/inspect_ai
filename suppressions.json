@@ -550,12 +550,6 @@
       "undescribed": 3
     }
   },
-  "src/inspect_ai/event/_pool.py": {
-    "type: ignore[attr-defined]": {
-      "count": 1,
-      "undescribed": 1
-    }
-  },
   "src/inspect_ai/event/_tree.py": {
     "type: ignore[overload-overlap]": {
       "count": 1,
@@ -866,8 +860,8 @@
   },
   "src/inspect_ai/scorer/_reducer/reducer.py": {
     "type: ignore": {
-      "count": 15,
-      "undescribed": 15
+      "count": 14,
+      "undescribed": 14
     },
     "type: ignore[redundant-cast]": {
       "count": 1,
@@ -1824,8 +1818,8 @@
   },
   "tests/util/sandbox/test_json_rpc_transport.py": {
     "type: ignore[arg-type]": {
-      "count": 8,
-      "undescribed": 8
+      "count": 7,
+      "undescribed": 7
     }
   },
   "tests/util/sandbox/test_sandbox_timeout.py": {

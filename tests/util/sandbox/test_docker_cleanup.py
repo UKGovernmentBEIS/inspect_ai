@@ -55,7 +55,7 @@ from inspect_ai.util._sandbox.lifecycle import (
     sandbox_lifecycle_state,
 )
 
-GENERIC_IMAGE = "aisiuk/inspect-tool-support"
+GENERIC_IMAGE = "python:3.12-bookworm"
 
 
 class FakeDocker:
@@ -728,7 +728,7 @@ async def test_docker_sample_added_to_a_task_without_docker_samples(
     assert sorted(str(s.input) for s in (logs[0].samples or [])) == sorted(
         ["added"] + (["seed"] if route == "sample_complete" else [])
     )
-    added_id = added.id
+    added_id = next(s.id for s in (logs[0].samples or []) if s.input == "added")
     assert fake_docker.events == [f"up:{added_id}", f"down:{added_id}"]
     assert fake_docker.generated_files() == []
     assert sandbox_lifecycle_state() is None
