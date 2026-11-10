@@ -9808,6 +9808,45 @@ async def test_a_rejected_call_replayed_under_a_fresh_id_settles_its_acp_card(
     assert _replayed_acp_cards() == {"call_read": ["failed"]}
 
 
+async def test_a_modified_host_calls_acp_card_shows_the_arguments_that_ran(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The proposal's card, settled by the modified call's host run, shows that run."""
+    from acp.schema import ToolCallProgress, ToolCallStart
+
+    init_sample_assistant_internal()
+    published = _acp_router(monkeypatch)
+    ran: list[str] = []
+
+    async def read_file(path: str) -> str:
+        ran.append(path)
+        return f"contents of {path}"
+
+    bridge = sandbox_bridge(read_file)
+    model = Parsing(lambda: _responses_output(HOST_READ_ITEM))
+    with active([bridge_modify()]):
+        output = await _generate_bridged(
+            bridge, model.model, [ChatMessageUser(content=TASK)], declare_read_file()
+        )
+        [handed] = output.message.tool_calls or []
+        await call_host_tool(bridge)("host", "read_file", handed.arguments)
+
+    assert ran == ["safe.txt"]
+    assert _acp_cards(published) == {
+        "call_read": ["in_progress", "in_progress", "completed"]
+    }
+    updates = [
+        n.update
+        for n in published
+        if isinstance(n.update, ToolCallStart | ToolCallProgress)
+    ]
+    # the latest title and raw input a client holds for the card
+    raw_input = next(u.raw_input for u in reversed(updates) if u.raw_input is not None)
+    title = next(u.title for u in reversed(updates) if u.title is not None)
+    assert raw_input == handed.arguments == {"path": "safe.txt"}
+    assert "safe.txt" in title and "notes.txt" not in title
+
+
 def _google_after_signed_text(*calls: tuple[str, str, bytes | None]) -> ModelOutput:
     """A Gemini response, as the provider parses it: a signed text part, then `calls`.
 

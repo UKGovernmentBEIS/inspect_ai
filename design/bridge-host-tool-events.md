@@ -405,7 +405,9 @@ finalised. `agent` is `None`; `agent_span_id` is the tool's, as natively.
 - **ACP.** `_map_tool_event()` pops the call from `_BridgeToolState.pending`,
   so the card synthesized for the proposal is updated with the real result
   and is not settled again from the agent's `ChatMessageTool`; the update
-  also marks the card cancelable. An event or result under an id other than
+  also replaces the card's title and `raw_input` with the event's (the
+  arguments that ran, which a sentinel may have modified) and marks the card
+  cancelable. An event or result under an id other than
   its proposal's settles the proposal's card through `proposal_id`, live and
   on replay. An event of a multi-target proposal that
   did not take the proposing id, and an unpaired call on an exempt server,

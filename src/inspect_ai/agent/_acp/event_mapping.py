@@ -888,8 +888,12 @@ def _map_tool_event(
             content=_content_for_update(event),
         )
         if synthesized:
-            # the synthesized start was marked non-cancelable; a real ToolEvent
-            # now backs the card, so `inspect/cancel_tool_call` can act on it
+            # the synthesized start shows the model's proposal and was marked
+            # non-cancelable; a real ToolEvent now backs the card, so it shows
+            # the call that runs (a sentinel may have modified its arguments)
+            # and `inspect/cancel_tool_call` can act on it
+            update.title = _descriptive_title(event)
+            update.raw_input = event.arguments
             update.field_meta = {TOOL_CALL_CANCELABLE_META_KEY: True}
         yield session_notification(session_id, update)
     else:
