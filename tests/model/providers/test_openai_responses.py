@@ -1,7 +1,7 @@
 import json
 from contextlib import nullcontext
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from test_helpers.utils import skip_if_no_openai
@@ -2967,3 +2967,31 @@ def test_tool_call_id_repeated_in_a_response_caches_no_item():
     _process_response_output_items(outputs, [])
 
     assert "call_shared" not in assistant_internal().tool_calls
+
+
+def test_an_unchanged_computer_call_keeps_its_item_without_safety_checks():
+    from inspect_ai.model._assistant_internal import init_sample_assistant_internal
+    from inspect_ai.model._openai_responses import (
+        assistant_internal,
+        hand_openai_tool_call,
+    )
+    from inspect_ai.tool._tool_call import ToolCall
+
+    init_sample_assistant_internal()
+    # as a live response dumps it: no `pending_safety_checks` or `status`
+    item: Any = {
+        "type": "computer_call",
+        "id": "cu_1",
+        "call_id": "call_computer",
+        "actions": [{"type": "screenshot"}],
+    }
+    assistant_internal().tool_calls["call_computer"] = cast(Any, dict(item))
+    call = ToolCall(
+        id="call_computer",
+        function="computer",
+        arguments={"actions": [{"action": "screenshot"}]},
+    )
+
+    hand_openai_tool_call(call)
+
+    assert assistant_internal().tool_calls["call_computer"] == item

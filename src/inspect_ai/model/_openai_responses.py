@@ -903,13 +903,21 @@ def _item_carries_arguments(param: dict[str, Any], call: ToolCall) -> bool:
                 return bool(param["arguments"] == handed)
         case "custom_tool_call":
             return bool(param.get("input") == next(iter(call.arguments.values()), None))
-        # a rewritten item has no `id`, which the parse doesn't read
+        # with the fields the parse doesn't read, which an item may lack (a
+        # rewritten item has no `id`)
         case "computer_call":
             # the parse reads only an `actions` list, not a legacy single `action`
             if not param.get("actions"):
                 return False
             parsed = tool_call_from_openai_computer_tool_call(
-                ResponseComputerToolCall.model_validate({"id": "", **param})
+                ResponseComputerToolCall.model_validate(
+                    {
+                        "id": "",
+                        "pending_safety_checks": [],
+                        "status": "completed",
+                        **param,
+                    }
+                )
             )
             return json_equal(parsed.arguments, call.arguments)
         case "tool_search_call":
