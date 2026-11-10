@@ -148,7 +148,7 @@ async def inspect_google_api_request_impl(
     validate_client_config(config)
 
     # try to maintain id stability
-    apply_message_ids(bridge, messages, inferred_results)
+    apply_message_ids(bridge, messages, inferred_results, named_results=True)
 
     # give inspect-level config priority over agent default config
     config = resolve_generate_config(model, config)

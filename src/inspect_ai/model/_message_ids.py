@@ -153,13 +153,18 @@ def content_hash(message: ChatMessage) -> str:
     Provider-internal fields (reasoning signatures, `internal`, citations), a cache
     breakpoint, the `refusal` flag (not every dialect sends it back), the
     `model` and `source`, metadata and the id are left out, and string content
-    equals the same text as a content list.
+    equals the same text as a content list. Empty text shows nothing, so an
+    empty string, an empty list and a list with an empty text part are equal.
     """
-    items = (
-        [ContentText(text=message.content)]
-        if isinstance(message.content, str)
-        else message.content
-    )
+    items = [
+        item
+        for item in (
+            [ContentText(text=message.content)]
+            if isinstance(message.content, str)
+            else message.content
+        )
+        if not (isinstance(item, ContentText) and item.text == "")
+    ]
     return mm3_hash(
         json.dumps(
             [

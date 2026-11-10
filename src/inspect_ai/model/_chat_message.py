@@ -34,7 +34,8 @@ class ChatMessageBase(BaseModel):
     An id names one message with one content: copies of a message keep its id,
     and a version with different content has another. Content here is what the
     message shows: its role, text and other content, tool calls and tool result.
-    A string and the same text as a content list are the same content;
+    A string and the same text as a content list are the same content, and
+    empty text parts don't count (an empty string equals an empty list);
     provider-internal fields, `source`, `model` and `metadata` don't count.
 
     When Inspect edits a message (removing reasoning or a tool result for a

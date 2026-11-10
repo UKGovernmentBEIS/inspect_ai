@@ -127,6 +127,9 @@ class _HandedReply:
     calls: int
     """How many calls the reply has."""
 
+    handed_at: int
+    """How many requests the bridge had given ids (`AgentBridge._requests`) when it handed the reply out."""
+
 
 class _HandedCall(NamedTuple):
     """A call in a reply handed to the scaffold."""
@@ -144,6 +147,9 @@ class _AwaitedReply:
 
     calls: int
     """How many calls the reply has."""
+
+    handed_at: int
+    """`_HandedReply.handed_at`."""
 
     events: dict[int, "ToolEvent | None"] = field(default_factory=dict)
     """Per executed call's position, its execution, or `None` once the call is settled (linked, or left unlinked)."""
@@ -332,6 +338,13 @@ class AgentBridge:
         self._pending_operator = 0
         self._awaited_results: dict[str, _AwaitedReply] = {}
         """Per reply handed to the scaffold, its executed calls awaiting their results."""
+        self._requests = 0
+        """How many requests the bridge has given ids (`_assign_message_ids`)."""
+        self._result_sent_in: dict[str, int] = {}
+        """Per `content_hash` of a tool message, the number of the latest request that sent it.
+
+        Like `_awaited_results`, not checkpointed: a resumed bridge links only replies it hands out itself.
+        """
         self._unlinked_replies: set[str] = set()
         """Ids of handed replies none of whose executions links (`_unlink`)."""
         self._operator_keys: set[str] = set()
@@ -497,7 +510,7 @@ class AgentBridge:
         """
         if reply_id in self._content_by_id:
             self._unlink(reply_id)
-        reply = _HandedReply(reply_id, len(calls))
+        reply = _HandedReply(reply_id, len(calls), self._requests)
         return [_HandedCall(reply, position) for position in range(len(calls))]
 
     def _await_result_message(
@@ -520,7 +533,7 @@ class AgentBridge:
         a call of theirs first executed after the drop.
         """
         reply = self._awaited_results.setdefault(
-            handed.reply.id, _AwaitedReply(handed.reply.calls)
+            handed.reply.id, _AwaitedReply(handed.reply.calls, handed.reply.handed_at)
         )
         executed = handed.position in reply.events
         reply.events[handed.position] = (
@@ -542,6 +555,7 @@ class AgentBridge:
         placed: dict[int, str],
         fresh: set[int],
         inferred: set[int],
+        sent_in: dict[int, int],
     ) -> None:
         """Link awaited host tool executions to their result messages in a request.
 
@@ -551,9 +565,12 @@ class AgentBridge:
         has its function and arguments (an execution of either may have taken
         the other's grant), and exactly one tool message
         answers it before the next assistant message with tool calls. That
-        message must also be new in this request (`fresh`), so it was first
-        sent after the execution completed: a message sent before, or equal
-        to one sent before, may hold another result. Any other result settles
+        message must also be new in this request (`fresh`), and no earlier
+        request since the reply was handed out may have sent a message with
+        its content (`sent_in`, per tool message the latest earlier request
+        that did), so it was first sent after the execution completed: a
+        message sent before, or equal to one sent before, may hold another
+        result. Any other result settles
         the call unlinked, as does a result whose call id the dialect inferred
         from order (`inferred`). A call with no result yet keeps waiting.
         """
@@ -599,6 +616,7 @@ class AgentBridge:
                     len(answers) == 1
                     and answers[0] in fresh
                     and answers[0] not in inferred
+                    and sent_in.get(answers[0], 0) <= reply.handed_at
                 ):
                     event.message_id = messages[answers[0]].id
                     transcript()._event_updated(event)
@@ -675,6 +693,7 @@ class AgentBridge:
         self,
         messages: list[ChatMessage],
         inferred_results: Sequence[ChatMessageTool] = (),
+        named_results: bool = False,
     ) -> None:
         """Give each message of a request the id the bridge knows it by.
 
@@ -695,7 +714,13 @@ class AgentBridge:
         id alone doesn't show that: it is recorded under the message's JSON,
         which differs between forms of one content (string content and a
         list of one text part, or other metadata).
+
+        With `named_results` (Google), a result names its function rather
+        than its call, so whether an equal result was sent before
+        (`_link_result_messages`) is judged by function rather than by the
+        call id the dialect gave it.
         """
+        self._requests += 1
         contents = [content_hash(message) for message in messages]
         known = {content: self._ids_with_content[content] for content in contents}
         sent: Counter[str] = Counter()
@@ -724,6 +749,16 @@ class AgentBridge:
         self._latest_request = self._replace_kept(self._latest_request, request)
         self._remember_thread(request)
         inferred = {id(message) for message in inferred_results}
+        keys = {
+            index: _named_result_key(message) if named_results else contents[index]
+            for index, message in enumerate(messages)
+            if isinstance(message, ChatMessageTool)
+        }
+        sent_in = {
+            index: self._result_sent_in[key]
+            for index, key in keys.items()
+            if key in self._result_sent_in
+        }
         self._link_result_messages(
             messages,
             placed,
@@ -733,7 +768,10 @@ class AgentBridge:
                 for index, message in enumerate(messages)
                 if id(message) in inferred
             },
+            sent_in,
         )
+        for key in keys.values():
+            self._result_sent_in[key] = self._requests
 
     def _unplaced_id(
         self, key: str, used: set[str], cursors: dict[str, int]
@@ -1304,6 +1342,13 @@ def message_json_hash(message_json: str) -> str:
 
 def _call_key(call: ToolCall) -> tuple[str, str]:
     return call.function, canonical_tool_arguments(call.arguments)
+
+
+def _named_result_key(message: ChatMessageTool) -> str:
+    """`content_hash` of a result that names its function rather than its call."""
+    return content_hash(
+        message.model_copy(update={"tool_call_id": f"function:{message.function}"})
+    )
 
 
 def _unplaced_key(message: ChatMessage) -> str:

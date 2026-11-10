@@ -614,19 +614,18 @@ async def messages_from_anthropic_input(
                             content = [
                                 content_block_to_content(b) for b in content_value
                             ]
-                        messages.append(
-                            ChatMessageTool(
-                                tool_call_id=c["tool_use_id"],
-                                function=tool_names.get(c["tool_use_id"], None),
-                                content=content,
-                                error=ToolCallError(
-                                    type="unknown",
-                                    message=str(content_value) if content_value else "",
-                                )
-                                if c.get("is_error", False) is True
-                                else None,
-                            )
+                        tool_message = ChatMessageTool(
+                            tool_call_id=c["tool_use_id"],
+                            function=tool_names.get(c["tool_use_id"], None),
+                            content=content,
                         )
+                        if c.get("is_error", False) is True:
+                            # the result's text, so a string and a list of
+                            # text blocks give the same error
+                            tool_message.error = ToolCallError(
+                                type="unknown", message=tool_message.text
+                            )
+                        messages.append(tool_message)
                     elif (
                         c["type"] == "text"
                         or c["type"] == "image"

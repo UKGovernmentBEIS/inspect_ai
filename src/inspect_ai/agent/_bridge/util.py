@@ -1927,10 +1927,12 @@ def apply_message_ids(
     bridge: AgentBridge,
     messages: list[ChatMessage],
     inferred_results: Sequence[ChatMessageTool] = (),
+    named_results: bool = False,
 ) -> None:
     """Replace the ids made up while rebuilding a request with the ids the bridge knows.
 
     `inferred_results` are tool messages whose call id the dialect inferred
-    from order rather than read from the request.
+    from order rather than read from the request. With `named_results`, the
+    dialect's results name their function rather than their call (Google).
     """
-    bridge._assign_message_ids(messages, inferred_results)
+    bridge._assign_message_ids(messages, inferred_results, named_results)

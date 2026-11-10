@@ -6031,15 +6031,19 @@ class _HostConversation:
         calls: list[tuple[str, Any]],
         outputs: list[JsonValue],
         listed: bool = False,
+        error: bool = False,
     ) -> None:
         """Append the results of `calls` the way the dialect sends them.
 
-        With `listed`, each result's text is sent as a list of one text part,
-        where the dialect allows one (Google results are JSON objects).
+        With `listed`, each result's text is sent as a list of text parts (one,
+        or none for empty text), where the dialect allows one (Google results
+        are JSON objects). With `error`, Anthropic results are sent as errors.
         """
 
         def content(output: JsonValue, text_type: str = "text") -> Any:
-            return [{"type": text_type, "text": str(output)}] if listed else str(output)
+            if not listed:
+                return str(output)
+            return [{"type": text_type, "text": str(output)}] if output != "" else []
 
         match self.dialect:
             case "completions":
@@ -6065,6 +6069,7 @@ class _HostConversation:
                                 "type": "tool_result",
                                 "tool_use_id": id,
                                 "content": content(output),
+                                **({"is_error": True} if error else {}),
                             }
                             for (id, _), output in zip(calls, outputs)
                         ],
@@ -7244,22 +7249,37 @@ def _without_text(dialect: HostDialect, reply: list[dict[str, Any]]) -> list[Any
             ]
 
 
-@pytest.mark.parametrize(
-    "resent", ["listed timeout", "string timeout", "listed result"]
-)
-@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic"])
-async def test_answer_resent_as_a_text_list_is_not_a_new_answer(
+_RESENT_FORMS = [
+    *[
+        (dialect, resent)
+        for dialect in ["completions", "responses", "anthropic"]
+        for resent in [
+            "listed timeout",
+            "string timeout",
+            "listed empty",
+            "string empty",
+            "listed result",
+        ]
+    ],
+    ("anthropic", "listed error"),
+    ("anthropic", "string error"),
+]
+
+
+@pytest.mark.parametrize("dialect,resent", _RESENT_FORMS)
+async def test_answer_resent_in_another_form_is_not_a_new_answer(
     dialect: HostDialect, resent: str
 ) -> None:
-    """An answer sent while the execution ran stays sent when its text comes back as a list.
+    """An answer sent while the execution ran stays sent when it comes back in another form.
 
     While `read_file` runs, the scaffold sends a compacted context: a
-    summary, the reply without its text, and a timeout answer. Once the
-    execution completes, it continues the original thread with the timeout
-    answer again, as a list of one text part (`listed timeout`) or as the
-    string it was (`string timeout`). Either is the answer sent before the
-    execution completed, so the execution links nothing. As a control, the
-    execution's own result sent as a list (`listed result`) links.
+    summary, the reply without its text, and an answer (a timeout, an
+    empty answer, or with `error` an Anthropic error). Once the execution
+    completes, it continues the original thread with that answer again, as
+    a list of text parts (`listed`, none for the empty answer) or as the
+    string it was. Either is the answer sent before the execution completed,
+    so the execution links nothing. As a control, the execution's own result
+    sent as a list (`listed result`) links.
     """
     model = get_model(
         "mockllm/model",
@@ -7290,6 +7310,8 @@ async def test_answer_resent_as_a_text_list_is_not_a_new_answer(
     )
     [info] = declare("read_file")
     conversation = _HostConversation(dialect, "Read p.", info)
+    sent = "" if resent.endswith("empty") else "Timed out."
+    error = resent.endswith("error")
     with recorded_transcript() as recorded:
         calls = await conversation.request(bridge)
         original = list(conversation.history)
@@ -7304,14 +7326,15 @@ async def test_answer_resent_as_a_text_list_is_not_a_new_answer(
                 _user_turn(dialect, "Summary: reading p."),
                 *_without_text(dialect, original[1:]),
             ]
-            conversation.results(calls, ["Timed out."])
+            conversation.results(calls, [sent], error=error)
             await conversation.request(bridge)
             release.set()
         conversation.history = original
         conversation.results(
             calls,
-            ["NEW" if resent == "listed result" else "Timed out."],
-            listed=resent != "string timeout",
+            ["NEW" if resent == "listed result" else sent],
+            listed=resent.startswith("listed"),
+            error=error,
         )
         await conversation.request(bridge)
 
@@ -7320,6 +7343,93 @@ async def test_answer_resent_as_a_text_list_is_not_a_new_answer(
     [event] = [e for e in recorded.events if isinstance(e, ToolEvent)]
     assert event.result == "NEW"
     assert event.message_id == (latest if resent == "listed result" else None)
+
+
+@pytest.mark.parametrize("resent", ["timeout", "listed timeout", "result"])
+@pytest.mark.parametrize("dialect", ["google", "completions", "responses", "anthropic"])
+async def test_answer_sent_while_a_reused_call_id_ran_links_nothing(
+    dialect: HostDialect, resent: str
+) -> None:
+    """An answer sent while a call ran links nothing, also when an earlier call under its id had the same answer.
+
+    The provider reuses the call id (Google derives it from the call), and
+    the first call's answer is a timeout. While the second call runs, the
+    scaffold sends a compacted context with the same timeout answer, which
+    takes the first answer's id. Once the execution completes, it continues
+    the full conversation with that timeout again (as a string, or as a list
+    of one text part where the dialect allows one), so the request holds two
+    equal answers. The second was sent before the execution completed and
+    links nothing. As a control, the execution's own result links.
+    """
+    if dialect == "google" and resent == "listed timeout":
+        pytest.skip("Google results are JSON objects")
+    call = ToolCall(id="call_1", function="read_file", arguments={"path": "p"})
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            tool_calls_output(call, content="Reading p."),
+            tool_calls_output(call, content="Reading p again."),
+            *[ModelOutput.from_content("mockllm/model", "Noted.")] * 2,
+        ],
+    )
+    started, release = anyio.Event(), anyio.Event()
+    executions = 0
+
+    async def result(**_: Any) -> str:
+        nonlocal executions
+        executions += 1
+        if executions == 1:
+            return "OLD"
+        started.set()
+        await release.wait()
+        return "NEW"
+
+    bridge = SandboxAgentBridge(
+        state=AgentState(messages=[ChatMessageUser(content="Read p.")]),
+        filter=None,
+        retry_refusals=None,
+        compaction=None,
+        port=13131,
+        model=None,
+        model_aliases={"inspect": model},
+        bridged_tools={"a": {"read_file": read_file(AsyncMock(side_effect=result))}},
+    )
+    [info] = declare("read_file")
+    conversation = _HostConversation(dialect, "Read p.", info)
+    with recorded_transcript() as recorded:
+        first = await conversation.request(bridge)
+        await call_host_tool(bridge)("a", "read_file", first[0][1])
+        conversation.results(first, ["Timed out."])
+        second = await conversation.request(bridge)
+        original = list(conversation.history)
+
+        async def execute() -> None:
+            await call_host_tool(bridge)("a", "read_file", second[0][1])
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(execute)
+            await started.wait()
+            conversation.history = [
+                _user_turn(dialect, "Summary: reading p."),
+                *_without_text(dialect, original[-1:]),
+            ]
+            conversation.results(second, ["Timed out."])
+            await conversation.request(bridge)
+            release.set()
+        conversation.history = original
+        conversation.results(
+            second,
+            ["NEW" if resent == "result" else "Timed out."],
+            listed=resent == "listed timeout",
+        )
+        await conversation.request(bridge)
+
+    model_events = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    answers = [m.id for m in model_events[-1].input if m.role == "tool"]
+    events = [e for e in recorded.events if isinstance(e, ToolEvent)]
+    assert [e.result for e in events] == ["OLD", "NEW"]
+    assert events[0].message_id == answers[0]
+    assert events[1].message_id == (answers[1] if resent == "result" else None)
 
 
 @pytest.mark.parametrize(
@@ -8590,7 +8700,7 @@ async def test_google_results_link_only_when_their_function_names_one_call(
                 result=f"contents {path}",
             )
             bridge._await_result_message(
-                handed_calls(cast(str, message.id), message.tool_calls)[index],
+                handed_calls(bridge, cast(str, message.id), message.tool_calls)[index],
                 event,
             )
             events.append(event)
@@ -8731,7 +8841,7 @@ async def test_reordered_google_results_never_take_each_others_ids(
         assert isinstance(message, ChatMessageAssistant) and message.tool_calls
         events = []
         for handed, output in zip(
-            handed_calls(cast(str, message.id), message.tool_calls), outputs
+            handed_calls(bridge, cast(str, message.id), message.tool_calls), outputs
         ):
             call = message.tool_calls[handed.position]
             event = ToolEvent(
@@ -8815,7 +8925,7 @@ def test_matching_same_name_google_results_is_linear(host: bool) -> None:
         try:
             if host:
                 assert reply.id is not None
-                for handed in handed_calls(reply.id, calls):
+                for handed in handed_calls(bridge, reply.id, calls):
                     bridge._await_result_message(
                         handed,
                         ToolEvent(
@@ -9033,7 +9143,7 @@ async def test_repeated_google_results_are_matched_in_linear_time(host: bool) ->
                 )
                 if host:
                     assert reply.id is not None
-                    [handed] = handed_calls(reply.id, reply.tool_calls or [])
+                    [handed] = handed_calls(bridge, reply.id, reply.tool_calls or [])
                     bridge._await_result_message(
                         handed,
                         ToolEvent(

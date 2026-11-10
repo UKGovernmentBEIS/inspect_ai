@@ -19,7 +19,7 @@ from inspect_ai.model._message_ids import content_hash, edit_id
 from inspect_ai.tool._tool_call import ToolCall
 
 if TYPE_CHECKING:
-    from inspect_ai.agent._bridge.types import _HandedCall
+    from inspect_ai.agent._bridge.types import AgentBridge, _HandedCall
 
 
 def shown(message: ChatMessage) -> str:
@@ -193,8 +193,10 @@ def recording_placements() -> Iterator[list[set[str]]]:
         yield placements
 
 
-def handed_calls(reply_id: str, calls: Sequence[ToolCall]) -> list["_HandedCall"]:
-    """The calls of a reply as the bridge records them when it hands the reply out.
+def handed_calls(
+    bridge: "AgentBridge", reply_id: str, calls: Sequence[ToolCall]
+) -> list["_HandedCall"]:
+    """The calls of a reply as `bridge` records them when it hands the reply out.
 
     For tests that track a reply's generation before registering executions of
     its calls. The bridge registers them first (`AgentBridge._handed_calls`)
@@ -203,5 +205,5 @@ def handed_calls(reply_id: str, calls: Sequence[ToolCall]) -> list["_HandedCall"
     """
     from inspect_ai.agent._bridge.types import _HandedCall, _HandedReply
 
-    reply = _HandedReply(reply_id, len(calls))
+    reply = _HandedReply(reply_id, len(calls), bridge._requests)
     return [_HandedCall(reply, position) for position in range(len(calls))]

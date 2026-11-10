@@ -2731,7 +2731,7 @@ def _awaiting(
     ]
     for event in events:
         bridge._await_result_message(
-            handed_calls(reply.id, reply.tool_calls)[index], event
+            handed_calls(bridge, reply.id, reply.tool_calls)[index], event
         )
     return events
 
@@ -2918,7 +2918,7 @@ def test_host_results_waiting_are_capped() -> None:
     for reply in (replies[0], replies[-1]):
         assert reply.id is not None
         result = _result(reply.tool_calls[0].id if reply.tool_calls else "")
-        bridge._link_result_messages([reply, result], {0: reply.id}, {1}, set())
+        bridge._link_result_messages([reply, result], {0: reply.id}, {1}, set(), {})
 
     assert events[0].message_id is None
     assert events[-1].message_id is not None
@@ -2945,7 +2945,7 @@ def test_host_reply_dropped_from_the_awaited_results_links_no_later_execution() 
     [event] = _awaiting(bridge, reply, index=1)
 
     result = _result("call_b")
-    bridge._link_result_messages([reply, result], {0: reply.id}, {1}, set())
+    bridge._link_result_messages([reply, result], {0: reply.id}, {1}, set(), {})
 
     assert event.message_id is None
 
@@ -2962,7 +2962,7 @@ def _link_copy(
 ) -> list[str | None]:
     """Track executions of `handed` calls, place a copy with new `answers`; the events' message ids."""
     bridge = AgentBridge(AgentState(messages=[]))
-    tracked = handed_calls("reply", handed)
+    tracked = handed_calls(bridge, "reply", handed)
     events = []
     for position, result in results:
         call = handed[position]
@@ -2983,6 +2983,7 @@ def _link_copy(
         {0: "reply"},
         set(range(1, len(tool_messages) + 1)),
         set(),
+        {},
     )
     return [event.message_id for event in events]
 
