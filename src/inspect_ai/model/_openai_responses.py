@@ -871,7 +871,8 @@ def _replayed_item(param: dict[str, Any], call: ToolCall) -> dict[str, Any] | No
     a call whose arguments approval, the sentinel or a filter changed, doesn't
     match; such a call replays natively with its own arguments, without the
     item's `id`: a stored response resolves an item by its `id` to the stored
-    arguments, ignoring the ones the request sends.
+    arguments, ignoring the ones the request sends. None when the item is for
+    another function, or the arguments have no native form.
     """
     if not _item_names_call(param, call):
         return None
@@ -879,8 +880,9 @@ def _replayed_item(param: dict[str, Any], call: ToolCall) -> dict[str, Any] | No
         return param
     try:
         handed = _with_tool_call_arguments(dict(param), call)
-    except (TypeError, ValueError):
-        # arguments JSON can't encode (e.g. a parsed YAML date)
+    except (AssertionError, KeyError, StopIteration, TypeError, ValueError):
+        # arguments JSON can't encode (a parsed YAML date), computer arguments
+        # no action converts, or a custom call without input
         return None
     return {key: value for key, value in handed.items() if key != "id"}
 
@@ -1963,6 +1965,9 @@ def _tool_call_items_from_assistant_message(
         if replayed is not None:
             tool_calls.append(cast(ResponseInputItemParam, replayed))
         else:
+            # the call's result reads the cached item's type too (a
+            # `computer_call_output`), so it must replay from itself as well
+            assistant_internal().tool_calls.pop(call.id, None)
             # create param (rendering todo_write -> update_plan when swapping, else
             # the name-only alias)
             if swap_todo_write and call.function == TODO_WRITE_NAME:

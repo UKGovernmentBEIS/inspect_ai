@@ -2,7 +2,7 @@ import json
 from contextlib import nullcontext
 from dataclasses import replace
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from test_helpers.utils import skip_if_no_openai
@@ -12,7 +12,7 @@ from inspect_ai._util.constants import NO_CONTENT
 from inspect_ai._util.content import ContentReasoning, ContentText
 from inspect_ai.dataset import Sample
 from inspect_ai.model import GenerateConfig, ModelOutput, get_model
-from inspect_ai.model._chat_message import ChatMessageAssistant
+from inspect_ai.model._chat_message import ChatMessageAssistant, ChatMessageTool
 from inspect_ai.model._openai_responses import (
     MESSAGE_ID,
     MESSAGE_PHASE,
@@ -3085,3 +3085,51 @@ def test_a_changed_call_whose_arguments_json_cant_encode_replays_no_item() -> No
 
     # the call replays from itself
     assert _replayed_item(item, call) is None
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        # int() rejects the coordinate
+        {"actions": [{"action": "left_click", "coordinate": ["10px", "20"]}]},
+        # no `actions` list
+        {"action": "left_click", "coordinate": [1, 2]},
+    ],
+    ids=["coordinate", "no_actions"],
+)
+async def test_a_computer_call_that_cant_replay_natively_replays_with_its_result_as_a_function(
+    arguments: dict[str, Any],
+) -> None:
+    from inspect_ai.model._assistant_internal import init_sample_assistant_internal
+    from inspect_ai.model._openai_responses import (
+        assistant_internal,
+        openai_responses_inputs,
+    )
+    from inspect_ai.tool._tool_call import ToolCall
+
+    init_sample_assistant_internal()
+    assistant_internal().tool_calls["call_c"] = cast(
+        Any,
+        {
+            "type": "computer_call",
+            "id": "cu_1",
+            "call_id": "call_c",
+            "actions": [{"type": "click", "button": "left", "x": 1, "y": 2}],
+            "pending_safety_checks": [],
+            "status": "completed",
+        },
+    )
+    # arguments approval or a filter gave the call
+    call = ToolCall(id="call_c", function="computer", arguments=arguments)
+
+    items: list[Any] = await openai_responses_inputs(
+        [
+            ChatMessageAssistant(content="", tool_calls=[call]),
+            ChatMessageTool(content="ok", tool_call_id="call_c", function="computer"),
+        ]
+    )
+
+    assert [item["type"] for item in items] == [
+        "function_call",
+        "function_call_output",
+    ]
