@@ -110,6 +110,8 @@ def gemini_action_from_tool_call(
         result: dict[str, object] = {"text": text, "x": x, "y": y}
         if "press_enter" in arguments:
             result["press_enter"] = bool(arguments["press_enter"])
+        # Gemini defaults clear_before_typing to True, so send False explicitly
+        result["clear_before_typing"] = bool(arguments.get("clear_before_typing"))
         return "type_text_at", result
 
     elif action == "scroll":
@@ -156,6 +158,20 @@ def gemini_action_from_tool_call(
         return "wait_5_seconds", {}
 
 
+def gemini_replay_args(action_name: str, tool_call: ToolCall) -> dict[str, object]:
+    # go_back, go_forward and search are parsed as other Inspect actions, so
+    # their arguments are rebuilt in their own schema when that reproduces the
+    # call's current arguments (which an edit may have changed).
+    if action_name in ("go_back", "go_forward", "search"):
+        text = str(tool_call.arguments.get("text", ""))
+        args: dict[str, object] = (
+            {"query": text} if action_name == "search" and text else {}
+        )
+        if _parse_gemini_action(action_name, args) == tool_call.arguments:
+            return args
+    return gemini_action_from_tool_call(tool_call)[1]
+
+
 def _parse_gemini_action(name: str, args: dict[str, object]) -> dict[str, object]:
     if name == "click_at":
         x, y = _denormalize_coordinate(args)
@@ -169,6 +185,7 @@ def _parse_gemini_action(name: str, args: dict[str, object]) -> dict[str, object
             "text": text,
             "coordinate": [x, y],
             "press_enter": bool(args.get("press_enter", True)),
+            "clear_before_typing": bool(args.get("clear_before_typing", True)),
         }
 
     elif name == "hover_at":

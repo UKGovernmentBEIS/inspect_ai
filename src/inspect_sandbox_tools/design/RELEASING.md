@@ -7,7 +7,7 @@ End-to-end process for shipping a new version of the sandbox tools executables.
 The sandbox tools are compiled into portable static Linux executables (amd64 + arm64) and distributed via:
 
 1. **S3** — runtime downloads for editable/dev installs
-2. **PyPI** — bundled into the `inspect_ai` wheel for pip installs
+2. **PyPI** — bundled into the `inspect_ai` wheel for pip installs. The sdist has no binaries; an install built from the sdist (e.g. conda-forge) downloads them from S3 at first use, verified against `SHA256SUMS`.
 
 The version is a simple integer in `src/inspect_ai/tool/_sandbox_tools_utils/sandbox_tools_version.txt`.
 
@@ -177,13 +177,13 @@ PyPI or conda-forge serve that day. Everything below lives in
   binaries are released rarely, so there is no Dependabot entry for this file:
   GitHub's security alerts flag vulnerable pins in it, and updates are made by
   hand, as a fix for an alert or when preparing a release. `--no-config`
-  skips the root `pyproject.toml`, so the command repeats its cooldown
-  exemption for certifi, whose releases remove compromised CA roots:
+  skips the root `pyproject.toml`, so the command repeats its seven-day
+  cooldown with `--exclude-newer`:
 
   ```bash
   cd src/inspect_ai/tool/_sandbox_tools_utils
   uv pip compile --no-config --universal --python-version 3.10 --generate-hashes \
-    --exclude-newer "7 days" --exclude-newer-package certifi=false --upgrade \
+    --exclude-newer "7 days" --upgrade \
     ../../../inspect_sandbox_tools/pyproject.toml requirements.in -o requirements.txt
   ```
 
@@ -227,7 +227,7 @@ Once `slow-tool-tests-release` is green, merge through the normal review process
 python scripts/pypi-release.py release {INSPECT_AI_VERSION}
 ```
 
-Either path downloads the **glibc** binaries from S3 into `src/inspect_ai/binaries/`, bundles them into the wheel as package data, and publishes to PyPI. The musl variants are intentionally **not** bundled — they live on S3 and are fetched at runtime when a musl sandbox is detected (keeps the wheel small for the common case).
+Either path downloads the **glibc** binaries from S3 into `src/inspect_ai/binaries/`, bundles them into the wheel as package data, and publishes to PyPI. The sdist and wheel are both built from the checkout (`python -m build --sdist --wheel`), so `MANIFEST.in` can leave the binaries out of the sdist and the wheel still gets them. The musl variants are intentionally **not** bundled — they live on S3 and are fetched at runtime when a musl sandbox is detected (keeps the wheel small for the common case).
 
 ## How binaries are resolved at runtime
 
@@ -242,7 +242,7 @@ three-tier fallback:
 
 The install state detection (`_get_install_state`) determines which tiers are attempted:
 
-- **pypi** install → expects binary in package, warns if missing
+- **pypi** install → uses the bundled binary; if it is missing, downloads from S3. Warns only when the installed `RECORD` lists the binary (a broken wheel install); an install built from the sdist never had it, so it downloads without a warning
 - **clean** editable install → tries S3 download
 - **edited** editable install → builds a `-dev` suffixed binary locally
 

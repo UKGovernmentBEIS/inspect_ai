@@ -1,0 +1,628 @@
+{
+  "version": 2,
+  "status": "success",
+  "eval": {
+    "eval_id": "LVR5Cw845Q7vdumWzh2daa",
+    "run_id": "Hv4zG9sqoacEUDaTCqaNQ8",
+    "created": "2026-11-04T14:03:35-05:00",
+    "task": "task",
+    "task_id": "S3kKjo7zDMoLFFsMVMmgT2",
+    "task_version": 0,
+    "task_attribs": {},
+    "task_args": {},
+    "dataset": {
+      "samples": 1,
+      "sample_ids": [
+        1
+      ],
+      "shuffled": false
+    },
+    "model": "mockllm/model",
+    "model_generate_config": {},
+    "model_args": {
+      "custom_outputs": [
+        {
+          "model": "mockllm/model",
+          "choices": [
+            {
+              "message": {
+                "id": "jfkcTmTYkkRAkE5odnkram",
+                "content": "tool call for tool addition",
+                "source": "generate",
+                "role": "assistant",
+                "tool_calls": [
+                  {
+                    "id": "for_tool_call_b6fe2d4f-75c7-4be3-a885-fb04b2f2a6a7",
+                    "function": "addition",
+                    "arguments": {
+                      "x": 1,
+                      "y": 1
+                    }
+                  }
+                ],
+                "model": "mockllm/model"
+              },
+              "stop_reason": "tool_calls"
+            }
+          ],
+          "time": 4.125293344259262e-6
+        },
+        {
+          "model": "mockllm/model",
+          "choices": [
+            {
+              "message": {
+                "id": "deuQzufZWfvqRMpPUoH6KW",
+                "content": "Done",
+                "source": "generate",
+                "role": "assistant",
+                "model": "mockllm/model"
+              },
+              "stop_reason": "stop"
+            }
+          ],
+          "time": 5.3746625781059265e-6
+        }
+      ]
+    },
+    "config": {
+      "epochs": 1,
+      "epochs_reducer": [
+        "mean"
+      ],
+      "fail_on_error": true,
+      "sandbox_cleanup": true,
+      "log_samples": true,
+      "log_realtime": true,
+      "log_images": true,
+      "score_display": true
+    },
+    "packages": {
+      "inspect_ai": "0.3.100"
+    }
+  },
+  "plan": {
+    "name": "plan",
+    "steps": [
+      {
+        "solver": "use_tools",
+        "params": {
+          "tools": [
+            {
+              "type": "tool",
+              "name": "addition",
+              "params": {}
+            }
+          ]
+        }
+      },
+      {
+        "solver": "generate",
+        "params": {}
+      }
+    ],
+    "config": {}
+  },
+  "results": {
+    "total_samples": 1,
+    "completed_samples": 1,
+    "scores": []
+  },
+  "stats": {
+    "started_at": "2026-11-04T14:03:35-05:00",
+    "completed_at": "2026-11-04T14:03:35-05:00",
+    "model_usage": {}
+  },
+  "samples": [
+    {
+      "id": 1,
+      "epoch": 1,
+      "input": "Add",
+      "target": "",
+      "messages": [
+        {
+          "id": "5nMuBVmtFNXT9wSDPVGPAE",
+          "content": "Add",
+          "source": "input",
+          "role": "user"
+        },
+        {
+          "id": "jfkcTmTYkkRAkE5odnkram",
+          "content": "tool call for tool addition",
+          "source": "generate",
+          "role": "assistant",
+          "tool_calls": [
+            {
+              "id": "for_tool_call_b6fe2d4f-75c7-4be3-a885-fb04b2f2a6a7",
+              "function": "addition",
+              "arguments": {
+                "x": 1,
+                "y": 1
+              }
+            }
+          ],
+          "model": "mockllm/model"
+        },
+        {
+          "id": "gWfTdE36kpcBLvpiG5AW7y",
+          "content": "8",
+          "role": "tool",
+          "tool_call_id": "for_tool_call_b6fe2d4f-75c7-4be3-a885-fb04b2f2a6a7",
+          "function": "addition"
+        },
+        {
+          "id": "deuQzufZWfvqRMpPUoH6KW",
+          "content": "Done",
+          "source": "generate",
+          "role": "assistant",
+          "model": "mockllm/model"
+        }
+      ],
+      "output": {
+        "model": "mockllm/model",
+        "choices": [
+          {
+            "message": {
+              "id": "deuQzufZWfvqRMpPUoH6KW",
+              "content": "Done",
+              "source": "generate",
+              "role": "assistant",
+              "model": "mockllm/model"
+            },
+            "stop_reason": "stop"
+          }
+        ],
+        "time": 5.3746625781059265e-6
+      },
+      "scores": {},
+      "metadata": {},
+      "store": {},
+      "events": [
+        {
+          "span_id": "2a32daf2edd2415ebd15d2546fbcf886",
+          "timestamp": "2026-11-04T14:03:35.889530-05:00",
+          "working_start": 2316223.712896333,
+          "event": "span_begin",
+          "id": "2a32daf2edd2415ebd15d2546fbcf886",
+          "type": "init",
+          "name": "init"
+        },
+        {
+          "span_id": "2a32daf2edd2415ebd15d2546fbcf886",
+          "timestamp": "2026-11-04T14:03:35.890150-05:00",
+          "working_start": 2316223.713514958,
+          "event": "sample_init",
+          "sample": {
+            "input": "Add",
+            "target": "",
+            "id": 1
+          },
+          "state": {
+            "messages": [
+              {
+                "id": "5nMuBVmtFNXT9wSDPVGPAE",
+                "content": "Add",
+                "source": "input",
+                "role": "user"
+              }
+            ],
+            "tools": [],
+            "tool_choice": null,
+            "store": {},
+            "output": {
+              "model": "mockllm/model",
+              "choices": []
+            },
+            "completed": false,
+            "metadata": {}
+          }
+        },
+        {
+          "span_id": "2a32daf2edd2415ebd15d2546fbcf886",
+          "timestamp": "2026-11-04T14:03:35.890428-05:00",
+          "working_start": 2316223.713792875,
+          "event": "span_end",
+          "id": "2a32daf2edd2415ebd15d2546fbcf886"
+        },
+        {
+          "span_id": "f9c4969265dd42d0961534047c8cef97",
+          "timestamp": "2026-11-04T14:03:35.890883-05:00",
+          "working_start": 0.00021899957209825516,
+          "event": "span_begin",
+          "id": "f9c4969265dd42d0961534047c8cef97",
+          "type": "solvers",
+          "name": "solvers"
+        },
+        {
+          "span_id": "cc36a837f49d41e7b80ac75ab411c34f",
+          "timestamp": "2026-11-04T14:03:35.891670-05:00",
+          "working_start": 0.001005374826490879,
+          "event": "span_begin",
+          "id": "cc36a837f49d41e7b80ac75ab411c34f",
+          "parent_id": "f9c4969265dd42d0961534047c8cef97",
+          "type": "solver",
+          "name": "use_tools"
+        },
+        {
+          "span_id": "cc36a837f49d41e7b80ac75ab411c34f",
+          "timestamp": "2026-11-04T14:03:35.893374-05:00",
+          "working_start": 0.002710040658712387,
+          "event": "state",
+          "changes": [
+            {
+              "op": "add",
+              "path": "/tools/0",
+              "value": {
+                "name": "addition",
+                "description": "Add two numbers.",
+                "parameters": {
+                  "type": "object",
+                  "properties": {
+                    "x": {
+                      "type": "integer",
+                      "description": "First number."
+                    },
+                    "y": {
+                      "type": "integer",
+                      "description": "Second number."
+                    }
+                  },
+                  "required": [
+                    "x",
+                    "y"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            {
+              "op": "replace",
+              "path": "/tool_choice",
+              "value": "auto"
+            }
+          ]
+        },
+        {
+          "span_id": "cc36a837f49d41e7b80ac75ab411c34f",
+          "timestamp": "2026-11-04T14:03:35.894156-05:00",
+          "working_start": 0.0034917909651994705,
+          "event": "span_end",
+          "id": "cc36a837f49d41e7b80ac75ab411c34f"
+        },
+        {
+          "span_id": "265fcfc0f06141288de682fdc1eff18d",
+          "timestamp": "2026-11-04T14:03:35.894358-05:00",
+          "working_start": 0.003693165723234415,
+          "event": "span_begin",
+          "id": "265fcfc0f06141288de682fdc1eff18d",
+          "parent_id": "f9c4969265dd42d0961534047c8cef97",
+          "type": "solver",
+          "name": "generate"
+        },
+        {
+          "span_id": "265fcfc0f06141288de682fdc1eff18d",
+          "timestamp": "2026-11-04T14:03:35.894897-05:00",
+          "working_start": 0.004232249688357115,
+          "event": "model",
+          "model": "mockllm/model",
+          "input": [
+            {
+              "id": "5nMuBVmtFNXT9wSDPVGPAE",
+              "content": "Add",
+              "source": "input",
+              "role": "user"
+            }
+          ],
+          "tools": [
+            {
+              "name": "addition",
+              "description": "Add two numbers.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "integer",
+                    "description": "First number."
+                  },
+                  "y": {
+                    "type": "integer",
+                    "description": "Second number."
+                  }
+                },
+                "required": [
+                  "x",
+                  "y"
+                ],
+                "additionalProperties": false
+              }
+            }
+          ],
+          "tool_choice": "auto",
+          "config": {},
+          "output": {
+            "model": "mockllm/model",
+            "choices": [
+              {
+                "message": {
+                  "id": "jfkcTmTYkkRAkE5odnkram",
+                  "content": "tool call for tool addition",
+                  "source": "generate",
+                  "role": "assistant",
+                  "tool_calls": [
+                    {
+                      "id": "for_tool_call_b6fe2d4f-75c7-4be3-a885-fb04b2f2a6a7",
+                      "function": "addition",
+                      "arguments": {
+                        "x": 1,
+                        "y": 1
+                      }
+                    }
+                  ],
+                  "model": "mockllm/model"
+                },
+                "stop_reason": "tool_calls"
+              }
+            ],
+            "time": 4.125293344259262e-6
+          },
+          "completed": "2026-11-04T14:03:35.896042-05:00",
+          "working_time": 4.125293344259262e-6
+        },
+        {
+          "span_id": "265fcfc0f06141288de682fdc1eff18d",
+          "timestamp": "2026-11-04T14:03:35.899003-05:00",
+          "working_start": 0.007514249999076128,
+          "event": "approval",
+          "message": "tool call for tool addition",
+          "call": {
+            "id": "for_tool_call_b6fe2d4f-75c7-4be3-a885-fb04b2f2a6a7",
+            "function": "addition",
+            "arguments": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "view": {
+            "call": {
+              "format": "markdown",
+              "content": "```python\naddition(x=1, y=1)\n```\n"
+            }
+          },
+          "approver": "change",
+          "decision": "modify",
+          "modified": {
+            "id": "for_tool_call_b6fe2d4f-75c7-4be3-a885-fb04b2f2a6a7",
+            "function": "addition",
+            "arguments": {
+              "x": 7,
+              "y": 1
+            }
+          }
+        },
+        {
+          "span_id": "726b12d944624edf9323cf322916a499",
+          "timestamp": "2026-11-04T14:03:35.899673-05:00",
+          "working_start": 0.00818379083648324,
+          "event": "span_begin",
+          "id": "726b12d944624edf9323cf322916a499",
+          "parent_id": "265fcfc0f06141288de682fdc1eff18d",
+          "type": "tool",
+          "name": "addition"
+        },
+        {
+          "span_id": "265fcfc0f06141288de682fdc1eff18d",
+          "timestamp": "2026-11-04T14:03:35.898826-05:00",
+          "working_start": 0.007336957845836878,
+          "event": "tool",
+          "type": "function",
+          "id": "for_tool_call_b6fe2d4f-75c7-4be3-a885-fb04b2f2a6a7",
+          "function": "addition",
+          "arguments": {
+            "x": 1,
+            "y": 1
+          },
+          "result": "8",
+          "events": [],
+          "completed": "2026-11-04T14:03:35.900527-05:00",
+          "working_time": 0.001701
+        },
+        {
+          "span_id": "726b12d944624edf9323cf322916a499",
+          "timestamp": "2026-11-04T14:03:35.900161-05:00",
+          "working_start": 0.008671583142131567,
+          "event": "span_end",
+          "id": "726b12d944624edf9323cf322916a499"
+        },
+        {
+          "span_id": "265fcfc0f06141288de682fdc1eff18d",
+          "timestamp": "2026-11-04T14:03:35.900905-05:00",
+          "working_start": 0.009415874723345041,
+          "event": "model",
+          "model": "mockllm/model",
+          "input": [
+            {
+              "id": "5nMuBVmtFNXT9wSDPVGPAE",
+              "content": "Add",
+              "source": "input",
+              "role": "user"
+            },
+            {
+              "id": "jfkcTmTYkkRAkE5odnkram",
+              "content": "tool call for tool addition",
+              "source": "generate",
+              "role": "assistant",
+              "tool_calls": [
+                {
+                  "id": "for_tool_call_b6fe2d4f-75c7-4be3-a885-fb04b2f2a6a7",
+                  "function": "addition",
+                  "arguments": {
+                    "x": 1,
+                    "y": 1
+                  }
+                }
+              ],
+              "model": "mockllm/model"
+            },
+            {
+              "id": "gWfTdE36kpcBLvpiG5AW7y",
+              "content": "8",
+              "role": "tool",
+              "tool_call_id": "for_tool_call_b6fe2d4f-75c7-4be3-a885-fb04b2f2a6a7",
+              "function": "addition"
+            }
+          ],
+          "tools": [
+            {
+              "name": "addition",
+              "description": "Add two numbers.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "integer",
+                    "description": "First number."
+                  },
+                  "y": {
+                    "type": "integer",
+                    "description": "Second number."
+                  }
+                },
+                "required": [
+                  "x",
+                  "y"
+                ],
+                "additionalProperties": false
+              }
+            }
+          ],
+          "tool_choice": "auto",
+          "config": {},
+          "output": {
+            "model": "mockllm/model",
+            "choices": [
+              {
+                "message": {
+                  "id": "deuQzufZWfvqRMpPUoH6KW",
+                  "content": "Done",
+                  "source": "generate",
+                  "role": "assistant",
+                  "model": "mockllm/model"
+                },
+                "stop_reason": "stop"
+              }
+            ],
+            "time": 5.3746625781059265e-6
+          },
+          "completed": "2026-11-04T14:03:35.901867-05:00",
+          "working_time": 5.3746625781059265e-6
+        },
+        {
+          "span_id": "265fcfc0f06141288de682fdc1eff18d",
+          "timestamp": "2026-11-04T14:03:35.902110-05:00",
+          "working_start": 0.009930332656949759,
+          "event": "state",
+          "changes": [
+            {
+              "op": "add",
+              "path": "/output/time",
+              "value": 5.3746625781059265e-6
+            },
+            {
+              "op": "add",
+              "path": "/output/choices/0",
+              "value": {
+                "message": {
+                  "id": "deuQzufZWfvqRMpPUoH6KW",
+                  "content": "Done",
+                  "source": "generate",
+                  "role": "assistant",
+                  "model": "mockllm/model"
+                },
+                "stop_reason": "stop"
+              }
+            },
+            {
+              "op": "add",
+              "path": "/messages/1",
+              "value": {
+                "id": "jfkcTmTYkkRAkE5odnkram",
+                "content": "tool call for tool addition",
+                "source": "generate",
+                "role": "assistant",
+                "tool_calls": [
+                  {
+                    "id": "for_tool_call_b6fe2d4f-75c7-4be3-a885-fb04b2f2a6a7",
+                    "function": "addition",
+                    "arguments": {
+                      "x": 1,
+                      "y": 1
+                    }
+                  }
+                ],
+                "model": "mockllm/model"
+              }
+            },
+            {
+              "op": "add",
+              "path": "/messages/2",
+              "value": {
+                "id": "gWfTdE36kpcBLvpiG5AW7y",
+                "content": "8",
+                "role": "tool",
+                "tool_call_id": "for_tool_call_b6fe2d4f-75c7-4be3-a885-fb04b2f2a6a7",
+                "function": "addition"
+              }
+            },
+            {
+              "op": "add",
+              "path": "/messages/3",
+              "value": {
+                "id": "deuQzufZWfvqRMpPUoH6KW",
+                "content": "Done",
+                "source": "generate",
+                "role": "assistant",
+                "model": "mockllm/model"
+              }
+            }
+          ]
+        },
+        {
+          "span_id": "265fcfc0f06141288de682fdc1eff18d",
+          "timestamp": "2026-11-04T14:03:35.902325-05:00",
+          "working_start": 0.010145123582333326,
+          "event": "span_end",
+          "id": "265fcfc0f06141288de682fdc1eff18d"
+        },
+        {
+          "span_id": "f9c4969265dd42d0961534047c8cef97",
+          "timestamp": "2026-11-04T14:03:35.902516-05:00",
+          "working_start": 0.010335915721952915,
+          "event": "span_end",
+          "id": "f9c4969265dd42d0961534047c8cef97"
+        },
+        {
+          "span_id": "ce9168860fe9408c83e0046fdbb023cb",
+          "timestamp": "2026-11-04T14:03:35.902714-05:00",
+          "working_start": 0.010534040629863739,
+          "event": "span_begin",
+          "id": "ce9168860fe9408c83e0046fdbb023cb",
+          "type": "scorers",
+          "name": "scorers"
+        },
+        {
+          "span_id": "ce9168860fe9408c83e0046fdbb023cb",
+          "timestamp": "2026-11-04T14:03:35.902916-05:00",
+          "working_start": 0.010735915508121252,
+          "event": "span_end",
+          "id": "ce9168860fe9408c83e0046fdbb023cb"
+        }
+      ],
+      "model_usage": {},
+      "total_time": 0.013,
+      "working_time": 0.011,
+      "uuid": "XfeRdSt3Q7LfajjnSWyK6v",
+      "error_retries": [],
+      "attachments": {}
+    }
+  ]
+}

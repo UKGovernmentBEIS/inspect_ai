@@ -33,6 +33,45 @@ from inspect_ai.scorer import match
 from inspect_ai.solver import Generate, Solver, TaskState, solver
 
 
+@pytest.mark.parametrize("pattern", ["task.py", "*.py", ".", "task.py@simple"])
+@pytest.mark.parametrize("absolute", [False, True])
+def test_eval_task_paths(
+    pattern: str, absolute: bool, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "task.py").write_text(
+        "from inspect_ai import Task, task\n"
+        "from inspect_ai.dataset import Sample\n"
+        "@task\n"
+        "def simple():\n"
+        "    return Task(dataset=[Sample(input='Hello')])\n"
+    )
+    monkeypatch.chdir(tmp_path)
+    logs = eval(
+        str(tmp_path / pattern) if absolute else pattern,
+        model="mockllm/model",
+        log_dir=str(tmp_path / "logs"),
+    )
+
+    assert len(logs) == 1
+    assert logs[0].status == "success"
+    assert logs[0].eval.task == "simple"
+    assert logs[0].samples is not None
+    assert len(logs[0].samples) == 1
+
+
+def test_eval_rejects_filesystem_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    anchor = Path(Path.cwd().anchor)
+    scan = mock.Mock(side_effect=AssertionError("must not scan a filesystem root"))
+    monkeypatch.setattr("inspect_ai._eval.list.tasks_in_dir", scan)
+    monkeypatch.chdir(tmp_path)
+
+    with pytest.raises(ValueError, match="filesystem root"):
+        eval(str(anchor), model="mockllm/model", log_dir=str(tmp_path / "logs"))
+    scan.assert_not_called()
+
+
 def test_eval_epochs_sample_count():
     task = Task(dataset=[Sample(input="s1"), Sample(input="s2")])
     log = eval(task, model="mockllm/model", epochs=3)[0]
@@ -781,7 +820,7 @@ async def test_terminal_log_write_failure_preserves_recovery(
 
     from inspect_ai.log import read_eval_log_async
     from inspect_ai.log._recorders.buffer import database as database_module
-    from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
+    from inspect_ai.log._recorders.buffer.database import DbPhase, SampleBufferDatabase
     from inspect_ai.log._recorders.eval import EvalRecorder, ZipLogFile
     from inspect_ai.log._recover import recover_eval_log_async
     from inspect_ai.model import ModelOutput, get_model
@@ -840,7 +879,7 @@ async def test_terminal_log_write_failure_preserves_recovery(
         assert not logger._stale_flush_stops
         assert all(entry._temp_file.closed and entry._zip is None for entry in entries)
         buffer = buffers[-1]
-        assert buffer._closed and not buffer._connections
+        assert buffer._db_phase is DbPhase.CLOSED and not buffer._connections
         assert buffer._sync_thread is None
         assert buffer.db_path.exists()
         filestore = buffer._sync_filestore
