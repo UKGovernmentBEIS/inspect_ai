@@ -234,7 +234,7 @@ dev = [
   "groq>=0.28.0",
   "huggingface_hub>=1.6.0",
   "inspect-scout>=0.5.5",
-  "inspect-sentinel>=0.3.0",
+  "inspect-sentinel>=0.3.1",
   "ipython",
   "jsonpath-ng",
   "latex2sympy2-extended==1.11.0",
@@ -343,7 +343,8 @@ azure-ai-inference = "6 hours"
 google-genai = "6 hours"
 groq = "6 hours"
 inspect-scout = "6 hours"
-inspect-sentinel = "6 hours"
+# A one-time dated entry, for the release whose signature checks Inspect now needs. Put back to "6 hours" by 2026-11-17 (see CONTRIBUTING.md).
+inspect-sentinel = "2026-11-10T18:45:00Z"
 mistralai = "6 hours"
 openai = "6 hours"
 together = "6 hours"

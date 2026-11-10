@@ -1,6 +1,6 @@
 """Evals run through the real sentinel sidecar, in a process of their own, for `tests/sentinel/test_sentinel_sidecar_real.py`.
 
-The test suite keeps `inspect_sentinel` from being imported, so that Inspect never loads it for a user who configures no sentinel. This module is run as a script, in a process where it can be imported: `python -m test_helpers.real_sidecar_eval RESULTS LOG_DIR`, from the `tests` directory. It runs every case in `CASES`, and writes what came of each to `RESULTS` as JSON. A sidecar that doesn't check an eval's signatures runs none of them: it writes that instead, under `unsigned`, with its version.
+The test suite keeps `inspect_sentinel` from being imported, so that Inspect never loads it for a user who configures no sentinel. This module is run as a script, in a process where it can be imported: `python -m test_helpers.real_sidecar_eval RESULTS LOG_DIR`, from the `tests` directory. It runs every case in `CASES`, and writes what came of each to `RESULTS` as JSON.
 
 Importing this module imports nothing of `inspect_sentinel`, so the tests can read `CASES` from it.
 """
@@ -48,9 +48,6 @@ CASES = [
     Case("another request id", change="request id"),
     Case("another epoch", change="epoch"),
 ]
-
-UNSIGNED_RELEASE = "0.3.0"
-"""The one release of `inspect_sentinel` that Inspect's sidecar client could run with and that checks no signatures. Any other sidecar must check them."""
 
 Headers = dict[str, str]
 
@@ -315,82 +312,10 @@ def _run(case: Case, log_dir: str) -> dict[str, Any]:
     }
 
 
-def _checks_signatures() -> bool:
-    """Whether the sidecar refuses a model request that names a sample of an eval and carries no signature.
-
-    Asked of the sidecar itself, with a request of this module's own making, rather than read from the sidecar's version or its modules: a sidecar that refuses it checks signatures, whatever it is called. One that judges it would run a sample of any client that names one.
-    """
-    import anyio
-    from inspect_sentinel import (
-        Context,
-        Decision,
-        Escalations,
-        Protocol,
-        Step,
-        protocol,
-    )
-    from inspect_sentinel.sidecar import Handler, Refuse, Request
-
-    @protocol
-    def lets_every_step_go_on() -> Protocol:
-        async def decide(
-            context: Context, step: Step, escalations: Escalations
-        ) -> Decision | None:
-            return Decision.proceed()
-
-        return decide
-
-    # the header as Inspect writes it for the eval log, with no `timestamp`
-    # and no `mac`, for an eval that registered nothing
-    unsigned = {
-        "version": 1,
-        "eval_id": "an-eval-never-registered",
-        "task": "weather_desk",
-        "sample_id": 7,
-        "epoch": 1,
-        "sample_uuid": "a-sample-never-registered",
-        "attempt": "an-attempt",
-        "attempt_number": 1,
-    }
-    body = {
-        "model": "claude-test",
-        "max_tokens": 16,
-        "messages": [{"role": "user", "content": "Hi."}],
-    }
-
-    async def asked() -> bool:
-        answer = await Handler(lets_every_step_go_on()).request(
-            Request(
-                id="0",
-                provider="anthropic",
-                model="m",
-                user=None,
-                body=json.dumps(body).encode(),
-                headers={
-                    "content-type": "application/json",
-                    "x-inspect-context": json.dumps(unsigned),
-                    "x-irid": "a-request",
-                },
-            )
-        )
-        return isinstance(answer, Refuse)
-
-    return anyio.run(asked)
-
-
 def main(results: str, log_dir: str) -> None:
     import inspect_sentinel
 
     found: dict[str, Any] = {"sidecar": inspect_sentinel.__file__, "cases": {}}
-    if not _checks_signatures():
-        # Every case would fail, as an eval through this sidecar would. The
-        # test skips for the release known to check nothing, and fails for
-        # any other sidecar.
-        found["unsigned"] = True
-        found["version"] = inspect_sentinel.__version__
-        with open(results, "w", encoding="utf-8") as file:
-            json.dump(found, file)
-        return
     for case in CASES:
         try:
             found["cases"][case.name] = _run(case, log_dir)

@@ -4,7 +4,7 @@ The sidecar is `inspect_sentinel`'s own handler and its endpoint for evals, behi
 
 The evals run in a process of their own (`test_helpers/real_sidecar_eval.py`), since this suite keeps `inspect_sentinel` from being imported. One process runs every case, and each test reads its case from what that process wrote.
 
-These tests need a sidecar that checks an eval's signatures. The released 0.3.0 doesn't, and every eval through it would fail, since Inspect now signs what it sends. So with 0.3.0 installed, and only then, the tests are skipped. The process asks the sidecar itself, with an unsigned request: a sidecar that refuses it runs every case, and any sidecar but 0.3.0 that judges it fails the tests. The skip goes once this repository's development dependencies need a later release.
+These tests need a sidecar that checks an eval's signatures. With one that doesn't, they fail, as an eval would.
 """
 
 import json
@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from test_helpers.real_sidecar_eval import CASES, UNSIGNED_RELEASE, Case
+from test_helpers.real_sidecar_eval import CASES, Case
 
 _TESTS = Path(__file__).parent.parent
 
@@ -93,15 +93,6 @@ def ran(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Any]:
             writing.replace(done)
     if "failed" in found:
         pytest.fail(found["failed"])
-    if found.get("unsigned"):
-        judged = f"The sidecar that ran ({found['sidecar']}, version {found['version']}) judged a request that carries no signature."
-        if found["version"] != UNSIGNED_RELEASE:
-            pytest.fail(
-                f"{judged} Only the release {UNSIGNED_RELEASE} may: any other sidecar must refuse it."
-            )
-        pytest.skip(
-            f"{judged} That release is older than the sidecar these tests check Inspect against, and Inspect's signed requests need a later one."
-        )
     return found
 
 
@@ -114,8 +105,9 @@ def _came_of(ran: dict[str, Any], case: Case) -> dict[str, Any]:
 
 
 def _why(ran: dict[str, Any], found: dict[str, Any]) -> str:
-    # what a failed case says, with which sidecar ran
-    return f"{found['sample_error'] or found['error']}\nThe sidecar that ran is {ran['sidecar']}."
+    # what a failed case says, with which sidecar ran: one that doesn't
+    # check signatures fails every case, as an eval through it would
+    return f"{found['sample_error'] or found['error']}\nThe sidecar that ran is {ran['sidecar']}, and these tests need one that checks an eval's signatures."
 
 
 _TAKEN = [case for case in CASES if case.change is None]
