@@ -476,10 +476,15 @@ async def _apply_response_filter(
     provider's own arguments (e.g. `parse_tool_call`'s YAML fallback yields dates)
     are not the filter's to answer for. A call is unchanged if its arguments equal
     (`json_equal`) those of the call with its id in the output or in a generation
-    of the bridged model's client (`_same_client`), whatever else of the message
-    the filter edited.
+    of the bridged model's client (`_same_client`, `_same_request_config`),
+    whatever else of the message the filter edited.
     """
     candidate = output.model_copy(deep=True)
+    # resolved before the filter runs, as it may change its config in place
+    bridged_configs = (
+        model._resolve_config(generate_input.config),
+        model._resolve_config(None),
+    )
     try:
         with collect_model_events() as filter_events:
             filtered = await response_filter(model, candidate, generate_input)
@@ -521,6 +526,10 @@ async def _apply_response_filter(
         choice.message
         for generation in filter_events
         if _same_client(generation.model, model)
+        and any(
+            _same_request_config(generation.event.config, bridged)
+            for bridged in bridged_configs
+        )
         for choice in generation.event.output.choices
     ]
     provider_arguments: dict[str, list[dict[str, Any]]] = {}
@@ -559,9 +568,9 @@ async def _apply_response_filter(
 def _same_client(a: Model, b: Model) -> bool:
     """Whether `a` and `b` call the same provider model at the same endpoint and account.
 
-    Generation config is not part of the client, so a filter regenerating with
-    another temperature uses the bridged model's client. Provider arguments
-    (`model_args`, e.g. an OpenAI organization or a cloud region) are.
+    Provider arguments (`model_args`, e.g. an OpenAI organization or a cloud
+    region) are part of the client. Generation config, which can also change
+    the account (`extra_headers`), is checked by `_same_request_config`.
     """
     if a.api is b.api:
         return True
@@ -571,6 +580,57 @@ def _same_client(a: Model, b: Model) -> bool:
         and a.api.base_url == b.api.base_url
         and a.api.api_key == b.api.api_key
         and a.model_args == b.model_args
+    )
+
+
+_CLIENT_NEUTRAL_CONFIG_FIELDS = frozenset(
+    {
+        # sampling
+        "temperature",
+        "top_p",
+        "top_k",
+        "seed",
+        "stop_seqs",
+        "frequency_penalty",
+        "presence_penalty",
+        "logit_bias",
+        "best_of",
+        "num_choices",
+        # length and reasoning budget
+        "max_tokens",
+        "effort",
+        "reasoning_effort",
+        "reasoning_tokens",
+        "verbosity",
+        # Inspect's own retries, timeouts and concurrency, never sent
+        "max_retries",
+        "timeout",
+        "attempt_timeout",
+        "stream_idle_timeout",
+        "max_connections",
+        "adaptive_connections",
+        "fail_on_refusal",
+    }
+)
+"""`GenerateConfig` fields in which a generation may differ from the bridged request
+and still be the bridged client's own (`_same_request_config`)."""
+
+
+def _same_request_config(generation: GenerateConfig, bridged: GenerateConfig) -> bool:
+    """Whether a generation's effective config is `bridged`, sampling aside.
+
+    `bridged` is the bridged model's effective config for the bridged request,
+    or for a call with no config (`model.generate(input)`, which leaves out
+    the headers and settings the agent sent; those can't carry credentials).
+    Only fields that cannot change the account, endpoint or model answering
+    may differ (`_CLIENT_NEUTRAL_CONFIG_FIELDS`). Any other difference, e.g.
+    `extra_headers` carrying another API key, `extra_body`, `fallback_models`,
+    `batch` or `cache`, makes the generation another client's, as does a
+    difference in a field added to `GenerateConfig` later.
+    """
+    return json_equal(
+        generation.model_dump(exclude=set(_CLIENT_NEUTRAL_CONFIG_FIELDS)),
+        bridged.model_dump(exclude=set(_CLIENT_NEUTRAL_CONFIG_FIELDS)),
     )
 
 

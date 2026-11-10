@@ -2252,8 +2252,12 @@ Model calls the filter makes run under the bridge's approval policies. A message
 that a ``generate()`` call of the bridged model made during the filter produced,
 returned unchanged (``metadata`` aside), is that generation's reply: it keeps its
 ``id`` and replays as the provider returned it, server tool items and pending
-server work included.
-Another model's output is held to the rules above.
+server work included. The call must use the bridged model's endpoint and account,
+and its config (the model's own merged in) must be the request's
+(``GenerateInput.config``) or none, apart from sampling, length, reasoning effort
+and retry settings (e.g. another ``temperature``).
+Another model's output, or a call that changes other settings (e.g.
+``extra_headers`` or ``extra_body``), is held to the rules above.
 
 An exception fails the sample as a ``ResponseFilterError``, except that a
 ``LimitExceededError``, ``TerminateSampleError`` or ``ModelRefusalError`` keeps

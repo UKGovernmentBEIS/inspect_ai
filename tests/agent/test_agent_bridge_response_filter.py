@@ -58,6 +58,7 @@ from inspect_ai.agent._bridge.sandbox.service import (
 from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
 from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.agent._bridge.util import (
+    _CLIENT_NEUTRAL_CONFIG_FIELDS,
     _apply_response_filter,
     _is_unchanged,
     _settle_message_ids,
@@ -2849,28 +2850,43 @@ async def test_response_filter_regeneration_edit_or_other_model_is_an_edit(
         assert _pending_container_for_input([regenerated.message]) == CONTAINER_ID
 
 
-@pytest.mark.parametrize(
-    "client",
-    ["bridged", "config", "endpoint", "account", "model_args", "other_name"],
-)
+SameClientCase = Literal[
+    "bridged",
+    "config",
+    "call_temperature",
+    "endpoint",
+    "account",
+    "model_args",
+    "model_headers",
+    "call_headers",
+    "call_extra_body",
+    "other_name",
+]
+
+
+@pytest.mark.parametrize("turn", ["pending", "completed_and_pending"])
+@pytest.mark.parametrize("client", get_args(SameClientCase))
 async def test_response_filter_regeneration_keeps_replay_state_only_from_bridged_client(
-    client: str,
+    client: SameClientCase, turn: Literal["pending", "completed_and_pending"]
 ) -> None:
     """Only the bridged Anthropic client's own regeneration keeps its id and pending work.
 
     A client with the bridged model's name but another endpoint, API key or
-    provider arguments ran its server work under another account; its reply
-    is an edit that carries none of that work into the bridged model's next
-    input. Another generation config is the same client.
+    provider arguments ran its server work under another account, as did a
+    generation whose config adds headers or body fields (e.g. an alternate
+    `x-api-key`); its reply is an edit that carries none of that work into the
+    bridged model's next input, and its completed server items are rejected.
+    Another temperature, per model or per call, is the same client.
     """
     from unittest.mock import patch
 
     from inspect_ai.model._providers.anthropic import _pending_container_for_input
 
     init_sample_anthropic_assistant_internal()
-    regenerated = await _pending_container_output()
+    regenerated = await _regenerated_output(turn)
     model_name = "anthropic/claude-sonnet-4-5"
     model = get_model(model_name, api_key="primary-key", memoize=False)
+    call_config = GenerateConfig()
     match client:
         case "bridged":
             judge = model
@@ -2881,6 +2897,9 @@ async def test_response_filter_regeneration_keeps_replay_state_only_from_bridged
                 config=GenerateConfig(temperature=0.9),
                 memoize=False,
             )
+        case "call_temperature":
+            judge = model
+            call_config = GenerateConfig(temperature=0.9)
         case "model_args":
             judge = get_model(
                 model_name, api_key="primary-key", memoize=False, betas=["other"]
@@ -2894,10 +2913,25 @@ async def test_response_filter_regeneration_keeps_replay_state_only_from_bridged
             )
         case "account":
             judge = get_model(model_name, api_key="other-key", memoize=False)
-        case _:
+        case "model_headers":
+            judge = get_model(
+                model_name,
+                api_key="primary-key",
+                config=GenerateConfig(extra_headers={"x-api-key": "alternate-key"}),
+                memoize=False,
+            )
+        case "call_headers":
+            judge = model
+            call_config = GenerateConfig(extra_headers={"x-api-key": "alternate-key"})
+        case "call_extra_body":
+            judge = model
+            call_config = GenerateConfig(extra_body={"service_tier": "priority"})
+        case "other_name":
             judge = get_model(
                 "anthropic/claude-haiku-4-5", api_key="primary-key", memoize=False
             )
+        case _:
+            assert_never(client)
     outputs = [ModelOutput.from_content(model_name, "first"), regenerated]
 
     async def generate(*args: Any, **kwargs: Any) -> ModelOutput:
@@ -2906,14 +2940,27 @@ async def test_response_filter_regeneration_keeps_replay_state_only_from_bridged
     async def regenerate(
         model: Model, output: ModelOutput, generate_input: GenerateInput
     ) -> ModelOutput | None:
-        return await judge.generate(generate_input.input)
+        return await judge.generate(generate_input.input, config=call_config)
 
     bridge = AgentBridge(AgentState(messages=[]))
     bridge.response_filter = regenerate
+    own = client in ("bridged", "config", "call_temperature")
     with (
         patch.object(model.api, "generate", generate),
         patch.object(judge.api, "generate", generate),
     ):
+        if not own and turn == "completed_and_pending":
+            with pytest.raises(ResponseFilterError, match="server tool use"):
+                await bridge_generate(
+                    bridge,
+                    model,
+                    [ChatMessageUser(content="hi")],
+                    [],
+                    None,
+                    GenerateConfig(),
+                    requested_model=None,
+                )
+            return
         output, _ = await bridge_generate(
             bridge,
             model,
@@ -2925,15 +2972,134 @@ async def test_response_filter_regeneration_keeps_replay_state_only_from_bridged
         )
 
     handed = output.message
-    if client in ("bridged", "config"):
+    if own:
         assert judge is model or judge.api is not model.api
         assert handed.id == regenerated.message.id
         assert _pending_container_for_input([handed]) == CONTAINER_ID
+        assert await _render_anthropic(handed) == await _render_anthropic(
+            regenerated.message
+        )
     else:
         assert str(judge) == str(model) or client == "other_name"
         assert handed.id != regenerated.message.id
         assert PENDING_CODE not in json.dumps(await _render_anthropic(handed))
         assert _pending_container_for_input([handed]) is None
+
+
+RegenerationConfig = Literal[
+    "none",
+    "temperature",
+    "request",
+    "request_temperature",
+    "request_alternate_key",
+    "request_extra_body",
+]
+
+
+@pytest.mark.parametrize("regeneration", get_args(RegenerationConfig))
+async def test_response_filter_regeneration_of_a_request_with_agent_headers(
+    regeneration: RegenerationConfig,
+) -> None:
+    """A regeneration is the bridged client's own with the request's config or none.
+
+    The bridged request carries headers the agent sent. Regenerating with no
+    config, or with the config the filter is given, another temperature or
+    not, keeps the regeneration's completed and pending server work. Adding an
+    API key header or body fields is another client: its completed server
+    items are rejected.
+    """
+    from unittest.mock import patch
+
+    from inspect_ai.model._providers.anthropic import _pending_container_for_input
+
+    init_sample_anthropic_assistant_internal()
+    regenerated = await _regenerated_output("completed_and_pending")
+    model_name = "anthropic/claude-sonnet-4-5"
+    model = get_model(model_name, api_key="primary-key", memoize=False)
+    outputs = [ModelOutput.from_content(model_name, "first"), regenerated]
+
+    async def generate(*args: Any, **kwargs: Any) -> ModelOutput:
+        return outputs.pop(0)
+
+    async def regenerate(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput | None:
+        request = generate_input.config
+        match regeneration:
+            case "none":
+                return await model.generate(generate_input.input)
+            case "temperature":
+                config = GenerateConfig(temperature=0.9)
+            case "request":
+                config = request
+            case "request_temperature":
+                config = request.merge(GenerateConfig(temperature=0.9))
+            case "request_alternate_key":
+                config = request.merge(
+                    GenerateConfig(
+                        extra_headers={
+                            **(request.extra_headers or {}),
+                            "x-api-key": "alternate-key",
+                        }
+                    )
+                )
+            case "request_extra_body":
+                config = request.merge(
+                    GenerateConfig(extra_body={"service_tier": "priority"})
+                )
+            case _:
+                assert_never(regeneration)
+        return await model.generate(generate_input.input, config=config)
+
+    bridge = AgentBridge(AgentState(messages=[]))
+    bridge.response_filter = regenerate
+    request_config = GenerateConfig(
+        temperature=0.2,
+        extra_headers={"anthropic-beta": "client-beta", "accept-encoding": "gzip"},
+    )
+    with patch.object(model.api, "generate", generate):
+        if regeneration.startswith("request_") and regeneration != (
+            "request_temperature"
+        ):
+            with pytest.raises(ResponseFilterError, match="server tool use"):
+                await bridge_generate(
+                    bridge,
+                    model,
+                    [ChatMessageUser(content="hi")],
+                    [],
+                    None,
+                    request_config,
+                    requested_model=None,
+                )
+            return
+        output, _ = await bridge_generate(
+            bridge,
+            model,
+            [ChatMessageUser(content="hi")],
+            [],
+            None,
+            request_config,
+            requested_model=None,
+        )
+
+    handed = output.message
+    assert handed.id == regenerated.message.id
+    assert _pending_container_for_input([handed]) == CONTAINER_ID
+    assert await _render_anthropic(handed) == await _render_anthropic(
+        regenerated.message
+    )
+
+
+def test_bridged_generation_config_allowlist_names_generate_config_fields() -> None:
+    """Every allowlisted field is a `GenerateConfig` field, so none is a typo."""
+    assert _CLIENT_NEUTRAL_CONFIG_FIELDS <= GenerateConfig.model_fields.keys()
+    assert not _CLIENT_NEUTRAL_CONFIG_FIELDS & {
+        "extra_headers",
+        "extra_body",
+        "fallback_models",
+        "batch",
+        "cache",
+    }
 
 
 @pytest.mark.parametrize(
