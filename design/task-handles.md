@@ -254,8 +254,9 @@ picks, skipped once it has latched a cancellation:
 ```
 
 An attempt on a loan does not count toward the ordinary `in_flight`.
-`RunQueue.end` closes the record's channel, settling its unresolved
-requests with `TaskEndedError(log)`, and clears its loan.
+`RunQueue.end` closes the record's channel, settling every request still in
+`accepted` (held, buffered, awaiting admission or running) with
+`TaskEndedError(log)`, and clears its loan.
 
 ### Tasks fed by their creator
 
@@ -268,40 +269,51 @@ added for two models has two channels, and records it in the creator's
 ```python
 class CreatorChannel(SampleSource):
     enqueuer: SampleEnqueuer | None    # the running attempt's buffer, while one runs
-    held: list[PortRequest]            # sent before the task's attempt started
-    requests: dict[str, PortRequest]   # by the id the attempt gave the sample, until settled
+    accepted: dict[int, PortRequest]   # every unsettled request, by id() of its sample copy, in send order
+    held: list[PortRequest]            # accepted before the task's attempt started; not yet in a buffer
+    requests: dict[str, PortRequest]   # admitted ones, by the id the attempt gave the sample
     closed: bool
     stopped: bool                      # a drain, score or error cancel
     pushed: Wake
 
 @dataclass(eq=False)
 class PortRequest:
-    sample: Sample                     # the channel's copy of the caller's sample, with no id
-    id: str | None                     # the id the attempt generated for it
+    sample: Sample                     # the channel's copy of the caller's sample, with no id;
+                                       # the object put in the buffer, so its identity finds the request
+    id: str | None                     # the id the attempt generated for it, once admitted
     futures: dict[int, Future[EvalSample]]   # one per epoch
 ```
 
 - **Sending.** `enqueue_sample(sample)` takes its own copy of the sample
   (`model_copy()`, so the caller's object is unchanged), creates a
-  `PortRequest` with one future per configured epoch, and puts the copy in
-  the running attempt's buffer (`enqueuer.enqueue`), which wakes the feeder,
-  or in `held` before the attempt starts. It rings `pushed` and waits for every
-  future.
+  `PortRequest` with one future per configured epoch, and records it in
+  `accepted` under `id()` of that copy before anything else: the request
+  then belongs to the channel from acceptance until it settles. Only then
+  does it put the copy in the running attempt's buffer
+  (`enqueuer.enqueue`), which wakes the feeder, or append the request to
+  `held` before the attempt starts. It rings `pushed` and waits for every
+  future. The buffer keeps only the `Sample` object and its epoch, so the
+  channel finds the request by that object's identity until the sample is
+  admitted: two requests whose samples are equal in value are separate
+  objects and never confused. The request holds its copy, so the identity
+  stays valid while it is unsettled.
 - **Ids.** A sent sample has no id, so `reserve_runs` gives it today's
   generated `dyn-<attempt token>-<counter>` id on a further copy
   (`dynamic_sample_id`, `dynamic_id_token`), exactly as for every sample a
-  `SampleSource` adds without one. `add_and_start` tells
-  the channel which id each admitted sample got (`samples_admitted()`, given
-  the source's object and its admitted copy; only a `CreatorChannel` has it),
-  and the channel records it on the request, keyed in `requests`, so results
-  can be matched to it.
+  `SampleSource` adds without one. `add_and_start` tells the channel which id
+  each admitted sample got (`samples_admitted()`, given the buffered object
+  and its admitted copy; only a `CreatorChannel` has it): the channel finds
+  the request in `accepted` by the buffered object's identity, records the
+  id, and keys it in `requests` too, so results can be matched to it.
 - **Delivery.** `task_run`, where it registers the attempt's `SampleEnqueuer`,
-  attaches it to the channel and moves `held` into it; where it clears the
-  enqueuer, it detaches it. The task has only that one attempt ("Retries"),
-  so a request still unsettled then is settled when the task ends. The
-  feeder admits the buffer as it admits any enqueued sample, so a sample
-  starts as soon as `max_samples` allows. With an empty seed, a sent sample can need a sandbox setup no seed
-  sample requested; the feeder runs it through `setups.ensure()` before
+  attaches it to the channel and puts each `held` request's sample in it, in
+  send order (the requests stay in `accepted`); where it clears the enqueuer,
+  it detaches it. The task has only that one attempt ("Retries"), so a
+  request still unsettled then, whether held, buffered, reserved but not yet
+  started, or running, is settled when the task ends. The feeder admits the
+  buffer as it admits any enqueued sample, so a sample starts as soon as
+  `max_samples` allows. With an empty seed, a sent sample can need a sandbox
+  setup no seed sample requested; the feeder runs it through `setups.ensure()` before
   scheduling the batch, as for any `SampleSource` addition.
 - **`next_samples()`** waits on `pushed` and returns `[]` after a send, so the
   feeder drains the buffer, or `None` once the channel is closed or stopped,
@@ -313,16 +325,21 @@ class PortRequest:
   `SampleAbandonedError`; both return `None`, and both ignore an id no
   request holds (a record reused from a prior attempt, whose request settled
   then). A future already resolved keeps its first value. A request leaves
-  `requests` once every epoch has settled, so the channel holds no sample
-  or result after its call returns.
+  `accepted` and `requests` once every epoch has settled, so the channel
+  holds no sample or result after its call returns. A caller whose wait is
+  cancelled leaves its request in place: the sample still runs, and the
+  request is removed when it settles or the task ends, with its result
+  dropped.
 - **Dropped by selection.** `add_samples` collects the samples it drops for
   `--sample-id` or `--limit`, and `add_and_start` passes them to the
-  channel's `samples_dropped()` (only a `CreatorChannel` has it), which fails
-  their requests with `SampleAbandonedError`, so a caller never waits for a
+  channel's `samples_dropped()` (only a `CreatorChannel` has it), which finds
+  each request in `accepted` by the buffered object's identity, fails it with
+  `SampleAbandonedError` and removes it, so a caller never waits for a
   sample that will not run. Other sources keep today's behaviour.
 - **Graceful cancels stop it.** `_run_task`'s `cancel_task` callback calls
   `channel.stop()` for `drain`, `score` and `error`: `next_samples()` returns
-  `None`, `held` requests fail with `SampleAbandonedError`, and later sends
+  `None`, `held` requests fail with `SampleAbandonedError` and leave
+  `accepted`, and later sends
   raise it. Samples already buffered or running follow the directive's
   existing rules and settle through `sample_complete` or `sample_abandoned`.
 - **Closing.** The channel closes on `close()`, `result()`, `async with`
@@ -593,16 +610,29 @@ test touched), with mockllm models; every test that waits is bounded with
   - the creator's attempt ending closes its channels and the rollout task ends;
   - retention: after many requests, the channel holds no request, sample or
     result once each call has returned;
+  - request ownership, each bounded: with the feeder held in another sent
+    sample's sandbox setup (stub provider), a request sent meanwhile sits in
+    the buffer unadmitted; cancelling the task, and failing that setup, each
+    end the task with the request's call raising `TaskEndedError`, and the
+    channel holds nothing afterwards; a request sent while the task is queued
+    is delivered when it starts and settles with its run; two requests whose
+    samples are equal in value, sent concurrently, each get their own
+    generated id and their own runs, and a `--limit` that drops one fails
+    only that one's call with `SampleAbandonedError`;
   - `eval.send_samples` is set in the rollout's log while unfinished and when
     finished, and `False` for every other task and every existing log;
 - `tests/test_eval_set.py` (colliding identity): a fixed task with the same
   file, name, arguments, plan, model and limits as a fed task whose marked
-  log is in the log directory, with `log_dir_allow_dirty` true and false:
-  - a marked `success` log does not count as the fixed task's success; the
-    fixed task runs its own dataset;
-  - a marked `error` log is not used as its prior source by eval-set resume,
-    and nothing is reused from it;
-  - default cleanup neither selects nor deletes the marked log;
+  log is in the log directory:
+  - with `log_dir_allow_dirty=False`, today's log-directory check refuses the
+    marked log with its existing `PrerequisiteError`, as for any added task's
+    log ("Not this design");
+  - with `log_dir_allow_dirty=True`, a marked `success` log does not count as
+    the fixed task's success, and the fixed task runs its own dataset;
+  - with `log_dir_allow_dirty=True`, a marked `error` log is not used as its
+    prior source by eval-set resume, and nothing is reused from it;
+  - with `log_dir_allow_dirty=True`, default cleanup neither selects nor
+    deletes the marked log;
   - a selection worker given that log as `resume` raises `PrerequisiteError`;
   - `task_identifier()` of the marked log differs from the fixed task's, and
     every identifier of an existing log and unmarked task is unchanged (the
