@@ -1244,6 +1244,7 @@ async def _bridge_generate_impl(
             declarations.extend(declared_in_input(input_messages))
         producer = generations.producer(produced)
         output = _fresh_call_ids(bridge, output, request)
+        bridge._handed_calls.propose(request, output.message.tool_calls or [])
         with agent_bridge_context_scope(_UTILITY_CONTEXT):
             reviewed = await apply_bridge_tool_approval(
                 bridge, output, input_messages, declarations, producer=producer
@@ -1272,7 +1273,6 @@ async def _bridge_generate_impl(
             terminate_for_repeated_rejections(bridge, rejections)
 
         _hold_replay_state(output, generations.outputs())
-        bridge._handed_calls.reject(request, output.message.tool_calls or [])
 
         # accumulate onto original_input (rather than input_messages) since that is
         # what the top of the loop resets to, and any filter rewrite is per-attempt
@@ -1290,10 +1290,11 @@ def _fresh_call_ids(
     (`_HandedCalls.reused`). Inspect's providers don't reuse ids, but
     OpenAI-compatible servers can, and Claude Code drops a call under a
     repeated id, and its result. The provider state recorded under the id is
-    the new call's or another's, so it is dropped (`forget_tool_call`), as is
-    any Google reasoning anchor naming it, and the call under its fresh id
-    replays from itself. A copy, as `output` may be the object the
-    `ModelEvent` recorded; the event keeps the model's ids.
+    the new call's or another's, so it is dropped (`forget_tool_call`), and
+    the call under its fresh id replays from itself, but for its Google
+    reasoning anchors, which are its own (`_renamed_anchors`). A copy, as
+    `output` may be the object the `ModelEvent` recorded; the event keeps the
+    model's ids.
     """
     calls: dict[str, list[ToolCall]] = {}
     for call in output.message.tool_calls or []:
@@ -1311,14 +1312,50 @@ def _fresh_call_ids(
         forget_tool_call(call_id)
     output = output.model_copy(deep=True)
     message = output.message
+    fresh: dict[str, list[str]] = {}
     for call in message.tool_calls or []:
         if call.id in reused:
-            call.id = f"call_{uuid()}"
+            fresh.setdefault(call.id, []).append(f"call_{uuid()}")
+            call.id = fresh[call.id][-1]
     if not isinstance(message.content, str):
-        message.content = [
-            part for part in message.content if _anchor_call_id(part) not in reused
-        ]
+        message.content = _renamed_anchors(message.content, fresh)
     return output
+
+
+def _renamed_anchors(
+    content: list[Content], fresh: dict[str, list[str]]
+) -> list[Content]:
+    """`content` with Google's reasoning anchors naming the calls' fresh ids.
+
+    An anchor is the call's own state, in its message, so it follows the call,
+    keeping its position and signature. Anchors of an id several calls or
+    anchors shared take the fresh ids in order without their signatures, which
+    can't be told apart by call; any left over are removed.
+    """
+    anchored = Counter(_anchor_call_id(part) for part in content)
+    pending = {call_id: list(ids) for call_id, ids in fresh.items()}
+    renamed: list[Content] = []
+    for part in content:
+        call_id = _anchor_call_id(part)
+        if call_id is None or call_id not in pending:
+            renamed.append(part)
+            continue
+        if not pending[call_id]:
+            continue
+        assert isinstance(part, ContentReasoning) and isinstance(part.internal, dict)
+        shared = len(fresh[call_id]) > 1 or anchored[call_id] > 1
+        renamed.append(
+            part.model_copy(
+                update={
+                    "internal": {
+                        **part.internal,
+                        "gemini_function_call_id": pending[call_id].pop(0),
+                    },
+                    **({"reasoning": ""} if shared else {}),
+                }
+            )
+        )
+    return renamed
 
 
 def _hold_replay_state(output: ModelOutput, generations: Sequence[ModelOutput]) -> None:

@@ -9860,6 +9860,87 @@ def isolated_cache(
     return isolate
 
 
+async def test_a_request_repeated_after_its_result_was_sent_gets_a_fresh_id() -> None:
+    """The same request again, once a request carried the call's result, is not a retry.
+
+    The scaffold has a call under the id, so the same call proposed again is a
+    second run, handed over under a fresh id.
+    """
+    model = Scripted(calls_output(READ), calls_output(), calls_output(READ))
+    bridge = in_process_bridge([])
+    history: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+
+    with active([bridge_recording([])]):
+        first = await generate(bridge, model, history)
+        await generate(bridge, model, _answered(history, first))
+        again = await generate(bridge, model, history)
+
+    [handed] = again.message.tool_calls or []
+    assert (first.message.tool_calls or [])[0].id == READ.id != handed.id
+    assert handed == replace(READ, id=handed.id)
+
+
+async def test_concurrent_requests_never_hand_two_calls_over_under_one_id() -> None:
+    """Two requests get different calls under one id; the first waits in its check.
+
+    The first keeps the id once proposed, so the second, reviewed while the
+    first is still in its `tool_call` stage, gets a fresh one.
+    """
+    first_call = replace(READ, id="call_0", arguments={"path": "old.txt"})
+    second_call = replace(READ, id="call_0", arguments={"path": "new.txt"})
+    outputs = {"A": calls_output(first_call), "B": calls_output(second_call)}
+
+    async def respond(
+        input: list[ChatMessage], tools: Any, tool_choice: Any, config: Any
+    ) -> ModelOutput:
+        return outputs[input[-1].text]
+
+    model = get_model("mockllm/model", custom_outputs=respond, memoize=False)
+    second_seen = anyio.Event()
+    seen: list[ToolCall] = []
+
+    @protocol
+    def waits_for_the_second() -> Protocol:
+        async def decide(
+            context: Context, step: BeforeToolCall, escalations: Escalations
+        ) -> Decision | None:
+            seen.append(step.call)
+            if len(seen) == 1:
+                await second_seen.wait()
+            else:
+                second_seen.set()
+            return None
+
+        return decide
+
+    bridge = in_process_bridge([])
+    handed: dict[str, ModelOutput] = {}
+
+    async def request(name: str) -> None:
+        handed[name], _ = await bridge_generate(
+            bridge,
+            model,
+            [ChatMessageUser(content=name)],
+            [],
+            None,
+            GenerateConfig(),
+            requested_model=None,
+        )
+
+    with active([waits_for_the_second()]):
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(request, "A")
+            await anyio.wait_all_tasks_blocked()
+            tg.start_soon(request, "B")
+
+    [a] = handed["A"].message.tool_calls or []
+    [b] = handed["B"].message.tool_calls or []
+    assert a == first_call
+    assert b == replace(second_call, id=b.id) and b.id != "call_0"
+    # the second's steps name the id it was handed over under
+    assert [call.id for call in seen] == ["call_0", b.id]
+
+
 # The rule, across dialects: a call keeps the model's id, and its native
 # state, and replays with the arguments it was handed. A call under an id that
 # already names another call gets a fresh id and no state. No call ever
@@ -10090,6 +10171,9 @@ async def test_calls_keep_the_models_ids_and_their_own_state(
         [(first, _), (second, _)] = turns[1]
         assert len({first, second, *model_ids}) == 4
         assert [path for _, path in turns[1]] == paths
+        if dialect in ("google", "computer_use"):
+            # a Gemini call's anchor is its own: the renamed call keeps it
+            assert [state for _, _, state in replayed[1]] == [GOOGLE_SIGNATURE, None]
         # the ids' state was the later turn's, so it is dropped
         assert all(
             _own_or_none(dialect, path, state)

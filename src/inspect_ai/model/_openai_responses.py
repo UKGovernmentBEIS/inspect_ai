@@ -865,7 +865,12 @@ def hand_openai_tool_call(call: ToolCall) -> None:
     if not _item_names_call(param, call):
         del internal.tool_calls[call.id]
     elif not _item_carries_arguments(param, call):
-        handed = _with_tool_call_arguments(dict(param), call)
+        try:
+            handed = _with_tool_call_arguments(dict(param), call)
+        except (TypeError, ValueError):
+            # arguments JSON can't encode (e.g. a parsed YAML date)
+            del internal.tool_calls[call.id]
+            return
         internal.tool_calls[call.id] = cast(
             Any,
             {key: value for key, value in handed.items() if key != "id"},
@@ -896,11 +901,17 @@ def _item_carries_arguments(param: dict[str, Any], call: ToolCall) -> bool:
     """Whether the item, parsed as the provider parses it, has the call's arguments."""
     match param["type"]:
         case "function_call":
-            handed = _with_tool_call_arguments(param, call)["arguments"]
-            try:
-                return json_equal(json.loads(param["arguments"]), json.loads(handed))
-            except (TypeError, ValueError):
-                return bool(param["arguments"] == handed)
+            # as the parse gives a call its arguments, malformed or not
+            arguments = param["arguments"]
+            if param["name"] == UPDATE_PLAN_NAME and call.function == TODO_WRITE_NAME:
+                try:
+                    plan = json.loads(arguments)
+                except json.JSONDecodeError:
+                    plan = None
+                if isinstance(plan, dict):
+                    arguments = json.dumps(_update_plan_args_to_inspect(plan))
+            parsed = parse_tool_call(call.id, call.function, arguments)
+            return json_equal(parsed.arguments, call.arguments)
         case "custom_tool_call":
             return bool(param.get("input") == next(iter(call.arguments.values()), None))
         # with the fields the parse doesn't read, which an item may lack (a

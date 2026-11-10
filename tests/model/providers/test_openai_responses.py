@@ -2995,3 +2995,60 @@ def test_an_unchanged_computer_call_keeps_its_item_without_safety_checks():
     hand_openai_tool_call(call)
 
     assert assistant_internal().tool_calls["call_computer"] == item
+
+
+@pytest.mark.parametrize(
+    "raw", ['{"command":   "ls"}', '{"command": "ls"', "ls -la", "2024-01-01"]
+)
+def test_an_unchanged_function_call_keeps_its_item(raw: str) -> None:
+    from inspect_ai.model._assistant_internal import init_sample_assistant_internal
+    from inspect_ai.model._call_tools import parse_tool_call
+    from inspect_ai.model._openai_responses import (
+        assistant_internal,
+        hand_openai_tool_call,
+    )
+
+    init_sample_assistant_internal()
+    item: Any = {
+        "type": "function_call",
+        "id": "fc_1",
+        "call_id": "call_1",
+        "name": "bash",
+        "arguments": raw,
+    }
+    assistant_internal().tool_calls["call_1"] = cast(Any, dict(item))
+
+    hand_openai_tool_call(parse_tool_call("call_1", "bash", raw))
+
+    assert assistant_internal().tool_calls["call_1"] == item
+
+
+def test_a_changed_call_whose_arguments_json_cant_encode_keeps_no_item() -> None:
+    import datetime
+
+    from inspect_ai.model._assistant_internal import init_sample_assistant_internal
+    from inspect_ai.model._openai_responses import (
+        assistant_internal,
+        hand_openai_tool_call,
+    )
+    from inspect_ai.tool._tool_call import ToolCall
+
+    init_sample_assistant_internal()
+    assistant_internal().tool_calls["call_1"] = cast(
+        Any,
+        {
+            "type": "function_call",
+            "id": "fc_1",
+            "call_id": "call_1",
+            "name": "bash",
+            "arguments": "2024-01-01",
+        },
+    )
+
+    hand_openai_tool_call(
+        ToolCall(
+            id="call_1", function="bash", arguments={"day": datetime.date(2024, 1, 2)}
+        )
+    )
+
+    assert "call_1" not in assistant_internal().tool_calls

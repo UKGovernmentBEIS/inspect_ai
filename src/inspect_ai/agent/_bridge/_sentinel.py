@@ -285,11 +285,13 @@ class _HandedCalls:
     ) -> bool:
         """Whether the model's id for `calls` (those of a response under it) names another call.
 
-        It does when it is empty, in the request's conversation, reserved, or
-        handed over or rejected before for another call: another function or
-        arguments as proposed, several calls, or another request's. The same
-        call in a retry of the request (served from the model cache, or
-        proposed again after a rejection) keeps its id. So does an id a Gemini
+        It does when it is empty, in the request's conversation, reserved (seen
+        in a request, so the scaffold already has a call under it), or proposed
+        before for another call: another function or arguments as proposed,
+        several calls, or another request's. The same call in a retry of the
+        request (served from the model cache, or proposed again after a
+        rejection), before any request carries it, keeps its id. So does an id
+        a Gemini
         CLI echo (`name__id`, `_echoes`) can't tell apart from a reserved or
         handed one, or one of the response's other calls (`siblings`).
         """
@@ -301,9 +303,11 @@ class _HandedCalls:
             for echo in _echoes(call)
         ):
             return True
+        if call_id in self.reserved_ids:
+            return True
         handed = self.handed.get(call_id)
         if handed is None:
-            return call_id in self.reserved_ids
+            return False
         return (
             handed.proposed is None
             or handed.request != request.key
@@ -362,11 +366,12 @@ class _HandedCalls:
                 )
         return issued if checks is not None else None
 
-    def reject(self, request: BridgedRequest, calls: Sequence[ToolCall]) -> None:
-        """Record a rejected turn's calls, which the model sees but the scaffold never runs.
+    def propose(self, request: BridgedRequest, calls: Sequence[ToolCall]) -> None:
+        """Record a response's calls under the ids they keep, before approval and the sentinel review them.
 
-        A later call under one of their ids is a different call's unless it is
-        the same call proposed again (`reused`).
+        So a concurrent request's call under one of the ids is another call's
+        (`reused`), whether these are then handed over (`hand_over`) or
+        rejected, when the model sees them but the scaffold never runs them.
         """
         shared = repeated_call_ids(calls)
         for call in calls:
