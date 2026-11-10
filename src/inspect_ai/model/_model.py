@@ -1957,6 +1957,8 @@ class Model:
                     provider_message=str(output),
                 ) from output
 
+            output = derive_recorded_functions(output)
+
             # a provider whose generate makes one request leaves the context
             # size to be read from its usage
             if output.input_context_tokens is None:
@@ -1979,8 +1981,6 @@ class Model:
             for choice in output.choices:
                 for tool_call in choice.message.tool_calls or []:
                     tool_call.view = tool_call_view(tool_call, tdefs)
-
-            output = derive_recorded_functions(output)
 
             # complete the transcript event
             complete(output, call)
