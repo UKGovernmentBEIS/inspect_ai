@@ -520,6 +520,20 @@ def test_dataset_auto_id() -> None:
     assert [sample.id for sample in dataset] == [id for id in range(1, 11)]
 
 
+def test_dataset_jsonl_blank_lines_skipped(tmp_path: Path) -> None:
+    # blank and whitespace-only lines (e.g. an extra newline at the end of
+    # the file) are not records
+    record = json_module.dumps({"input": "x", "target": "y"})
+    dataset_file = tmp_path / "dataset.jsonl"
+    dataset_file.write_text(f"{record}\n\n{record}\n   \n{record}\n\n")
+    assert len(json_dataset(dataset_file.as_posix())) == 3
+
+    # an invalid line still fails, reporting its line number in the file
+    dataset_file.write_text(f"{record}\n\nnot json\n")
+    with pytest.raises(ValueError, match=r"\(line 3\)"):
+        json_dataset(dataset_file.as_posix())
+
+
 def test_dataset_nan_target_treated_as_missing() -> None:
     # HuggingFace / pandas-backed sources represent missing string values as
     # float NaN. These must be treated like None (-> ""), not stringified to
