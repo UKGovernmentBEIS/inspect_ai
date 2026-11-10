@@ -347,10 +347,29 @@ class PortRequest:
   after `task_args_passed`: "the task's dataset was samples_from_creator(),
   so its samples were sent by the task that added it". The `TaskLogger` sets
   it from the dataset type when it builds the spec, so it is in the log from
-  the first write and in every copy. Its consumer is `eval_retry()`'s refusal.
-  Nothing else needs to look: such a task cannot be requested from `eval()`,
-  `eval_set()` or a selection worker, so no eval-set or Steward check ever
-  meets its log as a requested task's, and it is never retried in-run.
+  the first write and in every copy. It has two consumers:
+  - `eval_retry()` refuses such a log ("Run shapes").
+  - **Task identity.** Such a task cannot be requested, but its log can still
+    look like a requested task's: `task_identifier()` leaves out the dataset,
+    so a fixed task with the same file, name, arguments, plan, model and
+    limits gets the same identifier. `task_identifier()` therefore adds
+    `send_samples: True` to its additional hash for a log whose
+    `eval.send_samples` is set (and for a `ResolvedTask` whose dataset is
+    `samples_from_creator()`). The field is added only when true, as the
+    output-metered token limit is, so every other identifier is unchanged
+    and `TASK_IDENTIFIER_VERSION` stays. Every consumer that pairs logs with
+    tasks by identifier then keeps the two apart: `eval_set()`'s
+    `list_latest_eval_logs()` never counts such a log as a requested task's
+    success, never hands it to `as_previous_tasks()` as a failed task's prior
+    source, and `latest_completed_task_eval_logs()` never selects or cleans it
+    up as another task's older log; an external supervisor such as Steward
+    calls the same `task_identifier()` on log headers, so it groups such a
+    log under its own identifier and never chooses it as a manifest task's
+    attempt or resume source. As a last check, a selection worker's
+    `_resumed_task()` refuses a resume log whose `eval.send_samples` is set
+    with `PrerequisiteError` ("<log> is the log of a task fed by its creator
+    and cannot be resumed as task '<identifier>'").
+  It is never retried in-run.
 
 ### Slot lending
 
@@ -488,7 +507,11 @@ new `TaskHandle`, `TaskEndedError`, `SampleAbandonedError` and
 `CreatorChannel` gets `samples_dropped()` and `stop()`.
 
 Eval logs: new `EvalSpec.send_samples` (default `False`); logs without it read
-as `False`. Producer: `TaskLogger`. Consumer: `eval_retry()`. It changes the
+as `False`. Producer: `TaskLogger`. Consumers: `eval_retry()` (refusal),
+`task_identifier()` (a distinct identifier for such logs, so eval-set
+matching, prior-source selection, cleanup and external supervisors keep them
+apart from requested tasks; no other identifier changes) and selection
+resume (refusal). It changes the
 viewer's OpenAPI schema and generated TypeScript types (a coordinated ts-mono
 update); the viewer does not display it. An Inspect version without the field
 also lacks `samples_from_creator()`, so it cannot load the task to retry it.
@@ -503,8 +526,11 @@ No control-channel or config file changes.
   name; their content is sample input, treated as any dataset sample is.
 - A handle is an in-process object; nothing new is exposed on the control
   channel.
-- **`EvalSpec.send_samples`** only makes `eval_retry()` refuse a log; a log
-  edited to clear it fails at task resolution instead.
+- **`EvalSpec.send_samples`** makes `eval_retry()` and selection resume
+  refuse a log and keeps the log's identifier apart from any requested
+  task's. A log edited to clear it fails at task resolution under
+  `eval_retry()`, but could then pair with a fixed task of the same identity,
+  the same trust eval-set reuse already places in any log's header.
 
 ## Testing
 
@@ -568,7 +594,19 @@ test touched), with mockllm models; every test that waits is bounded with
   - retention: after many requests, the channel holds no request, sample or
     result once each call has returned;
   - `eval.send_samples` is set in the rollout's log while unfinished and when
-    finished, and `False` for every other task and every existing log.
+    finished, and `False` for every other task and every existing log;
+- `tests/test_eval_set.py` (colliding identity): a fixed task with the same
+  file, name, arguments, plan, model and limits as a fed task whose marked
+  log is in the log directory, with `log_dir_allow_dirty` true and false:
+  - a marked `success` log does not count as the fixed task's success; the
+    fixed task runs its own dataset;
+  - a marked `error` log is not used as its prior source by eval-set resume,
+    and nothing is reused from it;
+  - default cleanup neither selects nor deletes the marked log;
+  - a selection worker given that log as `resume` raises `PrerequisiteError`;
+  - `task_identifier()` of the marked log differs from the fixed task's, and
+    every identifier of an existing log and unmarked task is unchanged (the
+    existing identifier tests still pass).
 
 ## Implementation plan
 
@@ -587,7 +625,9 @@ path loans rely on):
    channels closed with the creator's attempt; no retry, and `can_retry=False`,
    for fed tasks; `channel.stop()`
    from the `cancel_task` callback), `_eval/task/log.py` and `log/_log.py`
-   (`EvalSpec.send_samples`), `_eval/eval.py` (the `eval_resolve_tasks` and
+   (`EvalSpec.send_samples`), `_eval/evalset.py` (`task_identifier()` with
+   `send_samples`, `_resumed_task()`'s refusal), `_eval/eval.py` (the
+   `eval_resolve_tasks` and
    `eval_retry()` refusals; `max_tasks`, `max_samples` and `max_sandboxes`
    docstrings), `__init__.py` (exports), `docs/task-source.qmd`,
    `docs/parallelism.qmd`, `docs/reference`. The new `EvalSpec` field lands

@@ -137,7 +137,7 @@ Goals:
   through the control channel.
 - Sandbox setup beside the dispatcher, once per configuration per run; a
   failed setup ends only the tasks that need it.
-- No process-wide working-directory or environment change anywhere in a run;
+- No process-wide working-directory or environment change across an `await`;
   per-setup provider state; a compatibility path for third-party providers.
 
 Non-goals:
@@ -304,7 +304,10 @@ The design keeps these, and each section below says how:
 6. **Once dispatch ends, nothing more starts.** In one synchronous step the
    queue closes (no additions, no retries published) and every record not yet
    started ends, before the attempt group joins its attempts.
-7. **Nothing in a run calls `os.chdir` or writes `os.environ`.**
+7. **Sandbox setup, key resolution, cleanup and logger construction never
+   call `os.chdir` or write `os.environ`.** The one directory change left in a
+   run is today's loading of a task from a file ("Setup does not change the
+   process's directory or environment").
 8. **Each `task_cleanup` sees what its own `task_init` bound**, and a sample
    sees its configuration's bindings unless it bound its own.
 9. **A setup failure ends only the tasks that need it**, through an ordinary
@@ -766,7 +769,15 @@ Ransom, 2026-11-03).
 
 `chdir` and `environ_vars` are removed from setup, key resolution and
 cleanup, and the `chdir` around `TaskLogger` construction goes too
-("Adding tasks"). In their place:
+("Adding tasks"). One directory change stays, unchanged: loading a task from
+a file (`enqueue_task("path/tasks.py@name")`, or a seed given as a file)
+goes through `load_file_tasks()` and `create_file_tasks()`, whose
+`chdir_python` blocks change the directory and `sys.path` so the file's
+local imports and relative reads work while it is imported and its task
+constructed. Those blocks are synchronous, with no `await` inside, so no
+other coroutine sees them (worker threads can, as today); a test keeps
+local imports and relative file reads working for a task file added from a
+solver, with the directory restored afterwards. In their place:
 
 - **Inspect resolves config paths against the task directory** in one
   helper, `resolve_config_paths(config, task_dir)`
@@ -1042,6 +1053,10 @@ test that waits on a run is bounded with `fail_after`.
   attempt cancelled before its first step (the dispatcher's pick followed at
   once by a cancel of the record) leaves no record in `starting`; every record
   has ended when `eval_async()` returns or raises.
+- `tests/test_enqueue_task.py` (loader exception): a solver's
+  `enqueue_task("other_dir/tasks.py@name")`, whose module imports a sibling
+  module and whose task reads a relative file at construction, adds and runs
+  the task, and `os.getcwd()` afterwards is the launch directory.
 - `tests/test_task_source.py`: with a `next_tasks()` held on an
   `anyio.Event`, a task that a background coroutine of the finished seed
   sample adds with `enqueue_task()` starts and completes before the event is
