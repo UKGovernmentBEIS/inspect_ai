@@ -1,5 +1,6 @@
 import contextlib
 import importlib.util
+import json
 import re
 from collections.abc import Mapping, Sequence
 from contextvars import ContextVar
@@ -17,7 +18,7 @@ from typing import (
 )
 
 from pydantic import BaseModel, Field, ValidationError
-from pydantic_core import to_json
+from pydantic_core import PydanticSerializationError, to_json
 
 from inspect_ai._sentinel._context import warn_sentinel_bridged
 from inspect_ai._util._async import is_callable_coroutine
@@ -356,6 +357,25 @@ def _log_dropped_client_header(message: str, *, warning: bool) -> None:
         logger.info(message)
 
 
+def _bridge_response_content(result: BaseModel) -> bytes:
+    """Serialize a bridge result for an SDK raw-response parser.
+
+    Pydantic's JSON serializer rejects lone surrogates while producing UTF-8.
+    Fall back to a JSON-safe model dump so raw-response callers can parse the
+    same response instead of failing during bridge transport serialization.
+    """
+    try:
+        return result.model_dump_json().encode()
+    except PydanticSerializationError as ex:
+        if "surrogates not allowed" not in str(ex):
+            raise
+
+        dumped = result.model_dump(mode="json")
+        return json.dumps(dumped, ensure_ascii=False, separators=(",", ":")).encode(
+            "utf-8", errors="backslashreplace"
+        )
+
+
 @contextlib.asynccontextmanager
 async def agent_bridge(
     state: AgentState | None = None,
@@ -574,7 +594,7 @@ def init_openai_request_patch() -> None:
         response = httpx2.Response(
             status_code=200,
             headers={"content-type": "application/json"},
-            content=result.model_dump_json().encode(),
+            content=_bridge_response_content(result),
             request=client._build_request(options),
         )
         return await client._process_response(
@@ -708,7 +728,7 @@ def init_anthropic_request_patch() -> None:
         response = httpx2.Response(
             status_code=200,
             headers={"content-type": "application/json"},
-            content=result.model_dump_json().encode(),
+            content=_bridge_response_content(result),
             request=client._build_request(options),
         )
         return await client._process_response(
