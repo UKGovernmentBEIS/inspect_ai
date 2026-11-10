@@ -45,6 +45,7 @@ from inspect_ai.model._assistant_internal import (
     generation_call_states,
     shared_call_ids,
 )
+from inspect_ai.model._cache import set_unkeyed_metadata
 from inspect_ai.model._call_tools import decisive_sentinel_exception
 from inspect_ai.model._chat_message import (
     ChatMessage,
@@ -837,7 +838,7 @@ def name_proposal(result: ChatMessageTool, proposal_id: str) -> None:
     as `metadata["bridge"]["proposal_id"]`, as on the call's host `ToolEvent`,
     so a reader of the result (ACP's tool call cards) can pair it with the
     model's proposal of the call. It is not sent to the provider and is left
-    out of the model cache key.
+    out of the model cache key (`set_unkeyed_metadata`).
     """
     if result.tool_call_id == proposal_id:
         return
@@ -847,7 +848,7 @@ def name_proposal(result: ChatMessageTool, proposal_id: str) -> None:
         **(bridge if isinstance(bridge, dict) else {}),
         "proposal_id": proposal_id,
     }
-    result.metadata = metadata
+    set_unkeyed_metadata(result, metadata)
 
 
 def name_result_proposals(bridge: AgentBridge, input: Sequence[ChatMessage]) -> None:

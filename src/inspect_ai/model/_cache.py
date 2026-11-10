@@ -20,7 +20,7 @@ from inspect_ai._util.logger import warn_once
 from inspect_ai._util.trace import trace_message
 from inspect_ai.tool import ToolChoice, ToolInfo
 
-from ._chat_message import ChatMessage
+from ._chat_message import ChatMessage, ChatMessageTool
 from ._model_output import ModelOutput
 
 logger = logging.getLogger(__name__)
@@ -317,17 +317,47 @@ def _cache_key_config(config: BaseModel) -> dict[str, Any]:
     return values
 
 
+def set_unkeyed_metadata(message: ChatMessageTool, metadata: dict[str, Any]) -> None:
+    """Set a tool message's metadata to an annotation the model cache key leaves out.
+
+    For an annotation never sent to the provider: an agent bridge that passes a
+    tool result on under an id other than the model's records the model's id on
+    it as `metadata["bridge"]["proposal_id"]` for transcript readers. While the
+    message's metadata stays as set here, its key is that of the metadata it had
+    before, unchanged by the annotation (including empty containers and a value
+    the annotation replaced).
+    """
+    keyed = message.metadata
+    if message._keyed_metadata is not None:
+        annotated, earlier = message._keyed_metadata
+        if keyed == annotated:
+            keyed = earlier
+    message._keyed_metadata = (_metadata_snapshot(metadata), keyed)
+    message.metadata = metadata
+
+
+def _metadata_snapshot(metadata: dict[str, Any]) -> dict[str, Any]:
+    """`metadata` copied two levels deep, to detect a later edit of its annotation."""
+    return {k: dict(v) if isinstance(v, dict) else v for k, v in metadata.items()}
+
+
 def _cache_key_message(message: ChatMessage) -> dict[str, Any]:
     """A request message as the cache key sees it.
 
-    An agent bridge that passes a tool result on under an id other than the
-    model's records the model's id on it as `metadata["bridge"]["proposal_id"]`
-    for transcript readers. That id is never sent to the provider, so the key
-    leaves it out.
+    A tool message's metadata annotation set with `set_unkeyed_metadata` is
+    left out. A message without a record of its earlier metadata (one read back
+    from a log, or whose metadata changed after it was annotated) has the
+    `metadata["bridge"]["proposal_id"]` annotation and the containers that
+    leaves empty removed instead.
     """
-    values = message.model_dump(
-        exclude={"id": True, "content": {"__all__": {"cache_breakpoint"}}}
-    )
+    exclude: Any = {"id": True, "content": {"__all__": {"cache_breakpoint"}}}
+    if isinstance(message, ChatMessageTool) and message._keyed_metadata is not None:
+        annotated, keyed = message._keyed_metadata
+        if message.metadata == annotated:
+            return message.model_copy(update={"metadata": keyed}).model_dump(
+                exclude=exclude
+            )
+    values = message.model_dump(exclude=exclude)
     metadata = values.get("metadata")
     if message.role == "tool" and isinstance(metadata, dict):
         bridge = metadata.get("bridge")

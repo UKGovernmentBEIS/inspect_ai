@@ -10039,6 +10039,28 @@ async def test_a_results_proposal_annotation_leaves_the_requests_cache_key() -> 
     }
     assert key() == unnamed_key
 
+    # as do its empty metadata containers, and a `bridge` the annotation replaces
+    earlier_metadata: list[dict[str, Any]] = [{}, {"bridge": {}}, {"bridge": "other"}]
+    for unnamed_metadata in earlier_metadata:
+        result.metadata = unnamed_metadata
+        unnamed_key = key()
+        name_proposal(result, "call_read")
+        assert result.metadata == {"bridge": {"proposal_id": "call_read"}}
+        assert key() == unnamed_key, unnamed_metadata
+        # a later edit to the metadata is in the key
+        result.metadata = {**result.metadata, "note": 2}
+        assert key() != unnamed_key
+
+    # a copy keeps its key; read back from a log, it is keyed as unannotated
+    # metadata of None
+    result.metadata = {"bridge": {}}
+    unnamed_key = key()
+    name_proposal(result, "call_read")
+    messages = [result.model_copy(deep=True)]
+    assert key() == unnamed_key
+    messages = [ChatMessageTool.model_validate_json(result.model_dump_json())]
+    assert key() == original_key
+
 
 def _google_after_signed_text(*calls: tuple[str, str, bytes | None]) -> ModelOutput:
     """A Gemini response, as the provider parses it: a signed text part, then `calls`.
