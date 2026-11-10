@@ -7432,6 +7432,82 @@ async def test_answer_sent_while_a_reused_call_id_ran_links_nothing(
     assert events[1].message_id == (answers[1] if resent == "result" else None)
 
 
+@pytest.mark.parametrize("side", [True, False], ids=["side request", "none"])
+@pytest.mark.parametrize("dialect", ["google", "completions", "responses", "anthropic"])
+async def test_equal_earlier_answer_copied_while_a_call_runs_keeps_its_link(
+    dialect: HostDialect, side: bool
+) -> None:
+    """A side request copying an equal earlier answer of another call leaves the running call's link.
+
+    The reply reads `a`, answered "File written.". The next reads `b`. While
+    it runs, the scaffold sends a side request (a loop check) with its own
+    prompt and a copy of the conversation up to `a`'s answer. Once `b` completes, its own result, also "File
+    written.", links: the copied answer answers `a`, also in Google, whose
+    results name only their function.
+    """
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            tool_calls_output(
+                ToolCall(id="call_a", function="read_file", arguments={"path": "a"})
+            ),
+            tool_calls_output(
+                ToolCall(id="call_b", function="read_file", arguments={"path": "b"})
+            ),
+            *[ModelOutput.from_content("mockllm/model", "Noted.")] * 2,
+        ],
+    )
+    started, release = anyio.Event(), anyio.Event()
+
+    async def result(path: str) -> str:
+        if path == "b":
+            started.set()
+            await release.wait()
+        return "File written."
+
+    bridge = SandboxAgentBridge(
+        state=AgentState(messages=[ChatMessageUser(content="Read a, then b.")]),
+        filter=None,
+        retry_refusals=None,
+        compaction=None,
+        port=13131,
+        model=None,
+        model_aliases={"inspect": model},
+        bridged_tools={"h": {"read_file": read_file(AsyncMock(side_effect=result))}},
+    )
+    [info] = declare("read_file")
+    conversation = _HostConversation(dialect, "Read a, then b.", info)
+    with recorded_transcript() as recorded:
+        first = await conversation.request(bridge)
+        await call_host_tool(bridge)("h", "read_file", first[0][1])
+        conversation.results(first, ["File written."])
+        copied = list(conversation.history)
+        second = await conversation.request(bridge)
+        original = list(conversation.history)
+
+        async def execute() -> None:
+            await call_host_tool(bridge)("h", "read_file", second[0][1])
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(execute)
+            await started.wait()
+            if side:
+                conversation.history = [
+                    _user_turn(dialect, "Check this conversation for loops."),
+                    *copied[1:],
+                ]
+                await conversation.request(bridge)
+            release.set()
+        conversation.history = original
+        conversation.results(second, ["File written."])
+        await conversation.request(bridge)
+
+    model_events = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    answers = [m.id for m in model_events[-1].input if m.role == "tool"]
+    events = [e for e in recorded.events if isinstance(e, ToolEvent)]
+    assert [e.message_id for e in events] == answers
+
+
 @pytest.mark.parametrize(
     "reuse",
     ["while both run", "while one runs", "after both complete", "none"],

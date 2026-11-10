@@ -716,9 +716,10 @@ class AgentBridge:
         list of one text part, or other metadata).
 
         With `named_results` (Google), a result names its function rather
-        than its call, so whether an equal result was sent before
-        (`_link_result_messages`) is judged by function rather than by the
-        call id the dialect gave it.
+        than its call, and the call id the dialect gives it depends on the
+        call's position in its turn. Whether an equal result was sent before
+        (`_link_result_messages`) is then judged by the function and
+        arguments of the call it answers (`_named_result_key`).
         """
         self._requests += 1
         contents = [content_hash(message) for message in messages]
@@ -749,8 +750,20 @@ class AgentBridge:
         self._latest_request = self._replace_kept(self._latest_request, request)
         self._remember_thread(request)
         inferred = {id(message) for message in inferred_results}
+        calls = (
+            {
+                call.id: call
+                for message in messages
+                if isinstance(message, ChatMessageAssistant)
+                for call in message.tool_calls or []
+            }
+            if named_results
+            else {}
+        )
         keys = {
-            index: _named_result_key(message) if named_results else contents[index]
+            index: _named_result_key(message, calls.get(message.tool_call_id or ""))
+            if named_results
+            else contents[index]
             for index, message in enumerate(messages)
             if isinstance(message, ChatMessageTool)
         }
@@ -1344,11 +1357,14 @@ def _call_key(call: ToolCall) -> tuple[str, str]:
     return call.function, canonical_tool_arguments(call.arguments)
 
 
-def _named_result_key(message: ChatMessageTool) -> str:
-    """`content_hash` of a result that names its function rather than its call."""
-    return content_hash(
-        message.model_copy(update={"tool_call_id": f"function:{message.function}"})
-    )
+def _named_result_key(message: ChatMessageTool, call: ToolCall | None) -> str:
+    """`content_hash` of a result that names its function rather than its call.
+
+    The result is keyed by the function and arguments of `call`, the call it
+    answers, or by its function alone when the request has no such call.
+    """
+    answered = json.dumps(_call_key(call)) if call else f"function:{message.function}"
+    return content_hash(message.model_copy(update={"tool_call_id": answered}))
 
 
 def _unplaced_key(message: ChatMessage) -> str:
