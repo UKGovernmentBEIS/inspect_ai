@@ -54,7 +54,11 @@ from inspect_ai._eval.task.scan import (
     serialized_scan,
     verify_selection_scan_dir,
 )
-from inspect_ai._sentinel._config import SentinelSpec, resolve_sentinel_spec
+from inspect_ai._sentinel._config import (
+    SentinelProxy,
+    SentinelSpec,
+    resolve_sentinel_spec,
+)
 from inspect_ai._util._async import run_coroutine
 from inspect_ai._util.azure import call_with_azure_auth_fallback
 from inspect_ai._util.dotenv import init_dotenv
@@ -148,6 +152,7 @@ from .task.scan import scan_context
 from .task.task import PreviousTask, resolve_epochs, resolve_task_epochs
 from .task.task_source import TaskSource
 from .task.tasks import Tasks
+from .task.util import resolve_task_sample_ids, sample_id_filter
 
 if TYPE_CHECKING:
     from inspect_ai._control.eval_state import DeferredStatsProvider
@@ -305,6 +310,7 @@ def eval_set(
     eval_set_id: str | None = None,
     embed_viewer: bool = False,
     sentinel: SentinelSpec | None = None,
+    sentinel_proxy: SentinelProxy | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> tuple[bool, list[EvalLog]]:
     r"""Evaluate a set of tasks.
@@ -474,6 +480,7 @@ def eval_set(
         sentinel: Monitors and protocols that watch the agent's steps (requires the `inspect_sentinel` package). Experimental: not yet a stable API; may change without notice.
             A protocol, a list or mapping of monitors and protocols with at least one protocol, a config file path or registered protocol name, or a parsed configuration. Monitors alone are an error: wrap them in `observe_only()` to record without acting.
             Overrides the task's sentinel. Defaults to no sentinel.
+        sentinel_proxy: Whether to look for a sentinel sidecar behind each model's proxy, which then judges the agent's model calls. Off unless set: `off` (the default) never looks, `auto` uses a sidecar it finds, and `required` fails a task unless one is found. Only an Anthropic, OpenAI or OpenAI-compatible model whose base URL was set is probed. Experimental: not yet a stable API; may change without notice.
         **kwargs: Model generation options.
 
     Returns:
@@ -569,6 +576,7 @@ def eval_set(
             approval=approval,
             review=review,
             sentinel=sentinel,
+            sentinel_proxy=sentinel_proxy,
             notification=notification,
             log_level=log_level,
             log_level_transcript=log_level_transcript,
@@ -1894,10 +1902,34 @@ def log_samples_complete(
         return False
     epoch_count = epochs.epochs
 
-    count = samples_selected(
-        task.task.dataset, limit, sample_id, task.task.name, task_names
+    dataset = task.task.dataset
+    # count selected rows, not distinct ids, so duplicate ids still reach
+    # the run's unique-id validation
+    planned = (
+        samples_selected(dataset, limit, sample_id, task.task.name, task_names)
+        * epoch_count
     )
-    planned = count * epoch_count
+    selected_ids: set[str] | None
+    if sample_id is not None:
+        sample_id = resolve_task_sample_ids(task.task.name, sample_id, task_names)
+        matcher = sample_id_filter(sample_id if sample_id is not None else [])
+        selected_ids = {
+            str(selected_id)
+            for position, sample in enumerate(dataset, start=1)
+            if matcher.matches(
+                selected_id := sample.id if sample.id is not None else position
+            )
+        }
+    elif dataset.shuffled:
+        # a shuffle can draw a different subset on each task resolution, so
+        # ids cannot prove that a limit selection changed: compare counts
+        selected_ids = None
+    else:
+        selection = slice(*limit) if isinstance(limit, tuple) else slice(0, limit)
+        selected_ids = set()
+        for index in range(len(dataset))[selection]:
+            sample = dataset[index]
+            selected_ids.add(str(sample.id if sample.id is not None else index + 1))
 
     # a task no `task:id` selector named ran no samples, so its success log
     # holds none (and no results): nothing is outstanding
@@ -1914,16 +1946,34 @@ def log_samples_complete(
     # logs from older versions), which fall through to the planned-count
     # comparison below.
     logged_samples = log.header.results.logged_samples
+    # a resolution stamped in this process is honored for the life of
+    # the run: with `retry_immediate=False` the outer tenacity pass
+    # re-enters this classification after a sibling task fails, and
+    # without the registry it would re-dispatch the abandoned remainder
+    # in-process. A later invocation (fresh process, empty registry)
+    # sees the shortfall and re-runs the remainder as designed.
+    if logged_samples is not None and task_gracefully_resolved(log.header.eval.task_id):
+        return True
+
+    # Counts alone cannot prove coverage when a selector or limit range
+    # changes. Keep reusing supersets, but require every requested id.
+    previous_ids = log.header.eval.dataset.sample_ids
+    if selected_ids is not None and (
+        previous_ids is None or not selected_ids.issubset(map(str, previous_ids))
+    ):
+        return False
+
     if logged_samples is not None:
-        if logged_samples >= planned:
-            return True
-        # a resolution stamped in this process is honored for the life of
-        # the run: with `retry_immediate=False` the outer tenacity pass
-        # re-enters this classification after a sibling task fails, and
-        # without the registry it would re-dispatch the abandoned remainder
-        # in-process. A later invocation (fresh process, empty registry)
-        # sees the shortfall and re-runs the remainder as designed.
-        return task_gracefully_resolved(log.header.eval.task_id)
+        # A partial log's sample_ids describe the planned selection, not
+        # which samples resolved. A smaller selection still needs a retry
+        # to establish coverage; the retry can reuse completed samples.
+        # Metric recomputation can shrink total_samples to recorded samples,
+        # so also retain the original selection's planned count, and the
+        # current one in case the dataset grew.
+        previous_planned = len(previous_ids or []) * epoch_count
+        return logged_samples >= max(
+            planned, previous_planned, log.header.results.total_samples
+        )
 
     if log.header.results.total_samples < planned:
         return False
