@@ -734,6 +734,18 @@ class TestGetModelInputTokens:
         assert info.snapshot == "20260901"
         assert str(info.knowledge_cutoff_date) == "2026-06-01"
 
+    def test_claude_fable_5_2(self):
+        """Test that Claude Fable 5.2 resolves to its own registration."""
+        model = get_model("anthropic/claude-fable-5-2")
+        tokens = get_model_input_tokens(model)
+        assert tokens == 1_000_000
+        info = get_model_info("anthropic/claude-fable-5-2")
+        assert info is not None
+        assert info.model == "Claude Fable 5.2"
+        assert info.snapshot == "20261109"
+        assert str(info.knowledge_cutoff_date) == "2026-06-01"
+        assert info.reasoning_effort_default == "high"
+
     def test_claude_mythos_preview(self):
         """Test that Claude Mythos Preview reports 1MM input tokens."""
         model = get_model("anthropic/claude-mythos-preview")
