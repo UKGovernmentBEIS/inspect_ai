@@ -913,6 +913,24 @@ async def call_tool(
         event.arguments = shown.arguments
         return shown
 
+    # A sentinel sidecar that ended the sample at a call of this turn ends it
+    # before any of the turn's calls runs, as an in-process sentinel's
+    # terminate at a call does, whatever the call holds.
+    from inspect_ai._sentinel._sidecar._act import take_call_decision
+
+    decided = take_call_decision(call.id)
+    if decided is not None and decided.action == "terminate":
+        await record_pending_tool_event()
+        raise TerminateSampleError(decided.message or "Sentinel requested termination.")
+
+    # A call a sentinel sidecar rejected is answered as an in-process
+    # sentinel's rejection is, whatever it holds: the eval is handed it with
+    # its id and function only, so its arguments are never parsed. No approver
+    # sees it: the sidecar judged the turn before Inspect was handed it.
+    if decided is not None and decided.action == "reject":
+        await record_pending_tool_event()
+        raise ToolApprovalError(decided.message)
+
     # if there was an error parsing the ToolCall, raise that
     if call.parse_error:
         raise await record_tool_parsing_error(call.parse_error)
@@ -950,6 +968,16 @@ async def call_tool(
     call, arguments = validated
     # without oversight the event records the model's arguments, canonical
     shown = shown_to_callbacks(call)
+
+    # A call the sidecar changed is the call Inspect is handed, so approvers
+    # and an in-process sentinel see it changed and may change it again.
+    if decided is not None and decided.modified is not None:
+        error = _sidecar_modified_error(shown, decided.modified)
+        if error is not None:
+            await record_pending_tool_event()
+            raise RuntimeError(error)
+        call, arguments = await revalidated_tool_call(decided.modified, tool_def)
+        shown = shown_to_callbacks(call)
 
     # if we have a tool approver, apply it now
     from inspect_ai.approval._apply import apply_tool_approval
@@ -1056,6 +1084,12 @@ _SENTINEL_MODIFIED_FUNCTION = (
     "'modify' decision may change only the arguments of a tool call, not the "
     "function called."
 )
+
+
+def _sidecar_modified_error(shown: ToolCall, modified: ToolCall) -> str | None:
+    if modified.function != shown.function:
+        return _SENTINEL_MODIFIED_FUNCTION.format(modified.function, shown.function)
+    return _modified_id_error("A sentinel sidecar", shown, modified)
 
 
 def _modified_id_error(who: str, shown: ToolCall, modified: ToolCall) -> str | None:

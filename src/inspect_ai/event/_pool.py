@@ -29,7 +29,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from typing import Final, Literal, NamedTuple, TypeVar, cast
 
 from pydantic import JsonValue
-from pydantic_core import to_jsonable_python
+from pydantic_core import PydanticSerializationError, to_jsonable_python
 
 from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.lineage import eq_prefix_len, needs_strict_eq
@@ -53,12 +53,26 @@ def materialize_pooled_events(
 
 
 def _msg_hash(msg: ChatMessage) -> str:
-    # Hash pydantic's canonical serialization directly (field order is
-    # class-definition order; dict fields keep insertion order through a
-    # serialize/parse round-trip, so rebuild-time hashes match). A dict
-    # with different key insertion order hashes differently — that only
-    # costs a duplicate pool entry, never wrong dedup.
-    return mm3_hash(msg.model_dump_json())
+    # Hash pydantic's canonical serialization (field order is class-definition
+    # order; dict fields keep insertion order through a serialize/parse
+    # round-trip, so rebuild-time hashes match). The stdlib encoder formats
+    # some finite floats differently, which would change persisted pool
+    # hashes, so fall back to it only when UTF-8 serialization rejects a lone
+    # surrogate; mm3_hash escapes that in the fallback string.
+    try:
+        return mm3_hash(msg.model_dump_json())
+    except PydanticSerializationError as ex:
+        if "surrogates not allowed" not in str(ex):
+            raise
+
+        dumped = msg.model_dump(mode="json")
+        return mm3_hash(
+            json.dumps(
+                dumped,
+                ensure_ascii=False,
+                separators=(",", ":"),
+            )
+        )
 
 
 def _msg_pool_jsonable(msg: ChatMessage) -> JsonValue:

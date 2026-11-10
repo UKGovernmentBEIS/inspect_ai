@@ -18,6 +18,7 @@ from typing import (
 
 from shortuuid import uuid
 
+from inspect_ai._sentinel._sidecar._received import report_request_id
 from inspect_ai._util.constants import HTTP
 from inspect_ai._util.http import parse_retry_after
 from inspect_ai._util.retry import report_http_retry
@@ -119,6 +120,7 @@ class HttpHooks:
         """
         request_id = uuid()
         self._requests[request_id] = RequestInfo(0, time.monotonic())
+        report_request_id(request_id)
         return request_id
 
     def restart_request(self, request_id: str) -> float:

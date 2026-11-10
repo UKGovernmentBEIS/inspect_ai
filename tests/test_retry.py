@@ -2,7 +2,7 @@ import logging
 import os
 import tempfile
 from pathlib import Path
-from typing import Literal
+from typing import Any, Generator, Literal
 
 import pytest
 from test_helpers.utils import (
@@ -23,6 +23,7 @@ from inspect_ai.log import (
     write_eval_log,
 )
 from inspect_ai.model import GenerateConfig, get_model
+from inspect_ai.model._model_info import clear_model_info_cache
 from inspect_ai.model._providers.mockllm import MockLLM
 from inspect_ai.scorer import exact
 from inspect_ai.solver import TaskState, generate, solver
@@ -859,3 +860,143 @@ def test_read_eval_log_samples_after_retry_changes_id_type(
 
     samples = list(read_eval_log_samples(retried.location))
     assert [(sample.id, sample.epoch) for sample in samples] == [(1, 1)]
+
+
+@pytest.fixture
+def clear_model_info() -> Generator[None, None, None]:
+    clear_model_info_cache()
+    yield
+    clear_model_info_cache()
+
+
+@pytest.mark.usefixtures("clear_model_info")
+def test_eval_retry_preserves_cost_limit_and_max_dataset_memory(
+    tmp_path: Path,
+) -> None:
+    from inspect_ai.model import ModelCost, ModelInfo, set_model_info
+
+    set_model_info(
+        "mockllm/model",
+        ModelInfo(
+            cost=ModelCost(
+                input=1000.0,
+                output=1000.0,
+                input_cache_read=0.0,
+                input_cache_write=0.0,
+            )
+        ),
+    )
+
+    fail_file = tmp_path / "fail"
+
+    @solver
+    def fail_once():
+        async def solve(state: TaskState, generate: Any) -> TaskState:
+            if fail_file.exists():
+                raise RuntimeError("transient failure")
+            return state
+
+        return solve
+
+    @task
+    def retry_task() -> Task:
+        return Task(dataset=[Sample(input="x")], solver=[fail_once(), generate()])
+
+    fail_file.touch()
+    log = eval(
+        retry_task(),
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        display="none",
+        cost_limit=0.01,
+        max_dataset_memory=64,
+    )[0]
+    assert log.status == "error"
+    assert log.eval.config.cost_limit == 0.01
+    assert log.eval.config.max_dataset_memory == 64
+
+    fail_file.unlink()
+    retried = eval_retry(log, log_dir=str(tmp_path), display="none")[0]
+    assert retried.status == "success"
+    assert retried.eval.config.cost_limit == 0.01
+    assert retried.eval.config.max_dataset_memory == 64
+    assert retried.samples is not None
+    assert len(retried.samples) == 1
+    assert retried.samples[0].limit is not None
+    assert retried.samples[0].limit.type == "cost"
+
+
+@pytest.mark.usefixtures("clear_model_info")
+def test_eval_retry_model_cost_config(tmp_path: Path) -> None:
+    from click.testing import CliRunner
+
+    from inspect_ai._cli.eval import eval_retry_command
+    from inspect_ai.model import ModelInfo, set_model_info
+
+    def register_unpriced_model() -> None:
+        # Drop every pricing entry, as in a fresh process. set_model_cost()
+        # only prices a known model, and mockllm's is not in the database.
+        clear_model_info_cache()
+        set_model_info("model", ModelInfo())
+
+    pricing_file = tmp_path / "pricing.yaml"
+    pricing_file.write_text(
+        "model:\n"
+        "  input: 1000.0\n"
+        "  output: 1000.0\n"
+        "  input_cache_read: 0.0\n"
+        "  input_cache_write: 0.0\n"
+    )
+
+    fail_file = tmp_path / "fail"
+
+    @solver
+    def fail_once():
+        async def solve(state: TaskState, generate: Any) -> TaskState:
+            if fail_file.exists():
+                raise RuntimeError("transient failure")
+            return state
+
+        return solve
+
+    @task
+    def retry_cost_config_task() -> Task:
+        return Task(dataset=[Sample(input="x")], solver=[fail_once(), generate()])
+
+    register_unpriced_model()
+    fail_file.touch()
+    log = eval(
+        retry_cost_config_task(),
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        display="none",
+        cost_limit=0.01,
+        model_cost_config=str(pricing_file),
+    )[0]
+    assert log.status == "error"
+
+    fail_file.unlink()
+
+    register_unpriced_model()
+
+    # Retrying via Python API with model_cost_config
+    retried = eval_retry(
+        log,
+        model_cost_config=str(pricing_file),
+        log_dir=str(tmp_path),
+        display="none",
+    )[0]
+    assert retried.status == "success"
+    assert retried.eval.config.cost_limit == 0.01
+    assert retried.samples is not None
+    assert retried.samples[0].limit is not None
+    assert retried.samples[0].limit.type == "cost"
+
+    # Retrying via CLI with --model-cost-config
+    register_unpriced_model()
+    runner = CliRunner()
+    res = runner.invoke(
+        eval_retry_command,
+        [log.location, "--model-cost-config", str(pricing_file), "--display", "none"],
+    )
+    assert res.exit_code == 0, f"CLI retry failed: {res.output}\n{res.exception}"
