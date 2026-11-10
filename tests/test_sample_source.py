@@ -30,6 +30,8 @@ from inspect_ai.dataset import Sample
 from inspect_ai.log import (
     EvalLog,
     EvalSample,
+    ProvenanceData,
+    TagsEdit,
     edit_eval_log,
     list_eval_logs,
     read_eval_log,
@@ -180,16 +182,14 @@ def test_sample_source_error_log_keeps_total_samples_through_rewrite() -> None:
         header = read_eval_log(str(rewritten), header_only=True)
         assert header.total_samples == 20
 
-        # a header edit (viewer tag/metadata) rebuilds the header through
-        # _eval_log_header; the count must survive the round trip
-        from inspect_ai.log._edit import ProvenanceData, TagsEdit
-
+        # a persisted header edit (viewer tag/metadata) rewrites only the
+        # header, rebuilt through _eval_log_header; the count must survive it
         edited_log = edit_eval_log(
-            read_eval_log(str(rewritten)),
+            read_eval_log(str(rewritten), header_only=True),
             [TagsEdit(tags_add=["edited"])],
             ProvenanceData(author="test"),
         )
-        write_eval_log(edited_log, str(rewritten))
+        write_eval_log(edited_log, str(rewritten), header_only=True)
         edited = read_eval_log(str(rewritten))
         assert "edited" in edited.tags
         assert edited.total_samples == 20
@@ -202,29 +202,10 @@ def test_sample_source_error_log_keeps_total_samples_through_rewrite() -> None:
         assert read_eval_log(str(json_path)).total_samples == 20
 
 
-class _GrowThenParkSource(SampleSource):
-    """Seeds 1 sample; after both generations are accepted, parks the feed."""
-
-    def __init__(self) -> None:
-        self.added = False
-
-    def initial_samples(self) -> list[Sample]:
-        return [Sample(id="seed0", input="q")]
-
-    async def next_samples(self) -> list[Sample] | None:
-        if self.added:
-            # park: keep the feed alive but produce nothing more, so the
-            # eval sits idle with both accepted runs and can be interrupted
-            await anyio.sleep(30)
-            return None
-        self.added = True
-        return [Sample(id="next0", input="q")]
-
-
 @pytest.mark.parametrize("log_format", ["eval", "json"])
 def test_sample_source_cancelled_before_completion_log_keeps_total_samples(
     tmp_path: Path,
-    log_format: str,
+    log_format: Literal["eval", "json"],
 ) -> None:
     """A cancelled eval keeps its accepted-run count, with nothing finished.
 
@@ -284,7 +265,7 @@ def test_sample_source_cancelled_before_completion_log_keeps_total_samples(
             model="mockllm/model",
             max_samples=2,
             log_dir=str(tmp_path),
-            log_format=log_format,  # type: ignore[arg-type]
+            log_format=log_format,
         )
     except KeyboardInterrupt:
         pass
