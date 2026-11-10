@@ -426,10 +426,16 @@ class _Handouts:
         """Record the form a dialect reads a reply's handed calls back in.
 
         `read` are the `handed` calls as the dialect parses the wire form it
-        hands them over in, in order; ignored unless there is one for each.
+        hands them over in: paired by id when it keeps them (Anthropic can
+        place a call elsewhere), otherwise in order (Google reads them back
+        under ids of its own); ignored unless there is one for each.
         """
         if len(read) != len(handed):
             return
+        ids = [call.id for call in handed]
+        by_id = {back.id: back for back in read}
+        if len(set(ids)) == len(ids) == len(by_id) and by_id.keys() == set(ids):
+            read = [by_id[id] for id in ids]
         for call, back in zip(handed, read, strict=True):
             record = self.handed.get(call.id)
             key, back_key = _call_key(call), _call_key(back)
@@ -517,6 +523,8 @@ class _Handouts:
         if handed is not None and handed.proposed is not None and handout is None:
             # keyed by its id too, so it can't exempt another execution's result
             call, key = _unissued(message, found)
+            if found is None:
+                call = ToolCall(id=call_id, function=handed.function, arguments={})
             keys = [_digest(["unmatched", call_id, handed.proposed, key]), key]
         elif handed is not None and handed.proposed is not None and handout is not None:
             content = _content_key(message)

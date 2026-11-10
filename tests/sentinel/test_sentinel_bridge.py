@@ -4119,8 +4119,14 @@ async def test_identical_results_of_other_handed_arguments_are_each_checked() ->
     ]
 
 
-async def test_a_result_that_can_be_either_handouts_gets_no_proposal() -> None:
-    """A result under an id handed out with two argument sets, and no call in its request."""
+@pytest.mark.parametrize("function", [READ.function, None])
+async def test_a_result_that_can_be_either_handouts_gets_no_proposal(
+    function: str | None,
+) -> None:
+    """A result under an id handed out with two argument sets, and no call in its request.
+
+    It is checked as a call to the id's function, whether or not it names one.
+    """
     seen: Steps = []
     model = Scripted(calls_output(READ), calls_output(READ), calls_output())
     bridge = in_process_bridge([])
@@ -4135,7 +4141,7 @@ async def test_a_result_that_can_be_either_handouts_gets_no_proposal() -> None:
             [
                 *history,
                 ChatMessageTool(
-                    content="contents", tool_call_id=READ.id, function=READ.function
+                    content="contents", tool_call_id=READ.id, function=function
                 ),
             ],
         )
@@ -4143,6 +4149,33 @@ async def test_a_result_that_can_be_either_handouts_gets_no_proposal() -> None:
     [after] = [s for s in seen if isinstance(s, AfterToolCall)]
     assert after.input is None
     assert after.message_id == ""
+    assert (after.call.id, after.call.function) == (READ.id, READ.function)
+
+
+def test_handed_calls_are_paired_with_their_read_back_form_by_id() -> None:
+    """Anthropic places a renamed call after those with recorded positions."""
+    from inspect_ai.agent._bridge._sentinel import (
+        BridgedRequest,
+        _call_key,
+        _Handouts,
+    )
+
+    handouts = _Handouts(_SavedHandouts(reserved_ids=[], handed={}, checked=[]))
+    first = replace(READ, id="renamed")
+    second = replace(READ, id="kept", arguments={"path": "other.txt"})
+    handouts.hand_over(
+        BridgedRequest("request", frozenset()), [first, second], [first, second], None
+    )
+    read = [
+        replace(second, arguments={"path": "other.txt", "read": "back"}),
+        replace(first, arguments={"path": "notes.txt", "read": "back"}),
+    ]
+    handouts.read_back([first, second], read)
+
+    assert [handouts.handed[call.id].read_back for call in [first, second]] == [
+        ((_call_key(read[1]), _call_key(first)),),
+        ((_call_key(read[0]), _call_key(second)),),
+    ]
 
 
 async def test_a_result_under_an_id_never_handed_out_is_checked_once() -> None:
