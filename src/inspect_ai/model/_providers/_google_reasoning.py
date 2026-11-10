@@ -7,7 +7,12 @@ frontier.
 """
 
 import re
+from collections import Counter
 from typing import Literal
+
+from inspect_ai._util.content import ContentReasoning
+from inspect_ai.model._call_tools import repeated_call_ids
+from inspect_ai.model._chat_message import ChatMessageAssistant
 
 from .._reasoning import (
     clamp_reasoning_effort_to_minimal_low_medium_high,
@@ -144,3 +149,25 @@ def gemini_thinking_budget(effort: str | None, family: str) -> int | None:
     if budget is None:
         return None
     return min(budget, 32768 if "-pro" in _model_segment(family) else 24576)
+
+
+GEMINI_FUNCTION_CALL_ID_KEY = "gemini_function_call_id"
+"""The `ContentReasoning.internal` key naming the call a reasoning anchor is for."""
+
+
+def gemini_shared_call_ids(message: ChatMessageAssistant) -> set[str]:
+    """The ids several of the message's calls, or several of its reasoning anchors, name.
+
+    A thought signature anchored to such an id can't be told apart by call (a
+    response filter may have kept one of the calls), so it goes on none.
+    """
+    anchored: Counter[str] = Counter()
+    if not isinstance(message.content, str):
+        for part in message.content:
+            if isinstance(part, ContentReasoning) and isinstance(part.internal, dict):
+                call_id = part.internal.get(GEMINI_FUNCTION_CALL_ID_KEY)
+                if isinstance(call_id, str):
+                    anchored[call_id] += 1
+    return repeated_call_ids(message.tool_calls or []) | {
+        call_id for call_id, count in anchored.items() if count > 1
+    }

@@ -123,8 +123,10 @@ from inspect_ai.model._providers._google_computer_use import (
     tool_call_from_gemini_computer_action,
 )
 from inspect_ai.model._providers._google_reasoning import (
+    GEMINI_FUNCTION_CALL_ID_KEY,
     gemini_3_plus,
     gemini_is_latest,
+    gemini_shared_call_ids,
     gemini_supports_minimal_thinking,
     gemini_thinking_budget,
     gemini_thinking_level,
@@ -199,7 +201,7 @@ DEFAULT_GOOGLE_HTTP_TIMEOUT = 60 * 60
 # to the function_call whose thought_signature it carries. Used to preserve
 # part ordering on replay when a function_call appears at a specific position
 # relative to other content blocks (visible thought, server tool calls).
-_GEMINI_FUNCTION_CALL_ID_KEY = "gemini_function_call_id"
+_GEMINI_FUNCTION_CALL_ID_KEY = GEMINI_FUNCTION_CALL_ID_KEY
 
 # Server-side tool_call types that we round-trip as ContentToolUse(tool_type="web_search").
 # Anything outside this set is warned-and-skipped by server_tool_use_from_tool_call.
@@ -1844,7 +1846,11 @@ async def content(
         )
     elif isinstance(message, ChatMessageAssistant):
         content_parts: list[Part] = []
-        emitted_tool_call_ids: set[str] = set()
+        # by object, as calls can share an id: an anchor takes the next call
+        # under its id, and one naming an id several calls or anchors share
+        # gives it no signature, as the signatures can't be told apart by call
+        emitted_tool_calls: set[int] = set()
+        shared_ids = gemini_shared_call_ids(message)
 
         def part_from_tool_call(tool_call: ToolCall) -> Part:
             if tool_call.function == "computer":
@@ -1925,12 +1931,16 @@ async def content(
                                         tool_call
                                         for tool_call in message.tool_calls
                                         if tool_call.id == function_call_id
+                                        and id(tool_call) not in emitted_tool_calls
                                     ),
                                     None,
                                 )
                                 if tool_call is not None:
                                     part = part_from_tool_call(tool_call)
-                                    if content.reasoning:
+                                    if (
+                                        content.reasoning
+                                        and tool_call.id not in shared_ids
+                                    ):
                                         apply_reasoning_signature(part, content)
                                     # else: an unsigned call is a parallel
                                     # sibling of the step's first (signed) call.
@@ -1940,7 +1950,7 @@ async def content(
                                     # "Tool type of function_call part does not
                                     # match with tool call context").
                                     content_parts.append(part)
-                                    emitted_tool_call_ids.add(tool_call.id)
+                                    emitted_tool_calls.add(id(tool_call))
                                     working_reasoning_block = None
                                     continue
                             working_reasoning_block = content
@@ -2008,7 +2018,7 @@ async def content(
             # consolidation), its signature goes on the first call; the rest
             # stay unsigned, as Gemini sends parallel calls.
             for tool_call in message.tool_calls:
-                if tool_call.id in emitted_tool_call_ids:
+                if id(tool_call) in emitted_tool_calls:
                     continue
 
                 part = part_from_tool_call(tool_call)
