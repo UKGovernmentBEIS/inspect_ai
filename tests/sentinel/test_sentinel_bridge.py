@@ -10035,6 +10035,79 @@ async def test_the_google_first_call_signature_is_the_providers(
     assert (base64.b64decode(signed.reasoning) if signed else None) == expected
 
 
+async def _regenerate_rebuilt(
+    model: Model, output: ModelOutput, input: GenerateInput
+) -> ModelOutput:
+    """A response filter that regenerates, and returns the replacement rebuilt from its fields."""
+    replacement = await model.generate(*input)
+    return ModelOutput.model_validate(replacement.model_dump())
+
+
+@pytest.mark.parametrize("path", ["handed_over", "approval_rejected"])
+@pytest.mark.parametrize("kind", ["custom", "computer", "tool_search", "anthropic"])
+async def test_a_regenerated_output_a_response_filter_rebuilt_replays_natively(
+    kind: str, path: str
+) -> None:
+    """A response filter regenerates and returns the output rebuilt from its fields.
+
+    Its calls replay in their native form, with the replay state of the
+    regeneration that parsed them, whether a sentinel hands them on or approval
+    rejects them without one.
+    """
+    from contextlib import nullcontext
+
+    init_sample_assistant_internal()
+    if kind == "anthropic":
+
+        def bash(call_id: str) -> Callable[[], Awaitable[ModelOutput]]:
+            return _anthropic_parsed(
+                [
+                    {
+                        "type": "tool_use",
+                        "id": call_id,
+                        "name": "bash",
+                        "input": {"command": "cat notes.txt"},
+                    }
+                ]
+            )
+
+        generations = [bash("toolu_first"), bash("toolu_regenerated")]
+        tools = list(ANTHROPIC_TOOLS)
+        wire: Callable[[list[ChatMessage]], Awaitable[Any]] = _anthropic_wire
+    else:
+        item = _responses_modified_call(kind)[0]
+        generations = [
+            _responses_parsed(
+                item.model_copy(update={"id": f"{item.id}_{n}", "call_id": f"call_{n}"})
+            )
+            for n in ("first", "regenerated")
+        ]
+        tools = [ToolInfo(name="read_file", description="Read a file.")]
+        wire = _responses_wire
+    model = Parsing(*generations, lambda: calls_output(), wire=wire)
+    bridge = in_process_bridge([])
+    bridge.response_filter = _regenerate_rebuilt
+    if path == "approval_rejected":
+        bridge.approval = [ApprovalPolicy(rejecting_approver(1), "*")]
+    input: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+
+    with active([bridge_recording([])]) if path == "handed_over" else nullcontext():
+        output = await _generate_bridged(bridge, model.model, input, tools)
+        if path == "handed_over":
+            await _generate_bridged(
+                bridge, model.model, _answered(input, output), tools
+            )
+
+    # the request after the regeneration replays the handed or rejected turn
+    replayed = model.wire[2]
+    if kind == "anthropic":
+        assert _anthropic_shapes(replayed) == [[("tool_use", "bash")]]
+    else:
+        assert [
+            param["type"] for param in replayed if param["type"] in RESPONSES_CALL_TYPES
+        ] == [_responses_modified_call(kind)[0].type]
+
+
 def _reusing_model(kind: str, cache: bool = False) -> tuple[Parsing, list[ToolInfo]]:
     """A model generating two calls of `kind` under one id, reading old then new."""
     if kind == "anthropic":

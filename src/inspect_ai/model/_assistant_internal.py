@@ -398,6 +398,40 @@ def carry_generation_assistant_internal(
     share_call_ids(target, _recorded_shared(replay))
 
 
+def carrying_generation(
+    target: ModelOutput, generations: Sequence[ModelOutput]
+) -> ModelOutput | None:
+    """The generation of `generations` whose parsed calls `target` carries most of.
+
+    For an output rebuilt from a generation's fields, which has lost its replay
+    state: a response filter can return a generation other than the one it was
+    given (a regeneration), so the generation is found by the calls it parsed
+    (each call `_handed_edited` keeps the state of; those it parsed exactly
+    first), not by which output the filter received. The first of several
+    carrying as many; None when none carries any.
+    """
+    calls = [
+        call for choice in target.choices for call in choice.message.tool_calls or []
+    ]
+    best: ModelOutput | None = None
+    best_score = (0, 0)
+    for generation in generations:
+        replay = generation_assistant_internal(generation)
+        if replay is None:
+            continue
+        parsed = cast(dict[str, dict[str, JsonValue] | None], replay["calls"])
+        carried = exact = 0
+        for call in calls:
+            state = parsed.get(call.id)
+            edited = _handed_edited(state, call) if state is not None else None
+            if edited is not None:
+                carried += 1
+                exact += not edited
+        if (carried, exact) > best_score:
+            best, best_score = generation, (carried, exact)
+    return best
+
+
 def _call_digest(call: ToolCall) -> str:
     # repr, as parsed arguments may hold values JSON can't order or encode (e.g.
     # YAML dates as keys); an unstable repr only drops the call's state

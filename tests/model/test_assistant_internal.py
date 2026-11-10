@@ -369,6 +369,42 @@ def test_calls_edited_in_place_are_checked_against_their_parsed_state() -> None:
     ]
 
 
+def test_a_rebuilt_output_is_matched_to_the_generation_that_parsed_its_calls() -> None:
+    from inspect_ai.model._assistant_internal import (
+        carrying_generation,
+        generation_replay,
+        set_generation_assistant_internal,
+    )
+
+    def output(*calls: ToolCall, parsed: bool = True) -> ModelOutput:
+        generated = ModelOutput(
+            choices=[
+                ChatCompletionChoice(
+                    message=ChatMessageAssistant(content="", tool_calls=list(calls)),
+                    stop_reason="tool_calls",
+                )
+            ]
+        )
+        if parsed:
+            set_generation_assistant_internal(generated, generation_replay(calls))
+        return generated
+
+    read = ToolCall(id="call_read", function="read_file", arguments={"path": "a"})
+    edited = replace(read, arguments={"path": "b"})
+    original = output(ToolCall(id="call_other", function="read_file", arguments={}))
+    editing = output(edited)
+    regenerated = output(read)
+    rebuilt = output(read, parsed=False)
+
+    # by the calls it carries, the ones parsed exactly first, whichever
+    # generation the filter was given
+    assert carrying_generation(rebuilt, [original, editing, regenerated]) is (
+        regenerated
+    )
+    assert carrying_generation(rebuilt, [original, editing]) is editing
+    assert carrying_generation(rebuilt, [original, rebuilt]) is None
+
+
 def test_ids_recorded_as_shared_stay_shared_and_give_no_call_state() -> None:
     from inspect_ai.model._assistant_internal import (
         GenerationCallState,

@@ -24,7 +24,6 @@ from shortuuid import uuid
 from typing_extensions import TypeIs
 
 from inspect_ai._sentinel._agent_state import bridge_request
-from inspect_ai._sentinel._context import checks_tool_calls
 from inspect_ai._util._async import raise_unwrapped
 from inspect_ai._util.content import (
     Content,
@@ -59,6 +58,7 @@ from inspect_ai.model._agent_message import validate_agent_message
 from inspect_ai.model._assistant_internal import (
     bridge_replay_scope,
     carry_generation_assistant_internal,
+    carrying_generation,
     generation_assistant_internal,
     share_call_ids,
     shared_call_ids,
@@ -463,6 +463,7 @@ async def _apply_response_filter(
     model: Model,
     output: ModelOutput,
     generate_input: GenerateInput,
+    generated: Callable[[], Sequence[ModelOutput]] = list,
 ) -> ModelOutput:
     """Apply `response_filter` under the `ModelResponseFilter` contract.
 
@@ -472,8 +473,10 @@ async def _apply_response_filter(
     Validation drops the returned output's replay state. The re-validated output
     takes it for the calls it carries (`carry_generation_assistant_internal`)
     from the returned output, or, when that has none (e.g. the filter rebuilt it
-    from its fields), from the generation's output, so its calls replay in their
-    native form. An ID shared in the output the filter received stays shared
+    from its fields), from the generation that parsed its calls: `output`'s, or
+    one of `generated()`, the request's generations, which include any the
+    filter made (`carrying_generation`). So its calls replay in their native
+    form. An ID shared in the output the filter received stays shared
     (`_received_shared_ids`), whether or not that output has replay state.
     Google thought signatures stay on the part they came with or the call
     their anchor names (`_hold_signatures_in_place`).
@@ -524,7 +527,9 @@ async def _apply_response_filter(
             f"{_validation_error_details(ex)}"
         ) from ex
     carry_generation_assistant_internal(
-        filtered if generation_assistant_internal(filtered) is not None else output,
+        filtered
+        if generation_assistant_internal(filtered) is not None
+        else carrying_generation(validated, [output, *generated()]) or output,
         validated,
     )
     share_call_ids(validated, _received_shared_ids(output))
@@ -1061,10 +1066,9 @@ async def bridge_generate(
         bridged_request_scope(requested_model),
         bridge_replay_scope(bridge._replay),
         bridge_request(),
-        # only the sentinel's tool steps need to know what produced the response
-        observe_generations(generations.record)
-        if checks_tool_calls()
-        else nullcontext(),
+        # for what produced the response (the sentinel's tool steps), and the
+        # replay state of a response filter's rebuilt output
+        observe_generations(generations.record),
     ):
         return await _bridge_generate_impl(
             bridge,
@@ -1238,6 +1242,7 @@ async def _bridge_generate_impl(
                     GenerateInput(
                         input_messages, get_tools_info(tools), tool_choice, config
                     ),
+                    generations.outputs,
                 )
             if filtered is not output:
                 produced = generations.returned
@@ -1380,6 +1385,10 @@ class _Generations:
     Each generation is recorded with the agent span current while it ran (a
     model event sink's `on_start` can choose it), so the call's steps are in
     the conversation its generation's stages were.
+
+    Recorded with or without a sentinel: a response filter's output rebuilt
+    from its fields takes the replay state of the recorded generation that
+    parsed its calls (`outputs`, `_apply_response_filter`).
     """
 
     def __init__(self) -> None:
@@ -1396,6 +1405,10 @@ class _Generations:
             Produced(event, current_agent_span_id()) if event is not None else None
         )
         self._producers[id(output)] = (output, None if twice else produced)
+
+    def outputs(self) -> list[ModelOutput]:
+        """The outputs recorded, in the order first recorded."""
+        return [output for output, _ in self._producers.values()]
 
     def producer(self, output: ModelOutput | None) -> Produced | None:
         recorded = self._producers.get(id(output)) if output is not None else None
