@@ -1,3 +1,4 @@
+from enum import Enum
 from random import randint
 from typing import Callable, Literal
 
@@ -374,6 +375,52 @@ def test_tool_eval_error():
     )
     log = eval(task, model=model)[0]
     assert log.status == "error"
+
+
+class Unit(Enum):
+    CELSIUS = "celsius"
+    FAHRENHEIT = "fahrenheit"
+
+
+@tool
+def weather():
+    async def execute(city: str, unit: Unit = Unit.CELSIUS) -> str:
+        """Get the current temperature for a city.
+
+        Args:
+            city: City name.
+            unit: Temperature unit.
+        """
+        return f"21 degrees {unit.value} in {city}"
+
+    return execute
+
+
+def test_tool_enum_default():
+    task = Task(
+        dataset=[Sample(input="What's the weather in Paris?")],
+        solver=[use_tools([weather()]), generate()],
+    )
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                model="mockllm/model",
+                tool_name="weather",
+                tool_arguments={"city": "Paris"},
+            ),
+            ModelOutput.from_content(model="mockllm/model", content="All done."),
+        ],
+    )
+    log = eval(task, model=model)[0]
+    assert log.status == "success"
+    assert log.samples
+    messages = log.samples[0].messages
+    tool_call = get_tool_call(messages, "weather")
+    assert tool_call
+    response = get_tool_response(messages, tool_call)
+    assert response
+    assert response.text == "21 degrees celsius in Paris"
 
 
 def test_tool_calls():

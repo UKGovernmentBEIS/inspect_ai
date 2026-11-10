@@ -10,6 +10,7 @@ from inspect_ai.model._call_tools import get_tools_info
 from inspect_ai.model._model import ModelRefusalError, _check_limits_before_dispatch
 from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
 from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
+from inspect_ai.util._json import json_schema_dump
 from inspect_ai.util._limit import (
     Limit,
     LimitExceededError,
@@ -397,7 +398,7 @@ def list_tools(
             {
                 "name": info.name,
                 "description": info.description,
-                "inputSchema": info.parameters.model_dump(exclude_none=True),
+                "inputSchema": json_schema_dump(info.parameters),
             }
             for info in tools_info
         ]

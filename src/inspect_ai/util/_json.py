@@ -98,9 +98,11 @@ def json_schema_dump(
 ) -> dict[str, Any]:
     """Dump a JSON Schema model to a dict, excluding None values.
 
-    Centralises the `model_dump(exclude_none=True)` pattern used by every model
-    provider when forwarding tool parameter or response schemas to an API, and
-    adds an optional *exclude* set for provider-specific field filtering.
+    Centralises the `model_dump(mode="json", exclude_none=True)` pattern used
+    wherever a tool parameter or response schema is sent as JSON, and adds an
+    optional *exclude* set for provider-specific field filtering. JSON mode
+    converts Python values a schema can hold, such as an `Enum` or `date`
+    default, to their JSON form.
 
     The *exclude* set is applied recursively to all nested dicts (e.g. inside
     ``properties``, ``items``, ``anyOf``), not just the top-level schema.
@@ -113,7 +115,7 @@ def json_schema_dump(
     Returns:
         Dict representation of the schema with None values removed.
     """
-    result = schema.model_dump(exclude_none=True)
+    result = schema.model_dump(mode="json", exclude_none=True)
     if exclude:
         _strip_keys_recursive(result, exclude)
     return result

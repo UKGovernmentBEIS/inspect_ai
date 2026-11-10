@@ -105,6 +105,7 @@ from inspect_ai.tool._tool import ToolSource
 from inspect_ai.tool._tool_call import ToolCallModelInputHints
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.util import concurrency
+from inspect_ai.util._json import json_schema_dump
 from inspect_ai.util._limit import (
     LimitExceededError,
     check_cost_limit,
@@ -1437,7 +1438,7 @@ class Model:
                     "function": {
                         "name": tool.name,
                         "description": tool.description,
-                        "parameters": tool.parameters.model_dump(exclude_none=True),
+                        "parameters": json_schema_dump(tool.parameters),
                     },
                 }
             )
