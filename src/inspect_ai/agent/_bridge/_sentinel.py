@@ -39,7 +39,7 @@ from inspect_ai._util.content import (
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
-from inspect_ai.agent._bridge.types import AgentBridge, message_json_hash
+from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.model._call_tools import decisive_sentinel_exception, repeated_call_ids
 from inspect_ai.model._chat_message import (
     ChatMessage,
@@ -108,7 +108,7 @@ class SentinelCheck(NamedTuple):
     have no input and the bridge's current conversation."""
 
     execution_id: str | None = None
-    """The handout of the call this check is for (`_HandedCalls.hand_over`),
+    """The handout of the call this check is for (`_Handouts.hand_over`),
     or None for a host call no proposal accounts for."""
 
     alternatives: tuple["SentinelCheck", ...] = ()
@@ -127,13 +127,12 @@ class BridgedRequest(NamedTuple):
 
 
 def bridged_request(input: Sequence[ChatMessage]) -> BridgedRequest:
-    # message ids are the bridge's, assigned from the messages' content
+    # message ids are the bridge's, assigned from the messages' content; the
+    # agent controls its messages, so the digest must be collision-resistant
     return BridgedRequest(
         _digest(
             [
-                message_json_hash(
-                    to_json_str_safe(message.model_copy(update={"id": None}))
-                )
+                to_json_str_safe(message.model_copy(update={"id": None}))
                 for message in input
             ]
         ),
@@ -160,7 +159,7 @@ class _Handed(NamedTuple):
     """The request it was handed over or rejected in (`BridgedRequest.key`)."""
 
 
-class _SavedHandedCalls(BaseModel):
+class _SavedHandouts(BaseModel):
     reserved_ids: list[str]
     handed: dict[str, _Handed]
     checked: list[str]
@@ -200,7 +199,7 @@ class _Call:
         return _call_key(self.call)
 
 
-class _HandedCalls:
+class _Handouts:
     """The calls a bridge has handed to the scaffold, and the checks of their results.
 
     A call is handed over under the model's id. Each handout is an execution
@@ -210,10 +209,10 @@ class _HandedCalls:
 
     A call gets a fresh id instead (`reused`) when the model's id can't name
     it: an empty id, or one that already names another call (Claude Code
-    drops a repeated id and the result under it). The handed ids and the ids
-    seen in requests and rejected turns (`reserved_ids`) are kept for the life
-    of the bridge and in its checkpoint (`saved`), apart from the proposals
-    (bounded).
+    drops a repeated id and the result under it). The ids handed over or
+    rejected, with their calls, and the ids seen in requests
+    (`reserved_ids`) are kept for the life of the bridge and in its
+    checkpoint (`saved`), apart from the proposals (bounded).
 
     Each execution's result is checked once: a result is identified by its
     call's id, the call as proposed and the result's exact content
@@ -247,7 +246,7 @@ class _HandedCalls:
     Held by its bridge, since a failure's traceback references the bridge.
     """
 
-    def __init__(self, saved: _SavedHandedCalls) -> None:
+    def __init__(self, saved: _SavedHandouts) -> None:
         self.handed: dict[str, _Handed] = dict(saved.handed)
         self.reserved_ids: set[str] = set(saved.reserved_ids)
         self.proposals: OrderedDict[str, SentinelCheck] = OrderedDict()
@@ -255,14 +254,14 @@ class _HandedCalls:
         self.running: dict[str, anyio.Event] = {}
         self.failed: dict[str, Exception] = {}
 
-    def saved(self) -> _SavedHandedCalls:
+    def saved(self) -> _SavedHandouts:
         """What a resumed bridge needs to hand over calls and match results as this one does.
 
         Proposals hold their generation and viewer, so a resumed bridge
         matches a result as it would after the proposal's eviction. A check
         that was running or failed is made again.
         """
-        return _SavedHandedCalls(
+        return _SavedHandouts(
             reserved_ids=sorted(self.reserved_ids),
             handed=dict(self.handed),
             checked=sorted(self.checked),
@@ -285,17 +284,19 @@ class _HandedCalls:
     ) -> bool:
         """Whether the model's id for `calls` (those of a response under it) names another call.
 
-        It does when it is empty, in the request's conversation, reserved (seen
-        in a request, so the scaffold already has a call under it), or proposed
-        before for another call: another function or arguments as proposed,
-        several calls, or another request's. The same call in a retry of the
-        request (served from the model cache, or proposed again after a
-        rejection), before any request carries it, keeps its id. So does an id
-        a Gemini
-        CLI echo (`name__id`, `_echoes`) can't tell apart from a reserved or
-        handed one, or one of the response's other calls (`siblings`).
+        An id the bridge proposed before (handed over or rejected) names
+        another call when it was another function or arguments as proposed, or
+        several calls. The same call proposed again keeps its id: a retry of
+        its request (served from the model cache, or after a rejection), or
+        the call again in a later turn or another conversation, whose results
+        then get no proposal's context (`hand_over`). Any other id names
+        another call when it is empty, in the request's conversation or
+        reserved: the bridge can't tell which call it was. So
+        does an id a Gemini CLI echo (`name__id`, `_echoes`) can't tell apart
+        from a reserved or handed one, or one of the response's other calls
+        (`siblings`).
         """
-        if not call_id or call_id in request.ids:
+        if not call_id:
             return True
         if any(
             echo in self.reserved_ids or echo in self.handed or echo in siblings
@@ -303,14 +304,11 @@ class _HandedCalls:
             for echo in _echoes(call)
         ):
             return True
-        if call_id in self.reserved_ids:
-            return True
         handed = self.handed.get(call_id)
         if handed is None:
-            return False
+            return call_id in request.ids or call_id in self.reserved_ids
         return (
             handed.proposed is None
-            or handed.request != request.key
             or len(calls) > 1
             or _call_key(calls[0]) != handed.proposed
         )
@@ -331,6 +329,14 @@ class _HandedCalls:
         shared = repeated_call_ids(handed)
         issued: list[SentinelCheck] = []
         for index, (model_call, call) in enumerate(zip(proposed, handed, strict=True)):
+            # handed over before for another request, not a retry of it: which
+            # handout a result answers can't be told, so neither keeps a proposal
+            earlier = self.handed.get(call.id)
+            ambiguous = (
+                earlier is not None
+                and earlier.execution_id is not None
+                and earlier.request != request.key
+            )
             execution_id = uuid()
             self.handed[call.id] = _Handed(
                 call.function,
@@ -351,7 +357,7 @@ class _HandedCalls:
             )
             issued.append(check)
             self.proposals.pop(call.id, None)
-            if call.id in shared:
+            if call.id in shared or ambiguous:
                 continue
             self.proposals[call.id] = check
             while len(self.proposals) > _MAX_PROPOSALS:
@@ -754,12 +760,10 @@ async def sentinel_host_tool_result(
             content_keys[function] = _content_key(
                 result.model_copy(update={"function": function})
             )
-        keys += bridge._handed_calls.result_keys(
-            execution.handed, content_keys[function]
-        )
+        keys += bridge._handouts.result_keys(execution.handed, content_keys[function])
     keys = keys or [f"unproposed:{uuid()}"]
     with bridge_request():
-        await bridge._handed_calls.check_running(
+        await bridge._handouts.check_running(
             bridge, _Result(keys, (check,), result), output, truncated
         )
 
@@ -767,7 +771,7 @@ async def sentinel_host_tool_result(
 async def sentinel_tool_results(bridge: AgentBridge, input: list[ChatMessage]) -> None:
     if not checks_tool_calls():
         return
-    result_checks = bridge._handed_calls
+    result_checks = bridge._handouts
     while True:
         claimed = result_checks.claim(input)
         if claimed.owned:

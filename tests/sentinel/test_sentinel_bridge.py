@@ -39,7 +39,7 @@ from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.agent import Agent, AgentState, agent, agent_bridge
 from inspect_ai.agent._acp.transport_live import LiveAcpTransport
 from inspect_ai.agent._bridge._errors import PROVIDER_ERROR_KEY
-from inspect_ai.agent._bridge._sentinel import _SavedHandedCalls
+from inspect_ai.agent._bridge._sentinel import _SavedHandouts
 from inspect_ai.agent._bridge.sandbox.service import _forward_provider_errors
 from inspect_ai.agent._bridge.sandbox.service import call_tool as call_host_tool
 from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
@@ -1744,21 +1744,21 @@ def test_dropping_old_proposals_warns_once(
     ]
 
     with caplog.at_level("WARNING"):
-        bridge._handed_calls.hand_over(request, calls[:3], calls[:3], checks[:3])
-        bridge._handed_calls.hand_over(request, calls[3:], calls[3:], checks[3:])
+        bridge._handouts.hand_over(request, calls[:3], calls[:3], checks[:3])
+        bridge._handouts.hand_over(request, calls[3:], calls[3:], checks[3:])
 
     warnings = [
         r for r in caplog.records if "the oldest proposal was dropped" in r.message
     ]
     assert len(warnings) == 1
-    proposals = bridge._handed_calls.proposals.values()
+    proposals = bridge._handouts.proposals.values()
     assert [p.handed.id for p in proposals] == ["read_2", "read_3"]
 
 
 def test_claiming_a_requests_results_takes_memory_linear_in_its_results() -> None:
     import tracemalloc
 
-    from inspect_ai.agent._bridge._sentinel import _HandedCalls
+    from inspect_ai.agent._bridge._sentinel import _Handouts
 
     def claimed_bytes(results: int) -> int:
         input: list[ChatMessage] = [ChatMessageUser(content=TASK)]
@@ -1770,8 +1770,8 @@ def test_claiming_a_requests_results_takes_memory_linear_in_its_results() -> Non
             ]
         tracemalloc.start()
         try:
-            claimed = _HandedCalls(
-                _SavedHandedCalls(reserved_ids=[], handed={}, checked=[])
+            claimed = _Handouts(
+                _SavedHandouts(reserved_ids=[], handed={}, checked=[])
             ).claim(input)
             retained, _ = tracemalloc.get_traced_memory()
         finally:
@@ -1883,7 +1883,7 @@ async def _converted(dialect: str, request: list[Any]) -> list[ChatMessage]:
         return messages_from_responses_input(request, [], "model")
     if dialect == "anthropic":
         return await messages_from_anthropic_input(request, [])
-    return messages_from_google_contents(request, None, call_ids=True)
+    return messages_from_google_contents(request, None, handed=lambda _: None)
 
 
 @pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
@@ -1893,7 +1893,7 @@ async def test_scanning_a_requests_results_takes_memory_linear_in_its_size(
     import tracemalloc
 
     from inspect_ai.agent._bridge._sentinel import (
-        _HandedCalls,
+        _Handouts,
         inherited_result_keys,
     )
 
@@ -1904,8 +1904,8 @@ async def test_scanning_a_requests_results_takes_memory_linear_in_its_size(
         assert len(assistant.tool_calls or []) == calls
         tracemalloc.start()
         try:
-            claimed = _HandedCalls(
-                _SavedHandedCalls(reserved_ids=[], handed={}, checked=[])
+            claimed = _Handouts(
+                _SavedHandouts(reserved_ids=[], handed={}, checked=[])
             ).claim(input)
             _, claim_peak = tracemalloc.get_traced_memory()
             tracemalloc.reset_peak()
@@ -1945,8 +1945,8 @@ def test_results_answering_one_call_key_its_arguments_once(
     ]
 
     keys = _sentinel.inherited_result_keys(input)
-    claimed = _sentinel._HandedCalls(
-        _sentinel._SavedHandedCalls(reserved_ids=[], handed={}, checked=[])
+    claimed = _sentinel._Handouts(
+        _sentinel._SavedHandouts(reserved_ids=[], handed={}, checked=[])
     ).claim(input)
 
     assert len(keys) == len(claimed.owned) == 100
@@ -1980,7 +1980,7 @@ async def test_a_host_result_for_several_executions_is_keyed_once(
 
     assert len(keyed) == 1
     # the call key they share (none of them was handed over)
-    assert len(bridge._handed_calls.checked) == 1
+    assert len(bridge._handouts.checked) == 1
 
 
 async def test_a_result_whose_proposal_was_dropped_is_still_checked(
@@ -2345,8 +2345,10 @@ async def test_a_result_never_takes_another_outstanding_calls_context(
 
     [after] = [s for s in seen if isinstance(s, AfterToolCall)]
     assert after.call == old_call
-    assert after.input == model.inputs[0]
     assert after.message_id == old.message.id
+    # the same call handed over in another conversation under the same id: which
+    # handout the result answers can't be told, so it gets no proposal's input
+    assert after.input == (None if same_id else model.inputs[0])
 
 
 async def test_a_result_whose_proposal_was_evicted_gets_no_other_context(
@@ -2909,7 +2911,7 @@ async def test_a_starting_call_id_is_not_reissued_when_a_request_omits_it(
 @pytest.mark.parametrize(
     "keys",
     [
-        ["bridge_handed_calls"],
+        ["bridge_handouts"],
         # a checkpoint written without the reservations: those of its prefix
         # and its conversation
         [],
@@ -2947,7 +2949,7 @@ def saved(checkpointer: RecordingCheckpointer, *keys: str) -> dict[str, object]:
     """Tracked values as a checkpoint saves and resume restores them."""
     types: dict[str, Any] = {
         "bridge_compaction_prefix": list[ChatMessage],
-        "bridge_handed_calls": _SavedHandedCalls,
+        "bridge_handouts": _SavedHandouts,
     }
     return {
         key: TypeAdapter(types[key]).validate_json(
@@ -2966,7 +2968,7 @@ async def test_a_resumed_bridge_inherits_the_results_it_first_started_with(
     first = RecordingCheckpointer()
     started_with(sandbox, model.model, AgentState(messages=conversation("safe")), first)
     checkpointer = RecordingCheckpointer(
-        restored=saved(first, "bridge_compaction_prefix", "bridge_handed_calls")
+        restored=saved(first, "bridge_compaction_prefix", "bridge_handouts")
     )
     bridge = started_with(
         sandbox, model.model, AgentState(messages=conversation("secret")), checkpointer
@@ -3167,7 +3169,7 @@ async def test_a_resumed_bridge_keeps_the_call_ids_it_issued_or_observed(
             saved = read_host_context(str(tmp_path / "context")).agent_state
             assert saved is not None
             if legacy:
-                del saved["bridge_handed_calls"]
+                del saved["bridge_handouts"]
             resumed = real_checkpointer(tmp_path, saved)
             try:
                 bridge = started_with(sandbox, model.model, deepcopy(start), resumed)
@@ -3213,7 +3215,7 @@ async def test_a_bridge_does_not_resume_from_incomplete_result_checks(
 
             saved = read_host_context(str(tmp_path / "context")).agent_state
             assert saved is not None
-            del saved["bridge_handed_calls"]["reserved_ids"]
+            del saved["bridge_handouts"]["reserved_ids"]
             resumed = real_checkpointer(tmp_path, saved)
             try:
                 with pytest.raises(ValidationError, match="reserved_ids"):
@@ -4427,17 +4429,17 @@ async def test_a_cancelled_request_with_overlapping_results_releases_each_check(
 async def test_a_release_that_raises_still_releases_the_other_checks(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from inspect_ai.agent._bridge._sentinel import _HandedCalls
+    from inspect_ai.agent._bridge._sentinel import _Handouts
 
-    release = _HandedCalls.release
+    release = _Handouts.release
     failures = [RuntimeError("release failed")]
 
-    def failing_release(self: _HandedCalls, claim: Any) -> None:
+    def failing_release(self: _Handouts, claim: Any) -> None:
         release(self, claim)
         if failures:
             raise failures.pop()
 
-    monkeypatch.setattr(_HandedCalls, "release", failing_release)
+    monkeypatch.setattr(_Handouts, "release", failing_release)
     started, held = anyio.Event(), anyio.Event()
     model = Scripted(calls_output(READ, OTHER_READ), calls_output())
     bridge = AgentBridge(
@@ -4786,7 +4788,7 @@ async def test_a_cancelled_tool_call_stage_registers_nothing() -> None:
     assert cleaned.is_set()
     assert handed == []
     assert not bridge._tool_execution_grants
-    assert bridge._handed_calls is None or not bridge._handed_calls.proposals
+    assert not bridge._handouts.proposals
 
 
 @pytest.mark.parametrize("duplicate_id", [False, True])
@@ -9860,26 +9862,6 @@ def isolated_cache(
     return isolate
 
 
-async def test_a_request_repeated_after_its_result_was_sent_gets_a_fresh_id() -> None:
-    """The same request again, once a request carried the call's result, is not a retry.
-
-    The scaffold has a call under the id, so the same call proposed again is a
-    second run, handed over under a fresh id.
-    """
-    model = Scripted(calls_output(READ), calls_output(), calls_output(READ))
-    bridge = in_process_bridge([])
-    history: list[ChatMessage] = [ChatMessageUser(content=TASK)]
-
-    with active([bridge_recording([])]):
-        first = await generate(bridge, model, history)
-        await generate(bridge, model, _answered(history, first))
-        again = await generate(bridge, model, history)
-
-    [handed] = again.message.tool_calls or []
-    assert (first.message.tool_calls or [])[0].id == READ.id != handed.id
-    assert handed == replace(READ, id=handed.id)
-
-
 async def test_concurrent_requests_never_hand_two_calls_over_under_one_id() -> None:
     """Two requests get different calls under one id; the first waits in its check.
 
@@ -9958,7 +9940,7 @@ MATRIX_CASES = [
     "modify",
     "reject",
     "cache_retry",
-    "reused_id",
+    "proposed_again",
     "filter_output",
 ]
 
@@ -10090,7 +10072,7 @@ async def test_calls_keep_the_models_ids_and_their_own_state(
     generation, tools, wire = _matrix_generation(dialect)
     responses = (
         [generation, generation]
-        if case in ("reused_id", "filter_output")
+        if case in ("proposed_again", "filter_output")
         else [generation]
     )
     model = Parsing(
@@ -10149,7 +10131,7 @@ async def test_calls_keep_the_models_ids_and_their_own_state(
         if case != "reject":
             messages = _answered(messages, handed)
             later = await request(messages)
-        if case == "reused_id":
+        if case == "proposed_again":
             messages = _answered(messages, later)
             await request(messages)
 
@@ -10166,15 +10148,9 @@ async def test_calls_keep_the_models_ids_and_their_own_state(
     turns = [[(call_id, path) for call_id, path, _ in turn] for turn in replayed]
     paths = ["safe.txt" if case == "modify" else "old.txt", "new.txt"]
     assert turns[0] == list(zip(model_ids, paths))
-    if case == "reused_id":
-        # the same calls proposed again in a later turn get fresh ids
-        [(first, _), (second, _)] = turns[1]
-        assert len({first, second, *model_ids}) == 4
-        assert [path for _, path in turns[1]] == paths
-        if dialect in ("google", "computer_use"):
-            # a Gemini call's anchor is its own: the renamed call keeps it
-            assert [state for _, _, state in replayed[1]] == [GOOGLE_SIGNATURE, None]
-        # the ids' state was the later turn's, so it is dropped
+    if case == "proposed_again":
+        # the same calls proposed again in a later turn keep the model's ids
+        assert turns[1] == turns[0]
         assert all(
             _own_or_none(dialect, path, state)
             for turn in replayed
@@ -10185,7 +10161,7 @@ async def test_calls_keep_the_models_ids_and_their_own_state(
         assert all(_native(dialect, path, state) for _, path, state in replayed[0]), (
             replayed
         )
-    if dialect in RESPONSES_KINDS and case != "reused_id":
+    if dialect in RESPONSES_KINDS and case != "proposed_again":
         # each call in its native item type
         generated_type = _responses_call_reading(dialect, "old.txt", 1).type
         types = [

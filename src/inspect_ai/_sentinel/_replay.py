@@ -9,7 +9,7 @@ from functools import partial
 from typing import TYPE_CHECKING, Any, NamedTuple, cast
 
 from inspect_ai._util.content import Content
-from inspect_ai._util.json import json_equal
+from inspect_ai._util.json import json_equal, jsonable_python
 from inspect_ai.event._approval import ApprovalEvent
 from inspect_ai.event._compaction import CompactionEvent
 from inspect_ai.event._event import Event
@@ -566,7 +566,7 @@ class _Driver:
         self._assistants: dict[str, tuple[ChatMessageAssistant, ToolCall]] | None = None
         # each assistant message and its text, by id() (`_text`)
         self._texts: dict[int, tuple[ChatMessageAssistant, str]] = {}
-        self._messages_by_id: dict[str, ChatMessage] | None = None
+        self._messages_by_id: dict[str, list[ChatMessage]] | None = None
         # the origins of model calls the log records none for, by id()
         self._inferred: dict[int, str] | None = None
         # the uuids of model calls made outside sentinel spans
@@ -1433,8 +1433,23 @@ class _Driver:
 
     def _result(self, event: ToolEvent) -> ChatMessageTool:
         if event.message_id is not None:
-            found = self._message_by_id(event.message_id)
-            if isinstance(found, ChatMessageTool):
+            # code can edit a tool message in place, keeping its id: the copy
+            # holding the event's result is what the call produced
+            copies = [
+                message
+                for message in self._messages_by_id_all().get(event.message_id, [])
+                if isinstance(message, ChatMessageTool)
+            ]
+            result = jsonable_python(event.result)
+            found = next(
+                (
+                    message
+                    for message in copies
+                    if json_equal(jsonable_python(message.content), result)
+                ),
+                copies[0] if copies else None,
+            )
+            if found is not None:
                 return found
         return ChatMessageTool(
             id=event.message_id,
@@ -1444,17 +1459,14 @@ class _Driver:
             error=event.error,
         )
 
-    def _message_by_id(self, message_id: str) -> ChatMessage | None:
+    def _messages_by_id_all(self) -> dict[str, list[ChatMessage]]:
         if self._messages_by_id is None:
-            found: dict[str, ChatMessage] = {}
-            for message in self.pool:
+            found: dict[str, list[ChatMessage]] = {}
+            for message in [*self.pool, *self.messages]:
                 if message.id is not None:
-                    found.setdefault(message.id, message)
-            for message in self.messages:
-                if message.id is not None:
-                    found.setdefault(message.id, message)
+                    found.setdefault(message.id, []).append(message)
             self._messages_by_id = found
-        return self._messages_by_id.get(message_id)
+        return self._messages_by_id
 
     def _text(self, message: ChatMessageAssistant) -> str:
         # a message with several text parts joins them on each read, and

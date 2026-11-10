@@ -16,6 +16,7 @@ from test_helpers.stand_in_sidecar import StandInSidecar, Turn
 from inspect_ai import Task, eval_async
 from inspect_ai import eval as inspect_eval
 from inspect_ai import score as score_log
+from inspect_ai._sentinel._sidecar._call import INSPECT_HEADERS, SidecarCall
 from inspect_ai._sentinel._sidecar._endpoint import (
     NoSidecar,
     SentinelProxyError,
@@ -997,6 +998,20 @@ async def test_a_sidecar_found_after_the_task_started_is_registered_once() -> No
     await tg_collect([lambda: sidecars.sidecar(model.api)] * 3)
 
     assert len(_registered(stand_in, "register_task")) == 1
+
+
+def test_headers_a_sidecar_call_adds_are_inspect_headers() -> None:
+    # the response filter's provenance check leaves out only INSPECT_HEADERS
+    call = SidecarCall(Sidecar("http://proxy.test", "whole", None), "{}", "auto")
+    given = {"x-api-key": "key", "anthropic-beta": "beta"}
+
+    headers = call.config(GenerateConfig(extra_headers=dict(given))).extra_headers
+
+    assert headers is not None
+    assert {name: headers[name] for name in given} == given
+    added = set(headers) - set(given)
+    assert added and {name.lower() for name in added} <= INSPECT_HEADERS
+    assert all(name == name.lower() for name in INSPECT_HEADERS)
 
 
 def _context(request: httpx2.Request) -> dict[str, Any] | None:
