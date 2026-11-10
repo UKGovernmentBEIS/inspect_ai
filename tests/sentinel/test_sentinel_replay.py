@@ -1781,8 +1781,9 @@ def r7_runs_a_bridged_host_tool(
     name: str = "mcp__host__addition",
     approval: list[ApprovalPolicy] | None = None,
     request_before_running: bool = False,
+    host_tool: Tool | None = None,
 ) -> Agent:
-    """A scaffold that declares the host tool as `name` (or calls it through Antigravity's `call_mcp_tool` dispatcher) and runs the call the bridge hands it, after one more model request if `request_before_running`."""
+    """A scaffold that declares the host tool (`host_tool`, else `addition`) as `name` (or calls it through Antigravity's `call_mcp_tool` dispatcher) and runs the call the bridge hands it, after one more model request if `request_before_running`."""
 
     async def execute(state: AgentState) -> AgentState:
         from inspect_ai.agent._bridge.completions import (
@@ -1798,7 +1799,7 @@ def r7_runs_a_bridged_host_tool(
             compaction=None,
             port=8080,
             model=None,
-            bridged_tools={"host": {"addition": addition()}},
+            bridged_tools={"host": {"addition": host_tool or addition()}},
             approval=approval,
         )
         [served] = bridge.served_tools.values()
@@ -1885,6 +1886,82 @@ def test_a_bridged_host_call_replays_as_the_bridge_checked_it(
         ("tool_result", "ids"),
     ]
     assert not [r for r in caplog.records if "Replay skipped" in r.message]
+
+
+@tool(name="addition")
+def r7_returns_content(result: ToolResult) -> Tool:
+    async def execute(x: int, y: int) -> ToolResult:
+        """Answer with content.
+
+        Args:
+            x: First number to add.
+            y: Second number to add.
+        """
+        return result
+
+    return execute
+
+
+IMAGE_URL = "https://example.com/screenshot.png"
+IMAGE_DATA = "data:image/png;base64,iVBORw0KGgo="
+
+
+@pytest.mark.parametrize(
+    "result",
+    [
+        pytest.param([ContentText(text="plain answer")], id="text-list"),
+        pytest.param([ContentImage(image=IMAGE_URL)], id="url-image"),
+        pytest.param([ContentImage(image=IMAGE_DATA)], id="data-image"),
+        pytest.param(ContentImage(image=IMAGE_DATA), id="bare-image"),
+        pytest.param(
+            [ContentText(text="see"), ContentImage(image=IMAGE_URL)], id="mixed"
+        ),
+        pytest.param(
+            [ContentText(text="see"), ContentImage(image=IMAGE_DATA)],
+            id="mixed-data",
+        ),
+    ],
+)
+def test_a_bridged_host_call_s_content_replays_as_the_bridge_delivered_it(
+    result: ToolResult,
+) -> None:
+    # the bridge delivers content as the MCP reply carries it (a list of text
+    # as its JSON, an image by URL as its URL), and checks it so; replay
+    # rebuilds that from the result the tool event records
+    seen: dict[str, Step] = {}
+    log = run_logged(
+        as_solver(r7_runs_a_bridged_host_tool(host_tool=r7_returns_content(result))),
+        outputs(call("mcp__host__addition", x=1, y=1)),
+        sentinel=[r7_probe(seen, copies=True)],
+    )
+    replay = assert_logged_replay_equals_live(log, seen, unkeyed=HOST_RESULT)
+    assert [(s.stage, s.matched) for s in replay][2:] == [
+        ("tool_call", "ids"),
+        ("tool_result", "ids"),
+    ]
+
+
+def test_a_bridged_host_call_s_single_text_replays_as_a_list_of_one() -> None:
+    # the tool event records a single text item as a list of one, which the
+    # bridge would have delivered as that list's JSON, where live delivered the
+    # item's (a known difference)
+    seen: dict[str, Step] = {}
+    log = run_logged(
+        as_solver(
+            r7_runs_a_bridged_host_tool(
+                host_tool=r7_returns_content(ContentText(text="plain answer"))
+            )
+        ),
+        outputs(call("mcp__host__addition", x=1, y=1)),
+        sentinel=[r7_probe(seen, copies=True)],
+    )
+    replay = assert_logged_replay_equals_live(
+        log, seen, differences=["tool_result.result"]
+    )
+    [after] = [s.step for s in replay if isinstance(s.step, AfterToolCall)]
+    [live] = [s for s in seen.values() if isinstance(s, AfterToolCall)]
+    assert json.loads(live.result.text) == {"type": "text", "text": "plain answer"}
+    assert json.loads(after.result.text) == [{"type": "text", "text": "plain answer"}]
 
 
 def test_a_bridged_host_call_from_a_log_without_message_ids_is_skipped(

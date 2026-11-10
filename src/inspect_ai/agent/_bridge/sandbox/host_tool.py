@@ -504,12 +504,8 @@ async def _check_result(
         error = ToolCallError(
             outcome.error.type, _method_error(CALL_TOOL_METHOD, outcome.raised)
         )
-    elif isinstance(outcome.reply, str):
-        content = outcome.reply
-    elif isinstance(outcome.reply, list):
-        content = [_mcp_delivered_content(block) for block in outcome.reply]
     else:
-        content = to_json_str_safe(outcome.reply)
+        content = _delivered_content(outcome.reply)
     await sentinel_host_tool_result(
         bridge,
         check,
@@ -520,6 +516,24 @@ async def _check_result(
         candidates,
         execution,
     )
+
+
+def _delivered_content(reply: JsonValue) -> str | list[Content]:
+    """The content of a successful call's RPC `reply`, as the scaffold receives it and the sentinel checks it."""
+    if isinstance(reply, str):
+        return reply
+    elif isinstance(reply, list):
+        return [_mcp_delivered_content(block) for block in reply]
+    else:
+        return to_json_str_safe(reply)
+
+
+def delivered_host_tool_content(result: ToolResult) -> str | list[Content]:
+    """The content delivered for a successful host tool call whose `ToolEvent` records `result`, as the sentinel checked it.
+
+    A tool that returned a single content item other than an image records it as a list of one, which is delivered as the JSON of that list where live delivered the item's.
+    """
+    return _delivered_content(_reply(result, result, True))
 
 
 def _reply(output: ToolResult, result: ToolResult, checked: bool) -> JsonValue:

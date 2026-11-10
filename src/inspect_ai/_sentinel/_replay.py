@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any, NamedTuple, cast
 
 from inspect_ai._util.content import Content
 from inspect_ai._util.json import json_equal, jsonable_python
+from inspect_ai.agent._bridge.sandbox.host_tool import delivered_host_tool_content
 from inspect_ai.event._approval import ApprovalEvent
 from inspect_ai.event._compaction import CompactionEvent
 from inspect_ai.event._event import Event
@@ -104,7 +105,7 @@ def steps_from_events(
 
     A tool call is joined to the model call that proposed it by the id of the message its `ToolEvent` records (`call_message_id`, written since inspect_ai #6143), and to its result by its tool message's id (`message_id`). Where the event records no proposing message (an older log), or the id names several model calls' output (a cached output reused), a native call's producer is the latest model call that proposed its id (in the call's own conversation, where model calls in several conversations proposed it), a bridge's generation included, and its steps are matched by heuristic (`ReplayStep.matched`). A native call's recorded checks are those under its id between its own events: its `tool_call` check after its producer and before its tool span, and its `tool_result` check after its tool span and before a later model call proposed its id again in its conversation.
 
-    A host call a sandbox bridge ran (`ToolEvent.metadata["bridge"]`) is replayed where its event ties it to its proposal and its run exactly: its proposing message is one model call's output holding the call under the model's id (`proposal_id`), and either the bridge linked the run to its answer (`message_id`) or a check the bridge recorded names the proposal and the run (`SentinelEvent.execution_id`, else the call id). Its `tool_call` step is the call as the bridge checked it, under the model's id, with the host tool's name and the arguments it ran with (a sentinel's modify aside), once per proposal, keyed by the id its first run has; each run's `tool_result` step holds the result as the service delivered it (the `ToolEvent`'s result, not the error text the service wraps an error in), keyed by the run's id. Other host calls, and the calls a bridged scaffold ran itself, which leave no `ToolEvent`, are skipped, and a warning names them. A `human()` decision at a skipped step, and a person's approval of a host call, still reach the later steps of the conversation, as live. A bridge's tool checks are recorded in spans named `sentinel_bridge`, so a native call under an id a bridge also checked keeps its own checks.
+    A host call a sandbox bridge ran (`ToolEvent.metadata["bridge"]`) is replayed where its event ties it to its proposal and its run exactly: its proposing message is one model call's output holding the call under the model's id (`proposal_id`), and either the bridge linked the run to its answer (`message_id`) or a check the bridge recorded names the proposal and the run (`SentinelEvent.execution_id`, else the call id). Its `tool_call` step is the call as the bridge checked it, under the model's id, with the host tool's name and the arguments it ran with (a sentinel's modify aside), once per proposal, keyed by the id its first run has; each run's `tool_result` step holds the result as the service delivered it, keyed by the run's id: rebuilt from the `ToolEvent`'s result as the service converts it, except that an error's text is the tool's, not the service's wrapper, and a single content item other than an image, which the event records as a list of one, is delivered as that list. Other host calls, and the calls a bridged scaffold ran itself, which leave no `ToolEvent`, are skipped, and a warning names them. A `human()` decision at a skipped step, and a person's approval of a host call, still reach the later steps of the conversation, as live. A bridge's tool checks are recorded in spans named `sentinel_bridge`, so a native call under an id a bridge also checked keeps its own checks.
 
     A transcript Scout imported from another source (`eval_info` is None) replays from its events where Scout records which model calls its messages come from (`messages_from`): its turns are inferred as for a log without origins, and its tool steps come from its messages, each assistant message joined by its id to the turn whose output it is, which gives the steps that turn's input, tools and conversation; a message no one turn made is placed after the last message before it that one did, with no input, matched by heuristic. Its tool events are not read: importers record them without the model's call ids.
 
@@ -1303,7 +1304,9 @@ class _Driver:
         once per proposal, as the host tool it runs (`reviewed_calls`): under
         the model's call id, with the host tool's name and the arguments
         approval left. It checks each run's result after the run, as the
-        service delivered it, which is the `ToolEvent`'s result; its step is
+        service delivered it, which replay rebuilds from the `ToolEvent`'s
+        result as the service converts it (`delivered_host_tool_content()`);
+        its step is
         keyed by the id the run has (`execution_id`, else the call id), as is
         its `tool_call` step for its proposal's first run.
         """
@@ -1382,12 +1385,15 @@ class _Driver:
             function=event.function,
             arguments=event.arguments,
         )
-        # as the service delivered it, answering the id the run has; under the
-        # agent's tool message's id where the bridge linked it, else, so that
-        # replay is deterministic, its event's
+        # as the service delivered it (an error's content is the tool's),
+        # answering the id the run has; under the agent's tool message's id
+        # where the bridge linked it, else, so that replay is deterministic,
+        # its event's
         result = ChatMessageTool(
             id=event.message_id or event.uuid,
-            content=cast(str | list[Content], event.result),
+            content=cast(str | list[Content], event.result)
+            if event.error is not None
+            else delivered_host_tool_content(event.result),
             tool_call_id=event.id,
             function=event.function,
             error=event.error,
