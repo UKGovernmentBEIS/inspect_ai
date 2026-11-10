@@ -380,11 +380,27 @@ class PortRequest:
   `task_retry_attempts` gives it no task retries, but its sandbox setups
   retry themselves like any task's ([task-dispatch.md](task-dispatch.md#sandbox-setup-beside-the-dispatcher)):
   a transient setup failure is absorbed before the task sees it, and only a
-  final failure, which a fresh task added later meets too, ends it. Its
-  error log stays one of the run's logs, so `eval_set()`'s result and a
-  selection worker's (`all_evals_succeeded` over the logs) are failure even
-  when the creator recovers with a fresh task and succeeds: today's rule for
-  any failed task, unchanged.
+  final failure, which a fresh task added later meets too, ends it.
+- **A failed fed task fails the eval set.** Its error log is one of the run's
+  logs, so a selection worker's result (`all_evals_succeeded` over the logs
+  of its single run) is failure even when the creator recovers with a fresh
+  task and succeeds, as for any failed task today. `eval_set()` needs one
+  addition to keep that across rounds: its later rounds match logs only to
+  requested tasks, and the fed log's identifier is never one of them
+  (`validate_eval_set_prerequisites()` keeps only requested identifiers
+  under `log_dir_allow_dirty=True`), so a legacy round
+  (`retry_immediate=False`) that reuses the creator's success would return
+  only that success. So `eval_set()` keeps, for the whole invocation, the
+  tasks fed by their creator that ended without success in any round: from
+  each round's returned logs, those with `eval.send_samples` set and a status
+  other than `success`, by task id. This record is separate from requested-
+  task matching, prior-source reuse and retry scheduling: it reruns nothing
+  (a later round reruns only requested tasks, whose creator decides what to
+  feed again), and the retry predicate still looks only at requested tasks'
+  logs, so a failed fed task alone starts no extra round. The final result
+  is `all_evals_succeeded` over the requested tasks' logs and no failed fed
+  task recorded; the closing message names the failed fed tasks ("Did not
+  successfully complete all tasks: tasks fed by their creator failed: …").
 - **The log says so.** A new `EvalSpec` field, `send_samples: bool = False`,
   after `task_args_passed`: "the task's dataset was samples_from_creator(),
   so its samples were sent by the task that added it". The `TaskLogger` sets
@@ -635,10 +651,17 @@ test touched), with mockllm models; every test that waits is bounded with
     same configuration ends the same way with no fourth try; the same for a
     setup failure before the attempt starts, with requests sent while the
     task was queued;
-  - under `eval_set()` and in a selection-mode worker, a creator whose rollout
-    task fails, which handles the `TaskEndedError`, adds a fresh rollout task
-    and then succeeds: the failed rollout's error log is among the run's logs
-    and the eval set's (and worker's) result is failure;
+  - under `eval_set()` (immediate retries) and in a selection-mode worker, a
+    creator whose rollout task fails, which handles the `TaskEndedError`, adds
+    a fresh rollout task and then succeeds: the failed rollout's error log is
+    among the run's logs and the eval set's (and worker's) result is failure;
+  - under `eval_set(retry_immediate=False, log_dir_allow_dirty=True)`, the
+    same creator plus a second requested task that fails in the first round
+    and succeeds in the second: the second round runs only that task (the
+    creator's success is reused and it runs once), the failed rollout is not
+    rerun, and the final result is failure with the closing message naming
+    the rollout task; with no failing requested task, no second round runs
+    because of the failed rollout alone;
   - a detached task started in a creator's solver, released after the
     creator's attempt has given its slot back while another task keeps the run
     open, calls `enqueue_task()` with a `samples_from_creator()` task: it
@@ -695,7 +718,9 @@ path loans rely on):
    channels closed with the creator's attempt; no retry, and `can_retry=False`,
    for fed tasks; `channel.stop()`
    from the `cancel_task` callback), `_eval/task/log.py` and `log/_log.py`
-   (`EvalSpec.send_samples`), `_eval/evalset.py` (`task_identifier()` with
+   (`EvalSpec.send_samples`), `_eval/evalset.py` (the invocation's record of
+   failed fed tasks in the final result, its message and the retry predicate;
+   `task_identifier()` with
    `send_samples`, `_resumed_task()`'s refusal), `_eval/eval.py` (the
    `eval_resolve_tasks` and
    `eval_retry()` refusals; `max_tasks`, `max_samples` and `max_sandboxes`

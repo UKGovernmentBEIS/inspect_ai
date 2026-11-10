@@ -742,16 +742,42 @@ class SandboxSetups:                   # one per run
 - **The job retries itself** (decision: Ransom, 2026-11-10). A `task_init`
   that raises is tried again, up to `task_retry_attempts` more times (the
   run-wide value under "The dispatcher", Retries; 3 means up to four tries,
-  and 0, `eval()`'s default, means none). Before each new try the job runs
-  the provider's `task_cleanup` for the failed try, in that try's captured
-  context, shielded, with its errors logged and ignored, so a half-built
-  configuration is torn down; then it waits with the backoff `eval_set()`
-  already uses between retry rounds (exponential, from 30 seconds up to an
-  hour), releasing the one-at-a-time slot so other setups run meanwhile; then
-  it tries again from the setup chain's current context. Records needing the
-  key keep waiting through the tries, and new requests for it join the same
-  job. A failed key resolution (`task_init_environment`, a missing config
-  file) is not retried: it fails the same way every time.
+  and 0, `eval()`'s default, means none). Before each new try the job
+  cleans up the failed try ("Cleaning up a failed try", below), then waits
+  with the backoff `eval_set()` already uses between retry rounds
+  (exponential, from 30 seconds up to an hour), releasing the one-at-a-time
+  slot so other setups run meanwhile, then tries again from the setup
+  chain's current context. Records needing the key keep waiting through the
+  tries, and new requests for it join the same job. A failed key resolution
+  (`task_init_environment`, a missing config file) is not retried: it fails
+  the same way every time.
+- **Cleaning up a failed try** releases only what that try set up, never
+  another configuration's resources. A provider's `task_cleanup` can act on
+  everything it can reach: Docker's ignores the configuration and shuts down
+  every project in the lifecycle registry (`project_cleanup_shutdown`), and
+  k8s's uninstalls every release of a manager that configurations share. So
+  each `task_init` try runs in a try-local scope:
+  - it starts from a copy of the chain's context in which Inspect enters a
+    fresh `sandbox_lifecycle_scope()`, so Docker (and any provider using the
+    registry) records that try's projects and generated files in a registry
+    of its own;
+  - when it returns, the job notes the try's own bindings: the provider
+    variables whose values differ, by `is not`, from the chain's before the
+    try.
+  On success, the try's registry entries move into the run's registry (a new
+  internal `SandboxLifecycleState.adopt(other)`, which hands each provider's
+  state to that provider's own state class to merge; Docker's merges its
+  project and file registries), and the job's context and bindings are taken
+  as "Provider state per setup" says, with the run's registry. On failure,
+  the job runs `task_cleanup` once, shielded, with its errors logged and
+  ignored, in a context built from `root` holding the try's own registry and
+  only the try's own bindings: a value the try inherited from an earlier
+  configuration (k8s's shared manager) is not there, so cleanup cannot reach
+  what another configuration uses, while a list the try rebound (E2B, Modal,
+  Daytona, Podman) is, so its sandboxes are released. The try's registry is
+  then discarded. The same cleanup runs for the last failed try, and with no
+  retries for the only one. Everything a successful job set up is cleaned up
+  only by `shutdown()`, as today.
 - **Failure.** When the last try fails, the job is failed for the rest of the
   run. Every record needing it becomes startable, and its attempt ends at once
   through the normal path: `task_run` receives the failure in
@@ -1113,13 +1139,22 @@ test that waits on a run is bounded with `fail_after`.
   - a transient failure (fails once, `task_retry_attempts=2`) is absorbed by
     the setup's own retries for a seed task, an added task and a
     creator-fed task, each of which then runs normally; the failed try's
-    `task_cleanup` ran before the second try, after the backoff (a patched
-    wait records its delay);
+    `task_cleanup` ran before the backoff and the second try (a patched wait
+    records its delay);
   - a permanent failure (`task_retry_attempts=2`) makes three tries with
     cleanup between them, then ends every task waiting on the key with its
     error log and `on_task_start`/`on_task_end`, none retried as a task; a
     task added later that needs the key ends the same way with no fourth try;
-  - with `task_retry_attempts=0` the first failure is final;
+  - with `task_retry_attempts=0` the first failure is final, and that try
+    is still cleaned up;
+  - cleanup isolation, with configuration A set up and its samples running
+    while configuration B fails once and, separately, on every try (and with
+    zero retries): with real Docker (`--runslow`), B's failed-try cleanup
+    leaves A's running project and generated compose file in place and the
+    run's registry open, and A is cleaned up only at shutdown; with a
+    k8s-style stub whose `task_init` reuses a manager A created, B's cleanup
+    reaches no release of A's; with an E2B-style stub that rebinds a list per
+    `task_init`, B's cleanup sees only the sandboxes B's try created;
   - requests for the key arriving during the tries join the same job, and
     other setups run while it waits;
   - a failed `task_init_environment` is not retried;
@@ -1203,7 +1238,10 @@ the single `eval_run`), so the setup fixes come first.
    `test_task_cancel.py`, `_control/test_ctl.py`, `test_eval_set.py`. Needs
    steps 1 and 2.
 4. **Setup beside the dispatcher.** `_eval/sandbox_setups.py` (new; replaces
-   `SandboxManager`), `_eval/run.py` (start rule, `setup_error`,
+   `SandboxManager`; try-local scopes and failed-try cleanup),
+   `util/_sandbox/lifecycle.py` (`SandboxLifecycleState.adopt()`),
+   `util/_sandbox/docker/cleanup.py` (its state class merges registries),
+   `_eval/run.py` (start rule, `setup_error`,
    `setups.open()` inside the screen; no task retry after a setup failure),
    `_eval/task/run.py` (setup-failure
    attempt path, `setups.ensure()`), `_control/queued_tasks.py` (`setup`
