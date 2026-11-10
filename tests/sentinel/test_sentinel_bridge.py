@@ -9628,6 +9628,18 @@ async def test_a_provider_output_rebuilt_from_its_fields_replays_its_own_calls()
     ]
 
 
+def test_a_generation_without_a_model_event_has_no_known_producer() -> None:
+    # a refusal recovered after the provider's error has no event of its own
+    from inspect_ai.agent._bridge.util import _Generations
+
+    generations = _Generations()
+    output = calls_output(READ)
+
+    generations.record(output, None)
+
+    assert generations.producer(output) is None
+
+
 @protocol
 def bridge_reject_first() -> Protocol:
     rejected = False

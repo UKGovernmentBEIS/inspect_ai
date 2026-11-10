@@ -1333,7 +1333,8 @@ class _Generations:
     Nor does an output that is no recorded generation's (a filter's copy or
     replacement), or one two generations returned, or one whose event kept a
     live message (one it could not serialize), since an edit to that message
-    changes the snapshot too.
+    changes the snapshot too. Nor does one recorded without an event (a
+    recovered refusal), as no event records what the model was sent for it.
 
     Each generation is recorded with the agent span current while it ran (a
     model event sink's `on_start` can choose it), so the call's steps are in
@@ -1347,10 +1348,12 @@ class _Generations:
         self.returned: ModelOutput | None = None
         """What the response filter last returned, before it is validated."""
 
-    def record(self, output: ModelOutput, event: "ModelEvent") -> None:
+    def record(self, output: ModelOutput, event: "ModelEvent | None") -> None:
         recorded = self._producers.get(id(output))
         twice = recorded is not None and recorded[0] is output
-        produced = Produced(event, current_agent_span_id())
+        produced = (
+            Produced(event, current_agent_span_id()) if event is not None else None
+        )
         self._producers[id(output)] = (output, None if twice else produced)
 
     def producer(self, output: ModelOutput | None) -> Produced | None:

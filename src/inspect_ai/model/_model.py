@@ -3469,21 +3469,24 @@ def _model_event_sink_span(input: list[ChatMessage]) -> Iterator[None]:
         yield
 
 
-_generation_observer: ContextVar[Callable[[ModelOutput, "ModelEvent"], None] | None] = (
-    ContextVar("_generation_observer", default=None)
-)
+_generation_observer: ContextVar[
+    Callable[[ModelOutput, "ModelEvent | None"], None] | None
+] = ContextVar("_generation_observer", default=None)
 
 
 @contextlib.contextmanager
 def observe_generations(
-    observer: Callable[[ModelOutput, "ModelEvent"], None],
+    observer: Callable[[ModelOutput, "ModelEvent | None"], None],
 ) -> Iterator[None]:
     """Call `observer` with each output `generate()` returns and its `ModelEvent`.
 
     For the duration of the block, in this context and tasks started from it.
     The output is the object `generate()` returns (or a `ModelRefusalError`
     carries), so a caller can tell which generation produced an output it is
-    handed by identity. An inner block replaces the observer for its duration.
+    handed by identity. The event is None for an output with no event of its
+    own (a refusal a sidecar decided, recovered after the provider's error,
+    whose call's event records the error). An inner block replaces the
+    observer for its duration.
     """
     token = _generation_observer.set(observer)
     try:
