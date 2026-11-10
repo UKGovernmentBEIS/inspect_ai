@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 # tagless shallow clone. Without it the project builds as 0.1.devN, below the
 # inspect-ai floor of dev dependencies like inspect-scout, and `uv lock` fails.
 # Release Please updates it with each release.
-fallback_version = "0.3.287"
+fallback_version = "0.3.289"
 git_describe_command = [
   'git',
   'describe',
@@ -22,6 +22,9 @@ git_describe_command = [
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["inspect_ai*"]
+# Not runtime code. The wheel is built from the checkout, not the sdist, so
+# MANIFEST.in does not keep these namespace-package modules out of it.
+exclude = ["inspect_ai._view.ts-mono*", "inspect_ai.tool._tools._computer._resources*"]
 
 # Keep the ts-mono TS source out of the wheel: the git-tracked files are
 # pruned in MANIFEST.in (include-package-data pulls the manifest into the
@@ -29,7 +32,7 @@ include = ["inspect_ai*"]
 # **/*.yml) from picking up untracked files inside ts-mono such as
 # node_modules. The viewer ships prebuilt as _view/dist.
 [tool.setuptools.exclude-package-data]
-inspect_ai = ["_view/ts-mono*"]
+inspect_ai = ["_view/ts-mono*", "tool/_tools/_computer/_resources*"]
 
 [tool.setuptools.package-data]
 inspect_ai = [
@@ -226,7 +229,7 @@ dev = [
   "azure-ai-inference",
   "azure-identity",
   "brotli",  # tests decode the agent bridge's forwarded Accept-Encoding: br; not a runtime dependency, since it makes httpx advertise br on every request
-  "google-genai>=2.31.0",
+  "google-genai>=3.0.0",
   "griffe>=2",
   "groq>=0.28.0",
   "huggingface_hub>=1.6.0",
@@ -328,8 +331,10 @@ dev = ["inspect_ai[dev]"]
 [tool.uv]
 cache-keys = [{ git = { commit = true } }, { file = "pyproject.toml" }]
 default-groups = ["dev"]
-# 0.11.8 is the first uv that keeps uv.lock stable with a relative exclude-newer.
-required-version = ">=0.11.8"
+# 0.11.8 is the first uv that keeps uv.lock stable with a relative exclude-newer,
+# and 0.13.4 the first that no longer trusts the compromised emSign root
+# (GHSA-hq85-5cpj-mr62).
+required-version = ">=0.13.4"
 # Only resolve releases at least 7 days old (see CONTRIBUTING.md).
 exclude-newer = "7 days"
 
@@ -339,7 +344,6 @@ anthropic = "6 hours"
 azure-ai-inference = "6 hours"
 google-genai = "6 hours"
 groq = "6 hours"
-huggingface-hub = "6 hours"
 inspect-scout = "6 hours"
 inspect-sentinel = "6 hours"
 mistralai = "6 hours"

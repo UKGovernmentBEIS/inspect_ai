@@ -145,6 +145,24 @@ async def test_reasoning_claude_fable_5_1():
 
 @pytest.mark.anyio
 @skip_if_no_anthropic
+async def test_reasoning_claude_fable_5_2():
+    # Fable 5.2 always thinks and default thinking.display to 'omitted'
+    # while Inspect requests 'summarized', so a non-empty summarized reasoning
+    # block must come back, without leaking into the visible response text.
+    model = get_model("anthropic/claude-fable-5-2")
+    output = await model.generate(
+        "Solve 3*x^3-5*x=1",
+        config=GenerateConfig(reasoning_effort="high", max_tokens=8192),
+    )
+    assert "<think>" not in output.completion
+    content = output.choices[0].message.content
+    assert isinstance(content, list)
+    assert isinstance(content[0], ContentReasoning)
+    assert content[0].reasoning.strip()
+
+
+@pytest.mark.anyio
+@skip_if_no_anthropic
 async def test_reasoning_claude_ignore_unsupported():
     @tool
     def addition():

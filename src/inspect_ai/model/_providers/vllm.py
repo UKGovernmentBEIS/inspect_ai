@@ -7,7 +7,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 import anyio
-from openai import APIConnectionError, APIStatusError
+from openai import APIConnectionError, APIStatusError, AsyncOpenAI
 from tenacity.wait import WaitBaseT, wait_fixed
 from typing_extensions import override
 
@@ -259,10 +259,12 @@ class VLLMAPI(OpenAICompatibleAPI):
             service_base_url=server.base_url,
             client_timeout=self._client_timeout,
         )
-        self._resolved_epoch = self._server._epoch
-
         if self.adapter:
             ensure_adapter_loaded(self._server, self.adapter)
+
+        # resolved only once the adapter is loaded: a caller that finds the
+        # epoch current skips the lock and uses the server at once
+        self._resolved_epoch = self._server._epoch
 
     @override
     def _apply_api_key_overrides(self) -> None:
@@ -301,10 +303,29 @@ class VLLMAPI(OpenAICompatibleAPI):
 
     async def _ensure_server_started(self) -> None:
         """Lazy version of ``_resolve_server`` — thread-safe for concurrent ``generate()`` calls."""
+        await self._resolve_server_off_loop()
+        await self._register_context_window()
+
+    async def _resolve_server_off_loop(self) -> None:
+        """Resolve the server in a worker thread, under the server's lock.
+
+        Resolving may load a LoRA adapter with blocking requests, and two
+        models sharing a server must not resolve it at once.
+        """
         if self._resolved_epoch != self._server._epoch:
             async with self._server._init_lock:
                 await anyio.to_thread.run_sync(self._resolve_server)
-        await self._register_context_window()
+
+    @override
+    async def proxy_endpoint(self) -> tuple[AsyncOpenAI, str] | None:
+        # An existing server someone named may sit behind a proxy; a server this
+        # process starts never does. Resolving with a named server builds the
+        # client and starts nothing, and runs as it does before a generate.
+        url = self._init_base_url or os.environ.get("VLLM_BASE_URL")
+        if not url:
+            return None
+        await self._resolve_server_off_loop()
+        return self.client, url
 
     def _server_root(self) -> str:
         """Base URL with any trailing ``/v1`` removed.
@@ -582,6 +603,13 @@ class VLLMAPI(OpenAICompatibleAPI):
         if tokens is None:
             raise ValueError(f"vLLM /tokenize response missing 'tokens' key: {data}")
         return list(tokens)
+
+    @override
+    def _client_endpoint(self) -> str | None:
+        # a lazy instance has no client until a call resolves its server
+        if self._resolved_epoch < 0:
+            return self.base_url
+        return super()._client_endpoint()
 
     @override
     def connection_key(self) -> str:
