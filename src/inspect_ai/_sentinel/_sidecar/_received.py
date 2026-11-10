@@ -67,6 +67,8 @@ class ReceivedCall:
         self.mode: "SentinelProxy" = mode
         """Whether the task requires a sidecar, so a call whose judgment is unavailable fails the sample."""
         self.request_id: str | None = None
+        self.sent = False
+        """Whether a request of the latest attempt was handed to the HTTP client. Until one is, the sidecar can know nothing of the attempt: its request id is allocated before the provider builds the request, which can fail."""
         self.looked: "Looked | None" = None
         """What `request_result` said of the latest attempt, once asked."""
         self.judgment: Judgment | None = None
@@ -98,6 +100,7 @@ def begin_attempt() -> None:
     received = _received.get()
     if received is not None:
         received.request_id = None
+        received.sent = False
         received.looked = None
         received.judgment = None
 
@@ -112,6 +115,13 @@ def report_request_id(request_id: str) -> None:
     received = _received.get()
     if received is not None:
         received.request_id = request_id
+
+
+def report_sent(request_id: str) -> None:
+    """Report that a request of the current agent call is being sent under the `x-irid` reported for it, on each try."""
+    received = _received.get()
+    if received is not None and received.request_id == request_id:
+        received.sent = True
 
 
 def parse_judgment(judgment: dict[str, Any]) -> Judgment:

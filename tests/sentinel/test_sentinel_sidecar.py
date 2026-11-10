@@ -2376,6 +2376,56 @@ def test_a_required_sample_the_restarted_sidecar_lost_isnt_scored_on_what_it_hol
     assert _registered(stand_in, "sample_result") == []
 
 
+@pytest.mark.parametrize("sentinel_proxy", ["auto", "required"])
+def test_an_error_before_a_call_is_sent_stands_and_is_never_looked_up(
+    monkeypatch: pytest.MonkeyPatch,
+    sentinel_proxy: Literal["auto", "required"],
+) -> None:
+    # The provider allocates the call's request id, then fails as it builds
+    # the request, as for a setting the model doesn't take. Nothing was sent,
+    # so the sidecar is asked nothing of an id it never saw, the error isn't
+    # read as a judgment a required sidecar couldn't give, and the attempt's
+    # monitor state isn't taken for lost.
+    from inspect_ai.model._providers.anthropic import AnthropicAPI
+
+    def completion_config(self: AnthropicAPI, config: GenerateConfig) -> Any:
+        raise ValueError("The model doesn't take this setting.")
+
+    monkeypatch.setattr(AnthropicAPI, "completion_config", completion_config)
+    stand_in = StandInSidecar(
+        methods={
+            "request_result": _answers({"records": "unknown"}),
+            "sample_result": _kept({"Tally:lookups": 3}),
+        }
+    )
+    task = Task(
+        dataset=[Sample(input="Hi.")],
+        solver=generate(),
+        scorer=_reads_monitor_state(),
+    )
+
+    [log] = eval(
+        task,
+        model=_model(stand_in),
+        sentinel_proxy=sentinel_proxy,
+        score_on_error=True,
+        display="none",
+    )
+
+    assert log.samples is not None
+    [sample] = log.samples
+    assert sample.error is not None
+    assert "The model doesn't take this setting." in sample.error.message
+    assert "SidecarNotJudgedError" not in sample.error.traceback
+    assert "a sidecar is required" not in sample.error.traceback
+    assert _looked_up(stand_in) == []
+    assert stand_in.model_calls == []
+    # scored on the monitor state the sidecar keeps, which wasn't lost
+    assert sample.scores is not None
+    [score] = sample.scores.values()
+    assert score.value == 3
+
+
 @pytest.mark.parametrize("retry_on_error", [0, 1], ids=["no retries", "retries spent"])
 def test_a_sample_the_sidecar_lost_isnt_scored_on_what_it_holds_since(
     retry_on_error: int,
