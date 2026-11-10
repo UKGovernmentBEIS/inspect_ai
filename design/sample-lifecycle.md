@@ -76,11 +76,12 @@ The code anchors:
   same uuid (the control channel's event cursor keys on it), no terminal
   side-effects for the failed attempt, its buffered log events removed.
 - **terminal.** Once the attempt's sample events are drained,
-  `_attempt_outcome` resolves its outcome once (retry, drain-window abandon,
-  cancelled, completed, or errored) from the attempt's recorded error,
-  cancellation and handled interrupt, plus whether an interrupt is stamped
-  now. The logging block and the tail dispatch both read that value, and the
-  tail reports it through the run's `SampleTerminalReporter` (below). Cancellation
+  `_attempt_outcome` resolves its outcome once (retry, cancelled, completed,
+  or errored) from the attempt's recorded error, cancellation and handled
+  interrupt. The logging block and the tail dispatch both read that value.
+  At the tail, after the sample's teardown, a retry becomes the drain-window
+  abandon if an interrupt is stamped by then. The tail reports the outcome
+  through the run's `SampleTerminalReporter` (below). Cancellation
   is then re-raised to preserve structured concurrency (except an operator
   per-sample cancel, which is sample-scoped), and a fail-on-error terminal
   raises to tear the task down.

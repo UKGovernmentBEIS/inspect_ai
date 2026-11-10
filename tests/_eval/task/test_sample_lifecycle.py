@@ -23,7 +23,6 @@ from inspect_ai._eval.task.run import (
     SampleAttempt,
     SampleTerminalReporter,
     _attempt_outcome,
-    _AttemptAbandoned,
     _AttemptCancel,
     _AttemptCancelled,
     _AttemptCompleted,
@@ -343,38 +342,34 @@ _CANCELLED = _AttemptCancel(_CANCEL, _ERROR)
 
 
 @pytest.mark.parametrize(
-    "failure,handled_interrupt,retries,stamped,expected",
+    "failure,handled_interrupt,retries,expected",
     [
         # no error
-        (None, None, 0, False, _AttemptCompleted()),
-        (None, None, 2, True, _AttemptCompleted()),
-        (None, "score", 1, True, _AttemptCompleted()),
-        # error with retries remaining: retried unless an interrupt is stamped
-        (_ERRORED, None, 1, False, _AttemptRetry(_ERROR)),
-        (_ERRORED, None, 1, True, _AttemptAbandoned()),
-        (_ERRORED, "error", 1, True, _AttemptAbandoned()),
+        (None, None, 0, _AttemptCompleted()),
+        (None, None, 2, _AttemptCompleted()),
+        (None, "score", 1, _AttemptCompleted()),
+        # error with retries remaining: retried (the tail may abandon it)
+        (_ERRORED, None, 1, _AttemptRetry(_ERROR)),
+        (_ERRORED, "error", 1, _AttemptRetry(_ERROR)),
         # error on the final attempt: returned, or raised under fail_on_error
-        (_ERRORED, None, 0, False, _AttemptErrored(None)),
-        (_ERRORED, None, 0, True, _AttemptErrored(None)),
-        (_RAISED, None, 0, False, _AttemptErrored(_RAISE)),
+        (_ERRORED, None, 0, _AttemptErrored(None)),
+        (_RAISED, None, 0, _AttemptErrored(_RAISE)),
         # cancelled: wins over retries
-        (_CANCELLED, None, 1, False, _AttemptCancelled(_CANCEL, False)),
-        (_CANCELLED, "score", 0, True, _AttemptCancelled(_CANCEL, False)),
+        (_CANCELLED, None, 1, _AttemptCancelled(_CANCEL, False)),
+        (_CANCELLED, "score", 0, _AttemptCancelled(_CANCEL, False)),
         # an operator 'cancel' the solver phase handled is sample-scoped
-        (_CANCELLED, "cancel", 1, True, _AttemptCancelled(_CANCEL, True)),
+        (_CANCELLED, "cancel", 1, _AttemptCancelled(_CANCEL, True)),
     ],
 )
 def test_attempt_outcome(
     failure: _AttemptError | _AttemptCancel | None,
     handled_interrupt: SampleCancelAction | None,
     retries: int,
-    stamped: bool,
     expected: _AttemptOutcome,
 ) -> None:
     outcome = _attempt_outcome(
         failure=failure,
         handled_interrupt=handled_interrupt,
         retries_remaining=retries,
-        interrupt_stamped=stamped,
     )
     assert outcome == expected

@@ -702,11 +702,13 @@ class _AttemptRetry:
 
 @dataclass(frozen=True)
 class _AttemptAbandoned:
-    """Errored with retries remaining, but an interrupt is stamped.
+    """A retry suppressed by an interrupt stamped on the sample.
 
-    Usually the interrupt landed after the attempt's task group exited, so it
-    only stamped the sample. Not logged, counted cancelled — as the interrupt
-    would have resolved the retry at its queue check.
+    Set at the attempt's tail, in place of an `_AttemptRetry`, when an
+    interrupt is stamped by then. Usually it landed after the attempt's task
+    group exited (as late as the sample's teardown), so it only stamped the
+    sample. Not logged, counted cancelled — as the interrupt would have
+    resolved the retry at its queue check.
     """
 
 
@@ -748,17 +750,15 @@ def _attempt_outcome(
     failure: _AttemptError | _AttemptCancel | None,
     handled_interrupt: SampleCancelAction | None,
     retries_remaining: int,
-    interrupt_stamped: bool,
-) -> _AttemptOutcome:
+) -> _AttemptRetry | _AttemptCancelled | _AttemptCompleted | _AttemptErrored:
     """Resolve an attempt's outcome once its scoring and cleanup have finished.
+
+    A retry may still become `_AttemptAbandoned` at the attempt's tail.
 
     Args:
         failure: The attempt's recorded error or cancellation, if any.
         handled_interrupt: The interrupt the solver phase handled.
         retries_remaining: Sample-level retries left after this attempt.
-        interrupt_stamped: Whether an interrupt is stamped on the sample now.
-            Read after the sample's events are drained, so an interrupt landing
-            during the drain abandons a retry.
     """
     match failure:
         case None:
@@ -768,8 +768,6 @@ def _attempt_outcome(
                 cancel=cancel, sample_scoped=handled_interrupt == "cancel"
             )
         case _AttemptError() if retries_remaining > 0:
-            if interrupt_stamped:
-                return _AttemptAbandoned()
             return _AttemptRetry(failure.error)
         case _AttemptError(raise_error=raise_error):
             return _AttemptErrored(raise_error=raise_error)
@@ -3613,14 +3611,13 @@ async def _task_run_sample_attempt(
                 # drain sample events for both completion and retry paths
                 await drain_sample_events()
 
-                outcome = _attempt_outcome(
+                outcome: _AttemptOutcome = _attempt_outcome(
                     failure=failure,
                     handled_interrupt=handled_interrupt,
                     retries_remaining=attempt.retries_remaining,
-                    interrupt_stamped=active.interrupt_action is not None,
                 )
 
-                if not isinstance(outcome, _AttemptRetry | _AttemptAbandoned):
+                if not isinstance(outcome, _AttemptRetry):
                     reporter.progress()
 
                     # a sample saved without being scored keeps its monitor
@@ -3759,6 +3756,11 @@ async def _task_run_sample_attempt(
                     _enqueue_source_tasks(
                         await task_source.sample_complete(source_sample, task)
                     )
+
+    # an interrupt stamped since the attempt's task group exited, up to the
+    # sample's teardown just above, suppresses the retry
+    if isinstance(outcome, _AttemptRetry) and active.interrupt_action is not None:
+        outcome = _AttemptAbandoned()
 
     match outcome:
         # returned outside the semaphore scope above so the retry re-acquires
