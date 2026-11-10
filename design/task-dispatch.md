@@ -784,7 +784,13 @@ solver, with the directory restored afterwards. In their place:
   (`src/inspect_ai/util/_sandbox/paths.py`): a relative string config, and
   each relative `build` context of a `ComposeConfig` service (a string, or
   `ComposeBuild.context`), becomes absolute when that path exists under the
-  task directory. A URI, an absolute path, a string with no such file, and an
+  task directory. A `ComposeBuild` whose `context` is omitted
+  (`ComposeBuild()` or `ComposeBuild(dockerfile="Dockerfile")`, where it is
+  `None`) means the compose default `"."`, which Docker's
+  `_update_build_context` would otherwise resolve against the process
+  directory when `ComposeProject.create` writes the generated file; the helper
+  treats it as `"."` and sets the context to the task directory itself, as
+  today's setup `chdir` made it. A URI, an absolute path, a string with no such file, and an
   `OSError` from the check (a string too long to be a path) leave the value as
   given. `resolve_task_sandbox` calls it for the task-level config in place of
   its unconditional join, so an inline-JSON string config is no longer
@@ -1001,7 +1007,8 @@ test that waits on a run is bounded with `fail_after`.
   `task_init` awaits; `subprocess()` defaults to the task directory inside a
   setup and merges no setup `env`; `resolve_config_paths` makes a relative
   string and a `ComposeConfig` build context absolute only when they exist
-  under the task directory, and leaves an inline-JSON string, a URI, an
+  under the task directory, and sets an omitted `ComposeBuild.context` to the
+  task directory, and leaves an inline-JSON string, a URI, an
   absolute path and an over-long string as given; a task-level inline-JSON
   config reaches `task_init` unchanged; per-setup bindings reach
   `sample_init`, `sample_cleanup` and the matching `task_cleanup` for two
@@ -1017,9 +1024,12 @@ test that waits on a run is bounded with `fail_after`.
 - `tests/util/sandbox/test_docker_cleanup.py` and
   `test_docker_compatibility.py`: with the task directory different from the
   launch directory and a same-named file in each, a sample-level relative
-  `compose.yaml`, a relative `Dockerfile` and a `ComposeConfig` build context,
-  on a seed sample and on a sample a `SampleSource` adds, select the task
-  directory's file in `task_init_environment`, `task_init` and `sample_init`;
+  `compose.yaml`, a relative `Dockerfile`, a `ComposeConfig` build context,
+  and a `ComposeConfig` service with `ComposeBuild()` and with
+  `ComposeBuild(dockerfile="Dockerfile")` (no context; a different
+  `Dockerfile` in each directory), on a seed sample and on a sample a
+  `SampleSource` adds, select the task directory's file in
+  `task_init_environment`, `task_init` and `sample_init`;
   the `SAMPLE_METADATA_*` values reach `compose build` through the project's
   `env`, and a Docker subclass overriding `task_init_environment` gets its own
   values there. One `--runslow` real-Docker test builds a Dockerfile task
