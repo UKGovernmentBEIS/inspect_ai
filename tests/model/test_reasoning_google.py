@@ -76,6 +76,16 @@ def test_google_gemini_4_reasoning_effort_minimal(model: str) -> None:
     assert '"thinkingLevel": "LOW"' in log.model_dump_json(indent=2)
 
 
+@skip_if_no_google
+@pytest.mark.parametrize("model", GEMINI_4_MODELS)
+def test_google_gemini_4_reasoning_effort_none(model: str) -> None:
+    # these models are not thinking-only, so none disables thinking
+    task = Task(dataset=[Sample(input="Solve 3*x^3-5*x=1")])
+    log = eval(task, model=model, reasoning_effort="none")[0]
+    assert log.status == "success"
+    assert '"thinkingBudget": 0' in log.model_dump_json(indent=2)
+
+
 @tool
 def add() -> Tool:
     async def execute(x: int, y: int) -> int:
