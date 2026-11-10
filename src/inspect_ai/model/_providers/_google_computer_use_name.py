@@ -7,8 +7,9 @@ from typing import Any
 def gemini_computer_action_name(arguments: Mapping[str, Any]) -> str:
     """Return the function name Google sends for a computer action.
 
-    Token reservation needs only the name. In particular, it must not parse
-    coordinates or scroll amounts for a call routed to another provider.
+    The bridge's Gemini CLI echo check (`wire_names`) needs only the name. In
+    particular, it must not parse coordinates or scroll amounts for a call
+    routed to another provider.
     """
     action = str(arguments.get("action", ""))
     if action == "left_click":

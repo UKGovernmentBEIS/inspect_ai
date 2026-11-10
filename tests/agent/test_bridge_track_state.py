@@ -1559,18 +1559,3 @@ async def test_anthropic_handler_tracks_main_thread_end_to_end() -> None:
         "please continue",
         "Castle",
     ]
-
-
-# ---------------------------------------------------------------------------
-# Message id allocation
-# ---------------------------------------------------------------------------
-
-
-class _CountedId(str):
-    comparisons = 0
-
-    def __eq__(self, other: object) -> bool:
-        _CountedId.comparisons += 1
-        return super().__eq__(other)
-
-    __hash__ = str.__hash__

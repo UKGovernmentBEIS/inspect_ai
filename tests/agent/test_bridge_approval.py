@@ -316,7 +316,7 @@ class BridgeRun:
     def replayed_calls(self, generation: int) -> list[ToolCall]:
         """Tool calls of the rejected turns replayed in the input of `generation`.
 
-        Each is replayed under a fresh id, which its result answers.
+        Each is replayed under the model's id, which its result answers.
         """
         return [
             call
