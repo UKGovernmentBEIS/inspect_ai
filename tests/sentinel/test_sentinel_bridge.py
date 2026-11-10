@@ -4022,6 +4022,129 @@ async def test_a_call_handed_over_twice_keeps_its_id_and_its_latest_handout() ->
     assert [(s.call.id, s.input) for s in afters] == [(READ.id, model.inputs[1])]
 
 
+@protocol
+def bridge_modify_first() -> Protocol:
+    """Narrows the first call it reviews to `safe.txt` and allows the rest."""
+    reviewed = 0
+
+    async def rewrite(
+        context: Context, step: BeforeToolCall, escalations: Escalations
+    ) -> Decision | None:
+        nonlocal reviewed
+        reviewed += 1
+        if reviewed > 1:
+            return None
+        modified = replace(step.call, arguments={"path": "safe.txt"})
+        return Decision(action="modify", modified=modified, explanation="narrowed")
+
+    return rewrite
+
+
+@pytest.mark.parametrize("host", [False, True])
+async def test_handouts_with_other_handed_arguments_check_the_call_that_ran(
+    host: bool,
+) -> None:
+    """A call modified once, then handed over unchanged on a retry, under one id.
+
+    The modified handout's result is checked with its own arguments, not the
+    later handout's.
+    """
+    seen: Steps = []
+    call = replace(READ, function="mcp__host__read_file") if host else READ
+    model = Scripted(calls_output(call), calls_output(call), calls_output())
+    mock = AsyncMock(return_value="safe file contents")
+    host_bridge = sandbox_bridge(mock)
+    bridge = host_bridge if host else in_process_bridge([])
+    tools = declare_read_file() if host else []
+    history: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+
+    with active([bridge_modify_first(), bridge_recording(seen)]):
+        first = await generate(bridge, model, history, tools)
+        second = await generate(bridge, model, history, tools)
+        [ran] = first.message.tool_calls or []
+        [retried] = second.message.tool_calls or []
+        assert ran.id == retried.id == call.id
+        assert ran.arguments == {"path": "safe.txt"}
+        assert retried.arguments == call.arguments
+        if host:
+            await call_host_tool(host_bridge)("host", "read_file", ran.arguments)
+            mock.assert_awaited_once_with(path="safe.txt")
+        else:
+            await generate(
+                bridge,
+                model,
+                [
+                    *history,
+                    first.message,
+                    ChatMessageTool(
+                        content="safe file contents",
+                        tool_call_id=ran.id,
+                        function=ran.function,
+                    ),
+                ],
+                tools,
+            )
+
+    [after] = [s for s in seen if isinstance(s, AfterToolCall)]
+    assert after.call.arguments == ran.arguments
+    assert after.input == model.inputs[0]
+
+
+async def test_identical_results_of_other_handed_arguments_are_each_checked() -> None:
+    """A checked result of one handed argument set doesn't exempt another's."""
+    seen: Steps = []
+    model = Scripted(calls_output(READ), calls_output(READ), calls_output())
+    bridge = in_process_bridge([])
+    messages: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+
+    with active([bridge_modify_first(), bridge_recording(seen)]):
+        for _ in range(2):
+            reply = await generate(bridge, model, messages)
+            messages = [
+                *messages,
+                reply.message,
+                ChatMessageTool(
+                    content="same contents",
+                    tool_call_id=READ.id,
+                    function=READ.function,
+                ),
+            ]
+        await generate(bridge, model, messages)
+
+    afters = [s for s in seen if isinstance(s, AfterToolCall)]
+    # the id handed over again in a later request is ambiguous from then on
+    assert [(s.call.arguments, s.input) for s in afters] == [
+        ({"path": "safe.txt"}, model.inputs[0]),
+        (READ.arguments, None),
+    ]
+
+
+async def test_a_result_that_can_be_either_handouts_gets_no_proposal() -> None:
+    """A result under an id handed out with two argument sets, and no call in its request."""
+    seen: Steps = []
+    model = Scripted(calls_output(READ), calls_output(READ), calls_output())
+    bridge = in_process_bridge([])
+    history: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+
+    with active([bridge_modify_first(), bridge_recording(seen)]):
+        await generate(bridge, model, history)
+        await generate(bridge, model, history)
+        await generate(
+            bridge,
+            model,
+            [
+                *history,
+                ChatMessageTool(
+                    content="contents", tool_call_id=READ.id, function=READ.function
+                ),
+            ],
+        )
+
+    [after] = [s for s in seen if isinstance(s, AfterToolCall)]
+    assert after.input is None
+    assert after.message_id == ""
+
+
 async def test_a_result_under_an_id_never_handed_out_is_checked_once() -> None:
     seen: Steps = []
     model = Scripted(calls_output(READ), calls_output())

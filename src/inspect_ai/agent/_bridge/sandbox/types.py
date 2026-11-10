@@ -406,16 +406,20 @@ class SandboxAgentBridge(AgentBridge):
     ) -> list["SentinelCheck"]:
         """The sentinel checks of the distinct calls a host call could execute.
 
-        Handouts of one call are one candidate: its latest handout's check,
-        or for an ambiguous call any of its checks, which the result is
-        recorded under (`_execute_granted` checks it with no proposal).
+        Handouts of one call with the same handed arguments are one
+        candidate: their latest handout's check, or for an ambiguous call any
+        of its checks, which the result is recorded under (`_execute_granted`
+        checks it with no proposal).
         """
         exact, projected = self._matching_grants(server, tool, arguments)
-        checks: dict[str, "SentinelCheck"] = {}
+        checks: dict[tuple[str, str], "SentinelCheck"] = {}
         for index in exact or projected:
             check = self._tool_execution_grants[index].check
-            if check is not None and check.handed.id not in checks:
-                checks[check.handed.id] = self._handouts.latest(check) or check
+            if check is None:
+                continue
+            handout = self._handouts.handout(check)
+            if handout not in checks:
+                checks[handout] = self._handouts.latest(check) or check
         return list(checks.values())
 
     def unlink_denied_call(
