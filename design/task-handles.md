@@ -168,9 +168,10 @@ resolution order (decision: Ransom, 2026-11-03).
   `RunQueue.cancel` ([task-dispatch.md](task-dispatch.md#phases-and-cancelling)).
 - `async with` closes the handle on exit and never cancels the task: a
   creator that hits a time limit lets the rollouts it already sent finish.
-- `result()` closes the handle first. Without that, a creator that awaits
-  `result()` on a task it feeds would wait for an end that its own open
-  handle prevents.
+- `result()` closes the handle first (decision: Ransom, 2026-11-10).
+  Without that, a creator that awaits `result()` on a task it feeds would
+  wait for an end that its own open handle prevents; the cost is that another
+  holder of the same handle can no longer send.
 - Every method but the attributes checks first that it runs on the run's
   event loop (`_require_run_loop`), as `enqueue_task()` does.
 
@@ -200,9 +201,15 @@ cancellation; the sample it sent still runs and its result is dropped.
   keeps waiting until its target ends, without lending. `close()`,
   `cancel()` and the attributes work anywhere.
 - **`samples_from_creator()` tasks** are added only by `enqueue_task()` from a
-  running sample (`sample_active()` set), whose attempt becomes the creator:
-  - anywhere else, including a `TaskSource`'s `next_tasks()` or callback
-    returns: `RuntimeError` from `RunQueue.add`;
+  running sample (`sample_active()` set) whose attempt still holds its slot
+  (`_attempt` set and `holds_slot` true); that attempt becomes the creator.
+  `enqueue_task()` checks both before `RunQueue.add` commits anything, so a
+  detached task that kept a finished sample's context, running after its
+  attempt gave its slot back and closed its channels, adds nothing and opens
+  no channel. Elsewhere:
+  - anywhere else, including after the creator attempt has given its slot
+    back, a `TaskSource`'s `next_tasks()` or callback returns: `RuntimeError`
+    from `enqueue_task()` or `RunQueue.add`;
   - passed to `eval()`, `eval_set()` or a selection worker: `PrerequisiteError`
     from `eval_resolve_tasks`, before any log is read;
   - as a `PreviousTask`, or a `ResolvedTask` carrying a prior sample source:
@@ -259,7 +266,7 @@ added for two models has two channels, and records it in the creator's
 ```python
 class CreatorChannel(SampleSource):
     enqueuer: SampleEnqueuer | None    # the running attempt's buffer, while one runs
-    held: list[Sample]                 # sent while no attempt runs
+    held: list[EnqueuedSample]         # sent while no attempt runs, or unsettled when one ended
     requests: dict[str, PortRequest]   # by assigned id, until settled
     count: int                         # ids assigned so far
     closed: bool
@@ -281,8 +288,15 @@ class PortRequest:
   future.
 - **Delivery.** `task_run`, where it registers the attempt's `SampleEnqueuer`,
   attaches it to the channel and moves `held` into it; where it clears the
-  enqueuer, it detaches it. The feeder admits the buffer as it admits any
-  enqueued sample, so a sample starts as soon as `max_samples` allows.
+  enqueuer, it detaches it, and every request not yet settled returns to
+  `held` in send order, once for each epoch whose future is unsettled (as an
+  `EnqueuedSample` with that epoch): a sample still in the dead attempt's
+  buffer, in a batch the feeder had reserved but not started, or running when
+  the task unwound, which fires neither callback. The feeder admits the buffer as it
+  admits any enqueued sample, so a sample starts as soon as `max_samples`
+  allows. With an empty seed, a sent sample can need a sandbox setup no seed
+  sample requested; the feeder runs it through `setups.ensure()` before
+  scheduling the batch, as for any `SampleSource` addition.
 - **`next_samples()`** waits on `pushed` and returns `[]` after a send, so the
   feeder drains the buffer, or `None` once the channel is closed or stopped,
   which ends the task when nothing is in flight or buffered (samples sent
@@ -308,11 +322,20 @@ class PortRequest:
   A creator that forgets to close cannot keep a rollout task open past its own
   attempt.
 - **Retries.** `run_one` retries a task fed by its creator only when the
-  attempt failed in sandbox setup (`TaskRunOptions.setup_error`); that attempt
-  ran no samples, so every request is still `held` and reaches the retry. A
-  fresh task would join the failed setup job, while the retry re-runs it under
-  the setup retry rule. Any other failure ends the task with its error log,
-  and its unresolved requests fail with `TaskEndedError`; the creator holds
+  attempt failed in sandbox setup: `options.setups.failure()` is set, which
+  covers a failure before the attempt started (`TaskRunOptions.setup_error`)
+  and one while delivering, when `setups.ensure()` for a sent sample raised
+  and failed the task. Either way the unsettled requests are back in `held`
+  (above) and reach the retry, whose setups re-run the failed job under the
+  setup retry rule (`request_retry()` before it starts, or `ensure()` when the
+  sample is delivered again; a job that failed for attempt 1 is re-run for
+  attempt 2), where a fresh task would join the cached failure. `run_one`
+  gives that retry no prior sample source, so nothing is reused or seeded from
+  the failed attempt's log: settled epochs are not sent again, and every
+  unsettled epoch runs fresh in the retry under its request's id, so no
+  reused record can collide with a re-sent run. Any other failure ends the
+  task with its error log, and its unresolved requests fail with
+  `TaskEndedError`; the creator holds
   the search state and decides whether to add a fresh task. `run_one` passes
   `can_retry=False` to `_run_task` for such a task, so a retry the task
   requests itself through its `TaskCancel` is not honoured, as for a task with
@@ -324,8 +347,8 @@ class PortRequest:
   the first write and in every copy. Its consumer is `eval_retry()`'s refusal.
   Nothing else needs to look: such a task cannot be requested from `eval()`,
   `eval_set()` or a selection worker, so no eval-set or Steward check ever
-  meets its log as a requested task's, and its in-run retry follows only an
-  attempt that ran no samples, so it has nothing to reuse.
+  meets its log as a requested task's, and its in-run retry reuses nothing
+  (above).
 
 ### Slot lending
 
@@ -519,6 +542,17 @@ test touched), with mockllm models; every test that waits is bounded with
   - drain, `score` and `error`: an idle open channel ends the task, a held
     request and later sends raise `SampleAbandonedError`, a running sample
     settles under the directive's rule;
+  - an empty-seed fed task whose first sent sample needs a sandbox setup that
+    fails once (stub provider): the task is retried, the setup job re-runs for
+    attempt 2 rather than the cached failure being joined, the request
+    survives in `held` and settles with its run from the retry; a second
+    request already settled before the failure is not re-run, and a
+    two-epoch request with epoch 1 settled re-runs epoch 2 only; nothing is
+    reused from the failed attempt's log;
+  - a detached task started in a creator's solver, released after the
+    creator's attempt has given its slot back while another task keeps the run
+    open, calls `enqueue_task()` with a `samples_from_creator()` task: it
+    raises `RuntimeError`, adds no record and opens no channel;
   - an attempt failing in setup before any sample is retried and receives its
     held requests; one failing after a sample ran is not retried, and its
     unresolved requests raise `TaskEndedError` with its error log; a retry the
@@ -553,16 +587,14 @@ path the retry rule and loans rely on):
 
 ## Open questions
 
-- **`result()` closes the handle before it waits.** Recommendation: keep it.
-  A creator that awaits `result()` on a task it feeds would otherwise wait for
-  an end its own open handle prevents, and nothing could detect the cycle; a
-  creator that wants to send more simply does not call `result()` yet. The
-  cost is that another holder of the same handle can no longer send after
-  `result()` is called. Confidence: high.
-
-Decided: `enqueue_task()` returns `list[TaskHandle]` (Ransom, 2026-11-03),
-becomes async (2026-11-09), and the receiving task declares that its creator
-feeds it (2026-11-09); loans are specific to the awaited task (2026-11-03).
+None. Decided: `enqueue_task()` returns `list[TaskHandle]` (Ransom,
+2026-11-03), becomes async (2026-11-09), and the receiving task declares that
+its creator feeds it (2026-11-09); loans are specific to the awaited task
+(2026-11-03); and `result()` closes the handle before it waits (2026-11-10),
+because a creator that awaits `result()` on a task it feeds, having forgotten
+`close()`, would otherwise wait for an end its own open handle prevents, with
+nothing to detect the cycle. The cost is that another holder of the same
+handle can no longer send once `result()` is called.
 
 ## Not this design
 

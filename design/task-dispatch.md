@@ -488,12 +488,32 @@ attempt's recorder entry (keeping its destination), but no longer calls
 `init()`: the retry's own `task_run` does. `TaskLogger.discard()` on a logger
 that holds no entry does nothing.
 
-A failure in `init()` escapes `task_run` like a failed `log_start()` flush,
-and `_run_task` already turns that into an error log
-(`unwritten_task_log`, built from the logger's eval spec, which exists from
-construction), which `run_one` retries. `record_inherited_config_updates`
-stays inside `init()`, so a retry's log records the run's process-scoped
-`ctl` retunes as today.
+**A logger with no location.** `init()` assigns the location only when
+`recorder.log_init()` returns, and a failure can come before that (the
+check against existing logs, `_bump_created_past_existing_logs()`, or
+`log_init()` itself, whose recorder tracks the entry only after it is set
+up). So `TaskLogger._location` starts
+as `None` at construction and `reinit()` resets it to `None`, so a retry
+never reports its predecessor's file as its own. Its readers handle it:
+
+- `TaskLogger.location` returns `str | None`.
+- `TaskLogger.destination_written` returns `False` while the location is
+  `None`, before asking the recorder, which raises for an eval it does not
+  track.
+- `unwritten_task_log` sets `location=logger.location or ""` (`EvalLog`'s
+  default), so it returns the error log instead of raising.
+- `run_one` reads `options.logger.location` only after `destination_written`
+  is true, when it builds the retry's sample source from the failed
+  attempt's log; otherwise the retry keeps the source the attempt ran with,
+  as today for an attempt that wrote nothing.
+
+So a failure in `init()`, before or after the location exists, escapes
+`task_run` like a failed `log_start()` flush, `_run_task` turns it into an
+error log carrying the original storage error (`unwritten_task_log`, built
+from the eval spec, which exists from construction), `run_one` discards
+whatever the recorder tracked and retries that task alone, and the other
+tasks run on. `record_inherited_config_updates` stays inside `init()`, so a
+retry's log records the run's process-scoped `ctl` retunes as today.
 
 So the run's end, a queued cancel and a dropped retry release nothing, and a
 seed task whose log cannot be initialised ends with an error log instead of
@@ -641,8 +661,7 @@ class SetupJob:
     attempt: int                       # 1, or the retry attempt that re-ran a failed key
     state: Literal["waiting", "running", "succeeded", "failed"]
     error: BaseException | None
-    bindings: Mapping[ContextVar[Any], Any]   # see "Provider state per setup"
-    base: Mapping[ContextVar[Any], Any]       # the chain's values those vars replaced
+    bindings: Mapping[ContextVar[Any], Any]   # the configuration's provider state; see "Provider state per setup"
     context: Context                   # task_init's context as it returned, for task_cleanup
 
 class TaskSetups:                      # one per record
@@ -652,6 +671,7 @@ class TaskSetups:                      # one per record
     async def ensure(self, samples: list[tuple[int, Sample]]) -> None   # SampleSource additions
 
 class SandboxSetups:                   # one per run
+    root: Context                      # eval_run's context when the setups are created
     def request(self, record: TaskRecord) -> TaskSetups
     def request_retry(self, record: TaskRecord, attempt: int) -> TaskSetups
     def open(self) -> AsyncContextManager[None]
@@ -784,22 +804,31 @@ cleanup, and the `chdir` around `TaskLogger` construction goes too
 
 ### Provider state per setup
 
-Each `task_init` runs in a task started from the setup chain's context, which
-starts as a copy of `eval_run`'s (so Docker's lifecycle scope object is
-inherited) and which each job's resulting context replaces in turn, so a
-later `task_init` sees what earlier ones bound, as today (k8s's shared
-manager stays shared). When `task_init` returns, the job records `context`
-(`copy_context()` inside the job), `bindings` (the `ContextVar` values in it
-that differ, by `is not`, from the chain's values before the job, excluding
-the setup scope) and `base` (those prior values, or a missing marker).
+`SandboxSetups` takes `root`, a `copy_context()` of `eval_run`'s context,
+when it is created, before any task or setup starts: the context every
+attempt and sample inherits, with no provider state in it. Each `task_init`
+runs in a task started from the setup chain's context, which starts as a copy
+of `root` (so Docker's lifecycle scope object is inherited) and which each
+job's resulting context replaces in turn, so a later `task_init` sees what
+earlier ones bound, as today (k8s's shared manager stays shared). When
+`task_init` returns, the job records `context` (`copy_context()` inside the
+job) and `bindings`: every `ContextVar` in that context whose value differs,
+by `is not`, from its value in `root` (a variable missing from `root`
+differs), excluding the setup scope. So `bindings` is the configuration's
+whole provider state, including what earlier jobs bound and this one
+inherited: for E2B, Modal and Daytona each configuration's own rebound list
+and run id, and for k8s the manager an earlier job created and this one
+reused without rebinding.
 
 - **Samples.** `sandboxenv_context` applies the bindings of the sample's
   key in the sample's own context before `sample_init`, but only for a
-  variable whose current value is still the job's `base` value: a value the
-  sample (or its solver) bound itself is left alone. `sample_init`, the
-  sample's sandbox calls and `sample_cleanup` then see their configuration's
-  state, wherever the setup ran. This fixes the empty-seed `LookupError` for
-  E2B, Modal and Daytona.
+  variable whose current value is still its value in `root` (the same
+  object, or missing from both): a value the sample (or its solver) bound
+  itself is left alone. Samples start from `root`'s descendants, so for every
+  provider variable that holds, and each sample gets its own configuration's
+  state, wherever the setup ran. `sample_init`, the sample's sandbox calls
+  and `sample_cleanup` then see it. This fixes the empty-seed `LookupError`
+  for E2B, Modal and Daytona.
 - **Cleanup.** Each `task_cleanup` runs in its job's captured context, so
   E2B, Modal, Daytona and Podman clean up the list their own `task_init`
   bound, including sandboxes an interrupted `sample_cleanup` left behind.
@@ -935,8 +964,12 @@ test that waits on a run is bounded with `fail_after`.
   config reaches `task_init` unchanged; per-setup bindings reach
   `sample_init`, `sample_cleanup` and the matching `task_cleanup` for two
   configurations, an added task's configuration and an empty `SampleSource`
-  seed; a sample that bound a variable itself keeps its value; a k8s-style
-  get-or-create object is shared; the warning is logged once for a provider
+  seed, with samples of both configurations starting from the run's original
+  context: an E2B-style provider that rebinds a list per `task_init` gives
+  each configuration's samples their own list, and a k8s-style get-or-create
+  object created by the first configuration's `task_init` reaches the second
+  configuration's samples too; a sample that bound a variable itself keeps
+  its value; the warning is logged once for a provider
   without the flag and a task outside the launch directory, and not with the
   flag.
 - `tests/util/sandbox/test_docker_cleanup.py` and
@@ -962,9 +995,13 @@ test that waits on a run is bounded with `fail_after`.
   latched cancellation and after an exception left dispatch, a child task
   that kept the run's context raises `RuntimeError` with the resolver and the
   registry untouched; a queued task holds no recorder entry, temporary file or
-  buffer database until it starts; a log-init failure, injected once and on
-  every attempt, ends in an error log after its retries, for a seed task and
-  an added one, with `eval_async()` returning rather than raising; at a
+  buffer database until it starts; a log-init failure, injected before
+  `recorder.log_init()` (the file-name probe), inside it, and after the
+  location is set, once and on every attempt, ends in an error log carrying
+  the injected error after its retries, for a seed task and an added one,
+  with no `AttributeError`, no retry reading the failed attempt's location,
+  the other tasks completing and `eval_async()` returning rather than
+  raising; at a
   latched cancellation, with a queued record and a pending retry, both end in
   the same step (no log, and the stored log), a sample in a sibling attempt
   awaiting the queued one in a shielded scope returns, and no further retry is
@@ -1032,9 +1069,10 @@ the single `eval_run`), so the setup fixes come first.
    `docs/extensions-sandboxes.qmd`. Tests: `test_sandbox_setup.py`, the
    Docker tests.
 2. **Provider state per setup.** `_eval/run.py` (`SandboxManager` runs each
-   `task_init` in the chained context and records bindings, base values,
-   contexts and the per-sample keys), `_eval/task/sandbox.py`
-   (`sandboxenv_context` applies bindings where the base value holds and uses
+   `task_init` in the chained context and records each configuration's
+   bindings against the run's root context, its context and the per-sample
+   keys), `_eval/task/sandbox.py`
+   (`sandboxenv_context` applies bindings where the root value holds and uses
    the recorded key), `_eval/task/run.py`. Fixes the E2B, Modal and Daytona
    leaks and `LookupError` with no inspect_sandboxes release. Independent of
    step 1.
@@ -1045,8 +1083,9 @@ the single `eval_run`), so the setup fixes come first.
    into `starting` and closed checks; `prepare_options`, `TaskInjection`,
    `PreparedFeed`, `_empty_feed` removed), `_eval/eval.py` (one `eval_run`),
    `_eval/task/run.py` (`logger.init()` at the start of `task_run`;
-   `_enqueue_source_tasks`; `on_registered`), `_eval/task/log.py` (`reinit()`
-   without `init()`, `discard()` without an entry),
+   `_enqueue_source_tasks`; `on_registered`; `unwritten_task_log` with no
+   location), `_eval/task/log.py` (`reinit()` without `init()`, `discard()`
+   without an entry, a `location` of `None` until `log_init()` returns),
    `_control/queued_tasks.py` (new), `_control/eval_state.py`,
    `_control/cancel.py`, `_control/state.py`, `_control/__init__.py`,
    `_cli/ctl/_task.py`, `_eval/evalset.py`; the callers of `enqueue_task()` in
