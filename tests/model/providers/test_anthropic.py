@@ -27,6 +27,7 @@ from inspect_ai.model import (
     ChatMessageTool,
     ChatMessageUser,
     GenerateConfig,
+    ModelOutput,
     get_model,
 )
 from inspect_ai.model._providers.anthropic import AnthropicAPI
@@ -3985,9 +3986,9 @@ async def test_anthropic_call_to_another_function_replays_without_the_ids_name_a
     The parse records `bash` (called as `bash_session`) after the thinking
     block. The call as parsed replays with them; a call to `read_file` under
     the id (a filter changed the function and kept the id) replays under its
-    own name, last. Both hold after a checkpoint restore. A checkpoint written
-    before functions were recorded (`legacy`) replays the name and position
-    as recorded.
+    own name, last. Both hold after a checkpoint restore, including one
+    written before functions were recorded (`legacy`): the function is derived
+    from the first message to hold the id, the call as parsed.
     """
     from dataclasses import replace
 
@@ -4036,11 +4037,67 @@ async def test_anthropic_call_to_another_function_replays_without_the_ids_name_a
     native = [("thinking", None), ("tool_use", "bash"), ("text", None)]
     assert await replayed(tool_calls[0]) == native
     changed = replace(tool_calls[0], function="read_file", arguments={"path": "a"})
-    assert await replayed(changed) == (
-        native
-        if restore == "legacy"
-        else [("thinking", None), ("text", None), ("tool_use", "read_file")]
+    assert await replayed(changed) == [
+        ("thinking", None),
+        ("text", None),
+        ("tool_use", "read_file"),
+    ]
+
+
+@pytest.mark.parametrize("first", ["parsed", "cached", "shared"])
+async def test_anthropic_state_restored_without_functions_is_the_first_holders(
+    first: str,
+) -> None:
+    """A checkpoint written before functions were recorded restores names and positions.
+
+    The function they are for is derived from the first message to hold the
+    id. When that holds the call as parsed, it replays natively, and a later
+    call to another function under the id replays from itself. Calls to two
+    functions under the id in one message give no function, so neither
+    replays the name or position.
+    """
+    from inspect_ai.model._assistant_internal import derive_recorded_functions
+    from inspect_ai.model._providers.anthropic import (
+        assistant_message_block_params,
+        init_sample_anthropic_assistant_internal,
     )
+
+    init_sample_anthropic_assistant_internal()
+    init_sample_anthropic_assistant_internal(
+        {
+            "tool_call_internal_names": {"a": "bash"},
+            "client_tool_call_positions": {"a": 0},
+        }
+    )
+    parsed = ToolCall(id="a", function="bash_session", arguments={"command": "ls"})
+    changed = ToolCall(id="a", function="read_file", arguments={"path": "a"})
+
+    async def replayed(*calls: ToolCall) -> list[tuple[str, object]]:
+        message = ChatMessageAssistant(content="Running.", tool_calls=list(calls))
+        return [
+            (block["type"], block.get("name"))
+            for block in await assistant_message_block_params(message)
+        ]
+
+    if first == "shared":
+        assert await replayed(parsed, changed) == [
+            ("text", None),
+            ("tool_use", "bash_session"),
+            ("tool_use", "read_file"),
+        ]
+        assert await replayed(parsed) == [("text", None), ("tool_use", "bash_session")]
+        return
+    if first == "parsed":
+        assert await replayed(parsed) == [("tool_use", "bash"), ("text", None)]
+    else:
+        # the cached output as generated, before a filter changes its call
+        derive_recorded_functions(
+            ModelOutput.from_message(
+                ChatMessageAssistant(content="Running.", tool_calls=[parsed])
+            )
+        )
+    assert await replayed(changed) == [("text", None), ("tool_use", "read_file")]
+    assert await replayed(parsed) == [("tool_use", "bash"), ("text", None)]
 
 
 async def test_anthropic_interleaved_thinking_last_gets_no_content() -> None:

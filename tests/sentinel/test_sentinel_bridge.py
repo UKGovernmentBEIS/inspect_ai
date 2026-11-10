@@ -10547,6 +10547,276 @@ async def test_a_call_changed_to_another_function_replays_without_the_generated_
     assert model.wire[-1] == [("read_file", {"path": "safe.txt"}, None)]
 
 
+def _main_anthropic_output() -> ModelOutput:
+    """An Anthropic generation as `main` (0.3.290) parsed it and logged its output.
+
+    Thinking, `bash` (called as `bash_session`) under `toolu_a`, thinking, then
+    `read_file` under `toolu_b`. Its state is `MAIN_ANTHROPIC_STATE`.
+    """
+    return ModelOutput(
+        model="claude-sonnet-4-5",
+        choices=[
+            ChatCompletionChoice(
+                message=ChatMessageAssistant(
+                    content=[
+                        ContentReasoning(reasoning="s1", summary="one", redacted=True),
+                        ContentReasoning(reasoning="s2", summary="two", redacted=True),
+                    ],
+                    tool_calls=[
+                        ToolCall(
+                            id="toolu_a",
+                            function="bash_session",
+                            arguments={"command": "ls"},
+                        ),
+                        ToolCall(
+                            id="toolu_b",
+                            function="read_file",
+                            arguments={"path": "a.txt"},
+                        ),
+                    ],
+                    model="claude-sonnet-4-5",
+                ),
+                stop_reason="tool_calls",
+            )
+        ],
+    )
+
+
+# the Anthropic state `main` dumped with a checkpoint for `_main_anthropic_output`,
+# without the function each id's name and position were recorded for
+MAIN_ANTHROPIC_STATE: dict[str, JsonValue] = {
+    "anthropic": {
+        "thinking_blocks": {
+            "b8d75cd2f75c1590bf4253303ec45e43": {
+                "signature": "s1",
+                "thinking": "one",
+                "type": "thinking",
+            },
+            "eb394922f3f707af34f4d483369fa531": {
+                "signature": "s2",
+                "thinking": "two",
+                "type": "thinking",
+            },
+        },
+        "tool_call_internal_names": {"toolu_a": "bash", "toolu_b": None},
+        "client_tool_call_positions": {"toolu_a": 1, "toolu_b": 2},
+        "server_mcp_tool_uses": {},
+        "spans": [],
+        "server_tool_spans": {},
+        "server_tool_span_index": {},
+        "containers": {},
+    }
+}
+MAIN_ANTHROPIC_WIRE: list[Any] = [
+    {"signature": "s1", "thinking": "one", "type": "thinking"},
+    {"type": "tool_use", "id": "toolu_a", "name": "bash", "input": {"command": "ls"}},
+    {"signature": "s2", "thinking": "two", "type": "thinking"},
+    {
+        "type": "tool_use",
+        "id": "toolu_b",
+        "name": "read_file",
+        "input": {"path": "a.txt"},
+    },
+]
+
+
+def _main_google_output() -> ModelOutput:
+    """A Google generation of a signed `read_file` call as `main` parsed it.
+
+    Its anchor names the call's id without the call's function.
+    """
+    return ModelOutput(
+        model="gemini-3-flash-preview",
+        choices=[
+            ChatCompletionChoice(
+                message=ChatMessageAssistant(
+                    content=[
+                        ContentReasoning(
+                            reasoning="bGVnYWN5LXNpZ25hdHVyZQ==",
+                            redacted=True,
+                            internal={"gemini_function_call_id": "provider_id"},
+                        ),
+                        ContentText(text="continuing"),
+                    ],
+                    tool_calls=[
+                        ToolCall(
+                            id="provider_id",
+                            function="read_file",
+                            arguments={"path": "a.txt"},
+                        )
+                    ],
+                    model="gemini-3-flash-preview",
+                ),
+                stop_reason="stop",
+            )
+        ],
+    )
+
+
+MAIN_GOOGLE_WIRE: Any = {
+    "parts": [
+        {
+            "function_call": {
+                "id": "provider_id",
+                "args": {"path": "a.txt"},
+                "name": "read_file",
+            },
+            "thought_signature": "bGVnYWN5LXNpZ25hdHVyZQ==",
+        },
+        {"text": "continuing"},
+    ],
+    "role": "model",
+}
+
+
+def _main_native(dialect: str) -> tuple[Callable[[], ModelOutput], Any]:
+    """A generation as `main` logged it, its restored state set, and its replay."""
+    init_sample_assistant_internal()
+    if dialect == "anthropic":
+        init_sample_assistant_internal(MAIN_ANTHROPIC_STATE)
+        return _main_anthropic_output, MAIN_ANTHROPIC_WIRE
+    return _main_google_output, MAIN_GOOGLE_WIRE
+
+
+async def _main_native_wire(dialect: str, input: list[ChatMessage]) -> Any:
+    """The first assistant message of a request, as its provider serializes it."""
+    from inspect_ai.model._providers.anthropic import assistant_message_block_params
+    from inspect_ai.model._providers.google import content as google_content
+
+    message = next((m for m in input if isinstance(m, ChatMessageAssistant)), None)
+    if message is None:
+        return None
+    if dialect == "anthropic":
+        return await assistant_message_block_params(message)
+    return (await google_content(AsyncMock(), message)).model_dump(
+        mode="json", exclude_none=True
+    )
+
+
+@pytest.mark.parametrize("fresh_id", [False, True])
+@pytest.mark.parametrize("checked", [False, True])
+@pytest.mark.parametrize("dialect", ["anthropic", "google"])
+async def test_a_cached_call_from_before_functions_were_recorded_changed_to_another_function_replays_from_itself(
+    dialect: str,
+    checked: bool,
+    fresh_id: bool,
+    isolated_cache: Callable[[], None],
+) -> None:
+    """A request filter changes the function of a call cached by `main`, keeping its id.
+
+    The cached output and the restored Anthropic state carry no function for
+    the call's state, which is derived from the cached output the filter
+    received. The handed call, to another function, replays from itself, as
+    it does under a fresh id: no other function's native name or signature.
+    """
+    from contextlib import nullcontext
+
+    isolated_cache()
+    generated, _ = _main_native(dialect)
+    call_id = (generated().message.tool_calls or [])[0].id
+    new_id = "fresh_call" if fresh_id else call_id
+    function = "read_file" if dialect == "anthropic" else "bash_session"
+    arguments = {"path": "safe.txt"} if dialect == "anthropic" else {"command": "ls"}
+
+    async def wire(input: list[ChatMessage]) -> Any:
+        return await _main_native_wire(dialect, input)
+
+    model = Parsing(generated, lambda: calls_output(), cache=True, wire=wire)
+    input: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+    with active([bridge_recording([])]) if checked else nullcontext():
+        await _generate_bridged(
+            in_process_bridge([]), model.model, input, ANTHROPIC_TOOLS
+        )
+        # another bridge, which has handed over no call under the id
+        bridge = in_process_bridge([])
+
+        async def request_filter(
+            model: Model,
+            input: list[ChatMessage],
+            tools: list[ToolInfo],
+            tool_choice: Any,
+            config: GenerateConfig,
+        ) -> ModelOutput:
+            output = await model.generate(input, tools, tool_choice, config)
+            output.message.tool_calls = [
+                replace(call, id=new_id, function=function, arguments=arguments)
+                if call.id == call_id
+                else call
+                for call in output.message.tool_calls or []
+            ]
+            return output
+
+        bridge.filter = request_filter
+        handed = await _generate_bridged(bridge, model.model, input, ANTHROPIC_TOOLS)
+        # a cache hit: no provider parse records the call's function
+        assert len(model.inputs) == 1
+        first = (handed.message.tool_calls or [])[0]
+        assert (first.id, first.function) == (new_id, function)
+        bridge.filter = None
+        await _generate_bridged(
+            bridge, model.model, _answered(input, handed), ANTHROPIC_TOOLS
+        )
+
+    if dialect == "anthropic":
+        assert [
+            (block["name"], block["input"])
+            for block in model.wire[-1]
+            if block["type"] == "tool_use" and block["id"] == new_id
+        ] == [(function, arguments)]
+    else:
+        parts = [
+            part
+            for part in model.wire[-1]["parts"]
+            if part.get("function_call", {}).get("id") == new_id
+        ]
+        assert [part.get("thought_signature") for part in parts] == [None]
+
+
+@pytest.mark.parametrize("checked", [False, True])
+@pytest.mark.parametrize("route", ["cache_retry", "checkpoint"])
+@pytest.mark.parametrize("dialect", ["anthropic", "google"])
+async def test_a_call_from_before_functions_were_recorded_replays_natively(
+    dialect: str, route: str, checked: bool, isolated_cache: Callable[[], None]
+) -> None:
+    """A generation `main` logged, with its state, replays as `main` replayed it.
+
+    Through a cached retry, or a bridge resumed from its checkpoint, with or
+    without a sentinel: the function of each call's state is derived from the
+    message that holds the call.
+    """
+    from contextlib import nullcontext
+
+    isolated_cache()
+    generated, native = _main_native(dialect)
+
+    async def wire(input: list[ChatMessage]) -> Any:
+        return await _main_native_wire(dialect, input)
+
+    model = Parsing(
+        generated, lambda: calls_output(), cache=route == "cache_retry", wire=wire
+    )
+    checkpointer = RecordingCheckpointer()
+    bridge = AgentBridge(AgentState(messages=[]), checkpointer=checkpointer)
+    input: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+    with active([bridge_recording([])]) if checked else nullcontext():
+        handed = await _generate_bridged(bridge, model.model, input, ANTHROPIC_TOOLS)
+        if route == "cache_retry":
+            await _generate_bridged(bridge, model.model, input, ANTHROPIC_TOOLS)
+            assert len(model.inputs) == 1
+        else:
+            bridge = AgentBridge(
+                AgentState(messages=[]),
+                checkpointer=RecordingCheckpointer(
+                    restored=checkpointer.snapshot(), serialized=True
+                ),
+            )
+            _main_native(dialect)
+        await _generate_bridged(
+            bridge, model.model, _answered(input, handed), ANTHROPIC_TOOLS
+        )
+    assert model.wire[-1] == native
+
+
 async def test_a_provider_output_rebuilt_from_its_fields_replays_its_own_calls() -> (
     None
 ):

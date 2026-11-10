@@ -124,6 +124,7 @@ from inspect_ai.util._span import (
 )
 
 from ._agent_message import validate_agent_message
+from ._assistant_internal import derive_recorded_functions
 from ._cache import (
     CacheEntry,
     CachePolicy,
@@ -2008,6 +2009,7 @@ class Model:
             finally:
                 # the last attempt, successful or failed without a retry
                 attempts.commit()
+        model_output = derive_recorded_functions(model_output)
 
         # record any model fallback against the active sample (here in the
         # outer frame rather than alongside usage recording so that cache

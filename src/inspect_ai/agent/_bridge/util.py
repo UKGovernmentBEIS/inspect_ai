@@ -104,6 +104,7 @@ from inspect_ai.model._model import (
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.model._providers._google_reasoning import (
     gemini_anchor_fits,
+    gemini_anchors_with_functions,
     gemini_shared_call_ids,
 )
 from inspect_ai.tool._tool import Tool
@@ -673,7 +674,11 @@ def gemini_first_call_signature(
     calls = message.tool_calls or []
     if not calls:
         return None
-    content = [] if isinstance(message.content, str) else message.content
+    content = (
+        []
+        if isinstance(message.content, str)
+        else gemini_anchors_with_functions(message) or message.content
+    )
     if not any(_anchor_call_id(part) is not None for part in content):
         return next(
             (

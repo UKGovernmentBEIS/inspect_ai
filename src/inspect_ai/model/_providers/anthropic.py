@@ -3808,6 +3808,7 @@ async def assistant_message_block_params(
     computer_toolset_call_ids: Collection[str] = frozenset(),
 ) -> list[MessageBlockParam]:
     block_params: list[MessageBlockParam] = []
+    derive_anthropic_recorded_functions(message)
 
     # build block params per content item ("segments") so that client tool
     # calls can be spliced back at their original interleaved positions below.
@@ -4078,8 +4079,9 @@ class _AssistantInternal:
 
     A call to another function under the id (a filter changed the function
     and kept the id) replays without them (`_has_recorded_state`). An id
-    restored from a checkpoint written before this was recorded has none, and
-    its name and position replay as recorded."""
+    restored from a checkpoint written before this was recorded has none until
+    it is derived from the message holding its call
+    (`derive_anthropic_recorded_functions`)."""
     server_mcp_tool_uses: dict[
         str, tuple[BetaMCPToolUseBlockParam, BetaRequestMCPToolResultBlockParam]
     ] = field(default_factory=dict)
@@ -4237,6 +4239,36 @@ def dump_anthropic_assistant_internal() -> JsonValue | None:
             "containers": dict(internal.containers),
         },
     )
+
+
+def derive_anthropic_recorded_functions(message: ChatMessageAssistant) -> None:
+    """Record the function of the message's calls whose name and position have none.
+
+    A checkpoint written before functions were recorded restores a tool use
+    id's internal name and position without one. They are the call's under
+    the id in the first message to hold it: the output as generated (cached),
+    before a filter can change its calls (`derive_recorded_functions`), or the
+    earliest message of a request (`assistant_message_block_params`). An id
+    several of the message's calls to different functions share has no
+    derivable function, so its name and position are dropped.
+    """
+    internal = assistant_internal()
+    if not (internal.tool_call_internal_names or internal.client_tool_call_positions):
+        return
+    derived: dict[str, str | None] = {}
+    for call in message.tool_calls or []:
+        if call.id in internal.client_tool_call_functions or (
+            call.id not in internal.tool_call_internal_names
+            and call.id not in internal.client_tool_call_positions
+        ):
+            continue
+        if derived.setdefault(call.id, call.function) != call.function:
+            derived[call.id] = None
+    for call_id, function in derived.items():
+        if function is None:
+            forget_anthropic_tool_call(call_id)
+        else:
+            internal.client_tool_call_functions[call_id] = function
 
 
 def forget_anthropic_tool_call(call_id: str) -> None:
@@ -5605,11 +5637,12 @@ def _has_recorded_state(tool_call: ToolCall) -> bool:
     """Whether the internal name and position under the call's id are the call's.
 
     They are when they were recorded for its function
-    (`client_tool_call_functions`). A call to another function under the id
-    replays from itself, with its own name, last in its message.
+    (`client_tool_call_functions`). A call to another function under the id,
+    or under an id whose function is unknown, replays from itself, with its
+    own name, last in its message.
     """
     function = assistant_internal().client_tool_call_functions.get(tool_call.id)
-    return tool_call.type == "function" and function in (None, tool_call.function)
+    return tool_call.type == "function" and function == tool_call.function
 
 
 def _computer_toolset_fail_fast_tools(

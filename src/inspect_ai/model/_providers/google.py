@@ -131,6 +131,7 @@ from inspect_ai.model._providers._google_reasoning import (
     GEMINI_FUNCTION_KEY,
     gemini_3_plus,
     gemini_anchor_fits,
+    gemini_anchors_with_functions,
     gemini_computer_actions,
     gemini_is_latest,
     gemini_shared_call_ids,
@@ -1868,6 +1869,8 @@ async def content(
             ),
         )
     elif isinstance(message, ChatMessageAssistant):
+        if (derived := gemini_anchors_with_functions(message)) is not None:
+            message = message.model_copy(update={"content": derived})
         content_parts: list[Part] = []
         # by object, as calls can share an id: an anchor takes the next call
         # under its id, and one naming an id several calls or anchors share

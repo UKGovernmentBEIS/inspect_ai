@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING
 from pydantic import JsonValue
 
 if TYPE_CHECKING:
+    from inspect_ai.model._model_output import ModelOutput
     from inspect_ai.tool._tool_call import ToolCall
 
 # `importlib.util.find_spec` walks importer paths (~3 ms per call). Cache
@@ -132,7 +133,8 @@ def hand_tool_call(call: ToolCall) -> None:
     call's function replays with each message's arguments. A provider's other
     per-call state holds as it is; each provider replays it only with a call to
     the function it was recorded for (Anthropic's name and position,
-    `_has_recorded_state`; Google's anchors, `gemini_anchor_fits`).
+    `_has_recorded_state`; Google's anchors, `gemini_anchor_fits`), derived
+    for state recorded without one (`derive_recorded_functions`).
     """
     if _HAS_OPENAI:
         try:
@@ -141,6 +143,43 @@ def hand_tool_call(call: ToolCall) -> None:
             hand_openai_tool_call(call)
         except ImportError:
             pass
+
+
+def derive_recorded_functions(output: ModelOutput) -> ModelOutput:
+    """`output` with the function of provider state its calls hold without one.
+
+    State parsed before functions were recorded (a cache entry, or a
+    checkpoint's Anthropic state, written by an earlier version) is for the
+    calls holding it in the output as generated. Recorded before a filter can
+    change the calls, a call changed to another function replays without it
+    (Anthropic's name and position, Google's anchors). A copy when an anchor
+    gets its function, so the output stays on the record as generated.
+    """
+    from inspect_ai.model._providers._google_reasoning import (
+        gemini_anchors_with_functions,
+    )
+
+    choices = [
+        choice.model_copy(
+            update={"message": choice.message.model_copy(update={"content": derived})}
+        )
+        if (derived := gemini_anchors_with_functions(choice.message)) is not None
+        else choice
+        for choice in output.choices
+    ]
+    if any(new is not old for new, old in zip(choices, output.choices)):
+        output = output.model_copy(update={"choices": choices})
+    if _HAS_ANTHROPIC:
+        try:
+            from inspect_ai.model._providers.anthropic import (
+                derive_anthropic_recorded_functions,
+            )
+
+            for choice in output.choices:
+                derive_anthropic_recorded_functions(choice.message)
+        except ImportError:
+            pass
+    return output
 
 
 def forget_tool_call(call_id: str) -> None:

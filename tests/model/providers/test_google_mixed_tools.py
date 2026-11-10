@@ -1347,10 +1347,13 @@ async def test_gemini_anchor_replays_only_with_a_call_to_its_function(
     """An anchor's signature and position go only on a call to the function it was parsed for.
 
     A call to another function under the anchor's id (a filter changed the
-    function and kept the id) replays unsigned, after the content. An anchor
-    logged before its function was recorded fits any call it names.
+    function and kept the id) replays unsigned, after the content. For an
+    anchor logged before its function was recorded, the function is derived
+    from the output as generated, before a filter changes its call.
     """
     from dataclasses import replace
+
+    from inspect_ai.model._assistant_internal import derive_recorded_functions
 
     candidate = Candidate(
         finish_reason=FinishReason.STOP,
@@ -1375,6 +1378,7 @@ async def test_gemini_anchor_replays_only_with_a_call_to_its_function(
         for part in message.content:
             if isinstance(part, ContentReasoning) and isinstance(part.internal, dict):
                 part.internal.pop("gemini_function")
+        message = derive_recorded_functions(ModelOutput.from_message(message)).message
 
     async def replayed(call: ToolCall) -> list[tuple[str | None, bytes | None]]:
         parts = (
@@ -1392,18 +1396,10 @@ async def test_gemini_anchor_replays_only_with_a_call_to_its_function(
             for part in parts
         ]
 
-    assert await replayed(message.tool_calls[0]) == [
-        ("bash_session", b"sig"),
-        (None, None),
-    ]
-    changed = replace(
-        message.tool_calls[0], function="read_file", arguments={"path": "a"}
-    )
-    assert await replayed(changed) == (
-        [("read_file", b"sig"), (None, None)]
-        if logged_before_functions
-        else [(None, None), ("read_file", None)]
-    )
+    [parsed] = message.tool_calls or []
+    assert await replayed(parsed) == [("bash_session", b"sig"), (None, None)]
+    changed = replace(parsed, function="read_file", arguments={"path": "a"})
+    assert await replayed(changed) == [(None, None), ("read_file", None)]
 
 
 @pytest.mark.anyio

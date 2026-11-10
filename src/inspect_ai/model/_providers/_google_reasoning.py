@@ -10,7 +10,9 @@ import re
 from collections import Counter
 from typing import Literal
 
-from inspect_ai._util.content import ContentReasoning
+from pydantic import JsonValue
+
+from inspect_ai._util.content import Content, ContentReasoning
 from inspect_ai.model._call_tools import repeated_call_ids
 from inspect_ai.model._chat_message import ChatMessageAssistant
 from inspect_ai.tool._tool_call import ToolCall
@@ -167,15 +169,78 @@ def gemini_anchor_fits(anchor: ContentReasoning, call: ToolCall) -> bool:
 
     An anchor's signature and position are its call's. A call to another
     function under the id (a filter changed the function and kept the id)
-    replays without them. An anchor logged before its function was recorded
-    fits any call it names.
+    replays without them, as does a call named by an anchor without a function
+    (`gemini_anchors_with_functions` derives the function of one logged before
+    it was recorded).
     """
     function = (
         anchor.internal.get(GEMINI_FUNCTION_KEY)
         if isinstance(anchor.internal, dict)
         else None
     )
-    return call.type == "function" and function in (None, call.function)
+    return (
+        call.type == "function"
+        and isinstance(function, str)
+        and function == call.function
+    )
+
+
+def gemini_anchors_with_functions(
+    message: ChatMessageAssistant,
+) -> list[Content] | None:
+    """The message's content with the function of each anchor logged without one.
+
+    An anchor parsed before its function was recorded (in a log, cache entry
+    or checkpoint written by an earlier version) is for the call it names in
+    the message holding it: the k-th anchor naming an id is for the k-th call
+    under the id. Derived from an output as generated, before a filter can
+    change its calls (`derive_recorded_functions`), and from a logged message,
+    which holds its own calls. An anchor with no call to derive from keeps no
+    function, so it fits no call. None when every anchor has its function.
+    """
+    if isinstance(message.content, str) or not any(
+        _anchor_call_id(part) is not None
+        and GEMINI_FUNCTION_KEY not in _anchor_internal(part)
+        for part in message.content
+    ):
+        return None
+    calls: dict[str, list[ToolCall]] = {}
+    for call in message.tool_calls or []:
+        calls.setdefault(call.id, []).append(call)
+    named: Counter[str] = Counter()
+    content = list(message.content)
+    for i, part in enumerate(content):
+        call_id = _anchor_call_id(part)
+        if call_id is None:
+            continue
+        nth = named[call_id]
+        named[call_id] += 1
+        internal = _anchor_internal(part)
+        under_id = calls.get(call_id, [])
+        if GEMINI_FUNCTION_KEY not in internal and nth < len(under_id):
+            content[i] = part.model_copy(
+                update={
+                    "internal": {
+                        **internal,
+                        GEMINI_FUNCTION_KEY: under_id[nth].function,
+                    }
+                }
+            )
+    return content
+
+
+def _anchor_call_id(part: Content) -> str | None:
+    """The call a reasoning anchor names, or None for other content."""
+    if isinstance(part, ContentReasoning) and isinstance(part.internal, dict):
+        call_id = part.internal.get(GEMINI_FUNCTION_CALL_ID_KEY)
+        if isinstance(call_id, str):
+            return call_id
+    return None
+
+
+def _anchor_internal(anchor: Content) -> dict[str, JsonValue]:
+    assert isinstance(anchor, ContentReasoning) and isinstance(anchor.internal, dict)
+    return anchor.internal
 
 
 def gemini_computer_actions(message: ChatMessageAssistant) -> dict[str, str]:
