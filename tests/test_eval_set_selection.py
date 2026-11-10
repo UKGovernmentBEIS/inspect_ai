@@ -5,10 +5,11 @@ import subprocess
 import sys
 import textwrap
 import zipfile
-from collections.abc import Callable, Iterator
+from collections.abc import Awaitable, Callable, Iterator
 from pathlib import Path
 from typing import Any, Literal
 
+import anyio
 import pytest
 from test_helpers.buffer import simulate_crashed_buffer_db
 
@@ -861,9 +862,11 @@ def test_eval_set_selection_resume_of_a_crashed_log_applies_incomplete_action(
 
 
 def _acp_probe_tasks(
-    observed: list[bool], discovered: list[tuple[int, str]] | None = None
+    observed: list[bool],
+    discovered: list[tuple[int, str]] | None = None,
+    probe: Callable[[], Awaitable[None]] | None = None,
 ) -> list[Task]:
-    """One sample that records whether ACP is the live human channel."""
+    """One sample that records whether ACP is the live human channel, then awaits `probe`."""
 
     @solver
     def observe_acp() -> Solver:
@@ -874,8 +877,10 @@ def _acp_probe_tasks(
             observed.append(acp_server_accepting_clients())
             if discovered is not None:
                 discovered.extend(
-                    (e.pid, str(e.target.socket_path)) for e in list_discovered_evals()
+                    (e.pid, e.target.describe()) for e in list_discovered_evals()
                 )
+            if probe is not None:
+                await probe()
             return state
 
         return solve
@@ -921,23 +926,34 @@ def short_acp_dir(monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
 @pytest.mark.skipif(
     not hasattr(socket, "AF_UNIX"), reason="AF_UNIX sockets not available."
 )
-def test_eval_set_selection_binds_an_acp_server(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, short_acp_dir: Path
+@pytest.mark.parametrize("acp_server", [None, False, 0])
+def test_eval_set_selection_defaults_to_the_unix_socket(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    short_acp_dir: Path,
+    acp_server: bool | int | None,
 ) -> None:
     """A selection-mode worker is reachable over ACP without being asked.
 
     Detached, the human-input chain is ACP -> Textual panel -> console, and a
     worker has neither of the last two. Binding the server is what turns
     `approver: human` and `ask_user()` from an errored sample in a successful
-    log into a sample that parks for someone to attach to.
+    log into a sample that parks for someone to attach to. A definition that
+    names no transport, or turns ACP off (`False`, `0`), gets the default socket.
     """
+    expected = (short_acp_dir / "acp" / f"{os.getpid()}.sock").resolve()
     observed: list[bool] = []
     discovered: list[tuple[int, str]] = []
+    bound: list[bool] = []
+
+    async def check_socket() -> None:
+        bound.append(expected.is_socket())
 
     kwargs: dict[str, Any] = dict(
         model="mockllm/model",
         log_dir=str(tmp_path / "logs"),
         display="plain",
+        acp_server=acp_server,
     )
     manifest_path = tmp_path / "manifest.json"
     monkeypatch.setenv(INSPECT_EVAL_SET_CAPTURE, str(manifest_path))
@@ -956,7 +972,9 @@ def test_eval_set_selection_binds_an_acp_server(
     )
     monkeypatch.setenv(INSPECT_EVAL_SET_SELECTION, str(selection_path))
     try:
-        success, logs = eval_set(tasks=_acp_probe_tasks(observed, discovered), **kwargs)
+        success, logs = eval_set(
+            tasks=_acp_probe_tasks(observed, discovered, check_socket), **kwargs
+        )
     finally:
         monkeypatch.delenv(INSPECT_EVAL_SET_SELECTION)
 
@@ -965,10 +983,11 @@ def test_eval_set_selection_binds_an_acp_server(
     # the routing shims commit to ACP rather than falling through to a panel
     # and a console that are not there
     assert observed == [True]
+    assert bound == [True]
     # and the socket is discoverable from the pid, which is all an external
     # runner knows about the worker it spawned
-    expected = (short_acp_dir / "acp" / f"{os.getpid()}.sock").resolve()
     assert discovered == [(os.getpid(), str(expected))]
+    assert not expected.exists()
 
 
 def test_eval_set_selection_fails_on_an_unbindable_acp_path(
@@ -1017,6 +1036,67 @@ def test_eval_set_selection_fails_on_an_unbindable_acp_path(
 
     # it failed before running a sample rather than while pretending to work
     assert observed == []
+
+
+def test_eval_set_selection_keeps_an_explicit_acp_port(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, short_acp_dir: Path
+) -> None:
+    """A worker binds the TCP port its definition passes as `acp_server`.
+
+    A runner that reaches its workers by port-forward cannot attach to the
+    default AF_UNIX socket, so a worker that replaced the port with it could
+    never have a human approval answered.
+    """
+    with socket.socket() as free:
+        free.bind(("127.0.0.1", 0))
+        port = free.getsockname()[1]
+    observed: list[bool] = []
+    discovered: list[tuple[int, str]] = []
+
+    async def connect() -> None:
+        stream = await anyio.connect_tcp("127.0.0.1", port)
+        await stream.aclose()
+
+    success, _ = run_with_completion(
+        monkeypatch,
+        tmp_path,
+        lambda: _acp_probe_tasks(observed, discovered, connect)[0],
+        acp_server=port,
+    )
+
+    assert success
+    assert observed == [True]
+    assert discovered == [(os.getpid(), f"127.0.0.1:{port}")]
+    with pytest.raises(ConnectionRefusedError):
+        socket.create_connection(("127.0.0.1", port), timeout=5).close()
+
+
+@pytest.mark.skipif(
+    not hasattr(socket, "AF_UNIX"), reason="AF_UNIX sockets not available."
+)
+def test_eval_set_selection_keeps_an_explicit_acp_socket_path(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, short_acp_dir: Path
+) -> None:
+    """A worker binds the socket path its definition passes as `acp_server`."""
+    path = short_acp_dir / "definition.sock"
+    observed: list[bool] = []
+    discovered: list[tuple[int, str]] = []
+
+    async def connect() -> None:
+        stream = await anyio.connect_unix(path)
+        await stream.aclose()
+
+    success, _ = run_with_completion(
+        monkeypatch,
+        tmp_path,
+        lambda: _acp_probe_tasks(observed, discovered, connect)[0],
+        acp_server=str(path),
+    )
+
+    assert success
+    assert observed == [True]
+    assert discovered == [(os.getpid(), str(path))]
+    assert not path.exists()
 
 
 def _mkdir(path: Path) -> Path:
@@ -1880,6 +1960,13 @@ _EXPECTED_SELECTION_FIELDS[8] = {
     "task": _EXPECTED_SELECTION_FIELDS[7]["task"],
     "overrides": _EXPECTED_SELECTION_FIELDS[7]["overrides"],
 }
+
+
+# v9 added no field. A worker now keeps a port or socket path the definition
+# passes as `acp_server` instead of binding the default socket, and the version
+# lets a runner that reaches workers over TCP tell that the installed inspect
+# does.
+_EXPECTED_SELECTION_FIELDS[9] = _EXPECTED_SELECTION_FIELDS[8]
 
 
 def test_eval_set_selection_schema_stability() -> None:

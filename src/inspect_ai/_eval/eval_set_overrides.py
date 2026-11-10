@@ -450,7 +450,7 @@ NOT_OVERRIDABLE: dict[str, str] = {
     "scanner": "carried by the selection document's own `scanners` field, with merge (not override) semantics",
     "fail_on_error": "decided by the selection's `completion`: forced to False, or the definition's",
     "continue_on_fail": "decided by the selection's `completion`: moot, or the definition's",
-    "acp_server": "forced on for a worker, which is detached and cannot prompt",
+    "acp_server": "forced on for a worker, which is detached and cannot prompt; the definition may choose its transport",
     "ctl_server": "demoted to eval-set's own on/off, which owns the keep-alive park",
     "retry_attempts": "decided by the selection's `completion`: unused, or the definition's",
     "retry_wait": "eval-set retry orchestration, which a worker never performs",

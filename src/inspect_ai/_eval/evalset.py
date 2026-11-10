@@ -644,8 +644,13 @@ def eval_set(
             # to the caller: of the definition shapes an external runner drives,
             # only some can pass the flag at all. A failed bind fails the
             # worker (see `acp_server`) rather than degrading, because the
-            # channel it would degrade to is the dead end above.
-            acp_server=True if selection_completion is not None else acp_server,
+            # channel it would degrade to is the dead end above. A transport
+            # the definition passes (a port, `host:port` or socket path) is
+            # kept, so a runner that reaches its workers over TCP can attach;
+            # anything that would leave ACP off binds the default socket.
+            acp_server=(acp_server or True)
+            if selection_completion is not None
+            else acp_server,
             # Demoted to a plain on/off: eval-set owns the keep-alive park
             # itself (after the display closes), so the inner eval() must
             # not park inside the task display. See the park below.
