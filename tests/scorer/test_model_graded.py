@@ -1659,3 +1659,32 @@ def test_model_role_override_warning_silent_by_default(clear_warned: Any) -> Non
     )
     model_graded_qa(model_role=ModelRole("grader", required=True))
     assert not [m for m in _warned if "required 'grader' role" in m]
+
+
+@pytest.mark.parametrize("scorer_factory", [model_graded_qa, model_graded_fact])
+@pytest.mark.parametrize("completion", ["", "   "])
+def test_model_graded_empty_completion_is_no_response(
+    scorer_factory: Callable[..., Scorer], completion: str
+) -> None:
+    grader_model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.from_content("mockllm/model", [ContentText(text="GRADE: C")])
+        ],
+    )
+    scorer = scorer_factory(model=grader_model)
+    state = TaskState(
+        model=ModelName("mockllm/model"),
+        sample_id=1,
+        epoch=1,
+        input="Question",
+        messages=[ChatMessageUser(content="Question")],
+        output=ModelOutput.from_content(
+            "mockllm/model", [ContentText(text=completion)]
+        ),
+    )
+    score = asyncio.run(scorer(state, Target("Criterion")))
+
+    assert score is not None
+    assert score.value == CORRECT
+    assert score.reason == "no_response"

@@ -49,6 +49,7 @@ from inspect_ai._util.registry import (
 )
 from inspect_ai._util.rich import escape_control_characters
 from inspect_ai.event._event import Event
+from inspect_ai.event._info import InfoEvent
 from inspect_ai.event._score import ScoreEvent
 from inspect_ai.event._tree import (
     EventTreeSpan,
@@ -552,8 +553,36 @@ async def _run_score_task(
 
     results: dict[str, SampleScore] = {}
     scorer_names: list[str] = []
-    async with span(name=SCORERS_SPAN_NAME):
+
+    # A sample whose monitor state a sentinel sidecar kept, and whose copy of
+    # it failed when the sample was saved, runs no scorer: no copy is possible
+    # now, and a scorer would read defaults as nothing flagged. Its scores and
+    # events are still updated as the action says, so an overwrite leaves it
+    # with none, as the metrics count it.
+    from inspect_ai._sentinel._sidecar._state import monitor_state_missing
+
+    missing = monitor_state_missing(state.store)
+    not_scored = (
+        None
+        if missing is None
+        else f"The sample isn't scored, as its monitor state wasn't copied from the sentinel sidecar: {missing}."
+    )
+    if not_scored is not None:
         for scorer in scorers:
+            scorer_names.append(
+                unique_scorer_name(scorer, list({*existing_score_names, *scorer_names}))
+            )
+
+    async with span(name=SCORERS_SPAN_NAME):
+        if not_scored is not None:
+            # said in the scorers' span, where the scores would be, which an
+            # overwrite replaces and an append adds to; the warning is recorded
+            # in the transcript too, so it is said here as well
+            logger.warning(f"Sample {sample.id} (epoch {sample.epoch}): {not_scored}")
+            transcript()._event(
+                InfoEvent(source="sentinel_sidecar", data={"not_scored": not_scored})
+            )
+        for scorer in scorers if not_scored is None else []:
             scorer_name = unique_scorer_name(
                 scorer, list({*existing_score_names, *results})
             )
