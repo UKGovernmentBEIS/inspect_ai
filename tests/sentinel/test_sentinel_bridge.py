@@ -6548,13 +6548,17 @@ async def test_a_repeated_gemini_response_keeps_its_signatures_on_its_calls(
     calls = [part for part in replayed.parts or [] if part.function_call]
     assert [part.function_call.id for part in calls if part.function_call] == ids
     assert [part.thought_signature is not None for part in calls] == [True, False]
-    # the model's output stays on the record as it was generated
+    # the model's output stays on the record under the model's ids (with the
+    # functions its anchors were logged without, as `Model.generate` derives)
     recorded = [e.output for e in transcript().events if isinstance(e, ModelEvent)]
     assert [
         content.internal
         for content in recorded[1].message.content
         if isinstance(content, ContentReasoning)
-    ] == [{"gemini_function_call_id": "read_a"}, {"gemini_function_call_id": "read_b"}]
+    ] == [
+        {"gemini_function_call_id": call_id, "gemini_function": "read_file"}
+        for call_id in ["read_a", "read_b"]
+    ]
 
 
 GEMINI_ACTIONS: list[tuple[str, dict[str, Any]]] = [
@@ -10860,6 +10864,66 @@ async def test_a_call_from_before_functions_were_recorded_replays_natively(
                 ),
             )
             _main_native(dialect)
+        await _generate_bridged(
+            bridge, model.model, _answered(input, handed), ANTHROPIC_TOOLS
+        )
+    assert model.wire[-1] == native
+
+
+@pytest.mark.parametrize("checked", [False, True])
+@pytest.mark.parametrize("cache", ["miss", "hit"])
+@pytest.mark.parametrize("route", ["request_filter", "response_filter"])
+@pytest.mark.parametrize("dialect", ["anthropic", "google"])
+async def test_an_output_from_before_functions_were_recorded_a_filter_returns_as_is_replays_natively(
+    dialect: str,
+    route: str,
+    cache: str,
+    checked: bool,
+    isolated_cache: Callable[[], None],
+) -> None:
+    """A filter returns, as is, an output in the form `main` recorded it.
+
+    Generated (by a provider that records no functions) or served from
+    `main`'s cache entry, it replays as `main` replayed it.
+    """
+    from contextlib import nullcontext
+
+    isolated_cache()
+    generated, native = _main_native(dialect)
+
+    async def wire(input: list[ChatMessage]) -> Any:
+        return await _main_native_wire(dialect, input)
+
+    model = Parsing(generated, lambda: calls_output(), cache=cache == "hit", wire=wire)
+    input: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+    with active([bridge_recording([])]) if checked else nullcontext():
+        if cache == "hit":
+            await _generate_bridged(
+                in_process_bridge([]), model.model, input, ANTHROPIC_TOOLS
+            )
+        bridge = in_process_bridge([])
+
+        async def request_filter(
+            model: Model,
+            input: list[ChatMessage],
+            tools: list[ToolInfo],
+            tool_choice: Any,
+            config: GenerateConfig,
+        ) -> ModelOutput:
+            return await model.generate(input, tools, tool_choice, config)
+
+        async def response_filter(
+            model: Model, output: ModelOutput, input: GenerateInput
+        ) -> ModelOutput:
+            return output
+
+        if route == "request_filter":
+            bridge.filter = request_filter
+        else:
+            bridge.response_filter = response_filter
+        handed = await _generate_bridged(bridge, model.model, input, ANTHROPIC_TOOLS)
+        bridge.filter = None
+        bridge.response_filter = None
         await _generate_bridged(
             bridge, model.model, _answered(input, handed), ANTHROPIC_TOOLS
         )

@@ -1741,8 +1741,6 @@ class Model:
                 )
                 existing = cache_fetch(cache_entry)
                 if isinstance(existing, ModelOutput):
-                    # before a filter can change its calls, and on the record
-                    # as returned, so the bridge sees it unchanged
                     existing = derive_recorded_functions(existing)
                     _, event = self._record_model_interaction(
                         input=input,
@@ -1981,6 +1979,8 @@ class Model:
             for choice in output.choices:
                 for tool_call in choice.message.tool_calls or []:
                     tool_call.view = tool_call_view(tool_call, tdefs)
+
+            output = derive_recorded_functions(output)
 
             # complete the transcript event
             complete(output, call)

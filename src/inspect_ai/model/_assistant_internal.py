@@ -150,11 +150,13 @@ def derive_recorded_functions(output: ModelOutput) -> ModelOutput:
 
     State parsed before functions were recorded (a cache entry, or a
     checkpoint's Anthropic state, written by an earlier version) is for the
-    calls holding it in the output as generated. Derived for a cached output
-    before a filter can change its calls, a call changed to another function
-    replays without it (Anthropic's name and position, Google's anchors). A
-    provider's parse records the functions itself. A copy when an anchor gets
-    its function.
+    calls holding it in the output as generated. `Model.generate` derives it
+    for each output it returns (a cache hit, or a provider's that recorded
+    none), before recording the output's `ModelEvent` and before a filter can
+    change its calls: a call changed to another function then replays without
+    it (Anthropic's name and position, Google's anchors), and the bridge sees
+    the output it returns as the one recorded. A copy when an anchor gets its
+    function.
     """
     from inspect_ai.model._providers._google_reasoning import (
         gemini_anchors_with_functions,

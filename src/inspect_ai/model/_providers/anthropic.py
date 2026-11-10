@@ -4246,7 +4246,7 @@ def derive_anthropic_recorded_functions(message: ChatMessageAssistant) -> None:
 
     A checkpoint written before functions were recorded restores a tool use
     id's internal name and position without one. They are the call's under
-    the id in the first message to hold it: a cached output as generated,
+    the id in the first message to hold it: an output as generated,
     before a filter can change its calls (`derive_recorded_functions`), or the
     earliest message of a request (`assistant_message_block_params`). An id
     several of the message's calls to different functions share has no

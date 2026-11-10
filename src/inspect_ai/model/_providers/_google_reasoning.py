@@ -200,7 +200,7 @@ def gemini_anchors_with_functions(
     An anchor parsed before its function was recorded (in a log, cache entry
     or checkpoint written by an earlier version) is for the call it names in
     the message holding it: the k-th anchor naming an id is for the k-th call
-    under the id. Derived from a cached output, before a filter can
+    under the id. Derived from an output as generated, before a filter can
     change its calls (`derive_recorded_functions`), and from a logged message,
     which holds its own calls.
 
