@@ -2180,7 +2180,7 @@ class Model:
                 sink.on_complete(event)
             for collector in collectors:
                 if collector.events is not None:
-                    collector.events.append(event)
+                    collector.events.append(CollectedGeneration(event, self.api))
 
         # if we have output then complete it now
         if output:
@@ -3167,6 +3167,14 @@ _model_event_sink: ContextVar[ModelEventSink | None] = ContextVar(
 )
 
 
+class CollectedGeneration(NamedTuple):
+    """A generation collected by `collect_model_events`."""
+
+    event: "ModelEvent"
+    api: ModelAPI
+    """The client that made it (models sharing a name can differ in endpoint or account)."""
+
+
 class _ModelEventCollector:
     """A `collect_model_events` block's events; `None` once the block exits.
 
@@ -3175,8 +3183,8 @@ class _ModelEventCollector:
     uncollected and unreferenced.
     """
 
-    def __init__(self, events: list["ModelEvent"]) -> None:
-        self.events: list["ModelEvent"] | None = events
+    def __init__(self, events: list[CollectedGeneration]) -> None:
+        self.events: list[CollectedGeneration] | None = events
 
 
 _model_event_collectors: ContextVar[tuple[_ModelEventCollector, ...]] = ContextVar(
@@ -3294,7 +3302,7 @@ def use_model_event_sink(sink: ModelEventSink | None) -> Iterator[None]:
 
 
 @contextlib.contextmanager
-def collect_model_events() -> Iterator[list["ModelEvent"]]:
+def collect_model_events() -> Iterator[list[CollectedGeneration]]:
     """Collect the `ModelEvent` of each attempt that completes in the block.
 
     Only generations started in the block's context (including tasks it starts)
@@ -3305,7 +3313,7 @@ def collect_model_events() -> Iterator[list["ModelEvent"]]:
     attempt completing later, in a task outliving the block or in flight when
     it exits, is not collected.
     """
-    events: list["ModelEvent"] = []
+    events: list[CollectedGeneration] = []
     collector = _ModelEventCollector(events)
     token = _model_event_collectors.set((*_model_event_collectors.get(), collector))
     try:

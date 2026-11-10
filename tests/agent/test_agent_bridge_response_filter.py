@@ -2776,28 +2776,53 @@ async def test_response_filter_returning_its_own_generation_hands_over_that_repl
         assert _pending_container_for_input([handed]) == CONTAINER_ID
 
 
-@pytest.mark.parametrize("returned", ["edited", "other_model"])
+@pytest.mark.parametrize(
+    "returned",
+    ["edited", "other_model", "same_name_endpoint", "same_name_account"],
+)
 @pytest.mark.parametrize("turn", ["pending", "plain"])
 async def test_response_filter_regeneration_edit_or_other_model_is_an_edit(
     turn: Literal["pending", "plain"], returned: str
 ) -> None:
-    """A regeneration the filter edits, or another model's output, replaces the bridge's output.
+    """A regeneration the filter edits, or another client's output, replaces the bridge's output.
 
     Neither is the bridged model's generation unchanged, so the reply gets an
-    edit id and keeps none of the generation's pending server work.
+    edit id and keeps none of the generation's pending server work. Another
+    client is another model, whatever its name: one with the bridged model's
+    name but another endpoint or account generates under its own account.
     """
     from inspect_ai.model._providers.anthropic import _pending_container_for_input
 
     init_sample_anthropic_assistant_internal()
     regenerated = await _regenerated_output(turn)
     first = ModelOutput.from_content("mockllm/model", "first")
-    model = get_model("mockllm/model", custom_outputs=[first, regenerated])
-    judge = get_model("mockllm/judge", custom_outputs=[regenerated])
+    model = get_model(
+        "mockllm/model", memoize=False, custom_outputs=[first, regenerated]
+    )
+    match returned:
+        case "same_name_endpoint":
+            judge = get_model(
+                "mockllm/model",
+                base_url="https://other.example.com/v1",
+                memoize=False,
+                custom_outputs=[regenerated],
+            )
+        case "same_name_account":
+            judge = get_model(
+                "mockllm/model",
+                api_key="other-account",
+                memoize=False,
+                custom_outputs=[regenerated],
+            )
+        case _:
+            judge = get_model("mockllm/judge", custom_outputs=[regenerated])
+    if returned.startswith("same_name"):
+        assert str(judge) == str(model)
 
     async def regenerate(
         model: Model, output: ModelOutput, generate_input: GenerateInput
     ) -> ModelOutput | None:
-        if returned == "other_model":
+        if returned != "edited":
             return await judge.generate(generate_input.input)
         output = await model.generate(generate_input.input)
         output.message.content = REPLACED_SENTINEL
@@ -2822,6 +2847,77 @@ async def test_response_filter_regeneration_edit_or_other_model_is_an_edit(
     assert _pending_container_for_input([handed]) is None
     if turn == "pending":
         assert _pending_container_for_input([regenerated.message]) == CONTAINER_ID
+
+
+@pytest.mark.parametrize("client", ["bridged", "endpoint", "account", "other_name"])
+async def test_response_filter_regeneration_keeps_replay_state_only_from_bridged_client(
+    client: str,
+) -> None:
+    """Only the bridged Anthropic client's own regeneration keeps its id and pending work.
+
+    A client with the bridged model's name but another endpoint or API key
+    ran its server work under another account; its reply is an edit that
+    carries none of that work into the bridged model's next input.
+    """
+    from unittest.mock import patch
+
+    from inspect_ai.model._providers.anthropic import _pending_container_for_input
+
+    init_sample_anthropic_assistant_internal()
+    regenerated = await _pending_container_output()
+    model_name = "anthropic/claude-sonnet-4-5"
+    model = get_model(model_name, api_key="primary-key", memoize=False)
+    match client:
+        case "bridged":
+            judge = model
+        case "endpoint":
+            judge = get_model(
+                model_name,
+                api_key="primary-key",
+                base_url="https://alternate.example.com",
+                memoize=False,
+            )
+        case "account":
+            judge = get_model(model_name, api_key="other-key", memoize=False)
+        case _:
+            judge = get_model(
+                "anthropic/claude-haiku-4-5", api_key="primary-key", memoize=False
+            )
+    outputs = [ModelOutput.from_content(model_name, "first"), regenerated]
+
+    async def generate(*args: Any, **kwargs: Any) -> ModelOutput:
+        return outputs.pop(0)
+
+    async def regenerate(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput | None:
+        return await judge.generate(generate_input.input)
+
+    bridge = AgentBridge(AgentState(messages=[]))
+    bridge.response_filter = regenerate
+    with (
+        patch.object(model.api, "generate", generate),
+        patch.object(judge.api, "generate", generate),
+    ):
+        output, _ = await bridge_generate(
+            bridge,
+            model,
+            [ChatMessageUser(content="hi")],
+            [],
+            None,
+            GenerateConfig(),
+            requested_model=None,
+        )
+
+    handed = output.message
+    if client == "bridged":
+        assert handed.id == regenerated.message.id
+        assert _pending_container_for_input([handed]) == CONTAINER_ID
+    else:
+        assert str(judge) == str(model) or client == "other_name"
+        assert handed.id != regenerated.message.id
+        assert PENDING_CODE not in json.dumps(await _render_anthropic(handed))
+        assert _pending_container_for_input([handed]) is None
 
 
 @pytest.mark.parametrize(

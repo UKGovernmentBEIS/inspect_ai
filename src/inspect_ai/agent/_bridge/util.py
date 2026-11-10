@@ -513,13 +513,14 @@ async def _apply_response_filter(
             "response_filter returned an invalid ModelOutput: "
             f"{_validation_error_details(ex)}"
         ) from ex
-    # only the bridged model's: another model's output is rendered by this
-    # model's dialect, so its provider items stay subject to the checks
+    # only the bridged model's client: another client's output (another
+    # model, or the same name at another endpoint or account) is rendered by
+    # this model's dialect, so its provider items stay subject to the checks
     generations = [
         choice.message
-        for event in filter_events
-        if event.model == str(model)
-        for choice in event.output.choices
+        for generation in filter_events
+        if generation.api is model.api
+        for choice in generation.event.output.choices
     ]
     provider_arguments: dict[str, list[dict[str, Any]]] = {}
     for message in [*(choice.message for choice in output.choices), *generations]:
@@ -1225,11 +1226,11 @@ async def _bridge_generate_impl(
                 if isinstance(result, ModelOutput):
                     generated_output = next(
                         (
-                            event.output
-                            for event in reversed(filter_events)
+                            generation.event.output
+                            for generation in reversed(filter_events)
                             if any(
                                 choice.message.id == result.message.id
-                                for choice in event.output.choices
+                                for choice in generation.event.output.choices
                             )
                         ),
                         None,
