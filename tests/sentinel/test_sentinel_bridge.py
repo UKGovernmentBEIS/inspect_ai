@@ -9855,6 +9855,61 @@ async def test_a_modified_host_calls_acp_card_shows_the_arguments_that_ran(
     assert "safe.txt" in title and "notes.txt" not in title
 
 
+@pytest.mark.parametrize("replay", [False, True])
+async def test_a_modified_scaffold_calls_acp_card_shows_the_arguments_that_ran(
+    replay: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The proposal's card, settled by the scaffold's result for the modified call, shows that call."""
+    from acp.schema import ToolCallProgress, ToolCallStart
+
+    from inspect_ai.agent._acp.event_mapping import replay_transcript
+
+    init_sample_assistant_internal()
+    published = _acp_router(monkeypatch)
+    model = Parsing(
+        lambda: _responses_output({**HOST_READ_ITEM, "name": "read_file"}),
+        lambda: calls_output(),
+    )
+    bridge = in_process_bridge([])
+    input: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+    with active([bridge_modify()]):
+        output = await _generate_bridged(
+            bridge, model.model, input, declare_read_file("read_file")
+        )
+        [handed] = output.message.tool_calls or []
+        result = ChatMessageTool(
+            content=f"contents of {handed.arguments['path']}",
+            tool_call_id=handed.id,
+            function=handed.function,
+        )
+        await _generate_bridged(
+            bridge,
+            model.model,
+            [*input, output.message, result],
+            declare_read_file("read_file"),
+        )
+
+    if replay:
+        published = list(replay_transcript(transcript().events, session_id="s"))
+    assert _acp_cards(published) == {
+        "call_read": ["completed"] if replay else ["in_progress", "completed"]
+    }
+    updates = [
+        n.update
+        for n in published
+        if isinstance(n.update, ToolCallStart | ToolCallProgress)
+    ]
+    # the latest title and raw input a client holds for the card
+    raw_input = next(u.raw_input for u in reversed(updates) if u.raw_input is not None)
+    title = next(u.title for u in reversed(updates) if u.title is not None)
+    assert raw_input == handed.arguments == {"path": "safe.txt"}
+    assert "safe.txt" in title and "notes.txt" not in title
+    # the model's proposal stays as generated
+    proposal = next(e for e in transcript().events if isinstance(e, ModelEvent))
+    [proposed] = proposal.output.message.tool_calls or []
+    assert (proposed.id, proposed.arguments) == ("call_read", {"path": "notes.txt"})
+
+
 async def test_cancelling_a_modified_host_calls_acp_card_cancels_its_run(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
