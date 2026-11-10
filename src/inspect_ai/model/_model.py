@@ -1741,6 +1741,9 @@ class Model:
                 )
                 existing = cache_fetch(cache_entry)
                 if isinstance(existing, ModelOutput):
+                    # before a filter can change its calls, and on the record
+                    # as returned, so the bridge sees it unchanged
+                    existing = derive_recorded_functions(existing)
                     _, event = self._record_model_interaction(
                         input=input,
                         tools=event_tools,
@@ -2009,7 +2012,6 @@ class Model:
             finally:
                 # the last attempt, successful or failed without a retry
                 attempts.commit()
-        model_output = derive_recorded_functions(model_output)
 
         # record any model fallback against the active sample (here in the
         # outer frame rather than alongside usage recording so that cache

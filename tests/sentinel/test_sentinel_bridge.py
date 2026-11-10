@@ -10866,6 +10866,59 @@ async def test_a_call_from_before_functions_were_recorded_replays_natively(
     assert model.wire[-1] == native
 
 
+@pytest.mark.parametrize("checked", [False, True])
+async def test_a_cached_gemini_regeneration_from_before_functions_were_recorded_returned_as_is_is_the_providers(
+    checked: bool, isolated_cache: Callable[[], None]
+) -> None:
+    """A response filter returns, as is, a regeneration `main` cached.
+
+    The regeneration's anchors get their functions as it leaves
+    `Model.generate`, and its `ModelEvent` records it so: the filter's output
+    is the provider's own, unchanged, not an edit of its reasoning, and it
+    replays as `main` replayed it.
+    """
+    from contextlib import nullcontext
+
+    isolated_cache()
+    generated, native = _main_native("google")
+
+    async def wire(input: list[ChatMessage]) -> Any:
+        return await _main_native_wire("google", input)
+
+    # the regeneration, then the output the filter replaces
+    model = Parsing(
+        generated,
+        lambda: calls_output(content="Other."),
+        lambda: calls_output(),
+        cache=True,
+        wire=wire,
+    )
+    regenerate: list[ChatMessage] = [ChatMessageUser(content="Regenerate.")]
+    await model.model.generate(regenerate, ANTHROPIC_TOOLS)
+
+    async def response_filter(
+        model: Model, output: ModelOutput, input: GenerateInput
+    ) -> ModelOutput:
+        return await model.generate(regenerate, input[1], input[2], input[3])
+
+    bridge = in_process_bridge([])
+    bridge.response_filter = response_filter
+    input: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+    with active([bridge_recording([])]) if checked else nullcontext():
+        handed = await _generate_bridged(bridge, model.model, input, ANTHROPIC_TOOLS)
+        bridge.response_filter = None
+        await _generate_bridged(
+            bridge, model.model, _answered(input, handed), ANTHROPIC_TOOLS
+        )
+    [hit] = [
+        event
+        for event in transcript().events
+        if isinstance(event, ModelEvent) and event.cache == "read"
+    ]
+    assert hit.output.message.content == handed.message.content
+    assert model.wire[-1] == native
+
+
 async def test_a_provider_output_rebuilt_from_its_fields_replays_its_own_calls() -> (
     None
 ):
