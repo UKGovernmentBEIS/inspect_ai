@@ -258,20 +258,26 @@ invalid_utf8_b64 = base64.b64encode(invalid_utf8_bytes).decode("utf-8")
 
 
 @pytest.mark.parametrize(
-    "s,expected_exception",
+    "s",
     [
         # Valid base64 that decodes to invalid UTF-8 (e.g., bytes that are not valid UTF-8)
-        ("<internal>" + invalid_utf8_b64 + "</internal>content", UnicodeDecodeError),
+        "<internal>" + invalid_utf8_b64 + "</internal>content",
         # Invalid JSON after base64 decoding
-        (
-            f"<internal>{base64.b64encode(b'invalid json').decode('utf-8')}</internal>content",
-            json.JSONDecodeError,
-        ),
+        f"<internal>{base64.b64encode(b'invalid json').decode('utf-8')}</internal>content",
+        # Not base64 (a quoted example of the marker)
+        "The marker is <internal>example</internal>.",
     ],
 )
-def test_parse_content_with_internal_invalid_encoding(s, expected_exception):
-    with pytest.raises(expected_exception):
-        parse_content_with_internal(s, "internal")
+def test_parse_content_with_internal_undecodable_is_literal(s):
+    assert parse_content_with_internal(s, "internal") == (s, None)
+
+
+def test_parse_content_with_internal_keeps_literal_beside_encoded():
+    s = f"see <internal>example</internal>\n<internal>{encode_internal({'a': 1})}</internal>\n"
+    assert parse_content_with_internal(s, "internal") == (
+        "see <internal>example</internal>",
+        {"a": 1},
+    )
 
 
 async def test_chat_completions_forwards_config_extra_headers():

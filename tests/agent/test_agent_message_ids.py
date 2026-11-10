@@ -79,7 +79,7 @@ from inspect_ai.model._message_ids import (
     stable_message_ids,
 )
 from inspect_ai.model._model import active_model_context_var
-from inspect_ai.model._model_output import ChatCompletionChoice
+from inspect_ai.model._model_output import ChatCompletionChoice, ModelUsage
 from inspect_ai.solver import generate, user_message
 from inspect_ai.tool import (
     Tool,
@@ -2995,3 +2995,125 @@ def test_host_result_links_to_the_answer_whatever_its_content() -> None:
     ids = _link_copy(handed, [(0, "A")], handed, [(handed[0], "edited")])
 
     assert ids == ["result-0"]
+
+
+_LITERAL_MARKERS = {
+    "unpadded": "The marker is <content-internal>example</content-internal>.",
+    "not_utf8": "<content-internal>abcd</content-internal> is the marker",
+    "not_json": "Wrap it as <content-internal>bm90IGpzb24=</content-internal>.",
+}
+
+
+async def _dialect_request(
+    dialect: Dialect, bridge: AgentBridge, history: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """Send `history` through the `dialect` handler; the reply's wire turns."""
+    from inspect_ai.agent._bridge.anthropic_api import inspect_anthropic_api_request
+    from inspect_ai.agent._bridge.completions import inspect_completions_api_request
+    from inspect_ai.agent._bridge.google_api import inspect_google_api_request
+    from inspect_ai.agent._bridge.responses import inspect_responses_api_request
+    from inspect_ai.agent._bridge.util import (
+        default_code_execution_providers,
+        internal_web_search_providers,
+    )
+
+    if dialect == "completions":
+        completion = await inspect_completions_api_request(
+            {"model": "scaffold", "messages": history}, None, bridge
+        )
+        return [completion.choices[0].message.model_dump(exclude_none=True)]
+    elif dialect == "responses":
+        response = await inspect_responses_api_request(
+            {"model": "scaffold", "input": history},
+            None,
+            internal_web_search_providers(),
+            default_code_execution_providers(),
+            bridge,
+        )
+        return [item.model_dump(exclude_none=True) for item in response.output]
+    elif dialect == "anthropic":
+        message = await inspect_anthropic_api_request(
+            {"model": "scaffold", "max_tokens": 32, "messages": history},
+            None,
+            internal_web_search_providers(),
+            default_code_execution_providers(),
+            bridge,
+        )
+        return [
+            {
+                "role": "assistant",
+                "content": [b.model_dump(exclude_none=True) for b in message.content],
+            }
+        ]
+    else:
+        google = await inspect_google_api_request(
+            {"model": "scaffold", "contents": history}, None, None, bridge
+        )
+        return [google["candidates"][0]["content"]]
+
+
+def _wire_user(dialect: Dialect, text: str) -> dict[str, Any]:
+    if dialect == "google":
+        return {"role": "user", "parts": [{"text": text}]}
+    return {"role": "user", "content": text}
+
+
+def _wire_text(dialect: Dialect, turns: list[dict[str, Any]]) -> str:
+    if dialect == "completions":
+        return str(turns[0]["content"])
+    elif dialect == "responses":
+        return "".join(c["text"] for item in turns for c in item["content"])
+    elif dialect == "anthropic":
+        return "".join(block["text"] for block in turns[0]["content"])
+    else:
+        return "".join(part["text"] for part in turns[0]["parts"])
+
+
+@pytest.mark.parametrize("literal", list(_LITERAL_MARKERS))
+@pytest.mark.parametrize("dialect", DIALECTS)
+async def test_literal_internal_marker_is_text_in_every_dialect(
+    dialect: Dialect, literal: str
+) -> None:
+    """Text quoting the content-internal marker is delivered and kept as written.
+
+    Only a marker body the bridge itself encoded is internal state; recognizing
+    the reply when the scaffold sends it back must not reject or alter a reply
+    or prompt that merely contains the marker (Google, which carries internal
+    state natively, is the control).
+    """
+    text = _LITERAL_MARKERS[literal]
+    usage = ModelUsage(input_tokens=1, output_tokens=1, total_tokens=2)
+    outputs = [
+        ModelOutput.from_content("mockllm/model", text),
+        ModelOutput.from_content("mockllm/model", "done"),
+    ]
+    for output in outputs:
+        output.usage = usage
+    bridge = AgentBridge(
+        AgentState(messages=[ChatMessageUser(content="Quote the marker.")]),
+        model_aliases={
+            "scaffold": get_model(
+                "mockllm/model", memoize=False, custom_outputs=outputs
+            )
+        },
+    )
+
+    # a final, single-turn answer
+    history = [_wire_user(dialect, "Quote the marker.")]
+    reply = await _dialect_request(dialect, bridge, history)
+    assert _wire_text(dialect, reply) == text
+    first = bridge.state.output.message
+    assert first.text == text
+
+    # the scaffold continues with the reply and another quoting prompt
+    history = [*history, *reply, _wire_user(dialect, f"again: {text}")]
+    assert _wire_text(dialect, await _dialect_request(dialect, bridge, history)) == (
+        "done"
+    )
+    assert [(m.role, m.text) for m in bridge.state.messages] == [
+        ("user", "Quote the marker."),
+        ("assistant", text),
+        ("user", f"again: {text}"),
+        ("assistant", "done"),
+    ]
+    assert bridge.state.messages[1].id == first.id
