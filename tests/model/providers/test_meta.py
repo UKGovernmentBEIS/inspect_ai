@@ -127,6 +127,7 @@ def test_meta_model_info(mock_meta_env):
     assert info.context_length == 1048576
     assert info.output_tokens == 131072
     assert info.reasoning is True
+    assert info.reasoning_effort_default == "high"
     alias = get_model_info("meta/muse-spark-1.3-contributor")
     assert alias is not None
     assert alias.context_length == 1048576

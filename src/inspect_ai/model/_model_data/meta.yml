@@ -1,7 +1,7 @@
 meta:
   display_name: Meta
   models:
-    # Meta's frontier model, in preview on the Model API. Standard mode only
+    # Meta's most capable model, in preview on the Model API. Standard mode only
     # (no `-contributor` alias) and reasoning is always on, defaulting to `max`
     # effort. Meta does not publish an output token limit.
     # https://research.meta.ai/blog/muse-wonder
@@ -15,7 +15,7 @@ meta:
     # Meta's small model. Standard mode only (no `-contributor` alias) and
     # reasoning is always on, defaulting to `max` effort.
     # https://research.meta.ai/blog/muse-ember
-    # https://dev.meta.ai/docs/reasoning
+    # https://dev.meta.ai/docs/muse-ember
     muse-ember-1.0:
       display_name: Muse Ember 1.0
       release_date: 2026-11-09
@@ -34,6 +34,7 @@ meta:
       context_length: 1048576
       output_tokens: 131072
       reasoning: True
+      reasoning_effort_default: high
       aliases:
         - muse-spark-1.3-contributor
     muse-spark-1.2:
@@ -42,6 +43,7 @@ meta:
       context_length: 1048576
       output_tokens: 131072
       reasoning: True
+      reasoning_effort_default: high
       aliases:
         - muse-spark-1.2-contributor
     muse-spark-1.1:
@@ -50,3 +52,4 @@ meta:
       context_length: 1048576
       output_tokens: 131072
       reasoning: True
+      reasoning_effort_default: high
