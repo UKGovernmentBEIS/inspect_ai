@@ -557,7 +557,7 @@ async with _run_task_screen(...):              # absorbs a cancellation of the r
                         start run_one(entry)
                     [loaned starts: task-handles.md]
                     if cancelled: break
-                    idle = no entry is pending, no attempt and no setup job is running
+                    idle = no entry is pending, no attempt and no task_init call is running
                     if idle and source_done and pull is None: break
                     if idle and not source_done and pull is None:
                         pull = start next_tasks() in the attempt group, in its own cancel scope
@@ -739,28 +739,35 @@ class SandboxSetups:                   # one per run
   seed's) start when it opens. Inside the screen, a cancellation of the run
   is absorbed with the rest of the run body, and the display has loaded
   before any setup can suspend it.
-- **A record's job.** `request` starts one background job per record: it
-  awaits `ensure_model_controller` for the record's model (the eager creation
-  `prepare_options` does today before image pulls), then resolves the
-  `SetupKey` of each selected sample, recording it by the sample's index in
-  the attempt's sample list (the `sample_index` that `run_sample` receives;
-  seed samples first, then added samples in arrival order, so two objects
-  with one id get separate entries), and requests the `task_init` jobs. A
-  record with no sandbox needs no job: its first `generate` creates the
-  controller lazily, as for any model today.
+- **A record's job.** When `run_samples` is true, `request` starts one
+  background job per record, sandbox or not. It first awaits
+  `ensure_model_controller` for the record's primary model with the same
+  composed configuration `prepare_options` uses today (the task's generate
+  config merged with the run's), so `inspect ctl config` can retune
+  `max_connections` for every queued or starting task before its first
+  `generate`, as it can today. A record with no sandbox is then settled.
+  Otherwise the job resolves the `SetupKey` of each selected sample,
+  recording it by the sample's index in the attempt's sample list (the
+  `sample_index` that `run_sample` receives; seed samples first, then added
+  samples in arrival order, so two objects with one id get separate
+  entries), and requests the `task_init` jobs. Under `run_samples=False` no
+  job starts and no controller is created, as today.
 - **Once per configuration per run.** `task_init` jobs are keyed by
-  `SetupKey` across all records and kept until the run ends; they run one at
+  `SetupKey` across all records and kept until the run ends (a job no
+  record needs any more is the exception, below); they run one at
   a time (a provider never gets two `task_init` calls at once, as
   `_init_lock` ensures today), in request order, except that a job needed now
   (a `SampleSource` task's `ensure()`) goes first.
 - **The job retries itself** (decision: Ransom, 2026-11-10). A `task_init`
   that raises is tried again, up to `task_retry_attempts` more times (the
   run-wide value under "The dispatcher", Retries; 3 means up to four tries,
-  and 0, `eval()`'s default, means none). Between tries the job waits with
-  the backoff `eval_set()` already uses between retry rounds (exponential,
-  from 30 seconds up to an hour), releasing the one-at-a-time slot so other
-  setups run meanwhile, then tries again from the setup chain's current
-  context. No provider cleanup runs between tries: a provider's
+  and 0, `eval()`'s default, means none). Between tries the job waits 5
+  seconds, doubling each time and capped at 60 seconds, for every entry
+  point (decision: Ransom, 2026-11-10). This is not `eval_set()`'s backoff
+  between legacy rounds: `retry_wait` stays a legacy-round setting and does
+  not affect setup, and today's in-run task retries do not wait at all. The
+  job releases the one-at-a-time slot while it waits, so other setups run
+  meanwhile, then tries again from the setup chain's current context. No provider cleanup runs between tries: a provider's
   `task_cleanup` can act on everything it tracks (Docker's shuts down every
   project in the lifecycle registry, k8s's uninstalls every release of a
   shared manager, Vagrant's and EC2's destroy every VM or instance in
@@ -808,27 +815,44 @@ class SandboxSetups:                   # one per run
   `options.setups.key_for(sample_index)` to `sandboxenv_context`, which uses
   that key's spec instead of resolving the sample's sandbox again, so the
   path `task_init` used is the path `sample_init` gets.
-- **Cancelled records** drop their waiting jobs that no other record needs.
-  A job that has started runs to its end (interrupting `task_init` can leave
-  resources nothing cleans up), and the dispatcher waits for it before it
-  starts a `next_tasks()` pull or ends.
+- **A job no record needs stops and is forgotten** (decision: Ransom,
+  2026-11-10). A job is needed while a record waits on it: a queued record
+  or pending retry whose setups include it, or a running attempt awaiting it
+  in `ensure()`. When no such record remains (each cancelled or ended), a
+  job still waiting for its first try is dropped, a job in its backoff stops
+  at once, and a job whose `task_init` call is running stops when that call
+  returns, success or failure, with no further try (interrupting `task_init`
+  can leave resources nothing cleans up). The run then forgets the key
+  unless that call succeeded: a later record needing the configuration
+  starts a new job with the full `task_retry_attempts` budget. No partial
+  budget is kept or resumed, and stopping this way is not a setup failure,
+  so nothing ends with its error. The dispatcher's idle check counts only a
+  `task_init` call that is running, not a job waiting or in backoff, so a
+  run whose only record was cancelled during a backoff finishes at once; on
+  a normal exit `setups.open()` cancels every job waiting or in backoff and
+  waits for a running call to return, and on a run-level cancellation it
+  cancels every job, a running `task_init` included, as today.
 - **Display.** Every setup suspends the task display while `task_init` runs,
   as today (`display().suspend_task_app()`), since providers write to the
   terminal. Other tasks keep running meanwhile, as on today's live path.
-- **Cleanup.** A job registers its configuration's `task_cleanup` once,
-  when its first try starts. `shutdown()`, from `eval_run`'s `finally`
-  after the screen has closed and no sample runs, runs each registered
-  cleanup once, in a task started from the job's context as its last try
-  left it, shielded, with errors logged as today. That pass clears what
+- **Cleanup.** A job registers its configuration's `task_cleanup` when its
+  first try starts, before `task_init` is called. `shutdown()`, from
+  `eval_run`'s `finally` after the screen has closed and no sample runs, runs
+  each registered cleanup once, whether the job's tries succeeded, failed,
+  were interrupted by a run-level cancellation, or stopped because no
+  record needed the job: in a task started from the job's context as its
+  last try left it, shielded, with errors logged as today. A job that never
+  started a try registers nothing; a key forgotten and set up again has two
+  registrations, and the second cleanup of an aggregate provider finds
+  nothing left. That pass clears what
   failed tries left: the aggregate cleanups above reach everything their
   provider tracks, and the surveyed providers that rebind per-call state
   (E2B, Modal, Daytona) create no sandboxes in `task_init`. Unlike today,
   where cleanup is registered only after a successful `task_init`, a
-  configuration whose tries all failed is cleaned up too; at run end that is
-  safe for the surveyed providers (an aggregate cleanup run again finds
-  nothing left, and one that finds no state of its own raises, which is
-  logged). Unstarted jobs get none, and a `task_init` interrupted by a
-  run-level cancellation gets none, as today.
+  configuration whose tries all failed, or whose `task_init` was
+  interrupted, is cleaned up too; at run end that is safe for the surveyed
+  providers (an aggregate cleanup run again finds nothing left, and one that
+  finds no state of its own raises, which is logged).
 
 Seed setups run beside the dispatcher like every other setup (decision:
 Ransom, 2026-11-03).
@@ -1185,9 +1209,27 @@ test that waits on a run is bounded with `fail_after`.
   - requests for the key arriving during the tries join the same job, and
     other setups run while it waits;
   - a failed `task_init_environment` is not retried;
-  - a sandbox-free task
-  starts while a setup blocks; `run_samples=False` starts no setup and no
-  model controller; a cancelled record's unshared waiting job is dropped.
+  - cancelling the only record waiting on a job during its backoff (patched
+    wait held on an event) ends the run promptly with no further try; a
+    later record needing the same configuration in the same run starts a
+    new job whose budget is the full `task_retry_attempts`; cancelling it
+    while its `task_init` runs lets that call return and makes no further
+    try; neither case ends anything with a setup error;
+  - cleanup registration: a run cancelled during a configuration's first
+    `task_init` runs its `task_cleanup` once at shutdown; one cancelled
+    during the second try, after a failed first, also runs it once; a
+    configuration whose tries all failed runs it once; a job dropped before
+    its first try runs none;
+  - the backoff is 5, 10, 20, 40, 60, 60 seconds (patched wait) under
+    `eval()` and `eval_set()`, whatever `retry_wait` is;
+  - eager controllers (`tests/model/test_adaptive_connections.py`): with an
+    adaptive-connections model and `run_samples` true, a queued sandbox-free
+    record, and a sandbox-free solver held on an event before its first
+    `generate`, each have their controller, and an early `inspect ctl config
+    --max-connections` retune applies to it rather than being dropped; under
+    `run_samples=False` no controller is created;
+  - a sandbox-free task starts while a setup blocks; `run_samples=False`
+    starts no setup.
 - `tests/test_task_cancel.py` and `tests/_control/test_ctl.py` (invariant 3):
   queued rows in `GET /tasks`, listed and cancellable from the moment
   `enqueue_task()` returns, including while `next_tasks()` blocks forever; a
@@ -1291,8 +1333,10 @@ the dispatcher; and (2026-11-09) that a task's log starts with its attempt,
 that `enqueue_task()` becomes async with selection resolved at the call, that
 config paths are resolved by Inspect against the task directory, and that
 build-output streaming is a separate change; and (2026-11-10) that a failed
-setup retries itself up to the run's `task_retry_attempts`, with a backoff and
-no cleanup between tries (its cleanup runs once at run end), and that a task
+setup retries itself up to the run's `task_retry_attempts`, with its own
+backoff (5 seconds doubling to 60) and no cleanup between tries, that its
+cleanup is registered at its first try and runs once at run end, that a job
+no record needs stops after its current call and is forgotten, and that a task
 whose attempt failed in setup is not retried as a task within that run, while
 `eval_set()`'s legacy rounds, each a new run with fresh setups, retry it as
 they do today.
