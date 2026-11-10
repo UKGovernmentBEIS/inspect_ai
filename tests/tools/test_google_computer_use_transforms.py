@@ -15,6 +15,7 @@ from inspect_ai.model._providers._google_computer_use import (
     gemini_action_from_tool_call,
     tool_call_from_gemini_computer_action,
 )
+from inspect_ai.model._providers._google_reasoning import gemini_computer_actions
 from inspect_ai.model._providers.google import content as google_content
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tools._computer._computer import computer
@@ -573,7 +574,8 @@ async def test_live_gemini_alias_call_replays_as_sent_and_continues(
             )
             for call in calls
         )
-        if any(call.id.startswith(f"{action}_") for call in calls):
+        # the call keeps Gemini's id, so the action it was sent as is on its anchor
+        if action in gemini_computer_actions(output.message).values():
             break
     else:
         pytest.fail(f"{model.name} did not call {action}")
