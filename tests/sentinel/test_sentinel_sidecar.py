@@ -2138,6 +2138,72 @@ def test_a_required_sample_the_restarted_sidecar_lost_is_retried(
     assert sample.scores
 
 
+def test_a_required_folder_task_sample_the_restarted_sidecar_lost_is_retried() -> None:
+    # The tasks folder survives a restart, but the eval's token and the
+    # attempt's monitor state don't. So the attempt fails and is retried, as
+    # for a task the eval registered, rather than being refused as a sample
+    # the folder doesn't hold.
+    stand_in = StandInSidecar(
+        turns=[Turn(status=400), Turn(text="Sunny.")],
+        methods={
+            "complete_registration": lambda _: {"fixed": True},
+            "request_result": _answers(
+                {"records": "unknown"}, _decided({"outcome": "proceed", "steps": []})
+            ),
+        },
+    )
+    task = Task(dataset=[Sample(input="Hi.")], solver=generate(), scorer=_graded())
+
+    [log] = eval(
+        task,
+        model=_model(stand_in),
+        sentinel_proxy="required",
+        retry_on_error=1,
+        display="none",
+    )
+
+    assert log.samples is not None
+    [sample] = log.samples
+    assert sample.error is None
+    [retried] = sample.error_retries or []
+    assert "SidecarNotJudgedError" in retried.message
+    assert "SampleRefusedError" not in retried.message
+    assert sample.scores
+
+
+def test_a_required_folder_task_sample_the_restarted_sidecar_lost_isnt_scored() -> None:
+    # retries spent and scored on the error: what the sidecar holds for the
+    # attempt may have begun after the restart, whatever the folder holds
+    stand_in = StandInSidecar(
+        turns=[Turn(status=400)],
+        methods={
+            "complete_registration": lambda _: {"fixed": True},
+            "request_result": _answers({"records": "unknown"}),
+            "sample_result": _kept({"Tally:lookups": 0}),
+        },
+    )
+    task = Task(
+        dataset=[Sample(input="Hi.")],
+        solver=generate(),
+        scorer=_reads_monitor_state(),
+    )
+
+    [log] = eval(
+        task,
+        model=_model(stand_in),
+        sentinel_proxy="required",
+        score_on_error=True,
+        display="none",
+    )
+
+    assert log.samples is not None
+    [sample] = log.samples
+    assert sample.error is not None and "lost the sample" in sample.error.message
+    assert "SampleRefusedError" not in sample.error.message
+    assert not sample.scores
+    assert _registered(stand_in, "sample_result") == []
+
+
 @_RESTARTS
 def test_a_required_sample_the_restarted_sidecar_lost_isnt_scored_on_what_it_holds_since(
     registered_again_first: bool,
