@@ -104,6 +104,7 @@ from inspect_ai.model._model import (
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.model._providers._google_reasoning import (
     gemini_anchor_fits,
+    gemini_anchor_function,
     gemini_anchors_with_functions,
     gemini_shared_call_ids,
 )
@@ -628,17 +629,19 @@ def _hold_signatures_in_place(
         message = choice.message
         if isinstance(message.content, str):
             continue
-        calls = Counter(call.id for call in message.tool_calls or [])
+        calls: Counter[str] = Counter()
+        fitting: set[tuple[str, str | None]] = set()
+        for call in message.tool_calls or []:
+            calls[call.id] += 1
+            if call.type == "function":
+                fitting.add((call.id, call.function))
         anchors: Counter[str] = Counter()
         content: list[Content] = []
         for part in message.content:
             call_id = _anchor_call_id(part)
             if call_id is not None:
                 assert isinstance(part, ContentReasoning)
-                if not any(
-                    call.id == call_id and gemini_anchor_fits(part, call)
-                    for call in message.tool_calls or []
-                ):
+                if (call_id, gemini_anchor_function(part)) not in fitting:
                     continue
                 anchors[call_id] += 1
                 if call_id in shared:

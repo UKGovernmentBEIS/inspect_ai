@@ -10245,6 +10245,55 @@ async def test_the_google_first_call_signature_is_the_providers(
     assert (base64.b64decode(signed.reasoning) if signed else None) == expected
 
 
+def test_holding_google_signatures_in_place_reads_each_call_a_bounded_number_of_times() -> (
+    None
+):
+    """A filter returns an output of many calls, each after its own anchor, unchanged.
+
+    Holding the signatures in place reads the message's calls a bounded
+    number of times, not once per anchor.
+    """
+    from inspect_ai.agent._bridge.util import _hold_signatures_in_place
+
+    class Counted(list[ToolCall]):
+        reads = 0
+
+        def __iter__(self) -> Iterator[ToolCall]:
+            for call in super().__iter__():
+                Counted.reads += 1
+                yield call
+
+    for n in [100, 400]:
+        calls = Counted(
+            ToolCall(id=f"call_{i}", function="read_file", arguments={"path": "a"})
+            for i in range(n)
+        )
+        message = ChatMessageAssistant(
+            content=[
+                ContentReasoning(
+                    reasoning="c2ln" if i == 0 else "",
+                    redacted=True,
+                    internal={
+                        "gemini_function_call_id": f"call_{i}",
+                        "gemini_function": "read_file",
+                    },
+                )
+                for i in range(n)
+            ]
+        ).model_copy(update={"tool_calls": calls})
+        output = ModelOutput(
+            model="mockllm/model", choices=[ChatCompletionChoice(message=message)]
+        )
+        Counted.reads = 0
+        _hold_signatures_in_place(output, output)
+        assert Counted.reads <= 4 * n
+        assert [
+            part.reasoning
+            for part in output.message.content
+            if isinstance(part, ContentReasoning)
+        ] == ["c2ln"] + [""] * (n - 1)
+
+
 async def _regenerate_rebuilt(
     model: Model, output: ModelOutput, input: GenerateInput
 ) -> ModelOutput:

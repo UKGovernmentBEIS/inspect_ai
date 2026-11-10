@@ -176,16 +176,20 @@ def gemini_anchor_fits(anchor: ContentReasoning, call: ToolCall) -> bool:
     (`gemini_anchors_with_functions` derives the function of one logged before
     it was recorded).
     """
+    function = gemini_anchor_function(anchor)
+    return (
+        call.type == "function" and function is not None and function == call.function
+    )
+
+
+def gemini_anchor_function(anchor: ContentReasoning) -> str | None:
+    """The function the reasoning anchor's call was parsed as, if recorded."""
     function = (
         anchor.internal.get(GEMINI_FUNCTION_KEY)
         if isinstance(anchor.internal, dict)
         else None
     )
-    return (
-        call.type == "function"
-        and isinstance(function, str)
-        and function == call.function
-    )
+    return function if isinstance(function, str) else None
 
 
 def gemini_anchors_with_functions(
