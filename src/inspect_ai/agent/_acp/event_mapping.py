@@ -187,10 +187,11 @@ def _scan_bridge_tool_facts(events: Sequence[Event]) -> _BridgeToolFacts:
                 proposal_id = _proposal_id(msg.metadata, msg.tool_call_id)
                 if proposal_id is not None:
                     keys.append(proposal_id)
-                answered = _answered_call(event.input, index)
+                answered: ToolCall | None = None
                 for key in keys:
                     if key not in tool_results:
                         tool_results[key] = msg
+                        answered = answered or _answered_call(event.input, index)
                         if answered is not None:
                             answered_calls[key] = answered
     return _BridgeToolFacts(tool_event_ids, tool_results, answered_calls)
@@ -206,7 +207,8 @@ def _answered_call(messages: Sequence[ChatMessage], index: int) -> ToolCall | No
     result = messages[index]
     if not isinstance(result, ChatMessageTool) or result.tool_call_id is None:
         return None
-    for message in reversed(messages[:index]):
+    for position in range(index - 1, -1, -1):
+        message = messages[position]
         if isinstance(message, ChatMessageAssistant):
             for call in message.tool_calls or []:
                 if call.id == result.tool_call_id:
