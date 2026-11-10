@@ -673,7 +673,9 @@ def content_block_to_content(
     elif block["type"] == "document":
         source = block["source"]
         if source["type"] == "text":
-            data = base64.b64encode(source["data"].encode("utf-8")).decode("ascii")
+            # Keep lone surrogates representable instead of failing UTF-8 encoding.
+            text_bytes = source["data"].encode("utf-8", errors="backslashreplace")
+            data = base64.b64encode(text_bytes).decode("ascii")
             return ContentDocument(
                 document=as_data_uri(source["media_type"], data),
                 mime_type=source["media_type"],
