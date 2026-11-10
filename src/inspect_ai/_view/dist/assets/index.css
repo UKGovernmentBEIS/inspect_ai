@@ -23953,6 +23953,135 @@ a._turnButton_loteg_100 {
 ._eventsList_sou2s_45 {
   padding-bottom: 1rem;
 }
+/* A message's own line breaks, wrapped to the column; three-line-clamp caps it. */
+._contentLines_1rjek_2 {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+._view_1pobl_1 {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6em;
+  width: 100%;
+  padding: 0.6em 1em 1em;
+}
+
+._grid_1pobl_9 {
+  position: relative;
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--bs-border-radius);
+  overflow: hidden;
+}
+
+._send_1pobl_16 {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3em;
+  padding: 0.5em 0.7em;
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--bs-border-radius);
+  background: var(--bs-body-bg);
+}
+
+._sendRefused_1pobl_26 {
+  border-color: var(--bs-danger);
+}
+
+._header_1pobl_30,
+._line_1pobl_31 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 0.5em;
+  min-width: 0;
+}
+
+._line_1pobl_31 {
+  padding: 0.1em 0.7em;
+}
+
+._time_1pobl_43 {
+  font-variant-numeric: tabular-nums;
+}
+
+._agent_1pobl_47 {
+  font-weight: 600;
+}
+
+._meta_1pobl_51 {
+  margin-left: auto;
+}
+
+._detail_1pobl_55 {
+  overflow-wrap: anywhere;
+}
+
+._content_1pobl_59 {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+._refused_1pobl_64 {
+  color: var(--bs-danger);
+}
+._container_1tduz_1 {
+  display: flex;
+  flex-direction: column;
+  row-gap: 0.25rem;
+  min-width: 10rem;
+}
+
+._row_1tduz_8 {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  margin-bottom: 0;
+}
+
+._checkbox_1tduz_15 {
+  margin-right: 0.5rem;
+  cursor: pointer;
+}
+._statusCell_4ypz5_1 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Fill the grid cell so the icon centers within the column (the DataGrid
+   * cell is a flex box that would otherwise leave this content-sized box
+   * flush-left). Matches the AG grid, where the block cell filled the width. */
+  width: 100%;
+}
+
+._error_4ypz5_11 {
+  color: var(--bs-danger);
+}
+
+._success_4ypz5_15 {
+  color: var(--bs-success);
+}
+
+._cancelled_4ypz5_19 {
+  color: var(--bs-secondary);
+}
+/* Cell helpers exposed for column renderers. */
+._cell_8nkqa_2 {
+  line-height: var(--bs-body-line-height);
+}
+
+._wrapAnywhere_8nkqa_6 {
+  overflow-wrap: break-word;
+}
+
+._noLeft_8nkqa_10 {
+  padding-left: 0;
+}
+
+._score_8nkqa_14 {
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 ._tabControls_6sqvk_1 {
   position: sticky;
   z-index: 1001;
@@ -24160,27 +24289,6 @@ a._turnButton_loteg_100 {
   margin: 0.5em 0;
   font-size: clamp(0.3rem, 1.1vw, 0.8rem) !important;
 }
-._statusCell_4ypz5_1 {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  /* Fill the grid cell so the icon centers within the column (the DataGrid
-   * cell is a flex box that would otherwise leave this content-sized box
-   * flush-left). Matches the AG grid, where the block cell filled the width. */
-  width: 100%;
-}
-
-._error_4ypz5_11 {
-  color: var(--bs-danger);
-}
-
-._success_4ypz5_15 {
-  color: var(--bs-success);
-}
-
-._cancelled_4ypz5_19 {
-  color: var(--bs-secondary);
-}
 ._row_5mttp_1 {
   display: flex;
   gap: 16px;
@@ -24335,25 +24443,6 @@ a._turnButton_loteg_100 {
 ._message_x9ww7_19 {
   text-align: center;
   max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-/* Cell helpers exposed for column renderers. */
-._cell_8nkqa_2 {
-  line-height: var(--bs-body-line-height);
-}
-
-._wrapAnywhere_8nkqa_6 {
-  overflow-wrap: break-word;
-}
-
-._noLeft_8nkqa_10 {
-  padding-left: 0;
-}
-
-._score_8nkqa_14 {
-  text-align: center;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -26407,24 +26496,6 @@ pre._value_8citi_25 {
    * sample count past the viewport. Shrinking to the pane makes the grid
    * the horizontal scroller and keeps the footer pinned in view. */
   min-width: 0;
-}
-._container_1tduz_1 {
-  display: flex;
-  flex-direction: column;
-  row-gap: 0.25rem;
-  min-width: 10rem;
-}
-
-._row_1tduz_8 {
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-  margin-bottom: 0;
-}
-
-._checkbox_1tduz_15 {
-  margin-right: 0.5rem;
-  cursor: pointer;
 }
 ._root_1dunz_1 {
   display: flex;
