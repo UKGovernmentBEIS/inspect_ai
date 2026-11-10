@@ -324,9 +324,16 @@ counted.
   factory ran in the caller's context: inspect_evals' NIAH calls
   `get_model()` while it constructs the task (`niah/niah.py:84`), which
   outside an eval reads `INSPECT_EVAL_MODEL`
-  (`src/inspect_ai/model/_model.py:2515-2521`). `eval_async()` refuses to
-  start while another eval runs in the process (`_eval_async_running`,
-  `src/inspect_ai/_eval/eval.py:795-797`).
+  (`src/inspect_ai/model/_model.py:2515-2521`) and, with it unset, raises.
+  `eval_set()` resolves its tasks natively before handing the
+  `ResolvedTask`s to `eval()`: `eval_init()` (`src/inspect_ai/_eval/evalset.py:776`)
+  and then `eval_resolve_tasks()` (`:1052`).
+- **Running eval.** `eval_async()` refuses to start while another eval runs
+  in the process (`_eval_async_running`, `src/inspect_ai/_eval/eval.py:795-797`),
+  but only after it has reset the process's keep-alive intent
+  (`reset_keep_alive()`, `:635`). A running eval given `--ctl-server=keep`
+  then skips its park after scoring (`:1240-1249`), so a refused second
+  call is not free of side effects.
 - **Sample ids.** A dataset sample without an id gets its 1-based position as
   its id when the task runs (`src/inspect_ai/_eval/run.py:222-228`), after
   any `sample_shuffle` (`src/inspect_ai/_eval/loader.py:106`). That id is an
@@ -748,9 +755,14 @@ def zero_samples(
 
 Zero takes a built `Task`, as the shard merge does (decision: Ransom,
 2026-11-10); a task spec is loaded by the caller, as the CLI does below.
-`eval_kwargs` are `eval()`'s keyword arguments: `zero_samples` calls the
-public `eval()`, and `zero_samples_async` awaits `eval_async()`, with them
-unchanged plus the arguments zero sets for its scratch run (step 5). `eval()`
+`zero_samples` forwards `eval()`'s keyword arguments to the public
+`eval()`, and `zero_samples_async` forwards `eval_async()`'s keyword
+arguments to `eval_async()`, each unchanged plus the arguments zero sets
+for its scratch run (step 5). The two contracts differ as the native ones
+do: `display` and `trace` are `eval()`'s only
+(`src/inspect_ai/_eval/eval.py:151-152`), and passed to the async form
+they fail as they fail for `eval_async()`, which takes them as generate
+options and raises a validation error. Zero translates nothing. `eval()`
 therefore owns what it owns in any run: model construction (including
 `INSPECT_EVAL_MODEL` when `model` is omitted), model prices, argument files
 and argument parsing (a `token_limit` such as `"output:500k"`), policies,
@@ -760,7 +772,8 @@ types are checked by `eval()`. Because the arguments reach `eval()` as
 given, nested values keep their meaning (`cache=CachePolicy(expiry=None)`
 still caches indefinitely), the display starts as for any eval, and every
 form `eval()` accepts is accepted. A caller passes what it passed to
-`eval()` for the original run, and the empty attempt runs with exactly that.
+`eval()` (or `eval_async()`) for the original run, and the empty attempt
+runs with exactly that.
 
 Both functions edit `log` in place, like `edit_score()`, and leave writing
 to the caller. Neither imports a task file or path the log names: the
@@ -978,14 +991,19 @@ caller's keywords:
   that is a list of more than one model is refused before anything runs
   ("zero runs one empty attempt per target; pass one model"), and step 6
   requires `eval()` to return exactly one log.
-- **Construction context.** The task was built before `eval()` runs, so a
-  factory that reads the active model, a role or model prices while it
+- **Construction context.** A built task was constructed by its caller,
+  so a factory that reads the active model, a role or model prices while it
   constructs the task saw the caller's context, as for any `Task` passed to
-  `eval()` ("Task construction" above). `eval()` applies the models, prices
-  and other settings to the run itself in its own order.
-- **A running eval.** Zero changes nothing before it calls `eval()`, which
-  refuses to start while another eval runs in the process, so that refusal
-  leaves the log and the other eval as they were.
+  `eval()` ("Task construction" above). The CLI constructs it in the native
+  context (see CLI). `eval()` applies the models, prices and other settings
+  to the run itself in its own order.
+- **A running eval.** Before calling `eval()`, zero reads the native
+  running-eval flag through a small accessor, `eval_async_running()` in
+  `src/inspect_ai/_eval/eval.py`, and refuses: "cannot zero while an eval is
+  running in this process". Leaving the refusal to `eval()` would reset the
+  running eval's keep-alive intent first ("Running eval" above). Zero
+  changes nothing before this gate, so the refusal leaves the log and the
+  other eval, its keep-alive intent included, as they were.
 
 `exclude_samples`:
 
@@ -1007,7 +1025,8 @@ caller's keywords:
    attempt has no verdict; exclude the samples instead".
 2. Selects the targets that are not already zeroed. When none are left it
    returns without running anything.
-3. Checks the reserved keywords and `model` (above), checks the task with
+3. Checks the reserved keywords, `model` and the running-eval gate (above),
+   checks the task with
    `task_difference()`, and takes its metrics from
    `task_log_metrics(task, log)`. The epoch count is that of the `epochs`
    keyword when given (an `int`, or an `Epochs`' `epoch`), otherwise the
@@ -1088,7 +1107,8 @@ caller's keywords:
 
    `eval_kwargs` hold whatever the caller passed: models, task arguments,
    sandbox, policies, epochs, sample limits and prices, `retry_on_error`,
-   concurrency limits, generate config and display. Zero adds only its own
+   concurrency limits and generate config, and for the sync form `display`
+   and `trace`. Zero adds only its own
    operational settings below, which step 3 has kept the caller from
    passing.
 
@@ -1204,7 +1224,8 @@ Two subcommands of `inspect log` (`src/inspect_ai/_cli/log.py`, beside
 ```
 inspect log exclude LOG_FILE --sample ID [--sample ID ...] [--epoch N]
                     --reason TEXT [--author NAME]
-                    [--task TASK [-T NAME=VALUE ...] [--task-config FILE]]
+                    [--task TASK [-T NAME=VALUE ...] [--task-config FILE]
+                                 [--model ...] [--model-role ...]]
                     [--json]
 inspect log zero    LOG_FILE TASK --sample ID [--sample ID ...] [--epoch N]
                     --reason TEXT [--author NAME]
@@ -1217,24 +1238,34 @@ inspect log zero    LOG_FILE TASK --sample ID [--sample ID ...] [--epoch N]
 
 - `TASK` (zero) and `--task` (exclude) name the task as `inspect eval`
   names it: a task file, `file.py@name` or a registered name. Nothing is
-  read from the log to find or build it. The CLI builds the `Task` with
-  Inspect's existing spec loader, `load_tasks([TASK], task_args)`
-  (`src/inspect_ai/_eval/loader.py:532`), the function `inspect eval`'s
-  string specs reach through `resolve_tasks()`, with `-T` and
-  `--task-config` parsed by `inspect eval`'s own code; it must yield exactly
-  one task. There is no other resolution. `inspect log zero` then calls
-  `zero_samples` with that task and its remaining options converted into
-  `eval()` keyword arguments by the helper `eval_command` uses, so `eval()`
-  applies models, prices and every other setting to the run in its native
-  order. The task is built before `eval()` runs, so a factory that reads
-  the active model while it constructs the task sees `INSPECT_EVAL_MODEL`
-  rather than `--model` (see Compatibility, "What zero runs"). Zero's other
-  options are `inspect eval`'s options of the same names, parsed by the
+  read from the log to find or build it. The CLI builds the `Task` in the
+  native construction context, by the path `eval_set()` uses before it
+  hands tasks to `eval()`, in `resolve_task_spec()` (new in
+  `src/inspect_ai/_eval/eval.py`), after the running-eval gate: it expands
+  argument files with `resolve_args()`, applies `--model-cost-config` with
+  `apply_model_cost_config()` (the price loading `eval_async()` does at
+  `src/inspect_ai/_eval/eval.py:808-815`, moved into a function both call),
+  initializes the models with `eval_init()` from `--model`,
+  `--model-base-url`, `-M` and the generate options, and resolves the spec
+  with `eval_resolve_tasks()`, which installs the primary model and the
+  roles before the factory runs. These are the calls `inspect eval` makes,
+  in its order, so a factory that calls `get_model()`, reads a role or
+  reads model prices while it constructs the task sees the CLI's models and
+  prices. The options reach these functions as the typed values
+  `eval_command`'s conversion produces, never serialized. The spec must
+  yield exactly one task. `inspect log zero` then calls `zero_samples` with
+  that task and the same options as `eval()` keyword arguments, and the
+  scratch eval applies them again in its own order. The CLI process runs
+  nothing else, so the process-wide state `eval_init()` sets is replaced
+  when the scratch eval initializes. The Python functions keep taking a
+  built `Task`. Zero's other options are `inspect eval`'s options of the same names, parsed by the
   same code: the task-argument, model, model-role, epochs, sample-limit,
   policy, concurrency and generate-config options move out of
   `eval_options` (`src/inspect_ai/_cli/eval.py:282`) into option groups
-  that both commands apply. Exclusion takes only the task options: it runs
-  nothing. The trust model is that of `inspect eval`: the user names the
+  that both commands apply. Exclusion takes the task options and the model
+  options a factory may read while it is constructed (`--model`,
+  `--model-role`), and resolves the spec the same way; it runs nothing. The
+  trust model is that of `inspect eval`: the user names the
   code to run.
 - `--sample` is repeatable and required. `--epoch N` narrows every named
   sample to that epoch; without it, every epoch of each named sample is
@@ -1398,15 +1429,17 @@ inspect log zero    LOG_FILE TASK --sample ID [--sample ID ...] [--epoch N]
   scorers, or to pass a task whose scorer list includes the appended ones;
   a later append keeps the zeroed score (see Compatibility, "Later
   rescoring").
-- **Prepare the task by hand and launch the prepared task**, calling
-  `eval_init()` and `eval_resolve_tasks()` with re-declared keyword
-  parameters and a synchronous wrapper of zero's own. It would let a task
-  spec be resolved inside the caller's model context, but it duplicates
-  `eval()`'s setup and diverges from it wherever the copy is incomplete:
+- **Prepare the task in the library and launch the prepared task**, with
+  `zero_samples` accepting a task spec, calling `eval_init()` and
+  `eval_resolve_tasks()` with re-declared keyword parameters and running a
+  synchronous wrapper of zero's own. It would resolve a spec for Python
+  callers too, but it duplicates `eval()`'s run setup and diverges from it
+  wherever the copy is incomplete:
   argument types, the serialization of nested generate settings, price
   order and the display lifecycle. Calling the public `eval()` with the
   caller's keywords leaves all of these to `eval()` (decision: Ransom,
-  2026-11-10).
+  2026-11-10); only the CLI, which starts from a spec, resolves one, with
+  the calls `inspect eval` makes and no run setup.
 
 ## Compatibility and migration
 
@@ -1473,11 +1506,10 @@ No migration required.
   edits to setup code, the dataset or a scorer's internals. A setting the
   original run was given at eval level is reproduced only when the caller
   gives it again; the epoch reducers are the exception, read from the log
-  header ("Metrics from the task"). The task is built before `eval()`
-  runs, so a factory that reads the active model, a role or model prices
-  while it constructs the task sees the caller's context (on the command
-  line, `INSPECT_EVAL_MODEL` rather than `--model`), as for any `Task`
-  passed to `eval()`. Passing the task and settings the log ran is the
+  header ("Metrics from the task"). A task built by a Python caller was
+  constructed in that caller's context, as for any `Task` passed to
+  `eval()`; the CLI constructs it with its models and prices, as `inspect
+  eval` does. Passing the task and settings the log ran is the
   caller's responsibility, as for the shard merge and for eval-retry of an
   edited task. Each zero is recorded as a score edit with its reason and
   author, and the original score stays in `Score.history`, so a zero can be
@@ -1534,7 +1566,7 @@ No migration required.
   names compared with the caller's task, the sample ids and the score
   values are otherwise compared or copied as data.
 - **The caller's task.** A task spec given on the command line is loaded
-  with `load_tasks()`, and the task is run, with the trust model of `inspect eval`:
+  with `resolve_task_spec()`, and the task is run, with the trust model of `inspect eval`:
   the user names the code. A file that runs an evaluation at module scope
   runs it when imported, as under `inspect eval`.
 - **Reason and author** are free text from the local caller: the Python
@@ -1650,8 +1682,8 @@ backends; run the zero tests with `--runtrio` locally.
 - `tests/log/test_zero_samples.py` (new: no existing file covers running an
   eval to edit a log). The fixture is a task with string sample ids, whose
   `Task.setup` sets a metadata flag and whose main solver would generate; it
-  is built directly and, separately, loaded from a `file.py@name` spec with
-  task arguments through `load_tasks()`.
+  is built directly and, separately, resolved from a `file.py@name` spec
+  with task arguments through `resolve_task_spec()`.
   - The happy path: the zeroed scores equal the empty attempt's (`I` for
     `match()`), with reason `zeroed` and the original in `history[0]`. The
     transcript and `error` are unchanged, `Task.setup` ran, and the scratch
@@ -1681,7 +1713,7 @@ backends; run the zero tests with `--runtrio` locally.
     to `eval()` with `epochs=Epochs(5, r)` and to zero with `epochs=5`: the
     results are reduced with the header's `r`.
   - A task spec whose file defines its own epoch reducer and metric, absent
-    from the registry before the zero, loaded with `load_tasks()`: zeroing
+    from the registry before the zero, resolved with `resolve_task_spec()`: zeroing
     succeeds in a fresh process,
     with results computed by the task's metric and, through the header's
     name, the reducer the imported file registered.
@@ -1719,9 +1751,14 @@ backends; run the zero tests with `--runtrio` locally.
     task updated to `[probe(0), probe(1)]`. Zeroing the errored target
     writes `probe(0)`'s verdict under `probe`, with the appended `probe(1)`
     score as `history[0]`, and `probe(1)`'s verdict under `probe1`.
-  - Running eval: zeroing a landed log while another eval in the process
-    holds a live sample is refused by `eval()`'s own check, with the log
-    unchanged; that eval then finishes normally.
+  - Running eval: zeroing a landed log, with both forms, while another eval
+    in the process holds a live sample (synchronized on an `anyio.Event`)
+    and has its keep-alive intent set, is refused by zero's gate before
+    `eval()` is called: the log is unchanged, the keep-alive intent is
+    still set, and that eval then finishes normally.
+  - Async contract: `zero_samples_async(..., display="none")` and
+    `trace=True` fail as `eval_async()` fails for them, before anything
+    runs, and the sync form accepts both.
   - Early stopping: a task whose early-stopping manager stops after a
     failure, whose original log holds both epochs: zeroing every epoch runs
     both empty attempts and zeroes both, and the task's own
@@ -1809,10 +1846,15 @@ backends; run the zero tests with `--runtrio` locally.
     (asserted by patching the server start and the release wait).
 - `tests/_cli/`: `inspect log exclude|zero` parse `--sample`, `--epoch`,
   `--reason` and `--author`, write in place, and print the per-sample lines
-  and the `--json` envelope. `inspect log zero LOG TASK` loads the task
-  through `load_tasks()` with `-T` and passes `--model`, `--model-role`,
-  `--epochs`, a sample limit and a generate option through to the scratch
-  eval (asserted on its header), and
+  and the `--json` envelope. `inspect log zero LOG TASK` resolves the task
+  with `-T` and passes `--model`, `--model-role`, `--epochs`, a sample limit
+  and a generate option through to the scratch eval (asserted on its
+  header). With `INSPECT_EVAL_MODEL` unset and only the CLI's model options
+  given, a registered factory that calls `get_model()` while it constructs
+  the task, one that requires a `grader` role, and one that reads
+  `get_model_info()` cost under `--model-cost-config`, each sees the CLI's
+  model, role and price, for both `inspect log zero` and `inspect log
+  exclude --task`, as under `inspect eval` with the same options. And
   `inspect log exclude --task` recomputes with the task's metric and, for
   a log written with `eval(task, epochs=Epochs(5, "pass_at_5"))` on a
   one-epoch task, with the header's `pass_at_5` reducer.
@@ -1852,8 +1894,11 @@ path.
      `eval_options` (`src/inspect_ai/_cli/eval.py`) into groups, with their
      conversion into `eval()` arguments in a shared helper; `inspect eval`
      behaves as before.
+   - `eval_async_running()`, `apply_model_cost_config()` (factored out of
+     `eval_async()`, which calls it) and `resolve_task_spec()` in
+     `src/inspect_ai/_eval/eval.py`.
    - `inspect log exclude` in `src/inspect_ai/_cli/log.py`, with `--task`
-     loaded by `load_tasks()`,
+     resolved by `resolve_task_spec()`,
      and the default author helper moved from
      `src/inspect_ai/_cli/ctl/_config.py` to `src/inspect_ai/_cli/util.py`.
    - A "Zeroing and Excluding Samples" section in `docs/eval-logs.qmd`,
