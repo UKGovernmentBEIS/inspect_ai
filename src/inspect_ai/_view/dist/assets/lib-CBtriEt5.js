@@ -1,5 +1,5 @@
 import { n as o$1 } from "./chunk-DfAF0w94.js";
-//#region ../../node_modules/.pnpm/mathxyjax3@0.8.3/node_modules/mathxyjax3/dist/lib-CBtriEt5.js
+// ../../node_modules/.pnpm/mathxyjax3@0.8.3/node_modules/mathxyjax3/dist/lib-CBtriEt5.js
 var t = o$1(((exports) => {
 	function t(e, t, n) {
 		if (n === void 0 && (n = Array.prototype), e && typeof n.find == `function`) return n.find.call(e, t);
@@ -3311,7 +3311,6 @@ var lib_CBtriEt5_default = o$1(((exports) => {
 	var t = n();
 	exports.DOMImplementation = t.DOMImplementation, exports.XMLSerializer = t.XMLSerializer, exports.DOMParser = a().DOMParser;
 }))();
-//#endregion
 export { lib_CBtriEt5_default as default };
 
 //# sourceMappingURL=lib-CBtriEt5.js.map
