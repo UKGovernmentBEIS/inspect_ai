@@ -101,8 +101,16 @@ async def sidecar_call(model: "Model") -> SidecarCall | None:
 def sign_context(headers: MutableMapping[str, str], url: str) -> None:
     """Sign a model request's `x-inspect-context` as the request is sent, with the time and the token of the eval it names for the sidecar at the request's origin.
 
-    It runs on every try of the request, the SDK's retries and Inspect's alike, so a retry after a long backoff is signed afresh. A header that names no eval with a sidecar at the request's origin is left as it is, and the sidecar refuses it as unreadable.
+    It runs on every try of the request, the SDK's retries and Inspect's alike, so a retry after a long backoff is signed afresh. The signature covers the request's `x-irid`. A header that names no eval with a sidecar at the request's origin, or is sent without an `x-irid`, is left as it is, and the sidecar refuses it as unreadable.
     """
+    from inspect_ai.model._providers.util.hooks import HttpHooks
+
+    # the id the sidecar keeps what it decides of the request under, which
+    # the signature binds the context to
+    irid = headers.get(HttpHooks.REQUEST_ID_HEADER)
+    if not irid:
+        return
+
     try:
         context = json.loads(headers[INSPECT_CONTEXT])
     except (KeyError, ValueError):
@@ -116,7 +124,7 @@ def sign_context(headers: MutableMapping[str, str], url: str) -> None:
         return
     timestamp = now()
     try:
-        message = model_request_message(context, timestamp)
+        message = model_request_message(context, irid, timestamp)
     except KeyError:
         return
     context["timestamp"] = timestamp

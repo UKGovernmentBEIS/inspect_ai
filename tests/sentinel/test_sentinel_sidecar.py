@@ -1085,15 +1085,90 @@ def test_no_model_request_carries_the_eval_token_and_each_is_signed() -> None:
         if token in r.content.decode() or token in str(r.headers.raw)
     ]
     assert [json.loads(r.content)["method"] for r in carrying] == ["register_task"]
-    # each model request is signed with it, as the stand-in checked
-    contexts = [_context(r) for r in stand_in.model_calls]
-    assert len(contexts) == 2
-    for context in contexts:
+    # each model request is signed with it, with its `x-irid`, as the
+    # stand-in checked
+    assert len(stand_in.model_calls) == 2
+    for call in stand_in.model_calls:
+        context = _context(call)
         assert context is not None
+        irid = call.headers[HttpxHooks.REQUEST_ID_HEADER]
         assert context["mac"] == sign(
-            token, model_request_message(context, context["timestamp"])
+            token, model_request_message(context, irid, context["timestamp"])
         )
     assert stand_in.refused == []
+
+
+def test_a_model_requests_signature_covers_its_x_irid() -> None:
+    stand_in = StandInSidecar()
+    _run_agent(stand_in)
+    [call] = stand_in.model_calls
+    assert stand_in.refused == []
+
+    async def resend(irid: str | None) -> int:
+        # the same signed request, sent again with the given `x-irid`
+        headers = httpx2.Headers(call.headers)
+        del headers[HttpxHooks.REQUEST_ID_HEADER]
+        if irid is not None:
+            headers[HttpxHooks.REQUEST_ID_HEADER] = irid
+        request = httpx2.Request(
+            call.method, call.url, headers=headers, content=call.content
+        )
+        async with stand_in.http_client() as client:
+            response = await client.send(request)
+        return response.status_code
+
+    # sent again with its own `x-irid` it is taken, so it is the other
+    # `x-irid` alone that a resend with one is refused for
+    own = call.headers[HttpxHooks.REQUEST_ID_HEADER]
+    assert anyio.run(resend, own) == 200
+    assert stand_in.refused == []
+    assert anyio.run(resend, own + "-other") == 400
+    assert anyio.run(resend, None) == 400
+    assert stand_in.refused == [
+        "the mac doesn't match",
+        "the request has no x-irid",
+    ]
+
+
+def test_a_model_request_without_an_x_irid_is_left_unsigned(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from inspect_ai._sentinel._sidecar import _call
+    from inspect_ai._sentinel._sidecar._endpoint import EvalAccess
+
+    access = EvalAccess("eval_1")
+
+    class _Sidecars:
+        def access(self, origin: str) -> EvalAccess | None:
+            return access if origin == "http://proxy.test" else None
+
+    monkeypatch.setattr(_call, "task_sidecars", lambda eval_id=None: _Sidecars())
+    header = json.dumps(
+        {
+            "version": 1,
+            "eval_id": "eval_1",
+            "task": "weather_desk",
+            "sample_id": "a",
+            "epoch": 1,
+            "sample_uuid": "uuid_1",
+            "attempt": "attempt_1",
+            "attempt_number": 1,
+            "model": _MODELS["anthropic"],
+        }
+    )
+
+    # with an `x-irid` the header is signed, the `x-irid` with it
+    with_irid = {"x-inspect-context": header, HttpxHooks.REQUEST_ID_HEADER: "irid_1"}
+    _call.sign_context(with_irid, "http://proxy.test/v1/messages")
+    signed = json.loads(with_irid["x-inspect-context"])
+    assert signed["mac"] == sign(
+        access.token, model_request_message(signed, "irid_1", signed["timestamp"])
+    )
+
+    # without one it is left as it is, for the sidecar to refuse
+    without = {"x-inspect-context": header}
+    _call.sign_context(without, "http://proxy.test/v1/messages")
+    assert without == {"x-inspect-context": header}
 
 
 def _after_a_long_backoff(
@@ -1183,8 +1258,13 @@ async def test_the_request_hook_leaves_a_request_with_no_context_alone() -> None
         httpx2.Request("POST", "http://proxy.test/v1/messages", headers=headers)
         for headers in [
             {"x-api-key": "test-key"},
-            # an eval with no sidecar at the request's origin
-            {"x-api-key": "test-key", "x-inspect-context": unsigned},
+            # an eval with no sidecar at the request's origin, with the
+            # `x-irid` a signed request needs, so that's why it's left alone
+            {
+                "x-api-key": "test-key",
+                "x-inspect-context": unsigned,
+                HttpxHooks.REQUEST_ID_HEADER: "irid_1",
+            },
         ]
     ]
     before = [list(request.headers.raw) for request in requests]

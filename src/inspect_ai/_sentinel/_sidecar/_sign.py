@@ -39,11 +39,11 @@ def eval_call_message(method: str, eval_id: str, timestamp: int) -> list[object]
 
 
 def model_request_message(
-    context: Mapping[str, object], timestamp: int
+    context: Mapping[str, object], irid: str, timestamp: int
 ) -> list[object]:
-    """What a model request signs: the sample and attempt its `x-inspect-context` names, and the time.
+    """What a model request signs: the sample and attempt its `x-inspect-context` names, the request's `x-irid`, and the time.
 
-    The eval's id isn't signed, as the sidecar checks the signature with that eval's token; nor is the model.
+    The `x-irid` is signed so that a signature made for one request can't be sent with another request's `x-irid`, as the sidecar keeps what it decided of each request under that id. The eval's id isn't signed, as the sidecar checks the signature with that eval's token; nor is the model.
 
     Raises:
         KeyError: If the context lacks one of the signed fields.
@@ -51,5 +51,6 @@ def model_request_message(
     return [
         "model-request",
         *(context[name] for name in MODEL_REQUEST_FIELDS),
+        irid,
         timestamp,
     ]

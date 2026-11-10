@@ -2,7 +2,7 @@
 
 The provider SDKs are given an httpx2 client whose transport answers here, so nothing leaves the process. Model calls are answered in the provider's own format, streamed when the request asks, and `request_result` answers with what was decided of each, by its `x-irid`.
 
-It checks credentials as the sidecar does: it keeps the token an eval's first registration sends, never hands one back, and refuses a call or a model request whose signature doesn't match that token or whose timestamp is outside its window. The signatures are checked here with the standard library, not with Inspect's own signing, so the two are checked against each other.
+It checks credentials as the sidecar does: it keeps the token an eval's first registration sends, never hands one back, and refuses a call or a model request whose signature doesn't match that token or whose timestamp is outside its window. A model request's signature covers its `x-irid`, and one without an `x-irid` is refused. The signatures are checked here with the standard library, not with Inspect's own signing, so the two are checked against each other.
 """
 
 import hashlib
@@ -145,7 +145,7 @@ class StandInSidecar:
             asked = json.loads(request.content)
             context = request.headers.get("x-inspect-context")
             if context is not None:
-                unread = self._unread(context)
+                unread = self._unread(context, request.headers.get("x-irid"))
                 if unread is not None:
                     # refused and not judged, as the sidecar does
                     self.refused.append(unread)
@@ -221,9 +221,9 @@ class StandInSidecar:
         self.refused.append(message)
         return {"error": {"code": code, "message": message}}
 
-    def _unread(self, header: str) -> str | None:
+    def _unread(self, header: str, irid: str | None) -> str | None:
         # why a model request's `x-inspect-context` isn't accepted, or None
-        # when it is
+        # when it is; its signature covers the request's `x-irid`
         try:
             context = json.loads(header)
         except ValueError:
@@ -237,9 +237,12 @@ class StandInSidecar:
             return "the sidecar holds no registration of the eval"
         if any(name not in context for name in _SIGNED_CONTEXT):
             return "the header lacks a field"
+        if irid is None:
+            return "the request has no x-irid"
         values = [
             "model-request",
             *(context[name] for name in _SIGNED_CONTEXT),
+            irid,
             context.get("timestamp"),
         ]
         return self._signed(held, values, context.get("timestamp"), context.get("mac"))
