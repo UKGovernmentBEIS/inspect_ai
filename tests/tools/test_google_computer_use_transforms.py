@@ -445,13 +445,25 @@ async def test_gemini_type_text_at_replays_omitted_defaults_explicitly(
     assert replayed.args == {**args, **flags}
 
 
-# Alias calls edited into another action, which no longer match the alias.
-EDITED_ALIAS_CALLS: list[tuple[str, dict[str, object], dict[str, object]]] = [
-    ("go_back", {"action": "key", "text": "ctrl+c"}, {"keys": "control+c"}),
-    ("go_forward", {"action": "key", "text": "alt+Left"}, {"keys": "alt+left"}),
+# Alias calls edited into another action, which no longer match the alias: they
+# replay as the action of their arguments.
+EDITED_ALIAS_CALLS: list[tuple[str, dict[str, object], str, dict[str, object]]] = [
+    (
+        "go_back",
+        {"action": "key", "text": "ctrl+c"},
+        "key_combination",
+        {"keys": "control+c"},
+    ),
+    (
+        "go_forward",
+        {"action": "key", "text": "alt+Left"},
+        "key_combination",
+        {"keys": "alt+left"},
+    ),
     (
         "search",
         {"action": "left_click", "coordinate": [683, 384]},
+        "click_at",
         {"x": 500, "y": 500},
     ),
 ]
@@ -463,20 +475,20 @@ def _parsed_alias_call(name: str) -> ToolCall:
 
 
 @pytest.mark.parametrize(
-    "name,edited,expected",
+    "name,edited,action,expected",
     EDITED_ALIAS_CALLS,
     ids=["go_back-key", "go_forward-key", "search-click"],
 )
 async def test_gemini_alias_call_edited_into_another_action_uses_its_conversion(
-    name: str, edited: dict[str, object], expected: dict[str, object]
+    name: str, edited: dict[str, object], action: str, expected: dict[str, object]
 ) -> None:
     tool_call = _parsed_alias_call(name)
     tool_call.arguments = edited
 
     replayed = await _replay(tool_call)
 
-    assert replayed.name == name
-    assert replayed.args == expected == gemini_action_from_tool_call(tool_call)[1]
+    assert (replayed.name, replayed.args) == (action, expected)
+    assert (action, expected) == gemini_action_from_tool_call(tool_call)
 
 
 async def test_gemini_search_call_with_edited_text_replays_it_as_the_query() -> None:
@@ -577,3 +589,62 @@ async def test_live_gemini_alias_call_replays_as_sent_and_continues(
     [replayed] = _function_calls(events[-1].call.request["contents"], action)
     assert sent_signature
     assert replayed == (sent_args, sent_signature)
+
+
+async def test_gemini_computer_call_modified_into_another_action_replays_as_it() -> (
+    None
+):
+    from inspect_ai.model._providers.google import as_chat_messages
+
+    tool_call = tool_call_from_gemini_computer_action(
+        FunctionCall(name="click_at", args={"x": 500, "y": 500})
+    )
+    tool_call.arguments = {"action": "type", "text": "hi", "coordinate": [683, 384]}
+
+    contents = await as_chat_messages(
+        MagicMock(),
+        [
+            ChatMessageAssistant(content="", tool_calls=[tool_call]),
+            ChatMessageTool(
+                content="ok", tool_call_id=tool_call.id, function="computer"
+            ),
+        ],
+    )
+
+    call = next(p.function_call for p in contents[0].parts or [] if p.function_call)
+    response = (contents[1].parts or [])[0].function_response
+    assert call is not None and response is not None
+    assert call.name == response.name == "type_text_at"
+    assert (call.args or {})["text"] == "hi"
+
+
+async def test_gemini_computer_call_takes_its_parts_id() -> None:
+    from google.genai.types import Candidate, Content, FinishReason, Part
+
+    from inspect_ai.model._providers.google import completion_choice_from_candidate
+
+    candidate = Candidate(
+        content=Content(
+            role="model",
+            parts=[
+                Part(
+                    function_call=FunctionCall(
+                        id="model_id", name="click_at", args={"x": 500, "y": 500}
+                    ),
+                    thought_signature=b"signature",
+                )
+            ],
+        ),
+        finish_reason=FinishReason.STOP,
+    )
+    message = completion_choice_from_candidate("test-model", candidate).message
+
+    assert message.tool_calls is not None
+    assert message.tool_calls[0].id == "model_id"
+    replayed = await google_content(MagicMock(), message)
+    assert replayed.parts is not None
+    part = replayed.parts[0]
+    assert part.function_call is not None
+    assert part.function_call.id == "model_id"
+    assert part.function_call.name == "click_at"
+    assert part.thought_signature == b"signature"

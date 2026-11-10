@@ -9,7 +9,7 @@ from copy import copy
 from dataclasses import dataclass, field
 from io import BytesIO
 from logging import getLogger
-from typing import Any, Literal, NamedTuple, cast
+from typing import Any, Literal, NamedTuple, Sequence, cast
 
 # SDK Docs: https://googleapis.github.io/python-genai/
 import aiohttp
@@ -117,6 +117,7 @@ from inspect_ai.model._providers._google_citations import (
 )
 from inspect_ai.model._providers._google_computer_use import (
     computer_tool_result_parts,
+    gemini_replay_action_name,
     gemini_replay_args,
     maybe_computer_use_tool,
     tool_call_from_gemini_computer_action,
@@ -1135,10 +1136,10 @@ class GoogleGenAIAPI(ModelAPI):
                 for m in input
             ]
             count_contents = [
-                await content(
-                    client, m, emulate_reasoning=not self.is_gemini_thinking()
+                await content(client, m, not self.is_gemini_thinking(), computer_action)
+                for m, computer_action in zip(
+                    count_messages, computer_result_actions(count_messages)
                 )
-                for m in count_messages
             ]
             acknowledge_safety_decisions(count_contents)
             contents: list[ContentUnion] = list(count_contents)
@@ -1723,8 +1724,10 @@ async def as_chat_messages(
 
     # build google chat messages
     chat_messages = [
-        await content(client, message, emulate_reasoning)
-        for message in supported_messages
+        await content(client, message, emulate_reasoning, action)
+        for message, action in zip(
+            supported_messages, computer_result_actions(supported_messages)
+        )
     ]
 
     # combine consecutive tool messages
@@ -1736,6 +1739,30 @@ async def as_chat_messages(
 
     # return messages
     return chat_messages
+
+
+def computer_result_actions(messages: Sequence[ChatMessage]) -> list[str | None]:
+    """For each message, the action of the computer call it is the result of.
+
+    A result's response is named as its call replays
+    (`gemini_replay_action_name`): the latest earlier call under its id.
+    None for other messages.
+    """
+    actions: dict[str, str] = {}
+    results: list[str | None] = []
+    for message in messages:
+        if isinstance(message, ChatMessageAssistant):
+            for call in message.tool_calls or []:
+                if call.function == "computer":
+                    actions[call.id] = gemini_replay_action_name(call)
+                else:
+                    actions.pop(call.id, None)
+        results.append(
+            actions.get(message.tool_call_id or "")
+            if isinstance(message, ChatMessageTool) and message.function == "computer"
+            else None
+        )
+    return results
 
 
 def acknowledge_safety_decisions(contents: list[Content]) -> None:
@@ -1796,7 +1823,13 @@ async def content(
     client: Client,
     message: ChatMessageUser | ChatMessageAssistant | ChatMessageTool,
     emulate_reasoning: bool = False,
+    computer_action: str | None = None,
 ) -> Content:
+    """The Gemini content for a message.
+
+    `computer_action` is the action of the computer call a result answers
+    (`computer_result_actions`), which names its response.
+    """
     working_reasoning_block = None
     if isinstance(message, ChatMessageUser):
         if isinstance(message.content, str):
@@ -1815,9 +1848,7 @@ async def content(
 
         def part_from_tool_call(tool_call: ToolCall) -> Part:
             if tool_call.function == "computer":
-                action_name = (
-                    tool_call.id.rsplit("_", 1)[0] if tool_call.id else "computer"
-                )
+                action_name = gemini_replay_action_name(tool_call)
                 return Part(
                     function_call=FunctionCall(
                         id=tool_call.id,
@@ -1999,7 +2030,7 @@ async def content(
                 "safety_acknowledgement": "true",
                 "url": "",
             }
-            response_name = (
+            response_name = computer_action or (
                 message.tool_call_id.rsplit("_", 1)[0]
                 if message.tool_call_id
                 else "computer"
@@ -2431,7 +2462,9 @@ def completion_choice_from_candidate(
                     "wait_5_seconds",
                 }:
                     tool_calls.append(
-                        tool_call_from_gemini_computer_action(part.function_call)
+                        tool_call_from_gemini_computer_action(
+                            part.function_call, function_call_ids.get(i)
+                        )
                     )
                 else:
                     if part.function_call.args:

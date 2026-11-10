@@ -15,7 +15,10 @@ from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.tool._tools._computer._computer import is_computer_tool_info
 
-from ._google_computer_use_name import gemini_computer_action_name
+from ._google_computer_use_name import (
+    gemini_computer_action_name,
+    gemini_computer_action_names,
+)
 
 # Default display dimensions matching MAX_SCALING_TARGETS["FWXGA"] in _x11_client.py.
 # These should stay in sync with the dimensions used by the container.
@@ -40,11 +43,16 @@ def maybe_computer_use_tool(model_name: str, tool: ToolInfo) -> Tool | None:
 
 
 def tool_call_from_gemini_computer_action(
-    function_call: FunctionCall,
+    function_call: FunctionCall, call_id: str | None = None
 ) -> ToolCall:
+    """The Inspect call for a Gemini computer action.
+
+    `call_id` is the id the parse gives the call's part (and its reasoning
+    anchor); without one, the id names the action (`click_at_<uuid>`).
+    """
     name = function_call.name or ""
     return ToolCall(
-        id=f"{name}_{uuid()}",
+        id=call_id or f"{name}_{uuid()}",
         function="computer",
         arguments=_parse_gemini_action(name, function_call.args or {}),
     )
@@ -159,6 +167,21 @@ def gemini_action_from_tool_call(
         # triple_click, cursor_position, etc.) map to wait_5_seconds
         # as a no-op that still returns a screenshot.
         return name, {}
+
+
+def gemini_replay_action_name(tool_call: ToolCall) -> str:
+    """The Gemini action a computer call replays as.
+
+    The action its id names (`click_at_<id>`) when that fits the call's
+    arguments, which keeps an action parsed as another (`search` as
+    navigation); otherwise the action of its arguments, as for a call whose
+    arguments approval or a filter changed to another action, or whose id is
+    the model's own.
+    """
+    prefix = tool_call.id.rsplit("_", 1)[0]
+    if prefix in gemini_computer_action_names(tool_call.arguments):
+        return prefix
+    return gemini_computer_action_name(tool_call.arguments)
 
 
 def gemini_replay_args(action_name: str, tool_call: ToolCall) -> dict[str, object]:

@@ -3872,6 +3872,31 @@ async def test_anthropic_interleaved_thinking_tool_calls_preserved() -> None:
     )
 
 
+async def test_anthropic_tool_use_id_repeated_in_a_turn_records_no_position() -> None:
+    from anthropic.types import ContentBlock, ThinkingBlock, ToolUseBlock
+
+    from inspect_ai.model._providers.anthropic import (
+        assistant_internal,
+        content_and_tool_calls_from_assistant_content_blocks,
+        init_sample_anthropic_assistant_internal,
+    )
+
+    init_sample_anthropic_assistant_internal()
+    blocks: list[ContentBlock] = [
+        ThinkingBlock(type="thinking", thinking="t1", signature="sig1"),
+        ToolUseBlock(type="tool_use", id="a", name="tool_a", input={"x": "1"}),
+        ThinkingBlock(type="thinking", thinking="t2", signature="sig2"),
+        ToolUseBlock(type="tool_use", id="a", name="tool_a", input={"x": "2"}),
+        ToolUseBlock(type="tool_use", id="b", name="tool_a", input={"x": "3"}),
+    ]
+    content_and_tool_calls_from_assistant_content_blocks(blocks, [])
+
+    internal = assistant_internal()
+    assert "a" not in internal.client_tool_call_positions
+    assert "a" not in internal.tool_call_internal_names
+    assert internal.client_tool_call_positions["b"] == 2
+
+
 async def test_anthropic_interleaved_thinking_last_gets_no_content() -> None:
     """A turn ending in an interleaved thinking block must not end on thinking.
 

@@ -161,7 +161,7 @@ from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.text import truncate_string_to_bytes
 from inspect_ai.model._agent_message import validate_agent_message
 from inspect_ai.model._assistant_internal import bridge_replay, generation_replay
-from inspect_ai.model._call_tools import parse_tool_call
+from inspect_ai.model._call_tools import parse_tool_call, repeated_call_ids
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -1216,6 +1216,10 @@ def _parse_response_output_items(
                 pass
             case _:
                 raise ValueError(f"Unexpected output type: {output.__class__}")
+
+    # an id the response repeats keeps no item, so no call replays another's
+    for call_id in repeated_call_ids(tool_calls):
+        assistant_internal().tool_calls.pop(call_id, None)
 
     return _ParsedOutputItems(
         message_content, tool_calls, logprobs, has_tool_calls, replay

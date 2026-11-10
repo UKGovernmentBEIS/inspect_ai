@@ -2942,3 +2942,28 @@ def test_responses_api_provider_ids_logged_without_raw_calls(tmp_path) -> None:
         ModelRequestId(id="req_rate_limited", header="x-request-id", status=429),
         ModelRequestId(id="req_ok", header="x-request-id", status=200),
     ]
+
+
+def test_tool_call_id_repeated_in_a_response_caches_no_item():
+    from openai.types.responses import ResponseFunctionToolCall
+
+    from inspect_ai.model._assistant_internal import init_sample_assistant_internal
+    from inspect_ai.model._openai_responses import (
+        _process_response_output_items,
+        assistant_internal,
+    )
+
+    init_sample_assistant_internal()
+    outputs = [
+        ResponseFunctionToolCall(
+            type="function_call",
+            id=f"fc_{n}",
+            call_id="call_shared",
+            name="bash",
+            arguments=f'{{"command": "ls {n}"}}',
+        )
+        for n in range(2)
+    ]
+    _process_response_output_items(outputs, [])
+
+    assert "call_shared" not in assistant_internal().tool_calls

@@ -143,6 +143,19 @@ def watch_handoffs() -> Iterator[HandoffWatch]:
         _handoff_watch.reset(token)
 
 
+def repeated_call_ids(calls: Sequence[ToolCall]) -> set[str]:
+    """The ids several of `calls` share.
+
+    A provider records no replay state under such an id, as it can't tell the
+    calls' states apart.
+    """
+    seen: set[str] = set()
+    repeated: set[str] = set()
+    for call in calls:
+        (repeated if call.id in seen else seen).add(call.id)
+    return repeated
+
+
 def _fail_fast_tools(message: ChatMessageAssistant) -> set[str]:
     value = (message.metadata or {}).get(TOOL_CALLS_FAIL_FAST)
     if isinstance(value, list):

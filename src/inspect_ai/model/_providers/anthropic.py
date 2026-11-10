@@ -186,7 +186,7 @@ from .._assistant_internal import (
     generation_replay,
     set_generation_assistant_internal,
 )
-from .._call_tools import TOOL_CALLS_FAIL_FAST
+from .._call_tools import TOOL_CALLS_FAIL_FAST, repeated_call_ids
 from .._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -5134,6 +5134,12 @@ def _parse_assistant_content_blocks(
     # caller and take precedence)
     if local_span_recorder:
         index_server_tool_spans(span_recorder.take_spans(include_open=True))
+
+    # an id the content repeats keeps no name or position, so no call replays
+    # another's
+    for call_id in repeated_call_ids(tool_calls or []):
+        assistant_internal().tool_call_internal_names.pop(call_id, None)
+        assistant_internal().client_tool_call_positions.pop(call_id, None)
 
     return _ParsedContentBlocks(
         content,
