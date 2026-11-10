@@ -829,6 +829,41 @@ def replay_ids(output: ModelOutput) -> ModelOutput:
     return output
 
 
+def name_proposal(result: ChatMessageTool, proposal_id: str) -> None:
+    """Record the model's id for the call `result` answers, when it is under another.
+
+    A call handed on under an id other than the model's (a token, or a rejected
+    turn's `replay_ids`) is answered under that id. The model's id is recorded
+    as `metadata["bridge"]["proposal_id"]`, as on the call's host `ToolEvent`,
+    so a reader of the result (ACP's tool call cards) can pair it with the
+    model's proposal of the call.
+    """
+    if result.tool_call_id == proposal_id:
+        return
+    metadata = dict(result.metadata or {})
+    bridge = metadata.get("bridge")
+    metadata["bridge"] = {
+        **(bridge if isinstance(bridge, dict) else {}),
+        "proposal_id": proposal_id,
+    }
+    result.metadata = metadata
+
+
+def name_result_proposals(bridge: AgentBridge, input: Sequence[ChatMessage]) -> None:
+    """Record the model's id on each result reported under a token other than it (`name_proposal`).
+
+    In place, before the request is recorded, so the `ModelEvent` input carries it.
+    """
+    identities = bridge._sentinel_results.identities
+    if not identities:
+        return
+    for message in input:
+        if isinstance(message, ChatMessageTool) and message.tool_call_id:
+            identity = identities.get(message.tool_call_id)
+            if identity is not None:
+                name_proposal(message, identity.call_id)
+
+
 def sentinel_unproposed_host_check(
     bridge: AgentBridge, tool: str, arguments: dict[str, Any], tool_fn: Tool
 ) -> SentinelCheck | None:

@@ -750,6 +750,127 @@ def test_replay_host_tool_event_is_one_card() -> None:
     assert _progress(notifs) == []
 
 
+# A bridge can hand a call on under an id other than the model's (a sentinel's
+# token, or a rejected turn replayed under fresh ids). The records under that id
+# name the model's id as `metadata["bridge"]["proposal_id"]`.
+
+
+def _proposed_result(
+    tool_id: str,
+    proposal_id: str,
+    *,
+    error: ToolCallError | None = None,
+) -> ChatMessageTool:
+    return ChatMessageTool(
+        tool_call_id=tool_id,
+        function="mcp__host__read_file",
+        content="" if error else "contents",
+        error=error,
+        metadata={"bridge": {"proposal_id": proposal_id}},
+    )
+
+
+REJECTED = ToolCallError("approval", "Denied.")
+
+
+def test_a_host_call_under_another_id_settles_its_proposals_card() -> None:
+    tr = Transcript()
+    token = _transcript.set(tr)
+    try:
+        _, published = _attach_router(_new_session())
+        with bridge_model_generate():
+            tr._event(_tool_call_event(_read_call()))
+        event = _host_tool_event("token_1", proposal_id="tc1", pending=True)
+        tr._event(event)
+        event._set_result(
+            result="contents",
+            truncated=None,
+            error=None,
+            working_time=0,
+            agent=None,
+            failed=None,
+            message_id=None,
+        )
+        tr._event_updated(event)
+        settled = len(published)
+        with bridge_model_generate():
+            tr._event(_result_event(_proposed_result("token_1", "tc1")))
+
+        assert [s.tool_call_id for s in _starts(published)] == ["tc1"]
+        updates = _progress(published)
+        assert [(u.tool_call_id, u.status) for u in updates] == [
+            ("tc1", "in_progress"),
+            ("tc1", "completed"),
+        ]
+        assert updates[0].field_meta == {TOOL_CALL_CANCELABLE_META_KEY: True}
+        assert not [
+            n
+            for n in published[settled:]
+            if isinstance(n.update, (ToolCallStart, ToolCallProgress))
+        ]
+    finally:
+        _transcript.reset(token)
+
+
+@pytest.mark.parametrize("error", [None, REJECTED])
+def test_a_result_under_another_id_settles_its_proposals_card(
+    error: ToolCallError | None,
+) -> None:
+    tr = Transcript()
+    token = _transcript.set(tr)
+    try:
+        _, published = _attach_router(_new_session())
+        with bridge_model_generate():
+            tr._event(_tool_call_event(_read_call()))
+            tr._event(_result_event(_proposed_result("fresh_1", "tc1", error=error)))
+            # a later turn carrying the result again settles nothing
+            tr._event(_result_event(_proposed_result("fresh_1", "tc1", error=error)))
+
+        assert [s.tool_call_id for s in _starts(published)] == ["tc1"]
+        assert [(u.tool_call_id, u.status) for u in _progress(published)] == [
+            ("tc1", "failed" if error else "completed")
+        ]
+    finally:
+        _transcript.reset(token)
+
+
+def test_an_unproposed_host_call_naming_a_settled_card_gets_its_own() -> None:
+    """A second execution of a proposal whose card is settled is a card of its own."""
+    tr = Transcript()
+    token = _transcript.set(tr)
+    try:
+        _, published = _attach_router(_new_session())
+        with bridge_model_generate():
+            tr._event(_tool_call_event(_read_call()))
+        tr._event(_host_tool_event("tc1", proposal_id="tc1"))
+        tr._event(_host_tool_event("again", proposal_id="tc1"))
+
+        assert [(s.tool_call_id, s.status) for s in _starts(published)] == [
+            ("tc1", "in_progress"),
+            ("again", "completed"),
+        ]
+        assert [(u.tool_call_id, u.status) for u in _progress(published)] == [
+            ("tc1", "completed")
+        ]
+    finally:
+        _transcript.reset(token)
+
+
+@pytest.mark.parametrize("executed", ["host", "scaffold", "rejected"])
+def test_replay_of_a_call_under_another_id_is_one_card(executed: str) -> None:
+    events: list[Event] = [_tool_call_event(_read_call())]
+    if executed == "host":
+        events.append(_host_tool_event("token_1", proposal_id="tc1"))
+    error = REJECTED if executed == "rejected" else None
+    events.append(_result_event(_proposed_result("token_1", "tc1", error=error)))
+
+    notifs = list(replay_transcript(events, session_id="s"))
+    starts = _starts(notifs)
+    assert len(starts) == 1
+    assert starts[0].status == ("failed" if error else "completed")
+    assert _progress(notifs) == []
+
+
 async def test_turn_cancel_marks_a_running_host_tool_cancelled() -> None:
     """ACP's turn cancel stamps the host event; the runner still records the result."""
     started = anyio.Event()

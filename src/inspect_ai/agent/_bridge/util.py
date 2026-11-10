@@ -50,6 +50,7 @@ from inspect_ai.agent._bridge._approval import (
 from inspect_ai.agent._bridge._errors import BridgePolicyError, ResponseFilterError
 from inspect_ai.agent._bridge._sentinel import (
     Produced,
+    name_result_proposals,
     sentinel_tokens,
     sentinel_tool_results,
 )
@@ -1062,6 +1063,7 @@ async def _bridge_generate_impl(
     # before compaction/recording so the restored source persists in both the
     # ModelEvent input and state.messages (and thus the eval log).
     _restore_operator_message_source(bridge, input)
+    name_result_proposals(bridge, input)
 
     _check_limits_before_dispatch()
     await sentinel_tool_results(bridge, input)

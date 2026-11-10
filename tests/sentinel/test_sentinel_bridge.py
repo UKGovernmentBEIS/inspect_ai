@@ -9660,6 +9660,154 @@ async def test_a_call_a_request_filter_edited_continues_as_edited(
     assert await replayed(next_input) == [(call.id, native(call)) for call in calls]
 
 
+def _acp_router(monkeypatch: pytest.MonkeyPatch) -> list[Any]:
+    """Attach an ACP router to the transcript; returns what it publishes."""
+    from inspect_ai.agent._acp.event_mapping import _AcpEventRouter
+    from inspect_ai.agent._acp.transport_live import LiveAcpTransport
+
+    session = LiveAcpTransport()
+    session._attachable_override = True
+    published: list[Any] = []
+    monkeypatch.setattr(session, "publish", published.append)
+    _AcpEventRouter(session).attach()
+    return published
+
+
+def _acp_cards(notifications: Sequence[Any]) -> dict[str, list[str | None]]:
+    """Each ACP tool call card's statuses: its start's, then each update's."""
+    from acp.schema import ToolCallProgress, ToolCallStart
+
+    cards: dict[str, list[str | None]] = {}
+    for notification in notifications:
+        update = notification.update
+        if isinstance(update, ToolCallStart | ToolCallProgress):
+            cards.setdefault(update.tool_call_id, []).append(update.status)
+    return cards
+
+
+def _replayed_acp_cards() -> dict[str, list[str | None]]:
+    from inspect_ai.agent._acp.event_mapping import replay_transcript
+
+    return _acp_cards(list(replay_transcript(transcript().events, session_id="s")))
+
+
+def _result_proposals() -> list[tuple[str | None, Any]]:
+    """Each result in the bridge's recorded requests: its id and the proposal it names."""
+    return [
+        (
+            message.tool_call_id,
+            (message.metadata or {}).get("bridge", {}).get("proposal_id"),
+        )
+        for event in transcript().events
+        if isinstance(event, ModelEvent)
+        for message in event.input
+        if isinstance(message, ChatMessageTool)
+    ]
+
+
+HOST_READ_ITEM: dict[str, Any] = {
+    "type": "function_call",
+    "id": "fc_1",
+    "call_id": "call_read",
+    "name": "mcp__host__read_file",
+    "arguments": '{"path": "notes.txt"}',
+}
+
+
+@pytest.mark.parametrize("executed", ["host", "scaffold"])
+async def test_a_call_handed_on_under_a_token_completes_its_acp_card(
+    executed: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A sentinel modifies a Responses call, which is handed on under a fresh token.
+
+    The model's proposal of the call starts its ACP card; the host execution or
+    the scaffold's result under the token completes that card, and no other.
+    """
+    from inspect_ai.event import ToolEvent
+
+    init_sample_assistant_internal()
+    published = _acp_router(monkeypatch)
+    model = Parsing(lambda: _responses_output(HOST_READ_ITEM), lambda: calls_output())
+    bridge = (
+        sandbox_bridge(AsyncMock(return_value="contents"))
+        if executed == "host"
+        else in_process_bridge([])
+    )
+    input: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+
+    with active([bridge_modify()]):
+        output = await _generate_bridged(
+            bridge, model.model, input, declare_read_file()
+        )
+        [handed] = output.message.tool_calls or []
+        assert handed.id != "call_read"
+        if executed == "host":
+            assert isinstance(bridge, SandboxAgentBridge)
+            reply = await call_host_tool(bridge)("host", "read_file", handed.arguments)
+            assert reply == "contents"
+        await _generate_bridged(
+            bridge,
+            model.model,
+            [
+                *input,
+                output.message,
+                ChatMessageTool(
+                    content="contents",
+                    tool_call_id=handed.id,
+                    function=handed.function,
+                ),
+            ],
+            declare_read_file(),
+        )
+
+    host_events = [e for e in transcript().events if isinstance(e, ToolEvent)]
+    if executed == "host":
+        assert _acp_cards(published) == {
+            "call_read": ["in_progress", "in_progress", "completed"]
+        }
+        # the host run is under the token and names the model's proposal, which
+        # the transcript and Activity pair it with
+        [event] = host_events
+        assert event.id == handed.id
+        assert event.metadata is not None
+        assert event.metadata["bridge"]["proposal_id"] == "call_read"
+        assert _replayed_acp_cards() == {handed.id: ["completed"]}
+    else:
+        assert host_events == []
+        assert _acp_cards(published) == {"call_read": ["in_progress", "completed"]}
+        assert _replayed_acp_cards() == {"call_read": ["completed"]}
+    assert _result_proposals() == [(handed.id, "call_read")]
+    # the model's proposal stays as generated
+    proposal = next(e for e in transcript().events if isinstance(e, ModelEvent))
+    assert [call.id for call in proposal.output.message.tool_calls or []] == [
+        "call_read"
+    ]
+
+
+@pytest.mark.parametrize("rejecter", ["approval", "sentinel"])
+async def test_a_rejected_call_replayed_under_a_fresh_id_settles_its_acp_card(
+    rejecter: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from contextlib import nullcontext
+
+    init_sample_assistant_internal()
+    published = _acp_router(monkeypatch)
+    model = Parsing(lambda: _responses_output(HOST_READ_ITEM), lambda: calls_output())
+    bridge = in_process_bridge([])
+    if rejecter == "approval":
+        bridge.approval = [ApprovalPolicy(rejecting_approver(1), "*")]
+
+    with active([bridge_reject_nth(1)]) if rejecter == "sentinel" else nullcontext():
+        await _generate_bridged(
+            bridge, model.model, [ChatMessageUser(content=TASK)], declare_read_file()
+        )
+
+    [(replayed_id, proposal_id)] = _result_proposals()
+    assert replayed_id != "call_read" and proposal_id == "call_read"
+    assert _acp_cards(published) == {"call_read": ["in_progress", "failed"]}
+    assert _replayed_acp_cards() == {"call_read": ["failed"]}
+
+
 def _reusing_model(kind: str, cache: bool = False) -> tuple[Parsing, list[ToolInfo]]:
     """A model generating two calls of `kind` under one id, reading old then new."""
     if kind == "anthropic":

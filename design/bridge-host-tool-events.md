@@ -219,7 +219,13 @@ other order their ids are swapped between two otherwise identical events.
   dispatcher `call_mcp_tool`); `null` without a proposal. For a dispatcher
   call the event's `arguments` are the inner arguments that ran, which is
   what the grant binds.
-- `proposal_id`: the proposing call's id on every consumed grant, else `null`.
+- `proposal_id`: the model's id for the proposing call on every consumed grant,
+  else `null`. With a sentinel, a call can be handed to the agent under a
+  token other than the model's id (a modified Responses call, a repeated id);
+  the event then takes the token as its id, and `proposal_id` still leads to
+  the `ModelEvent` that proposed it. The results the bridge passes on under
+  such an id (a result the agent reports under a token, a rejected turn's
+  results under `replay_ids`) record the same key in their `metadata`.
 - `grant`: `"consumed"`, `"denied"`, `"exempt"` (an exempt server ran it
   without a matching proposal), or `null` for a request rejected before the
   grant check (unknown server or tool, arguments too deep).
@@ -399,7 +405,9 @@ finalised. `agent` is `None`; `agent_span_id` is the tool's, as natively.
 - **ACP.** `_map_tool_event()` pops the call from `_BridgeToolState.pending`,
   so the card synthesized for the proposal is updated with the real result
   and is not settled again from the agent's `ChatMessageTool`; the update
-  also marks the card cancelable. An event of a multi-target proposal that
+  also marks the card cancelable. An event or result under an id other than
+  its proposal's settles the proposal's card through `proposal_id`, live and
+  on replay. An event of a multi-target proposal that
   did not take the proposing id, and an unpaired call on an exempt server,
   carry fresh ids and map as their own cards. Replay synthesizes no card for an id that has a real
   `ToolEvent`. The sub-agent filter places an event by its `span_id` as well

@@ -412,9 +412,10 @@ def rejection_messages(
 
     `rejected` is one of `output`'s calls, found by position, as parallel calls can
     share an id. The turn is replayed with each call under a fresh id carrying
-    its own replay state (`replay_ids`), answered by its own result.
+    its own replay state (`replay_ids`), answered by its own result, which names
+    the model's id for the call (`name_proposal`).
     """
-    from inspect_ai.agent._bridge._sentinel import replay_ids
+    from inspect_ai.agent._bridge._sentinel import name_proposal, replay_ids
 
     calls = output.message.tool_calls or []
     position = next(
@@ -444,14 +445,14 @@ def rejection_messages(
                 "was not itself rejected; you may re-issue it without the rejected "
                 "call."
             )
-        messages.append(
-            ChatMessageTool(
-                content="",
-                tool_call_id=call.id,
-                function=call.function,
-                error=ToolCallError("approval", text),
-            )
+        result = ChatMessageTool(
+            content="",
+            tool_call_id=call.id,
+            function=call.function,
+            error=ToolCallError("approval", text),
         )
+        name_proposal(result, calls[index].id)
+        messages.append(result)
     return messages
 
 
