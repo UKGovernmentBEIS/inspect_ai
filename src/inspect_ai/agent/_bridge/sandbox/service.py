@@ -5,8 +5,9 @@ import anyio
 from pydantic import JsonValue
 
 from inspect_ai._sentinel._scope import solving
+from inspect_ai._sentinel._sidecar._lookup import SAMPLE_FAILURES
 from inspect_ai.model._call_tools import get_tools_info
-from inspect_ai.model._model import ModelRefusalError
+from inspect_ai.model._model import ModelRefusalError, _check_limits_before_dispatch
 from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
 from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
 from inspect_ai.util._limit import (
@@ -62,6 +63,11 @@ def _forward_provider_errors(
     sample, but the dispatcher would turn a re-raise into an RPC error, so they
     are signalled through `bridge.request_fail` (raised on the agent's side by
     the bridge's monitor task) while the scaffold still gets an error reply.
+    So are the errors a call through a sentinel sidecar raises to fail its
+    sample (`SAMPLE_FAILURES`): a sample the sidecar refused, a call it couldn't
+    judge, including one of a sample it lost, which a sample retry registers
+    again, and a registration that failed. Their types are kept, so the sample
+    runner retries or refuses the sample as it does a native agent's.
 
     A `LimitExceededError` (message, token, cost or turn limit), bare or in an
     exception group such as a filter's task group, is returned as an error
@@ -82,6 +88,11 @@ def _forward_provider_errors(
 
     A turn limit is checked after a generation, so a request that arrives
     once one is exceeded gets its error reply without another generation.
+    Once a limit is recorded the agent is ending, so a later request (a
+    scaffold retrying after its error reply) gets the recorded limit's error
+    reply without compaction, filter or generation. A token or cost limit
+    already reached is checked first, so one enclosing the recorded limit
+    still replaces it.
     """
 
     async def generate_forwarding_errors(
@@ -90,11 +101,27 @@ def _forward_provider_errors(
     ) -> dict[str, JsonValue]:
         try:
             check_turn_limit()
+            if bridge.generation_limit is not None:
+                _check_limits_before_dispatch()
+                return {
+                    PROVIDER_ERROR_KEY: cast(
+                        JsonValue, provider_error_payload(bridge.generation_limit)
+                    )
+                }
             return await generate(json_data, headers)
         except Exception as ex:
             if find_control_flow(ex) is not None:
                 # the service dispatcher ends the sample with it
                 raise
+            # a failure the sidecar raised fails the sample whatever else the
+            # generation raised beside it, a limit included: the sample was
+            # never judged, so it is neither scored nor retried
+            failed = _first_sample_failure(ex)
+            if failed is not None:
+                bridge.request_fail(failed)
+                return {
+                    PROVIDER_ERROR_KEY: cast(JsonValue, provider_error_payload(failed))
+                }
             control = _first_control(ex)
             if isinstance(control, LimitExceededError):
                 # only one is raised, so the others are not kept; no local
@@ -197,6 +224,20 @@ def _first_control(ex: Exception) -> LimitExceededError | ModelRefusalError | No
                 first = first.exceptions[0]
             return cast(LimitExceededError | ModelRefusalError, first)
     return _first_limit(ex)
+
+
+def _first_sample_failure(ex: Exception) -> Exception | None:
+    """The first of `SAMPLE_FAILURES` among `ex` and its group members, depth first in order, as a filter that generates in a task group raises it wrapped."""
+    if isinstance(ex, SAMPLE_FAILURES):
+        return ex
+    if isinstance(ex, ExceptionGroup):
+        failures = ex.subgroup(SAMPLE_FAILURES)
+        if failures is not None:
+            first: Exception = failures
+            while isinstance(first, ExceptionGroup):
+                first = first.exceptions[0]
+            return first
+    return None
 
 
 def _warn_other_errors(ex: Exception) -> None:

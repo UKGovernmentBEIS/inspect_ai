@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from importlib import metadata as importlib_metadata
 from importlib.metadata import Distribution
 from typing import TYPE_CHECKING, Any, cast
@@ -11,7 +11,11 @@ from inspect_ai._display.core.display import TaskDisplayMetric
 from inspect_ai._eval.task.util import slice_dataset
 from inspect_ai._util.background import run_in_background
 from inspect_ai._util.constants import PKG_NAME
-from inspect_ai._util.dateutil import datetime_now_utc, iso_now
+from inspect_ai._util.dateutil import (
+    datetime_from_iso_format_safe,
+    datetime_now_utc,
+    iso_now,
+)
 from inspect_ai._util.error import is_cancellation_message
 from inspect_ai._util.git import git_context, redact_url_credentials
 from inspect_ai._util.package import (
@@ -221,6 +225,7 @@ class TaskLogger:
         recorder: Recorder,
         header_only: bool,
         dynamic_dataset: bool = False,
+        prior_created: str | None = None,
     ) -> None:
         packages = {
             PKG_NAME: importlib_metadata.version(PKG_NAME),
@@ -322,6 +327,8 @@ class TaskLogger:
 
         # stack recorder and location
         self.recorder = recorder
+        # the prior log's `eval.created`, which this attempt's must follow
+        self._prior_created = prior_created
         self.header_only = header_only
 
         # number of samples logged without error / distinct samples logged
@@ -345,6 +352,8 @@ class TaskLogger:
         # they must read as a finished no-op rather than reaching into the
         # torn-down recorder.
         self._finished = False
+        # the log log_finish() wrote this attempt (see pop_finished_log)
+        self._finished_log: EvalLog | None = None
 
         # set once a retry attempt's log has been seeded with the prior
         # attempt's sample records (see seed_from_prior); the limit bounds the
@@ -386,6 +395,7 @@ class TaskLogger:
         self._discarded = False
 
     async def init(self) -> None:
+        self._bump_created_past_prior()
         self._bump_created_past_existing_logs()
         self._location = await self.recorder.log_init(self.eval)
 
@@ -422,12 +432,15 @@ class TaskLogger:
             # holds the seeded prior set plus this attempt's flushed
             # completions, and the dispatcher makes it the retry's source
             await self.discard(keep_destination=True)
+        # the retry reads this attempt's log, or an older one when it wrote none
+        self._prior_created = self.eval.created
         self.eval = self.eval.model_copy(update=dict(eval_id=uuid(), created=iso_now()))
         self._samples_completed = 0
         self._logged_sample_keys = set()
         self._cancelled_sample_keys = set()
         self.flush_pending = []
         self._finished = False
+        self._finished_log = None
         self._discarded = False
         # the retry attempt re-enters task_run, which seeds its fresh log
         self._prior_seeded = False
@@ -440,6 +453,24 @@ class TaskLogger:
         # if `created` lands on the same second)
         await self._release_buffer_db(keep=False)
         await self.init()
+
+    def _bump_created_past_prior(self) -> None:
+        """Make `eval.created` at least a second later than the prior log's.
+
+        Generated sample ids take their token from `created`, to the second
+        (see `dynamic_id_token`), so a retry's ids then never repeat one in
+        its prior log. Unlike the existing-log walk below, this holds in any
+        log directory, without a log file, and when the clock went back.
+        """
+        if self._prior_created is None:
+            return
+        prior = int(datetime_from_iso_format_safe(self._prior_created).timestamp())
+        created = int(datetime_from_iso_format_safe(self.eval.created).timestamp())
+        if created <= prior:
+            bumped = datetime.fromtimestamp(prior + 1, timezone.utc)
+            self.eval = self.eval.model_copy(
+                update=dict(created=bumped.isoformat(timespec="seconds"))
+            )
 
     def _bump_created_past_existing_logs(self) -> None:
         """Bump `eval.created` past any existing log at the would-be path.
@@ -526,6 +557,26 @@ class TaskLogger:
     def finished(self) -> bool:
         """Whether :meth:`log_finish` completed for this attempt (its log is written)."""
         return self._finished
+
+    @property
+    def finished_log(self) -> EvalLog | None:
+        """The log :meth:`log_finish` wrote this attempt, without taking it.
+
+        Lets ``task_run`` give started hooks the written log while the
+        dispatcher still takes it with :meth:`pop_finished_log`.
+        """
+        return self._finished_log
+
+    def pop_finished_log(self) -> EvalLog | None:
+        """Take the log :meth:`log_finish` wrote this attempt (``None`` if none).
+
+        Lets the dispatcher report the written log of an attempt whose own
+        abort or retry request interrupted it after the write. Taking it
+        drops the logger's reference, so the logger does not keep the log's
+        samples in memory.
+        """
+        log, self._finished_log = self._finished_log, None
+        return log
 
     async def seed_from_prior(
         self,
@@ -1198,35 +1249,48 @@ class TaskLogger:
         # finish and flush mutually exclusive; the `_finished` flag set inside it
         # makes any flush that acquires the lock afterward a no-op rather than
         # touching the torn-down recorder.
-        async with self._flush_lock:
-            if prune_unplanned and status == "success" and self._seeded_pending:
-                await self.recorder.log_prune(self.eval, set(self._seeded_pending))
+        # once the recorder has written the log, the rest of the teardown runs
+        # shielded: a cancellation (e.g. the task's abort) then lands only
+        # before the write or after the teardown, never leaving the buffer db
+        # open or samples pending beside a finished log
+        with anyio.CancelScope() as teardown_scope:
+            async with self._flush_lock:
+                if prune_unplanned and status == "success" and self._seeded_pending:
+                    await self.recorder.log_prune(self.eval, set(self._seeded_pending))
 
-            # finish and get log
-            log = await self.recorder.log_finish(
-                self.eval, status, stats, results, reductions, error, self.header_only
-            )
+                # finish and get log
+                log = await self.recorder.log_finish(
+                    self.eval,
+                    status,
+                    stats,
+                    results,
+                    reductions,
+                    error,
+                    self.header_only,
+                )
+                teardown_scope.shield = True
 
-            # every completed sample is now on disk. Mark finished and drop the
-            # pending list so the still-attached flush/buffer directives (kept
-            # visible under --ctl-server=keep) report a finished no-op / accurate
-            # empty pending rather than reporting stale pending.
-            self._finished = True
-            self._seeded_pending.clear()
-            async with self._flush_pending_lock:
-                self.flush_pending.clear()
+                # every completed sample is now on disk. Mark finished and drop the
+                # pending list so the still-attached flush/buffer directives (kept
+                # visible under --ctl-server=keep) report a finished no-op / accurate
+                # empty pending rather than reporting stale pending.
+                self._finished = True
+                self._finished_log = log
+                self._seeded_pending.clear()
+                async with self._flush_pending_lock:
+                    self.flush_pending.clear()
 
-            # cleanup the events db
-            await self._release_buffer_db(keep=False)
+                # cleanup the events db
+                await self._release_buffer_db(keep=False)
 
-        # An on-demand flush_samples() that was mid-flush while we waited on
-        # _flush_lock above re-arms the stale-flush timer *outside* _flush_lock
-        # (see _flush_pending_samples), so it can slip in after our pre-lock stop
-        # and leave a timer armed against the now-finished eval. Now that
-        # _finished is set and pending cleared, stop once more to cancel it — and
-        # not while holding _flush_lock, since the stop awaits any in-flight
-        # timer flush, which takes that lock.
-        await self._stop_stale_flush_timer()
+            # An on-demand flush_samples() that was mid-flush while we waited on
+            # _flush_lock above re-arms the stale-flush timer *outside* _flush_lock
+            # (see _flush_pending_samples), so it can slip in after our pre-lock stop
+            # and leave a timer armed against the now-finished eval. Now that
+            # _finished is set and pending cleared, stop once more to cancel it — and
+            # not while holding _flush_lock, since the stop awaits any in-flight
+            # timer flush, which takes that lock.
+            await self._stop_stale_flush_timer()
 
         # return log
         return log

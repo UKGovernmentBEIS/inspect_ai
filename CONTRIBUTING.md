@@ -119,6 +119,8 @@ In an emergency, for example a security fix, you can adopt a release that is les
 3. If `src/inspect_ai/model/_model_data/sync_models.py` locks the package, add the same entry to its inline script metadata. Then run `uv lock --script src/inspect_ai/model/_model_data/sync_models.py --no-config --upgrade-package <package>`. Its workflow runs uv with `--no-config`, so it does not read `pyproject.toml`.
 4. Within seven days, when the normal cooldown includes the release, delete the entry and run `uv lock --upgrade-package <package>`. A plain `uv lock` doesn't reliably remove the entry from `uv.lock`, and CI then fails. If you added the entry to `sync_models.py`, delete it there too and run its `uv lock --script` command from step 3 again. A test fails when a dated entry is seven days old or older.
 
+When a major or breaking model provider SDK release breaks Inspect, raise the minimum supported version instead of adding compatibility code for both versions. Users install provider SDKs themselves, so the floor they get, where one exists, is the provider's runtime minimum check (`MIN_VERSION`, usually in `src/inspect_ai/model/_providers/providers.py`): always raise it when it exists. Some providers have no runtime version check yet. `azureai()`, `nnterp()` and `transformer_lens()` only try the import and raise `pip_dependency_error`. When you first raise a floor for one of these providers, add a `verify_required_version` check with a `MIN_VERSION`. Many provider SDKs are also dev dependencies, listed in the `pyproject.toml` `dev` extra. For those, set or raise the floor there to match the runtime minimum and update `uv.lock` in the same PR. Some provider SDKs (for example `nnterp` and `transformer_lens`) aren't in `pyproject.toml` at all, so that new runtime check is then their only floor.
+
 uv is the supported way to set up Inspect. Installing with pip (`pip install -e ".[dev]"`) gets neither `uv.lock` nor the repository's cooldown.
 
 Create a branch with a short, descriptive name, then start working on the issue. You may find it helpful to install the pre-commit hooks:
@@ -137,6 +139,8 @@ make test     # Run pytest suite
 Run these as `uv run make check` and `uv run make test`, or activate the environment in `.venv` first.
 
 If any tests are failing, fix the code and run both commands again to verify. Once all the tests are passing, push your branch to GitHub.
+
+`make test` skips the gated tests: slow Docker tests, most live model-provider tests, flaky tests, and trio variants. PR CI runs only some of the slow tests and none of the live provider tests. If you change model providers, sandbox or tool code, agents, or async plumbing, run the gated tests that cover your change locally. Report the commands and results in the "Slow tests" section of the PR description. Name any relevant tests you could not run, and say why. This applies to human contributors and AI agents alike. See [Gated tests](AGENTS.md#gated-tests-slow-api-flaky-trio) in AGENTS.md for common commands and the [slow-tests skill](.agents/skills/slow-tests/SKILL.md) for the full list of flags, directories, and requirements.
 
 ## Creating a pull request
 

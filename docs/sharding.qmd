@@ -1,0 +1,86 @@
+---
+title: Sharding
+llms-description: Running one task's samples as several worker processes, each writing its own log, and merging those logs into one eval log.
+---
+
+## Overview
+
+To spread one task's samples over several processes or machines, run each part as its own worker that writes its own log (a *shard*), then merge the shards into one log with results for the whole task.
+
+## Layout
+
+Pick a name for the merged log, in the same form as a log file name (for example `2026-10-16T10-00-00-00-00_mytask_RLGk3vGh7Az`), and a log directory. Each worker writes to its own numbered directory under `<name>.shards/` in that log directory:
+
+``` bash
+inspect eval mytask.py --sample-id 1,2,3 \
+  --log-dir logs/2026-10-16T10-00-00-00-00_mytask_RLGk3vGh7Az.shards/0
+inspect eval mytask.py --sample-id 4,5,6 \
+  --log-dir logs/2026-10-16T10-00-00-00-00_mytask_RLGk3vGh7Az.shards/1
+```
+
+Whoever launches the workers must:
+
+-   Name each shard directory with digits only (`0`, `1`, ...). The merge refuses a `.shards` directory that holds any other directory.
+-   Keep backslashes out of shard log file names, and so out of `INSPECT_EVAL_LOG_FILE_PATTERN`. The merge refuses a shard log whose name contains one.
+-   Write `.eval` logs, the default format. The merge refuses a `.json` log in a shard directory.
+-   Give each shard directory its own fixed selection, with `--sample-id` or a `--limit` range. Selections must not overlap. A worker re-run in a shard directory must select the same samples; the newest log in the directory is the one merged.
+-   Run every worker with the same task, task arguments, model, scorers and epochs, from the same working directory.
+-   Write the logs straight to the shard directories rather than staging them elsewhere, so `inspect view` shows them as they run.
+
+`--limit` and `--sample-id` cannot be combined, so to shard part of a dataset, resolve it to sample ids first. Tasks that add samples while they run cannot be sharded.
+
+## Merging
+
+When the workers are done, merge the shards into `<name>.eval` from Python, passing the `Task` they ran:
+
+``` python
+from inspect_ai.log import merge_eval_log_shards
+from mytask import mytask
+
+merge_eval_log_shards(
+    "logs/2026-10-16T10-00-00-00-00_mytask_RLGk3vGh7Az.eval", mytask()
+)
+```
+
+A shell launcher runs this as a short Python step once its workers exit. You can also pass the `.shards` directory. The log can be a local path, a `file://` URI or an `s3://` URL; other storage is refused. A local path does not expand `~`. A relative path whose first part holds a colon (`run:1.eval`) is refused too, as are `file:/...` and `local:/...`; write `./run:1.eval` or a `file://` URI instead.
+
+Build the task as the workers built it: the same task arguments, and the same model and model roles if the task reads them when it is built. The merge computes the merged log's results and epoch reductions with that task's scorers, metrics and epoch reducer, over all the merged samples, as an unsharded run computes them. The metrics and epoch reducer run with your own active model and model roles: the merge builds no model from the shard logs, so code in them that calls `get_model()` needs an active model or `INSPECT_EVAL_MODEL`. The merge refuses a task whose name, scorer names, metric names, number of epochs or epoch reducer names differ from what the shards recorded, but it does not compare their options. For shards run with `--epochs N`, keep the task's epoch reducer as the workers did:
+
+``` python
+from inspect_ai import Epochs, task_with
+
+task = mytask()
+merge_eval_log_shards(log, task_with(task, epochs=Epochs(N, task.epochs_reducer)))
+```
+
+`task_with(task, epochs=N)` resets the reducer to the default, so the merge refuses it when the task sets one. If the workers also ran with `--epochs-reducer`, pass that reducer in place of `task.epochs_reducer`, or `[]` for `--no-epochs-reducer`.
+
+The merge checks that the shards belong to one run and records which shard logs it merged. Running it again reads only the shards that changed and writes nothing if none did, and keeps tags and metadata you edited on the merged log. If the set is not complete (a shard is still running or failed, or samples are missing) the merge raises an error and writes nothing; pass `allow_incomplete=True` to write a `started` or `error` log instead. Without a selection the set is complete when the shards hold the whole dataset; pass `sample_ids` or `sample_count` when they cover only part of it. Later merges reuse that selection.
+
+Only one merge of a log can write at a time. A merge of a local log holds a lock file, `<name>.merge.lock`, beside the merged log and deletes it when it finishes; a merge of an S3 log takes no lock and publishes with a conditional upload instead. A merge that overlaps another raises `WriteConflictError` and writes nothing; run it again once the other merge has finished. A local merge that crashed leaves its lock file, and every later merge is refused until you delete it. The error names the host and process that held the lock: check that this process is no longer running, then delete the lock file and merge again.
+
+A shard log that holds samples cancelled by `inspect ctl task drain` or `inspect ctl task cancel` is refused, before writing anything, because those samples still need to run. Run that shard again, then merge.
+
+The merge does not delete the shards. Once you have checked the merged log, delete the `.shards` directory yourself, for example with `rm -r logs/<name>.shards` or `aws s3 rm --recursive s3://<bucket>/logs/<name>.shards/`. Later merges then return the merged log as it is. When a later unsharded run of the task supersedes a merged log, the merged log and its `.shards` directory stay until you remove them.
+
+The merge computes metrics as a fresh, unsharded run does. A scorer's metrics see each sample's metadata from the dataset, as the sample's `sample_init` event records it, not metadata a solver changed. A sample logged without its events (its record could not be serialized) is refused.
+
+Shards run with `score=False` (`--no-score`) merge to a log with no metrics, as an unsharded unscored run does. The merge refuses shards where some ran with scoring and others without.
+
+A score that a solver sets (in `state.scores`) rather than a scorer the task declares is refused, before writing anything, because a fresh run and a retry pass it to metrics differently. Score with a scorer declared on the task and re-run the shards.
+
+Merged metrics see samples, scores and metadata exactly as the log stores them, as JSON: sample metadata, `Score.value`, `Score.answer`, `Score.explanation`, `Score.metadata` and every other recorded field. A Python type the log does not keep (a tuple, a datetime, an enum, a set, ...) is seen in its stored form, so a tuple is a list and a datetime is a string, and a metric that depends on such types can differ from a live run. Return score values and metadata that keep their meaning in the log (lists for sequences), normalize sample metadata, and re-run shards that used other types. The merge does not detect this.
+
+The merge computes metrics over the samples in sample ID order (IDs sorted as text), then epoch, and its results equal those of an unsharded run of the same samples in that order. A metric whose results depend on sample order can differ from a particular unsharded run, just as it differs between runs with `shuffle=True`.
+
+## Limitations
+
+-   A merge that runs while a worker is writing its shard can fail with a read error. Nothing is written; run the merge again, or merge after the workers have exited.
+-   Deleting one shard directory by hand makes later merges refuse until the rest of the `.shards` directory is deleted or the files are restored. Deleting the whole `.shards` directory keeps the merged log as it is.
+-   `eval_retry()` refuses a merged log that was merged with `sample_ids` or `sample_count`. Re-run the incomplete shards and merge again instead.
+-   Do not change `INSPECT_EVAL_LOG_FILE_PATTERN` while a `.shards` directory exists.
+-   A local merged log that is a symbolic link is refused. Merge into the file it points to.
+-   Workers whose task has [early stopping](early-stopping.qmd) can finish with `success` but leave out the samples or epochs they stopped. The merge needs a record for every selected sample and epoch, so it raises `ShardSetIncomplete` for such shards (or writes a `started` log with `allow_incomplete=True`), and the merged log has no `early_stopping` summary. To merge the full selection, re-run those shards with early stopping turned off. Removing it only from the task you pass to the merge does not help, since the missing samples were never run.
+-   When two attempts in a shard directory sort as equally recent (the same timestamp in their names and the same modification time), the merge refuses rather than guess which is current. Move or delete the attempts that are not current.
+-   On S3, a merged log, shards directory, or any file or directory in the shards directory whose location contains `#` or `?`, a tab or line break, or a key starting with `/` is refused. S3 would read such a location as another key. Rename it.
+-   Deleting a merged log in `inspect view` leaves its `.shards` directory, and the viewer lists the shards again. To remove a sharded run, delete the `.shards` directory as well.
