@@ -1995,6 +1995,10 @@ class AnthropicAPI(ModelAPI):
         )
 
     @override
+    def _client_endpoint(self) -> str | None:
+        return str(self.client.base_url)
+
+    @override
     def connection_key(self) -> str:
         """Scope adaptive concurrency per (key, model).
 
@@ -4091,12 +4095,9 @@ class _AssistantInternal:
     Replayed as the `container` request param when a turn left code
     execution pending (see `_pending_container_for_input`).
 
-    Unlike `server_tool_span_index`, there is no fallback for message ids
-    rewritten by the agent bridge: a pending span has produced no content,
-    so no bridge-surviving key exists to index by. Pending-work resumption
-    therefore does not survive a bridge id rewrite (the bridge does not
-    carry server tool state in general -- its anthropic impl handles
-    neither `server_tool_use` blocks nor the `container` param)."""
+    Unlike `server_tool_span_index`, there is no content-keyed fallback: a
+    pending span has produced no content. An edit of the message, which gets
+    an id of its own, is recorded here by `copy_server_tool_state`."""
 
 
 def assistant_internal() -> _AssistantInternal:
@@ -4280,6 +4281,22 @@ def merge_server_tool_spans(head_id: str | None, tail_id: str | None) -> None:
         internal.containers.setdefault(tail_id, head_container)
 
 
+def copy_server_tool_state(source_id: str, edited_id: str) -> None:
+    """Record the spans and container of message `source_id` under its edit too.
+
+    An edit of a turn (approved arguments, a scaffold's changed copy) is still
+    the turn that left work pending, so it replays that work; `source_id` keeps
+    its own record.
+    """
+    internal = assistant_internal()
+    spans = internal.server_tool_spans.get(source_id)
+    if spans:
+        internal.server_tool_spans.setdefault(edited_id, list(spans))
+    container = internal.containers.get(source_id)
+    if container is not None:
+        internal.containers.setdefault(edited_id, container)
+
+
 def _prior_turn_server_tool_use(tool_use_id: str) -> BetaServerToolUseBlock | None:
     """Server tool use block recorded in a prior turn's span (if any).
 
@@ -4325,14 +4342,21 @@ def _pending_container_for_input(input: list[ChatMessage]) -> str | None:
     )
     if last_assistant is None or last_assistant.id is None:
         return None
-    internal = assistant_internal()
-    container = internal.containers.get(last_assistant.id)
-    if container is None:
+    container = assistant_internal().containers.get(last_assistant.id)
+    if container is None or not has_pending_server_work(last_assistant.id):
         return None
-    spans = internal.server_tool_spans.get(last_assistant.id, [])
-    if any(span.open_use_ids for span in spans):
-        return container
-    return None
+    return container
+
+
+def has_pending_server_work(message_id: str) -> bool:
+    """Whether message `message_id` ended its turn with server tool work still running.
+
+    That work is replayed from the spans recorded under the message id (and
+    resumed in the container recorded under it): a span with no results yet
+    has no content item to be found by.
+    """
+    spans = assistant_internal().server_tool_spans.get(message_id, [])
+    return any(span.open_use_ids for span in spans)
 
 
 def _server_tool_span_for_content(

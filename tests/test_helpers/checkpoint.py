@@ -2,7 +2,10 @@
 
 import contextlib
 from collections.abc import AsyncIterator, Callable
-from typing import Literal, TypeVar
+from typing import Any, Literal, TypeVar
+
+from pydantic import BaseModel, TypeAdapter
+from pydantic_core import to_jsonable_python
 
 from inspect_ai.util import ResumeReport
 
@@ -22,11 +25,24 @@ class RecordingCheckpointer:
     `restored` state to simulate a resume. All lifecycle methods are inert,
     so it exercises agent/handler wiring without the real checkpointer's
     restic/transcript machinery.
+
+    `snapshot()` captures the tracked state in JSON form, and a checkpointer
+    created with `serialized=True` restores it through each key's
+    `value_type`, as the real checkpointer does.
     """
 
-    def __init__(self, restored: dict[str, object] | None = None) -> None:
+    def __init__(
+        self, restored: dict[str, object] | None = None, serialized: bool = False
+    ) -> None:
         self._restored = restored or {}
+        self._serialized = serialized
         self.callbacks: dict[str, Callable[[], object]] = {}
+
+    def snapshot(self) -> dict[str, Any]:
+        return {
+            key: to_jsonable_python(callback())
+            for key, callback in self.callbacks.items()
+        }
 
     @property
     def attempt(self) -> Literal["initial", "resume", "resume_for_scoring"]:
@@ -59,6 +75,11 @@ class RecordingCheckpointer:
         if key not in self._restored:
             return initial_value
         restored = self._restored[key]
+        if self._serialized:
+            if value_type is not None:
+                return TypeAdapter(value_type).validate_python(restored)
+            if isinstance(initial_value, BaseModel):
+                return type(initial_value).model_validate(restored)
         assert isinstance(restored, type(initial_value)), (
             f"restored {key!r} is {type(restored).__name__}, "
             f"expected {type(initial_value).__name__}"
