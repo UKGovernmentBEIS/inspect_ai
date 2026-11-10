@@ -9830,7 +9830,7 @@ async def test_a_modified_host_calls_acp_card_shows_the_arguments_that_ran(
         ran.append(path)
         return f"contents of {path}"
 
-    bridge = sandbox_bridge(read_file)
+    bridge = sandbox_bridge(AsyncMock(side_effect=read_file))
     model = Parsing(lambda: _responses_output(HOST_READ_ITEM))
     with active([bridge_modify()]):
         output = await _generate_bridged(
@@ -9878,7 +9878,7 @@ async def test_cancelling_a_modified_host_calls_acp_card_cancels_its_run(
         finished.append(path)
         return "contents"
 
-    bridge = sandbox_bridge(read_file)
+    bridge = sandbox_bridge(AsyncMock(side_effect=read_file))
     model = Parsing(lambda: _responses_output(HOST_READ_ITEM))
     handler = ConnectionHandler()
     handler.state.binding = Bound(
