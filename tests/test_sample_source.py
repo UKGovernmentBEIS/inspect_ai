@@ -2638,6 +2638,97 @@ def test_sample_source_retry_applies_limit_and_epochs_before_publication(
         assert "retry task" in retried.error_retries[-1].message
 
 
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+@pytest.mark.parametrize("log_format", ["eval", "json"])
+def test_sample_source_retry_admission_copy_failure_keeps_total_samples(
+    log_format: Literal["eval", "json"],
+    backend: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A limited retry that fails copying an admitted run's prior record still counts it.
+
+    The run is admitted (and charged to the limit) before its prior record
+    is copied, so the finished log's total must include it even when the
+    copy fails.
+    """
+    from inspect_ai._eval.task.log import TaskLogger
+    from inspect_ai._util._async import current_async_backend
+
+    failing = True
+
+    class Source(SampleSource):
+        def __init__(self) -> None:
+            self.next_id = 2
+
+        def initial_samples(self) -> list[Sample]:
+            return [Sample(id=1, input="q", target="ok")]
+
+        async def next_samples(self) -> list[Sample] | None:
+            if self.next_id > 3:
+                return None
+            id = self.next_id
+            self.next_id += 1
+            return [Sample(id=id, input="q", target="ok")]
+
+    @solver
+    def fail_last_once() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if state.sample_id == 3 and failing:
+                raise RuntimeError("retry task")
+            return state
+
+        return solve
+
+    @task
+    def admission_copy_task() -> Task:
+        return Task(dataset=Source(), solver=fail_last_once())
+
+    log_dir = str(tmp_path / "logs")
+    ok, _ = eval_set(
+        admission_copy_task(),
+        model="mockllm/model",
+        log_dir=log_dir,
+        log_format=log_format,
+        retry_attempts=1,
+        retry_immediate=False,
+        fail_on_error=True,
+        retry_on_error=0,
+        display="none",
+    )
+    assert not ok
+    failing = False
+
+    async def fail_copy(
+        logger: TaskLogger,
+        prior: str | list[EvalSample],
+        keep: set[tuple[str | int, int]],
+    ) -> None:
+        assert current_async_backend() == backend
+        raise OSError("prior log unreadable")
+
+    monkeypatch.setattr(TaskLogger, "seed_added_samples", fail_copy)
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    ok, logs = eval_set(
+        admission_copy_task(),
+        model="mockllm/model",
+        log_dir=log_dir,
+        log_format=log_format,
+        limit=3,
+        retry_attempts=1,
+        retry_immediate=False,
+        retry_on_error=0,
+        display="none",
+    )
+    assert not ok
+    retry = read_eval_log(logs[0].location)
+    assert retry.status == "error"
+    assert retry.error is not None
+    assert "prior log unreadable" in retry.error.message
+    # the seed (1) plus the admitted run (2) whose copy failed
+    assert retry.total_samples == 2
+
+
 def test_sample_source_task_retry_reuses_explicit_epoch_runs() -> None:
     # on a task retry, runs added with an explicit epoch (including epochs
     # beyond the task's) that completed in the prior attempt are reused, not
