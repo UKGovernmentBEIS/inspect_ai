@@ -104,8 +104,8 @@ class SandboxAgentBridge(AgentBridge):
         self._tool_execution_grants: deque[_ToolExecutionGrant] = deque(
             maxlen=_MAX_TOOL_EXECUTION_GRANTS
         )
-        self._executed_calls: dict[tuple[str, str, str], list[_HandedCall]] = {}
-        """Per (server, tool, argument key), the calls an execution consumed a grant of, unless settled since (`_record_execution`)."""
+        self._executed_calls: dict[tuple[str, str], dict[str, list[_HandedCall]]] = {}
+        """Per (server, tool), then argument key, the calls an execution consumed a grant of, unless settled since (`_record_execution`). A (server, tool) with no keys left is removed."""
         self._executed_tools: dict[tuple[str, str], _ExecutedTool] = {}
         """Per (server, tool), the calls an execution consumed a grant of, settled ones pruned (`_record_execution`)."""
         self._failure_requested = anyio.Event()
@@ -392,7 +392,7 @@ class SandboxAgentBridge(AgentBridge):
             else [
                 handed
                 for key in keys
-                for handed in self._executed_calls.pop((server, tool, key), [])
+                for handed in self._pop_executed_calls(server, tool, key)
             ]
         )
         for handed in executed:
@@ -416,10 +416,7 @@ class SandboxAgentBridge(AgentBridge):
         """Whether any executed call or pending grant of (server, tool) is recorded for `unlink_denied_call`."""
         return (
             (server, tool) in self._executed_tools
-            or any(
-                (recorded_server, recorded_tool) == (server, tool)
-                for recorded_server, recorded_tool, _ in self._executed_calls
-            )
+            or (server, tool) in self._executed_calls
             or any(
                 grant.server == server
                 and grant.tool == tool
@@ -427,6 +424,18 @@ class SandboxAgentBridge(AgentBridge):
                 for grant in self._tool_execution_grants
             )
         )
+
+    def _pop_executed_calls(
+        self, server: str, tool: str, key: str
+    ) -> list[_HandedCall]:
+        """Remove and return the executed calls of (server, tool) recorded under argument `key`."""
+        by_key = self._executed_calls.get((server, tool))
+        if by_key is None:
+            return []
+        calls = by_key.pop(key, [])
+        if not by_key:
+            del self._executed_calls[(server, tool)]
+        return calls
 
     def _record_execution(self, grant: "_ToolExecutionGrant") -> None:
         """Check and record the evidence an execution consuming `grant` gives.
@@ -459,16 +468,15 @@ class SandboxAgentBridge(AgentBridge):
         keys = self._call_keys(grant.server, grant.tool, grant.arguments)
         doubt = False
         for key in keys:
-            for earlier in self._executed_calls.pop(
-                (grant.server, grant.tool, key), []
-            ):
+            for earlier in self._pop_executed_calls(grant.server, grant.tool, key):
                 if self._unsettled(earlier):
                     self._unlink(earlier.reply.id)
                     doubt = True
         if doubt:
             self._unlink(reply.reply.id)
+        by_key = self._executed_calls.setdefault((grant.server, grant.tool), {})
         for key in keys:
-            self._executed_calls[(grant.server, grant.tool, key)] = [reply]
+            by_key[key] = [reply]
         executed = self._executed_tools.setdefault(
             (grant.server, grant.tool), _ExecutedTool()
         )
