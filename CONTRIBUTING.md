@@ -103,25 +103,18 @@ After you’ve claimed an issue, you can start working on it. If this is your fi
 ```
 git clone https://github.com/UKGovernmentBEIS/inspect_ai.git
 cd inspect_ai
-uv sync
+uv sync --locked
 ```
 
-`uv sync` installs Inspect in editable mode with its development dependencies (the `dev` dependency group, which uv installs by default) at the versions recorded in `uv.lock`. Inspect's dependencies are declared in `pyproject.toml`, in `dependencies` and the `optional-dependencies` extras. If you are changing dependencies, edit them there and run `uv lock`.
+`uv sync --locked` installs Inspect in editable mode with its development dependencies (the `dev` dependency group, which uv installs by default) at exactly the versions recorded in `uv.lock`. It fails if `uv.lock` is out of date with `pyproject.toml`. Inspect's dependencies are declared in `pyproject.toml`, in `dependencies` and the `optional-dependencies` extras.
 
-uv only resolves releases that have been on PyPI for at least seven days (`exclude-newer` in `pyproject.toml`). This cooldown gives time to find and yank a compromised or broken release before it gets to `uv.lock`, CI, or your machine. To adopt a specific new release, run `uv lock --upgrade-package <package>`.
+[DEPENDENCIES.md](https://github.com/meridianlabs-ai/actions/blob/main/DEPENDENCIES.md) in the meridianlabs-ai/actions repository tells how Inspect and the other Inspect repositories install and change dependencies. It covers the lock file, the seven-day cooldown and its six-hour exception, emergency entries, Dependabot, the canaries, and the procedures to add or update a dependency. Follow it. This file does not repeat it. For this repository:
 
-A package can have a six-hour cooldown instead (`"6 hours"` under `[tool.uv.exclude-newer-package]`). Then Inspect can support a new release on the day that it ships. Only a direct dependency gets this exception: a package in the `pyproject.toml` `dependencies` or the `dev` extra. The package must also be a model provider SDK or one of Inspect's own packages. All other packages keep the seven-day cooldown. This includes provider infrastructure such as `torch`, `accelerate`, the AWS SDKs, and the CA bundle (`certifi`). When you add a `"6 hours"` entry, also add the package to `cooldown.exclude` and to the `provider-sdks` group in `.github/dependabot.yml`.
-
-In an emergency, for example a security fix, you can adopt a release that is less than seven days old. Use a one-time dated entry:
-
-1. Under `[tool.uv.exclude-newer-package]` in `pyproject.toml`, add `<package> = "<timestamp>"`. The package must be a direct dependency. Use an RFC 3339 timestamp just after the upload time of the fixed release. Do not add a dated entry to `.github/dependabot.yml`.
-2. Run `uv lock --upgrade-package <package>`.
-3. If `src/inspect_ai/model/_model_data/sync_models.py` locks the package, add the same entry to its inline script metadata. Then run `uv lock --script src/inspect_ai/model/_model_data/sync_models.py --no-config --upgrade-package <package>`. Its workflow runs uv with `--no-config`, so it does not read `pyproject.toml`.
-4. Within seven days, when the normal cooldown includes the release, delete the entry and run `uv lock --upgrade-package <package>`. A plain `uv lock` doesn't reliably remove the entry from `uv.lock`, and CI then fails. If you added the entry to `sync_models.py`, delete it there too and run its `uv lock --script` command from step 3 again. A test fails when a dated entry is seven days old or older.
+- The six-hour packages are in `[tool.uv.exclude-newer-package]` in `pyproject.toml`.
+- All other packages keep the seven-day cooldown. This includes provider infrastructure such as `torch`, `accelerate`, the AWS SDKs, and the CA bundle (`certifi`).
+- `src/inspect_ai/model/_model_data/sync_models.py` has its own lock. Its workflow runs uv with `--no-config`, so it does not read `pyproject.toml`. An emergency entry therefore has an extra step for this script, which DEPENDENCIES.md gives.
 
 When a major or breaking model provider SDK release breaks Inspect, raise the minimum supported version instead of adding compatibility code for both versions. Users install provider SDKs themselves, so the floor they get, where one exists, is the provider's runtime minimum check (`MIN_VERSION`, usually in `src/inspect_ai/model/_providers/providers.py`): always raise it when it exists. Some providers have no runtime version check yet. `azureai()`, `nnterp()` and `transformer_lens()` only try the import and raise `pip_dependency_error`. When you first raise a floor for one of these providers, add a `verify_required_version` check with a `MIN_VERSION`. Many provider SDKs are also dev dependencies, listed in the `pyproject.toml` `dev` extra. For those, set or raise the floor there to match the runtime minimum and update `uv.lock` in the same PR. Some provider SDKs (for example `nnterp` and `transformer_lens`) aren't in `pyproject.toml` at all, so that new runtime check is then their only floor.
-
-uv is the supported way to set up Inspect. Installing with pip (`pip install -e ".[dev]"`) gets neither `uv.lock` nor the repository's cooldown.
 
 Create a branch with a short, descriptive name, then start working on the issue. You may find it helpful to install the pre-commit hooks:
 
