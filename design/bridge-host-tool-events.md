@@ -409,7 +409,9 @@ finalised. `agent` is `None`; `agent_span_id` is the tool's, as natively.
   arguments that ran, which a sentinel may have modified) and marks the card
   cancelable. An event or result under an id other than
   its proposal's settles the proposal's card through `proposal_id`, live and
-  on replay. The live router records which event took over such a card, and
+  on replay; a scaffold-reported result gives the card the title and
+  `raw_input` of the call as the scaffold's request carries it under the
+  result's id (`_scaffold_run`). The live router records which event took over such a card, and
   `inspect/cancel_tool_call` on the card cancels that event
   (`AcpTransport.tool_event_id`). An event of a multi-target proposal that
   did not take the proposing id, and an unpaired call on an exempt server,
