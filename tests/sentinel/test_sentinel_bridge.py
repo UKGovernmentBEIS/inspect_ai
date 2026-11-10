@@ -1,4 +1,5 @@
 import json
+import logging
 from collections.abc import Awaitable, Callable, Iterator, Sequence
 from contextlib import contextmanager
 from copy import deepcopy
@@ -2310,6 +2311,69 @@ def test_a_host_call_handed_over_under_a_new_id_pairs_with_its_proposal_and_step
         assert {e.execution_id for e in approvals} | {
             e.execution_id for e in steps
         } == {execution_id}
+
+
+@pytest.mark.parametrize("shared", [False, True])
+@pytest.mark.parametrize("cached", [False, True])
+def test_each_run_of_a_host_call_replays_under_its_own_id(
+    cached: bool,
+    shared: bool,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    from inspect_ai._sentinel._integration import EvalInfo, steps_from_events
+
+    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path / "cache"))
+    [log] = eval(
+        Task(
+            dataset=[Sample(input=TASK)],
+            solver=repeated_host_call(cached, shared),
+            sentinel=[reporting_results()],
+        ),
+        model="mockllm/model",
+        log_format="json",
+        log_dir=str(tmp_path / "logs"),
+    )
+    assert log.status == "success", log.error
+    [sample] = read_eval_log(log.location).samples or []
+    first, second = [
+        e.id for e in sample.events if isinstance(e, ToolEvent) and e.metadata
+    ]
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        replay = steps_from_events(
+            sample.messages,
+            sample.events,
+            [],
+            sample_uuid=sample.uuid or "",
+            eval_info=EvalInfo.from_eval(log.eval),
+        )
+    tools = [
+        (s.stage, s.id, s.matched, cast(Any, s.step).result.text)
+        if s.stage == "tool_result"
+        else (s.stage, s.id, s.matched)
+        for s in replay
+        if s.stage.startswith("tool")
+    ]
+    # each run is keyed by the id it ran under, as its checks record it, with
+    # the result that run delivered; a cache hit hands the second run the
+    # first proposal's message id, so its proposal is ambiguous, and replay
+    # skips it rather than guess
+    expected: list[tuple[str, ...]] = [
+        ("tool_call", first, "ids"),
+        ("tool_result", first, "ids", "contents 1"),
+    ]
+    if not cached:
+        expected += [
+            ("tool_call", second, "ids"),
+            ("tool_result", second, "ids", "contents 2"),
+        ]
+    assert tools == expected
+    skipped = [r.getMessage() for r in caplog.records if "Replay skipped" in r.message]
+    assert bool(skipped) == (cached or shared)
+    if cached:
+        assert second in skipped[0]
 
 
 async def google_round_trips(

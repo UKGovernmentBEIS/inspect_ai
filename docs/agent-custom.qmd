@@ -442,6 +442,8 @@ If two calls continue the same turn and no later call resolves the fork, replay 
 
 Without recorded origins, a failed call's input may leave an earlier fork unresolved, and a custom solver's own calls may be inferred as agent turns when its only agent is unwrapped.
 
+Replay joins each tool call to the model call that proposed it by the message id its `ToolEvent` records (`call_message_id`), and to its result by `message_id`. In logs written before those ids, or where a cached output gives several model calls one message id, it takes the latest model call that proposed the call's id instead, and marks the step as matched by heuristic (`ReplayStep.matched`). A host tool call that a sandbox agent bridge ran replays where its event links it to its proposal and its run; other bridged calls are skipped with a warning.
+
 Sentinel event replay requires a log written by Inspect 0.3.100 or later. Earlier logs lack the `solvers` and `scorers` spans that separate the agent's work from scoring (and, before 0.3.94, native tool spans), so `steps_from_events()` raises an error rather than replaying them incorrectly. This includes samples that a retried eval carried over from such a log, whatever version its header records. Replay those logs from their messages instead. In supported logs, a spanless tool event can mark a call halted before execution and does not create tool steps.
 
 If your agent makes model calls that are part of the solve but are not the evaluated agent's turns, mark them with `model_origin()`. Use `"environment"` for the setup being evaluated against, such as an auditor model or a simulated user, and `"helper"` for a scaffold's own helper calls, such as its own summarizer:

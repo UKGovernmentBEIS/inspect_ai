@@ -504,8 +504,14 @@ proposal, and fixing the pairing would mean keeping evicted grants.
   separately for each, and the resulting `ApprovalEvent`s carry the proposing
   id. See
   [Bridged Agents](../docs/approval.qmd#bridged-agents).
-- **Sentinel.** The host executor runs no sentinel tool stage, so sentinel
-  replay rebuilds none for a `ToolEvent` with `metadata["bridge"]`.
+- **Sentinel.** With a sentinel, the bridge checks each call when the model
+  proposes it and the host executor checks each run's result (#5765).
+  Sentinel replay rebuilds those steps for a `ToolEvent` with
+  `metadata["bridge"]` where the event links the run to its proposal: its
+  `call_message_id` names one model call's output holding the call under
+  `proposal_id`, and either its `message_id` is set or a recorded check names
+  the run (`execution_id`, #6370). Other host calls are skipped with a
+  warning.
 - **Hooks, control server, TUI, dataframes.** Pending host events drive the
   TUI's running state and the control server's activity and cancellation like
   native ones. Hooks receive each non-pending update. `events_df()` has `tool`
