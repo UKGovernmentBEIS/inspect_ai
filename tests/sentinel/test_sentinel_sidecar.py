@@ -1,3 +1,4 @@
+import contextlib
 import json
 import logging
 from collections.abc import Awaitable, Callable
@@ -33,10 +34,12 @@ from inspect_ai._sentinel._sidecar._received import receiving_call
 from inspect_ai._sentinel._sidecar._sign import model_request_message, sign
 from inspect_ai._sentinel._sidecar._task import (
     MONITOR_STATE_COPY,
+    SDK_DEBUG_LOGGERS,
     SampleFacts,
     TaskFacts,
     TaskSidecars,
     _redact_eval_tokens,
+    task_sidecars,
 )
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.exception import SampleRefusedError, TerminateSampleError
@@ -1071,10 +1074,35 @@ def _context(request: httpx2.Request) -> dict[str, Any] | None:
     return json.loads(header) if header is not None else None
 
 
-@pytest.mark.parametrize(
-    ("provider", "base_url"),
-    [("anthropic", "http://proxy.test"), ("openai", "http://proxy.test/v1")],
-)
+def _logged_contexts(sample: EvalSample) -> list[dict[str, Any]]:
+    # every copy of `x-inspect-context` the eval log keeps of the sample's
+    # model calls: in each call's config, and in the request it records
+    logged: list[dict[str, Any]] = []
+    for event in sample.events:
+        if not isinstance(event, ModelEvent):
+            continue
+        recorded = event.call.request if event.call is not None else {}
+        for headers in (event.config.extra_headers, recorded.get("extra_headers")):
+            header = (
+                headers.get("x-inspect-context") if isinstance(headers, dict) else None
+            )
+            if not isinstance(header, str):
+                continue
+            if header.startswith("attachment://"):
+                header = sample.attachments[header.removeprefix("attachment://")]
+            logged.append(json.loads(header))
+    return logged
+
+
+_PROXIED = [
+    ("anthropic", "http://proxy.test"),
+    ("openai", "http://proxy.test/v1"),
+    ("openai-api", "http://proxy.test/v1"),
+]
+"""Each provider family that can go through a sidecar, with the base URL its proxy has."""
+
+
+@pytest.mark.parametrize(("provider", "base_url"), _PROXIED)
 def test_an_agent_call_names_its_sample(provider: str, base_url: str) -> None:
     stand_in = StandInSidecar()
     task = Task(
@@ -1092,8 +1120,16 @@ def test_an_agent_call_names_its_sample(provider: str, base_url: str) -> None:
     attempt = context.pop("attempt")
     # signed with the eval's token as it was sent, which the stand-in checked
     assert isinstance(context.pop("timestamp"), int)
-    assert isinstance(context.pop("mac"), str)
+    mac = context.pop("mac")
+    assert isinstance(mac, str)
     assert stand_in.refused == []
+    # the eval log keeps the header as it was built, before it was signed
+    logged = _logged_contexts(sample)
+    assert len(logged) == 2
+    for kept in logged:
+        assert "timestamp" not in kept and "mac" not in kept
+        assert kept == context | {"attempt": attempt}
+    assert mac not in log.model_dump_json()
     assert context == {
         "version": 1,
         "eval_id": log.eval.eval_id,
@@ -1218,7 +1254,10 @@ def test_a_model_request_without_an_x_irid_is_left_unsigned(
 
 
 def _after_a_long_backoff(
-    monkeypatch: pytest.MonkeyPatch, sdk_retries: int
+    monkeypatch: pytest.MonkeyPatch,
+    sdk_retries: int,
+    provider: str = "anthropic",
+    base_url: str = "http://proxy.test",
 ) -> tuple[StandInSidecar, EvalLog]:
     # The first try is refused with an error that is retried, and the clocks
     # of Inspect and the stand-in move on by twice the window before the
@@ -1230,8 +1269,8 @@ def _after_a_long_backoff(
     )
     monkeypatch.setattr(_sign, "_clock", stand_in.clock)
     model = get_model(
-        _MODELS["anthropic"],
-        base_url="http://proxy.test",
+        _MODELS[provider],
+        base_url=base_url,
         api_key="test-key",
         memoize=False,
         http_client=stand_in.http_client(),
@@ -1248,12 +1287,16 @@ def _after_a_long_backoff(
     return stand_in, log
 
 
+@pytest.mark.parametrize(("provider", "base_url"), _PROXIED)
 @pytest.mark.parametrize("retried_by", ["inspect", "sdk"])
 def test_a_retry_after_a_long_backoff_is_signed_afresh(
-    retried_by: str, monkeypatch: pytest.MonkeyPatch
+    retried_by: str, provider: str, base_url: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     stand_in, log = _after_a_long_backoff(
-        monkeypatch, sdk_retries=0 if retried_by == "inspect" else 1
+        monkeypatch,
+        sdk_retries=0 if retried_by == "inspect" else 1,
+        provider=provider,
+        base_url=base_url,
     )
 
     assert log.status == "success"
@@ -1270,31 +1313,78 @@ def test_a_retry_after_a_long_backoff_is_signed_afresh(
     assert stand_in.refused == []
 
 
-def test_the_eval_token_is_in_no_debug_log_of_the_sdk(
-    caplog: pytest.LogCaptureFixture,
+@pytest.mark.parametrize(("provider", "base_url"), _PROXIED)
+def test_the_eval_token_is_in_no_debug_log(
+    provider: str, base_url: str, caplog: pytest.LogCaptureFixture
 ) -> None:
     stand_in = StandInSidecar()
 
-    with caplog.at_level(logging.DEBUG, logger="anthropic._base_client"):
+    # every logger at debug level, and by name the SDKs' and their HTTP
+    # client's, which may have a level of their own
+    with contextlib.ExitStack() as levels:
+        for name in (None, *SDK_DEBUG_LOGGERS, "httpx", "httpcore"):
+            levels.enter_context(caplog.at_level(logging.DEBUG, logger=name))
         for _ in range(2):
             [log] = eval(
                 Task(dataset=[Sample(input="Hi.")], solver=generate()),
-                model=_model(stand_in),
+                model=_model(stand_in, provider, base_url),
                 display="none",
             )
             assert log.status == "success"
 
-    # the SDK logged each registration's body, with the token taken out
     tokens = set(stand_in.tokens.values())
     assert len(tokens) == 2
     logged = [r.getMessage() for r in caplog.records]
-    registrations = [m for m in logged if "register_task" in m]
-    assert len(registrations) == 2
-    assert all("<redacted>" in m for m in registrations)
     assert not any(token in m for m in logged for token in tokens)
-    # the filter is installed once, however many tasks start
-    filters = logging.getLogger("anthropic._base_client").filters
-    assert filters.count(_redact_eval_tokens) == 1
+    if provider == "anthropic":
+        # the Anthropic SDK logged each registration's body, with the token
+        # taken out; the OpenAI SDK logs no body
+        registrations = [m for m in logged if "register_task" in m]
+        assert len(registrations) == 2
+        assert all("<redacted>" in m for m in registrations)
+    # the filter is installed once on each SDK's logger, however many tasks
+    # start
+    for name in SDK_DEBUG_LOGGERS:
+        assert logging.getLogger(name).filters.count(_redact_eval_tokens) == 1
+
+
+@solver
+def _logs_the_eval_token(logger: str) -> Solver:
+    # logs the eval's token as an SDK that logged its requests' bodies would
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        sidecars = task_sidecars()
+        assert sidecars is not None
+        [access] = sidecars._access.values()
+        logging.getLogger(logger).debug(
+            "Request options: %s", {"logged_by_the_test": {"token": access.token}}
+        )
+        return state
+
+    return solve
+
+
+@pytest.mark.parametrize("logger", SDK_DEBUG_LOGGERS)
+def test_a_token_an_sdk_logs_is_taken_out_of_the_record(
+    logger: str, caplog: pytest.LogCaptureFixture
+) -> None:
+    # The OpenAI SDK logs no request body today. If a version of either SDK
+    # logs one through its logger, the token is taken out of the record.
+    stand_in = StandInSidecar()
+
+    with caplog.at_level(logging.DEBUG, logger=logger):
+        [log] = eval(
+            Task(dataset=[Sample(input="Hi.")], solver=_logs_the_eval_token(logger)),
+            model=_model(stand_in),
+            display="none",
+        )
+
+    assert log.status == "success"
+    [token] = stand_in.tokens.values()
+    [record] = [
+        r.getMessage() for r in caplog.records if "logged_by_the_test" in r.getMessage()
+    ]
+    assert token not in record
+    assert "<redacted>" in record
 
 
 async def test_the_request_hook_leaves_a_request_with_no_context_alone() -> None:

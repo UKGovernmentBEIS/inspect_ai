@@ -514,8 +514,8 @@ _task_sidecars: ContextVar[TaskSidecars | None] = ContextVar(
 # for signing a model request as it is sent
 _eval_sidecars: "WeakValueDictionary[str, TaskSidecars]" = WeakValueDictionary()
 
-SDK_DEBUG_LOGGER = "anthropic._base_client"
-"""The logger the Anthropic SDK logs every request's body to at debug level, a registration's token included."""
+SDK_DEBUG_LOGGERS = ("anthropic._base_client", "openai._base_client")
+"""The loggers the Anthropic and OpenAI SDKs log their requests to at debug level. The Anthropic SDK logs every request's body there, a registration's token included. The OpenAI SDK logs only the method, and is filtered too, so the token stays out if a version of it logs more."""
 
 
 class _RedactEvalTokens(Filter):
@@ -546,9 +546,10 @@ _redact_eval_tokens = _RedactEvalTokens()
 
 def _keep_eval_tokens_out_of_sdk_logs() -> None:
     # once, however many tasks start
-    sdk_logger = getLogger(SDK_DEBUG_LOGGER)
-    if _redact_eval_tokens not in sdk_logger.filters:
-        sdk_logger.addFilter(_redact_eval_tokens)
+    for name in SDK_DEBUG_LOGGERS:
+        sdk_logger = getLogger(name)
+        if _redact_eval_tokens not in sdk_logger.filters:
+            sdk_logger.addFilter(_redact_eval_tokens)
 
 
 async def init_task_sidecars(
