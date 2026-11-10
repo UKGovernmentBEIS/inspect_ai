@@ -104,8 +104,8 @@ class SandboxAgentBridge(AgentBridge):
         self._tool_execution_grants: deque[_ToolExecutionGrant] = deque(
             maxlen=_MAX_TOOL_EXECUTION_GRANTS
         )
-        self._executed_calls: dict[tuple[str, str, str], list[_HandedCall]] = {}
-        """Per (server, tool, argument key), the calls an execution consumed a grant of, unless settled since (`_record_execution`)."""
+        self._executed_calls: dict[tuple[str, str], dict[str, list[_HandedCall]]] = {}
+        """Per (server, tool), then argument key, the calls an execution consumed a grant of, unless settled since (`_record_execution`). A (server, tool) with no keys left is removed."""
         self._executed_tools: dict[tuple[str, str], _ExecutedTool] = {}
         """Per (server, tool), the calls an execution consumed a grant of, settled ones pruned (`_record_execution`)."""
         self._failure_requested = anyio.Event()
@@ -375,7 +375,13 @@ class SandboxAgentBridge(AgentBridge):
         With `arguments` `None` (not an object, or nested too deep to read),
         the call may repeat any call of the tool. A request naming no bridged
         tool repeats no proposal, since none can denote it.
+
+        The argument keys are computed only when a recorded call or pending
+        grant of the tool exists: hashing serializes the whole arguments, and
+        a large denied call that can repeat nothing shouldn't pay for that.
         """
+        if not self._has_recorded_calls(server, tool):
+            return
         keys = (
             self._call_keys(server, tool, arguments) if arguments is not None else None
         )
@@ -386,7 +392,7 @@ class SandboxAgentBridge(AgentBridge):
             else [
                 handed
                 for key in keys
-                for handed in self._executed_calls.pop((server, tool, key), [])
+                for handed in self._pop_executed_calls(server, tool, key)
             ]
         )
         for handed in executed:
@@ -405,6 +411,31 @@ class SandboxAgentBridge(AgentBridge):
                 )
             ):
                 self._unlink(grant.proposal.reply.reply.id)
+
+    def _has_recorded_calls(self, server: str, tool: str) -> bool:
+        """Whether any executed call or pending grant of (server, tool) is recorded for `unlink_denied_call`."""
+        return (
+            (server, tool) in self._executed_tools
+            or (server, tool) in self._executed_calls
+            or any(
+                grant.server == server
+                and grant.tool == tool
+                and grant.proposal.reply is not None
+                for grant in self._tool_execution_grants
+            )
+        )
+
+    def _pop_executed_calls(
+        self, server: str, tool: str, key: str
+    ) -> list[_HandedCall]:
+        """Remove and return the executed calls of (server, tool) recorded under argument `key`."""
+        by_key = self._executed_calls.get((server, tool))
+        if by_key is None:
+            return []
+        calls = by_key.pop(key, [])
+        if not by_key:
+            del self._executed_calls[(server, tool)]
+        return calls
 
     def _record_execution(self, grant: "_ToolExecutionGrant") -> None:
         """Check and record the evidence an execution consuming `grant` gives.
@@ -437,16 +468,15 @@ class SandboxAgentBridge(AgentBridge):
         keys = self._call_keys(grant.server, grant.tool, grant.arguments)
         doubt = False
         for key in keys:
-            for earlier in self._executed_calls.pop(
-                (grant.server, grant.tool, key), []
-            ):
+            for earlier in self._pop_executed_calls(grant.server, grant.tool, key):
                 if self._unsettled(earlier):
                     self._unlink(earlier.reply.id)
                     doubt = True
         if doubt:
             self._unlink(reply.reply.id)
+        by_key = self._executed_calls.setdefault((grant.server, grant.tool), {})
         for key in keys:
-            self._executed_calls[(grant.server, grant.tool, key)] = [reply]
+            by_key[key] = [reply]
         executed = self._executed_tools.setdefault(
             (grant.server, grant.tool), _ExecutedTool()
         )
