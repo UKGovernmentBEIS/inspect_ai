@@ -1115,7 +1115,9 @@ class Model:
             # generate
             with (
                 receiving_call(
-                    through_sidecar.sidecar, through_sidecar.registered_beforehand
+                    through_sidecar.sidecar,
+                    through_sidecar.registered_beforehand,
+                    through_sidecar.mode,
                 )
                 if through_sidecar is not None
                 else contextlib.nullcontext()
