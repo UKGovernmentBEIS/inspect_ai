@@ -575,10 +575,17 @@ async with _run_task_screen(...):              # absorbs a cancellation of the r
   sequence grouping holds among startable tasks.
 - **Retries** are today's: `run_one` stores the attempt's log on the record,
   awaits `reinit()` and appends the retry at the back of the queue under the
-  record's index. The retry reuses the record's setups, which have all
-  succeeded, because an attempt that failed in sandbox setup
-  (`options.setups.failure()` set) is not retried as a task within the run
-  ("Sandbox setup beside the dispatcher", Failure). A cancel or drain while a retry waits
+  record's index. The retry reuses the record's own setups, those its
+  selected seed samples need, which have all succeeded: an attempt that
+  failed in sandbox setup (`options.setups.failure()` set) is not retried as
+  a task within the run ("Sandbox setup beside the dispatcher", Failure).
+  Keys an attempt's `ensure()` requested for samples its `SampleSource`
+  added belong to that attempt only. If the attempt fails for another reason
+  while such a setup is still running or in backoff, `failure()` is not set
+  (no setup it waited on has failed), so the attempt is retried as usual;
+  the attempt's wait ends with it, so the job may become unneeded and stop;
+  and the retry calls `ensure()` again only for samples it adds itself,
+  joining that job if it is still alive or starting a new one. A cancel or drain while a retry waits
   abandons it through the stamp. `task_retry_attempts` is one run-wide value:
   `eval()`'s argument (default 0), `eval_set()`'s `retry_attempts` (default
   10) when `retry_immediate` is on (the default) and 0 otherwise, and 0 in a
@@ -719,7 +726,7 @@ class SetupJob:
     state: Literal["waiting", "running", "succeeded", "failed"]
     error: BaseException | None
     bindings: Mapping[ContextVar[Any], Any]   # the configuration's provider state; see "Provider state per setup"
-    context: Context                   # task_init's context as it returned, for task_cleanup
+    context: Context                   # the last try's context as it exited, for task_cleanup
 
 class TaskSetups:                      # one per record
     def settled(self) -> bool
@@ -809,8 +816,9 @@ class SandboxSetups:                   # one per run
   A `KeyboardInterrupt` or `SystemExit` from a setup ends the run.
 - **`SampleSource` additions.** `startup_sandboxes` becomes
   `options.setups.ensure(samples)`: resolve the added samples' keys, request
-  missing jobs as needed now, and await them. A failure fails that task, as
-  today.
+  missing jobs as needed now, and await them. A final failure of a job
+  `ensure()` awaits sets `failure()` and fails that task, as today; keys it
+  requested are the attempt's own (see "The dispatcher", Retries).
 - **Samples use the key resolved for them.** `run_sample` passes
   `options.setups.key_for(sample_index)` to `sandboxenv_context`, which uses
   that key's spec instead of resolving the sample's sandbox again, so the
@@ -820,10 +828,14 @@ class SandboxSetups:                   # one per run
   or pending retry whose setups include it, or a running attempt awaiting it
   in `ensure()`. When no such record remains (each cancelled or ended), a
   job still waiting for its first try is dropped, a job in its backoff stops
-  at once, and a job whose `task_init` call is running stops when that call
-  returns, success or failure, with no further try (interrupting `task_init`
-  can leave resources nothing cleans up). The run then forgets the key
-  unless that call succeeded: a later record needing the configuration
+  at once, and a job whose `task_init` call is running is left to finish
+  that call (interrupting `task_init` can leave resources nothing cleans up).
+  The running job decides when the call returns, by checking its waiters
+  then, not when the last one left: if a record needs it again (a new
+  request joined it meanwhile), it carries on as an ordinary job for those
+  waiters, settling on success or making its remaining tries; if none does,
+  it stops with no further try, and the run forgets the key unless that call
+  succeeded: a later record needing the configuration
   starts a new job with the full `task_retry_attempts` budget. No partial
   budget is kept or resumed, and stopping this way is not a setup failure,
   so nothing ends with its error. The dispatcher's idle check counts only a
@@ -840,8 +852,9 @@ class SandboxSetups:                   # one per run
   `eval_run`'s `finally` after the screen has closed and no sample runs, runs
   each registered cleanup once, whether the job's tries succeeded, failed,
   were interrupted by a run-level cancellation, or stopped because no
-  record needed the job: in a task started from the job's context as its
-  last try left it, shielded, with errors logged as today. A job that never
+  record needed the job: in a task started from the job's `context`, the
+  last try's capture on its exit ("Provider state per setup"), never from
+  `root`, shielded, with errors logged as today. A job that never
   started a try registers nothing; a key forgotten and set up again has two
   registrations, and the second cleanup of an aggregate provider finds
   nothing left. That pass clears what
@@ -955,10 +968,16 @@ context every attempt and sample inherits, holding the lifecycle scope and no
 provider state. Each `task_init`
 runs in a task started from the setup chain's context, which starts as a copy
 of `root` (so Docker's lifecycle scope object is inherited) and which each
-job's resulting context replaces in turn, so a later `task_init` sees what
-earlier ones bound, as today (k8s's shared manager stays shared). When
-`task_init` returns, the job records `context` (`copy_context()` inside the
-job) and `bindings`: every `ContextVar` in that context whose value differs,
+job's successful context replaces in turn, so a later `task_init` sees what
+earlier ones bound, as today (k8s's shared manager stays shared). Each try
+captures `copy_context()` inside the try's task, in a synchronous `finally`
+around the `task_init` call, so it is taken on every exit (return, raise or
+cancellation) before the task exits, and holds whatever the provider bound
+before it raised or was cancelled (E2B and Podman bind their lists before
+their awaited build work). The job keeps the last try's capture as
+`context`, for its cleanup; only a successful try's capture replaces the
+setup chain's context, so a failed try's bindings reach no later try or
+job. When `task_init` succeeds, the job also records `bindings`: every `ContextVar` in that context whose value differs,
 by `is not`, from its value in `root` (a variable missing from `root`
 differs), excluding the setup scope. So `bindings` is the configuration's
 whole provider state, including what earlier jobs bound and this one
@@ -1215,9 +1234,24 @@ test that waits on a run is bounded with `fail_after`.
     new job whose budget is the full `task_retry_attempts`; cancelling it
     while its `task_init` runs lets that call return and makes no further
     try; neither case ends anything with a setup error;
+  - a job's waiter leaves and another arrives during one call: with the only
+    waiter's `task_init` held on an event, the waiter is cancelled, a new
+    record needing the same key is added, and the call is released to fail;
+    the job goes on to its remaining tries for the new waiter, which reaches
+    success (a stub that fails once) or the final failure (a stub that always
+    fails), and never waits for ever;
+  - an unrelated sample failure: a `SampleSource` task under strict
+    `fail_on_error` loses a sample while an added sample's setup is in
+    backoff; the task is retried as an ordinary error, the pending job stops
+    once nothing waits on it, and the retry's re-added samples that no longer
+    need that configuration start without it, while one that does starts a
+    new job; with the key then failing finally for another waiter, the
+    retried task is unaffected unless it needs that key;
   - cleanup registration: a run cancelled during a configuration's first
     `task_init` runs its `task_cleanup` once at shutdown; one cancelled
-    during the second try, after a failed first, also runs it once; a
+    during the second try, after a failed first, also runs it once, and with
+    a stub that binds a list before it awaits (or raises), the cleanup sees
+    that binding; a
     configuration whose tries all failed runs it once; a job dropped before
     its first try runs none;
   - the backoff is 5, 10, 20, 40, 60, 60 seconds (patched wait) under
