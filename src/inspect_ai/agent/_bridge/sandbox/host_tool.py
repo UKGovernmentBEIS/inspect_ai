@@ -348,13 +348,16 @@ async def _execute_granted(
         )
         raise ToolParsingError(validation_errors)
     call_arguments = cast(dict[str, JsonValue], arguments)
-    check: SentinelCheck | None
-    if grant is None or grant.check is None or len(candidates) > 1:
+    check = (
+        bridge._handouts.latest(grant.check)
+        if grant is not None and grant.check is not None and len(candidates) <= 1
+        else None
+    )
+    if check is None:
         # with no proposal's context; an ambiguous call's result is recorded
         # for each execution it could be
         check = sentinel_unproposed_host_check(bridge, tool, call_arguments, tool_fn)
     else:
-        check = bridge._handouts.latest(grant.check)
         candidates = []
     trim = check is not None and checks_bridged_results()
 

@@ -2392,6 +2392,43 @@ async def test_a_retry_never_restores_an_ambiguous_calls_proposal(
     assert after.input is None
 
 
+async def test_ambiguous_host_grants_check_their_result_with_no_proposal() -> None:
+    seen: Steps = []
+    mock = AsyncMock(return_value="host result")
+    call = replace(READ, function="mcp__host__read_file")
+    model = Scripted(calls_output(call), calls_output(call))
+    bridge = sandbox_bridge(mock)
+
+    with active([bridge_recording(seen)]):
+        await generate(
+            bridge, model, [ChatMessageUser(content=OLD_REQUEST)], declare_read_file()
+        )
+        await generate(
+            bridge, model, [ChatMessageUser(content=NEW_REQUEST)], declare_read_file()
+        )
+        assert not bridge._handouts.proposals
+        await call_host_tool(bridge)("host", "read_file", call.arguments)
+        # the scaffold reporting the result it was delivered is not checked again
+        await generate(
+            bridge,
+            model,
+            [
+                ChatMessageUser(content=NEW_REQUEST),
+                ChatMessageAssistant(content="On it.", tool_calls=[call]),
+                ChatMessageTool(
+                    content="host result",
+                    tool_call_id=call.id,
+                    function=call.function,
+                ),
+            ],
+            declare_read_file(),
+        )
+
+    [after] = [s for s in seen if isinstance(s, AfterToolCall)]
+    assert after.input is None
+    assert after.message_id == ""
+
+
 async def test_a_result_whose_proposal_was_evicted_gets_no_other_context(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

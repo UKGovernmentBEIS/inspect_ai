@@ -339,10 +339,7 @@ class _Handouts:
             earlier = self.handed.get(call.id)
             ambiguous = earlier is not None and (
                 earlier.ambiguous
-                or (
-                    earlier.execution_id is not None
-                    and earlier.request != request.key
-                )
+                or (earlier.execution_id is not None and earlier.request != request.key)
             )
             execution_id = uuid()
             self.handed[call.id] = _Handed(
@@ -399,10 +396,19 @@ class _Handouts:
                     request.key,
                 )
 
-    def latest(self, check: SentinelCheck) -> SentinelCheck:
-        """The check for the latest handout of `check`'s call and target."""
+    def latest(self, check: SentinelCheck) -> SentinelCheck | None:
+        """The check for the latest handout of `check`'s call and target.
+
+        None for an ambiguous call (`_Handed.ambiguous`): which handout ran
+        can't be told, so its result is checked with no proposal's context.
+        """
+        if check.execution_id is None:
+            return check
+        handed = self.handed.get(check.handed.id)
+        if handed is not None and handed.ambiguous:
+            return None
         proposal = self.proposals.get(check.handed.id)
-        if proposal is None or check.execution_id is None:
+        if proposal is None:
             return check
         return next(
             (
