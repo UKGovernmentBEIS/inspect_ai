@@ -367,7 +367,8 @@ class TaskRecord:
 class RunQueue:
     run_id: str
     closed: bool
-    wake: Wake                        # rung by every phase change, addition and setup result
+    wake: Wake                        # rung by every phase change, addition, setup result,
+                                      # and every task_init call exit or stopped job, waiters or not
     def add(self, resolved: list[ResolvedTask], *, ahead: bool = False) -> list[TaskRecord]
     def find(self, task_id: str) -> TaskRecord | None
     def cancel(self, record: TaskRecord) -> None
@@ -753,12 +754,31 @@ class SandboxSetups:                   # one per run
   config merged with the run's), so `inspect ctl config` can retune
   `max_connections` for every queued or starting task before its first
   `generate`, as it can today. A record with no sandbox is then settled.
-  Otherwise the job resolves the `SetupKey` of each selected sample,
+  Otherwise the job resolves the `SetupKey` of each selected sample (which
+  can await a provider's `task_init_environment`, Docker's running a
+  `docker compose config` subprocess),
   recording it by the sample's index in the attempt's sample list (the
   `sample_index` that `run_sample` receives; seed samples first, then added
   samples in arrival order, so two objects with one id get separate
   entries), and requests the `task_init` jobs. Under `run_samples=False` no
-  job starts and no controller is created, as today.
+  job starts and no controller is created, as today. The record's job runs
+  in its own cancel scope, owned by the record's `TaskSetups`: `RunQueue.end`
+  cancels it when the record ends before the job has finished, and
+  `setups.open()` cancels every such scope when it exits. A cancelled job
+  publishes nothing into the record, releases its demand on every keyed job
+  it had already requested (which may then stop as unneeded, below), and a
+  subprocess it started is ended by the `subprocess()` helper that started
+  it, as for any cancelled subprocess. Shared `task_init` calls are not
+  under this scope; they keep the finish-the-current-call rule.
+- **Before a job's first try**, as `_start_sandboxenvs` does today, it
+  awaits `ensure_sandbox_limiter(provider, sandbox type, max_sandboxes)`, so
+  a `--max-sandboxes` retune issued during a long build applies, with that
+  helper's default and unlimited behaviour for every provider. The
+  `--sandbox-prebuilt` flag is set by `eval_run` itself
+  (`set_sandbox_prebuilt(config.sandbox_prebuilt is True)`) before it
+  creates the setups and takes `root`, so every `task_init` context and every
+  sample inherits it; setting it later in `eval_run`'s context would not
+  reach a chain copied from `root`.
 - **Once per configuration per run.** `task_init` jobs are keyed by
   `SetupKey` across all records and kept until the run ends (a job no
   record needs any more is the exception, below); they run one at
@@ -1233,7 +1253,18 @@ test that waits on a run is bounded with `fail_after`.
     later record needing the same configuration in the same run starts a
     new job whose budget is the full `task_retry_attempts`; cancelling it
     while its `task_init` runs lets that call return and makes no further
-    try; neither case ends anything with a setup error;
+    try, and the run then completes promptly after the call is released
+    (its exit rings `wake` with no waiter left); neither case ends anything
+    with a setup error;
+  - a record's resolution: with `task_init_environment()` held on an event
+    before it yields a key, cancelling the queued record, and separately
+    closing the run, end the resolution job promptly; the run completes,
+    nothing is published into the ended record, and no `task_init` starts
+    for that key;
+  - startup settings: a Docker job started from the captured `root` under
+    `--sandbox-prebuilt` verifies the prebuilt images instead of building;
+    with `task_init` held, an `inspect ctl config --max-sandboxes` retune
+    applies to the provider's limiter rather than being dropped;
   - a job's waiter leaves and another arrives during one call: with the only
     waiter's `task_init` held on an event, the waiter is cancelled, a new
     record needing the same key is added, and the call is released to fail;

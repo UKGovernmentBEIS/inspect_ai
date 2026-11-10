@@ -38,8 +38,8 @@ def search(n_steps: int) -> Solver:
 `enqueue_task()` adds the task once per model in the run, in the run's model
 order, so the creator picks the handle for its own model and closes the others
 at once. A closed channel with nothing sent ends its task as soon as it
-starts, though that task still takes a task slot (and any sandbox setup)
-briefly; an unused handle left open holds its task, and a slot once it
+starts, though that task still takes a task slot briefly (it has no seed, so
+it needs no sandbox setup until a sample arrives); an unused handle left open holds its task, and a slot once it
 starts, until the creator's attempt ends.
 
 Handles build on the run queue of [task-dispatch.md](task-dispatch.md): an
@@ -367,9 +367,9 @@ class PortRequest:
   attempt.
 - **Retries.** A task fed by its creator is never retried automatically
   (decision: Ransom, 2026-11-10). When its attempt fails for any reason,
-  sandbox setup included (before the attempt starts, through
-  `TaskRunOptions.setup_error`, or while delivering, when `setups.ensure()`
-  for a sent sample raises), the task ends with its error log, its
+  sandbox setup included (such a task has no seed, so its setups are
+  requested only once its attempt runs, when `setups.ensure()` for a sent
+  sample raises), the task ends with its error log, its
   unresolved `enqueue_sample()` calls raise `TaskEndedError` with that log,
   and the calls already returned keep their runs. The creator holds the
   search state and every result returned, and decides whether to add a fresh
@@ -652,9 +652,10 @@ test touched), with mockllm models; every test that waits is bounded with
     between tries, then the task ends with its error log, is not retried as a task,
     A's call has already returned its run, B's call raises `TaskEndedError`
     carrying that log, and a fresh fed task the creator then adds needing the
-    same configuration ends the same way with no fourth try; the same for a
-    setup failure before the attempt starts, with requests sent while the
-    task was queued;
+    same configuration ends the same way with no fourth try; the same when
+    the requests were sent while the task was queued, and their delivery's
+    `ensure()` fails once the attempt starts: the log carries the setup
+    error and each request raises `TaskEndedError` with it;
   - under `eval_set()` (immediate retries) and in a selection-mode worker, a
     creator whose rollout task fails, which handles the `TaskEndedError`, adds
     a fresh rollout task and then succeeds: the failed rollout's error log is
