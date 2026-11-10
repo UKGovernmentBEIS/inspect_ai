@@ -341,11 +341,18 @@ async def openai_responses_inputs(
     swap_todo_write: bool = False,
     cache_breakpoints: bool = False,
 ) -> list[ResponseInputItemParam]:
+    # the ids whose latest call so far replays from itself, as its result must
+    from_call: set[str] = set()
     return [
         item
         for message in messages
         for item in await _openai_input_item_from_chat_message(
-            message, model_info, synthesize_phase, swap_todo_write, cache_breakpoints
+            message,
+            model_info,
+            synthesize_phase,
+            swap_todo_write,
+            cache_breakpoints,
+            from_call,
         )
     ]
 
@@ -356,7 +363,15 @@ async def _openai_input_item_from_chat_message(
     synthesize_phase: bool = False,
     swap_todo_write: bool = False,
     cache_breakpoints: bool = False,
+    from_call: set[str] | None = None,
 ) -> list[ResponseInputItemParam]:
+    """`message` as Responses input items.
+
+    `from_call` collects, across a conversation's messages, the ids whose
+    latest call replays from itself rather than from its cached item
+    (`_tool_call_items_from_assistant_message`): their results replay from
+    themselves too.
+    """
     if message.role == "system":
         content = await _openai_responses_content_list_param(
             message.content, cache_breakpoints
@@ -386,12 +401,15 @@ async def _openai_input_item_from_chat_message(
         ]
     elif message.role == "assistant":
         return _openai_input_items_from_chat_message_assistant(
-            message, model_info, synthesize_phase, swap_todo_write
+            message, model_info, synthesize_phase, swap_todo_write, from_call
         )
     elif message.role == "tool":
         # recover the original call (by call_id) to replay the matching output item
-        responses_tool_call = assistant_internal().tool_calls.get(
-            message.tool_call_id or str(message.function)
+        call_id = message.tool_call_id or str(message.function)
+        responses_tool_call = (
+            assistant_internal().tool_calls.get(call_id)
+            if from_call is None or call_id not in from_call
+            else None
         )
         if (
             responses_tool_call is not None
@@ -1644,6 +1662,7 @@ def _openai_input_items_from_chat_message_assistant(
     model_info: ResponsesModelInfo | None = None,
     synthesize_phase: bool = False,
     swap_todo_write: bool = False,
+    from_call: set[str] | None = None,
 ) -> list[ResponseInputItemParam]:
     """
     Transform a `ChatMessageAssistant` into OpenAI `ResponseInputItem`'s for playback to the model.
@@ -1851,7 +1870,9 @@ def _openai_input_items_from_chat_message_assistant(
     # final flush if necessary
     flush_pending_context_text()
 
-    return items + _tool_call_items_from_assistant_message(message, swap_todo_write)
+    return items + _tool_call_items_from_assistant_message(
+        message, swap_todo_write, from_call
+    )
 
 
 def _synthetic_phase_for_assistant_message(
@@ -1949,7 +1970,15 @@ def _maybe_native_tool_param(
 def _tool_call_items_from_assistant_message(
     message: ChatMessageAssistant,
     swap_todo_write: bool = False,
+    from_call: set[str] | None = None,
 ) -> list[ResponseInputItemParam]:
+    """The message's calls as Responses items.
+
+    A call replays its cached item when the item can replay for it
+    (`_replayed_item`), and otherwise from itself; its id is then added to
+    `from_call`, so its result, which would read the cached item's type (a
+    `computer_call_output`), replays from itself too.
+    """
     tool_calls: list[ResponseInputItemParam] = []
 
     # now standard tool calls
@@ -1962,12 +1991,14 @@ def _tool_call_items_from_assistant_message(
             if cached is not None
             else None
         )
+        if from_call is not None:
+            if replayed is None and cached is not None:
+                from_call.add(call.id)
+            else:
+                from_call.discard(call.id)
         if replayed is not None:
             tool_calls.append(cast(ResponseInputItemParam, replayed))
         else:
-            # the call's result reads the cached item's type too (a
-            # `computer_call_output`), so it must replay from itself as well
-            assistant_internal().tool_calls.pop(call.id, None)
             # create param (rendering todo_write -> update_plan when swapping, else
             # the name-only alias)
             if swap_todo_write and call.function == TODO_WRITE_NAME:

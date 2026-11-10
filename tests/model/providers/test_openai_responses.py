@@ -3100,36 +3100,49 @@ def test_a_changed_call_whose_arguments_json_cant_encode_replays_no_item() -> No
 async def test_a_computer_call_that_cant_replay_natively_replays_with_its_result_as_a_function(
     arguments: dict[str, Any],
 ) -> None:
+    from openai.types.responses import ResponseComputerToolCall
+
     from inspect_ai.model._assistant_internal import init_sample_assistant_internal
     from inspect_ai.model._openai_responses import (
         assistant_internal,
         openai_responses_inputs,
     )
+    from inspect_ai.model._providers._openai_computer_use import (
+        tool_call_from_openai_computer_tool_call,
+    )
     from inspect_ai.tool._tool_call import ToolCall
 
     init_sample_assistant_internal()
-    assistant_internal().tool_calls["call_c"] = cast(
-        Any,
-        {
-            "type": "computer_call",
-            "id": "cu_1",
-            "call_id": "call_c",
-            "actions": [{"type": "click", "button": "left", "x": 1, "y": 2}],
-            "pending_safety_checks": [],
-            "status": "completed",
-        },
+    item: Any = {
+        "type": "computer_call",
+        "id": "cu_1",
+        "call_id": "call_c",
+        "actions": [{"type": "click", "button": "left", "x": 1, "y": 2}],
+        "pending_safety_checks": [],
+        "status": "completed",
+    }
+    assistant_internal().tool_calls["call_c"] = cast(Any, dict(item))
+    generated = tool_call_from_openai_computer_tool_call(
+        ResponseComputerToolCall.model_validate(item)
     )
-    # arguments approval or a filter gave the call
-    call = ToolCall(id="call_c", function="computer", arguments=arguments)
+    # arguments approval or a filter gave the call, then the call proposed again
+    changed = ToolCall(id="call_c", function="computer", arguments=arguments)
+    result = ChatMessageTool(content="ok", tool_call_id="call_c", function="computer")
 
     items: list[Any] = await openai_responses_inputs(
         [
-            ChatMessageAssistant(content="", tool_calls=[call]),
-            ChatMessageTool(content="ok", tool_call_id="call_c", function="computer"),
+            ChatMessageAssistant(content="", tool_calls=[changed]),
+            result,
+            ChatMessageAssistant(content="", tool_calls=[generated]),
+            result,
         ]
     )
 
     assert [item["type"] for item in items] == [
         "function_call",
         "function_call_output",
+        "computer_call",
+        "computer_call_output",
     ]
+    # serializing leaves the sample's replay state as it was
+    assert assistant_internal().tool_calls["call_c"] == item
