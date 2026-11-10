@@ -117,7 +117,7 @@ from inspect_ai.model._providers._google_citations import (
 )
 from inspect_ai.model._providers._google_computer_use import (
     computer_tool_result_parts,
-    gemini_action_from_tool_call,
+    gemini_replay_args,
     maybe_computer_use_tool,
     tool_call_from_gemini_computer_action,
 )
@@ -1818,12 +1818,11 @@ async def content(
                 action_name = (
                     tool_call.id.rsplit("_", 1)[0] if tool_call.id else "computer"
                 )
-                _, action_args = gemini_action_from_tool_call(tool_call)
                 return Part(
                     function_call=FunctionCall(
                         id=tool_call.id,
                         name=action_name,
-                        args=action_args,
+                        args=gemini_replay_args(action_name, tool_call),
                     )
                 )
             else:

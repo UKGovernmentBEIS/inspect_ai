@@ -31,7 +31,9 @@ from test_helpers.service_dispatch import (
 
 import inspect_ai
 from inspect_ai import Task, eval
-from inspect_ai._util.exception import TerminateSampleError
+from inspect_ai._sentinel._sidecar._endpoint import SentinelProxyError
+from inspect_ai._sentinel._sidecar._lookup import SidecarNotJudgedError
+from inspect_ai._util.exception import SampleRefusedError, TerminateSampleError
 from inspect_ai._util.http import status_code_of
 from inspect_ai._util.registry import _registry
 from inspect_ai.agent import Agent, agent, run
@@ -740,6 +742,18 @@ def _refusal() -> ModelRefusalError:
         pytest.param(
             lambda: ResponseFilterError("ValueError: filter is broken"),
             id="response_filter",
+        ),
+        pytest.param(
+            lambda: SampleRefusedError("The sidecar's tasks folder lacks it."),
+            id="sidecar_refused_sample",
+        ),
+        pytest.param(
+            lambda: SidecarNotJudgedError("The sidecar lost the sample."),
+            id="sidecar_not_judged",
+        ),
+        pytest.param(
+            lambda: SentinelProxyError("The sidecar couldn't register it."),
+            id="sidecar_registration_failed",
         ),
     ],
 )
