@@ -6,8 +6,18 @@ import re
 from pydantic import JsonValue
 
 from inspect_ai._util.content import ContentBase
+from inspect_ai._util.json import exceeds_max_depth
 
 CONTENT_INTERNAL_TAG = "content-internal"
+
+MAX_INTERNAL_DEPTH = 100
+"""Maximum nesting depth of internal state decoded from a marker.
+
+pydantic validates `internal` to a depth of ~255, but serializing it inside a
+message, model call or log fails a few levels short of that, so a deeper
+marker would crash the sample after it was read. Provider internal state is
+far shallower.
+"""
 
 
 def content_internal_tag(internal: JsonValue) -> str:
@@ -22,9 +32,9 @@ def decode_internal(encoded: str) -> JsonValue:
     """Decode the internal state carried by a marker (`content_internal_tag`, `<think internal>`).
 
     Every marker family decodes through this so they share one rule: a marker is
-    internal state only if its body is base64-encoded UTF-8 JSON that is valid
-    as a content object's `internal`. Anything else (e.g. a model quoting a
-    marker, or JSON nested too deeply to validate) raises `NotInternal`, and the
+    internal state only if its body is base64-encoded UTF-8 JSON, nested at most
+    `MAX_INTERNAL_DEPTH` deep, that is valid as a content object's `internal`.
+    Anything else (e.g. a model quoting a marker) raises `NotInternal`, and the
     caller leaves the whole marker in the text unchanged.
 
     Raises:
@@ -34,6 +44,8 @@ def decode_internal(encoded: str) -> JsonValue:
         decoded: JsonValue = json.loads(
             base64.b64decode("".join(encoded.split()), validate=True).decode("utf-8")
         )
+        if exceeds_max_depth(decoded, MAX_INTERNAL_DEPTH):
+            raise ValueError(f"nested deeper than {MAX_INTERNAL_DEPTH}")
         return ContentBase(internal=decoded).internal
     except (binascii.Error, ValueError, TypeError, RecursionError) as ex:
         raise NotInternal() from ex

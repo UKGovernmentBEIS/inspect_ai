@@ -2998,7 +2998,8 @@ def test_host_result_links_to_the_answer_whatever_its_content() -> None:
     assert ids == ["result-0"]
 
 
-_TOO_DEEP = base64.b64encode(("[" * 300 + "]" * 300).encode()).decode()
+# validates as `internal` (pydantic's limit is ~255) but is too deep to serialize
+_TOO_DEEP = base64.b64encode(("[" * 250 + "]" * 250).encode()).decode()
 
 _LITERAL_MARKERS = {
     "unpadded": "The marker is <content-internal>example</content-internal>.",

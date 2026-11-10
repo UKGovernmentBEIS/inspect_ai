@@ -446,6 +446,7 @@ def test_reasoning_round_trip_with_internal_string_with_quotes():
         "not valid json",
         base64.b64encode(b"not json").decode(),
         base64.b64encode(b"\xff\xfe").decode(),
+        base64.b64encode(("[" * 250 + "]" * 250).encode()).decode(),
         base64.b64encode(("[" * 300 + "]" * 300).encode()).decode(),
     ],
 )
