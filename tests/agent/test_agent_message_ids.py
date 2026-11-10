@@ -6,6 +6,7 @@ the final messages, in each `ModelEvent`'s input and output, in each
 `ToolEvent`, and in the log read back (`.eval` and `.json`) must agree.
 """
 
+import base64
 import contextlib
 import json
 from pathlib import Path
@@ -2997,11 +2998,17 @@ def test_host_result_links_to_the_answer_whatever_its_content() -> None:
     assert ids == ["result-0"]
 
 
+_TOO_DEEP = base64.b64encode(("[" * 300 + "]" * 300).encode()).decode()
+
 _LITERAL_MARKERS = {
     "unpadded": "The marker is <content-internal>example</content-internal>.",
     "not_utf8": "<content-internal>abcd</content-internal> is the marker",
     "not_json": "Wrap it as <content-internal>bm90IGpzb24=</content-internal>.",
     "unpaired": "Open with <content-internal> and close with </content-internal>.",
+    # decodes, but the value can't be a content object's `internal`
+    "too_deep": f"See <content-internal>{_TOO_DEEP}</content-internal>.",
+    "think_too_deep": f'See <think internal="{_TOO_DEEP}">quoted</think> here.',
+    "think_not_json": '<think internal="bm90IGpzb24=">quoted</think> is the marker',
 }
 
 
@@ -3075,9 +3082,9 @@ def _wire_text(dialect: Dialect, turns: list[dict[str, Any]]) -> str:
 async def test_literal_internal_marker_is_text_in_every_dialect(
     dialect: Dialect, literal: str
 ) -> None:
-    """Text quoting the content-internal marker is delivered and kept as written.
+    """Text quoting an internal-state marker is delivered and kept as written.
 
-    Only a marker body the bridge itself encoded is internal state; recognizing
+    Only a marker the bridge itself encoded is internal state; recognizing
     the reply when the scaffold sends it back must not reject or alter a reply
     or prompt that merely contains the marker (Google, which carries internal
     state natively, is the control).

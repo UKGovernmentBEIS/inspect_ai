@@ -277,6 +277,16 @@ def test_parse_content_with_internal_deeply_nested_body_is_literal():
     assert parse_content_with_internal(s, "internal") == (s, None)
 
 
+def test_parse_content_with_internal_body_that_cannot_be_content_is_literal():
+    """A body that decodes but can't be a content object's `internal` stays text."""
+    deep = base64.b64encode(("[" * 300 + "]" * 300).encode()).decode("utf-8")
+    s = f"see <internal>{deep}</internal>\n<internal>{encode_internal({'a': 1})}</internal>"
+    assert parse_content_with_internal(s, "internal") == (
+        f"see <internal>{deep}</internal>",
+        {"a": 1},
+    )
+
+
 def test_parse_content_with_internal_quoted_opening_marker_keeps_encoded():
     s = f"Use the <internal> marker.\n<internal>{encode_internal({'a': 1})}</internal>"
     assert parse_content_with_internal(s, "internal") == (
