@@ -581,10 +581,10 @@ def _same_client(a: Model, b: Model) -> bool:
     return (
         type(a.api) is type(b.api)
         and a.api.model_name == b.api.model_name
-        and _normalized_endpoint(a.api._client_endpoint())
-        == _normalized_endpoint(b.api._client_endpoint())
         and a.api.api_key == b.api.api_key
         and a.model_args == b.model_args
+        and _normalized_endpoint(a.api._client_endpoint())
+        == _normalized_endpoint(b.api._client_endpoint())
     )
 
 

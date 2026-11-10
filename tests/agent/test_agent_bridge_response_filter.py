@@ -3095,6 +3095,52 @@ def test_same_client_compares_the_endpoint_each_client_resolved(
     assert _same_client(judge, bridged) == (endpoints not in ("endpoint", "account"))
 
 
+@pytest.mark.parametrize(
+    ("a", "b", "same"),
+    [
+        ("https://api.example.com/v1", "HTTPS://API.Example.com:443/v1/", True),
+        ("http://localhost:80/v1", "http://localhost/v1", True),
+        ("https://api.example.com/v1#frag", "https://api.example.com/v1", True),
+        ("https://api.example.com/v1", "https://api.example.com/V1", False),
+        ("https://api.example.com/v1", "https://api.example.com:8443/v1", False),
+        ("https://api.example.com/v1", "http://api.example.com/v1", False),
+        ("https://u:p@api.example.com/v1", "https://api.example.com/v1", False),
+        ("https://api.example.com/v1?t=a", "https://api.example.com/v1?t=b", False),
+        ("http://[::1]:8000/v1", "http://[::1]:8000/v1/", True),
+    ],
+)
+def test_normalized_endpoint_keeps_what_can_name_another_endpoint(
+    a: str, b: str, same: bool
+) -> None:
+    from inspect_ai.agent._bridge.util import _normalized_endpoint
+
+    assert (_normalized_endpoint(a) == _normalized_endpoint(b)) == same
+
+
+def test_same_client_with_an_unresolved_lazy_vllm_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A lazy vLLM model whose server is not yet resolved has no client to read.
+
+    It is not the client of one whose server is resolved, and comparing them
+    doesn't fail.
+    """
+    from inspect_ai.agent._bridge.util import _same_client
+    from inspect_ai.model._providers.vllm import VLLMAPI
+
+    monkeypatch.setattr("inspect_ai.model._providers.vllm._vllm_servers", {})
+    monkeypatch.setenv("VLLM_BASE_URL", "http://localhost:8000/v1")
+    resolved = get_model("vllm/meta/llama", memoize=False)
+    unresolved = get_model("vllm/meta/llama", memoize=False)
+    assert isinstance(resolved.api, VLLMAPI)
+    resolved.api._resolve_server()
+
+    assert resolved.model_args == unresolved.model_args
+    assert not hasattr(unresolved.api, "client")
+    assert not _same_client(unresolved, resolved)
+    assert not _same_client(resolved, unresolved)
+
+
 RegenerationConfig = Literal[
     "none",
     "temperature",
