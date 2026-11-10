@@ -354,7 +354,7 @@ async def test_collect_model_events_collects_the_blocks_own_generations(
     ]
     assert [g.event.input[0].text for g in inner] == ["inner", "inner task"]
     assert all(g.event.pending is None for g in outer)
-    assert all(g.api is model.api for g in outer)
+    assert all(g.model is model for g in outer)
     assert len(_model_events()) == (1 if with_sink else 4)
     assert outside[0].message.id not in [g.event.output.message.id for g in outer]
 

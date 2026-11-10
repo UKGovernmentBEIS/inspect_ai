@@ -2849,15 +2849,19 @@ async def test_response_filter_regeneration_edit_or_other_model_is_an_edit(
         assert _pending_container_for_input([regenerated.message]) == CONTAINER_ID
 
 
-@pytest.mark.parametrize("client", ["bridged", "endpoint", "account", "other_name"])
+@pytest.mark.parametrize(
+    "client",
+    ["bridged", "config", "endpoint", "account", "model_args", "other_name"],
+)
 async def test_response_filter_regeneration_keeps_replay_state_only_from_bridged_client(
     client: str,
 ) -> None:
     """Only the bridged Anthropic client's own regeneration keeps its id and pending work.
 
-    A client with the bridged model's name but another endpoint or API key
-    ran its server work under another account; its reply is an edit that
-    carries none of that work into the bridged model's next input.
+    A client with the bridged model's name but another endpoint, API key or
+    provider arguments ran its server work under another account; its reply
+    is an edit that carries none of that work into the bridged model's next
+    input. Another generation config is the same client.
     """
     from unittest.mock import patch
 
@@ -2870,6 +2874,17 @@ async def test_response_filter_regeneration_keeps_replay_state_only_from_bridged
     match client:
         case "bridged":
             judge = model
+        case "config":
+            judge = get_model(
+                model_name,
+                api_key="primary-key",
+                config=GenerateConfig(temperature=0.9),
+                memoize=False,
+            )
+        case "model_args":
+            judge = get_model(
+                model_name, api_key="primary-key", memoize=False, betas=["other"]
+            )
         case "endpoint":
             judge = get_model(
                 model_name,
@@ -2910,7 +2925,8 @@ async def test_response_filter_regeneration_keeps_replay_state_only_from_bridged
         )
 
     handed = output.message
-    if client == "bridged":
+    if client in ("bridged", "config"):
+        assert judge is model or judge.api is not model.api
         assert handed.id == regenerated.message.id
         assert _pending_container_for_input([handed]) == CONTAINER_ID
     else:

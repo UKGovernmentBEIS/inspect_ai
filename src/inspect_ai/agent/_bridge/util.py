@@ -476,7 +476,8 @@ async def _apply_response_filter(
     provider's own arguments (e.g. `parse_tool_call`'s YAML fallback yields dates)
     are not the filter's to answer for. A call is unchanged if its arguments equal
     (`json_equal`) those of the call with its id in the output or in a generation
-    of the bridged model's, whatever else of the message the filter edited.
+    of the bridged model's client (`_same_client`), whatever else of the message
+    the filter edited.
     """
     candidate = output.model_copy(deep=True)
     try:
@@ -519,7 +520,7 @@ async def _apply_response_filter(
     generations = [
         choice.message
         for generation in filter_events
-        if generation.api is model.api
+        if _same_client(generation.model, model)
         for choice in generation.event.output.choices
     ]
     provider_arguments: dict[str, list[dict[str, Any]]] = {}
@@ -553,6 +554,24 @@ async def _apply_response_filter(
         on_filtered_output(filtered)
     _settle_message_ids(output, filtered, generations)
     return filtered
+
+
+def _same_client(a: Model, b: Model) -> bool:
+    """Whether `a` and `b` call the same provider model at the same endpoint and account.
+
+    Generation config is not part of the client, so a filter regenerating with
+    another temperature uses the bridged model's client. Provider arguments
+    (`model_args`, e.g. an OpenAI organization or a cloud region) are.
+    """
+    if a.api is b.api:
+        return True
+    return (
+        type(a.api) is type(b.api)
+        and a.api.model_name == b.api.model_name
+        and a.api.base_url == b.api.base_url
+        and a.api.api_key == b.api.api_key
+        and a.model_args == b.model_args
+    )
 
 
 def _is_unchanged(

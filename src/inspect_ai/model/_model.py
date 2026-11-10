@@ -2180,7 +2180,7 @@ class Model:
                 sink.on_complete(event)
             for collector in collectors:
                 if collector.events is not None:
-                    collector.events.append(CollectedGeneration(event, self.api))
+                    collector.events.append(CollectedGeneration(event, self))
 
         # if we have output then complete it now
         if output:
@@ -3171,8 +3171,8 @@ class CollectedGeneration(NamedTuple):
     """A generation collected by `collect_model_events`."""
 
     event: "ModelEvent"
-    api: ModelAPI
-    """The client that made it (models sharing a name can differ in endpoint or account)."""
+    model: "Model"
+    """The model that made it (models sharing a name can differ in endpoint or account)."""
 
 
 class _ModelEventCollector:
