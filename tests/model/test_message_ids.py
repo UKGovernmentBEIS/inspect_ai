@@ -4,7 +4,12 @@ import pytest
 from test_helpers.message_ids import assert_message_ids, edited_id, shown
 
 from inspect_ai import Task, eval
-from inspect_ai._util.content import Content, ContentReasoning, ContentText
+from inspect_ai._util.content import (
+    Content,
+    ContentImage,
+    ContentReasoning,
+    ContentText,
+)
 from inspect_ai.dataset import Sample
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.model import (
@@ -424,6 +429,133 @@ def test_tool_model_input_editing_content_in_place_derives_ids() -> None:
     assert older[0].id == edited_id(first.id, older[0])
     assert again[0].id == older[0].id
     assert first.text == "full result"
+
+
+_SCREENSHOT = "data:image/png;base64," + "A" * 100_000
+
+
+def _screenshot_results(count: int) -> list[ChatMessage]:
+    return [
+        ChatMessageTool(
+            content=[ContentText(text=f"step {n}"), ContentImage(image=_SCREENSHOT)],
+            tool_call_id=f"c{n}",
+            function="computer",
+        )
+        for n in range(count)
+    ]
+
+
+def _prepared_hash_bytes(messages: list[ChatMessage]) -> int:
+    """Bytes `content_hash` hashes preparing `messages` for a model without tool result images."""
+    from unittest.mock import patch
+
+    from inspect_ai._util.hash import mm3_hash
+    from inspect_ai.model import _message_ids
+    from inspect_ai.model._model import tool_result_media_as_user_message
+    from inspect_ai.tool._tools._computer._computer import _computer_model_input
+
+    async def computer(action: str) -> str:
+        """Use the computer.
+
+        Args:
+          action: The action.
+        """
+        return action
+
+    tdef = ToolDef(computer, model_input=_computer_model_input(max_screenshots=1))
+    hashed = 0
+
+    def counting_hash(value: str) -> str:
+        nonlocal hashed
+        hashed += len(value)
+        return mm3_hash(value)
+
+    with patch.object(_message_ids, "mm3_hash", counting_hash):
+        resolved = resolve_tool_model_input(
+            [tdef], messages, {"disable_computer_screenshot_truncation": False}
+        )
+        tool_result_media_as_user_message(resolved, (ContentImage,))
+    return hashed
+
+
+def test_tool_model_input_does_not_hash_removed_screenshots() -> None:
+    """Preparing a call hashes the screenshots kept for the model, not every one in the history.
+
+    Each call runs the model input handler over every result, so hashing each
+    source to tell whether the handler changed it made a run's preparation
+    quadratic in its screenshots.
+    """
+    few = _prepared_hash_bytes(_screenshot_results(4))
+    many = _prepared_hash_bytes(_screenshot_results(64))
+
+    assert many - few < len(_SCREENSHOT)
+
+
+class _Label(str):
+    pass
+
+
+@pytest.mark.parametrize(
+    "a,b",
+    [
+        ("x", "x"),
+        ("x", "y"),
+        (1, 1.0),
+        (True, 1),
+        (0.0, -0.0),
+        (float("nan"), float("nan")),
+        (None, "null"),
+        ([1, "x"], (1, "x")),
+        ([1], [1, 1]),
+        ({"a": 1, "b": 2}, {"b": 2, "a": 1}),
+        ({"1": "x"}, {1: "x"}),
+        ({"a": [1.5]}, {"a": [1.5]}),
+        (_Label("x"), "x"),
+        (["x"], ["x", None]),
+    ],
+)
+def test_same_content_agrees_with_content_hash(a: object, b: object) -> None:
+    import json
+
+    from inspect_ai.model._message_ids import _dumps_equal
+
+    assert _dumps_equal(a, b) == (
+        json.dumps(a, default=str) == json.dumps(b, default=str)
+    )
+
+
+def test_tool_model_input_editing_an_image_in_place_derives_an_id() -> None:
+    async def computer(action: str) -> str:
+        """Use the computer.
+
+        Args:
+          action: The action.
+        """
+        return action
+
+    def downscale(
+        index: int,
+        total: int,
+        content: str | list[Content],
+        hints: ToolCallModelInputHints,
+    ) -> str | list[Content]:
+        assert isinstance(content, list)
+        for item in content:
+            if isinstance(item, ContentImage):
+                item.image = "data:image/png;base64,c21hbGw="
+        return content
+
+    tdef = ToolDef(computer, model_input=downscale)
+    message = _screenshot_results(1)[0]
+
+    resolved = resolve_tool_model_input(
+        [tdef], [message], {"disable_computer_screenshot_truncation": False}
+    )
+
+    assert resolved[0].id == edited_id(message.id, resolved[0])
+    assert resolved[0].id != message.id
+    assert isinstance(message.content, list)
+    assert message.content[1] == ContentImage(image=_SCREENSHOT)
 
 
 @pytest.mark.parametrize(

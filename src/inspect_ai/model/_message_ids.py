@@ -115,13 +115,12 @@ def with_edited_id(
     recorded under the source's id (Anthropic's pending server work) unless
     `keep_provider_state` is False.
     """
-    content = content_hash(edited)
     if source.id is None:
         edited.id = shortuuid()
-    elif content == content_hash(source):
+    elif same_content(source, edited):
         edited.id = source.id
     else:
-        edited.id = edit_id(source.id, content)
+        edited.id = edit_id(source.id, content_hash(edited))
         if keep_provider_state and isinstance(source, ChatMessageAssistant):
             copy_assistant_internal(source.id, edited.id)
     return edited
@@ -176,39 +175,87 @@ def content_hash(message: ChatMessage) -> str:
     equals the same text as a content list. Empty text shows nothing, so an
     empty string, an empty list and a list with an empty text part are equal.
     """
+    return mm3_hash(json.dumps(_shown(message), default=str))
+
+
+def same_content(a: ChatMessage, b: ChatMessage) -> bool:
+    """Whether `a` and `b` have the same `content_hash`, without hashing them.
+
+    Compares what each shows rather than serializing it, so a check of a
+    message holding inline media against an edit sharing or dropping that
+    media does not serialize the media.
+    """
+    return _dumps_equal(_shown(a), _shown(b))
+
+
+def _shown(message: ChatMessage) -> list[Any]:
+    """What `content_hash` hashes."""
     items = shown_content(message.content)
-    return mm3_hash(
-        json.dumps(
+    return [
+        message.role,
+        [
+            ["text", item.text]
+            if isinstance(item, ContentText)
+            else ["reasoning", item.reasoning, item.summary, item.redacted]
+            if isinstance(item, ContentReasoning)
+            else item.model_dump(exclude_none=True, exclude={"internal"})
+            for item in items
+        ],
+        [
             [
-                message.role,
-                [
-                    ["text", item.text]
-                    if isinstance(item, ContentText)
-                    else ["reasoning", item.reasoning, item.summary, item.redacted]
-                    if isinstance(item, ContentReasoning)
-                    else item.model_dump(exclude_none=True, exclude={"internal"})
-                    for item in items
-                ],
-                [
-                    [
-                        call.id,
-                        call.type,
-                        call.function,
-                        canonical_tool_arguments(call.arguments),
-                    ]
-                    for call in message.tool_calls or []
-                ]
-                if isinstance(message, ChatMessageAssistant)
-                else None,
-                [
-                    message.tool_call_id,
-                    [message.error.type, message.error.message]
-                    if message.error
-                    else None,
-                ]
-                if isinstance(message, ChatMessageTool)
-                else None,
-            ],
-            default=str,
-        )
-    )
+                call.id,
+                call.type,
+                call.function,
+                canonical_tool_arguments(call.arguments),
+            ]
+            for call in message.tool_calls or []
+        ]
+        if isinstance(message, ChatMessageAssistant)
+        else None,
+        [
+            message.tool_call_id,
+            [message.error.type, message.error.message] if message.error else None,
+        ]
+        if isinstance(message, ChatMessageTool)
+        else None,
+    ]
+
+
+_JSON_SCALARS = (int, float, bool, type(None))
+
+
+def _json_kind(value: Any) -> str | None:
+    """The kind of JSON `value` serializes as, or `None` if another type (`default=str`)."""
+    if type(value) is str:
+        return "string"
+    if type(value) in (list, tuple):
+        return "array"
+    if type(value) is dict:
+        return "object"
+    if type(value) in _JSON_SCALARS:
+        return "scalar"
+    return None
+
+
+def _dumps_equal(a: Any, b: Any) -> bool:
+    """Whether `json.dumps(a, default=str) == json.dumps(b, default=str)`.
+
+    Strings, lists and string-keyed dicts are compared in place (a list or
+    dict serializes as its members' serializations in order), and values of
+    different JSON kinds never serialize alike; anything else is serialized.
+    """
+    kind_a, kind_b = _json_kind(a), _json_kind(b)
+    if kind_a is not None and kind_b is not None and kind_a != kind_b:
+        return False
+    if kind_a == "string" and kind_b == "string":
+        return bool(a == b)
+    if kind_a == "array" and kind_b == "array":
+        return len(a) == len(b) and all(_dumps_equal(x, y) for x, y in zip(a, b))
+    if (
+        kind_a == "object"
+        and kind_b == "object"
+        and all(type(key) is str for key in a)
+        and all(type(key) is str for key in b)
+    ):
+        return list(a) == list(b) and all(_dumps_equal(a[key], b[key]) for key in a)
+    return json.dumps(a, default=str) == json.dumps(b, default=str)
