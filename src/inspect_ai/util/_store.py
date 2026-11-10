@@ -198,10 +198,10 @@ def store_from_events(events: list["Event"]) -> Store:
     Only processes StoreEvents from root-level spans (which encompass
     all nested changes) to avoid redundant replay. A root-level span or
     StoreEvent that begins while an earlier root-level span is still open
-    is skipped too, since that span's StoreEvent covers its changes: the
-    control channel's interim scoring runs in a fresh context, so the spans
-    its scorers open have no parent. A span with no end (an in-progress
-    sample) stays open to the end of the events.
+    is skipped too, since that span's StoreEvent covers the changes made
+    before it ends: the control channel's interim scoring runs in a fresh
+    context, so the spans its scorers open have no parent. A span with no
+    end (an in-progress sample) stays open to the end of the events.
 
     Args:
         events: List of Event objects (typically from EvalSample.events).
@@ -212,6 +212,8 @@ def store_from_events(events: list["Event"]) -> Store:
     from inspect_ai.event._store import StoreEvent
     from inspect_ai.event._tree import EventTreeSpan, event_tree
 
+    # one pass's objects for both the tree and the positions
+    events = list(events)
     tree = event_tree(events)
     data: dict[str, Any] = {}
 

@@ -596,6 +596,29 @@ def test_top_level_span_inside_another_is_not_replayed() -> None:
     assert dict(store_from_events(events).items()) == solved
 
 
+def test_unended_top_level_span_stays_open() -> None:
+    """Nothing that begins inside an unended top-level span is replayed.
+
+    An in-progress sample's `solvers` span has no end (and no StoreEvent), so
+    the store is the one its earlier top-level spans left.
+    """
+    init_begin, init_end = _make_span("init")
+    solvers_begin, _ = _make_span("solvers")
+    interim_begin, interim_end = _make_span("interim")
+    events: list[Event] = [
+        init_begin,
+        _make_store_event([{"op": "add", "path": "/a", "value": 1}], "init"),
+        init_end,
+        solvers_begin,
+        interim_begin,
+        _make_store_event([{"op": "add", "path": "/b", "value": 2}], "interim"),
+        interim_end,
+        _make_store_event([{"op": "add", "path": "/c", "value": 3}]),
+    ]
+
+    assert dict(store_from_events(events).items()) == {"a": 1}
+
+
 # End-to-end tests: Run eval, write log, re-hydrate store from events
 
 
