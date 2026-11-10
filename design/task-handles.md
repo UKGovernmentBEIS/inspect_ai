@@ -270,6 +270,7 @@ class CreatorChannel(SampleSource):
     enqueuer: SampleEnqueuer | None    # the running attempt's buffer, while one runs
     held: list[PortRequest]            # sent while no attempt runs, or unsettled when one ended
     requests: dict[str, PortRequest]   # by the id the running attempt gave the sample, until settled
+    completed: list[tuple[str, Sample]]  # admitted id and sample copy of each request settled with clean runs
     closed: bool
     stopped: bool                      # a drain, score or error cancel
     pushed: Wake
@@ -316,8 +317,11 @@ class PortRequest:
   returned with its `error`), and `sample_abandoned` fails it with
   `SampleAbandonedError`; both return `None`, and both ignore an id no
   request holds (a record reused from a prior attempt, whose request settled
-  then). A future already resolved keeps its first value. A request leaves `requests` once every epoch has settled, so
-  the channel holds no sample or result after its call returns.
+  then). A future already resolved keeps its first value. A request leaves
+  `requests` once every epoch has settled. If every epoch completed without
+  error, its admitted id and sample copy move to `completed`, for a setup
+  retry to accept (below); the channel keeps no result after the call
+  returns.
 - **Dropped by selection.** `add_samples` collects the samples it drops for
   `--sample-id` or `--limit`, and `add_and_start` passes them to the
   channel's `samples_dropped()` (only a `CreatorChannel` has it), which fails
@@ -333,32 +337,56 @@ class PortRequest:
   attempt's channels in the step it gives its slot back) and `RunQueue.end`.
   A creator that forgets to close cannot keep a rollout task open past its own
   attempt.
-- **Retries.** `run_one` retries a task fed by its creator only when the
-  attempt failed in sandbox setup: `options.setups.failure()` is set, which
-  covers a failure before the attempt started (`TaskRunOptions.setup_error`)
-  and one while delivering, when `setups.ensure()` for a sent sample raised
-  and failed the task. Either way the unsettled requests are back in `held`
-  (above) and reach the retry, whose setups re-run the failed job under the
-  setup retry rule (`request_retry()` before it starts, or `ensure()` when the
-  sample is delivered again; a job that failed for attempt 1 is re-run for
-  attempt 2), where a fresh task would join the cached failure. The retry's
-  prior sample source is the failed attempt's log, chosen by `run_one` as for
-  any other retry of a dynamic feed (`eval_log_sample_source` when the
-  attempt wrote its destination). With no upfront plan, `seed_from_prior`
-  copies every prior record into the retry's log, so settled requests' runs
-  stay in the log and are not sent again; unsettled requests are sent again
-  and run fresh under new generated ids, which no prior record shares. The
-  rest is today's dynamic-feed retry, unchanged: seeded records count in the
-  retry's results as reused records do (`note_reused_sample`), a record left
-  by a sample that was running when the task unwound is copied like any
-  other, and a request whose epochs had only partly settled is sent again
-  whole, as an anonymous sample its source adds again after a retry runs again
-  today. Any other failure ends the task with its error log, and its
-  unresolved requests fail with `TaskEndedError`; the creator holds
-  the search state and decides whether to add a fresh task. `run_one` passes
-  `can_retry=False` to `_run_task` for such a task, so a retry the task
-  requests itself through its `TaskCancel` is not honoured, as for a task with
-  no retries left.
+- **Retries.** A task fed by its creator is retried only when the attempt
+  failed in sandbox setup: `options.setups.failure()` is set, which covers a
+  failure before the attempt started (`TaskRunOptions.setup_error`) and one
+  while delivering, when `setups.ensure()` for a sent sample raised and failed
+  the task. Its setups re-run the failed job under the setup retry rule
+  (`request_retry()` before it starts, or `ensure()` when a sample is
+  delivered again; a job that failed for attempt 1 is re-run for attempt 2),
+  where a fresh task would join the cached failure. Any other failure ends
+  the task with its error log, and its unresolved requests fail with
+  `TaskEndedError`; the creator holds the search state and decides whether to
+  add a fresh task.
+  - *Eligibility.* `TaskRunOptions.setup_retry_only` is set for such a task.
+    `run_one` passes `can_retry` from the remaining budget, as today, so the
+    existing pre-mark still guards the window between the error log and the
+    attempt's end. With `setup_retry_only`, `finish_task_log` writes that
+    pre-mark (`mark_eval_retry_pending`) only when `options.setups.failure()`
+    is set and the task did not request a retry itself, and registration
+    reports `will_retry` only when `setup_error` is set. `run_one`'s retry
+    decision then requires an error log, `options.setups.failure()`, no
+    task-requested retry (`cancel_type` of `None`), remaining budget and no
+    abandon stamp (today's `task_retry_abandoned` check). So a cancel or drain
+    while `TaskSource.task_complete` runs after the setup failure finds the
+    task between attempts, stamps it, and the retry is abandoned with the
+    error log kept, as for any retry today. A retry the task requests through
+    its `TaskCancel` ends the attempt as an abort does, with no retry.
+  - *What the retry receives.* The unsettled requests are back in `held`
+    (above). The prior sample source is the failed attempt's log, chosen by
+    `run_one` as for any retry of a dynamic feed (`eval_log_sample_source`
+    when the attempt wrote its destination), and `seed_from_prior` copies its
+    records into the retry's log. Copying alone does not count a record:
+    a seeded record enters the results only when a scheduled run's lookup
+    accepts it (`note_reused_sample`, in the reuse path of `task_run_sample`),
+    and `log_finish` prunes the rest on success. So when the retry attaches,
+    the channel also puts each `completed` request back in the buffer under
+    its admitted id from the earlier attempt, ahead of `held`. That id is an
+    explicit id now, never one the retry generates (its token differs), so
+    `reserve_runs` admits it; each of its runs finds its clean prior record,
+    which the reuse path accepts without running the sample, scores and
+    counts as reused today, and the record stays in the log. Its
+    `sample_complete` finds no pending request for that id and is ignored.
+    Unsettled requests are sent again without an id and run fresh under new
+    generated ids, which no prior record shares.
+  - *Everything else is today's dynamic-feed retry.* A request settled with an
+    errored or abandoned run is not put back, so its seeded record is pruned
+    on success, as for a sample its source does not add again; a record left
+    by a sample that was running when the task unwound is copied and pruned
+    the same way; and a request whose epochs had only partly settled is sent
+    again whole, as an anonymous sample its source adds again after a retry
+    runs again today. Replayed runs count against `--limit` as reused runs
+    do.
 - **The log says so.** A new `EvalSpec` field, `send_samples: bool = False`,
   after `task_args_passed`: "the task's dataset was samples_from_creator(),
   so its samples were sent by the task that added it". The `TaskLogger` sets
@@ -571,8 +599,10 @@ test touched), with mockllm models; every test that waits is bounded with
     re-runs for attempt 2 rather than the cached failure being joined, A's
     record is copied into the retry's log and A is not sent again (a solver
     spy sees A run once), B survives in `held` and settles with its run from
-    the retry under a new generated id, and after the eval set's cleanup the
-    surviving log holds A and B and its metrics count both;
+    the retry under a new generated id, and A's record is accepted as reused
+    in the retry (a spy on `note_reused_sample`); after a successful finish and
+    the eval set's cleanup the surviving log holds A and B and its metrics
+    count both;
   - a detached task started in a creator's solver, released after the
     creator's attempt has given its slot back while another task keeps the run
     open, calls `enqueue_task()` with a `samples_from_creator()` task: it
@@ -583,8 +613,14 @@ test touched), with mockllm models; every test that waits is bounded with
     unresolved requests raise `TaskEndedError` with its error log; a retry the
     task requests itself is not honoured;
   - the creator's attempt ending closes its channels and the rollout task ends;
-  - retention: after many requests, the channel holds no request, sample or
-    result once each call has returned;
+  - retention: after many requests, the channel holds no request or result
+    once each call has returned, and keeps only the admitted id and sample
+    copy of requests settled with clean runs;
+  - a setup-failure retry with `TaskSource.task_complete` held on an event:
+    a handle `cancel()`, a control-channel cancel and a drain, each landing
+    there, find the task between attempts, abandon the automatic retry, keep
+    the error log and start no second setup attempt; a retry the fed task
+    requests itself ends it with its error log;
   - `eval.send_samples` is set in the rollout's log while unfinished and when
     finished, and `False` for every other task and every existing log.
 
@@ -599,10 +635,12 @@ path the retry rule and loans rely on):
    `next_tasks()` `ContextVar`, `enqueue_task()` returning handles and
    passing its creator), `_eval/task/sample_source.py` (`CreatorChannel`,
    `samples_from_creator()`), `_eval/task/run.py` (attach and detach the
-   channel where the `SampleEnqueuer` is registered and cleared; the dropped
-   samples and admitted ids from `add_samples`), `_eval/run.py` (`_attempt` set in `run_one`;
+   channel where the `SampleEnqueuer` is registered and cleared, replaying
+   `completed` requests under their admitted ids into a setup retry; the
+   dropped samples and admitted ids from `add_samples`; the pre-mark and
+   `will_retry` conditions under `setup_retry_only`), `_eval/run.py` (`_attempt` set in `run_one`;
    loans in the dispatcher and in `run_one`'s slot release; channels closed
-   with the creator's attempt; the retry rule for fed tasks; `channel.stop()`
+   with the creator's attempt; the retry rule for fed tasks through `TaskRunOptions.setup_retry_only`; `channel.stop()`
    from the `cancel_task` callback), `_eval/task/log.py` and `log/_log.py`
    (`EvalSpec.send_samples`), `_eval/eval.py` (the `eval_resolve_tasks` and
    `eval_retry()` refusals; `max_tasks`, `max_samples` and `max_sandboxes`
