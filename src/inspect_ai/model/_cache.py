@@ -345,19 +345,18 @@ def _cache_key_message(message: ChatMessage) -> dict[str, Any]:
     """A request message as the cache key sees it.
 
     A tool message's metadata annotation set with `set_unkeyed_metadata` is
-    left out. A message without a record of its earlier metadata (one read back
-    from a log, or whose metadata changed after it was annotated) has the
+    left out. Otherwise (a message read back from a log, or whose metadata
+    changed after it was annotated, perhaps then annotated again) the
     `metadata["bridge"]["proposal_id"]` annotation and the containers that
-    leaves empty removed instead.
+    leaves empty are removed.
     """
     exclude: Any = {"id": True, "content": {"__all__": {"cache_breakpoint"}}}
+    keyed_message = message
     if isinstance(message, ChatMessageTool) and message._keyed_metadata is not None:
         annotated, keyed = message._keyed_metadata
         if message.metadata == annotated:
-            return message.model_copy(update={"metadata": keyed}).model_dump(
-                exclude=exclude
-            )
-    values = message.model_dump(exclude=exclude)
+            keyed_message = message.model_copy(update={"metadata": keyed})
+    values = keyed_message.model_dump(exclude=exclude)
     metadata = values.get("metadata")
     if message.role == "tool" and isinstance(metadata, dict):
         bridge = metadata.get("bridge")

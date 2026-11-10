@@ -10069,6 +10069,17 @@ async def test_a_results_proposal_annotation_leaves_the_requests_cache_key() -> 
         result.metadata = {**result.metadata, "note": 2}
         assert key() != unnamed_key
 
+    # annotated again after an edit, the edit stays in the key and the earlier
+    # annotation doesn't
+    result.metadata = {"note": 4}
+    edited_key = key()
+    result.metadata = {"note": 3}
+    name_proposal(result, "call_read")
+    result.metadata = {**result.metadata, "note": 4}
+    name_proposal(result, "call_other")
+    assert result.metadata == {"note": 4, "bridge": {"proposal_id": "call_other"}}
+    assert key() == edited_key
+
     # a copy keeps its key; read back from a log, it is keyed as unannotated
     # metadata of None
     result.metadata = {"bridge": {}}
