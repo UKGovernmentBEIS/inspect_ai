@@ -375,7 +375,13 @@ class SandboxAgentBridge(AgentBridge):
         With `arguments` `None` (not an object, or nested too deep to read),
         the call may repeat any call of the tool. A request naming no bridged
         tool repeats no proposal, since none can denote it.
+
+        The argument keys are computed only when a recorded call or pending
+        grant of the tool exists: hashing serializes the whole arguments, and
+        a large denied call that can repeat nothing shouldn't pay for that.
         """
+        if not self._has_recorded_calls(server, tool):
+            return
         keys = (
             self._call_keys(server, tool, arguments) if arguments is not None else None
         )
@@ -405,6 +411,22 @@ class SandboxAgentBridge(AgentBridge):
                 )
             ):
                 self._unlink(grant.proposal.reply.reply.id)
+
+    def _has_recorded_calls(self, server: str, tool: str) -> bool:
+        """Whether any executed call or pending grant of (server, tool) is recorded for `unlink_denied_call`."""
+        return (
+            (server, tool) in self._executed_tools
+            or any(
+                (recorded_server, recorded_tool) == (server, tool)
+                for recorded_server, recorded_tool, _ in self._executed_calls
+            )
+            or any(
+                grant.server == server
+                and grant.tool == tool
+                and grant.proposal.reply is not None
+                for grant in self._tool_execution_grants
+            )
+        )
 
     def _record_execution(self, grant: "_ToolExecutionGrant") -> None:
         """Check and record the evidence an execution consuming `grant` gives.
