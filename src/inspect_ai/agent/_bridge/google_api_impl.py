@@ -687,6 +687,18 @@ def _extract_model_parts(
                 )
             )
 
+    if embedded_capsule and not tool_calls:
+        content_parts.insert(
+            0,
+            ContentReasoning(
+                reasoning=embedded_capsule.reasoning,
+                signature=embedded_capsule.signature,
+                redacted=embedded_capsule.redacted,
+                summary=embedded_capsule.summary,
+                internal=embedded_capsule.internal,
+            ),
+        )
+
     if content_parts:
         return content_parts, tool_calls
     return None, tool_calls
