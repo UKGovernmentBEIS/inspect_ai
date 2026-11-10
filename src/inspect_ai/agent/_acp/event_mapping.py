@@ -135,7 +135,7 @@ class _BridgeToolState:
     tool_event_ids: set[str] | None = None
     tool_results: dict[str, ChatMessageTool] | None = None
     answered_calls: dict[str, ToolCall] = field(default_factory=dict)
-    """Replay: the call each of ``tool_results`` answers (`_answered_call`)."""
+    """Replay: the call each of ``tool_results`` answers (`_answered_calls`)."""
 
     @property
     def replay(self) -> bool:
@@ -155,7 +155,7 @@ def _scan_bridge_tool_facts(events: Sequence[Event]) -> _BridgeToolFacts:
     Returns the ids that have a real ``ToolEvent`` (react calls — never
     synthesized), a map of ``tool_call_id`` → result message (gathered from
     every ``ModelEvent.input``) used to render the completed card, and the call
-    each result answers in that input (`_answered_call`), keyed alike. Scanning
+    each result answers in that input (`_answered_calls`), keyed alike. Scanning
     the full snapshot is a safe superset — a call with a ``ToolEvent`` is never
     synthesized, and a top-level call's result lives in a top-level input.
     """
@@ -166,6 +166,7 @@ def _scan_bridge_tool_facts(events: Sequence[Event]) -> _BridgeToolFacts:
         if isinstance(event, ToolEvent):
             tool_event_ids.add(event.id)
         elif isinstance(event, ModelEvent):
+            calls: list[ToolCall | None] | None = None
             for index, msg in enumerate(event.input):
                 if (
                     isinstance(msg, ChatMessageTool)
@@ -173,29 +174,36 @@ def _scan_bridge_tool_facts(events: Sequence[Event]) -> _BridgeToolFacts:
                     and msg.tool_call_id not in tool_results
                 ):
                     tool_results[msg.tool_call_id] = msg
-                    answered = _answered_call(event.input, index)
+                    if calls is None:
+                        calls = _answered_calls(event.input)
+                    answered = calls[index]
                     if answered is not None:
                         answered_calls[msg.tool_call_id] = answered
     return _BridgeToolFacts(tool_event_ids, tool_results, answered_calls)
 
 
-def _answered_call(messages: Sequence[ChatMessage], index: int) -> ToolCall | None:
-    """The call the tool result at `messages[index]` answers, as the request carries it.
+def _answered_calls(messages: Sequence[ChatMessage]) -> list[ToolCall | None]:
+    """For each message, the call it answers as the request carries it, if it is a tool result.
 
-    The nearest earlier assistant message's call under the result's id. A
-    scaffold sends the call as it ran it: a sentinel may have modified its
-    arguments.
+    The nearest earlier assistant message's call under the result's id (the
+    first such call in that message). A scaffold sends the call as it ran it:
+    a sentinel may have modified its arguments. One pass over the messages
+    and their calls.
     """
-    result = messages[index]
-    if not isinstance(result, ChatMessageTool) or result.tool_call_id is None:
-        return None
-    for position in range(index - 1, -1, -1):
-        message = messages[position]
+    latest: dict[str, ToolCall] = {}
+    answered: list[ToolCall | None] = []
+    for message in messages:
         if isinstance(message, ChatMessageAssistant):
+            calls: dict[str, ToolCall] = {}
             for call in message.tool_calls or []:
-                if call.id == result.tool_call_id:
-                    return call
-    return None
+                calls.setdefault(call.id, call)
+            latest.update(calls)
+        answered.append(
+            latest.get(message.tool_call_id)
+            if isinstance(message, ChatMessageTool) and message.tool_call_id is not None
+            else None
+        )
+    return answered
 
 
 class SubagentDepthTracker:
@@ -977,14 +985,18 @@ def _map_bridge_tool_completions(
     """
     if not bridge_tool_calls:
         return
+    answered: list[ToolCall | None] | None = None
     for index, msg in enumerate(event.input):
         if not isinstance(msg, ChatMessageTool) or msg.tool_call_id is None:
             continue
         call = bridge_tool_calls.pop(msg.tool_call_id, None)
         if call is None:
             continue
-        answered = _answered_call(event.input, index)
-        yield _settled_card(session_id, call.id, _scaffold_run(call, msg, answered))
+        if answered is None:
+            answered = _answered_calls(event.input)
+        yield _settled_card(
+            session_id, call.id, _scaffold_run(call, msg, answered[index])
+        )
 
 
 def _scaffold_run(
@@ -993,7 +1005,7 @@ def _scaffold_run(
     """The completed run that a scaffold's `result` settles `proposal`'s card with.
 
     The run is of `answered`, the call the result answers as the scaffold ran
-    it (`_answered_call`), or of the proposal when the request doesn't carry
+    it (`_answered_calls`), or of the proposal when the request doesn't carry
     it. The proposal's view is kept when the arguments are the same.
     """
     executed = proposal
