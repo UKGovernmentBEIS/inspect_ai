@@ -305,11 +305,11 @@ def test_single_tool_call_returns_correct_result(
 @skip_if_no_docker
 @pytest.mark.slow
 def test_single_tool_call_with_nonroot_default_user() -> None:
-    """The model service runs as the non-root default user while the proxy runs as root.
+    """The bridge works in a sandbox whose default user is not root.
 
-    The service's request/response queues are private (0700) to the default user;
-    the proxy inside the sandbox-tools daemon runs as root and must still be able to
-    file requests into them and collect the responses.
+    The service's request/response queues are private (0700) to the tools user,
+    root here, which the proxy runs as, so the default user cannot file requests
+    past the proxy.
     """
     call_log: list[dict] = []
 
@@ -339,10 +339,11 @@ def test_single_tool_call_with_nonroot_default_user() -> None:
                         "-c",
                         "stat -c '%U %a' /var/tmp/sandbox-services/bridge_model_service/*/requests "
                         "/var/tmp/sandbox-services/bridge_model_service/*/responses",
-                    ]
+                    ],
+                    user="root",
                 )
                 assert queues.success, queues.stderr
-                assert queues.stdout.split("\n")[:-1] == ["nonroot 700"] * 2, queues
+                assert queues.stdout.split("\n")[:-1] == ["root 700"] * 2, queues
 
             return state
 

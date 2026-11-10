@@ -58,11 +58,7 @@ def server_socket_path(server_dir: Path) -> Path:
 
 
 def ensure_private_server_dir(
-    server_dir: Path,
-    *,
-    create: bool = True,
-    repair_mode: bool = True,
-    mode: int = 0o700,
+    server_dir: Path, *, create: bool = True, repair_mode: bool = True
 ) -> None:
     """Create ``server_dir`` as a private directory, or verify an existing one.
 
@@ -74,7 +70,7 @@ def ensure_private_server_dir(
     (development and tests) falls back to the system temp dir, where other users may
     be able to plant an entry before the server first starts. Either way an existing
     entry is adopted only if it is a real directory (not a symlink) owned by the
-    current effective uid, and by default tightened to ``mode``; an owned directory
+    current effective uid, and by default tightened to mode 0700; an owned directory
     the uid cannot even enter is refused rather than repaired. This holds for root
     and non-root servers alike: a rootless server shares its uid with the sandbox's
     default user, but no other uid in the container may reach its socket or rewrite
@@ -88,27 +84,22 @@ def ensure_private_server_dir(
 
     Args:
         server_dir: The directory to create or verify.
-        create: Create the directory (with ``mode``) when nothing exists at the
-            path. With ``False`` a missing directory raises ``FileNotFoundError``.
-        repair_mode: Set an owned directory to ``mode``. With ``False``, refuse
+        create: Create the directory (mode 0700) when nothing exists at the path.
+            With ``False`` a missing directory raises ``FileNotFoundError``.
+        repair_mode: Tighten an owned directory to 0700. With ``False``, refuse
             other modes because the directory may contain planted content.
-        mode: The directory's mode: 0700, or 0711 for a directory whose files
-            other users may open by name but not list (the bridge token
-            directory). Never writable by group or others.
 
     Raises:
         RuntimeError: An entry exists at the path but cannot be trusted, or the
             directory cannot be created.
         FileNotFoundError: ``create`` is False and nothing exists at the path.
     """
-    if mode not in (0o700, 0o711):
-        raise ValueError(f"Unsupported server directory mode {mode:04o}.")
     if create:
         # The inherited umask filters the requested mode and could leave the new
         # directory without owner permissions, which would then be refused.
-        old_umask = os.umask(0o777 & ~mode)
+        old_umask = os.umask(0o077)
         try:
-            server_dir.mkdir(mode=mode)
+            server_dir.mkdir(mode=0o700)
         except FileExistsError:
             pass
         except OSError as ex:
@@ -133,13 +124,13 @@ def ensure_private_server_dir(
             raise _untrusted_server_dir(
                 server_dir, f"it is owned by uid {info.st_uid}, not uid {expected_uid}"
             )
-        if stat.S_IMODE(info.st_mode) != mode:
+        if stat.S_IMODE(info.st_mode) != 0o700:
             if not repair_mode:
                 raise _untrusted_server_dir(
                     server_dir,
-                    f"it has mode {stat.S_IMODE(info.st_mode):04o}, not {mode:04o}",
+                    f"it has mode {stat.S_IMODE(info.st_mode):04o}, not 0700",
                 )
-            os.fchmod(dir_fd, mode)
+            os.fchmod(dir_fd, 0o700)
     finally:
         os.close(dir_fd)
 

@@ -71,7 +71,6 @@ class SandboxAgentBridge(AgentBridge):
         model_resolver: ModelResolver | None = None,
         forward_client_headers: Mapping[str, Sequence[str]] | None = None,
         response_filter: ModelResponseFilter | None = None,
-        token_file: str | None = None,
     ) -> None:
         super().__init__(
             state,
@@ -90,7 +89,6 @@ class SandboxAgentBridge(AgentBridge):
             response_filter=response_filter,
         )
         self.port = port
-        self.token_file = token_file
         self.mcp_server_configs = mcp_server_configs or []
         self.bridged_tools = {}
         self.served_tools = {}
@@ -110,22 +108,6 @@ class SandboxAgentBridge(AgentBridge):
 
     port: int
     """Model proxy server port."""
-
-    token_file: str | None
-    """File in the sandbox holding the token the model proxy requires, if any.
-
-    Set when the bridge runs inside a sandbox identity scope for its sandbox.
-    The file holds 64 hex characters, is readable only by the scope's user (and
-    root), and exists while the bridge runs. Send its contents as an
-    `Authorization: Bearer` token, `x-api-key` or `x-goog-api-key`; the proxy
-    refuses other requests with HTTP 401. Send it only to `127.0.0.1`, where the
-    proxy listens (for example `OPENAI_BASE_URL=http://127.0.0.1:13131/v1`):
-    `localhost` can resolve to `::1`, where another user may listen on the same
-    port. The bridged-tools MCP configs send
-    `Authorization: Bearer ${INSPECT_BRIDGE_TOKEN}` to `127.0.0.1`, expanded by
-    the client from its environment. `None` outside a scope, where the proxy
-    accepts any request.
-    """
 
     mcp_server_configs: list[MCPServerConfigHTTP]
     """MCP server configs for bridged tools (resolved from bridged_tools parameter)."""
