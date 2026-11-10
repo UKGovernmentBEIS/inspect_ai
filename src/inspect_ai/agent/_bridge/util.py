@@ -1,6 +1,7 @@
 import inspect
 import json
 import warnings
+from collections import Counter
 from contextlib import AbstractContextManager, contextmanager, nullcontext
 from contextvars import ContextVar
 from logging import getLogger
@@ -58,6 +59,8 @@ from inspect_ai.model._assistant_internal import (
     bridge_replay_scope,
     carry_generation_assistant_internal,
     generation_assistant_internal,
+    share_call_ids,
+    shared_call_ids,
 )
 from inspect_ai.model._call_tools import get_tools_info
 from inspect_ai.model._chat_message import (
@@ -469,7 +472,9 @@ async def _apply_response_filter(
     takes it for the calls it carries (`carry_generation_assistant_internal`)
     from the returned output, or, when that has none (e.g. the filter rebuilt it
     from its fields), from the generation's output, so its calls replay in their
-    native form. Google reasoning anchors naming no returned call are removed
+    native form. An ID shared in the output the filter received stays shared
+    (`_received_shared_ids`), whether or not that output has replay state.
+    Google reasoning anchors naming no returned call are removed
     (`_drop_orphan_anchors`), so their signatures go on no other part.
 
     Exceptions are classified after unwrapping by hand, not with `inner_exception`,
@@ -521,6 +526,7 @@ async def _apply_response_filter(
         filtered if generation_assistant_internal(filtered) is not None else output,
         validated,
     )
+    share_call_ids(validated, _received_shared_ids(output))
     filtered = validated
     # by id, a list per call, as parallel calls can share an id
     original_arguments: dict[str, list[dict[str, Any]]] = {}
@@ -550,6 +556,30 @@ async def _apply_response_filter(
     _drop_orphan_anchors(filtered)
     _settle_message_ids(output, filtered)
     return filtered
+
+
+def _received_shared_ids(output: ModelOutput) -> set[str]:
+    """The call IDs shared in the output a response filter received.
+
+    Those several of its calls carry, or several of a message's Google reasoning
+    anchors name, with those its replay state records as shared
+    (`shared_call_ids`). A filter keeping one of the calls leaves the ID
+    unshared in what it returns, but the ID's signed anchor may be another
+    call's, so the kept call must still replay without it (`_retarget_anchors`).
+    Taken from the calls and anchors themselves, as the replay state is unknown
+    for, e.g., a request filter's output or an output cached by an older version.
+    """
+    shared = shared_call_ids(output)
+    for choice in output.choices:
+        if isinstance(choice.message.content, str):
+            continue
+        anchored = Counter(_anchor_call_id(part) for part in choice.message.content)
+        shared |= {
+            call_id
+            for call_id, count in anchored.items()
+            if call_id is not None and count > 1
+        }
+    return shared
 
 
 def _drop_orphan_anchors(output: ModelOutput) -> None:

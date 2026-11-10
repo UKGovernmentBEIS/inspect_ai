@@ -331,6 +331,56 @@ def test_a_copy_keeps_the_replay_state_of_the_calls_it_carries() -> None:
     assert shared_call_ids(copy) == {"shared", "duplicated"}
 
 
+def test_ids_recorded_as_shared_stay_shared_and_give_no_call_state() -> None:
+    from inspect_ai.model._assistant_internal import (
+        GenerationCallState,
+        carry_generation_assistant_internal,
+        generation_assistant_internal,
+        generation_call_states,
+        generation_replay,
+        set_generation_assistant_internal,
+        share_call_ids,
+        shared_call_ids,
+    )
+
+    calls = [
+        ToolCall(id="shared", function="read_file", arguments={"path": "new"}),
+        ToolCall(id="unique", function="read_file", arguments={"path": "a"}),
+    ]
+
+    # without the generation's replay state, the marker records none
+    unknown = _calling("shared")
+    share_call_ids(unknown, ["shared"])
+    assert generation_assistant_internal(unknown) is None
+    assert shared_call_ids(unknown) == {"shared"}
+    rebuilt = ModelOutput.model_validate(unknown.model_dump())
+    carry_generation_assistant_internal(unknown, rebuilt)
+    assert generation_assistant_internal(rebuilt) is None
+    assert shared_call_ids(rebuilt) == {"shared"}
+
+    # with it, the shared id's call loses its state, and no other call does
+    known = set_generation_assistant_internal(
+        ModelOutput(
+            choices=[
+                ChatCompletionChoice(
+                    message=ChatMessageAssistant(content="", tool_calls=calls)
+                )
+            ]
+        ),
+        generation_replay(calls, openai=[{"index": 0}, {"index": 1}]),
+    )
+    share_call_ids(known, ["shared"])
+    replay = generation_assistant_internal(known)
+    assert generation_call_states(replay, calls) == [
+        None,
+        GenerationCallState({"index": 1}, None, False),
+    ]
+    assert shared_call_ids(known) == {"shared"}
+    copy = ModelOutput.model_validate(known.model_dump())
+    carry_generation_assistant_internal(known, copy)
+    assert shared_call_ids(copy) == {"shared"}
+
+
 def test_replay_state_in_the_shapes_of_earlier_versions_is_unknown() -> None:
     from inspect_ai.model._assistant_internal import (
         generation_assistant_internal,

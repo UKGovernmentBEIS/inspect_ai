@@ -9004,6 +9004,152 @@ async def test_a_google_anchor_naming_no_returned_call_signs_no_call(
     ]
 
 
+@pytest.mark.parametrize(
+    "outcome", ["accepted", "sentinel_rejected", "approval_rejected"]
+)
+@pytest.mark.parametrize("rebuilt", [False, True])
+@pytest.mark.parametrize(
+    "replay",
+    [
+        "current",
+        # an earlier Responses parse recorded the id, so the generation's is unknown
+        "id_parsed_before",
+        "cached_without",
+        "cached_obsolete",
+        "request_filter",
+    ],
+)
+async def test_calls_sharing_an_id_stay_shared_without_their_generations_replay_state(
+    replay: str, rebuilt: bool, outcome: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A filter keeps the last of two calls sharing an id, and the signed anchor.
+
+    The kept call names the signed anchor's id, but that id was shared in the
+    output the filter received, so the signature is the removed call's as much
+    as the kept one's. The kept call replays without it, whether or not the
+    output has its generation's replay state.
+    """
+    from contextlib import AbstractContextManager, nullcontext
+
+    from inspect_ai.model._assistant_internal import generation_assistant_internal
+
+    init_sample_assistant_internal()
+    generation, tools, wire = _calls_reading_old_then_new("google", True)
+    if replay == "id_parsed_before":
+        await _responses_output(
+            {
+                "type": "function_call",
+                "id": "fc_prior",
+                "call_id": "shared",
+                "name": "read_file",
+                "arguments": '{"path": "prior.txt"}',
+            }
+        )
+    generated = replay in ("current", "id_parsed_before")
+    model = Parsing(
+        *([generation] if generated else []),
+        lambda: calls_output(),
+        cache=replay.startswith("cached"),
+        wire=wire,
+    )
+    if replay.startswith("cached"):
+        cached = ModelOutput.model_validate(generation().model_dump())
+        if replay == "cached_obsolete":
+            cached._assistant_internal = {
+                "calls": {"shared": [{"digest": "old"}]},
+                "providers": [],
+            }
+        entries = [cached]
+        monkeypatch.setattr(
+            "inspect_ai.model._model.cache_fetch",
+            lambda entry: entries.pop() if entries else None,
+        )
+    bridge = in_process_bridge([])
+    if replay == "request_filter":
+        substitutes = [generation()]
+
+        async def substitute(*args: Any) -> ModelOutput | None:
+            return substitutes.pop() if substitutes else None
+
+        bridge.filter = substitute
+
+    async def keep_last(
+        model: Any, output: ModelOutput, input: GenerateInput
+    ) -> ModelOutput:
+        if not output.message.tool_calls or isinstance(output.message.content, str):
+            return output
+        assert (generation_assistant_internal(output) is not None) == (
+            replay == "current"
+        )
+        output.message.tool_calls = output.message.tool_calls[-1:]
+        output.message.content = [
+            part
+            for part in output.message.content
+            if isinstance(part, ContentReasoning) and part.reasoning
+        ]
+        return ModelOutput.model_validate(output.model_dump()) if rebuilt else output
+
+    bridge.response_filter = keep_last
+    if outcome == "approval_rejected":
+        bridge.approval = [ApprovalPolicy(rejecting_approver(None), "*")]
+    sentinel: AbstractContextManager[None] = (
+        nullcontext()
+        if outcome == "approval_rejected"
+        else active(
+            [
+                bridge_reject_nth(None)
+                if outcome == "sentinel_rejected"
+                else bridge_recording([])
+            ]
+        )
+    )
+
+    messages: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+    with sentinel:
+        output, _ = await bridge_generate(
+            bridge,
+            model.model,
+            list(messages),
+            tools,
+            None,
+            GenerateConfig(),
+            requested_model=None,
+        )
+        if outcome == "accepted":
+            await bridge_generate(
+                bridge,
+                model.model,
+                _answered(messages, output),
+                tools,
+                None,
+                GenerateConfig(),
+                requested_model=None,
+            )
+
+    [replayed] = model.wire[1 if generated else 0]
+    assert [(call[1], call[2]) for call in replayed] == [("new.txt", None)]
+
+
+def test_an_id_several_google_anchors_name_is_shared_in_the_output_a_filter_received() -> (
+    None
+):
+    from inspect_ai.agent._bridge.util import _received_shared_ids
+
+    output = calls_output(
+        ToolCall(id="named_twice", function="read_file", arguments={"path": "a"}),
+        ToolCall(id="unanchored", function="read_file", arguments={"path": "b"}),
+    )
+    output.message.content = [
+        ContentReasoning(
+            reasoning=signature,
+            redacted=True,
+            internal={"gemini_function_call_id": "named_twice"},
+        )
+        for signature in ["c2ln", ""]
+    ]
+    assert _received_shared_ids(output) == {"named_twice"}
+
+
 def _answered(input: list[ChatMessage], output: ModelOutput) -> list[ChatMessage]:
     """`input` continued with `output` and a result for each of its calls."""
     return [

@@ -11,7 +11,7 @@ resume.
 from __future__ import annotations
 
 import importlib.util
-from collections.abc import Iterator, Sequence
+from collections.abc import Iterable, Iterator, Sequence
 from contextlib import contextmanager
 from contextvars import ContextVar
 from hashlib import sha256
@@ -212,11 +212,7 @@ def generation_assistant_internal(output: ModelOutput) -> dict[str, JsonValue] |
     (including those without the parsed calls' functions, or keeping a state per
     call occurrence).
     """
-    try:
-        replay = output._assistant_internal
-    except TypeError:
-        # an output cached before `ModelOutput` had private attributes
-        return None
+    replay = _output_replay(output)
     if (
         replay is None
         or not isinstance(replay.get("providers"), list)
@@ -227,6 +223,14 @@ def generation_assistant_internal(output: ModelOutput) -> dict[str, JsonValue] |
     return replay
 
 
+def _output_replay(output: ModelOutput) -> dict[str, JsonValue] | None:
+    try:
+        return output._assistant_internal
+    except TypeError:
+        # an output cached before `ModelOutput` had private attributes
+        return None
+
+
 def shared_call_ids(output: ModelOutput) -> set[str]:
     """The call IDs that several of the output's calls, or its generation's, share.
 
@@ -234,16 +238,43 @@ def shared_call_ids(output: ModelOutput) -> set[str]:
     state recorded under the ID can't be told apart by call. Inspect's
     providers don't produce such calls (OpenAI and Anthropic IDs are unique,
     and Google's missing IDs are filled in uniquely), so replay of them is not
-    guaranteed, only that no call carries another's state.
+    guaranteed, only that no call carries another's state. Includes the IDs
+    recorded as shared in an output derived from one that shared them
+    (`share_call_ids`).
     """
     calls = [
         call for choice in output.choices for call in choice.message.tool_calls or []
     ]
     replay = generation_assistant_internal(output)
     parsed = cast(dict[str, JsonValue], replay["calls"]) if replay else {}
-    return _repeated_ids(calls) | {
-        call_id for call_id, state in parsed.items() if state is None
-    }
+    return (
+        _repeated_ids(calls)
+        | {call_id for call_id, state in parsed.items() if state is None}
+        | _recorded_shared(_output_replay(output))
+    )
+
+
+def share_call_ids(output: ModelOutput, call_ids: Iterable[str]) -> None:
+    """Record that `call_ids` are shared in `output` (`shared_call_ids`).
+
+    For an output derived from one whose calls shared these IDs, where that no
+    longer shows (e.g. a response filter kept one of the calls). Recorded apart
+    from the generation's replay state, so it holds when that state is unknown
+    (`generation_assistant_internal`), and gives no call any state.
+    """
+    shared = set(call_ids)
+    if not shared:
+        return
+    replay = dict(_output_replay(output) or {})
+    replay["shared"] = cast(list[JsonValue], sorted(shared | _recorded_shared(replay)))
+    output._assistant_internal = replay
+
+
+def _recorded_shared(replay: dict[str, JsonValue] | None) -> set[str]:
+    shared = replay.get("shared") if replay is not None else None
+    if not isinstance(shared, list):
+        return set()
+    return {call_id for call_id in shared if isinstance(call_id, str)}
 
 
 class GenerationCallState(NamedTuple):
@@ -290,7 +321,7 @@ def generation_call_states(
         replay.get("calls", {}) if replay is not None else {},
     )
     providers = cast(list[str], replay.get("providers", [])) if replay else []
-    shared = _repeated_ids(calls)
+    shared = _repeated_ids(calls) | _recorded_shared(replay)
     states: list[GenerationCallState | None] = []
     for call in calls:
         state = parsed.get(call.id)
@@ -326,6 +357,7 @@ def carry_generation_assistant_internal(
     """
     replay = generation_assistant_internal(source)
     if replay is None:
+        share_call_ids(target, _recorded_shared(_output_replay(source)))
         return
     parsed = cast(dict[str, dict[str, JsonValue] | None], replay["calls"])
     calls = [
@@ -343,6 +375,7 @@ def carry_generation_assistant_internal(
         elif state["function"] == call.function and state["type"] == call.type:
             carried[call.id] = {**state, "edited": True}
     target._assistant_internal = {"calls": carried, "providers": replay["providers"]}
+    share_call_ids(target, _recorded_shared(replay))
 
 
 def _call_digest(call: ToolCall) -> str:
