@@ -439,12 +439,18 @@ def _counted_scalar(value: Value) -> bool:
 ```
 
 A single value cannot be `None` (`Value`, `src/inspect_ai/scorer/_metric.py:68`),
-so the only single value that metrics skip is a root `NaN`. The helper is a
-check on the raw value only:
+so the only single value the standard score filter treats as unscored is a
+root `NaN`: it counts any other scalar as scored. Individual metrics may
+apply further input requirements or filtering; `krippendorff_alpha()`, for
+example, skips a scalar with a warning because it expects a list of ratings
+(`src/inspect_ai/scorer/_metrics/krippendorff.py:95-113`). Successful
+recomputation does not prove that every metric uses the score. The helper
+is a check on the raw value only:
 
-- Whether the verdict fits the task's metrics (a scalar where a dict metric
-  expects a dict) is checked by computing the
-  metrics on staged edits before they are committed (see Python API).
+- A verdict that makes the task's metrics raise (a scalar where a dict
+  metric expects a dict) is refused by computing the metrics on staged
+  edits before they are committed (see Python API). A metric that accepts
+  the verdict and filters it out is not detected.
 - A reduced sample score is whatever the configured epoch reducer makes of
   its epochs, as for any run. `majority` over finite `[I, C]` is unscored,
   because neither value has a majority. Zero does not change reducer
@@ -943,11 +949,14 @@ the input log changes:
 
 An edit, reducer or metric that raises, or mutates its inputs, therefore
 leaves the input log as it was until the commit, and the committed targets
-are exactly the edits. For zero this is how a verdict that does not fit the
-task's metrics is refused: for example, a task whose scorer now returns a
+are exactly the edits. For zero this is how a verdict that makes the
+task's metrics raise is refused: for example, a task whose scorer now returns a
 scalar where its dict metrics expect a dict makes `eval_results()` raise
 `TypeError` (`results.py:543`). Zero re-raises it as "the empty-attempt
-verdicts do not fit the task's metrics (<error>)".
+verdicts do not fit the task's metrics (<error>)". It checks only that
+the metrics compute: a metric that applies its own input requirements and
+skips the verdict without raising is not detected, so successful
+recomputation does not prove that every metric uses the zeroed score.
 
 **Task preparation.** Zero resolves the task it is given, and exclusion's
 CLI resolves a task spec, through the task resolution a native eval uses,
@@ -1297,8 +1306,9 @@ inspect log zero    LOG_FILE TASK --sample ID [--sample ID ...] [--epoch N]
 - **Different settings or code.** Anything else about the task or its
   settings is taken as the caller gives it; the scratch log is not kept, but
   the zero edits record the scorer's answer and explanation for the empty
-  attempt. A verdict whose shape does not fit the task's metrics is refused
-  by the staged metric computation, and the log is left unchanged.
+  attempt. A verdict that makes the task's metrics raise is refused by the
+  staged metric computation, and the log is left unchanged; a metric that
+  skips it without raising is not detected.
 - **Concurrency.** The functions are synchronous over an in-memory log,
   except zero's scratch eval, which runs before any edit. The CLI's write is
   a conditional write on S3 and last-writer-wins locally, as `edit_score()`
