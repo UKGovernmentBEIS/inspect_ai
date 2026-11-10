@@ -6,6 +6,7 @@ import threading
 from collections.abc import Callable, Iterator, Sequence
 from collections.abc import Set as AbstractSet
 from dataclasses import dataclass
+from datetime import datetime
 from typing import TYPE_CHECKING, Any, Literal, NamedTuple, Set, TypeVar, cast
 
 import rich
@@ -1133,9 +1134,11 @@ def eval_set(
             success_logs: list[Log] = []
         else:
             # look for retryable eval logs and cleave them into success/failed
+            # pass only the reusable logs: a log whose sample shuffle no longer
+            # matches must not be returned or retried in place of the task
             success_logs, failed_logs = list_latest_eval_logs(
                 all_tasks,
-                all_logs,
+                reusable_logs,
                 epochs=epochs,
                 limit=limit,
                 sample_id=sample_id,
@@ -1228,7 +1231,12 @@ def eval_set(
             # final sweep to remove failed log files
             if retry_cleanup:
                 task_ids = {result.eval.task_id for result in results}
-                cleanup_older_eval_logs(log_dir, task_ids, run_ids)
+                cleanup_older_eval_logs(
+                    log_dir,
+                    task_ids,
+                    run_ids,
+                    keep_eval_ids={result.eval.eval_id for result in results},
+                )
 
         # if specified, bundle the output directory
         if bundle_dir:
@@ -1879,7 +1887,15 @@ def list_latest_eval_logs(
         else:
             complete_logs.append(log)
 
-    return (complete_logs, incomplete_logs)
+    # separate eval()/eval_set() runs of one task each get their own task_id,
+    # so the per-task_id selection above can hold several logs for one task
+    requested = {
+        tid: _selection(
+            limit, resolve_task_sample_ids(task.task.name, sample_id, task_names)
+        )
+        for tid, task in all_tasks
+    }
+    return one_log_per_task_identifier(complete_logs, incomplete_logs, requested)
 
 
 def log_samples_complete(
@@ -2016,9 +2032,73 @@ def epochs_changed(epochs: Epochs | None, config: EvalConfig) -> bool:
     return canonical(requested) != canonical(config.epochs_reducer)
 
 
+_Selection = tuple[tuple[int, int] | None, frozenset[str] | None]
+
+
+def one_log_per_task_identifier(
+    complete_logs: list[Log],
+    incomplete_logs: list[Log],
+    requested: dict[str, _Selection],
+) -> tuple[list[Log], list[Log]]:
+    """Keep one log per task identifier.
+
+    When any of a task's logs was recorded for the requested `limit` and
+    `sample_id` (`requested`, keyed by task identifier), only those are
+    considered, since a log for another selection can hold other samples.
+    Among them a log with invalidated samples is retried first (see
+    `invalidate_samples()`). Otherwise the run that started most recently
+    wins, complete or not: a newer incomplete log can be the failed retry of
+    an invalidated run, which nothing on disk tells apart from a separate
+    failed run. Start order is the attempt's `stats.started_at` (or
+    `eval.created` before an attempt records it), which survives rewrites
+    and copies of the file, with file mtime breaking ties within a second.
+    Not `eval.created` alone: each retry moves it at least a second past its
+    prior attempt's, so fast retries can date a run after a later one. Logs
+    not chosen are left on disk.
+    """
+
+    def rank(log: Log) -> tuple[bool, bool, datetime, float]:
+        config = log.header.eval.config
+        return (
+            _selection(config.limit, config.sample_id)
+            == requested[log.task_identifier],
+            log.header.invalidated,
+            datetime.fromisoformat(
+                log.header.stats.started_at or log.header.eval.created
+            ),
+            log.info.mtime or 0,
+        )
+
+    chosen: dict[str, Log] = {}
+    for log in [*complete_logs, *incomplete_logs]:
+        current = chosen.get(log.task_identifier)
+        if current is None or rank(log) > rank(current):
+            chosen[log.task_identifier] = log
+    return (
+        [log for log in complete_logs if chosen[log.task_identifier] is log],
+        [log for log in incomplete_logs if chosen[log.task_identifier] is log],
+    )
+
+
+def _selection(
+    limit: int | tuple[int, int] | None,
+    sample_id: str | int | list[str] | list[int] | list[str | int] | None,
+) -> _Selection:
+    """Canonical form of a sample selection, comparable across log round trips."""
+    if isinstance(limit, int):
+        limit = (0, limit)
+    elif limit is not None:
+        limit = (int(limit[0]), int(limit[1]))
+    ids = None if sample_id is None else frozenset(sample_id_filter(sample_id).patterns)
+    return (limit, ids)
+
+
 # cleanup logs that aren't the latest
 def cleanup_older_eval_logs(
-    log_dir: str, task_ids: set[str], owned_run_ids: AbstractSet[str] = frozenset()
+    log_dir: str,
+    task_ids: set[str],
+    owned_run_ids: AbstractSet[str] = frozenset(),
+    keep_eval_ids: AbstractSet[str] = frozenset(),
 ) -> None:
     logs = [
         log
@@ -2026,7 +2106,10 @@ def cleanup_older_eval_logs(
         if log.header.eval.task_id in task_ids
     ]
     latest_completed_task_eval_logs(
-        logs=logs, cleanup_older=True, owned_run_ids=owned_run_ids
+        logs=logs,
+        cleanup_older=True,
+        owned_run_ids=owned_run_ids,
+        keep_eval_ids=keep_eval_ids,
     )
 
 
@@ -2034,6 +2117,7 @@ def latest_completed_task_eval_logs(
     logs: list[Log],
     cleanup_older: bool = False,
     owned_run_ids: AbstractSet[str] = frozenset(),
+    keep_eval_ids: AbstractSet[str] = frozenset(),
 ) -> list[Log]:
     """Select each task's newest log, optionally removing the older ones.
 
@@ -2055,6 +2139,9 @@ def latest_completed_task_eval_logs(
         cleanup_older: Remove every log that is not its task's newest.
         owned_run_ids: Run ids of the ``eval()`` calls the current process
             has made; a `started` log from any other run is never removed.
+        keep_eval_ids: Eval ids of logs never removed: the logs an eval set
+            returned, which need not be their task's newest when a newer one
+            has a different sample shuffle.
 
     Returns:
         The newest log for each task.
@@ -2086,6 +2173,8 @@ def latest_completed_task_eval_logs(
         if cleanup_older:
             fs = filesystem(id_logs[0][0].name)
             for id_log in id_logs[1:]:
+                if id_log.header.eval.eval_id in keep_eval_ids:
+                    continue
                 try:
                     if id_log.header.status == "started":
                         if id_log.header.eval.run_id not in owned_run_ids:
