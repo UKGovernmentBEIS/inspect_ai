@@ -17,6 +17,7 @@ from typing import (
     Sequence,
     cast,
 )
+from urllib.parse import urlsplit, urlunsplit
 
 from pydantic import BaseModel, ValidationError
 from pydantic_core import PydanticSerializationError
@@ -569,8 +570,10 @@ async def _apply_response_filter(
 def _same_client(a: Model, b: Model) -> bool:
     """Whether `a` and `b` call the same provider model at the same endpoint and account.
 
-    Provider arguments (`model_args`, e.g. an OpenAI organization or a cloud
-    region) are part of the client. Generation config, which can also change
+    The endpoint is the one each client resolved (`ModelAPI._client_endpoint`),
+    so an explicit default or environment base URL is the same endpoint as
+    none. Provider arguments (`model_args`, e.g. an OpenAI organization or a
+    cloud region) are part of the client. Generation config, which can also change
     the account (`extra_headers`), is checked by `_same_request_config`.
     """
     if a.api is b.api:
@@ -578,10 +581,28 @@ def _same_client(a: Model, b: Model) -> bool:
     return (
         type(a.api) is type(b.api)
         and a.api.model_name == b.api.model_name
-        and a.api.base_url == b.api.base_url
+        and _normalized_endpoint(a.api._client_endpoint())
+        == _normalized_endpoint(b.api._client_endpoint())
         and a.api.api_key == b.api.api_key
         and a.model_args == b.model_args
     )
+
+
+def _normalized_endpoint(url: str | None) -> str | None:
+    """`url` with scheme and host lowercased, the scheme's default port and trailing slashes removed."""
+    if url is None:
+        return None
+    parts = urlsplit(url)
+    scheme = parts.scheme.lower()
+    userinfo, _, _ = parts.netloc.rpartition("@")
+    host = parts.hostname or ""
+    if ":" in host:
+        host = f"[{host}]"
+    port = parts.port
+    if port is not None and port != {"http": 80, "https": 443}.get(scheme):
+        host = f"{host}:{port}"
+    netloc = f"{userinfo}@{host}" if userinfo else host
+    return urlunsplit((scheme, netloc, parts.path.rstrip("/"), parts.query, ""))
 
 
 _CLIENT_NEUTRAL_CONFIG_FIELDS = frozenset(

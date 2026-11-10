@@ -1981,6 +1981,10 @@ class AnthropicAPI(ModelAPI):
         )
 
     @override
+    def _client_endpoint(self) -> str | None:
+        return str(self.client.base_url)
+
+    @override
     def connection_key(self) -> str:
         """Scope adaptive concurrency per (key, model).
 

@@ -616,6 +616,16 @@ class ModelAPI(abc.ABC):
         """
         return "default"
 
+    def _client_endpoint(self) -> str | None:
+        """The endpoint the provider's client sends requests to.
+
+        A provider whose SDK client resolves its endpoint (from a default or the
+        environment) returns the one the client resolved, so that a base URL
+        naming that endpoint and none at all are the same endpoint. Others
+        return the base URL given.
+        """
+        return self.base_url
+
     def should_retry(self, ex: Exception) -> bool | RetryDecision:
         """Should this exception be retried?
 

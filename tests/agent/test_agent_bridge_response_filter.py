@@ -2854,6 +2854,9 @@ SameClientCase = Literal[
     "bridged",
     "config",
     "call_temperature",
+    "default_endpoint",
+    "trailing_slash",
+    "env_endpoint",
     "endpoint",
     "account",
     "model_args",
@@ -2867,7 +2870,9 @@ SameClientCase = Literal[
 @pytest.mark.parametrize("turn", ["pending", "completed_and_pending"])
 @pytest.mark.parametrize("client", get_args(SameClientCase))
 async def test_response_filter_regeneration_keeps_replay_state_only_from_bridged_client(
-    client: SameClientCase, turn: Literal["pending", "completed_and_pending"]
+    client: SameClientCase,
+    turn: Literal["pending", "completed_and_pending"],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Only the bridged Anthropic client's own regeneration keeps its id and pending work.
 
@@ -2876,20 +2881,46 @@ async def test_response_filter_regeneration_keeps_replay_state_only_from_bridged
     generation whose config adds headers or body fields (e.g. an alternate
     `x-api-key`); its reply is an edit that carries none of that work into the
     bridged model's next input, and its completed server items are rejected.
-    Another temperature, per model or per call, is the same client.
+    Another temperature, per model or per call, is the same client, as is a
+    base URL naming the endpoint the bridged client resolved (the default,
+    one from the environment, or the same URL with a trailing slash).
     """
     from unittest.mock import patch
 
     from inspect_ai.model._providers.anthropic import _pending_container_for_input
 
+    monkeypatch.delenv("ANTHROPIC_BASE_URL", raising=False)
+    if client == "env_endpoint":
+        monkeypatch.setenv("ANTHROPIC_BASE_URL", "https://alternate.example.com")
     init_sample_anthropic_assistant_internal()
     regenerated = await _regenerated_output(turn)
     model_name = "anthropic/claude-sonnet-4-5"
-    model = get_model(model_name, api_key="primary-key", memoize=False)
+    model = get_model(
+        model_name,
+        api_key="primary-key",
+        base_url="https://alternate.example.com"
+        if client == "trailing_slash"
+        else None,
+        memoize=False,
+    )
     call_config = GenerateConfig()
     match client:
         case "bridged":
             judge = model
+        case "default_endpoint":
+            judge = get_model(
+                model_name,
+                api_key="primary-key",
+                base_url="https://api.anthropic.com",
+                memoize=False,
+            )
+        case "trailing_slash" | "env_endpoint":
+            judge = get_model(
+                model_name,
+                api_key="primary-key",
+                base_url="https://alternate.example.com/",
+                memoize=False,
+            )
         case "config":
             judge = get_model(
                 model_name,
@@ -2944,7 +2975,14 @@ async def test_response_filter_regeneration_keeps_replay_state_only_from_bridged
 
     bridge = AgentBridge(AgentState(messages=[]))
     bridge.response_filter = regenerate
-    own = client in ("bridged", "config", "call_temperature")
+    own = client in (
+        "bridged",
+        "config",
+        "call_temperature",
+        "default_endpoint",
+        "trailing_slash",
+        "env_endpoint",
+    )
     with (
         patch.object(model.api, "generate", generate),
         patch.object(judge.api, "generate", generate),
@@ -2984,6 +3022,77 @@ async def test_response_filter_regeneration_keeps_replay_state_only_from_bridged
         assert handed.id != regenerated.message.id
         assert PENDING_CODE not in json.dumps(await _render_anthropic(handed))
         assert _pending_container_for_input([handed]) is None
+
+
+_DEFAULT_ENDPOINTS = {
+    "anthropic/claude-sonnet-4-5": "https://api.anthropic.com",
+    "openai/gpt-4.1": "https://api.openai.com/v1",
+    "google/gemini-2.5-flash": "https://generativelanguage.googleapis.com",
+}
+
+
+@pytest.mark.parametrize("model_name", list(_DEFAULT_ENDPOINTS))
+@pytest.mark.parametrize(
+    "endpoints",
+    [
+        "default_endpoint",
+        "default_endpoint_slash",
+        "trailing_slash",
+        "case_and_port",
+        "env_endpoint",
+        "endpoint",
+        "account",
+    ],
+)
+def test_same_client_compares_the_endpoint_each_client_resolved(
+    model_name: str, endpoints: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Base URLs naming the endpoint a client resolved are the same client.
+
+    An explicit default endpoint, one from the environment, or a base URL that
+    differs only by a trailing slash, letter case or the scheme's default port
+    is the endpoint the bridged client uses; another endpoint or API key is
+    another client.
+    """
+    from inspect_ai.agent._bridge.util import _same_client
+
+    env_var = {
+        "anthropic": "ANTHROPIC_BASE_URL",
+        "openai": "OPENAI_BASE_URL",
+        "google": "GOOGLE_BASE_URL",
+    }[model_name.split("/")[0]]
+    for name in ("ANTHROPIC_BASE_URL", "OPENAI_BASE_URL", "GOOGLE_BASE_URL"):
+        monkeypatch.delenv(name, raising=False)
+    default = _DEFAULT_ENDPOINTS[model_name]
+    alternate = "https://alternate.example.com/v1"
+    bridged_url: str | None = None
+    judge_key = "primary-key"
+    match endpoints:
+        case "default_endpoint":
+            judge_url = default
+        case "default_endpoint_slash":
+            judge_url = default + "/"
+        case "trailing_slash":
+            bridged_url, judge_url = alternate, alternate + "/"
+        case "case_and_port":
+            bridged_url = alternate
+            judge_url = "HTTPS://Alternate.Example.com:443/v1"
+        case "env_endpoint":
+            monkeypatch.setenv(env_var, alternate)
+            judge_url = alternate + "/"
+        case "endpoint":
+            judge_url = alternate
+        case "account":
+            judge_url, judge_key = default, "other-key"
+        case _:
+            raise AssertionError(endpoints)
+    bridged = get_model(
+        model_name, api_key="primary-key", base_url=bridged_url, memoize=False
+    )
+    judge = get_model(model_name, api_key=judge_key, base_url=judge_url, memoize=False)
+
+    assert bridged.api.base_url != judge.api.base_url
+    assert _same_client(judge, bridged) == (endpoints not in ("endpoint", "account"))
 
 
 RegenerationConfig = Literal[
