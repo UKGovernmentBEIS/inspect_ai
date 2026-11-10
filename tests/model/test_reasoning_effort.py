@@ -222,6 +222,7 @@ def test_google_gemini_2_5_reasoning_tokens_wins_over_effort():
         ("gemini-3.8-flash", ThinkingLevel.LOW),
         ("gemini-3.1-pro-preview", ThinkingLevel.LOW),
         ("gemini-4-argon", ThinkingLevel.LOW),
+        ("gemini-4-carbon", ThinkingLevel.LOW),
     ],
 )
 def test_google_gemini_3_minimal_effort(
@@ -256,6 +257,7 @@ def test_google_gemini_3_uses_thinking_level_not_bridge():
     assert thinking_config.thinking_budget is None
 
 
+@pytest.mark.parametrize("model_name", ["gemini-4-argon", "gemini-4-carbon"])
 @pytest.mark.parametrize(
     "effort,expected_level",
     [
@@ -266,11 +268,12 @@ def test_google_gemini_3_uses_thinking_level_not_bridge():
         ("max", ThinkingLevel.HIGH),
     ],
 )
-def test_google_gemini_4_argon_thinking_level(
+def test_google_gemini_4_thinking_level(
+    model_name: str,
     effort: Literal["low", "medium", "high", "xhigh", "max"],
     expected_level: ThinkingLevel,
 ) -> None:
-    thinking_config = _google_api("gemini-4-argon").chat_thinking_config(
+    thinking_config = _google_api(model_name).chat_thinking_config(
         GenerateConfig(reasoning_effort=effort)
     )
     assert thinking_config is not None
@@ -286,6 +289,7 @@ def test_google_gemini_4_argon_thinking_level(
             "vertex/projects/my-project/locations/us-central1/publishers/google/models/gemini-4-argon",
             False,
         ),
+        ("gemini-4-carbon", False),
         ("gemini-3.8-flash", False),
         ("gemini-3.1-pro-preview", True),
         ("gemini-4-pro", True),

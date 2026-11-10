@@ -18,7 +18,12 @@ from inspect_ai.model._model_output import (
 )
 from inspect_ai.tool._tool_call import ToolCall
 
-from ._lookup import lost_sample, request_result, unjudged_error
+from ._lookup import (
+    lost_sample,
+    request_result,
+    unjudged_error,
+    unknown_to_required,
+)
 from ._received import Judgment, ReceivedCall, WithheldTurn, current_receiving
 
 _ENDED = "A sentinel in the sidecar ended the sample."
@@ -64,9 +69,11 @@ async def refused_output(
         retryable: Whether Inspect retries the call's error, as it does an ordinary provider or network failure. Asked only of a call that went through a sidecar, since a provider's `should_retry` can log or raise.
         bridged: Whether the call is a bridged agent's, which runs its own tools.
     """
-    # nothing else is asked of a call that didn't go through a sidecar
+    # Nothing else is asked of a call that didn't go through a sidecar, or of
+    # an attempt that failed before any request of it was sent, which the
+    # sidecar never saw.
     received = current_receiving()
-    if received is None or retryable():
+    if received is None or not received.sent or retryable():
         return None
     if received.looked is None:
         await request_result(received, replied=False)
@@ -80,15 +87,27 @@ async def refusal_after_error(
 
     An error Inspect retries, such as a 503, is not looked up while it is retried; once the retries are spent, the sidecar is asked what it decided.
 
+    An error raised before any request of the attempt was sent stands as it is, and the sidecar is asked nothing: it was never sent the call, so it has no judgment of it to be unavailable, and holds nothing new for the attempt. A provider allocates the call's request id before it builds the request, so an error in the task's configuration or in writing its input has an id the sidecar never saw.
+
     Raises:
         SampleRefusedError: If the sidecar couldn't place the sample.
-        SidecarNotJudgedError: If the sidecar couldn't judge the call for another reason.
+        SidecarNotJudgedError: If the sidecar couldn't judge the call for another reason, or the task requires a sidecar and the call's judgment is unavailable.
     """
+    # as in `refused_output`: an attempt that failed unsent is never looked up
+    if not received.sent:
+        return None
     if received.looked is None:
         await request_result(received, replied=False)
-    if lost_sample(received.looked, received.registered_beforehand):
+    # A sidecar the task requires that keeps no record of the call may have
+    # lost the eval in a restart, and what it holds for the attempt may have
+    # begun afresh since, so it is never copied, as for a lost sample.
+    if lost_sample(
+        received.looked, received.registered_beforehand
+    ) or unknown_to_required(received.looked, received.mode):
         _note_lost(received)
-    unjudged_error(received.looked, error, received.registered_beforehand)
+    unjudged_error(
+        received.looked, error, received.registered_beforehand, received.mode
+    )
     return _refusal(received.judgment, model, bridged)
 
 
