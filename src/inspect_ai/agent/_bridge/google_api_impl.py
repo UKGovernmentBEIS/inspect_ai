@@ -56,6 +56,7 @@ from .util import (
     client_json_schema,
     client_request_object,
     client_request_string,
+    gemini_first_call_signature,
     relax_tool_choice_for_withheld,
     resolve_bridge_model,
     resolve_generate_config,
@@ -764,6 +765,13 @@ def _extract_model_parts(
 def gemini_response_from_output(
     output: ModelOutput, model_name: str, *, call_ids: bool = False
 ) -> dict[str, Any]:
+    """The Gemini response for `output`.
+
+    The first call carries the one signature the response hands over, and the
+    same reasoning is embedded as a text part (`reasoning_to_think_tag`): that
+    of the call's own anchor, or none (`gemini_first_call_signature`). A
+    response without calls embeds its last signed reasoning.
+    """
     parts: list[dict[str, Any]] = []
     working_reasoning_block: ContentReasoning | None = None
 
@@ -778,6 +786,8 @@ def gemini_response_from_output(
                 elif isinstance(c, ContentReasoning):
                     if c.redacted and c.reasoning:
                         working_reasoning_block = c
+    if output.message.tool_calls:
+        working_reasoning_block = gemini_first_call_signature(output.message)
 
     if output.message.tool_calls:
         for idx, tc in enumerate(output.message.tool_calls):

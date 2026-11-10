@@ -9808,6 +9808,233 @@ async def test_a_rejected_call_replayed_under_a_fresh_id_settles_its_acp_card(
     assert _replayed_acp_cards() == {"call_read": ["failed"]}
 
 
+def _google_after_signed_text(*calls: tuple[str, str, bytes | None]) -> ModelOutput:
+    """A Gemini response, as the provider parses it: a signed text part, then `calls`.
+
+    Each call is `(id, path, signature)`.
+    """
+    from google.genai.types import Candidate, Content, FinishReason, FunctionCall, Part
+
+    from inspect_ai.model._providers.google import completion_choice_from_candidate
+
+    choice = completion_choice_from_candidate(
+        "gemini-3-flash-preview",
+        Candidate(
+            content=Content(
+                role="model",
+                parts=[
+                    Part(text="Reading.", thought_signature=b"text-signature"),
+                    *[
+                        Part(
+                            function_call=FunctionCall(
+                                id=call_id, name="read_file", args={"path": path}
+                            ),
+                            thought_signature=signature,
+                        )
+                        for call_id, path, signature in calls
+                    ],
+                ],
+            ),
+            finish_reason=FinishReason.STOP,
+        ),
+    )
+    return ModelOutput(model="mockllm/model", choices=[choice])
+
+
+async def _google_wire(input: list[ChatMessage]) -> Any:
+    """Each assistant message as the Google provider serializes it: `(text, path, signature)` per part."""
+    from inspect_ai.model._providers.google import content as google_content
+
+    return [
+        [
+            (part.text, None, part.thought_signature)
+            if part.function_call is None
+            else (None, _path(part.function_call.args), part.thought_signature)
+            for part in (await google_content(AsyncMock(), message)).parts or []
+        ]
+        for message in input
+        if isinstance(message, ChatMessageAssistant)
+    ]
+
+
+@pytest.mark.parametrize("checked", [False, True])
+@pytest.mark.parametrize("case", ["shared", "anchor_removed"])
+async def test_a_google_scaffold_is_handed_no_other_parts_signature_on_a_call(
+    case: str, checked: bool
+) -> None:
+    """The Google dialect hands a call only the signature its anchor names.
+
+    `shared`: two calls share an id, so with a sentinel their anchors' signatures
+    are dropped (`_retarget_anchors`). `anchor_removed`: a response filter
+    removes the one call's anchor. Either way the call is unsigned, and the
+    text part's signature goes on no call, in the response the scaffold gets
+    (its `thoughtSignature` and the embedded reasoning) and in the request
+    built from the history the scaffold sends back.
+    """
+    import base64
+    from contextlib import nullcontext
+
+    from inspect_ai.agent._bridge.google_api import inspect_google_api_request
+    from inspect_ai.model._reasoning import parse_content_with_reasoning
+
+    init_sample_assistant_internal()
+    calls = (
+        [("shared", "old.txt", GOOGLE_SIGNATURE), ("shared", "new.txt", None)]
+        if case == "shared"
+        else [("distinct", "new.txt", GOOGLE_SIGNATURE)]
+    )
+    model = Parsing(
+        lambda: _google_after_signed_text(*calls),
+        lambda: calls_output(),
+        wire=_google_wire,
+    )
+    bridge = AgentBridge(
+        AgentState(messages=[]), model_aliases={"inspect": model.model}
+    )
+    if case == "anchor_removed":
+
+        async def remove_anchors(
+            model: Any, output: ModelOutput, input: GenerateInput
+        ) -> ModelOutput:
+            if not isinstance(output.message.content, str):
+                output.message.content = [
+                    part
+                    for part in output.message.content
+                    if not (
+                        isinstance(part, ContentReasoning)
+                        and isinstance(part.internal, dict)
+                        and "gemini_function_call_id" in part.internal
+                    )
+                ]
+            return output
+
+        bridge.response_filter = remove_anchors
+    tools: Any = [
+        {
+            "functionDeclarations": [
+                {
+                    "name": "read_file",
+                    "description": "Read a file.",
+                    "parameters": PATH_SCHEMA,
+                }
+            ]
+        }
+    ]
+    user: Any = {"role": "user", "parts": [{"text": TASK}]}
+
+    with active([bridge_recording([])]) if checked else nullcontext():
+        first = await inspect_google_api_request(
+            {"model": "inspect", "contents": [user], "tools": tools},
+            None,
+            None,
+            bridge,
+        )
+        parts: Any = first["candidates"][0]["content"]["parts"]
+        responses: Any = {
+            "role": "user",
+            "parts": [
+                {
+                    "functionResponse": {
+                        **{
+                            key: value
+                            for key, value in part["functionCall"].items()
+                            if key in ("id", "name")
+                        },
+                        "response": {"out": "x"},
+                    }
+                }
+                for part in parts
+                if "functionCall" in part
+            ],
+        }
+        await inspect_google_api_request(
+            {
+                "model": "inspect",
+                "contents": [user, {"role": "model", "parts": parts}, responses],
+                "tools": tools,
+            },
+            None,
+            None,
+            bridge,
+        )
+
+    # without a sentinel, calls sharing an id replay by id, as on main
+    own = case == "shared" and not checked
+    signature = base64.b64encode(GOOGLE_SIGNATURE).decode()
+    handed = [part.get("thoughtSignature") for part in parts if "functionCall" in part]
+    assert handed == [signature if own else None] + [None] * (len(calls) - 1)
+    capsules = [
+        capsule.reasoning
+        for part in parts
+        if "text" in part
+        and (capsule := parse_content_with_reasoning(part["text"])[1]) is not None
+    ]
+    assert capsules == ([signature] if own else [])
+    [replayed] = model.wire[1]
+    assert replayed == [
+        ("Reading.", None, None),
+        *[
+            (None, path, GOOGLE_SIGNATURE if own and index == 0 else None)
+            for index, (_, path, _) in enumerate(calls)
+        ],
+    ]
+
+
+@pytest.mark.parametrize(
+    ("message", "expected"),
+    [
+        ("signed", GOOGLE_SIGNATURE),
+        ("unsigned", None),
+        ("shared_cleared", None),
+        ("anchor_removed", None),
+        ("legacy", b"text-signature"),
+    ],
+)
+async def test_the_google_first_call_signature_is_the_providers(
+    message: str, expected: bytes | None
+) -> None:
+    """The Google dialect's signature for a first call is the one the provider replays."""
+    import base64
+
+    from inspect_ai.agent._bridge.util import (
+        _hold_signatures_in_place,
+        gemini_first_call_signature,
+    )
+    from inspect_ai.model._providers.google import content as google_content
+
+    if message == "shared_cleared":
+        output = _google_after_signed_text(
+            ("shared", "old.txt", GOOGLE_SIGNATURE), ("shared", "new.txt", None)
+        )
+    else:
+        output = _google_after_signed_text(
+            ("distinct", "new.txt", None if message == "unsigned" else GOOGLE_SIGNATURE)
+        )
+    received = output.model_copy(deep=True)
+    assistant = output.message
+    assert isinstance(assistant.content, list)
+    anchors = [
+        part
+        for part in assistant.content
+        if isinstance(part, ContentReasoning)
+        and isinstance(part.internal, dict)
+        and "gemini_function_call_id" in part.internal
+    ]
+    if message == "shared_cleared":
+        for anchor in anchors:
+            anchor.reasoning = ""
+    elif message in ("anchor_removed", "legacy"):
+        assistant.content = [part for part in assistant.content if part not in anchors]
+        if message == "anchor_removed":
+            _hold_signatures_in_place(received, output)
+
+    signed = gemini_first_call_signature(assistant)
+    replayed = await google_content(AsyncMock(), assistant)
+    first_call = next(part for part in replayed.parts or [] if part.function_call)
+    assert first_call.thought_signature == expected
+    assert (base64.b64decode(signed.reasoning) if signed else None) == expected
+
+
 def _reusing_model(kind: str, cache: bool = False) -> tuple[Parsing, list[ToolInfo]]:
     """A model generating two calls of `kind` under one id, reading old then new."""
     if kind == "anthropic":

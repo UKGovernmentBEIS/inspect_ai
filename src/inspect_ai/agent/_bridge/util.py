@@ -632,6 +632,45 @@ def _hold_signatures_in_place(received: ModelOutput, output: ModelOutput) -> Non
         message.content = content
 
 
+def gemini_first_call_signature(
+    message: ChatMessageAssistant,
+) -> ContentReasoning | None:
+    """The reasoning whose signature Google replays with the message's first call.
+
+    The rule the Google provider serializer follows, which a filtered output is
+    held to (`_hold_signatures_in_place`). When the message has reasoning
+    anchors, the call takes the signature of the anchor naming it (calls under
+    one ID take its anchors in order), and an anchor without a signature (an
+    unsigned call, or one whose signature was dropped for its shared ID) means
+    the call is unsigned, as does no anchor naming it: a signature that came
+    with another part (a signed text part) is never a call's. A message without
+    anchors (logged before them, or rebuilt from a scaffold's history) gives
+    its last signature to its first call. None for no call or no signature.
+    """
+    calls = message.tool_calls or []
+    if not calls:
+        return None
+    content = [] if isinstance(message.content, str) else message.content
+    if not any(_anchor_call_id(part) is not None for part in content):
+        return next(
+            (
+                part
+                for part in reversed(content)
+                if isinstance(part, ContentReasoning)
+                and part.redacted
+                and part.reasoning
+            ),
+            None,
+        )
+    # the first call takes the first anchor naming its ID
+    anchor = next(
+        (part for part in content if _anchor_call_id(part) == calls[0].id), None
+    )
+    if isinstance(anchor, ContentReasoning) and anchor.reasoning:
+        return anchor
+    return None
+
+
 def _anchor_call_id(content: Content) -> str | None:
     """The call a Google reasoning anchor names, or None for other content."""
     if isinstance(content, ContentReasoning) and isinstance(content.internal, dict):
