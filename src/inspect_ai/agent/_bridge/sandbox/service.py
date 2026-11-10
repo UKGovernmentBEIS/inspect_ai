@@ -7,7 +7,11 @@ from pydantic import JsonValue
 from inspect_ai._sentinel._scope import solving
 from inspect_ai._sentinel._sidecar._lookup import SAMPLE_FAILURES
 from inspect_ai.model._call_tools import get_tools_info
-from inspect_ai.model._model import ModelRefusalError, _check_limits_before_dispatch
+from inspect_ai.model._model import (
+    ModelRefusalError,
+    _check_limits_before_dispatch,
+    dispatch_guard,
+)
 from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
 from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
 from inspect_ai.util._limit import (
@@ -92,8 +96,24 @@ def _forward_provider_errors(
     scaffold retrying after its error reply) gets the recorded limit's error
     reply without compaction, filter or generation. A token or cost limit
     already reached is checked first, so one enclosing the recorded limit
-    still replaces it.
+    still replaces it. A request already in flight when a limit is recorded
+    makes no further provider call (a compaction or a generation): each is
+    refused with a copy of the recorded limit, after any wait for the
+    compaction lock, a connection slot, the pause gate or a retry.
     """
+
+    def refuse_after_a_recorded_limit() -> None:
+        recorded = bridge.generation_limit
+        if recorded is not None:
+            # a copy: raising the recorded error would add this request's
+            # frames to the traceback it is raised to the agent with
+            raise LimitExceededError(
+                recorded.type,
+                value=recorded.value,
+                limit=recorded.limit,
+                message=recorded.message,
+                source=recorded.source,
+            )
 
     async def generate_forwarding_errors(
         json_data: dict[str, JsonValue],
@@ -108,7 +128,8 @@ def _forward_provider_errors(
                         JsonValue, provider_error_payload(bridge.generation_limit)
                     )
                 }
-            return await generate(json_data, headers)
+            with dispatch_guard(refuse_after_a_recorded_limit):
+                return await generate(json_data, headers)
         except Exception as ex:
             if find_control_flow(ex) is not None:
                 # the service dispatcher ends the sample with it
