@@ -75,6 +75,8 @@ from inspect_ai.agent._bridge.sandbox.service import call_tool as call_host_tool
 from inspect_ai.agent._bridge.sandbox.types import (
     _MAX_TOOL_EXECUTION_GRANTS,
     SandboxAgentBridge,
+    _Proposal,
+    _ToolExecutionGrant,
 )
 from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.agent._bridge.util import (
@@ -8180,6 +8182,117 @@ async def test_execution_whose_call_is_denied_again_links_nothing(
     )
     linked = retry in ("none", "other call denied")
     assert execution.message_id == (answer if linked else None)
+
+
+def _recording_bridge() -> SandboxAgentBridge:
+    return SandboxAgentBridge(
+        state=AgentState(messages=[]),
+        filter=None,
+        retry_refusals=None,
+        compaction=None,
+        port=13131,
+        model=None,
+        model_aliases={},
+        bridged_tools={
+            "host": {
+                "read_file": read_file(AsyncMock()),
+                "list_dir": served_tool(AsyncMock(), name="list_dir"),
+            }
+        },
+    )
+
+
+def _execute(
+    bridge: SandboxAgentBridge, reply_id: str, calls: list[ToolCall]
+) -> list[ToolEvent]:
+    """Hand out a reply with `calls` and execute each on host server `host`; the events."""
+    handed = handed_calls(bridge, reply_id, calls)
+    events = []
+    for call, handed_call in zip(calls, handed):
+        bridge._record_execution(
+            _ToolExecutionGrant(
+                "host",
+                call.function,
+                call.arguments,
+                _Proposal(call, None, reply_id, handed_call),
+            )
+        )
+        event = ToolEvent(
+            id=call.id, function=call.function, arguments=call.arguments, result="ok"
+        )
+        bridge._await_result_message(handed_call, event)
+        events.append(event)
+    return events
+
+
+def _answer(
+    bridge: SandboxAgentBridge,
+    reply_id: str,
+    calls: list[ToolCall],
+    answered: list[int],
+) -> None:
+    """Send the reply back with fresh answers to the calls at `answered`."""
+    answers = [
+        ChatMessageTool(
+            id=f"{reply_id}-result-{n}",
+            content="ok",
+            tool_call_id=calls[n].id,
+            function=calls[n].function,
+        )
+        for n in answered
+    ]
+    bridge._link_result_messages(
+        [ChatMessageAssistant(id=reply_id, content="", tool_calls=calls), *answers],
+        {0: reply_id},
+        set(range(1, len(answers) + 1)),
+        set(),
+        {},
+    )
+
+
+def test_settled_executions_are_pruned_from_the_tool_index() -> None:
+    """Repeated settled executions of one call keep the per-tool record bounded."""
+    bridge = _recording_bridge()
+    call = ToolCall(id="call", function="read_file", arguments={"path": "a"})
+    for n in range(1000):
+        [event] = _execute(bridge, f"reply-{n}", [call])
+        _answer(bridge, f"reply-{n}", [call], [0])
+        assert event.message_id == f"reply-{n}-result-0"
+
+    assert len(bridge._executed_tools[("host", "read_file")].calls) <= 16
+
+
+@pytest.mark.parametrize(
+    "denied", [None, {"path": "a"}], ids=["unreadable arguments", "same call"]
+)
+@pytest.mark.parametrize("read", ["settled", "awaiting its answer"])
+def test_denial_keeps_a_settled_calls_reply_linked(
+    read: str, denied: dict[str, Any] | None
+) -> None:
+    """A denied call unlinks only replies whose call it may repeat may still link.
+
+    The reply runs `read_file` and `list_dir`. Once `read_file`'s answer has
+    linked, a denied `read_file` call (with unreadable arguments, or the same
+    ones) can't be its answer, so the reply's pending `list_dir` call still
+    links. While `read_file` awaits its answer, the denial may be it, so the
+    reply is unlinked.
+    """
+    bridge = _recording_bridge()
+    calls = [
+        ToolCall(id="call_read", function="read_file", arguments={"path": "a"}),
+        ToolCall(id="call_list", function="list_dir", arguments={"path": "d"}),
+    ]
+    events = _execute(bridge, "reply", calls)
+    if read == "settled":
+        _answer(bridge, "reply", calls, [0])
+
+    bridge.unlink_denied_call("host", "read_file", denied)
+    _answer(bridge, "reply", calls, [0, 1])
+
+    if read == "settled":
+        assert [e.message_id for e in events] == ["reply-result-0", "reply-result-1"]
+    else:
+        assert [e.message_id for e in events] == [None, None]
 
 
 @pytest.mark.parametrize("later_call", ["denied", "takes a third grant"])

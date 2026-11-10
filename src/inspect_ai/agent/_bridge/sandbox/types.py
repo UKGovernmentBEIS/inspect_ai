@@ -1,6 +1,6 @@
 import inspect
 from collections import deque
-from dataclasses import replace
+from dataclasses import dataclass, field, replace
 from logging import getLogger
 from os.path import commonprefix
 from typing import TYPE_CHECKING, Any, Callable, Mapping, NamedTuple, Sequence
@@ -106,8 +106,8 @@ class SandboxAgentBridge(AgentBridge):
         )
         self._executed_calls: dict[tuple[str, str, str], list[_HandedCall]] = {}
         """Per (server, tool, argument key), the calls an execution consumed a grant of, unless settled since (`_record_execution`)."""
-        self._executed_tools: dict[tuple[str, str], list[_HandedCall]] = {}
-        """Per (server, tool), the calls an execution consumed a grant of."""
+        self._executed_tools: dict[tuple[str, str], _ExecutedTool] = {}
+        """Per (server, tool), the calls an execution consumed a grant of, settled ones pruned (`_record_execution`)."""
         self._failure_requested = anyio.Event()
         self._failure: Exception | None = None
         self.generation_limit: LimitExceededError | None = None
@@ -365,9 +365,10 @@ class SandboxAgentBridge(AgentBridge):
         A grant is one-shot, so a client sending a call again (after losing
         the first response, say) is denied, and the scaffold may send that
         denial as the call's answer: the reply of each call it may repeat is
-        unlinked (`_unlink`), whether that call's execution awaits its answer
-        or still runs (one already settled keeps its link), and so is the
-        reply of each pending grant it may repeat.
+        unlinked (`_unlink`) while that call's execution awaits its answer
+        or still runs (`_unsettled`; one already settled is final, so its
+        reply, and any pending sibling call in it, keeps its link), and so is
+        the reply of each pending grant it may repeat.
         Calls are compared as `consume_tool_execution_grant` compares them,
         on the argument keys of `_call_keys` (both sides also projected onto
         a closed schema's declared keys, so this errs towards unlinking).
@@ -380,7 +381,7 @@ class SandboxAgentBridge(AgentBridge):
         )
         # unlinked for good, so each recorded call is unlinked here once
         executed = (
-            self._executed_tools.pop((server, tool), [])
+            self._executed_tools.pop((server, tool), _ExecutedTool()).calls
             if keys is None
             else [
                 handed
@@ -389,7 +390,8 @@ class SandboxAgentBridge(AgentBridge):
             ]
         )
         for handed in executed:
-            self._unlink(handed.reply.id)
+            if self._unsettled(handed):
+                self._unlink(handed.reply.id)
         for grant in self._tool_execution_grants:
             if (
                 grant.server == server
@@ -421,9 +423,11 @@ class SandboxAgentBridge(AgentBridge):
           linked, or left unlinked) is final and is dropped from the record.
         - The call is recorded for `unlink_denied_call`.
 
-        Each recorded call is dropped once scanned or unlinked, so the work
-        is amortized constant per execution. Reply ids, positions and
-        argument hashes only, like the message pool.
+        Each recorded call is dropped once scanned or unlinked, and the
+        per-tool record drops settled calls each time it doubles, so it stays
+        within twice the calls of the tool still running or awaiting answers
+        and the work is amortized constant per execution. Reply ids,
+        positions and argument hashes only, like the message pool.
         """
         reply = grant.proposal.reply
         if reply is None:
@@ -443,7 +447,13 @@ class SandboxAgentBridge(AgentBridge):
             self._unlink(reply.reply.id)
         for key in keys:
             self._executed_calls[(grant.server, grant.tool, key)] = [reply]
-        self._executed_tools.setdefault((grant.server, grant.tool), []).append(reply)
+        executed = self._executed_tools.setdefault(
+            (grant.server, grant.tool), _ExecutedTool()
+        )
+        executed.calls.append(reply)
+        if len(executed.calls) >= 2 * executed.floor:
+            executed.calls = [h for h in executed.calls if self._unsettled(h)]
+            executed.floor = max(len(executed.calls), _MIN_EXECUTED_TOOL_FLOOR)
 
     def _unsettled(self, handed: _HandedCall) -> bool:
         """Whether an execution of `handed` may still link: running, or awaiting its answer."""
@@ -584,6 +594,20 @@ class _Proposal:
         as any of its grants can still execute.
         """
         return self.executions == 1 and not self.ambiguous
+
+
+_MIN_EXECUTED_TOOL_FLOOR = 8
+
+
+@dataclass
+class _ExecutedTool:
+    """The calls of one bridged tool an execution consumed a grant of."""
+
+    calls: list[_HandedCall] = field(default_factory=list)
+    """The calls, oldest first; settled ones are pruned (`_record_execution`)."""
+
+    floor: int = _MIN_EXECUTED_TOOL_FLOOR
+    """`calls` are pruned when they reach twice this: their count after the last prune, at least `_MIN_EXECUTED_TOOL_FLOOR`."""
 
 
 class _ToolExecutionGrant(NamedTuple):
