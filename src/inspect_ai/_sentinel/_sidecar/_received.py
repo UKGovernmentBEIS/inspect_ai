@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 if TYPE_CHECKING:
+    from .._config import SentinelProxy
     from ._lookup import Looked
 
 
@@ -54,12 +55,17 @@ class ReceivedCall:
     """What Inspect keeps of the latest attempt at an agent call through a sidecar: the id it was sent under, and what the sidecar said of it."""
 
     def __init__(
-        self, sidecar: Any = None, registered_beforehand: bool = False
+        self,
+        sidecar: Any = None,
+        registered_beforehand: bool = False,
+        mode: "SentinelProxy" = "auto",
     ) -> None:
         self.sidecar = sidecar
         """The sidecar the call goes through, which `request_result` asks."""
         self.registered_beforehand = registered_beforehand
         """Whether the sidecar's admin registered the call's task beforehand, so a sample the sidecar can't place was never accepted, rather than lost."""
+        self.mode: "SentinelProxy" = mode
+        """Whether the task requires a sidecar, so a call whose judgment is unavailable fails the sample."""
         self.request_id: str | None = None
         self.looked: "Looked | None" = None
         """What `request_result` said of the latest attempt, once asked."""
@@ -74,10 +80,12 @@ _received: ContextVar[ReceivedCall | None] = ContextVar(
 
 @contextmanager
 def receiving_call(
-    sidecar: Any = None, registered_beforehand: bool = False
+    sidecar: Any = None,
+    registered_beforehand: bool = False,
+    mode: "SentinelProxy" = "auto",
 ) -> Iterator[ReceivedCall]:
     """Keep what is learned of an agent call through a sidecar, for the providers to report its request id into."""
-    received = ReceivedCall(sidecar, registered_beforehand)
+    received = ReceivedCall(sidecar, registered_beforehand, mode)
     token = _received.set(received)
     try:
         yield received

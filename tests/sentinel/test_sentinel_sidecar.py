@@ -2040,9 +2040,9 @@ def test_a_sample_whose_registration_the_sidecar_refuses_is_never_retried_or_sco
 
 
 def test_a_sample_the_sidecar_lost_is_retried_and_registered_again() -> None:
-    # the sidecar restarts mid-sample and loses the task's registration: the
-    # running attempt's call is refused as unregistered, and the retry
-    # registers the task again
+    # the task's registration expired mid-sample while the sidecar kept the
+    # eval's token: the running attempt's call is refused as unregistered,
+    # and the retry registers the task again
     completions = [0]
 
     def complete(_: dict[str, Any]) -> dict[str, Any]:
@@ -2073,6 +2073,105 @@ def test_a_sample_the_sidecar_lost_is_retried_and_registered_again() -> None:
     assert len(sample.error_retries or []) == 1
     assert len(_registered(stand_in, "register_task")) == 2
     assert sample.scores
+
+
+_RESTARTS = pytest.mark.parametrize(
+    "registered_again_first",
+    [False, True],
+    ids=["before another sample registers again", "after another sample did"],
+)
+
+
+def _restarted(
+    registered_again_first: bool,
+) -> Callable[[dict[str, Any]], dict[str, Any]]:
+    # the sidecar restarted after the first attempt's registration completed.
+    # Either the retry finds the eval gone and registers it again, or another
+    # sample of the eval already did, and the retry finds it held.
+    completions = [0]
+
+    def complete(_: dict[str, Any]) -> dict[str, Any]:
+        completions[0] += 1
+        if completions[0] == 2 and not registered_again_first:
+            return {"error": {"code": -32009, "message": "no token for the eval"}}
+        return {"fixed": False}
+
+    return complete
+
+
+@_RESTARTS
+def test_a_required_sample_the_restarted_sidecar_lost_is_retried(
+    registered_again_first: bool,
+) -> None:
+    # a sidecar that lost the eval's token refuses the call without keeping
+    # it, so `request_result` answers `unknown`, as the real sidecar does
+    stand_in = StandInSidecar(
+        turns=[
+            Turn(status=400),
+            Turn(text="Sunny."),
+        ],
+        methods={
+            "complete_registration": _restarted(registered_again_first),
+            "request_result": _answers(
+                {"records": "unknown"}, _decided({"outcome": "proceed", "steps": []})
+            ),
+        },
+    )
+    task = Task(dataset=[Sample(input="Hi.")], solver=generate(), scorer=_graded())
+
+    [log] = eval(
+        task,
+        model=_model(stand_in),
+        sentinel_proxy="required",
+        retry_on_error=1,
+        display="none",
+    )
+
+    assert log.samples is not None
+    [sample] = log.samples
+    assert sample.error is None
+    [retried] = sample.error_retries or []
+    assert "SidecarNotJudgedError" in retried.message
+    assert "a sidecar is required" in retried.message
+    registrations = 1 if registered_again_first else 2
+    assert len(_registered(stand_in, "register_task")) == registrations
+    assert sample.scores
+
+
+@_RESTARTS
+def test_a_required_sample_the_restarted_sidecar_lost_isnt_scored_on_what_it_holds_since(
+    registered_again_first: bool,
+) -> None:
+    # the retries are spent, and the sample is scored on its error: what the
+    # sidecar holds for the attempt may have begun after the restart, so it
+    # isn't copied, even once the eval is registered again
+    stand_in = StandInSidecar(
+        turns=[Turn(status=400)],
+        methods={
+            "complete_registration": _restarted(registered_again_first),
+            "request_result": _answers({"records": "unknown"}),
+            "sample_result": _kept({"Tally:lookups": 0}),
+        },
+    )
+    task = Task(
+        dataset=[Sample(input="Hi.")],
+        solver=generate(),
+        scorer=_reads_monitor_state(),
+    )
+
+    [log] = eval(
+        task,
+        model=_model(stand_in),
+        sentinel_proxy="required",
+        score_on_error=True,
+        display="none",
+    )
+
+    assert log.samples is not None
+    [sample] = log.samples
+    assert sample.error is not None and "lost the sample" in sample.error.message
+    assert not sample.scores
+    assert _registered(stand_in, "sample_result") == []
 
 
 @pytest.mark.parametrize("retry_on_error", [0, 1], ids=["no retries", "retries spent"])
@@ -3523,6 +3622,8 @@ def test_a_sandbox_bridged_sample_refused_inside_a_filters_task_group_fails(
 def test_a_sandbox_bridged_sample_the_sidecar_lost_is_retried_and_registered_again(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # the task's registration expired mid-sample while the sidecar kept the
+    # eval's token
     completions = [0]
 
     def complete(_: dict[str, Any]) -> dict[str, Any]:
@@ -3559,6 +3660,80 @@ def test_a_sandbox_bridged_sample_the_sidecar_lost_is_retried_and_registered_aga
     assert len(_registered(stand_in, "register_task")) == 2
     assert len(_registered(stand_in, "complete_registration")) == 3
     assert sample.scores
+
+
+@_RESTARTS
+def test_a_required_sandbox_bridged_sample_the_restarted_sidecar_lost_is_retried(
+    registered_again_first: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # failed rather than handed to the agent as a provider's error, which the
+    # agent would carry on from with monitor state begun after the restart
+    stand_in = StandInSidecar(
+        turns=[
+            Turn(status=400),
+            Turn(text="Sunny."),
+        ],
+        methods={
+            "complete_registration": _restarted(registered_again_first),
+            "request_result": _answers(
+                {"records": "unknown"}, _decided({"outcome": "proceed", "steps": []})
+            ),
+        },
+    )
+    task = Task(
+        dataset=[Sample(input="Hi.")],
+        solver=_sandbox_bridged_turn(monkeypatch),
+        scorer=_graded(),
+    )
+
+    [log] = eval(
+        task,
+        model=_model(stand_in),
+        sentinel_proxy="required",
+        retry_on_error=1,
+        display="none",
+    )
+
+    assert log.samples is not None
+    [sample] = log.samples
+    assert sample.error is None
+    [retried] = sample.error_retries or []
+    assert "SidecarNotJudgedError" in retried.message
+    registrations = 1 if registered_again_first else 2
+    assert len(_registered(stand_in, "register_task")) == registrations
+    # the refused call, the retry's call, and the grader's
+    assert len(stand_in.model_calls) == 3
+    assert sample.scores
+
+
+def test_an_auto_sandbox_bridged_agent_is_handed_the_restarted_sidecars_refusal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # With `auto`, a call whose judgment is unavailable is used as it would be
+    # with no sidecar: the agent is handed the refusal as the provider's
+    # error, and the sample isn't failed for it. The agent may go on once the
+    # eval is registered again, with monitor state begun after the restart.
+    stand_in = StandInSidecar(
+        turns=[Turn(status=400)],
+        methods={"request_result": _answers({"records": "unknown"})},
+    )
+    task = Task(
+        dataset=[Sample(input="Hi.")], solver=_sandbox_bridged_turn(monkeypatch)
+    )
+
+    [log] = eval(
+        task,
+        model=_model(stand_in),
+        sentinel_proxy="auto",
+        retry_on_error=1,
+        display="none",
+    )
+
+    assert log.samples is not None
+    [sample] = log.samples
+    assert not sample.error_retries
+    assert sample.error is None or "SidecarNotJudgedError" not in sample.error.message
+    assert len(stand_in.model_calls) == 1
 
 
 def test_a_sandbox_bridged_reply_whose_judgment_is_unavailable_fails_a_required_sample(

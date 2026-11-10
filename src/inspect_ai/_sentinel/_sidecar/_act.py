@@ -18,7 +18,12 @@ from inspect_ai.model._model_output import (
 )
 from inspect_ai.tool._tool_call import ToolCall
 
-from ._lookup import lost_sample, request_result, unjudged_error
+from ._lookup import (
+    lost_sample,
+    request_result,
+    unjudged_error,
+    unknown_to_required,
+)
 from ._received import Judgment, ReceivedCall, WithheldTurn, current_receiving
 
 _ENDED = "A sentinel in the sidecar ended the sample."
@@ -82,13 +87,20 @@ async def refusal_after_error(
 
     Raises:
         SampleRefusedError: If the sidecar couldn't place the sample.
-        SidecarNotJudgedError: If the sidecar couldn't judge the call for another reason.
+        SidecarNotJudgedError: If the sidecar couldn't judge the call for another reason, or the task requires a sidecar and the call's judgment is unavailable.
     """
     if received.looked is None:
         await request_result(received, replied=False)
-    if lost_sample(received.looked, received.registered_beforehand):
+    # A sidecar the task requires that keeps no record of the call may have
+    # lost the eval in a restart, and what it holds for the attempt may have
+    # begun afresh since, so it is never copied, as for a lost sample.
+    if lost_sample(
+        received.looked, received.registered_beforehand
+    ) or unknown_to_required(received.looked, received.mode):
         _note_lost(received)
-    unjudged_error(received.looked, error, received.registered_beforehand)
+    unjudged_error(
+        received.looked, error, received.registered_beforehand, received.mode
+    )
     return _refusal(received.judgment, model, bridged)
 
 
