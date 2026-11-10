@@ -15,6 +15,9 @@ from pydantic import JsonValue
 from inspect_ai._util.content import Content, ContentReasoning
 from inspect_ai.model._call_tools import repeated_call_ids
 from inspect_ai.model._chat_message import ChatMessageAssistant
+from inspect_ai.model._providers._google_computer_use_name import (
+    GEMINI_COMPUTER_ACTIONS,
+)
 from inspect_ai.tool._tool_call import ToolCall
 
 from .._reasoning import (
@@ -195,8 +198,14 @@ def gemini_anchors_with_functions(
     the message holding it: the k-th anchor naming an id is for the k-th call
     under the id. Derived from an output as generated, before a filter can
     change its calls (`derive_recorded_functions`), and from a logged message,
-    which holds its own calls. An anchor with no call to derive from keeps no
-    function, so it fits no call. None when every anchor has its function.
+    which holds its own calls.
+
+    Those versions gave a computer call an id of its own, naming the action
+    (`click_at_<uuid>`), and its anchor the provider's id. Anchors naming no
+    call are for the computer calls of that form no anchor names, in order,
+    when there are as many of each; the anchor then names its call, as one
+    parsed now does. An anchor with no call to derive from keeps no function,
+    so it fits no call. None when every anchor has its function.
     """
     if isinstance(message.content, str) or not any(
         _anchor_call_id(part) is not None
@@ -208,6 +217,7 @@ def gemini_anchors_with_functions(
     for call in message.tool_calls or []:
         calls.setdefault(call.id, []).append(call)
     named: Counter[str] = Counter()
+    orphans: list[int] = []
     content = list(message.content)
     for i, part in enumerate(content):
         call_id = _anchor_call_id(part)
@@ -216,8 +226,10 @@ def gemini_anchors_with_functions(
         nth = named[call_id]
         named[call_id] += 1
         internal = _anchor_internal(part)
+        if GEMINI_FUNCTION_KEY in internal:
+            continue
         under_id = calls.get(call_id, [])
-        if GEMINI_FUNCTION_KEY not in internal and nth < len(under_id):
+        if nth < len(under_id):
             content[i] = part.model_copy(
                 update={
                     "internal": {
@@ -226,7 +238,37 @@ def gemini_anchors_with_functions(
                     }
                 }
             )
+        elif not under_id:
+            orphans.append(i)
+    computer_calls = [
+        call
+        for call in message.tool_calls or []
+        if call.function == "computer"
+        and call.type == "function"
+        and call.id not in named
+        and _legacy_computer_action(call.id) is not None
+    ]
+    if orphans and len(orphans) == len(computer_calls):
+        for i, call in zip(orphans, computer_calls):
+            anchor = content[i]
+            assert isinstance(anchor, ContentReasoning)
+            content[i] = anchor.model_copy(
+                update={
+                    "internal": {
+                        **_anchor_internal(anchor),
+                        GEMINI_FUNCTION_CALL_ID_KEY: call.id,
+                        GEMINI_FUNCTION_KEY: "computer",
+                        GEMINI_COMPUTER_ACTION_KEY: _legacy_computer_action(call.id),
+                    }
+                }
+            )
     return content
+
+
+def _legacy_computer_action(call_id: str) -> str | None:
+    """The action a computer call's id names (`click_at_<uuid>`), if any."""
+    action = call_id.rsplit("_", 1)[0]
+    return action if action in GEMINI_COMPUTER_ACTIONS else None
 
 
 def _anchor_call_id(part: Content) -> str | None:
