@@ -445,8 +445,21 @@ def test_sample_source_explicit_and_auto_ids() -> None:
     assert isinstance(ids["auto"], str)
 
 
-def test_sample_source_duplicate_id_errors() -> None:
-    # an injected sample whose id collides with an existing one fails the task
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+@pytest.mark.parametrize("log_format", ["eval", "json"])
+@pytest.mark.parametrize("epochs,limit", [(1, None), (2, 5)])
+def test_sample_source_duplicate_id_errors(
+    epochs: int,
+    limit: int | None,
+    log_format: Literal["eval", "json"],
+    backend: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # an injected sample whose id collides with an existing one fails the
+    # task; a sample admitted earlier in the same batch still counts
+    from inspect_ai._util._async import current_async_backend
+
     class _Dup(SampleSource):
         def __init__(self) -> None:
             self._produced = False
@@ -455,18 +468,30 @@ def test_sample_source_duplicate_id_errors() -> None:
             return [Sample(id=1, input="seed", target="ok")]
 
         async def next_samples(self) -> list[Sample] | None:
+            assert current_async_backend() == backend
             if not self._produced:
                 self._produced = True
-                return [Sample(id=1, input="dup", target="ok")]
+                return [
+                    Sample(id=2, input="extra", target="ok"),
+                    Sample(id=1, input="dup", target="ok"),
+                ]
             return None
 
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
     logs = eval(
         Task(dataset=_Dup(), solver=[generate()]),
         model="mockllm/model",
         display="none",
+        epochs=epochs,
+        limit=limit,
+        log_dir=str(tmp_path),
+        log_format=log_format,
     )
-    assert logs[0].status == "error"
-    assert "duplicate" in (logs[0].error.message if logs[0].error else "")
+    log = read_eval_log(logs[0].location)
+    assert log.status == "error"
+    assert "duplicate" in (log.error.message if log.error else "")
+    # the seed and the admitted extra, each for every epoch
+    assert log.total_samples == 2 * epochs
 
 
 @scorer(metrics=[accuracy()])

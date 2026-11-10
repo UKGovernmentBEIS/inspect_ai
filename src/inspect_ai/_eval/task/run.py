@@ -2059,6 +2059,15 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         return True
 
                     def add_samples(samples: list[EnqueuedSample]) -> AddedSamples:
+                        """Admit a batch of samples, counting each run as it is admitted.
+
+                        A later sample in the batch can raise (duplicate id or
+                        epoch) after earlier ones were admitted, and the
+                        caller awaits a prior-record copy before dispatch, so
+                        the attempt's ``total_samples`` advances here rather
+                        than after either.
+                        """
+                        nonlocal total_samples
                         added = AddedSamples([], [], [], [], [])
                         over_limit = 0
                         for source_sample, epoch in samples:
@@ -2075,6 +2084,8 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                             added.samples.append(sample)
                             added.runs.extend((index, e) for e in planned_epochs)
                             added.run_ids.extend((sample.id, e) for e in planned_epochs)
+                            total_samples += len(planned_epochs)
+                            sample_error_handler.total_samples = total_samples
                             # resolvable by the requeue directive, like a seed
                             if epoch is None:
                                 sample_ids.append(sample.id)
@@ -2103,14 +2114,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         propagates and fails the task, matching a seed
                         config failing startup.
                         """
-                        nonlocal total_samples
-
                         added = add_samples(samples)
-                        # count admitted runs before the cancellable prior
-                        # copy below, so an interrupted copy can't leave the
-                        # log's total behind what the limit already consumed
-                        total_samples += len(added.runs)
-                        sample_error_handler.total_samples = total_samples
                         if (
                             logger.prior_seeded
                             and sample_source is not None
