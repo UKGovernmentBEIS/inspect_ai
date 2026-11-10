@@ -8,6 +8,8 @@ from typing import TYPE_CHECKING, Any, Literal, NamedTuple
 
 import anyio
 
+from ._sign import eval_call_message, now, sign
+
 if TYPE_CHECKING:
     from inspect_ai.model._model import ModelAPI
 
@@ -20,7 +22,7 @@ PROBE_TIMEOUT = 10.0
 CALL_TIMEOUT = 60.0
 
 UNAUTHORIZED = -32010
-"""The sidecar's error for a call that didn't present the token it keeps for the eval."""
+"""The sidecar's error for a call whose token or signature doesn't match the token it keeps for the eval, or whose timestamp is outside its window."""
 
 
 class SentinelProxyError(RuntimeError):
@@ -38,15 +40,24 @@ class SidecarCallError(RuntimeError):
 
 @dataclass
 class EvalAccess:
-    """What an eval presents to one sidecar on every call but its first registration: its id, and the token the sidecar gave it when it registered."""
+    """The eval's id and token for one sidecar, which signs every call to it but a registration the sidecar holds no token for."""
 
     eval_id: str
-    token: str | None = field(default=None, repr=False)
-    """The latest token the sidecar gave the eval, or None before it registered."""
-    chosen: str = field(default_factory=lambda: secrets.token_urlsafe(32), repr=False)
-    """The token the eval made for its first registration, which the sidecar keeps and hands back: a first registration whose answer was lost is sent again with it, and isn't refused."""
+    token: str = field(default_factory=lambda: secrets.token_urlsafe(32), repr=False)
+    """The token the eval made for the sidecar, which never changes. It is sent only in a registration to a sidecar that holds no token for the eval, and signs everything else."""
     lock: anyio.Lock = field(default_factory=anyio.Lock, repr=False)
-    """Held while the eval registers, so two registrations never present different tokens."""
+    """Held while the eval registers, so a sidecar that lost the task is registered again once, not by every sample that finds it lost."""
+    registrations: int = 0
+    """How many registrations of the task the sidecar has taken."""
+
+    def credentials(self, method: str) -> dict[str, Any]:
+        """The eval's id, and a signature of a call to a method made now, for the call's params."""
+        timestamp = now()
+        return {
+            "eval_id": self.eval_id,
+            "timestamp": timestamp,
+            "mac": sign(self.token, eval_call_message(method, self.eval_id, timestamp)),
+        }
 
 
 @dataclass
@@ -63,38 +74,17 @@ class Sidecar:
     _ids: "count[int]" = field(default_factory=lambda: count(1), repr=False)
 
     async def eval_call(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
-        """Call a method of the endpoint for evals for the eval, presenting its id and token.
+        """Call a method of the endpoint for evals for the eval, presenting its id and signing the call with its token.
 
         Raises:
-            SidecarCallError: If the call failed, or was answered with an error, including `unauthorized` when the sidecar keeps another token for the eval.
+            SidecarCallError: If the call failed, or was answered with an error, including `unauthorized` when the sidecar keeps another token for the eval or the call's timestamp is outside its window.
         """
         access = self.access
-        if access is None or access.token is None:
+        if access is None or access.registrations == 0:
             raise SidecarCallError(
                 method, "the eval hasn't registered with the sidecar"
             )
-        presented = access.token
-        try:
-            return await self.call(
-                method, {**params, "eval_id": access.eval_id, "token": presented}
-            )
-        except SidecarCallError as ex:
-            if ex.code != UNAUTHORIZED:
-                raise
-
-            # Another sample may be registering the eval again, as after a
-            # restart, with the sidecar already keeping the new token while
-            # its reply is on its way: that registration finishes first.
-            async with access.lock:
-                pass
-
-            # The call goes again with the token the eval now holds, when
-            # that changed since it was sent.
-            if access.token in (None, presented):
-                raise
-            return await self.call(
-                method, {**params, "eval_id": access.eval_id, "token": access.token}
-            )
+        return await self.call(method, {**params, **access.credentials(method)})
 
     async def call(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
         """Call a method of the endpoint for evals, and return its result."""

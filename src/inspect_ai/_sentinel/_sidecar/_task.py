@@ -2,7 +2,7 @@
 
 from collections.abc import Awaitable, Callable, Hashable
 from contextvars import ContextVar
-from logging import getLogger
+from logging import Filter, LogRecord, getLogger
 from typing import TYPE_CHECKING, Any, Generic, NamedTuple, NoReturn, TypeVar
 from weakref import WeakValueDictionary
 
@@ -135,6 +135,9 @@ class TaskSidecars:
         """
 
         async def complete() -> bool:
+            # the registrations the sidecar took before this call, so one
+            # another sample makes meanwhile isn't made again
+            registered = sidecar.access.registrations if sidecar.access else None
             params = {
                 "task": self.facts.task,
                 "sample_id": sample.sample_id,
@@ -145,7 +148,6 @@ class TaskSidecars:
                 "metadata": to_jsonable_python(sample.metadata),
             }
             try:
-                presented = sidecar.access.token if sidecar.access else None
                 try:
                     result = await sidecar.eval_call("complete_registration", params)
                 except SidecarCallError as ex:
@@ -155,12 +157,12 @@ class TaskSidecars:
                     # after a restart, takes it again. Registering again
                     # changes nothing for a sidecar that still keeps it, and
                     # another sample that already did so is not repeated.
-                    await self._register(sidecar, unless_since=presented)
+                    await self._register(sidecar, unless_since=registered)
                     result = await sidecar.eval_call("complete_registration", params)
                 return result.get("fixed") is True
             except SidecarCallError as ex:
                 if ex.code == UNAUTHORIZED:
-                    raise SentinelProxyError(_unauthorized(sidecar)) from ex
+                    raise SentinelProxyError(_unauthorized(sidecar, ex)) from ex
                 if ex.code == REGISTRATION_REFUSED:
                     # the sidecar takes only the samples the task's registration
                     # names, and would refuse this one again: never retried
@@ -390,18 +392,18 @@ class TaskSidecars:
         return found
 
     async def _register(
-        self, sidecar: Sidecar, unless_since: str | None = None
+        self, sidecar: Sidecar, unless_since: int | None = None
     ) -> None:
-        # Registers the task, presenting the token the eval holds for the
-        # sidecar, and keeps the one it gives back: the same, or a new one
-        # from a sidecar that kept none. With `unless_since`, a registration
-        # that another caller already made since that token was presented is
-        # not made again.
+        # Registers the task. The first registration sends the eval's token,
+        # as does one sent again after its answer was lost; a later one is
+        # signed with it, and sends it only when the sidecar answers that it
+        # lost it. With `unless_since`, a registration another caller made
+        # since the sidecar had taken that many is not made again.
         facts = self.facts
         access = sidecar.access
         assert access is not None
         async with access.lock:
-            if unless_since is not None and access.token != unless_since:
+            if unless_since is not None and access.registrations != unless_since:
                 return
             params: dict[str, Any] = {
                 "eval_id": facts.eval_id,
@@ -411,27 +413,37 @@ class TaskSidecars:
                 "sample_ids": facts.sample_ids,
                 "epochs": facts.epochs,
             }
-            # the token the sidecar gave the eval, or at first the one the eval
-            # made, which the sidecar keeps: so this registration can be sent
-            # again if its answer is lost
-            params["token"] = (
-                access.token if access.token is not None else access.chosen
-            )
             try:
-                result = await sidecar.call("register_task", params)
+                if access.registrations == 0:
+                    await sidecar.call(
+                        "register_task", {**params, "token": access.token}
+                    )
+                else:
+                    try:
+                        await sidecar.call(
+                            "register_task",
+                            {**params, **access.credentials("register_task")},
+                        )
+                    except SidecarCallError as ex:
+                        if ex.code != UNKNOWN_TASK:
+                            raise
+                        # the sidecar holds no token for the eval, as after a
+                        # restart, so it is sent the one the eval holds
+                        await sidecar.call(
+                            "register_task", {**params, "token": access.token}
+                        )
             except SidecarCallError as ex:
                 self._registration_failed(sidecar, ex)
-            token = result.get("token")
-            if not isinstance(token, str):
-                raise SentinelProxyError(
-                    f"The sentinel sidecar at {sidecar.origin} registered the task {facts.task!r} without giving the eval a token, so it can't be asked what it decided."
-                )
-            access.token = token
+            access.registrations += 1
+
+    def access(self, origin: str) -> EvalAccess | None:
+        """The eval's id and token for the sidecar at an origin, or None if no model of the task found one there."""
+        return self._access.get(origin)
 
     def _registration_failed(self, sidecar: Sidecar, ex: SidecarCallError) -> NoReturn:
         facts = self.facts
         if ex.code == UNAUTHORIZED:
-            raise SentinelProxyError(_unauthorized(sidecar)) from ex
+            raise SentinelProxyError(_unauthorized(sidecar, ex)) from ex
         if ex.code == REGISTRATION_REFUSED:
             raise SentinelProxyError(
                 f"The sentinel sidecar at {sidecar.origin} runs only the tasks its admin registered, and the task {facts.task!r} isn't one."
@@ -471,8 +483,8 @@ class _Once(Generic[T]):
         return self._done[key]
 
 
-def _unauthorized(sidecar: Sidecar) -> str:
-    return f"The sentinel sidecar at {sidecar.origin} keeps another token for this eval, so it won't take the eval's calls: something else registered the eval with it first."
+def _unauthorized(sidecar: Sidecar, ex: SidecarCallError) -> str:
+    return f"The sentinel sidecar at {sidecar.origin} won't take the eval's calls. Either it keeps another token for this eval, as when something else registered the eval with it first, or the clocks of Inspect's host and the sidecar's disagree by more than its timestamp window. {ex}"
 
 
 def _copied_keys(store: Store) -> set[str]:
@@ -497,8 +509,45 @@ _task_sidecars: ContextVar[TaskSidecars | None] = ContextVar(
     "task_sidecars", default=None
 )
 
-# by eval, for interim scoring, which runs outside the task's context
+# by eval, for interim scoring, which runs outside the task's context, and
+# for signing a model request as it is sent
 _eval_sidecars: "WeakValueDictionary[str, TaskSidecars]" = WeakValueDictionary()
+
+SDK_DEBUG_LOGGER = "anthropic._base_client"
+"""The logger the Anthropic SDK logs every request's body to at debug level, a registration's token included."""
+
+REDACTED = "<redacted>"
+
+
+class _RedactEvalTokens(Filter):
+    # replaces the token of every live task's eval in a record, so the debug
+    # log of a registration through the SDK never holds one
+    def filter(self, record: LogRecord) -> bool:
+        tokens = [
+            access.token
+            for sidecars in list(_eval_sidecars.values())
+            for access in sidecars._access.values()
+        ]
+        if not tokens:
+            return True
+        message = record.getMessage()
+        redacted = message
+        for token in tokens:
+            redacted = redacted.replace(token, REDACTED)
+        if redacted != message:
+            record.msg = redacted
+            record.args = None
+        return True
+
+
+_redact_eval_tokens = _RedactEvalTokens()
+
+
+def _keep_eval_tokens_out_of_sdk_logs() -> None:
+    # once, however many tasks start
+    sdk_logger = getLogger(SDK_DEBUG_LOGGER)
+    if _redact_eval_tokens not in sdk_logger.filters:
+        sdk_logger.addFilter(_redact_eval_tokens)
 
 
 async def init_task_sidecars(
@@ -524,9 +573,14 @@ async def init_task_sidecars(
         _task_sidecars.set(None)
         return
     sidecars = TaskSidecars(mode, facts, in_process_sentinel)
+
+    # known by its eval before it registers, so the token the registration
+    # sends is kept out of the SDK's debug log
+    _keep_eval_tokens_out_of_sdk_logs()
+    _eval_sidecars[facts.eval_id] = sidecars
+
     await sidecars.start(model)
     _task_sidecars.set(sidecars)
-    _eval_sidecars[facts.eval_id] = sidecars
 
 
 def attempt_number(active: "ActiveSample") -> int:

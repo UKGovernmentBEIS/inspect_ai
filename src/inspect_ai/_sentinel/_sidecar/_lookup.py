@@ -55,7 +55,7 @@ async def request_result(received: ReceivedCall, replied: bool) -> Looked:
         replied: Whether the call came back with a reply. The sidecar never received the reply of a call it is still awaiting the reply of, whether the call came back with a reply or as an error.
 
     Raises:
-        SentinelProxyError: If the sidecar keeps another token for the eval, so it won't say what it decided.
+        SentinelProxyError: If the sidecar refuses the eval's calls, as when it keeps another token for the eval, so it won't say what it decided.
         ValueError: If the sidecar's judgment isn't one this Inspect can read.
     """
     looked = await _request_result(received, replied)
@@ -79,7 +79,7 @@ async def _request_result(received: ReceivedCall, replied: bool) -> Looked:
             except SidecarCallError as ex:
                 if ex.code == UNAUTHORIZED:
                     raise SentinelProxyError(
-                        f"The sentinel sidecar at {sidecar.origin} keeps another token for this eval, so it won't say what it decided of its calls."
+                        f"The sentinel sidecar at {sidecar.origin} won't take the eval's calls, so it won't say what it decided of them: {ex}"
                     ) from ex
                 return Looked("unavailable", str(ex))
             records = result.get("records")

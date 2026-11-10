@@ -1,4 +1,5 @@
 import json
+import logging
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any, Literal
@@ -6,12 +7,13 @@ from typing import Any, Literal
 import anyio
 import httpx2
 import pytest
+from tenacity import wait_none
 from test_helpers import fake_sentinel as fake
 from test_helpers.service_dispatch import (
     dispatching_service,
     serve_beside_failure_monitor,
 )
-from test_helpers.stand_in_sidecar import StandInSidecar, Turn
+from test_helpers.stand_in_sidecar import WINDOW, StandInSidecar, Turn
 
 from inspect_ai import Task, eval_async
 from inspect_ai import eval as inspect_eval
@@ -28,11 +30,13 @@ from inspect_ai._sentinel._sidecar._endpoint import (
 from inspect_ai._sentinel._sidecar._events import SIDECAR_METADATA
 from inspect_ai._sentinel._sidecar._lookup import RESULT_WAIT
 from inspect_ai._sentinel._sidecar._received import receiving_call
+from inspect_ai._sentinel._sidecar._sign import model_request_message, sign
 from inspect_ai._sentinel._sidecar._task import (
     MONITOR_STATE_COPY,
     SampleFacts,
     TaskFacts,
     TaskSidecars,
+    _redact_eval_tokens,
 )
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.exception import SampleRefusedError, TerminateSampleError
@@ -59,6 +63,7 @@ from inspect_ai.model import (
     ModelOutput,
     get_model,
 )
+from inspect_ai.model._providers.util.hooks import HttpxHooks
 from inspect_ai.scorer import (
     Score,
     Scorer,
@@ -458,6 +463,26 @@ async def test_a_first_registration_presents_a_token_the_eval_made() -> None:
     assert len(registered["params"]["token"]) >= 32
 
 
+async def test_a_first_registration_sent_again_sends_the_same_token() -> None:
+    # its answer was lost, so the sidecar may already keep the token
+    answers = [{"error": {"code": -32008, "message": "the registrations are full"}}]
+    stand_in = StandInSidecar(
+        methods={
+            "register_task": lambda _: answers.pop(0) if answers else {"fixed": False}
+        }
+    )
+    sidecars = TaskSidecars("auto", _FACTS)
+    model = _model(stand_in)
+
+    with pytest.raises(SentinelProxyError):
+        await sidecars.sidecar(model.api)
+    assert await sidecars.sidecar(model.api) is not None
+
+    first, again = _registered(stand_in, "register_task")
+    assert again["token"] == first["token"]
+    assert "mac" not in again
+
+
 @pytest.mark.parametrize(
     ("info", "says"),
     [
@@ -557,6 +582,15 @@ def _registered(stand_in: StandInSidecar, method: str) -> list[dict[str, Any]]:
     return [call["params"] for call in stand_in.calls if call["method"] == method]
 
 
+def _unsigned(params: dict[str, Any]) -> dict[str, Any]:
+    # a call's params without the signature the stand-in checked, which
+    # changes with the time
+    unsigned = dict(params)
+    assert isinstance(unsigned.pop("timestamp"), int)
+    assert isinstance(unsigned.pop("mac"), str)
+    return unsigned
+
+
 def test_an_eval_registers_its_task_with_the_sidecar_it_finds() -> None:
     stand_in = StandInSidecar()
     task = Task(
@@ -643,10 +677,8 @@ async def test_a_samples_registration_is_completed_once_for_each_attempt() -> No
 
     [completed] = _registered(stand_in, "complete_registration")
     messages = completed.pop("sample_input")
-    assert completed == {
+    assert _unsigned(completed) == {
         "eval_id": "eval_789",
-        # the token the task's registration gave
-        "token": "token-1",
         "task": "weather_desk",
         "sample_id": 1,
         "sample_description": "A rainy day.",
@@ -716,10 +748,11 @@ async def test_a_task_the_sidecar_forgot_is_registered_again() -> None:
 
     await sidecars.complete_registration(sidecar, _sample(), "sample_123", 1)
 
-    # the task's registration again, as first sent with the token the eval
-    # holds, then the sample's again
+    # the task's registration again, as first sent but signed rather than
+    # sending the token, then the sample's again
     [first, again] = _registered(stand_in, "register_task")
-    assert again == {**first, "token": "token-1"}
+    first.pop("token")
+    assert _unsigned(again) == first
     assert [call["method"] for call in stand_in.calls] == [
         "register_task",
         "complete_registration",
@@ -728,62 +761,117 @@ async def test_a_task_the_sidecar_forgot_is_registered_again() -> None:
     ]
 
 
-async def test_every_call_for_the_eval_presents_its_latest_token() -> None:
-    # a sidecar that lost the eval, as after a restart, gives a new token
-    tokens = iter(["token-1", "token-2"])
-    stand_in = StandInSidecar(
-        methods={
-            "register_task": lambda _: {"token": next(tokens), "fixed": False},
-            "complete_registration": _forgets_the_task(1),
-        }
-    )
+async def test_only_a_registration_the_sidecar_holds_no_token_for_sends_it() -> None:
+    # the eval's first registration sends its token; a later one is signed
+    # with it, and the token goes again only to a sidecar that lost it, as
+    # after a restart
+    stand_in = StandInSidecar(methods={"complete_registration": _forgets_the_task(1)})
+    sidecars = TaskSidecars("auto", _FACTS)
+    sidecar = await sidecars.sidecar(_model(stand_in).api)
+    assert sidecar is not None and sidecar.access is not None
+    token = sidecar.access.token
+
+    await sidecars.complete_registration(sidecar, _sample(), "epoch_1", 1)
+    stand_in.tokens.clear()
+    await sidecars.complete_registration(sidecar, _sample(), "epoch_2", 1)
+
+    assert [
+        (call["method"], call["params"].get("token"), "mac" in call["params"])
+        for call in stand_in.calls
+    ] == [
+        ("register_task", token, False),
+        ("complete_registration", None, True),
+        # the sidecar lost the task and keeps the token
+        ("register_task", None, True),
+        ("complete_registration", None, True),
+        # the sidecar lost the token
+        ("complete_registration", None, True),
+        ("register_task", None, True),
+        ("register_task", token, False),
+        ("complete_registration", None, True),
+    ]
+    assert stand_in.tokens == {"eval_789": token}
+
+
+async def test_every_call_for_the_eval_is_signed_and_none_carries_its_token() -> None:
+    stand_in = StandInSidecar()
     sidecars = TaskSidecars("auto", _FACTS)
     sidecar = await sidecars.sidecar(_model(stand_in).api)
     assert sidecar is not None
-    assert sidecar.access is not None
-    # the first registration presents the token the eval made for it
-    chosen = sidecar.access.chosen
 
     await sidecars.complete_registration(sidecar, _sample(), "sample_123", 1)
     sidecars.called_through("sample_123", 1, sidecar)
+    await sidecars.copy_monitor_state("sample_123", 1, Store())
     await sidecars.end_sample("sample_123")
 
-    assert [
-        (call["method"], call["params"]["eval_id"], call["params"].get("token"))
-        for call in stand_in.calls
-    ] == [
-        ("register_task", "eval_789", chosen),
-        ("complete_registration", "eval_789", "token-1"),
-        ("register_task", "eval_789", "token-1"),
-        ("complete_registration", "eval_789", "token-2"),
-        ("end_sample", "eval_789", "token-2"),
+    # the stand-in checked each signature, with the token the registration
+    # sent, and refused none
+    calls = stand_in.calls[1:]
+    assert [call["method"] for call in calls] == [
+        "complete_registration",
+        "sample_result",
+        "end_sample",
     ]
+    assert all(
+        (params["eval_id"], "token" in params, isinstance(params["mac"], str))
+        == ("eval_789", False, True)
+        for params in (call["params"] for call in calls)
+    )
+    assert stand_in.refused == []
 
 
 async def test_samples_that_find_the_task_lost_at_once_register_it_again_once() -> None:
     # every sample's first completion finds the sidecar lost the task and the
-    # eval's token, so each registration gets a new token
-    issued = iter(f"token-{n}" for n in range(1, 10))
-    stand_in = StandInSidecar(
-        methods={
-            "register_task": lambda _: {"token": next(issued), "fixed": False},
-            "complete_registration": _forgets_the_task(3),
-        }
-    )
+    # eval's token, as after a restart
+    stand_in = StandInSidecar()
     sidecars = TaskSidecars("auto", _FACTS)
     sidecar = await sidecars.sidecar(_model(stand_in).api)
     assert sidecar is not None
+    stand_in.tokens.clear()
 
     def complete(uuid: str) -> Callable[[], Awaitable[bool]]:
         return lambda: sidecars.complete_registration(sidecar, _sample(), uuid, 1)
 
     await tg_collect([complete(uuid) for uuid in ["sample_1", "sample_2", "sample_3"]])
 
-    # registered again by one, which the others wait for, rather than by
-    # each with a token another's registration has replaced
-    assert len(_registered(stand_in, "register_task")) == 2
-    completed = _registered(stand_in, "complete_registration")
-    assert [params["token"] for params in completed[3:]] == ["token-2"] * 3
+    # registered again by one, signed and then with the token once the
+    # sidecar says it holds none, which the others wait for
+    registered = _registered(stand_in, "register_task")
+    assert ["token" in params for params in registered] == [True, False, True]
+    assert len(_registered(stand_in, "complete_registration")) == 6
+
+
+@pytest.mark.parametrize(
+    "lost",
+    [
+        {"code": -32010, "message": "the timestamp is 400 seconds off"},
+        {"code": -32008, "message": "the registration is full"},
+    ],
+    ids=["unauthorized", "full"],
+)
+async def test_a_signed_registration_refused_otherwise_doesnt_send_the_token(
+    lost: dict[str, Any],
+) -> None:
+    calls: list[str] = []
+
+    def register(params: dict[str, Any]) -> dict[str, Any]:
+        calls.append("token" if "token" in params else "mac")
+        return {"fixed": False} if len(calls) == 1 else {"error": lost}
+
+    stand_in = StandInSidecar(
+        methods={
+            "register_task": register,
+            "complete_registration": _forgets_the_task(1),
+        }
+    )
+    sidecars = TaskSidecars("auto", _FACTS)
+    sidecar = await sidecars.sidecar(_model(stand_in).api)
+    assert sidecar is not None
+
+    with pytest.raises(SentinelProxyError):
+        await sidecars.complete_registration(sidecar, _sample(), "sample_123", 1)
+
+    assert calls == ["token", "mac"]
 
 
 _UNAUTHORIZED = {"error": {"code": -32010, "message": "another token"}}
@@ -834,74 +922,7 @@ def test_every_reply_through_a_sidecar_is_looked_up() -> None:
     assert _looked_up(stand_in) == [call.headers["x-irid"]]
 
 
-async def test_a_call_sent_with_a_token_since_replaced_goes_again() -> None:
-    # Another sample registers the eval again while this call is on its way,
-    # as after a restart, so the sidecar keeps the new token by the time the
-    # call reaches it.
-    sidecars = TaskSidecars("auto", _FACTS)
-
-    def ends(params: dict[str, Any]) -> dict[str, Any]:
-        if params["token"] != "token-2":
-            assert sidecar is not None and sidecar.access is not None
-            sidecar.access.token = "token-2"
-            return _UNAUTHORIZED
-        return {"sample_uuid": params["sample_uuid"], "state": "ended"}
-
-    stand_in = StandInSidecar(methods={"end_sample": ends})
-    sidecar = await sidecars.sidecar(_model(stand_in).api)
-    assert sidecar is not None
-
-    ended = await sidecar.eval_call("end_sample", {"sample_uuid": "sample_123"})
-
-    assert ended["state"] == "ended"
-    assert [params["token"] for params in _registered(stand_in, "end_sample")] == [
-        "token-1",
-        "token-2",
-    ]
-
-
-async def test_a_call_refused_while_the_eval_registers_again_waits_for_it() -> None:
-    # Another sample is registering the eval again, as after a restart: the
-    # sidecar already keeps the new token, but its reply hasn't arrived when
-    # this call is refused.
-    def ends(params: dict[str, Any]) -> dict[str, Any]:
-        if params["token"] != "token-2":
-            return _UNAUTHORIZED
-        return {"sample_uuid": params["sample_uuid"], "state": "ended"}
-
-    stand_in = StandInSidecar(methods={"end_sample": ends})
-    sidecars = TaskSidecars("auto", _FACTS)
-    sidecar = await sidecars.sidecar(_model(stand_in).api)
-    assert sidecar is not None and sidecar.access is not None
-    access = sidecar.access
-    ended: dict[str, Any] = {}
-
-    async def end() -> None:
-        ended.update(
-            await sidecar.eval_call("end_sample", {"sample_uuid": "sample_123"})
-        )
-
-    async with anyio.create_task_group() as tg:
-        # the registration holds the lock until its reply arrives
-        await access.lock.acquire()
-        tg.start_soon(end)
-
-        # the refused call waits for it
-        with anyio.fail_after(5):
-            while access.lock.statistics().tasks_waiting == 0:
-                await anyio.sleep(0.01)
-
-        access.token = "token-2"
-        access.lock.release()
-
-    assert ended["state"] == "ended"
-    assert [params["token"] for params in _registered(stand_in, "end_sample")] == [
-        "token-1",
-        "token-2",
-    ]
-
-
-async def test_a_call_refused_with_the_token_it_still_holds_is_not_sent_again() -> None:
+async def test_an_unauthorized_call_is_not_sent_again() -> None:
     stand_in = StandInSidecar(methods={"end_sample": lambda _: _UNAUTHORIZED})
     sidecars = TaskSidecars("auto", _FACTS)
     sidecar = await sidecars.sidecar(_model(stand_in).api)
@@ -1023,6 +1044,10 @@ def test_an_agent_call_names_its_sample(provider: str, base_url: str) -> None:
     context = _context(call)
     assert context is not None
     attempt = context.pop("attempt")
+    # signed with the eval's token as it was sent, which the stand-in checked
+    assert isinstance(context.pop("timestamp"), int)
+    assert isinstance(context.pop("mac"), str)
+    assert stand_in.refused == []
     assert context == {
         "version": 1,
         "eval_id": log.eval.eval_id,
@@ -1043,6 +1068,131 @@ def test_an_agent_call_names_its_sample(provider: str, base_url: str) -> None:
     ]
     assert completed == [completed[0]]
     assert completed[0] < stand_in.requests.index(call)
+
+
+def test_no_model_request_carries_the_eval_token_and_each_is_signed() -> None:
+    stand_in = StandInSidecar(
+        turns=[Turn(calls=[("call_1", "weather", {"city": "Oslo"})]), Turn()]
+    )
+
+    _run_agent(stand_in)
+
+    # only the first registration carries the token
+    [token] = stand_in.tokens.values()
+    carrying = [
+        r
+        for r in stand_in.requests
+        if token in r.content.decode() or token in str(r.headers.raw)
+    ]
+    assert [json.loads(r.content)["method"] for r in carrying] == ["register_task"]
+    # each model request is signed with it, as the stand-in checked
+    contexts = [_context(r) for r in stand_in.model_calls]
+    assert len(contexts) == 2
+    for context in contexts:
+        assert context is not None
+        assert context["mac"] == sign(
+            token, model_request_message(context, context["timestamp"])
+        )
+    assert stand_in.refused == []
+
+
+def _after_a_long_backoff(
+    monkeypatch: pytest.MonkeyPatch, sdk_retries: int
+) -> tuple[StandInSidecar, EvalLog]:
+    # The first try is refused with an error that is retried, and the clocks
+    # of Inspect and the stand-in move on by twice the window before the
+    # retry, as during a long backoff.
+    from inspect_ai._sentinel._sidecar import _sign
+
+    stand_in = StandInSidecar(
+        now=1_800_000_000.0, turns=[Turn(status=529, later=2 * WINDOW), Turn()]
+    )
+    monkeypatch.setattr(_sign, "_clock", stand_in.clock)
+    model = get_model(
+        _MODELS["anthropic"],
+        base_url="http://proxy.test",
+        api_key="test-key",
+        memoize=False,
+        http_client=stand_in.http_client(),
+        max_retries=sdk_retries,
+    )
+    # Inspect's own backoff, which is long, is not waited out
+    monkeypatch.setattr(model.api, "retry_wait", lambda: wait_none())
+
+    [log] = eval(
+        Task(dataset=[Sample(input="Hi.")], solver=generate()),
+        model=model,
+        display="none",
+    )
+    return stand_in, log
+
+
+@pytest.mark.parametrize("retried_by", ["inspect", "sdk"])
+def test_a_retry_after_a_long_backoff_is_signed_afresh(
+    retried_by: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    stand_in, log = _after_a_long_backoff(
+        monkeypatch, sdk_retries=0 if retried_by == "inspect" else 1
+    )
+
+    assert log.status == "success"
+    assert log.samples is not None and log.samples[0].error is None
+    failed, replied = stand_in.model_calls
+    # a retry by Inspect is a new request; one by the SDK is the same
+    same_request = failed.headers["x-irid"] == replied.headers["x-irid"]
+    assert same_request == (retried_by == "sdk")
+    # the retry was signed when it was sent, and the stand-in took it
+    first, again = _context(failed), _context(replied)
+    assert first is not None and again is not None
+    assert again["timestamp"] - first["timestamp"] == 2 * WINDOW
+    assert again["mac"] != first["mac"]
+    assert stand_in.refused == []
+
+
+def test_the_eval_token_is_in_no_debug_log_of_the_sdk(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    stand_in = StandInSidecar()
+
+    with caplog.at_level(logging.DEBUG, logger="anthropic._base_client"):
+        for _ in range(2):
+            [log] = eval(
+                Task(dataset=[Sample(input="Hi.")], solver=generate()),
+                model=_model(stand_in),
+                display="none",
+            )
+            assert log.status == "success"
+
+    # the SDK logged each registration's body, with the token taken out
+    tokens = set(stand_in.tokens.values())
+    assert len(tokens) == 2
+    logged = [r.getMessage() for r in caplog.records]
+    registrations = [m for m in logged if "register_task" in m]
+    assert len(registrations) == 2
+    assert all("<redacted>" in m for m in registrations)
+    assert not any(token in m for m in logged for token in tokens)
+    # the filter is installed once, however many tasks start
+    filters = logging.getLogger("anthropic._base_client").filters
+    assert filters.count(_redact_eval_tokens) == 1
+
+
+async def test_the_request_hook_leaves_a_request_with_no_context_alone() -> None:
+    hooks = HttpxHooks(httpx2.AsyncClient())
+    unsigned = json.dumps({"version": 1, "eval_id": "eval_unknown", "task": "t"})
+    requests = [
+        httpx2.Request("POST", "http://proxy.test/v1/messages", headers=headers)
+        for headers in [
+            {"x-api-key": "test-key"},
+            # an eval with no sidecar at the request's origin
+            {"x-api-key": "test-key", "x-inspect-context": unsigned},
+        ]
+    ]
+    before = [list(request.headers.raw) for request in requests]
+
+    for request in requests:
+        await hooks.request_hook(request)
+
+    assert [list(request.headers.raw) for request in requests] == before
 
 
 @scorer(metrics=[mean()])
@@ -1647,7 +1797,11 @@ def test_a_reply_is_acted_on_as_request_result_says() -> None:
     first_call = stand_in.model_calls[0]
     assert _looked_up(stand_in)[:2] == [first_call.headers["x-irid"]] * 2
     asked = _registered(stand_in, "request_result")[0]
-    assert (asked["wait"], asked["token"]) == (RESULT_WAIT, "token-1")
+    assert (asked["wait"], "token" in asked, "mac" in asked) == (
+        RESULT_WAIT,
+        False,
+        True,
+    )
     assert _tool_messages(sample)["call_1"].error is not None
     assert _LOOKED_UP == ["Oslo"]
 
@@ -2232,8 +2386,8 @@ def test_a_scorer_reads_the_monitor_state_the_sidecar_keeps() -> None:
     [sample] = log.samples
     assert sample.scores is not None
     assert sample.scores["_reads_monitor_state"].value == 3
-    assert _registered(stand_in, "sample_result") == [
-        {"sample_uuid": sample.uuid, "eval_id": log.eval.eval_id, "token": "token-1"}
+    assert [_unsigned(params) for params in _registered(stand_in, "sample_result")] == [
+        {"sample_uuid": sample.uuid, "eval_id": log.eval.eval_id}
     ]
 
 
@@ -2729,8 +2883,8 @@ def test_a_copy_cut_short_by_the_scoring_deadline_says_the_state_is_missing(
     assert log.samples is not None
     [sample] = log.samples
     assert sample.error is not None
-    assert _registered(stand_in, "sample_result") == [
-        {"sample_uuid": sample.uuid, "eval_id": log.eval.eval_id, "token": "token-1"}
+    assert [_unsigned(params) for params in _registered(stand_in, "sample_result")] == [
+        {"sample_uuid": sample.uuid, "eval_id": log.eval.eval_id}
     ]
     with caplog.at_level("WARNING", logger="inspect_ai._eval.score"):
         rescored = score_log(log, _reads_monitor_state(), display="none")
