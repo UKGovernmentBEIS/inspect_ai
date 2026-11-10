@@ -677,10 +677,6 @@ class ConnectionHandler:
     ) -> dict[str, Any]:
         """Cancel a pending tool call by id.
 
-        ``tool_call_id`` is a tool call card's id. A card that a host
-        ``ToolEvent`` under another id took over (a bridged call handed on
-        under a token) cancels that event (``AcpTransport.tool_event_id``).
-
         Walks the full sample transcript for a matching pending
         ``ToolEvent`` (superset of the TUI which only handles top-level
         tools). The found event's ``_cancel_fn`` — set by the tool
@@ -718,25 +714,23 @@ class ConnectionHandler:
         # transcript. Pending events are never evicted, and nested
         # sub-agent tool calls (task / as_tool / handoff) record into this
         # same sample transcript, so they remain reachable here.
-        pending = [
-            event
-            for event in sample.transcript.pending_events
-            if isinstance(event, ToolEvent) and event.pending
-        ]
-        target = next((event for event in pending if event.id == tool_call_id), None)
-        if target is None and sample.acp_transport is not None:
-            execution = sample.acp_transport.tool_event_id(tool_call_id)
-            target = next((event for event in pending if event.id == execution), None)
-        if target is None:
-            return {"cancelled": False}
-        # ``_cancel()`` is a no-op when ``_cancel_fn`` isn't set OR the
-        # event was already cancelled — read the post-call state rather
-        # than assuming success. In current production paths
-        # ``_call_tools.py`` always installs ``_cancel_fn`` before the
-        # event reaches the transcript, so this primarily matters for
-        # defensive correctness and the idempotent-retry case.
-        target._cancel()
-        return {"cancelled": target.cancelled}
+        for event in sample.transcript.pending_events:
+            if (
+                isinstance(event, ToolEvent)
+                and event.id == tool_call_id
+                and event.pending
+            ):
+                # ``_cancel()`` is a no-op when ``_cancel_fn`` isn't
+                # set OR the event was already cancelled — read the
+                # post-call state rather than assuming success. In
+                # current production paths ``_call_tools.py`` always
+                # installs ``_cancel_fn`` before the event reaches
+                # the transcript, so this primarily matters for
+                # defensive correctness and the idempotent-retry
+                # case.
+                event._cancel()
+                return {"cancelled": event.cancelled}
+        return {"cancelled": False}
 
     # ------------------------------------------------------------------
     # Internal helpers

@@ -42,7 +42,7 @@ import uuid as _uuid_module
 from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
 from logging import getLogger
-from typing import TYPE_CHECKING, Any, Callable, Iterator, Literal, NamedTuple
+from typing import TYPE_CHECKING, Callable, Iterator, Literal, NamedTuple
 
 from acp.schema import (
     AgentMessageChunk,
@@ -116,10 +116,8 @@ class _BridgeToolState:
     results return as a ``ChatMessageTool`` in a later call's input. A host tool
     a sandbox bridge runs for the scaffold (``bridged_tools``) does get a real
     ``ToolEvent``, with the proposing call's id when it was proposed; it updates
-    the synthesized card and removes it from ``pending``. A bridge can hand a
-    call on under an id other than the model's; its host ``ToolEvent`` and its
-    result then name the model's id (`_proposal_id`) and settle that card, which
-    then shows the call as it ran (`_settled_card`). Two modes:
+    the synthesized card and removes it from ``pending``; the card then shows
+    the call as it ran (`_settled_card`). Two modes:
 
     - **Live** (``replay`` is False): ``pending`` holds calls we've emitted an
       in-progress start for, awaiting the result that settles them. Gated on
@@ -138,20 +136,11 @@ class _BridgeToolState:
     tool_results: dict[str, ChatMessageTool] | None = None
     answered_calls: dict[str, ToolCall] = field(default_factory=dict)
     """Replay: the call each of ``tool_results`` answers (`_answered_call`)."""
-    cards: dict[str, str] = field(default_factory=dict)
-    """The card each host ``ToolEvent`` under another id than its proposal's updates."""
 
     @property
     def replay(self) -> bool:
         """True when this state was seeded with a replay snapshot's facts."""
         return self.tool_event_ids is not None
-
-    def tool_event_id(self, card: str) -> str | None:
-        """The host ``ToolEvent`` that took over `card` (see `cards`), if any."""
-        return next(
-            (event_id for event_id, taken in self.cards.items() if taken == card),
-            None,
-        )
 
 
 class _BridgeToolFacts(NamedTuple):
@@ -176,24 +165,17 @@ def _scan_bridge_tool_facts(events: Sequence[Event]) -> _BridgeToolFacts:
     for event in events:
         if isinstance(event, ToolEvent):
             tool_event_ids.add(event.id)
-            proposal_id = _proposal_id(event.metadata, event.id)
-            if proposal_id is not None:
-                tool_event_ids.add(proposal_id)
         elif isinstance(event, ModelEvent):
             for index, msg in enumerate(event.input):
-                if not isinstance(msg, ChatMessageTool) or msg.tool_call_id is None:
-                    continue
-                keys = [msg.tool_call_id]
-                proposal_id = _proposal_id(msg.metadata, msg.tool_call_id)
-                if proposal_id is not None:
-                    keys.append(proposal_id)
-                answered: ToolCall | None = None
-                for key in keys:
-                    if key not in tool_results:
-                        tool_results[key] = msg
-                        answered = answered or _answered_call(event.input, index)
-                        if answered is not None:
-                            answered_calls[key] = answered
+                if (
+                    isinstance(msg, ChatMessageTool)
+                    and msg.tool_call_id is not None
+                    and msg.tool_call_id not in tool_results
+                ):
+                    tool_results[msg.tool_call_id] = msg
+                    answered = _answered_call(event.input, index)
+                    if answered is not None:
+                        answered_calls[msg.tool_call_id] = answered
     return _BridgeToolFacts(tool_event_ids, tool_results, answered_calls)
 
 
@@ -202,7 +184,7 @@ def _answered_call(messages: Sequence[ChatMessage], index: int) -> ToolCall | No
 
     The nearest earlier assistant message's call under the result's id. A
     scaffold sends the call as it ran it: a sentinel may have modified its
-    arguments, under the model's id or a token.
+    arguments.
     """
     result = messages[index]
     if not isinstance(result, ChatMessageTool) or result.tool_call_id is None:
@@ -213,20 +195,6 @@ def _answered_call(messages: Sequence[ChatMessage], index: int) -> ToolCall | No
             for call in message.tool_calls or []:
                 if call.id == result.tool_call_id:
                     return call
-    return None
-
-
-def _proposal_id(metadata: dict[str, Any] | None, call_id: str) -> str | None:
-    """The model's id for a call a bridge recorded under `call_id`, when another.
-
-    A bridge that hands a call on under an id other than the model's records
-    the model's id as `metadata["bridge"]["proposal_id"]` on the call's host
-    ``ToolEvent`` and on the results it passes on under that id.
-    """
-    bridge = metadata.get("bridge") if metadata is not None else None
-    proposal_id = bridge.get("proposal_id") if isinstance(bridge, dict) else None
-    if isinstance(proposal_id, str) and proposal_id and proposal_id != call_id:
-        return proposal_id
     return None
 
 
@@ -400,15 +368,6 @@ class _AcpEventRouter:
         if self._unsubscribe is not None:
             self._unsubscribe()
             self._unsubscribe = None
-
-    def tool_event_id(self, tool_call_id: str) -> str | None:
-        """The ``ToolEvent`` the published card `tool_call_id` shows, when another id.
-
-        A bridged call handed on under an id other than the model's runs as a
-        host ``ToolEvent`` under that id, which takes over the card of the
-        model's proposal (`_map_tool_event`).
-        """
-        return self._bridge.tool_event_id(tool_call_id)
 
     def _process(self, event: Event) -> None:
         action = self._depth_tracker.process(event)
@@ -926,25 +885,18 @@ def _map_tool_event(
 ) -> Iterator[SessionNotification]:
     # a host tool a sandbox bridge ran for a proposed call updates the card
     # synthesized for that call, so the scaffold's result must not settle it again
-    card = bridge.cards.get(event.id, event.id)
-    synthesized = bridge.pending.pop(card, None) is not None
-    proposal_id = _proposal_id(event.metadata, event.id)
-    if not synthesized and proposal_id is not None and proposal_id in bridge.pending:
-        # a call handed on under another id: its execution is the proposal's card
-        del bridge.pending[proposal_id]
-        card = bridge.cards[event.id] = proposal_id
-        synthesized = True
+    synthesized = bridge.pending.pop(event.id, None) is not None
     status = _tool_call_status(event)
-    if card in seen_tool_call_ids:
+    if event.id in seen_tool_call_ids:
         if synthesized:
             # the synthesized start was marked non-cancelable; a real ToolEvent
             # now backs the card, so `inspect/cancel_tool_call` can act on it
-            yield _settled_card(session_id, card, event, cancelable=True)
+            yield _settled_card(session_id, event.id, event, cancelable=True)
         else:
             yield session_notification(
                 session_id,
                 update_tool_call(
-                    tool_call_id=card,
+                    tool_call_id=event.id,
                     status=status,
                     content=_content_for_update(event),
                 ),
@@ -1029,10 +981,6 @@ def _map_bridge_tool_completions(
         if not isinstance(msg, ChatMessageTool) or msg.tool_call_id is None:
             continue
         call = bridge_tool_calls.pop(msg.tool_call_id, None)
-        if call is None:
-            proposal_id = _proposal_id(msg.metadata, msg.tool_call_id)
-            if proposal_id is not None:
-                call = bridge_tool_calls.pop(proposal_id, None)
         if call is None:
             continue
         answered = _answered_call(event.input, index)

@@ -8,7 +8,6 @@ from pydantic import (
     ConfigDict,
     Field,
     ModelWrapValidatorHandler,
-    PrivateAttr,
     TypeAdapter,
     model_validator,
 )
@@ -200,14 +199,6 @@ class ChatMessageTool(ChatMessageBase):
 
     error: ToolCallError | None = Field(default=None)
     """Error which occurred during tool call."""
-
-    _keyed_metadata: tuple[dict[str, Any], dict[str, Any] | None] | None = PrivateAttr(
-        default=None
-    )
-    """`(annotated, keyed)`: the model cache key reads `keyed` while `metadata` is `annotated`.
-
-    Set by `inspect_ai.model._cache.set_unkeyed_metadata`. Not serialized.
-    """
 
     @property
     def tool_error(self) -> str | None:

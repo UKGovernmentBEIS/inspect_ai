@@ -675,16 +675,6 @@ class AcpTransport(Protocol):
         """
         ...
 
-    def tool_event_id(self, tool_call_id: str) -> str:
-        """The id of the ``ToolEvent`` a published tool call card shows.
-
-        Usually the card's own id. A bridged call handed on under an id other
-        than the model's runs as a host ``ToolEvent`` under that id, which
-        takes over the card of the model's proposal; ``inspect/cancel_tool_call``
-        on that card cancels the ``ToolEvent`` named here.
-        """
-        ...
-
     @property
     def is_attachable(self) -> bool:
         """True iff a client may attach to this transport at all.

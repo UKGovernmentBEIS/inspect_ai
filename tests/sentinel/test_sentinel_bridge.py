@@ -9290,20 +9290,6 @@ def _replayed_acp_cards() -> dict[str, list[str | None]]:
     return _acp_cards(list(replay_transcript(transcript().events, session_id="s")))
 
 
-def _result_proposals() -> list[tuple[str | None, Any]]:
-    """Each result in the bridge's recorded requests: its id and the proposal it names."""
-    return [
-        (
-            message.tool_call_id,
-            (message.metadata or {}).get("bridge", {}).get("proposal_id"),
-        )
-        for event in transcript().events
-        if isinstance(event, ModelEvent)
-        for message in event.input
-        if isinstance(message, ChatMessageTool)
-    ]
-
-
 HOST_READ_ITEM: dict[str, Any] = {
     "type": "function_call",
     "id": "fc_1",
