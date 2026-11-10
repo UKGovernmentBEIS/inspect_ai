@@ -13,6 +13,7 @@ import pytest
 from test_helpers.checkpoint import RecordingCheckpointer
 from test_helpers.utils import collide_murmur3
 
+from inspect_ai._util.content import ContentText
 from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai.agent._agent import AgentState
@@ -47,7 +48,7 @@ async def track(
     bridge: AgentBridge, input: list[ChatMessage], completion: str
 ) -> ModelOutput:
     output = ModelOutput.from_content(model="mockllm/model", content=completion)
-    await bridge._track_state(input, output)
+    await bridge._track_state(input, output, [])
     return output
 
 
@@ -93,6 +94,32 @@ async def test_side_call_arriving_first_does_not_displace_task_thread() -> None:
         TASK,
         "Castle",
     ]
+
+
+async def test_main_loop_resending_its_prompt_with_empty_text_parts_continues() -> None:
+    """Empty text parts around a resent message leave it the same message.
+
+    The main loop resends the task between empty text parts, which show
+    nothing (as `content_hash` treats them), so its second turn continues
+    the tracked thread.
+    """
+    bridge = task_bridge()
+
+    turn1: list[ChatMessage] = [TASK_SYSTEM, ChatMessageUser(content=TASK)]
+    out1 = await track(bridge, turn1, "let me look into that")
+    padded = ChatMessageUser(
+        content=[ContentText(text=""), ContentText(text=TASK), ContentText(text="")]
+    )
+    turn2: list[ChatMessage] = [
+        TASK_SYSTEM,
+        padded,
+        out1.message,
+        ChatMessageTool(content="result"),
+    ]
+    await track(bridge, turn2, "Castle")
+
+    assert bridge.state.output.completion == "Castle"
+    assert len(bridge.state.messages) == len(turn2) + 1
 
 
 async def test_side_call_after_main_loop_does_not_displace_task_thread() -> None:
@@ -1426,8 +1453,8 @@ async def test_completions_handler_tracks_main_thread_end_to_end() -> None:
     """The opencode scenario through the real OpenAI completions handler.
 
     Exercises message conversion, system-prompt handling and message-id
-    assignment together with `_track_state`: `apply_message_ids` gives every
-    request fresh ids, so thread continuity must survive the full request
+    assignment together with `_track_state`: every request is rebuilt from
+    the scaffold's JSON, so thread continuity must survive the full request
     path, not just hand-constructed messages.
     """
     model = scenario_model(

@@ -3,8 +3,9 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+from collections import Counter, deque
 from logging import getLogger
-from typing import Any, Literal
+from typing import Any, Literal, NamedTuple
 
 from shortuuid import uuid
 
@@ -23,12 +24,14 @@ from inspect_ai.model._chat_message import (
     ChatMessageUser,
 )
 from inspect_ai.model._generate_config import GenerateConfig, ResponseSchema
+from inspect_ai.model._message_ids import canonical_tool_arguments
 from inspect_ai.model._model import ModelName
 from inspect_ai.model._model_output import ModelOutput, ModelUsage, StopReason
 from inspect_ai.model._providers._google_computer_use import (
     gemini_action_from_tool_call,
 )
 from inspect_ai.model._reasoning import (
+    ReasoningCapsule,
     parse_content_with_reasoning,
     reasoning_to_think_tag,
 )
@@ -137,8 +140,13 @@ async def inspect_google_api_request_impl(
 
     # translate messages
     issued_ids = set(bridge._sentinel_results.identities) if call_ids else set()
+    inferred_results: list[ChatMessageTool] = []
     messages = messages_from_google_contents(
-        contents, system_instruction, call_ids=call_ids, issued_ids=issued_ids
+        contents,
+        system_instruction,
+        inferred_results,
+        call_ids=call_ids,
+        issued_ids=issued_ids,
     )
     await validate_bridge_media(bridge, messages)
     debug_log("INSPECT MESSAGES", messages)
@@ -150,7 +158,7 @@ async def inspect_google_api_request_impl(
     validate_client_config(config)
 
     # try to maintain id stability
-    apply_message_ids(bridge, messages)
+    apply_message_ids(bridge, messages, inferred_results, named_results=True)
 
     # give inspect-level config priority over agent default config
     config = resolve_generate_config(model, config)
@@ -173,14 +181,22 @@ async def inspect_google_api_request_impl(
 
     debug_log("INSPECT OUTPUT", output.message)
 
-    # update state if we have more messages than the last generation
-    await bridge._track_state(messages, output)
-
     # translate response to Gemini format
     response = gemini_response_from_output(
         output, model.api.model_name, call_ids=call_ids
     )
     debug_log("SCAFFOLD RESPONSE", response)
+    # re-parse the JSON the client receives (e.g. integer argument keys become strings)
+    wire_content = json.loads(json.dumps(response["candidates"][0]["content"]))
+    transported = messages_from_google_contents(
+        [wire_content],
+        None,
+        call_ids=call_ids,
+        issued_ids=set(bridge._sentinel_results.identities) if call_ids else None,
+    )
+
+    # update state if we have more messages than the last generation
+    await bridge._track_state(messages, output, [transported])
 
     return response
 
@@ -374,6 +390,7 @@ def tool_choice_from_google_tool_config(
 def messages_from_google_contents(
     contents: list[dict[str, Any]],
     system_instruction: dict[str, Any] | list[Any] | None,
+    inferred_results: list[ChatMessageTool] | None = None,
     *,
     call_ids: bool = False,
     issued_ids: set[str] | None = None,
@@ -383,8 +400,15 @@ def messages_from_google_contents(
     With `call_ids` (a sentinel is active), a call takes the id its
     `functionCall` carries and a result the id its `functionResponse` carries
     (`_function_part_id`). Without it, ids the parts carry are ignored: a call
-    gets an id derived from itself, and a result the id of the oldest
-    unanswered call to its function.
+    gets an id derived from itself.
+
+    A `functionResponse` that carries no id it can take names its function
+    but not its call, so it takes the id of the next pending call of the
+    previous model turn with that name. The id is read only when that turn
+    had one call with the name and one response names it. Otherwise it is
+    inferred from order (several calls) or another response may be the
+    call's answer (several responses), and every response naming the
+    function without an id is appended to `inferred_results`.
     """
     messages: list[ChatMessage] = []
 
@@ -436,7 +460,14 @@ def messages_from_google_contents(
                 )
 
     # track tool call IDs by function name for matching with tool results
-    pending_tool_calls: dict[str, list[str]] = {}
+    pending_tool_calls: dict[str, _PendingCalls] = {}
+
+    def settle_pending() -> None:
+        if inferred_results is not None:
+            for pending in pending_tool_calls.values():
+                if pending.shared or len(pending.responses) > 1:
+                    inferred_results.extend(pending.responses)
+        pending_tool_calls.clear()
 
     for content in contents:
         role = content.get("role", "user")
@@ -476,11 +507,13 @@ def messages_from_google_contents(
             )
 
             if tool_calls:
-                pending_tool_calls.clear()
+                settle_pending()
+                functions = Counter(tc.function for tc in tool_calls)
                 for tc in tool_calls:
-                    if tc.function not in pending_tool_calls:
-                        pending_tool_calls[tc.function] = []
-                    pending_tool_calls[tc.function].append(tc.id)
+                    pending_tool_calls.setdefault(
+                        tc.function,
+                        _PendingCalls(deque(), functions[tc.function] > 1, []),
+                    ).ids.append(tc.id)
 
             # Only emit an assistant turn when it carries real content or tool calls;
             # a pure-functionResponse model turn must NOT add an empty assistant (that
@@ -493,6 +526,7 @@ def messages_from_google_contents(
                     )
                 )
 
+    settle_pending()
     return messages
 
 
@@ -569,13 +603,25 @@ def _is_function_response_part(part: Any) -> bool:
     )
 
 
+class _PendingCalls(NamedTuple):
+    """The calls of the previous model turn with one function name, not yet answered."""
+
+    ids: deque[str]
+
+    shared: bool
+    """Whether the turn had more than one call with the name."""
+
+    responses: list[ChatMessageTool]
+    """The tool messages of the responses naming the function since the turn."""
+
+
 def _extract_user_parts(
     parts: list[dict[str, Any]],
-    pending_tool_calls: dict[str, list[str]],
+    pending_tool_calls: dict[str, _PendingCalls],
     call_ids: bool = False,
     issued_ids: set[str] | None = None,
 ) -> tuple[list[Content] | str | None, list[ChatMessageTool]]:
-    # pending_tool_calls maps function_name -> list of call_ids from the previous
+    # pending_tool_calls maps function_name -> call_ids from the previous
     # model message, used to match functionResponse with the correct tool_use_id.
     content_parts: list[Content] = []
     tool_messages: list[ChatMessageTool] = []
@@ -616,38 +662,83 @@ def _extract_user_parts(
                 if call_ids
                 else None
             )
-            pending = pending_tool_calls.get(func_name, [])
+            pending = pending_tool_calls.get(func_name)
             if response_id is not None:
                 # the id of the call it answers, as the bridge handed it over
                 call_id = response_id
-                if call_id in pending:
-                    pending.remove(call_id)
-            elif pending:
-                call_id = pending.pop(0)
+                if pending is not None and call_id in pending.ids:
+                    pending.ids.remove(call_id)
+                # read, not inferred
+                pending = None
+            elif pending is not None and pending.ids:
+                call_id = pending.ids.popleft()
             else:
                 call_id = f"call_{func_name}_{uuid()[:8]}"
                 logger.warning(
-                    f"No pending tool call found for function '{func_name}', "
-                    f"generating new call_id: {call_id}"
+                    f"No pending tool call found for function {func_name!r}, "
+                    f"generating new call_id: {call_id!r}"
                 )
 
             response_content = (
                 json.dumps(response) if isinstance(response, dict) else str(response)
             )
 
-            tool_messages.append(
-                ChatMessageTool(
-                    tool_call_id=call_id,
-                    function=func_name,
-                    content=response_content,
-                )
+            tool_message = ChatMessageTool(
+                tool_call_id=call_id, function=func_name, content=response_content
             )
+            tool_messages.append(tool_message)
+            if pending is not None:
+                pending.responses.append(tool_message)
 
     if len(content_parts) == 1 and isinstance(content_parts[0], ContentText):
         return content_parts[0].text, tool_messages
     if content_parts:
         return content_parts, tool_messages
     return None, tool_messages
+
+
+def _decode_base64(value: str | bytes) -> bytes | None:
+    if isinstance(value, bytes):
+        return value
+    try:
+        return base64.b64decode(
+            value + "=" * (-len(value) % 4), altchars=b"-_", validate=True
+        )
+    except ValueError:
+        return None
+
+
+def _canonical_thought_signature(signature: str | bytes) -> str:
+    """Return standard base64 for a Google thought signature.
+
+    The SDK uses URL-safe base64 for bytes, while other Google clients send
+    standard base64. Either form may omit padding. A string that doesn't
+    decode is not a signature and is returned unchanged.
+    """
+    if isinstance(signature, bytes):
+        return base64.b64encode(signature).decode()
+    decoded = _decode_base64(signature)
+    return signature if decoded is None else base64.b64encode(decoded).decode()
+
+
+# Google signatures are redacted reasoning with no provider signature and are
+# canonicalized. Other capsules (readable reasoning, other providers' tokens) keep
+# their own spelling and match verbatim or by decoded bytes, since the SDK
+# re-encodes thoughtSignature as URL-safe base64.
+def _capsule_signature_reasoning(
+    signature: str | bytes, capsule: ReasoningCapsule
+) -> str | None:
+    if capsule.redacted and capsule.signature is None:
+        canonical = _canonical_thought_signature(signature)
+        if _canonical_thought_signature(capsule.reasoning) == canonical:
+            return canonical
+        return None
+    if capsule.reasoning == signature:
+        return capsule.reasoning
+    decoded = _decode_base64(signature)
+    if decoded is not None and decoded == _decode_base64(capsule.reasoning):
+        return capsule.reasoning
+    return None
 
 
 def _extract_model_parts(
@@ -706,15 +797,15 @@ def _extract_model_parts(
                     thought_sig = embedded_capsule.reasoning
 
             if thought_sig and not first_fc_signature_captured:
-                if isinstance(thought_sig, str):
-                    sig_str = thought_sig
-                else:
-                    sig_str = base64.b64encode(thought_sig).decode()
-
-                if embedded_capsule and embedded_capsule.reasoning == sig_str:
+                capsule_reasoning = (
+                    _capsule_signature_reasoning(thought_sig, embedded_capsule)
+                    if embedded_capsule
+                    else None
+                )
+                if embedded_capsule and capsule_reasoning is not None:
                     content_parts.append(
                         ContentReasoning(
-                            reasoning=embedded_capsule.reasoning,
+                            reasoning=capsule_reasoning,
                             signature=embedded_capsule.signature,
                             redacted=embedded_capsule.redacted,
                             summary=embedded_capsule.summary,
@@ -723,7 +814,7 @@ def _extract_model_parts(
                 else:
                     content_parts.append(
                         ContentReasoning(
-                            reasoning=sig_str,
+                            reasoning=_canonical_thought_signature(thought_sig),
                             redacted=True,
                         )
                     )
@@ -734,16 +825,20 @@ def _extract_model_parts(
 
             # with call ids, the id the bridge handed over, which the scaffold
             # sends back; otherwise (or failing that), deterministic for
-            # message ID stability
+            # message ID stability, unchanged by a JSON round-trip of the
+            # arguments (5.0 sent back as 5); `surrogatepass` encodes a lone
+            # surrogate in the name losslessly
             call_id = (
                 _function_part_id(func_call, func_name, issued_ids)
                 if call_ids
                 else None
             ) or ""
             if not call_id:
-                args_str = json.dumps(args, sort_keys=True) if args else ""
+                args_str = canonical_tool_arguments(args) if args else ""
                 call_hash = hashlib.md5(
-                    f"{func_name}:{args_str}:{part_idx}".encode()
+                    f"{func_name}:{args_str}:{part_idx}".encode(
+                        "utf-8", "surrogatepass"
+                    )
                 ).hexdigest()[:8]
                 call_id = f"call_{func_name}_{call_hash}"
 

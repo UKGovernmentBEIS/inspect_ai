@@ -48,6 +48,7 @@ from inspect_ai.model._call_tools import (
     _modified_id_error,
 )
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageTool
+from inspect_ai.model._message_ids import with_edited_id
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool._tool import Tool, ToolApprovalError
 from inspect_ai.tool._tool_call import ToolCall, ToolCallError, ToolCallViewer
@@ -403,6 +404,7 @@ def with_modified_arguments(
     for index, call in enumerate(result.message.tool_calls or []):
         if index in modified:
             call.arguments = modified[index]
+    with_edited_id(output.message, result.message)
     return result
 
 

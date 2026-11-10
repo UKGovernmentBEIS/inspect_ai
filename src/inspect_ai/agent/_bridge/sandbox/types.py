@@ -9,6 +9,7 @@ import anyio
 from pydantic_core import to_jsonable_python
 from shortuuid import uuid
 
+from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.json import json_equal
 from inspect_ai._util.logger import warn_once
 from inspect_ai.agent._agent import AgentState
@@ -17,10 +18,12 @@ from inspect_ai.agent._bridge.types import (
     AgentBridge,
     DispatchedCall,
     ReviewedCalls,
+    _HandedCall,
     _unchanged,
 )
 from inspect_ai.model._call_tools import get_tools_info
 from inspect_ai.model._compaction.types import CompactionStrategy
+from inspect_ai.model._message_ids import canonical_tool_arguments
 from inspect_ai.model._model import (
     GenerateFilter,
     Model,
@@ -104,6 +107,10 @@ class SandboxAgentBridge(AgentBridge):
         self._tool_execution_grants: deque[_ToolExecutionGrant] = deque(
             maxlen=_MAX_TOOL_EXECUTION_GRANTS
         )
+        self._executed_calls: dict[tuple[str, str, str], list[_HandedCall]] = {}
+        """Per (server, tool, argument key), the calls an execution consumed a grant of, unless settled since (`_record_execution`)."""
+        self._executed_tools: dict[tuple[str, str], list[_HandedCall]] = {}
+        """Per (server, tool), the calls an execution consumed a grant of."""
         self._failure_requested = anyio.Event()
         self._failure: Exception | None = None
         self.generation_limit: LimitExceededError | None = None
@@ -181,7 +188,9 @@ class SandboxAgentBridge(AgentBridge):
         `_warn_eviction`, once `_MAX_TOOL_EXECUTION_GRANTS` unconsumed grants
         accumulate, counting those for exempt servers), including when
         the response never reached the scaffold, but only ever authorizes the
-        exact proposed action.
+        exact proposed action. An evicted grant's reply is unlinked
+        (`_unlink`): on an exempt server its call still executes, untracked,
+        and another grant of the call may then execute it again.
         """
         self._register_tool_execution_grants(calls, tools, None, span_id=span_id)
 
@@ -195,7 +204,14 @@ class SandboxAgentBridge(AgentBridge):
     ) -> None:
         # Keep the sentinel check with its proposal and its execution grants.
         declared = _declarations_by_name(tools)
+        handed = (
+            self._handed_calls(self._proposing_reply_id, calls)
+            if self._proposing_reply_id is not None
+            else None
+        )
         for index, call in enumerate(calls):
+            verified = self._proposing_call_verified
+            retained = verified is None or verified[index]
             proposed = _proposed_call(
                 self.bridged_tools, self.served_tools, call, declared
             )
@@ -227,8 +243,14 @@ class SandboxAgentBridge(AgentBridge):
                     + ", ".join(f"{t.server}/{t.tool}" for t in targets)
                     + "); an execution grant was registered for each of them.",
                 )
+            # the model's id for the call, which a sentinel's token replaces
+            proposal_id = check.handed.id if check is not None else call.id
             proposal = _Proposal(
-                call, check.handed.id if check is not None else call.id, span_id
+                call,
+                proposal_id,
+                span_id if retained else None,
+                self._proposing_message_ids.get(proposal_id) if retained else None,
+                handed[index] if handed is not None else None,
             )
             for target_index, target in enumerate(targets):
                 target_check = (
@@ -240,7 +262,10 @@ class SandboxAgentBridge(AgentBridge):
                     len(self._tool_execution_grants)
                     == self._tool_execution_grants.maxlen
                 ):
-                    self._warn_eviction(self._tool_execution_grants[0])
+                    evicted = self._tool_execution_grants[0]
+                    self._warn_eviction(evicted)
+                    if evicted.proposal.reply is not None:
+                        self._unlink(evicted.proposal.reply.reply.id)
                 self._tool_execution_grants.append(
                     _ToolExecutionGrant(
                         server=target.server,
@@ -302,6 +327,15 @@ class SandboxAgentBridge(AgentBridge):
     ) -> "_ToolExecutionGrant | None":
         """Consume and return the oldest grant binding this exact (server, tool), if any.
 
+        When grants of more than one proposal match, the execution may belong
+        to any of them, so each of those proposals is marked `ambiguous` and
+        its reply unlinked (`_unlink`): no execution under them links its
+        result message, including one that completed before this one. A grant
+        that matches
+        only once undeclared keys are dropped (below) counts as matching here
+        even when another grant matches exactly: exact matching decides which
+        grant is consumed, not which proposal made the call.
+
         Arguments match by JSON semantics (`json_equal`): key order and
         int/float numeric equality (`5 == 5.0`) don't matter, so a scaffold's
         JSON round-trip cannot turn a proposed call into a denial; any other
@@ -325,33 +359,44 @@ class SandboxAgentBridge(AgentBridge):
         keeps exact matching, since an undeclared key there can be a real
         argument.
         """
-        matched = self._matching_grants(server, tool, arguments)
-        if not matched:
+        exact, projected = self._grant_matches(server, tool, arguments)
+        matches = exact or projected
+        if not matches:
             return None
-        grant = self._tool_execution_grants[matched[0]]
-        del self._tool_execution_grants[matched[0]]
+        proposals = [
+            self._tool_execution_grants[index].proposal
+            for index in sorted(set(exact) | set(projected))
+        ]
+        if any(proposal is not proposals[0] for proposal in proposals):
+            for proposal in proposals:
+                proposal.ambiguous = True
+                if proposal.reply is not None:
+                    self._unlink(proposal.reply.reply.id)
+        grant = self._tool_execution_grants[matches[0]]
+        del self._tool_execution_grants[matches[0]]
+        self._record_execution(grant)
         return grant
 
     def _matching_grants(
         self, server: str, tool: str, arguments: dict[str, Any]
     ) -> list[int]:
         """Indices of the pending grants `consume_tool_execution_grant` could consume, oldest first."""
-        schema = self.served_tools.get(_BridgedToolId(server=server, tool=tool))
-        declared_properties = (
-            schema.parameters.properties
-            if schema is not None and schema.parameters.additionalProperties is False
-            else None
-        )
+        exact, projected = self._grant_matches(server, tool, arguments)
+        return exact or projected
+
+    def _grant_matches(
+        self, server: str, tool: str, arguments: dict[str, Any]
+    ) -> tuple[list[int], list[int]]:
+        """Indices of the pending grants matching exactly, and matching once undeclared keys are dropped."""
+        declared_properties = self._declared_properties(server, tool)
         pending = [
             (index, grant.arguments)
             for index, grant in enumerate(self._tool_execution_grants)
             if grant.server == server and grant.tool == tool
         ]
-        matched = [
-            index for index, granted in pending if json_equal(granted, arguments)
-        ]
-        if not matched and declared_properties is not None:
-            matched = [
+        exact = [index for index, granted in pending if json_equal(granted, arguments)]
+        projected = (
+            [
                 index
                 for index, granted in pending
                 if isinstance(granted, dict)
@@ -364,7 +409,10 @@ class SandboxAgentBridge(AgentBridge):
                     arguments,
                 )
             ]
-        return matched
+            if declared_properties is not None
+            else []
+        )
+        return exact, projected
 
     def _candidate_checks(
         self, server: str, tool: str, arguments: dict[str, Any]
@@ -376,6 +424,122 @@ class SandboxAgentBridge(AgentBridge):
             if check is not None:
                 checks.setdefault(check.token, check)
         return list(checks.values())
+
+    def unlink_denied_call(
+        self, server: str, tool: str, arguments: dict[str, Any] | None
+    ) -> None:
+        """Unlink every reply whose call a denied or unreadable host call may retry.
+
+        A grant is one-shot, so a client sending a call again (after losing
+        the first response, say) is denied, and the scaffold may send that
+        denial as the call's answer: the reply of each call it may repeat is
+        unlinked (`_unlink`), whether that call's execution awaits its answer
+        or still runs (one already settled keeps its link), and so is the
+        reply of each pending grant it may repeat.
+        Calls are compared as `consume_tool_execution_grant` compares them,
+        on the argument keys of `_call_keys` (both sides also projected onto
+        a closed schema's declared keys, so this errs towards unlinking).
+        With `arguments` `None` (not an object, or nested too deep to read),
+        the call may repeat any call of the tool. A request naming no bridged
+        tool repeats no proposal, since none can denote it.
+        """
+        keys = (
+            self._call_keys(server, tool, arguments) if arguments is not None else None
+        )
+        # unlinked for good, so each recorded call is unlinked here once
+        executed = (
+            self._executed_tools.pop((server, tool), [])
+            if keys is None
+            else [
+                handed
+                for key in keys
+                for handed in self._executed_calls.pop((server, tool, key), [])
+            ]
+        )
+        for handed in executed:
+            self._unlink(handed.reply.id)
+        for grant in self._tool_execution_grants:
+            if (
+                grant.server == server
+                and grant.tool == tool
+                and grant.proposal.reply is not None
+                and (
+                    keys is None
+                    or not keys.isdisjoint(
+                        self._call_keys(server, tool, grant.arguments)
+                    )
+                )
+            ):
+                self._unlink(grant.proposal.reply.reply.id)
+
+    def _record_execution(self, grant: "_ToolExecutionGrant") -> None:
+        """Check and record the evidence an execution consuming `grant` gives.
+
+        Run as the grant is consumed, before the execution starts, so a
+        request arriving while it runs already sees it.
+
+        - A proposal's second execution (one call granted for several tools)
+          unlinks its reply (`_unlink`): an answer may hold either result.
+        - An earlier execution of the same (server, tool) and arguments
+          (`_call_keys`) whose answer hasn't been settled, still queued or
+          running, unlinks its reply and this one's: this execution may be
+          a client's retry of that call (after losing its response), taking
+          a later proposal's identical grant, so either answer may hold
+          either result. An earlier execution already settled (its answer
+          linked, or left unlinked) is final and is dropped from the record.
+        - The call is recorded for `unlink_denied_call`.
+
+        Each recorded call is dropped once scanned or unlinked, so the work
+        is amortized constant per execution. Reply ids, positions and
+        argument hashes only, like the message pool.
+        """
+        reply = grant.proposal.reply
+        if reply is None:
+            return
+        if grant.proposal.executions > 0:
+            self._unlink(reply.reply.id)
+        keys = self._call_keys(grant.server, grant.tool, grant.arguments)
+        doubt = False
+        for key in keys:
+            for earlier in self._executed_calls.pop(
+                (grant.server, grant.tool, key), []
+            ):
+                if self._unsettled(earlier):
+                    self._unlink(earlier.reply.id)
+                    doubt = True
+        if doubt:
+            self._unlink(reply.reply.id)
+        for key in keys:
+            self._executed_calls[(grant.server, grant.tool, key)] = [reply]
+        self._executed_tools.setdefault((grant.server, grant.tool), []).append(reply)
+
+    def _unsettled(self, handed: _HandedCall) -> bool:
+        """Whether an execution of `handed` may still link: running, or awaiting its answer."""
+        if self._edit_root(handed.reply.id) in self._unlinked_replies:
+            return False
+        awaited = self._awaited_results.get(handed.reply.id)
+        return (
+            awaited is None
+            or handed.position not in awaited.events
+            or awaited.events[handed.position] is not None
+        )
+
+    def _call_keys(self, server: str, tool: str, arguments: dict[str, Any]) -> set[str]:
+        """Hashes of `arguments` as `json_equal` compares them, also projected onto a closed schema's declared keys."""
+        forms = [arguments]
+        declared = self._declared_properties(server, tool)
+        if declared is not None:
+            forms.append({k: v for k, v in arguments.items() if k in declared})
+        return {mm3_hash(canonical_tool_arguments(form)) for form in forms}
+
+    def _declared_properties(self, server: str, tool: str) -> Mapping[str, Any] | None:
+        """The properties a served tool's closed schema declares, or `None` if it admits others."""
+        schema = self.served_tools.get(_BridgedToolId(server=server, tool=tool))
+        return (
+            schema.parameters.properties
+            if schema is not None and schema.parameters.additionalProperties is False
+            else None
+        )
 
     def dispatched_call(self, call: ToolCall) -> DispatchedCall | None:
         """The bridged tool call `call` makes through a dispatcher (`_dispatched_call`)."""
@@ -465,9 +629,24 @@ class _Proposal:
     and no pairing state outlives the bounded grant store.
     """
 
-    __slots__ = ("call", "proposal_id", "span_id", "paired")
+    __slots__ = (
+        "call",
+        "proposal_id",
+        "span_id",
+        "message_id",
+        "reply",
+        "executions",
+        "ambiguous",
+    )
 
-    def __init__(self, call: ToolCall, proposal_id: str, span_id: str | None) -> None:
+    def __init__(
+        self,
+        call: ToolCall,
+        proposal_id: str,
+        span_id: str | None,
+        message_id: str | None,
+        reply: _HandedCall | None,
+    ) -> None:
         self.call = call
         """The proposing call as handed to the scaffold, with the function name as the model saw it."""
 
@@ -477,8 +656,17 @@ class _Proposal:
         self.span_id = span_id
         """Span to record executions under, or `None` for the span current then."""
 
-        self.paired = False
-        """Whether an execution has already taken `call.id`."""
+        self.message_id = message_id
+        """Id of the assistant message the call is in, or `None` if unknown."""
+
+        self.reply = reply
+        """The call in the reply handed to the scaffold, or `None` if unknown."""
+
+        self.executions = 0
+        """How many executions have consumed one of the proposal's grants (`take_id`)."""
+
+        self.ambiguous = False
+        """Whether an execution matched this proposal's grants and another proposal's alike, so which call it ran is unknown."""
 
     def take_id(self) -> str:
         """The `ToolEvent` id for the next execution of this proposal.
@@ -487,10 +675,19 @@ class _Proposal:
         granted for several indistinguishable tools can execute more than once
         and consumers key on the event id.
         """
-        if self.paired:
-            return uuid()
-        self.paired = True
-        return self.call.id
+        self.executions += 1
+        return self.call.id if self.executions == 1 else uuid()
+
+    @property
+    def linkable(self) -> bool:
+        """Whether an execution of this proposal may link its result message.
+
+        Only while the proposal has executed once and matched no other
+        proposal's grants. Kept here rather than read from the bridge's
+        result tracking, which drops old replies: the proposal lives as long
+        as any of its grants can still execute.
+        """
+        return self.executions == 1 and not self.ambiguous
 
 
 class _ToolExecutionGrant(NamedTuple):

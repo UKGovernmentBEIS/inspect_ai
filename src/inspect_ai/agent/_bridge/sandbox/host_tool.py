@@ -149,6 +149,7 @@ async def execute_host_tool(
         raise ValueError(message)
 
     if _exceeds_max_depth(arguments):
+        bridge.unlink_denied_call(server, tool, None)
         message = f"Error parsing tool call arguments: {_max_depth_parse_error()}"
         await _record_rejection(
             bridge, tool, {}, ToolCallError("parsing", message), metadata
@@ -168,6 +169,9 @@ async def execute_host_tool(
         else None
     )
     if grant is None and server not in bridge.proposal_exempt_servers:
+        bridge.unlink_denied_call(
+            server, tool, arguments if isinstance(arguments, dict) else None
+        )
         warn_once(
             logger,
             f"Denied host tool call '{server}/{tool}': the model did not "
@@ -230,6 +234,8 @@ async def _record_rejection(
     event_id: str | None = None,
     view: ToolCallContent | None = None,
     failed: bool | None = None,
+    call_message_id: str | None = None,
+    grant: _ToolExecutionGrant | None = None,
 ) -> None:
     """Record a request that did not execute as a completed event in its own `tool` span."""
     event = ToolEvent(
@@ -238,6 +244,7 @@ async def _record_rejection(
         arguments=arguments,
         view=view,
         metadata=metadata.as_metadata(),
+        call_message_id=call_message_id,
     )
     event._set_result(
         result="",
@@ -263,6 +270,25 @@ async def _record_rejection(
         # request was still received and decided, so it is still recorded
         if not recorded:
             transcript()._event(event)
+        _await_result_message(bridge, grant, event)
+
+
+def _await_result_message(
+    bridge: SandboxAgentBridge, grant: _ToolExecutionGrant | None, event: ToolEvent
+) -> None:
+    """Await the result message of the execution that consumed `grant`.
+
+    An execution on a server registered with `require_proposal=False` never
+    links: an unproposed call there takes a pending proposal's grant
+    (`consume_tool_execution_grant`), so the grant doesn't show which call ran.
+    """
+    if grant is not None and grant.proposal.reply is not None:
+        bridge._await_result_message(
+            grant.proposal.reply,
+            event,
+            linkable=grant.proposal.linkable
+            and grant.server not in bridge.proposal_exempt_servers,
+        )
 
 
 async def _execute_granted(
@@ -282,6 +308,7 @@ async def _execute_granted(
         metadata.grant = "exempt"
     event_id = grant.proposal.take_id() if grant is not None else uuid()
     view = grant.proposal.call.view if grant is not None else None
+    call_message_id = grant.proposal.message_id if grant is not None else None
 
     try:
         tool_def = ToolDef(tool_fn)
@@ -304,6 +331,8 @@ async def _execute_granted(
             event_id=event_id,
             view=view,
             failed=True if mapped is None else None,
+            call_message_id=call_message_id,
+            grant=grant,
         )
         raise
     if validation_errors:
@@ -315,6 +344,8 @@ async def _execute_granted(
             metadata,
             event_id=event_id,
             view=view,
+            call_message_id=call_message_id,
+            grant=grant,
         )
         raise ToolParsingError(validation_errors)
     call_arguments = cast(dict[str, JsonValue], arguments)
@@ -335,6 +366,7 @@ async def _execute_granted(
         view=view,
         pending=True,
         metadata=metadata.as_metadata(),
+        call_message_id=call_message_id,
     )
     sample = sample_active()
     observer = (
@@ -411,6 +443,7 @@ async def _execute_granted(
                 transcript()._event_updated(event)
             else:
                 transcript()._event(event)
+            _await_result_message(bridge, grant, event)
             if outcome.fatal is not None:
                 bridge.request_fail(outcome.fatal)
 
