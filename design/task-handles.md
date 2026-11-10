@@ -216,6 +216,10 @@ cancellation; the sample it sent still runs and its result is dropped.
   - as a `PreviousTask`, or a `ResolvedTask` carrying a prior sample source:
     `ValueError` ("tasks fed by their creator must start fresh; pass the
     Task");
+  - in a run with `log_samples=False`: `ValueError` ("tasks fed by their
+    creator need sample logging: a setup retry reuses the completed requests'
+    records from the log instead of running them again"), since without
+    sample records a retry could only run a settled request a second time;
   - in a run that logs in the deprecated `.json` format: `ValueError`
     (decision: Ransom, 2026-11-03);
   - `eval_retry()` of such a task's log: `PrerequisiteError` ("<log> cannot be
@@ -366,7 +370,9 @@ class PortRequest:
     (above). The prior sample source is the failed attempt's log, chosen by
     `run_one` as for any retry of a dynamic feed (`eval_log_sample_source`
     when the attempt wrote its destination), and `seed_from_prior` copies its
-    records into the retry's log. Copying alone does not count a record:
+    records into the retry's log; sample logging is always on for such a
+    task (`log_samples=False` is refused), so every settled request has its
+    record there. Copying alone does not count a record:
     a seeded record enters the results only when a scheduled run's lookup
     accepts it (`note_reused_sample`, in the reuse path of `task_run_sample`),
     and `log_finish` prunes the rest on success. So when the retry attaches,
@@ -603,6 +609,9 @@ test touched), with mockllm models; every test that waits is bounded with
     in the retry (a spy on `note_reused_sample`); after a successful finish and
     the eval set's cleanup the surviving log holds A and B and its metrics
     count both;
+  - `enqueue_task()` of a `samples_from_creator()` task in a run with
+    `log_samples=False` raises `ValueError` and adds nothing, while a task
+    with another dataset is added as usual in the same run;
   - a detached task started in a creator's solver, released after the
     creator's attempt has given its slot back while another task keeps the run
     open, calls `enqueue_task()` with a `samples_from_creator()` task: it

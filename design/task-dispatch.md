@@ -303,7 +303,7 @@ The design keeps these, and each section below says how:
    it needs no lock.
 6. **Once dispatch ends, nothing more starts.** In one synchronous step the
    queue closes (no additions, no retries published) and every record not yet
-   started ends, before any attempt is cancelled or joined.
+   started ends, before the attempt group joins its attempts.
 7. **Nothing in a run calls `os.chdir` or writes `os.environ`.**
 8. **Each `task_cleanup` sees what its own `task_init` bound**, and a sample
    sees its configuration's bindings unless it bound its own.
@@ -595,10 +595,17 @@ async with _run_task_screen(...):              # absorbs a cancellation of the r
   during a task. The run ends only when the source is done, nothing remains
   and no pull is outstanding.
 - **End of dispatch.** The `finally` runs inside the attempt group's body,
-  so it runs before the group cancels or joins any attempt, on every exit:
-  the source done, a latched cancellation (an attempt returned no log or a
-  `cancelled` log), an exception (a `debug_errors` error from an attempt), or
-  a cancellation from outside (Ctrl-C, a caller's scope). `close()` refuses
+  so it runs before the group joins its attempts, on every exit: the source
+  done, a latched cancellation (an attempt returned no log or a `cancelled`
+  log), an exception (a `debug_errors` error from an attempt), or a
+  cancellation from outside (Ctrl-C, a caller's scope). It does not run
+  before every attempt is cancelled: a child's failure cancels the group, and
+  an enclosing cancellation reaches the attempts directly, before the
+  dispatcher resumes into its `finally`, so an attempt's shielded cleanup
+  (its logging, task-end hooks, a sample's `finally`) can call
+  `enqueue_task()` while the queue is still open. Such an addition is
+  accepted as an ordinary `queued` record and ended unrun by the sweep below
+  when the `finally` runs; one made after it is refused. `close()` refuses
   every later addition and retry. `end_unstarted()` ends every `queued`
   record with no log and every `retry_pending` record with its stored log,
   which settles every handle wait on them at once, including waits in
