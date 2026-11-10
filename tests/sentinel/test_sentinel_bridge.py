@@ -9856,10 +9856,15 @@ async def test_a_modified_host_calls_acp_card_shows_the_arguments_that_ran(
 
 
 @pytest.mark.parametrize("replay", [False, True])
+@pytest.mark.parametrize("provider", ["responses", "anthropic"])
 async def test_a_modified_scaffold_calls_acp_card_shows_the_arguments_that_ran(
-    replay: bool, monkeypatch: pytest.MonkeyPatch
+    provider: str, replay: bool, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The proposal's card, settled by the scaffold's result for the modified call, shows that call."""
+    """The proposal's card, settled by the scaffold's result for the modified call, shows that call.
+
+    A modified Responses call is handed on under a token; a modified Anthropic
+    call keeps the model's id.
+    """
     from acp.schema import ToolCallProgress, ToolCallStart
 
     from inspect_ai.agent._acp.event_mapping import replay_transcript
@@ -9867,7 +9872,20 @@ async def test_a_modified_scaffold_calls_acp_card_shows_the_arguments_that_ran(
     init_sample_assistant_internal()
     published = _acp_router(monkeypatch)
     model = Parsing(
-        lambda: _responses_output({**HOST_READ_ITEM, "name": "read_file"}),
+        (lambda: _responses_output({**HOST_READ_ITEM, "name": "read_file"}))
+        if provider == "responses"
+        else (
+            lambda: _anthropic_output(
+                [
+                    {
+                        "type": "tool_use",
+                        "id": "call_read",
+                        "name": "read_file",
+                        "input": {"path": "notes.txt"},
+                    }
+                ]
+            )
+        ),
         lambda: calls_output(),
     )
     bridge = in_process_bridge([])
