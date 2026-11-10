@@ -16,7 +16,7 @@ For the former, we recommend you specify these options in a `.env` file within y
 
 ## .env Files
 
-While we can include all required options on the `inspect eval` command line, it's generally easier to use environment variables for commonly repeated options. To facilitate this, the `inspect` CLI will automatically read and process `.env` files located in the current working directory (also searching in parent directories if a `.env` file is not found in the working directory). This is done using the [python-dotenv](https://pypi.org/project/python-dotenv/) package).
+While we can include all required options on the `inspect eval` command line, it's generally easier to use environment variables for commonly repeated options. To facilitate this, the `inspect` CLI will automatically read and process `.env` files located in the current working directory (also searching in parent directories if a `.env` file is not found in the working directory). This is done using the [python-dotenv](https://pypi.org/project/python-dotenv/) package.
 
 For example, here's a `.env` file that makes available API keys for several providers and sets a bunch of defaults for a working session:
 
