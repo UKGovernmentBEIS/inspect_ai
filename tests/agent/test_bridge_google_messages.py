@@ -35,7 +35,10 @@ from inspect_ai.agent._bridge.google_api_impl import (
     gemini_response_from_output,
     messages_from_google_contents,
 )
-from inspect_ai.model._assistant_internal import generation_replay
+from inspect_ai.model._assistant_internal import (
+    generation_call_states,
+    generation_replay,
+)
 from inspect_ai.model._chat_message import (
     ChatMessageAssistant,
     ChatMessageTool,
@@ -283,7 +286,7 @@ def test_google_computer_action_ids_round_trip_in_both_issuance_orders(
     ]
     issued = _ResultChecks(
         _SavedResultChecks(reserved_ids=[], tokens={}, checked=[])
-    ).issue(checks, generation_replay(calls))
+    ).issue(checks, generation_call_states(generation_replay(calls), calls))
     output = ModelOutput.for_tool_call("mockllm/model", "computer", calls[0].arguments)
     output.message.tool_calls = [
         replace(call, id=check.token or call.id) for call, check in zip(calls, issued)
@@ -342,7 +345,7 @@ def test_restored_result_checks_derive_the_aliases_of_their_tokens() -> None:
             )
             for call in calls
         ],
-        generation_replay(calls),
+        generation_call_states(generation_replay(calls), calls),
     )
     saved = checks.saved().model_dump(mode="json")
     saved["prefixed_tokens"] = []

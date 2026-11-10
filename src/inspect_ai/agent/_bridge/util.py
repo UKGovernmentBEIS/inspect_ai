@@ -1,6 +1,7 @@
 import inspect
 import json
 import warnings
+from collections import Counter
 from contextlib import AbstractContextManager, contextmanager, nullcontext
 from contextvars import ContextVar
 from logging import getLogger
@@ -57,6 +58,9 @@ from inspect_ai.model._agent_message import validate_agent_message
 from inspect_ai.model._assistant_internal import (
     bridge_replay_scope,
     carry_generation_assistant_internal,
+    generation_assistant_internal,
+    share_call_ids,
+    shared_call_ids,
 )
 from inspect_ai.model._call_tools import get_tools_info
 from inspect_ai.model._chat_message import (
@@ -464,9 +468,14 @@ async def _apply_response_filter(
     The copy is taken before the `try`, so a failure copying the output is not
     blamed on the filter. A returned output is re-validated because its models do
     not validate assignment, so values edited in place are otherwise unchecked.
-    Validation drops the returned output's replay state; the re-validated output
-    keeps it for the calls the filter left unchanged
-    (`carry_generation_assistant_internal`).
+    Validation drops the returned output's replay state. The re-validated output
+    takes it for the calls it carries (`carry_generation_assistant_internal`)
+    from the returned output, or, when that has none (e.g. the filter rebuilt it
+    from its fields), from the generation's output, so its calls replay in their
+    native form. An ID shared in the output the filter received stays shared
+    (`_received_shared_ids`), whether or not that output has replay state.
+    Google thought signatures stay on the part they came with or the call
+    their anchor names (`_hold_signatures_in_place`).
 
     Exceptions are classified after unwrapping by hand, not with `inner_exception`,
     which follows `__context__` and can pick the exception already being handled.
@@ -513,18 +522,22 @@ async def _apply_response_filter(
             "response_filter returned an invalid ModelOutput: "
             f"{_validation_error_details(ex)}"
         ) from ex
-    carry_generation_assistant_internal(filtered, validated)
+    carry_generation_assistant_internal(
+        filtered if generation_assistant_internal(filtered) is not None else output,
+        validated,
+    )
+    share_call_ids(validated, _received_shared_ids(output))
     filtered = validated
-    original_arguments = {
-        call.id: call.arguments
-        for choice in output.choices
-        for call in choice.message.tool_calls or []
-    }
+    # by id, a list per call, as parallel calls can share an id
+    original_arguments: dict[str, list[dict[str, Any]]] = {}
+    for choice in output.choices:
+        for call in choice.message.tool_calls or []:
+            original_arguments.setdefault(call.id, []).append(call.arguments)
     try:
         # the one Any-typed field the dialect converters json.dumps
         for choice in filtered.choices:
             for call in choice.message.tool_calls or []:
-                if original_arguments.get(call.id) != call.arguments:
+                if call.arguments not in original_arguments.get(call.id, []):
                     json.dumps(call.arguments)
     except (TypeError, ValueError, RecursionError) as ex:
         raise ResponseFilterError(
@@ -540,8 +553,91 @@ async def _apply_response_filter(
         # text continued across requests is joined with no separator)
         filtered.completion = output.completion
     _check_provider_owned_content(output, filtered)
+    _hold_signatures_in_place(output, filtered)
     _settle_message_ids(output, filtered)
     return filtered
+
+
+def _received_shared_ids(output: ModelOutput) -> set[str]:
+    """The call IDs shared in the output a response filter received.
+
+    Those several of its calls carry, or several of a message's Google reasoning
+    anchors name, with those its replay state records as shared
+    (`shared_call_ids`). A filter keeping one of the calls leaves the ID
+    unshared in what it returns, but the ID's signed anchor may be another
+    call's, so the kept call must still replay without it (`_retarget_anchors`).
+    Taken from the calls and anchors themselves, as the replay state is unknown
+    for, e.g., a request filter's output or an output cached by an older version.
+    """
+    shared = shared_call_ids(output)
+    for choice in output.choices:
+        if isinstance(choice.message.content, str):
+            continue
+        anchored = Counter(_anchor_call_id(part) for part in choice.message.content)
+        shared |= {
+            call_id
+            for call_id, count in anchored.items()
+            if call_id is not None and count > 1
+        }
+    return shared
+
+
+def _hold_signatures_in_place(received: ModelOutput, output: ModelOutput) -> None:
+    """Keep Google's thought signatures off calls their anchors don't name.
+
+    Google replays an anchor's signature on the call it names
+    (`gemini_function_call_id`), and any other signature (e.g. a signed text
+    part's) on the part after it. The serializer gives a call no anchor names
+    the signature still pending at the end of the content; with no anchor
+    left, it takes the message for one logged before anchors and gives the
+    first call the signature pending before it. So, when the output the filter
+    received had anchors:
+
+    - Anchors naming none of their message's calls (calls the filter removed
+      or renamed) are removed, so their signatures go on no other part.
+    - A message with a call no anchor names (or more calls under an ID than
+      anchors naming it) ends with an anchor without a signature, naming no
+      call, so no signature is pending for that call.
+    """
+    if not any(
+        _anchor_call_id(part)
+        for choice in received.choices
+        if isinstance(choice.message.content, list)
+        for part in choice.message.content
+    ):
+        return
+    for choice in output.choices:
+        message = choice.message
+        if isinstance(message.content, str):
+            continue
+        calls = Counter(call.id for call in message.tool_calls or [])
+        anchors: Counter[str] = Counter()
+        content: list[Content] = []
+        for part in message.content:
+            call_id = _anchor_call_id(part)
+            if call_id is not None:
+                if call_id not in calls:
+                    continue
+                anchors[call_id] += 1
+            content.append(part)
+        if calls - anchors:
+            content.append(
+                ContentReasoning(
+                    reasoning="",
+                    redacted=True,
+                    internal={"gemini_function_call_id": uuid()},
+                )
+            )
+        message.content = content
+
+
+def _anchor_call_id(content: Content) -> str | None:
+    """The call a Google reasoning anchor names, or None for other content."""
+    if isinstance(content, ContentReasoning) and isinstance(content.internal, dict):
+        call_id = content.internal.get("gemini_function_call_id")
+        if isinstance(call_id, str):
+            return call_id
+    return None
 
 
 def _settle_message_ids(original: ModelOutput, filtered: ModelOutput) -> None:
@@ -598,7 +694,8 @@ def _check_provider_owned_content(original: ModelOutput, filtered: ModelOutput) 
     blocks as whole recorded spans (a span can cover several `ContentToolUse`
     items), and a native tool's wire name by its call id. So reasoning and server
     tool items may only be kept unchanged or removed, server tool items are kept
-    all or none, and a call keeping an original id keeps its function.
+    all or none, and a call keeping an original id keeps its function (one of
+    the functions of the calls under that id, as parallel calls can share one).
     """
     original_content = [
         content
@@ -612,20 +709,19 @@ def _check_provider_owned_content(original: ModelOutput, filtered: ModelOutput) 
     original_reasoning = [
         c for c in original_content if isinstance(c, ContentReasoning)
     ]
-    original_functions = {
-        call.id: call.function
-        for choice in original.choices
-        for call in choice.message.tool_calls or []
-    }
+    original_functions: dict[str, list[str]] = {}
+    for choice in original.choices:
+        for call in choice.message.tool_calls or []:
+            original_functions.setdefault(call.id, []).append(call.function)
     kept_tool_uses: set[str] = set()
     for choice in filtered.choices:
         for call in choice.message.tool_calls or []:
-            function = original_functions.get(call.id)
-            if function is not None and call.function != function:
+            functions = original_functions.get(call.id)
+            if functions is not None and call.function not in functions:
                 raise ResponseFilterError(
                     f"response_filter changed the function of tool call '{call.id}' "
-                    f"from '{function}' to '{call.function}'; give a call to a "
-                    "different function a new id"
+                    f"from '{' or '.join(dict.fromkeys(functions))}' to "
+                    f"'{call.function}'; give a call to a different function a new id"
                 )
         if not isinstance(choice.message.content, list):
             continue
@@ -1239,7 +1335,8 @@ class _Generations:
     Nor does an output that is no recorded generation's (a filter's copy or
     replacement), or one two generations returned, or one whose event kept a
     live message (one it could not serialize), since an edit to that message
-    changes the snapshot too.
+    changes the snapshot too. Nor does one recorded without an event (a
+    recovered refusal), as no event records what the model was sent for it.
 
     Each generation is recorded with the agent span current while it ran (a
     model event sink's `on_start` can choose it), so the call's steps are in
@@ -1253,10 +1350,12 @@ class _Generations:
         self.returned: ModelOutput | None = None
         """What the response filter last returned, before it is validated."""
 
-    def record(self, output: ModelOutput, event: "ModelEvent") -> None:
+    def record(self, output: ModelOutput, event: "ModelEvent | None") -> None:
         recorded = self._producers.get(id(output))
         twice = recorded is not None and recorded[0] is output
-        produced = Produced(event, current_agent_span_id())
+        produced = (
+            Produced(event, current_agent_span_id()) if event is not None else None
+        )
         self._producers[id(output)] = (output, None if twice else produced)
 
     def producer(self, output: ModelOutput | None) -> Produced | None:

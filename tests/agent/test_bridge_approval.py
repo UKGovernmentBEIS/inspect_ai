@@ -284,6 +284,18 @@ class BridgeRun:
         """Tool messages appended to the input of `generation` (0-based)."""
         return [m for m in self.inputs[generation] if isinstance(m, ChatMessageTool)]
 
+    def replayed_calls(self, generation: int) -> list[ToolCall]:
+        """Tool calls of the rejected turns replayed in the input of `generation`.
+
+        Each is replayed under a fresh id, which its result answers.
+        """
+        return [
+            call
+            for m in self.inputs[generation]
+            if isinstance(m, ChatMessageAssistant)
+            for call in m.tool_calls or []
+        ]
+
 
 async def run_bridge(
     outputs: list[ModelOutput],
@@ -562,7 +574,9 @@ async def test_modify_without_a_modified_call_is_rejected() -> None:
     assert run.generations == 2
     assert run.output.message.tool_calls == [replacement]
     (result,) = run.tool_results(1)
-    assert result.tool_call_id == "1"
+    (replayed,) = run.replayed_calls(1)
+    assert replace(replayed, id=original.id) == original
+    assert result.tool_call_id == replayed.id
     assert result.error is not None
     assert result.error.type == "approval"
     assert "no modified call" in result.error.message
@@ -637,11 +651,14 @@ async def test_reject_replays_the_rejection_to_the_model() -> None:
 
     retry_input = run.inputs[1]
     assert isinstance(retry_input[-2], ChatMessageAssistant)
-    assert retry_input[-2].tool_calls == [rejected]
+    # under a fresh id, which its result answers
+    (replayed,) = retry_input[-2].tool_calls or []
+    assert replayed.id != rejected.id
+    assert replace(replayed, id=rejected.id) == rejected
 
     results = run.tool_results(1)
     assert len(results) == 1
-    assert results[0].tool_call_id == "1"
+    assert results[0].tool_call_id == replayed.id
     assert results[0].error is not None
     assert results[0].error.type == "approval"
     assert "Destructive command." in results[0].error.message
@@ -673,7 +690,11 @@ async def test_reject_all_gives_every_call_a_result_naming_the_culprit() -> None
 
     # every tool_use needs a tool_result or the retry 400s on Anthropic
     results = run.tool_results(1)
-    assert [r.tool_call_id for r in results] == ["1", "2"]
+    replayed = run.replayed_calls(1)
+    assert [replace(call, id="") for call in replayed] == [
+        replace(call, id="") for call in (safe, unsafe)
+    ]
+    assert [r.tool_call_id for r in results] == [call.id for call in replayed]
     assert all(r.error is not None and r.error.type == "approval" for r in results)
 
     collateral = results[0].error.message  # type: ignore[union-attr]
@@ -3108,7 +3129,8 @@ async def test_dispatched_call_is_matched_by_the_target_tool_name() -> None:
     assert run.generations == 2
     assert run.output.message.tool_calls == [safe]
     (result,) = run.tool_results(1)
-    assert result.tool_call_id == "1"
+    (replayed,) = run.replayed_calls(1)
+    assert result.tool_call_id == replayed.id
     assert result.function == "call_mcp_tool"
 
 
@@ -3622,7 +3644,13 @@ async def test_successive_rejections_accumulate_in_the_replayed_input() -> None:
         "first attempt",
         "second attempt",
     ]
-    assert [r.tool_call_id for r in run.tool_results(2)] == ["1", "2"]
+    replayed = run.replayed_calls(2)
+    assert [replace(call, id="") for call in replayed] == [
+        replace(call, id="") for call in (first, second)
+    ]
+    assert [r.tool_call_id for r in run.tool_results(2)] == [
+        call.id for call in replayed
+    ]
 
 
 async def test_refusal_retry_still_works_alongside_approval() -> None:

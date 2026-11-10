@@ -879,31 +879,30 @@ def dump_openai_assistant_internal() -> JsonValue | None:
 def alias_openai_tool_call(
     call_id: str,
     alias: str,
-    replay: JsonValue,
+    item: JsonValue,
     modified: ToolCall | None,
     bridge: dict[str, JsonValue] | None,
 ) -> None:
-    param = cast(dict[str, _CachedToolCall], replay).get(call_id)
-    if param is not None:
-        # under another id, the replayed item carries that id (`call_id`, and
-        # `id` when the call has no separate item id). A separate item id is
-        # left out: it names the model's item, which a stored response
-        # resolves to the model's call id.
-        aliased: dict[str, Any] = (
-            dict(param)
-            if alias == call_id
-            else {
-                key: alias if key in ("call_id", "id") and value == call_id else value
-                for key, value in param.items()
-                if key != "id" or value == call_id
-            }
-        )
-        if modified is not None:
-            aliased = _with_tool_call_arguments(aliased, modified)
-        if bridge is not None:
-            bridge[alias] = cast(JsonValue, aliased)
-        else:
-            assistant_internal().tool_calls[alias] = cast(Any, aliased)
+    param = cast(dict[str, Any], item)
+    # under another id, the replayed item carries that id (`call_id`, and `id`
+    # when the call has no separate item id). A separate item id is left out: it
+    # names the model's item, which a stored response resolves to the model's
+    # call id.
+    aliased: dict[str, Any] = (
+        dict(param)
+        if alias == call_id
+        else {
+            key: alias if key in ("call_id", "id") and value == call_id else value
+            for key, value in param.items()
+            if key != "id" or value == call_id
+        }
+    )
+    if modified is not None:
+        aliased = _with_tool_call_arguments(aliased, modified)
+    if bridge is not None:
+        bridge[alias] = cast(JsonValue, aliased)
+    else:
+        assistant_internal().tool_calls[alias] = cast(Any, aliased)
 
 
 def _with_tool_call_arguments(param: dict[str, Any], call: ToolCall) -> dict[str, Any]:
@@ -1010,8 +1009,9 @@ class _ParsedOutputItems(NamedTuple):
     tool_calls: list[ToolCall]
     logprobs: Logprobs | None
     has_tool_calls: bool
-    replay: dict[str, _CachedToolCall]
-    """Each call's item as this parse recorded it, by call id."""
+    replay: list[_CachedToolCall | None]
+    """Each call's item as this parse recorded it, in call order (None for a
+    call without an item)."""
 
 
 def _process_response_output_items(
@@ -1047,7 +1047,7 @@ def _parse_response_output_items(
     message_content: list[Content] = []
     tool_calls: list[ToolCall] = []
     has_tool_calls = False
-    replay: dict[str, _CachedToolCall] = {}
+    replay: list[_CachedToolCall | None] = []
 
     def record(call_id: str, param: _CachedToolCall | None) -> None:
         # a call without an item leaves none of an earlier call under its id
@@ -1055,7 +1055,7 @@ def _parse_response_output_items(
             assistant_internal().tool_calls.pop(call_id, None)
         else:
             assistant_internal().tool_calls[call_id] = param
-            replay[call_id] = cast(_CachedToolCall, dict(param))
+        replay.append(None if param is None else cast(_CachedToolCall, dict(param)))
 
     for output in outputs:
         match output:
@@ -1268,7 +1268,7 @@ def _chat_message_assistant_from_openai_response(
         stop_reason,
         parsed.logprobs,
         generation_replay(
-            parsed.tool_calls, openai=cast(dict[str, JsonValue], parsed.replay)
+            parsed.tool_calls, openai=cast(list[JsonValue | None], parsed.replay)
         ),
     )
 

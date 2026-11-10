@@ -345,6 +345,7 @@ class AcpServer:
             writer=writer,
             reader=reader,
             listening=False,
+            observers=[handler.observe_stream],
         )
         # Attach the connection back-reference so handlers can push
         # `session/update` notifications via `conn.send_notification`.

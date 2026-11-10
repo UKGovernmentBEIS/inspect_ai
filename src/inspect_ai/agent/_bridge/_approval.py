@@ -420,14 +420,26 @@ def rejection_messages(
     model whose innocent `read_file` came back rejected may conclude that reading
     files is disallowed and stop attempting it — the opposite of what the policy
     intended.
+
+    `rejected` is one of `output`'s calls, found by position, as parallel calls can
+    share an id. The turn is replayed with each call under a fresh id carrying
+    its own replay state (`replay_ids`), answered by its own result.
     """
-    tool_calls = output.message.tool_calls or []
+    from inspect_ai.agent._bridge._sentinel import replay_ids
+
+    calls = output.message.tool_calls or []
+    position = next(
+        (index for index, call in enumerate(calls) if call is rejected),
+        next((index for index, call in enumerate(calls) if call.id == rejected.id), -1),
+    )
+    message = replay_ids(output).message
+    tool_calls = message.tool_calls or []
     others = len(tool_calls) - 1
     description = describe_call(rejected)
 
-    messages: list[ChatMessage] = [output.message]
-    for call in tool_calls:
-        if call.id == rejected.id:
+    messages: list[ChatMessage] = [message]
+    for index, call in enumerate(tool_calls):
+        if index == position:
             text = explanation
             if others == 1:
                 text += " The other tool call in this response was not executed as a result."

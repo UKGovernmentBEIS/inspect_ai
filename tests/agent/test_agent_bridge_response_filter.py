@@ -2278,6 +2278,60 @@ async def test_sandbox_response_filter_renamed_native_call(
             await _monitor_failure(bridge)
 
 
+@pytest.mark.parametrize("filtered", ["pass_through", "rebuilt", "renamed"])
+async def test_a_response_filter_returning_parallel_calls_sharing_an_id(
+    filtered: str,
+) -> None:
+    """Parallel calls sharing an id are each checked against their own call.
+
+    A filter returning them unchanged passes, whichever call comes last; one
+    giving a call a function no call under the id had still fails.
+    """
+    from datetime import date
+
+    calls = [
+        # a provider's own arguments need not be JSON (YAML dates)
+        ToolCall(
+            id="call_shared", function="read_file", arguments={"on": date(2026, 1, 1)}
+        ),
+        ToolCall(id="call_shared", function="list_files", arguments={}),
+    ]
+    output = ModelOutput(
+        model="mockllm/model",
+        choices=[
+            ChatCompletionChoice(
+                message=ChatMessageAssistant(content="", tool_calls=calls),
+                stop_reason="tool_calls",
+            )
+        ],
+    )
+
+    async def response_filter(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput | None:
+        if filtered == "renamed":
+            assert output.message.tool_calls is not None
+            output.message.tool_calls[1].function = "delete_file"
+        if filtered == "rebuilt":
+            return ModelOutput.model_validate(output.model_dump())
+        return output
+
+    async def apply() -> ModelOutput:
+        return await _apply_response_filter(
+            response_filter,
+            get_model("mockllm/model"),
+            output,
+            GenerateInput([], [], "auto", GenerateConfig()),
+        )
+
+    if filtered == "renamed":
+        with pytest.raises(ResponseFilterError, match="new id"):
+            await apply()
+    else:
+        returned = await apply()
+        assert returned.message.tool_calls == calls
+
+
 # ---------------------------------------------------------------------------
 # live providers: each bridge dialect with a replacing and a tool-call filter
 # ---------------------------------------------------------------------------

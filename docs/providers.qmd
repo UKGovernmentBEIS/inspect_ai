@@ -853,7 +853,7 @@ To use the [Together AI](https://www.together.ai/) provider, install the `openai
 ``` bash
 pip install openai
 export TOGETHER_API_KEY=your-together-api-key
-inspect eval arc.py --model together/MiniMaxAI/MiniMax-M2.7
+inspect eval arc.py --model together/MiniMaxAI/MiniMax-M3.1-Flash
 ```
 
 For the `together` provider, you can enable [Tool Emulation](#tool-emulation-openai) using the `emulate_tools` custom model arg (`-M`). Other custom model args are forwarded to the constructor of the `AsyncOpenAI` class.
@@ -861,7 +861,7 @@ For the `together` provider, you can enable [Tool Emulation](#tool-emulation-ope
 The `together` provider supports a `stream` model arg (`-M`) that controls whether streaming responses are used. The default ("auto") uses streaming when the caller passes an `on_stream` callback to `generate()`. Pass `true` to always stream (or `false` to never stream):
 
 ``` bash
-inspect eval arc.py --model together/MiniMaxAI/MiniMax-M2.7 -M stream=true
+inspect eval arc.py --model together/MiniMaxAI/MiniMax-M3.1-Flash -M stream=true
 ```
 
 The following environment variables are supported by the Together AI provider
