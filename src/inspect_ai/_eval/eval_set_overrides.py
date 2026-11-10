@@ -461,6 +461,7 @@ NOT_OVERRIDABLE: dict[str, str] = {
     "bundle_overwrite": "eval-set bundling, which a worker skips",
     "embed_viewer": "eval-set bundling, which a worker skips",
     "log_dir_allow_dirty": "eval-set log directory bookkeeping, which a worker skips",
+    "sentinel_proxy": "experimental, and not yet part of the runner protocol",
 }
 """Every `eval_set()` parameter that is deliberately not overridable, and why.
 

@@ -1,5 +1,5 @@
 (function() {
-	//#region ../../node_modules/.pnpm/fzstd@0.1.1/node_modules/fzstd/esm/index.mjs
+	// ../../node_modules/.pnpm/fzstd@0.1.1/node_modules/fzstd/esm/index.mjs
 	var ab = ArrayBuffer;
 	var u8$1 = Uint8Array;
 	var u16$1 = Uint16Array;
@@ -606,8 +606,7 @@
 		};
 		return Decompress;
 	}();
-	//#endregion
-	//#region ../../node_modules/.pnpm/fflate@0.8.3/node_modules/fflate/esm/browser.js
+	// ../../node_modules/.pnpm/fflate@0.8.3/node_modules/fflate/esm/browser.js
 	var u8 = Uint8Array;
 	var u16 = Uint16Array;
 	var i32 = Int32Array;
@@ -964,8 +963,7 @@
 	try {
 		td.decode(et, { stream: true });
 	} catch (e) {}
-	//#endregion
-	//#region src/client/remote/inflate.ts
+	// src/client/remote/inflate.ts
 	const kChunkSize = 8192;
 	/**
 	* Inflates a DEFLATE ZIP entry, enforcing its directory size as output
@@ -998,8 +996,7 @@
 		}
 		return output;
 	}
-	//#endregion
-	//#region src/client/remote/zstd-decoder.ts
+	// src/client/remote/zstd-decoder.ts
 	function createZstdDecoder(Decompress) {
 		/**
 		* Maximum history allocation allowed by the viewer (2^25 = 32 MiB).
@@ -1138,8 +1135,7 @@
 			ZstdWindowSizeError
 		};
 	}
-	//#endregion
-	//#region src/client/remote/decompression.worker.ts
+	// src/client/remote/decompression.worker.ts
 	const zstd = createZstdDecoder(Decompress);
 	self.addEventListener("message", (event) => {
 		const message = event.data;
@@ -1169,7 +1165,6 @@
 			});
 		}
 	});
-	//#endregion
 })();
 
 //# sourceMappingURL=decompression.worker.js.map

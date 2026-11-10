@@ -204,6 +204,20 @@ def json_equal(a: Any, b: Any) -> bool:
     return type(a) is type(b) and bool(a == b)
 
 
+def json_normalize_numbers(x: Any) -> Any:
+    """`x` with integral floats as ints, so `json_equal` values serialize alike.
+
+    Booleans are left alone (`json.dumps` keeps them distinct from numbers).
+    """
+    if isinstance(x, float) and x.is_integer():
+        return int(x)
+    if isinstance(x, dict):
+        return {k: json_normalize_numbers(v) for k, v in x.items()}
+    if isinstance(x, list):
+        return [json_normalize_numbers(v) for v in x]
+    return x
+
+
 def jsonable_python(x: Any) -> Any:
     return to_jsonable_python(x, exclude_none=True, fallback=lambda _x: None)
 

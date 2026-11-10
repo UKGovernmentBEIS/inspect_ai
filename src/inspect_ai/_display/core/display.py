@@ -1,5 +1,5 @@
 import contextlib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from types import TracebackType
 from typing import (
     Any,
@@ -15,6 +15,7 @@ from typing import (
     runtime_checkable,
 )
 
+import anyio
 import rich
 from pydantic import BaseModel, Field, field_validator
 from rich.console import Console
@@ -54,11 +55,71 @@ naturally, and the task completes when the last one does (see
 """
 
 
+# The escalation ladder, ordered by invasiveness: a request strictly stronger
+# than the stamp replaces it; anything equal or weaker is a no-op, so no caller
+# can lower or clear a stamp. Score and error are unordered peers. Abort
+# outranks retry so a retry chosen in the cancel dialog cannot re-run a task an
+# operator cancelled. See design/ctl/task-drain.md "Escalation ladder and
+# idempotence" (teardown must always remain reachable, e.g. a draining task
+# stalled on a hung sample, and score/error is drain's "stop waiting" relief
+# valve).
+_ESCALATION_LADDER: dict[str, int] = {
+    "drain": 0,
+    "score": 1,
+    "error": 1,
+    "retry": 2,
+    "abort": 3,
+}
+
+
 @dataclass
 class TaskCancel:
+    """A task attempt's cancel stamp, changed only through :meth:`request`.
+
+    The stamp only escalates (see ``_ESCALATION_LADDER``). Once the attempt's
+    cancel scope has exited (:meth:`close`) its outcome is decided, and only an
+    abort of an attempt that ended in error is still accepted: it stops the
+    dispatcher from retrying it.
+    """
+
     can_retry: bool
-    cancel_task: Callable[[CancelType], None]
-    cancel_type: CancelType = None
+    apply: Callable[[CancelType], None]
+    """Carries out a stamp: wakes pause waiters; abort and retry cancel the
+    task's scope (or, during the error-log write, take effect when it ends)."""
+    log_write_scope: anyio.CancelScope | None = None
+    """The scope around the task's error-log write while it runs. An abort or
+    retry request made then bounds the write and takes effect when it ends
+    (see ``abort_bounded_write``)."""
+    _cancel_type: CancelType = field(default=None, init=False)
+    _closed: bool = field(default=False, init=False)
+    _ended_in_error: bool = field(default=False, init=False)
+
+    @property
+    def cancel_type(self) -> CancelType:
+        """How the attempt was asked to cancel (``None`` if it was not)."""
+        return self._cancel_type
+
+    def escalates(self, requested: CancelType) -> bool:
+        """Whether :meth:`request` would accept ``requested``."""
+        if requested is None:
+            return False
+        if self._closed and not (requested == "abort" and self._ended_in_error):
+            return False
+        return (
+            self._cancel_type is None
+            or _ESCALATION_LADDER[requested] > _ESCALATION_LADDER[self._cancel_type]
+        )
+
+    def request(self, requested: CancelType) -> None:
+        """Stamp and apply ``requested`` if it escalates; otherwise do nothing."""
+        if self.escalates(requested):
+            self._cancel_type = requested
+            self.apply(requested)
+
+    def close(self, ended_in_error: bool) -> None:
+        """Record that the attempt's cancel scope has exited."""
+        self._closed = True
+        self._ended_in_error = ended_in_error
 
 
 @dataclass

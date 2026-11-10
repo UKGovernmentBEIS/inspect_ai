@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import argparse
 import base64
+import contextlib
 import hashlib
+import importlib.resources
 import importlib.util
 import io
 import json
@@ -212,6 +214,180 @@ async def test_download_from_s3_missing_sums_entry_raises_without_network(
 
     stream_mock.assert_not_called()
     assert [p.name for p in tmp_path.iterdir()] == ["SHA256SUMS"]
+
+
+# ---------------------------------------------------------------------------
+# sandbox._open_executable_for_arch
+# ---------------------------------------------------------------------------
+
+_GLIBC = "inspect-sandbox-tools-amd64-v999"
+_GLIBC_DEV = "inspect-sandbox-tools-amd64-v999-dev"
+
+
+@pytest.fixture
+def binaries(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """A binaries dir served by `importlib.resources`, with a SHA256SUMS beside it.
+
+    The sums file pins `_GLIBC` to `b"good"`. S3 and the local build fail the
+    test unless a test replaces them.
+    """
+    binaries = tmp_path / "binaries"
+    binaries.mkdir()
+    sums = tmp_path / "SHA256SUMS"
+    write_sha256sums({_GLIBC: _sha256(b"good")}, sums)
+    monkeypatch.setattr(sandbox_module, "SANDBOX_TOOLS_VERSION", "999")
+    monkeypatch.setattr(
+        importlib.resources,
+        "path",
+        lambda package, name: contextlib.nullcontext(binaries / name),
+    )
+    monkeypatch.setattr(
+        sandbox_module, "lookup_digest", lambda name: lookup_digest(name, sums)
+    )
+
+    async def no_download(filename: str) -> bool:
+        raise AssertionError(f"unexpected S3 download of {filename}")
+
+    async def no_build(*args: object) -> None:
+        raise AssertionError("unexpected local build")
+
+    monkeypatch.setattr(sandbox_module, "_download_from_s3", no_download)
+    monkeypatch.setattr(sandbox_module, "_build_it", no_build)
+    return binaries
+
+
+def _install_state(monkeypatch: pytest.MonkeyPatch, state: str) -> None:
+    monkeypatch.setattr(sandbox_module, "_get_install_state", lambda: state)
+
+
+async def _open(musl: bool = False) -> tuple[str, bytes]:
+    async with sandbox_module._open_executable_for_arch("amd64", musl) as (name, f):
+        return name, f.read()
+
+
+@pytest.mark.parametrize("state", ["pypi", "clean"])
+async def test_open_executable_accepts_matching_local_binary(
+    binaries: Path, monkeypatch: pytest.MonkeyPatch, state: str
+) -> None:
+    _install_state(monkeypatch, state)
+    (binaries / _GLIBC).write_bytes(b"good")
+
+    assert await _open() == (_GLIBC, b"good")
+
+
+@pytest.mark.parametrize("state", ["pypi", "clean"])
+async def test_open_executable_rejects_tampered_local_binary(
+    binaries: Path, monkeypatch: pytest.MonkeyPatch, state: str
+) -> None:
+    _install_state(monkeypatch, state)
+    (binaries / _GLIBC).write_bytes(b"tampered")
+
+    with pytest.raises(
+        PrerequisiteError, match=f"Digest verification failed for {_GLIBC}"
+    ):
+        await _open()
+
+
+async def test_open_executable_rejects_local_binary_without_digest_entry(
+    binaries: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _install_state(monkeypatch, "pypi")
+    write_sha256sums({"some-other-file": "d" * 64}, tmp_path / "SHA256SUMS")
+    (binaries / _GLIBC).write_bytes(b"good")
+
+    with pytest.raises(PrerequisiteError, match=f"No SHA256 entry for {_GLIBC}"):
+        await _open()
+
+
+async def test_open_executable_pypi_missing_glibc_binary_raises(
+    binaries: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _install_state(monkeypatch, "pypi")
+    monkeypatch.setattr(
+        sandbox_module, "_record_lists_binary", lambda name: name == _GLIBC
+    )
+
+    with pytest.raises(PrerequisiteError, match="missing from the PyPI package"):
+        await _open()
+
+
+async def test_open_executable_pypi_musl_downloads_from_s3(
+    binaries: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _install_state(monkeypatch, "pypi")
+    musl = "inspect-sandbox-tools-amd64-musl-v999"
+    write_sha256sums({musl: _sha256(b"musl")}, tmp_path / "SHA256SUMS")
+
+    async def download(filename: str) -> bool:
+        (binaries / filename).write_bytes(b"musl")
+        return True
+
+    monkeypatch.setattr(sandbox_module, "_download_from_s3", download)
+
+    assert await _open(musl=True) == (musl, b"musl")
+
+
+async def test_open_executable_rejects_tampered_downloaded_binary(
+    binaries: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _install_state(monkeypatch, "pypi")
+    musl = "inspect-sandbox-tools-amd64-musl-v999"
+    write_sha256sums({musl: _sha256(b"musl")}, tmp_path / "SHA256SUMS")
+
+    async def download(filename: str) -> bool:
+        (binaries / filename).write_bytes(b"tampered")
+        return True
+
+    monkeypatch.setattr(sandbox_module, "_download_from_s3", download)
+
+    with pytest.raises(
+        PrerequisiteError, match=f"Digest verification failed for {musl}"
+    ):
+        await _open(musl=True)
+
+
+async def test_open_executable_edited_dev_binary_is_not_verified(
+    binaries: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _install_state(monkeypatch, "edited")
+    (binaries / _GLIBC_DEV).write_bytes(b"local dev build")
+
+    assert await _open() == (_GLIBC_DEV, b"local dev build")
+
+
+async def test_open_executable_after_local_build_is_not_verified(
+    binaries: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # `_build_it` always writes the -dev name, so only "edited" reaches a
+    # successful open after a build.
+    _install_state(monkeypatch, "edited")
+
+    async def build(arch: str, musl: bool, name: str) -> None:
+        (binaries / _GLIBC_DEV).write_bytes(b"local build")
+
+    monkeypatch.setattr(sandbox_module, "_build_it", build)
+
+    assert await _open() == (_GLIBC_DEV, b"local build")
+
+
+async def test_open_executable_verifies_published_name_after_local_build(
+    binaries: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _install_state(monkeypatch, "clean")
+
+    async def download(filename: str) -> bool:
+        return False
+
+    async def build(arch: str, musl: bool, name: str) -> None:
+        (binaries / name).write_bytes(b"tampered")
+
+    monkeypatch.setattr(sandbox_module, "_download_from_s3", download)
+    monkeypatch.setattr(sandbox_module, "_build_it", build)
+
+    with pytest.raises(
+        PrerequisiteError, match=f"Digest verification failed for {_GLIBC}"
+    ):
+        await _open()
 
 
 # ---------------------------------------------------------------------------
@@ -428,12 +604,22 @@ def test_committed_package_data_globs_match_source_files(
             assert any(regex.fullmatch(f) for f in files), pattern
 
 
-def _write_dist(dist: Path, wheel_version: str, sdist_version: str) -> None:
+def _write_dist(
+    dist: Path,
+    wheel_version: str,
+    sdist_version: str,
+    sdist_files: tuple[str, ...] = (),
+) -> None:
     dist.mkdir()
     _write_wheel(
         dist / f"inspect_ai-{wheel_version}-py3-none-any.whl", _wheel_members()
     )
-    (dist / f"inspect_ai-{sdist_version}.tar.gz").write_bytes(b"sdist")
+    root = f"inspect_ai-{sdist_version}"
+    with tarfile.open(dist / f"{root}.tar.gz", "w:gz") as sdist:
+        for name in ["PKG-INFO", *sdist_files]:
+            info = tarfile.TarInfo(f"{root}/{name}")
+            info.size = len(name)
+            sdist.addfile(info, io.BytesIO(name.encode()))
 
 
 @pytest.fixture
@@ -486,12 +672,37 @@ def test_pypi_verify_dist_rejects_unexpected_files(
 
 
 @pytest.mark.usefixtures("wheel_globs")
+def test_pypi_verify_dist_rejects_binaries_in_sdist(
+    pypi_release: ModuleType, tmp_path: Path
+) -> None:
+    binary = "src/inspect_ai/binaries/inspect-sandbox-tools-amd64-v9"
+    _write_dist(tmp_path / "dist", "0.3.278", "0.3.278", (binary,))
+    with pytest.raises(RuntimeError, match="must not contain the sandbox tools"):
+        pypi_release.verify_dist(tmp_path / "dist", "0.3.278", "9")
+
+
+@pytest.mark.usefixtures("wheel_globs")
 def test_pypi_verify_dist_runs_wheel_gate(
     pypi_release: ModuleType, tmp_path: Path
 ) -> None:
     _write_dist(tmp_path / "dist", "0.3.278", "0.3.278")
     with pytest.raises(RuntimeError, match="inspect-sandbox-tools-amd64-v10"):
         pypi_release.verify_dist(tmp_path / "dist", "0.3.278", "10")
+
+
+def test_pypi_remove_directories_removes_stale_build(
+    pypi_release: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    stale = tmp_path / "build" / "lib" / "inspect_ai" / "binaries" / "old-binary"
+    stale.parent.mkdir(parents=True)
+    stale.write_bytes(b"stale")
+    (tmp_path / "dist").mkdir()
+    monkeypatch.chdir(tmp_path)
+
+    pypi_release.remove_directories()
+
+    assert not (tmp_path / "build").exists()
+    assert not (tmp_path / "dist").exists()
 
 
 def _prepare_repo(tmp_path: Path, digests: dict[str, str]) -> Path:

@@ -40,7 +40,7 @@ from inspect_ai.log._condense import (
     resolve_events_attachments,
 )
 from inspect_ai.model._chat_message import ChatMessageBase
-from inspect_ai.model._model_call import ModelCall
+from inspect_ai.model._model_call import ModelCall, init_call_interner
 from inspect_ai.util._span import AgentSpans
 from inspect_ai.util._store import (
     store,
@@ -761,7 +761,8 @@ class Transcript:
             self._event_count += 1
             self._update_pin_state(event)
             self._update_pending(event)
-            self._update_evictable_state(event)
+            if self._bounded and self._is_evictable_event_key(event_key):
+                self._evictable_event_ids.append(event_key)
             if notify_subscribers:
                 self._notify_subscribers(event)
         self._evict_events()
@@ -1175,6 +1176,7 @@ def track_store_changes() -> Iterator[None]:
 
 def init_transcript(transcript: Transcript) -> None:
     _transcript.set(transcript)
+    init_call_interner(transcript._log_model_api is True)
 
 
 _transcript: ContextVar[Transcript | None] = ContextVar(

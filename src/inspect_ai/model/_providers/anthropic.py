@@ -230,7 +230,9 @@ from .util import (
     check_azure_deployment_mismatch,
     environment_prerequisite_error,
     forced_tool_choice_degraded_metadata,
+    is_claude_4_0_model,
     is_claude_fable_5_1_model,
+    is_claude_fable_5_2_model,
     is_claude_haiku_5_5_model,
     is_claude_opus_5_5_model,
     is_claude_sonnet_5_5_model,
@@ -412,6 +414,8 @@ class _ResolvedCacheTtl(NamedTuple):
 
 _CACHE_DIAGNOSIS_BETA = "cache-diagnosis-2026-04-07"
 _THINKING_BINDING_BETA = "thinking-binding-controls-2026-08-01"
+_CLAUDE_NAME = re.compile(r"claude-[a-zA-Z]")
+_KNOWN_CLAUDE_5 = re.compile(r"claude-(?:fable|mythos|opus|sonnet|haiku)-5")
 _CACHE_MISS_WARNING = (
     "anthropic cache diagnostics: cache miss detected (reason: {reason})."
 )
@@ -1093,6 +1097,10 @@ class AnthropicAPI(ModelAPI):
         config: GenerateConfig | None = None,
     ) -> int:
         """Estimate token count for an input."""
+        # Bedrock rejects /v1/messages/count_tokens (anthropic-sdk-python#1103).
+        if self.is_bedrock():
+            return await super().count_tokens(input, config)
+
         # turn system into user for purposes of counting
         if isinstance(input, str):
             input = [ChatMessageUser(content=input)]
@@ -1679,13 +1687,17 @@ class AnthropicAPI(ModelAPI):
     ) -> None:
         """Opt into dropping prefix-mismatched thinking blocks on bound-thinking models.
 
-        Fable 5.1, Opus 5.5, Sonnet 5.5, and Haiku 5.5 bind thinking blocks to
+        Fable 5.1+, Opus 5.5, Sonnet 5.5, and Haiku 5.5 bind thinking blocks to
         the request prefix that produced them; solvers legitimately edit history, and without
         drop_block such an edit fails the replay with a 400. Applied to every
         request for these models — not only those replaying thinking blocks —
         so the beta header stays uniform across a task's requests (the batcher
-        submits a single header set per batch). Mythos 5.1 does not run the
-        binding check, so it is excluded. Applied on the first-party API and,
+        submits a single header set per batch). Mythos does not run the
+        binding check, so it is excluded. Claude names Inspect doesn't
+        recognise (a new codename, or a version newer than any known release)
+        are assumed to bind as well: models that don't bind accept the opt-in
+        (verified live on Claude 4.6 through Fable 5). Applied on the
+        first-party API and,
         for Sonnet 5.5 (verified live), on Bedrock: the binding-controls beta
         arrives per model on bedrock/vertex and is not offered on foundry, so
         other model/platform pairs stay opted out until verified, and a
@@ -1697,22 +1709,30 @@ class AnthropicAPI(ModelAPI):
         `extra_body.thinking` shallow-merges over the request body and
         replaces this binding config.
         """
-        binds_thinking = (
-            (
-                self.is_claude_fable_5_1_or_later()
-                and "mythos" not in self.model_family()
-            )
+        family = self.model_family()
+        binds_thinking = "mythos" not in family and (
+            self.is_claude_fable_5_1_or_later()
             or self.is_claude_opus_5_5_or_later()
             or self.is_claude_sonnet_5_5_or_later()
             or self.is_claude_haiku_5_5_or_later()
+            or (
+                # is_claude_latest() also matches non-Claude names (e.g. a
+                # compatible endpoint), which must not have thinking forced on
+                _CLAUDE_NAME.search(family) is not None
+                and (
+                    self.is_claude_latest()
+                    or (self.is_claude_5() and _KNOWN_CLAUDE_5.search(family) is None)
+                )
+            )
         )
         binding_offered = not (
             self.is_bedrock() or self.is_vertex() or self.is_azure()
         ) or (self.is_bedrock() and self.is_claude_sonnet_5_5_or_later())
         if binds_thinking and binding_offered:
             betas.append(_THINKING_BINDING_BETA)
-            # adaptive thinking is the server default for these models, so
-            # sending it explicitly is accepted when the field was omitted
+            # adaptive thinking is the server default for these models (assumed
+            # for unrecognised names), so sending it explicitly is accepted
+            # when the field was omitted
             thinking = request.setdefault("thinking", {"type": "adaptive"})
             if thinking.get("type") == "adaptive":
                 thinking["block_binding"] = {"prefix_mismatch_behavior": "drop_block"}
@@ -1777,9 +1797,7 @@ class AnthropicAPI(ModelAPI):
         return re.search(r"claude-[a-zA-Z]+-4", self.model_family()) is not None
 
     def is_claude_4_0(self) -> bool:
-        return self._is_claude_4_x(0) or (
-            re.search(r"claude-[a-zA-Z]+-4[-@]20\d{6}", self.model_family()) is not None
-        )
+        return is_claude_4_0_model(self.model_family())
 
     def is_claude_4_1(self) -> bool:
         return self._is_claude_4_x(1)
@@ -1811,6 +1829,10 @@ class AnthropicAPI(ModelAPI):
     def is_claude_fable_5_1_or_later(self) -> bool:
         return is_claude_fable_5_1_model(self.model_family())
 
+    def is_claude_fable_5_2_or_later(self) -> bool:
+        """Fable 5.2 or a later Fable 5 point release (a subset of 5.1-or-later)."""
+        return is_claude_fable_5_2_model(self.model_family())
+
     def is_claude_opus_5_5_or_later(self) -> bool:
         """Opus 5.5 or a later point release (a subset of is_claude_opus_5)."""
         return is_claude_opus_5_5_model(self.model_family())
@@ -1828,10 +1850,12 @@ class AnthropicAPI(ModelAPI):
 
         Auto mode (no `computer_toolset` model arg) uses the toolset where the
         legacy `computer_20251124` tool is rejected (Opus 5.5, Sonnet 5.5, and
-        Haiku 5.5 on the Claude API and Vertex) and, where the platform offers
+        Haiku 5.5 on the Claude API and Vertex; Fable 5.2 everywhere but
+        Bedrock) and, where the platform offers
         it, for Fable/Mythos 5.x and other Claude 5 models treated like them. Every other model keeps the
-        legacy tool, matching prior behavior; so do Fable/Mythos on Bedrock and
-        Foundry, which offer only the legacy tool.
+        legacy tool, matching prior behavior; so do Fable/Mythos on Bedrock,
+        and Fable before 5.2 and Mythos on Foundry, which offer only the
+        legacy tool.
         """
         if self.computer_toolset is not None:
             return self.computer_toolset
@@ -1854,23 +1878,30 @@ class AnthropicAPI(ModelAPI):
         )
 
     def computer_toolset_available(self) -> bool:
-        """Whether this platform offers the computer toolset at all.
+        """Whether this platform offers the computer toolset for this model.
 
         Per Anthropic's computer-use docs, platforms other than the Claude API
         and Google Cloud (Vertex) currently offer only the earlier tool
         versions. (Claude Platform on AWS also offers only those, but this
-        provider has no client for it, so it needs no case here.)
+        provider has no client for it, so it needs no case here.) The
+        exception is Fable 5.2 on Foundry: it rejects the earlier tool
+        everywhere except Bedrock and takes computer use through the toolset.
         """
-        return not (self.is_bedrock() or self.is_azure())
+        if self.is_bedrock():
+            return False
+        return not self.is_azure() or self.is_claude_fable_5_2_or_later()
 
     def computer_toolset_required(self) -> bool:
         """Whether the legacy computer tool is rejected for this model/platform.
 
-        Only Opus 5.5, Sonnet 5.5, and Haiku 5.5 on the Claude API and Vertex
-        reject `computer_20251124`; Bedrock and Foundry keep accepting it there, and
-        every other model listed for the legacy tool (Fable/Mythos 5.x
-        included) still accepts it.
+        Opus 5.5, Sonnet 5.5, and Haiku 5.5 on the Claude API and Vertex
+        reject `computer_20251124`; Bedrock and Foundry keep accepting it there.
+        Fable 5.2 rejects it on every platform except Bedrock. Every other
+        model listed for the legacy tool (Fable 5/5.1 and Mythos included)
+        still accepts it.
         """
+        if self.is_claude_fable_5_2_or_later():
+            return not self.is_bedrock()
         return (
             self.is_claude_opus_5_5_or_later()
             or self.is_claude_sonnet_5_5_or_later()
@@ -1962,6 +1993,10 @@ class AnthropicAPI(ModelAPI):
         return _CACHE_DIAGNOSIS_BETA in self._pull_betas_from_headers(
             dict(config.extra_headers or {})
         )
+
+    @override
+    def _client_endpoint(self) -> str | None:
+        return str(self.client.base_url)
 
     @override
     def connection_key(self) -> str:
@@ -2518,7 +2553,8 @@ class AnthropicAPI(ModelAPI):
                 # inspect computer tool always supports it, so no configs.
                 return BetaComputerToolset20260801Param(type=COMPUTER_TOOLSET_TYPE)
             # legacy path forced (computer_toolset=false) where the legacy tool
-            # is rejected (Opus/Sonnet/Haiku 5.5 on the Claude API / Vertex)
+            # is rejected (Opus/Sonnet/Haiku 5.5 on the Claude API / Vertex;
+            # Fable 5.2 everywhere but Bedrock)
             if self.computer_toolset_required():
                 raise PrerequisiteError(
                     f"The legacy computer tool (computer_20251124) is not supported "
@@ -4059,12 +4095,9 @@ class _AssistantInternal:
     Replayed as the `container` request param when a turn left code
     execution pending (see `_pending_container_for_input`).
 
-    Unlike `server_tool_span_index`, there is no fallback for message ids
-    rewritten by the agent bridge: a pending span has produced no content,
-    so no bridge-surviving key exists to index by. Pending-work resumption
-    therefore does not survive a bridge id rewrite (the bridge does not
-    carry server tool state in general -- its anthropic impl handles
-    neither `server_tool_use` blocks nor the `container` param)."""
+    Unlike `server_tool_span_index`, there is no content-keyed fallback: a
+    pending span has produced no content. An edit of the message, which gets
+    an id of its own, is recorded here by `copy_server_tool_state`."""
 
 
 def assistant_internal() -> _AssistantInternal:
@@ -4248,6 +4281,22 @@ def merge_server_tool_spans(head_id: str | None, tail_id: str | None) -> None:
         internal.containers.setdefault(tail_id, head_container)
 
 
+def copy_server_tool_state(source_id: str, edited_id: str) -> None:
+    """Record the spans and container of message `source_id` under its edit too.
+
+    An edit of a turn (approved arguments, a scaffold's changed copy) is still
+    the turn that left work pending, so it replays that work; `source_id` keeps
+    its own record.
+    """
+    internal = assistant_internal()
+    spans = internal.server_tool_spans.get(source_id)
+    if spans:
+        internal.server_tool_spans.setdefault(edited_id, list(spans))
+    container = internal.containers.get(source_id)
+    if container is not None:
+        internal.containers.setdefault(edited_id, container)
+
+
 def _prior_turn_server_tool_use(tool_use_id: str) -> BetaServerToolUseBlock | None:
     """Server tool use block recorded in a prior turn's span (if any).
 
@@ -4293,14 +4342,21 @@ def _pending_container_for_input(input: list[ChatMessage]) -> str | None:
     )
     if last_assistant is None or last_assistant.id is None:
         return None
-    internal = assistant_internal()
-    container = internal.containers.get(last_assistant.id)
-    if container is None:
+    container = assistant_internal().containers.get(last_assistant.id)
+    if container is None or not has_pending_server_work(last_assistant.id):
         return None
-    spans = internal.server_tool_spans.get(last_assistant.id, [])
-    if any(span.open_use_ids for span in spans):
-        return container
-    return None
+    return container
+
+
+def has_pending_server_work(message_id: str) -> bool:
+    """Whether message `message_id` ended its turn with server tool work still running.
+
+    That work is replayed from the spans recorded under the message id (and
+    resumed in the container recorded under it): a span with no results yet
+    has no content item to be found by.
+    """
+    spans = assistant_internal().server_tool_spans.get(message_id, [])
+    return any(span.open_use_ids for span in spans)
 
 
 def _server_tool_span_for_content(

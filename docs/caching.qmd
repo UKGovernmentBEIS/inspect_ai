@@ -14,12 +14,17 @@ There are two types of caching available: Inspect local caching and provider lev
 Use the `cache` option of `GenerateConfig` to activate the use of the cache. The keys for caching (what determines if a request can be fulfilled from the cache) are as follows:
 
 -   Model name and base URL (e.g. `openai/gpt-6-luna`)
+-   Model constructor arguments (e.g. `extra_body` or `model_path`)
 -   Model prompt (i.e. message history)
 -   Epoch number (for ensuring distinct generations per epoch)
 -   Generate configuration (e.g. `temperature`, `top_p`, etc.)
 -   Active `tools` and `tool_choice`
 
 If all of these inputs are identical, then the model response will be served from the cache. By default, model responses are cached for 1 week (see [Cache Policy](#cache-policy) below for details on customising this).
+
+Model constructor arguments containing JSON values (strings, numbers, booleans, null, lists, and dictionaries with string keys) can reuse cached responses across model instances and processes. Dictionary key order is part of the key, since providers can resolve overlapping keys (such as header names that differ in case) by order. If they contain objects such as a custom HTTP client or a callback, Inspect warns and scopes caching to the current model instance because those objects have no reliable persistent identity. Repeated requests on that instance can still use the cache; newly constructed instances cannot reuse those entries. Changing a model's constructor arguments after it is constructed is not supported: set per-call options with `GenerateConfig`, or construct another model. The constructor-argument fingerprint omits `api_key`, `aws_*` arguments, and generator or iterator values, matching the log. Because `aws_*` arguments, including `aws_region` and `aws_profile`, are not part of the key, models that differ only in Bedrock region or profile share cache entries. Constructor argument values are hashed, not stored in cache files.
+
+Caches written by Inspect versions that did not include constructor arguments in the key can return an answer written for custom arguments to a model using default arguments. After upgrading, clear them with `inspect cache clear --all`, or `inspect cache clear --model provider/model` for each affected model.
 
 Here are some example uses of `--cache` from the CLI:
 

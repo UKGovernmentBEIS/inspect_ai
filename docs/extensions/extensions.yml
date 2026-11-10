@@ -234,6 +234,12 @@
   author: "[Runtime](https://github.com/withruntime/runtime)"
   categories: ["Sandboxes"]
 
+- name: "[briq Sandbox](https://github.com/briq-cloud/inspect-briq)"
+  description: |
+    Runs each sample in its own briq microVM, destroyed when the sample ends.
+  author: "[briq](https://github.com/briq-cloud/inspect-briq)"
+  categories: ["Sandboxes"]
+
 
 - name: "[Inspect Costs Plugin](https://github.com/jasongwartz/inspect_costs_plugin/)"
   description: |
@@ -265,4 +271,11 @@
     Steers a model's sampling towards any target behaviour, surfacing on-policy
     examples in fewer samples, accessing only the model's logits.
   author: "[Adrians Skapars](https://scholar.google.com/citations?user=9Vf0mWkAAAAJ&hl=en)"
+  categories: ["Tooling"]
+
+- name: "[inspect-drex](https://github.com/nace-ai/inspect-drex)"
+  description: |
+    Scorer that asks Drex decision models whether a sample meets your criteria and
+    returns probabilities, so the pass threshold can be chosen after the run.
+  author: "[Nace](https://github.com/nace-ai)"
   categories: ["Tooling"]

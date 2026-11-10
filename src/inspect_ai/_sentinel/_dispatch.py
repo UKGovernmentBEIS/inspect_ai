@@ -67,6 +67,7 @@ from inspect_ai.model._model import (
     model_roles,
     suspend_model_event_sink,
 )
+from inspect_ai.model._model_info import get_model_input_budget
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.review._human import (
     escape_placeholders,
@@ -412,6 +413,42 @@ class _HostNative:
     def __init__(self, eval: EvalContext | None) -> None:
         self.eval = eval
 
+    def _resolve(self, model: str | None, role: str | None) -> Model:
+        """Resolve the model a host call names, the way `generate` does.
+
+        A `model` name without a `role` runs as its own model under the
+        'sentinel' role; otherwise the role (default 'monitor') resolves,
+        falling back to the agent's own model when no role is configured.
+        """
+        if isinstance(cast(object, model), Model):
+            raise TypeError(
+                "A host model argument must be a model name, not a Model. "
+                "Configure the Model for a role with Task(model_roles={'<role>': model}) "
+                "or --model-role, and pass role='<role>'."
+            )
+        if model == "":
+            raise ValueError(
+                "A host model argument must be a model name, not an empty string. "
+                "Pass None to use a role."
+            )
+        if role == "":
+            raise ValueError(
+                "A host role argument must be a model role, not an empty string. "
+                "Pass None for the 'monitor' role."
+            )
+        if model is not None and role is None:
+            resolved = copy(get_model(model))
+            resolved._set_role("sentinel")
+            return resolved
+        role = role or "monitor"
+        if model is None and role not in model_roles():
+            warn_once(
+                logger,
+                f"No model is configured for the sentinel role '{role}', so monitor calls use the agent's own model. "
+                f"Set one with Task(model_roles={{'{role}': ...}}) or --model-role {role}=<model>.",
+            )
+        return get_model(model, role=role, default=active_model())
+
     async def generate(
         self,
         input: str | list[ChatMessage],
@@ -422,40 +459,31 @@ class _HostNative:
         tool_choice: ToolChoice | None = None,
         config: GenerateConfig | None = None,
     ) -> ModelOutput:
-        if isinstance(cast(object, model), Model):
-            raise TypeError(
-                "Host.generate() takes a model name, not a Model. "
-                "Configure the Model for a role with Task(model_roles={'<role>': model}) "
-                "or --model-role, and pass role='<role>'."
-            )
-        if model == "":
-            raise ValueError(
-                "Host.generate() model must be a model name, not an empty string. "
-                "Pass None to use a role."
-            )
-        if role == "":
-            raise ValueError(
-                "Host.generate() role must be a model role, not an empty string. "
-                "Pass None for the 'monitor' role."
-            )
-        if model is not None and role is None:
-            resolved = copy(get_model(model))
-            resolved._set_role("sentinel")
-        else:
-            role = role or "monitor"
-            if model is None and role not in model_roles():
-                warn_once(
-                    logger,
-                    f"No model is configured for the sentinel role '{role}', so monitor calls use the agent's own model. "
-                    f"Set one with Task(model_roles={{'{role}': ...}}) or --model-role {role}=<model>.",
-                )
-            resolved = get_model(model, role=role, default=active_model())
-        return await resolved.generate(
+        return await self._resolve(model, role).generate(
             input,
             tools=tools or [],
             tool_choice=tool_choice,
             config=config or GenerateConfig(),
         )
+
+    async def input_budget(
+        self,
+        *,
+        model: str | None = None,
+        role: str | None = None,
+        config: GenerateConfig | None = None,
+    ) -> int:
+        return get_model_input_budget(self._resolve(model, role), config)
+
+    async def count_tokens(
+        self,
+        input: str | list[ChatMessage],
+        *,
+        model: str | None = None,
+        role: str | None = None,
+        config: GenerateConfig | None = None,
+    ) -> int:
+        return await self._resolve(model, role).count_tokens(input, config)
 
     async def ask_human(
         self,
