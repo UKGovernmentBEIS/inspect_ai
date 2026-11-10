@@ -1,4 +1,4 @@
-//#region ../../node_modules/.pnpm/mathxyjax3@0.8.3/node_modules/mathxyjax3/dist/tex-svg-full-BI3fonbT.js
+// ../../node_modules/.pnpm/mathxyjax3@0.8.3/node_modules/mathxyjax3/dist/tex-svg-full-BI3fonbT.js
 var e = { env: {} };
 (function() {
 	var t = {
@@ -60320,6 +60320,5 @@ In order to be iterable, non-array objects must have a [Symbol.iterator]() metho
 		}));
 	})();
 })();
-//#endregion
 
 //# sourceMappingURL=tex-svg-full-BI3fonbT.js.map
