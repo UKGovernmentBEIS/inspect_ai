@@ -2814,6 +2814,69 @@ def test_approvals_of_a_reused_call_id_replay_in_linear_work(
     assert work[-1] <= 4.2 * work[0], work
 
 
+class CountedCalls(list[ToolCall]):
+    """A message's tool calls, counting each one read (`reads`)."""
+
+    def __init__(self, calls: Iterator[ToolCall]) -> None:
+        super().__init__(calls)
+        self.reads = 0
+
+    def __iter__(self) -> Iterator[ToolCall]:
+        for call in super().__iter__():
+            self.reads += 1
+            yield call
+
+
+@pytest.mark.parametrize("proposed", ["generated", "prefilled"])
+def test_a_wide_batch_of_calls_finds_its_proposals_in_linear_work(
+    proposed: str,
+) -> None:
+    # after the PR C review: each tool event found its call by scanning every
+    # call of the message its event names
+    reads: list[int] = []
+    for width in (8, 16, 32, 64):
+        calls = CountedCalls(
+            ToolCall(id=f"call-{n}", function="lookup", arguments={"n": n})
+            for n in range(width)
+        )
+        message = ChatMessageAssistant(id="assistant", content="", tool_calls=[])
+        object.__setattr__(message, "tool_calls", calls)
+        events: list[Event] = []
+        if proposed == "generated":
+            turn = imported_call(
+                "turn", [ChatMessageUser(content="Look up.")], "solvers"
+            )
+            turn.output.choices[0].message = message
+            offered = [ToolInfo(name="lookup", description="Look up an item.")]
+            events.append(turn.model_copy(update={"origin": "agent", "tools": offered}))
+        for n in range(width):
+            events += [
+                SpanBeginEvent(id=f"tool-{n}", name="lookup", type="tool"),
+                ToolEvent(
+                    id=f"call-{n}",
+                    function="lookup",
+                    arguments={"n": n},
+                    result="found",
+                    call_message_id="assistant",
+                    span_id=f"tool-{n}",
+                ),
+                SpanEndEvent(id=f"tool-{n}"),
+            ]
+        replay = steps_from_events(
+            [message] if proposed == "prefilled" else [],
+            solving(events),
+            [],
+            sample_uuid="sample",
+            eval_info=EvalInfo(inspect_ai_version="0.3.300", sentinel=False),
+        )
+        tools = [s for s in replay if s.stage.startswith("tool")]
+        assert len(tools) == 2 * width
+        assert {s.matched for s in tools} == {"ids"}
+        reads.append(calls.reads)
+        assert calls.reads <= 3 * width, (width, reads)
+    assert reads[-1] <= 8.8 * reads[0], reads
+
+
 @pytest.mark.parametrize("tool_events", ["none", "bridge", "native"])
 @pytest.mark.parametrize("case", ["shared", "distinct_ids", "separate_spans"])
 def test_a_stored_timeline_s_conversation_owns_its_approval(

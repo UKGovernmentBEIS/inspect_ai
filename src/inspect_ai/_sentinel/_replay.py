@@ -603,6 +603,11 @@ class _Driver:
         self._assistants: dict[str, tuple[ChatMessageAssistant, ToolCall]] | None = None
         # each assistant message and its text, by id() (`_text`)
         self._texts: dict[int, tuple[ChatMessageAssistant, str]] = {}
+        # each assistant message and its calls by call id, None for an id it
+        # holds more than once, by id() (`_calls_by_id`)
+        self._call_indexes: dict[
+            int, tuple[ChatMessageAssistant, dict[str, ToolCall | None]]
+        ] = {}
         self._messages_by_id: dict[str, list[ChatMessage]] | None = None
         # the origins of model calls the log records none for, by id()
         self._inferred: dict[int, str] | None = None
@@ -1888,11 +1893,11 @@ class _Driver:
             return None
         producer = cast(ModelEvent, self.events[found[0]])
         message = producer.output.choices[0].message
-        calls = [c for c in message.tool_calls or [] if c.id == call_id]
-        if len(calls) != 1:
+        proposed = self._calls_by_id(message).get(call_id)
+        if proposed is None:
             return None
         return _Proposal(
-            found[0], message, producer, calls[0], self._conversation(producer)
+            found[0], message, producer, proposed, self._conversation(producer)
         )
 
     def _prefilled_by_id(
@@ -1905,10 +1910,21 @@ class _Driver:
             return None
         for message in self._messages_by_id_all().get(message_id, []):
             if isinstance(message, ChatMessageAssistant):
-                calls = [c for c in message.tool_calls or [] if c.id == call_id]
-                if len(calls) == 1:
-                    return message, calls[0]
+                proposed = self._calls_by_id(message).get(call_id)
+                if proposed is not None:
+                    return message, proposed
         return None
+
+    def _calls_by_id(self, message: ChatMessageAssistant) -> dict[str, ToolCall | None]:
+        # a message's calls, read once for each of its tool events: by call
+        # id, None for an id it holds more than once
+        cached = self._call_indexes.get(id(message))
+        if cached is None or cached[0] is not message:
+            calls: dict[str, ToolCall | None] = {}
+            for call in message.tool_calls or []:
+                calls[call.id] = None if call.id in calls else call
+            cached = self._call_indexes[id(message)] = (message, calls)
+        return cached[1]
 
     def _messages_by_id_all(self) -> dict[str, list[ChatMessage]]:
         if self._messages_by_id is None:
