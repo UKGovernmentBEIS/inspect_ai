@@ -23,6 +23,7 @@ from pydantic_core import PydanticSerializationError
 from typing_extensions import TypeIs
 
 from inspect_ai._sentinel._agent_state import bridge_request
+from inspect_ai._sentinel._sidecar._call import INSPECT_HEADERS
 from inspect_ai._util._async import raise_unwrapped
 from inspect_ai._util.content import (
     Content,
@@ -641,14 +642,26 @@ def _same_request_config(generation: GenerateConfig, bridged: GenerateConfig) ->
     `batch` or `GenerateConfig.cache`, makes the generation another client's,
     as does a difference in a field added to `GenerateConfig` later.
 
+    Headers Inspect adds to the call itself (`INSPECT_HEADERS`, e.g. a
+    sidecar's `x-inspect-context`) are not compared; any other header is.
+
     An in-process agent's headers can route the bridged request to another
     tenant (e.g. `OpenAI-Organization`); a call with no config is then still
     taken as the bridged client's.
     """
-    return json_equal(
-        generation.model_dump(exclude=set(_CLIENT_NEUTRAL_CONFIG_FIELDS)),
-        bridged.model_dump(exclude=set(_CLIENT_NEUTRAL_CONFIG_FIELDS)),
-    )
+    return json_equal(_client_config(generation), _client_config(bridged))
+
+
+def _client_config(config: GenerateConfig) -> dict[str, Any]:
+    """`config` as `_same_request_config` compares it."""
+    compared = config.model_dump(exclude=set(_CLIENT_NEUTRAL_CONFIG_FIELDS))
+    headers = {
+        name: value
+        for name, value in (config.extra_headers or {}).items()
+        if name.lower() not in INSPECT_HEADERS
+    }
+    compared["extra_headers"] = headers or None
+    return compared
 
 
 def _is_unchanged(

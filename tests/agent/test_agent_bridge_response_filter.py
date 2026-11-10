@@ -3110,6 +3110,118 @@ async def test_response_filter_regeneration_of_a_request_with_agent_headers(
     )
 
 
+@pytest.mark.parametrize("server_items", [False, True])
+@pytest.mark.parametrize("headers", ["none", "foreign"])
+async def test_response_filter_regeneration_through_a_sidecar(
+    headers: Literal["none", "foreign"],
+    server_items: bool,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A regeneration through a sentinel sidecar is the bridged client's own.
+
+    Inspect adds `x-inspect-context` to each call through the sidecar, the
+    filter's own `model.generate(...)` included, and the bridged request's
+    config is resolved without it. The regeneration still keeps its id and
+    its completed server search. Adding another header (an alternate
+    `x-api-key`) is still another client: its reply gets an edited id and its
+    server items are rejected.
+    """
+    import httpx2
+    from test_helpers.stand_in_sidecar import StandInSidecar, Turn
+
+    from inspect_ai import Task, eval_async
+    from inspect_ai.dataset import Sample
+    from inspect_ai.solver import Generate, Solver, TaskState, solver
+
+    monkeypatch.delenv("ANTHROPIC_AUTH_TOKEN", raising=False)
+
+    class ServerItemsSidecar(StandInSidecar):
+        def _handle(self, request: httpx2.Request) -> httpx2.Response:
+            response = super()._handle(request)
+            if request.url.path == "/v1/messages" and len(self.model_calls) == 2:
+                payload = response.json()
+                payload["content"] += PENDING_SPAN_BLOCKS["completed_and_pending"]
+                return httpx2.Response(200, json=payload)
+            return response
+
+    proceed = {"outcome": "proceed", "steps": []}
+    stand_in = (ServerItemsSidecar if server_items else StandInSidecar)(
+        turns=[
+            Turn(text="first", judgment=proceed),
+            Turn(text="regenerated", judgment=proceed),
+        ]
+    )
+    model = get_model(
+        "anthropic/claude-haiku-4-5",
+        api_key="test-key",
+        base_url="http://proxy.test",
+        memoize=False,
+        streaming=False,
+        config=GenerateConfig(max_tokens=1024),
+        http_client=stand_in.http_client(),
+    )
+    seen: dict[str, str] = {}
+
+    async def regenerate(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput | None:
+        config = (
+            GenerateConfig(extra_headers={"x-api-key": "alternate-key"})
+            if headers == "foreign"
+            else GenerateConfig()
+        )
+        replacement = await model.generate(generate_input.input, config=config)
+        seen["regenerated"] = replacement.message.id or ""
+        return replacement
+
+    @solver
+    def through_bridge() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            bridge = AgentBridge(
+                AgentState(messages=state.messages), response_filter=regenerate
+            )
+            output, _ = await bridge_generate(
+                bridge,
+                model,
+                state.messages,
+                [],
+                None,
+                GenerateConfig(),
+                requested_model=None,
+            )
+            seen["handed"] = output.message.id or ""
+            state.messages.append(output.message)
+            return state
+
+        return solve
+
+    [log] = await eval_async(
+        Task(dataset=[Sample(input="Hi")], solver=through_bridge()),
+        model=model,
+        sentinel_proxy="auto",
+        log_dir=str(tmp_path),
+        fail_on_error=False,
+    )
+
+    assert log.samples is not None
+    [sample] = log.samples
+    model_events = [e for e in sample.events if isinstance(e, ModelEvent)]
+    assert len(model_events) == 2
+    assert all(
+        "x-inspect-context" in (e.config.extra_headers or {}) for e in model_events
+    )
+    if headers == "foreign" and server_items:
+        assert sample.error is not None
+        assert "server tool use 'srvtoolu_ws'" in sample.error.message
+        return
+    assert sample.error is None
+    if headers == "none":
+        assert seen["handed"] == seen["regenerated"]
+    else:
+        assert seen["handed"] != seen["regenerated"]
+
+
 def test_bridged_generation_config_allowlist_names_generate_config_fields() -> None:
     """Every allowlisted field is a `GenerateConfig` field, so none is a typo."""
     assert _CLIENT_NEUTRAL_CONFIG_FIELDS <= GenerateConfig.model_fields.keys()
