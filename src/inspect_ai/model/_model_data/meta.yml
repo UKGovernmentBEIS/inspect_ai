@@ -1,6 +1,17 @@
 meta:
   display_name: Meta
   models:
+    # Meta's frontier model, in preview on the Model API. Standard mode only
+    # (no `-contributor` alias) and reasoning is always on, defaulting to `max`
+    # effort. Meta does not publish an output token limit.
+    # https://research.meta.ai/blog/muse-wonder
+    # https://dev.meta.ai/docs/muse-wonder
+    muse-wonder-1.0:
+      display_name: Muse Wonder 1.0
+      release_date: 2026-10-12
+      context_length: 1048576
+      reasoning: True
+      reasoning_effort_default: max
     # Meta's small model. Standard mode only (no `-contributor` alias) and
     # reasoning is always on, defaulting to `max` effort.
     # https://research.meta.ai/blog/muse-ember

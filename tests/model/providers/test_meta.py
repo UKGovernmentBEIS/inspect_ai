@@ -145,6 +145,19 @@ def test_meta_muse_ember_model_info(mock_meta_env):
     assert info.reasoning_effort_default == "max"
 
 
+def test_meta_muse_wonder_model_info(mock_meta_env):
+    from inspect_ai.model._model_info import get_model_info
+
+    info = get_model_info("meta/muse-wonder-1.0")
+    assert info is not None
+    assert info.model == "Muse Wonder 1.0"
+    assert str(info.release_date) == "2026-10-12"
+    assert info.context_length == 1048576
+    assert info.output_tokens is None
+    assert info.reasoning is True
+    assert info.reasoning_effort_default == "max"
+
+
 def test_meta_forced_tool_choice_downgraded(mock_meta_env, _warn_once_messages):
     api = MetaAPI(model_name="muse-spark-1.3")
     tools = [_tool()]
@@ -173,6 +186,7 @@ def test_meta_tool_choice_auto_untouched(mock_meta_env, _warn_once_messages):
         ("muse-spark-1.3", "meta/muse-spark-1.3"),
         ("muse-spark-1.2-contributor", "meta/muse-spark-1.2-contributor"),
         ("muse-ember-1.0", "meta/muse-ember-1.0"),
+        ("muse-wonder-1.0", "meta/muse-wonder-1.0"),
         # not in the model info database: alias to the current frontier
         ("muse-spark-1.4", "meta/muse-spark-1.3"),
         ("muse-spark-2", "meta/muse-spark-1.3"),
@@ -212,10 +226,11 @@ def test_meta_unknown_model_explicit_info_wins(mock_meta_env):
         _result_cache.clear()
 
 
-# Meta documents `max` reasoning for muse-ember-1.0 and standard-tier
-# muse-spark-1.3; later versions and unrecognized (codename) standard-tier
-# models are assumed frontier
+# Meta documents `max` reasoning for muse-wonder-1.0, muse-ember-1.0 and
+# standard-tier muse-spark-1.3; later versions and unrecognized (codename)
+# standard-tier models are assumed frontier
 MAX_REASONING_MODELS = [
+    "muse-wonder-1.0",
     "muse-ember-1.0",
     "muse-spark-1.3",
     "muse-spark-1.4",
