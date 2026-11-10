@@ -86,6 +86,12 @@ def majority_score() -> ScoreReducer:
 def mean_score(value_to_float: ValueToFloat = value_to_float()) -> ScoreReducer:
     r"""Take the mean of a list of scores.
 
+    A `None` inside a dictionary score is missing. It is left out of the
+    mean instead of being converted to `0.0`. A key that is `None` on every
+    score stays `None`, so a metric can still apply its missing-value
+    behavior. The same rule is used by the other dictionary statistics
+    (`median_score`, `pass_at`, and `pass_k`).
+
     Args:
        value_to_float: Function to convert the value to a float
     """
@@ -438,14 +444,29 @@ def _compute_dict_stat(
 
     dict_result: dict[str, str | int | float | bool | None] = {}
     for key in dict_scores[0].value.keys():  # type: ignore
-        values = []
+        values: list[float] = []
+        saw_none = False
+        saw_value = False
         for score in dict_scores:
-            key_value = value_to_float(score.value[key])  # type: ignore
-            if _is_reducible(key_value):
-                values.append(key_value)
+            # None is missing. Converting it first yields 0.0 and counts
+            # the gap in the statistic. Scores here are dict-shaped;
+            # _partition_dict_scores rejects anything else.
+            value = score.value
+            if not isinstance(value, dict):
+                continue
+            key_value = value[key]
+            if key_value is None:
+                saw_none = True
+                continue
+            saw_value = True
+            converted = value_to_float(key_value)
+            if _is_reducible(converted):
+                values.append(converted)
 
         if len(values) == 0:
-            dict_result[key] = float("nan")
+            # All-None stays None so metrics still see a missing value.
+            # A key that was only NaN stays the unscored sentinel.
+            dict_result[key] = None if saw_none and not saw_value else float("nan")
         else:
             dict_result[key] = statistic(values)
     return _reduced_score(dict_result, scores)

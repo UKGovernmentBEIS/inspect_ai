@@ -3,7 +3,7 @@ import sys
 import time
 from contextvars import Token
 from copy import copy, deepcopy
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from logging import getLogger
 from pathlib import PurePath
@@ -46,9 +46,15 @@ from inspect_ai._display import (
 )
 from inspect_ai._display.core.display import TaskCancel, TaskDisplayMetric
 from inspect_ai._eval.task.scan import Scanners
-from inspect_ai._sentinel._config import SentinelRoot
+from inspect_ai._sentinel._config import SentinelProxy, SentinelRoot
 from inspect_ai._sentinel._context import SentinelFailure
 from inspect_ai._sentinel._scope import sentinel_scope, sentinel_solving
+from inspect_ai._sentinel._sidecar._call import end_sidecar_sample
+from inspect_ai._sentinel._sidecar._state import (
+    copy_sidecar_monitor_state,
+    save_sidecar_monitor_state,
+)
+from inspect_ai._sentinel._sidecar._task import TaskFacts, init_task_sidecars
 from inspect_ai._util._async import Wake, aexit_shielded_when, raise_unwrapped
 from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.asyncfiles import AsyncFilesystem, get_async_filesystem
@@ -57,12 +63,13 @@ from inspect_ai._util.constants import (
     DEFAULT_MAX_CONNECTIONS,
     DEFAULT_MAX_CONNECTIONS_BATCH,
 )
-from inspect_ai._util.dateutil import iso_now
+from inspect_ai._util.dateutil import datetime_from_iso_format_safe, iso_now
 from inspect_ai._util.error import (
     exception_message,
     is_cancellation_message,
 )
 from inspect_ai._util.exception import (
+    SampleRefusedError,
     TaskRetryAbandonedError,
     TerminateSampleError,
     TerminateTaskError,
@@ -324,11 +331,15 @@ class EvalSampleSource(NamedTuple):
     `prior_checkpoints_dir` is the prior attempt's eval checkpoints dir
     (None when checkpointing was off or vetoed) — the source the startup
     copy replicates into this attempt's dir.
+    `prior_created` is the prior log's `eval.created` (None with no prior
+    log): the attempt's own `created` is made later than it, which keeps
+    generated sample ids from repeating (see `dynamic_id_token`).
     """
 
     lookup: SampleLookup
     seed: SeedSource | None = None
     prior_checkpoints_dir: str | None = None
+    prior_created: str | None = None
 
 
 # Bound on concurrent checkpoint-dir probes/deletes in `run_sample` (a retry
@@ -356,6 +367,47 @@ SampleTerminalOutcome = Literal["completed", "errored", "cancelled"]
 
 # One sample run's scores, keyed by scorer name.
 ScoresByScorer: TypeAlias = dict[str, SampleScore]
+
+# A generated id for a dynamic sample added without one:
+# dyn-<attempt token>-<admission counter> (see `dynamic_id_token`).
+
+
+def dynamic_sample_id(token: str, counter: int) -> str:
+    """The generated id of an attempt's ``counter``-th anonymous dynamic sample.
+
+    The counter is zero-padded to 4 digits, so ids sort in admission order
+    as strings (as ``sort_samples`` and the viewer compare them) up to 9,999
+    admissions per attempt; later ones stay unique but sort out of order.
+    """
+    return f"dyn-{token}-{counter:04d}"
+
+
+def dynamic_id_token(created: str) -> str:
+    """The attempt's token for generated sample ids: its ``eval.created`` second in base 36.
+
+    ``created`` is the timestamp the log file name is built from, to the
+    second. A retry attempt's ``created`` is always later than its prior
+    log's (see ``TaskLogger``), and every generated id in the prior log or
+    its checkpoints, including those carried from earlier attempts, has a
+    token at or below the prior's ``created``. A generated id therefore
+    never repeats in a later attempt, so retry reuse and checkpoint resume
+    (keyed on ``(id, epoch)``) never match it, and a retry's ids sort after
+    the prior attempt's while the token keeps its width (6 characters until
+    2039).
+
+    Explicit ids are not checked against this shape. An explicit id such as
+    ``dyn-<later token>-0001`` can be taken for a later retry's generated id,
+    and that retry can reuse its record or checkpoint (accepted: Ransom,
+    2026-11-04).
+    """
+    token = int(datetime_from_iso_format_safe(created).timestamp())
+    digits = ""
+    while True:
+        token, digit = divmod(token, 36)
+        digits = "0123456789abcdefghijklmnopqrstuvwxyz"[digit] + digits
+        if token == 0:
+            return digits
+
 
 # Global sample index: position in the seed store when < store_len, else an
 # injected sample (see `get_sample`). A reading aid only — mypy treats it as
@@ -648,6 +700,7 @@ class TaskRunOptions:
     eval_wd: str
     config: EvalConfig = field(default_factory=EvalConfig)
     sentinel: "SentinelRoot | None" = field(default=None)
+    sentinel_proxy: SentinelProxy | None = field(default=None)
     """Resolved root protocol of the task's sentinel."""
     solver: Solver | None = field(default=None)
     scanner: "Scanners | None" = field(default=None)
@@ -1079,6 +1132,8 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
         if task_retry_abandoned(logger.eval.task_id):
             raise TaskRetryAbandonedError()
 
+    dynamic_token = dynamic_id_token(logger.eval.created)
+
     # this attempt's own eval checkpoints dir (None when checkpointing is
     # off or vetoed): the startup copy's destination, and where a retried
     # or requeued sample's checkpoint (if any) is later looked for
@@ -1346,6 +1401,20 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                     metrics=task.metrics,
                     score_on_error=config.score_on_error or False,
                 ),
+            )
+
+            await init_task_sidecars(
+                options.sentinel_proxy,
+                model,
+                TaskFacts(
+                    eval_id=logger.eval.eval_id,
+                    task=task.name,
+                    task_description=task.description,
+                    metadata=task.metadata or {},
+                    sample_ids=sample_ids,
+                    epochs=epochs,
+                ),
+                in_process_sentinel=options.sentinel is not None,
             )
 
             # call early stopping if we have it
@@ -1789,15 +1858,13 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         else None
                     )
 
-                    # injected samples without ids continue the seed's 1-based
-                    # numbering, skipping ids already in use; ids are compared
-                    # by their str() form (matching ensure_unique_ids, since
-                    # log member names and score grouping key on it). the seed
-                    # ids come from the complete pre-slice seed set, so a
-                    # filtered-out id cannot be reclaimed by a dynamic sample.
+                    # ids are compared by their str() form (matching
+                    # ensure_unique_ids, since log member names and score
+                    # grouping key on it). the seed ids come from the complete
+                    # pre-slice seed set, so a filtered-out id cannot be
+                    # reclaimed by a dynamic sample.
                     # uniqueness is on (id, epoch): a sample added without an
                     # epoch reserves (id, 1..epochs), one with an epoch (id, epoch)
-                    seen_ids = set(seed_ids)
                     reserved_runs = {
                         SampleKey(id, epoch)
                         for id in seed_ids
@@ -1810,7 +1877,6 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         if remaining is not None
                         else set()
                     )
-                    auto_id = store_len
 
                     class AddedSamples(NamedTuple):
                         samples: list[Sample]
@@ -1819,20 +1885,54 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         all_epoch_ids: list[int | str]
                         explicit_epoch_runs: list[SampleIdEpoch]
 
-                    def reserve_runs(sample: Sample, epoch: int | None) -> list[int]:
-                        """Assign an auto-id if needed and reserve the epochs to run."""
-                        nonlocal auto_id
-                        if sample.id is None:
-                            auto_id += 1
-                            while str(auto_id) in seen_ids:
-                                auto_id += 1
-                            sample.id = auto_id
+                    class ReservedRuns(NamedTuple):
+                        sample: Sample
+                        epochs: list[int]
+
+                    dynamic_count = 0
+                    # ids taken in any epoch: a generated id skips them, and
+                    # an explicit sample may not reuse a generated id at a
+                    # further epoch
+                    reserved_ids = set(seed_ids)
+                    generated_ids: set[str] = set()
+
+                    def reserve_runs(sample: Sample, epoch: int | None) -> ReservedRuns:
+                        """Assign an id if needed and reserve the epochs to run.
+
+                        A sample added without an id runs as a copy with a
+                        generated id (``dynamic_sample_id``: the attempt's
+                        token and an admission counter), not the next
+                        integer. The id stays local to this attempt: it is
+                        never written to the source's own object, so a source
+                        that returns the same object on a retry adds it
+                        without an id again. The token is new each attempt,
+                        so an id from one attempt never turns up in another,
+                        and a task retry or checkpoint resume (both keyed on
+                        ``(id, epoch)``) cannot reuse another sample's prior
+                        result. Only samples with explicit ids are reused
+                        across attempts. A generated id skips any id already
+                        taken by an explicit sample, in any epoch, but not an
+                        explicit id from a prior attempt (see
+                        ``dynamic_id_token``).
+                        """
+                        nonlocal dynamic_count
+                        generated = sample.id is None
+                        if generated:
+                            generated_id = ""
+                            while not generated_id or generated_id in reserved_ids:
+                                dynamic_count += 1
+                                generated_id = dynamic_sample_id(
+                                    dynamic_token, dynamic_count
+                                )
+                            sample = sample.model_copy(update={"id": generated_id})
                         key = str(sample.id)
                         planned = (
                             list(range(1, epochs + 1)) if epoch is None else [epoch]
                         )
                         runs = {SampleKey(key, e) for e in planned}
-                        if not runs.isdisjoint(reserved_runs):
+                        if not runs.isdisjoint(reserved_runs) or (
+                            not generated and key in generated_ids
+                        ):
                             for_epoch = "" if epoch is None else f" for epoch {epoch}"
                             raise ValueError(
                                 f"SampleSource added a sample with duplicate "
@@ -1840,8 +1940,10 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                                 "sample id is added once per epoch."
                             )
                         reserved_runs.update(runs)
-                        seen_ids.add(key)
-                        return planned
+                        reserved_ids.add(key)
+                        if generated:
+                            generated_ids.add(key)
+                        return ReservedRuns(sample, planned)
 
                     def within_limit(sample: Sample) -> bool:
                         nonlocal remaining
@@ -1857,8 +1959,8 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                     def add_samples(samples: list[EnqueuedSample]) -> AddedSamples:
                         added = AddedSamples([], [], [], [], [])
                         over_limit = 0
-                        for sample, epoch in samples:
-                            planned_epochs = reserve_runs(sample, epoch)
+                        for source_sample, epoch in samples:
+                            sample, planned_epochs = reserve_runs(source_sample, epoch)
                             assert sample.id is not None
                             if include_id is not None and not include_id(sample.id):
                                 continue
@@ -2694,10 +2796,17 @@ async def _task_run_sample_attempt(
 
         # helper to handle exceptions (will throw if we've exceeded the limit)
         def handle_error(ex: BaseException) -> tuple[EvalError, BaseException | None]:
+            nonlocal attempt, score_on_error
+
             # report the sentinel's own error, from the solver or scorers
             failure = inner_exception(ex) if isinstance(ex, Exception) else ex
             if isinstance(failure, SentinelFailure):
                 ex = decisive_sentinel_exception(failure.error)
+
+            # a refused sample would be refused again, and never ran
+            if isinstance(failure, SampleRefusedError):
+                attempt = replace(attempt, retry_limit=len(attempt.errors))
+                score_on_error = False
 
             # helper to log sample error
             def log_sample_error() -> None:
@@ -2786,6 +2895,7 @@ async def _task_run_sample_attempt(
             cancelled_error: BaseException | None = None
             solver_cancel: BaseException | None = None
             scoring_finished = False
+            monitor_state_copied = False
             operator_cancelled = False
             results: ScoresByScorer = {}
             limit: EvalSampleLimit | None = None
@@ -3253,6 +3363,9 @@ async def _task_run_sample_attempt(
                                     and attempt.retries_remaining == 0
                                     and cancelled_error is None
                                 ):
+                                    # once, even when the copy fails the sample
+                                    monitor_state_copied = True
+                                    await copy_sidecar_monitor_state(state)
                                     async with span(name="scorers"):
                                         for scorer_idx, scorer in enumerate(
                                             scorers or []
@@ -3404,6 +3517,13 @@ async def _task_run_sample_attempt(
                 ):
                     reporter.progress()
 
+                    # a sample saved without being scored keeps its monitor
+                    # state too, as in process, for `inspect score` to read
+                    if not monitor_state_copied:
+                        await save_sidecar_monitor_state(
+                            state, cancelled=cancelled_error is not None
+                        )
+
                     # ensure there are no base64 images in sample or messages
                     if not log_images:
                         sample = sample_without_base64_content(sample)
@@ -3492,6 +3612,9 @@ async def _task_run_sample_attempt(
                         await emit_attempt_end(will_retry=False)
                         await emit_sample_end(
                             eval_set_id, run_id, task_id, state.uuid, eval_sample
+                        )
+                        await end_sidecar_sample(
+                            state.uuid, cancelled=cancelled_error is not None
                         )
                     # deliver the sample to the run's sources (below) unless
                     # the TASK is unwinding (abort/retry cancel, ^C,
@@ -3973,7 +4096,7 @@ def eval_log_sample_source(
             "Unable to re-use samples from retry log file because the dataset was shuffled "
             + "and some samples in the dataset do not have an 'id' field."
         )
-        return EvalSampleSource(no_sample_source)
+        return EvalSampleSource(no_sample_source, prior_created=eval_log.eval.created)
 
     if (
         eval_log.eval.dataset.samples != len(dataset)
@@ -3983,7 +4106,7 @@ def eval_log_sample_source(
             "Unable to re-use samples from retry log file because the dataset size changed "
             + f"(log samples {eval_log.eval.dataset.samples}, dataset samples {len(dataset)})"
         )
-        return EvalSampleSource(no_sample_source)
+        return EvalSampleSource(no_sample_source, prior_created=eval_log.eval.created)
 
     if dataset_grew_with_stable_ids:
         py_logger.info(
@@ -4019,6 +4142,7 @@ def eval_log_sample_source(
                 epochs=eval_log.eval.config.epochs or 1,
             ),
             prior_checkpoints_dir=eval_checkpoints_dir,
+            prior_created=eval_log.eval.created,
         )
     else:
 
@@ -4041,6 +4165,7 @@ def eval_log_sample_source(
                 epochs=eval_log.eval.config.epochs or 1,
             ),
             prior_checkpoints_dir=eval_checkpoints_dir,
+            prior_created=eval_log.eval.created,
         )
 
 

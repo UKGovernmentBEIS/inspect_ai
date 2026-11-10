@@ -117,7 +117,7 @@ from inspect_ai.model._providers._google_citations import (
 )
 from inspect_ai.model._providers._google_computer_use import (
     computer_tool_result_parts,
-    gemini_action_from_tool_call,
+    gemini_replay_args,
     maybe_computer_use_tool,
     tool_call_from_gemini_computer_action,
 )
@@ -729,10 +729,23 @@ class GoogleGenAIAPI(ModelAPI):
     def is_vertex(self) -> bool:
         return self.service == "vertex"
 
+    def _effective_api_version(self) -> str | None:
+        """API version to pass to the SDK.
+
+        Default the Gemini Developer API to `v1beta` (the SDK defaults to `v1`).
+        Return `None` for Vertex or when `GOOGLE_GENAI_API_VERSION` is set so the
+        SDK resolves the version itself.
+        """
+        if self.api_version is not None:
+            return self.api_version
+        if self.is_vertex() or os.environ.get("GOOGLE_GENAI_API_VERSION"):
+            return None
+        return "v1beta"
+
     def _http_options(self, config: GenerateConfig | None = None) -> HttpOptions:
         http_options = HttpOptions(
             base_url=self.base_url,
-            api_version=self.api_version,
+            api_version=self._effective_api_version(),
         )
 
         if config is not None and config.timeout is not None:
@@ -1344,7 +1357,7 @@ class GoogleGenAIAPI(ModelAPI):
 
         http_options = http_options or HttpOptions(
             base_url=self.base_url,
-            api_version=self.api_version,
+            api_version=self._effective_api_version(),
         )
         # Seed both `client_args` and `async_client_args`: genai's SSL-context
         # resolution reads only the sync dict when it is non-empty, ignoring the
@@ -1805,12 +1818,11 @@ async def content(
                 action_name = (
                     tool_call.id.rsplit("_", 1)[0] if tool_call.id else "computer"
                 )
-                _, action_args = gemini_action_from_tool_call(tool_call)
                 return Part(
                     function_call=FunctionCall(
                         id=tool_call.id,
                         name=action_name,
-                        args=action_args,
+                        args=gemini_replay_args(action_name, tool_call),
                     )
                 )
             else:

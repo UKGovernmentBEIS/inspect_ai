@@ -13,6 +13,7 @@ import boto3
 import pytest
 
 from inspect_ai import Epochs, Task, eval, eval_retry, task, task_with
+from inspect_ai._eval.task import run as run_module
 from inspect_ai._util.async_zip import AsyncZipReader, ZipCrcError
 from inspect_ai._util.asyncfiles import AsyncFilesystem, DirListing
 from inspect_ai._util.error import WriteConflictError
@@ -1189,6 +1190,10 @@ def shard_mean_keys(
             if str(score.sample_id) not in (excluded_sample_ids or [])
             for key in keys
         ]
+        # the progress display can compute metrics before any non-excluded
+        # sample completes
+        if not values:
+            return float("nan")
         return sum(values) / len(values)
 
     return compute
@@ -1301,6 +1306,25 @@ def test_metrics_with_options_merge_to_the_unsharded_values(
     assert expected[("verdicts", "shard_metric_map")] == 1.75
     assert expected[("labels", "P")] == 0.0
     assert ("ratings", "krippendorff_alpha") in expected
+
+
+def test_metrics_survive_progress_before_a_non_excluded_sample_finishes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    display_fn = run_module.update_metrics_display_fn
+
+    def every_sample(*args: Any, **kwargs: Any) -> Callable[..., None]:
+        # a fresh display function per call computes at once, without the
+        # display's throttling interval
+        return lambda *update: display_fn(*args, **kwargs)(*update)
+
+    monkeypatch.setattr(run_module, "update_metrics_display_fn", every_sample)
+    # one sample at a time, so the progress display computes metrics over
+    # sample 1 alone, which `shard_mean_keys` excludes
+    log = _run(str(tmp_path), "0", _verdict_task(), sample_id=[1, 2], max_samples=1)
+    assert log.status == "success"
+    # sample 2, points 1.0, weighted 2
+    assert _metric_values(log)[("verdicts", "shard_mean_keys")] == 2.0
 
 
 async def _group_score(state: TaskState, target: Target) -> Score:
