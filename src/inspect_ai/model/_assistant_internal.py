@@ -293,7 +293,7 @@ class GenerationCallState(NamedTuple):
 
     edited: bool
     """Whether the call is handed on with other arguments than it was parsed with
-    (a response filter changed them)."""
+    (a request or response filter, or approval, changed them; `_handed_edited`)."""
 
     @property
     def recorded(self) -> bool:
@@ -319,7 +319,11 @@ def generation_call_states(
     A call from a provider keeping no per-call state gets an empty state. A
     call's state is None (unknown) when `replay` is None, when the generation
     parsed no such call, when its provider recorded nothing for it (a Responses
-    call without an item ID), or when its ID is shared (`shared_call_ids`).
+    call without an item ID), when its ID is shared (`shared_call_ids`), or
+    when it is not the call parsed under its ID with at most its arguments
+    changed (`_handed_edited`). So an output reaching the bridge by any path
+    (a request filter's generation or substitute, a response filter, approval)
+    is checked against what its generation parsed.
     """
     parsed = cast(
         dict[str, dict[str, JsonValue] | None],
@@ -330,21 +334,35 @@ def generation_call_states(
     states: list[GenerationCallState | None] = []
     for call in calls:
         state = parsed.get(call.id)
+        edited = _handed_edited(state, call) if state is not None else None
         if (
             call.id in shared
             or state is None
+            or edited is None
             or any(key not in state for key in providers)
         ):
             states.append(None)
         else:
             states.append(
-                GenerationCallState(
-                    state.get("openai"),
-                    state.get("anthropic"),
-                    state.get("edited") is True,
-                )
+                GenerationCallState(state.get("openai"), state.get("anthropic"), edited)
             )
     return states
+
+
+def _handed_edited(state: dict[str, JsonValue], call: ToolCall) -> bool | None:
+    """Whether `call` is handed on edited from the call parsed with `state`.
+
+    False for the call as parsed. True for the call with other arguments and its
+    function and type: it keeps the state and is handed on like an approval
+    `modify`, in its native form with its own arguments
+    (`alias_assistant_internal_call`). None for any other call (another
+    function or type), which keeps no state and replays from the call itself.
+    """
+    if state.get("digest") == _call_digest(call):
+        return False
+    if state.get("function") == call.function and state.get("type") == call.type:
+        return True
+    return None
 
 
 def carry_generation_assistant_internal(
@@ -353,12 +371,11 @@ def carry_generation_assistant_internal(
     """Give `target` the replay state of the calls of `source` it carries.
 
     For an output rebuilt from `source` (e.g. by a response filter). A call
-    `target` carries unchanged keeps its state. A call with other arguments
-    keeps the state of the call parsed under its ID if it has its function and
-    type, marked edited, so it replays in its native form with the arguments it
-    is handed on with (`alias_assistant_internal_call`). Any other call has no
-    state in `target`, and an ID shared in `source` or `target` stays shared
-    (`shared_call_ids`).
+    `target` carries keeps the state of the call parsed under its ID if it is
+    that call, or that call with other arguments (`_handed_edited`, which
+    `generation_call_states` applies again when the state is used). Any other
+    call has no state in `target`, and an ID shared in `source` or `target`
+    stays shared (`shared_call_ids`).
     """
     replay = generation_assistant_internal(source)
     if replay is None:
@@ -375,10 +392,8 @@ def carry_generation_assistant_internal(
             carried[call.id] = None
         elif (state := parsed.get(call.id)) is None:
             continue
-        elif state["digest"] == _call_digest(call):
+        elif _handed_edited(state, call) is not None:
             carried[call.id] = state
-        elif state["function"] == call.function and state["type"] == call.type:
-            carried[call.id] = {**state, "edited": True}
     target._assistant_internal = {"calls": carried, "providers": replay["providers"]}
     share_call_ids(target, _recorded_shared(replay))
 

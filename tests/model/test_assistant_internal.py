@@ -331,6 +331,44 @@ def test_a_copy_keeps_the_replay_state_of_the_calls_it_carries() -> None:
     assert shared_call_ids(copy) == {"shared", "duplicated"}
 
 
+def test_calls_edited_in_place_are_checked_against_their_parsed_state() -> None:
+    from inspect_ai.model._assistant_internal import (
+        GenerationCallState,
+        generation_assistant_internal,
+        generation_call_states,
+        generation_replay,
+        set_generation_assistant_internal,
+    )
+
+    calls = [
+        ToolCall(id=f"call_{index}", function="read_file", arguments={"path": "a"})
+        for index in range(4)
+    ]
+    # the output itself, with its replay state, as a request filter that
+    # generates and edits it in place returns it
+    output = set_generation_assistant_internal(
+        ModelOutput(
+            choices=[
+                ChatCompletionChoice(
+                    message=ChatMessageAssistant(content="", tool_calls=calls),
+                    stop_reason="tool_calls",
+                )
+            ]
+        ),
+        generation_replay(calls, openai=[{"index": index} for index in range(4)]),
+    )
+    calls[1].arguments = {"path": "edited"}
+    calls[2].function = "write_file"
+    calls[3].type = "custom"
+
+    assert generation_call_states(generation_assistant_internal(output), calls) == [
+        GenerationCallState({"index": 0}, None, False),
+        GenerationCallState({"index": 1}, None, True),
+        None,
+        None,
+    ]
+
+
 def test_ids_recorded_as_shared_stay_shared_and_give_no_call_state() -> None:
     from inspect_ai.model._assistant_internal import (
         GenerationCallState,

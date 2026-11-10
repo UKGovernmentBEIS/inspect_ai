@@ -204,8 +204,8 @@ class _ResultChecks:
     `_MAX_TOKEN_LENGTH` characters, it names no Gemini computer action other
     than the approved one (`_names_another_action`), its generation's replay
     state for it is known (`generation_call_states`), so no provider can replay
-    another generation's state under it, and, for a call approval or a response
-    filter changed, that state does not carry the model's arguments
+    another generation's state under it, and, for a call approval or a request or
+    response filter changed, that state does not carry the model's arguments
     (`GenerationCallState.carries_arguments`); otherwise a fresh token
     (`_token_prefix`). A result
     reported under a token is the result of that execution, however the
@@ -804,8 +804,8 @@ def replay_ids(output: ModelOutput) -> ModelOutput:
     input for the rest of its retries: a later generation reusing the id, or a
     response filter's edit, would replace the call's operation there. Each call
     goes under a fresh id with the state its generation parsed it with
-    (`generation_call_states`; with a response filter's arguments for a call the
-    filter edited), recorded in the provider's state, or with none when that is
+    (`generation_call_states`; with the arguments a request or response filter
+    gave a call), recorded in the provider's state, or with none when that is
     unknown or the id is shared (`shared_call_ids`), so it replays from the
     call. Google's reasoning anchors follow (`_retarget_anchors`).
     A copy, as `output` may be the object the ModelEvent recorded.

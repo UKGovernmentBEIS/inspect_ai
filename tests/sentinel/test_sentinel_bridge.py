@@ -9628,6 +9628,206 @@ async def test_a_provider_output_rebuilt_from_its_fields_replays_its_own_calls()
     ]
 
 
+@protocol
+def bridge_reject_first() -> Protocol:
+    rejected = False
+
+    async def decide(
+        context: Context, step: BeforeToolCall, escalations: Escalations
+    ) -> Decision | None:
+        nonlocal rejected
+        if rejected:
+            return None
+        rejected = True
+        return Decision.reject("risky", message="Not that one.")
+
+    return decide
+
+
+def _request_filter_edited(
+    kind: str,
+) -> tuple[
+    Callable[[], ModelOutput | Awaitable[ModelOutput]],
+    list[ToolInfo],
+    Callable[[ToolCall], dict[str, Any]],
+    Callable[[list[ChatMessage]], Awaitable[list[tuple[str, Any]]]],
+    Callable[[ToolCall], Any],
+]:
+    """A generation of one `kind` of call, and how a request filter edits it.
+
+    Returns the generation, its tools, the arguments the filter gives a call,
+    each call a serialized request replays (its id and native arguments), and
+    the native arguments a call handed on with its arguments serializes to.
+    """
+    if kind in RESPONSES_KINDS:
+        item, _, _, approved = _responses_modified_call(kind)
+
+        async def responses_replayed(input: list[ChatMessage]) -> list[Any]:
+            return _responses_replayed(await _responses_wire(input), item.type)
+
+        def responses_native(call: ToolCall) -> Any:
+            native = {
+                "function": lambda: call.arguments,
+                "custom": lambda: call.arguments["input"],
+                "computer": lambda: [{"type": "wait"}],
+                "tool_search": lambda: call.arguments,
+            }
+            return native[kind]()
+
+        return (
+            _responses_parsed(item),
+            [],
+            lambda call: approved,
+            responses_replayed,
+            responses_native,
+        )
+    elif kind == "anthropic":
+
+        async def anthropic_replayed(input: list[ChatMessage]) -> list[Any]:
+            return [
+                (block["id"], block["input"])
+                for blocks in await _anthropic_wire(input)
+                for block in blocks
+                if block["type"] == "tool_use"
+            ]
+
+        return (
+            _anthropic_parsed(ANTHROPIC_FIRST),
+            list(ANTHROPIC_TOOLS),
+            lambda call: {**call.arguments, "edited": True},
+            anthropic_replayed,
+            lambda call: call.arguments,
+        )
+    elif kind == "google":
+        from google.genai.types import (
+            Candidate,
+            Content,
+            FinishReason,
+            FunctionCall,
+            Part,
+        )
+
+        from inspect_ai.model._providers.google import (
+            completion_choice_from_candidate,
+        )
+        from inspect_ai.model._providers.google import content as google_content
+
+        def google() -> ModelOutput:
+            call = FunctionCall(
+                id="call_read", name="read_file", args={"path": "notes.txt"}
+            )
+            choice = completion_choice_from_candidate(
+                "gemini-3-flash-preview",
+                Candidate(
+                    content=Content(
+                        role="model",
+                        parts=[Part(function_call=call, thought_signature=b"sig")],
+                    ),
+                    finish_reason=FinishReason.STOP,
+                ),
+            )
+            return ModelOutput(model="mockllm/model", choices=[choice])
+
+        async def google_replayed(input: list[ChatMessage]) -> list[Any]:
+            replayed: list[Any] = []
+            for message in input:
+                if isinstance(message, ChatMessageAssistant):
+                    parts = (await google_content(AsyncMock(), message)).parts or []
+                    replayed += [
+                        (part.function_call.id, part.function_call.args)
+                        for part in parts
+                        if part.function_call is not None
+                    ]
+            return replayed
+
+        return (
+            google,
+            [ToolInfo(name="read_file", description="Read.")],
+            lambda call: {"path": "safe.txt"},
+            google_replayed,
+            lambda call: call.arguments,
+        )
+    else:
+        from inspect_ai.model._openai import openai_chat_message
+
+        async def completions_replayed(input: list[ChatMessage]) -> list[Any]:
+            replayed: list[Any] = []
+            for message in input:
+                if isinstance(message, ChatMessageAssistant):
+                    param: Any = await openai_chat_message(message)
+                    replayed += [
+                        (call["id"], json.loads(call["function"]["arguments"]))
+                        for call in param.get("tool_calls", [])
+                    ]
+            return replayed
+
+        return (
+            lambda: calls_output(READ),
+            [ToolInfo(name="read_file", description="Read.")],
+            lambda call: {"path": "safe.txt"},
+            completions_replayed,
+            lambda call: call.arguments,
+        )
+
+
+@pytest.mark.parametrize("outcome", ["accepted", "rejected"])
+@pytest.mark.parametrize("source", ["generated", "substituted"])
+@pytest.mark.parametrize(
+    "kind", [*RESPONSES_KINDS, "anthropic", "google", "completions"]
+)
+async def test_a_call_a_request_filter_edited_continues_as_edited(
+    kind: str, source: str, outcome: str
+) -> None:
+    generation, tools, edited, replayed, native = _request_filter_edited(kind)
+    # a substitute is a provider's parse the filter returns without generating
+    model = Parsing(
+        *([generation] if source == "generated" else []), lambda: calls_output()
+    )
+    substitute = source == "substituted"
+
+    async def edit(
+        model: Model,
+        messages: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        nonlocal substitute
+        if substitute:
+            substitute = False
+            parsed = generation()
+            output = parsed if isinstance(parsed, ModelOutput) else await parsed
+        else:
+            output = await model.generate(messages, tools, tool_choice, config)
+        for call in output.message.tool_calls or []:
+            call.arguments = edited(call)
+        return output
+
+    bridge = in_process_bridge([])
+    bridge.filter = edit
+    input: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+
+    sentinel = bridge_reject_first() if outcome == "rejected" else bridge_recording([])
+    with active([sentinel]):
+        output = await _generate_bridged(bridge, model.model, input, tools)
+        if outcome == "accepted":
+            await _generate_bridged(
+                bridge, model.model, _answered(input, output), tools
+            )
+
+    # the next request replays each call as the scaffold was handed it, or,
+    # for a rejected turn, with the arguments that were rejected
+    next_input = model.inputs[-1]
+    rejected = next_input[1]
+    assert isinstance(rejected, ChatMessageAssistant)
+    calls = (
+        output.message.tool_calls if outcome == "accepted" else rejected.tool_calls
+    ) or []
+    assert calls
+    assert all(call.arguments == edited(call) for call in calls)
+    assert await replayed(next_input) == [(call.id, native(call)) for call in calls]
+
+
 @pytest.fixture
 def isolated_cache(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
