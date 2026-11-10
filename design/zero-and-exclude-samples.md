@@ -1280,6 +1280,19 @@ inspect log zero    LOG_FILE TASK --sample ID [--sample ID ...] [--epoch N]
 - Output: one line per sample (`excluded` / `zeroed` / `unchanged`) and the
   recomputed headline metric. `--json` prints
   `{"log": ..., "applied": [[id, epoch], ...], "unchanged": [...]}`.
+- **Stdout under `--json`.** Task resolution can print (a task file or
+  factory writing to stdout), and zero's scratch `eval()` writes its
+  display and results, so the envelope alone would not be a parseable
+  stream. With `--json`, both commands run everything after argument
+  parsing (task resolution, the disposition and zero's scratch run, the
+  write-back) inside `inspect eval --json`'s existing stdout guard,
+  `_stdout_owned_for_json()` (`src/inspect_ai/_cli/eval.py:2366-2401`),
+  moved to `src/inspect_ai/_cli/util.py` so all three commands use it. It
+  duplicates file descriptor 1 for the JSON output and points descriptor 1
+  and `sys.stdout` at stderr for the duration, which also covers
+  subprocesses and C-level writers. The commands write only the final
+  envelope to the saved stdout it yields; the display, task output and
+  diagnostics go to stderr. Without `--json`, output is unchanged.
 
 ### Errors and edge cases
 
@@ -1846,7 +1859,11 @@ backends; run the zero tests with `--runtrio` locally.
     (asserted by patching the server start and the release wait).
 - `tests/_cli/`: `inspect log exclude|zero` parse `--sample`, `--epoch`,
   `--reason` and `--author`, write in place, and print the per-sample lines
-  and the `--json` envelope. `inspect log zero LOG TASK` resolves the task
+  and the `--json` envelope. Under `--json`, run as a subprocess with real
+  stdout and stderr, a task factory that prints while it is constructed
+  (for both commands) and zero's scratch run under the default display
+  leave stdout holding exactly the envelope (`json.loads(stdout)` equals
+  it), with the printed text and the display on stderr. `inspect log zero LOG TASK` resolves the task
   with `-T` and passes `--model`, `--model-role`, `--epochs`, a sample limit
   and a generate option through to the scratch eval (asserted on its
   header). With `INSPECT_EVAL_MODEL` unset and only the CLI's model options
@@ -1900,7 +1917,8 @@ path.
    - `inspect log exclude` in `src/inspect_ai/_cli/log.py`, with `--task`
      resolved by `resolve_task_spec()`,
      and the default author helper moved from
-     `src/inspect_ai/_cli/ctl/_config.py` to `src/inspect_ai/_cli/util.py`.
+     `src/inspect_ai/_cli/ctl/_config.py`, and `_stdout_owned_for_json()`
+     from `src/inspect_ai/_cli/eval.py`, to `src/inspect_ai/_cli/util.py`.
    - A "Zeroing and Excluding Samples" section in `docs/eval-logs.qmd`,
      including the retry behaviour, later rescoring (append keeps a
      disposition, overwrite removes it), passing the task (for a log with
