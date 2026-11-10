@@ -1,6 +1,7 @@
 """An agent call that goes through a sentinel sidecar."""
 
 import json
+from collections.abc import MutableMapping
 from logging import getLogger
 from typing import TYPE_CHECKING, NamedTuple
 
@@ -9,7 +10,8 @@ from inspect_ai.model._generate_config import GenerateConfig
 
 from .._config import SentinelProxy
 from .._scope import current_origin, is_agent_turn
-from ._endpoint import Sidecar
+from ._endpoint import Sidecar, _origin
+from ._sign import model_request_message, now, sign
 from ._task import SampleFacts, TaskSidecars, attempt_number, task_sidecars
 
 if TYPE_CHECKING:
@@ -19,7 +21,7 @@ if TYPE_CHECKING:
 logger = getLogger(__name__)
 
 INSPECT_CONTEXT = "x-inspect-context"
-"""The header that names the sample an agent call is for."""
+"""The header that names the sample an agent call is for, which is signed as each try of the call is sent."""
 
 INSPECT_HEADERS = frozenset({INSPECT_CONTEXT})
 """Headers Inspect adds to a call's `GenerateConfig.extra_headers` itself, by lowercase name.
@@ -37,7 +39,7 @@ class SidecarCall(NamedTuple):
 
     sidecar: Sidecar
     header: str
-    """`x-inspect-context`, naming the call's sample and attempt."""
+    """`x-inspect-context`, naming the call's sample and attempt, before it is signed."""
     mode: SentinelProxy
     registered_beforehand: bool = False
     """Whether the sidecar's admin registered the task beforehand, so a sample it can't place was never accepted."""
@@ -84,6 +86,7 @@ async def sidecar_call(model: "Model") -> SidecarCall | None:
         active.sample_uuid,
         attempt_number(active),
     )
+    # signed as each try is sent, so the eval log records it unsigned
     header = json.dumps(
         {
             "version": 1,
@@ -103,6 +106,40 @@ async def sidecar_call(model: "Model") -> SidecarCall | None:
         }
     )
     return SidecarCall(sidecar, header, sidecars.mode, registered_beforehand)
+
+
+def sign_context(headers: MutableMapping[str, str], url: str) -> None:
+    """Sign a model request's `x-inspect-context` as the request is sent, with the time and the token of the eval it names for the sidecar at the request's origin.
+
+    It runs on every try of the request, the SDK's retries and Inspect's alike, so a retry after a long backoff is signed afresh. The signature covers the request's `x-irid`. A header that names no eval with a sidecar at the request's origin, or is sent without an `x-irid`, is left as it is, and the sidecar refuses it as unreadable.
+    """
+    from inspect_ai.model._providers.util.hooks import HttpHooks
+
+    # the id the sidecar keeps what it decides of the request under, which
+    # the signature binds the context to
+    irid = headers.get(HttpHooks.REQUEST_ID_HEADER)
+    if not irid:
+        return
+
+    try:
+        context = json.loads(headers[INSPECT_CONTEXT])
+    except (KeyError, ValueError):
+        return
+    if not isinstance(context, dict):
+        return
+    eval_id = context.get("eval_id")
+    sidecars = task_sidecars(eval_id) if isinstance(eval_id, str) else None
+    access = sidecars.access(_origin(url)) if sidecars is not None else None
+    if access is None:
+        return
+    timestamp = now()
+    try:
+        message = model_request_message(context, irid, timestamp)
+    except KeyError:
+        return
+    context["timestamp"] = timestamp
+    context["mac"] = sign(access.token, message)
+    headers[INSPECT_CONTEXT] = json.dumps(context)
 
 
 def _unjudged(sidecars: TaskSidecars, active: "ActiveSample", model: str) -> None:
