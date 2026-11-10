@@ -475,6 +475,9 @@ def task_with(
         task.scorer = resolve_scorer(scorer)
     if not isinstance(metrics, NotGiven):
         task.metrics = metrics
+    if not isinstance(scorer, NotGiven) or not isinstance(metrics, NotGiven):
+        # results read metrics from the scorers, so re-apply when either changes
+        task.scorer = resolve_scorer_metrics(task.scorer, task.metrics)
     if not isinstance(model, NotGiven):
         task.model = resolve_model(model)
     if not isinstance(config, NotGiven):

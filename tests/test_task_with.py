@@ -3,11 +3,12 @@ from typing import Any
 
 from test_helpers.tasks import minimal_task
 
-from inspect_ai import task_with
+from inspect_ai import eval, task_with
 from inspect_ai._eval.task.task import Task
 from inspect_ai.agent import Agent, AgentState, agent
 from inspect_ai.approval._policy import ApprovalPolicyConfig, ApproverPolicyConfig
 from inspect_ai.log import HeadlineMetric
+from inspect_ai.scorer import includes, match, mean
 
 
 def test_task_with_add_options():
@@ -126,3 +127,25 @@ def test_task_with_description() -> None:
     # unspecified leaves the description in place
     task = task_with(Task(description="Kept."), time_limit=30)
     assert task.description == "Kept."
+
+
+def _metric_names(task: Task) -> list[str]:
+    log = eval(task, model="mockllm/model")[0]
+    assert log.results is not None
+    return [name for score in log.results.scores for name in score.metrics]
+
+
+def test_task_with_metrics() -> None:
+    task = task_with(minimal_task(), metrics=[mean()])
+    assert _metric_names(task) == ["mean"]
+
+
+def test_task_with_scorer_keeps_task_metrics() -> None:
+    task = task_with(Task(scorer=includes(), metrics=[mean()]), scorer=match())
+    assert _metric_names(task) == ["mean"]
+
+    # metrics=None keeps the new scorer's own metrics
+    task = task_with(
+        Task(scorer=includes(), metrics=[mean()]), scorer=match(), metrics=None
+    )
+    assert _metric_names(task) == ["accuracy", "stderr"]
