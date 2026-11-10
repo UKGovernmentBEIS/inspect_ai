@@ -8395,9 +8395,9 @@ def _calls_reading_old_then_new(
 
 
 def _path(value: Any) -> str | None:
-    """Which of old.txt and new.txt a call carries, or None for both or neither."""
+    """Which of old.txt, new.txt and safe.txt a call carries, or None for several or none."""
     text = value if isinstance(value, str) else json.dumps(value, default=str)
-    paths = [path for path in ("old.txt", "new.txt") if path in text]
+    paths = [path for path in ("old.txt", "new.txt", "safe.txt") if path in text]
     return paths[0] if len(paths) == 1 else None
 
 
@@ -9860,6 +9860,267 @@ def isolated_cache(
     return isolate
 
 
+# The rule, across dialects: a call keeps the model's id, and its native
+# state, and replays with the arguments it was handed. A call under an id that
+# already names another call gets a fresh id and no state. No call ever
+# replays another call's arguments or state.
+
+MATRIX_DIALECTS = [
+    "completions",
+    *RESPONSES_KINDS,
+    "anthropic",
+    "google",
+    "computer_use",
+]
+MATRIX_CASES = [
+    "unfiltered",
+    "modify",
+    "reject",
+    "cache_retry",
+    "reused_id",
+    "filter_output",
+]
+
+
+def _matrix_generation(
+    dialect: str,
+) -> tuple[Callable[[], Any], list[ToolInfo], Callable[[list[ChatMessage]], Any]]:
+    """`_calls_reading_old_then_new` with distinct ids, or two Gemini computer actions."""
+    if dialect != "computer_use":
+        return _calls_reading_old_then_new(dialect, False)
+    from google.genai.types import Candidate, Content, FinishReason, FunctionCall, Part
+
+    from inspect_ai.model._providers.google import completion_choice_from_candidate
+
+    def computer_use() -> ModelOutput:
+        choice = completion_choice_from_candidate(
+            "gemini-3-flash-preview",
+            Candidate(
+                content=Content(
+                    role="model",
+                    parts=[
+                        Part(
+                            function_call=FunctionCall(
+                                id=f"{path}_action",
+                                name="type_text_at",
+                                args={"x": 10, "y": 20, "text": f"{path}.txt"},
+                            ),
+                            thought_signature=(
+                                GOOGLE_SIGNATURE if path == "old" else None
+                            ),
+                        )
+                        for path in ["old", "new"]
+                    ],
+                ),
+                finish_reason=FinishReason.STOP,
+            ),
+        )
+        return ModelOutput(model="mockllm/model", choices=[choice])
+
+    _, _, wire = _calls_reading_old_then_new("google", False)
+    return (
+        computer_use,
+        [ToolInfo(name="computer", description="Use the computer.")],
+        wire,
+    )
+
+
+def _safer(call: ToolCall) -> ToolCall | None:
+    """The call reading old.txt, reading safe.txt instead; None for another call."""
+    text = json.dumps(call.arguments)
+    if "old.txt" not in text:
+        return None
+    return replace(call, arguments=json.loads(text.replace("old.txt", "safe.txt")))
+
+
+@protocol
+def matrix_modify() -> Protocol:
+    async def rewrite(
+        context: Context, step: BeforeToolCall, escalations: Escalations
+    ) -> Decision | None:
+        modified = _safer(step.call)
+        if modified is None:
+            return None
+        return Decision(action="modify", modified=modified, explanation="safer")
+
+    return rewrite
+
+
+@approver(name="matrix_modify")
+def matrix_modifying_approver() -> Approver:
+    async def approve(
+        message: str,
+        call: ToolCall,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Approval:
+        modified = _safer(call)
+        if modified is None:
+            return Approval(decision="approve")
+        return Approval(decision="modify", modified=modified)
+
+    return approve
+
+
+def _native(dialect: str, path: str | None, state: Any) -> bool:
+    """Whether `state` is the native replay state of the generated call reading `path`.
+
+    The modified call (safe.txt) is the call that read old.txt.
+    """
+    old = path in ("old.txt", "safe.txt")
+    match dialect:
+        case "completions":
+            return state is None
+        case "anthropic":
+            return state == ("bash" if old else "read_file")
+        case "google" | "computer_use":
+            return state == (GOOGLE_SIGNATURE if old else None)
+        case _:
+            # a modified Responses item has no id (`hand_openai_tool_call`)
+            if path == "safe.txt":
+                return state is None
+            return str(state).endswith("_1" if old else "_2")
+
+
+def _own_or_none(dialect: str, path: str | None, state: Any) -> bool:
+    """Whether `state` is the call's own replay state, or none."""
+    old = path in ("old.txt", "safe.txt")
+    match dialect:
+        case "completions":
+            return state is None
+        case "anthropic":
+            return state in ({"bash", "bash_session"} if old else {"read_file"})
+        case "google" | "computer_use":
+            return state in ({GOOGLE_SIGNATURE, None} if old else {None})
+        case _:
+            return state is None or str(state).endswith("_1" if old else "_2")
+
+
+@pytest.mark.parametrize("checked", [True, False])
+@pytest.mark.parametrize("case", MATRIX_CASES)
+@pytest.mark.parametrize("dialect", MATRIX_DIALECTS)
+async def test_calls_keep_the_models_ids_and_their_own_state(
+    dialect: str, case: str, checked: bool, isolated_cache: Callable[[], None]
+) -> None:
+    from contextlib import AbstractContextManager, nullcontext
+
+    isolated_cache()
+    init_sample_assistant_internal()
+    generation, tools, wire = _matrix_generation(dialect)
+    responses = (
+        [generation, generation]
+        if case in ("reused_id", "filter_output")
+        else [generation]
+    )
+    model = Parsing(
+        *responses, lambda: calls_output(), cache=case == "cache_retry", wire=wire
+    )
+    bridge = in_process_bridge([])
+    seen: Steps = []
+    protocols: list[Any] = [bridge_recording(seen)] if checked else []
+    if case == "modify":
+        if checked:
+            protocols.append(matrix_modify())
+        else:
+            bridge.approval = [ApprovalPolicy(matrix_modifying_approver(), "*")]
+    elif case == "reject":
+        if checked:
+            protocols.append(bridge_reject_nth(1))
+        else:
+            bridge.approval = [ApprovalPolicy(rejecting_approver(1), "*")]
+    elif case == "filter_output":
+        regenerated = False
+
+        async def regenerate(
+            model: Model, output: ModelOutput, input: GenerateInput
+        ) -> ModelOutput | None:
+            nonlocal regenerated
+            if regenerated or not output.message.tool_calls:
+                return None
+            regenerated = True
+            return await model.generate(
+                input.input, input.tools, input.tool_choice, input.config
+            )
+
+        bridge.response_filter = regenerate
+    sentinel: AbstractContextManager[None] = (
+        active(protocols) if protocols else nullcontext()
+    )
+
+    async def request(messages: list[ChatMessage]) -> ModelOutput:
+        output, _ = await bridge_generate(
+            bridge,
+            model.model,
+            list(messages),
+            tools,
+            None,
+            GenerateConfig(),
+            requested_model=None,
+        )
+        return output
+
+    messages: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+    with sentinel:
+        handed = later = await request(messages)
+        if case == "cache_retry":
+            again = await request(messages)
+            assert again.message.tool_calls == handed.message.tool_calls
+        if case != "reject":
+            messages = _answered(messages, handed)
+            later = await request(messages)
+        if case == "reused_id":
+            messages = _answered(messages, later)
+            await request(messages)
+
+    events = [e for e in transcript().events if isinstance(e, ModelEvent)]
+    model_ids = [call.id for call in events[0].output.message.tool_calls or []]
+    assert len(set(model_ids)) == 2
+    # the replayed turns in the last request the model was sent
+    replayed = model.wire[-1]
+    if case == "reject":
+        # the rejected turn, replayed as generated
+        assert handed.message.tool_calls in (None, [])
+    else:
+        assert [call.id for call in handed.message.tool_calls or []] == model_ids
+    turns = [[(call_id, path) for call_id, path, _ in turn] for turn in replayed]
+    paths = ["safe.txt" if case == "modify" else "old.txt", "new.txt"]
+    assert turns[0] == list(zip(model_ids, paths))
+    if case == "reused_id":
+        # the same calls proposed again in a later turn get fresh ids
+        [(first, _), (second, _)] = turns[1]
+        assert len({first, second, *model_ids}) == 4
+        assert [path for _, path in turns[1]] == paths
+        # the ids' state was the later turn's, so it is dropped
+        assert all(
+            _own_or_none(dialect, path, state)
+            for turn in replayed
+            for _, path, state in turn
+        ), replayed
+    else:
+        assert len(replayed) == 1
+        assert all(_native(dialect, path, state) for _, path, state in replayed[0]), (
+            replayed
+        )
+    if dialect in RESPONSES_KINDS and case != "reused_id":
+        # each call in its native item type
+        generated_type = _responses_call_reading(dialect, "old.txt", 1).type
+        types = [
+            item["type"]
+            for item in await _responses_wire(model.inputs[-1])
+            if item.get("type") in RESPONSES_CALL_TYPES
+        ]
+        assert types == [generated_type, generated_type]
+    if checked and case != "reject":
+        # each result is checked once, as its own call under the id it was
+        # handed under
+        afters = [
+            (step.call.id, _path(step.call.arguments))
+            for step in seen
+            if isinstance(step, AfterToolCall) and step.call.id in model_ids
+        ]
+        assert sorted(afters) == sorted(zip(model_ids, paths))
+
+
 @skip_if_no_anthropic
 async def test_live_anthropic_cached_retries_with_interleaved_thinking_continue(
     isolated_cache: Callable[[], None],
@@ -9899,7 +10160,7 @@ async def test_live_anthropic_cached_retries_with_interleaved_thinking_continue(
         }
 
     # each step's response is retried, as a scaffold retrying a request; the
-    # retry is a cache hit, handed over under new IDs
+    # retry is a cache hit, handed over again under the model's ids
     with active([bridge_recording([])]):
         for _ in files:
             first = await inspect_anthropic_api_request(
@@ -9914,9 +10175,9 @@ async def test_live_anthropic_cached_retries_with_interleaved_thinking_continue(
             assert "thinking" in [block.type for block in retry.content]
             content = [block.model_dump(exclude_none=True) for block in retry.content]
             uses = [block for block in content if block["type"] == "tool_use"]
-            assert uses and not {use["id"] for use in uses} & {
+            assert uses and [use["id"] for use in uses] == [
                 block.id for block in first.content if block.type == "tool_use"
-            }
+            ]
             turns += [
                 {"role": "assistant", "content": content},
                 {
@@ -10012,7 +10273,7 @@ async def test_live_responses_cached_retry_with_native_call_continues(
     def request(input: list[Any]) -> dict[str, Any]:
         return {"model": "inspect", "input": input, "tools": [tool]}
 
-    # the retry is modified, so it is handed over under a fresh ID with the
+    # the retry is modified, so it is handed over under the model's id with the
     # approved arguments
     with active([modifies_retries(approved)]):
         first = await inspect_responses_api_request(
@@ -10032,7 +10293,7 @@ async def test_live_responses_cached_retry_with_native_call_continues(
         )
 
     [original] = [item for item in first.output if hasattr(item, "call_id")]
-    assert call["type"] == original.type and call["call_id"] != original.call_id
+    assert call["type"] == original.type and call["call_id"] == original.call_id
     events = [e for e in transcript().events if isinstance(e, ModelEvent)]
     assert [e.cache for e in events] == ["write", "read", "write"]
     # the continuation sent the model the approved call
@@ -10047,6 +10308,9 @@ async def test_live_responses_cached_retry_with_native_call_continues(
     assert _responses_native_arguments(call) != _responses_native_arguments(
         original.model_dump(exclude_none=True)
     )
+    # without the generated item's id, which a stored response resolves to the
+    # generated arguments
+    assert "id" not in sent
 
 
 @skip_if_no_google
