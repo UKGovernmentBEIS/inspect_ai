@@ -694,10 +694,11 @@ class EvalSample(BaseModel):
             del values["score"]
 
         if "transcript" in values:
-            # promote 'transcript' up to 'events' and 'attachments'
-            eval_events = EvalEvents(**values["transcript"])
-            values["events"] = eval_events.events
-            values["attachments"] = eval_events.content
+            # promote 'transcript' up to 'events' and 'attachments' (left
+            # unvalidated so they are validated with this read's context)
+            transcript = values["transcript"]
+            values["events"] = transcript.get("events", [])
+            values["attachments"] = transcript.get("content", {})
 
             # get rid of transcript (property accessor w/ deprecation
             # warning will handle this)

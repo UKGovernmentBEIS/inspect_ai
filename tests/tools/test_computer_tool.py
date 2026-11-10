@@ -17,12 +17,31 @@ from typing import Any, Awaitable, Callable, Iterator, NamedTuple, get_args
 
 import pytest
 
-from inspect_ai.tool import ToolError, ToolResult, computer
+from inspect_ai.model import (
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageTool,
+    ChatMessageUser,
+    ContentImage,
+    ContentText,
+    GenerateConfig,
+    ModelOutput,
+    get_model,
+)
+from inspect_ai.tool import (
+    ToolCall,
+    ToolChoice,
+    ToolError,
+    ToolInfo,
+    ToolResult,
+    bash,
+    computer,
+)
 from inspect_ai.tool._tool import ToolParsingError
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tool_info import parse_tool_info
 from inspect_ai.tool._tools._computer import _common
-from inspect_ai.tool._tools._computer._computer import Action
+from inspect_ai.tool._tools._computer._computer import Action, is_computer_tool_info
 from inspect_ai.util import ExecResult
 
 ACTIONS: list[str] = list(get_args(Action))
@@ -290,6 +309,97 @@ async def test_computer_key_rejects_out_of_range_repeat(
     with pytest.raises(ToolParsingError, match="repeat must be between 1 and 100"):
         await computer()(action="key", text="Return", repeat=repeat)
     assert presses == []
+
+
+@pytest.mark.parametrize(
+    "clear_before_typing,expected",
+    [
+        (None, ["left_click", "type", "key"]),
+        (False, ["left_click", "type", "key"]),
+        (True, ["triple_click", "type", "key"]),
+    ],
+)
+async def test_computer_type_clear_before_typing(
+    sent_cmds: list[list[str]], clear_before_typing: bool | None, expected: list[str]
+) -> None:
+    kwargs = (
+        {"clear_before_typing": clear_before_typing}
+        if clear_before_typing is not None
+        else {}
+    )
+    await computer()(
+        action="type", text="hello", coordinate=[3, 4], press_enter=True, **kwargs
+    )
+    assert [cmd[0] for cmd in sent_cmds] == expected
+    assert sent_cmds[0][1:] == ["--coordinate", "3", "4"]
+
+
+@pytest.mark.parametrize(
+    "clear_before_typing,expected",
+    [
+        (False, [["left_click", "--coordinate", "3", "4"], ["type", "--text="]]),
+        (
+            True,
+            [
+                ["triple_click", "--coordinate", "3", "4"],
+                ["key", "--text", "BackSpace"],
+                ["type", "--text="],
+            ],
+        ),
+    ],
+)
+async def test_computer_type_clear_before_typing_empty_text(
+    sent_cmds: list[list[str]], clear_before_typing: bool, expected: list[list[str]]
+) -> None:
+    await computer()(
+        action="type",
+        text="",
+        coordinate=[3, 4],
+        clear_before_typing=clear_before_typing,
+    )
+    assert sent_cmds == expected
+
+
+async def test_computer_actions_list_clear_before_typing(
+    sent_cmds: list[list[str]],
+) -> None:
+    await computer()(
+        actions=[
+            {
+                "action": "type",
+                "text": "hello",
+                "coordinate": [3, 4],
+                "clear_before_typing": True,
+            }
+        ]
+    )
+    assert [cmd[0] for cmd in sent_cmds] == ["triple_click", "type"]
+    assert sent_cmds[0][1:] == ["--coordinate", "3", "4"]
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        {"action": "type", "text": "hello", "clear_before_typing": True},
+        {"actions": [{"action": "type", "text": "hello", "clear_before_typing": True}]},
+    ],
+    ids=["action", "actions_list"],
+)
+async def test_computer_type_clear_before_typing_requires_coordinate(
+    sent_cmds: list[list[str]], call: dict[str, object]
+) -> None:
+    with pytest.raises(ToolParsingError, match="coordinate must be provided"):
+        await computer()(**call)
+    assert sent_cmds == []
+
+
+def test_computer_tool_info_is_recognized_as_computer_tool() -> None:
+    """A new execute() parameter must also be added to _COMPUTER_TOOL_PARAMETERS."""
+    tdef = ToolDef(computer())
+    info = ToolInfo(
+        name=tdef.name, description=tdef.description, parameters=tdef.parameters
+    )
+    assert is_computer_tool_info(info)
 
 
 def _computer_call(call_id: str, **arguments: object):
@@ -687,3 +797,70 @@ async def test_host_raises_tool_error_for_container_coordinate_error(
 
     with pytest.raises(ToolError, match="out of bounds"):
         await _common._send_cmd(["left_click", "--coordinate", "1800", "100"])
+
+
+# A 1x1 PNG
+SCREENSHOT = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+
+
+@pytest.mark.parametrize("max_screenshots", [1, 2])
+async def test_max_screenshots_counts_only_computer_results(
+    max_screenshots: int,
+) -> None:
+    """Results from other tools don't push screenshots out of `max_screenshots`."""
+    messages: list[ChatMessage] = [ChatMessageUser(content="Open the settings app.")]
+    for i in range(3):
+        for function in ["bash", "computer"]:
+            call_id = f"{function}-{i}"
+            messages.append(
+                ChatMessageAssistant(
+                    content="",
+                    tool_calls=[ToolCall(id=call_id, function=function, arguments={})],
+                )
+            )
+            messages.append(
+                ChatMessageTool(
+                    tool_call_id=call_id,
+                    function=function,
+                    content=[
+                        ContentText(text="screenshot"),
+                        ContentImage(image=SCREENSHOT),
+                    ]
+                    if function == "computer"
+                    else "file.txt",
+                )
+            )
+
+    inputs: list[list[ChatMessage]] = []
+
+    def capture(
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        inputs.append(input)
+        return ModelOutput.from_content("mockllm/model", "done")
+
+    model = get_model("mockllm/model", custom_outputs=capture)
+    await model.generate(
+        messages, tools=[computer(max_screenshots=max_screenshots), bash()]
+    )
+
+    kept = [
+        not any(
+            isinstance(c, ContentText) and c.text.startswith("Screenshot removed")
+            for c in message.content
+        )
+        for message in inputs[0]
+        if isinstance(message, ChatMessageTool) and message.function == "computer"
+    ]
+    assert kept == [False] * (3 - max_screenshots) + [True] * max_screenshots
+    images = [
+        c
+        for message in inputs[0]
+        if not isinstance(message.content, str)
+        for c in message.content
+        if isinstance(c, ContentImage)
+    ]
+    assert len(images) == max_screenshots

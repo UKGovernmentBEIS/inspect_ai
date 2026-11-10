@@ -334,7 +334,7 @@ for content in output.choices[0].message.content:
 
 ## Uploads
 
-When using audio and video with the Google Gemini API, media is first uploaded using the [File API](https://ai.google.dev/gemini-api/docs/audio?lang=python#upload-audio) and then the URL to the uploaded file is referenced in the chat message. This results in much faster performance for subsequent uses of the media file.
+When using audio and video with the Google Gemini API, media is first uploaded using the [File API](https://ai.google.dev/gemini-api/docs/files) and then the URL to the uploaded file is referenced in the chat message. This results in much faster performance for subsequent uses of the media file.
 
 The File API lets you store up to 20GB of files per project, with a per-file maximum size of 2GB. Files are stored for 48 hours. They can be accessed in that period with your API key, but cannot be downloaded from the API. The File API is available at no cost in all regions where the Gemini API is available.
 

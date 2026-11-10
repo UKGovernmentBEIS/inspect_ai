@@ -849,6 +849,37 @@ def test_restored_events_update_bounded_bookkeeping_and_evict() -> None:
     assert _data(transcript.history.recent_events(2)) == [3, 4]
 
 
+@pytest.mark.parametrize("resident_tail", [3, 100])
+def test_restored_events_evict_like_appended_events(resident_tail: int) -> None:
+    def events() -> list[Event]:
+        return [
+            SampleInitEvent(
+                sample=Sample(input="input", id="sample"), state={}, uuid="init"
+            ),
+            InfoEvent(data="a", uuid="a"),
+            InfoEvent(data="pending-a", uuid="pending-a", pending=True),
+            InfoEvent(data="b", uuid="b"),
+            *[InfoEvent(data=i, uuid=f"r{i}") for i in range(4)],
+            InfoEvent(data="pending-r", uuid="pending-r", pending=True),
+            *[InfoEvent(data=i, uuid=f"r{i}") for i in range(4, 8)],
+        ]
+
+    appended = Transcript(bounded=True, resident_tail=resident_tail)
+    for event in events():
+        appended._event(event)
+
+    restored = Transcript(bounded=True, resident_tail=resident_tail)
+    restored_events = events()
+    for event in restored_events[:4]:
+        restored._event(event)
+    restored._extend_restored_events(restored_events[4:], {})
+
+    assert [event.uuid for event in restored.history.resident_events] == [
+        event.uuid for event in appended.history.resident_events
+    ]
+    assert list(restored._evictable_event_ids) == list(appended._evictable_event_ids)
+
+
 def test_restored_events_reject_duplicate_uuid() -> None:
     transcript = Transcript(bounded=True, resident_tail=10)
     first = InfoEvent(data="first", uuid="same")
@@ -1212,11 +1243,11 @@ def test_condense_model_call_empty_messages_does_not_poison_cache() -> None:
             {"model": "m", "messages": [{"role": "user", "content": payload}]}, None
         )
     )
-    assert len(tr._call_walk_cache._slots) == 1
+    assert len(tr._call_walk_cache._lineages) == 1
     for _ in range(10):
         tr._condense_model_call(ModelCall.create({"model": "m", "messages": []}, None))
     # empty requests must not occupy (or evict) lineage slots
-    assert len(tr._call_walk_cache._slots) == 1
+    assert len(tr._call_walk_cache._lineages) == 1
 
 
 def _call_with_message_ids(ids: list[int]) -> ModelCall:
@@ -1242,8 +1273,8 @@ def test_condense_model_call_repeated_prefix_request_reuses_its_slot() -> None:
         tr._condense_model_call(call(short))
 
     # the short stream keeps one slot; both long lineages survive
-    slots = tr._call_walk_cache._slots
-    assert sorted(len(s.messages) for s in slots) == [2, 4, 4]
+    slots = list(tr._call_walk_cache._lineages)
+    assert sorted(len(s.entries) for s in slots) == [2, 4, 4]
 
 
 def test_condense_model_call_extending_request_replaces_the_lineage_it_consumes() -> (
@@ -1263,8 +1294,8 @@ def test_condense_model_call_extending_request_replaces_the_lineage_it_consumes(
     tr._condense_model_call(call([0, 1]))  # newer: consumed fully below
     tr._condense_model_call(call([0, 1, 9]))
 
-    slots = tr._call_walk_cache._slots
-    assert sorted(len(s.messages) for s in slots) == [3, 4]
+    slots = list(tr._call_walk_cache._lineages)
+    assert sorted(len(s.entries) for s in slots) == [3, 4]
 
 
 def test_condense_model_call_abandoned_lineage_bytes_are_released() -> None:
@@ -1290,7 +1321,7 @@ def test_condense_model_call_abandoned_lineage_bytes_are_released() -> None:
         tr._condense_model_call(payload_call(live))
 
     retained = json.dumps(
-        [dataclasses.asdict(slot) for slot in tr._call_walk_cache._slots]
+        [dataclasses.asdict(slot) for slot in tr._call_walk_cache._lineages]
     )
     assert sentinel not in retained
     assert live in retained
@@ -1384,7 +1415,7 @@ def test_condense_model_call_no_message_key_falls_back() -> None:
     walked = tr._condense_model_call(call)
     prompt = walked.request["prompt"]
     assert isinstance(prompt, str) and prompt.startswith("attachment://")
-    assert tr._call_walk_cache._slots == []  # fallback never populates the cache
+    assert len(tr._call_walk_cache._lineages) == 0  # fallback never populates the cache
 
 
 def test_condense_model_call_distinct_message_keys_use_distinct_lineages() -> None:
@@ -1401,7 +1432,10 @@ def test_condense_model_call_distinct_message_keys_use_distinct_lineages() -> No
     tr._condense_model_call(
         ModelCall.create({"model": "g", "contents": [dict(msg)]}, None)
     )
-    assert sorted(s.key for s in tr._call_walk_cache._slots) == ["contents", "messages"]
+    assert sorted(s.key for s in tr._call_walk_cache._lineages) == [
+        "contents",
+        "messages",
+    ]
 
 
 def test_condense_model_call_snapshots_immune_to_mutation() -> None:
@@ -1449,7 +1483,7 @@ def test_call_walk_cache_only_core_passthrough() -> None:
     )
     assert walked is call  # untouched, by identity
     assert tr.attachments == {}  # no attachments created
-    assert tr._call_walk_cache._slots == []
+    assert len(tr._call_walk_cache._lineages) == 0
 
 
 class _CountingProvider(FakeTranscriptHistoryProvider):

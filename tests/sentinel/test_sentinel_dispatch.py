@@ -118,6 +118,10 @@ if TYPE_CHECKING:
         monitor,
         protocol,
     )
+
+    # input_budget and count_tokens are not yet on inspect_sentinel's Host
+    # protocol (a later PR adds them there); cast the in-process host to call them
+    from inspect_ai._sentinel._dispatch import _HostNative
 else:
     from test_helpers.fake_sentinel import (
         AfterGenerate,
@@ -281,6 +285,35 @@ def d3_asks_with(model: str | None = None, role: str | None = None) -> Monitor:
             "How suspicious is this call?", model=model, role=role
         )
         return Observation.score(float(output.completion))
+
+    return ask
+
+
+@monitor
+def d3_budget(
+    model: str | None = None,
+    role: str | None = None,
+    max_tokens: int | None = None,
+) -> Monitor:
+    async def ask(context: Context, step: BeforeToolCall) -> Observation | None:
+        config = (
+            GenerateConfig(max_tokens=max_tokens) if max_tokens is not None else None
+        )
+        budget = await cast("_HostNative", context.host).input_budget(
+            model=model, role=role, config=config
+        )
+        return Observation.score(0.0, str(budget))
+
+    return ask
+
+
+@monitor
+def d3_count(text: str, model: str | None = None, role: str | None = None) -> Monitor:
+    async def ask(context: Context, step: BeforeToolCall) -> Observation | None:
+        count = await cast("_HostNative", context.host).count_tokens(
+            text, model=model, role=role
+        )
+        return Observation.score(0.0, str(count))
 
     return ask
 
@@ -2198,6 +2231,75 @@ def test_host_generate_warns_once_without_the_role(
     assert len(warnings) == 1
     assert f"--model-role {role}=" in warnings[0]
     assert [r for _, r in monitor_calls(log)] == [role]
+
+
+# mockllm has no provider max_tokens default, so the output reserve is
+# inspect_ai's own default
+_MOCK_OUTPUT_RESERVE = 4096
+
+
+def _register_window(monkeypatch: pytest.MonkeyPatch, model: str, window: int) -> None:
+    import inspect_ai.model._model_info as _model_info
+    from inspect_ai.model import ModelInfo
+
+    monkeypatch.setitem(
+        _model_info._custom_models, model, ModelInfo(context_length=window)
+    )
+
+
+def test_host_input_budget_resolves_like_generate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _register_window(monkeypatch, "mockllm/monitor", 200_000)
+    _register_window(monkeypatch, "mockllm/judge", 50_000)
+    _register_window(monkeypatch, "mockllm/named", 300_000)
+    log = run(
+        [d3_budget(), d3_budget(role="judge"), d3_budget(model="mockllm/named")],
+        model_roles={
+            "monitor": get_model("mockllm/monitor"),
+            "judge": get_model("mockllm/judge"),
+        },
+    )
+    assert log.status == "success", log.error
+    default, judge, named = sentinel_events(log)
+    assert default.explanation == str(200_000 - _MOCK_OUTPUT_RESERVE)
+    assert judge.explanation == str(50_000 - _MOCK_OUTPUT_RESERVE)
+    assert named.explanation == str(300_000 - _MOCK_OUTPUT_RESERVE)
+
+
+def test_host_input_budget_reserve_follows_config_max_tokens(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _register_window(monkeypatch, "mockllm/model", 200_000)
+    log = run(
+        [d3_budget(), d3_budget(max_tokens=1000)],
+        model_roles={"monitor": get_model("mockllm/model")},
+    )
+    assert log.status == "success", log.error
+    default, capped = sentinel_events(log)
+    assert default.explanation == str(200_000 - _MOCK_OUTPUT_RESERVE)
+    assert capped.explanation == str(200_000 - 1000)
+
+
+def test_host_count_tokens_resolves_and_returns_the_models_count() -> None:
+    from inspect_ai.model._tokens import count_text_tokens
+
+    text = "How suspicious is this tool call?"
+    expected = count_text_tokens(text)
+    assert expected > 0
+    log = run(
+        [
+            d3_count(text),
+            d3_count(text, role="judge"),
+            d3_count(text, model="mockllm/named"),
+        ],
+        model_roles={
+            "monitor": get_model("mockllm/model"),
+            "judge": get_model("mockllm/judge"),
+        },
+    )
+    assert log.status == "success", log.error
+    assert [e.explanation for e in sentinel_events(log)] == [str(expected)] * 3
 
 
 async def test_a_message_no_model_call_produced_has_no_input() -> None:

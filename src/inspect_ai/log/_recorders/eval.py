@@ -68,6 +68,7 @@ from inspect_ai._util.json import (
     jsonable_dict,
     to_json_safe,
 )
+from inspect_ai._util.retry import backoff_multiplier
 from inspect_ai._util.trace import trace_action
 from inspect_ai._util.zip_common import ZipEntry
 from inspect_ai._util.zipfile import (
@@ -314,6 +315,11 @@ class EvalRecorder(FileRecorder):
 
         # flush to underlying stream (intermediate snapshot: skip fsync)
         await log.flush(fsync=False)
+
+    @override
+    async def write_buffered_samples(self, eval: EvalSpec) -> None:
+        log = self.data[self._log_file_key(eval)]
+        await log.write_buffered_samples()
 
     @override
     async def log_finish(
@@ -920,7 +926,8 @@ async def _copy_prior_log(prior_log: str, dest: BinaryIO) -> str | None:
     async for attempt in AsyncRetrying(
         retry=retry_if_exception(is_transient_failure),
         wait=wait_exponential_jitter(
-            initial=SEED_COPY_BACKOFF_SECONDS, jitter=SEED_COPY_BACKOFF_SECONDS
+            **backoff_multiplier(SEED_COPY_BACKOFF_SECONDS),
+            jitter=SEED_COPY_BACKOFF_SECONDS,
         ),
         stop=stop_after_attempt(SEED_COPY_ATTEMPTS),
         sleep=anyio.sleep,
@@ -1717,8 +1724,9 @@ class ZipLogFile:
                 if await anyio.to_thread.run_sync(
                     zip_needs_rewrite,
                     seeded,
-                    lambda name: not name.startswith(f"{SAMPLES_DIR}/")
-                    or name in kept_names,
+                    lambda name: (
+                        not name.startswith(f"{SAMPLES_DIR}/") or name in kept_names
+                    ),
                 ):
                     restricted = await anyio.to_thread.run_sync(
                         compact_zip, seeded, kept_names

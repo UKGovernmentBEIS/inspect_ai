@@ -624,10 +624,11 @@ REPO = Path(__file__).parents[2]
 
 
 def test_dev_requirements_floor_is_the_minimum_version() -> None:
+    pyproject = tomllib.loads((REPO / "pyproject.toml").read_text())
     [floor] = [
-        line.removeprefix("inspect-sentinel")
-        for line in (REPO / "requirements-dev.txt").read_text().splitlines()
-        if line.startswith("inspect-sentinel")
+        requirement.removeprefix("inspect-sentinel")
+        for requirement in pyproject["project"]["optional-dependencies"]["dev"]
+        if requirement.startswith("inspect-sentinel")
     ]
     assert floor == f">={SENTINEL_MIN_VERSION}"
 
@@ -830,4 +831,6 @@ def test_sentinel_is_the_last_positional_parameter(fn: Callable[..., Any]) -> No
         for p in inspect.signature(fn).parameters.values()
         if p.kind is inspect.Parameter.POSITIONAL_OR_KEYWORD
     ]
-    assert names[-1] == "sentinel"
+    # the sidecar client's setting follows it, for the same reason
+    expected = ["sentinel"] if fn is Task.__init__ else ["sentinel", "sentinel_proxy"]
+    assert names[-len(expected) :] == expected

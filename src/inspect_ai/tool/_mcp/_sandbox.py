@@ -23,7 +23,7 @@ from inspect_ai.tool._sandbox_tools_utils._error_mapper import (
     SandboxToolsErrorMapper,
 )
 from inspect_ai.tool._sandbox_tools_utils.sandbox import sandbox_with_injected_tools
-from inspect_ai.util._sandbox._cli import SANDBOX_CLI, tools_user_param
+from inspect_ai.util._sandbox._cli import tools_user_param
 from inspect_ai.util._sandbox._json_rpc_transport import SandboxJSONRPCTransport
 
 from ._compat import (
@@ -63,7 +63,7 @@ async def sandbox_client(  # type: ignore
     sandbox_environment = await sandbox_with_injected_tools(sandbox_name=sandbox_name)
 
     # Create transport for all RPC calls
-    transport = SandboxJSONRPCTransport(sandbox_environment, SANDBOX_CLI)
+    transport = SandboxJSONRPCTransport(sandbox_environment)
 
     # read_stream is remote process's stdout
     read_stream: MemoryObjectReceiveStream[SessionMessage | Exception]
