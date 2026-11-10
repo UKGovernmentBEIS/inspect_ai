@@ -6810,6 +6810,225 @@ async def test_a_modified_gemini_computer_action_continues_as_the_modified_actio
     assert (calls, results) == ([(expected, expected_args)], [expected])
 
 
+@pytest.mark.parametrize(("action", "args"), GEMINI_ACTIONS)
+@pytest.mark.parametrize("dialect", ["completions", "anthropic", "google"])
+async def test_a_computer_calls_result_is_checked_with_its_handout(
+    dialect: str, action: str, args: dict[str, Any]
+) -> None:
+    """A Google scaffold sends the call back as the Gemini action it was handed, not a `computer` call."""
+    from google.genai.types import FunctionCall
+
+    from inspect_ai.model._providers._google_computer_use import (
+        tool_call_from_gemini_computer_action,
+    )
+
+    seen: Steps = []
+    call = tool_call_from_gemini_computer_action(FunctionCall(name=action, args=args))
+    model = Scripted(calls_output(call), calls_output())
+    bridge = AgentBridge(
+        AgentState(messages=[]), model_aliases={"inspect": model.model}
+    )
+
+    with active([bridge_recording(seen)]):
+        await computer_continuation(dialect, bridge)
+
+    [after] = [s for s in seen if isinstance(s, AfterToolCall)]
+    assert (after.call, after.input) == (call, model.inputs[0])
+
+
+async def test_identical_gemini_computer_results_of_two_calls_are_each_checked() -> (
+    None
+):
+    from google.genai.types import FunctionCall
+
+    from inspect_ai.agent._bridge.google_api import inspect_google_api_request
+    from inspect_ai.model._providers._google_computer_use import (
+        tool_call_from_gemini_computer_action,
+    )
+
+    seen: Steps = []
+    first = tool_call_from_gemini_computer_action(
+        FunctionCall(name="key_combination", args={"keys": "enter"})
+    )
+    second = replace(first, id="second_call")
+    model = Scripted(calls_output(first), calls_output(second), calls_output())
+    bridge = AgentBridge(
+        AgentState(messages=[]), model_aliases={"inspect": model.model}
+    )
+    schema: dict[str, Any] = {
+        "type": "object",
+        "properties": {"action": {"type": "string"}},
+    }
+    contents: list[Any] = [{"role": "user", "parts": [{"text": TASK}]}]
+    tools: Any = [
+        {
+            "functionDeclarations": [
+                {"name": "computer", "description": "c", "parameters": schema}
+            ]
+        }
+    ]
+
+    with active([bridge_recording(seen)]):
+        for _ in range(3):
+            response: Any = await inspect_google_api_request(
+                {"model": "inspect", "contents": contents, "tools": tools},
+                None,
+                None,
+                bridge,
+            )
+            parts = response["candidates"][0]["content"]["parts"]
+            [handed] = [p["functionCall"] for p in parts if "functionCall" in p] or [
+                None
+            ]
+            if handed is None:
+                break
+            contents += [
+                {"role": "model", "parts": parts},
+                {
+                    "role": "user",
+                    "parts": [
+                        {
+                            "functionResponse": {
+                                "id": handed["id"],
+                                "name": handed["name"],
+                                "response": {"output": "done"},
+                            }
+                        }
+                    ],
+                },
+            ]
+
+    afters = [s for s in seen if isinstance(s, AfterToolCall)]
+    assert [(s.call, s.input) for s in afters] == [
+        (first, model.inputs[0]),
+        (second, model.inputs[1]),
+    ]
+
+
+@pytest.mark.parametrize(
+    "action",
+    [
+        {"action": "triple_click", "coordinate": [10, 20]},
+        {"action": "hold_key", "text": "shift"},
+        {"action": "cursor_position", "coordinate": [10, 20]},
+    ],
+)
+async def test_a_computer_call_modified_to_an_action_its_dialect_reads_back_otherwise_is_checked_with_its_handout(
+    action: dict[str, Any],
+) -> None:
+    """Responses has no triple click: the scaffold is handed, and sends back, a double click."""
+    from inspect_ai.agent._bridge.responses import inspect_responses_api_request
+
+    init_sample_assistant_internal()
+    seen: Steps = []
+    item, tool, result, _ = _responses_modified_call("computer")
+    model = Parsing(_responses_parsed(item), lambda: calls_output())
+    bridge = AgentBridge(
+        AgentState(messages=[]), model_aliases={"inspect": model.model}
+    )
+    modified = {"actions": [action]}
+    items: list[Any] = [{"role": "user", "content": TASK}]
+
+    with (
+        patch(
+            "inspect_ai.agent._bridge.responses_impl._is_openai_responses_provider",
+            return_value=True,
+        ),
+        active([bridge_modify_action(modified), bridge_recording(seen)]),
+    ):
+        for _ in range(2):
+            response = await inspect_responses_api_request(
+                {"model": "inspect", "input": items, "tools": [tool]},
+                None,
+                None,
+                None,
+                bridge,
+            )
+            handed = [item.model_dump(exclude_none=True) for item in response.output]
+            items += [
+                *handed,
+                *[
+                    {**result, "call_id": item["call_id"]}
+                    for item in handed
+                    if "call_id" in item
+                ],
+            ]
+
+    [after] = [s for s in seen if isinstance(s, AfterToolCall)]
+    assert (after.call.id, after.call.arguments) == (item.call_id, modified)
+    assert after.input == model.inputs[0]
+
+
+async def test_a_result_two_handouts_read_back_alike_could_be_gets_no_proposal() -> (
+    None
+):
+    """A triple click on one handout and a double click on its retry: both read back as a double click."""
+    from inspect_ai.agent._bridge.responses import inspect_responses_api_request
+
+    init_sample_assistant_internal()
+    seen: Steps = []
+    item, tool, result, _ = _responses_modified_call("computer")
+    model = Parsing(_responses_parsed(item), _responses_parsed(item), calls_output)
+    bridge = AgentBridge(
+        AgentState(messages=[]), model_aliases={"inspect": model.model}
+    )
+    clicks = iter(["triple_click", "double_click"])
+
+    @protocol
+    def click() -> Protocol:
+        async def rewrite(
+            context: Context, step: BeforeToolCall, escalations: Escalations
+        ) -> Decision | None:
+            action = {"action": next(clicks), "coordinate": [10, 20]}
+            modified = replace(step.call, arguments={"actions": [action]})
+            return Decision(action="modify", modified=modified, explanation="click")
+
+        return rewrite
+
+    items: list[Any] = [{"role": "user", "content": TASK}]
+    with (
+        patch(
+            "inspect_ai.agent._bridge.responses_impl._is_openai_responses_provider",
+            return_value=True,
+        ),
+        active([click(), bridge_recording(seen)]),
+    ):
+        responses = [
+            await inspect_responses_api_request(
+                {"model": "inspect", "input": items, "tools": [tool]},
+                None,
+                None,
+                None,
+                bridge,
+            )
+            for _ in range(2)
+        ]
+        handed = [item.model_dump(exclude_none=True) for item in responses[0].output]
+        await inspect_responses_api_request(
+            {
+                "model": "inspect",
+                "input": [
+                    *items,
+                    *handed,
+                    *[
+                        {**result, "call_id": item["call_id"]}
+                        for item in handed
+                        if "call_id" in item
+                    ],
+                ],
+                "tools": [tool],
+            },
+            None,
+            None,
+            None,
+            bridge,
+        )
+
+    [after] = [s for s in seen if isinstance(s, AfterToolCall)]
+    assert after.call.id == item.call_id
+    assert after.input is None
+
+
 @pytest.mark.parametrize(
     ("action", "args"),
     [("go_back", {}), ("go_forward", {}), ("search", {"query": "inspect"})],

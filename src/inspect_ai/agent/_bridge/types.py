@@ -1253,6 +1253,16 @@ class AgentBridge:
                 self._record_form(choice.message.id, content_hash(choice.message))
         for choice, form in zip(output.choices, transported):
             self._record_transported_reply(choice.message, form)
+        if transported:
+            self._handouts.read_back(
+                output.message.tool_calls or [],
+                [
+                    call
+                    for message in transported[0]
+                    if isinstance(message, ChatMessageAssistant)
+                    for call in message.tool_calls or []
+                ],
+            )
 
         # every choice's thread, since the scaffold may continue any of them;
         # the primary's last, so it stays kept when the window is full

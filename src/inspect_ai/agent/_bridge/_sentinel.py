@@ -164,6 +164,11 @@ class _Handed(NamedTuple):
     the other: which handout a result answers can't be told, then or after
     any later handout, so none keeps a proposal."""
 
+    read_back: tuple[tuple[str, str], ...] = ()
+    """The forms its dialect reads handed calls back in (`read_back`), where
+    those differ from the calls: each the read-back call's key and the
+    handed call's (`_call_key`)."""
+
 
 class _SavedHandouts(BaseModel):
     reserved_ids: list[str]
@@ -213,10 +218,13 @@ class _Handouts:
     was handed with: a scaffold retry served from the model cache hands the
     same call over again, under the same id, and its result is that of the
     latest handout with the arguments the result's call has, the one the
-    scaffold received. A result whose call matches no handout of its id, or
-    one with no call in its request when the id was handed with several
-    arguments, gets no proposal's context and is checked as a result under
-    an id the bridge never handed out (below). A call handed over in two
+    scaffold received. The result's call matches a handout as handed, or in
+    the form its dialect reads it back in (a Gemini action for a `computer`
+    call, say). A result whose call matches no handout of its id, or several,
+    or one with no call in its request when the id was handed with several
+    arguments, gets no proposal's context and is checked as the call it
+    answers in its request; it is identified by its id and that call, and
+    also records the conservative key (below). A call handed over in two
     requests, neither a retry of the other, is ambiguous: its results get no
     proposal's context from then on, after any retry or resume too.
 
@@ -351,11 +359,12 @@ class _Handouts:
             )
             execution_id = uuid()
             key = _call_key(call)
-            handouts = (
-                earlier.handed
+            previous = (
+                earlier
                 if earlier is not None and earlier.execution_id is not None
-                else ()
+                else None
             )
+            handouts = previous.handed if previous is not None else ()
             self.handed[call.id] = _Handed(
                 call.function,
                 None if call.id in shared else _call_key(model_call),
@@ -363,6 +372,7 @@ class _Handouts:
                 execution_id,
                 request.key,
                 ambiguous,
+                previous.read_back if previous is not None else (),
             )
             if checks is None:
                 continue
@@ -411,6 +421,28 @@ class _Handouts:
                     None,
                     request.key,
                 )
+
+    def read_back(self, handed: Sequence[ToolCall], read: Sequence[ToolCall]) -> None:
+        """Record the form a dialect reads a reply's handed calls back in.
+
+        `read` are the `handed` calls as the dialect parses the wire form it
+        hands them over in, in order; ignored unless there is one for each.
+        """
+        if len(read) != len(handed):
+            return
+        for call, back in zip(handed, read, strict=True):
+            record = self.handed.get(call.id)
+            key, back_key = _call_key(call), _call_key(back)
+            if (
+                record is None
+                or back_key == key
+                or key not in record.handed
+                or (back_key, key) in record.read_back
+            ):
+                continue
+            self.handed[call.id] = record._replace(
+                read_back=(*record.read_back, (back_key, key))
+            )
 
     def handout(self, check: SentinelCheck) -> tuple[str, str]:
         """The handout `check` is of: its call's id and the call as handed (`_call_key`)."""
@@ -482,7 +514,11 @@ class _Handouts:
         call_id = message.tool_call_id or ""
         handed = self.handed.get(call_id)
         handout = _handout(handed, found) if handed is not None else None
-        if handed is not None and handed.proposed is not None and handout is not None:
+        if handed is not None and handed.proposed is not None and handout is None:
+            # keyed by its id too, so it can't exempt another execution's result
+            call, key = _unissued(message, found)
+            keys = [_digest(["unmatched", call_id, handed.proposed, key]), key]
+        elif handed is not None and handed.proposed is not None and handout is not None:
             content = _content_key(message)
             keys = [
                 _handout_key(call_id, handed.proposed, handout, content),
@@ -560,13 +596,16 @@ class _Handouts:
 def _handout(handed: _Handed, found: _Call | None) -> str | None:
     """The handout of `handed`'s id a result answering `found` (the call in its request, if any) is of.
 
-    The handed call with `found`'s function and arguments; for a result with
-    no call in its request, the id's only handed call. None when there is no
+    The handed call with `found`'s function and arguments, as handed or as
+    its dialect reads it back (`_Handed.read_back`); for a result with no
+    call in its request, the id's only handed call. None when there is no
     such handout, or several it could be.
     """
-    if found is not None:
-        return found.key if found.key in handed.handed else None
-    return handed.handed[0] if len(handed.handed) == 1 else None
+    if found is None:
+        return handed.handed[0] if len(handed.handed) == 1 else None
+    matches = {key for key in handed.handed if key == found.key}
+    matches |= {key for back, key in handed.read_back if back == found.key}
+    return matches.pop() if len(matches) == 1 else None
 
 
 def _handout_key(call_id: str, proposed: str, handed: str, content_key: str) -> str:
