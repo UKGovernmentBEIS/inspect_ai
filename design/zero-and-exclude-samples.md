@@ -36,7 +36,8 @@ attempts in a scratch eval of that task restricted to the targeted samples.
 Exclusion may take the task to recompute the log's metrics with; without
 it, the metrics are rebuilt from the registry as an untrusted recompute does
 today. Both recompute the log's results exactly as `recompute_metrics()`
-does, with the task's metrics and reducer when it is given. A task is
+does: with the task's metrics when it is given, and always with the epoch
+reducers the log header records, however the run set them. A task is
 refused when its name or its scorer names differ from the
 log's, but its options, metrics, epochs, code and
 settings are the caller's responsibility: the verdict reflects the task and
@@ -221,7 +222,7 @@ counted.
   (`src/inspect_ai/log/_metric.py:136`, `:28`, `:88`) rebuild `results` from
   every sample that has scores, errored or not. `resolve_log_metrics()`
   rebuilds metrics and reducers from the log header. Without `trust_log` it
-  imports nothing and refuses metric options that name a model or a
+  imports no task file named by the log and refuses metric options that name a model or a
   non-metric registry object (`metric_from_log`,
   `src/inspect_ai/_eval/score.py:833`); with it, the log's task file is
   imported and options are rebuilt without that restriction. `inspect score`
@@ -232,6 +233,18 @@ counted.
   unscored_samples=2` per scorer and `completed_samples=2`. A log scored
   only by a solver, with task-level metrics and `log.eval.scorers` `None`,
   also recomputes.
+- **Recorded reducers.** The header's `eval.config.epochs_reducer` holds the
+  reducers the run used, however they were set: the runner records an
+  eval-level `epochs` reducer when one was given and the task's own
+  otherwise (`reducer_log_names(task.epochs_reducer)`,
+  `src/inspect_ai/_eval/run.py:316-325`), and `None` when neither set one
+  (the default `mean`). Each reducer is recorded by registry name, with a
+  `k` parameter as a `_<k>` suffix and no other argument (`reducer_log_name`,
+  `src/inspect_ai/scorer/_reducer/registry.py:115-122`). Recomputation
+  rebuilds them with `create_reducers()` (`registry.py:133`), in
+  `resolve_log_metrics()` and in `reducers_from_log_header()`
+  (`src/inspect_ai/_eval/score.py:861`), so a custom reducer configured with
+  other arguments is rebuilt with its defaults.
 - **Epoch reduction.** `reduce_scores()` (`results.py:703`) groups a scorer's
   scores by sample id and calls the epoch reducer on each group, also when
   there is one epoch (the default reducer is `mean`). It is the only caller
@@ -803,32 +816,45 @@ differs from the one <log> ran in its <field> (<given>, not <ran>); pass
 the task the log ran". These are what the dispositions depend on: zero
 writes the task's verdicts under the task's scorer keys (see "Which score
 names a disposition covers"). Nothing else is compared: the options of the
-task's scorers, its metrics, its epochs and epoch reducer, its code and the
-run settings are the caller's responsibility, and the docs say so. In
-particular, the results are recomputed with the task's metrics and epoch
-reducer as passed, so a run given `epochs` (with a reducer) at eval level
-is recomputed faithfully only when the caller passes the same: to zero as
-its `epochs` argument, as it was given to `eval()`, and to exclusion as a
-task with the epochs applied (`task_with(copy(task), epochs=Epochs(5,
-"pass_at_5"))`; `task_with()` changes and returns the task it is given,
-`src/inspect_ai/_eval/task/task.py:496-499`, `:536`, so the copy keeps the
-caller's own task as it was), or `--epochs` and `--epochs-reducer` beside
-`--task` on the command line.
+task's scorers, its metrics, its epochs, its code and the run settings are
+the caller's responsibility, and the docs say so. The task's epoch reducer
+is not compared because it is not used: the results are reduced with the
+reducers the log header records (below).
 
 **Metrics from the task.** With a task, results are computed with the
-task's own metrics and reducer, as a native run computes them, through a
-helper beside `resolve_log_metrics()`:
+task's own metrics, as a native run computes them, and the log's epoch
+reducers, through two helpers beside `resolve_log_metrics()`:
 
 ```python
 # src/inspect_ai/log/_metric.py
-def task_log_metrics(task: Task) -> LogMetrics:
-    """The task's reducers, metrics and scorers, for compute_log_metrics()."""
+def log_reducers(log: EvalLog, *, reducer_advice: str | None = None) -> list[ScoreReducer] | None:
+    """The epoch reducers the log header records, rebuilt from the registry."""
+
+def task_log_metrics(task: Task, log: EvalLog) -> LogMetrics:
+    """The log's reducers with the task's metrics and scorers, for compute_log_metrics()."""
     return LogMetrics(
-        reducers=task.epochs_reducer,
+        reducers=log_reducers(log),
         metrics=task.metrics,
         scorers=[ScorerInfo.from_scorer(s) for s in task.scorer or []],
     )
 ```
+
+`log_reducers()` is the reducer block of `resolve_log_metrics()`
+(`src/inspect_ai/log/_metric.py:64-75`) moved into a function, which
+`resolve_log_metrics()` then calls, unchanged: `create_reducers()` on each
+name in `log.eval.config.epochs_reducer`, `None` when the header records
+none, and a name the registry cannot build refused with the existing
+`REDUCER_MISSING` message (`_metric.py:12`) as a `LookupError`. Both paths,
+with a task and without, therefore reduce epochs exactly as
+`recompute_metrics()` does (decision: Ransom, 2026-11-10). Because the
+header records the reducers the run used ("Recorded reducers" above), a run
+given `epochs=Epochs(5, "pass_at_5")` at eval level is reduced as it ran
+without the caller giving that setting again. The task is prepared before
+`task_log_metrics()` is called, so a custom reducer its file defines is
+registered when the header names it. The header records only a reducer's
+name and `k`, so a custom reducer configured with other arguments is
+rebuilt with its defaults, as `recompute_metrics()` rebuilds it today; the
+docs section says so.
 
 `compute_log_metrics()` takes a `LogMetrics` (`src/inspect_ai/log/_metric.py:88`)
 and `eval_results()` builds scorer metrics from `ScorerInfo.from_scorer()`
@@ -853,14 +879,19 @@ a key up by registry name with `ScorerInfo.from_name()`
 parses the key as a path, but it constructs an already-registered scorer or
 scanner of that name, and a `pkg/name` key can load an installed package's
 Inspect entry point to find it; when nothing is found, the default metrics
-apply. Without a task, exclusion's metrics and reducers are likewise built
-from the names the header records (`resolve_log_metrics()`,
-`src/inspect_ai/log/_metric.py:57-83`): `metric_from_log()` and
-`create_reducers()` construct registered metrics and reducers through
+apply. The epoch reducers in every case, and exclusion's metrics without a
+task, are likewise built from the names the header records
+(`log_reducers()` and `resolve_log_metrics()`,
+`src/inspect_ai/log/_metric.py:57-83`): `create_reducers()` and
+`metric_from_log()` construct registered reducers and metrics through
 `registry_lookup()`, which can also load an installed package's entry point
 for a `pkg/name` name (`src/inspect_ai/_util/registry.py:311-316`), as
-`recompute_metrics()` does. The dispositions add no separate aggregation path: tightening this
-lookup is a change to `eval_results()` for every caller (see Not this
+`recompute_metrics()` does. No stricter rule is added for the dispositions,
+such as accepting only reducers already registered: other callers of these
+lookups load registry code from the same names, so a separate rule here
+would close nothing (decision: Ransom, 2026-11-10). The dispositions add no
+separate aggregation path: tightening these lookups is a change to
+`eval_results()` and the header resolvers for every caller (see Not this
 design).
 
 **Staged commit.** Both functions apply their edits to copies of the target
@@ -997,22 +1028,17 @@ def prepare_task(task: Task | str, task_args, model, model_base_url, model_args,
   `prepare_task` therefore returns it with a shallow copy of the task, as a
   normal run shallow-copies the task before applying its overrides
   (`src/inspect_ai/_eval/run.py:261`), and zero rebinds attributes only on
-  that copy: `epochs` and `epochs_reducer` for the match, `early_stopping`
+  that copy: `epochs` for the epoch check (steps 3 and 4), `early_stopping`
   and `dataset` in step 5. `task_with()` is not used, because it changes the
   task it is given.
 
 `exclude_samples`:
 
 1. With a task, checks it with `task_difference()` and takes its metrics
-   from `task_log_metrics()`. On the command line, `--epochs` and
-   `--epochs-reducer` are converted by the shared `inspect eval` option
-   helper into an `epochs` setting, which is applied to a copy of the
-   prepared task (`task_with(copy(task), epochs=...)`) before the match and
-   `task_log_metrics()`; this is how the CLI recomputes a run given epochs
-   at eval level. The Python API takes the task with the epochs already
-   applied. Without one, rebuilds the metrics from the
-   header with `resolve_log_metrics(log)`. No task file is imported either
-   way.
+   from `task_log_metrics(task, log)`. Without one, rebuilds the metrics
+   from the header with `resolve_log_metrics(log)`. Either way the epoch
+   reducers are the header's, so exclusion takes no epoch settings. No task
+   file named by the log is imported either way.
    A log with no task scorers is accepted; it is refused only for a target
    that holds no score.
 2. Builds the exclusion edits for every target that is not already excluded
@@ -1027,11 +1053,13 @@ def prepare_task(task: Task | str, task_args, model, model_base_url, model_args,
 2. Selects the targets that are not already zeroed. When none are left it
    returns without preparing the task.
 3. Prepares the task with `prepare_task()` and the caller's task, task
-   arguments, models, prices, sandbox and generate config, applies the
-   caller's `epochs` to its copy as the runner applies an eval-level
-   `epochs` (`epochs` and `epochs_reducer`, `src/inspect_ai/_eval/run.py:311-325`),
-   checks it with `task_difference()`, and takes its metrics from
-   `task_log_metrics()` of that copy.
+   arguments, models, prices, sandbox and generate config, sets its copy's
+   epoch count from the caller's `epochs` when given, as the runner does
+   (`src/inspect_ai/_eval/run.py:311-314`), checks it with
+   `task_difference()`, and takes its metrics from
+   `task_log_metrics(copy, log)`. A reducer given with `epochs` reaches only
+   the scratch eval, whose own results are discarded; zero's results are
+   reduced with the header's reducers.
 4. Establishes that each target can be run by the task, and refuses
    otherwise. Three checks, all before the scratch eval:
 
@@ -1216,8 +1244,7 @@ Two subcommands of `inspect log` (`src/inspect_ai/_cli/log.py`, beside
 ```
 inspect log exclude LOG_FILE --sample ID [--sample ID ...] [--epoch N]
                     --reason TEXT [--author NAME]
-                    [--task TASK [-T NAME=VALUE ...] [--model ...] [--model-role ...]
-                                 [--epochs N] [--epochs-reducer ...]]
+                    [--task TASK [-T NAME=VALUE ...] [--model ...] [--model-role ...]]
                     [--json]
 inspect log zero    LOG_FILE TASK --sample ID [--sample ID ...] [--epoch N]
                     --reason TEXT [--author NAME]
@@ -1376,6 +1403,18 @@ inspect log zero    LOG_FILE TASK --sample ID [--sample ID ...] [--epoch N]
   log's task file, as `recompute_metrics(trust_log=True)` does). Exclusion
   instead takes the task when the registry cannot build the metrics, so it
   imports no task file the log names either.
+- **Reduce epochs with the caller's task's reducer**, as a native run of
+  that task would. A run given its reducer at eval level would then be
+  recomputed faithfully only if the caller repeated it, which needs epoch
+  options on exclusion and the runner's override rules (a count-only
+  `--epochs` keeps the task's reducer, an explicit one replaces it). The
+  header already records the reducers the run used, and recomputation
+  reads them today; reading them is one rule for every caller (decision:
+  Ransom, 2026-11-10).
+- **Accept only header reducers that are already registered**, refusing a
+  name that would load an entry point. It would close nothing, since other
+  callers load registry code from the same names (decision: Ransom,
+  2026-11-10).
 - **Attribute each held key to a scorer when the scorer list was appended
   to.** Zero could compare options and score-event attribution per key, and
   refuse only ambiguous cases. Refusing any log whose scorer list differs
@@ -1437,7 +1476,7 @@ No migration required.
 - **What zero runs (limitation).** Zero runs the task and settings the
   caller passes and checks only their names against the log ("Matching the
   task"; decision: Ransom, 2026-11-06). It does not check that the task's
-  code, the options of its scorers, metrics and reducer, or the settings
+  code, the options of its scorers and metrics, or the settings
   (models, generate config, limits, policies, epochs) are the ones the log
   ran with, and it does not detect a task edited since the log was
   written. When they differ, the verdict reflects what the caller passed.
@@ -1446,12 +1485,19 @@ No migration required.
   the grader's config, differs; a scorer or setup that reads a limit; and
   edits to setup code, the dataset or a scorer's internals. A setting the
   original run was given at eval level is reproduced only when the caller
-  gives it again. Passing the task and settings the log ran is the
+  gives it again; the epoch reducers are the exception, read from the log
+  header ("Metrics from the task"). Passing the task and settings the log ran is the
   caller's responsibility, as for the shard merge and for eval-retry of an
   edited task. Each zero is recorded as a score edit with its reason and
   author, and the original score stays in `Score.history`, so a zero can be
   inspected and redone. The docs section states this. Exclusion with a task
   likewise recomputes with the task's metrics as passed.
+- **Reducer arguments (limitation).** Both dispositions reduce epochs with
+  the reducers the header records, rebuilt by name and `k`, as
+  `recompute_metrics()` does. A custom reducer the run configured with other
+  arguments is rebuilt with its defaults, so its recomputed reductions can
+  differ from the run's. This is the existing limit of recomputation, and
+  the docs section states it.
 - **Eval-set retry.** Unchanged (decision: Ransom, 2026-11-04). A disposition
   does not clear `error`. An errored sample that was zeroed or excluded is
   therefore re-run by `inspect eval-retry` and eval-set retries, and the new
@@ -1474,11 +1520,14 @@ No migration required.
   is. The trust boundary is that of score editing today. Neither function
   imports a task file or path the log names, and zero builds no task,
   model or run setting from what the log records: they come from the
-  caller. Without a task, exclusion rebuilds metrics with the existing
-  untrusted resolver, which constructs registered metrics and reducers named
-  in the header (loading an installed package's entry point for a
-  `pkg/name` name) and refuses metric options that name a model or a
-  non-metric registry object. As in existing recomputation
+  caller. Both rebuild the epoch reducers the header records, and without a
+  task exclusion rebuilds metrics with the existing untrusted resolver.
+  These lookups use registry names only, never a task file the log names;
+  they construct registered reducers and metrics named in the header
+  (loading an installed package's entry point for a `pkg/name` name), and
+  the metric resolver refuses options that name a model or a non-metric
+  registry object. No stricter rule applies to them than to existing
+  recomputation (decision: Ransom, 2026-11-10). As in existing recomputation
   (`recompute_metrics()`), a score key outside the scorer list is looked up
   by registry name (`ScorerInfo.from_name()`), which can construct an
   already-registered scorer or scanner, or load an installed package's
@@ -1581,12 +1630,20 @@ backends; run the zero tests with `--runtrio` locally.
   - Task match for exclusion: a task with another name, and one with another
     scorer name, are each refused naming the field, with the log unchanged;
     a task whose scorer's options or metric differ is accepted.
-  - Eval-level epochs: for each of `pass_at(5)`, `pass_k(5)` and
+  - Header reducers: for each of `pass_at(5)`, `pass_k(5)` and
     `at_least(5)`, a log written with `eval(task, epochs=Epochs(5, r))` on a
-    task declaring one epoch, excluded with `task_with(copy(task),
-    epochs=Epochs(5, r))`: the recomputed results and reductions over the remaining epochs
-    equal those of a native run over the same scores, and the caller's
-    `task` still declares one epoch.
+    task declaring one epoch and the `mean` reducer, excluded with that
+    task and without a task: the recomputed results and reductions over the
+    remaining epochs equal those of a native run over the same scores
+    reduced with `r`. A log written with a task declaring `majority` and no
+    eval-level reducer reduces with `majority`, and one whose header
+    records no reducer with `mean`.
+  - Reducer arguments: a registered custom reducer with a non-`k` argument,
+    run with a non-default value, is rebuilt with its default on exclusion,
+    as `recompute_metrics()` rebuilds it.
+  - A header reducer the registry cannot build is refused with the
+    `REDUCER_MISSING` message, with and without a task, and the log is
+    unchanged.
   - Refusals that raise and leave the log unchanged: unknown selectors, a
     `started` log, an empty reason, the reason `"UNCHANGED"` (for both
     functions, on a sample whose score has an explanation), and, without a
@@ -1611,8 +1668,9 @@ backends; run the zero tests with `--runtrio` locally.
     the scratch eval, and those samples are left unedited.
   - Epoch reducers: zeroing epoch 1 of a log written with `Epochs(5, r)`
     succeeds for each of `pass_at_5`, `pass_k_5` and `at_least_5`, with the
-    task declaring the epochs and, separately, with a one-epoch task and
-    `epochs=Epochs(5, r)` given to zero as it was given to `eval()`.
+    task declaring the epochs and, separately, with a one-epoch task given
+    to `eval()` with `epochs=Epochs(5, r)` and to zero with `epochs=5`: the
+    results are reduced with the header's `r`.
   - Task preparation, run in a fresh context and in a context whose active
     model and a `grader` role are unrelated `mockllm` models: a task factory
     that calls `get_model()` and one that reads the `grader` role while
@@ -1620,7 +1678,8 @@ backends; run the zero tests with `--runtrio` locally.
     caller's active model and roles are unchanged afterwards.
   - A task spec whose file defines its own epoch reducer and metric, absent
     from the registry before the zero: zeroing succeeds in a fresh process,
-    with results computed by the task's reducer and metric.
+    with results computed by the task's metric and, through the header's
+    name, the reducer the imported file registered.
   - Nothing from the log: zeroing a log whose header names a task file that
     does not exist and a model provider that is not installed succeeds with
     the caller's task and a `mockllm` model; the task file the log names is
@@ -1751,10 +1810,9 @@ backends; run the zero tests with `--runtrio` locally.
   and the `--json` envelope. `inspect log zero LOG TASK` passes `-T`,
   `--model`, `--model-role`, `--epochs`, a sample limit and a generate
   option through to the scratch eval (asserted on its header), and
-  `inspect log exclude --task` recomputes with the task's metric, and with
-  `--epochs 5 --epochs-reducer pass_at_5` recomputes a log written with
-  `eval(task, epochs=Epochs(5, "pass_at_5"))` on a one-epoch task with that
-  reducer.
+  `inspect log exclude --task` recomputes with the task's metric and, for
+  a log written with `eval(task, epochs=Epochs(5, "pass_at_5"))` on a
+  one-epoch task, with the header's `pass_at_5` reducer.
   `inspect eval`'s own option tests pass unchanged after its options move
   into shared groups.
 - Schema drift: the OpenAPI and TypeScript drift checks pass after the
@@ -1782,7 +1840,8 @@ path.
      `src/inspect_ai/log/_task_match.py`.
    - `apply_model_cost_config()` in `src/inspect_ai/_eval/eval.py`, factored
      out of `eval_async()`.
-   - `task_log_metrics()` in `src/inspect_ai/log/_metric.py`.
+   - `log_reducers()`, factored out of `resolve_log_metrics()`, and
+     `task_log_metrics()` in `src/inspect_ai/log/_metric.py`.
    - `src/inspect_ai/log/_disposition.py`: `SampleSelector`,
      `DispositionResult`, `prepare_task()`, and `exclude_samples` with its
      score-key rule and optional task.
@@ -1881,6 +1940,9 @@ additions later:
   metrics (`recompute_metrics()`, `edit_score()`, these dispositions).
   Limiting it to registered names without construction, or to default
   metrics for such keys, is a change to `eval_results()` for all of them.
+  The same holds for the header's metric and reducer names, which
+  `resolve_log_metrics()` and `log_reducers()` look up for every
+  recomputation.
 
 - Moving Steward's `_marks` package onto `exclude_samples` / `zero_samples`,
   which would delete the side run, the watcher and the id workaround.
