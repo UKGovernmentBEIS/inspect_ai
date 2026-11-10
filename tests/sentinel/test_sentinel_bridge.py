@@ -10191,6 +10191,7 @@ async def test_a_google_scaffold_is_handed_no_other_parts_signature_on_a_call(
         ("unsigned", None),
         ("shared_cleared", None),
         ("anchor_removed", None),
+        ("function_changed", None),
         ("legacy", b"text-signature"),
     ],
 )
@@ -10231,6 +10232,11 @@ async def test_the_google_first_call_signature_is_the_providers(
         assistant.content = [part for part in assistant.content if part not in anchors]
         if message == "anchor_removed":
             _hold_signatures_in_place(received, output)
+    elif message == "function_changed":
+        assistant.tool_calls = [
+            replace(call, function="list_files", arguments={})
+            for call in assistant.tool_calls or []
+        ]
 
     signed = gemini_first_call_signature(assistant)
     replayed = await google_content(AsyncMock(), assistant)
@@ -10349,6 +10355,196 @@ async def _generate_bridged(
         bridge, model, input, tools, None, GenerateConfig(), requested_model=None
     )
     return output
+
+
+def _generated_bash(
+    dialect: str,
+) -> tuple[Callable[[], Any], list[ToolInfo], Callable[[list[ChatMessage]], Any]]:
+    """A native generation of one call to `bash_session` under id `call_native`.
+
+    Returns the generation (parsed as its provider parses it), the tools, and
+    a serializer giving each replayed call of each request as `(function,
+    arguments, state)`: the provider state replayed with it (an Anthropic
+    native name, a position before content that follows it, a Responses item
+    id, a Google thought signature).
+    """
+    if dialect == "anthropic":
+
+        async def anthropic_wire(input: list[ChatMessage]) -> Any:
+            # a call is spliced back at its recorded position, or else last
+            return [
+                (block["name"], block["input"], None if n == len(blocks) - 1 else n)
+                for blocks in await _anthropic_wire(input)
+                for n, block in enumerate(blocks)
+                if block["type"] == "tool_use"
+            ]
+
+        return (
+            _anthropic_parsed(
+                [
+                    {"type": "thinking", "thinking": "first", "signature": "c2ln"},
+                    {
+                        "type": "tool_use",
+                        "id": "call_native",
+                        "name": "bash",
+                        "input": {"command": "cat notes.txt"},
+                    },
+                    {"type": "text", "text": "Reading."},
+                ]
+            ),
+            list(ANTHROPIC_TOOLS),
+            anthropic_wire,
+        )
+    elif dialect == "responses":
+        from openai.types.responses import ResponseFunctionToolCall
+
+        async def responses_wire(input: list[ChatMessage]) -> Any:
+            return [
+                (item["name"], json.loads(item["arguments"]), item.get("id"))
+                for item in await _responses_wire(input)
+                if item.get("type") == "function_call"
+            ]
+
+        item = ResponseFunctionToolCall(
+            id="fc_native",
+            type="function_call",
+            call_id="call_native",
+            name="bash_session",
+            arguments=json.dumps({"command": "cat notes.txt"}),
+        )
+        return _responses_parsed(item), list(ANTHROPIC_TOOLS), responses_wire
+    else:
+        from google.genai.types import (
+            Candidate,
+            Content,
+            FinishReason,
+            FunctionCall,
+            Part,
+        )
+
+        from inspect_ai.model._providers.google import completion_choice_from_candidate
+        from inspect_ai.model._providers.google import content as google_content
+
+        def google() -> ModelOutput:
+            choice = completion_choice_from_candidate(
+                "gemini-3-flash-preview",
+                Candidate(
+                    content=Content(
+                        role="model",
+                        parts=[
+                            Part(text="Reading."),
+                            Part(
+                                function_call=FunctionCall(
+                                    id="call_native",
+                                    name="bash_session",
+                                    args={"command": "cat notes.txt"},
+                                ),
+                                thought_signature=GOOGLE_SIGNATURE,
+                            ),
+                        ],
+                    ),
+                    finish_reason=FinishReason.STOP,
+                ),
+            )
+            return ModelOutput(model="mockllm/model", choices=[choice])
+
+        async def google_wire(input: list[ChatMessage]) -> Any:
+            return [
+                (
+                    part.function_call.name,
+                    part.function_call.args,
+                    part.thought_signature,
+                )
+                for message in input
+                if isinstance(message, ChatMessageAssistant)
+                for part in (await google_content(AsyncMock(), message)).parts or []
+                if part.function_call is not None
+            ]
+
+        return google, list(ANTHROPIC_TOOLS), google_wire
+
+
+@pytest.mark.parametrize("fresh_id", [False, True])
+@pytest.mark.parametrize("checked", [False, True])
+@pytest.mark.parametrize("route", ["request_filter", "grafted_regeneration"])
+@pytest.mark.parametrize("dialect", ["anthropic", "responses", "google"])
+async def test_a_call_changed_to_another_function_replays_without_the_generated_calls_state(
+    dialect: str, route: str, checked: bool, fresh_id: bool
+) -> None:
+    """A filter hands over a call to another function under the generated call's id.
+
+    A request filter changes the generated call, or a response filter changes
+    a regeneration's call and grafts it onto the output. The provider state
+    recorded for the generated call (Anthropic's native name, a Responses
+    item, a Google thought signature) is for another function, so the
+    handed call replays from itself, with or without a sentinel, as it does
+    under a fresh id.
+    """
+    from contextlib import nullcontext
+
+    generated, tools, wire = _generated_bash(dialect)
+    model = Parsing(
+        *(
+            [lambda: calls_output(), generated]
+            if route == "grafted_regeneration"
+            else [generated]
+        ),
+        lambda: calls_output(),
+        wire=wire,
+    )
+    bridge = in_process_bridge([])
+
+    def changed(output: ModelOutput) -> ModelOutput:
+        output.message.tool_calls = [
+            replace(
+                call,
+                id="call_fresh" if fresh_id else call.id,
+                function="read_file",
+                arguments={"path": "safe.txt"},
+            )
+            for call in output.message.tool_calls or []
+        ]
+        return output
+
+    if route == "request_filter":
+
+        async def request_filter(
+            model: Model,
+            input: list[ChatMessage],
+            tools: list[ToolInfo],
+            tool_choice: Any,
+            config: GenerateConfig,
+        ) -> ModelOutput:
+            return changed(
+                await model.generate(
+                    input=input, tools=tools, tool_choice=tool_choice, config=config
+                )
+            )
+
+        bridge.filter = request_filter
+    else:
+
+        async def response_filter(
+            model: Model, output: ModelOutput, input: GenerateInput
+        ) -> ModelOutput:
+            output.message.tool_calls = changed(
+                await model.generate(*input)
+            ).message.tool_calls
+            return output
+
+        bridge.response_filter = response_filter
+    input: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+
+    with active([bridge_recording([])]) if checked else nullcontext():
+        handed = await _generate_bridged(bridge, model.model, input, tools)
+        assert [call.function for call in handed.message.tool_calls or []] == [
+            "read_file"
+        ]
+        bridge.filter = None
+        bridge.response_filter = None
+        await _generate_bridged(bridge, model.model, _answered(input, handed), tools)
+
+    assert model.wire[-1] == [("read_file", {"path": "safe.txt"}, None)]
 
 
 async def test_a_provider_output_rebuilt_from_its_fields_replays_its_own_calls() -> (

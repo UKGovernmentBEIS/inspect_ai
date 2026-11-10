@@ -130,7 +130,9 @@ def hand_tool_call(call: ToolCall) -> None:
     Only a Responses item carries a call's function and arguments: one for
     another function is dropped (`hand_openai_tool_call`), and one for the
     call's function replays with each message's arguments. A provider's other
-    per-call state (Anthropic's name and position) holds as it is.
+    per-call state holds as it is; each provider replays it only with a call to
+    the function it was recorded for (Anthropic's name and position,
+    `_has_recorded_state`; Google's anchors, `gemini_anchor_fits`).
     """
     if _HAS_OPENAI:
         try:

@@ -3874,11 +3874,11 @@ async def assistant_message_block_params(
     tools_by_position: dict[int, list[MessageBlockParam]] = {}
     for tool_call in message.tool_calls or []:
         position = (
-            content_len
-            if combined
-            else assistant_internal().client_tool_call_positions.get(
+            assistant_internal().client_tool_call_positions.get(
                 tool_call.id, content_len
             )
+            if not combined and _has_recorded_state(tool_call)
+            else content_len
         )
         position = min(max(position, 0), content_len)
         if tool_call.id in computer_toolset_call_ids:
@@ -4072,6 +4072,14 @@ class _AssistantInternal:
     with client tool calls in a single turn). Keyed by tool use id (like
     `tool_call_internal_names`) so it survives the agent bridge and log
     round-trip."""
+    client_tool_call_functions: dict[str, str] = field(default_factory=dict)
+    """The function each tool use id's internal name and position were recorded
+    for, keyed by tool use id.
+
+    A call to another function under the id (a filter changed the function
+    and kept the id) replays without them (`_has_recorded_state`). An id
+    restored from a checkpoint written before this was recorded has none, and
+    its name and position replay as recorded."""
     server_mcp_tool_uses: dict[
         str, tuple[BetaMCPToolUseBlockParam, BetaRequestMCPToolResultBlockParam]
     ] = field(default_factory=dict)
@@ -4125,6 +4133,9 @@ def init_sample_anthropic_assistant_internal(value: JsonValue | None = None) -> 
     )
     internal.client_tool_call_positions.update(
         cast("dict[str, int]", value.get("client_tool_call_positions", {}))
+    )
+    internal.client_tool_call_functions.update(
+        cast("dict[str, str]", value.get("client_tool_call_functions", {}))
     )
     internal.server_mcp_tool_uses.update(
         {
@@ -4190,6 +4201,7 @@ def dump_anthropic_assistant_internal() -> JsonValue | None:
         internal.thinking_blocks
         or internal.tool_call_internal_names
         or internal.client_tool_call_positions
+        or internal.client_tool_call_functions
         or internal.server_mcp_tool_uses
         or span_table
         or internal.containers
@@ -4201,6 +4213,7 @@ def dump_anthropic_assistant_internal() -> JsonValue | None:
             "thinking_blocks": dict(internal.thinking_blocks),
             "tool_call_internal_names": dict(internal.tool_call_internal_names),
             "client_tool_call_positions": dict(internal.client_tool_call_positions),
+            "client_tool_call_functions": dict(internal.client_tool_call_functions),
             "server_mcp_tool_uses": {
                 tool_use_id: list(use_result)
                 for tool_use_id, use_result in internal.server_mcp_tool_uses.items()
@@ -4230,6 +4243,7 @@ def forget_anthropic_tool_call(call_id: str) -> None:
     """Drop the call's internal name and position, so the call replays from itself."""
     assistant_internal().tool_call_internal_names.pop(call_id, None)
     assistant_internal().client_tool_call_positions.pop(call_id, None)
+    assistant_internal().client_tool_call_functions.pop(call_id, None)
 
 
 _anthropic_assistant_internal: ContextVar[_AssistantInternal] = ContextVar(
@@ -5020,6 +5034,9 @@ def content_and_tool_calls_from_assistant_content_blocks(
             assistant_internal().client_tool_call_positions[content_block.id] = len(
                 content
             )
+            assistant_internal().client_tool_call_functions[content_block.id] = (
+                tool_name
+            )
             tool_calls.append(
                 ToolCall(
                     id=content_block.id,
@@ -5579,7 +5596,20 @@ async def _capture_compaction_from_stream(
 
 
 def _internal_name_from_tool_call(tool_call: ToolCall) -> str | None:
+    if not _has_recorded_state(tool_call):
+        return None
     return assistant_internal().tool_call_internal_names.get(tool_call.id, None)
+
+
+def _has_recorded_state(tool_call: ToolCall) -> bool:
+    """Whether the internal name and position under the call's id are the call's.
+
+    They are when they were recorded for its function
+    (`client_tool_call_functions`). A call to another function under the id
+    replays from itself, with its own name, last in its message.
+    """
+    function = assistant_internal().client_tool_call_functions.get(tool_call.id)
+    return tool_call.type == "function" and function in (None, tool_call.function)
 
 
 def _computer_toolset_fail_fast_tools(

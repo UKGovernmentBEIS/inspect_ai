@@ -128,7 +128,9 @@ from inspect_ai.model._providers._google_computer_use_name import (
 from inspect_ai.model._providers._google_reasoning import (
     GEMINI_COMPUTER_ACTION_KEY,
     GEMINI_FUNCTION_CALL_ID_KEY,
+    GEMINI_FUNCTION_KEY,
     gemini_3_plus,
+    gemini_anchor_fits,
     gemini_computer_actions,
     gemini_is_latest,
     gemini_shared_call_ids,
@@ -1946,37 +1948,39 @@ async def content(
                                 if isinstance(content.internal, dict)
                                 else None
                             )
-                            if (
-                                isinstance(function_call_id, str)
-                                and message.tool_calls is not None
-                            ):
+                            if isinstance(function_call_id, str):
                                 tool_call = next(
                                     (
                                         tool_call
-                                        for tool_call in message.tool_calls
+                                        for tool_call in message.tool_calls or []
                                         if tool_call.id == function_call_id
                                         and id(tool_call) not in emitted_tool_calls
                                     ),
                                     None,
                                 )
-                                if tool_call is not None:
-                                    part = part_from_tool_call(tool_call)
-                                    if (
-                                        content.reasoning
-                                        and tool_call.id not in shared_ids
-                                    ):
-                                        apply_reasoning_signature(part, content)
-                                    # else: an unsigned call is a parallel
-                                    # sibling of the step's first (signed) call.
-                                    # Gemini accepts it unsigned at its original
-                                    # position and rejects any borrowed
-                                    # signature ("Corrupted thought signature",
-                                    # "Tool type of function_call part does not
-                                    # match with tool call context").
-                                    content_parts.append(part)
-                                    emitted_tool_calls.add(id(tool_call))
+                                # an anchor's signature and position are its
+                                # call's: with no call to its function under
+                                # its id, they go on no part, and no signature
+                                # before it is pending
+                                if tool_call is None or not gemini_anchor_fits(
+                                    content, tool_call
+                                ):
                                     working_reasoning_block = None
                                     continue
+                                part = part_from_tool_call(tool_call)
+                                if content.reasoning and tool_call.id not in shared_ids:
+                                    apply_reasoning_signature(part, content)
+                                # else: an unsigned call is a parallel
+                                # sibling of the step's first (signed) call.
+                                # Gemini accepts it unsigned at its original
+                                # position and rejects any borrowed
+                                # signature ("Corrupted thought signature",
+                                # "Tool type of function_call part does not
+                                # match with tool call context").
+                                content_parts.append(part)
+                                emitted_tool_calls.add(id(tool_call))
+                                working_reasoning_block = None
+                                continue
                             working_reasoning_block = content
                         else:
                             # unencrypted reasoning (for older models or debugging)
@@ -2036,7 +2040,8 @@ async def content(
             # New captures anchor every function_call by id in the content list,
             # so this loop is a fallback path for tool_calls that did NOT get
             # an anchor — typically legacy eval logs from before
-            # anchors-for-all, or any captured function_call without a name.
+            # anchors-for-all, any captured function_call without a name, or a
+            # call whose anchor is for another function (`gemini_anchor_fits`).
             #
             # If a working_reasoning_block is in flight (visible thought-text
             # consolidation), its signature goes on the first call; the rest
@@ -2325,12 +2330,14 @@ def completion_choice_from_candidate(
                         else ""
                     )
                     internal: dict[str, JsonValue] = {
-                        _GEMINI_FUNCTION_CALL_ID_KEY: function_call_id
+                        _GEMINI_FUNCTION_CALL_ID_KEY: function_call_id,
+                        GEMINI_FUNCTION_KEY: part.function_call.name,
                     }
                     if (
                         computer_use
                         and part.function_call.name in GEMINI_COMPUTER_ACTIONS
                     ):
+                        internal[GEMINI_FUNCTION_KEY] = "computer"
                         # the Inspect call can't tell some actions apart
                         # (`go_back`, `search`), so the anchor keeps the one sent
                         internal[GEMINI_COMPUTER_ACTION_KEY] = part.function_call.name

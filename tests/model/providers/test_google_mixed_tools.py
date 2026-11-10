@@ -1335,6 +1335,75 @@ async def test_gemini_dangling_anchor_does_not_crash() -> None:
     assert len(function_call_parts) == 1
     assert function_call_parts[0].function_call is not None
     assert function_call_parts[0].function_call.id == "real-id"
+    # the orphan anchor's signature is another call's
+    assert function_call_parts[0].thought_signature is None
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("logged_before_functions", [False, True])
+async def test_gemini_anchor_replays_only_with_a_call_to_its_function(
+    logged_before_functions: bool,
+) -> None:
+    """An anchor's signature and position go only on a call to the function it was parsed for.
+
+    A call to another function under the anchor's id (a filter changed the
+    function and kept the id) replays unsigned, after the content. An anchor
+    logged before its function was recorded fits any call it names.
+    """
+    from dataclasses import replace
+
+    candidate = Candidate(
+        finish_reason=FinishReason.STOP,
+        content=Content(
+            role="model",
+            parts=[
+                Part(
+                    thought_signature=b"sig",
+                    function_call=FunctionCall(
+                        id="f-1", name="bash_session", args={"command": "ls"}
+                    ),
+                ),
+                Part(text="Listing."),
+            ],
+        ),
+    )
+    message = completion_choice_from_candidate(
+        "gemini-3.1-pro-preview", candidate
+    ).message
+    assert not isinstance(message.content, str) and message.tool_calls
+    if logged_before_functions:
+        for part in message.content:
+            if isinstance(part, ContentReasoning) and isinstance(part.internal, dict):
+                part.internal.pop("gemini_function")
+
+    async def replayed(call: ToolCall) -> list[tuple[str | None, bytes | None]]:
+        parts = (
+            await content(
+                MagicMock(),
+                message.model_copy(update={"tool_calls": [call]}),
+                emulate_reasoning=False,
+            )
+        ).parts or []
+        return [
+            (
+                part.function_call.name if part.function_call else None,
+                part.thought_signature,
+            )
+            for part in parts
+        ]
+
+    assert await replayed(message.tool_calls[0]) == [
+        ("bash_session", b"sig"),
+        (None, None),
+    ]
+    changed = replace(
+        message.tool_calls[0], function="read_file", arguments={"path": "a"}
+    )
+    assert await replayed(changed) == (
+        [("read_file", b"sig"), (None, None)]
+        if logged_before_functions
+        else [(None, None), ("read_file", None)]
+    )
 
 
 @pytest.mark.anyio

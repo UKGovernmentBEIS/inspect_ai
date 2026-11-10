@@ -13,6 +13,7 @@ from typing import Literal
 from inspect_ai._util.content import ContentReasoning
 from inspect_ai.model._call_tools import repeated_call_ids
 from inspect_ai.model._chat_message import ChatMessageAssistant
+from inspect_ai.tool._tool_call import ToolCall
 
 from .._reasoning import (
     clamp_reasoning_effort_to_minimal_low_medium_high,
@@ -156,6 +157,25 @@ GEMINI_FUNCTION_CALL_ID_KEY = "gemini_function_call_id"
 
 GEMINI_COMPUTER_ACTION_KEY = "gemini_computer_action"
 """The `ContentReasoning.internal` key naming the Gemini computer action its call was sent as."""
+
+GEMINI_FUNCTION_KEY = "gemini_function"
+"""The `ContentReasoning.internal` key naming the function a reasoning anchor's call was parsed as."""
+
+
+def gemini_anchor_fits(anchor: ContentReasoning, call: ToolCall) -> bool:
+    """Whether the reasoning anchor naming `call`'s id is for a call to its function.
+
+    An anchor's signature and position are its call's. A call to another
+    function under the id (a filter changed the function and kept the id)
+    replays without them. An anchor logged before its function was recorded
+    fits any call it names.
+    """
+    function = (
+        anchor.internal.get(GEMINI_FUNCTION_KEY)
+        if isinstance(anchor.internal, dict)
+        else None
+    )
+    return call.type == "function" and function in (None, call.function)
 
 
 def gemini_computer_actions(message: ChatMessageAssistant) -> dict[str, str]:

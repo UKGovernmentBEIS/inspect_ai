@@ -3976,6 +3976,73 @@ async def test_anthropic_tool_use_id_repeated_in_a_turn_records_no_position() ->
     assert internal.client_tool_call_positions["b"] == 2
 
 
+@pytest.mark.parametrize("restore", [None, "current", "legacy"])
+async def test_anthropic_call_to_another_function_replays_without_the_ids_name_and_position(
+    restore: str | None,
+) -> None:
+    """A tool use id's internal name and position replay only with a call to its function.
+
+    The parse records `bash` (called as `bash_session`) after the thinking
+    block. The call as parsed replays with them; a call to `read_file` under
+    the id (a filter changed the function and kept the id) replays under its
+    own name, last. Both hold after a checkpoint restore. A checkpoint written
+    before functions were recorded (`legacy`) replays the name and position
+    as recorded.
+    """
+    from dataclasses import replace
+
+    from anthropic.types import ContentBlock, TextBlock, ThinkingBlock, ToolUseBlock
+
+    from inspect_ai.model._providers.anthropic import (
+        assistant_message_block_params,
+        content_and_tool_calls_from_assistant_content_blocks,
+        dump_anthropic_assistant_internal,
+        init_sample_anthropic_assistant_internal,
+    )
+
+    tools = [
+        ToolInfo(name="bash_session", description="Run a command."),
+        ToolInfo(name="read_file", description="Read a file."),
+    ]
+    blocks: list[ContentBlock] = [
+        ThinkingBlock(type="thinking", thinking="t1", signature="s1"),
+        ToolUseBlock(
+            type="tool_use", id="a", name="bash", input={"command": "cat notes.txt"}
+        ),
+        TextBlock(type="text", text="Reading."),
+    ]
+    init_sample_anthropic_assistant_internal()
+    content, tool_calls = content_and_tool_calls_from_assistant_content_blocks(
+        blocks, tools
+    )
+    assert tool_calls is not None and tool_calls[0].function == "bash_session"
+    if restore is not None:
+        dumped = dump_anthropic_assistant_internal()
+        assert isinstance(dumped, dict)
+        if restore == "legacy":
+            del dumped["client_tool_call_functions"]
+        init_sample_anthropic_assistant_internal()
+        init_sample_anthropic_assistant_internal(dumped)
+
+    async def replayed(call: ToolCall) -> list[tuple[str, object]]:
+        message = ChatMessageAssistant(
+            content=content, tool_calls=[call], model="claude-opus-4-8"
+        )
+        return [
+            (block["type"], block.get("name"))
+            for block in await assistant_message_block_params(message)
+        ]
+
+    native = [("thinking", None), ("tool_use", "bash"), ("text", None)]
+    assert await replayed(tool_calls[0]) == native
+    changed = replace(tool_calls[0], function="read_file", arguments={"path": "a"})
+    assert await replayed(changed) == (
+        native
+        if restore == "legacy"
+        else [("thinking", None), ("text", None), ("tool_use", "read_file")]
+    )
+
+
 async def test_anthropic_interleaved_thinking_last_gets_no_content() -> None:
     """A turn ending in an interleaved thinking block must not end on thinking.
 

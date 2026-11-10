@@ -102,7 +102,10 @@ from inspect_ai.model._model import (
     use_model_event_sink,
 )
 from inspect_ai.model._model_output import ModelOutput
-from inspect_ai.model._providers._google_reasoning import gemini_shared_call_ids
+from inspect_ai.model._providers._google_reasoning import (
+    gemini_anchor_fits,
+    gemini_shared_call_ids,
+)
 from inspect_ai.tool._tool import Tool
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolChoice, ToolFunction
@@ -597,7 +600,8 @@ def _hold_signatures_in_place(
     received had anchors:
 
     - Anchors naming none of their message's calls (calls the filter removed
-      or renamed) are removed, so their signatures go on no other part.
+      or renamed), or only calls to another function (`gemini_anchor_fits`),
+      are removed, so their signatures go on no other part.
     - A message with a call no anchor names (or more calls under an ID than
       anchors naming it) ends with an anchor without a signature, naming no
       call, so no signature is pending for that call.
@@ -629,7 +633,11 @@ def _hold_signatures_in_place(
         for part in message.content:
             call_id = _anchor_call_id(part)
             if call_id is not None:
-                if call_id not in calls:
+                assert isinstance(part, ContentReasoning)
+                if not any(
+                    call.id == call_id and gemini_anchor_fits(part, call)
+                    for call in message.tool_calls or []
+                ):
                     continue
                 anchors[call_id] += 1
                 if call_id in shared:
@@ -654,9 +662,10 @@ def gemini_first_call_signature(
     The rule the Google provider serializer follows, which a filtered output is
     held to (`_hold_signatures_in_place`). When the message has reasoning
     anchors, the call takes the signature of the anchor naming it, and an
-    anchor without a signature (an unsigned call), an ID several calls or
-    anchors share (`gemini_shared_call_ids`) or no anchor naming it means the
-    call is unsigned: a signature that came with
+    anchor without a signature (an unsigned call), an anchor for another
+    function (`gemini_anchor_fits`), an ID several calls or anchors share
+    (`gemini_shared_call_ids`) or no anchor naming it means the call is
+    unsigned: a signature that came with
     another part (a signed text part) is never a call's. A message without
     anchors (logged before them, or rebuilt from a scaffold's history) gives
     its last signature to its first call. None for no call or no signature.
@@ -682,7 +691,11 @@ def gemini_first_call_signature(
     anchor = next(
         (part for part in content if _anchor_call_id(part) == calls[0].id), None
     )
-    if isinstance(anchor, ContentReasoning) and anchor.reasoning:
+    if (
+        isinstance(anchor, ContentReasoning)
+        and anchor.reasoning
+        and gemini_anchor_fits(anchor, calls[0])
+    ):
         return anchor
     return None
 
@@ -1050,12 +1063,15 @@ def _check_provider_owned_content(
     """Reject edits a dialect would silently undo when rendering for the agent.
 
     Dialects replay provider artifacts by identity rather than from the edited
-    values: Anthropic replays signed thinking by its `reasoning`, server tool
-    blocks as whole recorded spans (a span can cover several `ContentToolUse`
-    items), and a native tool's wire name by its call id. So reasoning and server
-    tool items may only be kept unchanged or removed, server tool items are kept
-    all or none, and a call keeping an original id keeps its function (one of
-    the functions of the calls under that id, as parallel calls can share one).
+    values: Anthropic replays signed thinking by its `reasoning`, and server
+    tool blocks as whole recorded spans (a span can cover several
+    `ContentToolUse` items). So reasoning and server tool items may only be
+    kept unchanged or removed, and server tool items are kept all or none. A
+    call keeping an original id keeps its function (one of the functions of
+    the calls under that id, as parallel calls can share one), as a sentinel
+    or approval `modify` must: a call to another function is a new call. (The
+    providers replay a call's by-id state only with a call to the function it
+    was recorded for, so a call changed by another route replays from itself.)
     A message a generation of the bridged model made during the filter produced, returned
     unchanged (`generations`), is the provider's own and renders as such.
     """
@@ -1783,7 +1799,8 @@ def _hold_replay_state(output: ModelOutput, generations: Sequence[ModelOutput]) 
 
     A provider replays a call with the state its parse recorded under the
     call's id (a Responses item, Anthropic's name and position): that of the
-    call as generated. Each call's state is held to the call as handed on
+    call as generated, and only with a call to the function it was recorded
+    for. Each call's state is held to the call as handed on
     (`hand_tool_call`); the provider replays it with the arguments of the
     call in each message. A call under an id `output` repeats, or that several
     generations of the request (`generations`) made different calls under,
