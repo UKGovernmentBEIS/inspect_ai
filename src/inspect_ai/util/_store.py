@@ -196,7 +196,12 @@ def store_from_events(events: list["Event"]) -> Store:
 
     Uses event_tree() to ensure proper ordering of parallel events.
     Only processes StoreEvents from root-level spans (which encompass
-    all nested changes) to avoid redundant replay.
+    all nested changes) to avoid redundant replay. A root-level span or
+    StoreEvent that begins while an earlier root-level span is still open
+    is skipped too, since that span's StoreEvent covers its changes: the
+    control channel's interim scoring runs in a fresh context, so the spans
+    its scorers open have no parent. A span with no end (an in-progress
+    sample) stays open to the end of the events.
 
     Args:
         events: List of Event objects (typically from EvalSample.events).
@@ -210,15 +215,23 @@ def store_from_events(events: list["Event"]) -> Store:
     tree = event_tree(events)
     data: dict[str, Any] = {}
 
+    position = {id(event): index for index, event in enumerate(events)}
+    open_until = -1  # position of the open root-level span's end
+
     # Process only root-level items
     for node in tree:
         if isinstance(node, EventTreeSpan):
+            if position[id(node.begin)] < open_until:
+                continue
+            open_until = position[id(node.end)] if node.end is not None else len(events)
             # Find StoreEvents that are direct children (not nested in child spans)
             for child in node.children:
                 if isinstance(child, StoreEvent):
                     data = _apply_store_event(data, child)
         elif isinstance(node, StoreEvent):
             # Root-level StoreEvent not in any span
+            if position[id(node)] < open_until:
+                continue
             data = _apply_store_event(data, node)
 
     return Store(data)

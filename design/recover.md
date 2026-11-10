@@ -97,7 +97,7 @@ After a crash, the complete set of sample data is split across two sources:
 - For in-progress samples: the store as of the last top-level span (`init`, `solvers`, `scorers`) that ended, since a span records its `StoreEvent` when it ends
 
 **What is NOT recoverable:**
-- In-progress samples at crash time (started but `complete_sample()` never called — no scores)
+- Final scores for samples still in progress at crash time (`complete_sample()` was never called)
 - `EvalResults` / `EvalStats` (would need recomputation from recovered samples)
 - Any `reductions` data
 - The retry history (`error_retries`) of unflushed samples: the buffer keeps only the final attempt's events and the retry count

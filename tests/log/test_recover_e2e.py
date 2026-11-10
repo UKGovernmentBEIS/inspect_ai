@@ -1478,10 +1478,10 @@ def _store_span(id: str, before: dict[str, Any], after: dict[str, Any]) -> list[
     ]
 
 
-async def _recover_completed_sample(
-    buffer_kind: str, events: list[Any], temp_dir: str
+async def _recover_sample(
+    buffer_kind: str, events: list[Any], temp_dir: str, *, completed: bool = True
 ) -> str:
-    """Buffer a completed sample with `events`, crash, recover; the output path."""
+    """Buffer a sample with `events`, crash, recover; the output path."""
     eval_path = os.path.join(temp_dir, "store.eval")
     output_path = os.path.join(temp_dir, "store-recovered.eval")
     zip_log = ZipLogFile(eval_path)
@@ -1506,12 +1506,13 @@ async def _recover_completed_sample(
     buffer = SampleBufferDatabase(eval_path, create=True, db_dir=Path(db_dir))
     buffer.start_sample(summary)
     buffer.log_events([SampleEvent(id="s1", epoch=1, event=event) for event in events])
-    buffer.complete_sample(
-        summary.model_copy(
-            update={"completed_at": datetime.now(timezone.utc).isoformat()}
-        ),
-        sample_metadata=None,
-    )
+    if completed:
+        buffer.complete_sample(
+            summary.model_copy(
+                update={"completed_at": datetime.now(timezone.utc).isoformat()}
+            ),
+            sample_metadata=None,
+        )
 
     if buffer_kind == "filestore":
         sync_to_filestore(buffer, SampleBufferFilestore(eval_path, create=True))
@@ -1545,7 +1546,7 @@ async def test_recovery_restores_store(buffer_kind: str) -> None:
 
     async with AsyncFilesystem():
         with tempfile.TemporaryDirectory() as temp_dir:
-            output_path = await _recover_completed_sample(buffer_kind, events, temp_dir)
+            output_path = await _recover_sample(buffer_kind, events, temp_dir)
 
             # the store stays inline, as in a normal run's log
             recovered = await read_eval_log_async(
@@ -1587,9 +1588,60 @@ async def test_recovery_store_changes_that_dont_replay(
 
     async with AsyncFilesystem():
         with tempfile.TemporaryDirectory() as temp_dir:
-            output_path = await _recover_completed_sample(buffer_kind, events, temp_dir)
+            output_path = await _recover_sample(buffer_kind, events, temp_dir)
 
             recovered = await read_eval_log_async(output_path)
             assert recovered.samples is not None
             assert recovered.samples[0].store == {}
             assert "Could not replay the store changes of sample s1" in caplog.text
+
+
+@pytest.mark.parametrize("buffer_kind", ["database", "filestore"])
+async def test_recovery_store_with_interim_scoring(buffer_kind: str) -> None:
+    """An interim scorer's span overlapping `solvers` isn't replayed twice.
+
+    The control channel scores a live sample in a fresh context, so a span
+    the scorer opens is top-level; the `solvers` StoreEvent already includes
+    its writes.
+    """
+    begin = {"items": ["begin"]}
+    interim = {"items": ["begin", "interim"]}
+    solved = {"items": ["begin", "interim", "solver"]}
+    events = _store_span("init", {}, begin) + [
+        SpanBeginEvent(id="solvers", name="solvers"),
+        *_store_span("interim", begin, interim),
+        StoreEvent(changes=store_changes(begin, solved) or [], span_id="solvers"),
+        SpanEndEvent(id="solvers"),
+    ]
+
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_path = await _recover_sample(buffer_kind, events, temp_dir)
+
+            recovered = await read_eval_log_async(output_path)
+            assert recovered.samples is not None
+            assert recovered.samples[0].store == solved
+
+
+@pytest.mark.parametrize("buffer_kind", ["database", "filestore"])
+async def test_recovery_store_of_in_progress_sample(buffer_kind: str) -> None:
+    """An in-progress sample's store comes from the top-level spans that ended."""
+    events = _store_span("init", {}, {"a": 1}) + [
+        SpanBeginEvent(id="solvers", name="solvers"),
+        SpanBeginEvent(id="agent", parent_id="solvers", name="agent"),
+        StoreEvent(
+            changes=store_changes({"a": 1}, {"a": 2, "b": 3}) or [], span_id="agent"
+        ),
+        SpanEndEvent(id="agent"),
+    ]
+
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_path = await _recover_sample(
+                buffer_kind, events, temp_dir, completed=False
+            )
+
+            recovered = await read_eval_log_async(output_path)
+            assert recovered.samples is not None
+            assert recovered.samples[0].error is not None
+            assert recovered.samples[0].store == {"a": 1}

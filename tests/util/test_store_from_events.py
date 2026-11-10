@@ -570,6 +570,32 @@ def test_replay_leaves_events_unchanged() -> None:
     assert first.changes[0].value == {"vals": [1]}
 
 
+def test_top_level_span_inside_another_is_not_replayed() -> None:
+    """A top-level span that begins while another is open is covered by it.
+
+    The control channel's interim scoring runs in a fresh context, so a span
+    its scorer opens has no parent even though `solvers` is still open.
+    """
+    from inspect_ai.util._store import store_changes
+
+    begin = {"items": ["begin"]}
+    interim = {"items": ["begin", "interim"]}
+    solved = {"items": ["begin", "interim", "solver"]}
+    solvers_begin, solvers_end = _make_span("solvers")
+    interim_begin, interim_end = _make_span("interim")
+    events: list[Event] = [
+        StoreEvent(changes=store_changes({}, begin) or []),
+        solvers_begin,
+        interim_begin,
+        StoreEvent(changes=store_changes(begin, interim) or [], span_id="interim"),
+        interim_end,
+        StoreEvent(changes=store_changes(begin, solved) or [], span_id="solvers"),
+        solvers_end,
+    ]
+
+    assert dict(store_from_events(events).items()) == solved
+
+
 # End-to-end tests: Run eval, write log, re-hydrate store from events
 
 
