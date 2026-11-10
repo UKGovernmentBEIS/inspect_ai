@@ -350,7 +350,8 @@ def test_ids_recorded_as_shared_stay_shared_and_give_no_call_state() -> None:
 
     # without the generation's replay state, the marker records none
     unknown = _calling("shared")
-    share_call_ids(unknown, ["shared"])
+    # an id none of its calls carries is not recorded
+    share_call_ids(unknown, ["shared", "removed"])
     assert generation_assistant_internal(unknown) is None
     assert shared_call_ids(unknown) == {"shared"}
     rebuilt = ModelOutput.model_validate(unknown.model_dump())

@@ -255,14 +255,19 @@ def shared_call_ids(output: ModelOutput) -> set[str]:
 
 
 def share_call_ids(output: ModelOutput, call_ids: Iterable[str]) -> None:
-    """Record that `call_ids` are shared in `output` (`shared_call_ids`).
+    """Record that those of `call_ids` `output`'s calls carry are shared in it.
 
     For an output derived from one whose calls shared these IDs, where that no
     longer shows (e.g. a response filter kept one of the calls). Recorded apart
     from the generation's replay state, so it holds when that state is unknown
-    (`generation_assistant_internal`), and gives no call any state.
+    (`generation_assistant_internal`), and gives no call any state. An ID no
+    call carries is not recorded: a Google reasoning anchor naming it is not
+    ambiguous, and one may be kept to hold its message's signatures in place.
     """
-    shared = set(call_ids)
+    carried = {
+        call.id for choice in output.choices for call in choice.message.tool_calls or []
+    }
+    shared = set(call_ids) & carried
     if not shared:
         return
     replay = dict(_output_replay(output) or {})
