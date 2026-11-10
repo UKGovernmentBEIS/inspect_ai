@@ -4,11 +4,13 @@ Recomputing metrics, editing a score, recovering a crashed log and eval-set
 recovery may not import a file because a log names it, nor construct a model
 or a non-metric registry object from the log's metric options, unless the
 caller passes `trust_log=True`. Rescoring with the caller's own scorers
-treats the log's metrics the same way.
+treats the log's metrics the same way. `model_info()` never constructs the
+log's model.
 
 Each fixture isolates one protection. A marker module records each import of
 it in a file, and a spy on `get_model` records models built with the
-fixtures' distinctive base URL (which appears only in metric options).
+fixtures' distinctive base URL (which appears only in metric options) or
+model name (which appears only in the `model_info()` log).
 """
 
 import inspect
@@ -39,9 +41,15 @@ from inspect_ai._util.registry import (
     registry_key,
     registry_unqualified_name,
 )
+from inspect_ai.analysis import evals_df, model_info, prepare
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._score_edit import ScoreEditEvent
-from inspect_ai.log import EvalLogInfo, EvalSampleSummary, write_eval_log_async
+from inspect_ai.log import (
+    EvalLogInfo,
+    EvalSampleSummary,
+    write_eval_log,
+    write_eval_log_async,
+)
 from inspect_ai.log._log import (
     EvalConfig,
     EvalDataset,
@@ -83,6 +91,7 @@ from inspect_ai.solver import TaskState
 SCORER_METRIC = "untrusted_scorer_metric"
 TASK_METRIC = "untrusted_task_metric"
 UNTRUSTED_URL = "https://untrusted.invalid/v1"
+UNTRUSTED_MODEL = "mockllm/untrusted-model-info"
 MODEL_DICT = {
     "model": "mockllm/model",
     "config": {},
@@ -134,7 +143,7 @@ scored_samples: list[Any] = []
 
 
 @scorer(metrics=[accuracy()])
-def counting_scorer() -> Scorer:
+def untrusted_logs_counting_scorer() -> Scorer:
     async def score(state: TaskState, target: Target) -> Score:
         scored_samples.append(state.sample_id)
         return Score(value="C")
@@ -218,13 +227,15 @@ def _reset() -> Iterator[None]:
 
 @pytest.fixture
 def untrusted_models(monkeypatch: pytest.MonkeyPatch) -> list[str]:
-    """Spy on get_model: the base URLs of models built from UNTRUSTED_URL."""
+    """Spy on get_model: models built from UNTRUSTED_URL or UNTRUSTED_MODEL."""
     built: list[str] = []
     real_get_model = model_module.get_model
 
     def spy(*args: Any, **kwargs: Any) -> Any:
         if kwargs.get("base_url") == UNTRUSTED_URL:
             built.append(UNTRUSTED_URL)
+        if (args[0] if args else kwargs.get("model")) == UNTRUSTED_MODEL:
+            built.append(UNTRUSTED_MODEL)
         return real_get_model(*args, **kwargs)
 
     monkeypatch.setattr(model_module, "get_model", spy)
@@ -1177,7 +1188,7 @@ def test_rescore_with_callers_scorers_rebuilds_log_metrics_untrusted(
     with pytest.raises(error) as ex:
         score(
             log,
-            counting_scorer(),
+            untrusted_logs_counting_scorer(),
             action="overwrite",
             model="mockllm/model",
         )
@@ -1190,7 +1201,7 @@ def test_rescore_with_callers_scorers_rebuilds_log_metrics_untrusted(
     # the caller's own metrics replace the log's
     rescored = score(
         log,
-        counting_scorer(),
+        untrusted_logs_counting_scorer(),
         metrics=[accuracy()],
         action="overwrite",
         model="mockllm/model",
@@ -1204,7 +1215,7 @@ def test_rescore_overwrite_ignores_replaced_scorer_metrics(
 ) -> None:
     rescored = score(
         _fixture(name, task_file),
-        counting_scorer(),
+        untrusted_logs_counting_scorer(),
         action="overwrite",
         model="mockllm/model",
     )
@@ -1213,7 +1224,7 @@ def test_rescore_overwrite_ignores_replaced_scorer_metrics(
     assert _imported(imports) == [] and untrusted_models == []
 
 
-@pytest.mark.parametrize("scorer", [None, "counting_scorer"])
+@pytest.mark.parametrize("scorer", [None, "untrusted_logs_counting_scorer"])
 async def test_score_cli_trusts_log_metrics_only_with_log_scorers(
     scorer: str | None,
     tmp_path: Path,
@@ -1226,7 +1237,8 @@ async def test_score_cli_trusts_log_metrics_only_with_log_scorers(
     log = _fixture("3t", tmp_path)
     log.eval.scorers = [
         EvalScorer(
-            name="counting_scorer", metrics=[EvalMetricDefinition(name="accuracy")]
+            name="untrusted_logs_counting_scorer",
+            metrics=[EvalMetricDefinition(name="accuracy")],
         )
     ]
     input_file = tmp_path / "input.eval"
@@ -1281,3 +1293,21 @@ async def test_rescore_with_log_scorers_trusts_metric_options(
             _log_scorers=True,
         )
     assert _imported(imports) == []
+
+
+# --- analysis ------------------------------------------------------------------
+
+
+def test_model_info_does_not_construct_the_logs_model(
+    tmp_path: Path, untrusted_models: list[str]
+) -> None:
+    log = _log()
+    log.eval.model = UNTRUSTED_MODEL
+    path = tmp_path / "model-info.eval"
+    write_eval_log(log, path.as_posix())
+
+    df = prepare(evals_df(path), model_info())
+
+    assert untrusted_models == []
+    assert df["model_display_name"].to_list() == [UNTRUSTED_MODEL]
+    assert df["model_organization_name"].isna().all()

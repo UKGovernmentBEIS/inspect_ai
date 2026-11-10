@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+from typing import Any, Sequence
+
 import anyio
 import pytest
+from test_helpers.utils import skip_if_no_bedrock, skip_if_no_google, skip_if_trio
 
 from inspect_ai.agent import (
     AgentChannel,
     AgentInterrupted,
+    AgentState,
     agent_channel,
 )
 from inspect_ai.agent._channel import (
@@ -16,10 +20,12 @@ from inspect_ai.agent._channel import (
     UserMessage,
     current_agent_channel,
 )
+from inspect_ai.agent._channel.gate import after_answer, turn_gate
 from inspect_ai.agent._channel.observer import (
     NullExecutionObserver,
     null_execution_observer,
 )
+from inspect_ai.agent._channel.ref import AgentRef
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -270,6 +276,156 @@ def test_repair_cause_selects_message_text() -> None:
     r = ch._repair(msgs, reason="limit")[0]
     assert r.error is not None
     assert "limit" in r.error.message.lower()
+
+
+def _interrupted_history() -> list[ChatMessage]:
+    """A conversation interrupted during parallel calls to different tools.
+
+    The first call finished before the interrupt; the other two are repaired.
+    The operator's redirect follows the repairs, as ``after_cancel()`` returns.
+    """
+    msgs: list[ChatMessage] = [
+        ChatMessageUser(content="look around"),
+        ChatMessageAssistant(
+            content="ok",
+            tool_calls=[
+                ToolCall(id="t1", function="list_files", arguments={"path": "."}),
+                ToolCall(id="t2", function="read_file", arguments={"path": "a"}),
+                ToolCall(id="t3", function="run_shell", arguments={"cmd": "ls"}),
+            ],
+        ),
+        ChatMessageTool(tool_call_id="t1", function="list_files", content="a b"),
+    ]
+    return [
+        *msgs,
+        *AgentChannel()._repair(msgs),
+        ChatMessageUser(content="stop and do this instead", source="operator"),
+    ]
+
+
+def test_repair_names_each_repair_after_its_call() -> None:
+    repairs = [m for m in _interrupted_history() if isinstance(m, ChatMessageTool)][1:]
+    assert [(r.tool_call_id, r.function) for r in repairs] == [
+        ("t2", "read_file"),
+        ("t3", "run_shell"),
+    ]
+
+
+async def test_repaired_history_converts_for_anthropic() -> None:
+    pytest.importorskip("anthropic")
+    from inspect_ai.model import GenerateConfig
+    from inspect_ai.model._providers.anthropic import AnthropicAPI
+
+    api = AnthropicAPI(model_name="claude-sonnet-4-5", api_key="test-key")
+    _, _, _, params, _ = await api.resolve_chat_input(
+        input=_interrupted_history(),
+        tools=[],
+        config=GenerateConfig(cache_prompt=False),
+        cache_ttl=None,
+    )
+    results = [
+        block["tool_use_id"]
+        for param in params
+        if isinstance(param["content"], list)
+        for block in param["content"]
+        if block["type"] == "tool_result"
+    ]
+    assert results == ["t1", "t2", "t3"]
+
+
+async def test_repaired_history_converts_for_bedrock() -> None:
+    pytest.importorskip("aiobotocore")
+    from inspect_ai.model._providers.bedrock import converse_messages
+
+    _, converse = await converse_messages(_interrupted_history())
+    results = [
+        block.toolResult.toolUseId
+        for message in converse
+        for block in message.content
+        if block.toolResult is not None
+    ]
+    assert results == ["t1", "t2", "t3"]
+
+
+async def test_repaired_history_converts_for_google() -> None:
+    pytest.importorskip("google.genai")
+    from unittest.mock import MagicMock
+
+    from inspect_ai.model._providers.google import as_chat_messages
+
+    contents = await as_chat_messages(MagicMock(), _interrupted_history())
+    responses = [
+        (part.function_response.id, part.function_response.name)
+        for content in contents
+        for part in content.parts or []
+        if part.function_response is not None
+    ]
+    assert responses == [
+        ("t1", "list_files"),
+        ("t2", "read_file"),
+        ("t3", "run_shell"),
+    ]
+
+
+async def test_repaired_history_converts_for_openai_responses() -> None:
+    pytest.importorskip("openai")
+    from inspect_ai.model._openai_responses import openai_responses_inputs
+
+    items: list[dict[str, Any]] = [
+        dict(item) for item in await openai_responses_inputs(_interrupted_history())
+    ]
+    calls = [item["call_id"] for item in items if item["type"] == "function_call"]
+    outputs = [
+        item["call_id"] for item in items if item["type"] == "function_call_output"
+    ]
+    assert calls == outputs == ["t1", "t2", "t3"]
+
+
+async def test_repaired_history_converts_for_openai_chat_completions() -> None:
+    pytest.importorskip("openai")
+    from inspect_ai.model._openai import messages_to_openai
+
+    params = await messages_to_openai(_interrupted_history())
+    results = [p["tool_call_id"] for p in params if p["role"] == "tool"]
+    assert results == ["t1", "t2", "t3"]
+    assert params[-1] == {"role": "user", "content": "stop and do this instead"}
+
+
+async def _continue_interrupted_history(model: str) -> None:
+    """Send the repaired history to a live model, which must accept it."""
+    from inspect_ai.model import GenerateConfig, get_model
+    from inspect_ai.tool import ToolInfo, ToolParam, ToolParams
+
+    tools = [
+        ToolInfo(
+            name=name,
+            description=f"Call {name}.",
+            parameters=ToolParams(
+                properties={arg: ToolParam(type="string", description=arg)},
+                required=[arg],
+            ),
+        )
+        for name, arg in [
+            ("list_files", "path"),
+            ("read_file", "path"),
+            ("run_shell", "cmd"),
+        ]
+    ]
+    output = await get_model(model).generate(
+        _interrupted_history(), tools=tools, config=GenerateConfig(max_tokens=256)
+    )
+    assert output.choices
+
+
+@skip_if_no_google
+async def test_repaired_history_continues_on_google() -> None:
+    await _continue_interrupted_history("google/gemini-2.5-flash")
+
+
+@skip_if_no_bedrock
+@skip_if_trio  # the bedrock provider refuses to run on trio
+async def test_repaired_history_continues_on_bedrock() -> None:
+    await _continue_interrupted_history("bedrock/us.anthropic.claude-sonnet-4-6")
 
 
 # ---------------------------------------------------------------------------
@@ -601,6 +757,219 @@ async def test_after_cancel_blocks_for_redirect_with_existing_user_messages() ->
         assert len(received) == 1
         assert isinstance(received[0], ChatMessageUser)
         assert received[0].content == "redirect"
+
+
+# ---------------------------------------------------------------------------
+# Turn gate
+# ---------------------------------------------------------------------------
+
+
+class _RecordingGate:
+    """Turn gate that records its calls and returns a set result."""
+
+    def __init__(self, rewrite: bool = False, answer: bool = False) -> None:
+        self.rewrite = rewrite
+        self.answer = answer
+        self.calls: list[
+            tuple[AgentChannel, Sequence[ChatMessage], AgentState | None, int]
+        ] = []
+        self.answer_calls: list[tuple[AgentChannel, AgentState]] = []
+        self.closed_channels: list[AgentChannel] = []
+
+    async def before_turn(
+        self,
+        channel: AgentChannel,
+        messages: Sequence[ChatMessage],
+        state: AgentState | None,
+    ) -> bool:
+        self.calls.append((channel, messages, state, len(channel._queue)))
+        return self.rewrite
+
+    async def after_answer(self, channel: AgentChannel, state: AgentState) -> bool:
+        self.answer_calls.append((channel, state))
+        return self.answer
+
+    def closed(self, channel: AgentChannel) -> None:
+        self.closed_channels.append(channel)
+
+
+async def test_before_turn_awaits_gate_before_draining() -> None:
+    gate = _RecordingGate()
+    with turn_gate(gate):
+        async with agent_channel() as ch:
+            ch._post(UserMessage(message=ChatMessageUser(content="queued")))
+            messages: list[ChatMessage] = [ChatMessageUser(content="prior")]
+            state = AgentState(messages=messages)
+            result = await ch.before_turn(state.messages, state=state)
+            await ch.before_turn(messages)
+
+    assert [m.content for m in result] == ["queued"]
+    (channel, seen, seen_state, queued), (_, _, no_state, _) = gate.calls
+    assert channel is ch
+    assert seen is state.messages
+    assert seen_state is state
+    # the queue was not drained yet when the gate ran
+    assert queued == 1
+    assert no_state is None
+
+
+async def test_before_turn_returns_messages_posted_during_gate() -> None:
+    class PostingGate(_RecordingGate):
+        async def before_turn(
+            self,
+            channel: AgentChannel,
+            messages: Sequence[ChatMessage],
+            state: AgentState | None,
+        ) -> bool:
+            channel._post(UserMessage(message=ChatMessageUser(content="late")))
+            return False
+
+    with turn_gate(PostingGate()):
+        async with agent_channel() as ch:
+            result = await ch.before_turn([ChatMessageUser(content="prior")])
+    assert [m.content for m in result] == ["late"]
+
+
+@pytest.mark.parametrize("rewrite", [True, False])
+async def test_gate_result_marks_channel_rewritten(rewrite: bool) -> None:
+    with turn_gate(_RecordingGate(rewrite=rewrite)):
+        async with agent_channel() as ch:
+            await ch.before_turn([ChatMessageUser(content="prior")])
+            assert ch._take_rewritten() is rewrite
+            # reading the mark clears it
+            assert ch._take_rewritten() is False
+
+
+async def test_gate_exception_propagates_from_before_turn() -> None:
+    class RaisingGate(_RecordingGate):
+        async def before_turn(
+            self,
+            channel: AgentChannel,
+            messages: Sequence[ChatMessage],
+            state: AgentState | None,
+        ) -> bool:
+            raise ValueError("refused")
+
+    with turn_gate(RaisingGate()):
+        async with agent_channel() as ch:
+            with pytest.raises(ValueError, match="refused"):
+                await ch.before_turn([ChatMessageUser(content="prior")])
+            assert ch._take_rewritten() is False
+
+
+async def test_cancelled_gate_unwinds_channel(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Cancelling a gate while it waits closes the channel and releases ACP."""
+
+    class FakeTransport:
+        def __init__(self) -> None:
+            self.bound: list[AgentRef] = []
+            self.unbound: list[AgentRef] = []
+
+        def maybe_bind(self, channel: AgentChannel, ref: AgentRef) -> bool:
+            self.bound.append(ref)
+            return True
+
+        def unbind(self, ref: AgentRef) -> None:
+            self.unbound.append(ref)
+
+    class FakeSample:
+        acp_transport = FakeTransport()
+
+    monkeypatch.setattr("inspect_ai.log._samples.sample_active", lambda: FakeSample())
+
+    class WaitingGate(_RecordingGate):
+        def __init__(self) -> None:
+            super().__init__()
+            self.entered = anyio.Event()
+
+        async def before_turn(
+            self,
+            channel: AgentChannel,
+            messages: Sequence[ChatMessage],
+            state: AgentState | None,
+        ) -> bool:
+            self.entered.set()
+            await anyio.sleep_forever()
+            return False
+
+    gate = WaitingGate()
+    opened: list[AgentChannel] = []
+    after_cancel: list[AgentChannel] = []
+
+    async def run_loop() -> None:
+        with turn_gate(gate):
+            try:
+                async with agent_channel() as ch:
+                    opened.append(ch)
+                    await ch.before_turn([ChatMessageUser(content="prior")])
+            except anyio.get_cancelled_exc_class():
+                after_cancel.append(current_agent_channel())
+                raise
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(run_loop)
+        await gate.entered.wait()
+        tg.cancel_scope.cancel()
+
+    assert len(opened) == 1
+    assert after_cancel == [_INERT_CHANNEL]
+    assert gate.closed_channels == opened
+    transport = FakeSample.acp_transport
+    assert len(transport.bound) == 1
+    assert transport.unbound == transport.bound
+
+
+async def test_nested_channels_share_gate_and_report_closed() -> None:
+    gate = _RecordingGate()
+    with turn_gate(gate):
+        async with agent_channel() as outer:
+            async with agent_channel() as inner:
+                await inner.before_turn([ChatMessageUser(content="inner")])
+                assert gate.closed_channels == []
+            assert gate.closed_channels == [inner]
+            await outer.before_turn([ChatMessageUser(content="outer")])
+    assert [call[0] for call in gate.calls] == [inner, outer]
+    assert gate.closed_channels == [inner, outer]
+
+
+async def test_channel_opened_outside_turn_gate_has_no_gate() -> None:
+    gate = _RecordingGate()
+    with turn_gate(gate):
+        # the inert channel never calls a gate
+        assert (
+            await current_agent_channel().before_turn(
+                [ChatMessageUser(content="prior")]
+            )
+            == []
+        )
+        with turn_gate(None):
+            async with agent_channel() as ch:
+                await ch.before_turn([ChatMessageUser(content="prior")])
+    async with agent_channel() as ch:
+        await ch.before_turn([ChatMessageUser(content="prior")])
+    assert gate.calls == []
+    assert gate.closed_channels == []
+
+
+async def test_after_answer_without_gate_is_false() -> None:
+    gate = _RecordingGate(answer=True)
+    state = AgentState(messages=[ChatMessageUser(content="prior")])
+    with turn_gate(gate):
+        # the inert channel has no gate
+        assert await after_answer(current_agent_channel(), state) is False
+    async with agent_channel() as ch:
+        assert await after_answer(ch, state) is False
+    assert gate.answer_calls == []
+
+
+@pytest.mark.parametrize("answer", [True, False])
+async def test_after_answer_returns_gate_result(answer: bool) -> None:
+    gate = _RecordingGate(answer=answer)
+    state = AgentState(messages=[ChatMessageUser(content="prior")])
+    with turn_gate(gate):
+        async with agent_channel() as ch:
+            assert await after_answer(ch, state) is answer
+    assert gate.answer_calls == [(ch, state)]
 
 
 # ---------------------------------------------------------------------------

@@ -11,6 +11,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Literal, NamedTuple
 
+import anyio
 import pytest
 from pydantic import (
     BaseModel,
@@ -575,14 +576,14 @@ async def test_approver_inference_exempt_from_limits():
 
 def test_approval_policy_comma_separated_tools():
     policy = ApprovalPolicy(
-        approver=auto_approver(), tools="web_browser*, addition, python"
+        approver=auto_approver(), tools="custom_tool*, addition, python"
     )
     check_approval(policy, decision="approve")
 
 
 def test_approval_policy_comma_separated_list():
     policy = ApprovalPolicy(
-        approver=auto_approver(), tools=["web_browser*", "addition, python"]
+        approver=auto_approver(), tools=["custom_tool*", "addition, python"]
     )
     check_approval(policy, decision="approve")
 
@@ -1978,6 +1979,53 @@ def test_human_approver_rejects_modify_as_the_only_choice() -> None:
         human_approver(["modify"])
 
 
+async def test_panel_approval_answered_after_cancel_stays_cancelled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An answer that lands after the sample is cancelled doesn't replace the cancel."""
+    from inspect_ai.approval._human import panel as panel_module
+    from inspect_ai.approval._human.manager import (
+        human_approval_manager,
+        init_human_approval_manager,
+    )
+
+    async def no_panel(panel: object) -> None:
+        return None
+
+    monkeypatch.setattr(panel_module, "input_panel", no_panel)
+    monkeypatch.setattr(
+        "inspect_ai.log._samples.sample_active",
+        lambda: SimpleNamespace(
+            task="task", model="model", sample=SimpleNamespace(id=1), epoch=1
+        ),
+    )
+    init_human_approval_manager()
+    approvals = human_approval_manager()
+    requested = anyio.Event()
+    approvals.on_change(lambda action: requested.set())
+
+    answers: list[Approval] = []
+
+    async def ask() -> None:
+        call = ToolCall(id="t1", function="bash", arguments={"cmd": "ls"})
+        answers.append(
+            await panel_module.panel_approval(
+                "run it?", call, ToolCallView(), [], ["approve"]
+            )
+        )
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(ask)
+        await requested.wait()
+        ((request_id, _),) = approvals.approval_requests()
+        # the human answers before the cancelled sample task gets to run again
+        tg.cancel_scope.cancel()
+        approvals.complete_approval(request_id, Approval(decision="approve"))
+
+    assert answers == []
+    assert approvals.approval_requests() == []
+
+
 async def routed(call: ToolCall, tools: str | list[str], **arguments: str) -> bool:
     """Whether a policy for `tools` and `arguments` decides on `call`."""
     policy = (
@@ -2032,11 +2080,11 @@ async def test_policy_arguments_match_in_any_order() -> None:
 
 
 async def test_policy_comma_list_of_names_with_arguments() -> None:
-    for function in ("web_browser_type", "computer"):
+    for function in ("custom_tool", "computer"):
         call = make_tool_call(function, action="key")
-        assert await routed(call, "web_browser_type, computer", action="key")
+        assert await routed(call, "custom_tool, computer", action="key")
     call = make_tool_call("computer", action="type")
-    assert not await routed(call, "web_browser_type, computer", action="key")
+    assert not await routed(call, "custom_tool, computer", action="key")
 
 
 async def test_policy_arguments_are_whole_value_globs() -> None:
@@ -2176,8 +2224,8 @@ async def test_policy_case_and_separator_rules_on_windows(
     "tools",
     [
         "bash(cmd='ls', timeout=10)",
-        "computer(action='key', web_browser_type",
-        "web_browser_type, computer(action='key'",
+        "computer(action='key', custom_tool",
+        "custom_tool, computer(action='key'",
         "computer(*'key'*",
         'bash(cmd="ls"',
         "bash(cmd='it\\'s'",

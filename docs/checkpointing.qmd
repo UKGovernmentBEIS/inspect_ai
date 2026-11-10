@@ -72,6 +72,8 @@ inspect eval arc.py --checkpoint             # CRASH!
 inspect eval-retry logs/<log-file-name>.eval # recover
 ```
 
+Sample-level retries with `retry_on_error` also restore the latest committed checkpoint. If no checkpoint has been committed, the sample restarts from the beginning.
+
 For incomplete samples, Inspect locates the checkpoint directory, restores each sample's most recent committed checkpoint, and continues. The following is restored before the agent runs:
 
 1.  Agent State: Any state values the agent registered (e.g. message or compaction history).

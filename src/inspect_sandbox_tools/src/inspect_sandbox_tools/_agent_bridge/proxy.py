@@ -2122,19 +2122,22 @@ async def model_proxy_server(
 
     # ---------- Google Gemini API routes ----------
     # Route patterns for Google's Gemini API using wildcard matching
-    # Supports: /v1beta/models/{model}:generateContent and /models/{model}:generateContent
+    # Supports: /v1beta/models/{model}:generateContent, /v1/models/{model}:generateContent
+    # and /models/{model}:generateContent
 
     def _extract_model_from_google_path(path: str) -> str | None:
         """Extract model name from Google API path.
 
         Examples:
             /v1beta/models/gemini-2.5-pro:generateContent -> gemini-2.5-pro
+            /v1/models/gemini-2.5-pro:generateContent -> gemini-2.5-pro
             /models/gemini-2.5-flash:streamGenerateContent -> gemini-2.5-flash
         """
         match = re.search(r"models/([^/:]+)", path)
         return match.group(1) if match else None
 
     @server.route("/v1beta/models/*", method="POST")
+    @server.route("/v1/models/*", method="POST")
     @server.route("/models/*", method="POST")
     async def google_generate_content(request: dict[str, Any]) -> dict[str, Any]:
         try:

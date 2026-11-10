@@ -244,11 +244,11 @@ openai/gpt-6-luna:
     output: 0.50
     input_cache_write: 0.125
     input_cache_read: 0.01
-anthropic/claude-sonnet-4-5-20250514:
-    input: 3.00
-    output: 15.00
-    input_cache_write: 3.75
-    input_cache_read: 0.30
+anthropic/claude-sonnet-5-5:
+    input: 2.00
+    output: 10.00
+    input_cache_write: 2.50
+    input_cache_read: 0.10
 ```
 
 (As of Feb 9 2026, all major model providers count reasoning tokens as output tokens, so no separate price needs to be provided for reasoning tokens. If your use case requires separate calculation of reasoning token prices, contact us.)

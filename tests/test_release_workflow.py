@@ -545,12 +545,15 @@ def test_rerun_after_failure_before_dispatching_dispatches_all() -> None:
 
 def test_rerun_after_only_the_first_dispatches_succeeded_dispatches_the_last() -> None:
     gh = FakeGitHub()
-    gh.fail = lambda args: args[:4] == [
-        "gh",
-        "workflow",
-        "run",
-        "release-pr-checks.yml",
-    ]
+    gh.fail = lambda args: (
+        args[:4]
+        == [
+            "gh",
+            "workflow",
+            "run",
+            "release-pr-checks.yml",
+        ]
+    )
     with pytest.raises(ReleaseError, match="release-pr-checks.yml"):
         _dispatch(gh)
     assert gh.dispatches() == ["build.yml", "changelog-lint.yml"]
@@ -840,6 +843,19 @@ def test_release_jobs_follow_the_resolved_tag() -> None:
     assert "tag" in workflow[True]["workflow_dispatch"]["inputs"]
 
 
+def test_release_runs_only_in_the_upstream_repository() -> None:
+    # Every later job needs release-please's tag, so guarding it skips them all.
+    jobs = _load(".github/workflows/release.yml")["jobs"]
+    assert jobs["release-please"]["if"] == (
+        "github.repository == 'UKGovernmentBEIS/inspect_ai' "
+        "&& github.ref == 'refs/heads/main'"
+    )
+    for name, job in jobs.items():
+        if name != "release-please":
+            assert "release-please" in job["needs"], name
+            assert not re.search("always|cancelled|failure", job.get("if", "")), name
+
+
 def test_completeness_check_runs_last_when_nothing_was_resolved() -> None:
     steps = _load(".github/workflows/release.yml")["jobs"]["release-please"]["steps"]
     last = steps[-1]
@@ -904,7 +920,9 @@ def test_build_dist_builds_with_the_hashed_toolchain() -> None:
     assert installs == [
         'python -m pip install --require-hashes --only-binary :all: --no-deps -r "$REQUIREMENTS"'
     ]
-    assert "python -m build --no-isolation" in runs
+    # The wheel is built from the checkout, not the sdist, so it keeps the
+    # sandbox tools binaries that MANIFEST.in leaves out of the sdist.
+    assert "python -m build --no-isolation --sdist --wheel" in runs
 
     # The action's own revision supplies the requirements, wherever the source is.
     (install,) = [s for s in steps if "pip install" in s.get("run", "")]

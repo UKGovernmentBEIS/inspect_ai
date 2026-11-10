@@ -178,7 +178,7 @@ The tables below reference these.
 | Merging upstream main would change the build inputs, or the branch conflicts with main (stage 1, or the stage-3 pre-upload re-check) | "merging main changes the build inputs" or "This branch conflicts with main" | Merge main into the PR branch, push, re-run (R4); nothing is published, so no burn |
 | Version not a canonical integer | wizard "must be a positive integer, not", gate "must be a positive integer, not v" | Set the version file to a plain positive integer, commit, re-run (R4) |
 | Injectable changed but version not above `main` | wizard "CI requires a version above v", gate "bump it above v" | Bump above `main`, commit, re-run (R4) |
-| Version changed with no injectable change | gate "changed to v... but src/inspect_sandbox_tools/ is unchanged" | Revert the version or include the injectable change (R4) |
+| Version changed with no injectable change | gate "changed to v... but the injectable build inputs are unchanged" | Revert the version or include the injectable change (R4) |
 | `SHA256SUMS` changed with no version bump | gate "Digests for a published version are immutable" | Bump the version and publish fresh (R2) |
 
 ### Build and attest (wizard stage 2, build run, gate)

@@ -24,6 +24,7 @@ from test_helpers.utils import (
     failing_task_deterministic,
     identity_solver,
     keyboard_interrupt,
+    skip_if_no_package,
     skip_if_trio,
     sleep_for_solver,
 )
@@ -42,6 +43,7 @@ from inspect_ai._eval.evalset import (
     eval_set,
     latest_completed_task_eval_logs,
     list_all_eval_logs,
+    log_samples_complete,
     read_eval_set_info,
     task_identifier,
     validate_eval_set_prerequisites,
@@ -55,7 +57,14 @@ from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import basename, filesystem, local_path, size_in_mb
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._view.common import read_eval_set_info_async
-from inspect_ai.dataset import Sample
+from inspect_ai.dataset import (
+    Dataset,
+    MemoryDataset,
+    Sample,
+    csv_dataset,
+    hf_dataset,
+    json_dataset,
+)
 from inspect_ai.event import SampleInitEvent
 from inspect_ai.log._edit import ProvenanceData, invalidate_samples
 from inspect_ai.log._file import (
@@ -67,6 +76,7 @@ from inspect_ai.log._file import (
     write_log_listing,
 )
 from inspect_ai.log._log import EvalConfig, EvalLog, EvalSampleSummary
+from inspect_ai.log._metric import recompute_metrics
 from inspect_ai.log._recorders.buffer import database as database_module
 from inspect_ai.log._recorders.buffer.database import (
     SampleBufferDatabase,
@@ -75,7 +85,7 @@ from inspect_ai.log._recorders.buffer.database import (
 )
 from inspect_ai.log._recorders.eval import LogStart, ZipLogFile
 from inspect_ai.log._recorders.types import SampleEvent
-from inspect_ai.model import CachePolicy, Model, get_model
+from inspect_ai.model import CachePolicy, Model, ModelOutput, get_model
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.scorer import (
     Metric,
@@ -2171,6 +2181,226 @@ def test_eval_set_limit_changed():
         verify_logs(logs, log_dir, samples=10)
 
 
+@pytest.mark.parametrize("epochs", [1, 2])
+@pytest.mark.parametrize(
+    "initial_selection,selection,expected_ids,new_ids",
+    [
+        ({"sample_id": ["A"]}, {"sample_id": ["B"]}, ["B"], ["B"]),
+        ({"sample_id": ["A", "C"]}, {"sample_id": ["B"]}, ["B"], ["B"]),
+        ({"sample_id": ["A"]}, {"sample_id": ["A", "B"]}, ["A", "B"], ["B"]),
+        ({}, {"sample_id": ["B"]}, ["A", "B", "C"], []),
+        ({"limit": (0, 1)}, {"limit": (1, 2)}, ["B"], ["B"]),
+        ({"limit": 2}, {"limit": (1, 3)}, ["B", "C"], ["C"]),
+        (
+            {"sample_id": ["selection:A"]},
+            {"sample_id": ["selection:B*"]},
+            ["B"],
+            ["B"],
+        ),
+    ],
+)
+def test_eval_set_selection_coverage(
+    tmp_path: Path,
+    epochs: int,
+    initial_selection: dict[str, Any],
+    selection: dict[str, Any],
+    expected_ids: list[str],
+    new_ids: list[str],
+) -> None:
+    calls: list[str | int] = []
+
+    @solver
+    def record_selection() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            calls.append(state.sample_id)
+            state.output = ModelOutput.from_content("mockllm/model", "ok")
+            return state
+
+        return solve
+
+    test_task = Task(
+        name="selection",
+        dataset=[
+            Sample(id=id, input=id, target="no" if id == "B" else "ok")
+            for id in ["A", "B", "C"]
+        ],
+        solver=record_selection(),
+        scorer=exact(),
+    )
+    success, first_logs = eval_set(
+        test_task,
+        log_dir=str(tmp_path),
+        model="mockllm/model",
+        epochs=epochs,
+        **initial_selection,
+    )
+    assert success
+    calls.clear()
+    success, logs = eval_set(
+        test_task,
+        log_dir=str(tmp_path),
+        model="mockllm/model",
+        epochs=epochs,
+        **selection,
+    )
+    assert success
+    log = read_eval_log(logs[0].location)
+    assert log.samples is not None and log.results is not None
+    assert {sample.id for sample in log.samples} == set(expected_ids)
+    assert len(log.samples) == len(expected_ids) * epochs
+    assert sorted(calls) == sorted(new_ids * epochs)
+    assert log.results.scores[0].metrics["mean"].value == pytest.approx(
+        sum(id != "B" for id in expected_ids) / len(expected_ids)
+    )
+    if not new_ids:
+        assert basename(logs[0].location) == basename(first_logs[0].location)
+
+
+@pytest.mark.parametrize("log_samples", [True, False])
+def test_eval_set_selection_coverage_with_auto_ids(
+    tmp_path: Path, log_samples: bool
+) -> None:
+    for requested in [1, 2]:
+        success, logs = eval_set(
+            hello_world(samples=3),
+            log_dir=str(tmp_path),
+            model="mockllm/model",
+            sample_id=str(requested),
+            epochs=2,
+            log_samples=log_samples,
+        )
+        assert success
+        assert logs[0].eval.dataset.sample_ids == [requested]
+        assert logs[0].results is not None
+        assert logs[0].results.completed_samples == 2
+
+
+def test_eval_set_selection_coverage_partial_and_legacy_logs(tmp_path: Path) -> None:
+    test_task = hello_world(samples=3)
+    model = get_model("mockllm/model")
+    success, _ = eval_set(test_task, log_dir=str(tmp_path), model=model, epochs=2)
+    assert success
+    [log] = list_all_eval_logs(str(tmp_path))
+    [resolved] = resolve_tasks([test_task], {}, model, None, None, None)
+    all_tasks = [(log.task_identifier, resolved)]
+
+    def complete() -> bool:
+        return log_samples_complete(
+            log, all_tasks, [test_task.name], Epochs(2), None, sample_id=2
+        )
+
+    assert complete()
+    assert log.header.results is not None
+    # A tolerated sample error does not make a successful log incomplete.
+    log.header.results.completed_samples = 4
+    assert complete()
+    # A graceful resolution reports actual completions separately. Enough
+    # completions for the new count do not prove the requested id ran.
+    log.header.results.logged_samples = 2
+    assert not complete()
+    with patch("inspect_ai._eval.evalset.task_gracefully_resolved", return_value=True):
+        assert complete()
+    log.header.results.logged_samples = 6
+    assert complete()
+    # Legacy headers without the selection cannot prove identity coverage.
+    log.header.eval.dataset.sample_ids = None
+    assert not complete()
+
+
+def test_eval_set_selection_coverage_after_partial_log_recompute(
+    tmp_path: Path,
+) -> None:
+    test_task = hello_world(samples=3)
+    model = get_model("mockllm/model")
+    success, _ = eval_set(test_task, log_dir=str(tmp_path), model=model, epochs=2)
+    assert success
+    [log] = list_all_eval_logs(str(tmp_path))
+    partial = read_eval_log(log.info.name)
+    assert partial.samples is not None and partial.results is not None
+    partial.samples = [sample for sample in partial.samples if sample.id == 1]
+    partial.results.logged_samples = len(partial.samples)
+    recompute_metrics(partial)
+    assert partial.results.total_samples == 2
+    write_eval_log(partial, log.info.name)
+    [log] = list_all_eval_logs(str(tmp_path))
+    [resolved] = resolve_tasks([test_task], {}, model, None, None, None)
+    assert not log_samples_complete(
+        log,
+        [(log.task_identifier, resolved)],
+        [test_task.name],
+        Epochs(2),
+        None,
+        sample_id=2,
+    )
+
+
+@pytest.mark.parametrize(
+    "initial_ids,ids,selection",
+    [
+        (["A"], ["A", "A"], {}),
+        (["A"], ["A", "A"], {"sample_id": ["A"]}),
+        ([1], [1, "1"], {"limit": 2}),
+    ],
+)
+def test_eval_set_selection_coverage_duplicate_ids_rejected(
+    tmp_path: Path,
+    initial_ids: list[str | int],
+    ids: list[str | int],
+    selection: dict[str, Any],
+) -> None:
+    """Duplicate selected ids are not hidden by a covering successful log."""
+    dataset_ids = list(initial_ids)
+
+    @task
+    def duplicates() -> Task:
+        return Task(
+            dataset=[Sample(id=id, input=str(id), target="ok") for id in dataset_ids],
+            solver=identity_solver(),
+        )
+
+    log_dir = str(tmp_path)
+    success, _ = eval_set(
+        duplicates, log_dir=log_dir, model="mockllm/model", **selection
+    )
+    assert success
+    dataset_ids[:] = ids
+    with pytest.raises(PrerequisiteError, match="unique"):
+        eval_set(duplicates, log_dir=log_dir, model="mockllm/model", **selection)
+
+
+def test_eval_set_drained_shuffled_log_does_not_cover_grown_dataset(
+    tmp_path: Path,
+) -> None:
+    """A fully drained shuffled log does not cover samples added since."""
+    dataset_ids = ["A", "B"]
+
+    @task
+    def grown() -> Task:
+        dataset = MemoryDataset(
+            [Sample(id=id, input=id, target="ok") for id in dataset_ids]
+        )
+        dataset.shuffle()
+        return Task(dataset=dataset, solver=identity_solver())
+
+    model = get_model("mockllm/model")
+    success, _ = eval_set(grown, log_dir=str(tmp_path), model=model)
+    assert success
+    [log] = list_all_eval_logs(str(tmp_path))
+    assert log.header.results is not None
+    # a drain after both samples started resolves both
+    log.header.results.logged_samples = 2
+
+    def complete() -> bool:
+        [resolved] = resolve_tasks([grown], {}, model, None, None, None)
+        return log_samples_complete(
+            log, [(log.task_identifier, resolved)], ["grown"], None, None
+        )
+
+    assert complete()
+    dataset_ids.append("C")
+    assert not complete()
+
+
 def test_eval_set_limit_slices():
     task1 = hello_world(samples=10)
 
@@ -2371,6 +2601,220 @@ def test_eval_set_shuffle_reused_without_limit(tmp_path: Path):
     )
     assert result
     assert logs[0].eval.eval_id == first_eval_id
+
+
+_SHUFFLE_IDS = [f"s{index}" for index in range(50)]
+
+
+def _unseeded_shuffle_dataset(source: str, tmp_path: Path) -> Dataset:
+    """A dataset whose selected samples are redrawn on each task resolution."""
+    records = [{"id": id, "input": id, "target": "ok"} for id in _SHUFFLE_IDS]
+    match source:
+        case "sample_shuffle":
+            return MemoryDataset(
+                [Sample(id=id, input=id, target="ok") for id in _SHUFFLE_IDS]
+            )
+        case "dataset_shuffle":
+            dataset = MemoryDataset(
+                [Sample(id=id, input=id, target="ok") for id in _SHUFFLE_IDS]
+            )
+            dataset.shuffle()
+            return dataset
+        case "csv":
+            path = tmp_path / "samples.csv"
+            path.write_text(
+                "id,input,target\n" + "".join(f"{id},{id},ok\n" for id in _SHUFFLE_IDS)
+            )
+            return csv_dataset(str(path), shuffle=True, limit=5)
+        case "json":
+            path = tmp_path / "samples.jsonl"
+            path.write_text("".join(json.dumps(record) + "\n" for record in records))
+            return json_dataset(str(path), shuffle=True, limit=5)
+        case "hf":
+            path = tmp_path / "samples.csv"
+            path.write_text(
+                "id,input,target\n" + "".join(f"{id},{id},ok\n" for id in _SHUFFLE_IDS)
+            )
+            return hf_dataset(
+                "csv",
+                split="train",
+                data_files=str(path),
+                shuffle=True,
+                limit=5,
+                cached=False,
+            )
+    raise AssertionError(source)
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "sample_shuffle",
+        "dataset_shuffle",
+        "csv",
+        "json",
+        pytest.param("hf", marks=skip_if_no_package("datasets")),
+    ],
+)
+def test_eval_set_unseeded_shuffle_reuses_completed_subset(
+    tmp_path: Path, source: str
+) -> None:
+    """Rerunning an unchanged unseeded shuffle with a subset is a no-op."""
+    calls: list[str | int] = []
+
+    @solver
+    def record_selection() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            calls.append(state.sample_id)
+            state.output = ModelOutput.from_content("mockllm/model", "ok")
+            return state
+
+        return solve
+
+    @task
+    def unseeded_shuffle() -> Task:
+        return Task(
+            dataset=_unseeded_shuffle_dataset(source, tmp_path),
+            solver=record_selection(),
+            scorer=exact(),
+        )
+
+    selection: dict[str, Any] = {
+        "sample_shuffle": {"sample_shuffle": True, "limit": 5},
+        "dataset_shuffle": {"limit": 5},
+    }.get(source, {})
+    log_dir = str(tmp_path / "logs")
+    with patch(
+        "inspect_ai.dataset._sources.hf.inspect_cache_dir",
+        return_value=tmp_path / "hf_cache",
+    ):
+        success, first_logs = eval_set(
+            unseeded_shuffle, log_dir=log_dir, model="mockllm/model", **selection
+        )
+        assert success
+        first_ids = list(first_logs[0].eval.dataset.sample_ids or [])
+        assert len(first_ids) == 5 and len(calls) == 5
+        calls.clear()
+
+        # each eval_set call resolves the task again, redrawing the shuffle
+        success, logs = eval_set(
+            unseeded_shuffle, log_dir=log_dir, model="mockllm/model", **selection
+        )
+    assert success
+    assert calls == []
+    assert basename(logs[0].location) == basename(first_logs[0].location)
+    assert logs[0].eval.dataset.sample_ids == first_ids
+
+
+@pytest.mark.parametrize("source", ["dataset_shuffle", "csv"])
+def test_eval_set_shuffled_dataset_sample_id_change_runs_new_sample(
+    tmp_path: Path, source: str
+) -> None:
+    """A shuffled log selected by id does not cover a newly requested id."""
+    calls: list[str | int] = []
+    ids = ["A", "B", "C"]
+
+    @solver
+    def record_selection() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            calls.append(state.sample_id)
+            state.output = ModelOutput.from_content("mockllm/model", "ok")
+            return state
+
+        return solve
+
+    def dataset() -> Dataset:
+        if source == "csv":
+            path = tmp_path / "samples.csv"
+            path.write_text(
+                "id,input,target\n"
+                + "".join(f"{id},{id},{'ok' if id == 'C' else 'no'}\n" for id in ids)
+            )
+            return csv_dataset(str(path), shuffle=True)
+        shuffled = MemoryDataset(
+            [Sample(id=id, input=id, target="ok" if id == "C" else "no") for id in ids]
+        )
+        shuffled.shuffle()
+        return shuffled
+
+    @task
+    def shuffled_selection() -> Task:
+        return Task(dataset=dataset(), solver=record_selection(), scorer=exact())
+
+    log_dir = str(tmp_path / "logs")
+    success, _ = eval_set(
+        shuffled_selection, log_dir=log_dir, model="mockllm/model", sample_id=["A"]
+    )
+    assert success
+    assert calls == ["A"]
+    calls.clear()
+
+    # the same count of a different id: only identity shows the change
+    success, logs = eval_set(
+        shuffled_selection, log_dir=log_dir, model="mockllm/model", sample_id=["C"]
+    )
+    assert success
+    assert calls == ["C"]
+    log = read_eval_log(logs[0].location)
+    assert log.samples is not None and log.results is not None
+    assert {sample.id for sample in log.samples} == {"C"}
+    assert log.results.scores[0].metrics["mean"].value == 1.0
+
+
+def test_eval_set_unseeded_shuffle_kept_across_sibling_retry(tmp_path: Path) -> None:
+    """A sibling's retry pass does not redraw a completed unseeded shuffle."""
+    shuffled_calls: list[str | int] = []
+    sibling_calls: list[str | int] = []
+
+    @solver
+    def record_selection() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            shuffled_calls.append(state.sample_id)
+            state.output = ModelOutput.from_content("mockllm/model", "ok")
+            return state
+
+        return solve
+
+    @solver
+    def fail_first_attempt() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            sibling_calls.append(state.sample_id)
+            if len(sibling_calls) == 1:
+                raise RuntimeError("first attempt fails")
+            state.output = ModelOutput.from_content("mockllm/model", "ok")
+            return state
+
+        return solve
+
+    @task
+    def shuffled_selection() -> Task:
+        return Task(
+            dataset=_unseeded_shuffle_dataset("sample_shuffle", tmp_path),
+            solver=record_selection(),
+            scorer=exact(),
+        )
+
+    @task
+    def sibling() -> Task:
+        return Task(
+            dataset=[Sample(id="x", input="x", target="ok")],
+            solver=fail_first_attempt(),
+            scorer=exact(),
+        )
+
+    success, logs = eval_set(
+        [shuffled_selection, sibling],
+        log_dir=str(tmp_path / "logs"),
+        model="mockllm/model",
+        sample_shuffle=True,
+        limit=5,
+        retry_attempts=2,
+        retry_wait=0.001,
+        retry_immediate=False,
+    )
+    assert success
+    assert len(sibling_calls) == 2
+    assert len(shuffled_calls) == 5
 
 
 def test_eval_set_bundle_when_all_complete(tmp_path: Path) -> None:

@@ -10,6 +10,7 @@ from shortuuid import uuid
 from inspect_ai._util.constants import SANDBOX_SETUP_TIMEOUT
 from inspect_ai.util._sandbox.events import SandboxEnvironmentProxy
 
+from ._framework_operation import framework_sandbox_operation
 from ._privileged import (
     IMAGE_PATH_VARIABLE,
     image_path_lookup,
@@ -139,7 +140,8 @@ async def _is_file_readable(environment: SandboxEnvironment, file: str) -> bool:
 
     # Fallback: read the file. Cross-platform but transfers full contents.
     try:
-        await environment.read_file(file, False)
+        with framework_sandbox_operation():
+            await environment.read_file(file, False)
         return True
     # allow exception types known to be raised from read_file
     except (
@@ -192,6 +194,9 @@ async def sandbox_with_injection(
             Each injectable is a (detector, injector) tuple.
         name: Optional sandbox environment name.
         target: Optional sandbox instance to inject into directly.
+            Without `name` or `target`, the sandbox of an active
+            `sandbox_identity()` scope, else the sandbox needing the fewest
+            injections.
 
     Returns:
         SandboxEnvironment instance that satisfies all injection requirements.
@@ -200,15 +205,22 @@ async def sandbox_with_injection(
         ProcessLookupError: If there are no sandboxes available.
         ValueError: If an invalid sandbox name is specified.
         RuntimeError: If injection fails.
+        SandboxIdentityError: If, without `name` or `target`, the current
+            sandbox context no longer lists the scope's sandbox.
     """
     if isinstance(injectables, tuple):
         injectables = [injectables]
+
+    from .identity import sandbox_identity_environment
 
     if target is not None:
         target_sandbox = target
     elif name:
         # Named sandbox: inject directly into the specified sandbox
         target_sandbox = sandbox(name)
+    elif (identity_sandbox := sandbox_identity_environment()) is not None:
+        # model-facing tools inside a sandbox_identity() scope use its sandbox
+        target_sandbox = identity_sandbox
     else:
         # Unnamed sandbox: find best candidate (fewest injections needed)
         target_sandbox, _ = await _get_injection_target(injectables)

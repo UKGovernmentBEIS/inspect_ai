@@ -22,6 +22,7 @@ from .util.file_batcher import FileBatcher
 
 
 class CompletedBatchInfo(TypedDict):
+    status: str
     result_uris: list[str]
 
 
@@ -63,6 +64,24 @@ class OpenAIBatcher(FileBatcher[ResponseT, CompletedBatchInfo], Generic[Response
             "url": self.endpoint,
             "body": {k: v for k, v in request.request.items() if v is not NOT_GIVEN},
         }
+
+    @override
+    async def _handle_batch_result(
+        self, batch: Batch[ResponseT], completion_info: CompletedBatchInfo
+    ) -> dict[str, ResponseT | Exception]:
+        """Read the result files, failing requests that have no result.
+
+        A cancelled batch has only the partial results (if any) in its output
+        file, so it can end without a result for some or all of its requests.
+        """
+        results = await super()._handle_batch_result(batch, completion_info)
+        missing = RuntimeError(
+            f"Batch {batch.id} ended with status '{completion_info['status']}' "
+            "without a result for this request"
+        )
+        for request_id in batch.requests.keys() - results.keys():
+            results[request_id] = missing
+        return results
 
     @override
     def _uris_from_completion_info(
@@ -184,7 +203,17 @@ class OpenAIBatcher(FileBatcher[ResponseT, CompletedBatchInfo], Generic[Response
             else (0, 0)
         )
 
-        if batch_info.status not in {"completed", "failed", "cancelled", "expired"}:
+        batch_file_ids = [
+            file_id
+            for file_id in [batch_info.output_file_id, batch_info.error_file_id]
+            if file_id is not None
+        ]
+
+        # A completed batch without result files may not have them set yet, so
+        # keep polling; cancelled and expired batches can end without any.
+        if batch_info.status not in {"completed", "cancelled", "expired"} or (
+            batch_info.status == "completed" and not batch_file_ids
+        ):
             return BatchCheckResult(
                 completed_count=completed,
                 failed_count=failed,
@@ -192,22 +221,14 @@ class OpenAIBatcher(FileBatcher[ResponseT, CompletedBatchInfo], Generic[Response
                 completion_info=None,
             )
 
-        # The doc suggests that `output_file_id` will only be populated if the batch
-        # as a whole reached the `completed` state. This means that if all but
-        # one request in the batch completed, but ultimately the batch expired,
-        # there will be no partial results returned.
-
-        batch_file_ids = [
-            file_id
-            for file_id in [batch_info.output_file_id, batch_info.error_file_id]
-            if file_id is not None
-        ]
-
         return BatchCheckResult(
             completed_count=completed,
             failed_count=failed,
             created_at=batch_info.created_at,
-            completion_info={"result_uris": batch_file_ids} if batch_file_ids else None,
+            completion_info={
+                "status": batch_info.status,
+                "result_uris": batch_file_ids,
+            },
         )
 
     # Protected - subclasses can override
