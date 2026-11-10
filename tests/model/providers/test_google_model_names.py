@@ -48,6 +48,7 @@ KNOWN_MODELS = [
     "gemini-3.7-flash",
     "gemini-3.8-flash",
     "gemini-4-argon",
+    "gemini-4-carbon",
 ]
 
 NON_GENERATIVE_MODELS = [
@@ -106,6 +107,8 @@ def test_pro_codename_is_thinking_only() -> None:
         ("gemini-4-flash", False),
         ("gemini-4-argon", False),
         ("vertex/gemini-4-argon", False),
+        ("gemini-4-carbon", False),
+        ("vertex/gemini-4-carbon", False),
         ("gemini-3.1-flash-lite", True),
         ("gemini-3.1-flash-lite-preview", True),
         ("gemini-3.5-flash-lite", True),
@@ -156,6 +159,7 @@ def test_supports_minimal_thinking(model_name: str, expected: bool) -> None:
     "model_name,expected",
     [
         ("gemini-4-argon", (4,)),
+        ("gemini-4-carbon", (4,)),
         ("gemini-3.8-flash", (3, 8)),
         ("gemini-3-pro", (3,)),
         ("gemini-2.5-flash-lite", (2, 5)),
@@ -180,7 +184,7 @@ def test_gemini_version(model_name: str, expected: tuple[int, ...] | None) -> No
 def test_codename_aliases_to_frontier_context_window(model_name: str) -> None:
     # input_tokens_name() aliases to the current frontier so the context window
     # resolves correctly instead of falling back to the 128K default.
-    assert _api(model_name).input_tokens_name() == "google/gemini-4-argon"
+    assert _api(model_name).input_tokens_name() == "google/gemini-4-carbon"
 
 
 @pytest.mark.parametrize("model_name", KNOWN_MODELS)
@@ -197,7 +201,7 @@ def test_future_gemini_version_aliases_to_frontier() -> None:
     assert api.is_gemini_3_plus() is True
     # unverified Pro names keep the fail-safe (thinking cannot be disabled)
     assert api.is_gemini_thinking_only() is True
-    assert api.input_tokens_name() == "google/gemini-4-argon"
+    assert api.input_tokens_name() == "google/gemini-4-carbon"
 
 
 def test_latest_scoped_to_dev_endpoint() -> None:
@@ -227,6 +231,12 @@ def test_codename_context_window_resolves() -> None:
         ("gemini-4-argon", "xhigh", "high"),
         ("gemini-4-argon", "max", "high"),
         ("gemini-4-argon", "none", None),
+        ("gemini-4-carbon", "minimal", "low"),
+        ("gemini-4-carbon", "low", "low"),
+        ("gemini-4-carbon", "medium", "medium"),
+        ("gemini-4-carbon", "high", "high"),
+        ("gemini-4-carbon", "max", "high"),
+        ("gemini-4-carbon", "none", None),
         ("nimbus-preview", "minimal", "low"),
         ("gemini-3-pro", "low", "low"),
         ("gemini-3-pro", "medium", "medium"),
@@ -269,6 +279,7 @@ def test_gemini_is_latest(family: str, expected: bool) -> None:
         ("gemini-3.8-flash", True, True, False),
         ("gemini-3.1-pro-preview", True, True, True),
         ("gemini-4-argon", True, True, False),
+        ("gemini-4-carbon", True, True, False),
         ("gemini-4-pro", True, True, True),
         ("gemini-pro-latest", True, True, True),
         (
