@@ -304,7 +304,7 @@ class Scripted:
 
 async def generate(
     bridge: AgentBridge,
-    model: Scripted,
+    model: "Scripted | Parsing",
     input: list[ChatMessage],
     tools: list[ToolInfo] | None = None,
 ) -> ModelOutput:
@@ -7187,18 +7187,9 @@ async def test_a_modified_responses_call_continues_as_approved(
 def test_a_modified_responses_item_carries_the_approved_arguments(
     param: dict[str, Any], modified: ToolCall, expected: dict[str, Any]
 ) -> None:
-    from inspect_ai.model._assistant_internal import init_sample_assistant_internal
-    from inspect_ai.model._openai_responses import (
-        assistant_internal,
-        hand_openai_tool_call,
-    )
+    from inspect_ai.model._openai_responses import _replayed_item
 
-    init_sample_assistant_internal()
-    assistant_internal().tool_calls[param["call_id"]] = cast(Any, deepcopy(param))
-    hand_openai_tool_call(modified)
-
-    handed = cast(dict[str, Any], assistant_internal().tool_calls[param["call_id"]])
-    assert handed == {
+    assert _replayed_item(deepcopy(param), modified) == {
         **{key: value for key, value in param.items() if key not in ("action", "id")},
         **expected,
     }
@@ -10039,7 +10030,7 @@ def _native(dialect: str, path: str | None, state: Any) -> bool:
         case "google" | "computer_use":
             return state == (GOOGLE_SIGNATURE if old else None)
         case _:
-            # a modified Responses item has no id (`hand_openai_tool_call`)
+            # a modified Responses item has no id (`_replayed_item`)
             if path == "safe.txt":
                 return state is None
             return str(state).endswith("_1" if old else "_2")
@@ -10463,3 +10454,71 @@ async def test_live_modified_gemini_computer_action_continues() -> None:
     results = [part.function_response.name for part in parts if part.function_response]
     expected = gemini_computer_action_name(modified[0])
     assert calls[0] == results[0] == expected
+
+
+@pytest.mark.parametrize("checked", [True, False])
+@pytest.mark.parametrize("kind", RESPONSES_KINDS)
+async def test_a_call_proposed_again_replays_each_turn_with_its_own_arguments(
+    kind: str, checked: bool
+) -> None:
+    from contextlib import AbstractContextManager, nullcontext
+
+    item = _responses_call_reading(kind, "old.txt", 1)
+    # the same call again, in another response item
+    model = Parsing(
+        _responses_parsed(item),
+        _responses_parsed(item.model_copy(update={"id": f"{item.id}_again"})),
+        lambda: calls_output(),
+        wire=_responses_wire,
+    )
+    bridge = in_process_bridge([])
+    handouts = 0
+
+    @protocol
+    def modify_first() -> Protocol:
+        async def rewrite(
+            context: Context, step: BeforeToolCall, escalations: Escalations
+        ) -> Decision | None:
+            nonlocal handouts
+            handouts += 1
+            if handouts > 1:
+                return None
+            return Decision(action="modify", modified=_safer(step.call), explanation="")
+
+        return rewrite
+
+    @approver(name="modify_first")
+    def modifying_first() -> Approver:
+        async def approve(
+            message: str,
+            call: ToolCall,
+            view: ToolCallView,
+            history: list[ChatMessage],
+        ) -> Approval:
+            nonlocal handouts
+            handouts += 1
+            if handouts > 1:
+                return Approval(decision="approve")
+            return Approval(decision="modify", modified=_safer(call))
+
+        return approve
+
+    if not checked:
+        bridge.approval = [ApprovalPolicy(modifying_first(), "*")]
+    sentinel: AbstractContextManager[None] = (
+        active([modify_first()]) if checked else nullcontext()
+    )
+    messages: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+    with sentinel:
+        for _ in range(2):
+            handed = await generate(bridge, model, messages)
+            messages = _answered(messages, handed)
+        await generate(bridge, model, messages)
+
+    replayed = [param for param in model.wire[-1] if param.get("type") == item.type]
+    # the first turn was handed safe.txt, the second old.txt, both natively
+    assert [
+        "safe.txt" in json.dumps(_responses_native_arguments(param))
+        for param in replayed
+    ] == [True, False]
+    assert [param.get("id") for param in replayed] == [None, f"{item.id}_again"]

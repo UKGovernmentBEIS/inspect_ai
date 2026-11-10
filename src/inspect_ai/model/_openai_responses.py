@@ -851,32 +851,38 @@ def dump_openai_assistant_internal() -> JsonValue | None:
 
 
 def hand_openai_tool_call(call: ToolCall) -> None:
-    """Hold the call's cached item to the call as it is handed on.
+    """Drop the call's cached item when it is for another function.
 
-    An item for another function is dropped, so the call replays from itself.
-    One with other arguments (approval or a filter changed them) is rewritten
-    with the call's, without the item's `id`: a stored response resolves an
-    item by its `id` to the stored arguments, ignoring the ones the request
-    sends.
+    The call, and its result, then replay from the call. An item for the call's
+    function replays with the arguments of each message's call
+    (`_replayed_item`).
     """
     internal = assistant_internal()
     item = internal.tool_calls.get(call.id)
-    if item is None:
-        return
-    param = cast(dict[str, Any], item)
-    if not _item_names_call(param, call):
+    if item is not None and not _item_names_call(cast(dict[str, Any], item), call):
         del internal.tool_calls[call.id]
-    elif not _item_carries_arguments(param, call):
-        try:
-            handed = _with_tool_call_arguments(dict(param), call)
-        except (TypeError, ValueError):
-            # arguments JSON can't encode (e.g. a parsed YAML date)
-            del internal.tool_calls[call.id]
-            return
-        internal.tool_calls[call.id] = cast(
-            Any,
-            {key: value for key, value in handed.items() if key != "id"},
-        )
+
+
+def _replayed_item(param: dict[str, Any], call: ToolCall) -> dict[str, Any] | None:
+    """The cached item `param` as `call` replays in its message, or None to replay the call.
+
+    The item replays as cached only when it carries the call's arguments. The
+    cache keeps one item per id, which a call proposed again under the id, or
+    a call whose arguments approval, the sentinel or a filter changed, doesn't
+    match; such a call replays natively with its own arguments, without the
+    item's `id`: a stored response resolves an item by its `id` to the stored
+    arguments, ignoring the ones the request sends.
+    """
+    if not _item_names_call(param, call):
+        return None
+    if _item_carries_arguments(param, call):
+        return param
+    try:
+        handed = _with_tool_call_arguments(dict(param), call)
+    except (TypeError, ValueError):
+        # arguments JSON can't encode (e.g. a parsed YAML date)
+        return None
+    return {key: value for key, value in handed.items() if key != "id"}
 
 
 def _item_names_call(param: dict[str, Any], call: ToolCall) -> bool:
@@ -1948,9 +1954,14 @@ def _tool_call_items_from_assistant_message(
     for call in message.tool_calls or []:
         # see if we have it in assistant_internal (computer/custom/tool_search are
         # cached at parse time, and the bridge seeds tool_search calls on replay)
-        assistant_internal_call = assistant_internal().tool_calls.get(call.id, None)
-        if assistant_internal_call is not None:
-            tool_calls.append(assistant_internal_call)
+        cached = assistant_internal().tool_calls.get(call.id, None)
+        replayed = (
+            _replayed_item(cast(dict[str, Any], cached), call)
+            if cached is not None
+            else None
+        )
+        if replayed is not None:
+            tool_calls.append(cast(ResponseInputItemParam, replayed))
         else:
             # create param (rendering todo_write -> update_plan when swapping, else
             # the name-only alias)

@@ -1,7 +1,8 @@
 import json
 from contextlib import nullcontext
+from dataclasses import replace
 from types import SimpleNamespace
-from typing import Any, cast
+from typing import Any
 
 import pytest
 from test_helpers.utils import skip_if_no_openai
@@ -209,6 +210,55 @@ def test_tool_call_arguments_within_limit_cached_verbatim():
     _process_response_output_items(outputs, [])
 
     assert assistant_internal().tool_calls["call_1"]["arguments"] == raw_arguments
+
+
+def test_each_message_replays_a_call_id_with_its_own_arguments():
+    from openai.types.responses import ResponseFunctionToolCall
+
+    from inspect_ai.model._assistant_internal import init_sample_assistant_internal
+    from inspect_ai.model._openai_responses import (
+        _process_response_output_items,
+        _tool_call_items_from_assistant_message,
+    )
+
+    init_sample_assistant_internal()
+    _, [generated], _, _ = _process_response_output_items(
+        [
+            ResponseFunctionToolCall(
+                type="function_call",
+                id="fc_1",
+                call_id="call_1",
+                name="bash",
+                arguments='{"command": "ls old"}',
+            )
+        ],
+        [],
+    )
+    # an earlier message's call under the id, which approval changed
+    changed = replace(generated, arguments={"command": "ls safe"})
+
+    replayed = [
+        _tool_call_items_from_assistant_message(
+            ChatMessageAssistant(content="", tool_calls=[call])
+        )[0]
+        for call in (changed, generated)
+    ]
+
+    assert replayed == [
+        {
+            "type": "function_call",
+            "call_id": "call_1",
+            "name": "bash",
+            "arguments": '{"command": "ls safe"}',
+        },
+        {
+            "type": "function_call",
+            "id": "fc_1",
+            "call_id": "call_1",
+            "name": "bash",
+            "arguments": '{"command": "ls old"}',
+        },
+    ]
 
 
 def test_oversized_tool_call_arguments_truncated_on_cache_miss():
@@ -2969,15 +3019,10 @@ def test_tool_call_id_repeated_in_a_response_caches_no_item():
     assert "call_shared" not in assistant_internal().tool_calls
 
 
-def test_an_unchanged_computer_call_keeps_its_item_without_safety_checks():
-    from inspect_ai.model._assistant_internal import init_sample_assistant_internal
-    from inspect_ai.model._openai_responses import (
-        assistant_internal,
-        hand_openai_tool_call,
-    )
+def test_an_unchanged_computer_call_replays_its_item_without_safety_checks():
+    from inspect_ai.model._openai_responses import _replayed_item
     from inspect_ai.tool._tool_call import ToolCall
 
-    init_sample_assistant_internal()
     # as a live response dumps it: no `pending_safety_checks` or `status`
     item: Any = {
         "type": "computer_call",
@@ -2985,31 +3030,23 @@ def test_an_unchanged_computer_call_keeps_its_item_without_safety_checks():
         "call_id": "call_computer",
         "actions": [{"type": "screenshot"}],
     }
-    assistant_internal().tool_calls["call_computer"] = cast(Any, dict(item))
     call = ToolCall(
         id="call_computer",
         function="computer",
         arguments={"actions": [{"action": "screenshot"}]},
     )
 
-    hand_openai_tool_call(call)
-
-    assert assistant_internal().tool_calls["call_computer"] == item
+    assert _replayed_item(dict(item), call) == item
 
 
 @pytest.mark.parametrize(
     "raw", ['{"command":   "ls"}', '{"command": "ls"', "ls -la", "2024-01-01"]
 )
-def test_an_unchanged_function_call_keeps_its_item(raw: str) -> None:
-    from inspect_ai.model._assistant_internal import init_sample_assistant_internal
+def test_an_unchanged_function_call_replays_its_item(raw: str) -> None:
     from inspect_ai.model._call_tools import parse_tool_call
-    from inspect_ai.model._openai_responses import (
-        assistant_internal,
-        hand_openai_tool_call,
-    )
+    from inspect_ai.model._openai_responses import _replayed_item
     from inspect_ai.tool._tool_params import ToolParam, ToolParams
 
-    init_sample_assistant_internal()
     item: Any = {
         "type": "function_call",
         "id": "fc_1",
@@ -3017,7 +3054,6 @@ def test_an_unchanged_function_call_keeps_its_item(raw: str) -> None:
         "name": "bash",
         "arguments": raw,
     }
-    assistant_internal().tool_calls["call_1"] = cast(Any, dict(item))
 
     # as the Responses parse makes the call, with its tools
     bash = ToolInfo(
@@ -3025,37 +3061,27 @@ def test_an_unchanged_function_call_keeps_its_item(raw: str) -> None:
         description="Run a command.",
         parameters=ToolParams(properties={"command": ToolParam(type="string")}),
     )
-    hand_openai_tool_call(parse_tool_call("call_1", "bash", raw, [bash]))
+    call = parse_tool_call("call_1", "bash", raw, [bash])
 
-    assert assistant_internal().tool_calls["call_1"] == item
+    assert _replayed_item(dict(item), call) == item
 
 
-def test_a_changed_call_whose_arguments_json_cant_encode_keeps_no_item() -> None:
+def test_a_changed_call_whose_arguments_json_cant_encode_replays_no_item() -> None:
     import datetime
 
-    from inspect_ai.model._assistant_internal import init_sample_assistant_internal
-    from inspect_ai.model._openai_responses import (
-        assistant_internal,
-        hand_openai_tool_call,
-    )
+    from inspect_ai.model._openai_responses import _replayed_item
     from inspect_ai.tool._tool_call import ToolCall
 
-    init_sample_assistant_internal()
-    assistant_internal().tool_calls["call_1"] = cast(
-        Any,
-        {
-            "type": "function_call",
-            "id": "fc_1",
-            "call_id": "call_1",
-            "name": "bash",
-            "arguments": "2024-01-01",
-        },
+    item: Any = {
+        "type": "function_call",
+        "id": "fc_1",
+        "call_id": "call_1",
+        "name": "bash",
+        "arguments": "2024-01-01",
+    }
+    call = ToolCall(
+        id="call_1", function="bash", arguments={"day": datetime.date(2024, 1, 2)}
     )
 
-    hand_openai_tool_call(
-        ToolCall(
-            id="call_1", function="bash", arguments={"day": datetime.date(2024, 1, 2)}
-        )
-    )
-
-    assert "call_1" not in assistant_internal().tool_calls
+    # the call replays from itself
+    assert _replayed_item(item, call) is None

@@ -127,9 +127,10 @@ def dump_sample_assistant_internal() -> JsonValue | None:
 def hand_tool_call(call: ToolCall) -> None:
     """Hold the providers' replay state for `call` to the call as it is handed on.
 
-    Only a Responses item carries a call's function and arguments
-    (`hand_openai_tool_call`); a provider's other per-call state (Anthropic's
-    name and position) holds as it is.
+    Only a Responses item carries a call's function and arguments: one for
+    another function is dropped (`hand_openai_tool_call`), and one for the
+    call's function replays with each message's arguments. A provider's other
+    per-call state (Anthropic's name and position) holds as it is.
     """
     if _HAS_OPENAI:
         try:

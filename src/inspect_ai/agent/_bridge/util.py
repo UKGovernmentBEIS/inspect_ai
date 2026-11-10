@@ -1783,9 +1783,9 @@ def _hold_replay_state(output: ModelOutput, generations: Sequence[ModelOutput]) 
 
     A provider replays a call with the state its parse recorded under the
     call's id (a Responses item, Anthropic's name and position): that of the
-    call as generated. Each call's state is held to the call as handed on,
-    with the arguments approval, the sentinel or a filter gave it
-    (`hand_tool_call`). A call under an id `output` repeats, or that several
+    call as generated. Each call's state is held to the call as handed on
+    (`hand_tool_call`); the provider replays it with the arguments of the
+    call in each message. A call under an id `output` repeats, or that several
     generations of the request (`generations`) made different calls under,
     keeps no state (`forget_tool_call`), as the state under it can't be told
     apart by call, and replays from itself.
