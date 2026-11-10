@@ -396,11 +396,15 @@ class PortRequest:
   other than `success`, by task id. This record is separate from requested-
   task matching, prior-source reuse and retry scheduling: it reruns nothing
   (a later round reruns only requested tasks, whose creator decides what to
-  feed again), and the retry predicate still looks only at requested tasks'
-  logs, so a failed fed task alone starts no extra round. The final result
-  is `all_evals_succeeded` over the requested tasks' logs and no failed fed
-  task recorded; the closing message names the failed fed tasks ("Did not
-  successfully complete all tasks: tasks fed by their creator failed: …").
+  feed again). The retry predicate and the final result keep every log they
+  consume today, including the logs of ordinary added tasks (a failed
+  fixed-dataset task a requested task enqueued still fails the eval set, as
+  today), and leave out only the logs of tasks fed by their creator, whose
+  outcome comes from the record instead: so a failed fed task alone starts no
+  extra round, and the final result is `all_evals_succeeded` over every
+  other log it consumes today and no failed fed task recorded. The closing
+  message names the failed fed tasks ("Did not successfully complete all
+  tasks: tasks fed by their creator failed: …").
 - **The log says so.** A new `EvalSpec` field, `send_samples: bool = False`,
   after `task_args_passed`: "the task's dataset was samples_from_creator(),
   so its samples were sent by the task that added it". The `TaskLogger` sets
@@ -644,8 +648,8 @@ test touched), with mockllm models; every test that waits is bounded with
   - an empty-seed fed task whose request A completes and whose request B then
     needs a sandbox setup (stub provider), with `task_retry_attempts=2`: when
     the setup fails once, its own retry absorbs it and B returns its run;
-    when it fails every try, it is tried three times with cleanup between
-    tries, then the task ends with its error log, is not retried as a task,
+    when it fails every try, it is tried three times with no cleanup
+    between tries, then the task ends with its error log, is not retried as a task,
     A's call has already returned its run, B's call raises `TaskEndedError`
     carrying that log, and a fresh fed task the creator then adds needing the
     same configuration ends the same way with no fourth try; the same for a
@@ -662,6 +666,9 @@ test touched), with mockllm models; every test that waits is bounded with
     rerun, and the final result is failure with the closing message naming
     the rollout task; with no failing requested task, no second round runs
     because of the failed rollout alone;
+  - under `eval_set()` with no fed tasks, a requested task that succeeds
+    after enqueuing an ordinary fixed-dataset task that exhausts its retries:
+    the eval set's result is failure, as today;
   - a detached task started in a creator's solver, released after the
     creator's attempt has given its slot back while another task keeps the run
     open, calls `enqueue_task()` with a `samples_from_creator()` task: it
