@@ -38,6 +38,8 @@ sandbox and model):
   and `eval_set()`, not after the current batch.
 - A sandbox configuration used by added tasks is set up once per run, not
   once per batch, and cleaned up at the end of the run.
+- A task added while `TaskSource.next_tasks()` blocks starts at once; today
+  it waits for the call to return.
 - A task that needs no setup, or whose setup is done, starts while other
   setups run; at `max_tasks == 1` it can start ahead of an earlier task that
   waits for an image.
@@ -531,22 +533,29 @@ async with _run_task_screen(...):              # absorbs a cancellation of the r
     async with setups.open():                  # setup jobs run here; the seed's start now
         async with attempt task group:         # today's group: run_one and the throughput reporter
             try:
+                source_done = task_source is None
+                pull = None                                    # the one outstanding next_tasks() call
                 loop:
                     drop pending retries whose task carries the abandon stamp
                         (each ends its record with its stored log)
+                    if pull is not None and pull.done:
+                        more = pull.take()                     # re-raises the call's exception here
+                        pull = None
+                        if not more: source_done = True        # None or [], as today
+                        else: queue.add(resolve(more), ahead=True)
                     while not cancelled and in_flight < effective_max_tasks(parallel):
                         entry = pick_balanced(startable entries)
                         if entry is None: break
                         start run_one(entry)
                     [loaned starts: task-handles.md]
                     if cancelled: break
-                    if an entry is pending, an attempt is running or a setup job is running:
-                        await queue.wake; continue
-                    if source_done: break
-                    more = await task_source.next_tasks() if task_source else None
-                    if not more: source_done = True            # None or [], as today
-                    else: queue.add(resolve(more), ahead=True)
+                    idle = no entry is pending, no attempt and no setup job is running
+                    if idle and source_done and pull is None: break
+                    if idle and not source_done and pull is None:
+                        pull = start next_tasks() in the attempt group, in its own cancel scope
+                    await queue.wake
             finally:
+                cancel pull's scope, if any                    # a pull may block for ever
                 queue.close(); queue.end_unstarted()           # synchronous, before the group joins
 ```
 
@@ -567,9 +576,24 @@ async with _run_task_screen(...):              # absorbs a cancellation of the r
   attempt's log. The retry's logger was never initialised, so nothing is
   discarded. This matters only after a latched cancellation, when attempts
   still running can finish after the queue closed.
-- **`next_tasks()`** is awaited only when nothing is pending, running or
-  being set up, as today, and now inside `_run_task_screen`, so a Ctrl-C
-  while it blocks is absorbed like one during a task.
+- **`next_tasks()` runs beside the loop.** A pull starts only when nothing is
+  pending, running or being set up, as today, and at most one is
+  outstanding. It runs as a child of the attempt group in its own cancel
+  scope, stores its return value or exception and rings `wake`, so the
+  dispatcher keeps starting tasks added while it blocks: a background
+  coroutine of a finished seed sample, or a hook, can call `enqueue_task()`
+  while the source awaits external input, and its task starts at once. When
+  the pull completes, the dispatcher takes its result first in the next
+  pass: its batch is added `ahead` of entries added during the pull that have
+  not started, the order `run_batches` gives today; `None` or `[]` ends the
+  source without calling the resolver. An exception the call raised is
+  re-raised by the dispatcher there, ending the run as today's inline raise
+  does. The dispatcher's `finally` cancels an outstanding pull, so a source
+  that blocks for ever (its contract allows it) never holds the group's join;
+  that cancellation stays in the pull's scope. Everything runs inside
+  `_run_task_screen`, so a Ctrl-C while a pull blocks is absorbed like one
+  during a task. The run ends only when the source is done, nothing remains
+  and no pull is outstanding.
 - **End of dispatch.** The `finally` runs inside the attempt group's body,
   so it runs before the group cancels or joins any attempt, on every exit:
   the source done, a latched cancellation (an attempt returned no log or a
@@ -718,7 +742,7 @@ class SandboxSetups:                   # one per run
 - **Cancelled records** drop their waiting jobs that no other record needs.
   A job that has started runs to its end (interrupting `task_init` can leave
   resources nothing cleans up), and the dispatcher waits for it before it
-  calls `next_tasks()` or ends.
+  starts a `next_tasks()` pull or ends.
 - **Display.** Every setup suspends the task display while `task_init` runs,
   as today (`display().suspend_task_app()`), since providers write to the
   terminal. Other tasks keep running meanwhile, as on today's live path.
@@ -1011,8 +1035,14 @@ test that waits on a run is bounded with `fail_after`.
   attempt cancelled before its first step (the dispatcher's pick followed at
   once by a cancel of the record) leaves no record in `starting`; every record
   has ended when `eval_async()` returns or raises.
-- `tests/test_task_source.py`: Ctrl-C while `next_tasks()` blocks returns
-  the completed logs at `max_tasks` 1 and 2; `next_tasks()` returning `[]`
+- `tests/test_task_source.py`: with a `next_tasks()` held on an
+  `anyio.Event`, a task that a background coroutine of the finished seed
+  sample adds with `enqueue_task()` starts and completes before the event is
+  set; the batch the call then returns is added ahead of an unstarted task
+  added during the call; an exception from `next_tasks()` ends the run as
+  today; a latched cancellation while the call blocks cancels it and the run
+  returns; Ctrl-C while `next_tasks()` blocks returns the completed logs at
+  `max_tasks` 1 and 2; `next_tasks()` returning `[]`
   ends the source without calling the resolver; the existing live-injection
   test passes for a plain task list.
 - `tests/test_sample_source.py`: a mid-run configuration through
@@ -1079,8 +1109,9 @@ the single `eval_run`), so the setup fixes come first.
 3. **One queue and one dispatcher; logs start with their attempt; queued
    tasks in the control channel.** `_eval/task/enqueue.py` (`RunQueue`,
    `TaskRecord`, async `enqueue_task()` still returning `None`),
-   `_eval/run.py` (`configure_task()`, `dispatch_tasks()`, `run_one`'s move
-   into `starting` and closed checks; `prepare_options`, `TaskInjection`,
+   `_eval/run.py` (`configure_task()`, `dispatch_tasks()` with its
+   background `next_tasks()` pull, `run_one`'s move into `starting` and
+   closed checks; `prepare_options`, `TaskInjection`,
    `PreparedFeed`, `_empty_feed` removed), `_eval/eval.py` (one `eval_run`),
    `_eval/task/run.py` (`logger.init()` at the start of `task_run`;
    `_enqueue_source_tasks`; `on_registered`; `unwritten_task_log` with no
