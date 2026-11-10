@@ -1153,7 +1153,8 @@ test that waits on a run is bounded with `fail_after`.
     the configuration's cleanup still runs once at shutdown, and an error it
     raises is logged;
   - with `task_retry_attempts=0` the first failure is final;
-  - under `eval_set(retry_immediate=False, retry_attempts=1)`, a task whose
+  - under `eval_set(retry_immediate=False, retry_attempts=2)` (legacy mode
+    counts the first round in `retry_attempts`, so 2 allows one more), a task whose
     setup fails in the first round (stub provider whose `task_init` fails
     only on its first call) is re-run in the second round, with a fresh setup that succeeds,
     and the eval set succeeds; with immediate retries, a setup that fails
