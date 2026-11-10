@@ -30,9 +30,11 @@ both recompute the log's metrics. They are Python functions in
 `inspect_ai.log` and two `inspect log` subcommands.
 
 Neither imports a task file the log names. As for the shard merge, the
-caller names the task: zero takes the task, the models and the eval settings to run
-it with, as `eval()` and `inspect eval` take them, and runs its empty
-attempts in a scratch eval of that task restricted to the targeted samples.
+caller names the task: zero takes a built `Task` and `eval()`'s keyword
+arguments, and runs its empty attempts by calling `eval()` on a copy of
+that task restricted to the targeted samples, with the caller's arguments
+passed through unchanged. `inspect log zero` loads the task from a spec as
+`inspect eval` does and calls the same function.
 Exclusion may take the task to recompute the log's metrics with; without
 it, the metrics are rebuilt from the registry as an untrusted recompute does
 today. Both recompute the log's results exactly as `recompute_metrics()`
@@ -311,19 +313,20 @@ counted.
   `src/inspect_ai/model/_generate_config.py:379`). The log records only the
   values in effect, so it does not say which came from the eval and which
   from the task.
-- **Model prices.** `eval_async()` applies `model_cost_config` with
-  `set_model_cost()` before it initializes models and resolves tasks
-  (`src/inspect_ai/_eval/eval.py:808-815`, then `eval_init()` at `:823` and
-  `eval_resolve_tasks()` at `:845`), so a task factory that reads model info
-  while it constructs the task sees the configured prices. It also expands
-  `model_args` and `task_args` given as file names with `resolve_args()`
-  first (`:805-806`).
-- **Task resolution.** `eval_resolve_tasks()` (`src/inspect_ai/_eval/eval.py:2086`)
-  installs the model roles and then, per model, the active model before it
-  constructs tasks (`:2104-2119`), so a task factory can call `get_model()`
-  or read a role. `eval_async` calls it in its own child task, and
-  `eval_set()` calls it to resolve tasks before passing the `ResolvedTask`s
-  to `eval()` (`src/inspect_ai/_eval/evalset.py:1052`, `:551-554`).
+- **Task construction.** Given a task spec, `eval_async()` applies
+  `model_cost_config` with `set_model_cost()` (`src/inspect_ai/_eval/eval.py:808-815`),
+  initializes the models (`eval_init()`, `:823`) and resolves the spec in
+  `eval_resolve_tasks()` (`:845`, `:2086`), which installs the model roles
+  and the active model before the factory runs (`:2104-2119`). The spec
+  itself is loaded by `load_tasks()` / `load_task_spec()`
+  (`src/inspect_ai/_eval/loader.py:532`, `:544`), which `resolve_tasks()`
+  calls for strings. A `Task` passed to `eval()` is already built, so its
+  factory ran in the caller's context: inspect_evals' NIAH calls
+  `get_model()` while it constructs the task (`niah/niah.py:84`), which
+  outside an eval reads `INSPECT_EVAL_MODEL`
+  (`src/inspect_ai/model/_model.py:2515-2521`). `eval_async()` refuses to
+  start while another eval runs in the process (`_eval_async_running`,
+  `src/inspect_ai/_eval/eval.py:795-797`).
 - **Sample ids.** A dataset sample without an id gets its 1-based position as
   its id when the task runs (`src/inspect_ai/_eval/run.py:222-228`), after
   any `sample_shuffle` (`src/inspect_ai/_eval/loader.py:106`). That id is an
@@ -389,7 +392,8 @@ metrics read, so zero supports single-value verdicts only.
 
 The design therefore supports:
 
-- zero with a task the caller passes (a built `Task` or a task spec) that
+- zero with a task the caller passes (a built `Task`, or on the command
+  line a task spec loaded as `inspect eval` loads one) that
   has scorers and the log's task name and scorer names, run with the models and settings the caller passes; static
   datasets; samples with string ids that the task's dataset holds; scorers
   whose empty-attempt verdict is a
@@ -727,45 +731,36 @@ def exclude_samples(
 
 async def zero_samples_async(
     log: EvalLog,
-    task: Task | str,
+    task: Task,
     samples: Sequence[SampleSelector],
     provenance: ProvenanceData,
-    *,
-    task_args: dict[str, Any] | str = dict(),
-    model: str | Model | list[str] | list[Model] | None | NotGiven = NOT_GIVEN,
-    model_base_url: str | None = None,
-    model_args: dict[str, Any] | str = dict(),
-    model_roles: ModelRoles | None = None,
-    sandbox: SandboxEnvironmentType | None = None,
-    approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
-    review: str | list[ReviewPolicy] | ReviewPolicyConfig | None = None,
-    sentinel: SentinelSpec | None = None,
-    epochs: int | Epochs | None = None,
-    message_limit: int | None = None,
-    token_limit: int | TokenLimit | None = None,
-    turn_limit: int | None = None,
-    time_limit: int | None = None,
-    working_limit: int | None = None,
-    cost_limit: float | None = None,
-    model_cost_config: str | dict[str, ModelCost] | None = None,
-    retry_on_error: int | None = None,
-    max_samples: int | None = None,
-    max_subprocesses: int | None = None,
-    max_sandboxes: int | None = None,
-    **kwargs: Unpack[GenerateConfigArgs],
+    **eval_kwargs: Any,
 ) -> DispositionResult: ...
 
-def zero_samples(log, task, samples, provenance, *, display: DisplayType | None = None, <the same keywords>) -> DispositionResult: ...
+def zero_samples(
+    log: EvalLog,
+    task: Task,
+    samples: Sequence[SampleSelector],
+    provenance: ProvenanceData,
+    **eval_kwargs: Any,
+) -> DispositionResult: ...
 ```
 
-Zero's run arguments are a subset of `eval_async()`'s, with the same names,
-types and defaults, and each is passed to the scratch eval as given. They
-are the ones that say which task runs and how a sample runs: the task and
-its arguments, the models, the sandbox, the policies, the epochs, the
-sample limits and their prices, the concurrency limits and the generate
-config. Zero sets the rest itself (step 5): the solver, the selection, the
-logging and the error policy. A caller passes what it passed to `eval()`
-for the original run, and the empty attempt runs with exactly that.
+Zero takes a built `Task`, as the shard merge does (decision: Ransom,
+2026-11-10); a task spec is loaded by the caller, as the CLI does below.
+`eval_kwargs` are `eval()`'s keyword arguments: `zero_samples` calls the
+public `eval()`, and `zero_samples_async` awaits `eval_async()`, with them
+unchanged plus the arguments zero sets for its scratch run (step 5). `eval()`
+therefore owns what it owns in any run: model construction (including
+`INSPECT_EVAL_MODEL` when `model` is omitted), model prices, argument files
+and argument parsing (a `token_limit` such as `"output:500k"`), policies,
+and the display lifecycle with its notebook and backend handling. Zero
+declares none of these parameters, so the annotation is `Any` and their
+types are checked by `eval()`. Because the arguments reach `eval()` as
+given, nested values keep their meaning (`cache=CachePolicy(expiry=None)`
+still caches indefinitely), the display starts as for any eval, and every
+form `eval()` accepts is accepted. A caller passes what it passed to
+`eval()` for the original run, and the empty attempt runs with exactly that.
 
 Both functions edit `log` in place, like `edit_score()`, and leave writing
 to the caller. Neither imports a task file or path the log names: the
@@ -855,7 +850,7 @@ with a task and without, therefore reduce epochs exactly as
 `recompute_metrics()` does (decision: Ransom, 2026-11-10). Because the
 header records the reducers the run used ("Recorded reducers" above), a run
 given `epochs=Epochs(5, "pass_at_5")` at eval level is reduced as it ran
-without the caller giving that setting again. The task is prepared before
+without the caller giving that setting again. The task is built before
 `task_log_metrics()` is called, so a custom reducer its file defines is
 registered when the header names it. The header records only a reducer's
 name and `k`, so a custom reducer configured with other arguments is
@@ -869,8 +864,12 @@ Without a task (exclusion only), metrics are rebuilt from the log header
 with the existing untrusted `resolve_log_metrics(log)`, which imports no
 task file and refuses a metric or reducer the registry cannot build with its
 `LookupError` or `DisallowedRegistryArg`. Exclusion calls it with
-`trust_log_advice=False`, since it has no such option, and adds advice to
-pass the task instead.
+`trust_log_advice=False`, since it has no such option, and adds advice:
+"import the module that registers the missing metric before excluding
+without a task, or pass a task whose scorer list matches the log's". The
+docs add that a log with appended scores names the appended scorers too, so
+the original task alone does not match it; a task whose full scorer list
+matches the updated header is accepted ("Matching the task").
 
 **Recomputation.** Either way, the results come from the existing
 `compute_log_metrics()` and `eval_results()`, unchanged, so a disposition
@@ -949,97 +948,44 @@ the input log changes:
 
 An edit, reducer or metric that raises, or mutates its inputs, therefore
 leaves the input log as it was until the commit, and the committed targets
-are exactly the edits. For zero this is how a verdict that makes the
-task's metrics raise is refused: for example, a task whose scorer now returns a
-scalar where its dict metrics expect a dict makes `eval_results()` raise
-`TypeError` (`results.py:543`). Zero re-raises it as "the empty-attempt
-verdicts do not fit the task's metrics (<error>)". It checks only that
-the metrics compute: a metric that applies its own input requirements and
+are exactly the edits. For zero, the scratch eval has already aggregated
+the verdicts with the task's metrics over the targets, so a verdict whose
+shape the metrics cannot take is refused at step 6: a scalar where dict
+metrics expect a dict makes `eval_results()` raise `TypeError`
+(`results.py:543`) inside the scratch eval. The staged computation catches
+what arises only on the full edited log, such as a metric that raises over
+the mix of zeroed and original scores; zero re-raises it as "the zeroed
+scores do not fit the task's metrics over the log (<error>)". It checks
+only that the metrics compute: a metric that applies its own input requirements and
 skips the verdict without raising is not detected, so successful
 recomputation does not prove that every metric uses the zeroed score.
 
-**Task preparation.** Zero resolves the task it is given, and exclusion's
-CLI resolves a task spec, through the task resolution a native eval uses,
-in a copy of the caller's context:
+**The task and its copy.** Zero works with the `Task` it is given and the
+caller's keywords:
 
-```python
-# src/inspect_ai/log/_disposition.py
-def prepare_task(task: Task | str, task_args, model, model_base_url, model_args,
-                 model_roles, model_cost_config, sandbox, config: GenerateConfig) -> ResolvedTask:
-    def prepare() -> ResolvedTask:
-        models = eval_init(model=model, model_base_url=model_base_url,
-                           model_args=model_args, **config.model_dump(exclude_none=True))
-        resolved, _, _ = eval_resolve_tasks(
-            task, task_args, models, model_roles, config,
-            approval=None, sandbox=sandbox, sample_shuffle=None,
-            input_media_policy="trusted_pre_run",
-        )
-        return one(resolved)
-
-    if eval_async_running():
-        raise RuntimeError("cannot run while an eval is running in this process")
-    model_args, task_args = resolve_args(model_args), resolve_args(task_args)
-    apply_model_cost_config(model_cost_config)
-    prepared = contextvars.copy_context().run(prepare)
-    return replace(prepared, task=copy(prepared.task))
-```
-
-- **Task specs.** A `Task` is used as given. A string is a task spec, as
-  for `inspect eval` (`file.py@name`, a registered name), loaded with
-  `task_args` by the same loader; it must resolve to exactly one task. A
-  spec is the caller's choice of code, so importing it is the caller's
-  decision, exactly as for `inspect eval`. A task file that runs an
-  evaluation at module scope (an `eval_set()` definition script) runs it
-  when imported, as it does under `inspect eval`; such definitions are
-  passed as a built `Task`.
-- **Prices and argument files.** Before any model or task is built,
-  `prepare_task` expands `model_args` and `task_args` given as file names
-  and applies the caller's `model_cost_config`, in the order `eval_async()`
-  does (see "Model prices" above). The price loading moves out of
-  `eval_async()` into `apply_model_cost_config(model_cost_config)` in
-  `src/inspect_ai/_eval/eval.py`, which both call; it accepts the same
-  forms (a file name or a dict of `ModelCost`) and does nothing for
-  `None`. A task factory that reads model info while it constructs the
-  task, for the primary model, a role or an ensemble member, therefore
-  sees the caller's prices, as under `eval()`. The scratch eval receives
-  `model_cost_config` too and applies it again, which changes nothing.
-  `set_model_cost()` is process-wide, as it is for `eval()`, so the prices
-  stay registered after zero returns or refuses.
-- **Models.** The models are the caller's, resolved by `eval_init()` as for
-  `eval()`: `model=NOT_GIVEN` reads `INSPECT_EVAL_MODEL`, and a list of
-  models is refused because the scratch eval runs one task once. A task that
-  pins its own model or roles keeps them, as in any eval.
-- **Model context.** `eval_resolve_tasks()` installs the model roles and the
-  primary model in the active context before any task factory runs
-  (`src/inspect_ai/_eval/eval.py:2104-2119`), so a factory that calls
-  `get_model()` or looks up a role while it constructs the task
-  (inspect_evals' NIAH calls `get_model()`, `niah/niah.py:84`) gets the
-  caller's models. Running `prepare` in a copy of the caller's context keeps
-  those installations out of the caller's context, as native eval keeps them
-  in its own child task. `eval_set()` resolves tasks the same way before
-  handing `ResolvedTask`s to `eval()` (`src/inspect_ai/_eval/evalset.py:1052`).
-- **Running eval.** `eval_init()` resets process-wide state, not only
-  context variables: it clears the active-sample registry and replaces the
-  concurrency registries (`src/inspect_ai/_eval/context.py:34`, `:51`;
-  `src/inspect_ai/log/_samples.py:480`; `src/inspect_ai/util/_concurrency.py:440`).
-  `copy_context()` does not isolate those. The native running-eval flag
-  (`_eval_async_running`, `src/inspect_ai/_eval/eval.py:795`, read through a
-  small accessor) is therefore checked before `prepare` runs, and a call
-  while another eval runs in the process is refused, so it leaves that
-  eval's active samples, control-channel and TUI views, and concurrency
-  limits as they were. `prepare` is synchronous, so nothing interleaves
-  between the check and its end; the scratch eval then applies the native
-  check again.
-- **The caller's task is not changed.** `ResolvedTask` is a frozen dataclass
-  (`src/inspect_ai/_eval/task/resolved.py:14`) holding the instance the
-  caller passed or the factory returned (a factory may return a cached
-  `Task`; `resolve_tasks()` keeps it, `src/inspect_ai/_eval/loader.py:114`).
-  `prepare_task` therefore returns it with a shallow copy of the task, as a
-  normal run shallow-copies the task before applying its overrides
-  (`src/inspect_ai/_eval/run.py:261`), and zero rebinds attributes only on
-  that copy: `epochs` for the epoch check (steps 3 and 4), `early_stopping`
-  and `dataset` in step 5. `task_with()` is not used, because it changes the
-  task it is given.
+- **The caller's task is not changed.** Zero runs `scratch = copy(task)`, a
+  shallow copy as the runner makes before applying its overrides
+  (`src/inspect_ai/_eval/run.py:261`), and rebinds only its
+  `early_stopping` and `dataset` (step 5). `task_with()` is not used,
+  because it changes the task it is given
+  (`src/inspect_ai/_eval/task/task.py:496-499`).
+- **Reserved keywords.** `tasks`, `solver`, `sample_id`, `limit`, `score`,
+  `log_samples`, `log_dir`, `log_format`, `log_buffer`, `fail_on_error`,
+  `sandbox_cleanup` and `ctl_server` are set by zero (step 5); a caller
+  passing one is refused before anything runs: "zero sets <name> for its
+  scratch run".
+- **One model.** The scratch run must produce one log. A `model` keyword
+  that is a list of more than one model is refused before anything runs
+  ("zero runs one empty attempt per target; pass one model"), and step 6
+  requires `eval()` to return exactly one log.
+- **Construction context.** The task was built before `eval()` runs, so a
+  factory that reads the active model, a role or model prices while it
+  constructs the task saw the caller's context, as for any `Task` passed to
+  `eval()` ("Task construction" above). `eval()` applies the models, prices
+  and other settings to the run itself in its own order.
+- **A running eval.** Zero changes nothing before it calls `eval()`, which
+  refuses to start while another eval runs in the process, so that refusal
+  leaves the log and the other eval as they were.
 
 `exclude_samples`:
 
@@ -1060,25 +1006,25 @@ def prepare_task(task: Task | str, task_args, model, model_base_url, model_args,
    has no verdict to copy: "the task of <log> has no scorers, so an empty
    attempt has no verdict; exclude the samples instead".
 2. Selects the targets that are not already zeroed. When none are left it
-   returns without preparing the task.
-3. Prepares the task with `prepare_task()` and the caller's task, task
-   arguments, models, prices, sandbox and generate config, sets its copy's
-   epoch count from the caller's `epochs` when given, as the runner does
-   (`src/inspect_ai/_eval/run.py:311-314`), checks it with
+   returns without running anything.
+3. Checks the reserved keywords and `model` (above), checks the task with
    `task_difference()`, and takes its metrics from
-   `task_log_metrics(copy, log)`. A reducer given with `epochs` reaches only
-   the scratch eval, whose own results are discarded; zero's results are
-   reduced with the header's reducers.
+   `task_log_metrics(task, log)`. The epoch count is that of the `epochs`
+   keyword when given (an `int`, or an `Epochs`' `epoch`), otherwise the
+   task's (`epochs`, default 1), as the runner resolves it
+   (`src/inspect_ai/_eval/run.py:311-314`). A reducer given with `epochs`
+   reaches only the scratch eval, whose own results are discarded; zero's
+   results are reduced with the header's reducers.
 4. Establishes that each target can be run by the task, and refuses
    otherwise. Three checks, all before the scratch eval:
 
-   **Epochs.** Every targeted epoch must be at most the copy's epoch count
+   **Epochs.** Every targeted epoch must be at most the epoch count of step 3
    (`epochs`, default 1): "sample <id> epoch <n> is beyond the <count>
    epochs the task runs; pass the epochs the log ran (the log ran
    <log.eval.config.epochs>)".
 
    **Static dataset.** Zero refuses a task whose samples come from a
-   `SampleSource` (`prepared.task.sample_source is not None`). Its dataset
+   `SampleSource` (`task.sample_source is not None`). Its dataset
    holds only the initial samples, possibly none
    (`src/inspect_ai/_eval/task/task.py:653`), and the samples it produces
    get their ids as they arrive (`src/inspect_ai/_eval/task/run.py:1801`):
@@ -1100,7 +1046,7 @@ def prepare_task(task: Task | str, task_args, model, model_base_url, model_args,
      "sample <id> has an integer id, which need not name the same sample in
      a new run; zero needs samples with string ids: give the task's samples
      string ids".
-   - Exactly one sample of `prepared.task.dataset` must have an id that is
+   - Exactly one sample of `task.dataset` must have an id that is
      a `str` equal to it. The comparison is plain string equality, with no
      pattern matching, task scope or normalisation, so an id containing
      `:`, `*` or `[` compares as itself, and a dataset sample with the
@@ -1120,15 +1066,17 @@ def prepare_task(task: Task | str, task_args, model, model_base_url, model_args,
    temporary local directory:
 
    ```python
-   prepared.task.early_stopping = None
-   prepared.task.dataset = prepared.task.dataset.filter(
+   scratch = copy(task)
+   scratch.early_stopping = None
+   scratch.dataset = task.dataset.filter(
        lambda sample: isinstance(sample.id, str) and sample.id in target_ids
    )
-   eval_async(
-       tasks=prepared,               # the ResolvedTask from step 3, which carries its models and sandbox
-       model=None,                   # explicit, as eval_set passes it with ResolvedTasks
+   logs = eval(                      # await eval_async(...) in zero_samples_async
+       scratch,
+       **eval_kwargs,                # the caller's keywords, unchanged
        solver=empty_attempt(),
-       **run_args,                   # the caller's run arguments, as given
+       score=True,
+       log_samples=True,
        sandbox_cleanup=True,
        ctl_server=False,
        fail_on_error=False,
@@ -1138,11 +1086,11 @@ def prepare_task(task: Task | str, task_args, model, model_base_url, model_args,
    )
    ```
 
-   `run_args` holds the caller's approval, review and sentinel policies,
-   epochs, sample limits, `model_cost_config`, `retry_on_error`,
-   concurrency limits and generate config, each as given; the task, task
-   arguments, models and sandbox already reached the `ResolvedTask` in step
-   3. Zero adds only its own operational settings below.
+   `eval_kwargs` hold whatever the caller passed: models, task arguments,
+   sandbox, policies, epochs, sample limits and prices, `retry_on_error`,
+   concurrency limits, generate config and display. Zero adds only its own
+   operational settings below, which step 3 has kept the caller from
+   passing.
 
    - **What the verdict reflects.** The scratch eval runs the caller's task
      under the caller's settings. A setting the caller leaves out takes the
@@ -1151,13 +1099,6 @@ def prepare_task(task: Task | str, task_args, model, model_base_url, model_args,
      the caller gives it again. Zero does not check these settings, or the
      task's code, against the original run beyond the task match above;
      see Compatibility, "What zero runs".
-   - **No second model resolution.** `model=None` is passed explicitly, as
-     `eval_set()` passes it with `ResolvedTask`s
-     (`src/inspect_ai/_eval/evalset.py:554`). An omitted `model` is
-     `NOT_GIVEN`, which `eval_init()` resolves from `INSPECT_EVAL_MODEL`
-     (`src/inspect_ai/_eval/eval.py:824`,
-     `src/inspect_ai/model/_model.py:2621`): the prepared task would then
-     run once per environment model.
    - **Sandbox cleanup.** Zero always cleans up its sandboxes, because
      nothing reads them afterwards.
    - **No control server.** `ctl_server=False` is passed explicitly. When it
@@ -1198,8 +1139,8 @@ def prepare_task(task: Task | str, task_args, model, model_base_url, model_args,
      with samples `a`, `benchmark:variant:a`, `case[1]` and `case1`:
      filtering to `a` and `case[1]` ran exactly those two, over two epochs,
      and the original task's dataset still held all four.
-   - **Epochs.** The scratch eval runs the task's epochs, with the caller's
-     `epochs` applied (step 3). Step 4 has refused a target whose epoch is
+   - **Epochs.** The scratch eval runs the task's epochs, or the caller's
+     `epochs` keyword when given (step 3). Step 4 has refused a target whose epoch is
      beyond that count. The runner refuses `pass_at_k`, `pass_k_k` and `at_least_k` reducers with
      fewer than `k` epochs (`validate_reducer`,
      `src/inspect_ai/scorer/_reducer/registry.py:176`). `epochs` is global,
@@ -1222,9 +1163,17 @@ def prepare_task(task: Task | str, task_args, model, model_base_url, model_args,
      `max_samples=1`, and confirmed `log_buffer=1` prevents it. Each
      verdict is therefore serialized before any aggregation runs, and the
      verdicts zero reads back are the scorers' own.
-6. Checks that the scratch eval completed. Its log must have `status ==
-   "success"`. A cancelled or errored scratch log raises with its status and
-   error, without editing anything. `eval_async` can return a cancelled log
+6. Checks that the scratch eval completed. `eval()` must return exactly one
+   log, with `status == "success"`. A cancelled or errored scratch log raises
+   with its status and error, without editing anything: "the empty-attempt
+   run of <task> ended with status <status>: <error>". The scratch eval
+   computes its own results with the task's metrics over the targets, so a
+   verdict the metrics cannot aggregate (a scalar under dict metrics) makes
+   it end with `status="error"` and that error
+   (`src/inspect_ai/_eval/task/run.py:2050`, `:2177`), and zero refuses it
+   here. Aggregation over the targets alone can refuse a zero that the full
+   log's aggregation would accept, such as one under a metric that needs
+   several samples; zero does not bypass it. `eval_async` can return a cancelled log
    whose targets are already scored and error-free (verified by the
    reviewer under Trio with unfinished extra epochs), so valid target records
    alone do not show that the zero completed.
@@ -1237,13 +1186,15 @@ def prepare_task(task: Task | str, task_args, model, model_base_url, model_args,
    limit reads "...hit its <type> limit". This is atomic where Steward's was
    not required to be: nothing is half-applied.
 8. Stages the zero edits and computes metrics with the task's (see "Staged
-   commit"), then calls `await anyio.lowlevel.checkpoint()`, which raises if
-   the caller was cancelled meanwhile. Only then does it commit the staged
-   samples and results, with no further await.
+   commit"). The async form then calls `await anyio.lowlevel.checkpoint()`,
+   which raises if the caller was cancelled meanwhile. Only then does it
+   commit the staged samples and results, with no further await.
 
-`zero_samples` is the synchronous wrapper. It initializes the display type
-from `display` and runs the coroutine, as `score()` does: `anyio.run` with
-the configured backend, or `run_coroutine` in a notebook.
+`zero_samples` and `zero_samples_async` share every step but the run: steps
+1–4 and 6–8 are synchronous helpers in `_disposition.py`, and the sync form
+calls `eval()` where the async form awaits `eval_async()`. `eval()` starts
+and stops the display and runs its own event loop, or the notebook's, as
+for any eval, so zero has no runner of its own.
 
 ### CLI
 
@@ -1253,7 +1204,7 @@ Two subcommands of `inspect log` (`src/inspect_ai/_cli/log.py`, beside
 ```
 inspect log exclude LOG_FILE --sample ID [--sample ID ...] [--epoch N]
                     --reason TEXT [--author NAME]
-                    [--task TASK [-T NAME=VALUE ...] [--model ...] [--model-role ...]]
+                    [--task TASK [-T NAME=VALUE ...] [--task-config FILE]]
                     [--json]
 inspect log zero    LOG_FILE TASK --sample ID [--sample ID ...] [--epoch N]
                     --reason TEXT [--author NAME]
@@ -1266,14 +1217,25 @@ inspect log zero    LOG_FILE TASK --sample ID [--sample ID ...] [--epoch N]
 
 - `TASK` (zero) and `--task` (exclude) name the task as `inspect eval`
   names it: a task file, `file.py@name` or a registered name. Nothing is
-  read from the log to find or build it. Zero's other options are `inspect
-  eval`'s options of the same names, parsed by the same code: the
-  task-argument, model, model-role, epochs, sample-limit, policy,
-  concurrency and generate-config options move out of `eval_options`
-  (`src/inspect_ai/_cli/eval.py:282`) into option groups that both
-  commands apply, and `eval_command`'s conversion of them into `eval()`
-  arguments into a helper both call. The trust model is that of `inspect
-  eval`: the user names the code to run.
+  read from the log to find or build it. The CLI builds the `Task` with
+  Inspect's existing spec loader, `load_tasks([TASK], task_args)`
+  (`src/inspect_ai/_eval/loader.py:532`), the function `inspect eval`'s
+  string specs reach through `resolve_tasks()`, with `-T` and
+  `--task-config` parsed by `inspect eval`'s own code; it must yield exactly
+  one task. There is no other resolution. `inspect log zero` then calls
+  `zero_samples` with that task and its remaining options converted into
+  `eval()` keyword arguments by the helper `eval_command` uses, so `eval()`
+  applies models, prices and every other setting to the run in its native
+  order. The task is built before `eval()` runs, so a factory that reads
+  the active model while it constructs the task sees `INSPECT_EVAL_MODEL`
+  rather than `--model` (see Compatibility, "What zero runs"). Zero's other
+  options are `inspect eval`'s options of the same names, parsed by the
+  same code: the task-argument, model, model-role, epochs, sample-limit,
+  policy, concurrency and generate-config options move out of
+  `eval_options` (`src/inspect_ai/_cli/eval.py:282`) into option groups
+  that both commands apply. Exclusion takes only the task options: it runs
+  nothing. The trust model is that of `inspect eval`: the user names the
+  code to run.
 - `--sample` is repeatable and required. `--epoch N` narrows every named
   sample to that epoch; without it, every epoch of each named sample is
   covered.
@@ -1302,13 +1264,17 @@ inspect log zero    LOG_FILE TASK --sample ID [--sample ID ...] [--epoch N]
 - **Another task.** A task whose name or scorer names differ from the log's
   is refused before anything runs
   (step 3 for zero, step 1 for exclusion with a task). A log with appended
-  scores names scorers the task does not have, so it is refused this way.
+  scores names scorers the original task does not have, so that task is
+  refused this way; a task whose scorer list includes the appended scorers
+  matches.
 - **Different settings or code.** Anything else about the task or its
   settings is taken as the caller gives it; the scratch log is not kept, but
   the zero edits record the scorer's answer and explanation for the empty
-  attempt. A verdict that makes the task's metrics raise is refused by the
-  staged metric computation, and the log is left unchanged; a metric that
-  skips it without raising is not detected.
+  attempt. A verdict that makes the task's metrics raise is refused, by the
+  scratch eval's own aggregation (step 6) or, for a failure that arises
+  only on the full log, by the staged metric computation, and the log is
+  left unchanged; a metric that skips it without raising is not
+  detected.
 - **Concurrency.** The functions are synchronous over an in-memory log,
   except zero's scratch eval, which runs before any edit. The CLI's write is
   a conditional write on S3 and last-writer-wins locally, as `edit_score()`
@@ -1382,7 +1348,7 @@ inspect log zero    LOG_FILE TASK --sample ID [--sample ID ...] [--epoch N]
   separate eval-set process. Ids would have to be escaped for `fnmatch` and
   qualified with the running task's name, and a task name containing `:`
   cannot be qualified, because the scope ends at the first `:`. Zero runs
-  in-process with the prepared task in hand, so filtering its dataset by
+  in-process with the task in hand, so filtering its dataset by
   string equality is literal with no encoding.
 - **Zero dict and list verdicts**, refusing those with a `NaN` or `None`
   inside and those missing a key the log's other scores hold. Each rule
@@ -1428,8 +1394,19 @@ inspect log zero    LOG_FILE TASK --sample ID [--sample ID ...] [--epoch N]
 - **Attribute each held key to a scorer when the scorer list was appended
   to.** Zero could compare options and score-event attribution per key, and
   refuse only ambiguous cases. Refusing any log whose scorer list differs
-  from the task's is one rule, and the remedy (zero first, append afterwards)
-  is simple.
+  from the task's is one rule. Its remedy is to zero before appending
+  scorers, or to pass a task whose scorer list includes the appended ones;
+  a later append keeps the zeroed score (see Compatibility, "Later
+  rescoring").
+- **Prepare the task by hand and launch the prepared task**, calling
+  `eval_init()` and `eval_resolve_tasks()` with re-declared keyword
+  parameters and a synchronous wrapper of zero's own. It would let a task
+  spec be resolved inside the caller's model context, but it duplicates
+  `eval()`'s setup and diverges from it wherever the copy is incomplete:
+  argument types, the serialization of nested generate settings, price
+  order and the display lifecycle. Calling the public `eval()` with the
+  caller's keywords leaves all of these to `eval()` (decision: Ransom,
+  2026-11-10).
 
 ## Compatibility and migration
 
@@ -1496,7 +1473,11 @@ No migration required.
   edits to setup code, the dataset or a scorer's internals. A setting the
   original run was given at eval level is reproduced only when the caller
   gives it again; the epoch reducers are the exception, read from the log
-  header ("Metrics from the task"). Passing the task and settings the log ran is the
+  header ("Metrics from the task"). The task is built before `eval()`
+  runs, so a factory that reads the active model, a role or model prices
+  while it constructs the task sees the caller's context (on the command
+  line, `INSPECT_EVAL_MODEL` rather than `--model`), as for any `Task`
+  passed to `eval()`. Passing the task and settings the log ran is the
   caller's responsibility, as for the shard merge and for eval-retry of an
   edited task. Each zero is recorded as a score edit with its reason and
   author, and the original score stays in `Score.history`, so a zero can be
@@ -1508,6 +1489,14 @@ No migration required.
   arguments is rebuilt with its defaults, so its recomputed reductions can
   differ from the run's. This is the existing limit of recomputation, and
   the docs section states it.
+- **Later rescoring.** `inspect score` and `score()` rescore from the
+  preserved transcript and output (`src/inspect_ai/_eval/score.py:489-511`),
+  not from the empty attempt. With `--action append` the zeroed or excluded
+  score stays and the new scorer's verdict on the original attempt is added
+  beside it; with `--action overwrite` the score map is replaced
+  (`score.py:179-194`), which removes the dispositions. The docs section
+  says so, and that a disposition should be applied again after an
+  overwrite.
 - **Eval-set retry.** Unchanged (decision: Ransom, 2026-11-04). A disposition
   does not clear `error`. An errored sample that was zeroed or excluded is
   therefore re-run by `inspect eval-retry` and eval-set retries, and the new
@@ -1544,8 +1533,8 @@ No migration required.
   Inspect entry point for a `pkg/name` key; it never imports a path. The
   names compared with the caller's task, the sample ids and the score
   values are otherwise compared or copied as data.
-- **The caller's task.** A task spec given to `zero_samples` or on the
-  command line is imported and run, with the trust model of `inspect eval`:
+- **The caller's task.** A task spec given on the command line is loaded
+  with `load_tasks()`, and the task is run, with the trust model of `inspect eval`:
   the user names the code. A file that runs an evaluation at module scope
   runs it when imported, as under `inspect eval`.
 - **Reason and author** are free text from the local caller: the Python
@@ -1661,8 +1650,8 @@ backends; run the zero tests with `--runtrio` locally.
 - `tests/log/test_zero_samples.py` (new: no existing file covers running an
   eval to edit a log). The fixture is a task with string sample ids, whose
   `Task.setup` sets a metadata flag and whose main solver would generate; it
-  is passed both as a built `Task` and as a `file.py@name` spec with task
-  arguments.
+  is built directly and, separately, loaded from a `file.py@name` spec with
+  task arguments through `load_tasks()`.
   - The happy path: the zeroed scores equal the empty attempt's (`I` for
     `match()`), with reason `zeroed` and the original in `history[0]`. The
     transcript and `error` are unchanged, `Task.setup` ran, and the scratch
@@ -1671,9 +1660,19 @@ backends; run the zero tests with `--runtrio` locally.
   - Ids `case[1]`, `case*`, `case?` and `t1:a:b`, in a dataset that also
     holds `case1`, `caseX` and `a:b`: the scratch log holds only the
     targets.
-  - The scratch eval goes through the real override path,
-    `eval_async(..., solver=empty_attempt())`: its log records the solver
-    `inspect_ai/empty_attempt`, and the task's main solver does not run.
+  - The scratch eval goes through the public `eval()` (sync form) and
+    `eval_async()` (async form) with `solver=empty_attempt()`: its log
+    records the solver `inspect_ai/empty_attempt`, and the task's main
+    solver does not run.
+  - Keywords pass through unchanged: `cache=CachePolicy(expiry=None)`,
+    `token_limit="output:500k"` and a `model_args` file reach the scratch
+    eval as `eval()` would take them (asserted on its header and on a
+    patched `eval()` receiving the same objects); each reserved keyword
+    (`solver`, `sample_id`, `log_dir`, ...) is refused before anything
+    runs.
+  - Display: the sync form with `display="full"` under a patched
+    interactive terminal, and with `display="none"`, runs through
+    `eval()`'s own display start; no display is initialized by zero.
   - A multi-epoch log with targets `a/1` and `b/2`: `a/2` and `b/1` run in
     the scratch eval, and those samples are left unedited.
   - Epoch reducers: zeroing epoch 1 of a log written with `Epochs(5, r)`
@@ -1681,13 +1680,9 @@ backends; run the zero tests with `--runtrio` locally.
     task declaring the epochs and, separately, with a one-epoch task given
     to `eval()` with `epochs=Epochs(5, r)` and to zero with `epochs=5`: the
     results are reduced with the header's `r`.
-  - Task preparation, run in a fresh context and in a context whose active
-    model and a `grader` role are unrelated `mockllm` models: a task factory
-    that calls `get_model()` and one that reads the `grader` role while
-    constructing the task both receive the models passed to zero, and the
-    caller's active model and roles are unchanged afterwards.
   - A task spec whose file defines its own epoch reducer and metric, absent
-    from the registry before the zero: zeroing succeeds in a fresh process,
+    from the registry before the zero, loaded with `load_tasks()`: zeroing
+    succeeds in a fresh process,
     with results computed by the task's metric and, through the header's
     name, the reducer the imported file registered.
   - Nothing from the log: zeroing a log whose header names a task file that
@@ -1708,8 +1703,8 @@ backends; run the zero tests with `--runtrio` locally.
     unchanged, also when its produced samples carry string ids.
   - Models: with `model` given, the scratch eval's header records it and
     `INSPECT_EVAL_MODEL` is not read; with `model` omitted, it is read as
-    for `eval()`; a list of models is refused before preparation.
-  - Task match: each refused before preparation finishes running anything,
+    for `eval()`; a list of two models is refused before anything runs.
+  - Task match: each refused before anything runs,
     with the log unchanged and the message naming the field: another task
     name; an errored target and a scored neighbour, after `inspect score
     --action append` of a differently configured instance of the task's
@@ -1725,8 +1720,7 @@ backends; run the zero tests with `--runtrio` locally.
     writes `probe(0)`'s verdict under `probe`, with the appended `probe(1)`
     score as `history[0]`, and `probe(1)`'s verdict under `probe1`.
   - Running eval: zeroing a landed log while another eval in the process
-    holds a live sample (asyncio and Trio) is refused before preparation,
-    and the running eval's active samples and concurrency registries are
+    holds a live sample is refused by `eval()`'s own check, with the log
     unchanged; that eval then finishes normally.
   - Early stopping: a task whose early-stopping manager stops after a
     failure, whose original log holds both epochs: zeroing every epoch runs
@@ -1738,12 +1732,6 @@ backends; run the zero tests with `--runtrio` locally.
     `old`, zeroed with the task renamed to `new`, is refused for its task
     name before the scratch eval, with the log and the task's dataset
     unchanged.
-  - Prices before preparation: a registered task factory that reads
-    `get_model_info()` cost for the primary model, a `grader` role and both
-    members of a `panel` ensemble while it constructs a scorer, with
-    `model_cost_config` given as a dict and, separately, as a JSON file:
-    the factory sees the configured prices, as under `eval()` with the same
-    arguments.
   - Scratch aggregation: seven samples, two epochs, `max_samples=1`, and a
     reducer that writes the epoch mean into its first input, plus a metric
     that mutates its inputs and succeeds: the zeroed scores equal each
@@ -1751,7 +1739,7 @@ backends; run the zero tests with `--runtrio` locally.
   - The caller's task is not changed: a built `Task` with an early-stopping
     manager, and a registered factory that returns the same cached `Task`,
     each zeroed on a log whose target the dataset no longer holds, so zero
-    refuses after preparation, and once successfully: the task keeps its
+    refuses before the scratch eval, and once successfully: the task keeps its
     dataset, epochs and manager, and a later eval of it stops early as
     before.
   - A sample whose `zeroed` score holds `NaN` (a Steward zero) is zeroed
@@ -1801,8 +1789,12 @@ backends; run the zero tests with `--runtrio` locally.
       the target;
     - a log with no task scorers;
     - a task whose scorer returns a scalar where its dict metrics expect a
-      dict: the `TypeError` is re-raised and the samples, results and
-      reductions are those of the input log.
+      dict: the scratch eval ends with `status="error"` and the
+      `TypeError`, zero refuses it at step 6 with that status and error,
+      and the samples, results and reductions are those of the input log;
+    - a metric that raises only over the mix of zeroed and original scores
+      (it passes on the targets alone): the staged computation's error is
+      re-raised and the input log is unchanged.
   - Settings are the caller's: a log written with `temperature` unset and
     no message limit, zeroed with a task now declaring `message_limit=20`
     and `temperature=0.7` and a `Task.setup` that generates and a scorer
@@ -1817,9 +1809,10 @@ backends; run the zero tests with `--runtrio` locally.
     (asserted by patching the server start and the release wait).
 - `tests/_cli/`: `inspect log exclude|zero` parse `--sample`, `--epoch`,
   `--reason` and `--author`, write in place, and print the per-sample lines
-  and the `--json` envelope. `inspect log zero LOG TASK` passes `-T`,
-  `--model`, `--model-role`, `--epochs`, a sample limit and a generate
-  option through to the scratch eval (asserted on its header), and
+  and the `--json` envelope. `inspect log zero LOG TASK` loads the task
+  through `load_tasks()` with `-T` and passes `--model`, `--model-role`,
+  `--epochs`, a sample limit and a generate option through to the scratch
+  eval (asserted on its header), and
   `inspect log exclude --task` recomputes with the task's metric and, for
   a log written with `eval(task, epochs=Epochs(5, "pass_at_5"))` on a
   one-epoch task, with the header's `pass_at_5` reducer.
@@ -1848,12 +1841,10 @@ path.
 2. **Exclude.**
    - `task_difference()` and `TaskDifference`, new in
      `src/inspect_ai/log/_task_match.py`.
-   - `apply_model_cost_config()` in `src/inspect_ai/_eval/eval.py`, factored
-     out of `eval_async()`.
    - `log_reducers()`, factored out of `resolve_log_metrics()`, and
      `task_log_metrics()` in `src/inspect_ai/log/_metric.py`.
    - `src/inspect_ai/log/_disposition.py`: `SampleSelector`,
-     `DispositionResult`, `prepare_task()`, and `exclude_samples` with its
+     `DispositionResult`, and `exclude_samples` with its
      score-key rule and optional task.
    - Exports in `src/inspect_ai/log/__init__.py`.
    - The `inspect eval` options for the task, models, epochs, sample
@@ -1861,11 +1852,14 @@ path.
      `eval_options` (`src/inspect_ai/_cli/eval.py`) into groups, with their
      conversion into `eval()` arguments in a shared helper; `inspect eval`
      behaves as before.
-   - `inspect log exclude` in `src/inspect_ai/_cli/log.py`, with `--task`,
+   - `inspect log exclude` in `src/inspect_ai/_cli/log.py`, with `--task`
+     loaded by `load_tasks()`,
      and the default author helper moved from
      `src/inspect_ai/_cli/ctl/_config.py` to `src/inspect_ai/_cli/util.py`.
    - A "Zeroing and Excluding Samples" section in `docs/eval-logs.qmd`,
-     including the retry behaviour, passing the task, and, for a running
+     including the retry behaviour, later rescoring (append keeps a
+     disposition, overwrite removes it), passing the task (for a log with
+     appended scores, one whose scorer list includes them), and, for a running
      eval, `inspect ctl sample cancel --action cancel` followed by these
      commands once the log lands.
 
@@ -1873,8 +1867,9 @@ path.
 3. **Zero.**
    - `src/inspect_ai/_eval/zero.py`: `empty_attempt`, `empty_attempt_check`,
      `SetupWroteScores` and the scratch eval.
-   - `zero_samples` / `zero_samples_async` in `_disposition.py`, with a
-     function-local import of `_eval.zero`.
+   - `zero_samples` / `zero_samples_async` in `_disposition.py`, calling
+     `eval()` / `eval_async()`, with a function-local import of
+     `_eval.zero`.
    - `inspect log zero LOG TASK` with the shared eval option groups, and the
      docs section extended: zero runs the task and settings the caller
      passes and checks only their names against the log (with the examples
