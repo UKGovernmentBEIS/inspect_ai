@@ -106,6 +106,11 @@ def first_block(param: MessageParam) -> dict[str, Any]:
         ("claude-mythos-5", TOOLSET),
         ("claude-mythos-5-1", TOOLSET),
         ("vertex/claude-fable-5-1", TOOLSET),
+        # Fable 5.2 rejects the legacy tool everywhere except Bedrock
+        ("claude-fable-5-2", TOOLSET),
+        ("vertex/claude-fable-5-2", TOOLSET),
+        ("azure/claude-fable-5-2", TOOLSET),
+        ("bedrock/anthropic.claude-fable-5-2", LEGACY),
         # forward-compat: an unknown Claude 5 codename gets the toolset
         ("claude-saga-5", TOOLSET),
         # everything else keeps the legacy tool (prior behavior)
@@ -191,6 +196,8 @@ def test_computer_toolset_model_arg_rejected_on_unsupported_model(
         # Fable/Mythos accept the legacy tool (computer-use docs, earlier tool versions)
         ("claude-fable-5-1", LEGACY),
         ("vertex/claude-mythos-5", LEGACY),
+        # Bedrock still accepts the legacy tool on Fable 5.2
+        ("bedrock/anthropic.claude-fable-5-2", LEGACY),
     ],
 )
 def test_computer_toolset_false_keeps_legacy_where_supported(
