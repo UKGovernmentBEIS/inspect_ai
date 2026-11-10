@@ -96,7 +96,6 @@ from inspect_ai.model._openai_responses import (
     TOOL_SEARCH_NAME,
     TOOL_SEARCH_OPTIONS_MARKER,
     assistant_internal,
-    cached_tool_call,
     code_interpreter_to_tool_use,
     content_from_response_input_content_param,
     is_additional_tools,
@@ -550,11 +549,12 @@ def _declarations_in_input(
     declares nothing, just as the model is then told nothing; no entry is
     salvaged for grants alone.
     """
+    cached_calls = assistant_internal().tool_calls
     declarations: list[ToolInfo] = []
     for message in messages:
         if not isinstance(message, ChatMessageTool) or message.error is not None:
             continue
-        call = cached_tool_call(message.tool_call_id or "")
+        call = cached_calls.get(message.tool_call_id or "")
         if call is None or call["type"] != "tool_search_call":
             continue
         for discovered in tool_search_output_tools(message):
@@ -639,9 +639,10 @@ def _seed_function_call_namespace(param: ResponseFunctionToolCallParam) -> bool:
     if not namespace:
         return False
     call_id = param["call_id"]
-    if cached_tool_call(call_id) is not None:
+    cache = assistant_internal().tool_calls
+    if call_id in cache:
         return False
-    assistant_internal().tool_calls[call_id] = ResponseFunctionToolCallParam(
+    cache[call_id] = ResponseFunctionToolCallParam(
         type="function_call",
         call_id=call_id,
         name=param["name"],
@@ -660,9 +661,10 @@ def _seed_tool_search_call(call_id: str, arguments: dict[str, Any]) -> bool:
     than a function_call_output. The `call_id in cache` guard ensures we never
     clobber a richer in-sample entry. Returns whether it seeded.
     """
-    if cached_tool_call(call_id) is not None:
+    cache = assistant_internal().tool_calls
+    if call_id in cache:
         return False
-    assistant_internal().tool_calls[call_id] = ToolSearchCall(
+    cache[call_id] = ToolSearchCall(
         type="tool_search_call",
         id=call_id,
         call_id=call_id,

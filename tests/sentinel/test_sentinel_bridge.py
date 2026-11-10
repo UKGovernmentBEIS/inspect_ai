@@ -7182,22 +7182,22 @@ async def test_a_modified_responses_call_continues_as_approved(
     ],
     ids=["update_plan", "legacy_computer_action"],
 )
-def test_a_modified_responses_alias_carries_the_approved_arguments(
+def test_a_modified_responses_item_carries_the_approved_arguments(
     param: dict[str, Any], modified: ToolCall, expected: dict[str, Any]
 ) -> None:
     from inspect_ai.model._assistant_internal import init_sample_assistant_internal
     from inspect_ai.model._openai_responses import (
-        alias_openai_tool_call,
         assistant_internal,
+        hand_openai_tool_call,
     )
 
     init_sample_assistant_internal()
-    alias_openai_tool_call(param["call_id"], "token", deepcopy(param), modified, None)
+    assistant_internal().tool_calls[param["call_id"]] = cast(Any, deepcopy(param))
+    hand_openai_tool_call(modified)
 
-    aliased = cast(dict[str, Any], assistant_internal().tool_calls["token"])
-    assert aliased == {
+    handed = cast(dict[str, Any], assistant_internal().tool_calls[param["call_id"]])
+    assert handed == {
         **{key: value for key, value in param.items() if key not in ("action", "id")},
-        "call_id": "token",
         **expected,
     }
 
@@ -9010,10 +9010,8 @@ async def test_a_trailing_signature_goes_on_no_renamed_call(
     ]
 
 
-def test_an_id_several_google_anchors_name_is_shared_in_the_output_a_filter_received() -> (
-    None
-):
-    from inspect_ai.agent._bridge.util import _received_shared_ids
+def test_an_id_several_google_anchors_name_is_shared() -> None:
+    from inspect_ai.model._providers._google_reasoning import gemini_shared_call_ids
 
     output = calls_output(
         ToolCall(id="named_twice", function="read_file", arguments={"path": "a"}),
@@ -9027,7 +9025,7 @@ def test_an_id_several_google_anchors_name_is_shared_in_the_output_a_filter_rece
         )
         for signature in ["c2ln", ""]
     ]
-    assert _received_shared_ids(output) == {"named_twice"}
+    assert gemini_shared_call_ids(output.message) == {"named_twice"}
 
 
 def _answered(input: list[ChatMessage], output: ModelOutput) -> list[ChatMessage]:

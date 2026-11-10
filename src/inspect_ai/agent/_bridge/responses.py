@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from inspect_ai.agent._bridge.types import AgentBridge
-from inspect_ai.model._assistant_internal import bridge_replay_scope
 from inspect_ai.model._providers.providers import validate_openai_client
 from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
 from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
@@ -23,7 +22,6 @@ async def inspect_responses_api_request(
 
     from .responses_impl import inspect_responses_api_request_impl
 
-    with bridge_replay_scope(bridge._replay):
-        return await inspect_responses_api_request_impl(
-            json_data, headers, web_search, code_execution, bridge
-        )
+    return await inspect_responses_api_request_impl(
+        json_data, headers, web_search, code_execution, bridge
+    )

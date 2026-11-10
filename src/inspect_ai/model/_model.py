@@ -124,7 +124,6 @@ from inspect_ai.util._span import (
 )
 
 from ._agent_message import validate_agent_message
-from ._assistant_internal import default_generation_assistant_internal
 from ._cache import (
     CacheEntry,
     CachePolicy,
@@ -1944,8 +1943,6 @@ class Model:
                     status_code=status_code_of(output),
                     provider_message=str(output),
                 ) from output
-
-            default_generation_assistant_internal(output)
 
             # a provider whose generate makes one request leaves the context
             # size to be read from its usage

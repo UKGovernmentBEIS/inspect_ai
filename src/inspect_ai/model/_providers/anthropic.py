@@ -181,11 +181,6 @@ from inspect_ai.util._json import (
 )
 
 from ..._util.httpx import httpx_classify_retry
-from .._assistant_internal import (
-    bridge_replay,
-    generation_replay,
-    set_generation_assistant_internal,
-)
 from .._call_tools import TOOL_CALLS_FAIL_FAST, repeated_call_ids
 from .._chat_message import (
     ChatMessage,
@@ -3859,8 +3854,13 @@ async def assistant_message_block_params(
     combined = bool(message.metadata and "combined_from" in message.metadata)
     tools_by_position: dict[int, list[MessageBlockParam]] = {}
     for tool_call in message.tool_calls or []:
-        recorded = None if combined else _client_tool_call_position(tool_call.id)
-        position = content_len if recorded is None else recorded
+        position = (
+            content_len
+            if combined
+            else assistant_internal().client_tool_call_positions.get(
+                tool_call.id, content_len
+            )
+        )
         position = min(max(position, 0), content_len)
         if tool_call.id in computer_toolset_call_ids:
             tool_use = computer_toolset_tool_use_param(tool_call)
@@ -4216,46 +4216,6 @@ def forget_anthropic_tool_call(call_id: str) -> None:
     assistant_internal().client_tool_call_positions.pop(call_id, None)
 
 
-def alias_anthropic_tool_call(
-    alias: str, state: JsonValue, bridge: dict[str, JsonValue] | None
-) -> None:
-    """Record a call's internal name and position (`state`) under `alias`."""
-    assert isinstance(state, dict)
-    name = cast(str | None, state["name"])
-    position = cast(int, state["position"])
-    if bridge is not None:
-        _bridge_section(bridge, "names")[alias] = name
-        _bridge_section(bridge, "positions")[alias] = position
-    else:
-        internal = assistant_internal()
-        internal.tool_call_internal_names[alias] = name
-        internal.client_tool_call_positions[alias] = position
-
-
-def has_parsed_tool_call(call_id: str) -> bool:
-    internal = assistant_internal()
-    return (
-        call_id in internal.tool_call_internal_names
-        or call_id in internal.client_tool_call_positions
-    )
-
-
-def _bridge_section(bridge: dict[str, JsonValue], key: str) -> dict[str, JsonValue]:
-    return cast(dict[str, JsonValue], bridge.setdefault(key, {}))
-
-
-def _bridge_handed(key: str) -> dict[str, JsonValue]:
-    anthropic = cast(dict[str, JsonValue], bridge_replay().get("anthropic", {}))
-    return cast(dict[str, JsonValue], anthropic.get(key, {}))
-
-
-def _client_tool_call_position(call_id: str) -> int | None:
-    handed = _bridge_handed("positions")
-    if call_id in handed:
-        return cast(int, handed[call_id])
-    return assistant_internal().client_tool_call_positions.get(call_id)
-
-
 _anthropic_assistant_internal: ContextVar[_AssistantInternal] = ContextVar(
     "anthropic_assistant_internal", default=_AssistantInternal()
 )
@@ -4500,7 +4460,7 @@ async def model_output_from_message(
         span_recorder = _ServerToolSpanRecorder()
 
     # extract content and tool calls
-    content, tool_calls, replay = _parse_assistant_content_blocks(
+    content, tool_calls = content_and_tool_calls_from_assistant_content_blocks(
         message.content,
         tools,
         pending_tool_uses=pending_tool_uses,
@@ -4701,23 +4661,25 @@ async def model_output_from_message(
             if reason_type:
                 warn_once(logger, _CACHE_MISS_WARNING.format(reason=reason_type))
 
-    output = ModelOutput(
-        model=serving_model,
-        choices=[choice],
-        usage=ModelUsage(
-            input_tokens=input_tokens,
-            output_tokens=output_tokens,
-            total_tokens=total_tokens,
-            input_tokens_cache_write=input_tokens_cache_write,
-            input_tokens_cache_read=input_tokens_cache_read,
-            reasoning_tokens=reasoning_tokens if reasoning_tokens > 0 else None,
+    return (
+        ModelOutput(
+            model=serving_model,
+            choices=[choice],
+            usage=ModelUsage(
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                total_tokens=total_tokens,
+                input_tokens_cache_write=input_tokens_cache_write,
+                input_tokens_cache_read=input_tokens_cache_read,
+                reasoning_tokens=reasoning_tokens if reasoning_tokens > 0 else None,
+            ),
+            input_context_tokens=input_context_tokens,
+            fallback=fallback,
+            metadata=metadata,
+            response_id=message.id,
         ),
-        input_context_tokens=input_context_tokens,
-        fallback=fallback,
-        metadata=metadata,
-        response_id=message.id,
+        pause_turn,
     )
-    return set_generation_assistant_internal(output, replay), pause_turn
 
 
 content_block_adapter = TypeAdapter[
@@ -4737,50 +4699,21 @@ content_block_adapter = TypeAdapter[
 )
 
 
-_AssistantContentBlocks = Sequence[
-    BetaCompactionBlockParam
-    | BetaServerToolUseBlockParam
-    | BetaBashCodeExecutionToolResultBlockParam
-    | BetaTextEditorCodeExecutionToolResultBlock
-    | ContentBlockParam
-    | ContentBlock
-]
-
-
 def content_and_tool_calls_from_assistant_content_blocks(
-    content_blocks_input: _AssistantContentBlocks,
+    content_blocks_input: Sequence[
+        BetaCompactionBlockParam
+        | BetaServerToolUseBlockParam
+        | BetaBashCodeExecutionToolResultBlockParam
+        | BetaTextEditorCodeExecutionToolResultBlock
+        | ContentBlockParam
+        | ContentBlock
+    ],
     tools: list[ToolInfo],
     pending_tool_uses: dict[str, ServerToolUseBlock | BetaServerToolUseBlock]
     | None = None,
     pending_mcp_tool_uses: dict[str, BetaMCPToolUseBlock] | None = None,
     span_recorder: _ServerToolSpanRecorder | None = None,
 ) -> tuple[list[Content], list[ToolCall] | None]:
-    parsed = _parse_assistant_content_blocks(
-        content_blocks_input,
-        tools,
-        pending_tool_uses=pending_tool_uses,
-        pending_mcp_tool_uses=pending_mcp_tool_uses,
-        span_recorder=span_recorder,
-    )
-    return parsed.content, parsed.tool_calls
-
-
-class _ParsedContentBlocks(NamedTuple):
-    content: list[Content]
-    tool_calls: list[ToolCall] | None
-    replay: dict[str, JsonValue]
-    """Each client tool call's internal name and position as this parse
-    recorded them (`generation_replay`)."""
-
-
-def _parse_assistant_content_blocks(
-    content_blocks_input: _AssistantContentBlocks,
-    tools: list[ToolInfo],
-    pending_tool_uses: dict[str, ServerToolUseBlock | BetaServerToolUseBlock]
-    | None = None,
-    pending_mcp_tool_uses: dict[str, BetaMCPToolUseBlock] | None = None,
-    span_recorder: _ServerToolSpanRecorder | None = None,
-) -> _ParsedContentBlocks:
     # when no span recorder is provided (e.g. parsing scaffold conversation
     # history via the agent bridge) record spans locally and register them in
     # the tool use id index at the end (gap-filling only -- see
@@ -4832,8 +4765,6 @@ def _parse_assistant_content_blocks(
     # extract content and tool calls
     content: list[Content] = []
     tool_calls: list[ToolCall] | None = None
-    # each client tool call's internal name and position, in call order
-    states: list[JsonValue | None] = []
 
     if pending_tool_uses is None:
         pending_tool_uses = dict()
@@ -5040,14 +4971,13 @@ def _parse_assistant_content_blocks(
                 (tool_name, internal_name) = _names_for_tool_call(
                     content_block.name, tools
                 )
+            assistant_internal().tool_call_internal_names[content_block.id] = (
+                internal_name
+            )
             # record where this client tool call sits in the content stream so
             # the rebuild can splice it back at its interleaved position rather
             # than front-loading the surrounding thinking blocks (see
             # `_AssistantInternal.client_tool_call_positions`)
-            states.append({"name": internal_name, "position": len(content)})
-            assistant_internal().tool_call_internal_names[content_block.id] = (
-                internal_name
-            )
             assistant_internal().client_tool_call_positions[content_block.id] = len(
                 content
             )
@@ -5144,17 +5074,9 @@ def _parse_assistant_content_blocks(
     # an id the content repeats keeps no name or position, so no call replays
     # another's
     for call_id in repeated_call_ids(tool_calls or []):
-        assistant_internal().tool_call_internal_names.pop(call_id, None)
-        assistant_internal().client_tool_call_positions.pop(call_id, None)
+        forget_anthropic_tool_call(call_id)
 
-    return _ParsedContentBlocks(
-        content,
-        tool_calls,
-        generation_replay(
-            tool_calls or [],
-            anthropic=states,
-        ),
-    )
+    return content, tool_calls
 
 
 # deal with tool results that may have been created with
@@ -5618,9 +5540,6 @@ async def _capture_compaction_from_stream(
 
 
 def _internal_name_from_tool_call(tool_call: ToolCall) -> str | None:
-    handed = _bridge_handed("names")
-    if tool_call.id in handed:
-        return cast(str | None, handed[tool_call.id])
     return assistant_internal().tool_call_internal_names.get(tool_call.id, None)
 
 

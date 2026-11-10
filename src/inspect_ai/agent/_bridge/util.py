@@ -55,16 +55,7 @@ from inspect_ai.agent._bridge._sentinel import (
 )
 from inspect_ai.agent._bridge.types import AgentBridge, message_json_hash
 from inspect_ai.model._agent_message import validate_agent_message
-from inspect_ai.model._assistant_internal import (
-    bridge_replay_scope,
-    carry_generation_assistant_internal,
-    carrying_generation,
-    forget_tool_call,
-    generation_assistant_internal,
-    hand_tool_call,
-    share_call_ids,
-    shared_call_ids,
-)
+from inspect_ai.model._assistant_internal import forget_tool_call, hand_tool_call
 from inspect_ai.model._call_tools import get_tools_info, repeated_call_ids
 from inspect_ai.model._chat_message import (
     ChatMessage,
@@ -474,16 +465,9 @@ async def _apply_response_filter(
     The copy is taken before the `try`, so a failure copying the output is not
     blamed on the filter. A returned output is re-validated because its models do
     not validate assignment, so values edited in place are otherwise unchecked.
-    Validation drops the returned output's replay state. The re-validated output
-    takes it for the calls it carries (`carry_generation_assistant_internal`)
-    from the returned output, or, when that has none (e.g. the filter rebuilt it
-    from its fields), from the generation that parsed its calls: `output`'s, or
-    one of `generated()`, the request's generations, which include any the
-    filter made (`carrying_generation`). So its calls replay in their native
-    form. An ID shared in the output the filter received stays shared
-    (`_received_shared_ids`), whether or not that output has replay state.
     Google thought signatures stay on the part they came with or the call
-    their anchor names (`_hold_signatures_in_place`).
+    their anchor names (`_hold_signatures_in_place`), given the request's
+    generations (`generated()`, which include any the filter made).
 
     Exceptions are classified after unwrapping by hand, not with `inner_exception`,
     which follows `__context__` and can pick the exception already being handled.
@@ -522,7 +506,7 @@ async def _apply_response_filter(
         )
     try:
         # completion is excluded so validation re-derives it from the message
-        validated = ModelOutput.model_validate(
+        filtered = ModelOutput.model_validate(
             filtered.model_dump(exclude={"completion"}, warnings=False)
         )
     except ValidationError as ex:
@@ -530,14 +514,6 @@ async def _apply_response_filter(
             "response_filter returned an invalid ModelOutput: "
             f"{_validation_error_details(ex)}"
         ) from ex
-    carry_generation_assistant_internal(
-        filtered
-        if generation_assistant_internal(filtered) is not None
-        else carrying_generation(validated, [output, *generated()]) or output,
-        validated,
-    )
-    share_call_ids(validated, _received_shared_ids(output))
-    filtered = validated
     # by id, a list per call, as parallel calls can share an id
     original_arguments: dict[str, list[dict[str, Any]]] = {}
     for choice in output.choices:
@@ -566,30 +542,6 @@ async def _apply_response_filter(
     _hold_signatures_in_place(output, filtered, generated())
     _settle_message_ids(output, filtered)
     return filtered
-
-
-def _received_shared_ids(output: ModelOutput) -> set[str]:
-    """The call IDs shared in the output a response filter received.
-
-    Those several of its calls carry, or several of a message's Google reasoning
-    anchors name, with those its replay state records as shared
-    (`shared_call_ids`). A filter keeping one of the calls leaves the ID
-    unshared in what it returns, but the ID's signed anchor may be another
-    call's, so the kept call must still replay without it (`_retarget_anchors`).
-    Taken from the calls and anchors themselves, as the replay state is unknown
-    for, e.g., a request filter's output or an output cached by an older version.
-    """
-    shared = shared_call_ids(output)
-    for choice in output.choices:
-        if isinstance(choice.message.content, str):
-            continue
-        anchored = Counter(_anchor_call_id(part) for part in choice.message.content)
-        shared |= {
-            call_id
-            for call_id, count in anchored.items()
-            if call_id is not None and count > 1
-        }
-    return shared
 
 
 def _hold_signatures_in_place(
@@ -1053,8 +1005,7 @@ async def bridge_generate(
     `AgentBridgeContext` defaults to unknown, `current_bridge_request()` carries
     `requested_model` (the scaffold's pre-alias-resolution model slug), or
     returns None when the scaffold sent no model, and both reset when the
-    request completes. Within it, the calls the bridge handed on replay with
-    the state it recorded for them (`bridge_replay_scope`).
+    request completes.
 
     Tool calls in the output are approved, and go through the sentinel's `tool_call`
     stage, before it is handed back to the scaffold. A rejected call is not edited
@@ -1084,10 +1035,9 @@ async def bridge_generate(
     generations = _Generations()
     with (
         bridged_request_scope(requested_model),
-        bridge_replay_scope(bridge._replay),
         bridge_request(),
         # for what produced the response (the sentinel's tool steps), and the
-        # replay state of a response filter's rebuilt output
+        # calls the request's generations made (`_hold_replay_state`)
         observe_generations(generations.record),
     ):
         return await _bridge_generate_impl(
@@ -1486,9 +1436,9 @@ class _Generations:
     model event sink's `on_start` can choose it), so the call's steps are in
     the conversation its generation's stages were.
 
-    Recorded with or without a sentinel: a response filter's output rebuilt
-    from its fields takes the replay state of the recorded generation that
-    parsed its calls (`outputs`, `_apply_response_filter`).
+    Recorded with or without a sentinel: the calls the request's generations
+    made decide which calls' replay state can be told apart (`outputs`,
+    `_hold_replay_state`, `_hold_signatures_in_place`).
     """
 
     def __init__(self) -> None:
