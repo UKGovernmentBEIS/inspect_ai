@@ -648,3 +648,61 @@ async def test_gemini_computer_call_takes_its_parts_id() -> None:
     assert part.function_call.id == "model_id"
     assert part.function_call.name == "click_at"
     assert part.thought_signature == b"signature"
+
+
+@pytest.mark.parametrize("renamed", [False, True])
+@pytest.mark.parametrize(
+    "name,args",
+    [("go_back", {}), ("go_forward", {}), ("search", {"query": "a query"})],
+    ids=["go_back", "go_forward", "search"],
+)
+async def test_gemini_alias_call_under_the_models_id_replays_as_sent(
+    name: str, args: dict[str, object], renamed: bool
+) -> None:
+    from google.genai.types import Candidate, Content, FinishReason, Part
+
+    from inspect_ai.agent._bridge.util import _renamed_anchors
+    from inspect_ai.model._providers.google import (
+        as_chat_messages,
+        completion_choice_from_candidate,
+    )
+
+    candidate = Candidate(
+        content=Content(
+            role="model",
+            parts=[
+                Part(
+                    function_call=FunctionCall(id="model_call", name=name, args=args),
+                    thought_signature=b"signature",
+                )
+            ],
+        ),
+        finish_reason=FinishReason.STOP,
+    )
+    message = completion_choice_from_candidate(
+        "gemini-3-flash-preview", candidate, computer_use=True
+    ).message
+    assert message.tool_calls is not None
+    [call] = message.tool_calls
+    assert call.id == "model_call"
+    if renamed:
+        # a call the bridge hands over under a fresh id takes its anchors along
+        assert not isinstance(message.content, str)
+        message.content = _renamed_anchors(message.content, {call.id: ["fresh"]})
+        call.id = "fresh"
+
+    contents = await as_chat_messages(
+        MagicMock(),
+        [
+            message,
+            ChatMessageTool(content="ok", tool_call_id=call.id, function="computer"),
+        ],
+    )
+
+    [part] = [p for p in contents[0].parts or [] if p.function_call]
+    response = (contents[1].parts or [])[0].function_response
+    assert part.function_call is not None and response is not None
+    assert (part.function_call.name, part.function_call.args) == (name, args)
+    assert part.function_call.id == call.id
+    assert part.thought_signature == b"signature"
+    assert response.name == name

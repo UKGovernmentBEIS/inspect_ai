@@ -122,9 +122,14 @@ from inspect_ai.model._providers._google_computer_use import (
     maybe_computer_use_tool,
     tool_call_from_gemini_computer_action,
 )
+from inspect_ai.model._providers._google_computer_use_name import (
+    GEMINI_COMPUTER_ACTIONS,
+)
 from inspect_ai.model._providers._google_reasoning import (
+    GEMINI_COMPUTER_ACTION_KEY,
     GEMINI_FUNCTION_CALL_ID_KEY,
     gemini_3_plus,
+    gemini_computer_actions,
     gemini_is_latest,
     gemini_shared_call_ids,
     gemini_supports_minimal_thinking,
@@ -1767,9 +1772,12 @@ def computer_result_actions(messages: Sequence[ChatMessage]) -> list[str | None]
     results: list[str | None] = []
     for message in messages:
         if isinstance(message, ChatMessageAssistant):
+            sent = gemini_computer_actions(message)
             for call in message.tool_calls or []:
                 if call.function == "computer":
-                    actions[call.id] = gemini_replay_action_name(call)
+                    actions[call.id] = gemini_replay_action_name(
+                        call, sent.get(call.id)
+                    )
                 else:
                     actions.pop(call.id, None)
         results.append(
@@ -1864,10 +1872,13 @@ async def content(
         # gives it no signature, as the signatures can't be told apart by call
         emitted_tool_calls: set[int] = set()
         shared_ids = gemini_shared_call_ids(message)
+        sent_actions = gemini_computer_actions(message)
 
         def part_from_tool_call(tool_call: ToolCall) -> Part:
             if tool_call.function == "computer":
-                action_name = gemini_replay_action_name(tool_call)
+                action_name = gemini_replay_action_name(
+                    tool_call, sent_actions.get(tool_call.id)
+                )
                 return Part(
                     function_call=FunctionCall(
                         id=tool_call.id,
@@ -2313,11 +2324,21 @@ def completion_choice_from_candidate(
                         if part.thought_signature is not None
                         else ""
                     )
+                    internal: dict[str, JsonValue] = {
+                        _GEMINI_FUNCTION_CALL_ID_KEY: function_call_id
+                    }
+                    if (
+                        computer_use
+                        and part.function_call.name in GEMINI_COMPUTER_ACTIONS
+                    ):
+                        # the Inspect call can't tell some actions apart
+                        # (`go_back`, `search`), so the anchor keeps the one sent
+                        internal[GEMINI_COMPUTER_ACTION_KEY] = part.function_call.name
                     content.append(
                         ContentReasoning(
                             reasoning=signature_b64,
                             redacted=True,
-                            internal={_GEMINI_FUNCTION_CALL_ID_KEY: function_call_id},
+                            internal=internal,
                         )
                     )
                     working_reasoning_block = None
@@ -2469,21 +2490,7 @@ def completion_choice_from_candidate(
                         working_reasoning_block.redacted = True
                         working_reasoning_block = None
 
-                if computer_use and part.function_call.name in {
-                    "click_at",
-                    "type_text_at",
-                    "hover_at",
-                    "key_combination",
-                    "scroll_document",
-                    "scroll_at",
-                    "drag_and_drop",
-                    "navigate",
-                    "go_back",
-                    "go_forward",
-                    "open_web_browser",
-                    "search",
-                    "wait_5_seconds",
-                }:
+                if computer_use and part.function_call.name in GEMINI_COMPUTER_ACTIONS:
                     tool_calls.append(
                         tool_call_from_gemini_computer_action(
                             part.function_call, function_call_ids.get(i)

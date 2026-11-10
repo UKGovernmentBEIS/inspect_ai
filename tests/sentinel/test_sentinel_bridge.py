@@ -10046,6 +10046,7 @@ def _matrix_generation(
                 ),
                 finish_reason=FinishReason.STOP,
             ),
+            computer_use=True,
         )
         return ModelOutput(model="mockllm/model", choices=[choice])
 
@@ -10600,3 +10601,64 @@ async def test_a_call_proposed_again_replays_each_turn_with_its_own_arguments(
         for param in replayed
     ] == [True, False]
     assert [param.get("id") for param in replayed] == [None, f"{item.id}_again"]
+
+
+@pytest.mark.parametrize("checked", [True, False])
+@pytest.mark.parametrize(
+    "action,args", [("go_back", {}), ("search", {"query": "a query"})]
+)
+async def test_a_gemini_alias_action_under_the_models_id_replays_as_sent(
+    action: str, args: dict[str, Any], checked: bool
+) -> None:
+    from contextlib import AbstractContextManager, nullcontext
+
+    from google.genai.types import Candidate, Content, FinishReason, FunctionCall, Part
+
+    from inspect_ai.model._providers.google import (
+        completion_choice_from_candidate,
+    )
+    from inspect_ai.model._providers.google import content as google_content
+
+    def generation() -> ModelOutput:
+        choice = completion_choice_from_candidate(
+            "gemini-3-flash-preview",
+            Candidate(
+                content=Content(
+                    role="model",
+                    parts=[
+                        Part(
+                            function_call=FunctionCall(
+                                id="model_call", name=action, args=args
+                            ),
+                            thought_signature=GOOGLE_SIGNATURE,
+                        )
+                    ],
+                ),
+                finish_reason=FinishReason.STOP,
+            ),
+            computer_use=True,
+        )
+        return ModelOutput(model="mockllm/model", choices=[choice])
+
+    async def wire(input: list[ChatMessage]) -> Any:
+        return [
+            (part.function_call.name, part.function_call.args, part.thought_signature)
+            for message in input
+            if isinstance(message, ChatMessageAssistant)
+            for part in (await google_content(AsyncMock(), message)).parts or []
+            if part.function_call is not None
+        ]
+
+    model = Parsing(generation, lambda: calls_output(), wire=wire)
+    bridge = in_process_bridge([])
+    tools = [ToolInfo(name="computer", description="Use the computer.")]
+    sentinel: AbstractContextManager[None] = (
+        active([bridge_recording([])]) if checked else nullcontext()
+    )
+    messages: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+    with sentinel:
+        handed = await generate(bridge, model, messages, tools)
+        assert [call.id for call in handed.message.tool_calls or []] == ["model_call"]
+        await generate(bridge, model, _answered(messages, handed), tools)
+
+    assert model.wire[-1] == [(action, args, GOOGLE_SIGNATURE)]

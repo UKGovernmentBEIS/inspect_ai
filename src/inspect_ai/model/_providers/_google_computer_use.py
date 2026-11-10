@@ -169,17 +169,21 @@ def gemini_action_from_tool_call(
         return name, {}
 
 
-def gemini_replay_action_name(tool_call: ToolCall) -> str:
+def gemini_replay_action_name(tool_call: ToolCall, sent: str | None = None) -> str:
     """The Gemini action a computer call replays as.
 
-    The action its id names (`click_at_<id>`) when that fits the call's
-    arguments, which keeps an action parsed as another (`search` as
-    navigation); otherwise the action of its arguments, as for a call whose
-    arguments approval or a filter changed to another action, or whose id is
-    the model's own.
+    The action it was sent as (`sent`, from its reasoning anchor,
+    `gemini_computer_actions`), or else the one its id names
+    (`click_at_<id>`), when that fits the call's arguments: this keeps an
+    action parsed as another (`search` as navigation). Otherwise the action of
+    its arguments, as for a call whose arguments approval or a filter changed
+    to another action.
     """
+    names = gemini_computer_action_names(tool_call.arguments)
+    if sent in names:
+        return sent
     prefix = tool_call.id.rsplit("_", 1)[0]
-    if prefix in gemini_computer_action_names(tool_call.arguments):
+    if prefix in names:
         return prefix
     return gemini_computer_action_name(tool_call.arguments)
 

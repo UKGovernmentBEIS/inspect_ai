@@ -154,6 +154,32 @@ def gemini_thinking_budget(effort: str | None, family: str) -> int | None:
 GEMINI_FUNCTION_CALL_ID_KEY = "gemini_function_call_id"
 """The `ContentReasoning.internal` key naming the call a reasoning anchor is for."""
 
+GEMINI_COMPUTER_ACTION_KEY = "gemini_computer_action"
+"""The `ContentReasoning.internal` key naming the Gemini computer action its call was sent as."""
+
+
+def gemini_computer_actions(message: ChatMessageAssistant) -> dict[str, str]:
+    """The Gemini computer action each of the message's calls was sent as, by call id.
+
+    From the calls' reasoning anchors, so it follows a call whose id changes
+    with its anchors. None for an id several calls or anchors share.
+    """
+    if isinstance(message.content, str):
+        return {}
+    shared = gemini_shared_call_ids(message)
+    actions: dict[str, str] = {}
+    for part in message.content:
+        if isinstance(part, ContentReasoning) and isinstance(part.internal, dict):
+            call_id = part.internal.get(GEMINI_FUNCTION_CALL_ID_KEY)
+            action = part.internal.get(GEMINI_COMPUTER_ACTION_KEY)
+            if (
+                isinstance(call_id, str)
+                and isinstance(action, str)
+                and call_id not in shared
+            ):
+                actions[call_id] = action
+    return actions
+
 
 def gemini_shared_call_ids(message: ChatMessageAssistant) -> set[str]:
     """The ids several of the message's calls, or several of its reasoning anchors, name.
