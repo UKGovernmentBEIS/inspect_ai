@@ -1,16 +1,18 @@
 import hashlib
 import json
-from collections import Counter, OrderedDict, deque
+from collections import OrderedDict
 from contextlib import AbstractContextManager, ExitStack, nullcontext
 from copy import deepcopy
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from functools import cached_property, partial
 from logging import getLogger
 from typing import (
     TYPE_CHECKING,
+    AbstractSet,
     Any,
     Awaitable,
     Callable,
+    Iterable,
     Iterator,
     Literal,
     NamedTuple,
@@ -19,7 +21,7 @@ from typing import (
 )
 
 import anyio
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel
 from pydantic_core import to_jsonable_python
 from shortuuid import uuid
 
@@ -31,31 +33,20 @@ from inspect_ai._util.content import (
     ContentAudio,
     ContentDocument,
     ContentImage,
-    ContentReasoning,
     ContentText,
     ContentVideo,
 )
 from inspect_ai._util.exception import TerminateSampleError
+from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
-from inspect_ai.agent._bridge.types import AgentBridge
-from inspect_ai.model._assistant_internal import (
-    GenerationCallState,
-    alias_assistant_internal_call,
-    generation_assistant_internal,
-    generation_call_states,
-    shared_call_ids,
-)
-from inspect_ai.model._cache import set_unkeyed_metadata
-from inspect_ai.model._call_tools import decisive_sentinel_exception
+from inspect_ai.agent._bridge.types import AgentBridge, message_json_hash
+from inspect_ai.model._call_tools import decisive_sentinel_exception, repeated_call_ids
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
     ChatMessageTool,
 )
-from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.model._providers._google_computer_use_name import (
-    GEMINI_COMPUTER_ACTIONS,
-    gemini_computer_action_name,
     gemini_computer_action_names,
 )
 from inspect_ai.tool._tool import Tool, ToolResult
@@ -79,10 +70,6 @@ logger = getLogger(__name__)
 T = TypeVar("T")
 
 _MAX_PROPOSALS = 1000
-
-# a model id longer than this is replaced by a fresh token, so the aliases of a
-# history id that need reserving are those up to this length
-_MAX_TOKEN_LENGTH = 128
 
 # a result no assistant message in the request accounts for, or a host call no
 # proposal does, has no message that made the call
@@ -120,46 +107,63 @@ class SentinelCheck(NamedTuple):
     take what the model was sent from it, and its conversation, and without it
     have no input and the bridge's current conversation."""
 
-    token: str | None = None
-    """The id the scaffold was handed for the call (`sentinel_tokens`), or None
-    for a host call no proposal accounts for."""
+    execution_id: str | None = None
+    """The handout of the call this check is for (`_HandedCalls.hand_over`),
+    or None for a host call no proposal accounts for."""
 
     alternatives: tuple["SentinelCheck", ...] = ()
     """Checks for other host tools denoted by the same handed call."""
 
-    modified: bool = False
-    """Whether approval changed the arguments the model proposed."""
+
+class BridgedRequest(NamedTuple):
+    """A scaffold request, as the bridge tells calls apart by it."""
+
+    key: str
+    """Its conversation's digest (`bridged_request`): a retry of the request
+    has the same."""
+
+    ids: frozenset[str]
+    """The call ids in its conversation (`history_ids`)."""
 
 
-class _Identity(NamedTuple):
-    """What the bridge keeps for every token it has handed out, for good."""
+def bridged_request(input: Sequence[ChatMessage]) -> BridgedRequest:
+    # message ids are the bridge's, assigned from the messages' content
+    return BridgedRequest(
+        _digest(
+            [
+                message_json_hash(
+                    to_json_str_safe(message.model_copy(update={"id": None}))
+                )
+                for message in input
+            ]
+        ),
+        history_ids(input),
+    )
 
-    call_id: str
-    """The model's id for the call."""
+
+class _Handed(NamedTuple):
+    """What the bridge keeps for each call id it has handed to the scaffold."""
 
     function: str
 
-    call_key: str
-    """The call's conservative identity (`_call_key`)."""
+    proposed: str | None
+    """The call as the model proposed it (`_call_key`), or None when several
+    calls of its response shared the id."""
 
-    action: str | None
-    """A computer call's Gemini action (`_computer_action`)."""
+    handed: str
+    """The call as handed over, with the arguments approval gave it (`_call_key`)."""
+
+    execution_id: str | None
+    """The call's latest handout, or None for a call only in a rejected turn."""
+
+    request: str
+    """The request it was handed over or rejected in (`BridgedRequest.key`)."""
 
 
-class _SavedResultChecks(BaseModel):
+class _SavedHandedCalls(BaseModel):
     reserved_ids: list[str]
-    tokens: dict[str, _Identity]
+    handed: dict[str, _Handed]
     checked: list[str]
-
-    @model_validator(mode="after")
-    def _computer_calls_have_actions(self) -> "_SavedResultChecks":
-        for token, identity in self.tokens.items():
-            if (identity.function == "computer") != (identity.action is not None):
-                raise ValueError(
-                    f"Token {token!r} must have an action if and only if it is "
-                    "a computer call."
-                )
-        return self
 
 
 class _Result(NamedTuple):
@@ -196,45 +200,40 @@ class _Call:
         return _call_key(self.call)
 
 
-class _ResultChecks:
-    """The `tool_result` checks for the results the scaffold reports.
+class _HandedCalls:
+    """The calls a bridge has handed to the scaffold, and the checks of their results.
 
-    Each call handed to the scaffold gets a token, unique for the bridge, as
-    its id (`sentinel_tokens`): the model's own id when it is absent from the
-    incoming history, the bridge has not handed it out before, it is at most
-    `_MAX_TOKEN_LENGTH` characters, it names no Gemini computer action other
-    than the approved one (`_names_another_action`), its generation's replay
-    state for it is known (`generation_call_states`), so no provider can replay
-    another generation's state under it, and, for a call approval or a request or
-    response filter changed, that state does not carry the model's arguments
-    (`GenerationCallState.carries_arguments`); otherwise a fresh token
-    (`_token_prefix`). A result
-    reported under a token is the result of that execution, however the
-    scaffold has rewritten, compacted or reformatted the rest of its
-    conversation. Tokens, observed history ids and checked results are kept
-    for the life of the bridge and in its checkpoint (`saved`), apart from the
-    proposals (bounded), so neither an evicted proposal nor a resume can make
-    an older execution match a newer one.
+    A call is handed over under the model's id. Each handout is an execution
+    with its own `execution_id`: a scaffold retry served from the model cache
+    hands the same call over again, under the same id, and its result is that
+    of the latest handout, the one the scaffold received.
+
+    A call gets a fresh id instead (`reused`) when the model's id can't name
+    it: an empty id, or one that already names another call (Claude Code
+    drops a repeated id and the result under it). The handed ids and the ids
+    seen in requests and rejected turns (`reserved_ids`) are kept for the life
+    of the bridge and in its checkpoint (`saved`), apart from the proposals
+    (bounded).
 
     Each execution's result is checked once: a result is identified by its
-    token and its exact content (`_content_key`), so replays are not checked
-    again, while different content for the same execution, down to its
-    whitespace, is. A result under a token gets
+    call's id, the call as proposed and the result's exact content
+    (`_content_key`), so replays are not checked again, while different
+    content for the same execution, down to its whitespace, is. A result gets
     its proposal's context; once the proposal is evicted, the request's
     conversation and no model input.
 
-    A result whose id the bridge never handed out (a scaffold that drops or
-    rewrites ids, or one answering no call) can't be matched to an execution.
-    It is checked once per conservative key, its call's function and arguments
-    and its content (`_call_key`), with the request's conversation and no
-    model input, never another call's context; an identical result of another
-    execution is not checked again. Every checked result also records that
-    key, so a matched result reported again without its token is not checked
-    twice.
+    A result under an id the bridge never handed out, or one several calls of
+    a response shared (a scaffold that rewrites ids, or one answering no call),
+    can't be matched to an execution. It is checked once per conservative key,
+    its call's function and arguments and its content (`_call_key`), with the
+    request's conversation and no model input, never another call's context;
+    an identical result of another execution is not checked again. Every
+    checked result also records that key, so a matched result reported again
+    under another id is not checked twice.
 
     A host call's result is checked when the call executes, and that result,
-    as delivered, is recorded as checked under the call's token; other content
-    the scaffold reports for the call is checked like a scaffold-run call's.
+    as delivered, is recorded as checked for its call; other content the
+    scaffold reports for the call is checked like a scaffold-run call's.
 
     The results in the state the bridge starts with were in the agent's
     conversation before the bridge ran, and are not checked again, as a native
@@ -242,81 +241,115 @@ class _ResultChecks:
     (`inherited_result_keys`). Each is recorded under its conservative key,
     taken when the bridge is first constructed and kept in its checkpoint, so
     a result reported with other content (including one changed in place
-    since, before or after a resume) is checked. Their call IDs are reserved
-    (`history_ids`) at the same point, so no token can match a starting call.
+    since, before or after a resume) is checked. Their call ids are reserved
+    at the same point (`history_ids`).
 
     Held by its bridge, since a failure's traceback references the bridge.
     """
 
-    def __init__(self, saved: _SavedResultChecks) -> None:
-        self.identities: dict[str, _Identity] = {}
-        self.prefixed_tokens: set[str] = set()
-        for token, identity in saved.tokens.items():
-            self._record(token, identity)
+    def __init__(self, saved: _SavedHandedCalls) -> None:
+        self.handed: dict[str, _Handed] = dict(saved.handed)
         self.reserved_ids: set[str] = set(saved.reserved_ids)
         self.proposals: OrderedDict[str, SentinelCheck] = OrderedDict()
         self.checked: set[str] = set(saved.checked)
         self.running: dict[str, anyio.Event] = {}
         self.failed: dict[str, Exception] = {}
 
-    def saved(self) -> _SavedResultChecks:
-        """What a resumed bridge needs to issue tokens and match results as this one does.
+    def saved(self) -> _SavedHandedCalls:
+        """What a resumed bridge needs to hand over calls and match results as this one does.
 
         Proposals hold their generation and viewer, so a resumed bridge
-        matches a result to its token as it would after the proposal's
-        eviction. A check that was running or failed is made again. The
-        tokens' aliases are derived from their identities on restore.
+        matches a result as it would after the proposal's eviction. A check
+        that was running or failed is made again.
         """
-        return _SavedResultChecks(
+        return _SavedHandedCalls(
             reserved_ids=sorted(self.reserved_ids),
-            tokens=dict(self.identities),
+            handed=dict(self.handed),
             checked=sorted(self.checked),
         )
 
-    def _record(self, token: str, identity: _Identity) -> None:
-        self.identities[token] = identity
-        self.prefixed_tokens.update(
-            f"{name}__{token}"
-            for name in _wire_names(identity.function, identity.action)
+    def reserve(self, ids: Iterable[str]) -> None:
+        self.reserved_ids.update(ids)
+
+    def function(self, call_id: str) -> str | None:
+        """The function of the call handed over under `call_id`, if any."""
+        handed = self.handed.get(call_id)
+        return handed.function if handed is not None else None
+
+    def reused(
+        self,
+        call_id: str,
+        calls: Sequence[ToolCall],
+        request: BridgedRequest,
+        siblings: AbstractSet[str] = frozenset(),
+    ) -> bool:
+        """Whether the model's id for `calls` (those of a response under it) names another call.
+
+        It does when it is empty, in the request's conversation, reserved, or
+        handed over or rejected before for another call: another function or
+        arguments as proposed, several calls, or another request's. The same
+        call in a retry of the request (served from the model cache, or
+        proposed again after a rejection) keeps its id. So does an id a Gemini
+        CLI echo (`name__id`, `_echoes`) can't tell apart from a reserved or
+        handed one, or one of the response's other calls (`siblings`).
+        """
+        if not call_id or call_id in request.ids:
+            return True
+        if any(
+            echo in self.reserved_ids or echo in self.handed or echo in siblings
+            for call in calls
+            for echo in _echoes(call)
+        ):
+            return True
+        handed = self.handed.get(call_id)
+        if handed is None:
+            return call_id in self.reserved_ids
+        return (
+            handed.proposed is None
+            or handed.request != request.key
+            or len(calls) > 1
+            or _call_key(calls[0]) != handed.proposed
         )
 
-    def reserve(self, input: Sequence[ChatMessage]) -> None:
-        self.reserved_ids.update(history_ids(input))
-
-    def issue(
+    def hand_over(
         self,
-        checks: Sequence[SentinelCheck],
-        states: Sequence[GenerationCallState | None],
-    ) -> list[SentinelCheck]:
-        """Give each check's call its token.
+        request: BridgedRequest,
+        proposed: Sequence[ToolCall],
+        handed: Sequence[ToolCall],
+        checks: Sequence[SentinelCheck] | None,
+    ) -> list[SentinelCheck] | None:
+        """Record a response's calls as handed over in `request`, each a new execution.
 
-        `states` are the calls' replay states (`generation_call_states`), in
-        order.
+        `proposed` are the calls as the model proposed them, `handed` as
+        approval gave them, and `checks` their `tool_result` checks, in order
+        (None without a sentinel). Returns the checks with their execution ids.
         """
+        shared = repeated_call_ids(handed)
         issued: list[SentinelCheck] = []
-        for check, state in zip(checks, states, strict=True):
-            token = check.handed.id
-            fresh = state is None or (
-                (check.modified or state.edited) and state.carries_arguments
+        for index, (model_call, call) in enumerate(zip(proposed, handed, strict=True)):
+            execution_id = uuid()
+            self.handed[call.id] = _Handed(
+                call.function,
+                None if call.id in shared else _call_key(model_call),
+                _call_key(call),
+                execution_id,
+                request.key,
             )
-            identity = _Identity(
-                check.call.id,
-                check.handed.function,
-                _call_key(check.handed),
-                _computer_action(check.handed),
+            if checks is None:
+                continue
+            check = checks[index]
+            check = check._replace(
+                execution_id=execution_id,
+                alternatives=tuple(
+                    alternative._replace(execution_id=execution_id)
+                    for alternative in check.alternatives
+                ),
             )
-            names = _wire_names(identity.function, identity.action)
-            while (
-                not token
-                or len(token) > _MAX_TOKEN_LENGTH
-                or self._ambiguous_token(token, names)
-                or _names_another_action(token, check)
-                or (fresh and token == check.handed.id)
-            ):
-                token = f"{_token_prefix(check)}_{uuid()}"
-            self._record(token, identity)
-            issued.append(check._replace(token=token))
-            self.proposals[token] = issued[-1]
+            issued.append(check)
+            self.proposals.pop(call.id, None)
+            if call.id in shared:
+                continue
+            self.proposals[call.id] = check
             while len(self.proposals) > _MAX_PROPOSALS:
                 self.proposals.popitem(last=False)
                 warn_once(
@@ -327,27 +360,47 @@ class _ResultChecks:
                     f"than {_MAX_PROPOSALS} calls ago sees only the conversation "
                     "that carries its result, and no model input.",
                 )
-        return issued
+        return issued if checks is not None else None
 
-    def _ambiguous_token(self, token: str, names: set[str]) -> bool:
-        """Whether this token could echo another issued or historical call.
+    def reject(self, request: BridgedRequest, calls: Sequence[ToolCall]) -> None:
+        """Record a rejected turn's calls, which the model sees but the scaffold never runs.
 
-        The Google bridge receives both unchanged and function-prefixed echoes.
-        Issuing either side of a prefix pair would make one wire id denote two
-        calls, so mint a fresh token instead.
+        A later call under one of their ids is a different call's unless it is
+        the same call proposed again (`reused`).
         """
-        return (
-            token in self.identities
-            or token in self.prefixed_tokens
-            or token in self.reserved_ids
-            or any(f"{name}__{token}" in self.identities for name in names)
-            or any(f"{name}__{token}" in self.reserved_ids for name in names)
-            or self._echoes_reserved_id(token)
+        shared = repeated_call_ids(calls)
+        for call in calls:
+            if call.id not in self.handed:
+                key = _call_key(call)
+                self.handed[call.id] = _Handed(
+                    call.function,
+                    None if call.id in shared else key,
+                    key,
+                    None,
+                    request.key,
+                )
+
+    def latest(self, check: SentinelCheck) -> SentinelCheck:
+        """The check for the latest handout of `check`'s call and target."""
+        proposal = self.proposals.get(check.handed.id)
+        if proposal is None or check.execution_id is None:
+            return check
+        return next(
+            (
+                target
+                for target in (proposal, *proposal.alternatives)
+                if target.call.function == check.call.function
+            ),
+            check,
         )
 
-    def _echoes_reserved_id(self, token: str) -> bool:
-        """Whether stripping one or more wire prefixes reveals a history ID."""
-        return any(alias in self.reserved_ids for alias in _aliases(token))
+    def result_keys(self, call: ToolCall, content_key: str) -> list[str]:
+        """The keys a result of the handed `call` with `content_key` is checked under."""
+        keys = [_digest(["call", _call_key(call), content_key])]
+        handed = self.handed.get(call.id)
+        if handed is not None and handed.proposed is not None:
+            keys.insert(0, _digest(["handed", call.id, handed.proposed, content_key]))
+        return keys
 
     def claim(self, input: list[ChatMessage]) -> _Claimed:
         claimed = _Claimed([], [])
@@ -380,23 +433,21 @@ class _ResultChecks:
         message: ChatMessageTool,
         found: _Call | None,
     ) -> _Result:
-        identity = self.identities.get(message.tool_call_id or "")
-        if identity is not None:
+        call_id = message.tool_call_id or ""
+        handed = self.handed.get(call_id)
+        if handed is not None and handed.proposed is not None:
             content = _content_key(message)
-            token = message.tool_call_id or ""
             keys = [
-                _digest(["token", token, content]),
-                _digest(["call", identity.call_key, content]),
+                _digest(["handed", call_id, handed.proposed, content]),
+                _digest(["call", handed.handed, content]),
             ]
-            proposal = self.proposals.get(token)
+            proposal = self.proposals.get(call_id)
             if proposal is not None:
                 return _Result(keys, (proposal, *proposal.alternatives), message)
             call = (
-                replace(found.call, id=identity.call_id)
+                found.call
                 if found is not None
-                else ToolCall(
-                    id=identity.call_id, function=identity.function, arguments={}
-                )
+                else ToolCall(id=call_id, function=handed.function, arguments={})
             )
         else:
             call, key = _unissued(message, found)
@@ -455,6 +506,32 @@ class _ResultChecks:
             if self.running.get(key) is claim.event:
                 del self.running[key]
         claim.event.set()
+
+
+def _echoes(call: ToolCall) -> set[str]:
+    """The other ids a Gemini CLI echo of `call`'s id can be read back as.
+
+    Gemini CLI may send an id back prefixed with its call's wire name
+    (`name__id`), which the Google dialect strips for a call handed over to
+    that function (`_function_part_id`): the prefixed id, and the id with such
+    a prefix stripped.
+    """
+    names = wire_names(call.function, call.arguments)
+    echoes = {f"{name}__{call.id}" for name in names}
+    echoes |= {
+        call.id.removeprefix(f"{name}__")
+        for name in names
+        if call.id.startswith(f"{name}__")
+    }
+    return echoes - {call.id, ""}
+
+
+def wire_names(function: str, arguments: dict[str, Any]) -> set[str]:
+    """The names a Gemini scaffold can send a call to `function` under."""
+    names = {function.strip() or "generic_tool"}
+    if function == "computer":
+        names |= gemini_computer_action_names(arguments)
+    return names
 
 
 def _answers(
@@ -573,104 +650,14 @@ def inherited_result_keys(input: Sequence[ChatMessage]) -> frozenset[str]:
 
 
 def history_ids(input: Sequence[ChatMessage]) -> frozenset[str]:
-    """The call IDs in a conversation, and their wire aliases, never issued as tokens.
-
-    Those of the conversation a bridge starts with are taken when it is first
-    constructed and restored from its checkpoint on resume, so a request that
-    omits that history can't have one of its IDs reissued to a new call.
-    """
-    reserved: set[str] = set()
+    """The call ids in a conversation: its calls' and its results'."""
+    ids: set[str] = set()
     for message in input:
         if isinstance(message, ChatMessageAssistant):
-            for call in message.tool_calls or []:
-                _reserve_id(
-                    reserved,
-                    call.id,
-                    _wire_names(call.function, _computer_action(call)),
-                )
+            ids.update(call.id for call in message.tool_calls or [] if call.id)
         elif isinstance(message, ChatMessageTool) and message.tool_call_id:
-            _reserve_id(
-                reserved,
-                message.tool_call_id,
-                {message.function.strip() or "generic_tool"}
-                if message.function
-                else set(),
-            )
-    return frozenset(reserved)
-
-
-def _reserve_id(reserved: set[str], call_id: str, names: set[str]) -> None:
-    """Reserve the raw ID and any alias Google could strip from it later."""
-    if not call_id:
-        return
-    reserved.add(call_id)
-    for name in names:
-        stripped = call_id.removeprefix(f"{name}__")
-        if stripped and stripped != call_id and len(stripped) <= _MAX_TOKEN_LENGTH:
-            reserved.add(stripped)
-    if not names:
-        reserved.update(_aliases(call_id))
-
-
-def _aliases(call_id: str) -> Iterator[str]:
-    """What stripping an unknown `name__` prefix from an ID can leave, up to the longest token.
-
-    Bounded by `_MAX_TOKEN_LENGTH`, so an ID's aliases take space independent
-    of its length.
-    """
-    index = call_id.find("__", max(len(call_id) - _MAX_TOKEN_LENGTH - 2, 0))
-    while index != -1:
-        if index + 2 < len(call_id):
-            yield call_id[index + 2 :]
-        index = call_id.find("__", index + 1)
-
-
-def _token_prefix(check: SentinelCheck) -> str:
-    """The prefix of a fresh token for the call.
-
-    Google names a computer call's action by its ID's prefix (`click_at_<id>`),
-    which a fresh token keeps, or, for an action approval changed, the name of
-    the approved action.
-    """
-    call = check.handed
-    if call.function == "computer":
-        if _names_another_action(call.id, check):
-            return gemini_computer_action_name(call.arguments)
-        prefix = call.id.rpartition("_")[0]
-        if prefix and len(prefix) <= _MAX_TOKEN_LENGTH // 2:
-            return prefix
-    return "call"
-
-
-def _names_another_action(token: str, check: SentinelCheck) -> bool:
-    """Whether the token names a Gemini computer action other than the approved one.
-
-    Only an unmodified call keeps an action it was parsed from (`search` parses
-    as navigation, so a modified navigation is not a search).
-    """
-    call = check.handed
-    prefix = token.rpartition("_")[0]
-    if call.function != "computer" or prefix not in GEMINI_COMPUTER_ACTIONS:
-        return False
-    if check.modified:
-        return prefix != gemini_computer_action_name(call.arguments)
-    return prefix not in gemini_computer_action_names(call.arguments)
-
-
-def _wire_names(function: str, action: str | None) -> set[str]:
-    """Names a scaffold can use to echo the id of a call to `function`."""
-    names = {function.strip() or "generic_tool"}
-    if action is not None:
-        names.add(action)
-    return names
-
-
-def _computer_action(call: ToolCall) -> str | None:
-    return (
-        gemini_computer_action_name(call.arguments)
-        if call.function == "computer"
-        else None
-    )
+            ids.add(message.tool_call_id)
+    return frozenset(ids)
 
 
 def checks_bridged_results() -> bool:
@@ -708,164 +695,6 @@ async def sentinel_tool_call(
         )
 
 
-def sentinel_tokens(
-    bridge: AgentBridge, output: ModelOutput, checks: Sequence[SentinelCheck]
-) -> tuple[ModelOutput, list[SentinelCheck]]:
-    """Give each call handed to the scaffold its token as its id.
-
-    A call's provider replay state (`alias_assistant_internal_call`) and Google
-    reasoning anchors follow it to its token. The state is the one `output`'s
-    generation was parsed with, so a cache hit served after a later response
-    reused its ids hands it on as generated. It is recorded under every token,
-    a call keeping the model's id included, as a later response reusing that
-    id replaces what the provider recorded under it; under the model's id, only
-    the bridge's own requests replay it. A call without known state
-    (`generation_call_states`), including each of calls sharing an id
-    (`shared_call_ids`), gets a fresh token, which no provider has recorded
-    state under, and replays from the call itself.
-
-    `checks` are the `tool_result` checks for the calls in `output`, in order.
-    Returns the output to hand to the scaffold (a copy, when any id changes),
-    and the checks with their tokens.
-    """
-    calls = output.message.tool_calls or []
-    states = generation_call_states(generation_assistant_internal(output), calls)
-    shared = shared_call_ids(output)
-    issued = bridge._sentinel_results.issue(checks, states)
-    for call, check, state in zip(calls, issued, states):
-        if state is not None and state.recorded:
-            alias_assistant_internal_call(
-                call.id,
-                check.token or call.id,
-                state,
-                bridge._replay,
-                call if check.modified or state.edited else None,
-            )
-    if all(check.token == check.handed.id for check in issued):
-        return output, issued
-    # a copy, as `output` may be the object the ModelEvent recorded
-    output = output.model_copy(deep=True)
-    tokens: dict[str, deque[str]] = {}
-    for call, check in zip(output.message.tool_calls or [], issued):
-        token = check.token or call.id
-        tokens.setdefault(call.id, deque()).append(token)
-        call.id = token
-    _retarget_anchors(output.message, tokens, shared)
-    return output, issued
-
-
-def _retarget_anchors(
-    message: ChatMessageAssistant, tokens: dict[str, deque[str]], shared: set[str]
-) -> None:
-    """Point Google's reasoning anchors at the calls' tokens.
-
-    Google replays a call's thought signature at the call its anchor names
-    (`gemini_function_call_id`). `tokens` maps each model ID to the tokens of
-    its calls, in order; anchors are in call order.
-
-    Anchors of an ID several calls share (`shared`, or named by several
-    anchors) can't be told apart by call, so they keep only their position:
-    their signatures are dropped, they are matched to the calls under that ID
-    in order, and any left over are removed. No call replays another's
-    signature, and none is replayed twice.
-    """
-    if isinstance(message.content, str):
-        return
-    anchored = Counter(
-        part.internal.get("gemini_function_call_id")
-        for part in message.content
-        if isinstance(part, ContentReasoning) and isinstance(part.internal, dict)
-    )
-    content: list[Content] = []
-    for part in message.content:
-        if isinstance(part, ContentReasoning) and isinstance(part.internal, dict):
-            call_id = part.internal.get("gemini_function_call_id")
-            if isinstance(call_id, str):
-                ambiguous = call_id in shared or anchored[call_id] > 1
-                if tokens.get(call_id):
-                    part.internal = {
-                        **part.internal,
-                        "gemini_function_call_id": tokens[call_id].popleft(),
-                    }
-                    if ambiguous:
-                        part.reasoning = ""
-                elif ambiguous:
-                    continue
-        content.append(part)
-    message.content = content
-
-
-def replay_ids(output: ModelOutput) -> ModelOutput:
-    """`output` with each call under a fresh id carrying its own replay state.
-
-    For a turn replayed to the model without being handed on (a rejected
-    response), so its call ids are the bridge's to choose. Under the model's id
-    a call would replay whatever the providers record under that id each time
-    the turn is serialized, and the bridge keeps a rejected turn in the model's
-    input for the rest of its retries: a later generation reusing the id, or a
-    response filter's edit, would replace the call's operation there. Each call
-    goes under a fresh id with the state its generation parsed it with
-    (`generation_call_states`; with the arguments a request or response filter
-    gave a call), recorded in the provider's state, or with none when that is
-    unknown or the id is shared (`shared_call_ids`), so it replays from the
-    call. Google's reasoning anchors follow (`_retarget_anchors`).
-    A copy, as `output` may be the object the ModelEvent recorded.
-    """
-    calls = output.message.tool_calls or []
-    if not calls:
-        return output
-    states = generation_call_states(generation_assistant_internal(output), calls)
-    shared = shared_call_ids(output)
-    output = output.model_copy(deep=True)
-    tokens: dict[str, deque[str]] = {}
-    for call, state in zip(output.message.tool_calls or [], states):
-        token = f"{_token_prefix(SentinelCheck(call, call, None, '', None))}_{uuid()}"
-        if state is not None and state.recorded:
-            alias_assistant_internal_call(
-                call.id, token, state, {}, call if state.edited else None
-            )
-        tokens.setdefault(call.id, deque()).append(token)
-        call.id = token
-    _retarget_anchors(output.message, tokens, shared)
-    return output
-
-
-def name_proposal(result: ChatMessageTool, proposal_id: str) -> None:
-    """Record the model's id for the call `result` answers, when it is under another.
-
-    A call handed on under an id other than the model's (a token, or a rejected
-    turn's `replay_ids`) is answered under that id. The model's id is recorded
-    as `metadata["bridge"]["proposal_id"]`, as on the call's host `ToolEvent`,
-    so a reader of the result (ACP's tool call cards) can pair it with the
-    model's proposal of the call. It is not sent to the provider and is left
-    out of the model cache key (`set_unkeyed_metadata`).
-    """
-    if result.tool_call_id == proposal_id:
-        return
-    metadata = dict(result.metadata or {})
-    bridge = metadata.get("bridge")
-    metadata["bridge"] = {
-        **(bridge if isinstance(bridge, dict) else {}),
-        "proposal_id": proposal_id,
-    }
-    set_unkeyed_metadata(result, metadata)
-
-
-def name_result_proposals(bridge: AgentBridge, input: Sequence[ChatMessage]) -> None:
-    """Record the model's id on each result reported under a token other than it (`name_proposal`).
-
-    In place, before the request is recorded, so the `ModelEvent` input carries it.
-    """
-    identities = bridge._sentinel_results.identities
-    if not identities:
-        return
-    for message in input:
-        if isinstance(message, ChatMessageTool) and message.tool_call_id:
-            identity = identities.get(message.tool_call_id)
-            if identity is not None:
-                name_proposal(message, identity.call_id)
-
-
 def sentinel_unproposed_host_check(
     bridge: AgentBridge, tool: str, arguments: dict[str, Any], tool_fn: Tool
 ) -> SentinelCheck | None:
@@ -894,11 +723,11 @@ async def sentinel_host_tool_result(
 ) -> None:
     """Check a host call's result as delivered, recording it for its executions.
 
-    The result is recorded as checked under the call's token, or, for a call
-    that matched proposals of several calls (`candidates`, when the service
-    can't tell which execution it is), under each of theirs, so the scaffold
-    reporting it is not checked again. A host call no proposal accounts for has
-    no token, so no result the scaffold reports can match it.
+    The result is recorded as checked for the call, or, for a call that
+    matched proposals of several calls (`candidates`, when the service can't
+    tell which execution it is), for each of them, so the scaffold reporting it
+    is not checked again. A host call no proposal accounts for was handed over
+    as no call, so no result the scaffold reports can match it.
 
     The call is the bridged scaffold's, so the check does not see the enclosing
     agent's messages, as the stages of a bridge request don't
@@ -910,7 +739,7 @@ async def sentinel_host_tool_result(
         function=check.call.function,
         error=error,
     )
-    executions = candidates or ([check] if check.token is not None else [])
+    executions = candidates or ([check] if check.execution_id is not None else [])
     keys: list[str] = []
     content_keys: dict[str, str] = {}
     for execution in executions:
@@ -920,14 +749,12 @@ async def sentinel_host_tool_result(
             content_keys[function] = _content_key(
                 result.model_copy(update={"function": function})
             )
-        content_key = content_keys[function]
-        keys += [
-            _digest(["token", execution.token, content_key]),
-            _digest(["call", _call_key(execution.handed), content_key]),
-        ]
+        keys += bridge._handed_calls.result_keys(
+            execution.handed, content_keys[function]
+        )
     keys = keys or [f"unproposed:{uuid()}"]
     with bridge_request():
-        await bridge._sentinel_results.check_running(
+        await bridge._handed_calls.check_running(
             bridge, _Result(keys, (check,), result), output, truncated
         )
 
@@ -935,8 +762,7 @@ async def sentinel_host_tool_result(
 async def sentinel_tool_results(bridge: AgentBridge, input: list[ChatMessage]) -> None:
     if not checks_tool_calls():
         return
-    result_checks = bridge._sentinel_results
-    result_checks.reserve(input)
+    result_checks = bridge._handed_calls
     while True:
         claimed = result_checks.claim(input)
         if claimed.owned:

@@ -19,25 +19,14 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import replace
 from pathlib import Path
 
 import pytest
-from pydantic import ValidationError
 
 from inspect_ai.agent._bridge._errors import BridgePolicyError
-from inspect_ai.agent._bridge._sentinel import (
-    SentinelCheck,
-    _ResultChecks,
-    _SavedResultChecks,
-)
 from inspect_ai.agent._bridge.google_api_impl import (
     gemini_response_from_output,
     messages_from_google_contents,
-)
-from inspect_ai.model._assistant_internal import (
-    generation_call_states,
-    generation_replay,
 )
 from inspect_ai.model._chat_message import (
     ChatMessageAssistant,
@@ -255,116 +244,6 @@ def test_google_ids_the_scaffold_echoes_are_kept(prefixed: bool) -> None:
     assert tool.tool_call_id == "tok_1"
 
 
-@pytest.mark.parametrize(
-    ("action", "wire_name"),
-    [("left_click", "click_at"), ("mouse_move", "hover_at")],
-)
-@pytest.mark.parametrize("short_id_first", [True, False])
-def test_google_computer_action_ids_round_trip_in_both_issuance_orders(
-    action: str, wire_name: str, short_id_first: bool
-) -> None:
-    ids = ["c", f"{wire_name}__c"]
-    if not short_id_first:
-        ids.reverse()
-    calls = [
-        ToolCall(
-            id=call_id,
-            function="computer",
-            arguments={"action": action, "coordinate": [10, 20]},
-        )
-        for call_id in ids
-    ]
-    checks = [
-        SentinelCheck(
-            handed=call,
-            call=call,
-            viewer=None,
-            message="",
-            message_id=None,
-        )
-        for call in calls
-    ]
-    issued = _ResultChecks(
-        _SavedResultChecks(reserved_ids=[], tokens={}, checked=[])
-    ).issue(checks, generation_call_states(generation_replay(calls), calls))
-    output = ModelOutput.for_tool_call("mockllm/model", "computer", calls[0].arguments)
-    output.message.tool_calls = [
-        replace(call, id=check.token or call.id) for call, check in zip(calls, issued)
-    ]
-    parts = gemini_response_from_output(output, "model", call_ids=True)["candidates"][
-        0
-    ]["content"]["parts"]
-    function_calls = [part["functionCall"] for part in parts if "functionCall" in part]
-    assert [part["name"] for part in function_calls] == [wire_name, wire_name]
-    for index, function_call in enumerate(function_calls):
-        if ids[index] == "c":
-            function_call["id"] = f"{wire_name}__{function_call['id']}"
-    responses = [
-        {
-            "functionResponse": {
-                "id": function_call["id"],
-                "name": wire_name,
-                "response": {"out": str(index)},
-            }
-        }
-        for index, function_call in enumerate(function_calls)
-    ]
-    contents = [
-        {"role": "model", "parts": parts},
-        {"role": "user", "parts": responses},
-    ]
-    messages = messages_from_google_contents(
-        contents,
-        None,
-        call_ids=True,
-        issued_ids={check.token for check in issued if check.token},
-    )
-    assistant = next(m for m in messages if isinstance(m, ChatMessageAssistant))
-    result_ids = [m.tool_call_id for m in messages if isinstance(m, ChatMessageTool)]
-    issued_ids = [check.token for check in issued]
-    assert len(set(issued_ids)) == 2
-    assert [call.id for call in assistant.tool_calls or []] == issued_ids
-    assert result_ids == issued_ids
-
-
-def test_restored_result_checks_derive_the_aliases_of_their_tokens() -> None:
-    calls = [
-        ToolCall(
-            id="c",
-            function="computer",
-            arguments={"action": "left_click", "coordinate": [10, 20]},
-        ),
-        ToolCall(id="r", function="read_file", arguments={"path": "notes.txt"}),
-        ToolCall(id="g", function=" ", arguments={}),
-    ]
-    checks = _ResultChecks(_SavedResultChecks(reserved_ids=[], tokens={}, checked=[]))
-    checks.issue(
-        [
-            SentinelCheck(
-                handed=call, call=call, viewer=None, message="", message_id=None
-            )
-            for call in calls
-        ],
-        generation_call_states(generation_replay(calls), calls),
-    )
-    saved = checks.saved().model_dump(mode="json")
-    saved["prefixed_tokens"] = []
-
-    restored = _ResultChecks(_SavedResultChecks.model_validate_json(json.dumps(saved)))
-
-    assert checks.prefixed_tokens == {
-        "computer__c",
-        "click_at__c",
-        "read_file__r",
-        "generic_tool__g",
-    }
-    assert restored.prefixed_tokens == checks.prefixed_tokens
-
-    saved["tokens"]["c"][3] = None
-    with pytest.raises(ValidationError, match="computer call"):
-        _SavedResultChecks.model_validate_json(json.dumps(saved))
-
-
 def test_google_calls_without_ids_keep_their_deterministic_ids() -> None:
     contents: list[dict[str, object]] = [
         {"role": "user", "parts": [{"text": "Read a."}]},
@@ -401,7 +280,6 @@ def test_a_google_round_trip_without_a_sentinel_keeps_mains_ids() -> None:
     from inspect_ai.agent._bridge.google_api import inspect_google_api_request
     from inspect_ai.agent._bridge.types import AgentBridge
     from inspect_ai.model import ChatMessage, get_model
-    from inspect_ai.tool import ToolCall
 
     inputs: list[list[ChatMessage]] = []
     outputs = [

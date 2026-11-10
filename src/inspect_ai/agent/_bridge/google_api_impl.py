@@ -4,7 +4,7 @@ import base64
 import hashlib
 import json
 from logging import getLogger
-from typing import Any, Literal
+from typing import Any, Callable, Literal
 
 from shortuuid import uuid
 
@@ -15,6 +15,7 @@ from inspect_ai._util.content import (
     ContentReasoning,
     ContentText,
 )
+from inspect_ai.agent._bridge._sentinel import wire_names
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -27,6 +28,9 @@ from inspect_ai.model._model import ModelName
 from inspect_ai.model._model_output import ModelOutput, ModelUsage, StopReason
 from inspect_ai.model._providers._google_computer_use import (
     gemini_action_from_tool_call,
+)
+from inspect_ai.model._providers._google_computer_use_name import (
+    GEMINI_COMPUTER_ACTIONS,
 )
 from inspect_ai.model._reasoning import (
     parse_content_with_reasoning,
@@ -132,14 +136,16 @@ async def inspect_google_api_request_impl(
         tool_choice_from_google_tool_config(tool_config), tools
     )
 
-    # with a sentinel, calls are handed over and read back under the ids the
-    # bridge gives them, which identify each execution's result
+    # with a sentinel, calls are handed over and read back under their ids,
+    # which identify each execution's result
     call_ids = active_sentinel() is not None
 
     # translate messages
-    issued_ids = set(bridge._sentinel_results.identities) if call_ids else set()
     messages = messages_from_google_contents(
-        contents, system_instruction, call_ids=call_ids, issued_ids=issued_ids
+        contents,
+        system_instruction,
+        call_ids=call_ids,
+        handed=bridge._handed_calls.function if call_ids else None,
     )
     await validate_bridge_media(bridge, messages)
     debug_log("INSPECT MESSAGES", messages)
@@ -377,7 +383,7 @@ def messages_from_google_contents(
     system_instruction: dict[str, Any] | list[Any] | None,
     *,
     call_ids: bool = False,
-    issued_ids: set[str] | None = None,
+    handed: Callable[[str], str | None] | None = None,
 ) -> list[ChatMessage]:
     """Inspect messages for a Gemini request's contents.
 
@@ -445,7 +451,7 @@ def messages_from_google_contents(
 
         if role == "user":
             user_content, tool_messages = _extract_user_parts(
-                parts, pending_tool_calls, call_ids, issued_ids
+                parts, pending_tool_calls, call_ids, handed
             )
             if user_content:
                 # strip duplicate system prompt prefix
@@ -467,13 +473,13 @@ def messages_from_google_contents(
             func_response_parts = [p for p in parts if _is_function_response_part(p)]
             if func_response_parts:
                 _, tool_messages = _extract_user_parts(
-                    func_response_parts, pending_tool_calls, call_ids, issued_ids
+                    func_response_parts, pending_tool_calls, call_ids, handed
                 )
                 messages.extend(tool_messages)
 
             other_parts = [p for p in parts if not _is_function_response_part(p)]
             assistant_content, tool_calls = _extract_model_parts(
-                other_parts, call_ids, issued_ids
+                other_parts, call_ids, handed
             )
 
             if tool_calls:
@@ -544,22 +550,30 @@ def _strip_system_prompt_prefix(
 
 
 def _function_part_id(
-    part: dict[str, Any], name: str, issued_ids: set[str] | None = None
+    part: dict[str, Any],
+    name: str,
+    handed: Callable[[str], str | None] | None = None,
 ) -> str | None:
     """The id a functionCall or functionResponse carries, as the bridge handed it over.
 
-    An exact issued id takes precedence over the prefix gemini-cli may add.
+    Gemini CLI may prefix an id with the call's name (`name__id`). With
+    `handed` (the function of the call handed over under an id), a handed id
+    is taken as it is, and a prefix is stripped only from the id of a call
+    handed over to that function; otherwise any prefix is stripped.
     """
     part_id = part.get("id")
     if not isinstance(part_id, str) or not part_id:
         return None
     prefix = f"{name.strip() or 'generic_tool'}__"
-    if issued_ids is None:
+    if handed is None:
         return part_id.removeprefix(prefix) or None
-    if issued_ids is not None and part_id in issued_ids:
+    if handed(part_id) is not None:
         return part_id
     stripped = part_id.removeprefix(prefix)
-    if issued_ids is not None and stripped in issued_ids:
+    function = handed(stripped) if stripped != part_id else None
+    if function is not None and name in wire_names(function, {}):
+        return stripped
+    if function == "computer" and name in GEMINI_COMPUTER_ACTIONS:
         return stripped
     return part_id
 
@@ -574,7 +588,7 @@ def _extract_user_parts(
     parts: list[dict[str, Any]],
     pending_tool_calls: dict[str, list[str]],
     call_ids: bool = False,
-    issued_ids: set[str] | None = None,
+    handed: Callable[[str], str | None] | None = None,
 ) -> tuple[list[Content] | str | None, list[ChatMessageTool]]:
     # pending_tool_calls maps function_name -> list of call_ids from the previous
     # model message, used to match functionResponse with the correct tool_use_id.
@@ -613,7 +627,7 @@ def _extract_user_parts(
             response = func_response.get("response", {})
 
             response_id = (
-                _function_part_id(func_response, func_name, issued_ids)
+                _function_part_id(func_response, func_name, handed)
                 if call_ids
                 else None
             )
@@ -654,7 +668,7 @@ def _extract_user_parts(
 def _extract_model_parts(
     parts: list[dict[str, Any]],
     call_ids: bool = False,
-    issued_ids: set[str] | None = None,
+    handed: Callable[[str], str | None] | None = None,
 ) -> tuple[list[Content] | None, list[ToolCall]]:
     """Extract assistant content and function calls from model parts.
 
@@ -737,9 +751,7 @@ def _extract_model_parts(
             # sends back; otherwise (or failing that), deterministic for
             # message ID stability
             call_id = (
-                _function_part_id(func_call, func_name, issued_ids)
-                if call_ids
-                else None
+                _function_part_id(func_call, func_name, handed) if call_ids else None
             ) or ""
             if not call_id:
                 args_str = json.dumps(args, sort_keys=True) if args else ""

@@ -1823,8 +1823,13 @@ def test_a_bridge_checking_one_call_id_more_than_once_replays(case: str) -> None
     # each check of a step records its events in its own sentinel span
     checks = list(dict.fromkeys((e.stage, e.step_id, e.span_id) for e in events))
     tool_checks = [(stage, id) for stage, id, _ in checks if stage.startswith("tool")]
-    # the bridge checked a step under the call id more than once
-    assert len(tool_checks) > len(set(tool_checks))
+    if case.startswith("reused"):
+        # a reused id is handed over under a fresh one, so each call's steps
+        # have their own id
+        assert len({id for _, id in tool_checks}) == 2
+    else:
+        # the bridge checked a step under the call id more than once
+        assert len(tool_checks) > len(set(tool_checks))
     # the bridge's tool steps are not replayed, and the log replays
     steps = replayed(log)
     generates = [(stage, id) for stage, id, _ in checks if stage.startswith("model")]
@@ -7731,7 +7736,9 @@ def test_a_helper_handoff_never_takes_a_bridge_check(
     # check of its own
     assert len(native) == (1 if native_origin == "agent" else 0)
     assert not any(step.recorded_answers for step in native)
-    assert bridge_warning_ids(caplog) == ["shared"]
+    # the filter's other call under the id is handed over under a fresh one
+    warned = bridge_warning_ids(caplog)
+    assert warned[0] == "shared" and len(warned) == 2
 
 
 @agent

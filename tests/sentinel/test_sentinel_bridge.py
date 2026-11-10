@@ -28,7 +28,6 @@ from inspect_ai import Task, eval
 from inspect_ai._sentinel._config import resolve_sentinel_root, resolve_sentinel_spec
 from inspect_ai._sentinel._context import SentinelFailure, init_sentinel
 from inspect_ai._sentinel._scope import sentinel_solving
-from inspect_ai._util._async import tg_collect
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.content import (
     Content,
@@ -40,7 +39,7 @@ from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.agent import Agent, AgentState, agent, agent_bridge
 from inspect_ai.agent._acp.transport_live import LiveAcpTransport
 from inspect_ai.agent._bridge._errors import PROVIDER_ERROR_KEY
-from inspect_ai.agent._bridge._sentinel import _SavedResultChecks
+from inspect_ai.agent._bridge._sentinel import _SavedHandedCalls
 from inspect_ai.agent._bridge.sandbox.service import _forward_provider_errors
 from inspect_ai.agent._bridge.sandbox.service import call_tool as call_host_tool
 from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
@@ -488,10 +487,9 @@ async def test_reject_regenerates_and_tells_the_model() -> None:
     rejected = model.inputs[1][-2]
     assert isinstance(replay, ChatMessageTool)
     assert isinstance(rejected, ChatMessageAssistant)
-    # the rejected turn is replayed under a fresh id, which its result answers
-    [replayed] = rejected.tool_calls or []
-    assert replace(replayed, id=BASH.id) == BASH
-    assert replay.tool_call_id == replayed.id != BASH.id
+    # the rejected turn is replayed as generated, answered by its result
+    assert rejected.tool_calls == [BASH]
+    assert replay.tool_call_id == BASH.id
     assert replay.error is not None
     assert replay.error.type == "approval"
     assert replay.error.message == "Use a safer command."
@@ -599,6 +597,7 @@ async def test_a_call_a_monitor_changed_in_place_is_rejected(
     [rejection] = [m for m in model.inputs[1] if isinstance(m, ChatMessageTool)]
     assert rejection.error is not None
     assert "changed the tool call in place" in rejection.error.message
+    # proposed again after its rejection, the call keeps its id
     assert output.message.tool_calls == [proposed]
     tool.assert_awaited_once_with(path="notes.txt")
     # the second look saw the call as the model made it
@@ -1734,34 +1733,32 @@ def test_dropping_old_proposals_warns_once(
 ) -> None:
     from inspect_ai._util import logger as inspect_logger
     from inspect_ai.agent._bridge import _sentinel
-    from inspect_ai.model._assistant_internal import GenerationCallState
 
     monkeypatch.setattr(_sentinel, "_MAX_PROPOSALS", 2)
     monkeypatch.setattr(inspect_logger, "_warned", [])
     bridge = in_process_bridge([])
+    request = _sentinel.bridged_request([])
+    calls = [replace(READ, id=f"read_{i}") for i in range(4)]
     checks = [
-        _sentinel.SentinelCheck(call, call, None, "", "message_1")
-        for call in [replace(READ, id=f"read_{i}") for i in range(4)]
+        _sentinel.SentinelCheck(call, call, None, "", "message_1") for call in calls
     ]
 
-    # from a provider keeping no replay state, so each call keeps its id
-    stateless = GenerationCallState(None, None, False)
     with caplog.at_level("WARNING"):
-        bridge._sentinel_results.issue(checks[:3], [stateless] * 3)
-        bridge._sentinel_results.issue(checks[3:], [stateless])
+        bridge._handed_calls.hand_over(request, calls[:3], calls[:3], checks[:3])
+        bridge._handed_calls.hand_over(request, calls[3:], calls[3:], checks[3:])
 
     warnings = [
         r for r in caplog.records if "the oldest proposal was dropped" in r.message
     ]
     assert len(warnings) == 1
-    proposals = bridge._sentinel_results.proposals.values()
+    proposals = bridge._handed_calls.proposals.values()
     assert [p.handed.id for p in proposals] == ["read_2", "read_3"]
 
 
 def test_claiming_a_requests_results_takes_memory_linear_in_its_results() -> None:
     import tracemalloc
 
-    from inspect_ai.agent._bridge._sentinel import _ResultChecks
+    from inspect_ai.agent._bridge._sentinel import _HandedCalls
 
     def claimed_bytes(results: int) -> int:
         input: list[ChatMessage] = [ChatMessageUser(content=TASK)]
@@ -1773,8 +1770,8 @@ def test_claiming_a_requests_results_takes_memory_linear_in_its_results() -> Non
             ]
         tracemalloc.start()
         try:
-            claimed = _ResultChecks(
-                _SavedResultChecks(reserved_ids=[], tokens={}, checked=[])
+            claimed = _HandedCalls(
+                _SavedHandedCalls(reserved_ids=[], handed={}, checked=[])
             ).claim(input)
             retained, _ = tracemalloc.get_traced_memory()
         finally:
@@ -1896,7 +1893,7 @@ async def test_scanning_a_requests_results_takes_memory_linear_in_its_size(
     import tracemalloc
 
     from inspect_ai.agent._bridge._sentinel import (
-        _ResultChecks,
+        _HandedCalls,
         inherited_result_keys,
     )
 
@@ -1907,8 +1904,8 @@ async def test_scanning_a_requests_results_takes_memory_linear_in_its_size(
         assert len(assistant.tool_calls or []) == calls
         tracemalloc.start()
         try:
-            claimed = _ResultChecks(
-                _SavedResultChecks(reserved_ids=[], tokens={}, checked=[])
+            claimed = _HandedCalls(
+                _SavedHandedCalls(reserved_ids=[], handed={}, checked=[])
             ).claim(input)
             _, claim_peak = tracemalloc.get_traced_memory()
             tracemalloc.reset_peak()
@@ -1948,8 +1945,8 @@ def test_results_answering_one_call_key_its_arguments_once(
     ]
 
     keys = _sentinel.inherited_result_keys(input)
-    claimed = _sentinel._ResultChecks(
-        _sentinel._SavedResultChecks(reserved_ids=[], tokens={}, checked=[])
+    claimed = _sentinel._HandedCalls(
+        _sentinel._SavedHandedCalls(reserved_ids=[], handed={}, checked=[])
     ).claim(input)
 
     assert len(keys) == len(claimed.owned) == 100
@@ -1971,7 +1968,9 @@ async def test_a_host_result_for_several_executions_is_keyed_once(
     monkeypatch.setattr(_sentinel, "_content_key", counting_content_key)
     bridge = in_process_bridge([])
     candidates = [
-        _sentinel.SentinelCheck(READ, READ, None, "", "message_1", token=f"t{index}")
+        _sentinel.SentinelCheck(
+            READ, READ, None, "", "message_1", execution_id=f"t{index}"
+        )
         for index in range(50)
     ]
 
@@ -1980,8 +1979,8 @@ async def test_a_host_result_for_several_executions_is_keyed_once(
     )
 
     assert len(keyed) == 1
-    # each execution's token key, and the call key they share
-    assert len(bridge._sentinel_results.checked) == 51
+    # the call key they share (none of them was handed over)
+    assert len(bridge._handed_calls.checked) == 1
 
 
 async def test_a_result_whose_proposal_was_dropped_is_still_checked(
@@ -2381,42 +2380,6 @@ async def test_a_result_whose_proposal_was_evicted_gets_no_other_context(
     assert after.call == old_call
     assert after.message_id == echoed.id
     assert after.input is None
-
-
-async def test_an_evicted_execution_never_matches_a_newer_one(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from inspect_ai.agent._bridge import _sentinel
-
-    monkeypatch.setattr(_sentinel, "_MAX_PROPOSALS", 1)
-    seen: Steps = []
-    model = Scripted(calls_output(READ), calls_output(READ), calls_output())
-    bridge = in_process_bridge([])
-    history: list[ChatMessage] = [ChatMessageUser(content=TASK)]
-
-    with active([bridge_recording(seen)]):
-        older = await generate(bridge, model, history)
-        newer = await generate(bridge, model, history)
-        # the newer execution's result, then the older one's, identical
-        for output in [newer, older]:
-            [call] = output.message.tool_calls or []
-            await generate(
-                bridge,
-                model,
-                [
-                    *history,
-                    output.message.model_copy(update={"id": "echoed"}),
-                    ChatMessageTool(content="same", tool_call_id=call.id),
-                ],
-            )
-
-    # the older execution is still known by its token once its proposal is
-    # gone, so its result is checked, under the model's id, without context
-    afters = [s for s in seen if isinstance(s, AfterToolCall)]
-    assert [(s.call.id, s.input) for s in afters] == [
-        (READ.id, model.inputs[1]),
-        (READ.id, None),
-    ]
 
 
 async def test_a_result_keeps_its_proposal_when_the_system_prompt_changes() -> None:
@@ -2946,7 +2909,7 @@ async def test_a_starting_call_id_is_not_reissued_when_a_request_omits_it(
 @pytest.mark.parametrize(
     "keys",
     [
-        ["bridge_result_checks"],
+        ["bridge_handed_calls"],
         # a checkpoint written without the reservations: those of its prefix
         # and its conversation
         [],
@@ -2984,7 +2947,7 @@ def saved(checkpointer: RecordingCheckpointer, *keys: str) -> dict[str, object]:
     """Tracked values as a checkpoint saves and resume restores them."""
     types: dict[str, Any] = {
         "bridge_compaction_prefix": list[ChatMessage],
-        "bridge_result_checks": _SavedResultChecks,
+        "bridge_handed_calls": _SavedHandedCalls,
     }
     return {
         key: TypeAdapter(types[key]).validate_json(
@@ -3003,7 +2966,7 @@ async def test_a_resumed_bridge_inherits_the_results_it_first_started_with(
     first = RecordingCheckpointer()
     started_with(sandbox, model.model, AgentState(messages=conversation("safe")), first)
     checkpointer = RecordingCheckpointer(
-        restored=saved(first, "bridge_compaction_prefix", "bridge_result_checks")
+        restored=saved(first, "bridge_compaction_prefix", "bridge_handed_calls")
     )
     bridge = started_with(
         sandbox, model.model, AgentState(messages=conversation("secret")), checkpointer
@@ -3204,7 +3167,7 @@ async def test_a_resumed_bridge_keeps_the_call_ids_it_issued_or_observed(
             saved = read_host_context(str(tmp_path / "context")).agent_state
             assert saved is not None
             if legacy:
-                del saved["bridge_result_checks"]
+                del saved["bridge_handed_calls"]
             resumed = real_checkpointer(tmp_path, saved)
             try:
                 bridge = started_with(sandbox, model.model, deepcopy(start), resumed)
@@ -3250,7 +3213,7 @@ async def test_a_bridge_does_not_resume_from_incomplete_result_checks(
 
             saved = read_host_context(str(tmp_path / "context")).agent_state
             assert saved is not None
-            del saved["bridge_result_checks"]["reserved_ids"]
+            del saved["bridge_handed_calls"]["reserved_ids"]
             resumed = real_checkpointer(tmp_path, saved)
             try:
                 with pytest.raises(ValidationError, match="reserved_ids"):
@@ -3259,45 +3222,6 @@ async def test_a_bridge_does_not_resume_from_incomplete_result_checks(
                 resumed.close()
 
     assert len(model.inputs) == 2
-
-
-@pytest.mark.parametrize("sandbox", [False, True])
-@pytest.mark.parametrize("dialect", DIALECTS)
-async def test_a_resumed_bridge_derives_the_aliases_of_its_tokens(
-    dialect: str, sandbox: bool, tmp_path: Path
-) -> None:
-    alias = f"{OLD.function}__{LATE}"
-    new = replace(READ, id=alias, arguments={"path": "new.txt"})
-    model = Scripted(calls_output(replace(OLD, id=LATE)), calls_output(new))
-    start = AgentState(messages=[ChatMessageUser(content=TASK)])
-
-    async with AsyncFilesystem():
-        with _patch_sample_runtime([]):
-            checkpointer = real_checkpointer(tmp_path)
-            bridge = started_with(sandbox, model.model, deepcopy(start), checkpointer)
-            with active(terminate_on_old_secret()):
-                assert await dialect_proposal(dialect, bridge, TASK) == LATE
-            uninterrupted = set(bridge._sentinel_results.prefixed_tokens)
-            assert alias in uninterrupted
-            await checkpointer.checkpoint()
-            checkpointer.close()
-
-            saved = read_host_context(str(tmp_path / "context")).agent_state
-            assert saved is not None
-            # an alias list that disagrees with the tokens is not restored
-            saved["bridge_result_checks"]["prefixed_tokens"] = []
-            resumed = real_checkpointer(tmp_path, saved)
-            try:
-                bridge = started_with(sandbox, model.model, deepcopy(start), resumed)
-                assert bridge._sentinel_results.prefixed_tokens == uninterrupted
-                with active(terminate_on_old_secret()):
-                    handed = await dialect_proposal(
-                        dialect, bridge, "Name this session."
-                    )
-            finally:
-                resumed.close()
-
-    assert handed != alias
 
 
 @pytest.mark.parametrize("sandbox", [False, True])
@@ -3969,29 +3893,6 @@ async def test_initial_history_id_cannot_be_reissued_for_a_new_call(
     ]
 
 
-@pytest.mark.parametrize(
-    ("old_id", "new_id"),
-    [("123", "read_file__123"), ("read_file__123", "123")],
-)
-async def test_initial_history_prefix_pair_cannot_be_issued(
-    old_id: str, new_id: str
-) -> None:
-    old = replace(READ, id=old_id)
-    new = replace(READ, id=new_id, arguments={"path": "new.txt"})
-    history: list[ChatMessage] = [
-        ChatMessageUser(content=TASK),
-        ChatMessageAssistant(content="Old call.", tool_calls=[old]),
-        ChatMessageTool(content="old", tool_call_id=old_id, function="read_file"),
-    ]
-    bridge = in_process_bridge(history)
-
-    with active([bridge_recording([])]):
-        output = await generate(bridge, Scripted(calls_output(new)), history)
-
-    [handed] = output.message.tool_calls or []
-    assert handed.id not in {old_id, new_id}
-
-
 async def test_result_only_id_in_initial_history_cannot_be_issued() -> None:
     history: list[ChatMessage] = [
         ChatMessageUser(content=TASK),
@@ -4006,9 +3907,13 @@ async def test_result_only_id_in_initial_history_cannot_be_issued() -> None:
     assert handed.id != READ.id
 
 
-async def test_calls_sharing_a_model_id_are_handed_over_under_their_own_tokens() -> (
-    None
-):
+async def test_a_call_handed_over_twice_keeps_its_id_and_its_latest_handout() -> None:
+    """Two generations give one call (a scaffold retry served from the cache).
+
+    Both handouts keep the model's id, and the result, which the scaffold
+    reports for each conversation, is checked once, with the latest handout's
+    context.
+    """
     seen: Steps = []
     model = Scripted(calls_output(READ), calls_output(READ), calls_output())
     bridge = in_process_bridge([])
@@ -4030,17 +3935,11 @@ async def test_calls_sharing_a_model_id_are_handed_over_under_their_own_tokens()
                 ],
             )
 
-    # the first keeps the model's id; the second gets a token of its own
-    assert first_call.id == READ.id and second_call.id != READ.id
-    # the model's proposal stays on the record
+    assert first_call.id == second_call.id == READ.id
     model_events = [e for e in transcript().events if isinstance(e, ModelEvent)]
     assert [e.output.message.tool_calls for e in model_events[:2]] == [[READ]] * 2
-    # the steps show the model's id, each with its own generation's input
     afters = [s for s in seen if isinstance(s, AfterToolCall)]
-    assert [(s.call.id, s.input) for s in afters] == [
-        (READ.id, model.inputs[0]),
-        (READ.id, model.inputs[1]),
-    ]
+    assert [(s.call.id, s.input) for s in afters] == [(READ.id, model.inputs[1])]
 
 
 async def test_a_result_under_an_id_never_handed_out_is_checked_once() -> None:
@@ -4242,7 +4141,9 @@ async def test_google_initial_history_alias_cannot_claim_new_result(
         assert [(step.call.function, step.output) for step in afters] == [
             ("read_file", '{"out": "old contents"}')
         ]
-        assert handed not in {old_id, new_id}
+        # the history id and the new one are different calls' (another
+        # function's), so the new call keeps the model's id
+        assert handed == new_id
 
         contents.append(
             {
@@ -4526,17 +4427,17 @@ async def test_a_cancelled_request_with_overlapping_results_releases_each_check(
 async def test_a_release_that_raises_still_releases_the_other_checks(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from inspect_ai.agent._bridge._sentinel import _ResultChecks
+    from inspect_ai.agent._bridge._sentinel import _HandedCalls
 
-    release = _ResultChecks.release
+    release = _HandedCalls.release
     failures = [RuntimeError("release failed")]
 
-    def failing_release(self: _ResultChecks, claim: Any) -> None:
+    def failing_release(self: _HandedCalls, claim: Any) -> None:
         release(self, claim)
         if failures:
             raise failures.pop()
 
-    monkeypatch.setattr(_ResultChecks, "release", failing_release)
+    monkeypatch.setattr(_HandedCalls, "release", failing_release)
     started, held = anyio.Event(), anyio.Event()
     model = Scripted(calls_output(READ, OTHER_READ), calls_output())
     bridge = AgentBridge(
@@ -4885,7 +4786,7 @@ async def test_a_cancelled_tool_call_stage_registers_nothing() -> None:
     assert cleaned.is_set()
     assert handed == []
     assert not bridge._tool_execution_grants
-    assert bridge._sentinel_results is None or not bridge._sentinel_results.proposals
+    assert bridge._handed_calls is None or not bridge._handed_calls.proposals
 
 
 @pytest.mark.parametrize("duplicate_id", [False, True])
@@ -4916,13 +4817,9 @@ async def test_calls_sharing_an_id_keep_their_own_result_checks(
             ],
         )
 
-    # the scaffold is handed each call under its own id; calls sharing one
-    # are handed on under new ids
+    # the scaffold is handed each call under the model's id, shared or not
     handed = [call.id for call in output.message.tool_calls or []]
-    if duplicate_id:
-        assert "one" not in handed and len(set(handed)) == 2
-    else:
-        assert handed == ["one", "two"]
+    assert handed == (["one", "one"] if duplicate_id else ["one", "two"])
     # a response's results are checked concurrently, each as its own call
     assert sorted(
         (s.call.arguments["path"], s.output)
@@ -4952,11 +4849,10 @@ async def test_calls_sharing_an_id_keep_their_own_modifications() -> None:
     with active(modify_other()):
         output = await generate(bridge, model, [ChatMessageUser(content=TASK)])
 
+    # each call keeps its own arguments, under the id they share
     first, second = output.message.tool_calls or []
-    assert first == replace(one, id=first.id)
-    # the scaffold gets each call under an id of its own
-    assert second == replace(two, id=second.id, arguments={"path": "safe.txt"})
-    assert first.id != second.id
+    assert first == one
+    assert second == replace(two, arguments={"path": "safe.txt"})
 
 
 async def test_a_host_call_beyond_the_scaffold_cap_is_still_checked() -> None:
@@ -6273,49 +6169,6 @@ async def dialect_orphan_result(dialect: str, bridge: AgentBridge, id: str) -> N
         )
 
 
-@pytest.mark.parametrize("dialect", ["completions", "responses"])
-async def test_a_long_result_id_reserves_a_bounded_set_of_aliases(
-    dialect: str,
-) -> None:
-    long_id = "a__" * 5000 + "end"
-    model = Scripted(calls_output())
-    bridge = AgentBridge(
-        AgentState(messages=[]), model_aliases={"inspect": model.model}
-    )
-
-    with active([bridge_recording([])]):
-        await dialect_orphan_result(dialect, bridge, long_id)
-
-    results = bridge._sentinel_results
-    assert results is not None
-    assert long_id in results.reserved_ids
-    assert sum(len(id) for id in results.reserved_ids) < 2 * len(long_id)
-
-
-@pytest.mark.parametrize(
-    ("history_id", "model_id"),
-    [("x" * 500 + "__read_1", "read_1"), ("x__" + "y" * 200, "y" * 200)],
-    ids=["short_alias", "long_model_id"],
-)
-async def test_a_long_history_ids_alias_is_never_issued(
-    history_id: str, model_id: str
-) -> None:
-    history: list[ChatMessage] = [
-        ChatMessageUser(content=TASK),
-        ChatMessageTool(content="old", tool_call_id=history_id),
-    ]
-    bridge = in_process_bridge(history)
-
-    with active([bridge_recording([])]):
-        output = await generate(
-            bridge, Scripted(calls_output(replace(READ, id=model_id))), history
-        )
-
-    [handed] = output.message.tool_calls or []
-    assert handed.id != model_id
-    assert not history_id.endswith("__" + handed.id)
-
-
 def signed_parallel_output() -> ModelOutput:
     """A Gemini response: a signed call, then an unsigned parallel sibling."""
     first = replace(READ, id="read_a", arguments={"path": "a.txt"})
@@ -6451,8 +6304,8 @@ async def test_a_repeated_gemini_response_keeps_its_signatures_on_its_calls(
     with active([bridge_recording([])]):
         ids = await dialect_repeated_parallel_calls(dialect, bridge)
 
-    # the second response was handed over under fresh tokens
-    assert len(ids) == 2 and not {"read_a", "read_b"} & set(ids)
+    # the second response was handed over again under the model's ids
+    assert ids == ["read_a", "read_b"]
     [assistant] = [m for m in model.inputs[2] if isinstance(m, ChatMessageAssistant)]
     assert [call.id for call in assistant.tool_calls or []] == ids
     replayed = await google_content(MagicMock(), assistant)
@@ -6518,7 +6371,8 @@ async def test_a_repeated_gemini_computer_action_keeps_its_name(
             ],
         )
 
-    assert handed.id != call.id
+    # handed over again, the call keeps its id
+    assert handed.id == call.id
     replayed = await as_chat_messages(MagicMock(), model.inputs[2])
     parts = [part for content in replayed for part in content.parts or []]
     calls = [part.function_call.name for part in parts if part.function_call]
@@ -6708,7 +6562,12 @@ async def test_a_modified_gemini_computer_action_continues_as_the_modified_actio
 
     from inspect_ai.model._providers._google_computer_use import (
         gemini_action_from_tool_call,
+        gemini_replay_action_name,
+        gemini_replay_args,
         tool_call_from_gemini_computer_action,
+    )
+    from inspect_ai.model._providers._google_computer_use_name import (
+        gemini_computer_action_names,
     )
     from inspect_ai.model._providers.google import as_chat_messages
 
@@ -6721,8 +6580,21 @@ async def test_a_modified_gemini_computer_action_continues_as_the_modified_actio
     with active([bridge_modify_action(modified)]):
         await computer_continuation(dialect, bridge)
 
-    expected, expected_args = gemini_action_from_tool_call(
-        ToolCall(id="", function="computer", arguments=modified)
+    # the action of the modified arguments, or, for a call coming back as a
+    # computer call, the parsed action when that fits them (`search` parses as
+    # navigation); a Google scaffold runs and sends back the action it is
+    # handed, the arguments' own
+    handed = replace(call, arguments=modified)
+    expected = (
+        gemini_action_from_tool_call(handed)[0]
+        if dialect == "google"
+        else gemini_replay_action_name(handed)
+    )
+    assert expected in gemini_computer_action_names(modified)
+    expected_args = (
+        gemini_replay_args(expected, handed)
+        if expected == action
+        else gemini_action_from_tool_call(handed)[1]
     )
     replayed = await as_chat_messages(MagicMock(), model.inputs[1])
     parts = [part for content in replayed for part in content.parts or []]
@@ -6954,8 +6826,9 @@ async def test_a_repeated_anthropic_response_keeps_its_interleaved_calls() -> No
     order = ["thinking", "tool_use", "thinking", "tool_use"]
     assert [block.type for block in first.content] == order
     assert [block.type for block in second.content] == order
+    # handed over again, under the model's ids
     uses = [block for block in second.content if block.type == "tool_use"]
-    assert not {"toolu_a", "toolu_b"} & {block.id for block in uses}
+    assert [block.id for block in uses] == ["toolu_a", "toolu_b"]
     # the model's output stays on the record as it was generated
     recorded = [e.output for e in transcript().events if isinstance(e, ModelEvent)]
     assert [call.id for call in recorded[1].message.tool_calls or []] == [
@@ -7044,7 +6917,7 @@ async def test_a_repeated_responses_native_call_stays_native(kind: str) -> None:
         )
         handed = [item.model_dump(exclude_none=True) for item in response.output]
         [call] = [item for item in handed if "call_id" in item]
-        assert call["type"] == item.type and call["call_id"] != item.call_id
+        assert call["type"] == item.type and call["call_id"] == item.call_id
         await inspect_responses_api_request(
             request([*items, *handed, {**result, "call_id": call["call_id"]}]),
             None,
@@ -7053,15 +6926,14 @@ async def test_a_repeated_responses_native_call_stays_native(kind: str) -> None:
             bridge,
         )
 
-    # the continuation replays to the model natively, under the handed id
+    # the continuation replays to the model as generated
     replayed = await openai_responses_inputs(model.inputs[2])
     assert [
         (param["type"], param.get("call_id"))
         for param in replayed
         if "call_id" in param
-    ] == [(item.type, call["call_id"]), (result["type"], call["call_id"])]
-    # the model's item id names its stored item, whose call id is the model's
-    assert item.id not in [param.get("id") for param in replayed]
+    ] == [(item.type, item.call_id), (result["type"], item.call_id)]
+    assert item.id in [param.get("id") for param in replayed]
 
 
 # Python `==` takes these for the proposed arguments, JSON does not
@@ -7242,9 +7114,7 @@ async def test_a_modified_responses_call_continues_as_approved(
             )
         handed = [item.model_dump(exclude_none=True) for item in response.output]
         [call] = [item for item in handed if "call_id" in item]
-        # the model's id replays its cached item, so the call is handed over
-        # under a fresh one
-        assert call["call_id"] != item.call_id
+        assert call["call_id"] == item.call_id
         await inspect_responses_api_request(
             request([*items, *handed, {**result, "call_id": call["call_id"]}]),
             None,
@@ -7253,10 +7123,12 @@ async def test_a_modified_responses_call_continues_as_approved(
             bridge,
         )
 
-    # the continuation replays the approved call natively, under the handed id
+    # the continuation replays the approved call natively, under the model's id
+    # and without the item's id, which a stored response would resolve to the
+    # generated arguments
     replayed: list[Any] = await openai_responses_inputs(model.inputs[len(outputs)])
     [replayed_call] = [param for param in replayed if param["type"] == item.type]
-    assert replayed_call["call_id"] == call["call_id"]
+    assert replayed_call["call_id"] == item.call_id
     assert "id" not in replayed_call
     # as JSON, which tells `true` from `1`
     assert json.dumps(_responses_native_arguments(replayed_call)) == json.dumps(
@@ -7267,8 +7139,6 @@ async def test_a_modified_responses_call_continues_as_approved(
     )
     if change == "booleans":
         assert json.dumps(_responses_native_arguments(call)) == json.dumps(approved)
-    # the model's own item stays as it was generated
-    assert assistant_internal().tool_calls[item.call_id] == original
 
 
 @pytest.mark.parametrize(
@@ -7539,7 +7409,7 @@ def _responses_calls_reading(kind: str, first_item_id: bool) -> list[Any]:
 
 
 @pytest.mark.parametrize(("kind", "first_item_id"), RESPONSES_REUSED_CALLS)
-async def test_a_reused_responses_call_id_replays_each_execution_as_generated(
+async def test_a_reused_responses_call_id_replays_each_call_with_its_own_arguments(
     kind: str, first_item_id: bool
 ) -> None:
     from inspect_ai.agent._bridge.responses import inspect_responses_api_request
@@ -7588,13 +7458,15 @@ async def test_a_reused_responses_call_id_replays_each_execution_as_generated(
             bridge,
         )
 
-    assert _responses_replayed(model.wire[2], generated[0].type) == [
-        (handed_id, _responses_native_arguments(item.model_dump(exclude_none=True)))
-        for handed_id, item in zip(handed_ids, generated)
-    ]
-    # a call without replay state is handed under a fresh token
-    assert (handed_ids[0] == "call_reused") == first_item_id
-    assert len(set(handed_ids)) == 2
+    # the reusing call is handed over under a fresh id, and the id's state
+    # (the second parse's) is dropped, so each call replays with its own
+    # arguments, from itself
+    assert handed_ids[0] == "call_reused" != handed_ids[1]
+    assert [
+        (param["call_id"], _path(param))
+        for param in model.wire[2]
+        if param["type"] in RESPONSES_CALL_TYPES
+    ] == list(zip(handed_ids, ["old.txt", "new.txt"]))
 
 
 async def _pass_through(
@@ -7625,7 +7497,7 @@ RESPONSE_FILTERS: dict[str, Any] = {
         *[(kind, item_id, "rebuilt") for kind, item_id in RESPONSES_REUSED_CALLS],
     ],
 )
-async def test_a_cached_responses_call_replays_as_generated_after_its_id_is_reused(
+async def test_a_cached_responses_call_replays_its_own_arguments_after_its_id_is_reused(
     kind: str,
     first_item_id: bool,
     filtered: str,
@@ -7695,85 +7567,19 @@ async def test_a_cached_responses_call_replays_as_generated_after_its_id_is_reus
         "read",
         "write",
     ]
-    assert len({call["call_id"] for call in handed}) == 3
-    assert _responses_replayed(model.wire[-1], generated[0].type) == [
-        (
-            call["call_id"],
-            _responses_native_arguments(item.model_dump(exclude_none=True)),
-        )
-        for call, item in zip(handed, [*generated, generated[0]])
-    ]
-
-
-@pytest.mark.parametrize("kind", ["function", "custom", "computer", "tool_search"])
-async def test_a_responses_cache_hit_in_another_sample_replays_as_generated(
-    kind: str, isolated_cache: Callable[[], None]
-) -> None:
-    from inspect_ai.agent._bridge.responses import inspect_responses_api_request
-    from inspect_ai.model._assistant_internal import init_sample_assistant_internal
-
-    isolated_cache()
-    _, tool, result, _ = _responses_modified_call(kind)
-    generated = _responses_call_reading(kind, "old.txt", 1)
-    model = Parsing(
-        _responses_parsed(generated),
-        lambda: calls_output(),
-        cache=True,
-        wire=_responses_wire,
-    )
-    user = {"role": "user", "content": TASK}
-
-    with (
-        patch(
-            "inspect_ai.agent._bridge.responses_impl._is_openai_responses_provider",
-            return_value=True,
-        ),
-        active([bridge_recording([])]),
-    ):
-
-        async def sample() -> tuple[AgentBridge, Any]:
-            init_sample_assistant_internal()
-            bridge = AgentBridge(
-                AgentState(messages=[]), model_aliases={"inspect": model.model}
-            )
-            return bridge, await inspect_responses_api_request(
-                {"model": "inspect", "input": [user], "tools": [tool]},
-                None,
-                None,
-                None,
-                bridge,
-            )
-
-        await sample()
-        # the second sample's request is a cache hit
-        bridge, response = await sample()
-        [call] = [
-            item.model_dump(exclude_none=True)
-            for item in response.output
-            if hasattr(item, "call_id")
-        ]
-        await inspect_responses_api_request(
-            {
-                "model": "inspect",
-                "input": [user, call, {**result, "call_id": call["call_id"]}],
-                "tools": [tool],
-            },
-            None,
-            None,
-            None,
-            bridge,
-        )
-
-    assert [e.cache for e in transcript().events if isinstance(e, ModelEvent)] == [
-        "write",
-        "read",
-        "write",
-    ]
-    assert _responses_replayed(model.wire[-1], generated.type) == [
-        (
-            call["call_id"],
-            _responses_native_arguments(generated.model_dump(exclude_none=True)),
-        )
+    # the reusing call gets a fresh id; the cache hit hands the first call over
+    # again under its id
+    model_id = generated[0].call_id
+    assert [call["call_id"] == model_id for call in handed] == [True, False, True]
+    # each call replays with its own arguments (the reused id's state is
+    # dropped, so not in its native form)
+    assert [
+        (param["call_id"], _path(param))
+        for param in model.wire[-1]
+        if param["type"] in RESPONSES_CALL_TYPES
+    ] == [
+        (call["call_id"], path)
+        for call, path in zip(handed, ["old.txt", "new.txt", "old.txt"])
     ]
 
 
@@ -7831,226 +7637,6 @@ async def test_a_responses_call_without_an_item_id_replays_its_own_arguments() -
     ] == [{"path": "old.txt"}, {"path": "new.txt"}]
 
 
-async def test_a_reused_anthropic_call_id_replays_each_execution_as_generated() -> None:
-    from inspect_ai.model._assistant_internal import init_sample_assistant_internal
-
-    init_sample_assistant_internal()
-    model = Parsing(
-        _anthropic_parsed(ANTHROPIC_FIRST),
-        _anthropic_parsed(ANTHROPIC_SECOND),
-        lambda: calls_output(),
-        wire=_anthropic_wire,
-    )
-    bridge = in_process_bridge([])
-    messages: list[ChatMessage] = [ChatMessageUser(content=TASK)]
-
-    with active([bridge_recording([])]):
-        for _ in range(3):
-            output, _ = await bridge_generate(
-                bridge,
-                model.model,
-                list(messages),
-                list(ANTHROPIC_TOOLS),
-                None,
-                GenerateConfig(),
-                requested_model=None,
-            )
-            messages += [
-                output.message,
-                *[
-                    ChatMessageTool(content="done", tool_call_id=call.id)
-                    for call in output.message.tool_calls or []
-                ],
-            ]
-
-    replayed = model.wire[2]
-    assert _anthropic_shapes(replayed) == [
-        ANTHROPIC_FIRST_REPLAY,
-        ANTHROPIC_SECOND_REPLAY,
-    ]
-    assert replayed[0][1].get("id") == "toolu_a" != replayed[1][0].get("id")
-
-
-@pytest.mark.parametrize("filtered", ["unfiltered", "pass_through", "rebuilt"])
-async def test_a_cached_anthropic_turn_replays_as_generated_after_its_id_is_reused(
-    filtered: str, isolated_cache: Callable[[], None]
-) -> None:
-    from inspect_ai.model._assistant_internal import init_sample_assistant_internal
-
-    isolated_cache()
-    init_sample_assistant_internal()
-    model = Parsing(
-        _anthropic_parsed(ANTHROPIC_FIRST),
-        _anthropic_parsed(ANTHROPIC_SECOND),
-        lambda: calls_output(),
-        cache=True,
-        wire=_anthropic_wire,
-    )
-    bridge = in_process_bridge([])
-    bridge.response_filter = RESPONSE_FILTERS[filtered]
-    messages: list[ChatMessage] = [ChatMessageUser(content=TASK)]
-
-    with active([bridge_recording([])]):
-        # the first request again, after the model reused its id: a cache hit
-        for path in ["old.txt", "new.txt", "old.txt"]:
-            output, _ = await bridge_generate(
-                bridge,
-                model.model,
-                [ChatMessageUser(content=f"Read {path}.")],
-                list(ANTHROPIC_TOOLS),
-                None,
-                GenerateConfig(),
-                requested_model=None,
-            )
-            messages += [
-                output.message,
-                *[
-                    ChatMessageTool(content="done", tool_call_id=call.id)
-                    for call in output.message.tool_calls or []
-                ],
-            ]
-        await bridge_generate(
-            bridge,
-            model.model,
-            list(messages),
-            list(ANTHROPIC_TOOLS),
-            None,
-            GenerateConfig(),
-            requested_model=None,
-        )
-
-    assert [e.cache for e in transcript().events if isinstance(e, ModelEvent)] == [
-        "write",
-        "write",
-        "read",
-        "write",
-    ]
-    replayed = model.wire[-1]
-    assert _anthropic_shapes(replayed) == [
-        ANTHROPIC_FIRST_REPLAY,
-        ANTHROPIC_SECOND_REPLAY,
-        ANTHROPIC_FIRST_REPLAY,
-    ]
-    assert len({blocks[1].get("id") for blocks in (replayed[0], replayed[2])}) == 2
-
-
-async def test_a_cached_anthropic_response_is_handed_as_generated_after_its_id_is_reused(
-    isolated_cache: Callable[[], None],
-) -> None:
-    from inspect_ai.agent._bridge.anthropic_api import inspect_anthropic_api_request
-    from inspect_ai.model._assistant_internal import init_sample_assistant_internal
-
-    isolated_cache()
-    init_sample_assistant_internal()
-    model = Parsing(
-        _anthropic_parsed(ANTHROPIC_FIRST),
-        _anthropic_parsed(ANTHROPIC_SECOND),
-        cache=True,
-    )
-    bridge = AgentBridge(
-        AgentState(messages=[]), model_aliases={"inspect": model.model}
-    )
-    handed: list[list[tuple[str, str | None]]] = []
-
-    with active([bridge_recording([])]):
-        for path in ["old.txt", "new.txt", "old.txt"]:
-            response = await inspect_anthropic_api_request(
-                {
-                    "model": "inspect",
-                    "max_tokens": 100,
-                    "messages": [{"role": "user", "content": f"Read {path}."}],
-                    "tools": [
-                        {"name": tool.name, "description": "tool", "input_schema": {}}
-                        for tool in ANTHROPIC_TOOLS
-                    ],
-                },
-                None,
-                None,
-                None,
-                bridge,
-            )
-            handed.append(
-                [
-                    (block.type, getattr(block, "name", None))
-                    for block in response.content
-                ]
-            )
-
-    assert [e.cache for e in transcript().events if isinstance(e, ModelEvent)] == [
-        "write",
-        "write",
-        "read",
-    ]
-    assert handed[2] == handed[0] != handed[1]
-
-
-async def test_concurrent_anthropic_turns_reusing_an_id_replay_as_generated() -> None:
-    from inspect_ai.model._assistant_internal import (
-        bridge_replay_scope,
-        init_sample_assistant_internal,
-    )
-    from inspect_ai.model._providers import anthropic
-
-    init_sample_assistant_internal()
-    counting = anyio.Event()
-    parsed_second = anyio.Event()
-
-    # without reported thinking tokens the provider counts them after parsing;
-    # the second turn is parsed while the first is counting
-    async def count_tokens(client: Any, model: str, text: str) -> int:
-        if text == "first":
-            counting.set()
-            await parsed_second.wait()
-        return 1
-
-    async def respond(
-        input: list[ChatMessage], tools: Any, tool_choice: Any, config: Any
-    ) -> ModelOutput:
-        first = input[-1].text == "first"
-        if not first:
-            await counting.wait()
-        output = await _anthropic_output(
-            ANTHROPIC_FIRST if first else ANTHROPIC_SECOND, client=object()
-        )
-        if not first:
-            parsed_second.set()
-        return output
-
-    model = get_model("mockllm/model", custom_outputs=respond, memoize=False)
-    bridge = in_process_bridge([])
-
-    async def turn(text: str) -> ModelOutput:
-        output, _ = await bridge_generate(
-            bridge,
-            model,
-            [ChatMessageUser(content=text)],
-            list(ANTHROPIC_TOOLS),
-            None,
-            GenerateConfig(),
-            requested_model=None,
-        )
-        return output
-
-    with (
-        patch.object(anthropic, "count_tokens", count_tokens),
-        active([bridge_recording([])]),
-    ):
-        first, second = await tg_collect(
-            [lambda: turn("first"), lambda: turn("second")]
-        )
-
-        # as the bridge's next request replays them
-        with bridge_replay_scope(bridge._replay):
-            replayed = [
-                await anthropic.assistant_message_block_params(output.message)
-                for output in (first, second)
-            ]
-    assert [
-        [(block["type"], block.get("name")) for block in blocks] for blocks in replayed
-    ] == [ANTHROPIC_FIRST_REPLAY, ANTHROPIC_SECOND_REPLAY]
-    assert replayed[0][1].get("id") != replayed[1][0].get("id")
-
-
 async def test_a_call_a_response_filter_changed_replays_as_handed() -> None:
     from inspect_ai.agent._bridge.responses import inspect_responses_api_request
     from inspect_ai.model._assistant_internal import init_sample_assistant_internal
@@ -8103,13 +7689,13 @@ async def test_a_call_a_response_filter_changed_replays_as_handed() -> None:
             ]
 
     [call] = [item for item in items if item.get("type") == "function_call"]
-    assert call["call_id"] != "call_reused"
+    assert call["call_id"] == "call_reused"
     replayed: list[Any] = await openai_responses_inputs(model.inputs[1])
     assert [
-        (param["call_id"], json.loads(param["arguments"]))
+        (param["call_id"], json.loads(param["arguments"]), "id" in param)
         for param in replayed
         if param["type"] == "function_call"
-    ] == [(call["call_id"], {"path": "edited.txt"})]
+    ] == [(call["call_id"], {"path": "edited.txt"}, False)]
 
 
 RESPONSES_RESULT_TYPES = {
@@ -8200,11 +7786,13 @@ async def test_a_call_a_response_filter_returned_continues_in_its_native_form(
             item.model_dump(exclude_none=True)
         )
     else:
-        # an edited call replays as edited, under a fresh token
-        assert call["call_id"] != item.call_id
+        # an edited call replays as edited, under the model's id and without
+        # the generated item's id
+        assert call["call_id"] == item.call_id
         assert _responses_native_arguments(call) != _responses_native_arguments(
             item.model_dump(exclude_none=True)
         )
+        assert item.id not in [param.get("id") for param in replayed]
 
 
 @pytest.mark.parametrize("filtered", ["rebuilt", "edited", "edited_rebuilt"])
@@ -8311,9 +7899,9 @@ async def test_parallel_responses_calls_sharing_an_id_continue_with_their_own_ar
         _responses_native_arguments(item.model_dump(exclude_none=True))
         for item in generated
     ]
-    # the scaffold runs each call as generated, under its own id
+    # the scaffold runs each call as generated, under the id they share
     assert [_responses_native_arguments(call) for call in calls] == expected
-    assert len({call["call_id"] for call in calls}) == 2
+    assert {call["call_id"] for call in calls} == {"call_reused"}
     # the continuation replays each call with its own arguments, and no other
     # call's item (replay in the native form is not guaranteed)
     replayed = [
@@ -8523,9 +8111,15 @@ async def test_a_rejected_turn_replays_each_call_as_generated(
 @pytest.mark.parametrize(
     "kind", ["function", "custom", "computer", "tool_search", "anthropic"]
 )
-async def test_a_rejected_turn_replays_as_generated_after_a_later_rejection_reuses_its_id(
+async def test_a_rejected_turn_keeps_its_own_state_after_a_later_rejection_reuses_its_id(
     kind: str, filtered: str, rejecter: str, distinct: bool
 ) -> None:
+    """A second generation reuses the id of the first's rejected call, and is rejected too.
+
+    With distinct ids both turns replay as generated. With the reused id the
+    second call gets a fresh id, and the state recorded under the id (the
+    second call's) is dropped, so each call replays from itself.
+    """
     from contextlib import nullcontext
 
     init_sample_assistant_internal()
@@ -8585,14 +8179,33 @@ async def test_a_rejected_turn_replays_as_generated_after_a_later_rejection_reus
             requested_model=None,
         )
 
-    # the third request replays the first rejected turn as the second did
     assert len(model.wire) == 3
-    assert model.wire[2][: len(model.wire[1])] == model.wire[1]
     rejected = [m for m in model.inputs[2] if isinstance(m, ChatMessageAssistant)]
     calls = [call for message in rejected for call in message.tool_calls or []]
     results = [m for m in model.inputs[2] if isinstance(m, ChatMessageTool)]
     assert [result.tool_call_id for result in results] == [call.id for call in calls]
     assert len({call.id for call in calls}) == len(calls)
+    # the first turn keeps the model's ids
+    first_id = first[-1]["id"] if kind == "anthropic" else first[-1].call_id
+    assert first_id in {call.id for call in rejected[0].tool_calls or []}
+    if kind == "anthropic":
+        assert [
+            (block["id"], block["input"])
+            for blocks in model.wire[2]
+            for block in blocks
+            if block["type"] == "tool_use"
+        ] == [(call.id, call.arguments) for call in calls]
+    else:
+        # each call replays with its own arguments
+        assert [
+            (param["call_id"], _path(param))
+            for param in model.wire[2]
+            if param["type"] in RESPONSES_CALL_TYPES
+        ] == [(call.id, _path(call.arguments)) for call in calls]
+    if not distinct:
+        return
+    # the third request replays the first rejected turn as the second did
+    assert model.wire[2][: len(model.wire[1])] == model.wire[1]
     if kind == "anthropic":
         kept = (
             ANTHROPIC_FIRST_REPLAY
@@ -8600,12 +8213,6 @@ async def test_a_rejected_turn_replays_as_generated_after_a_later_rejection_reus
             else [("thinking", None), ("thinking", None), ("tool_use", "read_file")]
         )
         assert _anthropic_shapes(model.wire[2]) == [kept, ANTHROPIC_SECOND_REPLAY]
-        assert [
-            (block["id"], block["input"])
-            for blocks in model.wire[2]
-            for block in blocks
-            if block["type"] == "tool_use"
-        ] == [(call.id, call.arguments) for call in calls]
     else:
         assert _responses_replayed(model.wire[2], first[0].type) == [
             (call.id, _responses_native_arguments(item.model_dump(exclude_none=True)))
@@ -8883,8 +8490,8 @@ async def test_parallel_calls_never_replay_another_calls_state(
                 requested_model=None,
             )
 
-    # the next request replays the turn: each call once, under its own id,
-    # answered by its own result
+    # the next request replays the turn: each call once, under the model's id
+    # (calls sharing one keep it, as on main), answered by its own result
     [turn] = [m for m in model.inputs[1] if isinstance(m, ChatMessageAssistant)]
     calls = turn.tool_calls or []
     results = [m for m in model.inputs[1] if isinstance(m, ChatMessageTool)]
@@ -8895,14 +8502,13 @@ async def test_parallel_calls_never_replay_another_calls_state(
         "reversed": ["new.txt", "old.txt"],
     }.get(kept, ["old.txt", "new.txt"])
     assert [_path(call.arguments) for call in calls] == expected
-    assert len({call.id for call in calls}) == len(calls)
+    assert len({call.id for call in calls}) == (1 if shared else len(calls))
     # in its generated position (Anthropic, Google) or in call order, with its
     # own arguments and provider state, or with none
     [replayed] = model.wire[1]
-    assert len(replayed) == len(calls)
-    assert {call_id: path for call_id, path, _ in replayed} == {
-        call.id: _path(call.arguments) for call in calls
-    }
+    assert sorted((call_id, path) for call_id, path, _ in replayed) == sorted(
+        (call.id, _path(call.arguments)) for call in calls
+    )
     assert all(
         _own_state(dialect, path, state, shared) for _, path, state in replayed
     ), replayed
@@ -9013,26 +8619,22 @@ async def test_a_google_anchor_naming_no_returned_call_signs_no_call(
     "replay",
     [
         "current",
-        # an earlier Responses parse recorded the id, so the generation's is unknown
+        # an earlier Responses parse recorded the id
         "id_parsed_before",
-        "cached_without",
-        "cached_obsolete",
+        "cached",
         "request_filter",
     ],
 )
-async def test_calls_sharing_an_id_stay_shared_without_their_generations_replay_state(
+async def test_a_call_kept_from_calls_sharing_an_id_replays_unsigned(
     replay: str, rebuilt: bool, outcome: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A filter keeps the last of two calls sharing an id, and the signed anchor.
 
     The kept call names the signed anchor's id, but that id was shared in the
     output the filter received, so the signature is the removed call's as much
-    as the kept one's. The kept call replays without it, whether or not the
-    output has its generation's replay state.
+    as the kept one's. The kept call replays without it.
     """
     from contextlib import AbstractContextManager, nullcontext
-
-    from inspect_ai.model._assistant_internal import generation_assistant_internal
 
     init_sample_assistant_internal()
     generation, tools, wire = _calls_reading_old_then_new("google", True)
@@ -9054,13 +8656,7 @@ async def test_calls_sharing_an_id_stay_shared_without_their_generations_replay_
         wire=wire,
     )
     if replay.startswith("cached"):
-        cached = ModelOutput.model_validate(generation().model_dump())
-        if replay == "cached_obsolete":
-            cached._assistant_internal = {
-                "calls": {"shared": [{"digest": "old"}]},
-                "providers": [],
-            }
-        entries = [cached]
+        entries = [ModelOutput.model_validate(generation().model_dump())]
         monkeypatch.setattr(
             "inspect_ai.model._model.cache_fetch",
             lambda entry: entries.pop() if entries else None,
@@ -9079,9 +8675,6 @@ async def test_calls_sharing_an_id_stay_shared_without_their_generations_replay_
     ) -> ModelOutput:
         if not output.message.tool_calls or isinstance(output.message.content, str):
             return output
-        assert (generation_assistant_internal(output) is not None) == (
-            replay == "current"
-        )
         output.message.tool_calls = output.message.tool_calls[-1:]
         output.message.content = [
             part
@@ -9722,100 +9315,6 @@ HOST_READ_ITEM: dict[str, Any] = {
 }
 
 
-@pytest.mark.parametrize("executed", ["host", "scaffold"])
-async def test_a_call_handed_on_under_a_token_completes_its_acp_card(
-    executed: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A sentinel modifies a Responses call, which is handed on under a fresh token.
-
-    The model's proposal of the call starts its ACP card; the host execution or
-    the scaffold's result under the token completes that card, and no other.
-    """
-    from inspect_ai.event import ToolEvent
-
-    init_sample_assistant_internal()
-    published = _acp_router(monkeypatch)
-    model = Parsing(lambda: _responses_output(HOST_READ_ITEM), lambda: calls_output())
-    bridge = (
-        sandbox_bridge(AsyncMock(return_value="contents"))
-        if executed == "host"
-        else in_process_bridge([])
-    )
-    input: list[ChatMessage] = [ChatMessageUser(content=TASK)]
-
-    with active([bridge_modify()]):
-        output = await _generate_bridged(
-            bridge, model.model, input, declare_read_file()
-        )
-        [handed] = output.message.tool_calls or []
-        assert handed.id != "call_read"
-        if executed == "host":
-            assert isinstance(bridge, SandboxAgentBridge)
-            reply = await call_host_tool(bridge)("host", "read_file", handed.arguments)
-            assert reply == "contents"
-        await _generate_bridged(
-            bridge,
-            model.model,
-            [
-                *input,
-                output.message,
-                ChatMessageTool(
-                    content="contents",
-                    tool_call_id=handed.id,
-                    function=handed.function,
-                ),
-            ],
-            declare_read_file(),
-        )
-
-    host_events = [e for e in transcript().events if isinstance(e, ToolEvent)]
-    if executed == "host":
-        assert _acp_cards(published) == {
-            "call_read": ["in_progress", "in_progress", "completed"]
-        }
-        # the host run is under the token and names the model's proposal, which
-        # the transcript and Activity pair it with
-        [event] = host_events
-        assert event.id == handed.id
-        assert event.metadata is not None
-        assert event.metadata["bridge"]["proposal_id"] == "call_read"
-        assert _replayed_acp_cards() == {handed.id: ["completed"]}
-    else:
-        assert host_events == []
-        assert _acp_cards(published) == {"call_read": ["in_progress", "completed"]}
-        assert _replayed_acp_cards() == {"call_read": ["completed"]}
-    assert _result_proposals() == [(handed.id, "call_read")]
-    # the model's proposal stays as generated
-    proposal = next(e for e in transcript().events if isinstance(e, ModelEvent))
-    assert [call.id for call in proposal.output.message.tool_calls or []] == [
-        "call_read"
-    ]
-
-
-@pytest.mark.parametrize("rejecter", ["approval", "sentinel"])
-async def test_a_rejected_call_replayed_under_a_fresh_id_settles_its_acp_card(
-    rejecter: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    from contextlib import nullcontext
-
-    init_sample_assistant_internal()
-    published = _acp_router(monkeypatch)
-    model = Parsing(lambda: _responses_output(HOST_READ_ITEM), lambda: calls_output())
-    bridge = in_process_bridge([])
-    if rejecter == "approval":
-        bridge.approval = [ApprovalPolicy(rejecting_approver(1), "*")]
-
-    with active([bridge_reject_nth(1)]) if rejecter == "sentinel" else nullcontext():
-        await _generate_bridged(
-            bridge, model.model, [ChatMessageUser(content=TASK)], declare_read_file()
-        )
-
-    [(replayed_id, proposal_id)] = _result_proposals()
-    assert replayed_id != "call_read" and proposal_id == "call_read"
-    assert _acp_cards(published) == {"call_read": ["in_progress", "failed"]}
-    assert _replayed_acp_cards() == {"call_read": ["failed"]}
-
-
 async def test_a_modified_host_calls_acp_card_shows_the_arguments_that_ran(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -9986,7 +9485,7 @@ async def test_cancelling_a_modified_host_calls_acp_card_cancels_its_run(
                     if isinstance(n.update, ToolCallProgress)
                     and (n.update.field_meta or {}).get(TOOL_CALL_CANCELABLE_META_KEY)
                 ]
-                assert card.tool_call_id == "call_read" != handed.id
+                assert card.tool_call_id == "call_read" == handed.id
                 cancelled = await handler.cancel_tool_call("wire", card.tool_call_id)
             finally:
                 release.set()
@@ -9995,100 +9494,6 @@ async def test_cancelling_a_modified_host_calls_acp_card_cancels_its_run(
     assert finished == []
     assert errors == ["Command timed out before completing."]
     assert _acp_cards(published)["call_read"][-1] == "failed"
-
-
-async def test_a_results_proposal_annotation_leaves_the_requests_cache_key() -> None:
-    """Naming a result's proposal changes neither the cache key nor what is sent."""
-    from inspect_ai.agent._bridge._sentinel import (
-        name_proposal,
-        name_result_proposals,
-    )
-    from inspect_ai.model._cache import CacheEntry, CachePolicy
-    from inspect_ai.model._openai import messages_to_openai
-    from inspect_ai.model._providers.google import as_chat_messages
-
-    init_sample_assistant_internal()
-    bridge = in_process_bridge([])
-    model = Parsing(lambda: _responses_output(HOST_READ_ITEM))
-    with active([bridge_modify()]):
-        output = await _generate_bridged(
-            bridge, model.model, [ChatMessageUser(content=TASK)], declare_read_file()
-        )
-    [handed] = output.message.tool_calls or []
-    result = ChatMessageTool(
-        content="contents", tool_call_id=handed.id, function=handed.function
-    )
-    messages: list[ChatMessage] = [result]
-
-    def key() -> str:
-        return CacheEntry(
-            base_url=None,
-            config=GenerateConfig(),
-            input=messages,
-            model="test",
-            policy=CachePolicy(per_epoch=False),
-            tool_choice=None,
-            tools=[],
-        ).key
-
-    async def wire() -> tuple[Any, ...]:
-        return (
-            await messages_to_openai(messages),
-            await _responses_wire(messages),
-            await _anthropic_wire(messages),
-            await as_chat_messages(AsyncMock(), messages),
-        )
-
-    original_key, unnamed_id, unnamed_wire = key(), result.id, await wire()
-    name_result_proposals(bridge, messages)
-    assert result.metadata == {"bridge": {"proposal_id": "call_read"}}
-    assert key() == original_key
-    assert result.id == unnamed_id
-    assert await wire() == unnamed_wire
-
-    # the result's other metadata stays in the key
-    result.metadata = {"note": 1, "bridge": {"other": 1}}
-    unnamed_key = key()
-    assert unnamed_key != original_key
-    name_proposal(result, "call_read")
-    assert result.metadata == {
-        "note": 1,
-        "bridge": {"other": 1, "proposal_id": "call_read"},
-    }
-    assert key() == unnamed_key
-
-    # as do its empty metadata containers, and a `bridge` the annotation replaces
-    earlier_metadata: list[dict[str, Any]] = [{}, {"bridge": {}}, {"bridge": "other"}]
-    for unnamed_metadata in earlier_metadata:
-        result.metadata = unnamed_metadata
-        unnamed_key = key()
-        name_proposal(result, "call_read")
-        assert result.metadata == {"bridge": {"proposal_id": "call_read"}}
-        assert key() == unnamed_key, unnamed_metadata
-        # a later edit to the metadata is in the key
-        result.metadata = {**result.metadata, "note": 2}
-        assert key() != unnamed_key
-
-    # annotated again after an edit, the edit stays in the key and the earlier
-    # annotation doesn't
-    result.metadata = {"note": 4}
-    edited_key = key()
-    result.metadata = {"note": 3}
-    name_proposal(result, "call_read")
-    result.metadata = {**result.metadata, "note": 4}
-    name_proposal(result, "call_other")
-    assert result.metadata == {"note": 4, "bridge": {"proposal_id": "call_other"}}
-    assert key() == edited_key
-
-    # a copy keeps its key; read back from a log, it is keyed as unannotated
-    # metadata of None
-    result.metadata = {"bridge": {}}
-    unnamed_key = key()
-    name_proposal(result, "call_read")
-    messages = [result.model_copy(deep=True)]
-    assert key() == unnamed_key
-    messages = [ChatMessageTool.model_validate_json(result.model_dump_json())]
-    assert key() == original_key
 
 
 def _google_after_signed_text(*calls: tuple[str, str, bytes | None]) -> ModelOutput:
@@ -10147,14 +9552,13 @@ async def test_a_google_scaffold_is_handed_no_other_parts_signature_on_a_call(
 ) -> None:
     """The Google dialect hands a call only the signature its anchor names.
 
-    `shared`: two calls share an id, so with a sentinel their anchors' signatures
-    are dropped (`_retarget_anchors`). `anchor_removed`: a response filter
+    `shared`: two calls share an id, so their anchors' signatures are dropped
+    (`gemini_shared_call_ids`). `anchor_removed`: a response filter
     removes the one call's anchor. Either way the call is unsigned, and the
     text part's signature goes on no call, in the response the scaffold gets
     (its `thoughtSignature` and the embedded reasoning) and in the request
     built from the history the scaffold sends back.
     """
-    import base64
     from contextlib import nullcontext
 
     from inspect_ai.agent._bridge.google_api import inspect_google_api_request
@@ -10241,25 +9645,19 @@ async def test_a_google_scaffold_is_handed_no_other_parts_signature_on_a_call(
             bridge,
         )
 
-    # without a sentinel, calls sharing an id replay by id, as on main
-    own = case == "shared" and not checked
-    signature = base64.b64encode(GOOGLE_SIGNATURE).decode()
     handed = [part.get("thoughtSignature") for part in parts if "functionCall" in part]
-    assert handed == [signature if own else None] + [None] * (len(calls) - 1)
+    assert handed == [None] * len(calls)
     capsules = [
-        capsule.reasoning
+        capsule
         for part in parts
         if "text" in part
         and (capsule := parse_content_with_reasoning(part["text"])[1]) is not None
     ]
-    assert capsules == ([signature] if own else [])
+    assert capsules == []
     [replayed] = model.wire[1]
     assert replayed == [
         ("Reading.", None, None),
-        *[
-            (None, path, GOOGLE_SIGNATURE if own and index == 0 else None)
-            for index, (_, path, _) in enumerate(calls)
-        ],
+        *[(None, path, None) for _, path, _ in calls],
     ]
 
 
@@ -10430,117 +9828,6 @@ async def _generate_bridged(
     return output
 
 
-@pytest.mark.parametrize(
-    "kind", ["function", "custom", "computer", "tool_search", "anthropic"]
-)
-async def test_a_native_generation_reusing_a_bridged_call_id_replays_as_generated(
-    kind: str, isolated_cache: Callable[[], None]
-) -> None:
-    from inspect_ai.model._assistant_internal import init_sample_assistant_internal
-
-    isolated_cache()
-    init_sample_assistant_internal()
-    model, tools = _reusing_model(kind, cache=True)
-    bridge = in_process_bridge([])
-    bridged_input: list[ChatMessage] = [ChatMessageUser(content="Read old.txt.")]
-    native_input: list[ChatMessage] = [ChatMessageUser(content="Read new.txt.")]
-
-    with active([bridge_recording([])]):
-        bridged = await _generate_bridged(bridge, model.model, bridged_input, tools)
-        # a native helper in the sample: the model reuses the bridged call's id
-        # in a freshly parsed response, which the cache then serves
-        await model.model.generate(native_input, tools)
-        native = await model.model.generate(native_input, tools)
-        await model.model.generate(_answered(native_input, native), tools)
-        await _generate_bridged(
-            bridge, model.model, _answered(bridged_input, bridged), tools
-        )
-
-    assert [e.cache for e in transcript().events if isinstance(e, ModelEvent)] == [
-        "write",
-        "write",
-        "read",
-        "write",
-        "write",
-    ]
-    [handed, *_] = bridged.message.tool_calls or []
-    assert handed.id == ("toolu_a" if kind == "anthropic" else "call_reused")
-    assert _replays_reading(kind, model.wire[2], handed.id, 1)
-    assert _replays_reading(kind, model.wire[3], handed.id, 0)
-
-
-@pytest.mark.parametrize("kind", ["function", "anthropic"])
-async def test_bridges_reusing_a_call_id_in_one_sample_each_replay_their_own(
-    kind: str,
-) -> None:
-    from inspect_ai.model._assistant_internal import init_sample_assistant_internal
-
-    init_sample_assistant_internal()
-    model, tools = _reusing_model(kind)
-    bridges = [in_process_bridge([]), in_process_bridge([])]
-    inputs: list[list[ChatMessage]] = [
-        [ChatMessageUser(content=f"Read {path}.")] for path in ["old.txt", "new.txt"]
-    ]
-
-    with active([bridge_recording([])]):
-        outputs = [
-            await _generate_bridged(bridge, model.model, input, tools)
-            for bridge, input in zip(bridges, inputs)
-        ]
-        for bridge, input, output in zip(bridges, inputs, outputs):
-            await _generate_bridged(
-                bridge, model.model, _answered(input, output), tools
-            )
-
-    handed = [(output.message.tool_calls or [])[0].id for output in outputs]
-    assert len(set(handed)) == 1
-    assert _replays_reading(kind, model.wire[2], handed[0], 0)
-    assert _replays_reading(kind, model.wire[3], handed[1], 1)
-
-
-@pytest.mark.parametrize("kind", ["function", "anthropic"])
-async def test_a_resumed_bridge_replays_a_call_it_handed_under_the_models_id(
-    kind: str, tmp_path: Path
-) -> None:
-    from inspect_ai.model._assistant_internal import init_sample_assistant_internal
-
-    init_sample_assistant_internal()
-    model, tools = _reusing_model(kind)
-    start = AgentState(messages=[])
-    input: list[ChatMessage] = [ChatMessageUser(content="Read old.txt.")]
-
-    async with AsyncFilesystem():
-        with _patch_sample_runtime([]):
-            checkpointer = real_checkpointer(tmp_path)
-            bridge = started_with(False, model.model, deepcopy(start), checkpointer)
-            with active([bridge_recording([])]):
-                output = await _generate_bridged(bridge, model.model, input, tools)
-            await checkpointer.checkpoint()
-            checkpointer.close()
-
-            saved = read_host_context(str(tmp_path / "context")).agent_state
-            assert saved is not None
-            resumed = real_checkpointer(tmp_path, saved)
-            try:
-                bridge = started_with(False, model.model, deepcopy(start), resumed)
-                # the resumed sample's provider state has only a native
-                # generation reusing the call's id
-                init_sample_assistant_internal()
-                with active([bridge_recording([])]):
-                    await model.model.generate(
-                        [ChatMessageUser(content="Read new.txt.")], tools
-                    )
-                    await _generate_bridged(
-                        bridge, model.model, _answered(input, output), tools
-                    )
-            finally:
-                resumed.close()
-
-    [handed, *_] = output.message.tool_calls or []
-    assert handed.id == ("toolu_a" if kind == "anthropic" else "call_reused")
-    assert _replays_reading(kind, model.wire[2], handed.id, 0)
-
-
 async def test_a_provider_output_rebuilt_from_its_fields_replays_its_own_calls() -> (
     None
 ):
@@ -10564,8 +9851,10 @@ async def test_a_provider_output_rebuilt_from_its_fields_replays_its_own_calls()
         output = await _generate_bridged(bridge, model.model, input, [])
         await _generate_bridged(bridge, model.model, _answered(input, output), [])
 
+    # the item under the id is the other generation's: the call replays with
+    # its own arguments
     [handed] = output.message.tool_calls or []
-    assert handed.id != "call_reused"
+    assert handed.id == "call_reused"
     assert _responses_replayed(model.wire[1], "function_call") == [
         (handed.id, {"path": "new.txt"})
     ]

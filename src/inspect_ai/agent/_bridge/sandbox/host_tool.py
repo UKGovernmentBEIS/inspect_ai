@@ -112,9 +112,8 @@ async def execute_host_tool(
 
     Every request is recorded as one `ToolEvent` in a `tool` span, as a native
     call is, with `metadata["bridge"]` describing it (see `ToolEvent`). An
-    execution that consumed a grant takes the id its call was handed to the
-    scaffold under, records the model's id for the call as `proposal_id`, and
-    is recorded in the span of the proposing `ModelEvent`; a denied or rejected
+    execution that consumed a grant takes the proposing call's id and is
+    recorded in the span of the proposing `ModelEvent`; a denied or rejected
     request gets a fresh id and the error the scaffold receives. A running
     call can be cancelled by the operator like a native one.
     """
@@ -276,7 +275,7 @@ async def _execute_granted(
 ) -> JsonValue:
     if grant is not None:
         metadata.function = grant.proposal.call.function
-        metadata.proposal_id = grant.proposal.proposal_id
+        metadata.proposal_id = grant.proposal.call.id
         metadata.grant = "consumed"
     else:
         metadata.grant = "exempt"
@@ -324,7 +323,7 @@ async def _execute_granted(
         # for each execution it could be
         check = sentinel_unproposed_host_check(bridge, tool, call_arguments, tool_fn)
     else:
-        check = grant.check
+        check = bridge._handed_calls.latest(grant.check)
         candidates = []
     trim = check is not None and checks_bridged_results()
 

@@ -157,7 +157,7 @@ from inspect_ai._util.content import (
     ContentVideo,
 )
 from inspect_ai._util.images import inline_media_data_uri
-from inspect_ai._util.json import to_json_str_safe
+from inspect_ai._util.json import json_equal, to_json_str_safe
 from inspect_ai._util.text import truncate_string_to_bytes
 from inspect_ai.model._agent_message import validate_agent_message
 from inspect_ai.model._assistant_internal import bridge_replay, generation_replay
@@ -903,6 +903,81 @@ def alias_openai_tool_call(
         bridge[alias] = cast(JsonValue, aliased)
     else:
         assistant_internal().tool_calls[alias] = cast(Any, aliased)
+
+
+def hand_openai_tool_call(call: ToolCall) -> None:
+    """Hold the call's cached item to the call as it is handed on.
+
+    An item for another function is dropped, so the call replays from itself.
+    One with other arguments (approval or a filter changed them) is rewritten
+    with the call's, without the item's `id`: a stored response resolves an
+    item by its `id` to the stored arguments, ignoring the ones the request
+    sends.
+    """
+    internal = assistant_internal()
+    item = internal.tool_calls.get(call.id)
+    if item is None:
+        return
+    param = cast(dict[str, Any], item)
+    if not _item_names_call(param, call):
+        del internal.tool_calls[call.id]
+    elif not _item_carries_arguments(param, call):
+        handed = _with_tool_call_arguments(dict(param), call)
+        internal.tool_calls[call.id] = cast(
+            _CachedToolCall,
+            {key: value for key, value in handed.items() if key != "id"},
+        )
+
+
+def _item_names_call(param: dict[str, Any], call: ToolCall) -> bool:
+    match param["type"]:
+        case "function_call":
+            return call.type != "custom" and (
+                _from_responses_tool_alias(param["name"]) == call.function
+                or (
+                    param["name"] == UPDATE_PLAN_NAME
+                    and call.function == TODO_WRITE_NAME
+                )
+            )
+        case "custom_tool_call":
+            return call.type == "custom" and param["name"] == call.function
+        case "computer_call":
+            return call.function == "computer"
+        case "tool_search_call":
+            return call.function == TOOL_SEARCH_NAME
+        case _:
+            return True
+
+
+def _item_carries_arguments(param: dict[str, Any], call: ToolCall) -> bool:
+    """Whether the item, parsed as the provider parses it, has the call's arguments."""
+    match param["type"]:
+        case "function_call":
+            handed = _with_tool_call_arguments(param, call)["arguments"]
+            try:
+                return json_equal(json.loads(param["arguments"]), json.loads(handed))
+            except (TypeError, ValueError):
+                return bool(param["arguments"] == handed)
+        case "custom_tool_call":
+            return bool(param.get("input") == next(iter(call.arguments.values()), None))
+        # a rewritten item has no `id`, which the parse doesn't read
+        case "computer_call":
+            parsed = tool_call_from_openai_computer_tool_call(
+                ResponseComputerToolCall.model_validate({"id": "", **param})
+            )
+            return json_equal(parsed.arguments, call.arguments)
+        case "tool_search_call":
+            parsed = tool_call_from_openai_tool_search_call(
+                ResponseToolSearchCall.model_validate({"id": "", **param})
+            )
+            return json_equal(parsed.arguments, call.arguments)
+        case _:
+            return True
+
+
+def forget_openai_tool_call(call_id: str) -> None:
+    """Drop the call's cached item, so the call replays from itself."""
+    assistant_internal().tool_calls.pop(call_id, None)
 
 
 def _with_tool_call_arguments(param: dict[str, Any], call: ToolCall) -> dict[str, Any]:

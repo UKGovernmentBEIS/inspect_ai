@@ -180,8 +180,8 @@ class AgentBridge:
         )
         # deferred: `_sentinel` imports this module
         from ._sentinel import (
-            _ResultChecks,
-            _SavedResultChecks,
+            _HandedCalls,
+            _SavedHandedCalls,
             history_ids,
             inherited_result_keys,
         )
@@ -189,21 +189,21 @@ class AgentBridge:
         # a checkpoint written without them exempts no result and reserves the
         # ids of its prefix and its conversation; an incomplete one fails to
         # restore
-        self._sentinel_results = _ResultChecks(
+        self._handed_calls = _HandedCalls(
             self._cp.track(
-                "bridge_result_checks",
-                lambda: self._sentinel_results.saved(),
-                _SavedResultChecks(
+                "bridge_handed_calls",
+                lambda: self._handed_calls.saved(),
+                _SavedHandedCalls(
                     reserved_ids=sorted(
                         history_ids(self._compaction_prefix)
                         | history_ids(restored_messages)
                     ),
-                    tokens={},
+                    handed={},
                     checked=sorted(inherited_result_keys(state.messages))
                     if self._cp.attempt == "initial"
                     else [],
                 ),
-                value_type=_SavedResultChecks,
+                value_type=_SavedHandedCalls,
             )
         )
 

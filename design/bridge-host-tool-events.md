@@ -219,13 +219,10 @@ other order their ids are swapped between two otherwise identical events.
   dispatcher `call_mcp_tool`); `null` without a proposal. For a dispatcher
   call the event's `arguments` are the inner arguments that ran, which is
   what the grant binds.
-- `proposal_id`: the model's id for the proposing call on every consumed grant,
-  else `null`. With a sentinel, a call can be handed to the agent under a
-  token other than the model's id (a modified Responses call, a repeated id);
-  the event then takes the token as its id, and `proposal_id` still leads to
-  the `ModelEvent` that proposed it. The results the bridge passes on under
-  such an id (a result the agent reports under a token, a rejected turn's
-  results under `replay_ids`) record the same key in their `metadata`.
+- `proposal_id`: the proposing call's id on every consumed grant, else `null`.
+  The bridge hands a call over under the model's id, except when the model
+  reuses an id that already names another call: the call is then handed over,
+  and runs, under a fresh id, and its `ModelEvent` keeps the model's.
 - `grant`: `"consumed"`, `"denied"`, `"exempt"` (an exempt server ran it
   without a matching proposal), or `null` for a request rejected before the
   grant check (unknown server or tool, arguments too deep).
@@ -407,14 +404,9 @@ finalised. `agent` is `None`; `agent_span_id` is the tool's, as natively.
   and is not settled again from the agent's `ChatMessageTool`; the update
   also replaces the card's title and `raw_input` with the event's (the
   arguments that ran, which a sentinel may have modified) and marks the card
-  cancelable. An event or result under an id other than
-  its proposal's settles the proposal's card through `proposal_id`, live and
-  on replay. A scaffold-reported result, under a token or the model's id,
-  gives the card the title and `raw_input` of the call it answers in the
-  scaffold's request (the arguments that ran; `_scaffold_run`). The live
-  router records which event took over such a card, and
-  `inspect/cancel_tool_call` on the card cancels that event
-  (`AcpTransport.tool_event_id`). An event of a multi-target proposal that
+  cancelable. A scaffold-reported result gives the card the title and
+  `raw_input` of the call it answers in the scaffold's request (the arguments
+  that ran; `_scaffold_run`). An event of a multi-target proposal that
   did not take the proposing id, and an unpaired call on an exempt server,
   carry fresh ids and map as their own cards. Replay synthesizes no card for an id that has a real
   `ToolEvent`. The sub-agent filter places an event by its `span_id` as well

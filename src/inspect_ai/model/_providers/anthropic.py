@@ -4210,6 +4210,12 @@ def dump_anthropic_assistant_internal() -> JsonValue | None:
     )
 
 
+def forget_anthropic_tool_call(call_id: str) -> None:
+    """Drop the call's internal name and position, so the call replays from itself."""
+    assistant_internal().tool_call_internal_names.pop(call_id, None)
+    assistant_internal().client_tool_call_positions.pop(call_id, None)
+
+
 def alias_anthropic_tool_call(
     alias: str, state: JsonValue, bridge: dict[str, JsonValue] | None
 ) -> None:

@@ -101,6 +101,43 @@ def dump_sample_assistant_internal() -> JsonValue | None:
     return dump or None
 
 
+def hand_tool_call(call: ToolCall) -> None:
+    """Hold the providers' replay state for `call` to the call as it is handed on.
+
+    Only a Responses item carries a call's function and arguments
+    (`hand_openai_tool_call`); a provider's other per-call state (Anthropic's
+    name and position) holds as it is.
+    """
+    if _HAS_OPENAI:
+        try:
+            from inspect_ai.model._openai_responses import hand_openai_tool_call
+
+            hand_openai_tool_call(call)
+        except ImportError:
+            pass
+
+
+def forget_tool_call(call_id: str) -> None:
+    """Drop the providers' replay state for `call_id`, so the call under it replays from itself."""
+    if _HAS_OPENAI:
+        try:
+            from inspect_ai.model._openai_responses import forget_openai_tool_call
+
+            forget_openai_tool_call(call_id)
+        except ImportError:
+            pass
+
+    if _HAS_ANTHROPIC:
+        try:
+            from inspect_ai.model._providers.anthropic import (
+                forget_anthropic_tool_call,
+            )
+
+            forget_anthropic_tool_call(call_id)
+        except ImportError:
+            pass
+
+
 def generation_replay(
     calls: Sequence[ToolCall],
     openai: Sequence[JsonValue | None] | None = None,

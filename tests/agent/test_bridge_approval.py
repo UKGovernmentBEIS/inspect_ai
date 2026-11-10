@@ -651,10 +651,9 @@ async def test_reject_replays_the_rejection_to_the_model() -> None:
 
     retry_input = run.inputs[1]
     assert isinstance(retry_input[-2], ChatMessageAssistant)
-    # under a fresh id, which its result answers
+    # as generated, under the model's id, which its result answers
     (replayed,) = retry_input[-2].tool_calls or []
-    assert replayed.id != rejected.id
-    assert replace(replayed, id=rejected.id) == rejected
+    assert replayed == rejected
 
     results = run.tool_results(1)
     assert len(results) == 1

@@ -31,14 +31,13 @@ from typing import TYPE_CHECKING, Any, NamedTuple, NoReturn, Sequence
 
 from inspect_ai._sentinel._context import checks_tool_calls
 from inspect_ai._util.format import format_function_call
-from inspect_ai._util.json import json_equal
 from inspect_ai._util.logger import warn_once
 from inspect_ai.agent._bridge._sentinel import (
     Produced,
     SentinelCheck,
     sentinel_tool_call,
 )
-from inspect_ai.agent._bridge.types import AgentBridge, DispatchedCall
+from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.model._call_tools import (
     _CHANGED_IN_PLACE,
     _SENTINEL_MODIFIED_FUNCTION,
@@ -340,9 +339,6 @@ async def apply_bridge_tool_approval(
                             message=message,
                             message_id=output.message.id,
                             producer=producer,
-                            modified=not json_equal(
-                                modified.get(index, call.arguments), call.arguments
-                            ),
                         )
                     )
                 checks.append(
@@ -363,12 +359,6 @@ def _sentinel_modify_error(shown: ToolCall, modified: ToolCall) -> str | None:
     if modified.function != shown.function:
         return _SENTINEL_MODIFIED_FUNCTION.format(modified.function, shown.function)
     return _modified_id_error("A sentinel monitor", shown, modified)
-
-
-def _handed_arguments(
-    dispatched: DispatchedCall | None, reviewed: ToolCall
-) -> dict[str, Any]:
-    return dispatched.dispatch(reviewed.arguments) if dispatched else reviewed.arguments
 
 
 def with_modified_arguments(
@@ -411,23 +401,20 @@ def rejection_messages(
     intended.
 
     `rejected` is one of `output`'s calls, found by position, as parallel calls can
-    share an id. The turn is replayed with each call under a fresh id carrying
-    its own replay state (`replay_ids`), answered by its own result, which names
-    the model's id for the call (`name_proposal`).
+    share an id. The turn is replayed as it was generated, under the model's ids.
     """
-    from inspect_ai.agent._bridge._sentinel import name_proposal, replay_ids
-
-    calls = output.message.tool_calls or []
+    tool_calls = output.message.tool_calls or []
     position = next(
-        (index for index, call in enumerate(calls) if call is rejected),
-        next((index for index, call in enumerate(calls) if call.id == rejected.id), -1),
+        (index for index, call in enumerate(tool_calls) if call is rejected),
+        next(
+            (index for index, call in enumerate(tool_calls) if call.id == rejected.id),
+            -1,
+        ),
     )
-    message = replay_ids(output).message
-    tool_calls = message.tool_calls or []
     others = len(tool_calls) - 1
     description = describe_call(rejected)
 
-    messages: list[ChatMessage] = [message]
+    messages: list[ChatMessage] = [output.message]
     for index, call in enumerate(tool_calls):
         if index == position:
             text = explanation
@@ -445,14 +432,14 @@ def rejection_messages(
                 "was not itself rejected; you may re-issue it without the rejected "
                 "call."
             )
-        result = ChatMessageTool(
-            content="",
-            tool_call_id=call.id,
-            function=call.function,
-            error=ToolCallError("approval", text),
+        messages.append(
+            ChatMessageTool(
+                content="",
+                tool_call_id=call.id,
+                function=call.function,
+                error=ToolCallError("approval", text),
+            )
         )
-        name_proposal(result, calls[index].id)
-        messages.append(result)
     return messages
 
 
