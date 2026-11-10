@@ -1,17 +1,17 @@
 import { i as __toESM, r as __require, t as __commonJSMin } from "./rolldown-runtime.js";
 import { n as require_react, r as require_jsx_runtime, t as require_compiler_runtime } from "./compiler-runtime.js";
 import { n as AnsiDisplay_module_default, o as clsx, t as ToolButton } from "./ToolButton.js";
-//#region ../../node_modules/.pnpm/ansi-output@0.0.9/node_modules/ansi-output/dist/ansi-output.js
+// ../../node_modules/.pnpm/ansi-output@0.0.9/node_modules/ansi-output/dist/ansi-output.js
 var require_ansi_output = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	(function(factory) {
 		if (typeof module === "object" && typeof module.exports === "object") {
 			var v = factory(__require, exports);
 			if (v !== void 0) module.exports = v;
 		} else if (typeof define === "function" && define.amd) define(["require", "exports"], factory);
-	})(function(require, exports$1) {
+	})(function(require, exports) {
 		"use strict";
-		Object.defineProperty(exports$1, "__esModule", { value: true });
-		exports$1.ANSIOutput = exports$1.ANSIColor = exports$1.ANSIFont = exports$1.ANSIStyle = void 0;
+		Object.defineProperty(exports, "__esModule", { value: true });
+		exports.ANSIOutput = exports.ANSIColor = exports.ANSIFont = exports.ANSIStyle = void 0;
 		/**
 		* The counter used to generate identifiers.
 		*/
@@ -43,7 +43,7 @@ var require_ansi_output = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 			ANSIStyle["Overlined"] = "ansiOverlined";
 			ANSIStyle["Superscript"] = "ansiSuperscript";
 			ANSIStyle["Subscript"] = "ansiSubscript";
-		})(ANSIStyle || (exports$1.ANSIStyle = ANSIStyle = {}));
+		})(ANSIStyle || (exports.ANSIStyle = ANSIStyle = {}));
 		/**
 		* ANSIFont enumeration.
 		*/
@@ -58,7 +58,7 @@ var require_ansi_output = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 			ANSIFont["AlternativeFont7"] = "ansiAlternativeFont7";
 			ANSIFont["AlternativeFont8"] = "ansiAlternativeFont8";
 			ANSIFont["AlternativeFont9"] = "ansiAlternativeFont9";
-		})(ANSIFont || (exports$1.ANSIFont = ANSIFont = {}));
+		})(ANSIFont || (exports.ANSIFont = ANSIFont = {}));
 		/**
 		* SGRColor enumeration.
 		*/
@@ -80,7 +80,7 @@ var require_ansi_output = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 			ANSIColor["BrightMagenta"] = "ansiBrightMagenta";
 			ANSIColor["BrightCyan"] = "ansiBrightCyan";
 			ANSIColor["BrightWhite"] = "ansiBrightWhite";
-		})(ANSIColor || (exports$1.ANSIColor = ANSIColor = {}));
+		})(ANSIColor || (exports.ANSIColor = ANSIColor = {}));
 		/**
 		* ANSIOutput class.
 		*/
@@ -578,7 +578,7 @@ var require_ansi_output = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 				if (!SGRState.equivalent(sgrState, this._sgrState)) this._sgrState = sgrState;
 			}
 		}
-		exports$1.ANSIOutput = ANSIOutput;
+		exports.ANSIOutput = ANSIOutput;
 		/**
 		* SGRParam enumeration.
 		*/
@@ -1195,8 +1195,7 @@ var require_ansi_output = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 		};
 	});
 }));
-//#endregion
-//#region ../../packages/react/src/components/AnsiDisplayRich.module.css
+// ../../packages/react/src/components/AnsiDisplayRich.module.css
 var import_jsx_runtime = require_jsx_runtime();
 var import_react = /* @__PURE__ */ __toESM(require_react(), 1);
 var import_compiler_runtime = require_compiler_runtime();
@@ -1205,8 +1204,7 @@ var AnsiDisplayRich_module_default = {
 	container: "_container_f35vk_1",
 	toggle: "_toggle_f35vk_1"
 };
-//#endregion
-//#region ../../packages/react/src/components/AnsiDisplayRich.tsx
+// ../../packages/react/src/components/AnsiDisplayRich.tsx
 var RichANSIDisplay = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(16);
 	const { output, style, className } = t0;
@@ -1425,7 +1423,6 @@ function _temp(line_0) {
 function _temp2(outputRun) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(OutputRun, { run: outputRun }, outputRun.id);
 }
-//#endregion
 export { RichANSIDisplay as default };
 
 //# sourceMappingURL=AnsiDisplayRich.js.map

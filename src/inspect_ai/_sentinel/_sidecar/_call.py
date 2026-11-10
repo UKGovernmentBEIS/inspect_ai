@@ -21,6 +21,16 @@ logger = getLogger(__name__)
 INSPECT_CONTEXT = "x-inspect-context"
 """The header that names the sample an agent call is for."""
 
+INSPECT_HEADERS = frozenset({INSPECT_CONTEXT})
+"""Headers Inspect adds to a call's `GenerateConfig.extra_headers` itself, by lowercase name.
+
+They are in the recorded `ModelEvent.config` but not in the config the caller
+gave, so they don't tell one client from another (the agent bridge's response
+filter provenance check). A header Inspect adds to a call's config belongs
+here. Headers a provider adds to the request it sends (e.g. `x-irid`) are not
+in the recorded config.
+"""
+
 
 class SidecarCall(NamedTuple):
     """An agent call to an endpoint where a sidecar answered the probe."""
