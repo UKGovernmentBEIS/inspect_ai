@@ -9130,17 +9130,37 @@ async def test_calls_sharing_an_id_stay_shared_without_their_generations_replay_
     assert [(call[1], call[2]) for call in replayed] == [("new.txt", None)]
 
 
+@pytest.mark.parametrize("renamed", [False, True])
+@pytest.mark.parametrize("rebuilt", [False, True])
+@pytest.mark.parametrize("removed", ["nothing", "call_anchors", "signed_text"])
+@pytest.mark.parametrize("replay", ["current", "request_filter"])
 @pytest.mark.parametrize(
-    "outcome", ["accepted", "sentinel_rejected", "approval_rejected"]
+    ("shared", "outcome"),
+    [
+        *[
+            (shared, outcome)
+            for shared in [True, False]
+            for outcome in ["accepted", "sentinel_rejected", "approval_rejected"]
+        ],
+        # without a sentinel, accepted calls sharing an id replay by id, as on main
+        (False, "unchecked"),
+    ],
 )
-async def test_a_renamed_call_that_shared_an_id_takes_no_other_parts_signature(
+async def test_a_signed_text_parts_signature_goes_on_no_call(
+    shared: bool,
     outcome: str,
+    replay: str,
+    removed: str,
+    rebuilt: bool,
+    renamed: bool,
 ) -> None:
-    """A filter keeps the last of two calls sharing an id, under a new id.
+    """A filter keeps the last of two calls after a signed text part.
 
-    The anchors then name no returned call, and the one kept without its
-    signature holds the serializer on its in-place path, so the signed text
-    part's signature stays on that part and does not go on the call.
+    It may rename the call, and remove every call anchor or the signed text
+    while keeping the text's signature. Whatever is left, the text's signature
+    goes only on the text, and the kept call, whose own anchor is unsigned,
+    replays without a signature. Without anchors, the serializer would take
+    the message for a legacy one and put the pending signature on the call.
     """
     from contextlib import AbstractContextManager, nullcontext
 
@@ -9153,9 +9173,10 @@ async def test_a_renamed_call_that_shared_an_id_takes_no_other_parts_signature(
     )
 
     from inspect_ai.model._providers.google import completion_choice_from_candidate
+    from inspect_ai.model._providers.google import content as google_content
 
     init_sample_assistant_internal()
-    _, tools, wire = _calls_reading_old_then_new("google", True)
+    _, tools, _ = _calls_reading_old_then_new("google", shared)
 
     def generation() -> ModelOutput:
         choice = completion_choice_from_candidate(
@@ -9168,13 +9189,13 @@ async def test_a_renamed_call_that_shared_an_id_takes_no_other_parts_signature(
                         *[
                             Part(
                                 function_call=FunctionCall(
-                                    id="shared", name="read_file", args={"path": path}
+                                    id=call_id, name="read_file", args={"path": path}
                                 ),
                                 thought_signature=signature,
                             )
-                            for path, signature in [
-                                ("old.txt", GOOGLE_SIGNATURE),
-                                ("new.txt", None),
+                            for call_id, path, signature in [
+                                ("shared", "old.txt", GOOGLE_SIGNATURE),
+                                ("shared" if shared else "distinct", "new.txt", None),
                             ]
                         ],
                     ],
@@ -9184,23 +9205,64 @@ async def test_a_renamed_call_that_shared_an_id_takes_no_other_parts_signature(
         )
         return ModelOutput(model="mockllm/model", choices=[choice])
 
-    model = Parsing(generation, lambda: calls_output(), wire=wire)
-    bridge = in_process_bridge([])
+    async def wire(input: list[ChatMessage]) -> Any:
+        return [
+            [
+                (part.text, None, part.thought_signature)
+                if part.function_call is None
+                else (None, _path(part.function_call.args), part.thought_signature)
+                for part in (await google_content(AsyncMock(), message)).parts or []
+            ]
+            for message in input
+            if isinstance(message, ChatMessageAssistant)
+        ]
 
-    async def keep_last_renamed(
+    generated = replay == "current"
+    model = Parsing(
+        *([generation] if generated else []), lambda: calls_output(), wire=wire
+    )
+    bridge = in_process_bridge([])
+    if replay == "request_filter":
+        substitutes = [generation()]
+
+        async def substitute(*args: Any) -> ModelOutput | None:
+            return substitutes.pop() if substitutes else None
+
+        bridge.filter = substitute
+
+    async def keep_last(
         model: Any, output: ModelOutput, input: GenerateInput
     ) -> ModelOutput:
-        if output.message.tool_calls:
-            output.message.tool_calls = output.message.tool_calls[-1:]
+        calls = output.message.tool_calls or []
+        if not calls or isinstance(output.message.content, str):
+            return output
+        output.message.tool_calls = calls[-1:]
+        if renamed:
             output.message.tool_calls[0].id = "filter_id"
-        return output
+        if removed == "call_anchors":
+            output.message.content = [
+                part
+                for part in output.message.content
+                if not (
+                    isinstance(part, ContentReasoning)
+                    and isinstance(part.internal, dict)
+                    and "gemini_function_call_id" in part.internal
+                )
+            ]
+        elif removed == "signed_text":
+            output.message.content = [
+                part
+                for part in output.message.content
+                if not isinstance(part, ContentText)
+            ]
+        return ModelOutput.model_validate(output.model_dump()) if rebuilt else output
 
-    bridge.response_filter = keep_last_renamed
+    bridge.response_filter = keep_last
     if outcome == "approval_rejected":
         bridge.approval = [ApprovalPolicy(rejecting_approver(None), "*")]
     sentinel: AbstractContextManager[None] = (
         nullcontext()
-        if outcome == "approval_rejected"
+        if outcome in ("approval_rejected", "unchecked")
         else active(
             [
                 bridge_reject_nth(None)
@@ -9221,7 +9283,122 @@ async def test_a_renamed_call_that_shared_an_id_takes_no_other_parts_signature(
             GenerateConfig(),
             requested_model=None,
         )
-        if outcome == "accepted":
+        if outcome in ("accepted", "unchecked"):
+            await bridge_generate(
+                bridge,
+                model.model,
+                _answered(messages, output),
+                tools,
+                None,
+                GenerateConfig(),
+                requested_model=None,
+            )
+
+    [replayed] = model.wire[1 if generated else 0]
+    text = (
+        [] if removed == "signed_text" else [("Reading both.", None, b"text-signature")]
+    )
+    assert replayed == [*text, (None, "new.txt", None)]
+
+
+@pytest.mark.parametrize("rebuilt", [False, True])
+@pytest.mark.parametrize(
+    "outcome", ["accepted", "sentinel_rejected", "approval_rejected", "unchecked"]
+)
+async def test_a_trailing_signature_goes_on_no_renamed_call(
+    outcome: str, rebuilt: bool
+) -> None:
+    """A filter renames the second of two calls and drops an empty signed text.
+
+    Gemini can end a response with an empty text part carrying a signature.
+    With the text removed, its signature is still pending at the end of the
+    content, where the serializer would give it to the renamed call, which no
+    anchor names, though the first call keeps its anchor.
+    """
+    from contextlib import AbstractContextManager, nullcontext
+
+    from google.genai.types import (
+        Candidate,
+        Content,
+        FinishReason,
+        FunctionCall,
+        Part,
+    )
+
+    from inspect_ai.model._providers.google import completion_choice_from_candidate
+
+    init_sample_assistant_internal()
+    _, tools, wire = _calls_reading_old_then_new("google", False)
+
+    def generation() -> ModelOutput:
+        choice = completion_choice_from_candidate(
+            "gemini-3-flash-preview",
+            Candidate(
+                content=Content(
+                    role="model",
+                    parts=[
+                        *[
+                            Part(
+                                function_call=FunctionCall(
+                                    id=call_id, name="read_file", args={"path": path}
+                                ),
+                                thought_signature=signature,
+                            )
+                            for call_id, path, signature in [
+                                ("shared", "old.txt", GOOGLE_SIGNATURE),
+                                ("distinct", "new.txt", None),
+                            ]
+                        ],
+                        Part(text="", thought_signature=b"trailing-signature"),
+                    ],
+                ),
+                finish_reason=FinishReason.STOP,
+            ),
+        )
+        return ModelOutput(model="mockllm/model", choices=[choice])
+
+    model = Parsing(generation, lambda: calls_output(), wire=wire)
+    bridge = in_process_bridge([])
+
+    async def rename_second(
+        model: Any, output: ModelOutput, input: GenerateInput
+    ) -> ModelOutput:
+        calls = output.message.tool_calls or []
+        if len(calls) < 2 or isinstance(output.message.content, str):
+            return output
+        calls[1].id = "filter_id"
+        output.message.content = [
+            part for part in output.message.content if not isinstance(part, ContentText)
+        ]
+        return ModelOutput.model_validate(output.model_dump()) if rebuilt else output
+
+    bridge.response_filter = rename_second
+    if outcome == "approval_rejected":
+        bridge.approval = [ApprovalPolicy(rejecting_approver(None), "*")]
+    sentinel: AbstractContextManager[None] = (
+        nullcontext()
+        if outcome in ("approval_rejected", "unchecked")
+        else active(
+            [
+                bridge_reject_nth(None)
+                if outcome == "sentinel_rejected"
+                else bridge_recording([])
+            ]
+        )
+    )
+
+    messages: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+    with sentinel:
+        output, _ = await bridge_generate(
+            bridge,
+            model.model,
+            list(messages),
+            tools,
+            None,
+            GenerateConfig(),
+            requested_model=None,
+        )
+        if outcome in ("accepted", "unchecked"):
             await bridge_generate(
                 bridge,
                 model.model,
@@ -9233,7 +9410,10 @@ async def test_a_renamed_call_that_shared_an_id_takes_no_other_parts_signature(
             )
 
     [replayed] = model.wire[1]
-    assert [(call[1], call[2]) for call in replayed] == [("new.txt", None)]
+    assert [(call[1], call[2]) for call in replayed] == [
+        ("old.txt", GOOGLE_SIGNATURE),
+        ("new.txt", None),
+    ]
 
 
 def test_an_id_several_google_anchors_name_is_shared_in_the_output_a_filter_received() -> (

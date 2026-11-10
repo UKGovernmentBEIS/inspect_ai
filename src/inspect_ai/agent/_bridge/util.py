@@ -474,8 +474,8 @@ async def _apply_response_filter(
     from its fields), from the generation's output, so its calls replay in their
     native form. An ID shared in the output the filter received stays shared
     (`_received_shared_ids`), whether or not that output has replay state.
-    Google reasoning anchors naming no returned call are removed
-    (`_drop_orphan_anchors`), so their signatures go on no other part.
+    Google thought signatures stay on the part they came with or the call
+    their anchor names (`_hold_signatures_in_place`).
 
     Exceptions are classified after unwrapping by hand, not with `inner_exception`,
     which follows `__context__` and can pick the exception already being handled.
@@ -553,7 +553,7 @@ async def _apply_response_filter(
         # text continued across requests is joined with no separator)
         filtered.completion = output.completion
     _check_provider_owned_content(output, filtered)
-    _drop_orphan_anchors(filtered)
+    _hold_signatures_in_place(output, filtered)
     _settle_message_ids(output, filtered)
     return filtered
 
@@ -582,35 +582,52 @@ def _received_shared_ids(output: ModelOutput) -> set[str]:
     return shared
 
 
-def _drop_orphan_anchors(output: ModelOutput) -> None:
-    """Remove the Google reasoning anchors that name none of their message's calls.
+def _hold_signatures_in_place(received: ModelOutput, output: ModelOutput) -> None:
+    """Keep Google's thought signatures off calls their anchors don't name.
 
-    Google replays an anchor's thought signature on the call it names
-    (`gemini_function_call_id`). The serializer takes an anchor naming no call
-    in its message (one a response filter removed or renamed) as pending
-    reasoning, and puts its signature on the next part or the first unanchored
-    call. A message whose calls are left with no anchor keeps one orphan
-    anchor, without its signature, at the end of its content: with no anchor,
-    the serializer would put any other pending signature (e.g. a signed text
-    part's) on the first call.
+    Google replays an anchor's signature on the call it names
+    (`gemini_function_call_id`), and any other signature (e.g. a signed text
+    part's) on the part after it. The serializer gives a call no anchor names
+    the signature still pending at the end of the content; with no anchor
+    left, it takes the message for one logged before anchors and gives the
+    first call the signature pending before it. So, when the output the filter
+    received had anchors:
+
+    - Anchors naming none of their message's calls (calls the filter removed
+      or renamed) are removed, so their signatures go on no other part.
+    - A message with a call no anchor names (or more calls under an ID than
+      anchors naming it) ends with an anchor without a signature, naming no
+      call, so no signature is pending for that call.
     """
+    if not any(
+        _anchor_call_id(part)
+        for choice in received.choices
+        if isinstance(choice.message.content, list)
+        for part in choice.message.content
+    ):
+        return
     for choice in output.choices:
         message = choice.message
         if isinstance(message.content, str):
             continue
-        call_ids = {call.id for call in message.tool_calls or []}
+        calls = Counter(call.id for call in message.tool_calls or [])
+        anchors: Counter[str] = Counter()
         content: list[Content] = []
-        orphan: Content | None = None
         for part in message.content:
             call_id = _anchor_call_id(part)
-            if call_id is None or call_id in call_ids:
-                content.append(part)
-            else:
-                orphan = part
-        if orphan is None:
-            continue
-        if call_ids and not any(_anchor_call_id(part) for part in content):
-            content.append(orphan.model_copy(update={"reasoning": ""}, deep=True))
+            if call_id is not None:
+                if call_id not in calls:
+                    continue
+                anchors[call_id] += 1
+            content.append(part)
+        if calls - anchors:
+            content.append(
+                ContentReasoning(
+                    reasoning="",
+                    redacted=True,
+                    internal={"gemini_function_call_id": uuid()},
+                )
+            )
         message.content = content
 
 
