@@ -8165,6 +8165,99 @@ def _editing(arguments: Callable[[ToolCall], dict[str, Any]], rebuild: bool) -> 
     return edit
 
 
+@pytest.mark.parametrize("sentinel", [True, False])
+@pytest.mark.parametrize("graft", ["replace", "append"])
+@pytest.mark.parametrize("kind", ["custom", "computer", "tool_search"])
+async def test_a_regenerations_calls_a_response_filter_grafted_continue_natively(
+    kind: str, graft: str, sentinel: bool
+) -> None:
+    """The grafted calls keep their generation's ids, which its parse recorded their state under."""
+    from contextlib import nullcontext
+
+    from inspect_ai.agent._bridge.responses import inspect_responses_api_request
+
+    init_sample_assistant_internal()
+    item, tool, result, _ = _responses_modified_call(kind)
+    regenerated = item.model_copy(
+        update={"call_id": "call_regenerated", "id": f"{item.id}_2"}
+    )
+    model = Parsing(
+        _responses_parsed(item),
+        _responses_parsed(regenerated),
+        lambda: calls_output(),
+        wire=_responses_wire,
+    )
+
+    async def response_filter(
+        model: Model, output: ModelOutput, input: GenerateInput
+    ) -> ModelOutput:
+        regeneration = await model.generate(
+            input=input.input,
+            tools=input.tools,
+            tool_choice=input.tool_choice,
+            config=input.config,
+        )
+        calls = regeneration.message.tool_calls or []
+        output.message.tool_calls = (
+            calls
+            if graft == "replace"
+            else [*(output.message.tool_calls or []), *calls]
+        )
+        return output
+
+    bridge = AgentBridge(
+        AgentState(messages=[]),
+        model_aliases={"inspect": model.model},
+        response_filter=response_filter,
+    )
+    items: list[Any] = [{"role": "user", "content": TASK}]
+
+    with (
+        patch(
+            "inspect_ai.agent._bridge.responses_impl._is_openai_responses_provider",
+            return_value=True,
+        ),
+        active([bridge_recording([])]) if sentinel else nullcontext(),
+    ):
+        response = await inspect_responses_api_request(
+            {"model": "inspect", "input": items, "tools": [tool]},
+            None,
+            None,
+            None,
+            bridge,
+        )
+        handed = [item.model_dump(exclude_none=True) for item in response.output]
+        await inspect_responses_api_request(
+            {
+                "model": "inspect",
+                "input": [
+                    *items,
+                    *handed,
+                    *[
+                        {**result, "call_id": item["call_id"]}
+                        for item in handed
+                        if "call_id" in item
+                    ],
+                ],
+                "tools": [tool],
+            },
+            None,
+            None,
+            None,
+            bridge,
+        )
+
+    replayed = [
+        (param["type"], param["call_id"])
+        for param in model.wire[-1]
+        if param.get("call_id") == regenerated.call_id
+    ]
+    assert replayed == [
+        (item.type, regenerated.call_id),
+        (RESPONSES_RESULT_TYPES[item.type], regenerated.call_id),
+    ]
+
+
 @pytest.mark.parametrize("filtered", ["rebuilt", "edited", "edited_rebuilt"])
 @pytest.mark.parametrize("kind", ["function", "custom", "computer", "tool_search"])
 async def test_a_call_a_response_filter_returned_continues_in_its_native_form(
