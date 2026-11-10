@@ -1600,7 +1600,7 @@ def _drain(eval_id: str) -> None:
 
     state = get_eval_state(eval_id)
     assert state is not None and state.task_cancel is not None
-    state.task_cancel.cancel_task("drain")
+    state.task_cancel.request("drain")
 
 
 @solver
