@@ -232,6 +232,7 @@ from .util import (
     forced_tool_choice_degraded_metadata,
     is_claude_4_0_model,
     is_claude_fable_5_1_model,
+    is_claude_fable_5_2_model,
     is_claude_haiku_5_5_model,
     is_claude_opus_5_5_model,
     is_claude_sonnet_5_5_model,
@@ -1686,7 +1687,7 @@ class AnthropicAPI(ModelAPI):
     ) -> None:
         """Opt into dropping prefix-mismatched thinking blocks on bound-thinking models.
 
-        Fable 5.1, Opus 5.5, Sonnet 5.5, and Haiku 5.5 bind thinking blocks to
+        Fable 5.1+, Opus 5.5, Sonnet 5.5, and Haiku 5.5 bind thinking blocks to
         the request prefix that produced them; solvers legitimately edit history, and without
         drop_block such an edit fails the replay with a 400. Applied to every
         request for these models — not only those replaying thinking blocks —
@@ -1828,6 +1829,10 @@ class AnthropicAPI(ModelAPI):
     def is_claude_fable_5_1_or_later(self) -> bool:
         return is_claude_fable_5_1_model(self.model_family())
 
+    def is_claude_fable_5_2_or_later(self) -> bool:
+        """Fable 5.2 or a later Fable 5 point release (a subset of 5.1-or-later)."""
+        return is_claude_fable_5_2_model(self.model_family())
+
     def is_claude_opus_5_5_or_later(self) -> bool:
         """Opus 5.5 or a later point release (a subset of is_claude_opus_5)."""
         return is_claude_opus_5_5_model(self.model_family())
@@ -1845,10 +1850,12 @@ class AnthropicAPI(ModelAPI):
 
         Auto mode (no `computer_toolset` model arg) uses the toolset where the
         legacy `computer_20251124` tool is rejected (Opus 5.5, Sonnet 5.5, and
-        Haiku 5.5 on the Claude API and Vertex) and, where the platform offers
+        Haiku 5.5 on the Claude API and Vertex; Fable 5.2 everywhere but
+        Bedrock) and, where the platform offers
         it, for Fable/Mythos 5.x and other Claude 5 models treated like them. Every other model keeps the
-        legacy tool, matching prior behavior; so do Fable/Mythos on Bedrock and
-        Foundry, which offer only the legacy tool.
+        legacy tool, matching prior behavior; so do Fable/Mythos on Bedrock,
+        and Fable before 5.2 and Mythos on Foundry, which offer only the
+        legacy tool.
         """
         if self.computer_toolset is not None:
             return self.computer_toolset
@@ -1871,23 +1878,30 @@ class AnthropicAPI(ModelAPI):
         )
 
     def computer_toolset_available(self) -> bool:
-        """Whether this platform offers the computer toolset at all.
+        """Whether this platform offers the computer toolset for this model.
 
         Per Anthropic's computer-use docs, platforms other than the Claude API
         and Google Cloud (Vertex) currently offer only the earlier tool
         versions. (Claude Platform on AWS also offers only those, but this
-        provider has no client for it, so it needs no case here.)
+        provider has no client for it, so it needs no case here.) The
+        exception is Fable 5.2 on Foundry: it rejects the earlier tool
+        everywhere except Bedrock and takes computer use through the toolset.
         """
-        return not (self.is_bedrock() or self.is_azure())
+        if self.is_bedrock():
+            return False
+        return not self.is_azure() or self.is_claude_fable_5_2_or_later()
 
     def computer_toolset_required(self) -> bool:
         """Whether the legacy computer tool is rejected for this model/platform.
 
-        Only Opus 5.5, Sonnet 5.5, and Haiku 5.5 on the Claude API and Vertex
-        reject `computer_20251124`; Bedrock and Foundry keep accepting it there, and
-        every other model listed for the legacy tool (Fable/Mythos 5.x
-        included) still accepts it.
+        Opus 5.5, Sonnet 5.5, and Haiku 5.5 on the Claude API and Vertex
+        reject `computer_20251124`; Bedrock and Foundry keep accepting it there.
+        Fable 5.2 rejects it on every platform except Bedrock. Every other
+        model listed for the legacy tool (Fable 5/5.1 and Mythos included)
+        still accepts it.
         """
+        if self.is_claude_fable_5_2_or_later():
+            return not self.is_bedrock()
         return (
             self.is_claude_opus_5_5_or_later()
             or self.is_claude_sonnet_5_5_or_later()
@@ -2539,7 +2553,8 @@ class AnthropicAPI(ModelAPI):
                 # inspect computer tool always supports it, so no configs.
                 return BetaComputerToolset20260801Param(type=COMPUTER_TOOLSET_TYPE)
             # legacy path forced (computer_toolset=false) where the legacy tool
-            # is rejected (Opus/Sonnet/Haiku 5.5 on the Claude API / Vertex)
+            # is rejected (Opus/Sonnet/Haiku 5.5 on the Claude API / Vertex;
+            # Fable 5.2 everywhere but Bedrock)
             if self.computer_toolset_required():
                 raise PrerequisiteError(
                     f"The legacy computer tool (computer_20251124) is not supported "
