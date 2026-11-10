@@ -268,6 +268,10 @@ class NoOpAcpTransport:
         """No-op sessions are never interactive (no turn loop to drive)."""
         return False
 
+    def tool_event_id(self, tool_call_id: str) -> str:
+        """No-op sessions publish no cards; each id is its own."""
+        return tool_call_id
+
     @property
     def is_attachable(self) -> bool:
         """No-op sessions are never attachable."""

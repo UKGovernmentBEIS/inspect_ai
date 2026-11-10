@@ -142,6 +142,13 @@ class _BridgeToolState:
         """True when this state was seeded with a replay snapshot's facts."""
         return self.tool_event_ids is not None
 
+    def tool_event_id(self, card: str) -> str | None:
+        """The host ``ToolEvent`` that took over `card` (see `cards`), if any."""
+        return next(
+            (event_id for event_id, taken in self.cards.items() if taken == card),
+            None,
+        )
+
 
 def _scan_bridge_tool_facts(
     events: Sequence[Event],
@@ -357,6 +364,15 @@ class _AcpEventRouter:
         if self._unsubscribe is not None:
             self._unsubscribe()
             self._unsubscribe = None
+
+    def tool_event_id(self, tool_call_id: str) -> str | None:
+        """The ``ToolEvent`` the published card `tool_call_id` shows, when another id.
+
+        A bridged call handed on under an id other than the model's runs as a
+        host ``ToolEvent`` under that id, which takes over the card of the
+        model's proposal (`_map_tool_event`).
+        """
+        return self._bridge.tool_event_id(tool_call_id)
 
     def _process(self, event: Event) -> None:
         action = self._depth_tracker.process(event)

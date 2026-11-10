@@ -645,6 +645,12 @@ class LiveAcpTransport:
             return self._attachable_override
         return self._ref is not None and not self._agent_completed
 
+    def tool_event_id(self, tool_call_id: str) -> str:
+        """The id of the ``ToolEvent`` the card `tool_call_id` shows (see `AcpTransport`)."""
+        router = self._router
+        mapped = router.tool_event_id(tool_call_id) if router is not None else None
+        return mapped or tool_call_id
+
     @property
     def is_attachable(self) -> bool:
         """True iff a client may attach to this transport at all.

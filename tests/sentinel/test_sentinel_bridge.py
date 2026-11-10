@@ -38,6 +38,7 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.agent import Agent, AgentState, agent, agent_bridge
+from inspect_ai.agent._acp.transport_live import LiveAcpTransport
 from inspect_ai.agent._bridge._errors import PROVIDER_ERROR_KEY
 from inspect_ai.agent._bridge._sentinel import _SavedResultChecks
 from inspect_ai.agent._bridge.sandbox.service import _forward_provider_errors
@@ -9662,15 +9663,22 @@ async def test_a_call_a_request_filter_edited_continues_as_edited(
 
 def _acp_router(monkeypatch: pytest.MonkeyPatch) -> list[Any]:
     """Attach an ACP router to the transcript; returns what it publishes."""
+    return _acp_session(monkeypatch)[1]
+
+
+def _acp_session(
+    monkeypatch: pytest.MonkeyPatch,
+) -> tuple[LiveAcpTransport, list[Any]]:
+    """A live ACP session routing the transcript, and what it publishes."""
     from inspect_ai.agent._acp.event_mapping import _AcpEventRouter
-    from inspect_ai.agent._acp.transport_live import LiveAcpTransport
 
     session = LiveAcpTransport()
     session._attachable_override = True
     published: list[Any] = []
     monkeypatch.setattr(session, "publish", published.append)
-    _AcpEventRouter(session).attach()
-    return published
+    session._router = _AcpEventRouter(session)
+    session._router.attach()
+    return session, published
 
 
 def _acp_cards(notifications: Sequence[Any]) -> dict[str, list[str | None]]:
@@ -9845,6 +9853,75 @@ async def test_a_modified_host_calls_acp_card_shows_the_arguments_that_ran(
     title = next(u.title for u in reversed(updates) if u.title is not None)
     assert raw_input == handed.arguments == {"path": "safe.txt"}
     assert "safe.txt" in title and "notes.txt" not in title
+
+
+async def test_cancelling_a_modified_host_calls_acp_card_cancels_its_run(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The proposal's card, advertised cancelable once the host run backs it, cancels that run."""
+    from types import SimpleNamespace
+
+    from acp.schema import ToolCallProgress
+
+    from inspect_ai.agent._acp.connection import Bound, ConnectionHandler
+    from inspect_ai.agent._acp.inspect_ext import TOOL_CALL_CANCELABLE_META_KEY
+    from inspect_ai.tool import ToolError
+
+    init_sample_assistant_internal()
+    session, published = _acp_session(monkeypatch)
+    started, release = anyio.Event(), anyio.Event()
+    finished: list[str] = []
+
+    async def read_file(path: str) -> str:
+        started.set()
+        await release.wait()
+        finished.append(path)
+        return "contents"
+
+    bridge = sandbox_bridge(read_file)
+    model = Parsing(lambda: _responses_output(HOST_READ_ITEM))
+    handler = ConnectionHandler()
+    handler.state.binding = Bound(
+        wire_session_id="wire", target_session_id="target", interactive=True
+    )
+    monkeypatch.setattr(
+        "inspect_ai.agent._acp.connection._find_active_sample",
+        lambda _: SimpleNamespace(transcript=transcript(), acp_transport=session),
+    )
+
+    errors: list[str] = []
+    with active([bridge_modify()]):
+        output = await _generate_bridged(
+            bridge, model.model, [ChatMessageUser(content=TASK)], declare_read_file()
+        )
+        [handed] = output.message.tool_calls or []
+
+        async def execute() -> None:
+            # an operator cancel reaches the scaffold as the native timeout
+            try:
+                await call_host_tool(bridge)("host", "read_file", handed.arguments)
+            except ToolError as ex:
+                errors.append(str(ex))
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(execute)
+            await started.wait()
+            try:
+                [card] = [
+                    n.update
+                    for n in published
+                    if isinstance(n.update, ToolCallProgress)
+                    and (n.update.field_meta or {}).get(TOOL_CALL_CANCELABLE_META_KEY)
+                ]
+                assert card.tool_call_id == "call_read" != handed.id
+                cancelled = await handler.cancel_tool_call("wire", card.tool_call_id)
+            finally:
+                release.set()
+
+    assert cancelled == {"cancelled": True}
+    assert finished == []
+    assert errors == ["Command timed out before completing."]
+    assert _acp_cards(published)["call_read"][-1] == "failed"
 
 
 def _google_after_signed_text(*calls: tuple[str, str, bytes | None]) -> ModelOutput:
