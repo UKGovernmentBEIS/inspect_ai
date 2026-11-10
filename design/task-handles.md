@@ -20,7 +20,11 @@ def rollout_task() -> Task:
 def search(n_steps: int) -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         handles = await enqueue_task(rollout_task())  # one per model in the run
-        async with handles[0] as rollouts:            # closes on exit
+        mine = next(h for h in handles if h.model == str(state.model))
+        for other in handles:
+            if other is not mine:
+                other.close()                         # nothing to send there
+        async with mine as rollouts:                  # closes on exit
             for _ in range(n_steps):
                 sample = await propose_next(state)
                 runs = await rollouts.enqueue_sample(sample)  # one EvalSample per epoch
@@ -30,10 +34,13 @@ def search(n_steps: int) -> Solver:
     return solve
 ```
 
-`propose_next` is the searcher's own async function and may call a model. In a
-run with one model `handles` has one entry; in a run with several, the task is
-added once per model, and handles the creator does not use close when its
-attempt ends.
+`propose_next` is the searcher's own async function and may call a model.
+`enqueue_task()` adds the task once per model in the run, in the run's model
+order, so the creator picks the handle for its own model and closes the others
+at once. A closed channel with nothing sent ends its task as soon as it
+starts, though that task still takes a task slot (and any sandbox setup)
+briefly; an unused handle left open holds its task, and a slot once it
+starts, until the creator's attempt ends.
 
 Handles build on the run queue of [task-dispatch.md](task-dispatch.md): an
 added task is a `TaskRecord` in the run's `RunQueue`, and it starts as soon as
@@ -53,8 +60,12 @@ All of these are new API; no existing eval waits on a handle or uses
 - A run whose `max_sandboxes` or `max_samples` leaves no room for samples that
   wait through handles can hang; the docs say so and a warning names the
   provider.
-- A task fed by its creator is never retried automatically, and
-  `eval_retry()` refuses its log.
+- A task fed by its creator is never retried automatically (its sandbox
+  setup retries itself, as every setup does), and `eval_retry()` refuses its
+  log. Its error log stays one of the run's logs, so the eval set's or
+  selection worker's result is failure even if the creator recovers.
+- The run's `--limit` and `--sample-id` do not apply to a task fed by its
+  creator.
 - `EvalSpec` gains `send_samples`, so the viewer's generated types change.
 
 ## Why
@@ -330,12 +341,19 @@ class PortRequest:
   cancelled leaves its request in place: the sample still runs, and the
   request is removed when it settles or the task ends, with its result
   dropped.
-- **Dropped by selection.** `add_samples` collects the samples it drops for
-  `--sample-id` or `--limit`, and `add_and_start` passes them to the
-  channel's `samples_dropped()` (only a `CreatorChannel` has it), which finds
-  each request in `accepted` by the buffered object's identity, fails it with
-  `SampleAbandonedError` and removes it, so a caller never waits for a
-  sample that will not run. Other sources keep today's behaviour.
+- **Run-wide selection does not apply.** `--limit` and `--sample-id` choose
+  among the requested tasks' samples; a fed task's samples are chosen by its
+  creator, whose own selection already limits what it sends, and a run-wide
+  value would silently drop requests (a `--sample-id 3` filters every
+  generated id, and a `--limit 2` ends the empty-seed task after two). So
+  `configure_task()` gives a task whose dataset is `samples_from_creator()`
+  `limit=None` and `sample_id=None` whatever the run passes, before it
+  builds the task's logger, so the log's eval config records them cleared; a
+  `task:id` selector naming the fed task's name selects nothing there, and
+  the "No sample_id selector names task" warning is not logged for it.
+  `epochs` and every other eval-level override apply as to any task. Since
+  `add_samples` then drops nothing for such a task, it needs no drop
+  notification; other `SampleSource` tasks keep today's filtering.
 - **Graceful cancels stop it.** `_run_task`'s `cancel_task` callback calls
   `channel.stop()` for `drain`, `score` and `error`: `next_samples()` returns
   `None`, `held` requests fail with `SampleAbandonedError` and leave
@@ -357,9 +375,16 @@ class PortRequest:
   search state and every result returned, and decides whether to add a fresh
   task. `run_one` passes `can_retry=False` to `_run_task` for such a task and
   queues no retry for it, so no retry is pre-marked or reported
-  (`will_retry` is false), a retry the task requests itself through its
-  `TaskCancel` is not honoured, as for a task with no retries left, and a
-  setting of `task_retry_attempts` does not apply to it.
+  (`will_retry` is false), and a retry the task requests itself through its
+  `TaskCancel` is not honoured, as for a task with no retries left.
+  `task_retry_attempts` gives it no task retries, but its sandbox setups
+  retry themselves like any task's ([task-dispatch.md](task-dispatch.md#sandbox-setup-beside-the-dispatcher)):
+  a transient setup failure is absorbed before the task sees it, and only a
+  final failure, which a fresh task added later meets too, ends it. Its
+  error log stays one of the run's logs, so `eval_set()`'s result and a
+  selection worker's (`all_evals_succeeded` over the logs) are failure even
+  when the creator recovers with a fresh task and succeeds: today's rule for
+  any failed task, unchanged.
 - **The log says so.** A new `EvalSpec` field, `send_samples: bool = False`,
   after `task_args_passed`: "the task's dataset was samples_from_creator(),
   so its samples were sent by the task that added it". The `TaskLogger` sets
@@ -483,16 +508,18 @@ release their permits.
   samples in the log, but explicit ids need duplicate checks against the
   task's other ids, and a channel's own counter would be a second id rule
   beside today's generated ids for samples added without one.
-- **Retrying a fed task after a sandbox setup failure**, re-running the
-  failed setup in place (a fresh task the creator adds would join the cached
-  failed job). The retry would have to bring the requests already settled
-  into its results without running them again, which the existing reuse path
-  does only for records it can read back from the log, so it needs sample
-  logging on and every settled record flushed before the failure, and it has
-  to hand the unsettled requests to the retry. The creator already holds
-  every result returned and can add a fresh task, so the task ends with its
-  error log instead (decision: Ransom, 2026-11-10). The same holds for any
-  other failure, and for a retry the task requests itself.
+- **Retrying a fed task after a failure.** The retry would have to bring the
+  requests already settled into its results without running them again,
+  which the existing reuse path does only for records it can read back from
+  the log, and hand the unsettled requests to the retry. The creator already
+  holds every result returned and can add a fresh task, so the task ends with
+  its error log instead (decision: Ransom, 2026-11-10). For a setup failure a
+  task retry would gain nothing anyway: the setup has retried itself, and its
+  final failure holds for the rest of the run.
+- **Applying the run's `--limit` and `--sample-id` to fed tasks**, telling
+  the creator about each dropped request. The options select among requested
+  tasks' samples and say nothing useful about samples a creator chooses; a
+  run limited for debugging would drop most rollouts.
 - **A `started()` wait and a `state` property.** Nothing in the use case waits
   for a start or polls a state; `result()` and `enqueue_sample()` cover it.
 - **`async with` cancelling the task on exit.** A creator that hits a time
@@ -521,7 +548,8 @@ Public API: `enqueue_task()` is async and returns `list[TaskHandle]` (the
 migration is in [task-dispatch.md](task-dispatch.md#compatibility-and-migration));
 new `TaskHandle`, `TaskEndedError`, `SampleAbandonedError` and
 `samples_from_creator`. Existing `SampleSource` tasks are unchanged: only a
-`CreatorChannel` gets `samples_dropped()` and `stop()`.
+`CreatorChannel` gets `samples_admitted()` and `stop()`, and only a task fed
+by its creator ignores the run's `--limit` and `--sample-id`.
 
 Eval logs: new `EvalSpec.send_samples` (default `False`); logs without it read
 as `False`. Producer: `TaskLogger`. Consumers: `eval_retry()` (refusal),
@@ -588,18 +616,29 @@ test touched), with mockllm models; every test that waits is bounded with
   - a sample sent while the task is queued is delivered when it starts; one
     sent while `next_samples()` blocks starts at once; samples sent from
     several solver tasks at once (`asyncio.gather`, `tg_collect`) all return;
-  - `--sample-id` and `--limit` drops raise `SampleAbandonedError`, and other
-    sources see today's behaviour;
+  - in a run with `--sample-id 3` (and separately `--limit 2`), the creator
+    runs only its selected samples, every one of four requests it sends to
+    its rollout task runs and returns, the rollout log's eval config records
+    no limit or sample id, and an ordinary `SampleSource` task in the same
+    run is still filtered as today; under `eval()` and in a selection-mode
+    worker;
   - drain, `score` and `error`: an idle open channel ends the task, a held
     request and later sends raise `SampleAbandonedError`, a running sample
     settles under the directive's rule;
   - an empty-seed fed task whose request A completes and whose request B then
-    needs a sandbox setup that fails (stub provider), with
-    `task_retry_attempts` set: the task is not retried and ends with its error
-    log, A's call has already returned its run, B's call raises
-    `TaskEndedError` carrying that log, and no second setup attempt runs; the
-    same for a setup failure before the attempt starts, with requests sent
-    while the task was queued;
+    needs a sandbox setup (stub provider), with `task_retry_attempts=2`: when
+    the setup fails once, its own retry absorbs it and B returns its run;
+    when it fails every try, it is tried three times with cleanup between
+    tries, then the task ends with its error log, is not retried as a task,
+    A's call has already returned its run, B's call raises `TaskEndedError`
+    carrying that log, and a fresh fed task the creator then adds needing the
+    same configuration ends the same way with no fourth try; the same for a
+    setup failure before the attempt starts, with requests sent while the
+    task was queued;
+  - under `eval_set()` and in a selection-mode worker, a creator whose rollout
+    task fails, which handles the `TaskEndedError`, adds a fresh rollout task
+    and then succeeds: the failed rollout's error log is among the run's logs
+    and the eval set's (and worker's) result is failure;
   - a detached task started in a creator's solver, released after the
     creator's attempt has given its slot back while another task keeps the run
     open, calls `enqueue_task()` with a `samples_from_creator()` task: it
@@ -617,8 +656,8 @@ test touched), with mockllm models; every test that waits is bounded with
     channel holds nothing afterwards; a request sent while the task is queued
     is delivered when it starts and settles with its run; two requests whose
     samples are equal in value, sent concurrently, each get their own
-    generated id and their own runs, and a `--limit` that drops one fails
-    only that one's call with `SampleAbandonedError`;
+    generated id and their own runs, and a drain that abandons one while it
+    is queued fails only that one's call with `SampleAbandonedError`;
   - `eval.send_samples` is set in the rollout's log while unfinished and when
     finished, and `False` for every other task and every existing log;
 - `tests/test_eval_set.py` (colliding identity): a fixed task with the same
@@ -649,8 +688,9 @@ path loans rely on):
    `next_tasks()` `ContextVar`, `enqueue_task()` returning handles and
    passing its creator), `_eval/task/sample_source.py` (`CreatorChannel`,
    `samples_from_creator()`), `_eval/task/run.py` (attach and detach the
-   channel where the `SampleEnqueuer` is registered and cleared; the dropped
-   samples and admitted ids from `add_samples`), `_eval/run.py` (`_attempt`
+   channel where the `SampleEnqueuer` is registered and cleared; the admitted
+   ids from `add_samples`), `_eval/run.py` (`configure_task()` clearing
+   `limit` and `sample_id` for fed tasks; `_attempt`
    set in `run_one`; loans in the dispatcher and in `run_one`'s slot release;
    channels closed with the creator's attempt; no retry, and `can_retry=False`,
    for fed tasks; `channel.stop()`
@@ -673,7 +713,9 @@ because a creator that awaits `result()` on a task it feeds, having forgotten
 `close()`, would otherwise wait for an end its own open handle prevents, with
 nothing to detect the cycle. The cost is that another holder of the same
 handle can no longer send once `result()` is called; and a task fed by its
-creator is never retried automatically (2026-11-10).
+creator is never retried automatically, while its sandbox setups retry
+themselves up to the run's `task_retry_attempts` like any task's
+(2026-11-10).
 
 ## Not this design
 

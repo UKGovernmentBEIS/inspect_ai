@@ -64,9 +64,11 @@ API:
 Failure reporting (the run's outcome changes only where today it fails or
 hides a problem):
 
-- A failed setup ends only the tasks that need it, each with an error log and
-  its retries, and with `on_task_start`/`on_task_end`; today the run fails.
-  This includes the seed's setups.
+- A failed setup is retried by the setup itself, up to the run's
+  `task_retry_attempts`, with backoff and cleanup between tries; if it still
+  fails, it ends only the tasks that need it, each with an error log and with
+  `on_task_start`/`on_task_end`, and those tasks are not retried as tasks;
+  today the run fails. This includes the seed's setups.
 - A task whose log cannot be initialised ends with an error log and is
   retried, like a failed `log_start()`; today a seed task's failure raises
   from `eval()`.
@@ -310,8 +312,9 @@ The design keeps these, and each section below says how:
    process's directory or environment").
 8. **Each `task_cleanup` sees what its own `task_init` bound**, and a sample
    sees its configuration's bindings unless it bound its own.
-9. **A setup failure ends only the tasks that need it**, through an ordinary
-   errored attempt.
+9. **A setup retries itself, and its final failure ends only the tasks that
+   need it**, through an ordinary errored attempt that is never retried as a
+   task.
 
 ### Run shapes and what is refused
 
@@ -569,9 +572,15 @@ async with _run_task_screen(...):              # absorbs a cancellation of the r
   startable entry among the least-used models, so at `max_tasks == 1`
   sequence grouping holds among startable tasks.
 - **Retries** are today's: `run_one` stores the attempt's log on the record,
-  awaits `reinit()`, requests the retry's setups and appends the retry at the
-  back of the queue under the record's index. A cancel or drain while it
-  waits abandons it through the stamp.
+  awaits `reinit()` and appends the retry at the back of the queue under the
+  record's index. The retry reuses the record's setups, which have all
+  succeeded, because an attempt that failed in sandbox setup
+  (`options.setups.failure()` set) is not retried as a task ("Sandbox setup
+  beside the dispatcher", Failure). A cancel or drain while a retry waits
+  abandons it through the stamp. `task_retry_attempts` is one run-wide value:
+  `eval()`'s argument (default 0), `eval_set()`'s `retry_attempts` (default
+  10) when `retry_immediate` is on (the default) and 0 otherwise, and 0 in a
+  selection-mode worker; there is no per-task limit.
 - **No retry once closed.** `run_one` reads `queue.closed` where it decides
   on a retry (beside today's abandon-stamp check) and again in the
   synchronous step that appends the retry after `reinit()` returns. Closed
@@ -692,7 +701,7 @@ SetupKey = TaskSandboxEnvironment     # spec, run_dir, env (unchanged NamedTuple
 
 class SetupJob:
     key: SetupKey
-    attempt: int                       # 1, or the retry attempt that re-ran a failed key
+    tries: int                         # task_init tries made, at most task_retry_attempts + 1
     state: Literal["waiting", "running", "succeeded", "failed"]
     error: BaseException | None
     bindings: Mapping[ContextVar[Any], Any]   # the configuration's provider state; see "Provider state per setup"
@@ -707,7 +716,6 @@ class TaskSetups:                      # one per record
 class SandboxSetups:                   # one per run
     root: Context                      # eval_run's context when the setups are created
     def request(self, record: TaskRecord) -> TaskSetups
-    def request_retry(self, record: TaskRecord, attempt: int) -> TaskSetups
     def open(self) -> AsyncContextManager[None]
     async def shutdown(self) -> None
 ```
@@ -730,17 +738,30 @@ class SandboxSetups:                   # one per run
   `SetupKey` across all records and kept until the run ends; they run one at
   a time (a provider never gets two `task_init` calls at once, as
   `_init_lock` ensures today), in request order, except that a job needed now
-  (a `SampleSource` task's `ensure()`, a task retry) goes first.
-- **Failure.** A failed key resolution or `task_init` marks the job failed.
-  Every record needing it becomes startable, and its attempt ends at once
+  (a `SampleSource` task's `ensure()`) goes first.
+- **The job retries itself** (decision: Ransom, 2026-11-10). A `task_init`
+  that raises is tried again, up to `task_retry_attempts` more times (the
+  run-wide value under "The dispatcher", Retries; 3 means up to four tries,
+  and 0, `eval()`'s default, means none). Before each new try the job runs
+  the provider's `task_cleanup` for the failed try, in that try's captured
+  context, shielded, with its errors logged and ignored, so a half-built
+  configuration is torn down; then it waits with the backoff `eval_set()`
+  already uses between retry rounds (exponential, from 30 seconds up to an
+  hour), releasing the one-at-a-time slot so other setups run meanwhile; then
+  it tries again from the setup chain's current context. Records needing the
+  key keep waiting through the tries, and new requests for it join the same
+  job. A failed key resolution (`task_init_environment`, a missing config
+  file) is not retried: it fails the same way every time.
+- **Failure.** When the last try fails, the job is failed for the rest of the
+  run. Every record needing it becomes startable, and its attempt ends at once
   through the normal path: `task_run` receives the failure in
   `TaskRunOptions.setup_error`, registers, fires `on_task_start`, writes an
   error log whose error is the setup exception, and fires `on_task_end`. A
-  `KeyboardInterrupt` or `SystemExit` from a setup ends the run.
-- **Retry rule.** A record's retry attempt `k` re-runs a failed job only if it
-  failed for an attempt below `k`; otherwise it joins the job. However many
-  tasks share a broken configuration, it is set up at most once per attempt
-  number.
+  record added later that needs the key, a fresh task a creator adds
+  included, ends the same way without a new try. An attempt that failed in
+  setup, here or in `ensure()`, is not retried as a task: its setup has
+  already had its retries. A `KeyboardInterrupt` or `SystemExit` from a setup
+  ends the run.
 - **`SampleSource` additions.** `startup_sandboxes` becomes
   `options.setups.ensure(samples)`: resolve the added samples' keys, request
   missing jobs as needed now, and await them. A failure fails that task, as
@@ -758,9 +779,10 @@ class SandboxSetups:                   # one per run
   terminal. Other tasks keep running meanwhile, as on today's live path.
 - **Cleanup.** `shutdown()`, from `eval_run`'s `finally` after the screen has
   closed, runs each succeeded job's `task_cleanup` once, in a task started
-  from that job's captured context, shielded, as today. Failed or unstarted
-  jobs get none; a `task_init` interrupted by a run-level cancellation gets
-  none, as today.
+  from that job's captured context, shielded, as today. A failed job's tries
+  were each cleaned up before the next (a failed last try is cleaned up
+  when the job fails); unstarted jobs get none, and a `task_init`
+  interrupted by a run-level cancellation gets none, as today.
 
 Seed setups run beside the dispatcher like every other setup (decision:
 Ransom, 2026-11-03).
@@ -852,9 +874,15 @@ solver, with the directory restored afterwards. In their place:
 
 ### Provider state per setup
 
-`SandboxSetups` takes `root`, a `copy_context()` of `eval_run`'s context,
-when it is created, before any task or setup starts: the context every
-attempt and sample inherits, with no provider state in it. Each `task_init`
+`eval_run` enters Docker's `sandbox_lifecycle_scope()` first, in its own
+context, before it creates the queue, the setups or any task (today
+`SandboxManager.open()` does this before preparing tasks), keeps it through
+the setups and their shutdown cleanup, and exits it in that same context in
+its `finally`, on every exit, a configuration error in the seed included.
+`SandboxSetups` is created next and takes `root`, a `copy_context()` of
+`eval_run`'s context at that moment, before any task or setup starts: the
+context every attempt and sample inherits, holding the lifecycle scope and no
+provider state. Each `task_init`
 runs in a task started from the setup chain's context, which starts as a copy
 of `root` (so Docker's lifecycle scope object is inherited) and which each
 job's resulting context replaces in turn, so a later `task_init` sees what
@@ -1079,9 +1107,23 @@ test that waits on a run is bounded with `fail_after`.
   test passes for a plain task list.
 - `tests/test_sample_source.py`: a mid-run configuration through
   `setups.ensure()`; its failure fails only that task.
-- Setup beside dispatch (invariant 9): a setup failure ends only the tasks
-  that need it, with error logs and `on_task_start`/`on_task_end`; a shared
-  broken key is set up at most once per attempt number; a sandbox-free task
+- Setup beside dispatch (invariant 9), with a stub provider whose
+  `task_init` fails a set number of times and counts its calls and its
+  `task_cleanup` calls:
+  - a transient failure (fails once, `task_retry_attempts=2`) is absorbed by
+    the setup's own retries for a seed task, an added task and a
+    creator-fed task, each of which then runs normally; the failed try's
+    `task_cleanup` ran before the second try, after the backoff (a patched
+    wait records its delay);
+  - a permanent failure (`task_retry_attempts=2`) makes three tries with
+    cleanup between them, then ends every task waiting on the key with its
+    error log and `on_task_start`/`on_task_end`, none retried as a task; a
+    task added later that needs the key ends the same way with no fourth try;
+  - with `task_retry_attempts=0` the first failure is final;
+  - requests for the key arriving during the tries join the same job, and
+    other setups run while it waits;
+  - a failed `task_init_environment` is not retried;
+  - a sandbox-free task
   starts while a setup blocks; `run_samples=False` starts no setup and no
   model controller; a cancelled record's unshared waiting job is dropped.
 - `tests/test_task_cancel.py` and `tests/_control/test_ctl.py` (invariant 3):
@@ -1162,7 +1204,8 @@ the single `eval_run`), so the setup fixes come first.
    steps 1 and 2.
 4. **Setup beside the dispatcher.** `_eval/sandbox_setups.py` (new; replaces
    `SandboxManager`), `_eval/run.py` (start rule, `setup_error`,
-   `setups.open()` inside the screen), `_eval/task/run.py` (setup-failure
+   `setups.open()` inside the screen; no task retry after a setup failure),
+   `_eval/task/run.py` (setup-failure
    attempt path, `setups.ensure()`), `_control/queued_tasks.py` (`setup`
    field). Tests: the setup-beside-dispatch cases. Needs step 3.
 5. **Task handles**, in [task-handles.md](task-handles.md). Needs step 4,
@@ -1182,7 +1225,10 @@ setup in the launch directory with a warning, and that seed setups run beside
 the dispatcher; and (2026-11-09) that a task's log starts with its attempt,
 that `enqueue_task()` becomes async with selection resolved at the call, that
 config paths are resolved by Inspect against the task directory, and that
-build-output streaming is a separate change.
+build-output streaming is a separate change; and (2026-11-10) that a failed
+setup retries itself up to the run's `task_retry_attempts`, with backoff and
+cleanup between tries, and that a task whose attempt failed in setup is not
+retried as a task.
 
 ## Not this design
 
