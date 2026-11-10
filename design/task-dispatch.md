@@ -783,8 +783,23 @@ class SandboxSetups:                   # one per run
   this run. The rule is per run: `eval_set()`'s legacy rounds
   (`retry_immediate=False`) each start a new run with fresh setups and retry
   a task whose setup failed in an earlier round, as they do today ("Setup
-  failures across `eval_set()` rounds"). A `KeyboardInterrupt` or `SystemExit` from a setup
-  ends the run.
+  failures across `eval_set()` rounds").
+  The attempt says so before it writes its log, so the control channel never
+  advertises a retry that will not come:
+  - When the dispatcher starts an attempt whose `setup_error` is already set,
+    `run_one` passes `can_retry=False` to `_run_task`, so the registered
+    `EvalState.will_retry` is false and `finish_task_log` writes no
+    retry-pending pre-mark.
+  - When a setup fails during the attempt (in `ensure()` for a sample a
+    `SampleSource` adds), `task_run`, in the synchronous step in which
+    `ensure()` raises and before the error reaches the attempt's error
+    handling, clears `task_cancel.can_retry` and sets the registered state's
+    `will_retry` to false (a new `disable_eval_retry(eval_id)` in
+    `_control/eval_state.py`, which does for one attempt what
+    `abandon_task_retry` does for `will_retry`). So the pre-mark is skipped,
+    cancelled sibling samples read terminal rather than pending, and a cancel
+    or drain during the error-log write does not report abandoning a retry.
+  A `KeyboardInterrupt` or `SystemExit` from a setup ends the run.
 - **`SampleSource` additions.** `startup_sandboxes` becomes
   `options.setups.ensure(samples)`: resolve the added samples' keys, request
   missing jobs as needed now, and await them. A failure fails that task, as
@@ -1153,6 +1168,12 @@ test that waits on a run is bounded with `fail_after`.
     the configuration's cleanup still runs once at shutdown, and an error it
     raises is logged;
   - with `task_retry_attempts=0` the first failure is final;
+  - with retry budget left, for a task whose setup failed before it started
+    and for a `SampleSource` task whose `ensure()` fails finally mid-attempt,
+    each with a sibling sample cancelled and the error-log write held on an
+    event: the registered `will_retry` is false and no retry is pre-marked,
+    the cancelled sibling reads terminal, a cancel and a drain during the
+    held write report no retry abandoned, and no retry follows;
   - under `eval_set(retry_immediate=False, retry_attempts=2)` (legacy mode
     counts the first round in `retry_attempts`, so 2 allows one more), a task whose
     setup fails in the first round (stub provider whose `task_init` fails
@@ -1246,8 +1267,10 @@ the single `eval_run`), so the setup fixes come first.
 4. **Setup beside the dispatcher.** `_eval/sandbox_setups.py` (new; replaces
    `SandboxManager`; setup retries, cleanup registered at a job's first try),
    `_eval/run.py` (start rule, `setup_error`,
-   `setups.open()` inside the screen; no task retry after a setup failure),
-   `_eval/task/run.py` (setup-failure
+   `setups.open()` inside the screen; no task retry after a setup failure,
+   `can_retry=False` for an attempt started with `setup_error`),
+   `_control/eval_state.py` (`disable_eval_retry()`),
+   `_eval/task/run.py` (retry disabled when `ensure()` fails; setup-failure
    attempt path, `setups.ensure()`), `_control/queued_tasks.py` (`setup`
    field). Tests: the setup-beside-dispatch cases. Needs step 3.
 5. **Task handles**, in [task-handles.md](task-handles.md). Needs step 4,
