@@ -3007,6 +3007,7 @@ def test_an_unchanged_function_call_keeps_its_item(raw: str) -> None:
         assistant_internal,
         hand_openai_tool_call,
     )
+    from inspect_ai.tool._tool_params import ToolParam, ToolParams
 
     init_sample_assistant_internal()
     item: Any = {
@@ -3018,7 +3019,13 @@ def test_an_unchanged_function_call_keeps_its_item(raw: str) -> None:
     }
     assistant_internal().tool_calls["call_1"] = cast(Any, dict(item))
 
-    hand_openai_tool_call(parse_tool_call("call_1", "bash", raw))
+    # as the Responses parse makes the call, with its tools
+    bash = ToolInfo(
+        name="bash",
+        description="Run a command.",
+        parameters=ToolParams(properties={"command": ToolParam(type="string")}),
+    )
+    hand_openai_tool_call(parse_tool_call("call_1", "bash", raw, [bash]))
 
     assert assistant_internal().tool_calls["call_1"] == item
 

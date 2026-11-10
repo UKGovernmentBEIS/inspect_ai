@@ -192,6 +192,8 @@ from inspect_ai.tool._mcp._remote import is_mcp_server_tool
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
+from inspect_ai.tool._tool_params import ToolParam as InspectToolParam
+from inspect_ai.tool._tool_params import ToolParams
 from inspect_ai.util._json import json_schema_dump
 
 from ._openai import _cache_breakpoint
@@ -901,16 +903,31 @@ def _item_carries_arguments(param: dict[str, Any], call: ToolCall) -> bool:
     """Whether the item, parsed as the provider parses it, has the call's arguments."""
     match param["type"]:
         case "function_call":
-            # as the parse gives a call its arguments, malformed or not
+            # as the parse gives a call its arguments, malformed or not: a scalar
+            # goes to the tool's first parameter, which for an unchanged call is
+            # its only one
             arguments = param["arguments"]
             if param["name"] == UPDATE_PLAN_NAME and call.function == TODO_WRITE_NAME:
                 try:
-                    plan = json.loads(arguments)
+                    plan = json.loads(arguments) if arguments else {}
                 except json.JSONDecodeError:
                     plan = None
                 if isinstance(plan, dict):
                     arguments = json.dumps(_update_plan_args_to_inspect(plan))
-            parsed = parse_tool_call(call.id, call.function, arguments)
+            parameters = (
+                [
+                    ToolInfo(
+                        name=call.function,
+                        description="",
+                        parameters=ToolParams(
+                            properties={next(iter(call.arguments)): InspectToolParam()}
+                        ),
+                    )
+                ]
+                if len(call.arguments) == 1
+                else []
+            )
+            parsed = parse_tool_call(call.id, call.function, arguments, parameters)
             return json_equal(parsed.arguments, call.arguments)
         case "custom_tool_call":
             return bool(param.get("input") == next(iter(call.arguments.values()), None))
