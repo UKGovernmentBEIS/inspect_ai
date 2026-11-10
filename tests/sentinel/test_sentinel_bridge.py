@@ -9594,7 +9594,7 @@ def _request_filter_edited(
             return replayed
 
         return (
-            lambda: calls_output(READ),
+            lambda: calls_output(deepcopy(READ)),
             [ToolInfo(name="read_file", description="Read.")],
             lambda call: {"path": "safe.txt"},
             completions_replayed,
