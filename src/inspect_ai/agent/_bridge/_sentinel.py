@@ -158,6 +158,11 @@ class _Handed(NamedTuple):
     request: str
     """The request it was handed over or rejected in (`BridgedRequest.key`)."""
 
+    ambiguous: bool = False
+    """Whether the call was handed over in two requests, neither a retry of
+    the other: which handout a result answers can't be told, then or after
+    any later handout, so none keeps a proposal."""
+
 
 class _SavedHandouts(BaseModel):
     reserved_ids: list[str]
@@ -205,7 +210,9 @@ class _Handouts:
     A call is handed over under the model's id. Each handout is an execution
     with its own `execution_id`: a scaffold retry served from the model cache
     hands the same call over again, under the same id, and its result is that
-    of the latest handout, the one the scaffold received.
+    of the latest handout, the one the scaffold received. A call handed over
+    in two requests, neither a retry of the other, is ambiguous: its results
+    get no proposal's context from then on, after any retry or resume too.
 
     A call gets a fresh id instead (`reused`) when the model's id can't name
     it: an empty id, or one that already names another call (Claude Code
@@ -329,13 +336,13 @@ class _Handouts:
         shared = repeated_call_ids(handed)
         issued: list[SentinelCheck] = []
         for index, (model_call, call) in enumerate(zip(proposed, handed, strict=True)):
-            # handed over before for another request, not a retry of it: which
-            # handout a result answers can't be told, so neither keeps a proposal
             earlier = self.handed.get(call.id)
-            ambiguous = (
-                earlier is not None
-                and earlier.execution_id is not None
-                and earlier.request != request.key
+            ambiguous = earlier is not None and (
+                earlier.ambiguous
+                or (
+                    earlier.execution_id is not None
+                    and earlier.request != request.key
+                )
             )
             execution_id = uuid()
             self.handed[call.id] = _Handed(
@@ -344,6 +351,7 @@ class _Handouts:
                 _call_key(call),
                 execution_id,
                 request.key,
+                ambiguous,
             )
             if checks is None:
                 continue

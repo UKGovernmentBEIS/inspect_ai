@@ -2351,6 +2351,47 @@ async def test_a_result_never_takes_another_outstanding_calls_context(
     assert after.input == (None if same_id else model.inputs[0])
 
 
+@pytest.mark.parametrize("resume", [False, True])
+async def test_a_retry_never_restores_an_ambiguous_calls_proposal(
+    resume: bool,
+) -> None:
+    seen: Steps = []
+    model = Scripted(
+        calls_output(READ), calls_output(READ), calls_output(READ), calls_output()
+    )
+    checkpointer = RecordingCheckpointer()
+    bridge = AgentBridge(AgentState(messages=[]), checkpointer=checkpointer)
+    old_history: list[ChatMessage] = [ChatMessageUser(content=OLD_REQUEST)]
+    new_history: list[ChatMessage] = [ChatMessageUser(content=NEW_REQUEST)]
+
+    with active([bridge_recording(seen)]):
+        old = await generate(bridge, model, old_history)
+        await generate(bridge, model, new_history)
+        assert not bridge._handouts.proposals
+        if resume:
+            bridge = AgentBridge(
+                AgentState(messages=[]),
+                checkpointer=RecordingCheckpointer(
+                    restored=checkpointer.snapshot(), serialized=True
+                ),
+            )
+        # a retry of the newer request: the call is still ambiguous
+        await generate(bridge, model, new_history)
+        assert not bridge._handouts.proposals
+        await generate(
+            bridge,
+            model,
+            [
+                *old_history,
+                old.message,
+                ChatMessageTool(content="old result", tool_call_id=READ.id),
+            ],
+        )
+
+    [after] = [s for s in seen if isinstance(s, AfterToolCall)]
+    assert after.input is None
+
+
 async def test_a_result_whose_proposal_was_evicted_gets_no_other_context(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
