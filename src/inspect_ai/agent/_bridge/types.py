@@ -38,6 +38,7 @@ from inspect_ai.model._message_ids import (
     canonical_tool_arguments,
     content_hash,
     edit_id,
+    shown_text,
 )
 from inspect_ai.model._model import (
     GenerateFilter,
@@ -327,7 +328,7 @@ class AgentBridge:
         self._initial_fps_condensed = [
             _condensed_fingerprint(fp) for fp in self._initial_fps
         ]
-        self._initial_texts = [m.text.strip() for m in initial_messages]
+        self._initial_texts = [shown_text(m.content).strip() for m in initial_messages]
         self._tracked_fps: list[_MessageFingerprint] | None = None
         self._tracked_calls = 0
         self._tracked_descends: _Descent | None = None
@@ -1397,7 +1398,9 @@ class _MessageFingerprint(NamedTuple):
 
 
 def _message_fingerprint(message: ChatMessage) -> _MessageFingerprint:
-    return _MessageFingerprint(role=message.role, text_hash=mm3_hash(message.text))
+    return _MessageFingerprint(
+        role=message.role, text_hash=mm3_hash(shown_text(message.content))
+    )
 
 
 class _Descent(IntEnum):
@@ -1480,7 +1483,8 @@ def _position_descent(
         return _Descent.EXACT
     if fp.role != initial.role:
         return _Descent.NO
-    stripped = message.text.strip()
+    text = shown_text(message.content)
+    stripped = text.strip()
     if len(stripped) >= 2 and stripped[0] == '"' and stripped[-1] == '"':
         interior = stripped[1:-1].strip()
         if interior == f"{ATTACHMENT_PROTOCOL}{initial.text_hash}" or (
@@ -1488,9 +1492,8 @@ def _position_descent(
         ):
             return _Descent.QUOTED
     if (
-        len(initial_text) >= _ANCHOR_CONTAINMENT_MIN_CHARS
-        and initial_text in message.text
-    ) or f"{ATTACHMENT_PROTOCOL}{initial.text_hash}" in message.text:
+        len(initial_text) >= _ANCHOR_CONTAINMENT_MIN_CHARS and initial_text in text
+    ) or f"{ATTACHMENT_PROTOCOL}{initial.text_hash}" in text:
         return _Descent.CONTAINED
     return _Descent.NO
 

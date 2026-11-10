@@ -44,6 +44,7 @@ from inspect_ai.model._generate_config import (
     ResponseSchema,
 )
 from inspect_ai.model._internal import CONTENT_INTERNAL_TAG, parse_content_with_internal
+from inspect_ai.model._message_ids import shown_text
 from inspect_ai.model._model import Model, ModelName
 from inspect_ai.model._model_output import ModelUsage, StopReason
 from inspect_ai.model._providers._anthropic_citations import to_inspect_citation
@@ -620,10 +621,8 @@ async def messages_from_anthropic_input(
                             content=content,
                         )
                         if c.get("is_error", False) is True:
-                            # the result's text, so a string and a list of
-                            # text blocks give the same error
                             tool_message.error = ToolCallError(
-                                type="unknown", message=tool_message.text
+                                type="unknown", message=shown_text(content)
                             )
                         messages.append(tool_message)
                     elif (

@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any, TypeVar, cast
 import mmh3
 from shortuuid import uuid as shortuuid
 
-from inspect_ai._util.content import ContentReasoning, ContentText
+from inspect_ai._util.content import Content, ContentReasoning, ContentText
 from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.json import json_normalize_numbers, jsonable_python
 from inspect_ai.model._assistant_internal import copy_assistant_internal
@@ -147,6 +147,26 @@ def canonical_tool_arguments(arguments: dict[str, Any]) -> str:
     )
 
 
+def shown_content(content: str | list[Content]) -> list[Content]:
+    """`content` as a list, without the empty text parts that show nothing."""
+    items = [ContentText(text=content)] if isinstance(content, str) else content
+    return [
+        item for item in items if not (isinstance(item, ContentText) and not item.text)
+    ]
+
+
+def shown_text(content: str | list[Content]) -> str:
+    """The text of `content` joined as `ChatMessage.text` joins it, without empty text parts.
+
+    Text derived from a message to identify it (a tool error's message, which
+    `content_hash` includes; the bridge's thread fingerprints) must use this, so
+    empty text parts change it no more than they change `content_hash`.
+    """
+    return "\n".join(
+        item.text for item in shown_content(content) if isinstance(item, ContentText)
+    )
+
+
 def content_hash(message: ChatMessage) -> str:
     """Hash of what a message shows: versions that differ here are different messages.
 
@@ -156,15 +176,7 @@ def content_hash(message: ChatMessage) -> str:
     equals the same text as a content list. Empty text shows nothing, so an
     empty string, an empty list and a list with an empty text part are equal.
     """
-    items = [
-        item
-        for item in (
-            [ContentText(text=message.content)]
-            if isinstance(message.content, str)
-            else message.content
-        )
-        if not (isinstance(item, ContentText) and item.text == "")
-    ]
+    items = shown_content(message.content)
     return mm3_hash(
         json.dumps(
             [

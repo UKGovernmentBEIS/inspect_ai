@@ -6032,18 +6032,22 @@ class _HostConversation:
         outputs: list[JsonValue],
         listed: bool = False,
         error: bool = False,
+        padded: bool = False,
     ) -> None:
         """Append the results of `calls` the way the dialect sends them.
 
         With `listed`, each result's text is sent as a list of text parts (one,
         or none for empty text), where the dialect allows one (Google results
-        are JSON objects). With `error`, Anthropic results are sent as errors.
+        are JSON objects); with `padded` as well, the list starts and ends with
+        an empty text part. With `error`, Anthropic results are sent as errors.
         """
 
         def content(output: JsonValue, text_type: str = "text") -> Any:
             if not listed:
                 return str(output)
-            return [{"type": text_type, "text": str(output)}] if output != "" else []
+            parts = [{"type": text_type, "text": str(output)}] if output != "" else []
+            empty = [{"type": text_type, "text": ""}] if padded else []
+            return [*empty, *parts, *empty]
 
         match self.dialect:
             case "completions":
@@ -7259,10 +7263,15 @@ _RESENT_FORMS = [
             "listed empty",
             "string empty",
             "listed result",
+            "padded timeout",
+            "padded empty",
+            "padded result",
         ]
     ],
     ("anthropic", "listed error"),
     ("anthropic", "string error"),
+    ("anthropic", "padded error"),
+    ("anthropic", "padded empty error"),
 ]
 
 
@@ -7276,10 +7285,11 @@ async def test_answer_resent_in_another_form_is_not_a_new_answer(
     summary, the reply without its text, and an answer (a timeout, an
     empty answer, or with `error` an Anthropic error). Once the execution
     completes, it continues the original thread with that answer again, as
-    a list of text parts (`listed`, none for the empty answer) or as the
-    string it was. Either is the answer sent before the execution completed,
-    so the execution links nothing. As a control, the execution's own result
-    sent as a list (`listed result`) links.
+    a list of text parts (`listed`, none for the empty answer; `padded`
+    between empty text parts) or as the string it was. Each is the answer
+    sent before the execution completed, so the execution links nothing. As
+    a control, the execution's own result sent as a list (`listed result`,
+    `padded result`) links.
     """
     model = get_model(
         "mockllm/model",
@@ -7310,8 +7320,9 @@ async def test_answer_resent_in_another_form_is_not_a_new_answer(
     )
     [info] = declare("read_file")
     conversation = _HostConversation(dialect, "Read p.", info)
-    sent = "" if resent.endswith("empty") else "Timed out."
+    sent = "" if "empty" in resent else "Timed out."
     error = resent.endswith("error")
+    fresh = resent.endswith("result")
     with recorded_transcript() as recorded:
         calls = await conversation.request(bridge)
         original = list(conversation.history)
@@ -7332,9 +7343,10 @@ async def test_answer_resent_in_another_form_is_not_a_new_answer(
         conversation.history = original
         conversation.results(
             calls,
-            ["NEW" if resent == "listed result" else sent],
-            listed=resent.startswith("listed"),
+            ["NEW" if fresh else sent],
+            listed=resent.startswith(("listed", "padded")),
             error=error,
+            padded=resent.startswith("padded"),
         )
         await conversation.request(bridge)
 
@@ -7342,7 +7354,7 @@ async def test_answer_resent_in_another_form_is_not_a_new_answer(
     [latest] = [m.id for m in model_events[-1].input if m.role == "tool"]
     [event] = [e for e in recorded.events if isinstance(e, ToolEvent)]
     assert event.result == "NEW"
-    assert event.message_id == (latest if resent == "listed result" else None)
+    assert event.message_id == (latest if fresh else None)
 
 
 @pytest.mark.parametrize("resent", ["timeout", "listed timeout", "result"])
