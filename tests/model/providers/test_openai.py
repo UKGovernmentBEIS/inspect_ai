@@ -272,6 +272,25 @@ def test_parse_content_with_internal_undecodable_is_literal(s):
     assert parse_content_with_internal(s, "internal") == (s, None)
 
 
+def test_parse_content_with_internal_deeply_nested_body_is_literal():
+    s = f"<internal>{base64.b64encode(b'[' * 200_000).decode('utf-8')}</internal>"
+    assert parse_content_with_internal(s, "internal") == (s, None)
+
+
+def test_parse_content_with_internal_quoted_opening_marker_keeps_encoded():
+    s = f"Use the <internal> marker.\n<internal>{encode_internal({'a': 1})}</internal>"
+    assert parse_content_with_internal(s, "internal") == (
+        "Use the <internal> marker.",
+        {"a": 1},
+    )
+
+
+def test_parse_content_with_internal_body_wrapped_across_lines():
+    encoded = encode_internal({"a": 1})
+    s = f"text\n<internal>{encoded[:4]}\n{encoded[4:]}</internal>"
+    assert parse_content_with_internal(s, "internal") == ("text", {"a": 1})
+
+
 def test_parse_content_with_internal_keeps_literal_beside_encoded():
     s = f"see <internal>example</internal>\n<internal>{encode_internal({'a': 1})}</internal>\n"
     assert parse_content_with_internal(s, "internal") == (

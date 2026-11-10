@@ -19,9 +19,9 @@ class _NotInternal(Exception):
 def _decode_internal(encoded: str) -> JsonValue:
     try:
         decoded: JsonValue = json.loads(
-            base64.b64decode(encoded, validate=True).decode("utf-8")
+            base64.b64decode("".join(encoded.split()), validate=True).decode("utf-8")
         )
-    except (binascii.Error, ValueError) as ex:
+    except (binascii.Error, ValueError, RecursionError) as ex:
         raise _NotInternal() from ex
     return decoded
 
@@ -38,7 +38,10 @@ def parse_content_with_internal(content: str, tag: str) -> tuple[str, JsonValue 
         Only a tag whose body is base64-encoded UTF-8 JSON (the form
         `content_internal_tag` writes) is internal state. Any other tag is
         literal text (e.g. a model or user quoting the marker) and is left in
-        the content unchanged.
+        the content unchanged. A body may hold only base64 characters, so a
+        quoted opening marker does not extend to the closing marker of a
+        tag after it. A quoted tag whose body happens to be base64-encoded
+        JSON can't be told apart from internal state and is read as such.
 
     Args:
         content: The input string, possibly containing an <internal> tag with
@@ -59,7 +62,5 @@ def parse_content_with_internal(content: str, tag: str) -> tuple[str, JsonValue 
             return match.group(0)
         return ""
 
-    stripped = re.sub(
-        rf"<{tag}>(.*?)</{tag}>", remove_internal, content, flags=re.DOTALL
-    )
+    stripped = re.sub(rf"<{tag}>([A-Za-z0-9+/=\s]*)</{tag}>", remove_internal, content)
     return (stripped.strip(), decoded[0]) if decoded else (content, None)

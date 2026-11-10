@@ -3001,6 +3001,7 @@ _LITERAL_MARKERS = {
     "unpadded": "The marker is <content-internal>example</content-internal>.",
     "not_utf8": "<content-internal>abcd</content-internal> is the marker",
     "not_json": "Wrap it as <content-internal>bm90IGpzb24=</content-internal>.",
+    "unpaired": "Open with <content-internal> and close with </content-internal>.",
 }
 
 
