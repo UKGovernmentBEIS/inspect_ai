@@ -1,8 +1,8 @@
 const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["./lib-CBtriEt5.js","./chunk-DfAF0w94.js","./wgxpath.install-node-Csk64Aj9.js"])))=>i.map(i=>d[i]);
 import { n as __exportAll } from "./rolldown-runtime.js";
-import { t as __vitePreload } from "./preload-helper.js";
 import { t as l } from "./chunk-DfAF0w94.js";
-//#region ../../node_modules/.pnpm/mathxyjax3@0.8.3/node_modules/mathxyjax3/dist/index.js
+import { t as __vitePreload } from "./preload-helper.js";
+// ../../node_modules/.pnpm/mathxyjax3@0.8.3/node_modules/mathxyjax3/dist/index.js
 var dist_exports = /* @__PURE__ */ __exportAll({ tex2svgHtml: () => a });
 var t = {
 	"xmldom-sre": await __vitePreload(() => import("./lib-CBtriEt5.js").then(l(1)), __vite__mapDeps([0,1]), import.meta.url),
@@ -53,8 +53,7 @@ function a(e = ``, t = {}) {
     </span>
   `;
 }
-//#endregion
-//#region ../../node_modules/.pnpm/markdown-it-mathjax3@5.2.0/node_modules/markdown-it-mathjax3/dist/index.js
+// ../../node_modules/.pnpm/markdown-it-mathjax3@5.2.0/node_modules/markdown-it-mathjax3/dist/index.js
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __getOwnPropNames = Object.getOwnPropertyNames;
@@ -181,7 +180,6 @@ var dist_default = (/* @__PURE__ */ __commonJS({ "src/index.ts": ((exports, modu
 	plugin.default = plugin;
 	module.exports = plugin;
 }) }))();
-//#endregion
 export { dist_default as default };
 
 //# sourceMappingURL=dist.js.map

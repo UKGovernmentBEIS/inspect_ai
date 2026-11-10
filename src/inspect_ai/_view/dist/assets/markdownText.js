@@ -1,4 +1,4 @@
-//#region ../../packages/util/src/media.ts
+// ../../packages/util/src/media.ts
 var parseDataUri = (value) => {
 	let uri;
 	try {
@@ -66,8 +66,7 @@ var parseAbsoluteHttpUrl = (value) => {
 	if (url.protocol !== "http:" && url.protocol !== "https:" || !url.hostname) return;
 	return url.href;
 };
-//#endregion
-//#region ../../packages/react/src/components/markdownText.ts
+// ../../packages/react/src/components/markdownText.ts
 var defaultMarkdownRenderer = "full";
 /**
 * The part of `text` that truncating it to `maxLength` can depend on (plus
@@ -99,7 +98,6 @@ var escapeHtmlCharacters = (content) => {
 	if (lastSpace > 0) return truncated.slice(0, lastSpace) + ellipsis;
 	return truncated + ellipsis;
 }
-//#endregion
 export { base64DataUriMimeType as a, isRenderableImageSource as c, parseDataUri as d, truncationWindow as i, normalizedImageMimeType as l, escapeHtmlCharacters as n, canonicalImageSource as o, simpleMarkdownTruncate as r, isRasterImageMimeType as s, defaultMarkdownRenderer as t, parseAbsoluteHttpUrl as u };
 
 //# sourceMappingURL=markdownText.js.map
