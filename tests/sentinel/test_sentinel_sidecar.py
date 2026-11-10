@@ -887,6 +887,52 @@ def test_a_task_a_sidecar_keeps_another_token_for_fails() -> None:
     assert "keeps another token for this eval" in log.error.message
 
 
+@pytest.mark.parametrize(
+    "echo", ["an http error", "a json-rpc error"], ids=["http error", "rpc error"]
+)
+@pytest.mark.parametrize("sentinel_proxy", ["auto", "required"])
+def test_an_error_that_repeats_a_registration_never_reports_the_eval_token(
+    echo: str, sentinel_proxy: Any, caplog: pytest.LogCaptureFixture
+) -> None:
+    # A proxy's error page, or an error the endpoint answers, may repeat the
+    # request it refused, and a first registration's request holds the eval's
+    # token. Neither the task's error nor its traceback, which prints the
+    # errors an error is chained to, nor anything logged, holds the token.
+    if echo == "an http error":
+        stand_in = StandInSidecar(echoed={"register_task": 400})
+    else:
+        stand_in = StandInSidecar(
+            methods={
+                "register_task": lambda params: {
+                    "error": {"code": -32000, "message": json.dumps(params)}
+                }
+            }
+        )
+
+    with caplog.at_level(logging.DEBUG):
+        [log] = eval(
+            _task(),
+            model=_model(stand_in),
+            sentinel_proxy=sentinel_proxy,
+            display="none",
+        )
+
+    [registration] = _registered(stand_in, "register_task")
+    token = registration["token"]
+    assert len(token) >= 32
+    assert log.status == "error"
+    assert log.error is not None
+    reported = log.model_dump_json()
+    assert token not in reported
+    assert "<redacted>" in log.error.message
+    assert not any(token in record.getMessage() for record in caplog.records)
+    assert not any(
+        token in str(record.exc_info[1])
+        for record in caplog.records
+        if record.exc_info is not None
+    )
+
+
 def test_a_sample_whose_results_a_sidecar_wont_give_fails() -> None:
     stand_in = StandInSidecar(
         turns=[Turn(text="Sunny.")],

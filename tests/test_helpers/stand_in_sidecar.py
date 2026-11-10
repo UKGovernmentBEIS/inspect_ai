@@ -77,6 +77,9 @@ class StandInSidecar:
     )
     """Answers to the endpoint's methods, by name: each returns the JSON-RPC result, or an `error` object to answer with."""
 
+    echoed: dict[str, int] = field(default_factory=dict)
+    """The methods answered with an HTTP error of this status whose body repeats the request, as a proxy's error page may."""
+
     turns: list[Turn] = field(default_factory=list)
     """The replies to model calls, in order. A call past the last is answered with a plain `Turn()`."""
 
@@ -122,6 +125,13 @@ class StandInSidecar:
         if path == ENDPOINT:
             call = json.loads(request.content)
             method, params = call["method"], call["params"]
+            if method in self.echoed:
+                return httpx2.Response(
+                    self.echoed[method],
+                    json={
+                        "error": {"type": "error", "message": request.content.decode()}
+                    },
+                )
             refused = self._unaccepted(method, params)
             if refused is not None:
                 answer = refused

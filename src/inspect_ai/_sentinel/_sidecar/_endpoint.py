@@ -21,6 +21,9 @@ VERSIONS = (1,)
 PROBE_TIMEOUT = 10.0
 CALL_TIMEOUT = 60.0
 
+REDACTED = "<redacted>"
+"""What the eval's token is replaced with wherever it would otherwise be logged or reported."""
+
 UNAUTHORIZED = -32010
 """The sidecar's error for a call whose token or signature doesn't match the token it keeps for the eval, or whose timestamp is outside its window."""
 
@@ -87,7 +90,12 @@ class Sidecar:
         return await self.call(method, {**params, **access.credentials(method)})
 
     async def call(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
-        """Call a method of the endpoint for evals, and return its result."""
+        """Call a method of the endpoint for evals, and return its result.
+
+        A registration's request holds the eval's token, and an error may repeat the request, as a proxy's error page does. So no error raised here holds the token, in its message or in an error it is chained to.
+        """
+        failed: str | None = None
+        answer: Any = None
         try:
             response = await self.client.post(
                 f"{self.origin}/sentinel/v1",
@@ -102,7 +110,14 @@ class Sidecar:
             )
             answer = response.json()
         except Exception as ex:
-            raise SidecarCallError(method, str(ex)) from ex
+            if not self._holds_token(ex):
+                raise SidecarCallError(method, str(ex)) from ex
+            failed = self._without_token(str(ex))
+        if failed is not None:
+            # Raised outside the handler, so the error that holds the token
+            # is neither this one's cause nor its context: a traceback prints
+            # both.
+            raise SidecarCallError(method, failed)
         if not isinstance(answer, dict):
             raise SidecarCallError(method, "the answer isn't JSON-RPC")
         error = answer.get("error")
@@ -110,13 +125,35 @@ class Sidecar:
             code = error.get("code")
             raise SidecarCallError(
                 method,
-                str(error.get("message", "")),
+                self._without_token(str(error.get("message", ""))),
                 code if isinstance(code, int) else None,
             )
         result = answer.get("result")
         if not isinstance(result, dict):
             raise SidecarCallError(method, "the answer has no result")
         return result
+
+    def _without_token(self, text: str) -> str:
+        # the text with the eval's token taken out
+        access = self.access
+        return text.replace(access.token, REDACTED) if access is not None else text
+
+    def _holds_token(self, error: BaseException) -> bool:
+        # whether the error, or one it is chained to, holds the eval's token
+        access = self.access
+        if access is None:
+            return False
+        seen: set[int] = set()
+        pending: list[BaseException | None] = [error]
+        while pending:
+            found = pending.pop()
+            if found is None or id(found) in seen:
+                continue
+            seen.add(id(found))
+            if access.token in str(found):
+                return True
+            pending += [found.__cause__, found.__context__]
+        return False
 
 
 class _Client(NamedTuple):

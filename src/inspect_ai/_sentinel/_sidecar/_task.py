@@ -16,6 +16,7 @@ from inspect_ai.util._store import Store
 from .._config import SentinelProxy
 from ._endpoint import (
     CALL_TIMEOUT,
+    REDACTED,
     UNAUTHORIZED,
     EvalAccess,
     NoSidecar,
@@ -516,8 +517,6 @@ _eval_sidecars: "WeakValueDictionary[str, TaskSidecars]" = WeakValueDictionary()
 SDK_DEBUG_LOGGER = "anthropic._base_client"
 """The logger the Anthropic SDK logs every request's body to at debug level, a registration's token included."""
 
-REDACTED = "<redacted>"
-
 
 class _RedactEvalTokens(Filter):
     # replaces the token of every live task's eval in a record, so the debug
@@ -526,7 +525,9 @@ class _RedactEvalTokens(Filter):
         tokens = [
             access.token
             for sidecars in list(_eval_sidecars.values())
-            for access in sidecars._access.values()
+            # copied, as a task that is probing may add to it from another
+            # thread while this one logs
+            for access in list(sidecars._access.values())
         ]
         if not tokens:
             return True
