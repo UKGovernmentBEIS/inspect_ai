@@ -2991,8 +2991,10 @@ RegenerationConfig = Literal[
     "temperature",
     "request",
     "request_temperature",
+    "request_shape",
     "request_alternate_key",
     "request_extra_body",
+    "request_alternate_key_in_place",
 ]
 
 
@@ -3003,10 +3005,11 @@ async def test_response_filter_regeneration_of_a_request_with_agent_headers(
     """A regeneration is the bridged client's own with the request's config or none.
 
     The bridged request carries headers the agent sent. Regenerating with no
-    config, or with the config the filter is given, another temperature or
-    not, keeps the regeneration's completed and pending server work. Adding an
-    API key header or body fields is another client: its completed server
-    items are rejected.
+    config, or with the config the filter is given, with another temperature
+    or request shape (system message, parallel tool calls, logprobs) or not,
+    keeps the regeneration's completed and pending server work. Adding an API
+    key header, also by changing the given config in place, or body fields is
+    another client: its completed server items are rejected.
     """
     from unittest.mock import patch
 
@@ -3034,6 +3037,15 @@ async def test_response_filter_regeneration_of_a_request_with_agent_headers(
                 config = request
             case "request_temperature":
                 config = request.merge(GenerateConfig(temperature=0.9))
+            case "request_shape":
+                config = request.merge(
+                    GenerateConfig(
+                        system_message="Be careful.",
+                        parallel_tool_calls=False,
+                        logprobs=True,
+                        reasoning_summary="auto",
+                    )
+                )
             case "request_alternate_key":
                 config = request.merge(
                     GenerateConfig(
@@ -3047,6 +3059,10 @@ async def test_response_filter_regeneration_of_a_request_with_agent_headers(
                 config = request.merge(
                     GenerateConfig(extra_body={"service_tier": "priority"})
                 )
+            case "request_alternate_key_in_place":
+                assert request.extra_headers is not None
+                request.extra_headers["x-api-key"] = "alternate-key"
+                config = request
             case _:
                 assert_never(regeneration)
         return await model.generate(generate_input.input, config=config)
@@ -3058,8 +3074,12 @@ async def test_response_filter_regeneration_of_a_request_with_agent_headers(
         extra_headers={"anthropic-beta": "client-beta", "accept-encoding": "gzip"},
     )
     with patch.object(model.api, "generate", generate):
-        if regeneration.startswith("request_") and regeneration != (
-            "request_temperature"
+        if regeneration not in (
+            "none",
+            "temperature",
+            "request",
+            "request_temperature",
+            "request_shape",
         ):
             with pytest.raises(ResponseFilterError, match="server tool use"):
                 await bridge_generate(

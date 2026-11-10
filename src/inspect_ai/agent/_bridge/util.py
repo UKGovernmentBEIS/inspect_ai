@@ -602,6 +602,18 @@ _CLIENT_NEUTRAL_CONFIG_FIELDS = frozenset(
         "reasoning_effort",
         "reasoning_tokens",
         "verbosity",
+        # what the model is sent or returns, not where the request goes
+        "system_message",
+        "parallel_tool_calls",
+        "internal_tools",
+        "max_tool_output",
+        "cache_prompt",
+        "response_schema",
+        "logprobs",
+        "top_logprobs",
+        "prompt_logprobs",
+        "reasoning_summary",
+        "reasoning_history",
         # Inspect's own retries, timeouts and concurrency, never sent
         "max_retries",
         "timeout",
@@ -617,16 +629,21 @@ and still be the bridged client's own (`_same_request_config`)."""
 
 
 def _same_request_config(generation: GenerateConfig, bridged: GenerateConfig) -> bool:
-    """Whether a generation's effective config is `bridged`, sampling aside.
+    """Whether a generation's effective config is `bridged`, apart from neutral fields.
 
-    `bridged` is the bridged model's effective config for the bridged request,
-    or for a call with no config (`model.generate(input)`, which leaves out
-    the headers and settings the agent sent; those can't carry credentials).
-    Only fields that cannot change the account, endpoint or model answering
-    may differ (`_CLIENT_NEUTRAL_CONFIG_FIELDS`). Any other difference, e.g.
+    `bridged` is the bridged model's effective config (its own and the eval's
+    config merged in) for the bridged request, or for a call with no config
+    (`model.generate(input)`, which runs under the model's configured account
+    and leaves out what the agent sent). Only fields that cannot change the
+    account, endpoint or model answering may differ
+    (`_CLIENT_NEUTRAL_CONFIG_FIELDS`). Any other difference, e.g.
     `extra_headers` carrying another API key, `extra_body`, `fallback_models`,
-    `batch` or `cache`, makes the generation another client's, as does a
-    difference in a field added to `GenerateConfig` later.
+    `batch` or `GenerateConfig.cache`, makes the generation another client's,
+    as does a difference in a field added to `GenerateConfig` later.
+
+    An in-process agent's headers can route the bridged request to another
+    tenant (e.g. `OpenAI-Organization`); a call with no config is then still
+    taken as the bridged client's.
     """
     return json_equal(
         generation.model_dump(exclude=set(_CLIENT_NEUTRAL_CONFIG_FIELDS)),

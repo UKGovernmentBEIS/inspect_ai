@@ -2253,9 +2253,11 @@ that a ``generate()`` call of the bridged model made during the filter produced,
 returned unchanged (``metadata`` aside), is that generation's reply: it keeps its
 ``id`` and replays as the provider returned it, server tool items and pending
 server work included. The call must use the bridged model's endpoint and account,
-and its config (the model's own merged in) must be the request's
-(``GenerateInput.config``) or none, apart from sampling, length, reasoning effort
-and retry settings (e.g. another ``temperature``).
+and its effective config (with the model's and the eval's config merged in) must
+be the bridged model's for the request (``GenerateInput.config``) or for no
+config, apart from settings that only shape the request or Inspect's retries
+and concurrency (e.g. ``temperature``, ``max_tokens``, ``reasoning_effort``,
+``system_message``, ``timeout``).
 Another model's output, or a call that changes other settings (e.g.
 ``extra_headers`` or ``extra_body``), is held to the rules above.
 
