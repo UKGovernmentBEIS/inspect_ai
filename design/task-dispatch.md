@@ -397,6 +397,7 @@ class TaskRecord:
     phase: TaskPhase = "queued"
     prepared: bool = False            # model controller ensured, sandboxes set up
     registered: bool = False          # an attempt has called register_eval
+    shown: bool = False               # an attempt has opened its display row
     log: EvalLog | None = None        # the log run_one stored; the final log once ended
     ended: anyio.Event = field(default_factory=anyio.Event)
 
@@ -546,6 +547,16 @@ registry, rings `wake`, and releases `options` (and what the handles
 attach): `ResolvedTask.task` holds the dataset and the configured task is a
 shallow copy of it, so both references go for a finished task's samples to
 be freed. The record keeps its identity, `log` and `ended`.
+
+`RunQueue.add` grows the display's task count for every record, but the
+Rich and Textual displays count completed tasks from the rows attempts
+open (`display().task(...)` in `task_run`). So `task_run` calls
+`on_shown()` as it opens its row, which sets `shown`, and `RunQueue.end`
+calls `display().update_task_count(-1)` once for a record that ends with
+`shown` false: one cancelled while queued, ended unstarted at the end of
+dispatch, stopped before its row by a stamp check or a startup failure, or
+(task-handles.md) a fed task closed before any sample was sent. The
+record still ends with no log or the log it has, as above.
 
 The sandbox manager lives for the whole run, so `RunQueue.end` also calls
 `SandboxManager.forget(record)`, which drops the per-sample key map the
@@ -1233,7 +1244,11 @@ test that waits on a run is bounded with `fail_after`.
   record whose unregistered attempt failed and whose retry is pending keeps
   the stored log; a second cancel changes nothing; under
   `eval_set(retry_immediate=False)` a second round's queued record is listed
-  once and cancel ends it rather than answering "task already finished".
+  once and cancel ends it rather than answering "task already finished";
+  with another task keeping the run open, a queued record cancelled before
+  it starts lowers the task total by one under the Rich and the Textual
+  display (completed and total match once the run ends), and a cancel that
+  lands after the record's row opened leaves the total unchanged.
 - `tests/test_eval_set.py`: a seed task cancelled while queued makes the eval
   set report failure and name it, under immediate retries and the legacy loop
   (which then never reruns it); every seed task cancelled reports failure;
@@ -1291,7 +1306,7 @@ state in the single `eval_run`), so the setup fixes come first.
    `SandboxManager.forget` called from `RunQueue.end`; `prepare_options`, `TaskInjection`,
    `PreparedFeed`, `_empty_feed` removed), `_eval/eval.py` (one `eval_run`),
    `_eval/task/run.py` (`logger.init()` at the start of `task_run`;
-   `_enqueue_source_tasks`; `on_registered`; `unwritten_task_log` with no
+   `_enqueue_source_tasks`; `on_registered`; `on_shown`; `unwritten_task_log` with no
    location), `_eval/task/log.py` (`reinit()` without `init()`, `discard()`
    without an entry, a `location` of `None` until `log_init()` returns),
    `_control/queued_tasks.py` (new), `_control/eval_state.py`,

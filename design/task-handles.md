@@ -49,9 +49,9 @@ All of these are new API; no existing eval waits on a handle or uses
   has not ended.
 - A task fed by its creator runs once, under its creator's model, whatever
   models the run has.
-- A run whose `max_tasks`, `max_sandboxes` or `max_samples` leaves no room
-  for the work that handle waits depend on can hang; the docs say so and a
-  warning names the limit.
+- A run whose limits leave no room for the work that handle waits depend on
+  can hang; the docs explain the headroom needed, and warnings name
+  `max_tasks` and `max_sandboxes`.
 - A task fed by its creator is never retried automatically, and
   `eval_retry()` refuses its log. Its error log stays one of the run's logs,
   so the eval set's or selection worker's result is failure even if the
@@ -230,8 +230,8 @@ the sample it sent still runs and its result is dropped.
     samples from the task that adds it (samples_from_creator()), so it
     cannot be run or retried on its own; run or retry the task that adds
     it");
-  - as a `PreviousTask`, or a `ResolvedTask` carrying a prior sample source:
-    `ValueError` ("tasks fed by their creator must start fresh; pass the
+  - as a `PreviousTask` or a `ResolvedTask` (with or without a prior sample
+    source): `ValueError` ("tasks fed by their creator must start fresh; pass the
     Task");
   - in a run that logs in the deprecated `.json` format: `ValueError`
     (decision: Ransom, 2026-11-03);
@@ -340,7 +340,8 @@ class PortRequest:
   seed, a caller-set id is refused, and the counter never repeats. The
   token makes them unique across tasks too. It is the first 8 characters of
   the record's task id, which resolution generates afresh for every
-  `enqueue_task()` call, so a fresh rollout task a creator adds after a
+  `enqueue_task()` call (a fed task is accepted only as a `Task`, so no
+  already-resolved task id can be added again in another run), so a fresh rollout task a creator adds after a
   failure, and the one a retried creator adds again, each get their own
   token, as do the rollout tasks of two creators. So a sent id never names
   two samples: logs of the same rollout task can be grouped by sample id,
@@ -570,11 +571,13 @@ test touched), with mockllm models; every test that waits is bounded with
     leaving running rollouts to finish;
   - the terminal-outcome table row by row: a target whose sent sample's
     setup fails, whose log init fails, cancelled while queued, closed before
-    any sample was sent (no attempt, no log), and still queued at a latched
+    any sample was sent (no attempt, no log; the display's task total drops
+    by one, as for a queued cancel), and still queued at a latched
     cancellation (with the waiter in a sibling attempt's shielded cleanup);
   - refusals: a wait in `next_tasks()`; a `samples_from_creator()` task
     added outside a sample, returned from a `TaskSource`, passed to `eval()`
-    and `eval_set()`, as a `PreviousTask`, in a `.json` run, and
+    and `eval_set()`, as a `PreviousTask`, as a `ResolvedTask` with no prior
+    sample source, in a `.json` run, and
     `eval_retry()` of its log (finished, and crashed: recovered, then
     refused), each raising and adding nothing; `task_with(dataset=
     samples_from_creator())` over a registered `@task` function whose own
