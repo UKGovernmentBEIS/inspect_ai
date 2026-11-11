@@ -1,12 +1,12 @@
 (function() {
-	//#region \0rolldown/runtime.js
+	// \0rolldown/runtime.js
 	var __create = Object.create;
 	var __defProp = Object.defineProperty;
 	var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 	var __getOwnPropNames = Object.getOwnPropertyNames;
 	var __getProtoOf = Object.getPrototypeOf;
 	var __hasOwnProp = Object.prototype.hasOwnProperty;
-	var __commonJSMin = (cb, mod) => () => (mod || (cb((mod = { exports: {} }).exports, mod), cb = null), mod.exports);
+	var __commonJSMin = (cb, mod) => () => (mod || (cb((mod = { exports: {} }).exports, mod, mod.exports), cb = null), mod.exports);
 	var __copyProps = (to, from, except, desc) => {
 		if (from && typeof from === "object" || typeof from === "function") for (var keys = __getOwnPropNames(from), i = 0, n = keys.length, key; i < n; i++) {
 			key = keys[i];
@@ -21,22 +21,21 @@
 		value: mod,
 		enumerable: true
 	}) : target, mod));
-	//#endregion
-	//#region ../../node_modules/.pnpm/json5@2.2.3/node_modules/json5/dist/index.js
-	var require_dist = /* @__PURE__ */ __commonJSMin(((exports, module) => {
+	// ../../node_modules/.pnpm/json5@2.2.3/node_modules/json5/dist/index.js
+	var require_dist = /* @__PURE__ */ __commonJSMin(((exports, module, this$1) => {
 		(function(global, factory) {
 			typeof exports === "object" && typeof module !== "undefined" ? module.exports = factory() : typeof define === "function" && define.amd ? define(factory) : global.JSON5 = factory();
-		})(exports, (function() {
+		})(this$1, (function() {
 			"use strict";
-			function createCommonjsModule(fn, module$1) {
-				return module$1 = { exports: {} }, fn(module$1, module$1.exports), module$1.exports;
+			function createCommonjsModule(fn, module) {
+				return module = { exports: {} }, fn(module, module.exports), module.exports;
 			}
-			var _global = createCommonjsModule(function(module$2) {
-				var global = module$2.exports = typeof window != "undefined" && window.Math == Math ? window : typeof self != "undefined" && self.Math == Math ? self : Function("return this")();
+			var _global = createCommonjsModule(function(module) {
+				var global = module.exports = typeof window != "undefined" && window.Math == Math ? window : typeof self != "undefined" && self.Math == Math ? self : Function("return this")();
 				if (typeof __g == "number") __g = global;
 			});
-			var _core = createCommonjsModule(function(module$3) {
-				var core = module$3.exports = { version: "2.6.5" };
+			var _core = createCommonjsModule(function(module) {
+				var core = module.exports = { version: "2.6.5" };
 				if (typeof __e == "number") __e = core;
 			});
 			_core.version;
@@ -113,10 +112,10 @@
 				return "Symbol(".concat(key === void 0 ? "" : key, ")_", (++id + px).toString(36));
 			};
 			var _library = false;
-			var _functionToString = createCommonjsModule(function(module$4) {
+			var _functionToString = createCommonjsModule(function(module) {
 				var SHARED = "__core-js_shared__";
 				var store = _global[SHARED] || (_global[SHARED] = {});
-				(module$4.exports = function(key, value) {
+				(module.exports = function(key, value) {
 					return store[key] || (store[key] = value !== void 0 ? value : {});
 				})("versions", []).push({
 					version: _core.version,
@@ -124,14 +123,14 @@
 					copyright: "© 2019 Denis Pushkarev (zloirock.ru)"
 				});
 			})("native-function-to-string", Function.toString);
-			var _redefine = createCommonjsModule(function(module$5) {
+			var _redefine = createCommonjsModule(function(module) {
 				var SRC = _uid("src");
 				var TO_STRING = "toString";
 				var TPL = ("" + _functionToString).split(TO_STRING);
 				_core.inspectSource = function(it) {
 					return _functionToString.call(it);
 				};
-				(module$5.exports = function(O, key, val, safe) {
+				(module.exports = function(O, key, val, safe) {
 					var isFunction = typeof val == "function";
 					if (isFunction) _has(val, "name") || _hide(val, "name", key);
 					if (O[key] === val) return;
@@ -176,8 +175,8 @@
 				var IS_PROTO = type & $export.P;
 				var IS_BIND = type & $export.B;
 				var target = IS_GLOBAL ? _global : IS_STATIC ? _global[name] || (_global[name] = {}) : (_global[name] || {})[PROTOTYPE];
-				var exports$1 = IS_GLOBAL ? _core : _core[name] || (_core[name] = {});
-				var expProto = exports$1[PROTOTYPE] || (exports$1[PROTOTYPE] = {});
+				var exports = IS_GLOBAL ? _core : _core[name] || (_core[name] = {});
+				var expProto = exports[PROTOTYPE] || (exports[PROTOTYPE] = {});
 				var key, own, out, exp;
 				if (IS_GLOBAL) source = name;
 				for (key in source) {
@@ -185,7 +184,7 @@
 					out = (own ? target : source)[key];
 					exp = IS_BIND && own ? _ctx(out, _global) : IS_PROTO && typeof out == "function" ? _ctx(Function.call, out) : out;
 					if (target) _redefine(target, key, out, type & $export.U);
-					if (exports$1[key] != out) _hide(exports$1, key, exp);
+					if (exports[key] != out) _hide(exports, key, exp);
 					if (IS_PROTO && expProto[key] != out) expProto[key] = out;
 				}
 			};
@@ -1175,8 +1174,7 @@
 			};
 		}));
 	}));
-	//#endregion
-	//#region ../../packages/util/src/json-parse-shared.ts
+	// ../../packages/util/src/json-parse-shared.ts
 	const makeSentinels = () => {
 		const nonce = Math.random().toString(36).slice(2);
 		return {
@@ -1345,8 +1343,7 @@
 		}
 		return seps / n > .05;
 	};
-	//#endregion
-	//#region ../../packages/util/src/json-parse-worker-scope.ts
+	// ../../packages/util/src/json-parse-worker-scope.ts
 	var import_dist = /* @__PURE__ */ __toESM(require_dist(), 1);
 	const decoder = new TextDecoder();
 	const parseFallback = (source, big) => {
@@ -1422,10 +1419,8 @@
 		});
 		scope.postMessage({ type: "ready" });
 	};
-	//#endregion
-	//#region src/client/json-parse.worker.ts
+	// src/client/json-parse.worker.ts
 	serveJsonParseRequests(self);
-	//#endregion
 })();
 
 //# sourceMappingURL=json-parse.worker.js.map
