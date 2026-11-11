@@ -841,6 +841,59 @@ async def test_openai_base_url_env_var_declines_explicit_cache(
     assert await _generate_and_capture_cache_flag(api, monkeypatch) is False
 
 
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "use_responses", [False, True], ids=["completions", "responses"]
+)
+async def test_explicit_prompt_cache_arg_keeps_cache_behind_base_url(
+    monkeypatch: pytest.MonkeyPatch, use_responses: bool
+) -> None:
+    # the caller asserts their gateway forwards the explicit-cache fields,
+    # so the marks survive even though a base_url is configured
+    api = _openai_api(
+        "gpt-5.6",
+        base_url="https://gateway.example.com/v1",
+        responses_api=use_responses,
+        explicit_prompt_cache=True,
+    )
+    assert await _generate_and_capture_cache_flag(api, monkeypatch) is True
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "use_responses", [False, True], ids=["completions", "responses"]
+)
+async def test_explicit_prompt_cache_arg_overrides_base_url_env_var(
+    monkeypatch: pytest.MonkeyPatch, use_responses: bool
+) -> None:
+    # the model arg covers the OPENAI_BASE_URL override as well
+    monkeypatch.setenv("OPENAI_BASE_URL", "https://gateway.example.com/v1")
+    api = _openai_api(
+        "gpt-5.6", responses_api=use_responses, explicit_prompt_cache=True
+    )
+    assert await _generate_and_capture_cache_flag(api, monkeypatch) is True
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "use_responses", [False, True], ids=["completions", "responses"]
+)
+async def test_explicit_prompt_cache_arg_does_not_re_enable_azure(
+    monkeypatch: pytest.MonkeyPatch, use_responses: bool
+) -> None:
+    # Azure stays excluded even when the caller sets the arg: the Azure
+    # endpoint has no explicit-cache passthrough to re-enable
+    api = _azure_api(responses_api=use_responses, explicit_prompt_cache=True)
+    assert await _generate_and_capture_cache_flag(api, monkeypatch) is False
+
+
+@pytest.mark.anyio
+async def test_explicit_prompt_cache_arg_must_be_bool() -> None:
+    # the arg is validated like the other bool model args
+    with pytest.raises(ValueError, match="explicit_prompt_cache must be a bool"):
+        _openai_api("gpt-5.6", explicit_prompt_cache="yes")
+
+
 # ---------------------------------------------------------------------------
 # Live tests (--runapi, need OPENAI_API_KEY and access to the gpt-5.6 model)
 # ---------------------------------------------------------------------------

@@ -174,6 +174,16 @@ class OpenAIAPI(ModelAPI):
             raise ValueError("responses_phase must be a bool")
         self.responses_phase: bool = responses_phase
 
+        # explicit prompt caching is only sent to the unconfigured, direct
+        # OpenAI endpoint by default; this model arg asserts that a
+        # configured base URL does forward `prompt_cache_options` and
+        # per-part `prompt_cache_breakpoint`, so the cache marks survive.
+        # Azure and Bedrock stay excluded either way (see generate()).
+        explicit_prompt_cache = model_args.pop("explicit_prompt_cache", False)
+        if not isinstance(explicit_prompt_cache, bool):
+            raise ValueError("explicit_prompt_cache must be a bool")
+        self.explicit_prompt_cache: bool = explicit_prompt_cache
+
         # call super
         super().__init__(
             model_name=model_name,
@@ -589,11 +599,15 @@ class OpenAIAPI(ModelAPI):
         # direct OpenAI endpoint; Azure, Bedrock, and any custom base URL
         # (explicit base_url, OPENAI_BASE_URL, or INSPECT_EVAL_MODEL_BASE_URL)
         # are unverified — a resolved base_url means the request is going
-        # somewhere other than api.openai.com
+        # somewhere other than api.openai.com — unless the caller asserts
+        # their endpoint forwards the explicit-cache fields
         supports_explicit_prompt_cache = (
             not self.is_azure()
             and not self.is_bedrock()
-            and model_base_url(self.base_url, "OPENAI_BASE_URL") is None
+            and (
+                self.explicit_prompt_cache
+                or model_base_url(self.base_url, "OPENAI_BASE_URL") is None
+            )
         )
 
         async def generate_once(
