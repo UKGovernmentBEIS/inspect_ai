@@ -54,7 +54,7 @@ eval("arc.py", model=None)
 To evaluate several models with the same options, pass a comma-separated list:
 
 ``` bash
-inspect eval arc.py --model openai/gpt-6-luna,anthropic/claude-sonnet-5-5
+inspect eval arc.py --model openai/gpt-6-luna,anthropic/claude-haiku-5-5
 ```
 
 To give each model its own options, use `--model-spec`. Each option holds one inline YAML or JSON mapping. A mapping takes the same fields as a [model role](#model-roles) — a required `model`, any generation config field, and `model_args` — plus a `base_url`:
