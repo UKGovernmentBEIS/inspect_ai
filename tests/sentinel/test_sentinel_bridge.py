@@ -986,10 +986,11 @@ async def test_a_result_for_a_call_never_handed_over_is_still_checked() -> None:
     read, bash = sorted(seen, key=lambda step: step.call.function, reverse=True)
     assert isinstance(read, AfterToolCall) and isinstance(bash, AfterToolCall)
     assert read.input == model.inputs[1]
-    # the rejected call's proposal was never handed over, so the request is
-    # the only context, and no model produced the call it carries
-    assert (bash.call, bash.message, bash.output) == (BASH, "Running.", "y")
-    assert bash.message_id == forged.id
+    # the rejected call's proposal was never handed over, so no model produced
+    # the call the request carries: the step has no context, and the
+    # scaffold's message stands in for none
+    assert (bash.call, bash.message, bash.output) == (BASH, "", "y")
+    assert bash.message_id == ""
     assert bash.input is None
 
 
@@ -2443,10 +2444,11 @@ async def test_a_result_never_takes_another_outstanding_calls_context(
 
     [after] = [s for s in seen if isinstance(s, AfterToolCall)]
     assert after.call == old_call
-    assert after.message_id == old.message.id
     # the same call handed over in another conversation under the same id: which
     # handout the result answers can't be told, so it gets no proposal's input
+    # or message
     assert after.input == (None if same_id else model.inputs[0])
+    assert after.message_id == ("" if same_id else old.message.id)
 
 
 @pytest.mark.parametrize("resume", [False, True])
@@ -2558,7 +2560,8 @@ async def test_a_result_whose_proposal_was_evicted_gets_no_other_context(
 
     [after] = [s for s in seen if isinstance(s, AfterToolCall)]
     assert after.call == old_call
-    assert after.message_id == echoed.id
+    # not the scaffold's message either
+    assert after.message_id == ""
     assert after.input is None
 
 
@@ -4086,8 +4089,8 @@ async def test_a_call_handed_over_twice_keeps_its_id_and_its_result_gets_no_cont
 
     Both handouts keep the model's id. The call was handed out twice, which
     may be to two conversations, so the result the scaffold reports for each
-    is checked with no proposal's context, once per report: each step shows
-    the message its own request carries the call in.
+    is checked with no proposal's context or message, once per report: the
+    steps are alike, and each occurrence of the call is still checked.
     """
     seen: Steps = []
     model = Scripted(calls_output(READ), calls_output(READ), calls_output())
@@ -4115,7 +4118,7 @@ async def test_a_call_handed_over_twice_keeps_its_id_and_its_result_gets_no_cont
     assert [e.output.message.tool_calls for e in model_events[:2]] == [[READ]] * 2
     afters = [s for s in seen if isinstance(s, AfterToolCall)]
     assert [(s.call.id, s.input) for s in afters] == [(READ.id, None)] * 2
-    assert len({s.message_id for s in afters}) == 2
+    assert [(s.message, s.message_id) for s in afters] == [("", "")] * 2
 
 
 @protocol
@@ -4225,7 +4228,8 @@ async def test_a_result_that_can_be_either_handouts_gets_no_proposal(
 ) -> None:
     """A result under an id handed out with two argument sets, and no call in its request.
 
-    It is checked as a call to the id's function, whether or not it names one.
+    It may be either handout's, so it is checked as each one's call, whether
+    or not it names a function, with no proposal's context.
     """
     seen: Steps = []
     model = Scripted(calls_output(READ), calls_output(READ), calls_output())
@@ -4246,10 +4250,14 @@ async def test_a_result_that_can_be_either_handouts_gets_no_proposal(
             ],
         )
 
-    [after] = [s for s in seen if isinstance(s, AfterToolCall)]
-    assert after.input is None
-    assert after.message_id == ""
-    assert (after.call.id, after.call.function) == (READ.id, READ.function)
+    afters = [s for s in seen if isinstance(s, AfterToolCall)]
+    assert [(s.input, s.message_id) for s in afters] == [(None, "")] * 2
+    assert [(s.call.id, s.call.function) for s in afters] == [
+        (READ.id, READ.function)
+    ] * 2
+    assert sorted(s.call.arguments["path"] for s in afters) == sorted(
+        ["safe.txt", READ.arguments["path"]]
+    )
 
 
 def test_handed_calls_are_paired_with_their_read_back_form_by_id() -> None:
@@ -4319,7 +4327,7 @@ def test_an_ambiguous_calls_result_is_checked_as_every_target_its_handouts_resol
     assert [
         (check.call.function, check.message_id, check.producer)
         for check in claim.result.checks
-    ] == [("delete_file", "asked", None), ("read_file", "asked", None)]
+    ] == [("delete_file", "", None), ("read_file", "", None)]
 
 
 def _container_work(run: Callable[[], object]) -> int:
@@ -4654,9 +4662,9 @@ async def test_google_results_without_ids_are_checked_once_per_call_and_result()
         )
 
     # without ids a result can't be matched to its execution, so none gets a
-    # proposal's context; each turn's is its own step (its message's), and
-    # compaction gives the latest turn another message, so its result is
-    # checked again; replays are not
+    # proposal's context or message; each turn's is checked (its call sits in
+    # another message), and compaction gives the latest turn another message,
+    # so its result is checked again; replays are not
     afters = [s for s in seen if isinstance(s, AfterToolCall)]
     assert [(s.output, s.input) for s in afters] == [
         ('{"out": "same"}', None),
@@ -4664,7 +4672,7 @@ async def test_google_results_without_ids_are_checked_once_per_call_and_result()
         ('{"out": "new"}', None),
         ('{"out": "new"}', None),
     ]
-    assert len({s.message_id for s in afters[:3]}) == 3
+    assert {s.message_id for s in afters} == {""}
 
 
 async def test_google_terminates_on_a_repeated_calls_new_result() -> None:
@@ -6902,9 +6910,11 @@ async def test_a_result_two_handouts_read_back_alike_could_be_gets_no_proposal()
             bridge,
         )
 
-    [after] = [s for s in seen if isinstance(s, AfterToolCall)]
-    assert after.call.id == item.call_id
-    assert after.input is None
+    # either handout could be the one answered, so the result is checked as
+    # each one's call
+    afters = [s for s in seen if isinstance(s, AfterToolCall)]
+    assert [(s.call.id, s.input) for s in afters] == [(item.call_id, None)] * 2
+    assert len({json.dumps(s.call.arguments, sort_keys=True) for s in afters}) == 2
 
 
 @pytest.mark.parametrize(

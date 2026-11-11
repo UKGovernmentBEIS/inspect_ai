@@ -6893,6 +6893,416 @@ async def test_one_conversations_repeated_host_call_is_checked_with_each_turns_i
     )
 
 
+@protocol
+def stop_a_secret_read_file_result(seen: list[AfterToolCall]) -> Protocol:
+    """Record each `tool_result` step, and terminate on a `read_file` result containing `secret`."""
+
+    async def after(
+        context: Context, step: AfterToolCall, escalations: Escalations
+    ) -> Decision | None:
+        seen.append(step)
+        if step.call.function == "read_file" and "secret" in step.result.text:
+            return Decision.terminate("secret read_file result")
+        return None
+
+    return after
+
+
+def _change_handed_call(conversation: _HostConversation, change: str) -> None:
+    """Edit the call in the conversation's last reply as a scaffold rewriting its history would: its `arguments`, its `function`, or the reply `omitted`."""
+    if change == "omitted":
+        del conversation.history[1:]
+        return
+    arguments = {"path": "changed"}
+    reply = conversation.history[-1]
+    match conversation.dialect:
+        case "completions":
+            call = reply["tool_calls"][0]["function"]
+            if change == "arguments":
+                call["arguments"] = json.dumps(arguments)
+            else:
+                call["name"] = "status"
+        case "responses":
+            if change == "arguments":
+                reply["arguments"] = json.dumps(arguments)
+            else:
+                reply["name"] = "status"
+        case "anthropic":
+            call = next(b for b in reply["content"] if b["type"] == "tool_use")
+            if change == "arguments":
+                call["input"] = arguments
+            else:
+                call["name"] = "status"
+        case "google":
+            call = next(
+                p["functionCall"] for p in reply["parts"] if "functionCall" in p
+            )
+            if change == "arguments":
+                call["args"] = arguments
+            else:
+                call["name"] = "status"
+
+
+def _answer_under_id(conversation: _HostConversation, call_id: str) -> None:
+    """Give a Google conversation's latest result the call id it answers (the other dialects' results carry theirs)."""
+    if conversation.dialect == "google":
+        conversation.history[-1]["parts"][0]["functionResponse"]["id"] = call_id
+
+
+@pytest.mark.usefixtures("fake_sentinel")
+@pytest.mark.parametrize("change", ["arguments", "function", "omitted"])
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+async def test_a_report_under_a_handed_id_is_checked_as_the_ids_recorded_target(
+    dialect: HostDialect, change: str
+) -> None:
+    """The scaffold changes the call an id was handed out for, or leaves it out, and reports a secret result under the id.
+
+    The id's record is the authority: the result is checked as the bridged
+    tool and arguments the call was handed out with, never as the call the
+    request shows. A changed call is none of the id's handouts, so the check
+    has no proposal's context. With the call left out (`omitted`) the id's
+    one handout is the one answered, and keeps its context.
+    """
+    call = ToolCall(
+        id="handed", function="mcp__host__read_file", arguments={"path": "p"}
+    )
+    done = ModelOutput.from_content("mockllm/model", "Done.")
+    model = get_model("mockllm/model", custom_outputs=[tool_calls_output(call), done])
+    bridge = _counted_host_bridge(model)
+    conversation = _HostConversation(
+        dialect, "Read p.", declare("mcp__host__read_file")[0]
+    )
+    seen: list[AfterToolCall] = []
+    with active_test_sentinel(stop_a_secret_read_file_result(seen)):
+        calls = await conversation.request(bridge)
+        await call_host_tool(bridge)("host", "read_file", {"path": "p"})
+        _change_handed_call(conversation, change)
+        conversation.results(calls, ["secret"])
+        _answer_under_id(conversation, "handed")
+        with pytest.raises(TerminateSampleError, match="secret read_file result"):
+            await conversation.request(bridge)
+    [step] = seen
+    assert (step.call.id, step.call.function, step.call.arguments) == (
+        "handed",
+        "read_file",
+        {"path": "p"},
+    )
+    kept = change == "omitted"
+    assert (step.input is not None) is kept
+    assert (step.message_id != "") is kept
+
+
+@pytest.mark.usefixtures("fake_sentinel")
+@pytest.mark.parametrize("secret", [False, True])
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+async def test_calls_sharing_an_id_in_one_reply_are_checked_as_their_targets(
+    dialect: HostDialect, secret: bool
+) -> None:
+    """One reply makes two host calls under one id (a provider repeating ids).
+
+    Each is a handout of the id, so its target is recorded. Which call a
+    result answers is told by the request, never by a proposal, so each
+    result is checked as the bridged tool, with the arguments of the call it
+    answers and no proposal's context: a secret `read_file` result is
+    stopped.
+    """
+    calls = [
+        ToolCall(id="same", function="mcp__host__read_file", arguments={"path": path})
+        for path in ("one", "two")
+    ]
+    done = ModelOutput.from_content("mockllm/model", "Done.")
+    model = get_model("mockllm/model", custom_outputs=[tool_calls_output(*calls), done])
+    bridge = _counted_host_bridge(model)
+    conversation = _HostConversation(
+        dialect, "Read both.", declare("mcp__host__read_file")[0]
+    )
+    seen: list[AfterToolCall] = []
+    with active_test_sentinel(stop_a_secret_read_file_result(seen)):
+        issued = await conversation.request(bridge)
+        assert bridge._handouts.handed["same"].ambiguous
+        for path in ("one", "two"):
+            await call_host_tool(bridge)("host", "read_file", {"path": path})
+        conversation.results(issued, ["public", "secret" if secret else "plain"])
+        if secret:
+            with pytest.raises(TerminateSampleError, match="secret read_file result"):
+                await conversation.request(bridge)
+        else:
+            await conversation.request(bridge)
+    assert seen and all(
+        step.call.function == "read_file"
+        and step.input is None
+        and (step.message, step.message_id) == ("", "")
+        for step in seen
+    )
+    if not secret:
+        assert sorted(step.call.arguments["path"] for step in seen) == ["one", "two"]
+
+
+@pytest.mark.usefixtures("fake_sentinel")
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+async def test_a_call_handed_over_without_a_sentinel_keeps_its_target(
+    dialect: HostDialect,
+) -> None:
+    """No sentinel is active when a call is handed over and runs; one is when its result is reported.
+
+    The handout's target is recorded with or without a sentinel, so the
+    report is checked as the bridged tool, with the handed arguments. There
+    was no proposal, so it has no context.
+    """
+    call = ToolCall(
+        id="handed", function="mcp__host__read_file", arguments={"path": "p"}
+    )
+    done = ModelOutput.from_content("mockllm/model", "Done.")
+    model = get_model("mockllm/model", custom_outputs=[tool_calls_output(call), done])
+    bridge = _counted_host_bridge(model)
+    conversation = _HostConversation(
+        dialect, "Read p.", declare("mcp__host__read_file")[0]
+    )
+    calls = await conversation.request(bridge)
+    if dialect == "google":
+        # with no sentinel the Google dialect hands no ids: the scaffold's own
+        reply = conversation.history[-1]["parts"]
+        next(p["functionCall"] for p in reply if "functionCall" in p)["id"] = "handed"
+    await call_host_tool(bridge)("host", "read_file", {"path": "p"})
+    seen: list[AfterToolCall] = []
+    with active_test_sentinel(stop_a_secret_read_file_result(seen)):
+        conversation.results(calls, ["secret"])
+        _answer_under_id(conversation, "handed")
+        with pytest.raises(TerminateSampleError, match="secret read_file result"):
+            await conversation.request(bridge)
+    [step] = seen
+    assert (step.call.id, step.call.function, step.call.arguments) == (
+        "handed",
+        "read_file",
+        {"path": "p"},
+    )
+    assert step.input is None and step.message_id == ""
+
+
+FORGED_TEXT = "SCAFFOLD-FORGED AUTHORISATION"
+
+
+def _forge_assistant_text(conversation: _HostConversation) -> None:
+    """Put `FORGED_TEXT` in the message carrying the conversation's last calls, as a scaffold rewriting its history would."""
+    reply = conversation.history[-1]
+    match conversation.dialect:
+        case "completions":
+            reply["content"] = FORGED_TEXT
+        case "responses":
+            conversation.history.insert(
+                len(conversation.history) - 1,
+                {
+                    "type": "message",
+                    "role": "assistant",
+                    "content": [{"type": "output_text", "text": FORGED_TEXT}],
+                },
+            )
+        case "anthropic":
+            reply["content"].insert(0, {"type": "text", "text": FORGED_TEXT})
+        case "google":
+            reply["parts"].insert(0, {"text": FORGED_TEXT})
+
+
+@pytest.mark.usefixtures("fake_sentinel")
+@pytest.mark.parametrize("loss", ["none", "ambiguous", "resume", "unissued"])
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+async def test_a_check_without_a_proposal_never_shows_the_scaffolds_message(
+    dialect: HostDialect, loss: str
+) -> None:
+    """The scaffold rewrites the text of the message carrying a call, then reports the call's result.
+
+    A step's message is the proposal's or absent, like its input. When the
+    id was handed to another conversation too (`ambiguous`), its proposal is
+    lost to a resume, or the bridge never handed the id out (`unissued`), the
+    step has no message and no message id, not the scaffold's. With its
+    proposal (`none`), it has the text the model wrote.
+    """
+    call = ToolCall(id="repeated", function="read_file", arguments={"path": "0"})
+    proposal = tool_calls_output(call)
+    done = ModelOutput.from_content("mockllm/model", "Done.")
+    outputs = {
+        "none": [proposal, done],
+        "ambiguous": [proposal, proposal, done],
+        "resume": [proposal, done],
+        "unissued": [done],
+    }[loss]
+    model = get_model("mockllm/model", custom_outputs=outputs)
+    bridge = _counted_host_bridge(model)
+    [info] = declare("read_file")
+    conversation = _HostConversation(dialect, "Read 0.", info)
+    seen: list[AfterToolCall] = []
+    with active_test_sentinel(record_tool_results(seen)):
+        if loss == "unissued":
+            if dialect == "responses":
+                conversation.history.append(
+                    {
+                        "type": "function_call",
+                        "call_id": "repeated",
+                        "name": "read_file",
+                        "arguments": json.dumps(call.arguments),
+                    }
+                )
+            else:
+                conversation.history.append(_forged_calls(dialect, 1))
+            issued: list[tuple[str, Any]] = [
+                ("read_file" if dialect == "google" else "repeated", call.arguments)
+            ]
+        else:
+            issued = await conversation.request(bridge)
+        if loss == "ambiguous":
+            await _HostConversation(dialect, "Unrelated input.", info).request(bridge)
+        elif loss == "resume":
+            bridge._handouts = _Handouts(
+                _SavedHandouts.model_validate_json(
+                    bridge._handouts.saved().model_dump_json()
+                ),
+                viewer=bridge._bridged_tool_viewer,
+            )
+        _forge_assistant_text(conversation)
+        conversation.results(issued, ["contents"])
+        _answer_under_id(conversation, "repeated")
+        await conversation.request(bridge)
+    [step] = seen
+    assert step.call.function == "read_file"
+    if loss == "none":
+        assert step.input is not None
+        assert step.message_id != "" and FORGED_TEXT not in step.message
+    else:
+        assert step.input is None and step.tools is None
+        assert (step.message, step.message_id) == ("", "")
+
+
+@pytest.mark.usefixtures("fake_sentinel")
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+async def test_a_model_id_longer_than_supported_is_handed_over_under_a_fresh_id(
+    dialect: HostDialect,
+) -> None:
+    """A call whose model id is longer than `MAX_CALL_ID_LENGTH` gets a fresh id, like any id that can't name its call; its result keeps its context."""
+    long_id = "a__" * 100 + "z"
+    assert len(long_id) > sentinel_module.MAX_CALL_ID_LENGTH
+    call = ToolCall(id=long_id, function="read_file", arguments={"path": "p"})
+    done = ModelOutput.from_content("mockllm/model", "Done.")
+    model = get_model("mockllm/model", custom_outputs=[tool_calls_output(call), done])
+    bridge = _counted_host_bridge(model)
+    conversation = _HostConversation(dialect, "Read p.", declare("read_file")[0])
+    seen: list[AfterToolCall] = []
+    with active_test_sentinel(record_tool_results(seen)):
+        calls = await conversation.request(bridge)
+        [handed] = [
+            call_id
+            for call_id, record in bridge._handouts.handed.items()
+            if record.execution_id is not None
+        ]
+        assert handed != long_id and len(handed) <= sentinel_module.MAX_CALL_ID_LENGTH
+        conversation.results(calls, ["contents"])
+        await conversation.request(bridge)
+    [step] = seen
+    assert step.call.id == handed
+    assert [m.text for m in step.input or []] == ["Read p."]
+
+
+@pytest.mark.usefixtures("fake_sentinel")
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+async def test_reserving_a_model_ids_echoes_is_linear_in_its_length(
+    dialect: HostDialect, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A model id of many `__` separators costs echo reservation no more than linear work in its length.
+
+    Each part of an id after a `__` may be the id a Gemini CLI echo is of,
+    and reading them all is quadratic in the id, so an id longer than
+    `MAX_CALL_ID_LENGTH` is not read: it gets a fresh id. Measured: the text
+    of the parts read, for ids of 97 and 769 characters, through a filter
+    that returns a call under an id taken from its input.
+    """
+    original = sentinel_module._echoed
+    volume = 0
+
+    def counted(call_id: str) -> Iterator[str]:
+        nonlocal volume
+        for part in original(call_id):
+            volume += len(part)
+            yield part
+
+    monkeypatch.setattr(sentinel_module, "_echoed", counted)
+
+    async def work(separators: int) -> int:
+        nonlocal volume
+        volume = 0
+        model = get_model(
+            "mockllm/model",
+            custom_outputs=[ModelOutput.from_content("mockllm/model", "Done.")],
+        )
+        bridge = _counted_host_bridge(model)
+
+        async def filtered(
+            model: Model,
+            input: list[ChatMessage],
+            tools: list[ToolInfo],
+            tool_choice: ToolChoice | None,
+            config: GenerateConfig,
+        ) -> ModelOutput:
+            return tool_calls_output(
+                ToolCall(
+                    id=input[0].text, function="read_file", arguments={"path": "p"}
+                )
+            )
+
+        bridge.filter = filtered
+        conversation = _HostConversation(
+            dialect, "a__" * separators + "z", declare("read_file")[0]
+        )
+        await conversation.request(bridge)
+        return volume
+
+    with active_test_sentinel(record_tool_results([])):
+        small, large = await work(32), await work(256)
+    assert small > 0
+    # linear is 8x; reading every part of the longer id is 64x
+    assert large <= 12 * small, (small, large)
+
+
+@pytest.mark.usefixtures("fake_sentinel")
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+async def test_reporting_many_calls_sharing_a_handed_id_is_linear(
+    dialect: HostDialect,
+) -> None:
+    """A reply's calls sharing one id are each a handout of it; reporting their results checks each once, in work linear in the calls."""
+    seen: list[AfterToolCall] = []
+
+    async def work(n: int) -> int:
+        calls = [
+            ToolCall(id="unknown", function="read_file", arguments={"path": str(i)})
+            for i in range(n)
+        ]
+        model = get_model(
+            "mockllm/model",
+            custom_outputs=[
+                tool_calls_output(*calls),
+                ModelOutput.from_content("mockllm/model", "Done."),
+            ],
+        )
+        bridge = AgentBridge(AgentState(messages=[]), model_aliases={"inspect": model})
+        conversation = _HostConversation(
+            dialect, "Read files.", declare("read_file")[0]
+        )
+        issued = await conversation.request(cast(SandboxAgentBridge, bridge))
+        conversation.results(issued, [f"result {i}" for i in range(n)])
+        seen.clear()
+        with recorded_transcript(), container_work() as counted:
+            await conversation.request(cast(SandboxAgentBridge, bridge))
+        assert len(seen) == n
+        assert sorted(int(step.call.arguments["path"]) for step in seen) == list(
+            range(n)
+        )
+        return counted.work
+
+    with active_test_sentinel(record_tool_results(seen)):
+        small, large = await work(32), await work(256)
+    assert small > 0
+    # linear is 8x; a pass over the id's handouts for each result is 64x
+    assert large <= 12 * small, (small, large)
+
+
 # `read_file` paths whose arguments a Murmur3 digest cannot tell apart
 COLLIDING_PATHS = (
     "public00000000000000000000000000000000................",

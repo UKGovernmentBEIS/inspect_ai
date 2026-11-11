@@ -53,6 +53,7 @@ from inspect_ai.agent._bridge._approval import (
 from inspect_ai.agent._bridge._errors import BridgePolicyError, ResponseFilterError
 from inspect_ai.agent._bridge._sentinel import (
     Produced,
+    handed_targets,
     history_ids,
     sentinel_tool_results,
 )
@@ -1670,7 +1671,12 @@ async def _bridge_generate_impl(
             handed = reviewed.output.message.tool_calls or []
             _hold_replay_state(reviewed.output, generations.outputs())
             bridge._handouts.hand_over(
-                output.message.tool_calls or [], handed, reviewed.sentinel
+                output.message.tool_calls or [],
+                handed,
+                reviewed.sentinel,
+                handed_targets(bridge, handed, declarations)
+                if reviewed.sentinel is None
+                else None,
             )
             # executions are placed in the proposing ModelEvent's span; only one
             # a sink chose is stored, so a rotating checkpoint span is followed

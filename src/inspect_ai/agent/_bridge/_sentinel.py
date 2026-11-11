@@ -5,6 +5,7 @@ from contextlib import AbstractContextManager, ExitStack, nullcontext
 from copy import deepcopy
 from dataclasses import dataclass
 from functools import cached_property, partial
+from itertools import chain
 from logging import getLogger
 from typing import (
     TYPE_CHECKING,
@@ -50,7 +51,7 @@ from inspect_ai.model._chat_message import (
 from inspect_ai.model._providers._google_computer_use_name import (
     gemini_computer_action_names,
 )
-from inspect_ai.tool._tool import ToolResult
+from inspect_ai.tool._tool import Tool, ToolResult
 from inspect_ai.tool._tool_call import (
     ToolCall,
     ToolCallView,
@@ -58,6 +59,7 @@ from inspect_ai.tool._tool_call import (
     ToolCallViewError,
     resolve_tool_call_view,
 )
+from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._span import in_agent_span
 
@@ -72,8 +74,13 @@ T = TypeVar("T")
 
 _MAX_PROPOSALS = 1000
 
-# a result no assistant message in the request accounts for has no message that
-# made the call
+# A longer model id is handed over under a fresh one (`_Handouts.reused`):
+# reserving its Gemini CLI echoes reads every part of it after a `__`, which is
+# quadratic in its length. Providers' ids are a few dozen characters.
+MAX_CALL_ID_LENGTH = 256
+
+# a check with no proposal's context has no message that made the call: the
+# assistant message a request carries the call in is the scaffold's
 _NO_MESSAGE_ID = ""
 
 # The fields of the step a result check sends the protocol (`AfterToolCall`)
@@ -152,6 +159,16 @@ class SentinelCheck(NamedTuple):
     """The bridged tool the check is for, or None for a call no bridged tool serves."""
 
 
+class HandedTarget(NamedTuple):
+    """A target a handed call resolved to (`handed_targets`)."""
+
+    target: BridgedToolId | None
+    """As `SentinelCheck.target`."""
+
+    call: ToolCall
+    """As `SentinelCheck.call`: the call its checks show."""
+
+
 class _Target(NamedTuple):
     """A target a handout resolved to, kept for the sample (`_Handed.targets`)."""
 
@@ -195,8 +212,11 @@ class _Handed(NamedTuple):
 
     targets: tuple[_Target, ...] = ()
     """The targets each of its handouts resolved to, without their viewers or
-    context, so a result of the handout is checked as them once its proposal
-    is evicted or lost to a resume (`_Handouts._checks`)."""
+    context, recorded with or without a sentinel. A result under the id is
+    checked as them whenever its proposal's checks are not used: the proposal
+    is evicted or lost to a resume, the id is ambiguous or shared within a
+    response, no sentinel was active at the handout, or the call the request
+    shows is none of its handouts (`_Handouts._checks`)."""
 
 
 class _SavedHandouts(BaseModel):
@@ -261,23 +281,29 @@ class _Handouts:
     latest handout with the arguments the result's call has, the one the
     scaffold received. The result's call matches a handout as handed, or in
     the form its dialect reads it back in (a Gemini action for a `computer`
-    call, say). A result whose call matches no handout of its id, or several,
-    or one with no call in its request when the id was handed with several
-    arguments, gets no proposal's context and is checked as the call it
-    answers in its request. So is a result under an id the bridge never
-    handed out, or one several calls of a response shared (a scaffold that
-    rewrites ids, or one answering no call). A call handed out more than once
+    call, say). For an id the bridge handed out, its record is the authority,
+    not the call a request shows: a result whose call matches no handout of
+    its id, or several, or one with no call in its request when the id was
+    handed with several arguments, gets no proposal's context and is checked
+    as every target the id's handouts resolved to. Calls of one response
+    sharing an id are each a handout of it, with no proposal's context. Only
+    a result under an id the bridge never handed out (a scaffold that
+    rewrites ids, or one answering no call) is checked as the call it answers
+    in its request. A call handed out more than once
     is ambiguous, whether a retry or cache hit handed it out again or another
     conversation: the bridge can't tell those apart, as an identical request
     may be generated from other input (a filter's) or answer another
     conversation. Its results get no proposal's context from then on, after
     any resume too. Context is the generation and the proposing message; a
-    result without it is still checked as the handout's targets (a
-    dispatched or renamed call's bridged tool, with its viewer).
+    result without it has neither (never the assistant message its request
+    carries the call in, which is the scaffold's), and is still checked as
+    the handout's targets (a dispatched or renamed call's bridged tool, with
+    its viewer).
 
     A call gets a fresh id instead (`reused`) when the model's id can't name
-    it: an empty id, or one that already names another call (Claude Code
-    drops a repeated id and the result under it). The ids handed over or
+    it: an empty id, one longer than `MAX_CALL_ID_LENGTH`, or one that already
+    names another call (Claude Code drops a repeated id and the result under
+    it). The ids handed over or
     rejected, with their calls, and the ids seen in requests
     (`reserved_ids`) are kept for the life of the bridge and in its
     checkpoint (`saved`), apart from the proposals (bounded).
@@ -291,7 +317,9 @@ class _Handouts:
     A result of a handout is checked as the handout's targets, with its
     proposal's checks, while the proposal is kept. The targets each handout
     of an id resolved to are kept for the sample and in its checkpoint
-    (`_Handed.targets`), so once the proposal is evicted or lost to a resume
+    (`_Handed.targets`), whether or not a sentinel was active at the handout,
+    so once the proposal is evicted or lost to a resume, or when there never
+    was one,
     the result is checked as them with the request's conversation and no
     model input, each with its bridged tool's viewer (`viewer`) or, without
     one, none; and a later handout of the call adds its targets to them.
@@ -385,15 +413,16 @@ class _Handouts:
         reserved or handed one, or one of the response's other calls
         (`siblings`), in either direction: an echo of one of `calls`
         (`_echoes`) that is such an id, or an id of `calls` that may be an
-        echo of one (`_echoed`).
+        echo of one (`_echoed`). So does an id longer than
+        `MAX_CALL_ID_LENGTH`, which bounds that work.
         """
-        if not call_id:
+        if not call_id or len(call_id) > MAX_CALL_ID_LENGTH:
             return True
         if any(
             echo in self.reserved_ids or echo in self.handed or echo in siblings
-            for echo in (
-                *(echo for call in calls for echo in _echoes(call)),
-                *_echoed(call_id),
+            for echo in chain(
+                (echo for call in calls for echo in _echoes(call)),
+                _echoed(call_id),
             )
         ):
             return True
@@ -411,52 +440,67 @@ class _Handouts:
         proposed: Sequence[ToolCall],
         handed: Sequence[ToolCall],
         checks: Sequence[SentinelCheck] | None,
+        resolved: Sequence[Sequence[HandedTarget]] | None = None,
     ) -> None:
         """Record a response's calls as handed over, each a new execution.
 
         `proposed` are the calls as the model proposed them, `handed` as
         approval gave them, and `checks` their `tool_result` checks, in order
-        (None without a sentinel). A call whose id was handed out before is
-        ambiguous (`_Handed.ambiguous`), and its proposal checks every target
-        its handouts resolved to.
+        (None without a sentinel). `resolved` are the targets each handed
+        call resolved to (`handed_targets`), which a response handed over
+        without a sentinel has no checks to give. Each handout's targets are
+        recorded (`_Handed.targets`), for calls sharing an id within the
+        response too: each is a handout of the id, which is ambiguous. So is
+        a call whose id was handed out before (`_Handed.ambiguous`), and its
+        proposal checks every target its handouts resolved to.
         """
-        shared = repeated_call_ids(handed)
-        for index, (model_call, call) in enumerate(zip(proposed, handed, strict=True)):
-            earlier = self.handed.get(call.id)
-            ambiguous = earlier is not None and (
-                earlier.ambiguous or earlier.execution_id is not None
-            )
-            execution_id = uuid()
-            key = _call_key(call)
+        by_id: dict[str, list[int]] = {}
+        for index, call in enumerate(handed):
+            by_id.setdefault(call.id, []).append(index)
+        # one record per id, so calls sharing an id cost work linear in them
+        for call_id, indexes in by_id.items():
+            shared = len(indexes) > 1
+            earlier = self.handed.get(call_id)
             previous = (
                 earlier
                 if earlier is not None and earlier.execution_id is not None
                 else None
             )
-            handouts = previous.handed if previous is not None else ()
-            targets = previous.targets if previous is not None else ()
-            if checks is not None and call.id not in shared:
-                targets = _with_target_records(targets, key, checks[index])
-            self.handed[call.id] = _Handed(
-                call.function,
-                None if call.id in shared else _call_key(model_call),
-                (*handouts, key) if key not in handouts else handouts,
-                execution_id,
+            ambiguous = shared or (
+                earlier is not None
+                and (earlier.ambiguous or earlier.execution_id is not None)
+            )
+            handouts = dict.fromkeys(previous.handed if previous is not None else ())
+            targets = _Targets(previous.targets if previous is not None else ())
+            for index in indexes:
+                key = _call_key(handed[index])
+                handouts.setdefault(key)
+                if checks is not None:
+                    targets.add(key, _check_targets(checks[index]))
+                elif resolved is not None:
+                    targets.add(key, resolved[index])
+            last = indexes[-1]
+            self.handed[call_id] = _Handed(
+                handed[last].function,
+                None if shared else _call_key(proposed[last]),
+                tuple(handouts),
+                uuid(),
                 ambiguous,
                 previous.read_back if previous is not None else (),
-                targets,
+                tuple(targets.records),
             )
             if checks is None:
                 continue
-            check = checks[index]
-            if call.id in shared:
-                for stale in [k for k in self.proposals if k[0] == call.id]:
+            if shared:
+                for stale in [k for k in self.proposals if k[0] == call_id]:
                     del self.proposals[stale]
                 continue
-            earlier_check = self.proposals.pop((call.id, key), None)
+            key = _call_key(handed[last])
+            check = checks[last]
+            earlier_check = self.proposals.pop((call_id, key), None)
             if ambiguous and earlier_check is not None:
                 check = _with_targets_of(check, earlier_check)
-            self.proposals[(call.id, key)] = check
+            self.proposals[(call_id, key)] = check
             while len(self.proposals) > _MAX_PROPOSALS:
                 self.proposals.popitem(last=False)
                 warn_once(
@@ -566,7 +610,8 @@ class _Handouts:
         checks = steps.checks(
             (call_id, id(found), message.function if found is None else None),
             found,
-            lambda: self._checks(input, call_id, handed, found, message),
+            lambda: self._checks(call_id, handed, found, message, steps),
+            input[found.position].id if found is not None else None,
         )
         result = steps.result(message)
         return _Result(
@@ -578,52 +623,65 @@ class _Handouts:
 
     def _checks(
         self,
-        input: list[ChatMessage],
         call_id: str,
         handed: _Handed | None,
         found: _Call | None,
         message: ChatMessageTool,
+        steps: "_Steps",
     ) -> tuple[SentinelCheck, ...]:
-        """The checks of a result under `call_id` answering `found` (`_Handouts`)."""
-        handout = (
-            _handout(handed, found)
-            if handed is not None and handed.proposed is not None
-            else None
-        )
-        if handed is not None and handout is not None:
+        """The checks of a result under `call_id` answering `found` (`_Handouts`).
+
+        For an id the bridge handed out, its record is the authority, not the
+        call the request shows. A result answering one of the id's handouts
+        (`_HandoutIndex.of`) has that handout's proposal's checks, or its
+        recorded targets without context once the proposal is gone or the id
+        is ambiguous. One answering none of them, or one several could be (the
+        scaffold changed the call, or left it out of an id handed out with
+        several calls), is checked as every target the id's handouts resolved
+        to, without context. Only a result under an id with no recorded target
+        (one the bridge never handed out) is checked as the call the request
+        shows.
+        """
+        if handed is not None:
+            record = steps.handouts(call_id, handed)
+            handout = record.of(found)
             checks: list[SentinelCheck] = []
-            proposal = self.proposals.get((call_id, handout))
+            proposal = (
+                self.proposals.get((call_id, handout)) if handout is not None else None
+            )
             if proposal is not None:
                 checks = [proposal, *proposal.alternatives]
                 if handed.ambiguous:
-                    checks = [_without_context(check, input, found) for check in checks]
+                    checks = [_without_context(check) for check in checks]
             # a call handed out once has its proposal's targets; otherwise add
             # those of an evicted proposal or an earlier handout
             if proposal is None or handed.ambiguous:
-                checks.extend(
-                    _without_context(check, input, found)
-                    for check in self._recorded(handed, handout, checks)
-                )
+                checks.extend(self._recorded(record, handout, checks))
             if checks:
                 return tuple(checks)
         call = _unissued(message, found)[0]
         if found is None and handed is not None and handed.proposed is not None:
             call = ToolCall(id=call_id, function=handed.function, arguments={})
-        return (_without_context(SentinelCheck(call, None, "", None), input, found),)
+        return (SentinelCheck(call, None, "", _NO_MESSAGE_ID),)
 
     def _recorded(
-        self, handed: _Handed, handout: str, checks: Sequence[SentinelCheck]
+        self,
+        record: "_HandoutIndex",
+        handout: str | None,
+        checks: Sequence[SentinelCheck],
     ) -> list[SentinelCheck]:
-        """Checks of `handout`'s recorded targets (`_Handed.targets`) that `checks` lack.
+        """Checks of `handout`'s recorded targets (`_Handed.targets`) that `checks` lack; of every handout's, without one.
 
         Each with its bridged tool's viewer, if the bridge still serves one,
         and no context.
         """
         known = {(check.target, _call_key(check.call)) for check in checks}
         rebuilt: list[SentinelCheck] = []
-        for recorded in handed.targets:
+        for recorded in (
+            record.targets.get(handout, ()) if handout is not None else record.all
+        ):
             identity = (recorded.target, _call_key(recorded.call))
-            if recorded.handout != handout or identity in known:
+            if identity in known:
                 continue
             known.add(identity)
             viewer = (
@@ -634,7 +692,7 @@ class _Handouts:
                     recorded.call,
                     viewer,
                     "",
-                    None,
+                    _NO_MESSAGE_ID,
                     target=recorded.target,
                 )
             )
@@ -668,35 +726,73 @@ class _Handouts:
         claim.event.set()
 
 
-def _without_context(
-    check: SentinelCheck, input: Sequence[ChatMessage], found: _Call | None
-) -> SentinelCheck:
-    """`check` with no proposal's context: no generation, and the message the request carries the call in (`found`), if any.
+def _without_context(check: SentinelCheck) -> SentinelCheck:
+    """`check` with no proposal's context: no generation and no proposing message.
 
-    Its targets and viewers are kept: they come from the handed call and the
-    bridged tools, not from the generation.
+    The assistant message a request carries the call in is the scaffold's, so
+    it stands in for neither. The check's targets and viewers are kept: they
+    come from the handed call and the bridged tools, not from the generation.
     """
-    return check._replace(
-        message=found.text if found is not None else "",
-        message_id=input[found.position].id if found is not None else _NO_MESSAGE_ID,
-        producer=None,
-    )
+    return check._replace(message="", message_id=_NO_MESSAGE_ID, producer=None)
 
 
-def _with_target_records(
-    targets: tuple[_Target, ...], handout: str, check: SentinelCheck
-) -> tuple[_Target, ...]:
-    """`targets` with those of `check`, a proposal of `handout` (`_call_key`), it lacks."""
-    known = {
-        (target.handout, target.target, _call_key(target.call)) for target in targets
-    }
-    added = list(targets)
-    for target in (check, *check.alternatives):
-        identity = (handout, target.target, _call_key(target.call))
-        if identity not in known:
-            known.add(identity)
-            added.append(_Target(handout, target.target, target.call))
-    return tuple(added)
+def _check_targets(check: SentinelCheck) -> list[HandedTarget]:
+    """The targets a handed call's check covers: its own and its alternatives'."""
+    return [
+        HandedTarget(target.target, target.call)
+        for target in (check, *check.alternatives)
+    ]
+
+
+class _Targets:
+    """The target records of an id (`_Handed.targets`), added to in time linear in what is added."""
+
+    def __init__(self, records: Iterable[_Target]) -> None:
+        self.records = list(records)
+        self._known = {
+            (record.handout, record.target, _call_key(record.call))
+            for record in self.records
+        }
+
+    def add(self, handout: str, resolved: Iterable[HandedTarget]) -> None:
+        """Add the targets `handout` (`_call_key`) resolved to that the id lacks."""
+        for target in resolved:
+            identity = (handout, target.target, _call_key(target.call))
+            if identity not in self._known:
+                self._known.add(identity)
+                self.records.append(_Target(handout, target.target, target.call))
+
+
+class _HandoutIndex:
+    """An id's handouts and their targets (`_Handed`), indexed once per request, so results under an id handed out many times cost linear work."""
+
+    def __init__(self, handed: _Handed) -> None:
+        self._handed = handed.handed
+        self._keys = frozenset(handed.handed)
+        self._read_back: dict[str, set[str]] = {}
+        for back, key in handed.read_back:
+            self._read_back.setdefault(back, set()).add(key)
+        self.all = handed.targets
+        """Every handout's targets."""
+        self.targets: dict[str, list[_Target]] = {}
+        """Each handout's targets, by its handed call (`_call_key`)."""
+        for target in handed.targets:
+            self.targets.setdefault(target.handout, []).append(target)
+
+    def of(self, found: _Call | None) -> str | None:
+        """The handout of the id a result answering `found` (the call in its request, if any) is of.
+
+        The handed call with `found`'s function and arguments, as handed or as
+        its dialect reads it back (`_Handed.read_back`); for a result with no
+        call in its request, the id's only handed call. None when there is no
+        such handout, or several it could be.
+        """
+        if found is None:
+            return self._handed[0] if len(self._handed) == 1 else None
+        matches = set(self._read_back.get(found.key, ()))
+        if found.key in self._keys:
+            matches.add(found.key)
+        return matches.pop() if len(matches) == 1 else None
 
 
 def _with_targets_of(check: SentinelCheck, earlier: SentinelCheck) -> SentinelCheck:
@@ -737,8 +833,10 @@ class _Steps:
     given that view), the generation's input, tools and tool choice
     (`Produced.digest`), and the result. The result is all of its fields but
     its `id`, which the bridge gives each parsed message afresh. The fields
-    left out are those of `STEP_DIGEST_EXCLUDED`. A value
-    that can't be serialized gives a digest no other step has.
+    left out are those of `STEP_DIGEST_EXCLUDED`. A value that can't be
+    serialized gives a digest no other step has. For a check with no
+    proposal's context the digest covers one thing the step lacks: where the
+    call sits in the request (`_check_part`).
 
     A check's part of the digest is computed once per set of results it
     answers in the request (`checks`), and each result's once, so repeated
@@ -748,25 +846,38 @@ class _Steps:
     def __init__(self) -> None:
         # the key's objects are kept alive with the entry, so ids stay theirs
         self._checks: dict[Hashable, tuple[object, _Checks]] = {}
+        self._handouts: dict[str, _HandoutIndex] = {}
 
     def checks(
         self,
         key: Hashable,
         keep: object,
         resolve: Callable[[], tuple[SentinelCheck, ...]],
+        place: str | None,
     ) -> _Checks:
-        """The checks `resolve` gives for `key`, resolved once, with their steps but for the result."""
+        """The checks `resolve` gives for `key`, resolved once, with their steps but for the result.
+
+        `place` is the id of the request's message that carries the call the
+        results answer, if any (`_check_part`).
+        """
         entry = self._checks.get(key)
         if entry is None:
             checks = resolve()
             reject = len(checks) > 1
             views = tuple(_view(check, reject) for check in checks)
             parts = tuple(
-                _check_part(check, view) for check, view in zip(checks, views)
+                _check_part(check, view, place) for check, view in zip(checks, views)
             )
             entry = (keep, _Checks(checks, parts, views))
             self._checks[key] = entry
         return entry[1]
+
+    def handouts(self, call_id: str, handed: _Handed) -> _HandoutIndex:
+        """`handed`, the record of `call_id`, indexed once."""
+        index = self._handouts.get(call_id)
+        if index is None:
+            index = self._handouts[call_id] = _HandoutIndex(handed)
+        return index
 
     @staticmethod
     def result(message: ChatMessageTool) -> bytes:
@@ -784,8 +895,17 @@ def _view(check: SentinelCheck, reject_on_viewer_error: bool) -> ToolCallView | 
         return None
 
 
-def _check_part(check: SentinelCheck, view: ToolCallView | None) -> str:
-    """The digest of a check's step, all but its result (`_Steps`)."""
+def _check_part(
+    check: SentinelCheck, view: ToolCallView | None, place: str | None
+) -> str:
+    """The digest of a check's step, all but its result (`_Steps`).
+
+    A check with no proposal's context has no message to tell one occurrence
+    of its call from another: the same call proposed again under its id, and
+    run again with the same result, is the same step. So its digest also
+    covers `place`, the id of the request's message carrying the call, and
+    each occurrence's result is checked. The step itself doesn't show it.
+    """
     with check.producer.scope() if check.producer is not None else nullcontext():
         conversation = current_conversation()
     return _parts_digest(
@@ -795,6 +915,7 @@ def _check_part(check: SentinelCheck, view: ToolCallView | None) -> str:
         _serialized(check.call),
         _serialized(view) if view is not None else _unmatched(),
         check.producer.digest if check.producer is not None else None,
+        place if check.message_id == _NO_MESSAGE_ID else None,
     )
 
 
@@ -825,21 +946,6 @@ def _parts_digest(*parts: str | bytes | None) -> str:
         digest.update(len(encoded).to_bytes(8, "big"))
         digest.update(encoded)
     return digest.hexdigest()
-
-
-def _handout(handed: _Handed, found: _Call | None) -> str | None:
-    """The handout of `handed`'s id a result answering `found` (the call in its request, if any) is of.
-
-    The handed call with `found`'s function and arguments, as handed or as
-    its dialect reads it back (`_Handed.read_back`); for a result with no
-    call in its request, the id's only handed call. None when there is no
-    such handout, or several it could be.
-    """
-    if found is None:
-        return handed.handed[0] if len(handed.handed) == 1 else None
-    matches = {key for key in handed.handed if key == found.key}
-    matches |= {key for back, key in handed.read_back if back == found.key}
-    return matches.pop() if len(matches) == 1 else None
 
 
 def _echoes(call: ToolCall) -> set[str]:
@@ -1007,6 +1113,28 @@ def history_ids(input: Sequence[ChatMessage]) -> frozenset[str]:
         elif isinstance(message, ChatMessageTool) and message.tool_call_id:
             ids.add(message.tool_call_id)
     return frozenset(ids)
+
+
+def handed_targets(
+    bridge: AgentBridge, calls: Sequence[ToolCall], tools: Sequence[ToolInfo | Tool]
+) -> list[list[HandedTarget]]:
+    """The targets each of `calls`, as handed, resolves to against `tools`, as approval reviews it (`AgentBridge.reviewed_calls`).
+
+    For a response handed over with no sentinel active, which has no checks
+    to take its targets from (`_Handouts.hand_over`).
+    """
+    resolved: list[list[HandedTarget]] = []
+    for call in calls:
+        reviewed = bridge.reviewed_calls(call, tools)
+        resolved.append(
+            [
+                HandedTarget(target, reviewed_call)
+                for reviewed_call, target in zip(
+                    reviewed.calls, reviewed.targets, strict=True
+                )
+            ]
+        )
+    return resolved
 
 
 def checks_bridged_results() -> bool:
