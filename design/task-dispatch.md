@@ -1009,8 +1009,13 @@ Nothing here depends on either, and neither depends on the other.
 - **Running providers' task-level subprocesses in the task directory**
   (`subprocess()` defaulting its `cwd` there inside a setup). Python-level
   reads would see the launch directory while subprocesses saw the task
-  directory. Docker sets `cwd` itself and no surveyed provider relies on the
-  default, so one rule (the launch directory, as in `sample_init`) is enough.
+  directory. Docker's setup commands (`compose_up`, `compose_build`,
+  `compose_pull`, `compose_services`) inherit the launch directory, and
+  Compose resolves a compose file's paths against its project directory;
+  only some cleanup commands set `cwd` to the compose file's directory
+  themselves. No surveyed provider needs the task directory as the
+  subprocess default, so one rule (the launch directory, as in
+  `sample_init`) is enough.
 - **A `task_init_in_launch_dir` class attribute and a warning for providers
   without it.** The attribute's only effect would be to silence the warning,
   which would be a false alarm for every surveyed provider but Proxmox; the
