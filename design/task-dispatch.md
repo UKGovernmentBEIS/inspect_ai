@@ -96,6 +96,16 @@ Could change what an eval computes:
   `task_init` used the task directory's file (through the `chdir`) and
   `sample_init` the launch directory's, so a run launched from a directory
   holding a file of the same name built one image and ran samples on another.
+- **A `ComposeConfig` build context on Modal and Daytona** (decision: Ransom,
+  2026-11-11: task-relative for every provider). Their converters resolve a
+  relative or omitted context only at sample time, against `Path.cwd()`, so
+  a run launched from a directory other than the task's builds the launch
+  directory's Dockerfile today. With contexts made absolute against the task
+  directory, a run whose launch directory also holds a Dockerfile at the
+  same relative path (or at its root, for an omitted context) now builds
+  the task directory's Dockerfile, and a context found only under the task
+  directory now builds instead of failing. An author who wants the launch
+  directory's writes an absolute build context.
 - **Which `ContextVar` values a sample sees**: its own configuration's setup
   state rather than the last setup's.
 - **`os.environ` during setup** no longer holds `task_init_environment`
@@ -261,7 +271,10 @@ Paths reach providers in three ways:
   - E2B warms its template cache in `task_init` from a `ComposeConfig`, whose
     relative build contexts fall back to `Path.cwd()`; its `sample_init`
     resolves the same config in the launch directory. Daytona and Modal
-    resolve them only in `sample_init`.
+    resolve them only in `sample_init` (`create_single_service_params` and
+    `convert_compose_to_modal_params`), against `Path.cwd()` when there is
+    no compose-file path, so with a `ComposeConfig` they build from the
+    launch directory.
   - Podman, for a missing config, looks for a compose file in `os.getcwd()`
     and writes its generated compose file there, in `task_init` and again in
     `sample_init`; it passes absolute paths to its subprocesses.
@@ -626,8 +639,15 @@ async with _run_task_screen(...):              # absorbs a cancellation of the r
   synchronous step that appends the retry after `reinit()` returns. Closed
   means no retry, as for an abandoned one: the record ends with this
   attempt's log. The retry's logger was never initialised, so nothing is
-  discarded. This matters only after a latched cancellation, when attempts
-  still running can finish after the queue closed.
+  discarded. At the first check `run_one` takes today's no-retry branch,
+  whose `clear_eval_retry_pending(result.eval.eval_id)` unwinds the task
+  runner's pre-mark. At the second, `run_one` has already re-marked the
+  attempt with `mark_eval_retry_pending`, so it calls
+  `clear_eval_retry_pending(result.eval.eval_id)` with the attempt's eval id
+  before ending the record; otherwise the attempt's `EvalState` would stay
+  retry-pending and a later task directive would report abandoning a retry
+  that does not exist. This matters only after a latched cancellation, when
+  attempts still running can finish after the queue closed.
 - **`next_tasks()` is awaited inline**, only when nothing is pending or
   running, as on today's live path. Nothing starts while it blocks: a task
   that a hook or a background coroutine of a finished sample adds during
@@ -801,8 +821,12 @@ restored afterwards. In place of the `chdir`:
   - Proxmox resolves a relative `PROXMOX_CONFIG_FILE` against the launch
     directory, as its `default_concurrency()` and `cli_cleanup()` already do.
     A run whose file is found only relative to the task directory falls back
-    to `PROXMOX_HOST` or no pools; this is the one surveyed case in which a
-    working eval changes.
+    to `PROXMOX_HOST` or no pools.
+  - Modal and Daytona get a `ComposeConfig` whose build contexts Inspect
+    has made absolute against the task directory, so their converters build
+    the task directory's Dockerfile rather than the launch directory's
+    ("Behaviour changes"; decision: Ransom, 2026-11-11). Proxmox and these
+    two are the surveyed cases in which a working eval can change.
   - k8s, EC2 and Vagrant take absolute paths or none.
 - `SandboxEnvironment`'s docstring and `docs/extensions-sandboxes.qmd` state
   the contract: `task_init_environment`, `task_init` and `task_cleanup` run
@@ -951,6 +975,13 @@ being the task directory; of the surveyed providers only Proxmox does, for a
 relative `PROXMOX_CONFIG_FILE`. No provider needs a release for any step
 here.
 
+Eval authors whose `ComposeConfig` on Modal or Daytona relies on a relative
+or omitted build context resolving against the launch directory, where the
+task directory also has a Dockerfile at that path, now build the task
+directory's; to keep the launch directory's, write the build context as an
+absolute path. A file-based config (a compose file path) is unaffected:
+its contexts already resolve against the compose file's directory.
+
 Public API:
 
 - `enqueue_task()` is `async` (breaking) and returns `list[TaskHandle]`
@@ -994,8 +1025,14 @@ test that waits on a run is bounded with `fail_after`.
   string and a `ComposeConfig` build context absolute only when they exist
   under the task directory, sets an omitted `ComposeBuild.context` to the
   task directory, and leaves an inline-JSON string, a URI, an
-  absolute path and an over-long string as given; a task-level inline-JSON
-  config reaches `task_init` unchanged; per-setup bindings reach
+  absolute path and an over-long string as given; with the task in one
+  directory, the run launched from another, and a different `Dockerfile` in
+  each, a stub provider's `sample_init` receives a `ComposeConfig` whose
+  relative context (`build: "."`, and an omitted context) is the task
+  directory's absolute path, while a file-based control (a relative
+  `compose.yaml` beside the task) arrives as that file's absolute path with
+  its contents unchanged; a task-level inline-JSON config reaches
+  `task_init` unchanged; per-setup bindings reach
   `sample_init`, `sample_cleanup` and the matching `task_cleanup` for two
   configurations, an added task's configuration and an empty `SampleSource`
   seed, with samples of both configurations starting from the run's original
@@ -1048,7 +1085,10 @@ test that waits on a run is bounded with `fail_after`.
   the same step (no log, and the stored log), a sample in a sibling attempt
   awaiting the queued one in a shielded scope returns, and no further retry is
   published by an attempt that errors after the close, including one whose
-  `reinit()` is held when the queue closes; the same with a cancellation from
+  `reinit()` is held when the queue closes, after which that attempt's
+  `EvalState` is terminal and no longer retry-pending, and a repeat
+  `inspect ctl task cancel` answers "task already finished" rather than
+  reporting an abandoned retry; the same with a cancellation from
   a scope around `eval_async()` and with a `debug_errors` exception; an
   attempt cancelled before its first step (the dispatcher's pick followed at
   once by a cancel of the record) leaves no record in `starting`; every record
@@ -1107,6 +1147,13 @@ test that waits on a run is bounded with `fail_after`.
 - inspect_sandboxes: a test per provider that two configurations and an added
   task's configuration clean up every sandbox, against an Inspect build with
   step 2; it needs provider API keys and runs where that repo's live tests run.
+  Offline converter tests for Modal (`convert_compose_to_modal_params`) and
+  Daytona (`create_single_service_params`): with a different `Dockerfile` in
+  the task and launch directories and the working directory set to the
+  launch directory, a `ComposeConfig` as Inspect resolves it (relative and
+  omitted context) selects the task directory's `Dockerfile`, and the same
+  config loaded from a compose file selects the file's directory's, as
+  today.
 
 The `--runslow` Docker tests run in the PR CI `slow-tests` job on PRs that
 touch `src/inspect_ai/util/_sandbox/**` or `tests/util/sandbox/**` (steps 1

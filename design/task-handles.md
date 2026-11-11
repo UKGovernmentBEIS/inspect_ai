@@ -234,7 +234,21 @@ the sample it sent still runs and its result is dropped.
     `ValueError` ("tasks fed by their creator must start fresh; pass the
     Task");
   - in a run that logs in the deprecated `.json` format: `ValueError`
-    (decision: Ransom, 2026-11-03).
+    (decision: Ransom, 2026-11-03);
+  - put on a task a `@task` function returned with
+    `task_with(task, dataset=samples_from_creator())`: `ValueError` from
+    `task_with` ("samples_from_creator() must be the dataset the @task
+    function '<name>' returns: eval_retry() rebuilds the task by calling that
+    function, so a dataset set afterwards would be lost; return
+    samples_from_creator() from a @task function of its own"). The log
+    records only the factory's name and arguments, so a retry of such a
+    task would rebuild the factory's own dataset (an empty ordinary
+    `SampleSource`, say), pass the retry refusal below, and run without the
+    sent samples. `task_with` raises when `dataset` resolves to a
+    `CreatorChannel` and the task carries registry info
+    (`is_registry_object(task)`, set by the `@task` wrapper); a `Task`
+    built directly with `samples_from_creator()`, inside a `@task` function
+    or not, is unaffected.
 - **`enqueue_sample()`** on a handle whose task is not fed by its creator, or
   after `close()` or `result()`: `RuntimeError`; with a sample that has an
   `id`: `ValueError` (the channel assigns ids); after a drain, `score` or
@@ -394,7 +408,9 @@ class PortRequest:
   (the default) and in a selection worker the result is failure even when
   the creator recovers with a fresh task. `eval_retry()` of the log is
   refused when the log's task is resolved, because the reloaded task's
-  dataset is `samples_from_creator()` ("What is refused"); a crashed log is
+  dataset is `samples_from_creator()` ("What is refused"); that holds
+  because a registered task can get that dataset only from its own `@task`
+  function, never from `task_with` afterwards; a crashed log is
   recovered first, as for any log, which runs nothing.
 
 ### Waits and limits
@@ -560,7 +576,12 @@ test touched), with mockllm models; every test that waits is bounded with
     added outside a sample, returned from a `TaskSource`, passed to `eval()`
     and `eval_set()`, as a `PreviousTask`, in a `.json` run, and
     `eval_retry()` of its log (finished, and crashed: recovered, then
-    refused), each raising and adding nothing; off-loop calls raise, and
+    refused), each raising and adding nothing; `task_with(dataset=
+    samples_from_creator())` over a registered `@task` function whose own
+    dataset is an empty ordinary `SampleSource` raises at the `task_with`
+    call, so no such task runs and no log can be retried as an ordinary
+    empty task, while the same `task_with` over an unregistered `Task`
+    succeeds; off-loop calls raise, and
     through `anyio.from_thread` succeed;
   - no slot: at `max_tasks=1` with an ordinary task U queued ahead, a fed
     task C starts on its first sample while its creator runs, and U still
@@ -638,6 +659,7 @@ One PR, after step 3 of
   fed tasks; `_attempt` set in `run_one`; the uncounted start step; channels
   closed with the creator's attempt; no retry, and `can_retry=False`, for
   fed tasks; `channel.stop()` from the `cancel_task` callback),
+  `_eval/task/task.py` (the `task_with` refusal),
   `_eval/eval.py` (`_resolve_enqueued_tasks` resolving a fed task for its
   creator's model; the `eval_resolve_tasks` refusal; `max_tasks`,
   `max_samples` and `max_sandboxes` docstrings), `__init__.py` (exports),
