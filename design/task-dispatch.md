@@ -756,6 +756,17 @@ restored afterwards. In place of the `chdir`:
   given. `resolve_task_sandbox` calls it for the task-level config in place of
   its unconditional join, so an inline-JSON string config is no longer
   rewritten; `resolve_sandbox` calls it for a sample's own config.
+- **A retry from a log applies the same rule.** `eval_retry_async()` builds
+  the `PreviousTask`'s sandbox with `resolve_task_file_sandbox()`
+  (`_eval/loader.py`), which today joins every relative string config to the
+  logged task file's directory, and `resolve_previous_task()` carries that
+  spec into the retry unchanged. It calls `resolve_config_paths()` with that
+  directory (`Path(task_file).parent`, as today) in place of its join, so a
+  relative config file that exists there still becomes absolute, an absolute
+  path and a missing task file leave the value as given, as today, and an
+  inline-JSON string the first run kept is kept by the retry too instead of
+  being turned into a directory-prefixed string that no longer parses.
+  Non-string configs pass through, as today.
 - **Samples use the key resolved for them.** `SandboxManager` records the
   `TaskSandboxEnvironment` it resolved for each sample, by the sample's
   index in the attempt's sample list (the `sample_index` that `run_sample`
@@ -993,6 +1004,13 @@ test that waits on a run is bounded with `fail_after`.
   object created by the first configuration's `task_init` reaches the second
   configuration's samples too; a sample that bound a variable itself keeps
   its value; a failed `task_init`'s bindings reach no later setup.
+- `tests/test_retry.py`: a task loaded from a file in another directory,
+  with the stub provider, fails once and is retried with `eval_retry()` from
+  its saved log, run from a working directory different from both the first
+  run's and the task's: an inline-JSON string config reaches the retry's
+  `task_init` exactly as the first run's did, and a relative config file
+  beside the task file (the control) reaches it as that file's absolute
+  path.
 - `tests/util/sandbox/test_docker_cleanup.py` and
   `test_docker_compatibility.py`: with the task directory different from the
   launch directory and a same-named file in each, a sample-level relative
@@ -1105,13 +1123,14 @@ state in the single `eval_run`), so the setup fixes come first.
    `util/_sandbox/paths.py` (`resolve_config_paths`), `util/_sandbox/setup.py`
    (the `env` variable), `util/_sandbox/environment.py` (docstrings),
    `util/_sandbox/docker/docker.py` (reads the `env`),
-   `_eval/loader.py` (`resolve_task_sandbox` through the helper),
+   `_eval/loader.py` (`resolve_task_sandbox` and the retry's
+   `resolve_task_file_sandbox` through the helper),
    `_eval/task/sandbox.py` (`resolve_sandbox` through the helper; no `chdir`
    in key resolution), `_eval/run.py` (`SandboxManager` without `chdir` and
    `environ_vars`), `_eval/task/log.py`, `_util/git.py` and
    `_util/path.py` (the task directory passed explicitly),
-   `docs/extensions-sandboxes.qmd`. Tests: `test_sandbox_setup.py`, the
-   Docker tests.
+   `docs/extensions-sandboxes.qmd`. Tests: `test_sandbox_setup.py`,
+   `test_retry.py`, the Docker tests.
 2. **Provider state per setup.** `_eval/run.py` (`SandboxManager` runs each
    `task_init` in the chained context and records each configuration's
    bindings against the run's root context, its context and the per-sample
