@@ -222,6 +222,7 @@ def test_score_on_error_scorer_error_counts_sample_once():
     sample_2 = next(s for s in log.samples if s.id == 2)
     assert sample_2.error is not None
     assert "grader unavailable for sample 2" in sample_2.error.message
+    assert len([e for e in sample_2.events if e.event == "error"]) == 2
 
 
 def test_score_on_error_basic():
