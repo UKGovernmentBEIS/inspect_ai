@@ -335,10 +335,11 @@ def test_dependabot_ignores_are_current() -> None:
     verify_dependabot_ignores_are_current(dependabot_uv()["ignore"], locked_versions())
 
 
-def test_stale_dependabot_ignore_is_caught() -> None:
+@pytest.mark.parametrize("locked", ["8.4.2", "8.5.0rc1"])
+def test_stale_dependabot_ignore_is_caught(locked: str) -> None:
     ignores = [{"dependency-name": "click", "versions": [">=8.2.0"]}]
     with pytest.raises(AssertionError, match="ignores click"):
-        verify_dependabot_ignores_are_current(ignores, locked_versions())
+        verify_dependabot_ignores_are_current(ignores, {"click": locked})
 
 
 def script_uv_config() -> dict[str, Any]:
