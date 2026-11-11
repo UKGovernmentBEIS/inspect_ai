@@ -6837,6 +6837,90 @@ async def test_a_computer_call_changed_to_another_action_has_no_other_calls_gemi
     assert handed["status"] != f"{name}__{handed[action]}"
 
 
+@pytest.mark.parametrize("responses", ["separate", "together"])
+@pytest.mark.parametrize("first", ["status", "named"])
+@pytest.mark.parametrize("function", ["", " status"])
+async def test_a_call_to_a_blank_or_padded_name_has_no_other_calls_gemini_echo(
+    function: str, first: str, responses: str
+) -> None:
+    """A `status` call's id is `function__r`, and a call to `function`, a blank or space-padded name, is under the model's id `r`.
+
+    The call is sent to the scaffold under its name as it is, so Gemini CLI
+    sends its id back prefixed with that name, not the stripped one. Were
+    both calls handed over under the model's ids, that echo would be the
+    `status` call's id, and the call's result would be checked as
+    `status`'s. So `r` is taken to collide under the name as it is too: one
+    of the two gets a fresh id, and each result is checked once, the
+    `status` call's as `status`'s only. The `status` call is handed over
+    `first` or the `named` one is, in `separate` responses or `together`.
+    """
+    from inspect_ai.agent._bridge.google_api import inspect_google_api_request
+
+    status = ToolCall(id=f"{function}__r", function="status", arguments={"path": "s"})
+    named = ToolCall(id="r", function=function, arguments={"path": "n"})
+    calls = [status, named] if first == "status" else [named, status]
+    outputs = (
+        [calls_output(*calls)]
+        if responses == "together"
+        else [calls_output(call) for call in calls]
+    )
+    model = Scripted(*outputs, calls_output())
+    bridge = AgentBridge(
+        AgentState(messages=[]), model_aliases={"inspect": model.model}
+    )
+    seen: Steps = []
+    tools: Any = [
+        {"functionDeclarations": [{"name": "status", "parameters": PATH_SCHEMA}]}
+    ]
+    contents: list[Any] = [{"role": "user", "parts": [{"text": TASK}]}]
+    handed: dict[str, str] = {}
+
+    async def request() -> Any:
+        return await inspect_google_api_request(
+            {"model": "inspect", "contents": contents, "tools": tools},
+            None,
+            None,
+            bridge,
+        )
+
+    with active([bridge_recording(seen)]):
+        for _ in outputs:
+            # answer as Gemini CLI does: each id prefixed with its call's name
+            parts = (await request())["candidates"][0]["content"]["parts"]
+            sent = [part["functionCall"] for part in parts if "functionCall" in part]
+            for call in sent:
+                handed[call["name"]] = call["id"]
+                call["id"] = f"{call['name']}__{call['id']}"
+            results = [
+                {
+                    "functionResponse": {
+                        "id": call["id"],
+                        "name": call["name"],
+                        "response": {
+                            "out": "ready" if call["name"] == "status" else "secret"
+                        },
+                    }
+                }
+                for call in sent
+            ]
+            contents.extend(
+                [{"role": "model", "parts": parts}, {"role": "user", "parts": results}]
+            )
+        await request()
+
+    assert handed.keys() == {"status", function}
+    assert handed["status"] != f"{function}__{handed[function]}"
+    afters = [step for step in seen if isinstance(step, AfterToolCall)]
+    assert sorted((step.call.function, step.output) for step in afters) == sorted(
+        [("status", '{"out": "ready"}'), (function, '{"out": "secret"}')]
+    )
+    [checked] = [step for step in afters if step.call.function == "status"]
+    assert (checked.call.id, checked.call.arguments) == (
+        handed["status"],
+        status.arguments,
+    )
+
+
 @pytest.mark.parametrize(("action", "args"), GEMINI_ACTIONS)
 @pytest.mark.parametrize("dialect", ["completions", "anthropic", "google"])
 async def test_a_computer_calls_result_is_checked_with_its_handout(

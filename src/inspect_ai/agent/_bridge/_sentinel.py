@@ -414,7 +414,7 @@ class _Handouts:
         self.reserved_ids.update(ids)
 
     def wire_names(self, call_id: str) -> frozenset[str] | None:
-        """The names a Gemini scaffold can send the calls handed over under `call_id` as; None for an id not handed over.
+        """The names a Gemini scaffold can send the calls handed over under `call_id` as; None for an id the bridge neither handed over nor proposed.
 
         Those of every function handed over under it (`_Handed.functions`):
         calls of a response sharing an id may be to several. Kept per id, so
@@ -1071,11 +1071,13 @@ def wire_names(function: str) -> frozenset[str]:
     A `computer` call is sent as the Gemini action its arguments give, so
     any action's name: the arguments a call is handed over with are those
     approval and the sentinel leave it, which may be another action's. A
-    `modify` can't change a call's function.
+    `modify` can't change a call's function. Any other call is sent under its
+    function's name as it is, and read back under the name stripped, or
+    `generic_tool` for a blank one.
     """
     if function == "computer":
         return _COMPUTER_WIRE_NAMES
-    return frozenset({function.strip() or "generic_tool"})
+    return frozenset({function, function.strip() or "generic_tool"})
 
 
 class _Answer(NamedTuple):
