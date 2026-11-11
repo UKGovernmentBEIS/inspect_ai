@@ -184,3 +184,46 @@ def test_restore_keeps_explicit_settings_for_redirected_output(
     console = rich.get_console()
     assert console.color_system == "truecolor"
     assert console.is_interactive
+
+
+def test_rich_initialise_keeps_a_render_hook_the_caller_registered(monkeypatch):
+    """A host that registered a render hook can still pop it after the eval."""
+    import rich
+    from rich.console import Console, ConsoleRenderable, RenderHook
+
+    class _Hook(RenderHook):
+        def process_renderables(
+            self, renderables: list[ConsoleRenderable]
+        ) -> list[ConsoleRenderable]:
+            return renderables
+
+    console = Console(force_terminal=False)
+    monkeypatch.setattr(rich, "_console", console)
+    hook = _Hook()
+    console.push_render_hook(hook)
+
+    rich_initialise(display="none", plain=True)
+
+    assert rich.get_console() is console
+    assert list(getattr(console, "_render_hooks", [])) == [hook]
+    console.pop_render_hook()
+
+
+def test_rich_initialise_keeps_a_hosts_progress_context_usable(monkeypatch):
+    """Entering an eval inside a host context must not break leaving that context.
+
+    ``rich.reconfigure()`` drops the render hook the ``Progress`` pushed, so ``__exit__``
+    would pop from an empty list.
+    """
+    import rich
+    from rich.console import Console
+    from rich.progress import Progress
+
+    monkeypatch.setattr(rich, "_console", Console(force_terminal=False))
+
+    with Progress(redirect_stdout=False, redirect_stderr=False) as progress:
+        progress.add_task("host", total=1)
+        rich_initialise(display="none", plain=True)
+
+        console = rich.get_console()
+        assert getattr(console, "_render_hooks", [])

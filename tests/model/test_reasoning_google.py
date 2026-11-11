@@ -1,3 +1,4 @@
+import pytest
 from test_helpers.utils import skip_if_no_google
 
 from inspect_ai import Task, eval
@@ -44,32 +45,45 @@ def test_google_reasoning_effort():
     check_for_reasoning(log)
 
 
-GEMINI_4_ARGON = "google/gemini-4-argon"
+GEMINI_4_MODELS = ["google/gemini-4-argon", "google/gemini-4-carbon"]
 
 
 @skip_if_no_google
-def test_google_gemini_4_argon_default() -> None:
+@pytest.mark.parametrize("model", GEMINI_4_MODELS)
+def test_google_gemini_4_default(model: str) -> None:
     task = Task(dataset=[Sample(input="Solve 3*x^3-5*x=1")])
-    log = eval(task, model=GEMINI_4_ARGON)[0]
+    log = eval(task, model=model)[0]
     assert log.status == "success"
     assert "thinkingLevel" not in log.model_dump_json()
 
 
 @skip_if_no_google
-def test_google_gemini_4_argon_reasoning_effort_low() -> None:
+@pytest.mark.parametrize("model", GEMINI_4_MODELS)
+def test_google_gemini_4_reasoning_effort_low(model: str) -> None:
     task = Task(dataset=[Sample(input="Solve 3*x^3-5*x=1")])
-    log = eval(task, model=GEMINI_4_ARGON, reasoning_effort="low")[0]
+    log = eval(task, model=model, reasoning_effort="low")[0]
     assert log.status == "success"
     assert '"thinkingLevel": "LOW"' in log.model_dump_json(indent=2)
 
 
 @skip_if_no_google
-def test_google_gemini_4_argon_reasoning_effort_minimal() -> None:
-    # the API rejects MINIMAL for this model, so it is sent as LOW
+@pytest.mark.parametrize("model", GEMINI_4_MODELS)
+def test_google_gemini_4_reasoning_effort_minimal(model: str) -> None:
+    # the API rejects MINIMAL for these models, so it is sent as LOW
     task = Task(dataset=[Sample(input="Solve 3*x^3-5*x=1")])
-    log = eval(task, model=GEMINI_4_ARGON, reasoning_effort="minimal")[0]
+    log = eval(task, model=model, reasoning_effort="minimal")[0]
     assert log.status == "success"
     assert '"thinkingLevel": "LOW"' in log.model_dump_json(indent=2)
+
+
+@skip_if_no_google
+@pytest.mark.parametrize("model", GEMINI_4_MODELS)
+def test_google_gemini_4_reasoning_effort_none(model: str) -> None:
+    # these models are not thinking-only, so none disables thinking
+    task = Task(dataset=[Sample(input="Solve 3*x^3-5*x=1")])
+    log = eval(task, model=model, reasoning_effort="none")[0]
+    assert log.status == "success"
+    assert '"thinkingBudget": 0' in log.model_dump_json(indent=2)
 
 
 @tool
@@ -90,8 +104,9 @@ def add() -> Tool:
 
 
 @skip_if_no_google
-async def test_google_gemini_4_argon_tool_call() -> None:
-    output = await get_model(GEMINI_4_ARGON).generate(
+@pytest.mark.parametrize("model", GEMINI_4_MODELS)
+async def test_google_gemini_4_tool_call(model: str) -> None:
+    output = await get_model(model).generate(
         "Use the add tool to add 2 and 3.",
         tools=[add()],
         tool_choice=ToolFunction(name="add"),
