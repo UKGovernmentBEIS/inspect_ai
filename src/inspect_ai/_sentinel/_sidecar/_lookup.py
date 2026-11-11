@@ -43,6 +43,8 @@ class Looked(NamedTuple):
     """Why the call wasn't judged, or why the judgment is unavailable."""
     judgment: Judgment | None = None
     """What the sidecar decided, once decided."""
+    records: str | None = None
+    """What the sidecar said of its records of the call, when it said."""
 
 
 async def request_result(received: ReceivedCall, replied: bool) -> Looked:
@@ -55,7 +57,7 @@ async def request_result(received: ReceivedCall, replied: bool) -> Looked:
         replied: Whether the call came back with a reply. The sidecar never received the reply of a call it is still awaiting the reply of, whether the call came back with a reply or as an error.
 
     Raises:
-        SentinelProxyError: If the sidecar keeps another token for the eval, so it won't say what it decided.
+        SentinelProxyError: If the sidecar refuses the eval's calls, as when it keeps another token for the eval, so it won't say what it decided.
         ValueError: If the sidecar's judgment isn't one this Inspect can read.
     """
     looked = await _request_result(received, replied)
@@ -79,12 +81,16 @@ async def _request_result(received: ReceivedCall, replied: bool) -> Looked:
             except SidecarCallError as ex:
                 if ex.code == UNAUTHORIZED:
                     raise SentinelProxyError(
-                        f"The sentinel sidecar at {sidecar.origin} keeps another token for this eval, so it won't say what it decided of its calls."
+                        f"The sentinel sidecar at {sidecar.origin} won't take the eval's calls, so it won't say what it decided of them: {ex}"
                     ) from ex
                 return Looked("unavailable", str(ex))
             records = result.get("records")
             if records != "held":
-                return Looked("unavailable", f"the sidecar's records are {records}")
+                return Looked(
+                    "unavailable",
+                    f"the sidecar's records are {records}",
+                    records=str(records),
+                )
             state = result.get("state")
             if state == "decided":
                 judgment = result.get("judgment")
@@ -147,22 +153,42 @@ def lost_sample(looked: Looked | None, registered_beforehand: bool) -> bool:
     )
 
 
+def unknown_to_required(looked: Looked | None, mode: SentinelProxy) -> bool:
+    """Whether a sidecar the task requires keeps no record of a call that came back as an error, as when it refused the call for an eval whose token it lost in a restart: it can't say what it holds for the attempt."""
+    return (
+        mode == "required"
+        and looked is not None
+        and looked.state == "unavailable"
+        and looked.records == "unknown"
+    )
+
+
 def unjudged_error(
-    looked: Looked | None, error: BaseException, registered_beforehand: bool = False
+    looked: Looked | None,
+    error: BaseException,
+    registered_beforehand: bool = False,
+    mode: SentinelProxy = "auto",
 ) -> None:
-    """Fail the sample for an agent call that came back as an error the sidecar says it couldn't judge.
+    """Fail the sample for an agent call that came back as an error the sidecar says it couldn't judge, or whose judgment is unavailable when the task requires a sidecar.
 
     A sample the sidecar can't place was never accepted when its task is one the sidecar's admin registered beforehand, whose samples the sidecar takes only as its tasks folder holds them: a retry would be refused the same way. A task the eval registered was accepted when the sample's registration completed, so the sidecar has lost it since, as on a restart, and a retry registers it again.
+
+    A sidecar that lost the eval's token in a restart refuses the call without keeping it, so its judgment is unavailable, not `unregistered`. With `auto`, the call's error stands, as it would with no sidecar: a sandbox-bridged agent is handed it, and may go on once the eval registers again, with monitor state that began after the restart.
 
     Args:
         looked: What `request_result` said of the call.
         error: The call's error.
         registered_beforehand: Whether the sidecar's admin registered the task beforehand.
+        mode: Whether the task requires a sidecar.
 
     Raises:
         SampleRefusedError: If the sidecar never accepted the sample, so it can't run there.
-        SidecarNotJudgedError: If the sidecar couldn't judge the call for another reason, including a sample it has lost, which Inspect retries as it does other errors.
+        SidecarNotJudgedError: If the sidecar couldn't judge the call for another reason, including a sample it has lost, which Inspect retries as it does other errors; or if the call's judgment is unavailable and the task requires a sidecar.
     """
+    if looked is not None and looked.state == "unavailable" and mode == "required":
+        raise SidecarNotJudgedError(
+            f"The sentinel sidecar's judgment of the call is unavailable ({looked.reason}), and a sidecar is required: {error}"
+        ) from error
     if looked is None or looked.state != "not_judged":
         return
     if looked.reason == "unregistered":

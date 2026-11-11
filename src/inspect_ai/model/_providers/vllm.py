@@ -605,6 +605,13 @@ class VLLMAPI(OpenAICompatibleAPI):
         return list(tokens)
 
     @override
+    def _client_endpoint(self) -> str | None:
+        # a lazy instance has no client until a call resolves its server
+        if self._resolved_epoch < 0:
+            return self.base_url
+        return super()._client_endpoint()
+
+    @override
     def connection_key(self) -> str:
         """Scope max_connections per vLLM endpoint.
 
