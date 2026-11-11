@@ -8,7 +8,7 @@ from typing import (
 )
 
 from docstring_parser import Docstring, parse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_serializer
 
 from inspect_ai.util._json import JSONType, json_schema
 
@@ -55,7 +55,50 @@ class ToolInfo(BaseModel):
     parameters: ToolParams = Field(default_factory=ToolParams)
     """JSON Schema of tool parameters object."""
     options: dict[str, Any] | None = Field(default=None)
-    """Optional property bag that can be used by the model provider to customize the implementation of the tool"""
+    """Optional property bag that can be used by the model provider to customize the implementation of the tool
+
+    For a remote MCP server tool, `headers` values are redacted when serialized.
+    """
+
+    @field_serializer("options")
+    def _serialize_options(
+        self, options: dict[str, Any] | None
+    ) -> dict[str, Any] | None:
+        return redact_mcp_server_options(self.name, options)
+
+
+MCP_SERVER_TOOL_PREFIX = "mcp_server_"
+"""Name prefix of the `ToolInfo` that carries a remote MCP server's config."""
+
+REDACTED = "<redacted>"
+"""Logged in place of a remote MCP server's credentials."""
+
+
+def redact_mcp_server_options(
+    name: str, options: dict[str, Any] | None
+) -> dict[str, Any] | None:
+    """Remote MCP server tool options with header values redacted.
+
+    A remote MCP server's `headers` (including `Authorization`) are credentials
+    the provider sends to the server. The live `ToolInfo.options` keep them for
+    the provider; serialized forms (eval logs, events, `model_dump()`) don't.
+    The serialization is lossy: a `ToolInfo` read back from a log (e.g. for
+    replay) has `"<redacted>"` header values, and providers refuse to send it
+    (see `mcp_server_config()`).
+    All header values are redacted (not only credential-like ones) since the
+    header names are kept and the values rarely matter for analysis.
+    """
+    if (
+        options is not None
+        and name.startswith(MCP_SERVER_TOOL_PREFIX)
+        and options.get("type") in ("http", "sse")
+        and isinstance(options.get("url"), str)
+        and isinstance(headers := options.get("headers"), dict)
+        and headers
+    ):
+        return options | {"headers": {key: REDACTED for key in headers}}
+    else:
+        return options
 
 
 INTERNAL_TOOL_TYPE = "__internal_tool_type__"
