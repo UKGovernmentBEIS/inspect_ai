@@ -30,7 +30,8 @@ def list_command() -> None:
     type=bool,
     is_flag=True,
     default=False,
-    help="List absolute paths to task scripts (defaults to relative to the cwd).",
+    help="List absolute paths to task scripts (defaults to relative to the cwd). "
+    "Required for tasks on a different Windows drive or UNC share.",
 )
 @click.option(
     "--json",

@@ -238,6 +238,39 @@ async def test_anthropic_count_tokens_passes_extra_headers() -> None:
     )
 
 
+@pytest.mark.anyio
+async def test_anthropic_bedrock_count_tokens_uses_local_estimate(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Bedrock has no count_tokens endpoint; use the local estimate.
+
+    The Anthropic SDK raises ``Token counting is not supported in Bedrock yet``
+    from ``AsyncAnthropicBedrock.messages.count_tokens``. Compaction estimates
+    tokens before generate, so that error fires locally with dummy AWS
+    credentials (issue #6144).
+    """
+    config = tmp_path / "config"
+    config.write_text(
+        "[profile offline]\nregion=us-east-1\n"
+        "aws_access_key_id=offline\naws_secret_access_key=offline\n"
+    )
+    monkeypatch.setenv("AWS_CONFIG_FILE", str(config))
+    monkeypatch.setenv("AWS_REGION", "us-east-1")
+
+    model = get_model(
+        "anthropic/bedrock/us.anthropic.claude-sonnet-4-6",
+        aws_profile="offline",
+        streaming=False,
+        memoize=False,
+    )
+    assert isinstance(model.api, AnthropicAPI)
+    assert model.api.is_bedrock()
+
+    count = await model.count_tokens("hello")
+    assert isinstance(count, int)
+    assert count >= 1
+
+
 _FULL_THINKING_BETA = "dev-full-thinking-2025-05-14"
 
 
@@ -1823,6 +1856,7 @@ async def test_anthropic_opus_5_disabled_thinking_effort_clamp_live() -> None:
         ("claude-fable-5", 128000),
         ("claude-fable-5-1", 128000),
         ("claude-mythos-5-1", 128000),
+        ("claude-fable-5-2", 128000),
         ("claude-opus-5-0", 128000),
         ("claude-sonnet-5-0", 128000),
         # Non-opus 4.5 / 4.6+ (incl. 4.7 and future 4.x minor): 64k
@@ -1859,6 +1893,7 @@ def test_anthropic_max_tokens_caps(model_name: str, expected_cap: int) -> None:
         "claude-haiku-5-5",
         "claude-fable-5-1",
         "claude-mythos-5-1",
+        "claude-fable-5-2",
         # forward-compat variants: tier-named, new codename
         "claude-opus-5-0",
         "claude-saga-5",
@@ -2008,6 +2043,37 @@ def test_anthropic_is_claude_fable_5_1_or_later(
 @pytest.mark.parametrize(
     "model_name,expected",
     [
+        ("claude-fable-5-2", True),
+        ("anthropic.claude-fable-5-2", True),
+        ("claude-fable-5.2", True),
+        # assume later point releases keep the 5.2 behavior
+        ("claude-fable-5-3", True),
+        ("claude-fable-5-12", True),
+        # Mythos 5.2 keeps the Mythos 5.1 handling until verified
+        ("claude-mythos-5-2", False),
+        # earlier releases and other models don't match
+        ("claude-fable-5-1", False),
+        ("claude-mythos-5-1", False),
+        ("claude-fable-5", False),
+        ("claude-mythos-5", False),
+        ("claude-opus-5-5", False),
+        ("claude-saga-5-2", False),
+        # 1M-context style and date suffixes are not point releases
+        ("claude-fable-5-2m", False),
+        ("claude-fable-5-2026", False),
+        ("claude-fable-5-20261109", False),
+    ],
+)
+def test_anthropic_is_claude_fable_5_2_or_later(
+    model_name: str, expected: bool
+) -> None:
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
+    assert api.is_claude_fable_5_2_or_later() is expected
+
+
+@pytest.mark.parametrize(
+    "model_name,expected",
+    [
         ("claude-opus-5-5", True),
         ("anthropic.claude-opus-5-5", True),
         ("us.anthropic.claude-opus-5-5-20260922-v1:0", True),
@@ -2110,7 +2176,13 @@ def test_anthropic_is_claude_haiku_5_5_or_later(
 
 
 @pytest.mark.parametrize(
-    "model_name", ["claude-fable-5-1", "claude-mythos-5-1", "claude-opus-5-5"]
+    "model_name",
+    [
+        "claude-fable-5-1",
+        "claude-mythos-5-1",
+        "claude-fable-5-2",
+        "claude-opus-5-5",
+    ],
 )
 def test_anthropic_fable_5_1_degrades_forced_tool_choice(model_name: str) -> None:
     """Fable/Mythos 5.1 and Opus 5.5 reject forced tool choice (400); degrade to auto."""
@@ -2158,7 +2230,13 @@ def _request_with_thinking_history() -> dict[str, Any]:
 
 @pytest.mark.parametrize(
     "model_name",
-    ["claude-fable-5-1", "claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"],
+    [
+        "claude-fable-5-1",
+        "claude-fable-5-2",
+        "claude-opus-5-5",
+        "claude-sonnet-5-5",
+        "claude-haiku-5-5",
+    ],
 )
 def test_anthropic_fable_5_1_thinking_block_binding(model_name: str) -> None:
     """Replayed thinking blocks opt into drop_block on prefix mismatch."""
@@ -2269,6 +2347,9 @@ def test_anthropic_claude_4_0_base_name_uses_extended_thinking(model_name: str) 
         "bedrock/anthropic.claude-fable-5-1",
         "vertex/claude-fable-5-1",
         "azure/claude-fable-5-1",
+        "bedrock/anthropic.claude-fable-5-2",
+        "vertex/claude-fable-5-2",
+        "azure/claude-fable-5-2",
         "bedrock/anthropic.claude-opus-5-5",
         "vertex/claude-opus-5-5",
         "azure/claude-opus-5-5",
@@ -2667,7 +2748,13 @@ async def test_anthropic_no_thinking_dropped_warning_when_empty(
 @skip_if_no_anthropic
 @pytest.mark.parametrize(
     "model_name",
-    ["claude-fable-5-1", "claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"],
+    [
+        "claude-fable-5-1",
+        "claude-fable-5-2",
+        "claude-opus-5-5",
+        "claude-sonnet-5-5",
+        "claude-haiku-5-5",
+    ],
 )
 async def test_anthropic_bound_thinking_drop_reported_live(
     model_name: str,
@@ -2756,6 +2843,31 @@ async def test_anthropic_fable_5_1_forced_tool_choice_live() -> None:
         tool_choice=ToolFunction(name="addition"),
     )
     assert len(response.completion) >= 1 or response.message.tool_calls
+
+
+@pytest.mark.anyio
+@skip_if_no_anthropic
+@pytest.mark.parametrize("reasoning_effort", ["none", "low", "high"])
+async def test_anthropic_fable_5_2_generate_live(
+    reasoning_effort: Literal["none", "low", "high"],
+) -> None:
+    """Fable 5.2 accepts our request shape at each effort, including `none`.
+
+    `none` must not 400: thinking can't be disabled, so the field is omitted.
+    """
+    model = get_model(
+        "anthropic/claude-fable-5-2",
+        config=GenerateConfig(reasoning_effort=reasoning_effort, max_tokens=2048),
+    )
+    response = await model.generate(input="Say hello in one short sentence.")
+    assert len(response.completion) >= 1
+
+
+@pytest.mark.anyio
+@skip_if_no_anthropic
+async def test_anthropic_fable_5_2_forced_tool_choice_live() -> None:
+    """Forced tool choice must not 400 on Fable 5.2 (degraded to auto)."""
+    await _check_forced_tool_choice_degrades("anthropic/claude-fable-5-2")
 
 
 @pytest.mark.anyio

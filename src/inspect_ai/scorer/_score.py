@@ -32,6 +32,7 @@ async def score(conversation: ModelConversation) -> list[Score]:
         a task that does not have a scorer.
 
     """
+    from inspect_ai._sentinel._sidecar._state import copy_sidecar_monitor_state
     from inspect_ai.event._score import ScoreEvent
     from inspect_ai.log._transcript import transcript
 
@@ -56,6 +57,8 @@ async def score(conversation: ModelConversation) -> list[Score]:
         raise RuntimeError(
             "The score() function can only be called while executing a task with a scorer."
         )
+
+    await copy_sidecar_monitor_state(state)
 
     scores: list[Score] = []
     used_names: list[str] = []

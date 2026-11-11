@@ -5,8 +5,13 @@ import anyio
 from pydantic import JsonValue
 
 from inspect_ai._sentinel._scope import solving
+from inspect_ai._sentinel._sidecar._lookup import SAMPLE_FAILURES
 from inspect_ai.model._call_tools import get_tools_info
-from inspect_ai.model._model import ModelRefusalError, _check_limits_before_dispatch
+from inspect_ai.model._model import (
+    ModelRefusalError,
+    _check_limits_before_dispatch,
+    dispatch_guard,
+)
 from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
 from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
 from inspect_ai.util._limit import (
@@ -62,6 +67,11 @@ def _forward_provider_errors(
     sample, but the dispatcher would turn a re-raise into an RPC error, so they
     are signalled through `bridge.request_fail` (raised on the agent's side by
     the bridge's monitor task) while the scaffold still gets an error reply.
+    So are the errors a call through a sentinel sidecar raises to fail its
+    sample (`SAMPLE_FAILURES`): a sample the sidecar refused, a call it couldn't
+    judge, including one of a sample it lost, which a sample retry registers
+    again, and a registration that failed. Their types are kept, so the sample
+    runner retries or refuses the sample as it does a native agent's.
 
     A `LimitExceededError` (message, token, cost or turn limit), bare or in an
     exception group such as a filter's task group, is returned as an error
@@ -86,8 +96,24 @@ def _forward_provider_errors(
     scaffold retrying after its error reply) gets the recorded limit's error
     reply without compaction, filter or generation. A token or cost limit
     already reached is checked first, so one enclosing the recorded limit
-    still replaces it.
+    still replaces it. A request already in flight when a limit is recorded
+    makes no further provider call (a compaction or a generation): each is
+    refused with a copy of the recorded limit, after any wait for the
+    compaction lock, a connection slot, the pause gate or a retry.
     """
+
+    def refuse_after_a_recorded_limit() -> None:
+        recorded = bridge.generation_limit
+        if recorded is not None:
+            # a copy: raising the recorded error would add this request's
+            # frames to the traceback it is raised to the agent with
+            raise LimitExceededError(
+                recorded.type,
+                value=recorded.value,
+                limit=recorded.limit,
+                message=recorded.message,
+                source=recorded.source,
+            )
 
     async def generate_forwarding_errors(
         json_data: dict[str, JsonValue],
@@ -102,11 +128,21 @@ def _forward_provider_errors(
                         JsonValue, provider_error_payload(bridge.generation_limit)
                     )
                 }
-            return await generate(json_data, headers)
+            with dispatch_guard(refuse_after_a_recorded_limit):
+                return await generate(json_data, headers)
         except Exception as ex:
             if find_control_flow(ex) is not None:
                 # the service dispatcher ends the sample with it
                 raise
+            # a failure the sidecar raised fails the sample whatever else the
+            # generation raised beside it, a limit included: the sample was
+            # never judged, so it is neither scored nor retried
+            failed = _first_sample_failure(ex)
+            if failed is not None:
+                bridge.request_fail(failed)
+                return {
+                    PROVIDER_ERROR_KEY: cast(JsonValue, provider_error_payload(failed))
+                }
             control = _first_control(ex)
             if isinstance(control, LimitExceededError):
                 # only one is raised, so the others are not kept; no local
@@ -209,6 +245,20 @@ def _first_control(ex: Exception) -> LimitExceededError | ModelRefusalError | No
                 first = first.exceptions[0]
             return cast(LimitExceededError | ModelRefusalError, first)
     return _first_limit(ex)
+
+
+def _first_sample_failure(ex: Exception) -> Exception | None:
+    """The first of `SAMPLE_FAILURES` among `ex` and its group members, depth first in order, as a filter that generates in a task group raises it wrapped."""
+    if isinstance(ex, SAMPLE_FAILURES):
+        return ex
+    if isinstance(ex, ExceptionGroup):
+        failures = ex.subgroup(SAMPLE_FAILURES)
+        if failures is not None:
+            first: Exception = failures
+            while isinstance(first, ExceptionGroup):
+                first = first.exceptions[0]
+            return first
+    return None
 
 
 def _warn_other_errors(ex: Exception) -> None:

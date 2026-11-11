@@ -63,11 +63,12 @@ META_CHAT_UNSUPPORTED_PARAMS = ("stop", "logit_bias", "n")
 def supports_max_reasoning_effort(model: str) -> bool:
     """Whether Meta accepts `reasoning_effort="max"` for `model`.
 
-    Meta documents `max` for standard-tier `muse-spark-1.3` only: not the
-    `-contributor` tier and not older versions (https://dev.meta.ai/docs/reasoning).
-    Later standard-tier versions are assumed to keep it, as are standard-tier
-    models outside the `muse-spark-X.Y` naming (e.g. a predeployment codename),
-    which are treated as the current frontier.
+    Meta documents `max` for `muse-wonder-1.0`, `muse-ember-1.0` and
+    standard-tier `muse-spark-1.3`: not the `-contributor` tier and not older
+    Muse Spark versions (https://dev.meta.ai/docs/reasoning,
+    https://dev.meta.ai/docs/choose-a-model). Later standard-tier versions are
+    assumed to keep it, as are standard-tier models outside the
+    `muse-spark-X.Y` naming (e.g. a predeployment codename).
     """
     name = model.lower()
     if "-contributor" in name:
@@ -103,7 +104,7 @@ def _flag_refusal_stop(output: ModelOutput) -> None:
 
 
 class MetaAPI(OpenAICompatibleAPI):
-    """Provider for Muse Spark models on the Meta Model API.
+    """Provider for Muse models on the Meta Model API.
 
     Uses the Responses API by default (Chat Completions redacts reasoning and
     cannot carry it across turns) with streaming enabled (the model reasons
