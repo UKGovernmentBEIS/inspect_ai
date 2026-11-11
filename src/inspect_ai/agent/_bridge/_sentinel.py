@@ -33,6 +33,7 @@ from inspect_ai._util.content import (
     ContentAudio,
     ContentDocument,
     ContentImage,
+    ContentReasoning,
     ContentText,
     ContentVideo,
 )
@@ -221,16 +222,21 @@ class HandoutPoint:
     the scaffold sends them, rather than by the ids placement gives them: a
     request placement can't place (a concurrent sub-agent's) gets a reply it
     was handed under a new id. Contents are compared through prefix digests,
-    computed once and only when a call is recorded.
+    computed once and only when a call is recorded. Each message's digest
+    also covers what a provider can send the model of it that its content
+    leaves out (`unhashed_model_input`), so a request whose model input
+    differs is another conversation.
     """
 
     def __init__(
         self,
-        contents: Callable[[], list[str]],
+        messages: Callable[[], Sequence[ChatMessage]],
+        contents: Callable[[ChatMessage], str],
         reply: str,
         holds: Callable[[int, str, str], bool],
     ) -> None:
-        self._contents = contents
+        self._messages = messages
+        self._content = contents
         self.reply = reply
         """The reply's id."""
         self._holds = holds
@@ -239,14 +245,16 @@ class HandoutPoint:
     @cached_property
     def contents(self) -> list[str]:
         """The contents of the request's messages."""
-        return self._contents()
+        return [self._content(message) for message in self._messages()]
 
     @cached_property
     def digests(self) -> list[str]:
-        """The digest of each prefix of the request's contents, the empty one first."""
+        """The digest of each prefix of the request's messages (contents, and `unhashed_model_input`), the empty one first."""
         digests = [_digest([])]
-        for content in self.contents:
-            digests.append(_digest([digests[-1], content]))
+        for message, content in zip(self._messages(), self.contents, strict=True):
+            digests.append(
+                _digest([digests[-1], content, unhashed_model_input(message)])
+            )
         return digests
 
     @property
@@ -279,6 +287,35 @@ class HandoutPoint:
                 conversation.reply,
             )
         )
+
+
+def unhashed_model_input(message: ChatMessage) -> list[Any]:
+    """What a provider can send a model of `message` that `content_hash` leaves out, in order.
+
+    Per content part, by position: a text part's `internal`, which Anthropic
+    and OpenAI-compatible providers send in its text
+    (`content_internal_tag()`), and a reasoning part's `internal` and
+    `signature`, which OpenAI-compatible providers send in its `<think>` tag
+    (and the Responses API decrypts a stashed `encrypted_content`), each
+    serialized as sent, key order included; and a result's function, which
+    Google sends as `FunctionResponse.name`. A scaffold sets each of them
+    through a dialect.
+    """
+    unhashed: list[Any] = []
+    if not isinstance(message.content, str):
+        for index, part in enumerate(message.content):
+            if isinstance(part, ContentText) and part.internal is not None:
+                unhashed.append([index, json.dumps(part.internal)])
+            elif isinstance(part, ContentReasoning) and (
+                part.internal is not None or part.signature is not None
+            ):
+                internal = (
+                    json.dumps(part.internal) if part.internal is not None else None
+                )
+                unhashed.append([index, internal, part.signature])
+    if isinstance(message, ChatMessageTool):
+        unhashed.append(message.function)
+    return unhashed
 
 
 class _SavedHandouts(BaseModel):

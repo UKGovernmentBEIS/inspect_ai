@@ -301,7 +301,8 @@ class SandboxAgentBridge(AgentBridge):
             )
 
         return HandoutPoint(
-            lambda: [content_hash(message) for message in request],
+            lambda: request,
+            content_hash,
             # a reply without an id is no other reply, nor handed out again
             self._proposing_reply_id or uuid(),
             holds,

@@ -4344,6 +4344,76 @@ def test_renaming_reasoning_anchors_of_a_repeated_call_id_is_linear() -> None:
     assert large <= 12 * small, (small, large)
 
 
+@pytest.mark.parametrize(
+    "edit, other",
+    [
+        ("text internal", True),
+        ("text internal key order", True),
+        ("reasoning internal", True),
+        ("reasoning signature", True),
+        ("result function", True),
+        ("message id", False),
+        ("metadata", False),
+        ("citations", False),
+    ],
+)
+def test_a_conversation_digest_covers_what_a_model_is_sent(
+    edit: str, other: bool
+) -> None:
+    """Two requests that differ only in a field `content_hash` leaves out: another conversation when a provider sends the model the field."""
+    from inspect_ai._util.citation import UrlCitation
+    from inspect_ai._util.content import ContentReasoning
+    from inspect_ai.agent._bridge._sentinel import HandoutPoint
+    from inspect_ai.model._message_ids import content_hash
+
+    def request(edited: bool) -> list[ChatMessage]:
+        internal: dict[str, JsonValue] = (
+            {"b": 2, "a": 1}
+            if edited and edit == "text internal key order"
+            else {"a": 1, "b": 3}
+            if edited and edit == "text internal"
+            else {"a": 1, "b": 2}
+        )
+        assistant = ChatMessageAssistant(
+            id="edited" if edited and edit == "message id" else "reply",
+            content=[
+                ContentReasoning(
+                    reasoning="Thinking.",
+                    signature="S2"
+                    if edited and edit == "reasoning signature"
+                    else "S1",
+                    internal={
+                        "stash": 2 if edited and edit == "reasoning internal" else 1
+                    },
+                ),
+                ContentText(
+                    text="Noted.",
+                    internal=internal,
+                    citations=[UrlCitation(url="https://example.com")]
+                    if edited and edit == "citations"
+                    else None,
+                ),
+            ],
+            metadata={"note": "edited"} if edited and edit == "metadata" else None,
+            tool_calls=[READ],
+        )
+        result = ChatMessageTool(
+            content="contents",
+            tool_call_id=READ.id,
+            function="status"
+            if edited and edit == "result function"
+            else READ.function,
+        )
+        return [ChatMessageUser(content=TASK), assistant, result]
+
+    def point(messages: list[ChatMessage]) -> HandoutPoint:
+        return HandoutPoint(lambda: messages, content_hash, "reply", lambda *_: True)
+
+    original, edited = point(request(False)), point(request(True))
+    assert original.contents == edited.contents
+    assert (original.digests[-1] != edited.digests[-1]) is other
+
+
 async def test_a_result_under_an_id_never_handed_out_is_checked_once() -> None:
     seen: Steps = []
     model = Scripted(calls_output(READ), calls_output())

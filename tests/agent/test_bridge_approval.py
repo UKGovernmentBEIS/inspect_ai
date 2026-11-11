@@ -7456,6 +7456,102 @@ async def test_a_host_call_gets_no_other_conversations_context_when_murmur_colli
         assert after.input is None
 
 
+@pytest.mark.usefixtures("fake_sentinel")
+@pytest.mark.parametrize(
+    "edit",
+    ["internal", "internal key order", "signature", "text", "continuation"],
+)
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+async def test_a_history_with_an_edited_internal_tag_is_another_conversation(
+    dialect: HostDialect, edit: str
+) -> None:
+    """A sub-agent sends the main conversation's history with an earlier message edited, then main's pending reply.
+
+    An earlier assistant message carries a content-internal tag, which
+    Completions (in a content part), Responses and Anthropic read into its
+    text's `internal`, and a provider such as Anthropic's sends back to the
+    model in its text;
+    Google keeps it as text. The sub-agent edits the tag's value or its key
+    order, or (`text`) the message's text, and is then handed the host call
+    main's pending reply was handed. Its request sends the model another
+    conversation, so neither execution gets a proposal's context. With
+    `signature`, it edits the signature of a `<think>` block before the
+    text, which Completions and Responses read into a reasoning part and an
+    OpenAI-compatible provider sends back in its `<think>` tag (Google drops
+    the block). With
+    `continuation`, main itself sends the history and keeps its context.
+    """
+    from inspect_ai.model._internal import content_internal_tag
+
+    calls = [
+        ToolCall(id=f"call{i}", function="read_file", arguments={"path": "p"})
+        for i in range(2)
+    ]
+    done = ModelOutput.from_content("mockllm/model", "Done.")
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[tool_calls_output(calls[0]), tool_calls_output(calls[1]), done],
+    )
+    bridge = _counted_host_bridge(model)
+    [info] = declare("read_file")
+    google = dialect == "google"
+
+    def history(
+        text: str, internal: dict[str, Any], signature: str = "S1"
+    ) -> list[dict[str, Any]]:
+        thought = f'<think signature="{signature}">\nThinking.\n</think>'
+        noted = f"{thought}\n{text}\n{content_internal_tag(internal)}"
+        return [
+            {"role": "model", "parts": [{"text": noted}]}
+            if google
+            # Completions drops the internal of string content
+            else {"role": "assistant", "content": [{"type": "text", "text": noted}]}
+            if dialect == "completions"
+            else {"role": "assistant", "content": noted},
+            {"role": "user", "parts": [{"text": "Go on."}]}
+            if google
+            else {"role": "user", "content": "Go on."},
+        ]
+
+    main = _HostConversation(dialect, "Read p.", info)
+    main.history += history("Noted.", {"note": "A", "seen": 1})
+    seen: list[AfterToolCall] = []
+    with active_test_sentinel(record_tool_results(seen)):
+        proposed = await main.request(bridge)
+        main.results(proposed, ["pending"])
+        if edit == "continuation":
+            other = main
+        else:
+            other = _HostConversation(dialect, "Read p.", info)
+            other.history += history(
+                "NOTED." if edit == "text" else "Noted.",
+                {"seen": 1, "note": "A"}
+                if edit == "internal key order"
+                else {"note": "B", "seen": 1}
+                if edit == "internal"
+                else {"note": "A", "seen": 1},
+                "S2" if edit == "signature" else "S1",
+            )
+            # main's pending reply and the report of its call, as main sent them
+            other.history += main.history[len(other.history) :]
+        other.history.append(
+            {"role": "user", "parts": [{"text": "More."}]}
+            if google
+            else {"role": "user", "content": "More."}
+        )
+        await other.request(bridge)
+        await call_host_tool(bridge)("host", "read_file", {"path": "p"})
+
+    [after] = _executed(seen)
+    # Google drops a `<think>` block it has no thought signature for, so the
+    # model is sent the same conversation
+    if edit == "continuation" or (google and edit == "signature"):
+        assert after.input is not None
+        assert [m.text for m in after.input][0] == "Read p."
+    else:
+        assert after.input is None
+
+
 async def _provider_parsed_reads(
     dialect: HostDialect, paths: Sequence[str], generation: int, google_ids: bool
 ) -> ModelOutput:
