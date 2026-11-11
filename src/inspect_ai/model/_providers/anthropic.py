@@ -1177,6 +1177,7 @@ class AnthropicAPI(ModelAPI):
         # compaction), we may have orphaned tool_use or tool_result blocks.
         # Pad with fake paired items to satisfy API validation.
         messages = pad_tool_messages_for_token_counting(messages)
+        messages = pad_server_tool_blocks_for_token_counting(messages)
 
         # count_tokens applies the same thinking-block validation as generate
         # (non-empty thinking; signatures on the latest assistant message must be
@@ -6093,6 +6094,95 @@ def pad_tool_messages_for_token_counting(
                         result.append(
                             UserMessageParam(role="user", content=fake_tool_results)
                         )
+
+    return result
+
+
+# server tool result block types mapped to the server tool that produces them
+_SERVER_TOOL_RESULT_TOOL_NAMES: dict[str, str] = {
+    "web_search_tool_result": "web_search",
+    "web_fetch_tool_result": "web_fetch",
+    "code_execution_tool_result": "code_execution",
+    "bash_code_execution_tool_result": "bash_code_execution",
+    "text_editor_code_execution_tool_result": "text_editor_code_execution",
+}
+
+
+def pad_server_tool_blocks_for_token_counting(
+    messages: list[MessageParam],
+) -> list[MessageParam]:
+    """Pad server tool blocks to satisfy Anthropic's API validation for token counting.
+
+    Anthropic's count_tokens API validates server tool structure the same way
+    generate does:
+    - Every server tool result block (e.g. `web_search_tool_result`) must have
+      its `server_tool_use` block earlier in the request
+    - Every `server_tool_use` block issued from inside code execution (web search
+      with dynamic filtering) must have the code execution `server_tool_use`
+      block named by its `caller.tool_id` earlier in the request
+
+    A turn can end while a server tool call is still running (a client tool call
+    cut it short), in which case its result arrives at the start of a later
+    assistant message (see `_ServerToolSpanRecorder.add_prior_turn_result`).
+    Compaction counts message *subsets*, so that later message can be counted
+    without the earlier one holding the use block, which the API rejects
+    ("unexpected `tool_use_id` found in `web_search_tool_result` blocks", "source
+    tool ... not found for tool use block"). Insert a minimal placeholder
+    `server_tool_use` block ahead of each such block.
+
+    This slightly overcounts tokens but that's acceptable for compaction triggering.
+
+    Mirrors `pad_tool_messages_for_token_counting`: a count-time-only fixup for
+    Anthropic's message-structure validation.
+    """
+    seen_use_ids: set[str] = set()
+    result: list[MessageParam] = []
+    for msg in messages:
+        content = msg.get("content")
+        if msg["role"] != "assistant" or not isinstance(content, list):
+            result.append(msg)
+            continue
+
+        padded: list[Any] = []
+        changed = False
+        for block in content:
+            if isinstance(block, dict):
+                block_type = block.get("type")
+                missing_use: tuple[str, str] | None = None
+                if block_type == "server_tool_use":
+                    caller = block.get("caller")
+                    source_id = (
+                        caller.get("tool_id") if isinstance(caller, dict) else None
+                    )
+                    if source_id and source_id not in seen_use_ids:
+                        missing_use = (source_id, "code_execution")
+                    if block.get("id"):
+                        seen_use_ids.add(block["id"])
+                elif block_type in _SERVER_TOOL_RESULT_TOOL_NAMES:
+                    tool_use_id = block.get("tool_use_id")
+                    if tool_use_id and tool_use_id not in seen_use_ids:
+                        missing_use = (
+                            tool_use_id,
+                            _SERVER_TOOL_RESULT_TOOL_NAMES[block_type],
+                        )
+                if missing_use is not None:
+                    use_id, name = missing_use
+                    seen_use_ids.add(use_id)
+                    changed = True
+                    padded.append(
+                        {
+                            "type": "server_tool_use",
+                            "id": use_id,
+                            "name": name,
+                            "input": {},
+                        }
+                    )
+            padded.append(block)
+
+        if changed:
+            result.append(AssistantMessageParam(role="assistant", content=padded))
+        else:
+            result.append(msg)
 
     return result
 
