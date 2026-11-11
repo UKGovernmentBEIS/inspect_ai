@@ -449,7 +449,7 @@ def _prepared_hash_bytes(messages: list[ChatMessage]) -> int:
     """Bytes `content_hash` hashes preparing `messages` for a model without tool result images."""
     from unittest.mock import patch
 
-    from inspect_ai._util.hash import sha256_hash
+    from inspect_ai._util.hash import mm3_hash
     from inspect_ai.model import _message_ids
     from inspect_ai.model._model import tool_result_media_as_user_message
     from inspect_ai.tool._tools._computer._computer import _computer_model_input
@@ -468,9 +468,9 @@ def _prepared_hash_bytes(messages: list[ChatMessage]) -> int:
     def counting_hash(value: str) -> str:
         nonlocal hashed
         hashed += len(value)
-        return sha256_hash(value)
+        return mm3_hash(value)
 
-    with patch.object(_message_ids, "sha256_hash", counting_hash):
+    with patch.object(_message_ids, "mm3_hash", counting_hash):
         resolved = resolve_tool_model_input(
             [tdef], messages, {"disable_computer_screenshot_truncation": False}
         )

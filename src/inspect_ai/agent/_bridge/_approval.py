@@ -335,9 +335,6 @@ async def apply_bridge_tool_approval(
                         )
                     target_checks.append(
                         SentinelCheck(
-                            handed=replace(
-                                call, arguments=modified.get(index, call.arguments)
-                            ),
                             call=checked,
                             viewer=viewer,
                             message=message,

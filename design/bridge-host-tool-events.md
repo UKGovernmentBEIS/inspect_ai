@@ -511,8 +511,11 @@ proposal, and fixing the pairing would mean keeping evicted grants.
   separately for each, and the resulting `ApprovalEvent`s carry the proposing
   id. See
   [Bridged Agents](../docs/approval.qmd#bridged-agents).
-- **Sentinel.** The host executor runs the sentinel's `tool_result` check on
-  the result as delivered, in a `sentinel_bridge` span. Sentinel replay
+- **Sentinel.** The host executor runs no sentinel tool stage. The bridge
+  checks the call when the model proposes it, and its result when the agent's
+  next request carries it (`sentinel_tool_results()`), each in a
+  `sentinel_bridge` span under the request, not under the tool span: the
+  request carries the call's id, which the MCP call does not. Sentinel replay
   rebuilds no tool stage for a `ToolEvent` with `metadata["bridge"]`, and
   warns.
 - **Hooks, control server, TUI, dataframes.** Pending host events drive the

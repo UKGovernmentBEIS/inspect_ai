@@ -1076,9 +1076,9 @@ def test_sandbox_bridge_runs_the_sentinel_for_a_host_tool(terminate: bool) -> No
     """Both tool stages run for a bridged host tool, across the RPC boundary.
 
     The tool_call stage runs on the model's response; the tool_result stage runs
-    in the service before the result reaches the agent, and not again when the
-    agent sends the result back to the model. A tool_result terminate ends the
-    sample from the service task.
+    once, when the agent sends the result back to the model, and not when the
+    host tool executes. A tool_result terminate ends the sample before the
+    model is called.
     """
     from test_helpers.fake_sentinel import (
         AfterToolCall,

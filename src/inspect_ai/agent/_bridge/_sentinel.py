@@ -15,7 +15,6 @@ from typing import (
     Hashable,
     Iterable,
     Iterator,
-    Literal,
     NamedTuple,
     Sequence,
     TypeVar,
@@ -26,16 +25,13 @@ from pydantic import BaseModel
 from pydantic_core import to_json, to_jsonable_python
 from shortuuid import uuid
 
-from inspect_ai._sentinel._agent_state import bridge_request
 from inspect_ai._sentinel._context import SentinelFailure, checks_tool_calls
 from inspect_ai._sentinel._conversation import current_conversation
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.content import (
-    Content,
     ContentAudio,
     ContentDocument,
     ContentImage,
-    ContentReasoning,
     ContentText,
     ContentVideo,
 )
@@ -54,16 +50,14 @@ from inspect_ai.model._chat_message import (
 from inspect_ai.model._providers._google_computer_use_name import (
     gemini_computer_action_names,
 )
-from inspect_ai.tool._tool import Tool, ToolResult
+from inspect_ai.tool._tool import ToolResult
 from inspect_ai.tool._tool_call import (
     ToolCall,
-    ToolCallError,
     ToolCallView,
     ToolCallViewer,
     ToolCallViewError,
     resolve_tool_call_view,
 )
-from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._span import in_agent_span
 
@@ -78,8 +72,8 @@ T = TypeVar("T")
 
 _MAX_PROPOSALS = 1000
 
-# a result no assistant message in the request accounts for, or a host call no
-# proposal does, has no message that made the call
+# a result no assistant message in the request accounts for has no message that
+# made the call
 _NO_MESSAGE_ID = ""
 
 # The fields of the step a result check sends the protocol (`AfterToolCall`)
@@ -98,11 +92,10 @@ STEP_DIGEST_FIELDS = frozenset(
     }
 )
 STEP_DIGEST_EXCLUDED = {
-    "output": "the execution's, which only a host step has: what the tool "
-    "returned, which the delivered result was made from (a report's is the "
-    "result's own content, `_output`, which the result covers)",
-    "truncated": "the execution's, which only a host step has: the cut of that "
-    "output, False when there was none (a report's is None)",
+    "output": "the result's own content (`_output`), which the result covers: "
+    "the tool's return value never reaches the bridge",
+    "truncated": "None in every bridge check: only the scaffold or the host "
+    "tool's execution knows the cut",
     "history": "the conversation's record when the check runs, which grows with "
     "every step, so a replay would never be the same step",
     "human_decisions": "as `history`",
@@ -138,9 +131,6 @@ class Produced:
 
 
 class SentinelCheck(NamedTuple):
-    handed: ToolCall
-    """The call as handed to the scaffold (the model's id, the approved arguments)."""
-
     call: ToolCall
     """The call the steps show (the model's id; a dispatched call's target)."""
 
@@ -195,150 +185,18 @@ class _Handed(NamedTuple):
     """Whether the call was handed out more than once, in any requests: a
     retry, a cache hit and another conversation alike. Which handout a
     result answers can't be told, then or after any later handout, so none
-    of its results keeps a proposal's context, reported (`_Handouts`) or
-    executed on the host (`SandboxAgentBridge.handed_to_several`); each is
-    still checked as the targets its handouts resolved to."""
+    of its results keeps a proposal's context (`_Handouts`); each is still
+    checked as the targets its handouts resolved to."""
 
     read_back: tuple[tuple[str, str], ...] = ()
     """The forms its dialect reads handed calls back in (`read_back`), where
     those differ from the calls: each the read-back call's key and the
     handed call's (`_call_key`)."""
 
-    host: tuple[tuple[str, str], ...] = ()
-    """The host calls its handouts denote (`hand_over_calls`): each a handed
-    call's key (`_call_key`) and a host call's (`host_call_key`). A result
-    reported for a handout denoting a host call handed to several
-    conversations (`shared`) gets no proposal's context, as the host call's
-    own result doesn't."""
-
-    replies: tuple[str, ...] = ()
-    """The replies that handed it out while it was handed out once
-    (`_Conversation.handout`): each is handed out again when it is."""
-
     targets: tuple[_Target, ...] = ()
     """The targets each of its handouts resolved to, without their viewers or
     context, so a result of the handout is checked as them once its proposal
     is evicted or lost to a resume (`_Handouts._checks`)."""
-
-
-class _Conversation(NamedTuple):
-    """The conversation a host call was handed to, by the latest reply that handed it (`_Handouts.hand_over_calls`).
-
-    Ids, counts and a digest only, so one is kept per call for the sample.
-    """
-
-    messages: int = 0
-    """How many messages the request the reply answered had."""
-
-    request: str = ""
-    """Their digest (`HandoutPoint`)."""
-
-    reply: str = ""
-    """The reply's id."""
-
-    handout: str = ""
-    """The reply's handout, unique to it: in `_Handouts.repeated` once any of
-    its calls denoting host calls is handed out again (`_Handed.ambiguous`),
-    so a reply's record is looked up, not its calls."""
-
-    shared: bool = False
-    """Whether another conversation may have been handed the call. Sticky; the
-    fields above are then dropped."""
-
-
-_SHARED = _Conversation(shared=True)
-
-
-class HandoutPoint:
-    """Where in its conversation a reply is handed to the scaffold: the request it answers, and the reply.
-
-    The request is identified by its messages' contents (`content_hash`), as
-    the scaffold sends them, rather than by the ids placement gives them: a
-    request placement can't place (a concurrent sub-agent's) gets a reply it
-    was handed under a new id. Contents are compared through prefix digests,
-    computed once and only when a call is recorded. Each message's digest
-    also covers what a provider can send the model of it that its content
-    leaves out (`unhashed_model_input`), so a request whose model input
-    differs is another conversation.
-    """
-
-    def __init__(
-        self,
-        messages: Callable[[], Sequence[ChatMessage]],
-        contents: Callable[[ChatMessage], str],
-        reply: str,
-        holds: Callable[[int, str, str], bool],
-    ) -> None:
-        self._messages = messages
-        self._content = contents
-        self.reply = reply
-        """The reply's id."""
-        self._holds = holds
-        """Whether the request's message at an index, with a content, is the reply with an id."""
-
-    @cached_property
-    def contents(self) -> list[str]:
-        """The contents of the request's messages."""
-        return [self._content(message) for message in self._messages()]
-
-    @cached_property
-    def digests(self) -> list[str]:
-        """The digest of each prefix of the request's messages (contents, and `unhashed_model_input`), the empty one first."""
-        digests = [_digest([])]
-        for message, content in zip(self._messages(), self.contents, strict=True):
-            digests.append(
-                _digest([digests[-1], content, unhashed_model_input(message)])
-            )
-        return digests
-
-    @property
-    def messages(self) -> int:
-        return len(self.digests) - 1
-
-    def continues(self, conversation: _Conversation) -> bool:
-        """Whether this request holds `conversation`'s latest reply after that reply's request.
-
-        It holds that reply's request and then the reply (`holds`): as handed,
-        in a form its dialect sends it back in, or as the scaffold edited it.
-        """
-        return (
-            self.messages > conversation.messages
-            and self.digests[conversation.messages] == conversation.request
-            and self._holds(
-                conversation.messages,
-                self.contents[conversation.messages],
-                conversation.reply,
-            )
-        )
-
-
-def unhashed_model_input(message: ChatMessage) -> list[Any]:
-    """What a provider can send a model of `message` that `content_hash` leaves out, in order.
-
-    Per content part, by position: a text part's `internal`, which Anthropic
-    and OpenAI-compatible providers send in its text
-    (`content_internal_tag()`), and a reasoning part's `internal` and
-    `signature`, which OpenAI-compatible providers send in its `<think>` tag
-    (and the Responses API decrypts a stashed `encrypted_content`), each
-    serialized as sent, key order included; and a result's function, which
-    Google sends as `FunctionResponse.name`. A scaffold sets each of them
-    through a dialect.
-    """
-    unhashed: list[Any] = []
-    if not isinstance(message.content, str):
-        for index, part in enumerate(message.content):
-            if isinstance(part, ContentText) and part.internal is not None:
-                unhashed.append([index, json.dumps(part.internal)])
-            elif isinstance(part, ContentReasoning) and (
-                part.internal is not None or part.signature is not None
-            ):
-                internal = (
-                    json.dumps(part.internal) if part.internal is not None else None
-                )
-                unhashed.append([index, internal, part.signature])
-    if isinstance(message, ChatMessageTool):
-        unhashed.append(message.function)
-    return unhashed
 
 
 class _SavedHandouts(BaseModel):
@@ -350,18 +208,12 @@ class _SavedHandouts(BaseModel):
     inherited: list[str] = []
     """The conservative keys of the results the bridge started with (`inherited_result_keys`)."""
 
-    conversations: dict[str, _Conversation] = {}
-    """Per host call (`host_call_key`)."""
-
-    repeated: list[str] = []
-    """The replies handed out more than once (`_Conversation.handout`)."""
-
 
 class _Result(NamedTuple):
     message: ChatMessageTool
 
     checks: tuple[SentinelCheck, ...]
-    """The checks of every target the result may be of; a host execution has only its actual target."""
+    """The checks of every target the result may be of."""
 
     digests: tuple[str, ...]
     """The digest of each check's step (`_Steps`)."""
@@ -430,44 +282,33 @@ class _Handouts:
     (`reserved_ids`) are kept for the life of the bridge and in its
     checkpoint (`saved`), apart from the proposals (bounded).
 
+    A result is checked when a request carries it to the model, whether the
+    scaffold ran the tool or a bridged host tool did: the request holds the
+    call's id, which a host tool's execution (an MCP call) does not, and the
+    result as the model will see it. A host execution runs no check of its
+    own (`execute_host_tool`).
+
     A result of a handout is checked as the handout's targets, with its
     proposal's checks, while the proposal is kept. The targets each handout
     of an id resolved to are kept for the sample and in its checkpoint
     (`_Handed.targets`), so once the proposal is evicted or lost to a resume
     the result is checked as them with the request's conversation and no
     model input, each with its bridged tool's viewer (`viewer`) or, without
-    one, none; and a later handout of the call adds its targets to them. A
-    result reported for a host call handed to several conversations also
-    gets no proposal's context (`shared`).
+    one, none; and a later handout of the call adds its targets to them.
 
     A result is exempt from checking only if an identical check already
     passed: one whose step, as the protocol receives it, is the same
     (`_Steps`). A result's step is resolved first (its targets, any context
-    removed, the fallback once its proposal is gone), so a report needing a
+    removed, the fallback once its proposal is gone), so a result needing a
     check no step covered (another target, other arguments, another
-    conversation, no context) gets one, while an unchanged replay is the
-    same step and is not checked again. Each target's step is its own: a
-    result checked as more targets than before runs only the new ones. A step
-    whose check is running is waited for, and one whose check failed fails
-    again. The digests of passed steps are kept in the checkpoint
-    (`checked`); proposals are not, so after a resume a result gets its
-    targets' steps without context and is checked again, as after its
-    proposal's eviction.
-
-    A host call's result is checked when the call executes, as the result
-    the scaffold receives under the call it was handed, and its step's digest
-    is recorded like a report's. A report of that result, unchanged, for the
-    same handout with the same targets and context, is the same step and is
-    not checked again: each call to a host tool is checked once. A step
-    leaves out `output` and `truncated` (`STEP_DIGEST_EXCLUDED`), which
-    describe the execution and only a host step has, so the report of a
-    result made from a content part, from a truncated output or of an error
-    is the host step too: the model is sent the result the host check passed,
-    which that check saw with more. A report that changes the result in any
-    way, or with other targets or context, is another step. A report waits
-    for its host check while that runs, and fails if it failed. One run with
-    no proposal's context (a call no proposal accounts for, or one handed to
-    several conversations) is a step no report can be, and is not recorded.
+    conversation, no context, other content) gets one, while an unchanged
+    replay is the same step and is not checked again. Each target's step is
+    its own: a result checked as more targets than before runs only the new
+    ones. A step whose check is running (another request's) is waited for,
+    and one whose check failed fails again. The digests of passed steps are
+    kept in the checkpoint (`checked`); proposals are not, so after a resume
+    a result gets its targets' steps without context and is checked again,
+    as after its proposal's eviction.
 
     The results in the state the bridge starts with were in the agent's
     conversation before the bridge ran, and are not checked again, as a native
@@ -497,8 +338,6 @@ class _Handouts:
         # step digests (`_Steps`)
         self.checked: set[str] = set(saved.checked)
         self.inherited: frozenset[str] = frozenset(saved.inherited)
-        self.conversations: dict[str, _Conversation] = dict(saved.conversations)
-        self.repeated: set[str] = set(saved.repeated)
         self.running: dict[str, anyio.Event] = {}
         self.failed: dict[str, Exception] = {}
 
@@ -514,8 +353,6 @@ class _Handouts:
             handed=dict(self.handed),
             checked=sorted(self.checked),
             inherited=sorted(self.inherited),
-            conversations=dict(self.conversations),
-            repeated=sorted(self.repeated),
         )
 
     def reserve(self, ids: Iterable[str]) -> None:
@@ -580,9 +417,8 @@ class _Handouts:
         `proposed` are the calls as the model proposed them, `handed` as
         approval gave them, and `checks` their `tool_result` checks, in order
         (None without a sentinel). A call whose id was handed out before is
-        ambiguous (`_Handed.ambiguous`), as is every reply that handed it out
-        (`_Handed.replies`), and its proposal checks every target its
-        handouts resolved to.
+        ambiguous (`_Handed.ambiguous`), and its proposal checks every target
+        its handouts resolved to.
         """
         shared = repeated_call_ids(handed)
         for index, (model_call, call) in enumerate(zip(proposed, handed, strict=True)):
@@ -590,8 +426,6 @@ class _Handouts:
             ambiguous = earlier is not None and (
                 earlier.ambiguous or earlier.execution_id is not None
             )
-            if earlier is not None and ambiguous:
-                self.repeated.update(earlier.replies)
             execution_id = uuid()
             key = _call_key(call)
             previous = (
@@ -610,8 +444,7 @@ class _Handouts:
                 execution_id,
                 ambiguous,
                 previous.read_back if previous is not None else (),
-                previous.host if previous is not None else (),
-                targets=targets,
+                targets,
             )
             if checks is None:
                 continue
@@ -680,82 +513,6 @@ class _Handouts:
             self.handed[call.id] = record._replace(
                 read_back=(*record.read_back, (back_key, key))
             )
-
-    def hand_over_calls(
-        self,
-        calls: Sequence[tuple[ToolCall, AbstractSet[str]]],
-        point: HandoutPoint,
-    ) -> None:
-        """Record the host calls a reply handed to the scaffold at `point` denote.
-
-        `calls` are the reply's handed calls that denote host calls, each with
-        their keys (`host_call_key`): a host call's server, tool and
-        arguments, also projected onto a closed schema, so a call a scaffold
-        sends without a proposal's bookkeeping field is the same call.
-
-        Per host call, the bridge keeps the conversation the call was first
-        handed to, as the latest reply in it that handed the call. A later
-        reply handing the call keeps that conversation only when its request
-        continues that reply (`HandoutPoint.continues`) and that reply was
-        handed out once: none of its calls denoting a host call was handed out
-        again, whatever it resolved to then (`_Handed.ambiguous`). A reply
-        handed out again, as a retry, a cache hit or to a conversation that
-        started alike, may be in two conversations, so it certifies neither.
-        Any other reply is another conversation's, or may be: one that started
-        alike, a retry, or an earlier point. The call is then shared for the
-        rest of the sample (`shared`). A reply is recorded once per host call,
-        however many of its calls denote it, as one handout
-        (`_Conversation.handout`) that its calls mark handed out again when
-        they are, so continuing it costs the same whatever its size.
-        """
-        once = self.handed_once(dict.fromkeys(call.id for call, keys in calls if keys))
-        handout = uuid() if once else ""
-        for call, keys in calls:
-            handed = self.handed.get(call.id)
-            if handed is None:
-                continue
-            pairs = {(_call_key(call), key) for key in keys} - set(handed.host)
-            replies = (
-                (*handed.replies, handout)
-                if once and keys and handed.replies[-1:] != (handout,)
-                else handed.replies
-            )
-            if pairs or replies is not handed.replies:
-                self.handed[call.id] = handed._replace(
-                    host=(*handed.host, *sorted(pairs)), replies=replies
-                )
-        for key in {key for _, keys in calls for key in keys}:
-            conversation = self.conversations.get(key)
-            if conversation is not None and conversation.shared:
-                continue
-            if conversation is None or (
-                conversation.handout
-                and conversation.handout not in self.repeated
-                and point.continues(conversation)
-            ):
-                self.conversations[key] = _Conversation(
-                    point.messages, point.digests[-1], point.reply, handout
-                )
-            else:
-                self.conversations[key] = _SHARED
-
-    def handed_once(self, call_ids: Iterable[str]) -> bool:
-        """Whether each call under `call_ids` was handed out once (`_Handed.ambiguous`)."""
-        for call_id in call_ids:
-            handed = self.handed.get(call_id)
-            if handed is None or handed.ambiguous:
-                return False
-        return True
-
-    def shared(self, keys: Iterable[str]) -> bool:
-        """Whether a host call with any of these keys (`host_call_key`) was handed to more than one conversation (`hand_over_calls`).
-
-        A host call carries no call id, so an execution may consume a grant
-        of any handout of its call. Its result gets the context of the
-        proposal whose grant it consumed only while every handout was in one
-        conversation: at worst a later point of that conversation.
-        """
-        return any(self.conversations.get(key, _SHARED).shared for key in keys)
 
     def claim(self, input: list[ChatMessage]) -> _Claimed:
         claimed = _Claimed([], [])
@@ -838,10 +595,7 @@ class _Handouts:
             proposal = self.proposals.get((call_id, handout))
             if proposal is not None:
                 checks = [proposal, *proposal.alternatives]
-                hosts = [
-                    host for handed_call, host in handed.host if handed_call == handout
-                ]
-                if handed.ambiguous or (hosts and self.shared(hosts)):
+                if handed.ambiguous:
                     checks = [_without_context(check, input, found) for check in checks]
             # a call handed out once has its proposal's targets; otherwise add
             # those of an evicted proposal or an earlier handout
@@ -855,9 +609,7 @@ class _Handouts:
         call = _unissued(message, found)[0]
         if found is None and handed is not None and handed.proposed is not None:
             call = ToolCall(id=call_id, function=handed.function, arguments={})
-        return (
-            _without_context(SentinelCheck(call, call, None, "", None), input, found),
-        )
+        return (_without_context(SentinelCheck(call, None, "", None), input, found),)
 
     def _recorded(
         self, handed: _Handed, handout: str, checks: Sequence[SentinelCheck]
@@ -880,7 +632,6 @@ class _Handouts:
             rebuilt.append(
                 SentinelCheck(
                     recorded.call,
-                    recorded.call,
                     viewer,
                     "",
                     None,
@@ -889,13 +640,7 @@ class _Handouts:
             )
         return rebuilt
 
-    async def check(
-        self,
-        bridge: AgentBridge,
-        claim: _Claim,
-        output: ToolResult,
-        truncated: tuple[int, int] | Literal[False] | None = None,
-    ) -> None:
+    async def check(self, bridge: AgentBridge, claim: _Claim) -> None:
         """Run the claim's checks, in order, recording each step as passed or failed."""
         result = claim.result
         for index in claim.owned:
@@ -905,8 +650,6 @@ class _Handouts:
                     bridge,
                     result.checks[index],
                     result.message,
-                    output,
-                    truncated,
                     reject_on_viewer_error=len(result.checks) > 1,
                     view=result.views[index],
                 )
@@ -914,36 +657,6 @@ class _Handouts:
                 self.failed.setdefault(digest, ex)
                 raise
             self.checked.add(digest)
-
-    async def check_host(
-        self,
-        bridge: AgentBridge,
-        check: SentinelCheck,
-        result: ChatMessageTool,
-        output: ToolResult,
-        truncated: tuple[int, int] | Literal[False],
-    ) -> None:
-        """Check a host call's result, as running, recording its step (`_Handouts`).
-
-        It is always checked: its execution is new.
-        """
-        steps = _Steps()
-        checks = steps.checks(None, None, lambda: (check,))
-        claim = _Claim(
-            _Result(
-                result,
-                checks.checks,
-                (_parts_digest(checks.parts[0], steps.result(result)),),
-                checks.views,
-            ),
-            (0,),
-            anyio.Event(),
-        )
-        self._take(claim)
-        try:
-            await self.check(bridge, claim, output, truncated)
-        finally:
-            self.release(claim)
 
     def release(self, claim: _Claim) -> None:
         # a check that did not finish is claimed again by the next request
@@ -1023,8 +736,8 @@ class _Steps:
     renders it, rejecting a viewer error where the check does; the check is
     given that view), the generation's input, tools and tool choice
     (`Produced.digest`), and the result. The result is all of its fields but
-    its `id`, which the bridge gives each parsed message and a host result
-    afresh. The fields left out are those of `STEP_DIGEST_EXCLUDED`. A value
+    its `id`, which the bridge gives each parsed message afresh. The fields
+    left out are those of `STEP_DIGEST_EXCLUDED`. A value
     that can't be serialized gives a digest no other step has.
 
     A check's part of the digest is computed once per set of results it
@@ -1127,11 +840,6 @@ def _handout(handed: _Handed, found: _Call | None) -> str | None:
     matches = {key for key in handed.handed if key == found.key}
     matches |= {key for back, key in handed.read_back if back == found.key}
     return matches.pop() if len(matches) == 1 else None
-
-
-def host_call_key(server: str, tool: str, arguments: str) -> str:
-    """A host call's identity: its bridged server, tool and argument key."""
-    return _digest(["host", server, tool, arguments])
 
 
 def _echoes(call: ToolCall) -> set[str]:
@@ -1336,61 +1044,6 @@ async def sentinel_tool_call(
         )
 
 
-def sentinel_unproposed_host_check(
-    bridge: AgentBridge, tool: str, arguments: dict[str, Any], tool_fn: Tool
-) -> SentinelCheck | None:
-    # a host call no proposal accounts for is checked with the conversation the
-    # bridge last saw, as a scaffold-reported result without a proposal is
-    if not checks_tool_calls():
-        return None
-    call = ToolCall(id=f"call_{tool}_{uuid()[:8]}", function=tool, arguments=arguments)
-    return SentinelCheck(
-        call,
-        call,
-        ToolDef(tool_fn).viewer,
-        "",
-        _NO_MESSAGE_ID,
-    )
-
-
-async def sentinel_host_tool_result(
-    bridge: AgentBridge,
-    check: SentinelCheck,
-    content: str | list[Content],
-    output: ToolResult,
-    error: ToolCallError | None = None,
-    truncated: tuple[int, int] | Literal[False] = False,
-    *,
-    proposed: bool = False,
-) -> None:
-    """Check a host call's result as delivered.
-
-    The result is the one the scaffold receives, under the call it was handed
-    (its id and function). With its grant's proposal's check (`proposed`),
-    its step is recorded, so the scaffold's report of the result for the same
-    handout, unchanged, with the same targets and context, is the same step
-    and is not checked again (`_Handouts`). A check with no proposal's context
-    is of a call no report can be of, and is not recorded.
-
-    The call is the bridged scaffold's, so the check does not see the enclosing
-    agent's messages, as the stages of a bridge request don't
-    (`bridge_request()`).
-    """
-    if not checks_bridged_results():
-        return
-    result = ChatMessageTool(
-        content=content,
-        tool_call_id=check.handed.id,
-        function=check.handed.function,
-        error=error,
-    )
-    with bridge_request():
-        if proposed:
-            await bridge._handouts.check_host(bridge, check, result, output, truncated)
-        else:
-            await _tool_result(bridge, check, result, output, truncated)
-
-
 async def sentinel_tool_results(bridge: AgentBridge, input: list[ChatMessage]) -> None:
     if not checks_bridged_results():
         return
@@ -1403,12 +1056,7 @@ async def sentinel_tool_results(bridge: AgentBridge, input: list[ChatMessage]) -
                     releases.callback(result_checks.release, claim)
                 await tg_collect(
                     [
-                        partial(
-                            result_checks.check,
-                            bridge,
-                            claim,
-                            _output(claim.result.message),
-                        )
+                        partial(result_checks.check, bridge, claim)
                         for claim in claimed.owned
                     ]
                 )
@@ -1437,8 +1085,6 @@ async def _tool_result(
     bridge: AgentBridge,
     check: SentinelCheck,
     result: ChatMessageTool,
-    output: ToolResult,
-    truncated: tuple[int, int] | Literal[False] | None,
     reject_on_viewer_error: bool = False,
     view: ToolCallView | None = None,
 ) -> None:
@@ -1456,8 +1102,9 @@ async def _tool_result(
                     # a copy, so a monitor can't change the call the check keeps
                     deepcopy(check.call),
                     result,
-                    output,
-                    truncated,
+                    _output(result),
+                    # only the scaffold or a host tool's execution knows the cut
+                    None,
                     check.viewer,
                     history=None,
                     producer=producer.event if producer is not None else None,

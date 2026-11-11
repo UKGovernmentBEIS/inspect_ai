@@ -1,6 +1,6 @@
 import json
 from collections.abc import Awaitable, Callable, Iterator, Sequence
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from copy import deepcopy
 from dataclasses import replace
 from pathlib import Path
@@ -745,11 +745,34 @@ def test_a_bridged_calls_stages_are_in_its_generations_conversation(
     ]
 
 
+async def report_host_result(
+    bridge: AgentBridge,
+    model: "Scripted",
+    output: ModelOutput,
+    content: Any,
+    task: str = TASK,
+) -> ModelOutput:
+    """Send the scaffold's next request, reporting `content` for the one call of `output`."""
+    [call] = output.message.tool_calls or []
+    return await generate(
+        bridge,
+        model,
+        [
+            ChatMessageUser(content=task),
+            output.message,
+            ChatMessageTool(
+                content=content, tool_call_id=call.id, function=call.function
+            ),
+        ],
+        declare_read_file(),
+    )
+
+
 async def test_a_bridged_calls_stages_do_not_see_the_enclosing_agents_messages() -> (
     None
 ):
     # the call belongs to the bridged scaffold, whose list the bridge rebuilds
-    # from its requests, at the host tool's result stage too
+    # from its requests, at a host tool's result stage too
     seen: Steps = []
     call = replace(READ, function="mcp__host__read_file")
 
@@ -757,13 +780,16 @@ async def test_a_bridged_calls_stages_do_not_see_the_enclosing_agents_messages()
     def enclosing() -> Agent:
         async def execute(state: AgentState) -> AgentState:
             bridge = sandbox_bridge(AsyncMock(return_value="contents"))
-            await generate(
-                bridge,
-                Scripted(calls_output(call)),
-                [ChatMessageUser(content=TASK)],
-                declare_read_file(),
+            model = Scripted(calls_output(call), calls_output())
+            output = await generate(
+                bridge, model, [ChatMessageUser(content=TASK)], declare_read_file()
             )
-            await call_host_tool(bridge)("host", "read_file", READ.arguments)
+            await report_host_result(
+                bridge,
+                model,
+                output,
+                await call_host_tool(bridge)("host", "read_file", READ.arguments),
+            )
             return state
 
         return execute
@@ -1051,7 +1077,7 @@ async def test_an_escalate_returned_to_the_host_fails_the_sample(after: bool) ->
     ]
 
 
-async def test_host_tool_result_is_checked_in_the_service() -> None:
+async def test_host_tool_result_is_checked_when_reported() -> None:
     seen: Steps = []
     read = ToolCall(
         id="host_1", function="mcp__host__read_file", arguments=READ.arguments
@@ -1066,28 +1092,19 @@ async def test_host_tool_result_is_checked_in_the_service() -> None:
         assert await call_host_tool(bridge)("host", "read_file", READ.arguments) == (
             "host contents"
         )
-        await generate(
-            bridge,
-            model,
-            [
-                ChatMessageUser(content=TASK),
-                output.message,
-                ChatMessageTool(
-                    content="host contents",
-                    tool_call_id=read.id,
-                    function=read.function,
-                ),
-            ],
-            declare_read_file(),
-        )
+        # the host execution runs no check: the request carrying the result does
+        assert [type(step) for step in seen] == [BeforeToolCall]
+        await report_host_result(bridge, model, output, "host contents")
 
     _, after = seen
     assert isinstance(after, AfterToolCall)
     assert after.call == replace(read, function="read_file")
+    assert after.input == model.inputs[0]
     assert after.output == "host contents"
-    assert after.truncated is False
+    # only the host execution knows the output's cut
+    assert after.truncated is None
     assert after.result.tool_call_id == read.id
-    # as the scaffold receives it, under the function it was handed
+    # as the scaffold reports it, under the function it was handed
     assert after.result.function == read.function
     assert after.result.text == "host contents"
     assert observations() == [(read.id, "tool_call"), (read.id, "tool_result")]
@@ -1104,22 +1121,11 @@ async def test_a_bridge_s_tool_checks_are_marked_for_replay() -> None:
         output = await generate(
             bridge, model, [ChatMessageUser(content=TASK)], declare_read_file()
         )
-        await call_host_tool(bridge)("host", "read_file", READ.arguments)
-        # the scaffold reports the host call's result changed, so it is
-        # checked again
-        await generate(
+        await report_host_result(
             bridge,
             model,
-            [
-                ChatMessageUser(content=TASK),
-                output.message,
-                ChatMessageTool(
-                    content="host contents, edited",
-                    tool_call_id=read.id,
-                    function=read.function,
-                ),
-            ],
-            declare_read_file(),
+            output,
+            await call_host_tool(bridge)("host", "read_file", READ.arguments),
         )
 
     begins = {e.id: e for e in transcript().events if isinstance(e, SpanBeginEvent)}
@@ -1128,30 +1134,73 @@ async def test_a_bridge_s_tool_checks_are_marked_for_replay() -> None:
         for e in sentinel_events()
         if e.span_id is not None
     }
-    # a call, a host call's result, and the scaffold's report of it
+    # a host call, and the scaffold's report of its result
     assert list(checks.values()) == [
         ("tool_call", "sentinel", "sentinel_bridge"),
-        ("tool_result", "sentinel", "sentinel_bridge"),
         ("tool_result", "sentinel", "sentinel_bridge"),
     ]
 
 
-async def test_host_tool_result_terminate_propagates_from_the_service() -> None:
+async def test_a_person_at_tool_result_is_asked_once_for_a_host_call(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A person asked at `tool_result` decides once for a host call: when its result is reported, not when it runs, nor when a later request carries it again."""
+    from .test_sentinel_human import Panel, h_ask
+
+    panel = Panel("approve", "looks fine")
+    panel.install(monkeypatch)
     read = ToolCall(
         id="host_1", function="mcp__host__read_file", arguments=READ.arguments
     )
-    model = Scripted(calls_output(read))
+    model = Scripted(calls_output(read), calls_output())
+    bridge = sandbox_bridge(AsyncMock(return_value="host contents"))
+
+    with active(h_ask("tool_result", ["approve", "terminate"])):
+        output = await generate(
+            bridge, model, [ChatMessageUser(content=TASK)], declare_read_file()
+        )
+        delivered = await call_host_tool(bridge)("host", "read_file", READ.arguments)
+        assert panel.views == []
+        reply = await report_host_result(bridge, model, output, delivered)
+        assert len(panel.views) == 1
+        await generate(
+            bridge,
+            model,
+            [
+                ChatMessageUser(content=TASK),
+                output.message,
+                ChatMessageTool(
+                    content="host contents",
+                    tool_call_id=read.id,
+                    function=read.function,
+                ),
+                reply.message,
+                ChatMessageUser(content="Continue."),
+            ],
+            declare_read_file(),
+        )
+
+    assert len(panel.views) == 1
+
+
+async def test_host_tool_result_terminates_when_reported() -> None:
+    read = ToolCall(
+        id="host_1", function="mcp__host__read_file", arguments=READ.arguments
+    )
+    model = Scripted(calls_output(read), calls_output())
     bridge = sandbox_bridge(AsyncMock(return_value="secret"))
 
     with active(bridge_terminate(after=True)):
-        await generate(
+        output = await generate(
             bridge, model, [ChatMessageUser(content=TASK)], declare_read_file()
         )
+        delivered = await call_host_tool(bridge)("host", "read_file", READ.arguments)
+        assert delivered == "secret"
         with pytest.raises(TerminateSampleError, match="saw secret"):
-            await call_host_tool(bridge)("host", "read_file", READ.arguments)
+            await report_host_result(bridge, model, output, delivered)
 
-    # the service dispatcher answers the RPC and propagates the termination
-    assert not bridge._failure_requested.is_set()
+    # the model is not called with the result
+    assert len(model.inputs) == 1
 
 
 @pytest.mark.parametrize("after", [False, True])
@@ -1607,7 +1656,7 @@ async def test_a_host_call_that_fails_validation_has_no_tool_result_stage() -> N
     assert after.result.text == "bad arguments"
 
 
-async def test_a_host_call_matching_several_proposals_gets_no_proposal_context() -> (
+async def test_a_host_result_reported_under_either_proposals_id_gets_that_ids_context() -> (
     None
 ):
     seen: Steps = []
@@ -1615,20 +1664,21 @@ async def test_a_host_call_matching_several_proposals_gets_no_proposal_context()
         id="stale", function="mcp__host__read_file", arguments=READ.arguments
     )
     fresh = replace(stale, id="fresh")
-    model = Scripted(calls_output(stale), calls_output(fresh))
+    model = Scripted(calls_output(stale), calls_output(fresh), calls_output())
     bridge = sandbox_bridge(AsyncMock(return_value="contents"))
 
     with active([bridge_recording(seen)]):
         # the scaffold never ran the first response's call
         await generate(
-            bridge, model, [ChatMessageUser(content=TASK)], declare_read_file()
+            bridge, model, [ChatMessageUser(content=OLD_REQUEST)], declare_read_file()
         )
         await generate(
-            bridge, model, [ChatMessageUser(content=TASK)], declare_read_file()
+            bridge, model, [ChatMessageUser(content=NEW_REQUEST)], declare_read_file()
         )
         await call_host_tool(bridge)("host", "read_file", READ.arguments)
-        # the scaffold reports the result under either call's id: a check
-        # with no proposal's context is no report's step, so each is checked
+        assert not [step for step in seen if isinstance(step, AfterToolCall)]
+        # an MCP call carries no call id, so which call ran can't be told; the
+        # scaffold's report says which call it answers, and is checked as it
         for call in [stale, fresh]:
             await generate(
                 bridge,
@@ -1643,15 +1693,13 @@ async def test_a_host_call_matching_several_proposals_gets_no_proposal_context()
                 declare_read_file(),
             )
 
-    # an MCP call carries no call id, so which execution it is can't be told
-    after, *reports = [step for step in seen if isinstance(step, AfterToolCall)]
-    assert after.call.id not in {"stale", "fresh"}
-    assert after.call.function == "read_file"
-    assert after.message == "" and after.input is None
-    # each conversation was handed the call, so neither report gets its context
-    assert [(step.call.id, step.input) for step in reports] == [
-        ("stale", None),
-        ("fresh", None),
+    reports = [step for step in seen if isinstance(step, AfterToolCall)]
+    assert [
+        (step.call.id, step.call.function, [m.text for m in step.input or []])
+        for step in reports
+    ] == [
+        ("stale", "read_file", [OLD_REQUEST]),
+        ("fresh", "read_file", [NEW_REQUEST]),
     ]
 
 
@@ -1745,9 +1793,7 @@ def test_dropping_old_proposals_warns_once(
     monkeypatch.setattr(inspect_logger, "_warned", [])
     bridge = in_process_bridge([])
     calls = [replace(READ, id=f"read_{i}") for i in range(4)]
-    checks = [
-        _sentinel.SentinelCheck(call, call, None, "", "message_1") for call in calls
-    ]
+    checks = [_sentinel.SentinelCheck(call, None, "", "message_1") for call in calls]
 
     with caplog.at_level("WARNING"):
         bridge._handouts.hand_over(calls[:3], calls[:3], checks[:3])
@@ -1758,7 +1804,7 @@ def test_dropping_old_proposals_warns_once(
     ]
     assert len(warnings) == 1
     proposals = bridge._handouts.proposals.values()
-    assert [p.handed.id for p in proposals] == ["read_2", "read_3"]
+    assert [p.call.id for p in proposals] == ["read_2", "read_3"]
 
 
 def test_a_result_steps_digest_covers_or_names_every_field_of_the_step() -> None:
@@ -1788,7 +1834,7 @@ def test_a_step_that_cannot_be_serialized_is_never_exempt() -> None:
     handouts.hand_over(
         [call],
         [call],
-        [SentinelCheck(call, call, None, "", "message")],
+        [SentinelCheck(call, None, "", "message")],
     )
     input: list[ChatMessage] = [
         ChatMessageAssistant(content="", tool_calls=[call]),
@@ -2444,7 +2490,9 @@ async def test_a_retry_never_restores_an_ambiguous_calls_proposal(
     assert after.input is None
 
 
-async def test_ambiguous_host_grants_check_their_result_with_no_proposal() -> None:
+async def test_a_host_result_under_an_ambiguous_id_is_checked_with_no_proposal() -> (
+    None
+):
     seen: Steps = []
     mock = AsyncMock(return_value="host result")
     call = replace(READ, function="mcp__host__read_file")
@@ -2460,8 +2508,6 @@ async def test_ambiguous_host_grants_check_their_result_with_no_proposal() -> No
         )
         assert bridge._handouts.handed[call.id].ambiguous
         await call_host_tool(bridge)("host", "read_file", call.arguments)
-        # the scaffold reporting the result it was delivered: a check with no
-        # proposal's context is no report's step, so it is checked
         await generate(
             bridge,
             model,
@@ -2477,11 +2523,10 @@ async def test_ambiguous_host_grants_check_their_result_with_no_proposal() -> No
             declare_read_file(),
         )
 
-    executed, reported = [s for s in seen if isinstance(s, AfterToolCall)]
-    assert executed.input is None
-    assert executed.message_id == ""
+    [reported] = [s for s in seen if isinstance(s, AfterToolCall)]
     assert reported.input is None
     assert reported.call.id == call.id
+    assert reported.call.function == "read_file"
 
 
 async def test_a_result_whose_proposal_was_evicted_gets_no_other_context(
@@ -3605,32 +3650,23 @@ async def test_a_colliding_result_of_a_call_never_handed_over_is_checked() -> No
     ]
 
 
-async def test_a_result_colliding_with_a_checked_host_result_is_checked() -> None:
+async def test_a_report_colliding_with_a_checked_host_result_is_checked() -> None:
     public, secret = HOST_COLLIDING
     seen: Steps = []
     read = ToolCall(
         id="host_1", function="mcp__host__read_file", arguments=READ.arguments
     )
-    model = Scripted(calls_output(read), calls_output())
+    model = Scripted(calls_output(read), calls_output(), calls_output())
     bridge = sandbox_bridge(AsyncMock(return_value=public))
 
     with active([bridge_recording(seen)]):
         output = await generate(
             bridge, model, [ChatMessageUser(content=TASK)], declare_read_file()
         )
-        await call_host_tool(bridge)("host", "read_file", READ.arguments)
-        await generate(
-            bridge,
-            model,
-            [
-                ChatMessageUser(content=TASK),
-                output.message,
-                ChatMessageTool(
-                    content=secret, tool_call_id=read.id, function=read.function
-                ),
-            ],
-            declare_read_file(),
-        )
+        delivered = await call_host_tool(bridge)("host", "read_file", READ.arguments)
+        await report_host_result(bridge, model, output, delivered)
+        # then reported again as a result whose Murmur3 digest is the same
+        await report_host_result(bridge, model, output, secret)
 
     assert [step.result.text for step in seen if isinstance(step, AfterToolCall)] == [
         public,
@@ -4130,21 +4166,20 @@ async def test_handouts_with_other_handed_arguments_check_the_call_that_ran(
         if host:
             await call_host_tool(host_bridge)("host", "read_file", ran.arguments)
             mock.assert_awaited_once_with(path="safe.txt")
-        else:
-            await generate(
-                bridge,
-                model,
-                [
-                    *history,
-                    first.message,
-                    ChatMessageTool(
-                        content="safe file contents",
-                        tool_call_id=ran.id,
-                        function=ran.function,
-                    ),
-                ],
-                tools,
-            )
+        await generate(
+            bridge,
+            model,
+            [
+                *history,
+                first.message,
+                ChatMessageTool(
+                    content="safe file contents",
+                    tool_call_id=ran.id,
+                    function=ran.function,
+                ),
+            ],
+            tools,
+        )
 
     [after] = [s for s in seen if isinstance(s, AfterToolCall)]
     assert after.call.arguments == ran.arguments
@@ -4263,7 +4298,6 @@ def test_an_ambiguous_calls_result_is_checked_as_every_target_its_handouts_resol
             [call],
             [
                 SentinelCheck(
-                    call,
                     target,
                     None,
                     "On it.",
@@ -4366,76 +4400,6 @@ def test_renaming_reasoning_anchors_of_a_repeated_call_id_is_linear() -> None:
     assert small > 0
     # linear is 8x; shifting the remaining fresh ids for each anchor is 64x
     assert large <= 12 * small, (small, large)
-
-
-@pytest.mark.parametrize(
-    "edit, other",
-    [
-        ("text internal", True),
-        ("text internal key order", True),
-        ("reasoning internal", True),
-        ("reasoning signature", True),
-        ("result function", True),
-        ("message id", False),
-        ("metadata", False),
-        ("citations", False),
-    ],
-)
-def test_a_conversation_digest_covers_what_a_model_is_sent(
-    edit: str, other: bool
-) -> None:
-    """Two requests that differ only in a field `content_hash` leaves out: another conversation when a provider sends the model the field."""
-    from inspect_ai._util.citation import UrlCitation
-    from inspect_ai._util.content import ContentReasoning
-    from inspect_ai.agent._bridge._sentinel import HandoutPoint
-    from inspect_ai.model._message_ids import content_hash
-
-    def request(edited: bool) -> list[ChatMessage]:
-        internal: dict[str, JsonValue] = (
-            {"b": 2, "a": 1}
-            if edited and edit == "text internal key order"
-            else {"a": 1, "b": 3}
-            if edited and edit == "text internal"
-            else {"a": 1, "b": 2}
-        )
-        assistant = ChatMessageAssistant(
-            id="edited" if edited and edit == "message id" else "reply",
-            content=[
-                ContentReasoning(
-                    reasoning="Thinking.",
-                    signature="S2"
-                    if edited and edit == "reasoning signature"
-                    else "S1",
-                    internal={
-                        "stash": 2 if edited and edit == "reasoning internal" else 1
-                    },
-                ),
-                ContentText(
-                    text="Noted.",
-                    internal=internal,
-                    citations=[UrlCitation(url="https://example.com")]
-                    if edited and edit == "citations"
-                    else None,
-                ),
-            ],
-            metadata={"note": "edited"} if edited and edit == "metadata" else None,
-            tool_calls=[READ],
-        )
-        result = ChatMessageTool(
-            content="contents",
-            tool_call_id=READ.id,
-            function="status"
-            if edited and edit == "result function"
-            else READ.function,
-        )
-        return [ChatMessageUser(content=TASK), assistant, result]
-
-    def point(messages: list[ChatMessage]) -> HandoutPoint:
-        return HandoutPoint(lambda: messages, content_hash, "reply", lambda *_: True)
-
-    original, edited = point(request(False)), point(request(True))
-    assert original.contents == edited.contents
-    assert (original.digests[-1] != edited.digests[-1]) is other
 
 
 async def test_a_result_under_an_id_never_handed_out_is_checked_under_each_id() -> None:
@@ -4717,7 +4681,9 @@ async def test_google_terminates_on_a_repeated_calls_new_result() -> None:
     assert len(model.inputs) == 3
 
 
-async def test_a_scaffold_result_cannot_stand_in_for_a_host_result() -> None:
+async def test_a_result_reported_before_its_host_call_runs_does_not_cover_the_later_one() -> (
+    None
+):
     call = replace(READ, function="mcp__host__read_file")
     model = Scripted(calls_output(call), calls_output())
     tool = AsyncMock(return_value="secret")
@@ -4736,8 +4702,9 @@ async def test_a_scaffold_result_cannot_stand_in_for_a_host_result() -> None:
             ],
             declare_read_file(),
         )
+        delivered = await call_host_tool(bridge)("host", "read_file", READ.arguments)
         with pytest.raises(TerminateSampleError, match="blocked secret"):
-            await call_host_tool(bridge)("host", "read_file", READ.arguments)
+            await report_host_result(bridge, model, one, delivered)
 
     tool.assert_awaited_once()
 
@@ -5042,87 +5009,6 @@ def held_benign(started: Any, release: Any) -> Protocol:
     return after
 
 
-@protocol
-def counted_held(seen: Any, started: Any, release: Any, fail: bool) -> Protocol:
-    async def after(
-        context: Context, step: AfterToolCall, escalations: Escalations
-    ) -> Decision | None:
-        seen.append(step)
-        started.set()
-        await release.wait()
-        if fail:
-            raise RuntimeError("host check failed")
-        return None
-
-    return after
-
-
-@pytest.mark.parametrize("fail", [False, True])
-async def test_a_host_result_reported_during_its_check_waits_for_it(
-    fail: bool, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A report of a host result whose host check is running waits for that check: it passes with it, or fails with it, and is not checked itself."""
-    seen: list[AfterToolCall] = []
-    started, release, waiting = anyio.Event(), anyio.Event(), anyio.Event()
-    call = replace(READ, function="mcp__host__read_file")
-    model = Scripted(calls_output(call), calls_output())
-    bridge = sandbox_bridge(AsyncMock(return_value="contents"))
-    history: list[ChatMessage] = [ChatMessageUser(content=TASK)]
-    claim = bridge._handouts.claim
-
-    def signalled(input: list[ChatMessage]) -> Any:
-        claimed = claim(input)
-        if claimed.waiting:
-            waiting.set()
-        return claimed
-
-    monkeypatch.setattr(bridge._handouts, "claim", signalled)
-    # a monitor error fails the check without ending the sample through the
-    # service runner
-    monkeypatch.setattr(bridge, "request_fail", lambda ex: None)
-    failures: list[BaseException] = []
-
-    with active(counted_held(seen, started, release, fail)):
-        output = await generate(bridge, model, history, declare_read_file())
-
-        async def execute() -> None:
-            try:
-                await call_host_tool(bridge)("host", "read_file", READ.arguments)
-            except Exception as ex:
-                failures.append(ex)
-
-        async def report() -> None:
-            try:
-                await generate(
-                    bridge,
-                    model,
-                    [
-                        *history,
-                        output.message,
-                        ChatMessageTool(
-                            content="contents",
-                            tool_call_id=call.id,
-                            function=call.function,
-                        ),
-                    ],
-                    declare_read_file(),
-                )
-            except Exception as ex:
-                failures.append(ex)
-
-        with anyio.fail_after(10):
-            async with anyio.create_task_group() as tg:
-                tg.start_soon(execute)
-                await started.wait()
-                tg.start_soon(report)
-                await waiting.wait()
-                release.set()
-
-    assert len(seen) == 1
-    assert len(failures) == (2 if fail else 0)
-    assert all("host check failed" in str(failure) for failure in failures)
-
-
 @pytest.mark.parametrize("same_call", [True, False])
 async def test_a_concurrent_changed_result_is_checked(same_call: bool) -> None:
     started, release = anyio.Event(), anyio.Event()
@@ -5253,39 +5139,6 @@ async def test_a_result_is_checked_with_its_proposal_once_its_call_is_compacted(
     assert after.message_id == before.message_id
 
 
-async def test_a_cancelled_host_result_check_consumes_the_grant() -> None:
-    hold = Hold()
-    tool = AsyncMock(return_value="secret")
-    bridge = sandbox_bridge(tool)
-    model = Scripted(calls_output(replace(READ, function="mcp__host__read_file")))
-    handed: list[Any] = []
-
-    with active(held_terminate(hold)):
-        await generate(
-            bridge, model, [ChatMessageUser(content=TASK)], declare_read_file()
-        )
-        with anyio.CancelScope() as scope:
-
-            async def cancel() -> None:
-                await hold.ready.wait()
-                scope.cancel()
-
-            async with anyio.create_task_group() as tg:
-                tg.start_soon(cancel)
-                handed.append(
-                    await call_host_tool(bridge)("host", "read_file", READ.arguments)
-                )
-
-        assert scope.cancelled_caught
-        assert hold.cleaned_up == 1
-        assert handed == []
-        assert not bridge._tool_execution_grants
-        with pytest.raises(PermissionError):
-            await call_host_tool(bridge)("host", "read_file", READ.arguments)
-
-    tool.assert_awaited_once()
-
-
 async def test_a_cancelled_tool_call_stage_registers_nothing() -> None:
     started, cleaned = anyio.Event(), anyio.Event()
     bridge = sandbox_bridge()
@@ -5384,7 +5237,9 @@ async def test_calls_sharing_an_id_keep_their_own_modifications() -> None:
     assert second == replace(two, arguments={"path": "safe.txt"})
 
 
-async def test_a_host_call_beyond_the_scaffold_cap_is_still_checked() -> None:
+async def test_a_host_call_beyond_the_proposal_cap_is_still_checked_when_reported() -> (
+    None
+):
     from inspect_ai.agent._bridge._sentinel import _MAX_PROPOSALS
 
     calls = [
@@ -5397,255 +5252,29 @@ async def test_a_host_call_beyond_the_scaffold_cap_is_still_checked() -> None:
         for i in range(_MAX_PROPOSALS + 1)
     ]
     bridge = sandbox_bridge(AsyncMock(return_value="secret"))
-    model = Scripted(calls_output(*calls))
+    model = Scripted(calls_output(*calls), calls_output())
 
     with active(terminate_on_secret()):
-        await generate(
+        output = await generate(
             bridge, model, [ChatMessageUser(content=TASK)], declare_read_file()
         )
+        delivered = await call_host_tool(bridge)("host", "read_file", {"path": "0"})
+        assert delivered == "secret"
         with pytest.raises(TerminateSampleError, match="blocked secret"):
-            await call_host_tool(bridge)("host", "read_file", {"path": "0"})
-
-
-async def test_an_evicted_host_grant_takes_its_check_and_denies_the_call(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from inspect_ai.agent._bridge.sandbox import types as sandbox_types
-
-    monkeypatch.setattr(sandbox_types, "_MAX_TOOL_EXECUTION_GRANTS", 2)
-    calls = [
-        replace(
-            READ,
-            id=f"call_{i}",
-            function="mcp__host__read_file",
-            arguments={"path": str(i)},
-        )
-        for i in range(3)
-    ]
-    tool = AsyncMock(return_value="secret")
-    bridge = sandbox_bridge(tool)
-    model = Scripted(calls_output(*calls))
-
-    with active(terminate_on_secret()):
-        await generate(
-            bridge, model, [ChatMessageUser(content=TASK)], declare_read_file()
-        )
-        with pytest.raises(PermissionError):
-            await call_host_tool(bridge)("host", "read_file", {"path": "0"})
-        tool.assert_not_awaited()
-        with pytest.raises(TerminateSampleError, match="blocked secret"):
-            await call_host_tool(bridge)("host", "read_file", {"path": "2"})
-
-
-async def test_a_host_tool_error_is_checked_before_it_is_returned() -> None:
-    from inspect_ai.tool import ToolError
-
-    call = replace(READ, function="mcp__host__read_file")
-    bridge = sandbox_bridge(AsyncMock(side_effect=ToolError("secret error text")))
-    model = Scripted(calls_output(call))
-
-    with active(bridge_terminate(after=True)):
-        await generate(
-            bridge, model, [ChatMessageUser(content=TASK)], declare_read_file()
-        )
-        with pytest.raises(TerminateSampleError):
-            await call_host_tool(bridge)("host", "read_file", READ.arguments)
-
-    assert not bridge._failure_requested.is_set()
-
-
-async def test_a_host_tool_error_reaches_the_scaffold_once_checked() -> None:
-    from inspect_ai.tool import ToolError
-
-    seen: Steps = []
-    call = replace(READ, function="mcp__host__read_file")
-    bridge = sandbox_bridge(AsyncMock(side_effect=ToolError("secret error text")))
-    model = Scripted(calls_output(call))
-
-    with active([bridge_recording(seen)]):
-        await generate(
-            bridge, model, [ChatMessageUser(content=TASK)], declare_read_file()
-        )
-        with pytest.raises(ToolError, match="secret error text"):
-            await call_host_tool(bridge)("host", "read_file", READ.arguments)
-
-    _, after = seen
-    assert isinstance(after, AfterToolCall)
-    assert after.result.error is not None
-    assert after.result.error.type == "unknown"
-    assert after.result.error.message == (
-        "Error calling method call_tool: secret error text"
-    )
-    assert bridge._failure is None
-
-
-def host_errors() -> list[Exception]:
-    from inspect_ai.tool import ToolError
-
-    return [
-        TimeoutError("secret token"),
-        ToolError("secret token"),
-        ExceptionGroup("secret group", [TimeoutError("timed out")]),
-        ExceptionGroup("tool failed", [ToolError("secret token")]),
-    ]
-
-
-@pytest.mark.parametrize("decided_by", ["defect", "limit", "bare_limit", "tool_errors"])
-async def test_a_host_tool_exception_group_is_decided_before_its_result_check(
-    decided_by: str,
-) -> None:
-    # the group is classified by its decisive leaf (a defect, then a limit,
-    # before an expected tool error), whatever its order, before the
-    # tool_result stage decides whether the model sees an error to check
-    from inspect_ai.tool import ToolError
-    from inspect_ai.util._limit import LimitExceededError
-
-    bug = RuntimeError("tool bug")
-    limit = LimitExceededError("message", value=2, limit=1)
-    second: Exception = {
-        "defect": bug,
-        "limit": limit,
-        "bare_limit": limit,
-        "tool_errors": ToolError("another"),
-    }[decided_by]
-    group = ExceptionGroup("secret group", [ToolError("secret token"), second])
-    seen: Steps = []
-    call = replace(READ, function="mcp__host__read_file")
-    bridge = sandbox_bridge(
-        AsyncMock(side_effect=limit if decided_by == "bare_limit" else group)
-    )
-
-    with active([bridge_recording(seen)]):
-        await generate(
-            bridge,
-            Scripted(calls_output(call)),
-            [ChatMessageUser(content=TASK)],
-            declare_read_file(),
-        )
-        with pytest.raises(Exception) as raised:
-            await call_host_tool(bridge)("host", "read_file", READ.arguments)
-
-    after = [step for step in seen if isinstance(step, AfterToolCall)]
-    if decided_by == "defect":
-        # a bug in the eval's tool fails the sample; the model sees no error
-        assert after == []
-        assert bridge._failure is bug
-        assert raised.value is group
-    elif decided_by in ("limit", "bare_limit"):
-        # main turns a limit into a model-facing tool error
-        [checked] = after
-        assert checked.result.error is not None
-        assert checked.result.error.type == "limit"
-        assert bridge._failure is None
-        assert isinstance(raised.value, ToolError)
-        assert "message limit of 1" in str(raised.value)
-    else:
-        # the scaffold receives the group's error, which is checked as such
-        [checked] = after
-        assert checked.result.error is not None
-        assert checked.result.error.message == (
-            "Error calling method call_tool: secret group (2 sub-exceptions)"
-        )
-        assert bridge._failure is None
-        assert raised.value is group
-
-
-@protocol
-def terminate_on_secret_text() -> Protocol:
-    async def after(
-        context: Context, step: AfterToolCall, escalations: Escalations
-    ) -> Decision | None:
-        if "secret" in result_text(step):
-            return Decision.terminate("blocked secret")
-        return None
-
-    return after
-
-
-def result_text(step: AfterToolCall) -> str:
-    """The result's text and its error's message, as rules read a result."""
-    error = step.result.error
-    return step.result.text + (f"\n{error.message}" if error is not None else "")
-
-
-async def deliver_host_call(bridge: SandboxAgentBridge) -> str | None:
-    """The error the sandbox service delivers for a call to the host `read_file`."""
-    from inspect_ai.agent._bridge.sandbox.service import MODEL_SERVICE
-    from inspect_ai.util import ExecResult, SandboxEnvironment
-    from inspect_ai.util._sandbox.service import SandboxService
-
-    request_id = "req1"
-    request = {
-        "id": request_id,
-        "method": "call_tool",
-        "params": {"server": "host", "tool": "read_file", "arguments": READ.arguments},
-    }
-    service = SandboxService(
-        name=MODEL_SERVICE, sandbox=cast(SandboxEnvironment, object())
-    )
-    service._requests_dir = "/requests"
-    service.add_method("call_tool", call_host_tool(bridge))
-    read = AsyncMock(return_value=ExecResult(True, 0, json.dumps(request), ""))
-    write = AsyncMock()
-    with (
-        patch.object(service, "_exec", read),
-        patch.object(service, "_write_response", write),
-    ):
-        await service._handle_request(f"/requests/{request_id}.json")
-    _, _, result, error = write.call_args.args
-    assert result is None
-    return cast(str | None, error)
-
-
-@pytest.mark.parametrize("error", host_errors(), ids=repr)
-async def test_a_host_tool_error_is_checked_as_the_scaffold_receives_it(
-    error: Exception,
-) -> None:
-    seen: Steps = []
-    call = replace(READ, function="mcp__host__read_file")
-    bridge = sandbox_bridge(AsyncMock(side_effect=error))
-    model = Scripted(calls_output(call))
-
-    with active([bridge_recording(seen)]):
-        await generate(
-            bridge, model, [ChatMessageUser(content=TASK)], declare_read_file()
-        )
-        delivered = await deliver_host_call(bridge)
-
-    _, after = seen
-    assert isinstance(after, AfterToolCall)
-    assert after.result.error is not None
-    assert after.result.error.message == delivered
-    assert after.result.text == ""
-    assert bridge._failure is None
-
-
-@pytest.mark.parametrize(
-    "error,terminates",
-    list(zip(host_errors(), [True, True, True, False])),
-    ids=repr,
-)
-async def test_a_host_tool_error_terminates_on_what_the_scaffold_receives(
-    error: Exception, terminates: bool
-) -> None:
-    call = replace(READ, function="mcp__host__read_file")
-    bridge = sandbox_bridge(AsyncMock(side_effect=error))
-    model = Scripted(calls_output(call))
-
-    with active(terminate_on_secret_text()):
-        await generate(
-            bridge, model, [ChatMessageUser(content=TASK)], declare_read_file()
-        )
-        if terminates:
-            with pytest.raises(TerminateSampleError, match="blocked secret"):
-                await deliver_host_call(bridge)
-        else:
-            # a group's message, not its members', is what the scaffold receives
-            assert (
-                await deliver_host_call(bridge)
-                == "Error calling method call_tool: tool failed (1 sub-exception)"
+            await generate(
+                bridge,
+                model,
+                [
+                    ChatMessageUser(content=TASK),
+                    output.message,
+                    ChatMessageTool(
+                        content="secret",
+                        tool_call_id=calls[0].id,
+                        function=calls[0].function,
+                    ),
+                ],
+                declare_read_file(),
             )
-    assert bridge._failure is None
 
 
 @pytest.mark.parametrize("generates", [False, True])
@@ -6409,42 +6038,6 @@ async def test_a_host_result_changed_in_a_later_request_is_checked() -> None:
     assert len(model.inputs) == 2
 
 
-async def test_a_scaffold_result_during_the_host_check_is_checked() -> None:
-    started, release = anyio.Event(), anyio.Event()
-    call = replace(READ, function="mcp__host__read_file")
-    model = Scripted(calls_output(call), calls_output())
-    bridge = sandbox_bridge(AsyncMock(return_value="benign"))
-    history: list[ChatMessage] = [ChatMessageUser(content=TASK)]
-    returned: list[Any] = []
-
-    with active(held_benign(started, release)):
-        one = await generate(bridge, model, history, declare_read_file())
-
-        async def execute() -> None:
-            returned.append(
-                await call_host_tool(bridge)("host", "read_file", READ.arguments)
-            )
-
-        async with anyio.create_task_group() as tg:
-            tg.start_soon(execute)
-            await started.wait()
-            with pytest.raises(TerminateSampleError, match="blocked secret"):
-                await generate(
-                    bridge,
-                    model,
-                    [
-                        *history,
-                        one.message,
-                        ChatMessageTool(content="secret", tool_call_id=call.id),
-                    ],
-                    declare_read_file(),
-                )
-            release.set()
-
-    assert returned == ["benign"]
-    assert len(model.inputs) == 1
-
-
 @protocol
 def recording_terminate_on_secret(seen: Any) -> Protocol:
     async def after(
@@ -6521,54 +6114,10 @@ async def test_a_responses_result_without_an_id_is_checked(
 PNG = "data:image/png;base64,iVBORw0KGgo="
 
 
-@pytest.mark.parametrize(
-    "result,checked",
-    [
-        ([ContentText(text="benign", internal={"note": "secret"})], None),
-        (
-            [
-                ContentText(text="Screenshot:", internal={"note": "secret"}),
-                ContentImage(image=PNG),
-            ],
-            [ContentText(text="Screenshot:"), ContentImage(image=PNG)],
-        ),
-        (
-            ContentImage(image="https://example.invalid/a.png"),
-            [ContentText(text="https://example.invalid/a.png")],
-        ),
-    ],
-    ids=["serialized", "mcp", "url"],
-)
-async def test_host_content_is_checked_as_delivered(result: Any, checked: Any) -> None:
-    seen: Steps = []
-    call = replace(READ, function="mcp__host__read_file")
-    model = Scripted(calls_output(call))
-    bridge = sandbox_bridge(AsyncMock(return_value=result))
-
-    with active([bridge_recording(seen)]):
-        await generate(
-            bridge, model, [ChatMessageUser(content=TASK)], declare_read_file()
-        )
-        delivered = await call_host_tool(bridge)("host", "read_file", READ.arguments)
-
-    _, after = seen
-    assert isinstance(after, AfterToolCall)
-    assert after.output == result
-    if checked is None:
-        assert isinstance(delivered, str) and "secret" in delivered
-        assert after.result.content == delivered
-    else:
-        assert after.result.content == checked
-        assert delivered == [mcp_block(content) for content in checked]
-
-
-def mcp_block(content: Any) -> dict[str, Any]:
-    if isinstance(content, ContentImage):
-        return {"type": "image", "data": "iVBORw0KGgo=", "mimeType": "image/png"}
-    return {"type": "text", "text": content.text}
-
-
-async def test_without_a_sentinel_host_content_is_delivered_unchanged() -> None:
+@pytest.mark.parametrize("sentinel", [False, True])
+async def test_host_content_is_delivered_unchanged(sentinel: bool) -> None:
+    # a host execution runs no result check, so a sentinel changes nothing of
+    # what the scaffold receives
     result = [
         ContentText(text="caption", internal={"marker": "expected"}),
         ContentImage(image=PNG),
@@ -6576,7 +6125,8 @@ async def test_without_a_sentinel_host_content_is_delivered_unchanged() -> None:
     bridge = sandbox_bridge(AsyncMock(return_value=result))
     bridge.proposal_exempt_servers.add("host")
 
-    delivered = await call_host_tool(bridge)("host", "read_file", READ.arguments)
+    with active([bridge_recording([])]) if sentinel else nullcontext():
+        delivered = await call_host_tool(bridge)("host", "read_file", READ.arguments)
 
     assert delivered == [
         {"internal": {"marker": "expected"}, "type": "text", "text": "caption"},
@@ -6585,75 +6135,50 @@ async def test_without_a_sentinel_host_content_is_delivered_unchanged() -> None:
 
 
 @pytest.mark.parametrize("proposed", [False, True])
-async def test_an_exempt_host_result_is_checked(proposed: bool) -> None:
+async def test_an_exempt_host_result_is_checked_when_reported(proposed: bool) -> None:
+    """A `require_proposal=False` server runs a call with or without a proposal; its result is checked once reported.
+
+    A proposed call's report is checked as the bridged tool, with its
+    proposal's context. One the model never proposed is reported under an id
+    of the scaffold's own, and is checked as the call the request shows, with
+    no context.
+    """
     seen: Steps = []
     call = replace(READ, function="mcp__host__read_file")
     bridge = sandbox_bridge(AsyncMock(return_value="secret"))
     bridge.proposal_exempt_servers.add("host")
     bridge.state.messages = [ChatMessageUser(content=TASK)]
+    model = Scripted(calls_output(call), calls_output())
 
     with active(recording_terminate_on_secret(seen)):
         output = (
             await generate(
-                bridge,
-                Scripted(calls_output(call)),
-                [ChatMessageUser(content=TASK)],
-                declare_read_file(),
+                bridge, model, [ChatMessageUser(content=TASK)], declare_read_file()
             )
             if proposed
             else None
         )
+        delivered = await call_host_tool(bridge)("host", "read_file", READ.arguments)
+        assert delivered == "secret" and seen == []
+        asked = (
+            output.message
+            if output is not None
+            else ChatMessageAssistant(
+                content="", tool_calls=[replace(call, id="scaffold_minted")]
+            )
+        )
         with pytest.raises(TerminateSampleError, match="blocked secret"):
-            await call_host_tool(bridge)("host", "read_file", READ.arguments)
+            await report_host_result(
+                bridge, model, ModelOutput.from_message(asked), delivered
+            )
 
     (after,) = seen
     assert isinstance(after, AfterToolCall)
-    assert after.call.function == "read_file"
+    assert after.call.function == ("read_file" if proposed else call.function)
     assert after.call.arguments == READ.arguments
-    assert after.message_id == (output.message.id if output is not None else "")
     # what the model was sent when it proposed the call, else nothing
     assert (after.input is not None) is proposed
     assert after.result.text == "secret"
-
-
-async def test_unproposed_host_results_leave_no_checked_keys() -> None:
-    """An exempt server's unproposed calls are steps no report can be: none is recorded, checked or failed."""
-    seen: Steps = []
-    bridge = sandbox_bridge(AsyncMock(return_value="public"))
-    bridge.proposal_exempt_servers.add("host")
-    with active(recording_terminate_on_secret(seen)):
-        for _ in range(3):
-            await call_host_tool(bridge)("host", "read_file", READ.arguments)
-    assert len(seen) == 3
-    assert not bridge._handouts.running
-    assert not bridge._handouts.checked
-    assert not bridge._handouts.saved().checked
-
-    failing = sandbox_bridge(AsyncMock(return_value="secret"))
-    failing.proposal_exempt_servers.add("host")
-    with active(recording_terminate_on_secret(seen)):
-        with pytest.raises(TerminateSampleError, match="blocked secret"):
-            await call_host_tool(failing)("host", "read_file", READ.arguments)
-    assert not failing._handouts.running
-    assert not failing._handouts.checked
-    assert not failing._handouts.failed
-
-
-async def test_serialized_host_content_terminates_on_what_is_delivered() -> None:
-    call = replace(READ, function="mcp__host__read_file")
-    model = Scripted(calls_output(call))
-    bridge = sandbox_bridge(
-        AsyncMock(
-            return_value=[ContentText(text="benign", internal={"note": "secret"})]
-        )
-    )
-
-    with active(terminate_on_secret_text()):
-        await generate(
-            bridge, model, [ChatMessageUser(content=TASK)], declare_read_file()
-        )
-        with pytest.raises(TerminateSampleError, match="blocked secret"):
-            await call_host_tool(bridge)("host", "read_file", READ.arguments)
 
 
 @pytest.mark.parametrize("terminate", [True, False])

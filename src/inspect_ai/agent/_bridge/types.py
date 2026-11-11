@@ -7,7 +7,6 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
-    Mapping,
     NamedTuple,
     NoReturn,
     Sequence,
@@ -17,7 +16,7 @@ from pydantic import BaseModel
 from shortuuid import uuid
 
 from inspect_ai._util.exception import TerminateSampleError
-from inspect_ai._util.hash import mm3_hash, sha256_hash
+from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.json import jsonable_python
 from inspect_ai.agent._agent import AgentState
 from inspect_ai.log._condense import ATTACHMENT_PROTOCOL
@@ -62,8 +61,6 @@ if TYPE_CHECKING:
     # `model/_call_tools.py` defers it.
     from inspect_ai.approval._policy import ApprovalPolicy
     from inspect_ai.event._tool import ToolEvent
-
-    from ._sentinel import SentinelCheck
 
 
 _MAX_AWAITED_RESULTS = 256
@@ -534,17 +531,6 @@ class AgentBridge:
         bind later service requests to the calls the model actually made.
         """
 
-    def _register_tool_execution_grants(
-        self,
-        calls: Sequence[ToolCall],
-        tools: Sequence[ToolInfo | Tool],
-        checks: Sequence["SentinelCheck"] | None,
-        *,
-        span_id: str | None = None,
-    ) -> None:
-        # a sandbox bridge holds each call's sentinel check (if any) with its grants
-        self.register_tool_execution_grants(calls, tools, span_id=span_id)
-
     _proposing_message_ids: dict[str, str] = {}
     """Generated output message id by call id, for the calls `register_tool_execution_grants` is registering.
 
@@ -554,9 +540,6 @@ class AgentBridge:
 
     _proposing_reply_id: str | None = None
     """Id of the reply handed to the scaffold, while `register_tool_execution_grants` registers its calls."""
-
-    _proposing_request: list[ChatMessage] = []
-    """The request the reply answers, as the scaffold sent it, while `register_tool_execution_grants` registers its calls."""
 
     _proposing_call_verified: list[bool] | None = None
     """Per-call filter verification, aligned with the calls being registered."""
@@ -704,13 +687,6 @@ class AgentBridge:
 
     def _bridged_tool_viewer(self, target: BridgedToolId) -> ToolCallViewer | None:
         """The viewer of the bridged tool `target`, if the bridge serves it.
-
-        In-process bridges serve no tools; `SandboxAgentBridge` overrides this.
-        """
-        return None
-
-    def _declared_properties(self, server: str, tool: str) -> Mapping[str, Any] | None:
-        """The properties a served tool's closed schema declares, or `None` if it admits others.
 
         In-process bridges serve no tools; `SandboxAgentBridge` overrides this.
         """
@@ -1451,7 +1427,7 @@ class AgentBridge:
 
 @lru_cache(maxsize=100)
 def message_json_hash(message_json: str) -> str:
-    return sha256_hash(message_json)
+    return mm3_hash(message_json)
 
 
 def _call_key(call: ToolCall) -> tuple[str, str]:

@@ -33,21 +33,12 @@ from inspect_ai.tool._tool_call import ToolCallContent, ToolCallError
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.util._anyio import inner_exception
 from inspect_ai.util._limit import LimitExceededError
-from inspect_ai.util._sandbox.service import _method_error, find_control_flow
+from inspect_ai.util._sandbox.service import find_control_flow
 from inspect_ai.util._span import parent_span, span
 
-from .._sentinel import (
-    SentinelCheck,
-    checks_bridged_results,
-    sentinel_host_tool_result,
-    sentinel_unproposed_host_check,
-)
 from .types import SandboxAgentBridge, _ToolExecutionGrant
 
 logger = getLogger(__name__)
-
-CALL_TOOL_METHOD = "call_tool"
-"""The bridge model service method that runs a host tool."""
 
 JSON_VALUE_ADAPTER: TypeAdapter[JsonValue] = TypeAdapter(JsonValue)
 
@@ -95,22 +86,11 @@ async def execute_host_tool(
     content) is truncated to the same output limit, in the same format
     (`truncate_tool_output`).
 
-    With a sentinel active, a call goes through the sentinel's `tool_result`
-    stage before its result, or a model-facing error raised once the tool began
-    executing, is returned to the scaffold. That includes a call to a
-    `require_proposal=False` server, checked with its proposal's context if the
-    model proposed it, and otherwise with the conversation the bridge last saw.
-    An MCP call carries no call id, so a call that outstanding proposals of
-    several calls could account for is checked without any of their contexts;
-    so is one whose call another request was handed while it ran
-    (`_attribution`). Such a check covers no result the scaffold reports, which
-    is checked in turn (`sentinel_host_tool_result`).
-    The check sees the result as the scaffold receives it (the serialized text,
-    or the text and images of the MCP content), and an error as the service's
-    error text, with the type the native path gives it. An argument validation
-    error has no `tool_result` stage, as on the native path; a bare
-    `LimitExceededError` is returned as a tool error and checked, while an
-    error carrying a termination ends the sample without a check.
+    No sentinel stage runs here. A sentinel's `tool_call` check runs before
+    the call's grant is minted, and its `tool_result` check when the scaffold
+    sends the result back in a request (`sentinel_tool_results`), as for a
+    tool the scaffold runs itself: that request carries the call's id, which
+    an MCP call does not.
 
     Every request is recorded as one `ToolEvent` in a `tool` span, as a native
     call is, with `metadata["bridge"]` describing it (see `ToolEvent`). An
@@ -342,8 +322,6 @@ async def _execute_granted(
         )
         raise ToolParsingError(validation_errors)
     call_arguments = cast(dict[str, JsonValue], arguments)
-    has_check = _attribution(bridge, tool, tool_fn, call_arguments, grant) is not None
-    trim = has_check and checks_bridged_results()
 
     event = ToolEvent(
         id=event_id,
@@ -378,10 +356,7 @@ async def _execute_granted(
                             tool, result, tool_def.max_output
                         )
                         outcome = _Outcome(
-                            output,
-                            truncated,
-                            reply=_reply(output, result, trim),
-                            output=result,
+                            output, truncated, reply=_reply(output, result)
                         )
                 except Exception as ex:
                     # an error raised while unwinding the operator's cancel is
@@ -410,9 +385,7 @@ async def _execute_granted(
                 if isinstance(ex, Exception)
                 else _Outcome(error=_CANCELLED, raised=ex)
             )
-        # a model-facing error is raised once the sentinel has checked it (below)
-        if not has_check or not _checked(outcome):
-            raise
+        raise
     finally:
         if outcome is not None:
             event._set_result(
@@ -434,49 +407,9 @@ async def _execute_granted(
                 bridge.request_fail(outcome.fatal)
 
     assert outcome is not None
-    if has_check and _checked(outcome):
-        # attributed again: another conversation may have been handed the
-        # call while it ran
-        attribution = _attribution(bridge, tool, tool_fn, call_arguments, grant)
-        if attribution is not None:
-            await _check_result(bridge, attribution, outcome)
     if outcome.raised is not None:
         raise outcome.raised
     return outcome.reply
-
-
-class _Attribution(NamedTuple):
-    """The check of a host call's result (`_attribution`)."""
-
-    check: SentinelCheck
-
-    proposed: bool
-    """Whether it is the check of the grant's proposal, with its context, so a
-    report of the delivered result can be the same step
-    (`sentinel_host_tool_result`)."""
-
-
-def _attribution(
-    bridge: SandboxAgentBridge,
-    tool: str,
-    tool_fn: Tool,
-    arguments: dict[str, Any],
-    grant: _ToolExecutionGrant | None,
-) -> _Attribution | None:
-    """The check of the result of the host call that consumed `grant`, or None without a sentinel.
-
-    That of the grant's own proposal, for the grant's target, unless the
-    call (its server, tool and arguments) was handed to more than one
-    conversation (`handed_to_several`): a host call carries no call id, so
-    the execution may be another conversation's. The result is then checked
-    with no proposal's context. There is none either when the call had no
-    proposal. A request may hand the call to another conversation while it
-    runs, so this is decided again for the result.
-    """
-    if grant is None or grant.check is None or bridge.handed_to_several(grant):
-        check = sentinel_unproposed_host_check(bridge, tool, arguments, tool_fn)
-        return _Attribution(check, False) if check is not None else None
-    return _Attribution(grant.check, True)
 
 
 class _Outcome(NamedTuple):
@@ -489,66 +422,10 @@ class _Outcome(NamedTuple):
     reply: JsonValue = None  # the RPC result, on success
     raised: BaseException | None = None  # what the RPC raises instead
     fatal: Exception | None = None  # fails the sample (`bridge.request_fail`)
-    output: ToolResult = ""  # what the tool returned, for the sentinel
 
 
-def _checked(outcome: _Outcome) -> bool:
-    """Whether the sentinel checks this outcome: a result, or a model-facing error.
-
-    Not a failure, a cancellation or an error carrying a termination (a limit
-    whose history holds one included), which end the sample or the call without
-    the model seeing an error. A bare `LimitExceededError` arrives as the
-    `ToolError` `_raised` replaces it with, so it is checked as the tool error
-    the scaffold receives. An exception group is already decided by its
-    decisive leaf (`_raised`, `decisive_tool_exception`): one a defect decides
-    is a failure, and one a limit decides is checked as a bare limit is.
-    """
-    if outcome.failed or outcome.error == _CANCELLED:
-        return False
-    if isinstance(outcome.raised, LimitExceededError):
-        return False
-    return not isinstance(outcome.raised, Exception) or (
-        find_control_flow(outcome.raised) is None
-    )
-
-
-async def _check_result(
-    bridge: SandboxAgentBridge,
-    attribution: _Attribution,
-    outcome: _Outcome,
-) -> None:
-    content: str | list[Content]
-    error: ToolCallError | None = None
-    if outcome.raised is not None:
-        # the error as the service dispatcher renders it for the scaffold
-        assert outcome.error is not None and isinstance(outcome.raised, Exception)
-        content = ""
-        error = ToolCallError(
-            outcome.error.type, _method_error(CALL_TOOL_METHOD, outcome.raised)
-        )
-    elif isinstance(outcome.reply, str):
-        content = outcome.reply
-    elif isinstance(outcome.reply, list):
-        content = [_mcp_delivered_content(block) for block in outcome.reply]
-    else:
-        content = to_json_str_safe(outcome.reply)
-    await sentinel_host_tool_result(
-        bridge,
-        attribution.check,
-        content,
-        outcome.output,
-        error,
-        outcome.truncated or False,
-        proposed=attribution.proposed,
-    )
-
-
-def _reply(output: ToolResult, result: ToolResult, checked: bool) -> JsonValue:
-    """The RPC result for `result` (recorded as `output`), built before recording.
-
-    A result the sentinel checks (`checked`) has MCP text blocks that carry
-    only their text, so the sentinel sees exactly what is delivered.
-    """
+def _reply(output: ToolResult, result: ToolResult) -> JsonValue:
+    """The RPC result for `result` (recorded as `output`), built before recording."""
     # Plain strings are returned verbatim (the MCP `tools/call` text part
     # carries them as-is). For anything else, use pydantic_core.to_json so
     # Pydantic models (e.g. list[ContentText] from real MCP tools) are
@@ -560,7 +437,7 @@ def _reply(output: ToolResult, result: ToolResult, checked: bool) -> JsonValue:
         and all(isinstance(content, (ContentText, ContentImage)) for content in result)
         and any(isinstance(content, ContentImage) for content in result)
     ):
-        return _mcp_tool_result_content(result, checked)
+        return _mcp_tool_result_content(result)
     return to_json_str_safe(result)
 
 
@@ -570,10 +447,9 @@ def _raised(ex: Exception, tool: str, max_output: int | None) -> _Outcome:
     A group is handled as its decisive leaf would be if raised bare, but the
     original propagates so the scaffold's error reply is unchanged, except that
     a deciding limit is replaced by a `ToolError` with its mapped message: the
-    service dispatcher routes a `LimitExceededError` to the sample. The
-    scaffold receives it as a tool error and the sentinel checks it as one
-    (`_checked`). A termination anywhere in `ex` (including a limit's history)
-    still leaves the original to the dispatcher, and ends the sample unchecked.
+    service dispatcher routes a `LimitExceededError` to the sample. A
+    termination anywhere in `ex` (including a limit's history) still leaves
+    the original to the dispatcher.
     """
     decisive = decisive_tool_exception(ex)
     mapped = tool_call_error(decisive, tool)
@@ -587,13 +463,7 @@ def _raised(ex: Exception, tool: str, max_output: int | None) -> _Outcome:
         if isinstance(decisive, LimitExceededError) and find_control_flow(ex) is None
         else ex
     )
-    return _Outcome(
-        output,
-        truncated,
-        error=mapped.error,
-        raised=raised,
-        output=mapped.result or "",
-    )
+    return _Outcome(output, truncated, error=mapped.error, raised=raised)
 
 
 def _recorded_result(
@@ -614,7 +484,7 @@ def _recorded_result(
     return truncated.output, (truncated.raw_bytes, truncated.truncated_bytes)
 
 
-def _mcp_tool_content_block(content: JsonValue, checked: bool) -> JsonValue:
+def _mcp_tool_content_block(content: JsonValue) -> JsonValue:
     match content:
         case {"type": "image", "image": str() as image} if is_data_uri(image):
             return {
@@ -624,28 +494,16 @@ def _mcp_tool_content_block(content: JsonValue, checked: bool) -> JsonValue:
             }
         case {"type": "image", "image": str() as image}:
             return {"type": "text", "text": image}
-        case {"type": "text", "text": str() as text} if checked:
-            return {"type": "text", "text": text}
         case _:
             return content
 
 
-def _mcp_delivered_content(block: JsonValue) -> Content:
-    match block:
-        case {"type": "image", "data": str() as data, "mimeType": str() as mime}:
-            return ContentImage(image=f"data:{mime};base64,{data}")
-        case {"type": "text", "text": str() as text}:
-            return ContentText(text=text)
-        case _:
-            raise ValueError(f"Unexpected MCP tool result content: {block}")
-
-
 def _mcp_tool_result_content(
-    result: ContentImage | Sequence[Content], checked: bool
+    result: ContentImage | Sequence[Content],
 ) -> list[JsonValue]:
     content = JSON_VALUE_ADAPTER.validate_json(to_json_str_safe(result))
     match content:
         case list():
-            return [_mcp_tool_content_block(block, checked) for block in content]
+            return [_mcp_tool_content_block(block) for block in content]
         case _:
-            return [_mcp_tool_content_block(content, checked)]
+            return [_mcp_tool_content_block(content)]
