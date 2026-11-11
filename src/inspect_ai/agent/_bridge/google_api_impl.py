@@ -514,7 +514,7 @@ def messages_from_google_contents(
                 for tc in tool_calls:
                     pending_tool_calls.setdefault(
                         tc.function,
-                        _PendingCalls(deque(), functions[tc.function] > 1, []),
+                        _PendingCalls(_CallQueue(), functions[tc.function] > 1, []),
                     ).ids.append(tc.id)
 
             # Only emit an assistant turn when it carries real content or tool calls;
@@ -613,10 +613,52 @@ def _is_function_response_part(part: Any) -> bool:
     )
 
 
+class _CallQueue:
+    """Call ids awaiting a result, in call order, indexed by id.
+
+    `remove` takes an id's earliest remaining occurrence (a result naming its
+    call); `popleft` takes the earliest remaining call (a result without an
+    id). Each is amortized O(1), so pairing a batch is linear in any order.
+    """
+
+    def __init__(self) -> None:
+        self._order: deque[str] = deque()
+        self._remaining: Counter[str] = Counter()
+        # occurrences `remove` took that `popleft` has yet to pass in `_order`;
+        # they are always the earliest ones of their id still in `_order`
+        self._removed: Counter[str] = Counter()
+        self._count = 0
+
+    def append(self, call_id: str) -> None:
+        self._order.append(call_id)
+        self._remaining[call_id] += 1
+        self._count += 1
+
+    def remove(self, call_id: str) -> None:
+        """Take `call_id`'s earliest remaining occurrence, if any remains."""
+        if self._remaining[call_id] > 0:
+            self._remaining[call_id] -= 1
+            self._removed[call_id] += 1
+            self._count -= 1
+
+    def popleft(self) -> str:
+        while True:
+            call_id = self._order.popleft()
+            if self._removed[call_id] > 0:
+                self._removed[call_id] -= 1
+                continue
+            self._remaining[call_id] -= 1
+            self._count -= 1
+            return call_id
+
+    def __bool__(self) -> bool:
+        return self._count > 0
+
+
 class _PendingCalls(NamedTuple):
     """The calls of the previous model turn with one function name, not yet answered."""
 
-    ids: deque[str]
+    ids: _CallQueue
 
     shared: bool
     """Whether the turn had more than one call with the name."""
@@ -675,7 +717,7 @@ def _extract_user_parts(
             if response_id is not None:
                 # the id of the call it answers, as the bridge handed it over
                 call_id = response_id
-                if pending is not None and call_id in pending.ids:
+                if pending is not None:
                     pending.ids.remove(call_id)
                 pending = None
             elif pending is not None and pending.ids:

@@ -20,6 +20,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+from collections.abc import Sequence
 from pathlib import Path
 
 import pytest
@@ -32,6 +33,7 @@ from inspect_ai.agent._bridge.google_api_impl import (
     messages_from_google_contents,
 )
 from inspect_ai.model._chat_message import (
+    ChatMessage,
     ChatMessageAssistant,
     ChatMessageTool,
 )
@@ -282,13 +284,128 @@ def test_google_calls_without_ids_keep_their_deterministic_ids() -> None:
     ]
 
 
+def _read_contents(
+    call_ids: list[str], result_ids: Sequence[str | None]
+) -> list[dict[str, object]]:
+    """`read_file` calls under `call_ids`, then results carrying `result_ids`."""
+
+    def with_id(part: dict[str, object], part_id: str | None) -> dict[str, object]:
+        return part if part_id is None else {**part, "id": part_id}
+
+    return [
+        {"role": "user", "parts": [{"text": "Read files."}]},
+        {
+            "role": "model",
+            "parts": [
+                {
+                    "functionCall": with_id(
+                        {"name": "read_file", "args": {"path": str(i)}}, call_id
+                    )
+                }
+                for i, call_id in enumerate(call_ids)
+            ],
+        },
+        {
+            "role": "user",
+            "parts": [
+                {
+                    "functionResponse": with_id(
+                        {"name": "read_file", "response": {"output": str(i)}},
+                        result_id,
+                    )
+                }
+                for i, result_id in enumerate(result_ids)
+            ],
+        },
+    ]
+
+
+def _result_ids(messages: list[ChatMessage]) -> list[str | None]:
+    return [m.tool_call_id for m in messages if isinstance(m, ChatMessageTool)]
+
+
+@pytest.mark.parametrize(
+    "result_ids,expected",
+    [
+        # an explicit id takes its id's earliest remaining call
+        (["a", None, None], ["a", "a", "b"]),
+        # an id-less result takes the earliest remaining call
+        ([None, "a", None], ["a", "a", "b"]),
+        (["b", None, None], ["b", "a", "a"]),
+        # nothing is left to answer: a fresh id (None here)
+        ([None, "b", None, None], ["a", "b", "a", None]),
+        # an explicit id beyond its calls is kept, taking no other call
+        (["a", "a", "a", None], ["a", "a", "a", "b"]),
+    ],
+)
+def test_google_results_pair_by_explicit_id_then_in_call_order(
+    result_ids: list[str | None], expected: list[str | None]
+) -> None:
+    messages = messages_from_google_contents(
+        _read_contents(["a", "a", "b"], result_ids),
+        None,
+        handed=lambda _: "read_file",
+    )
+
+    paired = _result_ids(messages)
+    assert len(paired) == len(expected)
+    for call_id, want in zip(paired, expected):
+        if want is None:
+            assert call_id is not None and call_id.startswith("call_read_file_")
+        else:
+            assert call_id == want
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+def test_explicit_google_result_ids_pair_with_linear_queue_work(reverse: bool) -> None:
+    """Pairing results that carry their calls' ids is linear in the batch.
+
+    Counts every comparison of a pending call id, including those made in C by
+    the queue's containers, which a line tracer does not see.
+    """
+    from unittest.mock import patch
+
+    from inspect_ai.agent._bridge import google_api_impl
+
+    comparisons = 0
+
+    class CountedId(str):
+        def __eq__(self, other: object) -> bool:
+            nonlocal comparisons
+            comparisons += 1
+            return super().__eq__(other)
+
+        __hash__ = str.__hash__
+
+    class CountedQueue(google_api_impl._CallQueue):
+        def append(self, call_id: str) -> None:
+            super().append(CountedId(call_id))
+
+    def work(n: int) -> int:
+        nonlocal comparisons
+        ids = [f"call_{i}" for i in range(n)]
+        contents = _read_contents(ids, ids[::-1] if reverse else ids)
+        comparisons = 0
+        with patch.object(google_api_impl, "_CallQueue", CountedQueue):
+            messages = messages_from_google_contents(
+                contents, None, handed=lambda _: "read_file"
+            )
+        assert _result_ids(messages) == (ids[::-1] if reverse else ids)
+        return comparisons
+
+    small, large = work(16), work(128)
+    assert small > 0
+    # linear is 8x; scanning the queue for each result is 64x
+    assert large <= 12 * small, (small, large)
+
+
 def test_a_google_round_trip_without_a_sentinel_keeps_mains_ids() -> None:
     import anyio
 
     from inspect_ai.agent import AgentState
     from inspect_ai.agent._bridge.google_api import inspect_google_api_request
     from inspect_ai.agent._bridge.types import AgentBridge
-    from inspect_ai.model import ChatMessage, get_model
+    from inspect_ai.model import get_model
 
     inputs: list[list[ChatMessage]] = []
     outputs = [
