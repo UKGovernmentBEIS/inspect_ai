@@ -202,6 +202,28 @@ def test_score_on_error_contributes_to_metrics():
     assert sample_2.scores["score_by_solver_completion"].value == INCORRECT
 
 
+def test_score_on_error_scorer_error_counts_sample_once():
+    # sample 2's solver raises, then its score_on_error scoring raises too:
+    # one errored sample, so fail_on_error=2 is not crossed. The logged
+    # sample keeps the scorer's error.
+    log = eval(
+        Task(
+            dataset=MemoryDataset([Sample(id=1, input="hi"), Sample(id=2, input="hi")]),
+            solver=solver_that_raises_on_sample_2(),
+            scorer=raising_scorer([2]),
+        ),
+        score_on_error=True,
+        fail_on_error=2,
+        display="none",
+    )[0]
+
+    assert log.status == "success"
+    assert log.samples is not None
+    sample_2 = next(s for s in log.samples if s.id == 2)
+    assert sample_2.error is not None
+    assert "grader unavailable for sample 2" in sample_2.error.message
+
+
 def test_score_on_error_basic():
     log = eval(_make_task([True]), score_on_error=True, fail_on_error=False)[0]
     assert log.samples is not None
