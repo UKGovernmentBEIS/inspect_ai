@@ -1081,7 +1081,7 @@ async def test_host_tool_result_is_checked_in_the_service() -> None:
             declare_read_file(),
         )
 
-    _, after, report = seen
+    _, after = seen
     assert isinstance(after, AfterToolCall)
     assert after.call == replace(read, function="read_file")
     assert after.output == "host contents"
@@ -1090,18 +1090,7 @@ async def test_host_tool_result_is_checked_in_the_service() -> None:
     # as the scaffold receives it, under the function it was handed
     assert after.result.function == read.function
     assert after.result.text == "host contents"
-    # the scaffold's report of it is another step: it has no cut
-    assert isinstance(report, AfterToolCall)
-    assert report.call == after.call
-    assert report.result.model_copy(update={"id": None}) == after.result.model_copy(
-        update={"id": None}
-    )
-    assert report.output == "host contents" and report.truncated is None
-    assert observations() == [
-        (read.id, "tool_call"),
-        (read.id, "tool_result"),
-        (read.id, "tool_result"),
-    ]
+    assert observations() == [(read.id, "tool_call"), (read.id, "tool_result")]
 
 
 async def test_a_bridge_s_tool_checks_are_marked_for_replay() -> None:
@@ -5054,58 +5043,84 @@ def held_benign(started: Any, release: Any) -> Protocol:
 
 
 @protocol
-def held_until_both(seen: list[AfterToolCall], both: Any) -> Protocol:
-    """Holds each check until two are running."""
-
+def counted_held(seen: Any, started: Any, release: Any, fail: bool) -> Protocol:
     async def after(
         context: Context, step: AfterToolCall, escalations: Escalations
     ) -> Decision | None:
         seen.append(step)
-        if len(seen) == 2:
-            both.set()
-        await both.wait()
+        started.set()
+        await release.wait()
+        if fail:
+            raise RuntimeError("host check failed")
         return None
 
     return after
 
 
-async def test_a_host_result_reported_during_its_check_is_checked_as_a_report() -> None:
-    """A report of a host result whose host check is running is checked as a report, without waiting for the host check: no host step is a report's."""
+@pytest.mark.parametrize("fail", [False, True])
+async def test_a_host_result_reported_during_its_check_waits_for_it(
+    fail: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A report of a host result whose host check is running waits for that check: it passes with it, or fails with it, and is not checked itself."""
     seen: list[AfterToolCall] = []
-    both = anyio.Event()
+    started, release, waiting = anyio.Event(), anyio.Event(), anyio.Event()
     call = replace(READ, function="mcp__host__read_file")
     model = Scripted(calls_output(call), calls_output())
     bridge = sandbox_bridge(AsyncMock(return_value="contents"))
     history: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+    claim = bridge._handouts.claim
 
-    with active(held_until_both(seen, both)):
+    def signalled(input: list[ChatMessage]) -> Any:
+        claimed = claim(input)
+        if claimed.waiting:
+            waiting.set()
+        return claimed
+
+    monkeypatch.setattr(bridge._handouts, "claim", signalled)
+    # a monitor error fails the check without ending the sample through the
+    # service runner
+    monkeypatch.setattr(bridge, "request_fail", lambda ex: None)
+    failures: list[BaseException] = []
+
+    with active(counted_held(seen, started, release, fail)):
         output = await generate(bridge, model, history, declare_read_file())
 
         async def execute() -> None:
-            await call_host_tool(bridge)("host", "read_file", READ.arguments)
+            try:
+                await call_host_tool(bridge)("host", "read_file", READ.arguments)
+            except Exception as ex:
+                failures.append(ex)
 
         async def report() -> None:
-            await generate(
-                bridge,
-                model,
-                [
-                    *history,
-                    output.message,
-                    ChatMessageTool(
-                        content="contents",
-                        tool_call_id=call.id,
-                        function=call.function,
-                    ),
-                ],
-                declare_read_file(),
-            )
+            try:
+                await generate(
+                    bridge,
+                    model,
+                    [
+                        *history,
+                        output.message,
+                        ChatMessageTool(
+                            content="contents",
+                            tool_call_id=call.id,
+                            function=call.function,
+                        ),
+                    ],
+                    declare_read_file(),
+                )
+            except Exception as ex:
+                failures.append(ex)
 
         with anyio.fail_after(10):
             async with anyio.create_task_group() as tg:
                 tg.start_soon(execute)
+                await started.wait()
                 tg.start_soon(report)
+                await waiting.wait()
+                release.set()
 
-    assert sorted(step.truncated is None for step in seen) == [False, True]
+    assert len(seen) == 1
+    assert len(failures) == (2 if fail else 0)
+    assert all("host check failed" in str(failure) for failure in failures)
 
 
 @pytest.mark.parametrize("same_call", [True, False])
@@ -6375,8 +6390,7 @@ async def test_a_host_result_changed_in_a_later_request_is_checked() -> None:
             ),
         ]
         await generate(bridge, model, delivered, declare_read_file())
-        # checked on the host and as reported
-        assert len(seen) == 2
+        assert len(seen) == 1
         with pytest.raises(TerminateSampleError, match="blocked secret"):
             await generate(
                 bridge,

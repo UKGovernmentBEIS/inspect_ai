@@ -8921,12 +8921,7 @@ class HostDecision(NamedTuple):
 def r7_host_decision_outside_its_producer(
     monkeypatch: pytest.MonkeyPatch,
 ) -> HostDecision:
-    """A person's approval of a host call's result, checked in the producer's conversation from outside its span; `live` is the model steps as the probe saw them.
-
-    The person is asked again when the scaffold reports the result, a step of
-    its own (`truncated`), inside the producer's span; `decided` is the host
-    call's decision.
-    """
+    """A person's approval of a host call's result, checked in the producer's conversation from outside its span; `live` is the model steps as the probe saw them."""
     Panel("approve", "allowed").install(monkeypatch)
     seen: dict[str, Step] = {}
     log = run_logged(
@@ -8950,12 +8945,12 @@ def r7_host_decision_outside_its_producer(
     begins = {e.id: e for e in events if isinstance(e, SpanBeginEvent)}
     [producer] = [e.id for e in begins.values() if e.name == "producer"]
     [ran] = [e for e in events if isinstance(e, ToolEvent)]
-    decided, reported = [
+    [decided] = [
         e
         for e in events
         if isinstance(e, SentinelEvent) and e.factory == "inspect_sentinel/human"
     ]
-    assert decided.conversation == reported.conversation == producer
+    assert decided.conversation == producer
     assert ran.span_id is not None and begins[ran.span_id].parent_id != producer
     live = [
         seen[e.explanation or ""]
@@ -8964,7 +8959,7 @@ def r7_host_decision_outside_its_producer(
         and e.path == "r7_probe"
         and e.stage.startswith("model")
     ]
-    assert [len(s.human_decisions or []) for s in live] == [0, 0, 2, 2]
+    assert [len(s.human_decisions or []) for s in live] == [0, 0, 1, 1]
     return HostDecision(log, list(events), producer, decided, live)
 
 
@@ -8988,7 +8983,7 @@ def test_a_person_s_decision_at_a_host_call_run_outside_its_producer_s_span_reac
     )
     # a timeline that does not place the decision gives it the conversation
     # of the model call that proposed the host call
-    assert [len(s.step.human_decisions or []) for s in replay] == [0, 0, 2, 2]
+    assert [len(s.step.human_decisions or []) for s in replay] == [0, 0, 1, 1]
     assert {s.step.conversation for s in replay} == {
         "target" if stored_timeline else producer
     }
