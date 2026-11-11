@@ -1152,9 +1152,9 @@ def test_bridged_agent_anthropic(model: str, reasoning: Literal["budget", "effor
 @skip_if_no_anthropic
 def test_bridged_agent_anthropic_tools():
     log_json = eval_bridged_task(
-        "anthropic/claude-sonnet-5-5", agent=anthropic_agent(True)
+        "anthropic/claude-sonnet-5", agent=anthropic_agent(True)
     )
-    check_anthropic_bridge_log_json(log_json, "anthropic/claude-sonnet-5-5", tools=True)
+    check_anthropic_bridge_log_json(log_json, "anthropic/claude-sonnet-5", tools=True)
 
 
 def test_anthropic_bridge_forwards_extra_body_sampling_params():
@@ -1202,7 +1202,7 @@ def test_anthropic_bridge_forwards_extra_body_sampling_params():
 def test_bridged_web_search_tool_anthropic():
     log = eval(
         web_search_task(anthropic_web_search_agent()),
-        model="anthropic/claude-sonnet-5-5",
+        model="anthropic/claude-sonnet-5",
     )[0]
     log_json = log.model_dump_json(exclude_none=True, indent=2)
     assert '"max_uses": 5' in log_json
@@ -1275,7 +1275,7 @@ def test_bridged_code_execution_tool_anthropic():
 def test_bridged_web_search_tool_openai_to_anthropic():
     log = eval(
         web_search_task(responses_web_search_agent()),
-        model="anthropic/claude-sonnet-5-5",
+        model="anthropic/claude-sonnet-5",
     )[0]
     check_server_tool_use(log, "web_search")
 
