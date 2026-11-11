@@ -3,15 +3,7 @@ from collections import deque
 from dataclasses import dataclass, field, replace
 from logging import getLogger
 from os.path import commonprefix
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Callable,
-    Literal,
-    Mapping,
-    NamedTuple,
-    Sequence,
-)
+from typing import TYPE_CHECKING, Any, Callable, Mapping, NamedTuple, Sequence
 
 import anyio
 from pydantic_core import to_jsonable_python
@@ -117,9 +109,9 @@ class SandboxAgentBridge(AgentBridge):
             maxlen=_MAX_TOOL_EXECUTION_GRANTS
         )
         self._executed_calls: dict[tuple[str, str, str], list[_Executed]] = {}
-        """Per (server, tool, argument key), the executions whose answers were awaited when last scanned, and the latest (`_record_execution`)."""
+        """Per (server, tool, argument key), the calls an execution consumed a grant of, unless settled since (`_record_execution`)."""
         self._executed_tools: dict[tuple[str, str], _ExecutedTool] = {}
-        """Per (server, tool), the calls an execution consumed a grant of, answered ones pruned (`_record_execution`)."""
+        """Per (server, tool), the calls an execution consumed a grant of, settled ones pruned (`_record_execution`)."""
         self._failure_requested = anyio.Event()
         self._failure: Exception | None = None
         self.generation_limit: LimitExceededError | None = None
@@ -491,11 +483,9 @@ class SandboxAgentBridge(AgentBridge):
         the first response, say) is denied, and the scaffold may send that
         denial as the call's answer: the reply of each call it may repeat is
         unlinked (`_unlink`) while that call's execution awaits its answer
-        or still runs (`_answer`; one already answered is final, so its
+        or still runs (`_unsettled`; one already settled is final, so its
         reply, and any pending sibling call in it, keeps its link), and so is
-        the reply of each pending grant it may repeat. The executions stay
-        recorded while their answers are awaited: a client can still retry
-        them on a later identical grant (`_record_execution`).
+        the reply of each pending grant it may repeat.
         Calls are compared as `consume_tool_execution_grant` compares them,
         on the argument keys of `_call_keys` (both sides also projected onto
         a closed schema's declared keys, so this errs towards unlinking).
@@ -506,25 +496,19 @@ class SandboxAgentBridge(AgentBridge):
         keys = (
             self._call_keys(server, tool, arguments) if arguments is not None else None
         )
-        if keys is None:
-            # unlinked for good, so each recorded call is unlinked here once
-            for handed in self._executed_tools.pop(
-                (server, tool), _ExecutedTool()
-            ).calls:
-                if self._answer(handed) != "arrived":
-                    self._unlink(handed.reply.id)
-        else:
-            for key in keys:
-                record = self._executed_calls.get((server, tool, key))
-                if record is None:
-                    continue
-                kept = [e for e in record if self._answer(e.handed) != "arrived"]
-                for execution in kept:
-                    self._unlink(execution.handed.reply.id)
-                if kept:
-                    self._executed_calls[(server, tool, key)] = kept
-                else:
-                    del self._executed_calls[(server, tool, key)]
+        # unlinked for good, so each recorded call is unlinked here once
+        executed = (
+            self._executed_tools.pop((server, tool), _ExecutedTool()).calls
+            if keys is None
+            else [
+                execution.handed
+                for key in keys
+                for execution in self._executed_calls.pop((server, tool, key), [])
+            ]
+        )
+        for handed in executed:
+            if self._unsettled(handed):
+                self._unlink(handed.reply.id)
         for grant in self._tool_execution_grants:
             if (
                 grant.server == server
@@ -548,29 +532,22 @@ class SandboxAgentBridge(AgentBridge):
         - A proposal's second execution (one call granted for several tools)
           unlinks its reply (`_unlink`): an answer may hold either result.
         - An earlier execution of the same (server, tool) and arguments
-          (`_call_keys`) whose answer hasn't arrived (`_answer`: still queued
-          or running, or awaiting its answer, whether or not its reply can
-          still link) unlinks its reply and this one's: this execution may be
-          a client's retry of that call (after losing its response, or after
-          an earlier retry), taking a later proposal's identical grant, so
-          either answer may hold either result. For the same reason the
-          handouts of all of them are contested (`_contest`), so that no
-          result gets a proposal's context and this one's is recorded as
-          checked for each. An execution whose answer arrived is final and
-          is dropped from the record. One whose result tracking was dropped
-          (`_MAX_AWAITED_RESULTS`) may still be outstanding: it is doubted
-          once, and dropped.
+          (`_call_keys`) whose answer hasn't been settled, still queued or
+          running, unlinks its reply and this one's: this execution may be
+          a client's retry of that call (after losing its response), taking
+          a later proposal's identical grant, so either answer may hold
+          either result. For the same reason its handout and this one's are
+          contested (`_contest`), so that neither result gets a proposal's
+          context and this one's is recorded as checked for either. An
+          earlier execution already settled (its answer linked, or left
+          unlinked) is final and is dropped from the record.
         - The call is recorded for `unlink_denied_call`.
 
-        The per-key record keeps the executions still awaiting answers when
-        last scanned, and the latest; each is dropped at the first scan after
-        its answer arrives or its tracking is dropped, so a call is doubted
-        only while it may be retried, and at most until
-        `_MAX_AWAITED_RESULTS` later executions. The per-tool record drops
-        answered calls each time it doubles, so it stays within twice the
-        calls of the tool still running or awaiting answers. The work is
-        linear in the calls awaiting answers. Reply ids, positions, handouts
-        and argument hashes only, like the message pool.
+        Each recorded call is dropped once scanned or unlinked, and the
+        per-tool record drops settled calls each time it doubles, so it stays
+        within twice the calls of the tool still running or awaiting answers
+        and the work is amortized constant per execution. Reply ids,
+        positions, handouts and argument hashes only, like the message pool.
         """
         reply = grant.proposal.reply
         if reply is None:
@@ -585,70 +562,41 @@ class SandboxAgentBridge(AgentBridge):
         )
         doubted: set[Handout] = set()
         doubt = False
-        kept: dict[str, list[_Executed]] = {}
         for key in keys:
-            kept[key] = []
             for earlier in self._executed_calls.pop(
                 (grant.server, grant.tool, key), []
             ):
-                answer = self._answer(earlier.handed)
-                if answer == "arrived":
-                    continue
-                self._unlink(earlier.handed.reply.id)
-                doubt = True
-                if earlier.handout is not None:
-                    doubted.add(earlier.handout)
-                if answer == "awaited":
-                    kept[key].append(earlier)
+                if self._unsettled(earlier.handed):
+                    self._unlink(earlier.handed.reply.id)
+                    doubt = True
+                    if earlier.handout is not None:
+                        doubted.add(earlier.handout)
         if doubt:
             self._unlink(reply.reply.id)
             if handout is not None:
                 self._contest(doubted | {handout}, [grant.proposal])
-        execution = _Executed(reply, handout)
         for key in keys:
             self._executed_calls[(grant.server, grant.tool, key)] = [
-                *kept[key],
-                execution,
+                _Executed(reply, handout)
             ]
-        self._await_answer(reply)
         executed = self._executed_tools.setdefault(
             (grant.server, grant.tool), _ExecutedTool()
         )
         executed.calls.append(reply)
         if len(executed.calls) >= 2 * executed.floor:
-            executed.calls = [h for h in executed.calls if self._answer(h) == "awaited"]
+            executed.calls = [h for h in executed.calls if self._unsettled(h)]
             executed.floor = max(len(executed.calls), _MIN_EXECUTED_TOOL_FLOOR)
 
-    def _await_answer(self, handed: _HandedCall) -> None:
-        """Record that `handed` runs again, so its answer is awaited anew.
-
-        A call runs again when its reply is handed out again, or when it is
-        granted for several tools. An earlier execution's answer that already
-        arrived doesn't answer this one, so the position's state is dropped:
-        it reads as running until the execution completes and awaits its
-        answer (`_await_result_message`).
-        """
-        awaited = self._awaited_results.get(self._edit_root(handed.reply.id))
-        if awaited is not None and awaited.events.get(handed.position, 0) is None:
-            del awaited.events[handed.position]
-            awaited.unlinkable.add(handed.position)
-
-    def _answer(self, handed: _HandedCall) -> Literal["awaited", "arrived", "unknown"]:
-        """Whether the answer to an execution of `handed` is awaited, arrived, or unknown.
-
-        Awaited while the execution is queued or running, and once it has
-        completed until a request carries the call's answer
-        (`_link_result_messages`), whether or not the reply can still link.
-        Unknown once the reply's result tracking was dropped
-        (`_untracked_replies`).
-        """
-        root = self._edit_root(handed.reply.id)
-        awaited = self._awaited_results.get(root)
-        if awaited is not None and handed.position in awaited.events:
-            return (
-                "awaited" if awaited.events[handed.position] is not None else "arrived"
-            )
-        return "unknown" if root in self._untracked_replies else "awaited"
+    def _unsettled(self, handed: _HandedCall) -> bool:
+        """Whether an execution of `handed` may still link: running, or awaiting its answer."""
+        if self._edit_root(handed.reply.id) in self._unlinked_replies:
+            return False
+        awaited = self._awaited_results.get(handed.reply.id)
+        return (
+            awaited is None
+            or handed.position not in awaited.events
+            or awaited.events[handed.position] is not None
+        )
 
     def _call_keys(self, server: str, tool: str, arguments: dict[str, Any]) -> set[str]:
         """Hashes of `arguments` as `json_equal` compares them, also projected onto a closed schema's declared keys."""
