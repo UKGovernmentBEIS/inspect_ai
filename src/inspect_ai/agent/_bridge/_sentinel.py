@@ -1,6 +1,6 @@
 import hashlib
 import json
-from collections import OrderedDict
+from collections import OrderedDict, deque
 from contextlib import AbstractContextManager, ExitStack, nullcontext
 from copy import deepcopy
 from dataclasses import dataclass
@@ -870,7 +870,8 @@ def _answers(
 ) -> Iterator[tuple[ChatMessageTool, _Call | None]]:
     """Each result in a request, with the call it answers in the request, if any."""
     calls: dict[str, _Call] = {}
-    unanswered: dict[str, list[_Call]] = {}
+    # a deque per id, so pairing the nth result with the nth call is linear
+    unanswered: dict[str, deque[_Call]] = {}
     for index, message in enumerate(input):
         if isinstance(message, ChatMessageAssistant):
             unanswered = {}
@@ -878,11 +879,11 @@ def _answers(
             text = message.text if message.tool_calls else ""
             for call in message.tool_calls or []:
                 calls[call.id] = _Call(call, text, index)
-                unanswered.setdefault(call.id, []).append(calls[call.id])
+                unanswered.setdefault(call.id, deque()).append(calls[call.id])
         elif isinstance(message, ChatMessageTool):
             result_id = message.tool_call_id or ""
             found = (
-                unanswered[result_id].pop(0)
+                unanswered[result_id].popleft()
                 if unanswered.get(result_id)
                 else calls.get(result_id)
             )

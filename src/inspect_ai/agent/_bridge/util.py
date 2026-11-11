@@ -1,7 +1,7 @@
 import inspect
 import json
 import warnings
-from collections import Counter
+from collections import Counter, deque
 from contextlib import AbstractContextManager, contextmanager, nullcontext
 from contextvars import ContextVar
 from dataclasses import replace
@@ -1779,7 +1779,7 @@ def _renamed_anchors(
     can't be told apart by call; any left over are removed.
     """
     anchored = Counter(_anchor_call_id(part) for part in content)
-    pending = {call_id: list(ids) for call_id, ids in fresh.items()}
+    pending = {call_id: deque(ids) for call_id, ids in fresh.items()}
     renamed: list[Content] = []
     for part in content:
         call_id = _anchor_call_id(part)
@@ -1795,7 +1795,7 @@ def _renamed_anchors(
                 update={
                     "internal": {
                         **part.internal,
-                        "gemini_function_call_id": pending[call_id].pop(0),
+                        "gemini_function_call_id": pending[call_id].popleft(),
                     },
                     **({"reasoning": ""} if shared else {}),
                 }

@@ -34,6 +34,7 @@ import pytest
 from acp.schema import SessionNotification, ToolCallProgress, ToolCallStart
 from pydantic import JsonValue
 from test_helpers.checkpoint import RecordingCheckpointer
+from test_helpers.container_work import container_work
 from test_helpers.message_ids import (
     assert_message_ids,
     edited_id,
@@ -10950,6 +10951,95 @@ async def test_matching_results_of_calls_sharing_an_id_is_linear(
     small, large = await work(16), await work(128)
     assert small > 0
     # linear is 8x; matching each result with each sibling call is 64x
+    assert large <= 12 * small, (small, large)
+
+
+def _forged_calls(dialect: HostDialect, n: int) -> dict[str, Any]:
+    """A scaffold's history entry with `n` calls of `read_file`, all under the id `repeated`."""
+    arguments = [{"path": str(i)} for i in range(n)]
+    match dialect:
+        case "completions":
+            return {
+                "role": "assistant",
+                "content": "On it.",
+                "tool_calls": [
+                    {
+                        "id": "repeated",
+                        "type": "function",
+                        "function": {"name": "read_file", "arguments": json.dumps(a)},
+                    }
+                    for a in arguments
+                ],
+            }
+        case "responses":
+            raise AssertionError("responses calls are separate items")
+        case "anthropic":
+            return {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "id": "repeated",
+                        "name": "read_file",
+                        "input": a,
+                    }
+                    for a in arguments
+                ],
+            }
+        case "google":
+            return {
+                "role": "model",
+                "parts": [
+                    {"functionCall": {"id": "repeated", "name": "read_file", "args": a}}
+                    for a in arguments
+                ],
+            }
+
+
+@pytest.mark.usefixtures("fake_sentinel")
+@pytest.mark.parametrize("dialect", get_args(HostDialect))
+async def test_a_request_answering_many_calls_under_one_id_is_linear(
+    dialect: HostDialect,
+) -> None:
+    """A scaffold's request answering many calls under one repeated id does linear work in every dialect.
+
+    Measured: the container work (`container_work`) of the whole request,
+    with a sentinel checking results.
+    """
+    seen: list[AfterToolCall] = []
+
+    async def work(n: int) -> int:
+        model = get_model(
+            "mockllm/model",
+            custom_outputs=[ModelOutput.from_content("mockllm/model", "Done.")],
+        )
+        bridge = AgentBridge(AgentState(messages=[]), model_aliases={"inspect": model})
+        [info] = declare("read_file")
+        conversation = _HostConversation(dialect, "Read files.", info)
+        if dialect == "responses":
+            conversation.history.extend(
+                {
+                    "type": "function_call",
+                    "call_id": "repeated",
+                    "name": "read_file",
+                    "arguments": json.dumps({"path": str(i)}),
+                }
+                for i in range(n)
+            )
+        else:
+            conversation.history.append(_forged_calls(dialect, n))
+        name = "read_file" if dialect == "google" else "repeated"
+        conversation.results([(name, {})] * n, [f"result {i}" for i in range(n)])
+        seen.clear()
+        with recorded_transcript(), container_work() as counted:
+            await conversation.request(cast(SandboxAgentBridge, bridge))
+        assert len(seen) == n
+        return counted.work
+
+    with active_test_sentinel(record_tool_results(seen)):
+        small, large = await work(32), await work(256)
+    assert small > 0
+    # linear is 8x; a pass over the calls for each result is 64x
     assert large <= 12 * small, (small, large)
 
 

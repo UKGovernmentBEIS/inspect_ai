@@ -18,6 +18,7 @@ from checkpoint.test_checkpointer import (
 from pydantic import JsonValue, TypeAdapter, ValidationError
 from pydantic_core import to_json
 from test_helpers.checkpoint import RecordingCheckpointer
+from test_helpers.container_work import container_work
 from test_helpers.utils import (
     skip_if_no_anthropic,
     skip_if_no_google,
@@ -4226,6 +4227,86 @@ def test_an_ambiguous_calls_result_is_checked_as_every_target_its_handouts_resol
         (check.call.function, check.message_id, check.producer)
         for check in claim.result.checks
     ] == [("delete_file", "asked", None), ("read_file", "asked", None)]
+
+
+def _container_work(run: Callable[[], object]) -> int:
+    with container_work() as counted:
+        run()
+    return counted.work
+
+
+@pytest.mark.parametrize("pairing", ["inherited", "claim"])
+def test_pairing_results_with_repeated_call_ids_is_linear(pairing: str) -> None:
+    """A request answering many calls under one id pairs the nth result with the nth call, in linear work."""
+    from inspect_ai.agent._bridge._sentinel import (
+        _answers,
+        _Handouts,
+        inherited_result_keys,
+    )
+
+    def conversation(n: int) -> list[ChatMessage]:
+        calls = [
+            ToolCall(id="repeated", function="read_file", arguments={"path": str(i)})
+            for i in range(n)
+        ]
+        return [
+            ChatMessageUser(content=TASK),
+            ChatMessageAssistant(content="On it.", tool_calls=calls),
+            *(
+                ChatMessageTool(content=f"result {i}", tool_call_id="repeated")
+                for i in range(n)
+            ),
+        ]
+
+    def work(n: int) -> int:
+        input = conversation(n)
+        if pairing == "inherited":
+            return _container_work(lambda: inherited_result_keys(input))
+        handouts = _Handouts(_SavedHandouts(reserved_ids=[], handed={}, checked=[]))
+        return _container_work(lambda: handouts.claim(input))
+
+    paired = [
+        (message.text, found.call.arguments["path"] if found is not None else None)
+        for message, found in _answers(conversation(3))
+    ]
+    assert paired == [("result 0", "0"), ("result 1", "1"), ("result 2", "2")]
+    small, large = work(64), work(512)
+    assert small > 0
+    # linear is 8x; shifting the remaining calls for each result is 64x
+    assert large <= 12 * small, (small, large)
+
+
+def test_renaming_reasoning_anchors_of_a_repeated_call_id_is_linear() -> None:
+    """A reply's calls sharing an id get fresh ids; its anchors take them in order, in linear work."""
+    from inspect_ai._util.content import ContentReasoning
+    from inspect_ai.agent._bridge.util import _renamed_anchors
+
+    def anchors(n: int) -> list[Content]:
+        return [
+            ContentReasoning(
+                reasoning="", internal={"gemini_function_call_id": "repeated"}
+            )
+            for _ in range(n)
+        ]
+
+    def fresh(n: int) -> dict[str, list[str]]:
+        return {"repeated": [f"fresh_{i}" for i in range(n)]}
+
+    renamed = _renamed_anchors(anchors(3), fresh(3))
+    assert [
+        part.internal["gemini_function_call_id"]
+        for part in renamed
+        if isinstance(part, ContentReasoning) and isinstance(part.internal, dict)
+    ] == ["fresh_0", "fresh_1", "fresh_2"]
+
+    def work(n: int) -> int:
+        content, ids = anchors(n), fresh(n)
+        return _container_work(lambda: _renamed_anchors(content, ids))
+
+    small, large = work(64), work(512)
+    assert small > 0
+    # linear is 8x; shifting the remaining fresh ids for each anchor is 64x
+    assert large <= 12 * small, (small, large)
 
 
 async def test_a_result_under_an_id_never_handed_out_is_checked_once() -> None:
