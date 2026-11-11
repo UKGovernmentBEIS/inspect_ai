@@ -102,7 +102,8 @@ async def execute_host_tool(
     model proposed it, and otherwise with the conversation the bridge last saw.
     An MCP call carries no call id, so a call that outstanding proposals of
     several calls could account for is checked without any of their contexts,
-    and its result recorded as checked for each of them.
+    and its result recorded as checked for each of them; so is one whose call
+    id another request was handed while it ran (`_attribution`).
     The check sees the result as the scaffold receives it (the serialized text,
     or the text and images of the MCP content), and an error as the service's
     error text, with the type the native path gives it. An argument validation
@@ -348,18 +349,11 @@ async def _execute_granted(
         )
         raise ToolParsingError(validation_errors)
     call_arguments = cast(dict[str, JsonValue], arguments)
-    check = (
-        bridge._handouts.latest(grant.check)
-        if grant is not None and grant.check is not None and len(candidates) <= 1
-        else None
+    has_check = (
+        _attribution(bridge, tool, tool_fn, call_arguments, grant, candidates).check
+        is not None
     )
-    if check is None:
-        # with no proposal's context; an ambiguous call's result is recorded
-        # for each execution it could be
-        check = sentinel_unproposed_host_check(bridge, tool, call_arguments, tool_fn)
-    else:
-        candidates = []
-    trim = check is not None and checks_bridged_results()
+    trim = has_check and checks_bridged_results()
 
     event = ToolEvent(
         id=event_id,
@@ -427,7 +421,7 @@ async def _execute_granted(
                 else _Outcome(error=_CANCELLED, raised=ex)
             )
         # a model-facing error is raised once the sentinel has checked it (below)
-        if check is None or not _checked(outcome):
+        if not has_check or not _checked(outcome):
             raise
     finally:
         if outcome is not None:
@@ -450,11 +444,60 @@ async def _execute_granted(
                 bridge.request_fail(outcome.fatal)
 
     assert outcome is not None
-    if check is not None and _checked(outcome):
-        await _check_result(bridge, check, outcome, candidates)
+    if has_check and _checked(outcome):
+        # attributed again: another request may have handed the call over
+        # while it ran
+        attribution = _attribution(
+            bridge, tool, tool_fn, call_arguments, grant, candidates
+        )
+        if attribution.check is not None:
+            await _check_result(
+                bridge, attribution.check, outcome, attribution.executions
+            )
     if outcome.raised is not None:
         raise outcome.raised
     return outcome.reply
+
+
+class _Attribution(NamedTuple):
+    """The check a host call's result gets, and the executions it is recorded for."""
+
+    check: SentinelCheck | None
+    """The result's check, or None without a sentinel."""
+
+    executions: list[SentinelCheck]
+    """The executions the result is recorded as checked for, when the check
+    has no proposal's context (`sentinel_host_tool_result` `candidates`);
+    empty for `check`'s own."""
+
+
+def _attribution(
+    bridge: SandboxAgentBridge,
+    tool: str,
+    tool_fn: Tool,
+    arguments: dict[str, Any],
+    grant: _ToolExecutionGrant | None,
+    candidates: list[SentinelCheck],
+) -> _Attribution:
+    """Which proposal's context checks the result of the host call that consumed `grant`.
+
+    That of the latest handout of the grant's call, for the grant's target
+    (`_Handouts.latest`). With none, because the call matched proposals of
+    several calls (`candidates`), its id is ambiguous, or it had no proposal,
+    the result is checked with no proposal's context and recorded for each
+    execution it could be. A request may hand the call over again while it
+    runs, so this is decided again for the result.
+    """
+    check = (
+        bridge._handouts.latest(grant.check)
+        if grant is not None and grant.check is not None and len(candidates) <= 1
+        else None
+    )
+    if check is not None:
+        return _Attribution(check, [])
+    return _Attribution(
+        sentinel_unproposed_host_check(bridge, tool, arguments, tool_fn), candidates
+    )
 
 
 class _Outcome(NamedTuple):

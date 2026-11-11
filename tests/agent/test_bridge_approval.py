@@ -6573,6 +6573,92 @@ async def test_same_name_tools_on_servers_check_results_with_their_own_viewers(
     ]
 
 
+@protocol
+def record_tool_results(seen: list[AfterToolCall]) -> Protocol:
+    async def after(
+        context: Context, step: AfterToolCall, escalations: Escalations
+    ) -> Decision | None:
+        seen.append(step)
+        return None
+
+    return after
+
+
+@pytest.mark.usefixtures("fake_sentinel")
+@pytest.mark.parametrize("overlap", [False, True])
+@pytest.mark.parametrize("error", [False, True])
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+async def test_a_host_call_handed_over_again_while_running_gets_no_proposal(
+    dialect: HostDialect, error: bool, overlap: bool
+) -> None:
+    """Another conversation is handed the running call's id and arguments (Groq's ids repeat).
+
+    Which handout ran can no longer be told, so its result, or a model-facing
+    error, is checked with no proposal's context.
+    """
+    call = ToolCall(id="tool_call_0_0", function="read_file", arguments={"path": "p"})
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[tool_calls_output(call), tool_calls_output(call)],
+    )
+    started, release = anyio.Event(), anyio.Event()
+
+    async def read(path: str) -> str:
+        started.set()
+        await release.wait()
+        if error:
+            raise ToolError("no such file")
+        return "contents"
+
+    bridge = SandboxAgentBridge(
+        state=AgentState(messages=[]),
+        filter=None,
+        retry_refusals=None,
+        compaction=None,
+        port=13131,
+        model=None,
+        model_aliases={"inspect": model},
+        bridged_tools={"host": {"read_file": read_file(AsyncMock(side_effect=read))}},
+    )
+    [info] = declare("read_file")
+    seen: list[AfterToolCall] = []
+
+    async def execute(arguments: dict[str, Any]) -> None:
+        if error:
+            with pytest.raises(ToolError, match="no such file"):
+                await call_host_tool(bridge)("host", "read_file", arguments)
+        else:
+            assert await call_host_tool(bridge)("host", "read_file", arguments) == (
+                "contents"
+            )
+
+    with active_test_sentinel(record_tool_results(seen)):
+        [(_, arguments)] = await _HostConversation(dialect, "Read p.", info).request(
+            bridge
+        )
+        assert bridge._handouts.proposals
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(execute, arguments)
+            await started.wait()
+            if overlap:
+                sub = _HostConversation(dialect, "Sub-agent: read p.", info)
+                await sub.request(bridge)
+                assert not bridge._handouts.proposals
+            release.set()
+
+    [after] = seen
+    assert (after.result.error is not None) == error
+    if overlap:
+        assert after.input is None
+        assert after.message_id == ""
+        assert after.tools is None and after.tool_choice is None
+    else:
+        assert after.input is not None
+        assert [m.text for m in after.input] == ["Read p."]
+        assert after.message_id != ""
+        assert after.tools is not None
+
+
 @agent
 def host_scaffold(mode: HostMode, dialect: HostDialect = "completions") -> Agent:
     """A scaffold running every call it gets as a bridged host tool, in parallel."""
