@@ -90,6 +90,7 @@ from inspect_ai.tool._tool_call import (
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.util._limit import (
+    suspend_cost_limit,
     suspend_token_limit,
     suspend_turn_limit,
     suspend_working_limit,
@@ -295,6 +296,7 @@ async def _run(step: Step, step_id: str) -> Decision | None:
             async with span(name="sentinel", type="sentinel"):
                 try:
                     with (
+                        suspend_cost_limit(),
                         suspend_token_limit(),
                         suspend_turn_limit(),
                         suspend_working_limit(),

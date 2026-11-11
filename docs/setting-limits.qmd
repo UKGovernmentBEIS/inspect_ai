@@ -533,6 +533,20 @@ def myagent(budget: float = 2.00) -> Agent:
 
 Cost limits work similarly to token limits, with stacking and tracking of costs used while the context manager is open.
 
+To run model calls whose cost should not count against any active cost limit, use `suspend_cost_limit()`. Their cost is still reported in model and role usage:
+
+``` python
+with cost_limit(2.00):
+    await generate()  # counts against the $2.00 budget
+    with suspend_cost_limit():
+        # cost here is not metered against the $2.00 limit,
+        # and any inner `cost_limit()` is also suspended
+        await auxiliary_generate()
+    await generate()  # counts again
+```
+
+Inspect suspends cost, token, turn and working limits while an in-process sentinel runs, so a sentinel's own model calls are reported in usage but do not count toward the sample's limits.
+
 ::: callout-important
 Using `cost_limit()` requires model cost data to be configured via `set_model_cost()` or `--model-cost-config`. See [Model Cost](#model-cost) for details.
 :::

@@ -1,5 +1,6 @@
 from typing import Generator
 
+import anyio
 import pytest
 from test_helpers.limits import generate_with_retry_boundary
 
@@ -20,6 +21,7 @@ from inspect_ai.util._limit import (
     check_cost_limit,
     cost_limit,
     record_model_cost,
+    suspend_cost_limit,
     token_limit,
 )
 
@@ -279,6 +281,114 @@ async def test_token_limit_raise_charges_cost_once() -> None:
     assert exc_info.value.type == "token"
     assert len(calls) == 1
     assert limit.usage == pytest.approx(10.0)
+
+
+def test_suspend_cost_limit_skips_recording_and_check() -> None:
+    with cost_limit(0.01) as limit:
+        with suspend_cost_limit():
+            _consume_cost(1.0)
+        assert limit.usage == 0
+
+
+def test_suspend_cost_limit_skips_check_of_cost_already_recorded() -> None:
+    with cost_limit(0.01):
+        record_model_cost(1.0)
+        with suspend_cost_limit():
+            check_cost_limit()
+        with pytest.raises(LimitExceededError):
+            check_cost_limit()
+
+
+def test_suspend_cost_limit_resumes_metering_on_exit() -> None:
+    with cost_limit(0.01) as limit:
+        with suspend_cost_limit():
+            _consume_cost(1.0)
+
+        with pytest.raises(LimitExceededError):
+            _consume_cost(0.02)
+
+        assert limit.usage == 0.02
+
+
+def test_suspend_cost_limit_with_no_active_limit() -> None:
+    with suspend_cost_limit():
+        _consume_cost(1.0)
+
+
+def test_suspend_cost_limit_hides_inner_cost_limit() -> None:
+    with cost_limit(0.01) as outer:
+        with suspend_cost_limit():
+            with cost_limit(0.005) as inner:
+                _consume_cost(1.0)
+            assert inner.usage == 0
+        assert outer.usage == 0
+
+
+def test_suspend_cost_limit_exception_restores_state() -> None:
+    with cost_limit(0.01) as limit:
+        with pytest.raises(RuntimeError):
+            with suspend_cost_limit():
+                _consume_cost(1.0)
+                raise RuntimeError("boom")
+
+        with pytest.raises(LimitExceededError):
+            _consume_cost(0.02)
+
+        assert limit.usage == 0.02
+
+
+async def test_suspend_cost_limit_is_per_task() -> None:
+    """Suspension in one async task must not bleed into a sibling task."""
+    suspended = anyio.Event()
+    metered = anyio.Event()
+    with cost_limit(0.01) as limit:
+
+        async def suspended_task() -> None:
+            with suspend_cost_limit():
+                _consume_cost(1.0)
+                suspended.set()
+                await metered.wait()
+
+        async def metered_task() -> None:
+            await suspended.wait()
+            try:
+                with pytest.raises(LimitExceededError):
+                    _consume_cost(0.02)
+            finally:
+                metered.set()
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(suspended_task)
+            tg.start_soon(metered_task)
+
+        assert limit.usage == 0.02
+
+
+@pytest.mark.usefixtures("ten_dollar_calls")
+async def test_suspend_cost_limit_lets_a_model_call_exceed_the_limit() -> None:
+    calls: list[list[ChatMessage]] = []
+    model = _priced_model(calls)
+
+    with cost_limit(5.0) as limit:
+        with suspend_cost_limit():
+            output = await model.generate("")
+        assert limit.usage == 0
+
+    assert len(calls) == 1
+    assert output.usage is not None
+    assert output.usage.total_cost == pytest.approx(10.0)
+
+
+async def test_suspend_cost_limit_dispatches_when_limit_already_reached() -> None:
+    calls: list[list[ChatMessage]] = []
+    model = _counting_model(calls)
+
+    with cost_limit(0.01):
+        record_model_cost(0.01)
+        with suspend_cost_limit():
+            await model.generate("")
+
+    assert len(calls) == 1
 
 
 def _consume_cost(amount: float) -> None:

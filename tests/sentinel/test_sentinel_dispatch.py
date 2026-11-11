@@ -72,6 +72,8 @@ from inspect_ai.model import (
     GenerateConfig,
     Model,
     ModelAPI,
+    ModelCost,
+    ModelInfo,
     ModelOutput,
     ModelUsage,
     get_model,
@@ -79,6 +81,7 @@ from inspect_ai.model import (
     modelapi,
 )
 from inspect_ai.model._call_tools import execute_tools
+from inspect_ai.model._model_info import clear_model_info_cache, set_model_info
 from inspect_ai.model._providers.mockllm import MockLLM
 from inspect_ai.review import Review, Reviewer, ReviewPolicy, reviewer
 from inspect_ai.scorer import Reference, Score, Scorer, Target, scorer
@@ -2105,6 +2108,41 @@ def test_sentinel_inference_is_not_charged_to_the_sample_limits() -> None:
     [event] = sentinel_events(log)
     assert event.suspicion == 0.25
     assert [m.text for m in sample.messages][-1] == "done"
+
+
+@pytest.fixture
+def priced_judge() -> Iterator[None]:
+    """Price `mockllm/judge` at $1,000 per million tokens; agent calls are free."""
+    clear_model_info_cache()
+    for model, price in [("model", 0.0), ("judge", 1000.0)]:
+        cost = ModelCost(
+            input=price, output=price, input_cache_write=0.0, input_cache_read=0.0
+        )
+        set_model_info(model, ModelInfo(cost=cost))
+    yield
+    clear_model_info_cache()
+
+
+@pytest.mark.usefixtures("priced_judge")
+def test_sentinel_inference_is_not_charged_to_the_sample_cost_limit() -> None:
+    expensive = ModelOutput.from_content("mockllm/judge", content="0.25")
+    expensive.usage = ModelUsage(
+        input_tokens=50_000, output_tokens=50_000, total_tokens=100_000
+    )
+    judge = get_model("mockllm/judge", custom_outputs=[expensive], memoize=False)
+    log = run(
+        [d3_asks_with(role="judge")],
+        model_roles={"judge": judge},
+        cost_limit=1.0,
+    )
+    assert log.status == "success", log.error
+    assert log.samples
+    sample = log.samples[0]
+    assert sample.limit is None
+    assert [m.text for m in sample.messages][-1] == "done"
+    # the judge's $100 is still reported in the sample's usage
+    assert sample.model_usage["mockllm/judge"].total_cost == pytest.approx(100.0)
+    assert sample.role_usage["judge"].total_cost == pytest.approx(100.0)
 
 
 def monitor_calls(log: EvalLog) -> list[tuple[str, str | None]]:
