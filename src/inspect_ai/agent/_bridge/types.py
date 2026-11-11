@@ -298,7 +298,8 @@ class AgentBridge:
                     else [],
                 ),
                 value_type=_SavedHandouts,
-            )
+            ),
+            viewer=self._bridged_tool_viewer,
         )
         # checkpointed hashes: changing `content_hash` or `edit_id` changes what a
         # resumed sample matches against
@@ -699,6 +700,13 @@ class AgentBridge:
     def _host_tool_viewer(
         self, call: ToolCall, tools: Sequence[ToolInfo | Tool]
     ) -> ToolCallViewer | None:
+        return None
+
+    def _bridged_tool_viewer(self, target: BridgedToolId) -> ToolCallViewer | None:
+        """The viewer of the bridged tool `target`, if the bridge serves it.
+
+        In-process bridges serve no tools; `SandboxAgentBridge` overrides this.
+        """
         return None
 
     def _declared_properties(self, server: str, tool: str) -> Mapping[str, Any] | None:

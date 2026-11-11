@@ -7396,7 +7396,9 @@ async def test_a_changed_report_of_a_shared_host_call_is_checked_as_its_target(
 STATUS = "Report status of a path."
 
 
-def _status_and_read_file_bridge(model: Model) -> SandboxAgentBridge:
+def _status_and_read_file_bridge(
+    model: Model, checkpointer: RecordingCheckpointer | None = None
+) -> SandboxAgentBridge:
     """Serve `status` (returning `secret`) and `read_file` (returning `public`) on server `host`."""
     return SandboxAgentBridge(
         state=AgentState(messages=[]),
@@ -7414,6 +7416,7 @@ def _status_and_read_file_bridge(model: Model) -> SandboxAgentBridge:
                 "read_file": served_tool(AsyncMock(return_value="public")),
             }
         },
+        checkpointer=checkpointer,
     )
 
 
@@ -8380,9 +8383,8 @@ async def test_a_result_checked_for_one_target_is_checked_again_after_its_propos
 ) -> None:
     """A result allowed for `status` is reported for a later handout resolving to `read_file`, whose proposal is evicted or lost to a resume.
 
-    The report is checked as the call its request answers, without context:
-    a step no check passed, which terminates even though it is not checked
-    as `read_file`.
+    The report is checked as both handouts' targets, without context: as
+    `read_file`, which terminates.
     """
     call = ToolCall(id="same", function="summarize", arguments={"path": "p"})
     fillers = [
@@ -8437,9 +8439,11 @@ async def test_a_result_checked_for_one_target_is_checked_again_after_its_propos
             )
         if fallback != "none":
             assert ("same", _call_key(call)) not in bridge._handouts.proposals
+        checked = len(seen)
         second.results(second_calls, ["secret changed" if changed else "secret"])
         with pytest.raises(TerminateSampleError, match="non-status secret"):
             await second.request(bridge)
+    assert "summarize" not in [step.call.function for step in seen[checked:]]
 
 
 @pytest.mark.usefixtures("fake_sentinel")
@@ -8448,7 +8452,7 @@ async def test_a_result_checked_for_one_target_is_checked_again_after_its_propos
 async def test_a_replay_after_its_proposal_is_gone_is_checked_once_more(
     dialect: HostDialect, fallback: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Once a result's proposal is evicted or lost to a resume, its replay is another step: checked once, then not again.
+    """Once a result's proposal is evicted or lost to a resume, its replay is another step: checked once, as the handout's target without context, then not again.
 
     A later handout of the call resolving to another target is still checked.
     """
@@ -8490,13 +8494,142 @@ async def test_a_replay_after_its_proposal_is_gone_is_checked_once_more(
         for _ in range(2):
             _continue(first)
             await first.request(bridge)
-        # the call as the request answers it
-        assert [function for function, _, _ in seen[checked:]] == ["summarize"]
+        # the handout's target, without context
+        assert [(f, context) for f, _, context in seen[checked:]] == [("status", False)]
         second = _HostConversation(dialect, "Second", declare("summarize")[0])
         second_calls = await second.request(bridge)
         second.results(second_calls, ["secret"])
         with pytest.raises(TerminateSampleError, match="secret read_file result"):
             await second.request(bridge)
+
+
+def _viewed_read_file_bridge(
+    model: Model,
+    checkpointer: RecordingCheckpointer | None = None,
+    read_file_served: bool = True,
+) -> SandboxAgentBridge:
+    """`_status_and_read_file_bridge`, with `read_file` viewed as `Reading <path>` (or, not `read_file_served`, only `status`)."""
+
+    def viewer(call: ToolCall) -> ToolCallView:
+        return ToolCallView(
+            call=ToolCallContent(
+                format="markdown", content=f"Reading {call.arguments['path']}"
+            )
+        )
+
+    async def execute(path: str) -> str:
+        return "public"
+
+    tools: dict[str, Tool] = {
+        "status": served_tool(
+            AsyncMock(return_value="secret"), description=STATUS, name="status"
+        )
+    }
+    if read_file_served:
+        tools["read_file"] = ToolDef(
+            execute,
+            name="read_file",
+            description=READ_FILE,
+            parameters=params("path"),
+            viewer=viewer,
+        ).as_tool()
+    return SandboxAgentBridge(
+        state=AgentState(messages=[]),
+        filter=None,
+        retry_refusals=None,
+        compaction=None,
+        port=13131,
+        model=None,
+        model_aliases={"inspect": model},
+        bridged_tools={"host": tools},
+        checkpointer=checkpointer,
+    )
+
+
+@pytest.mark.usefixtures("fake_sentinel")
+@pytest.mark.parametrize(
+    "loss",
+    [
+        "none",
+        "evict",
+        "resume",
+        "resume, tool gone",
+        "evict, then handed out again",
+        "resume, then handed out again",
+    ],
+)
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+async def test_a_handout_is_checked_as_its_targets_after_its_proposal_is_gone(
+    dialect: HostDialect, loss: str
+) -> None:
+    """A report under a handout's id and call is checked as the handout's target once its proposal is evicted or lost to a resume.
+
+    The scaffold declares `summarize` as `read_file`, runs it on the host
+    (`public`), then reports `secret` for the call. Once the proposal is gone
+    the report is still checked as `read_file`, with its viewer (rebuilt from
+    the bridged tool, or none once the resumed bridge no longer serves it),
+    never as the scaffold's name, and without context. A later handout of the
+    same call declared as `status` adds that target to the earlier one.
+    """
+    call = ToolCall(id="same", function="summarize", arguments={"path": "p"})
+    fillers = [
+        ToolCall(id=f"filler-{index}", function="other", arguments={})
+        for index in range(1000)
+    ]
+    done = ModelOutput.from_content("mockllm/model", "Done.")
+    evict = loss.startswith("evict")
+    again = loss.endswith("handed out again")
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            tool_calls_output(call),
+            *(
+                tool_calls_output(*fillers[start : start + 100])
+                for start in range(0, 1000 if evict else 0, 100)
+            ),
+            *([tool_calls_output(call)] if again else []),
+            done,
+        ],
+    )
+    checkpointer = RecordingCheckpointer()
+    bridge = _viewed_read_file_bridge(model, checkpointer)
+    seen: list[tuple[str, str, bool]] = []
+    with active_test_sentinel(terminate_on_a_secret_target_result(seen)):
+        first = _HostConversation(dialect, "Read p.", declare("summarize")[0])
+        calls = await first.request(bridge)
+        await call_host_tool(bridge)("host", "read_file", {"path": "p"})
+        assert seen == [("read_file", "Reading p", True)]
+        if evict:
+            for batch in range(10):
+                await _HostConversation(
+                    dialect, f"Fill {batch}.", declare("other")[0]
+                ).request(bridge)
+        elif loss.startswith("resume"):
+            bridge = _viewed_read_file_bridge(
+                model,
+                RecordingCheckpointer(
+                    restored=checkpointer.snapshot(), serialized=True
+                ),
+                read_file_served=loss != "resume, tool gone",
+            )
+        if loss != "none":
+            assert not any(id == "same" for id, _ in bridge._handouts.proposals)
+        if again:
+            await _HostConversation(
+                dialect, "Status of p.", declare("summarize", description=STATUS)[0]
+            ).request(bridge)
+        checked = len(seen)
+        first.results(calls, ["secret"])
+        with pytest.raises(TerminateSampleError, match="secret read_file result"):
+            await first.request(bridge)
+    reported = seen[checked:]
+    [(view, context)] = [(v, c) for f, v, c in reported if f == "read_file"]
+    assert context == (loss == "none")
+    # without the bridged tool, the call's own rendering
+    assert (view == "Reading p") == (loss != "resume, tool gone")
+    assert all(function != "summarize" for function, _, _ in reported)
+    if loss != "none":
+        assert all(not context for _, _, context in reported)
 
 
 @pytest.mark.usefixtures("fake_sentinel")

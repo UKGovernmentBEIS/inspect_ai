@@ -611,6 +611,10 @@ class SandboxAgentBridge(AgentBridge):
             target = targets[0]
         return ToolDef(self.bridged_tools[target.server][target.tool]).viewer
 
+    def _bridged_tool_viewer(self, target: BridgedToolId) -> ToolCallViewer | None:
+        tool = self.bridged_tools.get(target.server, {}).get(target.tool)
+        return ToolDef(tool).viewer if tool is not None else None
+
     def reviewed_calls(
         self, call: ToolCall, tools: Sequence[ToolInfo | Tool]
     ) -> ReviewedCalls:
