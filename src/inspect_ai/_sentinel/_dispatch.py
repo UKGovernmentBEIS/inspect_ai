@@ -189,7 +189,14 @@ async def sentinel_after_tool_call(
     *,
     reject_on_viewer_error: bool = False,
     bridge: bool = False,
+    view: ToolCallView | None = None,
 ) -> None:
+    """Run the sentinel after a tool call ran, before the model sees its result.
+
+    `view` is the call's view, if already rendered with `viewer` (a bridge
+    renders it to tell the step apart from those already checked); otherwise
+    it is rendered here.
+    """
     if not _watches(AfterToolCall):
         return
     _require_message_id()
@@ -201,7 +208,9 @@ async def sentinel_after_tool_call(
         message=message,
         message_id=_message_id(message_id),
         call=call,
-        view=resolve_tool_call_view(
+        view=view
+        if view is not None
+        else resolve_tool_call_view(
             call, viewer, reject_on_error=reject_on_viewer_error
         ),
         result=result,

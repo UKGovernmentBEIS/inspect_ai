@@ -1087,7 +1087,8 @@ async def test_host_tool_result_is_checked_in_the_service() -> None:
     assert after.output == "host contents"
     assert after.truncated is False
     assert after.result.tool_call_id == read.id
-    assert after.result.function == "read_file"
+    # as the scaffold receives it, under the function it was handed
+    assert after.result.function == read.function
     assert after.result.text == "host contents"
     assert observations() == [(read.id, "tool_call"), (read.id, "tool_result")]
 
@@ -1626,8 +1627,8 @@ async def test_a_host_call_matching_several_proposals_gets_no_proposal_context()
             bridge, model, [ChatMessageUser(content=TASK)], declare_read_file()
         )
         await call_host_tool(bridge)("host", "read_file", READ.arguments)
-        # the scaffold reports the result under either call's id: it was
-        # checked for both
+        # the scaffold reports the result under either call's id: a check
+        # with no proposal's context is no report's step, so each is checked
         for call in [stale, fresh]:
             await generate(
                 bridge,
@@ -1643,10 +1644,15 @@ async def test_a_host_call_matching_several_proposals_gets_no_proposal_context()
             )
 
     # an MCP call carries no call id, so which execution it is can't be told
-    [after] = [step for step in seen if isinstance(step, AfterToolCall)]
+    after, *reports = [step for step in seen if isinstance(step, AfterToolCall)]
     assert after.call.id not in {"stale", "fresh"}
     assert after.call.function == "read_file"
     assert after.message == "" and after.input is None
+    # each conversation was handed the call, so neither report gets its context
+    assert [(step.call.id, step.input) for step in reports] == [
+        ("stale", None),
+        ("fresh", None),
+    ]
 
 
 def read_file_view(call: ToolCall) -> ToolCallView:
@@ -1754,6 +1760,49 @@ def test_dropping_old_proposals_warns_once(
     assert len(warnings) == 1
     proposals = bridge._handouts.proposals.values()
     assert [p.handed.id for p in proposals] == ["read_2", "read_3"]
+
+
+def test_a_result_steps_digest_covers_or_names_every_field_of_the_step() -> None:
+    """Every field of the step a result check sends is in its digest, or left out with a reason; a field `inspect_sentinel` adds fails this."""
+    from dataclasses import fields
+
+    from inspect_ai.agent._bridge._sentinel import (
+        STEP_DIGEST_EXCLUDED,
+        STEP_DIGEST_FIELDS,
+    )
+
+    assert STEP_DIGEST_FIELDS.isdisjoint(STEP_DIGEST_EXCLUDED)
+    assert {field.name for field in fields(AfterToolCall)} == (
+        STEP_DIGEST_FIELDS | STEP_DIGEST_EXCLUDED.keys()
+    )
+
+
+def test_a_step_that_cannot_be_serialized_is_never_exempt() -> None:
+    """A step with a value its digest can't serialize gets a digest no other step has: its result is checked every time it is reported."""
+    from inspect_ai.agent._bridge._sentinel import (
+        BridgedRequest,
+        SentinelCheck,
+        _Handouts,
+    )
+
+    call = ToolCall(id="odd", function="f", arguments={"value": object()})
+    handouts = _Handouts(_SavedHandouts(reserved_ids=[], handed={}, checked=[]))
+    handouts.hand_over(
+        BridgedRequest("request", frozenset()),
+        [call],
+        [call],
+        [SentinelCheck(call, call, None, "", "message")],
+    )
+    input: list[ChatMessage] = [
+        ChatMessageAssistant(content="", tool_calls=[call]),
+        ChatMessageTool(content="ok", tool_call_id="odd"),
+    ]
+    for _ in range(2):
+        [claim] = handouts.claim(input).owned
+        # as if its check passed
+        handouts.checked.update(claim.result.digests)
+        handouts.release(claim)
+    assert len(handouts.checked) == 2
 
 
 def test_claiming_a_requests_results_takes_memory_linear_in_its_results() -> None:
@@ -1952,36 +2001,6 @@ def test_results_answering_one_call_key_its_arguments_once(
 
     assert len(keys) == len(claimed.owned) == 100
     assert len(keyed) == 2
-
-
-async def test_a_host_result_for_several_executions_is_keyed_once(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from inspect_ai.agent._bridge import _sentinel
-
-    keyed: list[ChatMessageTool] = []
-    content_key = _sentinel._content_key
-
-    def counting_content_key(result: ChatMessageTool) -> str:
-        keyed.append(result)
-        return content_key(result)
-
-    monkeypatch.setattr(_sentinel, "_content_key", counting_content_key)
-    bridge = in_process_bridge([])
-    candidates = [
-        _sentinel.SentinelCheck(
-            READ, READ, None, "", "message_1", execution_id=f"t{index}"
-        )
-        for index in range(50)
-    ]
-
-    await _sentinel.sentinel_host_tool_result(
-        bridge, candidates[0], "contents", "contents", candidates=candidates
-    )
-
-    assert len(keyed) == 1
-    # the call key they share (none of them was handed over)
-    assert len(bridge._handouts.checked) == 1
 
 
 async def test_a_result_whose_proposal_was_dropped_is_still_checked(
@@ -2444,7 +2463,8 @@ async def test_ambiguous_host_grants_check_their_result_with_no_proposal() -> No
         )
         assert bridge._handouts.handed[call.id].ambiguous
         await call_host_tool(bridge)("host", "read_file", call.arguments)
-        # the scaffold reporting the result it was delivered is not checked again
+        # the scaffold reporting the result it was delivered: a check with no
+        # proposal's context is no report's step, so it is checked
         await generate(
             bridge,
             model,
@@ -2460,9 +2480,11 @@ async def test_ambiguous_host_grants_check_their_result_with_no_proposal() -> No
             declare_read_file(),
         )
 
-    [after] = [s for s in seen if isinstance(s, AfterToolCall)]
-    assert after.input is None
-    assert after.message_id == ""
+    executed, reported = [s for s in seen if isinstance(s, AfterToolCall)]
+    assert executed.input is None
+    assert executed.message_id == ""
+    assert reported.input is None
+    assert reported.call.id == call.id
 
 
 async def test_a_result_whose_proposal_was_evicted_gets_no_other_context(
@@ -3342,9 +3364,10 @@ async def test_a_bridge_does_not_resume_from_incomplete_result_checks(
 
 @pytest.mark.parametrize("sandbox", [False, True])
 @pytest.mark.parametrize("dialect", DIALECTS)
-async def test_a_result_checked_before_a_checkpoint_is_not_checked_again_after_resume(
+async def test_a_result_checked_before_a_checkpoint_is_checked_once_more_after_resume(
     dialect: str, sandbox: bool, tmp_path: Path
 ) -> None:
+    """A resumed bridge has no proposals, so a result's step has no context: another step, checked once, then not again."""
     seen: Steps = []
     model = Scripted(calls_output(replace(READ, id=LATE)), calls_output())
     start = AgentState(messages=[ChatMessageUser(content=TASK)])
@@ -3366,18 +3389,18 @@ async def test_a_result_checked_before_a_checkpoint_is_not_checked_again_after_r
             try:
                 bridge = started_with(sandbox, model.model, deepcopy(start), resumed)
                 with active([bridge_recording(seen)]):
-                    await dialect_history_request(
-                        dialect, bridge, replace(READ, id=handed), "safe"
-                    )
-                    await dialect_history_request(
-                        dialect, bridge, replace(READ, id=handed), "changed"
-                    )
+                    for result in ["safe", "safe", "changed"]:
+                        await dialect_history_request(
+                            dialect, bridge, replace(READ, id=handed), result
+                        )
             finally:
                 resumed.close()
 
-    assert [step.result.text for step in seen if isinstance(step, AfterToolCall)] == [
-        as_handed(dialect, "safe"),
-        as_handed(dialect, "changed"),
+    afters = [step for step in seen if isinstance(step, AfterToolCall)]
+    assert [(step.result.text, step.input is None) for step in afters] == [
+        (as_handed(dialect, "safe"), False),
+        (as_handed(dialect, "safe"), True),
+        (as_handed(dialect, "changed"), True),
     ]
 
 
@@ -4148,10 +4171,14 @@ async def test_identical_results_of_other_handed_arguments_are_each_checked() ->
         await generate(bridge, model, messages)
 
     afters = [s for s in seen if isinstance(s, AfterToolCall)]
-    # the id handed over again in a later request is ambiguous from then on
-    assert [(s.call.arguments, s.input) for s in afters] == [
-        ({"path": "safe.txt"}, model.inputs[0]),
-        (READ.arguments, None),
+    # the id handed over again in a later request is ambiguous from then on:
+    # the first result's replay is another step (no context), checked once,
+    # concurrently with the second result
+    first, *last = [(s.call.arguments["path"], s.input) for s in afters]
+    assert first == ("safe.txt", model.inputs[0])
+    assert sorted(last, key=str) == [
+        (READ.arguments["path"], None),
+        ("safe.txt", None),
     ]
 
 
@@ -4414,7 +4441,7 @@ def test_a_conversation_digest_covers_what_a_model_is_sent(
     assert (original.digests[-1] != edited.digests[-1]) is other
 
 
-async def test_a_result_under_an_id_never_handed_out_is_checked_once() -> None:
+async def test_a_result_under_an_id_never_handed_out_is_checked_under_each_id() -> None:
     seen: Steps = []
     model = Scripted(calls_output(READ), calls_output())
     bridge = in_process_bridge([])
@@ -4458,11 +4485,13 @@ async def test_a_result_under_an_id_never_handed_out_is_checked_once() -> None:
         )
 
     afters = [s for s in seen if isinstance(s, AfterToolCall)]
-    # the unmatched result once, with no model input; the handed-over call's
-    # result once, with its proposal, and not again without its token
+    # each result under an id of the scaffold's own is its own step, with no
+    # model input; the handed-over call's result is checked with its proposal
     assert [(s.call.id, s.output, s.input) for s in afters] == [
         ("scaffold_1", "other", None),
+        ("scaffold_2", "other", None),
         (READ.id, "same", model.inputs[0]),
+        ("scaffold_3", "same", None),
     ]
 
 
@@ -4663,14 +4692,18 @@ async def test_google_results_without_ids_are_checked_once_per_call_and_result()
             bridge, ["same", "same", "new"], keep_ids=False, compact=True
         )
 
-    # without ids a result can't be matched to its execution: an identical
-    # result of an identical call is not checked again, and none gets a
-    # proposal's context
+    # without ids a result can't be matched to its execution, so none gets a
+    # proposal's context; each turn's is its own step (its message's), and
+    # compaction gives the latest turn another message, so its result is
+    # checked again; replays are not
     afters = [s for s in seen if isinstance(s, AfterToolCall)]
     assert [(s.output, s.input) for s in afters] == [
         ('{"out": "same"}', None),
+        ('{"out": "same"}', None),
+        ('{"out": "new"}', None),
         ('{"out": "new"}', None),
     ]
+    assert len({s.message_id for s in afters[:3]}) == 3
 
 
 async def test_google_terminates_on_a_repeated_calls_new_result() -> None:
@@ -4845,12 +4878,10 @@ async def test_a_result_reported_under_its_token_and_an_unissued_id(
             )
 
     assert len(model.inputs) == 2
-    # the unissued result is the token result's conservative key, so it is
-    # checked only when reported first
+    # the unissued result is another step (its call has another id), so it
+    # is checked whichever is reported first
     checked = [step.call.id for step in seen if isinstance(step, AfterToolCall)]
-    assert sorted(checked) == sorted(
-        [READ.id, OTHER_READ.id, *([UNISSUED_READ.id] if unissued_first else [])]
-    )
+    assert sorted(checked) == sorted([READ.id, OTHER_READ.id, UNISSUED_READ.id])
 
 
 @protocol
@@ -6562,13 +6593,7 @@ async def test_an_exempt_host_result_is_checked(proposed: bool) -> None:
 
 
 async def test_unproposed_host_results_leave_no_checked_keys() -> None:
-    """An exempt server's unproposed calls get keys no later result can match: none is kept once checked.
-
-    A failed check's keys are kept while the sample fails, and a checkpoint
-    written with such keys restores without them.
-    """
-    from inspect_ai.agent._bridge._sentinel import _Handouts
-
+    """An exempt server's unproposed calls are steps no report can be: none is recorded, checked or failed."""
     seen: Steps = []
     bridge = sandbox_bridge(AsyncMock(return_value="public"))
     bridge.proposal_exempt_servers.add("host")
@@ -6587,13 +6612,7 @@ async def test_unproposed_host_results_leave_no_checked_keys() -> None:
             await call_host_tool(failing)("host", "read_file", READ.arguments)
     assert not failing._handouts.running
     assert not failing._handouts.checked
-    [failed] = failing._handouts.failed
-    assert failed.startswith("unproposed:")
-
-    restored = _Handouts(
-        _SavedHandouts(reserved_ids=[], handed={}, checked=["unproposed:old", "kept"])
-    )
-    assert restored.checked == {"kept"}
+    assert not failing._handouts.failed
 
 
 async def test_serialized_host_content_terminates_on_what_is_delivered() -> None:
@@ -7486,7 +7505,12 @@ async def test_a_generate_only_interval_never_reuses_a_handed_out_id(
     with active([tool_stages(seen)]):
         await scaffold.request()
 
-    assert checked_results(seen) == [("new result", "new.txt")]
+    # no check ran on the old result while results weren't watched; both
+    # are checked by the last request, concurrently
+    assert sorted(checked_results(seen)) == [
+        ("new result", "new.txt"),
+        ("old result", "old.txt"),
+    ]
 
 
 @pytest.mark.parametrize("dialect", ["completions", "responses"])
@@ -11614,14 +11638,18 @@ async def test_calls_keep_the_models_ids_and_their_own_state(
         ]
         assert types == [generated_type, generated_type]
     if checked and case != "reject":
-        # each result is checked once, as its own call under the id it was
-        # handed under
+        # each result is checked as its own call under the id it was handed
+        # under: once, or, with the calls proposed again in a later request
+        # (ambiguous from then on), also each replay without the proposal's
+        # context and each of the later turn's
         afters = [
             (step.call.id, _path(step.call.arguments))
             for step in seen
             if isinstance(step, AfterToolCall) and step.call.id in model_ids
         ]
-        assert sorted(afters) == sorted(zip(model_ids, paths))
+        assert sorted(afters) == sorted(
+            list(zip(model_ids, paths)) * (3 if case == "proposed_again" else 1)
+        )
 
 
 @skip_if_no_anthropic

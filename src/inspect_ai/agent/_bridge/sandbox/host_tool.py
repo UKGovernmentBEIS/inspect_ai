@@ -101,9 +101,10 @@ async def execute_host_tool(
     `require_proposal=False` server, checked with its proposal's context if the
     model proposed it, and otherwise with the conversation the bridge last saw.
     An MCP call carries no call id, so a call that outstanding proposals of
-    several calls could account for is checked without any of their contexts,
-    and its result recorded as checked for each of them; so is one whose call
-    id another request was handed while it ran (`_attribution`).
+    several calls could account for is checked without any of their contexts;
+    so is one whose call another request was handed while it ran
+    (`_attribution`). Such a check covers no result the scaffold reports, which
+    is checked in turn (`sentinel_host_tool_result`).
     The check sees the result as the scaffold receives it (the serialized text,
     or the text and images of the MCP content), and an error as the service's
     error text, with the type the native path gives it. An argument validation
@@ -341,9 +342,7 @@ async def _execute_granted(
         )
         raise ToolParsingError(validation_errors)
     call_arguments = cast(dict[str, JsonValue], arguments)
-    has_check = (
-        _attribution(bridge, tool, tool_fn, call_arguments, grant).check is not None
-    )
+    has_check = _attribution(bridge, tool, tool_fn, call_arguments, grant) is not None
     trim = has_check and checks_bridged_results()
 
     event = ToolEvent(
@@ -438,26 +437,12 @@ async def _execute_granted(
     if has_check and _checked(outcome):
         # attributed again: another conversation may have been handed the
         # call while it ran
-        attribution = _attribution(bridge, tool, tool_fn, call_arguments, grant)
-        if attribution.check is not None:
-            await _check_result(
-                bridge, attribution.check, outcome, attribution.executions, grant
-            )
+        check = _attribution(bridge, tool, tool_fn, call_arguments, grant)
+        if check is not None:
+            await _check_result(bridge, check, outcome)
     if outcome.raised is not None:
         raise outcome.raised
     return outcome.reply
-
-
-class _Attribution(NamedTuple):
-    """The check a host call's result gets, and the executions it is recorded for."""
-
-    check: SentinelCheck | None
-    """The result's check, or None without a sentinel."""
-
-    executions: list[SentinelCheck]
-    """The executions the result is recorded as checked for, when the check
-    has no proposal's context (`sentinel_host_tool_result` `candidates`);
-    empty for `check`'s own."""
 
 
 def _attribution(
@@ -466,28 +451,20 @@ def _attribution(
     tool_fn: Tool,
     arguments: dict[str, Any],
     grant: _ToolExecutionGrant | None,
-) -> _Attribution:
-    """Which proposal's context checks the result of the host call that consumed `grant`.
+) -> SentinelCheck | None:
+    """The check of the result of the host call that consumed `grant`, or None without a sentinel.
 
     That of the grant's own proposal, for the grant's target, unless the
     call (its server, tool and arguments) was handed to more than one
     conversation (`handed_to_several`): a host call carries no call id, so
     the execution may be another conversation's. The result is then checked
-    with no proposal's context and recorded as checked for the grant's
-    handout. There is none either when the call had no proposal. A request
-    may hand the call to another conversation while it runs, so this is
-    decided again for the result.
+    with no proposal's context. There is none either when the call had no
+    proposal. A request may hand the call to another conversation while it
+    runs, so this is decided again for the result.
     """
-    if grant is None or grant.check is None:
-        return _Attribution(
-            sentinel_unproposed_host_check(bridge, tool, arguments, tool_fn), []
-        )
-    if not bridge.handed_to_several(grant):
-        return _Attribution(grant.check, [])
-    return _Attribution(
-        sentinel_unproposed_host_check(bridge, tool, arguments, tool_fn),
-        [grant.check],
-    )
+    if grant is None or grant.check is None or bridge.handed_to_several(grant):
+        return sentinel_unproposed_host_check(bridge, tool, arguments, tool_fn)
+    return grant.check
 
 
 class _Outcome(NamedTuple):
@@ -527,8 +504,6 @@ async def _check_result(
     bridge: SandboxAgentBridge,
     check: SentinelCheck,
     outcome: _Outcome,
-    candidates: list[SentinelCheck],
-    grant: _ToolExecutionGrant | None,
 ) -> None:
     content: str | list[Content]
     error: ToolCallError | None = None
@@ -552,10 +527,6 @@ async def _check_result(
         outcome.output,
         error,
         outcome.truncated or False,
-        candidates,
-        sorted(bridge.host_call_keys(grant.server, grant.tool, grant.arguments))
-        if grant is not None
-        else [],
     )
 
 

@@ -12,10 +12,10 @@ from typing import (
     Any,
     Awaitable,
     Callable,
+    Hashable,
     Iterable,
     Iterator,
     Literal,
-    Mapping,
     NamedTuple,
     Sequence,
     TypeVar,
@@ -23,11 +23,12 @@ from typing import (
 
 import anyio
 from pydantic import BaseModel
-from pydantic_core import to_jsonable_python
+from pydantic_core import to_json, to_jsonable_python
 from shortuuid import uuid
 
 from inspect_ai._sentinel._agent_state import bridge_request
 from inspect_ai._sentinel._context import SentinelFailure, checks_tool_calls
+from inspect_ai._sentinel._conversation import current_conversation
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.content import (
     Content,
@@ -48,7 +49,6 @@ from inspect_ai.model._chat_message import (
     ChatMessageAssistant,
     ChatMessageTool,
 )
-from inspect_ai.model._message_ids import canonical_tool_arguments
 from inspect_ai.model._providers._google_computer_use_name import (
     gemini_computer_action_names,
 )
@@ -56,8 +56,10 @@ from inspect_ai.tool._tool import Tool, ToolResult
 from inspect_ai.tool._tool_call import (
     ToolCall,
     ToolCallError,
+    ToolCallView,
     ToolCallViewer,
     ToolCallViewError,
+    resolve_tool_call_view,
 )
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.util._limit import LimitExceededError
@@ -78,12 +80,35 @@ _MAX_PROPOSALS = 1000
 # proposal does, has no message that made the call
 _NO_MESSAGE_ID = ""
 
-# the prefix of the key a host call no proposal accounts for is checked under:
-# a fresh one per execution, which no result the scaffold reports can match
-_UNPROPOSED = "unproposed:"
+# The fields of the step a result check sends the protocol (`AfterToolCall`)
+# that its digest (`_Steps`) covers, and those it leaves out, with why.
+STEP_DIGEST_FIELDS = frozenset(
+    {
+        "conversation",
+        "message",
+        "message_id",
+        "call",
+        "view",
+        "result",
+        "input",
+        "tools",
+        "tool_choice",
+    }
+)
+STEP_DIGEST_EXCLUDED = {
+    "output": "a report's is its result's own content (`_output`); a host "
+    "execution's is the tool's return value the delivered result was made from",
+    "truncated": "None for every report, which can't tell; a host execution's "
+    "cut is of that output, and its result is what was delivered",
+    "history": "the conversation's record when the check runs, which grows with "
+    "every step, so a replay would never be the same step",
+    "human_decisions": "as `history`",
+    "agent_messages": "None in every bridge check (`bridge_request`)",
+}
 
 
-class Produced(NamedTuple):
+@dataclass(frozen=True, eq=False)
+class Produced:
     """The generation that produced a bridged call, and the agent span it ran in."""
 
     event: "ModelEvent"
@@ -94,6 +119,19 @@ class Produced(NamedTuple):
 
     def scope(self) -> AbstractContextManager[None]:
         return in_agent_span(self.agent_span_id)
+
+    @cached_property
+    def digest(self) -> str:
+        """The digest of what a step reads of the generation (`input`, `tools`, `tool_choice`).
+
+        Computed once, so the steps of every result of its calls cost nothing
+        in the length of its input.
+        """
+        return _parts_digest(
+            _serialized(self.event.input),
+            _serialized(self.event.tools),
+            _serialized(self.event.tool_choice),
+        )
 
 
 class SentinelCheck(NamedTuple):
@@ -324,31 +362,39 @@ class _SavedHandouts(BaseModel):
     reserved_ids: list[str]
     handed: dict[str, _Handed]
     checked: list[str]
+    """The digests of the steps whose checks passed (`_Steps`)."""
+
+    inherited: list[str] = []
+    """The conservative keys of the results the bridge started with (`inherited_result_keys`)."""
+
     conversations: dict[str, _Conversation] = {}
-    """Per host call (`host_call_key`); empty in a checkpoint written before they were kept."""
+    """Per host call (`host_call_key`)."""
 
 
 class _Result(NamedTuple):
-    keys: list[str]
-    """The result's identity (first) and any it also answers for."""
-
-    checks: tuple[SentinelCheck, ...]
-    """The possible targets to check; a host execution has only its actual target."""
-
     message: ChatMessageTool
 
-    executed: tuple[str, ...] = ()
-    """Keys under which a host execution records this result as checked
-    (`sentinel_host_tool_result`): a host call carries no call id, so the
-    execution may have consumed another handout's grant."""
+    checks: tuple[SentinelCheck, ...]
+    """The checks of every target the result may be of; a host execution has only its actual target."""
+
+    digests: tuple[str, ...]
+    """The digest of each check's step (`_Steps`)."""
+
+    views: tuple[ToolCallView | None, ...]
+    """Each check's call's view, as its digest was taken of it; None where its
+    viewer failed and the check rejects that."""
 
 
 class _Claim(NamedTuple):
     result: _Result
 
+    owned: tuple[int, ...]
+    """The checks this claim runs, by index: those whose steps no check passed,
+    is running or failed."""
+
     event: anyio.Event
-    """Set on release; the `running` entry of each of the result's keys this
-    claim took (a key another claim already held stays that claim's)."""
+    """Set on release; the `running` entry of each owned step this claim took
+    (one another claim already held stays that claim's)."""
 
 
 class _Claimed(NamedTuple):
@@ -380,8 +426,9 @@ class _Handouts:
     call, say). A result whose call matches no handout of its id, or several,
     or one with no call in its request when the id was handed with several
     arguments, gets no proposal's context and is checked as the call it
-    answers in its request; it is identified by its id and that call, and
-    also records the conservative key (below). A call handed over in two
+    answers in its request. So is a result under an id the bridge never
+    handed out, or one several calls of a response shared (a scaffold that
+    rewrites ids, or one answering no call). A call handed over in two
     requests, neither a retry of the other, is ambiguous: its results get no
     proposal's context from then on, after any retry or resume too. Context
     is the generation and the proposing message; a result without it is still
@@ -395,37 +442,31 @@ class _Handouts:
     (`reserved_ids`) are kept for the life of the bridge and in its
     checkpoint (`saved`), apart from the proposals (bounded).
 
-    Each execution's result is checked once: a result is identified by its
-    call's id, the call as proposed, the call as handed over and the result's
-    exact content (`_content_key`), so replays are not checked again, while
-    different content for the same execution, down to its whitespace, or the
-    same content for a handout with other arguments, is. While its proposal
-    is kept, a result is also identified by the calls it is checked as, each
-    a bridged tool and its arguments (`_covering`): a check as some of them
-    doesn't exempt a report to be checked as more, whether finished, running
-    or failed, as when a later handout of an ambiguous id adds a target or
-    resolves one with other arguments, or a host execution of one of a
-    call's targets is reported for the call. A result gets its proposal's
-    context; once the proposal is evicted, the request's conversation and no
-    model input.
+    A result of a handout is checked as the handout's targets, with its
+    proposal's checks, while the proposal is kept; once it is evicted, as the
+    call the result answers in its request, with the request's conversation
+    and no model input. A result reported for a host call handed to several
+    conversations also gets no proposal's context (`shared`).
 
-    A result under an id the bridge never handed out, or one several calls of
-    a response shared (a scaffold that rewrites ids, or one answering no call),
-    can't be matched to an execution. It is checked once per conservative key,
-    its call's function and arguments and its content (`_call_key`), with the
-    request's conversation and no model input, never another call's context;
-    an identical result of another execution is not checked again. Every
-    checked result also records that key, so a matched result reported again
-    under another id is not checked twice.
+    A result is exempt from checking only if an identical check already
+    passed: one whose step, as the protocol receives it, is the same
+    (`_Steps`). A result's step is resolved first (its targets, any context
+    removed, the fallback once its proposal is gone), so a report needing a
+    check no step covered (another target, other arguments, another
+    conversation, no context) gets one, while an unchanged replay is the
+    same step and is not checked again. Each target's step is its own: a
+    result checked as more targets than before runs only the new ones. A step
+    whose check is running is waited for, and one whose check failed fails
+    again. The digests of passed steps are kept in the checkpoint
+    (`checked`); proposals are not, so after a resume a result gets the
+    fallback's step and is checked again, as after its proposal's eviction.
 
-    A host call's result is checked when the call executes, and that result,
-    as delivered, is recorded as checked for its call; other content the
-    scaffold reports for the call is checked like a scaffold-run call's. A
-    host call carries no call id, so its result gets the context of the
-    proposal whose grant it consumed only while the call (its server, tool and
-    arguments) was handed to one conversation (`hand_over_calls`). Its
-    result is also recorded under the host call, so a report of it under
-    another handout's id is not checked again (`_Result.executed`).
+    A host call's result is checked when the call executes, and its step's
+    digest is recorded like a report's: a report of the delivered result for
+    the same handout, with the same targets and context, is the same step.
+    One run with no proposal's context (a call no proposal accounts for, or
+    one handed to several conversations) is a step no report can be, and is
+    not recorded.
 
     The results in the state the bridge starts with were in the agent's
     conversation before the bridge ran, and are not checked again, as a native
@@ -433,28 +474,22 @@ class _Handouts:
     (`inherited_result_keys`). Each is recorded under its conservative key,
     taken when the bridge is first constructed and kept in its checkpoint, so
     a result reported with other content (including one changed in place
-    since, before or after a resume) is checked. Their call ids are reserved
-    at the same point (`history_ids`).
+    since, before or after a resume) is checked. The key applies only to a
+    result under an id the bridge never handed over: their call ids are
+    reserved at the same point (`history_ids`), so none of the bridge's own
+    results is one.
 
     Held by its bridge, since a failure's traceback references the bridge.
     """
 
-    def __init__(
-        self,
-        saved: _SavedHandouts,
-        declared: Callable[[str, str], Mapping[str, Any] | None] = lambda *_: None,
-    ) -> None:
-        # a served tool's closed schema's properties (`_covering`)
-        self.declared = declared
+    def __init__(self, saved: _SavedHandouts) -> None:
         self.handed: dict[str, _Handed] = dict(saved.handed)
         self.reserved_ids: set[str] = set(saved.reserved_ids)
         # by call id and handed call (`_call_key`)
         self.proposals: OrderedDict[tuple[str, str], SentinelCheck] = OrderedDict()
-        # an unproposed key in a checkpoint written before they were dropped
-        # once checked matches nothing
-        self.checked: set[str] = {
-            key for key in saved.checked if not key.startswith(_UNPROPOSED)
-        }
+        # step digests (`_Steps`)
+        self.checked: set[str] = set(saved.checked)
+        self.inherited: frozenset[str] = frozenset(saved.inherited)
         self.conversations: dict[str, _Conversation] = dict(saved.conversations)
         self.running: dict[str, anyio.Event] = {}
         self.failed: dict[str, Exception] = {}
@@ -470,6 +505,7 @@ class _Handouts:
             reserved_ids=sorted(self.reserved_ids),
             handed=dict(self.handed),
             checked=sorted(self.checked),
+            inherited=sorted(self.inherited),
             conversations=dict(self.conversations),
         )
 
@@ -701,164 +737,164 @@ class _Handouts:
         """
         return any(self.conversations.get(key, _SHARED).shared for key in keys)
 
-    def result_keys(
-        self, execution: SentinelCheck, content_key: str, host_calls: Sequence[str]
-    ) -> list[str]:
-        """The keys a host call's result with `content_key` is recorded as checked under, for `execution`.
-
-        Those of a report of it as the execution's handout's result
-        (`_result`), and under another handout's id (`_Result.executed`), each
-        also for the execution's own target only (`_covering`).
-        """
-        call = execution.handed
-        key = _call_key(call)
-        covered = [executed_key(host, content_key) for host in host_calls]
-        handed = self.handed.get(call.id)
-        if handed is not None and handed.proposed is not None:
-            covered.insert(0, _handout_key(call.id, handed.proposed, key, content_key))
-        return [
-            _digest(["call", key, content_key]),
-            *covered,
-            *(
-                _covering(covered_key, [execution], self.declared)
-                for covered_key in covered
-            ),
-        ]
-
     def claim(self, input: list[ChatMessage]) -> _Claimed:
         claimed = _Claimed([], [])
-        keys: set[str] = set()
+        steps = _Steps()
+        taken: set[str] = set()
         for message, found in _answers(input):
-            result = self._result(input, message, found)
-            key = result.keys[0]
-            if (
-                key in keys
-                or key in self.checked
-                or not self.checked.isdisjoint(result.executed)
-            ):
+            result = self._result(input, message, found, steps)
+            if result is None:
                 continue
-            if key in self.failed:
-                raise self.failed[key]
-            running = next(
-                (
-                    self.running[running]
-                    for running in (key, *result.executed)
-                    if running in self.running
-                ),
-                None,
-            )
-            if running is not None:
-                claimed.waiting.append(running)
-                continue
-            # a result whose identity another of the request's results also
-            # answers for is checked by that result
-            keys.update(result.keys)
-            claimed.owned.append(_Claim(result, anyio.Event()))
+            owned: list[int] = []
+            for index, digest in enumerate(result.digests):
+                # a step another of the request's results has is checked by it
+                if digest in taken or digest in self.checked:
+                    continue
+                if digest in self.failed:
+                    raise self.failed[digest]
+                running = self.running.get(digest)
+                if running is not None:
+                    claimed.waiting.append(running)
+                    continue
+                taken.add(digest)
+                owned.append(index)
+            if owned:
+                claimed.owned.append(_Claim(result, tuple(owned), anyio.Event()))
         for claim in claimed.owned:
             self._take(claim)
         return claimed
 
     def _take(self, claim: _Claim) -> None:
-        for key in claim.result.keys:
-            self.running.setdefault(key, claim.event)
+        for index in claim.owned:
+            self.running.setdefault(claim.result.digests[index], claim.event)
 
     def _result(
         self,
         input: list[ChatMessage],
         message: ChatMessageTool,
         found: _Call | None,
-    ) -> _Result:
+        steps: "_Steps",
+    ) -> _Result | None:
+        """The checks `message` gets, with their steps' digests; None for an inherited result (`inherited`)."""
         call_id = message.tool_call_id or ""
         handed = self.handed.get(call_id)
-        handout = _handout(handed, found) if handed is not None else None
-        executed: tuple[str, ...] = ()
-        if handed is not None and handed.proposed is not None and handout is None:
-            # keyed by its id too, so it can't exempt another execution's result
-            call, key = _unissued(message, found)
-            if found is None:
-                call = ToolCall(id=call_id, function=handed.function, arguments={})
-            keys = [_digest(["unmatched", call_id, handed.proposed, key]), key]
-        elif handed is not None and handed.proposed is not None and handout is not None:
-            content = _content_key(message)
-            keys = [
-                _handout_key(call_id, handed.proposed, handout, content),
-                _digest(["call", handout, content]),
-            ]
-            hosts = [
-                host for handed_call, host in handed.host if handed_call == handout
-            ]
-            executed = tuple(executed_key(host, content) for host in hosts)
+        if (
+            handed is None
+            and self.inherited
+            and _unissued(message, found)[1] in self.inherited
+        ):
+            return None
+        # what the checks depend on besides the bridge's state, which a claim
+        # doesn't change: the call answered, or the result's function without one
+        checks = steps.checks(
+            (call_id, id(found), message.function if found is None else None),
+            found,
+            lambda: self._checks(input, call_id, handed, found, message),
+        )
+        result = steps.result(message)
+        return _Result(
+            message,
+            checks.checks,
+            tuple(_parts_digest(part, result) for part in checks.parts),
+            checks.views,
+        )
+
+    def _checks(
+        self,
+        input: list[ChatMessage],
+        call_id: str,
+        handed: _Handed | None,
+        found: _Call | None,
+        message: ChatMessageTool,
+    ) -> tuple[SentinelCheck, ...]:
+        """The checks of a result under `call_id` answering `found` (`_Handouts`)."""
+        handout = (
+            _handout(handed, found)
+            if handed is not None and handed.proposed is not None
+            else None
+        )
+        if handed is not None and handout is not None:
             proposal = self.proposals.get((call_id, handout))
             if proposal is not None:
                 checks = (proposal, *proposal.alternatives)
-                keys.insert(0, _covering(keys[0], checks, self.declared))
-                executed = tuple(
-                    _covering(key, checks, self.declared) for key in executed
-                )
+                hosts = [
+                    host for handed_call, host in handed.host if handed_call == handout
+                ]
                 if handed.ambiguous or (hosts and self.shared(hosts)):
                     checks = tuple(
                         _without_context(check, input, found) for check in checks
                     )
-                return _Result(keys, checks, message, executed)
-            call = (
-                found.call
-                if found is not None
-                else ToolCall(id=call_id, function=handed.function, arguments={})
-            )
-        else:
-            call, key = _unissued(message, found)
-            keys = [key]
-        check = _without_context(
-            SentinelCheck(call, call, None, "", None), input, found
+                return checks
+        call = _unissued(message, found)[0]
+        if found is None and handed is not None and handed.proposed is not None:
+            call = ToolCall(id=call_id, function=handed.function, arguments={})
+        return (
+            _without_context(SentinelCheck(call, call, None, "", None), input, found),
         )
-        return _Result(keys, (check,), message, executed)
 
     async def check(
         self,
         bridge: AgentBridge,
-        result: _Result,
+        claim: _Claim,
         output: ToolResult,
         truncated: tuple[int, int] | Literal[False] | None = None,
     ) -> None:
-        try:
-            for check in result.checks:
+        """Run the claim's checks, in order, recording each step as passed or failed."""
+        result = claim.result
+        for index in claim.owned:
+            digest = result.digests[index]
+            try:
                 await _tool_result(
                     bridge,
-                    check,
+                    result.checks[index],
                     result.message,
                     output,
                     truncated,
                     reject_on_viewer_error=len(result.checks) > 1,
+                    view=result.views[index],
                 )
-        except Exception as ex:
-            for key in result.keys:
-                self.failed.setdefault(key, ex)
-            raise
-        self.checked.update(
-            key for key in result.keys if not key.startswith(_UNPROPOSED)
-        )
+            except Exception as ex:
+                self.failed.setdefault(digest, ex)
+                raise
+            self.checked.add(digest)
 
-    async def check_running(
+    async def check_host(
         self,
         bridge: AgentBridge,
-        result: _Result,
+        check: SentinelCheck,
+        result: ChatMessageTool,
         output: ToolResult,
-        truncated: tuple[int, int] | Literal[False] | None,
+        truncated: tuple[int, int] | Literal[False],
     ) -> None:
-        """Check a result claimed outside a request (a host call's), as running."""
-        claim = _Claim(result, anyio.Event())
+        """Check a host call's result, as running, recording its step (`_Handouts`).
+
+        It is always checked: its execution is new.
+        """
+        steps = _Steps()
+        checks = steps.checks(None, None, lambda: (check,))
+        claim = _Claim(
+            _Result(
+                result,
+                checks.checks,
+                (_parts_digest(checks.parts[0], steps.result(result)),),
+                checks.views,
+            ),
+            (0,),
+            anyio.Event(),
+        )
         self._take(claim)
         try:
-            await self.check(bridge, result, output, truncated)
+            await self.check(bridge, claim, output, truncated)
         finally:
             self.release(claim)
 
     def release(self, claim: _Claim) -> None:
         # a check that did not finish is claimed again by the next request
         # carrying its result
-        for key in claim.result.keys:
-            if self.running.get(key) is claim.event:
-                del self.running[key]
+        for index in claim.owned:
+            digest = claim.result.digests[index]
+            if self.running.get(digest) is claim.event:
+                del self.running[digest]
         claim.event.set()
 
 
@@ -893,40 +929,116 @@ def _with_targets_of(check: SentinelCheck, earlier: SentinelCheck) -> SentinelCh
     return targets[0]._replace(alternatives=tuple(targets[1:]))
 
 
-def _covering(
-    key: str,
-    checks: Iterable[SentinelCheck],
-    declared: Callable[[str, str], Mapping[str, Any] | None],
-) -> str:
-    """`key` for a result checked as exactly the calls `checks` are for.
+class _Checks(NamedTuple):
+    """A result's checks, and their steps as far as they don't depend on the result (`_Steps`)."""
 
-    An ambiguous call's targets grow with its handouts (`_with_targets_of`),
-    and a host execution is checked as its own target only, so a result
-    checked as some of a handout's targets has not been checked as the rest.
-    One handout can also resolve to a bridged tool with other arguments in
-    another request (by its description, or through its dispatcher), so each
-    is named by its bridged tool and arguments, projected onto a closed
-    schema's `declared` properties as host calls are (`host_call_key`): an
-    execution without a field the schema drops is the same call.
+    checks: tuple[SentinelCheck, ...]
+    parts: tuple[str, ...]
+    """Each check's step's digest, all but the result."""
+
+    views: tuple[ToolCallView | None, ...]
+    """Each check's call's view (`_Result.views`)."""
+
+
+class _Steps:
+    """The steps a claim's results are checked with, as digests (`_Handouts`).
+
+    A step is the `AfterToolCall` a check sends the protocol. Its digest is a
+    SHA-256 over each of `STEP_DIGEST_FIELDS` serialized in full as canonical
+    JSON (`_serialized`), as the check builds them: the conversation, the
+    assistant message's text and id, the call, its view (as its viewer
+    renders it, rejecting a viewer error where the check does; the check is
+    given that view), the generation's input, tools and tool choice
+    (`Produced.digest`), and the result. The result is all of its fields but
+    its `id`, which the bridge gives each parsed message and a host result
+    afresh. The fields left out are those of `STEP_DIGEST_EXCLUDED`. A value
+    that can't be serialized gives a digest no other step has.
+
+    A check's part of the digest is computed once per set of results it
+    answers in the request (`checks`), and each result's once, so repeated
+    answers to one call cost work linear in the request.
     """
-    calls = {
-        _digest([check.target, _arguments_key(check, declared)]) for check in checks
-    }
-    return _digest(["covering", key, sorted(calls)])
+
+    def __init__(self) -> None:
+        # the key's objects are kept alive with the entry, so ids stay theirs
+        self._checks: dict[Hashable, tuple[object, _Checks]] = {}
+
+    def checks(
+        self,
+        key: Hashable,
+        keep: object,
+        resolve: Callable[[], tuple[SentinelCheck, ...]],
+    ) -> _Checks:
+        """The checks `resolve` gives for `key`, resolved once, with their steps but for the result."""
+        entry = self._checks.get(key)
+        if entry is None:
+            checks = resolve()
+            reject = len(checks) > 1
+            views = tuple(_view(check, reject) for check in checks)
+            parts = tuple(
+                _check_part(check, view) for check, view in zip(checks, views)
+            )
+            entry = (keep, _Checks(checks, parts, views))
+            self._checks[key] = entry
+        return entry[1]
+
+    @staticmethod
+    def result(message: ChatMessageTool) -> bytes:
+        """The result's part of its steps' digests."""
+        return _serialized(message.model_copy(update={"id": None}))
 
 
-def _arguments_key(
-    check: SentinelCheck, declared: Callable[[str, str], Mapping[str, Any] | None]
-) -> str:
-    arguments = check.call.arguments
-    properties = (
-        declared(check.target.server, check.target.tool)
-        if check.target is not None
-        else None
+def _view(check: SentinelCheck, reject_on_viewer_error: bool) -> ToolCallView | None:
+    """The view a check's step has; None where its viewer fails and the check rejects that (the check fails)."""
+    try:
+        return resolve_tool_call_view(
+            check.call, check.viewer, reject_on_error=reject_on_viewer_error
+        )
+    except ToolCallViewError:
+        return None
+
+
+def _check_part(check: SentinelCheck, view: ToolCallView | None) -> str:
+    """The digest of a check's step, all but its result (`_Steps`)."""
+    with check.producer.scope() if check.producer is not None else nullcontext():
+        conversation = current_conversation()
+    return _parts_digest(
+        conversation,
+        check.message,
+        check.message_id,
+        _serialized(check.call),
+        _serialized(view) if view is not None else _unmatched(),
+        check.producer.digest if check.producer is not None else None,
     )
-    if properties is not None:
-        arguments = {k: v for k, v in arguments.items() if k in properties}
-    return canonical_tool_arguments(arguments)
+
+
+def _serialized(value: Any) -> bytes:
+    """`value` as canonical JSON, NaN and the infinities told apart from None; for one that can't be serialized, a value nothing else is."""
+    try:
+        return to_json(value, inf_nan_mode="constants", serialize_as_any=True)
+    except Exception:
+        return _unmatched()
+
+
+def _unmatched() -> bytes:
+    # not JSON, so no serialization is the same
+    return f"unmatched {uuid()}".encode()
+
+
+def _parts_digest(*parts: str | bytes | None) -> str:
+    """A SHA-256 digest of `parts`, each told apart by its type and length."""
+    digest = hashlib.sha256()
+    for part in parts:
+        if part is None:
+            digest.update(b"n")
+            continue
+        encoded = (
+            part.encode("utf-8", "surrogatepass") if isinstance(part, str) else part
+        )
+        digest.update(b"s" if isinstance(part, str) else b"b")
+        digest.update(len(encoded).to_bytes(8, "big"))
+        digest.update(encoded)
+    return digest.hexdigest()
 
 
 def _handout(handed: _Handed, found: _Call | None) -> str | None:
@@ -947,16 +1059,6 @@ def _handout(handed: _Handed, found: _Call | None) -> str | None:
 def host_call_key(server: str, tool: str, arguments: str) -> str:
     """A host call's identity: its bridged server, tool and argument key."""
     return _digest(["host", server, tool, arguments])
-
-
-def executed_key(host_call: str, content_key: str) -> str:
-    """The key a host call's result with `content_key` is recorded as checked under (`_Result.executed`)."""
-    return _digest(["executed", host_call, content_key])
-
-
-def _handout_key(call_id: str, proposed: str, handed: str, content_key: str) -> str:
-    """The identity of a handout's result: its id, its call as proposed and as handed, and its content."""
-    return _digest(["handed", call_id, proposed, handed, content_key])
 
 
 def _echoes(call: ToolCall) -> set[str]:
@@ -1185,54 +1287,37 @@ async def sentinel_host_tool_result(
     output: ToolResult,
     error: ToolCallError | None = None,
     truncated: tuple[int, int] | Literal[False] = False,
-    candidates: Sequence[SentinelCheck] = (),
-    host_calls: Sequence[str] = (),
 ) -> None:
-    """Check a host call's result as delivered, recording it for its executions.
+    """Check a host call's result as delivered.
 
-    The result is recorded as checked for the call, or, when `check` has no
-    proposal's context, for each of `candidates` (the check of the grant the
-    call consumed), so the scaffold reporting it is not checked again. A host
-    call no proposal accounts for was handed over as no call, so no result the
-    scaffold reports can match it.
-
-    It is also recorded under each of `host_calls`, the call's keys
-    (`host_call_key`), so a report of it under the id of another handout of
-    the call is not checked again either.
+    The result is the one the scaffold receives, under the call it was handed
+    (its id and function), so a report of it for the same handout, with the
+    same targets and context, is the same step and is not checked again
+    (`_Handouts`). A host call with no proposal's context (`check` has no
+    handout) was handed over as no call a report can be of: its check is not
+    recorded.
 
     The call is the bridged scaffold's, so the check does not see the enclosing
     agent's messages, as the stages of a bridge request don't
     (`bridge_request()`).
     """
+    if not checks_bridged_results():
+        return
     result = ChatMessageTool(
         content=content,
         tool_call_id=check.handed.id,
-        function=check.call.function,
+        function=check.handed.function,
         error=error,
     )
-    executions = candidates or ([check] if check.execution_id is not None else [])
-    keys: list[str] = []
-    content_keys: dict[str, str] = {}
-    for execution in executions:
-        # as the scaffold reports it: under the function it was handed
-        function = execution.handed.function
-        if function not in content_keys:
-            content_keys[function] = _content_key(
-                result.model_copy(update={"function": function})
-            )
-        keys += bridge._handouts.result_keys(
-            execution, content_keys[function], host_calls
-        )
-    # kept while it runs or once it fails, not once checked (`_Handouts.check`)
-    keys = keys or [f"{_UNPROPOSED}{uuid()}"]
     with bridge_request():
-        await bridge._handouts.check_running(
-            bridge, _Result(keys, (check,), result), output, truncated
-        )
+        if check.execution_id is None:
+            await _tool_result(bridge, check, result, output, truncated)
+        else:
+            await bridge._handouts.check_host(bridge, check, result, output, truncated)
 
 
 async def sentinel_tool_results(bridge: AgentBridge, input: list[ChatMessage]) -> None:
-    if not checks_tool_calls():
+    if not checks_bridged_results():
         return
     result_checks = bridge._handouts
     while True:
@@ -1246,7 +1331,7 @@ async def sentinel_tool_results(bridge: AgentBridge, input: list[ChatMessage]) -
                         partial(
                             result_checks.check,
                             bridge,
-                            claim.result,
+                            claim,
                             _output(claim.result.message),
                         )
                         for claim in claimed.owned
@@ -1280,6 +1365,7 @@ async def _tool_result(
     output: ToolResult,
     truncated: tuple[int, int] | Literal[False] | None,
     reject_on_viewer_error: bool = False,
+    view: ToolCallView | None = None,
 ) -> None:
     from inspect_ai._sentinel._dispatch import sentinel_after_tool_call
 
@@ -1302,6 +1388,8 @@ async def _tool_result(
                     producer=producer.event if producer is not None else None,
                     reject_on_viewer_error=reject_on_viewer_error,
                     bridge=True,
+                    # a copy, as the call's
+                    view=deepcopy(view),
                 ),
             )
         except ToolCallViewError as ex:

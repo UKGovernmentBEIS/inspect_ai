@@ -292,13 +292,13 @@ class AgentBridge:
                         | history_ids(restored_messages)
                     ),
                     handed={},
-                    checked=sorted(inherited_result_keys(state.messages))
+                    checked=[],
+                    inherited=sorted(inherited_result_keys(state.messages))
                     if self._cp.attempt == "initial"
                     else [],
                 ),
                 value_type=_SavedHandouts,
-            ),
-            self._declared_properties,
+            )
         )
         # checkpointed hashes: changing `content_hash` or `edit_id` changes what a
         # resumed sample matches against
