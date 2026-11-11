@@ -4544,9 +4544,9 @@ async def test_google_initial_history_alias_cannot_claim_new_result(
             ("read_file", '{"out": "old contents"}')
         ]
         # `read_file__123` may be the history call `123`'s prefixed echo, so
-        # a new call under it gets a fresh id; `123` is no echo of the
-        # history call `read_file__123` read back as a `delete_file` call, so
-        # the new call keeps the model's id
+        # a new call under it gets a fresh id; the new `delete_file` call's
+        # `123` and the history call's `read_file__123` are no prefixed echo
+        # of each other, so it keeps the model's id
         assert (handed == new_id) is (new_id == "123")
 
         contents.append(
