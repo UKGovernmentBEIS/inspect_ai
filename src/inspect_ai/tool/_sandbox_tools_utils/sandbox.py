@@ -111,29 +111,19 @@ async def sandbox_with_injected_tools(
     *,
     sandbox_name: str | None = None,
     sandbox: SandboxEnvironment | None = None,
-    concurrency: bool = True,
 ) -> SandboxEnvironment:
     """Create a sandbox environment with sandbox tools injection.
 
     Args:
         sandbox_name: Optional name for the sandbox environment.
         sandbox: Optional sandbox instance to inject into directly.
-        concurrency: As for ``sandbox.exec``, for the commands that check an
-            existing installation (and probe root access when it is not yet
-            recorded). False lets a caller that must not wait for sandbox
-            capacity, such as the sandbox agent bridge, verify the tools
-            outside the limits. Installing the tools still runs inside them.
 
     Returns:
         A sandbox environment with container tools injected.
     """
-
-    async def installed(target: SandboxEnvironment) -> bool:
-        return await _sandbox_tools_installed(target, concurrency=concurrency)
-
     return await sandbox_with_injection(
         SandboxInjectable(
-            installed,
+            _sandbox_tools_installed,
             _inject_container_tools_code,
         ),
         name=sandbox_name,
@@ -141,9 +131,7 @@ async def sandbox_with_injected_tools(
     )
 
 
-async def _sandbox_tools_installed(
-    sandbox: SandboxEnvironment, *, concurrency: bool = True
-) -> bool:
+async def _sandbox_tools_installed(sandbox: SandboxEnvironment) -> bool:
     """Detect a trustworthy existing sandbox-tools installation.
 
     An installation is reused only when ``SANDBOX_TOOLS_DIR`` satisfies the
@@ -172,7 +160,7 @@ async def _sandbox_tools_installed(
     """
     try:
         with without_sandbox_events(sandbox):
-            return await _detect_sandbox_tools(sandbox, concurrency=concurrency)
+            return await _detect_sandbox_tools(sandbox)
     except SandboxDefaultUserError:
         # The install is healthy, so reinjecting cannot fix this, and running the
         # tools with no identity would misreport as a permission error. Nothing is
@@ -186,24 +174,18 @@ async def _sandbox_tools_installed(
         return False
 
 
-async def _detect_sandbox_tools(
-    sandbox: SandboxEnvironment, *, concurrency: bool = True
-) -> bool:
+async def _detect_sandbox_tools(sandbox: SandboxEnvironment) -> bool:
     if sandbox._tools_user_resolved or sandbox._tools_user is not None:
-        return await _tools_installed_as(
-            sandbox, sandbox._tools_user, concurrency=concurrency
-        )
+        return await _tools_installed_as(sandbox, sandbox._tools_user)
 
-    user = await _tools_user_for(sandbox, concurrency=concurrency)
-    installed = await _tools_installed_as(sandbox, user, concurrency=concurrency)
+    user = await _tools_user_for(sandbox)
+    installed = await _tools_installed_as(sandbox, user)
     if installed:
-        await _set_tools_user(sandbox, user, concurrency=concurrency)
+        await _set_tools_user(sandbox, user)
     return installed
 
 
-async def _tools_user_for(
-    sandbox: SandboxEnvironment, *, concurrency: bool = True
-) -> str | None:
+async def _tools_user_for(sandbox: SandboxEnvironment) -> str | None:
     """The user the sandbox tools install and run as (``None`` = default user).
 
     Applies the sandbox's recorded root-access decision (``resolve_root_access``):
@@ -213,7 +195,7 @@ async def _tools_user_for(
     probe that could not run or did not complete is an error here rather than a
     reason to fall back.
     """
-    access = await resolve_root_access(sandbox, concurrency=concurrency)
+    access = await resolve_root_access(sandbox)
     if access.state == "usable":
         return "root"
     if access.state in ("unusable", "ambiguous"):
@@ -240,9 +222,7 @@ _AMBIGUOUS_ROOT_ACCESS_WARNING = (
 )
 
 
-async def _set_tools_user(
-    sandbox: SandboxEnvironment, user: str | None, *, concurrency: bool = True
-) -> None:
+async def _set_tools_user(sandbox: SandboxEnvironment, user: str | None) -> None:
     """Record which user the sandbox tools run as (``None`` = default user).
 
     With a root tools user, also capture the default exec identity so tool calls
@@ -251,11 +231,7 @@ async def _set_tools_user(
     process: this is where that fallback takes effect, for a sandbox the tools
     actually use, rather than for every sandbox detection merely visits.
     """
-    default_user = (
-        await _detect_default_user(sandbox, concurrency=concurrency)
-        if user == "root"
-        else None
-    )
+    default_user = await _detect_default_user(sandbox) if user == "root" else None
     sandbox._tools_user = user
     sandbox._tools_user_resolved = True
     sandbox._tools_default_user = default_user
@@ -264,9 +240,7 @@ async def _set_tools_user(
         warn_once(logger, _AMBIGUOUS_ROOT_ACCESS_WARNING)
 
 
-async def _tools_installed_as(
-    sandbox: SandboxEnvironment, user: str | None, *, concurrency: bool = True
-) -> bool:
+async def _tools_installed_as(sandbox: SandboxEnvironment, user: str | None) -> bool:
     """Check for a trustworthy installation from ``user``'s point of view.
 
     Returns False when the tools directory is missing, violates the contract, or
@@ -282,7 +256,6 @@ async def _tools_installed_as(
             SANDBOX_TOOLS_BASE_NAME,
             user=user,
             expected_uid=expected_uid_for(user),
-            concurrency=concurrency,
         )
     except FrameworkDirectoryNotFoundError:
         return False
@@ -364,9 +337,7 @@ _SWITCH_USER_CAPS = (1 << 6) | (1 << 7)  # CAP_SETGID | CAP_SETUID
 _ROOT_PROBE_FIELDS = {"Uid", "CapEff", "setgroups"}
 
 
-async def resolve_root_access(
-    sandbox: SandboxEnvironment, *, concurrency: bool = True
-) -> RootAccess:
+async def resolve_root_access(sandbox: SandboxEnvironment) -> RootAccess:
     """The sandbox's recorded root-access decision, probing and recording it if absent.
 
     Sample init calls this for every sandbox after the trusted files and setup and
@@ -389,7 +360,7 @@ async def resolve_root_access(
         if recorded is not None:
             sandbox._root_access = recorded
             return recorded
-        access = await _probe_root_access(sandbox, concurrency=concurrency)
+        access = await _probe_root_access(sandbox)
         trace_message(
             logger, TRACE_SANDBOX_TOOLS, f"root access {access.state}: {access.reason}"
         )
@@ -399,9 +370,7 @@ async def resolve_root_access(
     return sandbox._root_access
 
 
-async def _probe_root_access(
-    sandbox: SandboxEnvironment, *, concurrency: bool = True
-) -> RootAccess:
+async def _probe_root_access(sandbox: SandboxEnvironment) -> RootAccess:
     """Probe ``sandbox`` for usable root."""
     try:
         probe = await privileged_shell(
@@ -409,7 +378,6 @@ async def _probe_root_access(
             _ROOT_PROBE_CMD,
             user="root",
             timeout=_ROOT_ACCESS_PROBE_TIMEOUT,
-            concurrency=concurrency,
         )
     except SandboxUserUnsupportedError as ex:
         return RootAccess("unusable", str(ex), ex)
@@ -460,13 +428,9 @@ _DEFAULT_USER_CMD = (
 )
 
 
-async def _detect_default_user(
-    sandbox: SandboxEnvironment, *, concurrency: bool = True
-) -> SandboxDefaultUser:
+async def _detect_default_user(sandbox: SandboxEnvironment) -> SandboxDefaultUser:
     try:
-        result = await privileged_shell(
-            sandbox, _DEFAULT_USER_CMD, user=None, concurrency=concurrency
-        )
+        result = await privileged_shell(sandbox, _DEFAULT_USER_CMD, user=None)
     except Exception as ex:
         raise SandboxDefaultUserError(
             f"Failed to detect sandbox default user: {ex}"

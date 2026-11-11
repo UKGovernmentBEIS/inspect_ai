@@ -1490,9 +1490,7 @@ async def test_bridged_agent_launch_is_not_known_work(
         async def exec_remote(self, cmd: list[str], options: Any) -> Process:
             return Process()
 
-    async def injected_sandbox(
-        sandbox_name: str | None = None, concurrency: bool = True
-    ) -> BridgeSandbox:
+    async def injected_sandbox(sandbox_name: str | None = None) -> BridgeSandbox:
         return BridgeSandbox()
 
     async def model_service(*args: Any) -> None:

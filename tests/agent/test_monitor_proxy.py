@@ -117,9 +117,7 @@ def _use_proxy_sandbox(
     sandbox.exec = AsyncMock(side_effect=exec)
     sandbox.exec_remote = exec_remote
 
-    async def sandbox_with_injected_tools(
-        *, sandbox_name: str | None = None, concurrency: bool = True
-    ) -> Any:
+    async def sandbox_with_injected_tools(*, sandbox_name: str | None = None) -> Any:
         return sandbox
 
     async def run_model_service(*args: Any) -> None:

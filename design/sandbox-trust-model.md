@@ -346,14 +346,14 @@ comes from the scope as well as from tool construction:
   other user, the sandbox's default user included, can submit requests to
   it directly. Outside a scope the proxy listens on `127.0.0.1` and serves
   any connection.
-  The bridge's own control commands run outside the sandbox's concurrency
-  limits, so other commands holding capacity cannot stall its start or its
-  shielded cleanup. These are the initial tools check (root probe,
-  installation check, default user), the version check, the proxy start
-  and the polls of its output, the kill, the kill by job key and the
-  service queue's commands. Installing missing tools is shared with every
-  other tool and keeps the normal limits. This is a liveness trade-off, not
-  a security boundary (decision: Ransom, 2026-11-06).
+  The proxy start and the polls of its output, the kill, the kill by job
+  key and the service queue's commands run outside the sandbox's
+  concurrency limits, so other commands holding capacity cannot time out
+  the listening wait or stall the bridge's shielded cleanup. Checking and
+  installing the sandbox tools happen before that wait and keep the normal
+  limits: a busy sandbox can delay them but not make them time out. This
+  is a liveness trade-off, not a security boundary (decision: Ransom,
+  2026-11-11).
 - **Sandbox operations.** `SandboxEnvironment.exec()`, `read_file()` and
   `write_file()` calls on the scope's sandbox that name no user run as the
   scope's user; a call that names a user keeps it. The sample's sandbox proxy

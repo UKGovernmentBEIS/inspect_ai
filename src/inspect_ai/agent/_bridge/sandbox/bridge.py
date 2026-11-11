@@ -4,12 +4,10 @@ from logging import getLogger
 from typing import TYPE_CHECKING, AsyncIterator
 
 import anyio
-import semver
 from shortuuid import uuid
 
 from inspect_ai._sentinel._context import warn_sentinel_bridged
 from inspect_ai._util._async import raise_unwrapped
-from inspect_ai._util._json_rpc import exec_scalar_request
 from inspect_ai._util.working import untracked_sandbox_execs
 from inspect_ai.model._compaction.types import CompactionStrategy
 from inspect_ai.model._model import (
@@ -21,7 +19,6 @@ from inspect_ai.model._model import (
 )
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._mcp._tools_bridge import BridgedToolsSpec
-from inspect_ai.tool._sandbox_tools_utils._error_mapper import SandboxToolsErrorMapper
 from inspect_ai.tool._sandbox_tools_utils.sandbox import sandbox_with_injected_tools
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
@@ -31,8 +28,6 @@ from inspect_ai.tool._tools._web_search._web_search import (
 from inspect_ai.util._anyio import inner_exception
 from inspect_ai.util._checkpoint.checkpointer import Checkpointer
 from inspect_ai.util._sandbox._cli import SANDBOX_CLI
-from inspect_ai.util._sandbox._json_rpc_transport import SandboxJSONRPCTransport
-from inspect_ai.util._sandbox.environment import SandboxEnvironment
 from inspect_ai.util._sandbox.exec_remote import (
     ExecCompleted,
     ExecRemoteProcess,
@@ -40,10 +35,7 @@ from inspect_ai.util._sandbox.exec_remote import (
     ExecStderr,
     ExecStdout,
 )
-from inspect_ai.util._sandbox.identity import (
-    SandboxIdentityError,
-    sandbox_identity_scope,
-)
+from inspect_ai.util._sandbox.identity import sandbox_identity_scope
 from inspect_ai.util._sandbox.service import find_control_flow
 
 from ..._agent import AgentState
@@ -61,11 +53,6 @@ logger = getLogger(__name__)
 
 BRIDGE_LISTEN_TIMEOUT = 60
 """Seconds a bridge in a sandbox identity scope waits for its proxy to listen."""
-
-BRIDGE_PEER_CHECK_TOOLS_VERSION = semver.Version(1, 5, 0)
-"""First inspect-sandbox-tools version whose model proxy checks the client's user."""
-
-_VERSION_TIMEOUT = 30
 
 # Read by the model proxy (inspect_sandbox_tools/_agent_bridge/peer_uid.py).
 _PEER_USER_ENV = f"{MODEL_SERVICE.upper()}_PEER_USER"
@@ -238,13 +225,8 @@ async def sandbox_agent_bridge(
     # instance id for this bridge
     instance = f"proxy_{uuid()}"
 
-    # resolve sandbox. Its tools are verified outside the sandbox's concurrency
-    # limits, like the bridge's other control commands, and only once:
-    # exec_remote() need not check them again, inside the limits.
-    sandbox_env = await sandbox_with_injected_tools(
-        sandbox_name=sandbox, concurrency=False
-    )
-    sandbox_env._tools_injected = True
+    # resolve sandbox
+    sandbox_env = await sandbox_with_injected_tools(sandbox_name=sandbox)
 
     # inside an identity scope the proxy serves only the scope's user
     proxy_env = {
@@ -253,7 +235,6 @@ async def sandbox_agent_bridge(
     }
     scope = sandbox_identity_scope(sandbox_env)
     if scope is not None:
-        await _check_tools_check_peers(sandbox_env, scope.user)
         proxy_env[_PEER_USER_ENV] = scope.user
 
     # resolve granted capabilities. These default to withheld: the sandboxed agent
@@ -429,31 +410,6 @@ async def _deliver_enclosing_cancellation() -> None:
     when it arrives earlier.
     """
     await anyio.lowlevel.checkpoint_if_cancelled()
-
-
-async def _check_tools_check_peers(sandbox_env: SandboxEnvironment, user: str) -> None:
-    """Refuse sandbox tools whose model proxy would not check the client's user.
-
-    Such a proxy would ignore the user it is given and serve every client. The
-    check runs outside the sandbox's concurrency limits, as the bridge's other
-    control commands do.
-    """
-    version = await exec_scalar_request(
-        method="version",
-        params={},
-        result_type=str,
-        transport=SandboxJSONRPCTransport(sandbox_env),
-        error_mapper=SandboxToolsErrorMapper,
-        timeout=_VERSION_TIMEOUT,
-        user=sandbox_env._tools_user,
-        concurrency=False,
-    )
-    if semver.Version.parse(version) < BRIDGE_PEER_CHECK_TOOLS_VERSION:
-        raise SandboxIdentityError(
-            f"The sandbox has inspect-sandbox-tools {version}, but "
-            f"sandbox_agent_bridge() in the sandbox identity scope for '{user}' "
-            f"needs version {BRIDGE_PEER_CHECK_TOOLS_VERSION} or later."
-        )
 
 
 async def _wait_for_listening(listening: anyio.Event) -> None:
