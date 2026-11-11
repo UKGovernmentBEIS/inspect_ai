@@ -7,6 +7,7 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
+    Mapping,
     NamedTuple,
     NoReturn,
     Sequence,
@@ -296,7 +297,8 @@ class AgentBridge:
                     else [],
                 ),
                 value_type=_SavedHandouts,
-            )
+            ),
+            self._declared_properties,
         )
         # checkpointed hashes: changing `content_hash` or `edit_id` changes what a
         # resumed sample matches against
@@ -697,6 +699,13 @@ class AgentBridge:
     def _host_tool_viewer(
         self, call: ToolCall, tools: Sequence[ToolInfo | Tool]
     ) -> ToolCallViewer | None:
+        return None
+
+    def _declared_properties(self, server: str, tool: str) -> Mapping[str, Any] | None:
+        """The properties a served tool's closed schema declares, or `None` if it admits others.
+
+        In-process bridges serve no tools; `SandboxAgentBridge` overrides this.
+        """
         return None
 
     def reviewed_calls(

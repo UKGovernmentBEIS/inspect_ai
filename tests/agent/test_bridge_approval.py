@@ -7581,6 +7581,122 @@ async def test_a_replay_with_unchanged_added_targets_is_not_checked_again(
     assert len(seen) == checked
 
 
+@protocol
+def protect_a_secret_path(seen: list[dict[str, Any]]) -> Protocol:
+    """Terminate on a result containing `secret` checked for a call with `path` `secret`."""
+
+    async def after(
+        context: Context, step: AfterToolCall, escalations: Escalations
+    ) -> Decision | None:
+        seen.append(step.call.arguments)
+        if step.call.arguments.get("path") == "secret" and "secret" in step.result.text:
+            return Decision.terminate("secret path result")
+        return None
+
+    return after
+
+
+async def _resolved_with_other_arguments(
+    dialect: HostDialect, host: bool, first_report: str, seen: list[dict[str, Any]]
+) -> tuple[SandboxAgentBridge, _HostConversation, list[tuple[str, dict[str, Any]]]]:
+    """One handout of a dispatcher call resolved first by description, then by its dispatcher.
+
+    The call `same` to `call_mcp_tool` carries `read_file`'s arguments
+    `{"path": "secret"}` and a top-level `path` of `public`. The first
+    conversation declares `call_mcp_tool` with `read_file`'s description, so
+    the call resolves to `read_file` with all its arguments; its report,
+    `first_report`, is checked for that call. The second conversation
+    declares the dispatcher, so the same call resolves to `read_file` with
+    `{"path": "secret"}`; it is returned unreported. With `host`, each
+    resolved call runs on the host (`read_file` returns `secret` for
+    `public` and `public` otherwise).
+    """
+    call = dispatched("same", {"path": "secret"})
+    call.arguments["path"] = "public"
+    done = ModelOutput.from_content("mockllm/model", "Done.")
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            tool_calls_output(call),
+            done,
+            tool_calls_output(call),
+            done,
+            done,
+        ],
+    )
+
+    async def read(path: str) -> str:
+        return "secret" if path == "public" else "public"
+
+    bridge = _counted_host_bridge(model, read)
+    first = _HostConversation(dialect, "First", declare(DISPATCHER)[0])
+    first_calls = await first.request(bridge)
+    if host:
+        assert (
+            await call_host_tool(bridge)("host", "read_file", {"path": "public"})
+            == "secret"
+        )
+    first.results(first_calls, [first_report])
+    await first.request(bridge)
+    assert seen and all(arguments == call.arguments for arguments in seen)
+    second = _HostConversation(dialect, "Second", declare_dispatcher()[0])
+    second_calls = await second.request(bridge)
+    assert second_calls[0][0] == first_calls[0][0]
+    assert bridge._handouts.handed["same"].ambiguous
+    if host:
+        assert (
+            await call_host_tool(bridge)("host", "read_file", {"path": "secret"})
+            == "public"
+        )
+    return bridge, second, second_calls
+
+
+@pytest.mark.usefixtures("fake_sentinel")
+@pytest.mark.parametrize("host", [False, True])
+@pytest.mark.parametrize("changed", [False, True])
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+async def test_a_result_checked_for_a_target_is_checked_again_for_its_other_arguments(
+    dialect: HostDialect, changed: bool, host: bool
+) -> None:
+    """A later handout resolves a call to the same bridged tool with other arguments; a result checked for the earlier call is checked for the later.
+
+    The first report, `secret`, is allowed for `read_file(path=public)`. The
+    second report of the same bytes (or, `changed`, other bytes) is checked
+    for `read_file(path=secret)` too, and terminates. With `host`, it is the
+    earlier execution's result in place of the later's.
+    """
+    seen: list[dict[str, Any]] = []
+    with active_test_sentinel(protect_a_secret_path(seen)):
+        bridge, second, second_calls = await _resolved_with_other_arguments(
+            dialect, host, "secret", seen
+        )
+        second.results(second_calls, ["secret changed" if changed else "secret"])
+        with pytest.raises(TerminateSampleError, match="secret path result"):
+            await second.request(bridge)
+
+
+@pytest.mark.usefixtures("fake_sentinel")
+@pytest.mark.parametrize("host", [False, True])
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+async def test_a_replay_checked_for_a_targets_other_arguments_is_not_checked_again(
+    dialect: HostDialect, host: bool
+) -> None:
+    """Once a result is checked for each resolved call of its handouts, a replay of it is not checked again."""
+    seen: list[dict[str, Any]] = []
+    with active_test_sentinel(protect_a_secret_path(seen)):
+        bridge, second, second_calls = await _resolved_with_other_arguments(
+            dialect, host, "public", seen
+        )
+        before = len(seen)
+        second.results(second_calls, ["public"])
+        await second.request(bridge)
+        assert {"path": "secret"} in seen[before:]
+        checked = len(seen)
+        _continue(second)
+        await second.request(bridge)
+    assert len(seen) == checked
+
+
 @pytest.mark.usefixtures("fake_sentinel")
 @pytest.mark.parametrize("collide", [True, False])
 @pytest.mark.parametrize("shape", ["other prompt", "forged reply", "continuation"])

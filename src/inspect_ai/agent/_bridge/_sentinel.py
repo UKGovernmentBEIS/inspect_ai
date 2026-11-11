@@ -15,6 +15,7 @@ from typing import (
     Iterable,
     Iterator,
     Literal,
+    Mapping,
     NamedTuple,
     Sequence,
     TypeVar,
@@ -47,6 +48,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageAssistant,
     ChatMessageTool,
 )
+from inspect_ai.model._message_ids import canonical_tool_arguments
 from inspect_ai.model._providers._google_computer_use_name import (
     gemini_computer_action_names,
 )
@@ -398,11 +400,12 @@ class _Handouts:
     exact content (`_content_key`), so replays are not checked again, while
     different content for the same execution, down to its whitespace, or the
     same content for a handout with other arguments, is. While its proposal
-    is kept, a result is also identified by the bridged tools it is checked
-    as (`_covering`): a check as some of them doesn't exempt a report to be
-    checked as more, whether finished, running or failed, as when a later
-    handout of an ambiguous id adds a target, or a host execution of one of
-    a call's targets is reported for the call. A result gets its proposal's
+    is kept, a result is also identified by the calls it is checked as, each
+    a bridged tool and its arguments (`_covering`): a check as some of them
+    doesn't exempt a report to be checked as more, whether finished, running
+    or failed, as when a later handout of an ambiguous id adds a target or
+    resolves one with other arguments, or a host execution of one of a
+    call's targets is reported for the call. A result gets its proposal's
     context; once the proposal is evicted, the request's conversation and no
     model input.
 
@@ -436,7 +439,13 @@ class _Handouts:
     Held by its bridge, since a failure's traceback references the bridge.
     """
 
-    def __init__(self, saved: _SavedHandouts) -> None:
+    def __init__(
+        self,
+        saved: _SavedHandouts,
+        declared: Callable[[str, str], Mapping[str, Any] | None] = lambda *_: None,
+    ) -> None:
+        # a served tool's closed schema's properties (`_covering`)
+        self.declared = declared
         self.handed: dict[str, _Handed] = dict(saved.handed)
         self.reserved_ids: set[str] = set(saved.reserved_ids)
         # by call id and handed call (`_call_key`)
@@ -710,7 +719,10 @@ class _Handouts:
         return [
             _digest(["call", key, content_key]),
             *covered,
-            *(_covering(covered_key, [execution]) for covered_key in covered),
+            *(
+                _covering(covered_key, [execution], self.declared)
+                for covered_key in covered
+            ),
         ]
 
     def claim(self, input: list[ChatMessage]) -> _Claimed:
@@ -779,8 +791,10 @@ class _Handouts:
             proposal = self.proposals.get((call_id, handout))
             if proposal is not None:
                 checks = (proposal, *proposal.alternatives)
-                keys.insert(0, _covering(keys[0], checks))
-                executed = tuple(_covering(key, checks) for key in executed)
+                keys.insert(0, _covering(keys[0], checks, self.declared))
+                executed = tuple(
+                    _covering(key, checks, self.declared) for key in executed
+                )
                 if handed.ambiguous or (hosts and self.shared(hosts)):
                     checks = tuple(
                         _without_context(check, input, found) for check in checks
@@ -879,17 +893,40 @@ def _with_targets_of(check: SentinelCheck, earlier: SentinelCheck) -> SentinelCh
     return targets[0]._replace(alternatives=tuple(targets[1:]))
 
 
-def _covering(key: str, checks: Iterable[SentinelCheck]) -> str:
-    """`key` for a result checked as exactly the bridged tools `checks` are for.
+def _covering(
+    key: str,
+    checks: Iterable[SentinelCheck],
+    declared: Callable[[str, str], Mapping[str, Any] | None],
+) -> str:
+    """`key` for a result checked as exactly the calls `checks` are for.
 
     An ambiguous call's targets grow with its handouts (`_with_targets_of`),
     and a host execution is checked as its own target only, so a result
     checked as some of a handout's targets has not been checked as the rest.
-    The key names the handout or host call (`_handout_key`, `executed_key`),
-    which with a bridged tool determines the call the check is for.
+    One handout can also resolve to a bridged tool with other arguments in
+    another request (by its description, or through its dispatcher), so each
+    is named by its bridged tool and arguments, projected onto a closed
+    schema's `declared` properties as host calls are (`host_call_key`): an
+    execution without a field the schema drops is the same call.
     """
-    targets = {_digest(check.target) for check in checks}
-    return _digest(["covering", key, sorted(targets)])
+    calls = {
+        _digest([check.target, _arguments_key(check, declared)]) for check in checks
+    }
+    return _digest(["covering", key, sorted(calls)])
+
+
+def _arguments_key(
+    check: SentinelCheck, declared: Callable[[str, str], Mapping[str, Any] | None]
+) -> str:
+    arguments = check.call.arguments
+    properties = (
+        declared(check.target.server, check.target.tool)
+        if check.target is not None
+        else None
+    )
+    if properties is not None:
+        arguments = {k: v for k, v in arguments.items() if k in properties}
+    return canonical_tool_arguments(arguments)
 
 
 def _handout(handed: _Handed, found: _Call | None) -> str | None:
