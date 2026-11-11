@@ -277,7 +277,21 @@ Paths reach providers in three ways:
     launch directory.
   - Podman, for a missing config, looks for a compose file in `os.getcwd()`
     and writes its generated compose file there, in `task_init` and again in
-    `sample_init`; it passes absolute paths to its subprocesses.
+    `sample_init`; it passes absolute paths to its subprocesses. The
+    generated file has one fixed name per directory: an inline
+    `ComposeConfig` is written to `<cwd>/.compose.yaml` (`ComposeProject.create`
+    in `inspect_podman/util.py`), a missing config reuses that file
+    (`resolve_compose_file` in `config.py`), and a failed `task_init` deletes
+    every generated file it recorded (`project_cleanup_shutdown(True)` in
+    `podman.py` and `cleanup.py`). Two Podman calls in one directory therefore
+    share one file: concurrent `sample_init` calls with different inline
+    configs already overwrite each other's in the launch directory, and a
+    `task_init` that overlaps running samples (the live path, a
+    `SampleSource` addition) overwrites or, on failure, deletes theirs when
+    the task directory is the launch directory. Inspect's own Docker
+    provider writes each project's generated file under its own name in a
+    central directory (`auto_compose_file` in `docker/config.py`), so it has
+    no such collision.
   - Proxmox reads `PROXMOX_CONFIG_FILE` in `task_init`; its other readers of
     that variable (`default_concurrency()`, `cli_cleanup()`) already resolve
     it against the launch directory.
@@ -816,8 +830,18 @@ restored afterwards. In place of the `chdir`:
     from the task directory and the warm-up builds the template the samples
     use.
   - Podman's missing-config lookup and generated compose file move to the
-    launch directory, where its `sample_init` already looks, so both calls
-    address the same files; it passes absolute paths to its subprocesses.
+    launch directory, where its `sample_init` already looks; it passes
+    absolute paths to its subprocesses. Its shared generated file
+    ("Current behaviour") then collides whenever a Podman `task_init`
+    overlaps running Podman samples, whatever the task directory: a second
+    task's setup rewrites the running samples' `.compose.yaml`, and its
+    failure deletes it. Today that needs the task directory to be the launch
+    directory and an overlapping setup (the live path or a `SampleSource`
+    addition); the single dispatcher also overlaps an added task's setup
+    with running samples in plain evals, and
+    [task-dispatch-setup.md](task-dispatch-setup.md) overlaps the seed's
+    setups too. The fix belongs in inspect-podman: a generated file per
+    project, as Inspect's Docker writes them.
   - Proxmox resolves a relative `PROXMOX_CONFIG_FILE` against the launch
     directory, as its `default_concurrency()` and `cli_cleanup()` already do.
     A run whose file is found only relative to the task directory falls back

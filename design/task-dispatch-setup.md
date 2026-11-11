@@ -102,7 +102,12 @@ After [task-dispatch.md](task-dispatch.md):
 
 **A setup retries itself, and its final failure ends only the tasks that
 need it**, through an ordinary errored attempt that is never retried as a
-task. task-dispatch.md's invariants hold unchanged.
+task. task-dispatch.md's invariants hold unchanged. The isolation is
+Inspect's: a provider that shares one file across its setups and samples
+can still let a failing setup damage running samples. Podman's generated
+`.compose.yaml` is the surveyed case
+([task-dispatch.md](task-dispatch.md), "Setup does not change the process's
+directory or environment").
 
 ### Setup jobs
 
