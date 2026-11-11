@@ -190,13 +190,6 @@
   author: "[Lizard](https://github.com/lizard-build)"
   categories: ["Sandboxes"]
 
-- name: "[EC2 Sandbox](https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox)"
-  description: |
-    Python package that provides a EC2 virtual machine sandbox environment for Inspect.
-  author: "[UK AISI](https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox)"
-  categories: ["Sandboxes"]
-
-
 - name: "[Proxmox Sandbox](https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox)"
   description: Use virtual machines, running within a Proxmox instance, as Inspect sandboxes.
   author: "[UK AISI](https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox)"
@@ -279,3 +272,9 @@
     returns probabilities, so the pass threshold can be chosen after the run.
   author: "[Nace](https://github.com/nace-ai)"
   categories: ["Tooling"]
+
+- name: "[Inspect Grounding](https://github.com/Chris316-git/inspect-grounding)"
+  description: |
+    Deterministic numeric-grounding scorer — flags numbers in model output that do not appear in the input, tool results or metadata. No judge model or API calls.
+  author: "[Yanheng Li](https://github.com/Chris316-git)"
+  categories: ["Analysis"]
