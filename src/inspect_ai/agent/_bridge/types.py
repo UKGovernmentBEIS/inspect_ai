@@ -171,6 +171,17 @@ class DispatchedCall(NamedTuple):
     """Arguments for the dispatcher call that make the target call with the given ones."""
 
 
+class BridgedToolId(NamedTuple):
+    """Identity of one bridged tool: its server and its name there.
+
+    Servers may serve tools of the same name, so the name alone doesn't
+    identify one.
+    """
+
+    server: str
+    tool: str
+
+
 class ReviewedCalls(NamedTuple):
     """The calls approval reviews for one tool call in a bridged response."""
 
@@ -182,6 +193,9 @@ class ReviewedCalls(NamedTuple):
 
     viewers: list[ToolCallViewer | None]
     """The registered viewer for each reviewed target, in the same order."""
+
+    targets: list[BridgedToolId | None]
+    """The bridged tool each reviewed call runs, in the same order (None for a call no bridged tool serves)."""
 
 
 def _unchanged(arguments: dict[str, Any]) -> dict[str, Any]:
@@ -700,8 +714,11 @@ class AgentBridge:
                 [dispatched.target],
                 dispatched.dispatch,
                 [self._host_tool_viewer(call, tools)],
+                [None],
             )
-        return ReviewedCalls([call], _unchanged, [self._host_tool_viewer(call, tools)])
+        return ReviewedCalls(
+            [call], _unchanged, [self._host_tool_viewer(call, tools)], [None]
+        )
 
     def compaction(
         self, tools: Sequence[ToolInfo | Tool], model: Model

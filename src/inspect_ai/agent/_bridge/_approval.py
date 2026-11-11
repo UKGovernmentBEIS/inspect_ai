@@ -37,7 +37,7 @@ from inspect_ai.agent._bridge._sentinel import (
     SentinelCheck,
     sentinel_tool_call,
 )
-from inspect_ai.agent._bridge.types import AgentBridge
+from inspect_ai.agent._bridge.types import AgentBridge, BridgedToolId
 from inspect_ai.model._call_tools import (
     _CHANGED_IN_PLACE,
     _SENTINEL_MODIFIED_FUNCTION,
@@ -197,7 +197,9 @@ async def apply_bridge_tool_approval(
         approval_history = history + [output.message]
         message = output.message.text
         modified: dict[int, dict[str, Any]] = {}
-        sentinel_reviewed: list[list[tuple[ToolCall, ToolCallViewer | None]]] = []
+        sentinel_reviewed: list[
+            list[tuple[ToolCall, ToolCallViewer | None, BridgedToolId | None]]
+        ] = []
         for index, call in enumerate(tool_calls):
             reviewed_calls = bridge.reviewed_calls(call, tools)
             selected_reviewed = reviewed_calls.calls[0]
@@ -260,6 +262,7 @@ async def apply_bridge_tool_approval(
                     zip(
                         [selected_reviewed, *reviewed_calls.calls[1:]],
                         reviewed_calls.viewers,
+                        reviewed_calls.targets,
                     )
                 )
             )
@@ -269,7 +272,7 @@ async def apply_bridge_tool_approval(
             checks = []
             for index, (call, targets) in enumerate(zip(tool_calls, sentinel_reviewed)):
                 target_checks: list[SentinelCheck] = []
-                for reviewed, viewer in targets:
+                for reviewed, viewer, bridged_tool in targets:
                     shown = deepcopy(reviewed)
                     offered = deepcopy(reviewed)
                     try:
@@ -340,6 +343,7 @@ async def apply_bridge_tool_approval(
                             message=message,
                             message_id=output.message.id,
                             producer=producer,
+                            target=bridged_tool,
                         )
                     )
                 checks.append(

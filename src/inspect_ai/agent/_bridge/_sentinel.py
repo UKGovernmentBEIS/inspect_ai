@@ -39,7 +39,7 @@ from inspect_ai._util.content import (
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
-from inspect_ai.agent._bridge.types import AgentBridge
+from inspect_ai.agent._bridge.types import AgentBridge, BridgedToolId
 from inspect_ai.model._call_tools import decisive_sentinel_exception, repeated_call_ids
 from inspect_ai.model._chat_message import (
     ChatMessage,
@@ -113,6 +113,9 @@ class SentinelCheck(NamedTuple):
 
     alternatives: tuple["SentinelCheck", ...] = ()
     """Checks for other host tools denoted by the same handed call."""
+
+    target: BridgedToolId | None = None
+    """The bridged tool the check is for, or None for a call no bridged tool serves."""
 
 
 class BridgedRequest(NamedTuple):
@@ -457,6 +460,9 @@ class _Handouts:
     def latest(self, check: SentinelCheck) -> SentinelCheck | None:
         """The check for the latest handout of `check`'s call, with its handed arguments, and target.
 
+        The target is matched by its bridged tool (`SentinelCheck.target`):
+        servers may serve tools of the same name and description, which a
+        handout's checks then have as alternatives with their own viewers.
         None for an ambiguous call (`_Handed.ambiguous`): which handout ran
         can't be told, so its result is checked with no proposal's context.
         """
@@ -472,7 +478,8 @@ class _Handouts:
             (
                 target
                 for target in (proposal, *proposal.alternatives)
-                if target.call.function == check.call.function
+                if target.target == check.target
+                and target.call.function == check.call.function
             ),
             check,
         )

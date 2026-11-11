@@ -16,6 +16,7 @@ from inspect_ai.agent._agent import AgentState
 from inspect_ai.agent._bridge.bridge import resolve_forward_client_headers
 from inspect_ai.agent._bridge.types import (
     AgentBridge,
+    BridgedToolId,
     DispatchedCall,
     ReviewedCalls,
     _HandedCall,
@@ -125,7 +126,7 @@ class SandboxAgentBridge(AgentBridge):
     bridged_tools: dict[str, dict[str, Tool]]
     """Registry of bridged tools by server name, then tool name."""
 
-    served_tools: dict["_BridgedToolId", ToolInfo]
+    served_tools: dict[BridgedToolId, ToolInfo]
     """What `list_tools` serves the scaffold for each bridged tool.
 
     The same `get_tools_info` view the service returns, so a scaffold's
@@ -155,7 +156,7 @@ class SandboxAgentBridge(AgentBridge):
         """Register `tools` (by name) as bridged server `server`."""
         self.bridged_tools[server] = tools
         for info in get_tools_info(list(tools.values())):
-            self.served_tools[_BridgedToolId(server=server, tool=info.name)] = info
+            self.served_tools[BridgedToolId(server=server, tool=info.name)] = info
         if not require_proposal:
             self.proposal_exempt_servers.add(server)
 
@@ -223,7 +224,8 @@ class SandboxAgentBridge(AgentBridge):
                 and (
                     len(target_checks) != len(targets)
                     or any(
-                        target_check.call.function != target.tool
+                        target_check.target != target
+                        or target_check.call.function != target.tool
                         for target_check, target in zip(target_checks, targets)
                     )
                 )
@@ -304,7 +306,7 @@ class SandboxAgentBridge(AgentBridge):
         (whitespace-trimmed, so empty descriptions collide too) are each granted
         by a proposal for any of them (`register_tool_execution_grants`).
         """
-        by_description: dict[str, list[_BridgedToolId]] = {}
+        by_description: dict[str, list[BridgedToolId]] = {}
         for tool_id, info in self.served_tools.items():
             by_description.setdefault(info.description.strip(), []).append(tool_id)
         for tool_ids in by_description.values():
@@ -541,7 +543,7 @@ class SandboxAgentBridge(AgentBridge):
 
     def _declared_properties(self, server: str, tool: str) -> Mapping[str, Any] | None:
         """The properties a served tool's closed schema declares, or `None` if it admits others."""
-        schema = self.served_tools.get(_BridgedToolId(server=server, tool=tool))
+        schema = self.served_tools.get(BridgedToolId(server=server, tool=tool))
         return (
             schema.parameters.properties
             if schema is not None and schema.parameters.additionalProperties is False
@@ -557,7 +559,7 @@ class SandboxAgentBridge(AgentBridge):
     ) -> ToolCallViewer | None:
         dispatched = self.dispatched_call(call)
         if dispatched is not None:
-            target = _BridgedToolId(
+            target = BridgedToolId(
                 server=dispatched.server, tool=dispatched.target.function
             )
         else:
@@ -603,6 +605,7 @@ class SandboxAgentBridge(AgentBridge):
                 ToolDef(self.bridged_tools[target.server][target.tool]).viewer
                 for target in proposed.targets
             ],
+            list(proposed.targets),
         )
 
     def request_fail(self, error: Exception) -> None:
@@ -718,17 +721,10 @@ class _ToolExecutionGrant(NamedTuple):
     """The result check for this grant's executed target, with a sentinel."""
 
 
-class _BridgedToolId(NamedTuple):
-    """Identity of one bridged tool within the registry."""
-
-    server: str
-    tool: str
-
-
 class _ProposedCall(NamedTuple):
     """What a proposed call would execute: the bridged tools it could denote, with what."""
 
-    targets: list[_BridgedToolId]
+    targets: list[BridgedToolId]
     arguments: dict[str, Any]
     dispatch: Callable[[dict[str, Any]], dict[str, Any]]
     """Arguments for the proposed call that run the targets with the given ones."""
@@ -750,7 +746,7 @@ def _declarations_by_name(
 
 def _proposed_call(
     bridged_tools: dict[str, dict[str, Tool]],
-    served: dict[_BridgedToolId, ToolInfo],
+    served: dict[BridgedToolId, ToolInfo],
     call: ToolCall,
     declared: dict[str, list[ToolInfo]],
 ) -> _ProposedCall:
@@ -775,15 +771,15 @@ def _proposed_call(
     if dispatched is None:
         return _NO_PROPOSAL
     return _ProposedCall(
-        [_BridgedToolId(server=dispatched.server, tool=dispatched.target.function)],
+        [BridgedToolId(server=dispatched.server, tool=dispatched.target.function)],
         dispatched.target.arguments,
         dispatched.dispatch,
     )
 
 
 def _resolve_by_served_content(
-    served: dict[_BridgedToolId, ToolInfo], declarations: Sequence[ToolInfo]
-) -> list[_BridgedToolId]:
+    served: dict[BridgedToolId, ToolInfo], declarations: Sequence[ToolInfo]
+) -> list[BridgedToolId]:
     """The bridged tools a declaration denotes by what the bridge served for them.
 
     The description is the key: scaffolds forward the MCP description to their
@@ -804,7 +800,7 @@ def _resolve_by_served_content(
     since a copy of a longer description is not also the shorter one it
     happens to end with.
     """
-    targets: list[_BridgedToolId] = []
+    targets: list[BridgedToolId] = []
     for declaration in declarations:
         description = declaration.description.strip()
         matched = (
@@ -866,8 +862,8 @@ bounded.
 
 
 def _prefixed_copies(
-    declared: str, served: dict[_BridgedToolId, ToolInfo]
-) -> list[_BridgedToolId]:
+    declared: str, served: dict[BridgedToolId, ToolInfo]
+) -> list[BridgedToolId]:
     """The served tools whose whole description `declared` ends with, after a preamble.
 
     Scaffold-agnostic: no scaffold's wording is looked for. A served description

@@ -6508,6 +6508,71 @@ def _numbered_results() -> AsyncMock:
     return AsyncMock(side_effect=read)
 
 
+def same_name_tools_on_servers(model: Model) -> SandboxAgentBridge:
+    """Serve `read_file` on servers `one` and `two`, with one description and each server's own viewer."""
+    tools: dict[str, dict[str, Tool]] = {}
+    for server in ("one", "two"):
+
+        def viewer(call: ToolCall, server: str = server) -> ToolCallView:
+            return ToolCallView(
+                call=ToolCallContent(format="text", content=f"view of {server}")
+            )
+
+        async def execute(path: str) -> str:
+            return path
+
+        tools[server] = {
+            "read_file": ToolDef(
+                execute,
+                name="read_file",
+                description=READ_FILE,
+                parameters=params("path"),
+                viewer=viewer,
+            ).as_tool()
+        }
+    return SandboxAgentBridge(
+        state=AgentState(messages=[]),
+        filter=None,
+        retry_refusals=None,
+        compaction=None,
+        port=13131,
+        model=None,
+        model_aliases={"inspect": model},
+        bridged_tools=tools,
+    )
+
+
+@pytest.mark.usefixtures("fake_sentinel")
+@pytest.mark.parametrize("server", ["one", "two"])
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+async def test_same_name_tools_on_servers_check_results_with_their_own_viewers(
+    dialect: HostDialect, server: str
+) -> None:
+    """A call denoting `read_file` on two servers is checked, once run, with the server's viewer."""
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            tool_calls_output(
+                ToolCall(id="proposed", function="read_file", arguments={"path": "x"})
+            )
+        ],
+    )
+    bridge = same_name_tools_on_servers(model)
+    seen: list[tuple[str, str, str]] = []
+    with active_test_sentinel(capture_indistinct_views(seen)):
+        [info] = declare("read_file")
+        [(_, arguments)] = await _HostConversation(dialect, "Read x.", info).request(
+            bridge
+        )
+        await call_host_tool(bridge)(server, "read_file", arguments)
+
+    assert seen == [
+        ("before", "read_file", "view of one"),
+        ("before", "read_file", "view of two"),
+        ("after", "read_file", f"view of {server}"),
+    ]
+
+
 @agent
 def host_scaffold(mode: HostMode, dialect: HostDialect = "completions") -> Agent:
     """A scaffold running every call it gets as a bridged host tool, in parallel."""
