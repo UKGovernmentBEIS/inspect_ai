@@ -249,12 +249,12 @@ the sample it sent still runs and its result is dropped.
 class TaskAttempt:                     # one per run_one attempt
     record: TaskRecord
     ended: bool = False                # set in the step run_one gives its slot back
-    channels: list[CreatorChannel]     # channels of tasks its samples added
+    channels: list[CreatorChannel] = field(default_factory=list)   # channels of tasks its samples added
 
 _attempt: ContextVar[TaskAttempt | None]   # set by run_one around _run_task
 ```
 
-`TaskRecord` gains `channel: CreatorChannel | None`. `RunQueue.add` takes
+`TaskRecord` gains `channel: CreatorChannel | None = None`. `RunQueue.add` takes
 `creator: TaskAttempt | None`, which `enqueue_task()` passes from `_attempt`.
 The dispatcher gains one step after the ordinary picks, skipped once it has
 latched a cancellation:

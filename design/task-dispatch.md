@@ -367,7 +367,7 @@ class TaskRecord:
     prepared: bool = False            # model controller ensured, sandboxes set up
     registered: bool = False          # an attempt has called register_eval
     log: EvalLog | None = None        # the log run_one stored; the final log once ended
-    ended: anyio.Event
+    ended: anyio.Event = field(default_factory=anyio.Event)
 
 class RunQueue:
     run_id: str
