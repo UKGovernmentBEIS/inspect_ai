@@ -163,9 +163,6 @@ class _AwaitedReply:
     runs: dict[int, int] = field(default_factory=dict)
     """Per call's position, how many executions of it have started (`_execution_started`)."""
 
-    completed: dict[int, int] = field(default_factory=dict)
-    """Per call's position, how many executions of it have completed (`_await_result_message`)."""
-
     answers: dict[int, set[str]] = field(default_factory=dict)
     """Per call's position, the ids of the distinct messages that answered it (`_link_result_messages`).
 
@@ -621,9 +618,8 @@ class AgentBridge:
             return None
         reply = self._awaited_results.get(root)
         runs = reply.runs.get(handed.position, 0) if reply is not None else 0
-        if reply is None or runs == 0 or reply.completed.get(handed.position, 0) < runs:
-            # running (or not recorded started): an answer sent meanwhile may
-            # not be the execution's
+        if reply is None or runs == 0:
+            # not recorded started: outstanding, as for an execution running
             return True
         return len(reply.answers.get(handed.position, ())) < runs
 
@@ -639,9 +635,8 @@ class AgentBridge:
         of a reply unlinked (`_unlink`), decided when the answer arrives. Each
         execution awaits its answer whether or not it can link, so the answer
         arriving is recorded for every execution, including one after the call
-        was answered. At most `_MAX_AWAITED_RESULTS` executions are tracked;
-        beyond that the oldest replies are dropped (those none of whose
-        executions still runs first) and their ids recorded in
+        was answered. At most `_MAX_AWAITED_RESULTS` calls are tracked; beyond
+        that the oldest replies are dropped and their ids recorded in
         `_unlinked_replies`, as `_unlink` records them, since the bridge no
         longer holds evidence of their executions, and in
         `_untracked_replies`, since whether their answers arrived is no longer
@@ -657,21 +652,9 @@ class AgentBridge:
         if not linkable or handed.position in reply.events:
             reply.unlinkable.add(handed.position)
         reply.events[handed.position] = event
-        reply.completed[handed.position] = reply.completed.get(handed.position, 0) + 1
         tracked = sum(_tracked(reply) for reply in self._awaited_results.values())
         while tracked > _MAX_AWAITED_RESULTS:
-            # the oldest reply none of whose executions still runs, if any
-            oldest = next(
-                (
-                    root
-                    for root, awaited in self._awaited_results.items()
-                    if all(
-                        awaited.completed.get(position, 0) >= runs
-                        for position, runs in awaited.runs.items()
-                    )
-                ),
-                next(iter(self._awaited_results)),
-            )
+            oldest = next(iter(self._awaited_results))
             tracked -= _tracked(self._awaited_results.pop(oldest))
             self._unlinked_replies.add(oldest)
             self._untracked_replies.add(oldest)
