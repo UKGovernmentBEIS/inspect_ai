@@ -229,18 +229,28 @@ def recovered_sample_store(
     summary: EvalSampleSummary,
     events: list[Event],
     attachments: Mapping[str, str],
+    buffered_store: dict[str, Any] | None,
 ) -> dict[str, Any]:
-    """A recovered sample's store, replayed from its `StoreEvent`s.
+    """A recovered sample's store.
 
-    Shared by both recovery paths. The buffer stores events condensed, so the
+    Shared by both recovery paths. A completed sample's final store, as its
+    log has it, is buffered when it completes (`buffered_store`). Not every
+    write to it has a `StoreEvent`: a solver may return a forked or copied
+    state, and task cleanup and the sidecar monitor-state copy run outside
+    the spans.
+
+    Otherwise (an in-progress sample, or a buffer from a version that didn't
+    keep the store) it is replayed from the `StoreEvent`s, so it reflects only
+    the top-level spans that ended, and changes made while `StoreEvent`s were
+    suspended (`suspend_store_events()`) are missing. The buffer stores events
+    condensed, so the
     `attachment://` refs in the replayed values are resolved; a normal run's
-    log keeps the store inline. Changes made while `StoreEvent`s were
-    suspended (`suspend_store_events()`) were never recorded, so they can't
-    be recovered, and an in-progress sample's store reflects only the
-    top-level spans that ended. If the changes don't replay (older versions
+    log keeps the store inline. If the changes don't replay (older versions
     could record `move` operations that don't), the store is left empty with
     a warning rather than failing the recovery of every sample.
     """
+    if buffered_store is not None:
+        return buffered_store
     try:
         data = dict(store_from_events(events).items())
     # jsonpatch also raises jsonpointer's exceptions, which have no type stubs
@@ -268,6 +278,7 @@ def reconstruct_eval_sample(
     sample_data: SampleData,
     *,
     sample_metadata: dict[str, Any] | None = None,
+    sample_store: dict[str, Any] | None = None,
     cancelled: bool = False,
     incomplete_action: IncompleteAction = "retry",
     include_events: bool = True,
@@ -278,6 +289,7 @@ def reconstruct_eval_sample(
         summary: Sample summary from the buffer DB samples table.
         sample_data: Events and attachments from buffer.get_sample_data().
         sample_metadata: Full metadata stored separately from the thinned summary.
+        sample_store: The final store buffered when the sample completed.
         cancelled: If True, synthesize an EvalError per `incomplete_action`
             (for in-progress samples interrupted by a crash).
         incomplete_action: Disposition for in-progress samples (see
@@ -334,7 +346,7 @@ def reconstruct_eval_sample(
         messages=messages,
         output=output,
         scores=recovered_sample_scores(summary, events),
-        store=recovered_sample_store(summary, events, attachments),
+        store=recovered_sample_store(summary, events, attachments, sample_store),
         events=events if include_events else [],
         timelines=None,
         attachments=attachments,

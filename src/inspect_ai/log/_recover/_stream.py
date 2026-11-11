@@ -134,6 +134,7 @@ def _write_sample_streaming(
     sample_limit_event: SampleLimitEvent | None = None
     sample_limit_event_matching: SampleLimitEvent | None = None
     sample_metadata = buffer.read_sample_metadata(summary.id, summary.epoch, manifest)
+    sample_store = buffer.read_sample_store(summary.id, summary.epoch, manifest)
 
     # Build the error field
     error: EvalError | None = None
@@ -339,7 +340,7 @@ def _write_sample_streaming(
             write_json_field(
                 stream,
                 "store",
-                recovered_sample_store(summary, raw_events, attachments),
+                recovered_sample_store(summary, raw_events, attachments, sample_store),
                 comma=True,
             )
 

@@ -143,7 +143,6 @@ from inspect_ai.log._transcript import (
     Transcript,
     TranscriptHistoryProvider,
     init_transcript,
-    track_store_changes,
     transcript,
     transcript_bounded_enabled,
 )
@@ -3472,10 +3471,7 @@ async def _task_run_sample_attempt(
                                 ):
                                     # once, even when the copy fails the sample
                                     monitor_state_copied = True
-                                    # between spans: record the store writes,
-                                    # which recovery replays from StoreEvents
-                                    with track_store_changes():
-                                        await copy_sidecar_monitor_state(state)
+                                    await copy_sidecar_monitor_state(state)
                                     async with span(name="scorers"):
                                         for scorer_idx, scorer in enumerate(
                                             scorers or []
@@ -3626,13 +3622,10 @@ async def _task_run_sample_attempt(
 
                     # a sample saved without being scored keeps its monitor
                     # state too, as in process, for `inspect score` to read
-                    # (after the spans: record the store writes for recovery)
                     if not monitor_state_copied:
-                        with track_store_changes():
-                            await save_sidecar_monitor_state(
-                                state,
-                                cancelled=isinstance(outcome, _AttemptCancelled),
-                            )
+                        await save_sidecar_monitor_state(
+                            state, cancelled=isinstance(outcome, _AttemptCancelled)
+                        )
 
                     # ensure there are no base64 images in sample or messages
                     if not log_images:
