@@ -89,28 +89,49 @@ def _redact_server_args(args: Any) -> Any:
 _MIN_SUBSTRING_SECRET_LEN = 8
 
 
+def _secret_forms(secret: str) -> list[str]:
+    """A secret as written raw and as escaped when servers print it.
+
+    vLLM and SGLang log their args as a Python dict (repr) or JSON, which
+    escapes backslashes and quotes, so the raw value may not appear.
+    """
+    return [
+        secret,
+        repr(secret)[1:-1],
+        repr(secret + '"')[1:-2],  # repr in single quotes, escaping '
+        json.dumps(secret)[1:-1],
+    ]
+
+
 def _output_redactor(secrets: list[str]) -> Callable[[str], str]:
     """Build a function that masks secret values in server output lines.
 
     Secrets of at least `_MIN_SUBSTRING_SECRET_LEN` chars are masked wherever
     they appear. Shorter ones (e.g. "test") are masked only as quoted values,
-    as servers echo their args, so they don't blank unrelated output.
+    as servers echo their args, so they don't blank unrelated output. Escaped
+    forms of each secret (see `_secret_forms()`) are masked too.
     """
-    # longest first, so a secret that contains another is masked whole
-    long_secrets = sorted(
-        (s for s in secrets if len(s) >= _MIN_SUBSTRING_SECRET_LEN),
-        key=len,
-        reverse=True,
-    )
-    short_secrets = [s for s in secrets if 0 < len(s) < _MIN_SUBSTRING_SECRET_LEN]
+
+    def forms(short: bool) -> list[str]:
+        # deduplicated, longest first, so a form that contains another is masked whole
+        found = {
+            form
+            for s in secrets
+            if s and (len(s) < _MIN_SUBSTRING_SECRET_LEN) == short
+            for form in _secret_forms(s)
+        }
+        return sorted(found, key=len, reverse=True)
+
+    long_forms = forms(short=False)
+    short_forms = forms(short=True)
 
     def redact(line: str) -> str:
-        for secret in long_secrets:
-            line = line.replace(secret, _REDACTED)
-        for secret in short_secrets:
+        for form in long_forms:
+            line = line.replace(form, _REDACTED)
+        for form in short_forms:
             for quote in ("'", '"'):
                 line = line.replace(
-                    f"{quote}{secret}{quote}", f"{quote}{_REDACTED}{quote}"
+                    f"{quote}{form}{quote}", f"{quote}{_REDACTED}{quote}"
                 )
         return line
 

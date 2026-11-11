@@ -172,6 +172,39 @@ def test_server_output_does_not_expose_api_key(
     assert SECRET not in caplog.text
 
 
+@pytest.mark.parametrize(
+    "key",
+    [
+        r"sk-secret\with-backslash",  # long, with a backslash
+        "ab\\c",  # short, with a backslash
+        'sk-it\'s-"quoted"',  # both quote characters
+    ],
+)
+def test_server_output_does_not_expose_escaped_api_key(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture, key: str
+) -> None:
+    caplog.set_level(logging.DEBUG, logger=local_server.__name__)
+    # servers log their args as a Python dict, which escapes the key
+    printed = str({"api_key": key})
+    stdout = io.StringIO(f"stdout non-default args: {printed}\n")
+    stderr = io.StringIO(f"stderr non-default args: {printed}\n")
+    process = _FakeProcess(stdout=stdout, stderr=stderr)
+    monkeypatch.setattr("subprocess.Popen", lambda *a, **k: process)
+
+    local_server.execute_shell_command(["vllm", "serve", "m", "--api-key", key])
+
+    deadline = time.monotonic() + 10
+    while not (stdout.closed and stderr.closed):
+        assert time.monotonic() < deadline
+        time.sleep(0.01)
+
+    assert "stdout non-default args" in caplog.text
+    assert "stderr non-default args" in caplog.text
+    for form in (key, repr(key)[1:-1], json.dumps(key)[1:-1]):
+        assert form not in caplog.text
+    assert caplog.text.count(f"{{'api_key': '{local_server._REDACTED}'}}") == 2
+
+
 def test_short_secret_masked_only_as_quoted_value() -> None:
     redact = local_server._output_redactor(["test"])
     assert redact("non-default args: {'api_key': 'test'}") == (
