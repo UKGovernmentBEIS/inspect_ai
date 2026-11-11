@@ -1669,7 +1669,7 @@ async def _bridge_generate_impl(
         if reviewed.rejection is None:
             handed = reviewed.output.message.tool_calls or []
             _hold_replay_state(reviewed.output, generations.outputs())
-            checks = bridge._handouts.hand_over(
+            bridge._handouts.hand_over(
                 request, output.message.tool_calls or [], handed, reviewed.sentinel
             )
             # executions are placed in the proposing ModelEvent's span; only one
@@ -1701,7 +1701,7 @@ async def _bridge_generate_impl(
                 bridge._register_tool_execution_grants(
                     handed,
                     declarations,
-                    checks,
+                    reviewed.sentinel,
                     span_id=sink.span_id if sink is not None else None,
                 )
             finally:

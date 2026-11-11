@@ -6659,17 +6659,17 @@ async def test_a_host_call_handed_over_again_while_running_gets_no_proposal(
                 await sub.request(bridge)
                 assert bridge._handouts.handed["tool_call_0_0"].ambiguous
             release.set()
-        # the checked result, reported as delivered, is the host check's step
-        # unless that had no proposal's context (a Google result is a JSON
-        # object, so it is a changed result)
+        # the result reported as delivered is checked as a report, with no
+        # proposal's context either once the call is ambiguous (a Google
+        # result is a JSON object, so it is not reported here)
         if not error and dialect != "google":
             main.results(calls, ["contents"])
             await main.request(bridge)
 
     [after] = _executed(seen)
     reported = [step for step in seen if step not in _executed(seen)]
-    assert [step.input for step in reported] == (
-        [None] if overlap and not error and dialect != "google" else []
+    assert [step.input is None for step in reported] == (
+        [overlap] if not error and dialect != "google" else []
     )
     assert (after.result.error is not None) == error
     if overlap:
@@ -6707,9 +6707,7 @@ async def test_host_results_two_conversations_could_have_run_get_no_proposal(
     checked with no proposal's context, whichever conversation's scaffold runs
     first, and each conversation's report of its result is another step,
     checked with no proposal's context too. With no competitor, the result
-    gets its proposal's context, and its report is the same step (but
-    Google's: a Google result is a JSON object, so its report is a changed
-    result).
+    and its report get its proposal's context.
     """
     main_call = ToolCall(id="main", function="read_file", arguments={"path": "p"})
     sub_call = ToolCall(
@@ -6775,8 +6773,10 @@ async def test_host_results_two_conversations_could_have_run_get_no_proposal(
         for after in reported:
             assert after.input is None
             assert after.tools is None and after.tool_choice is None
-    elif dialect != "google":
-        assert reported == []
+    else:
+        [report] = reported
+        assert report.input is not None
+        assert [m.text for m in report.input] == ["Read p."]
 
 
 @pytest.mark.usefixtures("fake_sentinel")
@@ -6907,9 +6907,9 @@ async def test_a_retry_taking_a_later_conversations_identical_grant_gets_no_prop
     if shape == "no retry":
         assert inputs == [["MAIN read p."]]
     elif answered_first:
-        # Google's changed report of main's result is checked before the
-        # sub-agent is handed the call
-        assert inputs == [["MAIN read p."]] * (1 + (dialect == "google")) + [None]
+        # main's report of its result is checked before the sub-agent is
+        # handed the call
+        assert inputs == [["MAIN read p."]] * 2 + [None]
     else:
         assert len(executed) == 2
         by_result = {after.result.text: after for after in executed}
@@ -8176,7 +8176,8 @@ async def test_a_failed_check_for_one_target_does_not_fail_or_exempt_another(
                 else:
                     first.results(first_calls, ["secret"])
                     await first.request(bridge)
-        assert bridge._handouts.failed
+        # a host check's step is no report's, so it is not recorded
+        assert bool(bridge._handouts.failed) is not host
         assert not bridge._handouts.checked
         assert not bridge._handouts.running
         second = _HostConversation(dialect, "Second", declare("summarize")[0])
@@ -8246,12 +8247,13 @@ async def test_a_running_report_check_for_one_target_does_not_answer_for_another
 
 
 @pytest.mark.usefixtures("fake_sentinel")
+@pytest.mark.parametrize("naming", ["read_file", "mcp__host__read_file"])
 @pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
-async def test_an_ordinary_host_call_is_checked_once_and_its_replay_not_again(
-    dialect: HostDialect,
+async def test_an_ordinary_host_call_is_checked_on_the_host_and_at_its_first_report(
+    dialect: HostDialect, naming: str
 ) -> None:
-    """One conversation's host call: its check is its report's step, so the report and a replay of it add no check."""
-    call = ToolCall(id="same", function="read_file", arguments={"path": "p"})
+    """One conversation's host call: checked when it runs and when the scaffold first reports its result, whose step differs (`truncated`); a replay adds no check."""
+    call = ToolCall(id="same", function=naming, arguments={"path": "p"})
     done = ModelOutput.from_content("mockllm/model", "Done.")
     model = get_model(
         "mockllm/model", custom_outputs=[tool_calls_output(call), done, done]
@@ -8263,16 +8265,112 @@ async def test_an_ordinary_host_call_is_checked_once_and_its_replay_not_again(
     bridge = _counted_host_bridge(model, read)
     seen: list[AfterToolCall] = []
     with active_test_sentinel(record_tool_results(seen)):
-        conversation = _HostConversation(dialect, "Read p.", declare("read_file")[0])
+        conversation = _HostConversation(dialect, "Read p.", declare(naming)[0])
         calls = await conversation.request(bridge)
         await call_host_tool(bridge)("host", "read_file", {"path": "p"})
         assert len(seen) == 1
+        # the result as handed (its function), the call as resolved
+        assert seen[0].result.function == naming
+        assert seen[0].call.function == "read_file"
+        assert seen[0].truncated is False
         conversation.results(calls, ["public"])
         await conversation.request(bridge)
-        assert len(seen) == 1
+        assert len(seen) == 2
+        assert seen[1].truncated is None
         _continue(conversation)
         await conversation.request(bridge)
-    assert len(seen) == 1
+    assert len(seen) == 2
+
+
+@pytest.mark.usefixtures("fake_sentinel")
+@pytest.mark.parametrize("shape", ["non-text", "truncated", "error"])
+async def test_a_report_is_checked_though_its_host_result_passed(shape: str) -> None:
+    """A protocol can reject a report's step though it passed the host step it was delivered from: their `output` or `truncated` differ.
+
+    - `non-text`: the host output is a content part, the report's is its
+      serialized text, which carries the part's `internal`.
+    - `truncated`: the host step has the full output and its cut, the report
+      the delivered text and no cut.
+    - `error`: the same error and empty output, with `truncated` False on the
+      host and None in the report.
+    """
+    call = ToolCall(id="same", function="read_file", arguments={"path": "p"})
+    done = ModelOutput.from_content("mockllm/model", "Done.")
+    model = get_model("mockllm/model", custom_outputs=[tool_calls_output(call), done])
+
+    async def read(path: str) -> ToolResult:
+        if shape == "non-text":
+            return ContentText(text="public", internal={"note": "secret"})
+        if shape == "error":
+            raise ToolError("secret")
+        return "secret " + "x" * 5000
+
+    bridge = _counted_host_bridge(model, cast(Callable[..., Awaitable[str]], read))
+    if shape == "truncated":
+        bridge.register_bridged_tools(
+            "host",
+            {
+                "read_file": ToolDef(
+                    bridge.bridged_tools["host"]["read_file"], max_output=1000
+                ).as_tool()
+            },
+        )
+    seen: list[AfterToolCall] = []
+
+    @protocol
+    def reject_secret_reports() -> Protocol:
+        async def after(
+            context: Context, step: AfterToolCall, escalations: Escalations
+        ) -> Decision | None:
+            seen.append(step)
+            if shape == "non-text":
+                secret = isinstance(step.output, str) and "secret" in step.output
+            elif shape == "error":
+                secret = (
+                    step.truncated is None
+                    and step.result.error is not None
+                    and "secret" in step.result.error.message
+                )
+            else:
+                secret = step.truncated is None and "secret" in str(step.output)
+            return Decision.terminate("secret report") if secret else None
+
+        return after
+
+    with active_test_sentinel(reject_secret_reports()):
+        conversation = _HostConversation(
+            "completions", "Read p.", declare("read_file")[0]
+        )
+        calls = await conversation.request(bridge)
+        if shape == "error":
+            with pytest.raises(ToolError):
+                await call_host_tool(bridge)("host", "read_file", {"path": "p"})
+            assert len(seen) == 1 and seen[0].output == ""
+            # a Completions tool message can't carry an error: report the
+            # delivered result as it is
+            report = seen[0].result.model_copy(update={"id": "report"})
+            with pytest.raises(TerminateSampleError, match="secret report"):
+                await sentinel_module.sentinel_tool_results(
+                    bridge,
+                    [
+                        ChatMessageAssistant(
+                            id=seen[0].message_id, content="", tool_calls=[call]
+                        ),
+                        report,
+                    ],
+                )
+            return
+        reply = await call_host_tool(bridge)("host", "read_file", {"path": "p"})
+        assert isinstance(reply, str)
+        assert len(seen) == 1
+        if shape == "non-text":
+            assert not isinstance(seen[0].output, str) and "secret" in reply
+        else:
+            assert seen[0].truncated and len(reply) < len(str(seen[0].output))
+        conversation.results(calls, [reply])
+        with pytest.raises(TerminateSampleError, match="secret report"):
+            await conversation.request(bridge)
+    assert len(seen) == 2
 
 
 @pytest.mark.usefixtures("fake_sentinel")
@@ -8311,7 +8409,7 @@ async def test_an_agent_run_tool_result_is_checked_once_and_its_replay_not_again
 async def test_indistinct_targets_are_each_checked_once_and_a_replay_not_again(
     dialect: HostDialect, host: bool
 ) -> None:
-    """A report of a call to tools sharing a description is checked as each target once, counting a host execution of one; a replay adds no check."""
+    """A report of a call to tools sharing a description is checked as each target once, besides a host execution of one; a replay adds no check."""
     # the helper's host tools return their path; Google's is delivered as
     # the JSON its report carries
     path = json.dumps({"output": "public"}) if dialect == "google" else "public"
@@ -8331,12 +8429,12 @@ async def test_indistinct_targets_are_each_checked_once_and_a_replay_not_again(
             )
         conversation.results(calls, ["public"])
         await conversation.request(bridge)
-        assert len(seen) == 2
-        views = [step.view.call.content for step in seen if step.view.call]
+        assert len(seen) == (3 if host else 2)
+        views = [step.view.call.content for step in seen[-2:] if step.view.call]
         assert sorted(views) == ["view of one", "view of two"]
         _continue(conversation)
         await conversation.request(bridge)
-    assert len(seen) == 2
+    assert len(seen) == (3 if host else 2)
 
 
 def test_repeated_answers_to_one_call_take_linear_work(
@@ -8912,11 +9010,9 @@ def test_recording_host_call_conversations_is_linear(
         reply = ChatMessageAssistant(
             id=f"reply_{index}", content="On it.", tool_calls=[call]
         )
-        checks = bridge._handouts.hand_over(
-            BridgedRequest(f"request_{index}", frozenset()),
-            [call],
-            [call],
-            [SentinelCheck(call, call, None, "", "", target=target)],
+        checks = [SentinelCheck(call, call, None, "", "", target=target)]
+        bridge._handouts.hand_over(
+            BridgedRequest(f"request_{index}", frozenset()), [call], [call], checks
         )
         bridge._proposing_request = request
         bridge._proposing_reply_id = reply.id

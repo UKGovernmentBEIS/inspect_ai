@@ -93,13 +93,11 @@ STEP_DIGEST_FIELDS = frozenset(
         "input",
         "tools",
         "tool_choice",
+        "output",
+        "truncated",
     }
 )
 STEP_DIGEST_EXCLUDED = {
-    "output": "a report's is its result's own content (`_output`); a host "
-    "execution's is the tool's return value the delivered result was made from",
-    "truncated": "None for every report, which can't tell; a host execution's "
-    "cut is of that output, and its result is what was delivered",
     "history": "the conversation's record when the check runs, which grows with "
     "every step, so a replay would never be the same step",
     "human_decisions": "as `history`",
@@ -151,10 +149,6 @@ class SentinelCheck(NamedTuple):
     """The generation that produced the call, if the bridge knows it; the steps
     take what the model was sent from it, and its conversation, and without it
     have no input and the bridge's current conversation."""
-
-    execution_id: str | None = None
-    """The handout of the call this check is for (`_Handouts.hand_over`),
-    or None for a host call no proposal accounts for."""
 
     alternatives: tuple["SentinelCheck", ...] = ()
     """Checks for other host tools denoted by the same handed call."""
@@ -374,8 +368,11 @@ class _SavedHandouts(BaseModel):
 class _Result(NamedTuple):
     message: ChatMessageTool
 
+    output: ToolResult
+    """The output its checks are given (`_output`)."""
+
     checks: tuple[SentinelCheck, ...]
-    """The checks of every target the result may be of; a host execution has only its actual target."""
+    """The checks of every target the result may be of."""
 
     digests: tuple[str, ...]
     """The digest of each check's step (`_Steps`)."""
@@ -461,12 +458,11 @@ class _Handouts:
     (`checked`); proposals are not, so after a resume a result gets the
     fallback's step and is checked again, as after its proposal's eviction.
 
-    A host call's result is checked when the call executes, and its step's
-    digest is recorded like a report's: a report of the delivered result for
-    the same handout, with the same targets and context, is the same step.
-    One run with no proposal's context (a call no proposal accounts for, or
-    one handed to several conversations) is a step no report can be, and is
-    not recorded.
+    A host call's result is checked when the call executes, and again when
+    the scaffold first reports it: a host step has the tool's output and its
+    cut (`truncated`, False when there was none), a report's step the
+    result's own content and no cut (None), so no host step is a report's.
+    Host checks are not recorded.
 
     The results in the state the bridge starts with were in the agent's
     conversation before the bridge ran, and are not checked again, as a native
@@ -487,7 +483,7 @@ class _Handouts:
         self.reserved_ids: set[str] = set(saved.reserved_ids)
         # by call id and handed call (`_call_key`)
         self.proposals: OrderedDict[tuple[str, str], SentinelCheck] = OrderedDict()
-        # step digests (`_Steps`)
+        # reports' step digests (`_Steps`), as `running` and `failed` are keyed
         self.checked: set[str] = set(saved.checked)
         self.inherited: frozenset[str] = frozenset(saved.inherited)
         self.conversations: dict[str, _Conversation] = dict(saved.conversations)
@@ -565,15 +561,14 @@ class _Handouts:
         proposed: Sequence[ToolCall],
         handed: Sequence[ToolCall],
         checks: Sequence[SentinelCheck] | None,
-    ) -> list[SentinelCheck] | None:
+    ) -> None:
         """Record a response's calls as handed over in `request`, each a new execution.
 
         `proposed` are the calls as the model proposed them, `handed` as
         approval gave them, and `checks` their `tool_result` checks, in order
-        (None without a sentinel). Returns the checks with their execution ids.
+        (None without a sentinel).
         """
         shared = repeated_call_ids(handed)
-        issued: list[SentinelCheck] = []
         for index, (model_call, call) in enumerate(zip(proposed, handed, strict=True)):
             earlier = self.handed.get(call.id)
             ambiguous = earlier is not None and (
@@ -601,14 +596,6 @@ class _Handouts:
             if checks is None:
                 continue
             check = checks[index]
-            check = check._replace(
-                execution_id=execution_id,
-                alternatives=tuple(
-                    alternative._replace(execution_id=execution_id)
-                    for alternative in check.alternatives
-                ),
-            )
-            issued.append(check)
             if call.id in shared:
                 for stale in [k for k in self.proposals if k[0] == call.id]:
                     del self.proposals[stale]
@@ -627,7 +614,6 @@ class _Handouts:
                     f"than {_MAX_PROPOSALS} calls ago sees only the conversation "
                     "that carries its result, and no model input.",
                 )
-        return issued if checks is not None else None
 
     def propose(self, request: BridgedRequest, calls: Sequence[ToolCall]) -> None:
         """Record a response's calls under the ids they keep, before approval and the sentinel review them.
@@ -761,12 +747,9 @@ class _Handouts:
             if owned:
                 claimed.owned.append(_Claim(result, tuple(owned), anyio.Event()))
         for claim in claimed.owned:
-            self._take(claim)
+            for index in claim.owned:
+                self.running.setdefault(claim.result.digests[index], claim.event)
         return claimed
-
-    def _take(self, claim: _Claim) -> None:
-        for index in claim.owned:
-            self.running.setdefault(claim.result.digests[index], claim.event)
 
     def _result(
         self,
@@ -791,11 +774,13 @@ class _Handouts:
             found,
             lambda: self._checks(input, call_id, handed, found, message),
         )
-        result = steps.result(message)
+        output = _output(message)
+        report = steps.report(message, output)
         return _Result(
             message,
+            output,
             checks.checks,
-            tuple(_parts_digest(part, result) for part in checks.parts),
+            tuple(_parts_digest(part, *report) for part in checks.parts),
             checks.views,
         )
 
@@ -832,13 +817,7 @@ class _Handouts:
             _without_context(SentinelCheck(call, call, None, "", None), input, found),
         )
 
-    async def check(
-        self,
-        bridge: AgentBridge,
-        claim: _Claim,
-        output: ToolResult,
-        truncated: tuple[int, int] | Literal[False] | None = None,
-    ) -> None:
+    async def check(self, bridge: AgentBridge, claim: _Claim) -> None:
         """Run the claim's checks, in order, recording each step as passed or failed."""
         result = claim.result
         for index in claim.owned:
@@ -848,8 +827,8 @@ class _Handouts:
                     bridge,
                     result.checks[index],
                     result.message,
-                    output,
-                    truncated,
+                    result.output,
+                    None,
                     reject_on_viewer_error=len(result.checks) > 1,
                     view=result.views[index],
                 )
@@ -857,36 +836,6 @@ class _Handouts:
                 self.failed.setdefault(digest, ex)
                 raise
             self.checked.add(digest)
-
-    async def check_host(
-        self,
-        bridge: AgentBridge,
-        check: SentinelCheck,
-        result: ChatMessageTool,
-        output: ToolResult,
-        truncated: tuple[int, int] | Literal[False],
-    ) -> None:
-        """Check a host call's result, as running, recording its step (`_Handouts`).
-
-        It is always checked: its execution is new.
-        """
-        steps = _Steps()
-        checks = steps.checks(None, None, lambda: (check,))
-        claim = _Claim(
-            _Result(
-                result,
-                checks.checks,
-                (_parts_digest(checks.parts[0], steps.result(result)),),
-                checks.views,
-            ),
-            (0,),
-            anyio.Event(),
-        )
-        self._take(claim)
-        try:
-            await self.check(bridge, claim, output, truncated)
-        finally:
-            self.release(claim)
 
     def release(self, claim: _Claim) -> None:
         # a check that did not finish is claimed again by the next request
@@ -949,10 +898,11 @@ class _Steps:
     assistant message's text and id, the call, its view (as its viewer
     renders it, rejecting a viewer error where the check does; the check is
     given that view), the generation's input, tools and tool choice
-    (`Produced.digest`), and the result. The result is all of its fields but
-    its `id`, which the bridge gives each parsed message and a host result
-    afresh. The fields left out are those of `STEP_DIGEST_EXCLUDED`. A value
-    that can't be serialized gives a digest no other step has.
+    (`Produced.digest`), the result, the output (`_output`) and the cut
+    (None: a report has none). The result is all of its fields but its `id`,
+    which the bridge gives each parsed message afresh. The fields left out are
+    those of `STEP_DIGEST_EXCLUDED`. A value that can't be serialized gives a
+    digest no other step has.
 
     A check's part of the digest is computed once per set of results it
     answers in the request (`checks`), and each result's once, so repeated
@@ -983,9 +933,15 @@ class _Steps:
         return entry[1]
 
     @staticmethod
-    def result(message: ChatMessageTool) -> bytes:
-        """The result's part of its steps' digests."""
-        return _serialized(message.model_copy(update={"id": None}))
+    def report(
+        message: ChatMessageTool, output: ToolResult
+    ) -> tuple[bytes, bytes, bytes]:
+        """A report's part of its steps' digests: its result, its `output` and its cut (`truncated`, None)."""
+        return (
+            _serialized(message.model_copy(update={"id": None})),
+            _serialized(output),
+            _serialized(None),
+        )
 
 
 def _view(check: SentinelCheck, reject_on_viewer_error: bool) -> ToolCallView | None:
@@ -1291,11 +1247,9 @@ async def sentinel_host_tool_result(
     """Check a host call's result as delivered.
 
     The result is the one the scaffold receives, under the call it was handed
-    (its id and function), so a report of it for the same handout, with the
-    same targets and context, is the same step and is not checked again
-    (`_Handouts`). A host call with no proposal's context (`check` has no
-    handout) was handed over as no call a report can be of: its check is not
-    recorded.
+    (its id and function). The check is not recorded: its step has the tool's
+    output and cut, which a report's never has, so the scaffold's report of the
+    result is checked in turn (`_Handouts`).
 
     The call is the bridged scaffold's, so the check does not see the enclosing
     agent's messages, as the stages of a bridge request don't
@@ -1310,10 +1264,7 @@ async def sentinel_host_tool_result(
         error=error,
     )
     with bridge_request():
-        if check.execution_id is None:
-            await _tool_result(bridge, check, result, output, truncated)
-        else:
-            await bridge._handouts.check_host(bridge, check, result, output, truncated)
+        await _tool_result(bridge, check, result, output, truncated)
 
 
 async def sentinel_tool_results(bridge: AgentBridge, input: list[ChatMessage]) -> None:
@@ -1328,12 +1279,7 @@ async def sentinel_tool_results(bridge: AgentBridge, input: list[ChatMessage]) -
                     releases.callback(result_checks.release, claim)
                 await tg_collect(
                     [
-                        partial(
-                            result_checks.check,
-                            bridge,
-                            claim,
-                            _output(claim.result.message),
-                        )
+                        partial(result_checks.check, bridge, claim)
                         for claim in claimed.owned
                     ]
                 )

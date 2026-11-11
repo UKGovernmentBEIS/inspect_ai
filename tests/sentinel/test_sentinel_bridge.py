@@ -1081,7 +1081,7 @@ async def test_host_tool_result_is_checked_in_the_service() -> None:
             declare_read_file(),
         )
 
-    _, after = seen
+    _, after, report = seen
     assert isinstance(after, AfterToolCall)
     assert after.call == replace(read, function="read_file")
     assert after.output == "host contents"
@@ -1090,7 +1090,18 @@ async def test_host_tool_result_is_checked_in_the_service() -> None:
     # as the scaffold receives it, under the function it was handed
     assert after.result.function == read.function
     assert after.result.text == "host contents"
-    assert observations() == [(read.id, "tool_call"), (read.id, "tool_result")]
+    # the scaffold's report of it is another step: it has no cut
+    assert isinstance(report, AfterToolCall)
+    assert report.call == after.call
+    assert report.result.model_copy(update={"id": None}) == after.result.model_copy(
+        update={"id": None}
+    )
+    assert report.output == "host contents" and report.truncated is None
+    assert observations() == [
+        (read.id, "tool_call"),
+        (read.id, "tool_result"),
+        (read.id, "tool_result"),
+    ]
 
 
 async def test_a_bridge_s_tool_checks_are_marked_for_replay() -> None:
@@ -5046,57 +5057,58 @@ def held_benign(started: Any, release: Any) -> Protocol:
 
 
 @protocol
-def counted_held(seen: Any, started: Any, release: Any) -> Protocol:
+def held_until_both(seen: list[AfterToolCall], both: Any) -> Protocol:
+    """Holds each check until two are running."""
+
     async def after(
         context: Context, step: AfterToolCall, escalations: Escalations
     ) -> Decision | None:
         seen.append(step)
-        started.set()
-        await release.wait()
+        if len(seen) == 2:
+            both.set()
+        await both.wait()
         return None
 
     return after
 
 
-async def test_a_host_result_reported_during_its_check_is_checked_once() -> None:
+async def test_a_host_result_reported_during_its_check_is_checked_as_a_report() -> None:
+    """A report of a host result whose host check is running is checked as a report, without waiting for the host check: no host step is a report's."""
     seen: list[AfterToolCall] = []
-    started, release = anyio.Event(), anyio.Event()
+    both = anyio.Event()
     call = replace(READ, function="mcp__host__read_file")
     model = Scripted(calls_output(call), calls_output())
     bridge = sandbox_bridge(AsyncMock(return_value="contents"))
     history: list[ChatMessage] = [ChatMessageUser(content=TASK)]
 
-    with active(counted_held(seen, started, release)):
+    with active(held_until_both(seen, both)):
         output = await generate(bridge, model, history, declare_read_file())
 
         async def execute() -> None:
             await call_host_tool(bridge)("host", "read_file", READ.arguments)
 
-        async with anyio.create_task_group() as tg:
-            tg.start_soon(execute)
-            await started.wait()
+        async def report() -> None:
+            await generate(
+                bridge,
+                model,
+                [
+                    *history,
+                    output.message,
+                    ChatMessageTool(
+                        content="contents",
+                        tool_call_id=call.id,
+                        function=call.function,
+                    ),
+                ],
+                declare_read_file(),
+            )
 
-            async def report() -> None:
-                await generate(
-                    bridge,
-                    model,
-                    [
-                        *history,
-                        output.message,
-                        ChatMessageTool(
-                            content="contents",
-                            tool_call_id=call.id,
-                            function=call.function,
-                        ),
-                    ],
-                    declare_read_file(),
-                )
+        with anyio.fail_after(10):
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(execute)
+                tg.start_soon(report)
 
-            tg.start_soon(report)
-            await anyio.sleep(0.05)
-            release.set()
-
-    assert len(seen) == 1
+    assert sorted(step.truncated is None for step in seen) == [False, True]
 
 
 @pytest.mark.parametrize("same_call", [True, False])
@@ -6366,7 +6378,8 @@ async def test_a_host_result_changed_in_a_later_request_is_checked() -> None:
             ),
         ]
         await generate(bridge, model, delivered, declare_read_file())
-        assert len(seen) == 1
+        # checked on the host and as reported
+        assert len(seen) == 2
         with pytest.raises(TerminateSampleError, match="blocked secret"):
             await generate(
                 bridge,

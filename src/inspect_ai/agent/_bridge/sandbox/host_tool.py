@@ -103,8 +103,8 @@ async def execute_host_tool(
     An MCP call carries no call id, so a call that outstanding proposals of
     several calls could account for is checked without any of their contexts;
     so is one whose call another request was handed while it ran
-    (`_attribution`). Such a check covers no result the scaffold reports, which
-    is checked in turn (`sentinel_host_tool_result`).
+    (`_attribution`). No host check covers the result the scaffold then
+    reports, which is checked in turn (`sentinel_host_tool_result`).
     The check sees the result as the scaffold receives it (the serialized text,
     or the text and images of the MCP content), and an error as the service's
     error text, with the type the native path gives it. An argument validation
