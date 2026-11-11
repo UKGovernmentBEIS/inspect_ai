@@ -7,7 +7,7 @@ import re
 import socket
 import subprocess
 import time
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, Optional, Tuple
 
 import httpx
 
@@ -70,6 +70,46 @@ def redact_command(command: list[str]) -> list[str]:
 
 def _redact_env(env: dict[str, str]) -> dict[str, str]:
     return {k: _REDACTED if _is_secret_name(k) else v for k, v in env.items()}
+
+
+def _redact_server_args(args: Any) -> Any:
+    """Copy of (possibly nested) server args with secret-named keys' values masked."""
+    if isinstance(args, dict):
+        return {
+            k: _REDACTED
+            if isinstance(k, str) and _is_secret_name(k)
+            else _redact_server_args(v)
+            for k, v in args.items()
+        }
+    if isinstance(args, list):
+        return [_redact_server_args(v) for v in args]
+    return args
+
+
+_MIN_SUBSTRING_SECRET_LEN = 8
+
+
+def _output_redactor(secrets: list[str]) -> Callable[[str], str]:
+    """Build a function that masks secret values in server output lines.
+
+    Secrets of at least `_MIN_SUBSTRING_SECRET_LEN` chars are masked wherever
+    they appear. Shorter ones (e.g. "test") are masked only as quoted values,
+    as servers echo their args, so they don't blank unrelated output.
+    """
+    long_secrets = [s for s in secrets if len(s) >= _MIN_SUBSTRING_SECRET_LEN]
+    short_secrets = [s for s in secrets if 0 < len(s) < _MIN_SUBSTRING_SECRET_LEN]
+
+    def redact(line: str) -> str:
+        for secret in long_secrets:
+            line = line.replace(secret, _REDACTED)
+        for secret in short_secrets:
+            for quote in ("'", '"'):
+                line = line.replace(
+                    f"{quote}{secret}{quote}", f"{quote}{_REDACTED}{quote}"
+                )
+        return line
+
+    return redact
 
 
 def _command_secrets(command: list[str]) -> list[str]:
@@ -167,12 +207,7 @@ def execute_shell_command(
         env=process_env,  # Pass the environment variables
     )
 
-    secrets = [secret for secret in _command_secrets(command) if secret]
-
-    def redact_line(line: str) -> str:
-        for secret in secrets:
-            line = line.replace(secret, _REDACTED)
-        return line
+    redact_line = _output_redactor(_command_secrets(command))
 
     # Set up background thread to read and log stdout
     def log_output() -> None:
@@ -298,13 +333,12 @@ def wait_for_server(
     debug_advice = "Try rerunning with '--log-level debug' to see the full traceback."
     if full_command:
         debug_advice += " Alternatively, you can run the following launch command manually to see the full traceback:\n\n"
-        if env:
-            debug_advice += (
-                " ".join([f"{k}={v}" for k, v in _redact_env(env).items()]) + " "
-            )
+        shown_env = _redact_env(env or {})
+        if shown_env:
+            debug_advice += " ".join([f"{k}={v}" for k, v in shown_env.items()]) + " "
         shown_command = redact_command(full_command)
         debug_advice += " ".join(shown_command) + "\n\n"
-        if shown_command != full_command:
+        if shown_command != full_command or shown_env != (env or {}):
             debug_advice += (
                 f"(Secret values are shown as {_REDACTED}; substitute your own.)\n\n"
             )
@@ -440,12 +474,12 @@ def merge_env_server_args(
         try:
             env_server_args = json.loads(server_args_json)
             logger.info(
-                f"Loaded server args from environment {env_var_name}: {env_server_args}"
+                f"Loaded server args from environment {env_var_name}: "
+                f"{_redact_server_args(env_server_args)}"
             )
-        except json.JSONDecodeError:
-            logger.warning(
-                f"Failed to parse {env_var_name} as JSON: {server_args_json}"
-            )
+        except json.JSONDecodeError as ex:
+            # the raw value may hold secrets, so report only the parse error
+            logger.warning(f"Failed to parse {env_var_name} as JSON: {ex}")
 
     # Merge environment args with provided args (provided args take precedence)
     return {**env_server_args, **provided_args}

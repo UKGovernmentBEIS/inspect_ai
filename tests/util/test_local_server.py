@@ -1,8 +1,10 @@
 import io
 import itertools
+import json
 import logging
+import subprocess
 import time
-from typing import Any
+from typing import Any, cast
 
 import httpx
 import pytest
@@ -168,3 +170,65 @@ def test_server_output_does_not_expose_api_key(
     assert "stdout args" in caplog.text
     assert "stderr non-default args" in caplog.text
     assert SECRET not in caplog.text
+
+
+def test_short_secret_masked_only_as_quoted_value() -> None:
+    redact = local_server._output_redactor(["test"])
+    assert redact("non-default args: {'api_key': 'test'}") == (
+        "non-default args: {'api_key': '***'}"
+    )
+    assert redact('api_key="test"') == 'api_key="***"'
+    assert redact("running test suite on latest") == "running test suite on latest"
+
+
+def test_default_api_key_masked_in_output() -> None:
+    redact = local_server._output_redactor(["inspectai"])
+    assert redact("api_key=inspectai") == "api_key=***"
+
+
+def test_env_server_args_log_does_not_expose_secrets(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    caplog.set_level(logging.DEBUG, logger=local_server.__name__)
+    monkeypatch.setenv(
+        "VLLM_DEFAULT_SERVER_ARGS",
+        json.dumps({"hf_token": SECRET, "nested": {"api-key": SECRET}, "seed": 7}),
+    )
+    args = local_server.merge_env_server_args(
+        "VLLM_DEFAULT_SERVER_ARGS", {}, logging.getLogger(local_server.__name__)
+    )
+
+    # the real args keep the secrets
+    assert args["hf_token"] == SECRET
+    assert args["nested"]["api-key"] == SECRET
+    assert "Loaded server args" in caplog.text
+    assert "'seed': 7" in caplog.text
+    assert SECRET not in caplog.text
+
+
+def test_env_server_args_parse_failure_does_not_echo_value(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    caplog.set_level(logging.DEBUG, logger=local_server.__name__)
+    monkeypatch.setenv("SGLANG_DEFAULT_SERVER_ARGS", f"{{hf_token: {SECRET}")
+    args = local_server.merge_env_server_args(
+        "SGLANG_DEFAULT_SERVER_ARGS", {}, logging.getLogger(local_server.__name__)
+    )
+
+    assert args == {}
+    assert "Failed to parse SGLANG_DEFAULT_SERVER_ARGS" in caplog.text
+    assert SECRET not in caplog.text
+
+
+def test_secret_note_shown_when_only_env_is_masked() -> None:
+    with pytest.raises(RuntimeError) as excinfo:
+        local_server.wait_for_server(
+            "http://localhost:1",
+            cast("subprocess.Popen[str]", _FakeProcess(returncode=1)),
+            full_command=["serve", "m"],
+            env={"HF_TOKEN": SECRET},
+        )
+    error = str(excinfo.value)
+    assert "HF_TOKEN=***" in error
+    assert "Secret values are shown as ***" in error
+    assert SECRET not in error
