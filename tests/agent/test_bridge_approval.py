@@ -69,6 +69,7 @@ from inspect_ai.agent._acp.transport_live import LiveAcpTransport
 from inspect_ai.agent._agent import Agent, AgentState, agent
 from inspect_ai.agent._bridge._approval import MAX_CONSECUTIVE_REJECTIONS
 from inspect_ai.agent._bridge._sentinel import (
+    HandoutPoint,
     SentinelCheck,
     _call_key,
     _Handouts,
@@ -9394,6 +9395,113 @@ def test_recording_host_call_conversations_is_linear(
 
     grant = bridge.consume_tool_execution_grant("host", "read_file", {"path": "p"})
     assert grant is not None and bridge.handed_to_several(grant)
+
+
+class _CountingLookups(dict[str, Any]):
+    """A dict counting its `get` calls."""
+
+    visits = 0
+
+    def get(self, *args: Any) -> Any:
+        self.visits += 1
+        return super().get(*args)
+
+
+@pytest.mark.usefixtures("fake_sentinel")
+@pytest.mark.parametrize("calls", [32, 64, 128])
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+async def test_continuing_a_batch_of_host_calls_is_linear(
+    dialect: HostDialect, calls: int
+) -> None:
+    """A reply of `calls` host calls, continued by a reply of as many, looks each handout up a bounded number of times.
+
+    Every host call of the second reply continues the first reply's
+    conversation; whether that reply was handed out once is known per reply,
+    not found again per host call.
+    """
+    batches = [
+        [
+            ToolCall(
+                id=f"{batch}_{index}",
+                function="read_file",
+                arguments={"path": str(index)},
+            )
+            for index in range(calls)
+        ]
+        for batch in range(2)
+    ]
+    model = get_model(
+        "mockllm/model", custom_outputs=[tool_calls_output(*b) for b in batches]
+    )
+    bridge = _counted_host_bridge(model)
+    with active_test_sentinel(record_tool_results([])):
+        conversation = _HostConversation(
+            dialect, "Read files.", declare("read_file")[0]
+        )
+        first = await conversation.request(bridge)
+        conversation.results(first, ["public"] * calls)
+        counting = _CountingLookups(bridge._handouts.handed)
+        bridge._handouts.handed = counting
+        await conversation.request(bridge)
+    assert not any(c.shared for c in bridge._handouts.conversations.values())
+    assert counting.visits <= 12 * calls
+
+
+@pytest.mark.parametrize("shape", ["batch", "one call per reply"])
+@pytest.mark.parametrize("calls", [500, 1000, 2000])
+def test_continuing_a_wide_reply_does_linear_handout_work(
+    shape: str, calls: int
+) -> None:
+    """Continuing a reply of `calls` host calls looks each handout up a bounded number of times.
+
+    `batch`: one reply continues it with as many calls. `one call per reply`:
+    each of `calls` replies continues it with one of its host calls. A reply's
+    record is found once per registration, whatever its size, and saved once.
+    """
+    handouts = _Handouts(_SavedHandouts(reserved_ids=[], handed={}, checked=[]))
+
+    def batch(prefix: str) -> list[ToolCall]:
+        return [
+            ToolCall(
+                id=f"{prefix}{i}", function="read_file", arguments={"path": str(i)}
+            )
+            for i in range(calls)
+        ]
+
+    first = batch("a")
+    prompt = ChatMessageUser(content="Read these paths.")
+    reply = ChatMessageAssistant(id="reply_a", content="", tool_calls=first)
+    handouts.hand_over(first, first, None)
+    handouts.hand_over_calls(
+        [(c, {f"key{i}"}) for i, c in enumerate(first)],
+        HandoutPoint(lambda: [prompt], content_hash, "reply_a", lambda *_: False),
+    )
+    saved = len(handouts.saved().model_dump_json())
+    # each host call's record holds no copy of the reply's calls
+    assert saved < 1000 * calls
+
+    def continuing(reply_id: str) -> HandoutPoint:
+        return HandoutPoint(
+            lambda: [prompt, reply],
+            content_hash,
+            reply_id,
+            lambda index, content, held: held == "reply_a",
+        )
+
+    counting = _CountingLookups(handouts.handed)
+    handouts.handed = counting
+    second = batch("b")
+    if shape == "batch":
+        handouts.hand_over(second, second, None)
+        handouts.hand_over_calls(
+            [(c, {f"key{i}"}) for i, c in enumerate(second)], continuing("reply_b")
+        )
+    else:
+        for i, call in enumerate(second):
+            handouts.hand_over([call], [call], None)
+            handouts.hand_over_calls([(call, {f"key{i}"})], continuing(f"reply_b{i}"))
+    assert not any(c.shared for c in handouts.conversations.values())
+    assert counting.visits <= 5 * calls
 
 
 @pytest.mark.parametrize("calls", [512, 1024, 2048])

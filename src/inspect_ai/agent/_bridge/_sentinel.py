@@ -195,6 +195,10 @@ class _Handed(NamedTuple):
     conversations (`shared`) gets no proposal's context, as the host call's
     own result doesn't."""
 
+    replies: tuple[str, ...] = ()
+    """The replies that handed it out while it was handed out once
+    (`_Conversation.handout`): each is handed out again when it is."""
+
 
 class _Conversation(NamedTuple):
     """The conversation a host call was handed to, by the latest reply that handed it (`_Handouts.hand_over_calls`).
@@ -211,9 +215,10 @@ class _Conversation(NamedTuple):
     reply: str = ""
     """The reply's id."""
 
-    calls: tuple[str, ...] = ()
-    """The ids of the reply's calls denoting host calls: the reply was handed
-    out more than once if any of them was (`_Handed.ambiguous`)."""
+    handout: str = ""
+    """The reply's handout, unique to it: in `_Handouts.repeated` once any of
+    its calls denoting host calls is handed out again (`_Handed.ambiguous`),
+    so a reply's record is looked up, not its calls."""
 
     shared: bool = False
     """Whether another conversation may have been handed the call. Sticky; the
@@ -326,6 +331,9 @@ class _SavedHandouts(BaseModel):
 
     conversations: dict[str, _Conversation] = {}
     """Per host call (`host_call_key`)."""
+
+    repeated: list[str] = []
+    """The replies handed out more than once (`_Conversation.handout`)."""
 
 
 class _Result(NamedTuple):
@@ -453,6 +461,7 @@ class _Handouts:
         self.checked: set[str] = set(saved.checked)
         self.inherited: frozenset[str] = frozenset(saved.inherited)
         self.conversations: dict[str, _Conversation] = dict(saved.conversations)
+        self.repeated: set[str] = set(saved.repeated)
         self.running: dict[str, anyio.Event] = {}
         self.failed: dict[str, Exception] = {}
 
@@ -469,6 +478,7 @@ class _Handouts:
             checked=sorted(self.checked),
             inherited=sorted(self.inherited),
             conversations=dict(self.conversations),
+            repeated=sorted(self.repeated),
         )
 
     def reserve(self, ids: Iterable[str]) -> None:
@@ -533,8 +543,9 @@ class _Handouts:
         `proposed` are the calls as the model proposed them, `handed` as
         approval gave them, and `checks` their `tool_result` checks, in order
         (None without a sentinel). A call whose id was handed out before is
-        ambiguous (`_Handed.ambiguous`), and its proposal checks every target
-        its handouts resolved to.
+        ambiguous (`_Handed.ambiguous`), as is every reply that handed it out
+        (`_Handed.replies`), and its proposal checks every target its
+        handouts resolved to.
         """
         shared = repeated_call_ids(handed)
         for index, (model_call, call) in enumerate(zip(proposed, handed, strict=True)):
@@ -542,6 +553,8 @@ class _Handouts:
             ambiguous = earlier is not None and (
                 earlier.ambiguous or earlier.execution_id is not None
             )
+            if earlier is not None and ambiguous:
+                self.repeated.update(earlier.replies)
             execution_id = uuid()
             key = _call_key(call)
             previous = (
@@ -650,27 +663,37 @@ class _Handouts:
         Any other reply is another conversation's, or may be: one that started
         alike, a retry, or an earlier point. The call is then shared for the
         rest of the sample (`shared`). A reply is recorded once per host call,
-        however many of its calls denote it.
+        however many of its calls denote it, as one handout
+        (`_Conversation.handout`) that its calls mark handed out again when
+        they are, so continuing it costs the same whatever its size.
         """
+        once = self.handed_once(dict.fromkeys(call.id for call, keys in calls if keys))
+        handout = uuid() if once else ""
         for call, keys in calls:
             handed = self.handed.get(call.id)
             if handed is None:
                 continue
             pairs = {(_call_key(call), key) for key in keys} - set(handed.host)
-            if pairs:
+            replies = (
+                (*handed.replies, handout)
+                if once and keys and handed.replies[-1:] != (handout,)
+                else handed.replies
+            )
+            if pairs or replies is not handed.replies:
                 self.handed[call.id] = handed._replace(
-                    host=(*handed.host, *sorted(pairs))
+                    host=(*handed.host, *sorted(pairs)), replies=replies
                 )
-        reply = tuple(dict.fromkeys(call.id for call, keys in calls if keys))
         for key in {key for _, keys in calls for key in keys}:
             conversation = self.conversations.get(key)
             if conversation is not None and conversation.shared:
                 continue
             if conversation is None or (
-                self.handed_once(conversation.calls) and point.continues(conversation)
+                conversation.handout
+                and conversation.handout not in self.repeated
+                and point.continues(conversation)
             ):
                 self.conversations[key] = _Conversation(
-                    point.messages, point.digests[-1], point.reply, reply
+                    point.messages, point.digests[-1], point.reply, handout
                 )
             else:
                 self.conversations[key] = _SHARED
