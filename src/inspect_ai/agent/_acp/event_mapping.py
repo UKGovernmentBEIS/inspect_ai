@@ -333,6 +333,7 @@ class _AcpEventRouter:
         self._session = session
         self._depth_tracker = SubagentDepthTracker()
         self._seen_tool_call_ids: set[str] = set()
+        self._tool_card_executions: dict[str, str] = {}
         # ModelEvent uuids we've already emitted chunks for. The
         # generate flow records the event twice — once pending=True at
         # call time, again as pending=None when `complete()` fires — and
@@ -388,6 +389,7 @@ class _AcpEventRouter:
             event,
             self._session.session_id,
             self._seen_tool_call_ids,
+            self._tool_card_executions,
             self._seen_model_event_ids,
             self._seen_pending_event_ids,
             self._seen_user_message_ids,
@@ -426,6 +428,7 @@ class ReplayTranscriptor:
         self._filter_subagents = filter_subagents
         self._tracker = SubagentDepthTracker()
         self._seen_tool_call_ids: set[str] = set()
+        self._tool_card_executions: dict[str, str] = {}
         self._seen_model_event_ids: set[str] = set()
         self._seen_pending_event_ids: set[str] = set()
         self._seen_user_message_ids: set[str] = set()
@@ -471,6 +474,7 @@ class ReplayTranscriptor:
                     event,
                     self._session_id,
                     self._seen_tool_call_ids,
+                    self._tool_card_executions,
                     self._seen_model_event_ids,
                     self._seen_pending_event_ids,
                     self._seen_user_message_ids,
@@ -514,6 +518,7 @@ def _map_event(
     event: Event,
     session_id: str,
     seen_tool_call_ids: set[str],
+    tool_card_executions: dict[str, str],
     seen_model_event_ids: set[str],
     seen_pending_event_ids: set[str],
     seen_user_message_ids: set[str],
@@ -535,7 +540,9 @@ def _map_event(
             bridge,
         )
     elif isinstance(event, ToolEvent):
-        yield from _map_tool_event(event, session_id, seen_tool_call_ids, bridge)
+        yield from _map_tool_event(
+            event, session_id, seen_tool_call_ids, tool_card_executions, bridge
+        )
 
 
 def _map_input_messages(
@@ -885,12 +892,43 @@ def _build_usage_update(event: ModelEvent) -> UsageUpdate | None:
     )
 
 
+def _tool_event_key(event: ToolEvent) -> str:
+    # a live event always has a uuid; one without (deserialized) is replayed once
+    return event.uuid if event.uuid is not None else f"object-{id(event)}"
+
+
+def _reassigned_card(session_id: str, event: ToolEvent) -> SessionNotification:
+    """Show another execution under a call id on that id's card.
+
+    A provider can repeat a call id within a response (Gemini computer actions
+    keep a shared id; an OpenAI-compatible server may repeat one), and each
+    execution reports under the id: its ToolEvent, a human approval request,
+    `inspect/cancel_tool_call`. So the id keeps one card, which takes the
+    execution's title, arguments and content, replacing the previous
+    execution's, rather than showing its result under another call.
+    """
+    update = update_tool_call(
+        tool_call_id=event.id,
+        title=_descriptive_title(event),
+        kind=_tool_kind_for(event.function),
+        status=_tool_call_status(event),
+        content=_content_for_start(event) or [],
+    )
+    update.raw_input = event.arguments
+    return session_notification(session_id, update)
+
+
 def _map_tool_event(
     event: ToolEvent,
     session_id: str,
     seen_tool_call_ids: set[str],
+    tool_card_executions: dict[str, str],
     bridge: _BridgeToolState,
 ) -> Iterator[SessionNotification]:
+    # the execution the call id's card shows, by event key
+    key = _tool_event_key(event)
+    shown = tool_card_executions.get(event.id)
+    tool_card_executions[event.id] = key
     # a host tool a sandbox bridge ran for a proposed call updates the card
     # synthesized for that call, so the scaffold's result must not settle it again
     synthesized = bridge.pending.pop(event.id, None) is not None
@@ -900,6 +938,8 @@ def _map_tool_event(
             # the synthesized start was marked non-cancelable; a real ToolEvent
             # now backs the card, so `inspect/cancel_tool_call` can act on it
             yield _settled_card(session_id, event.id, event, cancelable=True)
+        elif shown is not None and shown != key:
+            yield _reassigned_card(session_id, event)
         else:
             yield session_notification(
                 session_id,
