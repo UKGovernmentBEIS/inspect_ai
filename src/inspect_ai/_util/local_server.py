@@ -96,7 +96,12 @@ def _output_redactor(secrets: list[str]) -> Callable[[str], str]:
     they appear. Shorter ones (e.g. "test") are masked only as quoted values,
     as servers echo their args, so they don't blank unrelated output.
     """
-    long_secrets = [s for s in secrets if len(s) >= _MIN_SUBSTRING_SECRET_LEN]
+    # longest first, so a secret that contains another is masked whole
+    long_secrets = sorted(
+        (s for s in secrets if len(s) >= _MIN_SUBSTRING_SECRET_LEN),
+        key=len,
+        reverse=True,
+    )
     short_secrets = [s for s in secrets if 0 < len(s) < _MIN_SUBSTRING_SECRET_LEN]
 
     def redact(line: str) -> str:

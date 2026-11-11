@@ -181,6 +181,11 @@ def test_short_secret_masked_only_as_quoted_value() -> None:
     assert redact("running test suite on latest") == "running test suite on latest"
 
 
+def test_secret_containing_another_secret_masked_whole() -> None:
+    redact = local_server._output_redactor(["abcdefgh", "abcdefghXYZ"])
+    assert redact("key abcdefghXYZ") == "key ***"
+
+
 def test_default_api_key_masked_in_output() -> None:
     redact = local_server._output_redactor(["inspectai"])
     assert redact("api_key=inspectai") == "api_key=***"
