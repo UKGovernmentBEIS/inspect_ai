@@ -6924,6 +6924,139 @@ async def test_a_retry_taking_a_later_conversations_identical_grant_gets_no_prop
             assert after.input is not None
 
 
+@pytest.mark.usefixtures("fake_sentinel")
+@pytest.mark.parametrize(
+    "shape",
+    [
+        "second retry while running",
+        "retry after a denied retry",
+        "denied retry, answered first",
+    ],
+)
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+async def test_a_retry_after_its_reply_was_unlinked_gets_no_proposal(
+    dialect: HostDialect, shape: str
+) -> None:
+    """A retry is doubted while the call it may repeat awaits its answer, linked or not.
+
+    `second retry while running`: main's call runs; a sub-agent is handed the
+    same call and main's first retry takes its grant (unlinking both
+    replies); a second sub-agent is then handed it and main's second retry
+    takes that grant. `retry after a denied retry`: main's first retry is
+    denied (unlinking main's reply), then a sub-agent is handed the call and
+    main's second retry takes its grant. In both, main's answer is still
+    outstanding, so the later retry's result gets no proposal's context and
+    main's report of it is not checked again (Google's report is a changed
+    result, checked with no proposal's context). Once main's answer has
+    arrived (`denied retry, answered first`), the sub-agent's own call keeps
+    its proposal's context, although main's reply was unlinked.
+    """
+    running = shape == "second retry while running"
+    calls = [
+        ToolCall(id=id, function="read_file", arguments={"path": "p"})
+        for id in (["main", "sub1", "sub2"] if running else ["main", "sub"])
+    ]
+    done = ModelOutput.from_content("mockllm/model", "Done.")
+    # in the order the conversations request them
+    orders: dict[str, list[str | None]] = {
+        "second retry while running": ["main", "sub1", "sub2"],
+        "retry after a denied retry": ["main", "sub"],
+        "denied retry, answered first": ["main", None, "sub"],
+    }
+    order = orders[shape]
+    by_id = {call.id: call for call in calls}
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            tool_calls_output(by_id[id]) if id is not None else done for id in order
+        ]
+        + [done] * 2,
+    )
+    started, release = anyio.Event(), anyio.Event()
+    count = 0
+
+    async def read(path: str) -> str:
+        nonlocal count
+        count += 1
+        number = count
+        if number == 1:
+            started.set()
+            if running:
+                await release.wait()
+        return f"contents {number}"
+
+    bridge = SandboxAgentBridge(
+        state=AgentState(messages=[]),
+        filter=None,
+        retry_refusals=None,
+        compaction=None,
+        port=13131,
+        model=None,
+        model_aliases={"inspect": model},
+        bridged_tools={"host": {"read_file": read_file(AsyncMock(side_effect=read))}},
+    )
+    [info] = declare("read_file")
+    conversations = [
+        _HostConversation(dialect, f"{call.id.upper()} read p.", info) for call in calls
+    ]
+    main = conversations[0]
+    seen: list[AfterToolCall] = []
+
+    async def execute() -> JsonValue:
+        return await call_host_tool(bridge)("host", "read_file", {"path": "p"})
+
+    async def deny() -> str:
+        with pytest.raises(PermissionError) as denial:
+            await execute()
+        return str(denial.value)
+
+    retried: JsonValue = None
+    with active_test_sentinel(record_tool_results(seen)):
+        main_calls = await main.request(bridge)
+        if running:
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(execute)
+                await started.wait()
+                for sub in conversations[1:]:
+                    await sub.request(bridge)
+                    retried = await execute()
+                release.set()
+        else:
+            first = await execute()
+            await deny()
+            if shape == "denied retry, answered first":
+                main.results(main_calls, [first])
+                await main.request(bridge)
+            await conversations[1].request(bridge)
+            retried = await execute()
+        executed = list(seen)
+        if shape != "denied retry, answered first":
+            main.results(main_calls, [retried])
+            await main.request(bridge)
+        reported = seen[len(executed) :]
+
+    inputs = {
+        after.result.text: [m.text for m in after.input]
+        if after.input is not None
+        else None
+        for after in executed
+    }
+    if shape == "denied retry, answered first":
+        assert inputs["contents 1"] == ["MAIN read p."]
+        assert inputs["contents 2"] == ["SUB read p."]
+    else:
+        if shape == "second retry while running":
+            assert [inputs[f"contents {n}"] for n in (1, 2, 3)] == [None] * 3
+        else:
+            assert inputs == {"contents 1": ["MAIN read p."], "contents 2": None}
+        if dialect != "google":
+            assert reported == []
+        else:
+            [after] = reported
+            assert after.input is None
+            assert after.tools is None and after.tool_choice is None
+
+
 @pytest.mark.parametrize("calls", [16, 32, 64, 128])
 def test_contesting_identical_pending_calls_is_linear_in_their_grants(
     calls: int, monkeypatch: pytest.MonkeyPatch
@@ -9127,6 +9260,124 @@ def test_settled_executions_are_pruned_from_the_tool_index() -> None:
         assert event.message_id == f"reply-{n}-result-0"
 
     assert len(bridge._executed_tools[("host", "read_file")].calls) <= 16
+
+
+@pytest.mark.parametrize("answered", [False, True], ids=["awaited", "answered"])
+@pytest.mark.parametrize(
+    "unlinked_by", [None, "denied retry", "unlink", "handed out again"]
+)
+def test_an_identical_execution_is_doubted_until_the_earlier_answer_arrives(
+    unlinked_by: str | None, answered: bool
+) -> None:
+    """Whether the earlier execution's answer arrived decides, not whether its reply still links.
+
+    The earlier reply is unlinked by a denied retry, by `_unlink` (as an
+    evicted grant, an ambiguous proposal, an unplaced message taking its id,
+    or a reply handed out again do), or by being handed out again and its
+    call running again. While its answer is awaited, a later reply's
+    identical execution may be its client's retry, so that one doesn't link
+    either; once the answer arrived, it links.
+    """
+    bridge = _recording_bridge()
+    call = ToolCall(id="call_1", function="read_file", arguments={"path": "a"})
+    [earlier] = _execute(bridge, "reply-1", [call])
+    if unlinked_by == "denied retry":
+        bridge.unlink_denied_call("host", "read_file", {"path": "a"})
+    elif unlinked_by is not None:
+        bridge._unlink("reply-1")
+        if unlinked_by == "handed out again":
+            if answered:
+                _answer(bridge, "reply-1", [call], [0])
+            [earlier] = _execute(bridge, "reply-1", [call])
+    if answered:
+        _answer(bridge, "reply-1", [call], [0])
+
+    later_call = replace(call, id="call_2")
+    [later] = _execute(bridge, "reply-2", [later_call])
+    _answer(bridge, "reply-2", [later_call], [0])
+
+    assert later.message_id == ("reply-2-result-0" if answered else None)
+    if unlinked_by is not None:
+        assert earlier.message_id is None
+
+
+@pytest.mark.parametrize("answer", ["none", "unreadable"])
+def test_an_execution_whose_tracking_was_dropped_is_doubted_once(
+    answer: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An execution whose answer is never seen stops being doubted once its tracking is dropped.
+
+    Its answer is never sent, or sent in a reply whose calls the bridge can't
+    read (another call count), so it awaits its answer until later host calls
+    push its reply out of result tracking. The next identical execution is
+    then doubted once (whether the answer arrived is unknown), and the one
+    after it links.
+    """
+    monkeypatch.setattr(bridge_types, "_MAX_AWAITED_RESULTS", 3)
+    bridge = _recording_bridge()
+    call = ToolCall(id="call_1", function="read_file", arguments={"path": "a"})
+    _execute(bridge, "reply-1", [call])
+    if answer == "unreadable":
+        extra = ToolCall(id="extra", function="list_dir", arguments={"path": "d"})
+        _answer(bridge, "reply-1", [call, extra], [0])
+
+    [awaited] = _execute(bridge, "reply-2", [replace(call, id="call_2")])
+    _answer(bridge, "reply-2", [replace(call, id="call_2")], [0])
+    assert awaited.message_id is None
+    for n in range(3):
+        _execute(
+            bridge,
+            f"filler-{n}",
+            [ToolCall(id=f"list_{n}", function="list_dir", arguments={"path": f"{n}"})],
+        )
+    assert "reply-1" in bridge._untracked_replies
+
+    doubted, linked = (replace(call, id=f"call_{n}") for n in (3, 4))
+    [once] = _execute(bridge, "reply-3", [doubted])
+    _answer(bridge, "reply-3", [doubted], [0])
+    [after] = _execute(bridge, "reply-4", [linked])
+    _answer(bridge, "reply-4", [linked], [0])
+
+    assert once.message_id is None
+    assert after.message_id == "reply-4-result-0"
+    records = [
+        record
+        for (server, tool, _), record in bridge._executed_calls.items()
+        if tool == "read_file"
+    ]
+    assert all(len(record) == 1 for record in records)
+
+
+@pytest.mark.parametrize("answered", [False, True], ids=["never answered", "answered"])
+def test_the_record_of_executions_stays_bounded(answered: bool) -> None:
+    """Repeated identical executions of unlinked replies keep the records bounded.
+
+    Answered, each record holds only the latest execution. Never answered,
+    each execution is doubted while its reply is tracked, and dropped once
+    its tracking is (`_MAX_AWAITED_RESULTS`).
+    """
+    bridge = _recording_bridge()
+    for n in range(1000):
+        call = ToolCall(id=f"call_{n}", function="read_file", arguments={"path": "a"})
+        _execute(bridge, f"reply-{n}", [call])
+        bridge._unlink(f"reply-{n}")
+        if answered:
+            _answer(bridge, f"reply-{n}", [call], [0])
+
+    longest = max(len(record) for record in bridge._executed_calls.values())
+    if answered:
+        assert longest == 1
+        assert len(bridge._executed_tools[("host", "read_file")].calls) <= 16
+    else:
+        assert longest <= bridge_types._MAX_AWAITED_RESULTS + 1
+        assert (
+            len(bridge._executed_tools[("host", "read_file")].calls)
+            <= 2 * bridge_types._MAX_AWAITED_RESULTS
+        )
+    assert (
+        sum(len(reply.events) for reply in bridge._awaited_results.values())
+        <= bridge_types._MAX_AWAITED_RESULTS
+    )
 
 
 @pytest.mark.parametrize(

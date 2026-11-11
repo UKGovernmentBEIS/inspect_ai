@@ -155,7 +155,14 @@ class _AwaitedReply:
     """`_HandedReply.handed_at`."""
 
     events: dict[int, "ToolEvent | None"] = field(default_factory=dict)
-    """Per executed call's position, its execution, or `None` once the call is settled (linked, or left unlinked)."""
+    """Per executed call's position, its latest execution while its answer is awaited, or `None` once the answer arrived (`_link_result_messages`).
+
+    Kept whether or not the call can link, so a sandbox bridge can tell an
+    execution whose answer is outstanding (`_record_execution`).
+    """
+
+    unlinkable: set[int] = field(default_factory=set)
+    """The positions whose answer won't link: executed again, or by an execution that may have run another call."""
 
 
 class DispatchedCall(NamedTuple):
@@ -395,6 +402,8 @@ class AgentBridge:
         """
         self._unlinked_replies: set[str] = set()
         """Ids of handed replies none of whose executions links (`_unlink`)."""
+        self._untracked_replies: set[str] = set()
+        """Ids of handed replies whose result tracking was dropped (`_await_result_message`), so whether their answers arrived is unknown."""
         self._operator_keys: set[str] = set()
         self._warned_request_settings: set[str] = set()
 
@@ -579,34 +588,34 @@ class AgentBridge:
 
         The result reaches the bridge only when the scaffold sends it back in a
         later request (`_link_result_messages`). A second execution of the call,
-        or one that may have run another call (not `linkable`), settles it
-        unlinked, since which execution a result holds is unknown; one after
-        the call settled, or of a reply unlinked before it completed, leaves it
-        as it is. At most
-        `_MAX_AWAITED_RESULTS` calls are tracked; beyond that the oldest
-        replies are dropped and their ids recorded in `_unlinked_replies`, as
-        `_unlink` records them, since the bridge no longer holds evidence of
-        their executions. The caller passes `linkable=False` for any execution
-        after a call's first, and a reply handed out again is unlinked
+        or one that may have run another call (not `linkable`), never links,
+        since which execution a result holds is unknown; nor does an execution
+        of a reply unlinked (`_unlink`), decided when the answer arrives. Each
+        execution awaits its answer whether or not it can link, so the answer
+        arriving is recorded for every execution, including one after the call
+        was answered. At most `_MAX_AWAITED_RESULTS` calls are tracked; beyond
+        that the oldest replies are dropped and their ids recorded in
+        `_unlinked_replies`, as `_unlink` records them, since the bridge no
+        longer holds evidence of their executions, and in
+        `_untracked_replies`, since whether their answers arrived is no longer
+        known. The caller passes `linkable=False` for any execution after a
+        call's first, and a reply handed out again is unlinked
         (`_handed_calls`), so this is a second guard; it also leaves unlinked
         a call of theirs first executed after the drop.
         """
+        root = self._edit_root(handed.reply.id)
         reply = self._awaited_results.setdefault(
-            handed.reply.id, _AwaitedReply(handed.reply.calls, handed.reply.handed_at)
+            root, _AwaitedReply(handed.reply.calls, handed.reply.handed_at)
         )
-        executed = handed.position in reply.events
-        reply.events[handed.position] = (
-            event
-            if linkable
-            and not executed
-            and self._edit_root(handed.reply.id) not in self._unlinked_replies
-            else None
-        )
+        if not linkable or handed.position in reply.events:
+            reply.unlinkable.add(handed.position)
+        reply.events[handed.position] = event
         tracked = sum(len(reply.events) for reply in self._awaited_results.values())
         while tracked > _MAX_AWAITED_RESULTS:
             oldest = next(iter(self._awaited_results))
             tracked -= len(self._awaited_results.pop(oldest).events)
-            self._unlinked_replies.add(self._edit_root(oldest))
+            self._unlinked_replies.add(oldest)
+            self._untracked_replies.add(oldest)
 
     def _link_result_messages(
         self,
@@ -631,7 +640,11 @@ class AgentBridge:
         message sent before, or equal to one sent before, may hold another
         result. Any other result settles
         the call unlinked, as does a result whose call id the dialect inferred
-        from order (`inferred`). A call with no result yet keeps waiting.
+        from order (`inferred`), or any result of a call that can't link (an
+        unlinked reply's, or `_AwaitedReply.unlinkable`): its answer is
+        recorded as arrived. A call with no result yet keeps waiting, as does
+        one whose position the placed message doesn't show (its call count
+        differs).
         """
         from inspect_ai.log._transcript import transcript
 
@@ -639,13 +652,15 @@ class AgentBridge:
             return
         for index, thread_id in placed.items():
             message = messages[index]
-            reply = self._awaited_results.get(self._edit_root(thread_id))
+            root = self._edit_root(thread_id)
+            reply = self._awaited_results.get(root)
             if (
                 reply is None
                 or not isinstance(message, ChatMessageAssistant)
                 or not message.tool_calls
             ):
                 continue
+            unlinked = root in self._unlinked_replies
             calls = message.tool_calls
             results: dict[str, list[int]] = {}
             for following in range(index + 1, len(messages)):
@@ -660,19 +675,20 @@ class AgentBridge:
                 if event is None:
                     continue
                 call = calls[position] if len(calls) == reply.calls else None
-                if (
-                    call is None
-                    or call_ids[call.id] != 1
-                    or identical[_call_key(call)] != 1
-                ):
-                    reply.events[position] = None
+                if call is None:
+                    # which message answers it can't be told: it stays awaited
+                    reply.unlinkable.add(position)
                     continue
+                if call_ids[call.id] != 1 or identical[_call_key(call)] != 1:
+                    reply.unlinkable.add(position)
                 answers = results.get(call.id)
                 if not answers:
                     continue
                 reply.events[position] = None
                 if (
-                    len(answers) == 1
+                    not unlinked
+                    and position not in reply.unlinkable
+                    and len(answers) == 1
                     and answers[0] in fresh
                     and answers[0] not in inferred
                     and sent_in.get(answers[0], 0) <= reply.handed_at
@@ -896,13 +912,12 @@ class AgentBridge:
         whose result tracking is dropped (`_await_result_message`) is
         recorded the same way.
         The id is kept for the rest of the sample (ids only, like the message
-        pool), so executions completing later stay unlinked too.
+        pool), so executions completing later stay unlinked too. The reply's
+        executions still await their answers (`_link_result_messages` records
+        them arriving without linking them), so a sandbox bridge can tell an
+        execution whose answer is outstanding (`_record_execution`).
         """
-        root = self._edit_root(message_id)
-        self._unlinked_replies.add(root)
-        reply = self._awaited_results.get(root)
-        if reply is not None:
-            reply.events = dict.fromkeys(reply.events)
+        self._unlinked_replies.add(self._edit_root(message_id))
 
     def _edit_root(self, message_id: str) -> str:
         return self._edit_roots.get(message_id, message_id)
