@@ -165,8 +165,9 @@ class _Handed(NamedTuple):
     ambiguous: bool = False
     """Whether the call was handed over in two requests, neither a retry of
     the other: which handout a result the scaffold reports answers can't be
-    told, then or after any later handout, so none keeps a proposal. A host
-    call's result is attributed by its conversation instead
+    told, then or after any later handout, so none keeps its proposal's
+    context; each is still checked as the targets its handouts resolved to. A
+    host call's result is attributed by its conversation instead
     (`_Handouts.shared`)."""
 
     read_back: tuple[tuple[str, str], ...] = ()
@@ -339,7 +340,10 @@ class _Handouts:
     answers in its request; it is identified by its id and that call, and
     also records the conservative key (below). A call handed over in two
     requests, neither a retry of the other, is ambiguous: its results get no
-    proposal's context from then on, after any retry or resume too.
+    proposal's context from then on, after any retry or resume too. Context
+    is the generation and the proposing message; a result without it is still
+    checked as the handout's targets (a dispatched or renamed call's bridged
+    tool, with its viewer) while its proposal is kept.
 
     A call gets a fresh id instead (`reused`) when the model's id can't name
     it: an empty id, or one that already names another call (Claude Code
@@ -506,11 +510,13 @@ class _Handouts:
                 ),
             )
             issued.append(check)
-            if call.id in shared or ambiguous:
+            if call.id in shared:
                 for stale in [k for k in self.proposals if k[0] == call.id]:
                     del self.proposals[stale]
                 continue
-            self.proposals.pop((call.id, key), None)
+            earlier_check = self.proposals.pop((call.id, key), None)
+            if ambiguous and earlier_check is not None:
+                check = _with_targets_of(check, earlier_check)
             self.proposals[(call.id, key)] = check
             while len(self.proposals) > _MAX_PROPOSALS:
                 self.proposals.popitem(last=False)
@@ -704,15 +710,14 @@ class _Handouts:
                 host for handed_call, host in handed.host if handed_call == handout
             ]
             executed = tuple(executed_key(host, content) for host in hosts)
-            proposal = (
-                self.proposals.get((call_id, handout))
-                if not handed.ambiguous and not (hosts and self.shared(hosts))
-                else None
-            )
+            proposal = self.proposals.get((call_id, handout))
             if proposal is not None:
-                return _Result(
-                    keys, (proposal, *proposal.alternatives), message, executed
-                )
+                checks = (proposal, *proposal.alternatives)
+                if handed.ambiguous or (hosts and self.shared(hosts)):
+                    checks = tuple(
+                        _without_context(check, input, found) for check in checks
+                    )
+                return _Result(keys, checks, message, executed)
             call = (
                 found.call
                 if found is not None
@@ -721,12 +726,8 @@ class _Handouts:
         else:
             call, key = _unissued(message, found)
             keys = [key]
-        check = SentinelCheck(
-            call,
-            call,
-            None,
-            found.text if found is not None else "",
-            input[found.position].id if found is not None else _NO_MESSAGE_ID,
+        check = _without_context(
+            SentinelCheck(call, call, None, "", None), input, found
         )
         return _Result(keys, (check,), message, executed)
 
@@ -775,6 +776,37 @@ class _Handouts:
             if self.running.get(key) is claim.event:
                 del self.running[key]
         claim.event.set()
+
+
+def _without_context(
+    check: SentinelCheck, input: Sequence[ChatMessage], found: _Call | None
+) -> SentinelCheck:
+    """`check` with no proposal's context: no generation, and the message the request carries the call in (`found`), if any.
+
+    Its targets and viewers are kept: they come from the handed call and the
+    bridged tools, not from the generation.
+    """
+    return check._replace(
+        message=found.text if found is not None else "",
+        message_id=input[found.position].id if found is not None else _NO_MESSAGE_ID,
+        producer=None,
+    )
+
+
+def _with_targets_of(check: SentinelCheck, earlier: SentinelCheck) -> SentinelCheck:
+    """`check` with `earlier`'s targets it lacks as alternatives.
+
+    For an ambiguous call's handout (`_Handed.ambiguous`): its result may be
+    of either handout, each resolved against its own request's tools.
+    """
+    targets = [check, *check.alternatives]
+    known = {(target.target, _call_key(target.call)) for target in targets}
+    for target in (earlier, *earlier.alternatives):
+        identity = (target.target, _call_key(target.call))
+        if identity not in known:
+            known.add(identity)
+            targets.append(target)
+    return targets[0]._replace(alternatives=tuple(targets[1:]))
 
 
 def _handout(handed: _Handed, found: _Call | None) -> str | None:

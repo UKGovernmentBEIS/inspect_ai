@@ -2367,7 +2367,7 @@ async def test_a_retry_never_restores_an_ambiguous_calls_proposal(
     with active([bridge_recording(seen)]):
         old = await generate(bridge, model, old_history)
         await generate(bridge, model, new_history)
-        assert not bridge._handouts.proposals
+        assert bridge._handouts.handed[READ.id].ambiguous
         if resume:
             bridge = AgentBridge(
                 AgentState(messages=[]),
@@ -2377,7 +2377,7 @@ async def test_a_retry_never_restores_an_ambiguous_calls_proposal(
             )
         # a retry of the newer request: the call is still ambiguous
         await generate(bridge, model, new_history)
-        assert not bridge._handouts.proposals
+        assert bridge._handouts.handed[READ.id].ambiguous
         await generate(
             bridge,
             model,
@@ -2406,7 +2406,7 @@ async def test_ambiguous_host_grants_check_their_result_with_no_proposal() -> No
         await generate(
             bridge, model, [ChatMessageUser(content=NEW_REQUEST)], declare_read_file()
         )
-        assert not bridge._handouts.proposals
+        assert bridge._handouts.handed[call.id].ambiguous
         await call_host_tool(bridge)("host", "read_file", call.arguments)
         # the scaffold reporting the result it was delivered is not checked again
         await generate(
@@ -4176,6 +4176,56 @@ def test_handed_calls_are_paired_with_their_read_back_form_by_id() -> None:
         ((_call_key(read[1]), _call_key(first)),),
         ((_call_key(read[0]), _call_key(second)),),
     ]
+
+
+def test_an_ambiguous_calls_result_is_checked_as_every_target_its_handouts_resolved_to() -> (
+    None
+):
+    """The same call, handed in two requests, resolved against each one's tools to another bridged tool.
+
+    Its result may be either handout's, so it is checked as both targets,
+    with neither proposal's context.
+    """
+    from inspect_ai.agent._bridge._sentinel import (
+        BridgedRequest,
+        SentinelCheck,
+        _Handouts,
+    )
+    from inspect_ai.agent._bridge.types import BridgedToolId
+
+    handouts = _Handouts(_SavedHandouts(reserved_ids=[], handed={}, checked=[]))
+    call = ToolCall(id="call", function="summarize", arguments={"path": "p"})
+    for request, name in [("one", "read_file"), ("two", "delete_file")]:
+        target = replace(call, function=name)
+        handouts.hand_over(
+            BridgedRequest(request, frozenset()),
+            [call],
+            [call],
+            [
+                SentinelCheck(
+                    call,
+                    target,
+                    None,
+                    "On it.",
+                    f"reply {request}",
+                    target=BridgedToolId(server="host", tool=name),
+                )
+            ],
+        )
+    assistant = ChatMessageAssistant(content="On it.", tool_calls=[call], id="asked")
+    claimed = handouts.claim(
+        [
+            ChatMessageUser(content=TASK),
+            assistant,
+            ChatMessageTool(content="result", tool_call_id=call.id),
+        ]
+    )
+
+    [claim] = claimed.owned
+    assert [
+        (check.call.function, check.message_id, check.producer)
+        for check in claim.result.checks
+    ] == [("delete_file", "asked", None), ("read_file", "asked", None)]
 
 
 async def test_a_result_under_an_id_never_handed_out_is_checked_once() -> None:

@@ -6649,7 +6649,7 @@ async def test_a_host_call_handed_over_again_while_running_gets_no_proposal(
             if overlap:
                 sub = _HostConversation(dialect, "Sub-agent: read p.", info)
                 await sub.request(bridge)
-                assert not bridge._handouts.proposals
+                assert bridge._handouts.handed["tool_call_0_0"].ambiguous
             release.set()
         # the checked result, reported as delivered, is not checked again (a
         # Google result is a JSON object, so it is a changed result)
@@ -7280,6 +7280,101 @@ async def test_a_checked_host_result_reported_for_another_calls_id_is_checked(
         conversation.results(proposed, [reported])
         with pytest.raises(TerminateSampleError, match="read a secret path"):
             await conversation.request(bridge)
+
+
+@protocol
+def terminate_on_a_secret_target_result(
+    seen: list[tuple[str, str, bool]], view: str | None = None
+) -> Protocol:
+    """Terminate on a `read_file` result containing `secret` (with `view`, only one shown that view)."""
+
+    async def after(
+        context: Context, step: AfterToolCall, escalations: Escalations
+    ) -> Decision | None:
+        shown = step.view.call.content if step.view.call is not None else ""
+        seen.append((step.call.function, shown, step.input is not None))
+        if (
+            step.call.function == "read_file"
+            and "secret" in step.result.text
+            and (view is None or shown == view)
+        ):
+            return Decision.terminate("secret read_file result")
+        return None
+
+    return after
+
+
+@pytest.mark.usefixtures("fake_sentinel")
+@pytest.mark.parametrize("sub", [None, "sub", "main"])
+@pytest.mark.parametrize("shape", ["dispatched", "renamed", "indistinct"])
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+async def test_a_changed_report_of_a_shared_host_call_is_checked_as_its_target(
+    dialect: HostDialect, shape: str, sub: str | None
+) -> None:
+    """The host runs a call benignly; the scaffold then reports a changed result containing a secret.
+
+    - `dispatched`: Antigravity's `call_mcp_tool` wrapper, targeting `read_file`;
+    - `renamed`: `read_file` declared to the model as `summarize`;
+    - `indistinct`: `summarize`, denoting `read_file` on servers `one` and
+      `two` (one description), each with its own viewer; the protocol only
+      stops a result shown with server `two`'s view.
+
+    With `sub`, a sub-agent is handed the same host call under that id: its
+    own, or the main call's (Groq's ids repeat), so the report gets no
+    proposal's context. It is still checked as the call's targets, with their
+    viewers. With no sub-agent, the report gets the main proposal's.
+    """
+    shared = sub is not None
+    if shape == "dispatched":
+        [info] = declare_dispatcher()
+
+        def proposal(call_id: str) -> ToolCall:
+            return dispatched(call_id, {"path": "p"})
+    else:
+        [info] = declare("summarize")
+
+        def proposal(call_id: str) -> ToolCall:
+            return ToolCall(id=call_id, function="summarize", arguments={"path": "p"})
+
+    done = ModelOutput.from_content("mockllm/model", "Done.")
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            tool_calls_output(proposal("main")),
+            *([tool_calls_output(proposal(sub))] if sub is not None else []),
+            done,
+        ],
+    )
+    if shape == "indistinct":
+        bridge = same_name_tools_on_servers(model)
+        server = "one"
+    else:
+        bridge = _counted_host_bridge(model)
+        server = "host"
+    seen: list[tuple[str, str, bool]] = []
+    view = "view of two" if shape == "indistinct" else None
+    with active_test_sentinel(terminate_on_a_secret_target_result(seen, view)):
+        main = _HostConversation(dialect, "MAIN read p.", info)
+        calls = await main.request(bridge)
+        if shared:
+            await _HostConversation(dialect, "SUB read p.", info).request(bridge)
+        await call_host_tool(bridge)(server, "read_file", {"path": "p"})
+        [executed] = seen
+        assert executed[0] == "read_file"
+        assert executed[2] is not shared
+        main.results(calls, ["secret"])
+        with pytest.raises(TerminateSampleError, match="secret read_file result"):
+            await main.request(bridge)
+
+    reported = seen[1:]
+    if shape == "indistinct":
+        assert [(function, shown) for function, shown, _ in reported] == [
+            ("read_file", "view of one"),
+            ("read_file", "view of two"),
+        ]
+    else:
+        assert [function for function, _, _ in reported] == ["read_file"]
+    assert all(has_input is not shared for _, _, has_input in reported)
 
 
 @pytest.mark.usefixtures("fake_sentinel")
