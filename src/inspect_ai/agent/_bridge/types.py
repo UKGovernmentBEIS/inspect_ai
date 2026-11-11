@@ -175,9 +175,6 @@ class _AwaitedReply:
     id count once (fail-safe).
     """
 
-    premature: dict[int, set[str]] = field(default_factory=dict)
-    """Per call's position, the ids of messages that answered it while an execution of it still ran, which never count among `answers`: the scaffold's own timeout error, say, not the execution's result."""
-
 
 def _tracked(reply: _AwaitedReply) -> int:
     """How many executions of a reply's calls result tracking holds: each started, or each executed call with none recorded started."""
@@ -738,17 +735,12 @@ class AgentBridge:
                 answered = reply.answers.get(position, set())
                 if not readable or len(answered) >= runs:
                     continue
-                running = reply.completed.get(position, 0) < runs
-                premature = reply.premature.get(position, set())
                 for answer in results.get(calls[position].id, []):
                     answer_id = messages[answer].id
-                    if answer_id is None or answer_id in premature:
-                        continue
-                    (premature if running else answered).add(answer_id)
+                    if answer_id is not None:
+                        answered.add(answer_id)
                 if answered:
                     reply.answers[position] = answered
-                if premature:
-                    reply.premature[position] = premature
             for position, event in reply.events.items():
                 if event is None:
                     continue

@@ -9367,18 +9367,16 @@ def _start(bridge: SandboxAgentBridge, reply_id: str, call: ToolCall) -> _Handed
     return handed
 
 
-@pytest.mark.parametrize("completed", [False, True], ids=["running", "completed"])
 @pytest.mark.parametrize("overflow", [False, True])
 def test_a_running_execution_is_doubted_whatever_answers_arrive(
-    overflow: bool, completed: bool, monkeypatch: pytest.MonkeyPatch
+    overflow: bool, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """An answer sent while the call still runs (the scaffold's own timeout, say) doesn't settle it.
 
     The client may still retry the call, so later identical executions are
-    doubted while it runs, and, once it has `completed`, also when that
-    answer is sent again: it is not the execution's result. With `overflow`,
-    other host calls exceed result tracking meanwhile: completed replies are
-    dropped first, so the running one stays tracked.
+    doubted until it completes and is answered. With `overflow`, other host
+    calls exceed result tracking meanwhile: completed replies are dropped
+    first, so the running one stays tracked.
     """
     monkeypatch.setattr(bridge_types, "_MAX_AWAITED_RESULTS", 3)
     bridge = _recording_bridge()
@@ -9397,12 +9395,6 @@ def test_a_running_execution_is_doubted_whatever_answers_arrive(
                 ],
             )
         assert "reply-1" not in bridge._untracked_replies
-    if completed:
-        bridge._await_result_message(
-            running,
-            ToolEvent(id="call_1", function="read_file", arguments=call.arguments),
-        )
-        _answer(bridge, "reply-1", [call], [0])
 
     doubted = []
     for n in (2, 3):
@@ -9410,11 +9402,10 @@ def test_a_running_execution_is_doubted_whatever_answers_arrive(
         [event] = _execute(bridge, f"reply-{n}", [later])
         _answer(bridge, f"reply-{n}", [later], [0])
         doubted.append(event.message_id)
-    if not completed:
-        bridge._await_result_message(
-            running,
-            ToolEvent(id="call_1", function="read_file", arguments=call.arguments),
-        )
+    bridge._await_result_message(
+        running,
+        ToolEvent(id="call_1", function="read_file", arguments=call.arguments),
+    )
 
     assert doubted == [None, None]
 

@@ -566,8 +566,8 @@ class SandboxAgentBridge(AgentBridge):
         last scanned, and the latest, one per call (answers are tracked per
         call); each is dropped at the first scan after its answer arrives or
         its tracking is dropped, so a call is doubted only while it may be
-        retried: while it runs, and once completed at most until
-        `_MAX_AWAITED_RESULTS` later executions (runs of one call count each). The per-tool record drops
+        retried, and at most until `_MAX_AWAITED_RESULTS` later executions
+        (runs of one call count each). The per-tool record drops
         answered calls each time it doubles, so it stays within twice the
         calls of the tool still running or awaiting answers. The work is
         linear in the calls awaiting answers. Reply ids, positions, handouts
