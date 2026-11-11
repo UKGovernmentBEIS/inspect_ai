@@ -3382,6 +3382,48 @@ def test_merge_on_s3(s3_shards: tuple[str, str], s3_root: str) -> None:
     assert not merge_eval_log_shards(merged, _task()).written
 
 
+def test_merge_on_s3_copies_unchanged_members_of_changed_shards_from_the_merged_log(
+    s3_shards: tuple[str, str], s3_root: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    merged, shards = s3_shards
+    assert merge_eval_log_shards(merged, _task()).written
+
+    # rewrite both shards, each with one sample edited: no record is carried,
+    # but the other samples' members match the merged log's
+    for k, edited in (("0", 1), ("1", 4)):
+        [key] = [
+            key
+            for key in _s3_keys(f"{s3_root}/{NAME}.shards/{k}/")
+            if key.endswith(".eval")
+        ]
+        log = read_eval_log(f"s3://test-bucket/{key}")
+        assert log.samples is not None
+        for sample in log.samples:
+            if sample.id == edited:
+                sample.metadata["changed"] = True
+        write_eval_log(log, f"s3://test-bucket/{key}")
+
+    sample_reads: list[tuple[str, str]] = []
+    open_member = AsyncZipReader.open_member_raw
+
+    async def spy_open(self: AsyncZipReader, member: Any) -> Any:
+        if member.filename.startswith("samples/"):
+            sample_reads.append((self._filename, member.filename))
+        return await open_member(self, member)
+
+    monkeypatch.setattr(AsyncZipReader, "open_member_raw", spy_open)
+    assert merge_eval_log_shards(merged, _task()).written
+
+    from_shards = {name for file, name in sample_reads if file.startswith(shards)}
+    assert from_shards == {"samples/1_epoch_1.json", "samples/4_epoch_1.json"}
+    # the rest come from the merged log's local copy
+    from_copy = {name for file, name in sample_reads if not file.startswith("s3://")}
+    assert from_copy == {f"samples/{i}_epoch_1.json" for i in (2, 3, 5, 6)}
+    log = read_eval_log(merged)
+    assert log.samples is not None
+    assert {s.id for s in log.samples if s.metadata.get("changed")} == {1, 4}
+
+
 async def test_concurrent_first_merges_on_s3_publish_once(
     s3_shards: tuple[str, str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
