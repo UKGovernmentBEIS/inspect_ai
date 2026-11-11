@@ -166,9 +166,6 @@ class _AwaitedReply:
     completed: dict[int, int] = field(default_factory=dict)
     """Per call's position, how many executions of it have completed (`_await_result_message`)."""
 
-    completed_at: dict[int, int] = field(default_factory=dict)
-    """Per call's position, `AgentBridge._requests` when its latest execution completed: only a message first sent in a later request can be its result."""
-
     answers: dict[int, set[str]] = field(default_factory=dict)
     """Per call's position, the ids of the distinct messages that answered it (`_link_result_messages`).
 
@@ -179,7 +176,7 @@ class _AwaitedReply:
     """
 
     premature: dict[int, set[str]] = field(default_factory=dict)
-    """Per call's position, the ids of messages that answered it but were first sent before its latest execution completed, which never count among `answers`: the scaffold's own timeout error, say, not the execution's result."""
+    """Per call's position, the ids of messages that answered it while an execution of it still ran, which never count among `answers`: the scaffold's own timeout error, say, not the execution's result."""
 
 
 def _tracked(reply: _AwaitedReply) -> int:
@@ -422,8 +419,6 @@ class AgentBridge:
 
         Like `_awaited_results`, not checkpointed: a resumed bridge links only replies it hands out itself.
         """
-        self._result_first_sent: dict[str, int] = {}
-        """Per `content_hash` of a tool message, the number of the first request that sent it (`_link_result_messages`); not checkpointed, like `_result_sent_in`."""
         self._unlinked_replies: set[str] = set()
         """Ids of handed replies none of whose executions links (`_unlink`)."""
         self._untracked_replies: set[str] = set()
@@ -666,7 +661,6 @@ class AgentBridge:
             reply.unlinkable.add(handed.position)
         reply.events[handed.position] = event
         reply.completed[handed.position] = reply.completed.get(handed.position, 0) + 1
-        reply.completed_at[handed.position] = self._requests
         tracked = sum(_tracked(reply) for reply in self._awaited_results.values())
         while tracked > _MAX_AWAITED_RESULTS:
             # the oldest reply none of whose executions still runs, if any
@@ -692,7 +686,6 @@ class AgentBridge:
         fresh: set[int],
         inferred: set[int],
         sent_in: dict[int, int],
-        first_sent: dict[int, int] | None = None,
     ) -> None:
         """Link awaited host tool executions to their result messages in a request.
 
@@ -712,12 +705,8 @@ class AgentBridge:
         from order (`inferred`), or any result of a call that can't link (an
         unlinked reply's, or `_AwaitedReply.unlinkable`). Every answer
         message is recorded for its call (`_AwaitedReply.answers`), linked or
-        not, unless a request sent it before the call's latest execution
-        completed (`first_sent`, per tool message the first request that sent
-        one equal to it; without it, each is first sent in this request): the
-        scaffold's own timeout error, say, is not the execution's result. A
-        call with no result yet keeps waiting, as does one whose position the
-        placed message doesn't show (its call count differs).
+        not. A call with no result yet keeps waiting, as does one whose
+        position the placed message doesn't show (its call count differs).
         """
         from inspect_ai.log._transcript import transcript
 
@@ -750,17 +739,12 @@ class AgentBridge:
                 if not readable or len(answered) >= runs:
                     continue
                 running = reply.completed.get(position, 0) < runs
-                completed_at = reply.completed_at.get(position, -1)
                 premature = reply.premature.get(position, set())
                 for answer in results.get(calls[position].id, []):
                     answer_id = messages[answer].id
                     if answer_id is None or answer_id in premature:
                         continue
-                    early = running or (
-                        first_sent is not None
-                        and first_sent.get(answer, self._requests) <= completed_at
-                    )
-                    (premature if early else answered).add(answer_id)
+                    (premature if running else answered).add(answer_id)
                 if answered:
                     reply.answers[position] = answered
                 if premature:
@@ -953,10 +937,6 @@ class AgentBridge:
             for index, key in keys.items()
             if key in self._result_sent_in
         }
-        first_sent = {
-            index: self._result_first_sent.setdefault(key, self._requests)
-            for index, key in keys.items()
-        }
         self._link_result_messages(
             messages,
             placed,
@@ -967,7 +947,6 @@ class AgentBridge:
                 if id(message) in inferred
             },
             sent_in,
-            first_sent,
         )
         for key in keys.values():
             self._result_sent_in[key] = self._requests

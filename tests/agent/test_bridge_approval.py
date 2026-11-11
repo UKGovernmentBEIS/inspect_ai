@@ -7057,64 +7057,6 @@ async def test_a_retry_after_its_reply_was_unlinked_gets_no_proposal(
             assert after.tools is None and after.tool_choice is None
 
 
-@pytest.mark.usefixtures("fake_sentinel")
-@pytest.mark.parametrize("answer", ["timeout first", "result"])
-@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
-async def test_a_call_the_scaffold_answered_before_it_ran_stays_doubted(
-    dialect: HostDialect, answer: str
-) -> None:
-    """The scaffold's own answer, sent before its host call ran, is not the call's result.
-
-    Main's scaffold answers the call with its own timeout error before the
-    host call executes; the call then runs, and main's next request sends the
-    timeout again. Its client may still retry the call, so a sub-agent's
-    identical call is checked with no proposal's context. When main answers
-    with the call's result instead, the sub-agent's call keeps its context.
-    """
-    main_call = ToolCall(id="main", function="read_file", arguments={"path": "p"})
-    sub_call = ToolCall(id="sub", function="read_file", arguments={"path": "p"})
-    done = ModelOutput.from_content("mockllm/model", "Done.")
-    # in the order the conversations request them
-    model = get_model(
-        "mockllm/model",
-        custom_outputs=[tool_calls_output(main_call)]
-        + [done] * (2 if answer == "timeout first" else 1)
-        + [tool_calls_output(sub_call), done],
-    )
-    bridge = SandboxAgentBridge(
-        state=AgentState(messages=[]),
-        filter=None,
-        retry_refusals=None,
-        compaction=None,
-        port=13131,
-        model=None,
-        model_aliases={"inspect": model},
-        bridged_tools={"host": {"read_file": read_file(_numbered_results())}},
-    )
-    [info] = declare("read_file")
-    main = _HostConversation(dialect, "MAIN read p.", info)
-    sub = _HostConversation(dialect, "SUB read p.", info)
-    seen: list[AfterToolCall] = []
-    with active_test_sentinel(record_tool_results(seen)):
-        calls = await main.request(bridge)
-        if answer == "timeout first":
-            main.results(calls, ["Tool call timed out."])
-            await main.request(bridge)
-        output = await call_host_tool(bridge)("host", "read_file", {"path": "p"})
-        if answer == "result":
-            main.results(calls, [output])
-        await main.request(bridge)
-        await sub.request(bridge)
-        await call_host_tool(bridge)("host", "read_file", {"path": "p"})
-
-    [after] = [a for a in seen if a.result.text == "p result 2"]
-    if answer == "timeout first":
-        assert after.input is None
-    else:
-        assert after.input is not None
-        assert [m.text for m in after.input] == ["SUB read p."]
-
-
 @pytest.mark.parametrize("calls", [16, 32, 64, 128])
 def test_contesting_identical_pending_calls_is_linear_in_their_grants(
     calls: int, monkeypatch: pytest.MonkeyPatch
@@ -9289,13 +9231,8 @@ def _answer(
     calls: list[ToolCall],
     answered: list[int],
     suffix: str = "",
-    first_sent: int | None = None,
 ) -> None:
-    """Send the reply back with fresh answers to the calls at `answered` (ids ending in `suffix`).
-
-    With `first_sent`, the answers were first sent in that request; without
-    it, in this one.
-    """
+    """Send the reply back with fresh answers to the calls at `answered` (ids ending in `suffix`)."""
     answers = [
         ChatMessageTool(
             id=f"{reply_id}-result-{n}{suffix}",
@@ -9311,9 +9248,6 @@ def _answer(
         set(range(1, len(answers) + 1)),
         set(),
         {},
-        {index: first_sent for index in range(1, len(answers) + 1)}
-        if first_sent is not None
-        else None,
     )
 
 
@@ -9483,41 +9417,6 @@ def test_a_running_execution_is_doubted_whatever_answers_arrive(
         )
 
     assert doubted == [None, None]
-
-
-@pytest.mark.parametrize(
-    "sent",
-    ["before the call started", "while it ran, in a request not placed", "after"],
-)
-def test_an_answer_first_sent_before_the_call_completed_does_not_settle_it(
-    sent: str,
-) -> None:
-    """Only a message first sent after a call's execution completed can be its result.
-
-    The scaffold answers the call (its own timeout error, say) before the
-    grant is consumed, or while the call runs in a request the bridge can't
-    place, and sends that answer again once the call completed: the call
-    still awaits its answer, so a later identical execution is doubted. An
-    answer first sent after the call completed settles it.
-    """
-    bridge = _recording_bridge()
-    call = ToolCall(id="call_1", function="read_file", arguments={"path": "a"})
-    bridge._requests = 1
-    if sent == "before the call started":
-        _answer(bridge, "reply-1", [call], [0], first_sent=1)
-    running = _start(bridge, "reply-1", call)
-    bridge._requests = 2
-    bridge._await_result_message(
-        running, ToolEvent(id="call_1", function="read_file", arguments=call.arguments)
-    )
-    bridge._requests = 3
-    _answer(bridge, "reply-1", [call], [0], first_sent=3 if sent == "after" else 1)
-
-    later = replace(call, id="call_2")
-    [event] = _execute(bridge, "reply-2", [later])
-    _answer(bridge, "reply-2", [later], [0])
-
-    assert event.message_id == ("reply-2-result-0" if sent == "after" else None)
 
 
 def test_a_call_run_again_after_its_tracking_was_dropped_is_doubted(
