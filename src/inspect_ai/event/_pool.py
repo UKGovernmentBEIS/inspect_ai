@@ -5,8 +5,9 @@ Design note — hash-based dedup
 Pool dedup keys on a murmur3 hash of the canonical JSON serialisation of
 each ChatMessage (pydantic field order; dict fields keep insertion order
 through a serialize/parse round-trip, so rebuild-time hashes match),
-excluding the ``id`` field so that messages with identical content but
-different UUIDs are treated as duplicates.
+including the ``id`` field, so a message read back from a log keeps the id
+it was written with. Copies of one message (same id, same content) share an
+entry; messages with the same content and different ids do not.
 
 ``condense_model_event_inputs`` hashes every message and relies on a
 per-call ``id(obj)`` cache; that is O(N) only when a single call spans
@@ -52,17 +53,19 @@ def materialize_pooled_events(
 
 
 def _msg_hash(msg: ChatMessage) -> str:
-    # Preserve Pydantic's canonical JSON for ordinary messages: the stdlib
-    # encoder formats some finite floats differently, which would change
-    # persisted pool hashes. Fall back only when UTF-8 serialization rejects
-    # a lone surrogate; mm3_hash escapes that in the fallback string.
+    # Hash pydantic's canonical serialization (field order is class-definition
+    # order; dict fields keep insertion order through a serialize/parse
+    # round-trip, so rebuild-time hashes match). The stdlib encoder formats
+    # some finite floats differently, which would change persisted pool
+    # hashes, so fall back to it only when UTF-8 serialization rejects a lone
+    # surrogate; mm3_hash escapes that in the fallback string.
     try:
-        return mm3_hash(msg.model_dump_json(exclude={"id"}))
+        return mm3_hash(msg.model_dump_json())
     except PydanticSerializationError as ex:
         if "surrogates not allowed" not in str(ex):
             raise
 
-        dumped = msg.model_dump(mode="json", exclude={"id"})
+        dumped = msg.model_dump(mode="json")
         return mm3_hash(
             json.dumps(
                 dumped,

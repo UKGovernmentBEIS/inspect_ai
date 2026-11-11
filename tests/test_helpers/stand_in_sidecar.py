@@ -1,13 +1,38 @@
 """A stand-in for a model proxy with a sentinel sidecar behind it, for the sidecar client's tests.
 
 The provider SDKs are given an httpx2 client whose transport answers here, so nothing leaves the process. Model calls are answered in the provider's own format, streamed when the request asks, and `request_result` answers with what was decided of each, by its `x-irid`.
+
+It checks credentials as the sidecar does: it keeps the token an eval's first registration sends, never hands one back, and refuses a call or a model request whose signature doesn't match that token or whose timestamp is outside its window. A model request's signature covers its `x-irid`, and one without an `x-irid` is refused. The signatures are checked here with the standard library, not with Inspect's own signing, so the two are checked against each other.
 """
 
+import hashlib
+import hmac
 import json
+import time
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
 import httpx2
+
+ENDPOINT = "/sentinel/v1"
+"""Where the endpoint for evals is served."""
+
+WINDOW = 300
+"""How far a signature's timestamp may be from the sidecar's clock, in seconds."""
+
+INVALID_PARAMS = -32602
+UNKNOWN_SAMPLE = -32002
+UNKNOWN_TASK = -32009
+UNAUTHORIZED = -32010
+
+_SIGNED_CONTEXT = (
+    "task",
+    "sample_id",
+    "epoch",
+    "sample_uuid",
+    "attempt",
+    "attempt_number",
+)
 
 
 @dataclass
@@ -23,6 +48,9 @@ class Turn:
 
     status: int = 200
     """An error status refuses the call, with an error in the provider's format."""
+
+    later: float = 0.0
+    """How many seconds the stand-in's clock moves on once the turn is answered, as during a long backoff before a retry. It needs `StandInSidecar.now` set."""
 
     stop_reason: str | None = None
     """An Anthropic stop reason in place of the one the turn's content gives, such as `pause_turn`."""
@@ -49,13 +77,22 @@ class StandInSidecar:
     )
     """Answers to the endpoint's methods, by name: each returns the JSON-RPC result, or an `error` object to answer with."""
 
+    echoed: dict[str, int] = field(default_factory=dict)
+    """The methods answered with an HTTP error of this status whose body repeats the request, as a proxy's error page may."""
+
     turns: list[Turn] = field(default_factory=list)
     """The replies to model calls, in order. A call past the last is answered with a plain `Turn()`."""
 
-    token: str = "token-1"
-    """The token `register_task` gives the eval, unless `methods` answers it."""
+    tokens: dict[str, str] = field(default_factory=dict)
+    """The token kept for each eval, by its id, from its first registration. Clearing it is a restart that lost them."""
+
+    now: float | None = None
+    """The stand-in's clock, in seconds since the epoch, or None to read the real one."""
 
     requests: list[httpx2.Request] = field(default_factory=list)
+
+    refused: list[str] = field(default_factory=list)
+    """Why each call or model request refused for its credentials was refused, in order."""
 
     judgments: dict[str, dict[str, Any]] = field(default_factory=dict)
     """What was decided of each model call whose turn says, by its `x-irid`: the latest attempt's."""
@@ -66,9 +103,7 @@ class StandInSidecar:
 
     @property
     def calls(self) -> list[dict[str, Any]]:
-        return [
-            json.loads(r.content) for r in self.requests if r.url.path == "/sentinel/v1"
-        ]
+        return [json.loads(r.content) for r in self.requests if r.url.path == ENDPOINT]
 
     @property
     def model_calls(self) -> list[httpx2.Request]:
@@ -87,16 +122,29 @@ class StandInSidecar:
                 self.probe_statuses.pop(0) if self.probe_statuses else self.probe_status
             )
             return httpx2.Response(status, json=self.info)
-        if path == "/sentinel/v1":
+        if path == ENDPOINT:
             call = json.loads(request.content)
-            params = call["params"]
-            if call["method"] == "request_result" and params["id"] in self.judgments:
+            method, params = call["method"], call["params"]
+            if method in self.echoed:
+                return httpx2.Response(
+                    self.echoed[method],
+                    json={
+                        "error": {"type": "error", "message": request.content.decode()}
+                    },
+                )
+            refused = self._unaccepted(method, params)
+            if refused is not None:
+                answer = refused
+            elif method == "request_result" and params["id"] in self.judgments:
                 # a turn that says what was decided of it is answered so
                 answer = self._default("request_result")(params)
             else:
-                answer = self.methods.get(
-                    call["method"], self._default(call["method"])
-                )(params)
+                answer = self.methods.get(method, self._default(method))(params)
+            if method == "register_task" and "error" not in answer:
+                # kept only once the registration succeeds
+                token = params.get("token")
+                if token is not None:
+                    self.tokens.setdefault(params["eval_id"], token)
             body: dict[str, Any] = {"jsonrpc": "2.0", "id": call["id"]}
             if "error" in answer:
                 body["error"] = answer["error"]
@@ -105,20 +153,116 @@ class StandInSidecar:
             return httpx2.Response(200, json=body)
         if path in _MODEL_ROUTES:
             asked = json.loads(request.content)
+            context = request.headers.get("x-inspect-context")
+            if context is not None:
+                unread = self._unread(context, request.headers.get("x-irid"))
+                if unread is not None:
+                    # refused and not judged, as the sidecar does
+                    self.refused.append(unread)
+                    return httpx2.Response(
+                        400, json={"error": {"type": "error", "message": unread}}
+                    )
             turn = self.turns.pop(0) if self.turns else Turn()
             irid = request.headers.get("x-irid")
             if irid is not None and turn.judgment is not None:
                 self.judgments[irid] = turn.judgment
-            return _MODEL_ROUTES[path](turn, bool(asked.get("stream")), asked)
+            answered = _MODEL_ROUTES[path](turn, bool(asked.get("stream")), asked)
+            if turn.later:
+                assert self.now is not None, "a turn's `later` needs `now` set"
+                self.now += turn.later
+            return answered
         return httpx2.Response(404, json={"error": f"no route {path}"})
 
+    def clock(self) -> float:
+        """The stand-in's time, in seconds since the epoch."""
+        return self.now if self.now is not None else time.time()
+
+    def _signed(
+        self, token: str, values: list[Any], timestamp: Any, mac: Any
+    ) -> str | None:
+        # why a signature isn't accepted, or None when it is
+        if not isinstance(timestamp, int) or not isinstance(mac, str):
+            return "the timestamp or the mac is missing"
+        off = timestamp - self.clock()
+        if abs(off) > WINDOW:
+            return f"the timestamp is {off:+.0f} seconds from the sidecar's clock"
+        message = json.dumps([str(v) for v in values], separators=(",", ":"))
+        expected = hmac.new(token.encode(), message.encode(), hashlib.sha256)
+        if not hmac.compare_digest(expected.hexdigest(), mac):
+            return "the mac doesn't match"
+        return None
+
+    def _unaccepted(self, method: str, params: dict[str, Any]) -> dict[str, Any] | None:
+        # the answer to a call whose credentials aren't accepted, as the
+        # sidecar gives it, or None for one that goes on to the method
+        eval_id = params.get("eval_id")
+        held = self.tokens.get(eval_id) if isinstance(eval_id, str) else None
+        signed = "timestamp" in params and "mac" in params
+        partly = ("timestamp" in params) != ("mac" in params)
+        if method == "register_task":
+            # exactly one of a token and a signature
+            token = params.get("token")
+            if (token is not None) == signed or partly:
+                return self._refuse(INVALID_PARAMS, "send a token or a signature")
+            if token is not None:
+                if not isinstance(token, str) or len(token) < 32:
+                    return self._refuse(INVALID_PARAMS, "the token is too short")
+                if held is not None and not hmac.compare_digest(held, token):
+                    return self._refuse(UNAUTHORIZED, "another token")
+                return None
+            if held is None:
+                return self._refuse(UNKNOWN_TASK, "no token held for the eval")
+        else:
+            if "token" in params or not signed:
+                return self._refuse(INVALID_PARAMS, "send a signature, not a token")
+            if held is None:
+                # a sidecar that holds no token for the eval holds nothing of it
+                return _holds_nothing(method, params)
+        assert held is not None
+        why = self._signed(
+            held,
+            [method, eval_id, params["timestamp"]],
+            params["timestamp"],
+            params["mac"],
+        )
+        return self._refuse(UNAUTHORIZED, why) if why is not None else None
+
+    def _refuse(self, code: int, message: str) -> dict[str, Any]:
+        self.refused.append(message)
+        return {"error": {"code": code, "message": message}}
+
+    def _unread(self, header: str, irid: str | None) -> str | None:
+        # why a model request's `x-inspect-context` isn't accepted, or None
+        # when it is; its signature covers the request's `x-irid`
+        try:
+            context = json.loads(header)
+        except ValueError:
+            return "the header isn't JSON"
+        if not isinstance(context, dict) or context.get("version") != 1:
+            return "the header isn't version 1"
+        if "token" in context:
+            return "the header carries a token"
+        held = self.tokens.get(context.get("eval_id", ""))
+        if held is None:
+            return "the sidecar holds no registration of the eval"
+        if any(name not in context for name in _SIGNED_CONTEXT):
+            return "the header lacks a field"
+        if irid is None:
+            return "the request has no x-irid"
+        values = [
+            "model-request",
+            *(context[name] for name in _SIGNED_CONTEXT),
+            irid,
+            context.get("timestamp"),
+        ]
+        return self._signed(held, values, context.get("timestamp"), context.get("mac"))
+
     def _default(self, method: str) -> Callable[[dict[str, Any]], dict[str, Any]]:
-        # a registration gives the token; a call whose turn says what was
+        # a registration never gives a token; a call whose turn says what was
         # decided is answered with it
         if method == "register_task":
             return lambda params: {
                 "eval_id": params.get("eval_id"),
-                "token": self.token,
                 "task": params.get("task"),
                 "samples": len(params.get("sample_ids", [])),
                 "fixed": False,
@@ -142,6 +286,20 @@ class StandInSidecar:
                 "store": {},
             }
         return lambda params: {}
+
+
+def _holds_nothing(method: str, params: dict[str, Any]) -> dict[str, Any]:
+    # the answer of a sidecar that holds no token for the eval, as after a
+    # restart: it holds nothing of the eval for anyone
+    if method == "complete_registration":
+        return {"error": {"code": UNKNOWN_TASK, "message": "no token for the eval"}}
+    if method == "request_result":
+        return {"id": params.get("id"), "records": "unknown"}
+    if method == "sample_result":
+        return {"error": {"code": UNKNOWN_SAMPLE, "message": "nothing for the sample"}}
+    if method == "end_sample":
+        return {"sample_uuid": params.get("sample_uuid"), "state": "unknown"}
+    return {"error": {"code": INVALID_PARAMS, "message": f"no method {method}"}}
 
 
 def _anthropic(turn: Turn, stream: bool, asked: dict[str, Any]) -> httpx2.Response:
