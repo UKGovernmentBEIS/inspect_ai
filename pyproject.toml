@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 # tagless shallow clone. Without it the project builds as 0.1.devN, below the
 # inspect-ai floor of dev dependencies like inspect-scout, and `uv lock` fails.
 # Release Please updates it with each release.
-fallback_version = "0.3.288"
+fallback_version = "0.3.289"
 git_describe_command = [
   'git',
   'describe',
@@ -234,7 +234,7 @@ dev = [
   "groq>=0.28.0",
   "huggingface_hub>=1.6.0",
   "inspect-scout>=0.5.5",
-  "inspect-sentinel>=0.3.0",
+  "inspect-sentinel>=0.3.1",
   "ipython",
   "jsonpath-ng",
   "latex2sympy2-extended==1.11.0",
@@ -331,8 +331,10 @@ dev = ["inspect_ai[dev]"]
 [tool.uv]
 cache-keys = [{ git = { commit = true } }, { file = "pyproject.toml" }]
 default-groups = ["dev"]
-# 0.11.8 is the first uv that keeps uv.lock stable with a relative exclude-newer.
-required-version = ">=0.11.8"
+# 0.11.8 is the first uv that keeps uv.lock stable with a relative exclude-newer,
+# and 0.13.4 the first that no longer trusts the compromised emSign root
+# (GHSA-hq85-5cpj-mr62).
+required-version = ">=0.13.4"
 # Only resolve releases at least 7 days old (see CONTRIBUTING.md).
 exclude-newer = "7 days"
 
@@ -343,7 +345,8 @@ azure-ai-inference = "6 hours"
 google-genai = "6 hours"
 groq = "6 hours"
 inspect-scout = "6 hours"
-inspect-sentinel = "6 hours"
+# A one-time dated entry, for the release whose signature checks Inspect now needs. Put back to "6 hours" by 2026-11-17 (see CONTRIBUTING.md).
+inspect-sentinel = "2026-11-10T18:45:00Z"
 mistralai = "6 hours"
 openai = "6 hours"
 together = "6 hours"
