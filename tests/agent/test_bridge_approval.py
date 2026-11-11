@@ -10,7 +10,7 @@ import inspect
 import json
 import logging
 import re
-from collections import deque
+from collections import OrderedDict, deque
 from contextlib import contextmanager
 from dataclasses import replace
 from functools import partial
@@ -53,6 +53,7 @@ from test_helpers.utils import (
 )
 
 import inspect_ai._util.logger as inspect_logger
+import inspect_ai.agent._bridge.sandbox.types as sandbox_types
 import inspect_ai.agent._bridge.types as bridge_types
 from inspect_ai import Task, eval
 from inspect_ai._sentinel._config import resolve_sentinel_root, resolve_sentinel_spec
@@ -65,6 +66,7 @@ from inspect_ai.agent._acp.transport import AcpUpdate
 from inspect_ai.agent._acp.transport_live import LiveAcpTransport
 from inspect_ai.agent._agent import Agent, AgentState, agent
 from inspect_ai.agent._bridge._approval import MAX_CONSECUTIVE_REJECTIONS
+from inspect_ai.agent._bridge._sentinel import BridgedRequest, SentinelCheck
 from inspect_ai.agent._bridge.anthropic_api import inspect_anthropic_api_request
 from inspect_ai.agent._bridge.bridge import agent_bridge
 from inspect_ai.agent._bridge.completions import inspect_completions_api_request
@@ -82,7 +84,7 @@ from inspect_ai.agent._bridge.sandbox.types import (
     _Proposal,
     _ToolExecutionGrant,
 )
-from inspect_ai.agent._bridge.types import AgentBridge
+from inspect_ai.agent._bridge.types import AgentBridge, BridgedToolId
 from inspect_ai.agent._bridge.util import (
     bridge_generate,
     default_code_execution_providers,
@@ -6761,6 +6763,76 @@ async def test_host_results_two_conversations_could_have_run_get_no_proposal(
         for after in reported:
             assert after.input is None
             assert after.tools is None and after.tool_choice is None
+
+
+@pytest.mark.parametrize("calls", [16, 32, 64, 128])
+def test_contesting_identical_pending_calls_is_linear_in_their_grants(
+    calls: int, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An execution matching identical pending calls records one contest of them.
+
+    The contest is shared by the proposals it matched, not copied into each,
+    and the executions draining the other calls, matching only calls already
+    in it, record none. The proposals the sentinel keeps are scanned once, not
+    once per call made ambiguous. Each result is still recorded for every
+    call it could be.
+    """
+    bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)
+    handed = [
+        ToolCall(id=f"call_{i}", function="read_file", arguments={"path": "p"})
+        for i in range(calls)
+    ]
+    checks = bridge._handouts.hand_over(
+        BridgedRequest("request", frozenset()),
+        handed,
+        handed,
+        [
+            SentinelCheck(
+                call,
+                call,
+                None,
+                "",
+                "",
+                target=BridgedToolId(server="host", tool="read_file"),
+            )
+            for call in handed
+        ],
+    )
+    bridge._register_tool_execution_grants(handed, declare("read_file"), checks)
+    grants = list(bridge._tool_execution_grants)
+
+    written = 0
+
+    class CountingContest(sandbox_types._Contest):
+        def __init__(self, handouts: dict[tuple[str, str], ToolCall]) -> None:
+            nonlocal written
+            written += len(handouts)
+            super().__init__(handouts)
+
+    scans = 0
+
+    class CountingProposals(OrderedDict[tuple[str, str], SentinelCheck]):
+        def __iter__(self) -> Iterator[tuple[str, str]]:
+            nonlocal scans
+            scans += 1
+            return super().__iter__()
+
+    monkeypatch.setattr(sandbox_types, "_Contest", CountingContest)
+    bridge._handouts.proposals = CountingProposals(bridge._handouts.proposals)
+
+    def memberships() -> int:
+        return sum(len(grant.proposal.contests) for grant in grants)
+
+    bridge.consume_tool_execution_grant("host", "read_file", {"path": "p"})
+    assert (written, memberships(), scans) == (calls, calls, 1)
+    while bridge._tool_execution_grants:
+        bridge.consume_tool_execution_grant("host", "read_file", {"path": "p"})
+    assert (written, memberships(), scans) == (calls, calls, 1)
+    assert all(
+        {call.id for call in bridge.result_executions(grant)}
+        == {call.id for call in handed}
+        for grant in grants
+    )
 
 
 @agent

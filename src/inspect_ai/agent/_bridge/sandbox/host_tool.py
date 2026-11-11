@@ -29,7 +29,7 @@ from inspect_ai.model._call_tools import (
     validate_tool_input,
 )
 from inspect_ai.tool._tool import Tool, ToolError, ToolParsingError, ToolResult
-from inspect_ai.tool._tool_call import ToolCallContent, ToolCallError
+from inspect_ai.tool._tool_call import ToolCall, ToolCallContent, ToolCallError
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.util._anyio import inner_exception
 from inspect_ai.util._limit import LimitExceededError
@@ -454,8 +454,8 @@ class _Attribution(NamedTuple):
     check: SentinelCheck | None
     """The result's check, or None without a sentinel."""
 
-    executions: list[SentinelCheck]
-    """The executions the result is recorded as checked for, when the check
+    executions: list[ToolCall]
+    """The handed calls the result is recorded as checked for, when the check
     has no proposal's context (`sentinel_host_tool_result` `candidates`);
     empty for `check`'s own."""
 
@@ -528,7 +528,7 @@ async def _check_result(
     bridge: SandboxAgentBridge,
     check: SentinelCheck,
     outcome: _Outcome,
-    candidates: list[SentinelCheck],
+    candidates: list[ToolCall],
 ) -> None:
     content: str | list[Content]
     error: ToolCallError | None = None

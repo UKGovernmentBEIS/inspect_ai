@@ -454,26 +454,30 @@ class _Handouts:
                 read_back=(*record.read_back, (back_key, key))
             )
 
-    def contest(self, checks: Iterable[SentinelCheck]) -> None:
-        """Make the calls of `checks` ambiguous: a host execution may be any of their handouts.
+    def contest(self, calls: Iterable[ToolCall]) -> None:
+        """Make the handed `calls` ambiguous: a host execution may be any of their handouts.
 
         A host call carries no call id, so this is how an execution matching
         proposals of several handouts is recorded. As for a call handed over
         in two requests, none of the calls' results gets a proposal's context
         from then on, whether the host executor checks it (`latest`) or the
-        scaffold reports it (`claim`).
+        scaffold reports it (`claim`). The proposals are scanned once for
+        the calls made ambiguous, if any.
         """
-        for call_id in {check.handed.id for check in checks}:
+        contested: set[str] = set()
+        for call_id in {call.id for call in calls}:
             handed = self.handed.get(call_id)
             if handed is None or handed.ambiguous:
                 continue
             self.handed[call_id] = handed._replace(ambiguous=True)
-            for stale in [k for k in self.proposals if k[0] == call_id]:
+            contested.add(call_id)
+        if contested:
+            for stale in [k for k in self.proposals if k[0] in contested]:
                 del self.proposals[stale]
 
-    def handout(self, check: SentinelCheck) -> tuple[str, str]:
-        """The handout `check` is of: its call's id and the call as handed (`_call_key`)."""
-        return (check.handed.id, _call_key(check.handed))
+    def handout(self, call: ToolCall) -> tuple[str, str]:
+        """The handout a handed `call` is of: its id and the call as handed (`_call_key`)."""
+        return (call.id, _call_key(call))
 
     def latest(self, check: SentinelCheck) -> SentinelCheck | None:
         """The check for the latest handout of `check`'s call, with its handed arguments, and target.
@@ -489,7 +493,7 @@ class _Handouts:
         handed = self.handed.get(check.handed.id)
         if handed is not None and handed.ambiguous:
             return None
-        proposal = self.proposals.get(self.handout(check))
+        proposal = self.proposals.get(self.handout(check.handed))
         if proposal is None:
             return check
         return next(
@@ -857,14 +861,14 @@ async def sentinel_host_tool_result(
     output: ToolResult,
     error: ToolCallError | None = None,
     truncated: tuple[int, int] | Literal[False] = False,
-    candidates: Sequence[SentinelCheck] = (),
+    candidates: Sequence[ToolCall] = (),
 ) -> None:
     """Check a host call's result as delivered, recording it for its executions.
 
     The result is recorded as checked for the call, or, for a call that
-    matched proposals of several calls (`candidates`, when the service can't
-    tell which execution it is), for each of them, so the scaffold reporting it
-    is not checked again. A host call no proposal accounts for was handed over
+    matched proposals of several calls (`candidates`, those calls as handed,
+    when the service can't tell which execution it is), for each of them, so
+    the scaffold reporting it is not checked again. A host call no proposal accounts for was handed over
     as no call, so no result the scaffold reports can match it.
 
     The call is the bridged scaffold's, so the check does not see the enclosing
@@ -877,17 +881,19 @@ async def sentinel_host_tool_result(
         function=check.call.function,
         error=error,
     )
-    executions = candidates or ([check] if check.execution_id is not None else [])
+    executions = candidates or (
+        [check.handed] if check.execution_id is not None else []
+    )
     keys: list[str] = []
     content_keys: dict[str, str] = {}
     for execution in executions:
         # as the scaffold reports it: under the function it was handed
-        function = execution.handed.function
+        function = execution.function
         if function not in content_keys:
             content_keys[function] = _content_key(
                 result.model_copy(update={"function": function})
             )
-        keys += bridge._handouts.result_keys(execution.handed, content_keys[function])
+        keys += bridge._handouts.result_keys(execution, content_keys[function])
     keys = keys or [f"unproposed:{uuid()}"]
     with bridge_request():
         await bridge._handouts.check_running(
