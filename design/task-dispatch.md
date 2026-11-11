@@ -840,8 +840,10 @@ restored afterwards. In place of the `chdir`:
     addition); the single dispatcher also overlaps an added task's setup
     with running samples in plain evals, and
     [task-dispatch-setup.md](task-dispatch-setup.md) overlaps the seed's
-    setups too. The fix belongs in inspect-podman: a generated file per
-    project, as Inspect's Docker writes them.
+    setups too. The fix belongs in inspect-podman, a generated file per
+    project as Inspect's Docker writes them, and is a provider follow-up
+    that no step here waits for (decision: Ransom, 2026-11-11; see
+    "Compatibility and migration").
   - Proxmox resolves a relative `PROXMOX_CONFIG_FILE` against the launch
     directory, as its `default_concurrency()` and `cli_cleanup()` already do.
     A run whose file is found only relative to the task directory falls back
@@ -1005,6 +1007,17 @@ task directory also has a Dockerfile at that path, now build the task
 directory's; to keep the launch directory's, write the build context as an
 absolute path. A file-based config (a compose file path) is unaffected:
 its contexts already resolve against the compose file's directory.
+
+Known inspect-podman limitation, until it writes a generated compose file
+per project: with an inline `ComposeConfig` or a missing config, a Podman
+`task_init` that overlaps running Podman samples rewrites their shared
+`.compose.yaml` in the launch directory and, if it fails, deletes it, so
+those samples can lose their compose file. Overlap comes from a task added
+while others run, a `SampleSource` addition, the live `TaskSource` path, and
+(with [task-dispatch-setup.md](task-dispatch-setup.md)) the seed's own
+setups. A config given as a compose file is unaffected. The fix is a
+provider follow-up, not a gate for any step here (decision: Ransom,
+2026-11-11).
 
 Public API:
 
@@ -1236,10 +1249,19 @@ Then, each needing only step 3 and in either order:
 - **Setup beside the dispatcher**, one PR:
   [task-dispatch-setup.md](task-dispatch-setup.md).
 
-Follow-ups in provider repositories, none a gate: inspect_sandboxes adds the
-per-provider cleanup tests; UKGovernmentBEIS/inspect_proxmox_sandbox
-documents `PROXMOX_CONFIG_FILE` as launch-relative, or warns when a set file
-is not found.
+Follow-ups in provider repositories, none a gate (decision: Ransom,
+2026-11-11, for Podman):
+
+- inspect_sandboxes adds the per-provider cleanup tests and the offline
+  Modal and Daytona converter tests.
+- UKGovernmentBEIS/inspect_proxmox_sandbox documents `PROXMOX_CONFIG_FILE`
+  as launch-relative, or warns when a set file is not found.
+- VectorInstitute/inspect-podman writes a generated compose file per
+  project, as Inspect's Docker provider does (in progress). Its test runs
+  sample A while setup B writes its generated file and then fails, with an
+  inline `ComposeConfig` and with a missing config, and checks that A's
+  compose file is unchanged and still present; a file-based config (a
+  compose file path) is the control.
 
 ## Open questions
 
